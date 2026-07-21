@@ -1,4 +1,5 @@
 import SwiftUI
+import EnoUI
 
 // The results-surface filter entry + the price-range sheet (VND, mirroring the
 // web's priceMin/priceMax). More facets (area, condition) join here later.
@@ -7,17 +8,9 @@ struct FilterChip: View {
     let action: () -> Void
 
     var body: some View {
-        Button(action: action) {
-            HStack(spacing: 4) {
-                Image(systemName: "slider.horizontal.3").font(.system(size: 12, weight: .semibold))
-                Text(L10n.tr("Filter", "Lọc")).font(.system(size: 13, weight: .semibold))
-            }
-            .foregroundStyle(active ? Color.white : Tokens.fg)
-            .padding(.horizontal, 13)
-            .frame(height: 30)
-            .background(active ? Tokens.brand : Tokens.tint, in: Capsule())
-        }
-        .buttonStyle(.plain)
+        // Same chip primitive as the applied-filter chips it sits beside in the
+        // results strip; `active` is the selected (brand-filled) state.
+        EnoChip(L10n.tr("Filter", "Lọc"), icon: "slider.horizontal.3", selected: active, action: action)
     }
 }
 
@@ -46,19 +39,27 @@ struct PriceFilterSheet: View {
         NavigationStack {
             Form {
                 Section(L10n.tr("Verified", "Xác thực")) {
+                    // TODO(EnoUI): EnoUI ships no toggle primitive yet — native Toggle stays.
                     Toggle(L10n.tr("Verified listings only", "Chỉ tin đã xác thực"), isOn: bindVerified)
                 }
                 Section(L10n.tr("Condition", "Tình trạng")) {
-                    Picker(L10n.tr("Condition", "Tình trạng"), selection: bindCondition) {
-                        Text(L10n.tr("Any", "Tất cả")).tag("")
-                        Text(L10n.tr("New", "Mới")).tag("new")
-                        Text(L10n.tr("Used", "Đã dùng")).tag("used")
+                    // Same three tags ("" / new / used) as before — only the control is
+                    // the primitive now, so it carries the brand tint + selection haptic.
+                    EnoSegmentedControl(
+                        selection: bindCondition,
+                        options: ["", "new", "used"],
+                        accessibilityLabel: L10n.tr("Condition", "Tình trạng")
+                    ) { value in
+                        switch value {
+                        case "new": return L10n.tr("New", "Mới")
+                        case "used": return L10n.tr("Used", "Đã dùng")
+                        default: return L10n.tr("Any", "Tất cả")
+                        }
                     }
-                    .pickerStyle(.segmented)
                 }
                 Section(L10n.tr("Price (VND)", "Giá (đ)")) {
-                    TextField(L10n.tr("From", "Từ"), text: $minText).keyboardType(.numberPad)
-                    TextField(L10n.tr("To", "Đến"), text: $maxText).keyboardType(.numberPad)
+                    EnoField(placeholder: L10n.tr("From", "Từ"), text: $minText, kind: .number)
+                    EnoField(placeholder: L10n.tr("To", "Đến"), text: $maxText, kind: .number)
                 }
                 ForEach(applicable) { facet in facetSection(facet) }
             }
@@ -76,17 +77,10 @@ struct PriceFilterSheet: View {
             // condition / verified already applied live, so the count is live; the button
             // just closes and any typed price/range commits on dismiss (.onDisappear).
             .safeAreaInset(edge: .bottom) {
-                Button { dismiss() } label: {
-                    Text(applyLabel)
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(.white)
-                        .frame(maxWidth: .infinity).frame(height: 52)
-                        .background(Tokens.brand, in: RoundedRectangle(cornerRadius: 14))
-                }
-                .buttonStyle(.plain)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
-                .background(.bar)
+                EnoButton(applyLabel, size: .large) { dismiss() }
+                    .padding(.horizontal, EnoSpacing.screenGutter)
+                    .padding(.vertical, 10)
+                    .background(.bar)
             }
             .onDisappear { commit() }
             .task {
@@ -111,14 +105,17 @@ struct PriceFilterSheet: View {
         Section(f.displayLabel) {
             switch f.kind {
             case "range":
+                // TODO(EnoUI): EnoField has no `.decimal` kind — its `.number` case forces
+                // .numberPad, which would stop a facet range like area/engine size from
+                // accepting "1.5". Stays a raw TextField until the primitive gains it.
                 if let r = f.range {
                     HStack {
                         TextField(L10n.tr("Min", "Nhỏ nhất"), text: bindRange(r.column, lo: true)).keyboardType(.decimalPad)
-                        if let u = r.unit { Text(u).foregroundStyle(Tokens.sub) }
+                        if let u = r.unit { Text(u).foregroundStyle(EnoColor.sub) }
                     }
                     HStack {
                         TextField(L10n.tr("Max", "Lớn nhất"), text: bindRange(r.column, lo: false)).keyboardType(.decimalPad)
-                        if let u = r.unit { Text(u).foregroundStyle(Tokens.sub) }
+                        if let u = r.unit { Text(u).foregroundStyle(EnoColor.sub) }
                     }
                 }
             case "select":
@@ -126,20 +123,14 @@ struct PriceFilterSheet: View {
                     Text(L10n.tr("Any", "Tất cả")).tag("")
                     ForEach(f.options) { o in Text(o.displayName).tag(o.value) }
                 }
-            default: // toggle → single-select capsule chips
+            default: // toggle → single-select chips
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
                         ForEach(f.options) { o in
                             let sel = model.customFilters["attr_\(f.key)"] == o.value
-                            Button {
+                            EnoChip(o.displayName, selected: sel) {
                                 toggleAttr(f.key, o.value)  // re-tap clears; applies live
-                            } label: {
-                                Text(o.displayName).font(.system(size: 13, weight: .semibold))
-                                    .foregroundStyle(sel ? .white : Tokens.fg)
-                                    .padding(.horizontal, 12).frame(height: 30)
-                                    .background(sel ? Tokens.brand : Tokens.tint, in: Capsule())
                             }
-                            .buttonStyle(.plain)
                         }
                     }
                 }

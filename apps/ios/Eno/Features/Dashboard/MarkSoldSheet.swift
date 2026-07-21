@@ -1,5 +1,6 @@
 import SwiftUI
 import Observation
+import EnoUI
 
 // "Mark sold" confirmation with attribution (owner: the seller confirms, picks WHO
 // they sold to — a buyer from a past conversation, or an external marketplace they
@@ -63,57 +64,60 @@ struct MarkSoldSheet: View {
     }
 
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    listingHeader
-                    Text(L10n.tr("Who did you sell to?", "Bạn đã bán cho ai?"))
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(Tokens.fg)
-
-                    // In-app buyers (from conversations about this listing).
-                    if !model.buyers.isEmpty {
-                        VStack(spacing: 8) {
-                            ForEach(model.buyers) { b in buyerRow(b) }
-                        }
-                    } else if model.loaded {
-                        Text(L10n.tr("No one messaged you about this listing.",
-                                     "Chưa có ai nhắn tin về tin này."))
-                            .font(.system(size: 13)).foregroundStyle(Tokens.sub)
+        // Scaffold owns the nav title, the Cancel item and the pinned CTA (it renders the
+        // same Divider + .bar footer this screen used to hand-roll).
+        EnoSheetScaffold(
+            title: L10n.tr("Mark as sold", "Đánh dấu đã bán"),
+            dismissLabel: L10n.tr("Cancel", "Hủy"),
+            onDismiss: { dismiss() },
+            primaryAction: EnoSheetAction(
+                title: L10n.tr("Mark sold", "Đánh dấu đã bán"),
+                loading: model.working,
+                handler: {
+                    Task {
+                        let ok = await model.markSold(soldBody())
+                        if ok { onSold(); dismiss() }
                     }
-
-                    // Sold elsewhere + free-text platform.
-                    externalRow
-
-                    // No attribution.
-                    optionRow(.none, icon: "questionmark.circle",
-                              title: L10n.tr("Prefer not to say", "Không muốn nói"))
                 }
-                .padding(16)
-            }
-            .background(Tokens.canvas)
-            .navigationTitle(L10n.tr("Mark as sold", "Đánh dấu đã bán"))
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button(L10n.tr("Cancel", "Hủy")) { dismiss() }.foregroundStyle(Tokens.sub)
+            )
+        ) {
+            VStack(alignment: .leading, spacing: EnoSpacing.s4) {
+                listingHeader
+                Text(L10n.tr("Who did you sell to?", "Bạn đã bán cho ai?"))
+                    .enoText(.subheadline, color: EnoColor.fg, weight: .semibold)
+
+                // In-app buyers (from conversations about this listing).
+                if !model.buyers.isEmpty {
+                    VStack(spacing: EnoSpacing.s2) {
+                        ForEach(model.buyers) { b in buyerRow(b) }
+                    }
+                } else if model.loaded {
+                    Text(L10n.tr("No one messaged you about this listing.",
+                                 "Chưa có ai nhắn tin về tin này."))
+                        .enoText(.caption, color: EnoColor.sub)
                 }
+
+                // Sold elsewhere + free-text platform.
+                externalRow
+
+                // No attribution.
+                optionRow(.none, icon: "questionmark.circle",
+                          title: L10n.tr("Prefer not to say", "Không muốn nói"))
             }
-            .safeAreaInset(edge: .bottom) { confirmBar }
-            .task { await model.load() }
         }
+        .task { await model.load() }
     }
 
     private var listingHeader: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: EnoSpacing.s3) {
             AsyncImage(url: listing.images.first.flatMap { ImageURL.optimized($0, width: 128) }) { phase in
-                if case .success(let img) = phase { img.resizable().scaledToFill() } else { Tokens.tint }
+                if case .success(let img) = phase { img.resizable().scaledToFill() } else { EnoColor.tint }
             }
             .frame(width: 48, height: 48)
-            .clipShape(RoundedRectangle(cornerRadius: 9))
+            .clipShape(RoundedRectangle(cornerRadius: EnoRadius.control))
             VStack(alignment: .leading, spacing: 2) {
-                Text(listing.displayTitle).font(.system(size: 15, weight: .semibold)).foregroundStyle(Tokens.fg).lineLimit(1)
-                Text(Format.vnd(listing.price)).font(.system(size: 14, weight: .bold)).foregroundStyle(Tokens.brand)
+                Text(listing.displayTitle).enoText(.subheadline, color: EnoColor.fg, weight: .semibold).lineLimit(1)
+                Text(Format.vnd(listing.price)).enoText(.subheadline, color: EnoColor.brand, weight: .bold)
             }
             Spacer(minLength: 0)
         }
@@ -121,121 +125,86 @@ struct MarkSoldSheet: View {
 
     private func buyerRow(_ b: BuyerRow) -> some View {
         let selected = pick == .buyer(b.profileId)
-        return Button {
-            pick = .buyer(b.profileId); platformFocused = false
-        } label: {
-            HStack(spacing: 12) {
-                avatar(b)
-                Text(b.displayName).font(.system(size: 15, weight: .medium)).foregroundStyle(Tokens.fg).lineLimit(1)
-                Spacer(minLength: 8)
-                radio(selected)
-            }
-            .padding(12)
-            .background(Tokens.card, in: RoundedRectangle(cornerRadius: Tokens.radiusCard))
-            .overlay(RoundedRectangle(cornerRadius: Tokens.radiusCard)
-                .strokeBorder(selected ? Tokens.brand.opacity(0.5) : Color.clear, lineWidth: 1))
-        }
-        .buttonStyle(.plain)
+        // The card fill + selected ring stay on the OUTSIDE: an EnoListRow is full-bleed by
+        // design, so the surface belongs to the caller.
+        return EnoListRow(
+            title: b.displayName,
+            leading: { avatar(b) },
+            trailing: { radio(selected) },
+            action: { pick = .buyer(b.profileId); platformFocused = false }
+        )
+        .background(EnoColor.card, in: RoundedRectangle(cornerRadius: EnoRadius.card))
+        .overlay(RoundedRectangle(cornerRadius: EnoRadius.card)
+            .strokeBorder(selected ? EnoColor.brand.opacity(0.5) : Color.clear, lineWidth: 1))
     }
 
     private var externalRow: some View {
         let selected = pick == .external
         return VStack(spacing: 0) {
-            Button {
-                pick = .external
-                platformFocused = true
-            } label: {
-                HStack(spacing: 12) {
-                    Image(systemName: "arrow.up.forward.app")
-                        .font(.system(size: 18)).foregroundStyle(Tokens.accent).frame(width: 34, height: 34)
-                        .background(Tokens.tint, in: RoundedRectangle(cornerRadius: 9))
-                    Text(L10n.tr("Sold on another platform", "Bán trên nền tảng khác"))
-                        .font(.system(size: 15, weight: .medium)).foregroundStyle(Tokens.fg)
-                    Spacer(minLength: 8)
-                    radio(selected)
+            EnoListRow(
+                title: L10n.tr("Sold on another platform", "Bán trên nền tảng khác"),
+                leading: { squareIcon("arrow.up.forward.app", color: EnoColor.accent) },
+                trailing: { radio(selected) },
+                action: {
+                    pick = .external
+                    platformFocused = true
                 }
-                .padding(12)
-            }
-            .buttonStyle(.plain)
+            )
             if selected {
+                // Deliberately a raw TextField, not EnoField: tapping the row above must be
+                // able to DRIVE focus (and picking another option must drop it), and EnoField
+                // owns its FocusState internally with no binding to hand in. Box mirrors the
+                // primitive's metrics so it reads as the same field.
                 TextField(L10n.tr("Where? e.g. Facebook, in person", "Ở đâu? vd Facebook, gặp trực tiếp"), text: $platform)
-                    .font(.system(size: 15))
+                    .font(EnoTextRole.subheadline.font)
+                    .foregroundStyle(EnoColor.fg)
+                    .tint(EnoColor.brand)
                     .focused($platformFocused)
-                    .padding(.horizontal, 12).padding(.vertical, 10)
-                    .background(Tokens.tint, in: RoundedRectangle(cornerRadius: 10))
-                    .padding(.horizontal, 12).padding(.bottom, 12)
+                    .padding(.horizontal, EnoSpacing.s3).padding(.vertical, EnoSpacing.s2)
+                    .frame(minHeight: 44)
+                    .background(EnoColor.tint, in: RoundedRectangle(cornerRadius: EnoRadius.control))
+                    .padding(.horizontal, EnoSpacing.s4).padding(.bottom, EnoSpacing.s3)
             }
         }
-        .background(Tokens.card, in: RoundedRectangle(cornerRadius: Tokens.radiusCard))
-        .overlay(RoundedRectangle(cornerRadius: Tokens.radiusCard)
-            .strokeBorder(selected ? Tokens.brand.opacity(0.5) : Color.clear, lineWidth: 1))
+        .background(EnoColor.card, in: RoundedRectangle(cornerRadius: EnoRadius.card))
+        .overlay(RoundedRectangle(cornerRadius: EnoRadius.card)
+            .strokeBorder(selected ? EnoColor.brand.opacity(0.5) : Color.clear, lineWidth: 1))
     }
 
     private func optionRow(_ value: Pick, icon: String, title: String) -> some View {
         let selected = pick == value
-        return Button {
-            pick = value; platformFocused = false
-        } label: {
-            HStack(spacing: 12) {
-                Image(systemName: icon)
-                    .font(.system(size: 18)).foregroundStyle(Tokens.sub).frame(width: 34, height: 34)
-                    .background(Tokens.tint, in: RoundedRectangle(cornerRadius: 9))
-                Text(title).font(.system(size: 15, weight: .medium)).foregroundStyle(Tokens.fg)
-                Spacer(minLength: 8)
-                radio(selected)
-            }
-            .padding(12)
-            .background(Tokens.card, in: RoundedRectangle(cornerRadius: Tokens.radiusCard))
-            .overlay(RoundedRectangle(cornerRadius: Tokens.radiusCard)
-                .strokeBorder(selected ? Tokens.brand.opacity(0.5) : Color.clear, lineWidth: 1))
-        }
-        .buttonStyle(.plain)
+        return EnoListRow(
+            title: title,
+            leading: { squareIcon(icon, color: EnoColor.sub) },
+            trailing: { radio(selected) },
+            action: { pick = value; platformFocused = false }
+        )
+        .background(EnoColor.card, in: RoundedRectangle(cornerRadius: EnoRadius.card))
+        .overlay(RoundedRectangle(cornerRadius: EnoRadius.card)
+            .strokeBorder(selected ? EnoColor.brand.opacity(0.5) : Color.clear, lineWidth: 1))
+    }
+
+    /// The tinted square that stands in for an avatar on the non-buyer options, so every row
+    /// in the group keeps the same leading column.
+    private func squareIcon(_ name: String, color: Color) -> some View {
+        Image(systemName: name)
+            .enoIcon(.md, color: color)
+            .frame(width: 34, height: 34)
+            .background(EnoColor.tint, in: RoundedRectangle(cornerRadius: EnoRadius.control))
     }
 
     private func radio(_ on: Bool) -> some View {
         Image(systemName: on ? "checkmark.circle.fill" : "circle")
-            .font(.system(size: 22)).foregroundStyle(on ? Tokens.brand : Tokens.ring)
+            .enoIcon(.lg, color: on ? EnoColor.brand : EnoColor.ring)
     }
 
-    @ViewBuilder private func avatar(_ b: BuyerRow) -> some View {
-        if let urlStr = b.avatarUrl, let url = ImageURL.optimized(urlStr, width: 64) {
-            AsyncImage(url: url) { phase in
-                if case .success(let img) = phase { img.resizable().scaledToFill() } else { initial(b) }
-            }
-            .frame(width: 34, height: 34).clipShape(Circle())
-        } else {
-            initial(b)
-        }
-    }
-    private func initial(_ b: BuyerRow) -> some View {
-        Text(String(b.displayName.prefix(1)).uppercased())
-            .font(.system(size: 15, weight: .bold)).foregroundStyle(.white)
-            .frame(width: 34, height: 34)
-            .background(Color(hexString: b.avatarColor) ?? Tokens.brand, in: Circle())
-    }
-
-    private var confirmBar: some View {
-        VStack(spacing: 0) {
-            Divider()
-            Button {
-                Task {
-                    let ok = await model.markSold(soldBody())
-                    if ok { onSold(); dismiss() }
-                }
-            } label: {
-                HStack(spacing: 8) {
-                    if model.working { ProgressView().tint(.white) }
-                    Text(L10n.tr("Mark sold", "Đánh dấu đã bán"))
-                        .font(.system(size: 16, weight: .semibold)).foregroundStyle(.white)
-                }
-                .frame(maxWidth: .infinity).padding(.vertical, 14)
-                .background(Tokens.brand, in: RoundedRectangle(cornerRadius: Tokens.radiusControl))
-            }
-            .buttonStyle(.plain)
-            .disabled(model.working)
-            .padding(.horizontal, 16).padding(.vertical, 10)
-        }
-        .background(.bar)
+    private func avatar(_ b: BuyerRow) -> some View {
+        EnoAvatar(
+            url: b.avatarUrl.flatMap { ImageURL.optimized($0, width: 64) },
+            initials: String(b.displayName.prefix(1)),
+            tint: Color(hexString: b.avatarColor) ?? EnoColor.brand,
+            size: .sm
+        )
     }
 
     private func soldBody() -> [String: Any] {

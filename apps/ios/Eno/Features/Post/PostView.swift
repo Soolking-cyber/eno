@@ -1,4 +1,5 @@
 import SwiftUI
+import EnoUI
 import PhotosUI
 import CoreTransferable
 import UniformTypeIdentifiers
@@ -133,12 +134,12 @@ struct PostView: View {
                         }
                     } label: {
                         VStack(spacing: 6) {
-                            Image(systemName: "camera.fill").font(.system(size: 20))
-                            Text(L10n.tr("Add", "Thêm")).font(.system(size: 12, weight: .semibold))
+                            Image(systemName: "camera.fill").enoIcon(.md, color: EnoColor.brand)
+                            Text(L10n.tr("Add", "Thêm")).font(EnoTextRole.caption.font.weight(.semibold))
                         }
-                        .foregroundStyle(Tokens.brand)
+                        .foregroundStyle(EnoColor.brand)
                         .frame(width: 84, height: 84)
-                        .background(Tokens.brandTint, in: RoundedRectangle(cornerRadius: Tokens.radiusCard))
+                        .background(EnoColor.brandTint, in: RoundedRectangle(cornerRadius: EnoRadius.card))
                     }
                     .buttonStyle(.plain)
                     ForEach(model.photos) { photo in
@@ -148,25 +149,25 @@ struct PostView: View {
             }
             .listRowInsets(EdgeInsets(top: 8, leading: 12, bottom: 8, trailing: 12))
             Text(L10n.tr("At least 3 photos from different angles.", "Ít nhất 3 ảnh chụp các góc khác nhau."))
-                .font(.system(size: 12))
-                .foregroundStyle(model.uploadedUrls.count >= 3 ? Tokens.sub : Tokens.brand)
+                .font(EnoTextRole.caption.font)
+                .foregroundStyle(model.uploadedUrls.count >= 3 ? EnoColor.sub : EnoColor.brand)
             // Optional single clip status (≤60s).
             if model.videoUploading {
                 HStack(spacing: 8) {
-                    ProgressView().tint(Tokens.brand)
-                    Text(L10n.tr("Uploading video…", "Đang tải video…")).font(.system(size: 13)).foregroundStyle(Tokens.sub)
+                    ProgressView().tint(EnoColor.brand)
+                    Text(L10n.tr("Uploading video…", "Đang tải video…")).enoText(.caption, color: EnoColor.sub)
                 }
             } else if model.videoURL != nil {
                 HStack(spacing: 8) {
-                    Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
-                    Text(L10n.tr("Video added", "Đã thêm video")).font(.system(size: 13)).foregroundStyle(Tokens.fg)
+                    Image(systemName: "checkmark.circle.fill").foregroundStyle(EnoColor.success)
+                    Text(L10n.tr("Video added", "Đã thêm video")).enoText(.caption, color: EnoColor.fg)
                     Spacer()
                     Button(L10n.tr("Remove", "Xóa")) { model.removeVideo() }
-                        .font(.system(size: 13, weight: .semibold)).foregroundStyle(Tokens.danger)
+                        .enoText(.caption, color: EnoColor.danger, weight: .semibold)
                 }
             }
             if let vErr = model.videoError {
-                Text(vErr).font(.system(size: 12)).foregroundStyle(Tokens.danger)
+                Text(vErr).enoText(.caption, color: EnoColor.danger)
             }
             // ✨ AI auto-fill — appears once there's a photo; reads the item and
             // prefills category/condition/title (the seller reviews + adds the rest).
@@ -175,20 +176,20 @@ struct PostView: View {
                     Task { await model.autofill() }
                 } label: {
                     HStack(spacing: 8) {
-                        if model.autofilling { ProgressView().tint(Tokens.brand) }
-                        else { Image(systemName: "sparkles").font(.system(size: 15)) }
+                        if model.autofilling { ProgressView().tint(EnoColor.brand) }
+                        else { Image(systemName: "sparkles").enoIcon(.sm, color: EnoColor.brand) }
                         Text(L10n.tr("Auto-fill from photo", "Điền tự động từ ảnh"))
-                            .font(.system(size: 15, weight: .semibold))
+                            .font(EnoTextRole.subheadline.font.weight(.semibold))
                     }
-                    .foregroundStyle(Tokens.brand)
+                    .foregroundStyle(EnoColor.brand)
                     .frame(maxWidth: .infinity)
                     .frame(height: 44)
-                    .background(Tokens.brandTint, in: RoundedRectangle(cornerRadius: Tokens.radiusControl))
+                    .background(EnoColor.brandTint, in: RoundedRectangle(cornerRadius: EnoRadius.control))
                 }
                 .buttonStyle(.plain)
                 .disabled(model.autofilling)
                 if let err = model.autofillError {
-                    Text(err).font(.system(size: 12)).foregroundStyle(Tokens.danger)
+                    Text(err).enoText(.caption, color: EnoColor.danger)
                 }
             }
         } header: {
@@ -239,8 +240,7 @@ struct PostView: View {
                 model.remove(photo.id)
             } label: {
                 Image(systemName: "xmark")
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundStyle(.white)
+                    .enoIcon(.xs, color: .white)
                     .frame(width: 22, height: 22)
                     .background(.black.opacity(0.55), in: Circle())
             }
@@ -414,7 +414,7 @@ struct PostView: View {
             }
             .disabled(model.locating)
             if let err = model.locationError {
-                Text(err).font(.system(size: 12)).foregroundStyle(Tokens.danger)
+                Text(err).enoText(.caption, color: EnoColor.danger)
             }
             Picker(L10n.tr("Province", "Tỉnh / Thành"), selection: Binding(
                 get: { model.province?.code ?? "" },
@@ -470,16 +470,16 @@ struct PostView: View {
             } label: {
                 Group {
                     if model.submitting {
-                        ProgressView().tint(.white)
+                        ProgressView().tint(EnoColor.onBrand)
                     } else {
                         Text(L10n.tr("Post listing", "Đăng tin"))
                     }
                 }
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(.white)
+                .font(EnoTextRole.headline.font)
+                .foregroundStyle(EnoColor.onBrand)
                 .frame(maxWidth: .infinity)
                 .frame(height: 48)
-                .background(model.canSubmit ? Tokens.brand : Tokens.sub, in: RoundedRectangle(cornerRadius: Tokens.radiusControl))
+                .background(model.canSubmit ? EnoColor.brand : EnoColor.sub, in: RoundedRectangle(cornerRadius: EnoRadius.control))
             }
             // Stays tappable when incomplete — the tap reveals what's missing and
             // scrolls to it, instead of a dead disabled button (web parity).
@@ -488,8 +488,7 @@ struct PostView: View {
             .listRowInsets(EdgeInsets())
             if let err = model.errorMessage {
                 Text(err)
-                    .font(.system(size: 13))
-                    .foregroundStyle(Tokens.danger)
+                    .enoText(.caption, color: EnoColor.danger)
             }
         }
     }
@@ -497,26 +496,16 @@ struct PostView: View {
     private func successSheet(_ id: String) -> some View {
         VStack(spacing: 16) {
             Image(systemName: "checkmark.circle.fill")
-                .font(.system(size: 52))
-                .foregroundStyle(.green)
+                .enoIcon(.xl, color: EnoColor.success)
             Text(L10n.tr("Your listing is live!", "Tin của bạn đã được đăng!"))
-                .font(.system(size: 20, weight: .bold))
-                .foregroundStyle(Tokens.fg)
+                .enoText(.title, color: EnoColor.fg)
             Text(L10n.tr("Buyers can see it right away. You'll be notified about messages and offers.",
                          "Người mua có thể xem ngay. Bạn sẽ nhận thông báo khi có tin nhắn hoặc trả giá."))
-                .font(.system(size: 14))
-                .foregroundStyle(Tokens.sub)
+                .enoText(.callout, color: EnoColor.sub)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 24)
-            Button {
+            EnoButton(L10n.tr("Done", "Xong"), size: .large) {
                 success = nil
-            } label: {
-                Text(L10n.tr("Done", "Xong"))
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 40)
-                    .frame(height: 48)
-                    .background(Tokens.brand, in: RoundedRectangle(cornerRadius: Tokens.radiusControl))
             }
         }
         .padding(24)

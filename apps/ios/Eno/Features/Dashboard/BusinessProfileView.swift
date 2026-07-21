@@ -1,5 +1,6 @@
 import SwiftUI
 import PhotosUI
+import EnoUI
 
 // Native business-storefront editor (#63/#21) — the business seller's public
 // storefront (name / bio / location / contact / LOGO) plus the Đ.29 legal
@@ -43,15 +44,19 @@ struct BusinessProfileView: View {
                 HStack { Spacer(); ProgressView(); Spacer() }
             } else {
                 Section(L10n.tr("Storefront", "Gian hàng")) {
-                    TextField(L10n.tr("Business name", "Tên doanh nghiệp"), text: $name)
-                    TextField(L10n.tr("About", "Giới thiệu"), text: $bio, axis: .vertical).lineLimit(2...6)
-                    TextField(L10n.tr("Address / area", "Địa chỉ / khu vực"), text: $location)
-                    TextField(L10n.tr("Contact phone", "Số điện thoại liên hệ"), text: $phone).keyboardType(.phonePad)
+                    EnoField(L10n.tr("Business name", "Tên doanh nghiệp"), text: $name)
+                    EnoTextArea(L10n.tr("About", "Giới thiệu"), text: $bio)
+                    EnoField(L10n.tr("Address / area", "Địa chỉ / khu vực"), text: $location)
+                    EnoField(L10n.tr("Contact phone", "Số điện thoại liên hệ"), text: $phone, kind: .phone)
                 }
+                .listRowSeparator(.hidden)
                 Section {
-                    TextField(L10n.tr("Legal name", "Tên pháp lý"), text: $legalName)
-                    TextField(L10n.tr("Legal address", "Địa chỉ pháp lý"), text: $legalAddress, axis: .vertical).lineLimit(2...4)
-                    TextField(L10n.tr("ID number", "Số CCCD/CMND"), text: $idNumber).keyboardType(.numberPad)
+                    EnoField(L10n.tr("Legal name", "Tên pháp lý"), text: $legalName)
+                    EnoTextArea(L10n.tr("Legal address", "Địa chỉ pháp lý"), text: $legalAddress, minHeight: 72)
+                    EnoField(L10n.tr("ID number", "Số CCCD/CMND"), text: $idNumber, kind: .number)
+                    // Deliberately still a raw field: EnoField.Kind has no numbers-and-punctuation
+                    // case, and the server keeps hyphens (`/[^0-9-]/`) for 13-digit branch codes —
+                    // so .number's numberPad would make a valid tax code untypeable. See primitiveGaps.
                     TextField(L10n.tr("Tax code", "Mã số thuế"), text: $taxCode).keyboardType(.numbersAndPunctuation)
                 } header: {
                     Text(L10n.tr("Legal identity", "Thông tin pháp lý"))
@@ -59,21 +64,21 @@ struct BusinessProfileView: View {
                     Text(L10n.tr("Shown to buyers and authorities on request — never displayed publicly.",
                                  "Chỉ cung cấp cho người mua và cơ quan chức năng khi được yêu cầu — không hiển thị công khai."))
                 }
+                .listRowSeparator(.hidden)
                 if let msg {
-                    Section { Text(msg).font(.system(size: 13)).foregroundStyle(ok ? .green : Tokens.danger) }
+                    Section { Text(msg).enoText(.caption, color: ok ? EnoColor.success : EnoColor.danger) }
                 }
                 Section {
-                    Button { Task { await save() } } label: {
-                        if saving { ProgressView() } else { Text(L10n.tr("Save", "Lưu")) }
-                    }
-                    .disabled(saving || !nameValid)
+                    EnoButton(L10n.tr("Save", "Lưu"), loading: saving) { Task { await save() } }
+                        .disabled(saving || !nameValid)
                 }
+                .listRowSeparator(.hidden)
                 Section(L10n.tr("Logo", "Logo")) {
-                    HStack(spacing: 12) {
+                    HStack(spacing: EnoSpacing.s3) {
                         AsyncImage(url: logoUrl.flatMap { ImageURL.optimized($0, width: 120) }) { phase in
-                            if case .success(let img) = phase { img.resizable().scaledToFill() } else { Tokens.tint }
+                            if case .success(let img) = phase { img.resizable().scaledToFill() } else { EnoColor.tint }
                         }
-                        .frame(width: 48, height: 48).clipShape(RoundedRectangle(cornerRadius: 8))
+                        .frame(width: 48, height: 48).clipShape(RoundedRectangle(cornerRadius: EnoRadius.chip))
                         PhotosPicker(selection: $logoPick, matching: .images) {
                             if logoBusy { ProgressView() }
                             else { Text(logoUrl == nil ? L10n.tr("Add logo", "Thêm logo") : L10n.tr("Change logo", "Đổi logo")) }

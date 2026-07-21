@@ -1,3 +1,4 @@
+import EnoUI
 import SwiftUI
 
 // The native Account tab (#117 handoff surface). Guest: a sign-in hero that
@@ -25,7 +26,7 @@ struct AccountView: View {
                     signInHero
                 }
             }
-            .background(Tokens.canvas)
+            .background(EnoColor.canvas)
             .navigationTitle(L10n.tr("Account", "Tài khoản"))
             .navigationBarTitleDisplayMode(.inline)
             // Theme / language / currency — reachable whether or not you're signed in.
@@ -35,7 +36,7 @@ struct AccountView: View {
                         PreferencesView()
                     } label: {
                         Image(systemName: "slider.horizontal.3")
-                            .foregroundStyle(Tokens.fg)
+                            .foregroundStyle(EnoColor.fg)
                     }
                     .accessibilityLabel(L10n.tr("Preferences", "Tùy chọn"))
                 }
@@ -68,52 +69,38 @@ struct AccountView: View {
 
     // ── guest ──
     private var signInHero: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: EnoSpacing.s4) {
             Text("eno")
-                .font(.system(size: 34, weight: .heavy))
+                .enoText(.titleXL, color: EnoColor.brand)
                 .kerning(-1)
-                .foregroundStyle(Tokens.brand)
             Text(L10n.tr("Sign in to chat with sellers, save listings and manage your posts.",
                          "Đăng nhập để nhắn tin với người bán, lưu tin và quản lý tin đăng."))
-                .font(.system(size: 15))
-                .foregroundStyle(Tokens.sub)
+                .enoText(.subheadline, color: EnoColor.sub)
                 .multilineTextAlignment(.center)
-                .padding(.horizontal, 32)
+                .padding(.horizontal, EnoSpacing.s8)
             // Native Google (ASWebAuthenticationSession — works where the web
             // sheet's button can't, since Google blocks OAuth in a WKWebView).
-            Button {
+            // `loading:` also disables the button, so the old `.disabled(googleBusy)`
+            // is built in.
+            EnoButton(
+                L10n.tr("Continue with Google", "Tiếp tục với Google"),
+                icon: "g.circle.fill", variant: .secondary, size: .large, loading: googleBusy
+            ) {
                 googleBusy = true
                 GoogleSignIn.shared.start { ok in
                     googleBusy = false
                     if ok { Task { await loadMe() } }
                 }
-            } label: {
-                HStack(spacing: 8) {
-                    if googleBusy { ProgressView().tint(Tokens.fg) }
-                    else { Image(systemName: "g.circle.fill").font(.system(size: 18)) }
-                    Text(L10n.tr("Continue with Google", "Tiếp tục với Google"))
-                        .font(.system(size: 16, weight: .semibold))
-                }
-                .foregroundStyle(Tokens.fg)
-                .frame(maxWidth: .infinity)
-                .frame(height: 50)
-                .background(Tokens.card, in: RoundedRectangle(cornerRadius: Tokens.radiusControl))
-                .overlay(RoundedRectangle(cornerRadius: Tokens.radiusControl).strokeBorder(Tokens.ring, lineWidth: 1))
             }
-            .disabled(googleBusy)
-            .padding(.horizontal, 32)
+            .padding(.horizontal, EnoSpacing.s8)
 
-            Button {
+            EnoButton(
+                L10n.tr("Phone or email", "Số điện thoại hoặc email"),
+                variant: .primary, size: .large
+            ) {
                 signInSheet = true
-            } label: {
-                Text(L10n.tr("Phone or email", "Số điện thoại hoặc email"))
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 50)
-                    .background(Tokens.brand, in: RoundedRectangle(cornerRadius: Tokens.radiusControl))
             }
-            .padding(.horizontal, 32)
+            .padding(.horizontal, EnoSpacing.s8)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
@@ -123,27 +110,23 @@ struct AccountView: View {
         List {
             Section {
                 HStack(spacing: 14) {
-                    if let urlStr = me?.avatarUrl, let url = ImageURL.optimized(urlStr, width: 112) {
-                        AsyncImage(url: url) { phase in
-                            if case .success(let img) = phase { img.resizable().scaledToFill() }
-                            else { initialAvatar }
-                        }
-                        .frame(width: 56, height: 56)
-                        .clipShape(Circle())
-                    } else {
-                        initialAvatar
-                    }
+                    // EnoAvatar renders the SAME initials disc for every non-success phase
+                    // (no URL, in flight, 404), which is what the hand-rolled AsyncImage +
+                    // `initialAvatar` pair did. One-character initials preserved on purpose.
+                    EnoAvatar(
+                        url: (me?.avatarUrl).flatMap { ImageURL.optimized($0, width: 112) },
+                        initials: String((me?.displayName ?? "e").prefix(1)),
+                        tint: Color(hexString: me?.avatarColor) ?? EnoColor.brand,
+                        size: .lg
+                    )
                     VStack(alignment: .leading, spacing: 3) {
                         Text(me?.displayName ?? "…")
-                            .font(.system(size: 17, weight: .semibold))
-                            .foregroundStyle(Tokens.fg)
+                            .enoText(.headline, color: EnoColor.fg)
                         Text(me?.phone ?? me?.email ?? "")
-                            .font(.system(size: 13))
-                            .foregroundStyle(Tokens.ink4)
+                            .enoText(.caption, color: EnoColor.ink4)
                         if me?.accountType == "business" {
                             Text(me?.businessName ?? L10n.tr("Business", "Doanh nghiệp"))
-                                .font(.system(size: 12, weight: .semibold))
-                                .foregroundStyle(Tokens.brand)
+                                .enoText(.caption, color: EnoColor.brand, weight: .semibold)
                         }
                     }
                 }
@@ -155,10 +138,9 @@ struct AccountView: View {
                 } label: {
                     HStack(spacing: 12) {
                         Image(systemName: "square.grid.2x2")
-                            .font(.system(size: 15))
-                            .foregroundStyle(Tokens.brand)
+                            .enoIcon(.sm, color: EnoColor.brand)
                             .frame(width: 26)
-                        Text(L10n.tr("My listings", "Tin đăng của tôi")).foregroundStyle(Tokens.fg)
+                        Text(L10n.tr("My listings", "Tin đăng của tôi")).foregroundStyle(EnoColor.fg)
                     }
                 }
                 NavigationLink {
@@ -169,10 +151,9 @@ struct AccountView: View {
                     // above). The hand-drawn one here made it show two arrows.
                     HStack(spacing: 12) {
                         Image(systemName: "gearshape")
-                            .font(.system(size: 15))
-                            .foregroundStyle(Tokens.brand)
+                            .enoIcon(.sm, color: EnoColor.brand)
                             .frame(width: 26)
-                        Text(L10n.tr("Settings", "Cài đặt")).foregroundStyle(Tokens.fg)
+                        Text(L10n.tr("Settings", "Cài đặt")).foregroundStyle(EnoColor.fg)
                     }
                 }
             }
@@ -187,29 +168,11 @@ struct AccountView: View {
         .scrollContentBackground(.hidden)
     }
 
-    private var initialAvatar: some View {
-        Text(String((me?.displayName ?? "e").prefix(1)).uppercased())
-            .font(.system(size: 22, weight: .bold))
-            .foregroundStyle(.white)
-            .frame(width: 56, height: 56)
-            .background(Color(hexString: me?.avatarColor) ?? Tokens.brand, in: Circle())
-    }
-
+    // A web-sheet row (icon · title · chevron) — exactly the EnoListRow shape, so the
+    // hand-drawn chevron and the hand-set fonts are gone.
     private func link(_ title: String, icon: String, path: String) -> some View {
-        Button {
+        EnoListRow(icon: icon, title: title, accessory: .disclosure) {
             sheetPath = WebPath(id: path)
-        } label: {
-            HStack(spacing: 12) {
-                Image(systemName: icon)
-                    .font(.system(size: 15))
-                    .foregroundStyle(Tokens.brand)
-                    .frame(width: 26)
-                Text(title).foregroundStyle(Tokens.fg)
-                Spacer()
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(Tokens.sub)
-            }
         }
     }
 }

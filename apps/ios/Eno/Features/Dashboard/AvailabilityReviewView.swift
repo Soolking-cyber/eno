@@ -1,5 +1,6 @@
 import SwiftUI
 import Observation
+import EnoUI
 
 // Daily availability review (owner: "availability is a daily popup for all sellers
 // to confirm or tick off things not available"). Once a day, a signed-in seller with
@@ -83,27 +84,26 @@ struct AvailabilityReviewView: View {
                 VStack(alignment: .leading, spacing: 14) {
                     Text(L10n.tr("Anything sold since yesterday? Tap to tick off what's gone — the rest stays live.",
                                  "Có tin nào đã bán chưa? Chạm để bỏ tin đã bán — số còn lại vẫn hiển thị."))
-                        .font(.system(size: 14))
-                        .foregroundStyle(Tokens.sub)
-                        .padding(.horizontal, 16)
-                        .padding(.top, 4)
+                        .enoText(.subheadline, color: EnoColor.sub)
+                        .padding(.horizontal, EnoSpacing.screenGutter)
+                        .padding(.top, EnoSpacing.s1)
 
-                    LazyVStack(spacing: 8) {
+                    LazyVStack(spacing: EnoSpacing.s2) {
                         ForEach(model.listings) { l in
                             row(l)
                         }
                     }
-                    .padding(.horizontal, 12)
+                    .padding(.horizontal, EnoSpacing.s3)
                 }
-                .padding(.bottom, 8)
+                .padding(.bottom, EnoSpacing.s2)
             }
-            .background(Tokens.canvas)
+            .background(EnoColor.canvas)
             .navigationTitle(L10n.tr("Still available?", "Còn hàng không?"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button(L10n.tr("Later", "Để sau")) { model.snooze() }
-                        .foregroundStyle(Tokens.sub)
+                        .foregroundStyle(EnoColor.sub)
                 }
             }
             .safeAreaInset(edge: .bottom) { confirmBar }
@@ -115,22 +115,17 @@ struct AvailabilityReviewView: View {
         let liveN = model.listings.count - soldN
         return VStack(spacing: 0) {
             Divider()
-            Button {
+            // `loading:` already blocks the tap while the confirm loop runs (EnoButton
+            // disables itself), so the old explicit `.disabled(model.working)` is redundant.
+            EnoButton(
+                confirmLabel(soldN: soldN, liveN: liveN),
+                variant: .primary,
+                size: .large,
+                loading: model.working
+            ) {
                 Task { await model.confirm() }
-            } label: {
-                HStack(spacing: 8) {
-                    if model.working { ProgressView().tint(.white) }
-                    Text(confirmLabel(soldN: soldN, liveN: liveN))
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(.white)
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 14)
-                .background(Tokens.brand, in: RoundedRectangle(cornerRadius: Tokens.radiusControl))
             }
-            .buttonStyle(.plain)
-            .disabled(model.working)
-            .padding(.horizontal, 16)
+            .padding(.horizontal, EnoSpacing.screenGutter)
             .padding(.vertical, 10)
         }
         .background(.bar)
@@ -147,41 +142,38 @@ struct AvailabilityReviewView: View {
 
     private func row(_ l: MyListing) -> some View {
         let sold = model.soldIds.contains(l.id)
-        return Button {
+        // The row IS a tappable card → EnoInteractiveCard (card surface + press-scale + the
+        // button trait). `.flat` keeps the shadow-less surface this sheet always had.
+        return EnoInteractiveCard(padding: 10, elevation: .flat, action: {
             model.toggleSold(l.id)
-        } label: {
-            HStack(spacing: 12) {
+        }) {
+            HStack(spacing: EnoSpacing.s3) {
                 AsyncImage(url: l.images.first.flatMap { ImageURL.optimized($0, width: 128) }) { phase in
-                    if case .success(let img) = phase { img.resizable().scaledToFill() } else { Tokens.tint }
+                    if case .success(let img) = phase { img.resizable().scaledToFill() } else { EnoColor.tint }
                 }
                 .frame(width: 56, height: 56)
-                .clipShape(RoundedRectangle(cornerRadius: 10))
+                .clipShape(RoundedRectangle(cornerRadius: EnoRadius.chip))
                 .opacity(sold ? 0.5 : 1)
 
                 VStack(alignment: .leading, spacing: 3) {
                     Text(l.displayTitle)
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(sold ? Tokens.sub : Tokens.fg)
+                        .enoText(.subheadline, color: sold ? EnoColor.sub : EnoColor.fg, weight: .semibold)
                         .strikethrough(sold)
                         .lineLimit(1)
                     Text(Format.vnd(l.price))
-                        .font(.system(size: 14, weight: .bold))
-                        .foregroundStyle(sold ? Tokens.sub : Tokens.brand)
+                        .enoText(.subheadline, color: sold ? EnoColor.sub : EnoColor.brand, weight: .bold)
                 }
-                Spacer(minLength: 8)
+                Spacer(minLength: EnoSpacing.s2)
 
                 // Tap target reads as a "sold" toggle; ON = ticked off (no longer available).
                 Image(systemName: sold ? "checkmark.circle.fill" : "circle")
-                    .font(.system(size: 24))
-                    .foregroundStyle(sold ? Tokens.danger : Tokens.ring)
+                    .enoIcon(.lg, color: sold ? EnoColor.danger : EnoColor.ring)
             }
-            .padding(10)
-            .background(Tokens.card, in: RoundedRectangle(cornerRadius: Tokens.radiusCard))
-            .overlay(
-                RoundedRectangle(cornerRadius: Tokens.radiusCard)
-                    .strokeBorder(sold ? Tokens.danger.opacity(0.4) : Color.clear, lineWidth: 1)
-            )
         }
-        .buttonStyle(.plain)
+        // The ticked state keeps its danger ring on top of the card's own hairline.
+        .overlay(
+            RoundedRectangle(cornerRadius: EnoRadius.card)
+                .strokeBorder(sold ? EnoColor.danger.opacity(0.4) : Color.clear, lineWidth: 1)
+        )
     }
 }

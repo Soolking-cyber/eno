@@ -1,4 +1,5 @@
 import SwiftUI
+import EnoUI
 import Observation
 
 // Native seller self-service (#121): own listings from GET /api/dashboard with
@@ -123,8 +124,7 @@ struct MyListingsView: View {
             }
             if model.loaded && model.listings.isEmpty {
                 Text(L10n.tr("You haven't posted anything yet.", "Bạn chưa đăng tin nào."))
-                    .font(.system(size: 14))
-                    .foregroundStyle(Tokens.sub)
+                    .enoText(.subheadline, color: EnoColor.sub)
                     .listRowBackground(Color.clear)
             }
         }
@@ -182,26 +182,30 @@ struct MyListingsView: View {
 
     private func statCard(_ value: String, _ label: String) -> some View {
         VStack(spacing: 2) {
-            Text(value).font(.system(size: 18, weight: .bold)).foregroundStyle(Tokens.fg)
-            Text(label).font(.system(size: 12)).foregroundStyle(Tokens.sub)
+            Text(value).enoText(.headline, weight: .bold)
+            Text(label).enoText(.caption, color: EnoColor.sub)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 12)
-        .background(Tokens.tint, in: RoundedRectangle(cornerRadius: Tokens.radiusControl))
+        .padding(.vertical, EnoSpacing.s3)
+        .background(EnoColor.tint, in: RoundedRectangle(cornerRadius: EnoRadius.control))
     }
 
     // Row action chip visual (web dashboard-listing-row.tsx chips): bg-tint,
     // rounded-lg, accent icon+label (destructive = red). Split from the Button so a
     // ShareLink can reuse the same look.
+    // Type/radius/colour are on EnoUI tokens, but the chip itself stays hand-rolled:
+    // EnoButton(.tertiary) hardcodes an ink label and EnoChipLabel an fg/onBrand one, so
+    // neither can carry the accent (and destructive = danger) label this row needs.
     private func chipLabel(_ text: String, _ icon: String, destructive: Bool = false) -> some View {
-        HStack(spacing: 4) {
-            Image(systemName: icon).font(.system(size: 14))
-            Text(text).font(.system(size: 13, weight: .semibold))
+        let tone = destructive ? EnoColor.danger : EnoColor.accent
+        return HStack(spacing: EnoSpacing.s1) {
+            Image(systemName: icon).enoIcon(.sm, color: tone)
+            Text(text).font(EnoTextRole.caption.font.weight(.semibold))
         }
-        .foregroundStyle(destructive ? Tokens.danger : Tokens.accent)
+        .foregroundStyle(tone)
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
-        .background(Tokens.tint, in: RoundedRectangle(cornerRadius: 8))
+        .background(EnoColor.tint, in: RoundedRectangle(cornerRadius: EnoRadius.chip))
     }
     private func actionChip(_ text: String, _ icon: String, destructive: Bool = false, _ action: @escaping () -> Void) -> some View {
         Button(action: action) { chipLabel(text, icon, destructive: destructive) }
@@ -209,47 +213,45 @@ struct MyListingsView: View {
     }
 
     private func row(_ l: MyListing) -> some View {
-        HStack(spacing: 12) {
+        HStack(spacing: EnoSpacing.s3) {
             AsyncImage(url: l.images.first.flatMap { ImageURL.optimized($0, width: 96) }) { phase in
-                if case .success(let img) = phase { img.resizable().scaledToFill() } else { Tokens.tint }
+                if case .success(let img) = phase { img.resizable().scaledToFill() } else { EnoColor.tint }
             }
             .frame(width: 80, height: 80)
-            .clipShape(RoundedRectangle(cornerRadius: Tokens.radiusControl))
+            .clipShape(RoundedRectangle(cornerRadius: EnoRadius.control))
             VStack(alignment: .leading, spacing: 3) {
                 // Title row: title truncates left, status Badge pinned top-right
                 // (web title row is `flex items-start justify-between gap-2`,
                 // dashboard-listing-row.tsx:205-207).
-                HStack(alignment: .top, spacing: 8) {
+                HStack(alignment: .top, spacing: EnoSpacing.s2) {
                     Text(l.displayTitle)
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(Tokens.fg)
+                        .enoText(.callout, weight: .semibold)
                         .lineLimit(1)
                     Spacer(minLength: 0)
                     statusChip(l)
                 }
                 Text(Format.vnd(l.price))
-                    .font(.system(size: 16, weight: .bold))
-                    .foregroundStyle(Tokens.brand)
+                    .enoText(.callout, color: EnoColor.brand, weight: .bold)
                 // Meta row: lucide-parity SF icons (size-4 = 16pt) + 12pt labels,
                 // gap-x-3 / gap-1 (dashboard-listing-row.tsx:91-97). Heart shown
                 // only when savedCount > 0.
-                HStack(spacing: 12) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "eye").font(.system(size: 16))
-                        Text("\(l.views)").font(.system(size: 12))
+                HStack(spacing: EnoSpacing.s3) {
+                    HStack(spacing: EnoSpacing.s1) {
+                        Image(systemName: "eye").enoIcon(.sm, color: EnoColor.ink4)
+                        Text("\(l.views)").font(EnoTextRole.caption.font)
                     }
-                    HStack(spacing: 4) {
-                        Image(systemName: "text.bubble").font(.system(size: 16))
-                        Text("\(l.contactCount) \(L10n.tr("leads", "liên hệ"))").font(.system(size: 12))
+                    HStack(spacing: EnoSpacing.s1) {
+                        Image(systemName: "text.bubble").enoIcon(.sm, color: EnoColor.ink4)
+                        Text("\(l.contactCount) \(L10n.tr("leads", "liên hệ"))").font(EnoTextRole.caption.font)
                     }
                     if l.savedCount > 0 {
-                        HStack(spacing: 4) {
-                            Image(systemName: "heart").font(.system(size: 16))
-                            Text("\(l.savedCount) \(L10n.tr("saved", "đã lưu"))").font(.system(size: 12))
+                        HStack(spacing: EnoSpacing.s1) {
+                            Image(systemName: "heart").enoIcon(.sm, color: EnoColor.ink4)
+                            Text("\(l.savedCount) \(L10n.tr("saved", "đã lưu"))").font(EnoTextRole.caption.font)
                         }
                     }
                 }
-                .foregroundStyle(Tokens.ink4)
+                .foregroundStyle(EnoColor.ink4)
                 // Inline action chips (web dashboard-listing-row.tsx:126-164): every
                 // action visible as a bg-tint chip, not hidden behind an ellipsis Menu.
                 // Exactly four actions per the owner: Mark sold · Hide · Edit · Delete.
@@ -272,22 +274,20 @@ struct MyListingsView: View {
         .padding(.vertical, 2)
     }
 
+    // Passive status pill → EnoBadge: same capsule + tinted-fill construction, and the
+    // three states map onto the badge kinds (held = warning, sold/hidden = neutral,
+    // live = brand) instead of a hand-picked colour each.
     @ViewBuilder
     private func statusChip(_ l: MyListing) -> some View {
-        let (label, color): (String, Color) = {
-            if !l.verified && l.status == "active" { return (L10n.tr("Held", "Đang xét"), .orange) }
+        let (label, kind): (String, EnoBadge.Kind) = {
+            if !l.verified && l.status == "active" { return (L10n.tr("Held", "Đang xét"), .warning) }
             switch l.status {
-            case "sold": return (L10n.tr("Sold", "Đã bán"), Tokens.sub)
-            case "hidden": return (L10n.tr("Hidden", "Đã ẩn"), Tokens.sub)
-            default: return (L10n.tr("Live", "Đang hiển thị"), Tokens.accent)
+            case "sold": return (L10n.tr("Sold", "Đã bán"), .neutral)
+            case "hidden": return (L10n.tr("Hidden", "Đã ẩn"), .neutral)
+            default: return (L10n.tr("Live", "Đang hiển thị"), .brand)
             }
         }()
-        Text(label)
-            .font(.system(size: 11, weight: .bold))
-            .foregroundStyle(color)
-            .padding(.horizontal, 7)
-            .padding(.vertical, 2)
-            .background(color.opacity(0.12), in: Capsule())
+        EnoBadge(label, kind: kind)
     }
 }
 
@@ -310,53 +310,50 @@ struct DiscountSheet: View {
     private var newPrice: Int { tidy(Int(Double(currentPrice) * (1 - pct / 100))) }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: EnoSpacing.s4) {
             Text(L10n.tr("Lower the price", "Giảm giá"))
-                .font(.system(size: 18, weight: .bold)).foregroundStyle(Tokens.fg)
+                .enoText(.headline, weight: .bold)
 
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(L10n.tr("Current price", "Giá hiện tại")).font(.system(size: 12)).foregroundStyle(Tokens.sub)
-                    Text(Format.vnd(currentPrice)).font(.system(size: 15, weight: .semibold)).strikethrough().foregroundStyle(Tokens.sub)
+                    Text(L10n.tr("Current price", "Giá hiện tại")).enoText(.caption, color: EnoColor.sub)
+                    Text(Format.vnd(currentPrice)).enoText(.subheadline, color: EnoColor.sub, weight: .semibold).strikethrough()
                 }
                 Spacer()
                 VStack(alignment: .trailing, spacing: 2) {
-                    Text("-\(Int(pct))%").font(.system(size: 12, weight: .bold)).foregroundStyle(Tokens.danger)
-                    Text(Format.vnd(newPrice)).font(.system(size: 20, weight: .bold)).foregroundStyle(Tokens.brand)
+                    Text("-\(Int(pct))%").enoText(.caption, color: EnoColor.danger, weight: .bold)
+                    Text(Format.vnd(newPrice)).enoText(.title, color: EnoColor.brand)
                 }
             }
 
-            HStack(spacing: 8) {
+            HStack(spacing: EnoSpacing.s2) {
+                // Stays hand-rolled: this is a 3-up EQUAL-WIDTH capsule selector, and
+                // EnoChip hugs its label (no full-width option) with a radius-7 shape —
+                // dropping it in would leave three narrow pills floating in the row.
                 ForEach(Self.presets, id: \.self) { p in
                     Button { pct = Double(p) } label: {
                         Text("-\(p)%")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(Int(pct) == p ? .white : Tokens.fg)
+                            .font(EnoTextRole.subheadline.font.weight(.semibold))
+                            .foregroundStyle(Int(pct) == p ? EnoColor.onBrand : EnoColor.fg)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 9)
-                            .background(Int(pct) == p ? Tokens.brand : Tokens.tint, in: Capsule())
+                            .background(Int(pct) == p ? EnoColor.brand : EnoColor.tint, in: Capsule())
                     }
                     .buttonStyle(.plain)
                 }
             }
-            Slider(value: $pct, in: 1...90, step: 1).tint(Tokens.brand)
+            Slider(value: $pct, in: 1...90, step: 1).tint(EnoColor.brand)
             if pct >= 20 {
                 Text(L10n.tr("A cut of 20% or more usually earns the price-drop badge.",
                              "Giảm từ 20% trở lên thường được gắn nhãn giảm giá."))
-                    .font(.system(size: 12)).foregroundStyle(Tokens.sub)
+                    .enoText(.caption, color: EnoColor.sub)
             }
 
-            Button {
+            // `.regular` (44pt) — the same height the hand-rolled CTA had, because this
+            // sheet is presented at a FIXED .height(340) detent with no room to grow.
+            EnoButton(L10n.tr("Apply new price", "Áp dụng giá mới"), size: .regular) {
                 onApply(newPrice)
-            } label: {
-                Text(L10n.tr("Apply new price", "Áp dụng giá mới"))
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 13)
-                    .background(Tokens.brand, in: RoundedRectangle(cornerRadius: Tokens.radiusCard))
             }
-            .buttonStyle(.plain)
         }
         .padding(20)
         .presentationDragIndicator(.visible)

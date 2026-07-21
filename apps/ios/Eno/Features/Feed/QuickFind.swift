@@ -59,11 +59,8 @@ struct QuickFindBar: View {
     @State private var rail = BrandRailModel()
     @State private var subsByCat: [String: [CategoriesResponse.Sub]] = [:]
 
-    private let panelRadius: CGFloat = 11
-    private let chipRadius: CGFloat = 7
-
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: EnoSpacing.s4) {
             categoryRail
             if !rail.brands.isEmpty {
                 brandRail
@@ -85,7 +82,7 @@ struct QuickFindBar: View {
     private var categoryRail: some View {
         ScrollViewReader { proxy in
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 16) {
+                HStack(spacing: EnoSpacing.s4) {
                     tile(name: L10n.tr("All", "Tất cả"), symbol: "square.stack.3d.up", active: feed.category == nil) {
                         feed.category = nil; feed.subcategory = nil; feed.brand = nil; feed.model = nil
                     }
@@ -101,8 +98,8 @@ struct QuickFindBar: View {
                         }
                     }
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 4)
+                .padding(.horizontal, EnoSpacing.s3)
+                .padding(.vertical, EnoSpacing.s1)
             }
             // The tinted subcategory panel ran flush off the right edge with a chip sliced
             // in half; the fade makes the overflow read as scrollable, not broken.
@@ -118,7 +115,7 @@ struct QuickFindBar: View {
     private var brandRail: some View {
         ScrollViewReader { proxy in
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 16) {
+                HStack(spacing: EnoSpacing.s4) {
                     ForEach(rail.brands) { b in
                         brandTile(b).id("brand-\(b.slug)")
                         if feed.brand == b.slug {
@@ -126,8 +123,8 @@ struct QuickFindBar: View {
                         }
                     }
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 4)
+                .padding(.horizontal, EnoSpacing.s3)
+                .padding(.vertical, EnoSpacing.s1)
             }
             .enoEdgeFade()
             .onChange(of: feed.brand) {
@@ -137,28 +134,31 @@ struct QuickFindBar: View {
         }
     }
 
-    // ── tile (76pt, 44pt icon box, 12pt bold 2-line label) ──
+    // ── tile (76pt, 44pt icon box, caption-bold 2-line label) ──
+    // TODO(EnoUI): no icon-TILE primitive yet — EnoButton is a horizontal title+icon control
+    // and EnoChip is a pill, so neither can express this 76pt stacked grid cell (44pt icon box
+    // + 2-line centered label) that also has to be a filter TOGGLE, not a NavigationLink.
     private func tile(name: String, symbol: String, active: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             VStack(spacing: 6) {
                 Image(systemName: symbol)
                     // Icon in the muted body tone (web text-body), NOT near-black
                     // — line glyph matching the typography; active = brand blue.
-                    .font(.system(size: 24, weight: .regular))
-                    .foregroundStyle(active ? Tokens.brand : Tokens.sub)
+                    .enoIcon(.lg, color: active ? EnoColor.brand : EnoColor.sub)
                     .frame(width: 44, height: 44)
                 Text(name)
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundStyle(active ? Tokens.brand : Tokens.fg)
+                    .enoText(.caption, color: active ? EnoColor.brand : EnoColor.fg, weight: .bold)
                     .lineLimit(2)
                     .multilineTextAlignment(.center)
                     .frame(width: 76)
             }
-            .padding(.vertical, 4)
+            .padding(.vertical, EnoSpacing.s1)
         }
         .buttonStyle(.plain)
     }
 
+    // TODO(EnoUI): same missing icon-tile primitive as `tile` above, plus a remote brand mark
+    // (BrandLogoView) where the glyph would be — EnoUI has no logo/mark slot.
     private func brandTile(_ b: BrandsResponse.Brand) -> some View {
         let active = feed.brand == b.slug
         return Button {
@@ -172,13 +172,12 @@ struct QuickFindBar: View {
                 BrandLogoView(slug: b.slug, active: active)
                     .frame(width: 48, height: 44)   // 48 mark, unclipped, in a 44 box
                 Text(b.name)
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundStyle(active ? Tokens.brand : Tokens.fg)
+                    .enoText(.caption, color: active ? EnoColor.brand : EnoColor.fg, weight: .bold)
                     .lineLimit(2)
                     .multilineTextAlignment(.center)
                     .frame(width: 76)
             }
-            .padding(.vertical, 4)
+            .padding(.vertical, EnoSpacing.s1)
         }
         .buttonStyle(.plain)
     }
@@ -191,8 +190,8 @@ struct QuickFindBar: View {
     private func subcatPanel(for cat: AppCategory) -> some View {
         let subs = (subsByCat[cat.slug] ?? [])
             .sorted { (feed.subcategoryCounts[$0.slug] ?? 0) > (feed.subcategoryCounts[$1.slug] ?? 0) }
-        return HStack(spacing: 8) {
-            Rectangle().fill(Tokens.ring).frame(width: 1, height: 48)
+        return HStack(spacing: EnoSpacing.s2) {
+            Rectangle().fill(EnoColor.ring).frame(width: 1, height: 48)
             LazyHGrid(rows: gridRows, spacing: 6) {
                 chip(label: L10n.tr("All", "Tất cả"), symbol: nil, count: nil, active: feed.subcategory == nil) {
                     feed.subcategory = nil; feed.brand = nil; feed.model = nil
@@ -206,14 +205,14 @@ struct QuickFindBar: View {
                 }
             }
             .padding(6)
-            .background(Tokens.brandTint, in: RoundedRectangle(cornerRadius: panelRadius))
+            .background(EnoColor.brandTint, in: RoundedRectangle(cornerRadius: EnoRadius.card))
         }
         .task { if subsByCat[cat.slug] == nil { subsByCat[cat.slug] = await Taxonomy.shared.subs(for: cat.slug) } }
     }
 
     private func modelPanel() -> some View {
-        HStack(spacing: 8) {
-            Rectangle().fill(Tokens.ring).frame(width: 1, height: 48)
+        HStack(spacing: EnoSpacing.s2) {
+            Rectangle().fill(EnoColor.ring).frame(width: 1, height: 48)
             LazyHGrid(rows: gridRows, spacing: 6) {
                 chip(label: L10n.tr("All", "Tất cả"), symbol: nil, count: nil, active: feed.model == nil) {
                     feed.model = nil
@@ -225,27 +224,32 @@ struct QuickFindBar: View {
                 }
             }
             .padding(6)
-            .background(Tokens.brandTint, in: RoundedRectangle(cornerRadius: panelRadius))
+            .background(EnoColor.brandTint, in: RoundedRectangle(cornerRadius: EnoRadius.card))
         }
     }
 
-    // ── chip: 14pt semibold, optional 14pt leading icon, 10pt trailing count ──
+    // ── chip: label role, optional xs leading icon, micro trailing count ──
+    // TODO(EnoUI): NOT EnoChip. EnoChip is a ≥32pt pill whose selected state is a solid brand
+    // FILL; this is the web quick-find panel chip — a 28pt grid row (GridItem(.fixed(28)))
+    // sitting INSIDE a brand-tint panel, where selected = raised card surface + brand ink and
+    // unselected = transparent. EnoUI has no quiet/compact chip variant, and the pill's 32pt
+    // minimum would break the 3-row LazyHGrid.
     private func chip(label: String, symbol: String?, count: Int?, active: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            HStack(spacing: 4) {
+            HStack(spacing: EnoSpacing.s1) {
                 if let symbol {
-                    Image(systemName: symbol).font(.system(size: 11)).frame(width: 14)
+                    Image(systemName: symbol).enoIcon(.xs, color: active ? EnoColor.brand : EnoColor.sub).frame(width: 14)
                 }
-                Text(label).font(.system(size: 14, weight: .semibold)).lineLimit(1)
+                Text(label).font(EnoTextRole.label.font).lineLimit(1)
                 if let count {
-                    Text("\(count)").font(.system(size: 10, weight: .semibold)).foregroundStyle(Tokens.sub)
+                    Text("\(count)").enoText(.micro, color: EnoColor.sub)
                 }
             }
-            .foregroundStyle(active ? Tokens.brand : Tokens.sub)
+            .foregroundStyle(active ? EnoColor.brand : EnoColor.sub)
             .padding(.horizontal, 10)
-            .padding(.vertical, 4)
-            .background(active ? Tokens.card : Color.clear, in: RoundedRectangle(cornerRadius: chipRadius))
-            .shadow(color: active ? .black.opacity(0.06) : .clear, radius: 1, y: 1)
+            .padding(.vertical, EnoSpacing.s1)
+            .background(active ? EnoColor.card : Color.clear, in: RoundedRectangle(cornerRadius: EnoRadius.chip))
+            .enoElevation(active ? .raised : .flat)
         }
         .buttonStyle(.plain)
     }
@@ -268,10 +272,9 @@ struct BrandLogoView: View {
             case .success(let img): img.resizable().scaledToFit()
             default:
                 Text(slug.prefix(2).uppercased())
-                    .font(.system(size: 16, weight: .bold))
-                    .foregroundStyle(active ? Tokens.brand : Tokens.sub)
+                    .enoText(.headline, color: active ? EnoColor.brand : EnoColor.sub, weight: .bold)
                     .frame(width: 42, height: 42)
-                    .overlay(RoundedRectangle(cornerRadius: 9).strokeBorder(Tokens.ring, lineWidth: 1))
+                    .overlay(RoundedRectangle(cornerRadius: EnoRadius.control).strokeBorder(EnoColor.ring, lineWidth: 1))
             }
         }
     }

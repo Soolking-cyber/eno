@@ -1,5 +1,6 @@
 import SwiftUI
 import PhotosUI
+import EnoUI
 
 // Native dispute case room (#10) — replaces the WebSheet(/disputes/[id]) redirect.
 // Evidence timeline + stage stepper + one-shot statement/photo submission +
@@ -42,10 +43,10 @@ struct DisputeRoomView: View {
         NavigationStack {
             Group {
                 if let d = data { room(d) }
-                else if loading { ProgressView().frame(maxWidth: .infinity).padding(40) }
-                else { Text(L10n.tr("Couldn't load this case.", "Không tải được hồ sơ này.")).foregroundStyle(Tokens.sub).padding(40) }
+                else if loading { EnoLoadingState() }
+                else { Text(L10n.tr("Couldn't load this case.", "Không tải được hồ sơ này.")).enoText(.body, color: EnoColor.sub).padding(40) }
             }
-            .background(Tokens.canvas)
+            .background(EnoColor.canvas)
             .navigationTitle(L10n.tr("Dispute", "Khiếu nại"))
             .navigationBarTitleDisplayMode(.inline)
         }
@@ -61,7 +62,7 @@ struct DisputeRoomView: View {
             VStack(alignment: .leading, spacing: 14) {
                 header(d)
                 stageStepper(d.stage)
-                Divider().overlay(Tokens.ring)
+                Divider().overlay(EnoColor.ring)
                 ForEach(d.timeline) { entry(d, $0) }
                 if let note = d.decisionNote, !note.isEmpty {
                     decisionBlock(note)
@@ -70,39 +71,42 @@ struct DisputeRoomView: View {
                     composer(d)
                 } else if d.submitted {
                     Text(L10n.tr("You've submitted your response.", "Bạn đã gửi phản hồi."))
-                        .font(.system(size: 13)).foregroundStyle(Tokens.sub)
+                        .enoText(.caption, color: EnoColor.sub)
                 }
                 if d.role == "reporter" && d.status == "open" && !d.withdrawn {
+                    // Left as a native destructive Button on purpose: EnoButton's `.destructive`
+                    // is a FILLED red control, which would out-shout the primary "Submit response"
+                    // CTA directly above it. There is no destructive *text* variant yet.
                     Button(role: .destructive) { Task { await withdraw() } } label: {
-                        Text(L10n.tr("Withdraw this report", "Rút lại báo cáo")).font(.system(size: 14, weight: .semibold))
+                        Text(L10n.tr("Withdraw this report", "Rút lại báo cáo")).font(EnoTextRole.label.font)
                     }
-                    .padding(.top, 4)
+                    .padding(.top, EnoSpacing.s1)
                 }
-                if let e = errorMsg { Text(e).font(.system(size: 12)).foregroundStyle(Tokens.danger) }
+                if let e = errorMsg { Text(e).enoText(.caption, color: EnoColor.danger) }
             }
-            .padding(16)
+            .padding(EnoSpacing.screenGutter)
         }
     }
 
     private func header(_ d: Case) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(reasonLabel(d.reason)).font(.system(size: 18, weight: .bold)).foregroundStyle(Tokens.fg)
+        VStack(alignment: .leading, spacing: EnoSpacing.s2) {
+            Text(reasonLabel(d.reason)).enoText(.headline, color: EnoColor.fg, weight: .bold)
             if let l = d.listing {
                 HStack(spacing: 10) {
                     AsyncImage(url: l.image.flatMap { ImageURL.optimized($0, width: 100) }) { p in
-                        if case .success(let img) = p { img.resizable().scaledToFill() } else { Tokens.tint }
+                        if case .success(let img) = p { img.resizable().scaledToFill() } else { EnoColor.tint }
                     }
-                    .frame(width: 40, height: 40).clipShape(RoundedRectangle(cornerRadius: 8))
-                    Text(l.title).font(.system(size: 13)).foregroundStyle(Tokens.sub).lineLimit(2)
+                    .frame(width: 40, height: 40).clipShape(RoundedRectangle(cornerRadius: EnoRadius.chip))
+                    Text(l.title).enoText(.caption, color: EnoColor.sub).lineLimit(2)
                 }
             }
-            HStack(spacing: 8) {
+            HStack(spacing: EnoSpacing.s2) {
                 if d.role == "reporter", let c = d.counterparty {
-                    Text(L10n.tr("Against \(c)", "Đối với \(c)")).font(.system(size: 12)).foregroundStyle(Tokens.sub)
+                    Text(L10n.tr("Against \(c)", "Đối với \(c)")).enoText(.caption, color: EnoColor.sub)
                 }
                 if let until = d.evidenceUntil, d.stage == "evidence", let dt = Format.date(until) {
                     Text("· " + L10n.tr("Evidence closes \(Format.ago(dt.ISO8601Format()))", "Đóng nhận bằng chứng \(Format.ago(dt.ISO8601Format()))"))
-                        .font(.system(size: 12)).foregroundStyle(Tokens.warning)
+                        .enoText(.caption, color: EnoColor.warning)
                 }
             }
         }
@@ -115,63 +119,61 @@ struct DisputeRoomView: View {
         return HStack(spacing: 6) {
             ForEach(0..<3) { i in
                 Text(labels[i])
-                    .font(.system(size: 11, weight: i == idx ? .bold : .medium))
-                    .foregroundStyle(i <= idx ? Tokens.brand : Tokens.sub)
-                    .padding(.horizontal, 8).padding(.vertical, 4)
-                    .background((i <= idx ? Tokens.brand : Tokens.sub).opacity(0.1), in: Capsule())
-                if i < 2 { Image(systemName: "chevron.right").font(.system(size: 9)).foregroundStyle(Tokens.sub) }
+                    .font(EnoTextRole.micro.font.weight(i == idx ? .bold : .medium))
+                    .foregroundStyle(i <= idx ? EnoColor.brand : EnoColor.sub)
+                    .padding(.horizontal, EnoSpacing.s2).padding(.vertical, EnoSpacing.s1)
+                    .background((i <= idx ? EnoColor.brand : EnoColor.sub).opacity(0.1), in: Capsule())
+                if i < 2 { Image(systemName: "chevron.right").enoIcon(.xs, color: EnoColor.sub) }
             }
         }
     }
 
     private func entry(_ d: Case, _ item: Case.Item) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(authorLabel(d, item)).font(.system(size: 12, weight: .bold)).foregroundStyle(item.kind == "decision" ? Tokens.brand : Tokens.fg)
-            if !item.body.isEmpty { Text(item.body).font(.system(size: 13)).foregroundStyle(Tokens.sub) }
-            if !item.images.isEmpty {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 6) {
-                        ForEach(item.images, id: \.self) { url in
-                            AsyncImage(url: URL(string: url)) { p in
-                                if case .success(let img) = p { img.resizable().scaledToFill() } else { Tokens.tint }
+        EnoCard(padding: EnoSpacing.s3) {
+            VStack(alignment: .leading, spacing: EnoSpacing.s1) {
+                Text(authorLabel(d, item))
+                    .enoText(.caption, color: item.kind == "decision" ? EnoColor.brand : EnoColor.fg, weight: .bold)
+                if !item.body.isEmpty { Text(item.body).enoText(.caption, color: EnoColor.sub) }
+                if !item.images.isEmpty {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 6) {
+                            ForEach(item.images, id: \.self) { url in
+                                AsyncImage(url: URL(string: url)) { p in
+                                    if case .success(let img) = p { img.resizable().scaledToFill() } else { EnoColor.tint }
+                                }
+                                .frame(width: 72, height: 72).clipShape(RoundedRectangle(cornerRadius: EnoRadius.chip))
                             }
-                            .frame(width: 72, height: 72).clipShape(RoundedRectangle(cornerRadius: 8))
                         }
                     }
                 }
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(10)
-        .background(Tokens.card, in: RoundedRectangle(cornerRadius: Tokens.radiusControl))
     }
 
     private func decisionBlock(_ note: String) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(L10n.tr("Decision", "Kết luận")).font(.system(size: 13, weight: .bold)).foregroundStyle(Tokens.brand)
-            Text(note).font(.system(size: 13)).foregroundStyle(Tokens.fg)
+        VStack(alignment: .leading, spacing: EnoSpacing.s1) {
+            Text(L10n.tr("Decision", "Kết luận")).enoText(.caption, color: EnoColor.brand, weight: .bold)
+            Text(note).enoText(.caption, color: EnoColor.fg)
         }
-        .frame(maxWidth: .infinity, alignment: .leading).padding(12)
-        .background(Tokens.brandTint, in: RoundedRectangle(cornerRadius: Tokens.radiusControl))
+        .frame(maxWidth: .infinity, alignment: .leading).padding(EnoSpacing.s3)
+        .background(EnoColor.brandTint, in: RoundedRectangle(cornerRadius: EnoRadius.control))
     }
 
     private func composer(_ d: Case) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Divider().overlay(Tokens.ring)
-            Text(L10n.tr("Your response (one submission)", "Phản hồi của bạn (một lần)")).font(.system(size: 14, weight: .bold)).foregroundStyle(Tokens.fg)
-            TextField(L10n.tr("Explain your side…", "Giải thích phía bạn…"), text: $statement, axis: .vertical).lineLimit(3...8)
-                .padding(10).background(Tokens.tint, in: RoundedRectangle(cornerRadius: Tokens.radiusControl))
-            HStack(spacing: 8) {
-                if !evidenceImages.isEmpty { Text("\(evidenceImages.count)/6").font(.system(size: 12)).foregroundStyle(Tokens.sub) }
+        VStack(alignment: .leading, spacing: EnoSpacing.s2) {
+            Divider().overlay(EnoColor.ring)
+            Text(L10n.tr("Your response (one submission)", "Phản hồi của bạn (một lần)"))
+                .enoText(.label, color: EnoColor.fg, weight: .bold)
+            EnoTextArea(placeholder: L10n.tr("Explain your side…", "Giải thích phía bạn…"), text: $statement)
+            HStack(spacing: EnoSpacing.s2) {
+                if !evidenceImages.isEmpty { Text("\(evidenceImages.count)/6").enoText(.caption, color: EnoColor.sub) }
                 PhotosPicker(selection: $picks, maxSelectionCount: max(1, 6 - evidenceImages.count), matching: .images) {
-                    Label(L10n.tr("Add photos", "Thêm ảnh"), systemImage: "photo").font(.system(size: 13))
+                    Label(L10n.tr("Add photos", "Thêm ảnh"), systemImage: "photo").font(EnoTextRole.label.font)
                 }.disabled(uploading || evidenceImages.count >= 6)
                 if uploading { ProgressView() }
             }
-            Button {
+            EnoButton(L10n.tr("Submit response", "Gửi phản hồi"), loading: submitting) {
                 Task { await submit() }
-            } label: {
-                if submitting { ProgressView() } else { Text(L10n.tr("Submit response", "Gửi phản hồi")).font(.system(size: 14, weight: .semibold)) }
             }
             .disabled(submitting || (statement.trimmingCharacters(in: .whitespaces).isEmpty && evidenceImages.isEmpty))
         }

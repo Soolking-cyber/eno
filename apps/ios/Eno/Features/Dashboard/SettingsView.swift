@@ -1,4 +1,5 @@
 import SwiftUI
+import EnoUI
 
 // Native Settings — replaces the web /dashboard/settings sheet for the common
 // actions: edit profile (#59, PATCH /api/profile), switch account type
@@ -51,31 +52,35 @@ struct SettingsView: View {
     var body: some View {
         List {
             Section(L10n.tr("Profile", "Hồ sơ")) {
-                TextField(L10n.tr("Name", "Tên"), text: $name)
-                TextField(L10n.tr("Phone", "Số điện thoại"), text: $phone).keyboardType(.phonePad)
+                EnoField(placeholder: L10n.tr("Name", "Tên"), text: $name)
+                EnoField(placeholder: L10n.tr("Phone", "Số điện thoại"), text: $phone, kind: .phone)
                 if let profileMsg {
-                    Text(profileMsg).font(.system(size: 12)).foregroundStyle(profileOk ? .green : Tokens.danger)
+                    Text(profileMsg).enoText(.caption, color: profileOk ? EnoColor.success : EnoColor.danger)
                 }
-                Button { Task { await saveProfile() } } label: {
-                    if savingProfile { ProgressView() } else { Text(L10n.tr("Save profile", "Lưu hồ sơ")) }
+                EnoButton(L10n.tr("Save profile", "Lưu hồ sơ"), loading: savingProfile) {
+                    Task { await saveProfile() }
                 }
                 .disabled(savingProfile || !nameValid)
             }
 
             Section(L10n.tr("Account type", "Loại tài khoản")) {
-                Picker(L10n.tr("Account type", "Loại tài khoản"), selection: $accountType) {
-                    Text(L10n.tr("Individual", "Cá nhân")).tag("individual")
-                    Text(L10n.tr("Business", "Doanh nghiệp")).tag("business")
+                EnoSegmentedControl(
+                    selection: $accountType,
+                    options: ["individual", "business"],
+                    accessibilityLabel: L10n.tr("Account type", "Loại tài khoản")
+                ) { option in
+                    option == "individual"
+                        ? L10n.tr("Individual", "Cá nhân")
+                        : L10n.tr("Business", "Doanh nghiệp")
                 }
-                .pickerStyle(.segmented)
                 if accountType == "business" {
-                    TextField(L10n.tr("Business name", "Tên doanh nghiệp"), text: $businessName)
+                    EnoField(placeholder: L10n.tr("Business name", "Tên doanh nghiệp"), text: $businessName)
                 }
                 if let typeMsg {
-                    Text(typeMsg).font(.system(size: 12)).foregroundStyle(typeOk ? .green : Tokens.danger)
+                    Text(typeMsg).enoText(.caption, color: typeOk ? EnoColor.success : EnoColor.danger)
                 }
-                Button { Task { await saveType() } } label: {
-                    if savingType { ProgressView() } else { Text(L10n.tr("Save account type", "Lưu loại tài khoản")) }
+                EnoButton(L10n.tr("Save account type", "Lưu loại tài khoản"), loading: savingType) {
+                    Task { await saveType() }
                 }
                 .disabled(savingType || (accountType == "business" && businessName.trimmingCharacters(in: .whitespaces).isEmpty))
             }
@@ -83,8 +88,9 @@ struct SettingsView: View {
             if accountType == "business" {
                 Section {
                     NavigationLink { BusinessProfileView() } label: {
-                        Label(L10n.tr("Business profile", "Hồ sơ doanh nghiệp"), systemImage: "building.2")
+                        EnoListRowLabel(icon: "building.2", title: L10n.tr("Business profile", "Hồ sơ doanh nghiệp"))
                     }
+                    .listRowInsets(EdgeInsets())
                 }
             }
 
@@ -104,27 +110,34 @@ struct SettingsView: View {
 
             Section {
                 NavigationLink { PreferencesView() } label: {
-                    Label(L10n.tr("Appearance & language", "Giao diện & ngôn ngữ"), systemImage: "slider.horizontal.3")
+                    EnoListRowLabel(icon: "slider.horizontal.3", title: L10n.tr("Appearance & language", "Giao diện & ngôn ngữ"))
                 }
+                .listRowInsets(EdgeInsets())
                 NavigationLink { DisputesView() } label: {
-                    Label(L10n.tr("Disputes", "Khiếu nại"), systemImage: "checkmark.shield")
+                    EnoListRowLabel(icon: "checkmark.shield", title: L10n.tr("Disputes", "Khiếu nại"))
                 }
-                Button { showWeb = true } label: {
-                    Label(L10n.tr("Help & safety", "Trợ giúp & an toàn"), systemImage: "questionmark.circle")
-                }
+                .listRowInsets(EdgeInsets())
+                EnoListRow(
+                    icon: "questionmark.circle",
+                    title: L10n.tr("Help & safety", "Trợ giúp & an toàn"),
+                    action: { showWeb = true }
+                )
+                .listRowInsets(EdgeInsets())
             }
 
             Section {
-                Button(role: .destructive) { deleteConfirm = ""; showDelete = true } label: {
-                    Text(L10n.tr("Delete account", "Xóa tài khoản"))
-                }
+                EnoListRow(
+                    title: L10n.tr("Delete account", "Xóa tài khoản"),
+                    role: .destructive,
+                    action: { deleteConfirm = ""; showDelete = true }
+                )
+                .listRowInsets(EdgeInsets())
                 if let deleteMsg {
-                    Text(deleteMsg).font(.system(size: 12)).foregroundStyle(Tokens.danger)
+                    Text(deleteMsg).enoText(.caption, color: EnoColor.danger)
                 }
             } header: {
                 Text(L10n.tr("Danger zone", "Vùng nguy hiểm"))
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundStyle(Tokens.danger)
+                    .enoText(.subheadline, color: EnoColor.danger, weight: .bold)
                     .textCase(nil)
             } footer: {
                 Text(L10n.tr("Permanently deletes your account and listings.", "Xóa vĩnh viễn tài khoản và tin đăng của bạn."))

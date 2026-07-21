@@ -1,5 +1,6 @@
 import SwiftUI
 import Observation
+import EnoUI
 
 // Chat thread (#118), mirroring messages/[id]/page.tsx: chronological bubbles
 // (mine brand / theirs card), day separators, offer CARDS derived from
@@ -144,15 +145,14 @@ struct ThreadView: View {
         Group {
             if model.notFound {
                 Text(L10n.tr("Conversation not found.", "Không tìm thấy cuộc trò chuyện."))
-                    .font(.system(size: 15))
-                    .foregroundStyle(Tokens.sub)
+                    .enoText(.subheadline, color: EnoColor.sub)
             } else if let t = model.thread {
                 thread(t)
             } else {
                 ProgressView()
             }
         }
-        .background(Tokens.canvas)
+        .background(EnoColor.canvas)
         .navigationTitle(model.thread?.counterpart.name ?? "")
         .navigationBarTitleDisplayMode(.inline)
         .task {
@@ -188,7 +188,7 @@ struct ThreadView: View {
             listingBar(t)
             ScrollViewReader { proxy in
                 ScrollView {
-                    LazyVStack(spacing: 8) {
+                    LazyVStack(spacing: EnoSpacing.s2) {
                         safetyNote(t)
                         ForEach(Array(t.messages.enumerated()), id: \.element.id) { idx, m in
                             if daySeparatorNeeded(t.messages, idx) {
@@ -202,13 +202,12 @@ struct ThreadView: View {
                         }
                         if t.messages.isEmpty {
                             Text(L10n.tr("Say hello — this seller will be notified.", "Gửi lời chào — người bán sẽ được thông báo."))
-                                .font(.system(size: 13))
-                                .foregroundStyle(Tokens.sub)
-                                .padding(.top, 24)
+                                .enoText(.caption, color: EnoColor.sub)
+                                .padding(.top, EnoSpacing.s6)
                         }
                         Color.clear.frame(height: 1).id("bottom")
                     }
-                    .padding(12)
+                    .padding(EnoSpacing.s3)
                 }
                 .onChange(of: t.messages.count) {
                     withAnimation { proxy.scrollTo("bottom", anchor: .bottom) }
@@ -223,21 +222,21 @@ struct ThreadView: View {
         HStack(spacing: 10) {
             if let img = t.listing.image, let url = ImageURL.optimized(img, width: 96) {
                 AsyncImage(url: url) { phase in
-                    if case .success(let i) = phase { i.resizable().scaledToFill() } else { Tokens.tint }
+                    if case .success(let i) = phase { i.resizable().scaledToFill() } else { EnoColor.tint }
                 }
                 .frame(width: 36, height: 36)
-                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .clipShape(RoundedRectangle(cornerRadius: EnoRadius.chip))
             }
             VStack(alignment: .leading, spacing: 1) {
-                Text(t.listing.title).font(.system(size: 13, weight: .semibold)).foregroundStyle(Tokens.fg).lineLimit(1)
-                Text(Format.vnd(t.listing.price)).font(.system(size: 12, weight: .bold)).foregroundStyle(Tokens.brand)
+                Text(t.listing.title).enoText(.caption, color: EnoColor.fg, weight: .semibold).lineLimit(1)
+                Text(Format.vnd(t.listing.price)).enoText(.caption, color: EnoColor.brand, weight: .bold)
             }
             Spacer()
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(Tokens.card)
-        .overlay(alignment: .bottom) { Rectangle().fill(Tokens.ring).frame(height: 1) }
+        .padding(.horizontal, EnoSpacing.s3)
+        .padding(.vertical, EnoSpacing.s2)
+        .background(EnoColor.card)
+        .overlay(alignment: .bottom) { Rectangle().fill(EnoColor.ring).frame(height: 1) }
     }
 
     // First-contact safety note (chat-safety-note.tsx rule: ≤3 msgs, none mine).
@@ -246,11 +245,10 @@ struct ThreadView: View {
         if t.messages.count <= 3 && !t.messages.contains(where: { $0.mine }) {
             Text(L10n.tr("First chat — never pay or ship before meeting. Meet in public, inspect, then pay.",
                          "Lần đầu trò chuyện — đừng thanh toán hay gửi hàng trước khi gặp. Gặp nơi công cộng, kiểm tra, rồi mới trả tiền."))
-                .font(.system(size: 12))
-                .foregroundStyle(Tokens.sub)
+                .enoText(.caption, color: EnoColor.sub)
                 .padding(10)
                 .frame(maxWidth: .infinity)
-                .background(Tokens.tint.opacity(0.6), in: RoundedRectangle(cornerRadius: Tokens.radiusCard))
+                .background(EnoColor.tint.opacity(0.6), in: RoundedRectangle(cornerRadius: EnoRadius.card))
         }
     }
 
@@ -268,22 +266,18 @@ struct ThreadView: View {
             if Calendar.current.isDateInYesterday(d) { return L10n.tr("Yesterday", "Hôm qua") }
             return d.formatted(.dateTime.month(.abbreviated).day())
         }()
-        return Text(label)
-            .font(.system(size: 11, weight: .semibold))
-            .foregroundStyle(Tokens.sub)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 3)
-            .background(Tokens.tint, in: Capsule())
+        // A passive neutral pill — EnoBadge IS this shape (micro type, sub ink, tint capsule).
+        return EnoBadge(label)
     }
 
     private func bubble(_ m: ChatMsg) -> some View {
         VStack(alignment: m.mine ? .trailing : .leading, spacing: 3) {
             Text(m.body)
-                .font(.system(size: 15))
-                .foregroundStyle(m.mine ? .white : Tokens.fg)
+                .font(EnoTextRole.subheadline.font)
+                .foregroundStyle(m.mine ? EnoColor.onBrand : EnoColor.fg)
                 .padding(.horizontal, 14)
-                .padding(.vertical, 8)
-                .background(m.failed == true ? Tokens.danger.opacity(0.15) : (m.mine ? Tokens.brand : Tokens.card), in: RoundedRectangle(cornerRadius: 16))
+                .padding(.vertical, EnoSpacing.s2)
+                .background(m.failed == true ? EnoColor.danger.opacity(0.15) : (m.mine ? EnoColor.brand : EnoColor.card), in: RoundedRectangle(cornerRadius: EnoRadius.card))
                 .opacity(m.pending == true ? 0.7 : 1)
             meta(m)
         }
@@ -294,119 +288,114 @@ struct ThreadView: View {
     @ViewBuilder
     private func meta(_ m: ChatMsg) -> some View {
         if m.failed == true {
+            // TODO(EnoUI): stays hand-rolled — EnoButton has no danger-coloured `.text`
+            // variant, and every filled/44pt variant would outweigh this meta line.
             Button {
                 Task { await model.retry(m) }
             } label: {
                 Text(L10n.tr("Not sent — tap to retry", "Chưa gửi — chạm để thử lại"))
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(Tokens.danger)
+                    .enoText(.micro, color: EnoColor.danger)
             }
         } else if m.pending == true {
-            Text(L10n.tr("Sending…", "Đang gửi…")).font(.system(size: 11)).foregroundStyle(Tokens.sub)
+            Text(L10n.tr("Sending…", "Đang gửi…")).enoText(.micro, color: EnoColor.sub, weight: .regular)
         } else if let d = Format.date(m.createdAt) {
-            Text(d.formatted(.dateTime.hour().minute())).font(.system(size: 11)).foregroundStyle(Tokens.sub)
+            Text(d.formatted(.dateTime.hour().minute())).enoText(.micro, color: EnoColor.sub, weight: .regular)
         }
     }
 
     // Offer card (derived from offerAmount/offerStatus — never from body).
     private func offerCard(_ m: ChatMsg, thread t: ChatThread) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(L10n.tr("💰 Offer", "💰 Đề nghị")).font(.system(size: 12, weight: .bold)).foregroundStyle(Tokens.sub)
+            Text(L10n.tr("💰 Offer", "💰 Đề nghị")).enoText(.caption, color: EnoColor.sub, weight: .bold)
             if let amt = m.offerAmount {
                 Text(L10n.tr("Offered \(Format.vnd(amt))", "Đã trả giá \(Format.vnd(amt))"))
-                    .font(.system(size: 16, weight: .bold))
-                    .foregroundStyle(Tokens.fg)
+                    .enoText(.callout, color: EnoColor.fg, weight: .bold)
                 if t.listing.price > 0 {
                     Text("\(Int((Double(amt) / Double(t.listing.price) * 100).rounded()))% \(L10n.tr("of asking", "của giá rao")) · \(Format.vnd(t.listing.price))")
-                        .font(.system(size: 12))
-                        .foregroundStyle(Tokens.sub)
+                        .enoText(.caption, color: EnoColor.sub)
                 }
             }
             if !m.body.isEmpty && !m.body.hasPrefix("💰") {
-                Text(m.body).font(.system(size: 14)).foregroundStyle(Tokens.fg)
+                Text(m.body).enoText(.subheadline, color: EnoColor.fg)
             }
             // Review #7: a network-failed counter must not read as a live offer.
             if m.failed == true {
+                // TODO(EnoUI): see meta(_:) — no danger-coloured `.text` button variant yet.
                 Button {
                     Task { await model.retry(m) }
                 } label: {
                     Text(L10n.tr("Not sent — tap to retry", "Chưa gửi — chạm để thử lại"))
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(Tokens.danger)
+                        .enoText(.caption, color: EnoColor.danger, weight: .semibold)
                 }
             } else if m.pending == true {
-                Text(L10n.tr("Sending…", "Đang gửi…")).font(.system(size: 12)).foregroundStyle(Tokens.sub)
+                Text(L10n.tr("Sending…", "Đang gửi…")).enoText(.caption, color: EnoColor.sub)
             } else {
                 status(m)
             }
             if !m.mine && m.offerStatus == "pending" {
-                HStack(spacing: 8) {
-                    Button(L10n.tr("Accept", "Chấp nhận")) { Task { await model.act(on: m, action: "accept") } }
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 16)
-                        .frame(height: 36)
-                        .background(Tokens.brand, in: Capsule())
-                    Button(L10n.tr("Decline", "Từ chối")) { Task { await model.act(on: m, action: "decline") } }
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(Tokens.fg)
-                        .padding(.horizontal, 16)
-                        .frame(height: 36)
-                        .background(Tokens.tint, in: Capsule())
+                HStack(spacing: EnoSpacing.s2) {
+                    EnoButton(L10n.tr("Accept", "Chấp nhận"), size: .compact, fullWidth: false) {
+                        Task { await model.act(on: m, action: "accept") }
+                    }
+                    EnoButton(L10n.tr("Decline", "Từ chối"), variant: .tertiary, size: .compact, fullWidth: false) {
+                        Task { await model.act(on: m, action: "decline") }
+                    }
                     // Landmine invariant: Counter only on negotiable listings.
                     if t.listing.negotiable {
-                        Button(L10n.tr("Counter", "Trả giá")) { counterPrompt = true }
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(Tokens.brand)
+                        EnoButton(L10n.tr("Counter", "Trả giá"), variant: .text, size: .compact, fullWidth: false) {
+                            counterPrompt = true
+                        }
                     }
                 }
-                .buttonStyle(.plain)
                 .padding(.top, 2)
             }
             if m.mine && m.offerStatus == "pending" && m.pending != true && m.failed != true {
-                Text(L10n.tr("Waiting for a response…", "Đang chờ phản hồi…")).font(.system(size: 12)).foregroundStyle(Tokens.sub)
+                Text(L10n.tr("Waiting for a response…", "Đang chờ phản hồi…")).enoText(.caption, color: EnoColor.sub)
             }
         }
-        .padding(12)
+        .padding(EnoSpacing.s3)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(m.mine ? Tokens.brandTint.opacity(0.5) : Tokens.card, in: RoundedRectangle(cornerRadius: Tokens.radiusCard))
-        .overlay(RoundedRectangle(cornerRadius: Tokens.radiusCard).strokeBorder(m.mine ? Tokens.brand.opacity(0.3) : Tokens.ring, lineWidth: 1))
+        // TODO(EnoUI): EnoCard hardcodes the card fill + ring, so the "mine" brand-tinted
+        // variant of this panel can't ride on it yet — tokens only for now.
+        .background(m.mine ? EnoColor.brandTint.opacity(0.5) : EnoColor.card, in: RoundedRectangle(cornerRadius: EnoRadius.card))
+        .overlay(RoundedRectangle(cornerRadius: EnoRadius.card).strokeBorder(m.mine ? EnoColor.brand.opacity(0.3) : EnoColor.ring, lineWidth: 1))
     }
 
     @ViewBuilder
     private func status(_ m: ChatMsg) -> some View {
         switch m.offerStatus {
-        case "accepted": Text(L10n.tr("Accepted", "Đã chấp nhận")).font(.system(size: 12, weight: .bold)).foregroundStyle(.green)
-        case "declined": Text(L10n.tr("Declined", "Đã từ chối")).font(.system(size: 12, weight: .bold)).foregroundStyle(Tokens.danger)
-        case "countered": Text(L10n.tr("Countered", "Đã trả giá khác")).font(.system(size: 12, weight: .bold)).foregroundStyle(Tokens.sub)
-        case "pending": Text(L10n.tr("Pending", "Đang chờ")).font(.system(size: 12, weight: .bold)).foregroundStyle(.orange)
+        case "accepted": Text(L10n.tr("Accepted", "Đã chấp nhận")).enoText(.caption, color: EnoColor.success, weight: .bold)
+        case "declined": Text(L10n.tr("Declined", "Đã từ chối")).enoText(.caption, color: EnoColor.danger, weight: .bold)
+        case "countered": Text(L10n.tr("Countered", "Đã trả giá khác")).enoText(.caption, color: EnoColor.sub, weight: .bold)
+        case "pending": Text(L10n.tr("Pending", "Đang chờ")).enoText(.caption, color: EnoColor.warning, weight: .bold)
         default: EmptyView()
         }
     }
 
     private var composer: some View {
         HStack(spacing: 10) {
+            // TODO(EnoUI): EnoField is single-line and EnoTextArea is a fixed-height box —
+            // neither covers a 1…4-line growing composer, so this stays native (same call
+            // as the AI concierge composer). Chrome below is canon tokens.
             TextField(L10n.tr("Write a message…", "Nhập tin nhắn…"), text: $draft, axis: .vertical)
                 .lineLimit(1...4)
-                .font(.system(size: 15))
+                .font(EnoTextRole.subheadline.font)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 9)
-                .background(Tokens.tint, in: RoundedRectangle(cornerRadius: Tokens.radiusControl))
-            Button {
+                .background(EnoColor.tint, in: RoundedRectangle(cornerRadius: EnoRadius.control))
+            EnoIconButton(
+                "arrow.up.circle.fill", size: 32,
+                color: draft.trimmingCharacters(in: .whitespaces).isEmpty ? EnoColor.sub : EnoColor.brand,
+                label: L10n.tr("Send", "Gửi")
+            ) {
                 let text = draft
                 draft = ""
                 Task { await model.send(text: text) }
-            } label: {
-                Image(systemName: "arrow.up")
-                    .font(.system(size: 16, weight: .bold))
-                    .foregroundStyle(.white)
-                    .frame(width: 38, height: 38)
-                    .background(draft.trimmingCharacters(in: .whitespaces).isEmpty ? Tokens.sub : Tokens.brand, in: Circle())
             }
             .disabled(draft.trimmingCharacters(in: .whitespaces).isEmpty)
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
+        .padding(.horizontal, EnoSpacing.s3)
+        .padding(.vertical, EnoSpacing.s2)
         .background(.bar)
     }
 }

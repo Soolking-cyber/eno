@@ -1,5 +1,6 @@
 import SwiftUI
 import Observation
+import EnoUI
 
 // The Messages tab (#118): native inbox mirroring conversation-list.tsx —
 // eno AI pinned row, counterpart avatar + name, listing title, offer-aware
@@ -25,21 +26,14 @@ struct MessagesView: View {
 
     @State private var signInSheet = false
     private var guestHero: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: EnoSpacing.s4) {
             Image(systemName: "message")
-                .font(.system(size: 40))
-                .foregroundStyle(Tokens.brand)
+                .enoIcon(.xl, color: EnoColor.brand)
             Text(L10n.tr("Sign in to see your messages.", "Đăng nhập để xem tin nhắn của bạn."))
-                .font(.system(size: 15))
-                .foregroundStyle(Tokens.sub)
+                .enoText(.subheadline, color: EnoColor.sub)
                 .multilineTextAlignment(.center)
-                .padding(.horizontal, 32)
-            Button(L10n.tr("Sign in", "Đăng nhập")) { signInSheet = true }
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(.white)
-                .padding(.horizontal, 32)
-                .frame(height: 48)
-                .background(Tokens.brand, in: RoundedRectangle(cornerRadius: Tokens.radiusControl))
+                .padding(.horizontal, EnoSpacing.s8)
+            EnoButton(L10n.tr("Sign in", "Đăng nhập"), size: .large, fullWidth: false) { signInSheet = true }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .sheet(isPresented: $signInSheet) { WebSheet(path: "/signin") }
@@ -73,20 +67,23 @@ struct InboxView: View {
     var body: some View {
         List {
             // eno AI — synthetic pinned row (web parity: not a DB conversation).
+            // TODO(EnoUI): stays a raw Button on purpose. EnoListRow is title+subtitle only,
+            // and this row is the deliberate TWIN of the conversation rows below (44pt disc,
+            // 14-bold name, 12 sub line). Putting only this one on EnoListRow would split the
+            // screen's row language (16-regular title, 56pt height, its own 16pt inset on top
+            // of the List's). Needs an EnoConversationRow pattern — see primitiveGaps.
             Button {
                 aiSheet = true
             } label: {
-                HStack(spacing: 12) {
+                HStack(spacing: EnoSpacing.s3) {
                     Image(systemName: "sparkles")
-                        .font(.system(size: 17))
-                        .foregroundStyle(.white)
+                        .enoIcon(.md, color: EnoColor.onBrand)
                         .frame(width: 44, height: 44)
-                        .background(Tokens.brand, in: Circle())
+                        .background(EnoColor.brand, in: Circle())
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("eno AI").font(.system(size: 14, weight: .bold)).foregroundStyle(Tokens.fg)
+                        Text("eno AI").enoText(.callout, color: EnoColor.fg, weight: .bold)
                         Text(L10n.tr("Ask anything — find products by chat", "Hỏi bất cứ điều gì — tìm đồ bằng chat"))
-                            .font(.system(size: 12))
-                            .foregroundStyle(Tokens.sub)
+                            .enoText(.caption, color: EnoColor.sub)
                             .lineLimit(1)
                     }
                 }
@@ -110,8 +107,7 @@ struct InboxView: View {
             if model.loaded && model.convos.isEmpty {
                 Text(L10n.tr("No messages yet. Tap \"Message\" on a listing to start a chat.",
                              "Chưa có tin nhắn. Nhấn \"Nhắn tin\" trên một tin đăng để bắt đầu."))
-                    .font(.system(size: 14))
-                    .foregroundStyle(Tokens.sub)
+                    .enoText(.callout, color: EnoColor.sub)
                     .listRowBackground(Color.clear)
             }
         }
@@ -128,14 +124,13 @@ struct InboxView: View {
 
     private func convoInitial(_ c: InboxConvo) -> some View {
         Text(String(c.counterpart.name.prefix(1)).uppercased())
-            .font(.system(size: 17, weight: .bold))
-            .foregroundStyle(.white)
+            .enoText(.headline, color: EnoColor.onBrand, weight: .bold)
             .frame(width: 44, height: 44)
-            .background(Color(hexString: c.counterpart.avatarColor) ?? Tokens.brand, in: Circle())
+            .background(Color(hexString: c.counterpart.avatarColor) ?? EnoColor.brand, in: Circle())
     }
 
     private func row(_ c: InboxConvo) -> some View {
-        HStack(spacing: 12) {
+        HStack(spacing: EnoSpacing.s3) {
             if let urlStr = c.counterpart.avatarUrl, let url = ImageURL.optimized(urlStr, width: 88) {
                 AsyncImage(url: url) { phase in
                     if case .success(let img) = phase { img.resizable().scaledToFill() }
@@ -149,21 +144,18 @@ struct InboxView: View {
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {
                     Text(c.counterpart.name)
-                        .font(.system(size: 14, weight: .bold))
-                        .foregroundStyle(Tokens.fg)
+                        .enoText(.callout, color: EnoColor.fg, weight: .bold)
                         .lineLimit(1)
                     if c.unread > 0 {
                         Text("\(c.unread)")
-                            .font(.system(size: 11, weight: .bold))
-                            .foregroundStyle(.white)
+                            .enoText(.micro, color: EnoColor.onBrand, weight: .bold)
                             .padding(.horizontal, 6)
                             .padding(.vertical, 1)
-                            .background(Tokens.brand, in: Capsule())
+                            .background(EnoColor.brand, in: Capsule())
                     }
                 }
                 Text(c.listingTitle)
-                    .font(.system(size: 12))
-                    .foregroundStyle(Tokens.sub)
+                    .enoText(.caption, color: EnoColor.sub)
                     .lineLimit(1)
                 preview(c)
                     .lineLimit(1)
@@ -178,20 +170,21 @@ struct InboxView: View {
         if let o = c.lastOffer {
             let amt = o.amount.map { Format.vnd($0) } ?? ""
             switch o.status {
-            case "accepted": Text(L10n.tr("✅ Offer accepted", "✅ Đã chấp nhận đề nghị")).font(.system(size: 13)).foregroundStyle(Tokens.sub)
-            case "declined": Text(L10n.tr("❌ Offer declined", "❌ Đã từ chối đề nghị")).font(.system(size: 13)).foregroundStyle(Tokens.sub)
-            case "countered": Text(L10n.tr("↩️ Counter-offer", "↩️ Đã trả giá khác")).font(.system(size: 13)).foregroundStyle(Tokens.sub)
+            case "accepted": Text(L10n.tr("✅ Offer accepted", "✅ Đã chấp nhận đề nghị")).enoText(.caption, color: EnoColor.sub)
+            case "declined": Text(L10n.tr("❌ Offer declined", "❌ Đã từ chối đề nghị")).enoText(.caption, color: EnoColor.sub)
+            case "countered": Text(L10n.tr("↩️ Counter-offer", "↩️ Đã trả giá khác")).enoText(.caption, color: EnoColor.sub)
             default:
                 if o.mine {
-                    Text(L10n.tr("You offered \(amt)", "Bạn đề nghị \(amt)")).font(.system(size: 13)).foregroundStyle(Tokens.sub)
+                    Text(L10n.tr("You offered \(amt)", "Bạn đề nghị \(amt)")).enoText(.caption, color: EnoColor.sub)
                 } else {
-                    Text(L10n.tr("💰 New offer: \(amt)", "💰 Đề nghị mới: \(amt)")).font(.system(size: 13, weight: .bold)).foregroundStyle(Tokens.brand)
+                    Text(L10n.tr("💰 New offer: \(amt)", "💰 Đề nghị mới: \(amt)")).enoText(.caption, color: EnoColor.brand, weight: .bold)
                 }
             }
         } else {
             Text(c.lastMessageText ?? L10n.tr("New conversation", "Cuộc trò chuyện mới"))
-                .font(.system(size: 13, weight: c.unread > 0 ? .semibold : .regular))
-                .foregroundStyle(c.unread > 0 ? Tokens.fg : Tokens.sub)
+                .enoText(.caption,
+                         color: c.unread > 0 ? EnoColor.fg : EnoColor.sub,
+                         weight: c.unread > 0 ? .semibold : .regular)
         }
     }
 }
