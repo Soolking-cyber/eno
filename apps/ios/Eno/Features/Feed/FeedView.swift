@@ -1,4 +1,5 @@
 import SwiftUI
+import EnoUI
 
 // The home surface, mirroring the web landing order (listings-explorer
 // isLandingMode): search hero → two-row icon category grid → For-you rail →
@@ -54,7 +55,7 @@ struct FeedView: View {
                     grid
                 }
             }
-            .background(Tokens.canvas)
+            .background(EnoColor.canvas)
             .refreshable {
                 async let f: Void = feed.reload()
                 async let h: Void = home.refresh()
@@ -94,30 +95,32 @@ struct FeedView: View {
 
     // Web parity (listings-explorer hero): a top row (wordmark + bell) over a wide,
     // prominent search bar that holds the search field, the ✨ AI entry, a divider,
-    // and the map button — all inside one rounded-2xl tint bar.
+    // and the map button — all inside one tint bar (web rounded-2xl lands on the
+    // control radius tier, the widest EnoRadius offers).
     private var header: some View {
         VStack(spacing: 10) {
             HStack {
+                // The wordmark keeps its heavy weight + tight kerning — brand identity the
+                // .titleL role (bold) doesn't carry on its own.
                 Text("eno")
-                    .font(.system(size: 26, weight: .heavy))
+                    .enoText(.titleL, color: EnoColor.brand)
+                    .fontWeight(.heavy)
                     .kerning(-1)
-                    .foregroundStyle(Tokens.brand)
                 Spacer()
                 NavigationLink {
                     NotificationsView()
                 } label: {
                     Image(systemName: "bell")
-                        .font(.system(size: 17, weight: .semibold))
-                        .foregroundStyle(Tokens.fg)
+                        .enoIcon(.md, color: EnoColor.fg)
                         .frame(width: 40, height: 40)
-                        .background(Tokens.tint, in: RoundedRectangle(cornerRadius: Tokens.radiusControl))
+                        .background(EnoColor.tint, in: RoundedRectangle(cornerRadius: EnoRadius.control))
                         .overlay(alignment: .topTrailing) {
                             if notif.unread > 0 {
-                                Circle().fill(Tokens.danger).frame(width: 9, height: 9).offset(x: -6, y: 6)
+                                Circle().fill(EnoColor.danger).frame(width: 9, height: 9).offset(x: -6, y: 6)
                             }
                         }
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.plain)   // NavigationLink, not a hand-rolled Button — keeps its style
                 .accessibilityLabel(L10n.tr("Notifications", "Thông báo"))
                 .accessibilityValue(notif.unread > 0 ? L10n.tr("\(notif.unread) unread", "\(notif.unread) chưa đọc") : "")
             }
@@ -127,31 +130,32 @@ struct FeedView: View {
                     SearchView()
                 } label: {
                     HStack(spacing: 10) {
-                        Image(systemName: "magnifyingglass").font(.system(size: 19, weight: .semibold)).foregroundStyle(Tokens.ink4)
+                        Image(systemName: "magnifyingglass").enoIcon(.md, color: EnoColor.ink4)
                         Text(L10n.tr("Search motorbikes, apartments, moving sales...", "Tìm xe máy, căn hộ, đồ thanh lý..."))
-                            .font(.system(size: 16, weight: .medium)).foregroundStyle(Tokens.ink4).lineLimit(1)
+                            .enoText(.callout, color: EnoColor.ink4).lineLimit(1)
                         Spacer(minLength: 0)
                     }
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                // ✨ AI-shopping entry (web AISearchButton → /messages/ai), inside the bar.
-                Button { aiSheet = true } label: {
-                    Image(systemName: "sparkles").font(.system(size: 19, weight: .semibold)).foregroundStyle(Tokens.brand)
+                // The two glyph actions ride in a spacing-0 cluster: EnoIconButton carries its
+                // own 44pt tap target, whose built-in slack reproduces the old 10pt gaps while
+                // lifting both from a sub-minimum 19pt target. Trailing inset drops 14 → 2 for
+                // the same reason, so the map glyph keeps its spot on the bar's right edge.
+                HStack(spacing: 0) {
+                    // ✨ AI-shopping entry (web AISearchButton → /messages/ai), inside the bar.
+                    EnoIconButton("sparkles", size: 19, color: EnoColor.brand,
+                                  label: L10n.tr("AI shopping", "Mua sắm AI")) { aiSheet = true }
+                    Rectangle().fill(EnoColor.ring).frame(width: 1, height: 24)
+                    // Map view (web opens the map surface).
+                    EnoIconButton("map", size: 19, color: EnoColor.ink4,
+                                  label: L10n.tr("Map", "Bản đồ")) { mapSheet = true }
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel(L10n.tr("AI shopping", "Mua sắm AI"))
-                Rectangle().fill(Tokens.ring).frame(width: 1, height: 24)
-                // Map view (web opens the map surface).
-                Button { mapSheet = true } label: {
-                    Image(systemName: "map").font(.system(size: 19, weight: .semibold)).foregroundStyle(Tokens.ink4)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(L10n.tr("Map", "Bản đồ"))
             }
-            .padding(.horizontal, 14)
+            .padding(.leading, 14)
+            .padding(.trailing, 2)
             .frame(height: 52)
-            .background(Tokens.tint, in: RoundedRectangle(cornerRadius: 16))
+            .background(EnoColor.tint, in: RoundedRectangle(cornerRadius: EnoRadius.control))
         }
         .padding(.horizontal, 12)
         .padding(.top, 14)
@@ -170,12 +174,11 @@ struct FeedView: View {
                         // colors (CATEGORY_COLOR_CLASSES collapses all to brand).
                         VStack(spacing: 6) {
                             Image(systemName: cat.symbol)
-                                .font(.system(size: 28, weight: .regular))
-                                .foregroundStyle(Tokens.sub)   // muted at rest (web text-body), like the FINN grid
+                                .enoIcon(.lg, color: EnoColor.sub)   // muted at rest (web text-body), like the FINN grid
                                 .frame(width: 44, height: 44)
                             Text(cat.name)
-                                .font(.system(size: 13, weight: .bold))
-                                .foregroundStyle(Tokens.fg)
+                                .enoText(.caption)
+                                .fontWeight(.bold)   // the bold label is the FINN-grid identity (see above)
                                 .lineLimit(1)
                                 .minimumScaleFactor(0.85)
                         }
@@ -201,19 +204,17 @@ struct FeedView: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 6) {
                 if let icon {
-                    Image(systemName: icon).font(.system(size: 14, weight: .semibold)).foregroundStyle(Tokens.brand)
+                    Image(systemName: icon).enoIcon(.sm, color: EnoColor.brand)
                 }
                 Text(title)
-                    .font(.system(size: 16, weight: .bold))   // web Shelf header = text-base
-                    .foregroundStyle(Tokens.fg)
+                    .enoText(.headline)   // web Shelf header = text-base
                 Spacer()
                 if let seeAll {
                     NavigationLink(value: seeAll) {
                         HStack(spacing: 2) {
-                            Text(L10n.tr("See all", "Xem tất cả")).font(.system(size: 14, weight: .semibold))
-                            Image(systemName: "chevron.right").font(.system(size: 14, weight: .semibold))
+                            Text(L10n.tr("See all", "Xem tất cả")).enoText(.label, color: EnoColor.brand)
+                            Image(systemName: "chevron.right").enoIcon(.sm, color: EnoColor.brand)
                         }
-                        .foregroundStyle(Tokens.brand)
                     }
                 }
             }
@@ -265,22 +266,17 @@ struct FeedView: View {
         }
     }
 
+    // TODO(EnoUI): EnoEmptyState — title + body + action state block, awaiting the primitive
+    // (same shape as SavedView.empty/errorState); the tokens below are already canon.
     private var offline: some View {
         VStack(spacing: 14) {
             Text(L10n.tr("No internet connection", "Không có kết nối mạng"))
-                .font(.system(size: 19, weight: .bold))
-                .foregroundStyle(Tokens.fg)
+                .enoText(.headline)
             Text(L10n.tr("Check your connection and try again.", "Kiểm tra kết nối của bạn rồi thử lại."))
-                .font(.system(size: 15))
-                .foregroundStyle(Tokens.sub)
-            Button(L10n.tr("Try again", "Thử lại")) {
+                .enoText(.callout, color: EnoColor.sub)
+            EnoButton(L10n.tr("Try again", "Thử lại"), size: .large, fullWidth: false) {
                 Task { await feed.reload() }
             }
-            .font(.system(size: 16, weight: .semibold))
-            .foregroundStyle(.white)
-            .padding(.horizontal, 30)
-            .frame(height: 48)
-            .background(Tokens.brand, in: RoundedRectangle(cornerRadius: Tokens.radiusControl))
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 60)
@@ -292,16 +288,16 @@ struct FeedView: View {
 struct SkeletonCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Tokens.tint.aspectRatio(10 / 11, contentMode: .fit)
+            EnoColor.tint.aspectRatio(10 / 11, contentMode: .fit)
             VStack(alignment: .leading, spacing: 8) {
-                RoundedRectangle(cornerRadius: 6).fill(Tokens.tint).frame(width: 90, height: 16)
-                RoundedRectangle(cornerRadius: 6).fill(Tokens.tint).frame(height: 12)
-                RoundedRectangle(cornerRadius: 6).fill(Tokens.tint).frame(width: 60, height: 12)
+                RoundedRectangle(cornerRadius: EnoRadius.chip).fill(EnoColor.tint).frame(width: 90, height: 16)
+                RoundedRectangle(cornerRadius: EnoRadius.chip).fill(EnoColor.tint).frame(height: 12)
+                RoundedRectangle(cornerRadius: EnoRadius.chip).fill(EnoColor.tint).frame(width: 60, height: 12)
             }
             .padding(10)
         }
-        .background(Tokens.card)
-        .clipShape(RoundedRectangle(cornerRadius: Tokens.radiusCard))
-        .overlay(RoundedRectangle(cornerRadius: Tokens.radiusCard).strokeBorder(Tokens.ring, lineWidth: 1))
+        .background(EnoColor.card)
+        .clipShape(RoundedRectangle(cornerRadius: EnoRadius.card))
+        .overlay(RoundedRectangle(cornerRadius: EnoRadius.card).strokeBorder(EnoColor.ring, lineWidth: 1))
     }
 }

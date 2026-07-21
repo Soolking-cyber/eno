@@ -1,4 +1,5 @@
 import SwiftUI
+import EnoUI
 import AVKit
 
 // TikTok-style vertical video feed (task #130), the explorer's `.video` mode. A
@@ -60,14 +61,21 @@ struct VideoFeedView: View {
                 } else {
                     pager
                 }
-                Button { onClose() } label: {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 16, weight: .bold)).foregroundStyle(.white)
-                        .frame(width: 38, height: 38)
-                        .background(.black.opacity(0.4), in: Circle())
+                // Web parity (listings-video-feed.tsx): the close X keeps its bg-black/40
+                // scrim circle (unlike the lightbox, which is a bare glyph). EnoIconButton's
+                // 44pt target is 6pt wider than the old 38pt frame, so the scrim grows with
+                // it — the glyph itself keeps its spot.
+                EnoIconButton(
+                    "xmark",
+                    size: 16,
+                    color: .white,
+                    variant: .onImage,
+                    label: L10n.tr("Close", "Đóng")
+                ) {
+                    onClose()
                 }
-                .buttonStyle(.plain)
-                .padding(.leading, 12).padding(.top, 8)
+                .background(.black.opacity(0.4), in: Circle())
+                .padding(.leading, EnoSpacing.s3).padding(.top, EnoSpacing.s2)
             }
             .navigationDestination(item: $chatConvo) { ThreadView(convoId: $0.id) }
             .navigationDestination(item: $pushed) { ListingDetailView(card: $0) }
@@ -110,12 +118,14 @@ struct VideoFeedView: View {
         return abs(idx - ai) <= 1
     }
 
+    // TODO(EnoUI): EnoEmptyState — symbol + title + guidance. Kept hand-drawn for now
+    // because this one sits on the black media takeover (white ink, not EnoColor.sub).
     private var emptyState: some View {
         VStack(spacing: 10) {
-            Image(systemName: "video.slash").font(.system(size: 40)).foregroundStyle(.white.opacity(0.7))
-            Text(L10n.tr("No videos here yet", "Chưa có video nào")).font(.system(size: 16, weight: .semibold)).foregroundStyle(.white)
+            Image(systemName: "video.slash").enoIcon(.xl, color: .white.opacity(0.7))
+            Text(L10n.tr("No videos here yet", "Chưa có video nào")).enoText(.headline, color: .white)
             Text(L10n.tr("Add a clip to your listing to show up here.", "Thêm video vào tin để xuất hiện ở đây."))
-                .font(.system(size: 13)).foregroundStyle(.white.opacity(0.7)).multilineTextAlignment(.center)
+                .enoText(.caption, color: .white.opacity(0.7)).multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity).padding(40)
     }
@@ -162,7 +172,7 @@ struct VideoFeedItem: View {
             // Tap surface toggles play/pause on the active clip.
             Color.clear.contentShape(Rectangle()).onTapGesture { togglePlay() }
             if paused {
-                Image(systemName: "play.fill").font(.system(size: 44)).foregroundStyle(.white.opacity(0.9))
+                Image(systemName: "play.fill").enoIcon(.xl, color: .white.opacity(0.9))
                     .frame(width: 84, height: 84).background(.black.opacity(0.35), in: Circle())
                     .allowsHitTesting(false)
             }
@@ -182,14 +192,20 @@ struct VideoFeedItem: View {
         HStack(alignment: .bottom) {
             VStack(alignment: .leading, spacing: 6) {
                 Spacer()
+                // TODO(EnoUI): EnoListRow — a tappable content BLOCK (title · price ·
+                // location · CTA) over media has no primitive yet. The whole block owns the
+                // tap, so the "View listing" pill cannot become an EnoButton without nesting
+                // a Button inside a Button (breaks tap + VoiceOver). Type/color migrated.
                 Button(action: onOpen) {
                     VStack(alignment: .leading, spacing: 6) {
-                        Text(card.displayTitle).font(.system(size: 16, weight: .semibold)).foregroundStyle(.white)
+                        Text(card.displayTitle).enoText(.headline, color: .white)
                             .lineLimit(2).multilineTextAlignment(.leading)
-                        Text(Format.vnd(card.price)).font(.system(size: 20, weight: .bold)).foregroundStyle(.white)
-                        Text(card.displayLocation).font(.system(size: 14)).foregroundStyle(.white.opacity(0.8)).lineLimit(1)
+                        Text(Format.vnd(card.price)).enoText(.title, color: .white).monospacedDigit()
+                        Text(card.displayLocation).enoText(.callout, color: .white.opacity(0.8)).lineLimit(1)
+                        // Deliberately .white/.black, not EnoColor.card/.fg: this pill lives on
+                        // the always-black media takeover, so it must NOT flip with the theme.
                         Text(L10n.tr("View listing", "Xem tin"))
-                            .font(.system(size: 13, weight: .bold)).foregroundStyle(.black)
+                            .enoText(.label, color: .black).fontWeight(.bold)
                             .padding(.horizontal, 14).padding(.vertical, 7)
                             .background(.white, in: Capsule())
                             .padding(.top, 2)
@@ -200,27 +216,53 @@ struct VideoFeedItem: View {
             Spacer()
             rail
         }
-        .padding(.horizontal, 16).padding(.bottom, 28)
+        .padding(.horizontal, EnoSpacing.s4).padding(.bottom, 28)
     }
 
     private var rail: some View {
         VStack(spacing: 22) {
             Spacer()
-            railButton(favs.isFavorite(card.id) ? "heart.fill" : "heart",
-                       tint: favs.isFavorite(card.id) ? Tokens.brand : .white) { favs.toggle(card.id) }
-            railButton("message.fill") { onChat() }
+            EnoIconButton(
+                favs.isFavorite(card.id) ? "heart.fill" : "heart",
+                size: EnoIconSize.lg.rawValue,
+                color: favs.isFavorite(card.id) ? EnoColor.brand : .white,
+                variant: .onImage,
+                label: favs.isFavorite(card.id) ? L10n.tr("Saved", "Đã lưu") : L10n.tr("Save", "Lưu")
+            ) {
+                favs.toggle(card.id)
+            }
+            EnoIconButton(
+                "message.fill",
+                size: EnoIconSize.lg.rawValue,
+                color: .white,
+                variant: .onImage,
+                label: L10n.tr("Chat with seller", "Nhắn tin")
+            ) {
+                onChat()
+            }
             ShareLink(item: URL(string: "https://eno.vn/listings/\(card.id)")!) {
                 railGlyph("square.and.arrow.up")
             }
-            railButton(muted ? "speaker.slash.fill" : "speaker.wave.2.fill") { muted.toggle() }
+            EnoIconButton(
+                muted ? "speaker.slash.fill" : "speaker.wave.2.fill",
+                size: EnoIconSize.lg.rawValue,
+                color: .white,
+                variant: .onImage,
+                label: muted ? L10n.tr("Unmute", "Bật tiếng") : L10n.tr("Mute", "Tắt tiếng")
+            ) {
+                muted.toggle()
+            }
         }
     }
 
-    private func railButton(_ icon: String, tint: Color = .white, _ action: @escaping () -> Void) -> some View {
-        Button(action: action) { railGlyph(icon).foregroundStyle(tint) }.buttonStyle(.plain)
-    }
+    // ShareLink owns its own tap, so this glyph can't come from EnoIconButton — it is drawn
+    // to match its rail neighbours (same .lg glyph, same 44pt target, a legibility shadow).
+    // TODO(EnoUI): an `.enoOnImageGlyph()` modifier — the over-photo legibility shadow is
+    // only reachable through EnoIconButton(variant: .onImage) today, which is why this is
+    // the one deliberate raw .shadow left in the file (rule: keep it on a glyph over media).
     private func railGlyph(_ icon: String) -> some View {
-        Image(systemName: icon).font(.system(size: 27)).foregroundStyle(.white)
+        Image(systemName: icon)
+            .enoIcon(.lg, color: .white)
             .shadow(color: .black.opacity(0.4), radius: 3, y: 1)
             .frame(width: 44, height: 44)
     }

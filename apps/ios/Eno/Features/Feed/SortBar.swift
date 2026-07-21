@@ -1,4 +1,5 @@
 import SwiftUI
+import EnoUI
 
 // The results-strip sort tabs, mirroring the web's public sort values
 // (feed-query.ts buildFeedOrderBy): Recommended (the default blend) · Newest ·
@@ -25,17 +26,19 @@ struct SortBar: View {
                     tab(L10n.tr(opt.en, opt.vi), active: model.sort == opt.value) { model.sort = opt.value }
                 }
                 // Price — one tab that toggles low⇄high and shows the direction.
+                // TODO(EnoUI): EnoSegmentedControl — single-select strip. Not convertible yet:
+                // EnoSegmentedControl wraps the native segmented Picker, which can't express a
+                // scrollable UNDERLINE strip whose Price tab toggles direction on re-tap.
                 Button {
                     model.sort = model.sort == "price-low" ? "price-high" : "price-low"
                 } label: {
                     HStack(spacing: 3) {
                         Text(L10n.tr("Price", "Giá"))
-                        Image(systemName: priceArrow).font(.system(size: 11, weight: .bold))
+                        Image(systemName: priceArrow).enoIcon(.xs, color: priceActive ? EnoColor.brand : EnoColor.sub)
                     }
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(priceActive ? Tokens.brand : Tokens.sub)
+                    .enoText(.label, color: priceActive ? EnoColor.brand : EnoColor.sub)
                     .padding(.bottom, 6)
-                    .overlay(alignment: .bottom) { if priceActive { Rectangle().fill(Tokens.brand).frame(height: 2) } }
+                    .overlay(alignment: .bottom) { if priceActive { Rectangle().fill(EnoColor.brand).frame(height: 2) } }
                 }
                 .buttonStyle(.plain)
                 tab(L10n.tr("Most contacted", "Được quan tâm"), active: model.sort == "popular") { model.sort = "popular" }
@@ -44,13 +47,14 @@ struct SortBar: View {
         }
     }
 
+    // TODO(EnoUI): EnoSegmentedControl — an underline tab, deliberately NOT a pill/EnoChip
+    // (mirrors the web explorer toolbar). EnoUI has no tab-strip primitive yet.
     private func tab(_ label: String, active: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(label)
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(active ? Tokens.brand : Tokens.sub)
+                .enoText(.label, color: active ? EnoColor.brand : EnoColor.sub)
                 .padding(.bottom, 6)
-                .overlay(alignment: .bottom) { if active { Rectangle().fill(Tokens.brand).frame(height: 2) } }
+                .overlay(alignment: .bottom) { if active { Rectangle().fill(EnoColor.brand).frame(height: 2) } }
         }
         .buttonStyle(.plain)
     }

@@ -1,4 +1,5 @@
 import SwiftUI
+import EnoUI
 
 // Native AI shopping concierge (replaces the WebSheet /messages/ai, which 401'd
 // once the web session cookies expired — the native app refreshes only its Bearer).
@@ -61,7 +62,7 @@ struct AIConciergeView: View {
             Group {
                 if AuthModel.shared.isSignedIn { chat } else { guestGate }
             }
-            .background(Tokens.canvas)
+            .background(EnoColor.canvas)
             .navigationTitle(L10n.tr("AI Shopping", "Mua sắm AI"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .topBarTrailing) { Button(L10n.tr("Done", "Xong")) { dismiss() } } }
@@ -80,7 +81,7 @@ struct AIConciergeView: View {
                         if model.sending { typingBubble }
                         Color.clear.frame(height: 1).id("bottom")
                     }
-                    .padding(16)
+                    .padding(EnoSpacing.s4)
                 }
                 .onChange(of: model.turns.count) { withAnimation { proxy.scrollTo("bottom", anchor: .bottom) } }
                 .onChange(of: model.sending) { withAnimation { proxy.scrollTo("bottom", anchor: .bottom) } }
@@ -91,28 +92,23 @@ struct AIConciergeView: View {
 
     // ── intro / examples ──
     private var intro: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 8) {
-                Image(systemName: "sparkles").font(.system(size: 22)).foregroundStyle(Tokens.brand)
+        VStack(alignment: .leading, spacing: EnoSpacing.s3) {
+            HStack(spacing: EnoSpacing.s2) {
+                Image(systemName: "sparkles").enoIcon(.lg, color: EnoColor.brand)
                 Text(L10n.tr("Tell me what you're looking for", "Bạn đang tìm gì?"))
-                    .font(.system(size: 18, weight: .bold)).foregroundStyle(Tokens.fg)
+                    .enoText(.headline)
             }
             Text(L10n.tr("I'll search the marketplace and show you matches.",
                          "Mình sẽ tìm trong chợ và hiện các kết quả phù hợp."))
-                .font(.system(size: 14)).foregroundStyle(Tokens.sub)
-            FlowLayout(spacing: 8) {
+                .enoText(.callout, color: EnoColor.sub)
+            FlowLayout(spacing: EnoSpacing.s2) {
                 ForEach(examples, id: \.0) { ex in
                     let label = L10n.tr(ex.0, ex.1)
-                    Button { Task { await model.send(label) } } label: {
-                        Text(label).font(.system(size: 14, weight: .semibold)).foregroundStyle(Tokens.sub)
-                            .padding(.horizontal, 14).padding(.vertical, 8)
-                            .background(Tokens.tint, in: Capsule())
-                    }
-                    .buttonStyle(.plain)
+                    EnoChip(label) { Task { await model.send(label) } }
                 }
             }
         }
-        .padding(.bottom, 8)
+        .padding(.bottom, EnoSpacing.s2)
     }
 
     // ── one turn ──
@@ -120,16 +116,16 @@ struct AIConciergeView: View {
         if turn.role == "user" {
             HStack {
                 Spacer(minLength: 40)
-                Text(turn.content).font(.system(size: 15)).foregroundStyle(.white)
+                Text(turn.content).enoText(.subheadline, color: EnoColor.onBrand)
                     .padding(.horizontal, 14).padding(.vertical, 10)
-                    .background(Tokens.brand, in: RoundedRectangle(cornerRadius: 18))
+                    .background(EnoColor.brand, in: RoundedRectangle(cornerRadius: EnoRadius.card))
             }
         } else {
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: EnoSpacing.s2) {
                 HStack {
-                    Text(turn.content).font(.system(size: 15)).foregroundStyle(Tokens.fg)
+                    Text(turn.content).enoText(.subheadline)
                         .padding(.horizontal, 14).padding(.vertical, 10)
-                        .background(Tokens.tint, in: RoundedRectangle(cornerRadius: 18))
+                        .background(EnoColor.tint, in: RoundedRectangle(cornerRadius: EnoRadius.card))
                     Spacer(minLength: 40)
                 }
                 if !turn.listings.isEmpty {
@@ -149,33 +145,35 @@ struct AIConciergeView: View {
 
     private var typingBubble: some View {
         HStack {
-            HStack(spacing: 4) {
-                ForEach(0..<3, id: \.self) { _ in Circle().fill(Tokens.sub).frame(width: 7, height: 7) }
+            HStack(spacing: EnoSpacing.s1) {
+                ForEach(0..<3, id: \.self) { _ in Circle().fill(EnoColor.sub).frame(width: 7, height: 7) }
             }
-            .padding(.horizontal, 14).padding(.vertical, 12)
-            .background(Tokens.tint, in: RoundedRectangle(cornerRadius: 18))
+            .padding(.horizontal, 14).padding(.vertical, EnoSpacing.s3)
+            .background(EnoColor.tint, in: RoundedRectangle(cornerRadius: EnoRadius.card))
             Spacer()
         }
     }
 
     // ── composer ──
     private var composer: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: EnoSpacing.s2) {
+            // TODO(EnoUI): EnoField — awaiting the field primitive (label + focus ring).
             TextField(L10n.tr("Ask for anything…", "Hỏi bất cứ điều gì…"), text: $input, axis: .vertical)
                 .lineLimit(1...4)
                 .focused($focused)
                 .padding(.horizontal, 14).padding(.vertical, 10)
-                .background(Tokens.tint, in: RoundedRectangle(cornerRadius: 20))
+                .background(EnoColor.tint, in: RoundedRectangle(cornerRadius: EnoRadius.control))
                 .submitLabel(.send)
                 .onSubmit(sendCurrent)
-            Button(action: sendCurrent) {
-                Image(systemName: "arrow.up.circle.fill").font(.system(size: 32))
-                    .foregroundStyle(canSend ? Tokens.brand : Tokens.sub)
-            }
-            .buttonStyle(.plain)
+            EnoIconButton(
+                "arrow.up.circle.fill", size: 32,
+                color: canSend ? EnoColor.brand : EnoColor.sub,
+                label: L10n.tr("Send", "Gửi"),
+                action: sendCurrent
+            )
             .disabled(!canSend)
         }
-        .padding(.horizontal, 12).padding(.vertical, 8)
+        .padding(.horizontal, EnoSpacing.s3).padding(.vertical, EnoSpacing.s2)
         .background(.bar)
     }
 
@@ -187,20 +185,17 @@ struct AIConciergeView: View {
         Task { await model.send(text) }
     }
 
+    // TODO(EnoUI): EnoEmptyState — symbol + title + guidance + one recovery action;
+    // swap the whole block onto that primitive when it ships. Tokens below are canon.
     private var guestGate: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "sparkles").font(.system(size: 40)).foregroundStyle(Tokens.brand)
+        VStack(spacing: EnoSpacing.s3) {
+            Image(systemName: "sparkles").enoIcon(.xl, color: EnoColor.brand)
             Text(L10n.tr("Sign in to use AI shopping", "Đăng nhập để dùng Mua sắm AI"))
-                .font(.system(size: 17, weight: .semibold)).foregroundStyle(Tokens.fg)
+                .enoText(.headline)
             Text(L10n.tr("The assistant searches the marketplace for you.",
                          "Trợ lý sẽ tìm trong chợ giúp bạn."))
-                .font(.system(size: 14)).foregroundStyle(Tokens.sub).multilineTextAlignment(.center)
-            Button { signInSheet = true } label: {
-                Text(L10n.tr("Sign in", "Đăng nhập")).font(.system(size: 15, weight: .semibold)).foregroundStyle(.white)
-                    .padding(.horizontal, 24).padding(.vertical, 12)
-                    .background(Tokens.brand, in: Capsule())
-            }
-            .buttonStyle(.plain)
+                .enoText(.callout, color: EnoColor.sub).multilineTextAlignment(.center)
+            EnoButton(L10n.tr("Sign in", "Đăng nhập"), fullWidth: false) { signInSheet = true }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity).padding(40)
     }
