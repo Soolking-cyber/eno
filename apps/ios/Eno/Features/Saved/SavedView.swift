@@ -1,4 +1,5 @@
 import SwiftUI
+import EnoUI
 
 // The Saved tab, native: hydrates the device-local favorite ids through the
 // /api/listings?ids= fast path (order-preserving; only live listings return —
@@ -20,8 +21,7 @@ struct SavedView: View {
                 } else {
                     if loaded {
                         Text(savedCountLabel)
-                            .font(.system(size: 13))
-                            .foregroundStyle(Tokens.sub)
+                            .enoText(.caption, color: EnoColor.sub)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(.horizontal, 12)
                             .padding(.top, 8)
@@ -40,7 +40,7 @@ struct SavedView: View {
                     .padding(12)
                 }
             }
-            .background(Tokens.canvas)
+            .background(EnoColor.canvas)
             .navigationTitle(L10n.tr("Saved", "Đã lưu"))
             .navigationBarTitleDisplayMode(.inline)
             .navigationDestination(for: ListingCard.self) { card in
@@ -65,17 +65,16 @@ struct SavedView: View {
         favs.prune(requested: requested, returned: Set(page.listings.map(\.id)))
     }
 
+    // NOTE: these two are the EnoEmptyState / EnoPageState shape — swap them onto that
+    // primitive when Kyle's lane ships it; the tokens below are already canon.
     private var empty: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: EnoSpacing.s3) {
             Image(systemName: "heart")
-                .font(.system(size: 40))
-                .foregroundStyle(Tokens.sub)
+                .enoIcon(.xl, color: EnoColor.sub)
             Text(L10n.tr("Nothing saved yet", "Chưa lưu tin nào"))
-                .font(.system(size: 17, weight: .bold))
-                .foregroundStyle(Tokens.fg)
+                .enoText(.headline)
             Text(L10n.tr("Tap the heart on any listing to keep it here.", "Nhấn trái tim trên tin đăng để lưu lại đây."))
-                .font(.system(size: 14))
-                .foregroundStyle(Tokens.sub)
+                .enoText(.callout, color: EnoColor.sub)
                 .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity)
@@ -83,20 +82,13 @@ struct SavedView: View {
     }
 
     private var errorState: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: EnoSpacing.s3) {
             Image(systemName: "wifi.slash")
-                .font(.system(size: 36))
-                .foregroundStyle(Tokens.sub)
+                .enoIcon(.xl, color: EnoColor.sub)
             Text(L10n.tr("Couldn't load listings.", "Không tải được tin đăng."))
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(Tokens.fg)
-            Button { Task { await load() } } label: {
-                Text(L10n.tr("Try again", "Thử lại"))
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 10)
-                    .background(Tokens.brand, in: Capsule())
+                .enoText(.label)
+            EnoButton(L10n.tr("Try again", "Thử lại"), size: .compact, fullWidth: false) {
+                Task { await load() }
             }
         }
         .frame(maxWidth: .infinity)
