@@ -113,7 +113,13 @@ export function BrandRail({
     cn('w-full shrink-0 whitespace-nowrap rounded-lg px-2.5 py-1 text-left text-sm font-semibold transition-colors cursor-pointer', active ? 'bg-card text-accent-foreground shadow-sm' : 'text-body hover:bg-card/70 hover:text-accent-foreground')
 
   return (
-    <div ref={railRef} className="flex items-center gap-4 overflow-x-auto scrollbar-none snap-x py-1">
+    <div
+      ref={railRef}
+      // overscroll-x-contain: a sideways flick that hits either end must not CHAIN out to an
+      // ancestor scroller / the iOS WebView's swipe-back. It does not (and cannot) stop a swipe
+      // that STARTS in the system edge gutter — see the note on RAIL_SCROLLER in shelf.tsx.
+      className="flex items-center gap-4 overflow-x-auto overscroll-x-contain scrollbar-none snap-x py-1"
+    >
       {sortedBrands.map((b) => {
         const isActive = activeBrand === b.slug
         return (

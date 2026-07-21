@@ -16,8 +16,15 @@ import { useScrollArrows, ScrollArrows } from '@/hooks/use-scroll-arrows'
 export const RAIL_CARD_W =
   'w-[calc((100%-0.5rem)/2)] shrink-0 snap-start sm:w-[calc((100%-2rem)/3)] lg:w-[calc((100%-3rem)/4)]'
 
-/** Horizontal snap scroller, gaps matched to the feed grid (gap-2 / sm:gap-4). */
-export const RAIL_SCROLLER = 'flex gap-2 overflow-x-auto scrollbar-none snap-x sm:gap-4'
+/** Horizontal snap scroller, gaps matched to the feed grid (gap-2 / sm:gap-4).
+ *  `overscroll-x-contain` keeps a sideways overscroll INSIDE the rail: without it, flicking
+ *  a rail that is already at either end CHAINS the scroll out to the nearest scrollable
+ *  ancestor (and, in the iOS WebView, hands the gesture to the swipe-back navigation).
+ *  ⚠️ Honest limit: this only stops CHAINING. It cannot suppress the platform's own
+ *  edge-swipe — a drag that STARTS in the screen-edge gutter is claimed by the system
+ *  before the page sees it, and `touch-action` can't refuse it either
+ *  (w3c/pointerevents#358). Containment is a real improvement, not a guarantee. */
+export const RAIL_SCROLLER = 'flex gap-2 overflow-x-auto overscroll-x-contain scrollbar-none snap-x sm:gap-4'
 
 export function Shelf({
   title,

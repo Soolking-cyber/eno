@@ -15,6 +15,7 @@ import { Price } from './price'
 import { Spinner } from '@/components/ui/spinner'
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
+import { pushBlackStatusBar } from '@/components/native/native-bootstrap'
 import { stashQuickCompose } from '@/lib/quick-contact'
 import { optimizedImageUrl } from '@/lib/listing-image'
 import { cn } from '@/lib/utils'
@@ -74,6 +75,11 @@ export function VideoFeed({
   useEffect(() => {
     const prev = document.body.style.overflow
     document.body.style.overflow = 'hidden'
+    // Native status bar → light glyphs for as long as this black canvas is up (a no-op on web).
+    // Released in the cleanup below, which React runs on EVERY exit — ✕, Escape, the Android
+    // hardware back button, the iOS edge-swipe, or navigating out to a listing — so the bar can't
+    // be stranded with invisible dark glyphs.
+    const releaseStatusBar = pushBlackStatusBar()
     // Reuse an existing takeover entry instead of stacking a new one: after a back-nav from a
     // listing opened inside the feed, the restored history entry ALREADY carries the flag —
     // pushing again would accumulate one dead Back-press per open-listing round trip.
@@ -84,6 +90,7 @@ export function VideoFeed({
     window.addEventListener('popstate', onPop)
     return () => {
       document.body.style.overflow = prev
+      releaseStatusBar()
       window.removeEventListener('keydown', onKey)
       window.removeEventListener('popstate', onPop)
       // Closed via ✕/Escape (not Back): our entry is still current, so pop it to keep the back

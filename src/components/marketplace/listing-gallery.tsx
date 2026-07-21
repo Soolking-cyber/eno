@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from '@/components/ui/carousel'
 import { IconButton } from '@/components/ui/icon-button'
 import { Tr, useLanguage } from '@/context/language-context'
+import { pushBlackStatusBar } from '@/components/native/native-bootstrap'
 import { isMockImageUrl } from '@/lib/listing-image'
 import { autoplayAllowed } from '@/lib/autoplay'
 
@@ -222,6 +223,11 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
     const prevOverscroll = body.style.overscrollBehavior
     body.style.overflow = 'hidden'
     body.style.overscrollBehavior = 'none'
+    // Native status bar → light glyphs while this near-black overlay is up (a no-op on web).
+    // Released in the cleanup below, which React runs on EVERY exit — ✕, backdrop, Escape, the
+    // Android hardware back button, the iOS edge-swipe — so the bar can never be left with dark
+    // glyphs sitting invisibly on black.
+    const releaseStatusBar = pushBlackStatusBar()
     window.history.pushState({ lightbox: true }, '')
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setOpen(false)
@@ -234,6 +240,7 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
     return () => {
       body.style.overflow = prevOverflow
       body.style.overscrollBehavior = prevOverscroll
+      releaseStatusBar()
       window.removeEventListener('keydown', onKey)
       window.removeEventListener('popstate', onPop)
       if (window.history.state?.lightbox) window.history.back()

@@ -141,7 +141,12 @@ export function ContactComposer({
       variant="cta"
       size="none"
       onClick={chatNow}
-      className="press flex w-full items-center justify-center gap-1.5 py-2.5 active:scale-100 cursor-pointer"
+      // No `active:scale-100` here. It used to sit alongside `press` to stop ui/button's
+      // `active:scale-[0.97]` compounding with the press shrink — but .press now writes the
+      // same `scale` property from @layer components, so the button's own value simply wins
+      // and there is nothing to cancel. Keeping the class would now READ as "no press feel"
+      // and actually DELIVER it, silently killing the tactile press on the PDP's main CTA.
+      className="press flex w-full items-center justify-center gap-1.5 py-2.5 cursor-pointer"
     >
       <MessageCircle className="h-4 w-4" /> {tr('Chat now', 'Chat ngay')}
     </Button>
@@ -159,7 +164,8 @@ export function ContactComposer({
           variant="bare"
           size="none"
           onClick={() => openSignIn({ listingTitle, listingImage, sellerName })}
-          className="press flex w-full cursor-pointer gap-1.5 py-2.5 font-bold text-accent-foreground hover:bg-tint active:scale-100"
+          // `active:scale-100` dropped — see the note on chatButton above.
+          className="press flex w-full cursor-pointer gap-1.5 py-2.5 font-bold text-accent-foreground hover:bg-tint"
         >
           <Tag className="h-4 w-4" /> {tr('Sign in to make an offer', 'Đăng nhập để trả giá')}
         </Button>
@@ -210,7 +216,8 @@ export function ContactComposer({
             variant="bare"
             size="none"
             onClick={chatNow}
-            className="press flex min-w-0 basis-[30%] items-center justify-center gap-1.5 rounded-xl bg-card py-2.5 text-sm font-bold text-accent-foreground hover:bg-tint active:scale-100 cursor-pointer"
+            // `active:scale-100` dropped — see the note on chatButton above.
+            className="press flex min-w-0 basis-[30%] items-center justify-center gap-1.5 rounded-xl bg-card py-2.5 text-sm font-bold text-accent-foreground hover:bg-tint cursor-pointer"
           >
             <MessageCircle className="h-4 w-4 shrink-0" /> <span className="truncate">{tr('Chat now', 'Chat ngay')}</span>
           </Button>

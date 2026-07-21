@@ -9,6 +9,18 @@ import { canonicalAppPath } from '@/lib/deep-link'
 // signed-in user (the token endpoint is auth-gated). DORMANT until @capacitor/push-notifications is
 // wired into the native builds (cap sync) + FCM/APNs are configured — until then register() throws
 // "not implemented" and the try/catch no-ops. See NATIVE_PUSH_SETUP.md.
+//
+// ⚠️ FOREGROUND CONTRACT — ONE signal, and the OS owns it. There is deliberately NO
+// 'pushNotificationReceived' listener here. A push that lands while the app is open is displayed by
+// the OS itself, driven by `plugins.PushNotifications.presentationOptions` in capacitor.config.ts
+// (banner + list + sound; that same array is what makes Android's foreground path post at all).
+// Rendering an in-app toast from this file would put a sonner toast on screen UNDER the native
+// banner for the same event — the classic wrapped-app double-notify. The web side does not
+// double-notify either: service-worker web push (public/sw.js) is unavailable inside the WebView
+// (reminder-settings.tsx gates on that), and the only in-app reaction to an incoming message is a
+// SILENT unread-count bump — chat-context's Supabase realtime nudge, backstopped by the
+// notifications poll. So: banner from the OS, badge from the app, no third signal. If a future
+// change needs the in-app lists to react to a push, refresh STATE — never surface a second alert.
 type CapGlobal = { isNativePlatform?: () => boolean; getPlatform?: () => string }
 const cap = (): CapGlobal | undefined =>
   typeof window === 'undefined' ? undefined : (window as unknown as { Capacitor?: CapGlobal }).Capacitor

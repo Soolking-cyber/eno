@@ -8,6 +8,8 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { useLanguage } from '@/context/language-context'
 import { formatMoneyFull, moneyLocale } from '@/lib/vnd'
 import { copyText } from '@/lib/copy-text'
+import { hapticTap } from '@/lib/haptics'
+import { isNativeShell, openExternal } from '@/lib/native-browser'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 
@@ -25,11 +27,25 @@ function XIcon(props: { className?: string }) {
   return (<svg viewBox="0 0 24 24" fill="currentColor" {...props}><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" /></svg>)
 }
 
+// @capacitor/share rejects on a normal dismissal too, so the plugin's own hardcoded reject
+// messages are what separates "the user saw the sheet and backed out" from "the sheet never
+// appeared". Both literals are identical on iOS and Android (SharePlugin.swift / SharePlugin.java)
+// and are NOT localised.
+const SHEET_WAS_PRESENTED = /share canceled|sharing is in progress/i
+
 /**
- * Curated, on-brand share popover for the listing detail. Instead of the cluttered
- * OS share sheet (Reading List, Freeform, Simulator…), this shows only the channels
- * that matter for the audience, plus Copy link. Native share is offered as a "More"
- * fallback where available (phones).
+ * Share, with a deliberately split personality.
+ *
+ * WEB (desktop + mobile browsers): a curated, on-brand popover. The OS sheet in a browser is
+ * the cluttered one (Reading List, Freeform, Simulator…), so we show only the channels that
+ * matter for this audience plus Copy link, and offer the system sheet as a "More…" row where
+ * navigator.share exists.
+ *
+ * NATIVE (Capacitor shell): the trigger opens the OS share sheet DIRECTLY — see onOpenChange.
+ * In an installed app the system sheet is the expected affordance and the better one: it holds
+ * the user's real targets (pinned Zalo/Messenger threads, AirDrop, every installed app), which
+ * a fixed six-icon grid cannot. The popover is kept only as the fallback for a shell where the
+ * sheet can't be presented.
  */
 export function ShareButton({ url, title, price, currency, className, compact = false }: { url: string; title: string; price?: number; currency?: string; className?: string; compact?: boolean }) {
   const { lang, tr } = useLanguage()
@@ -60,22 +76,66 @@ export function ShareButton({ url, title, price, currency, className, compact = 
   }
   // The Capacitor shell's WebView (Android especially) ships WITHOUT navigator.share, but the
   // @capacitor/share plugin is synced on both platforms — route the OS sheet through it there.
-  const isNativeShell =
-    typeof window !== 'undefined' &&
-    !!(window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor?.isNativePlatform?.()
-  const nativeShare = async () => {
-    setOpen(false)
-    if (isNativeShell) {
-      try { const { Share } = await import('@capacitor/share'); await Share.share({ title: shareText, url }) } catch { /* dismissed */ }
+  const native = isNativeShell()
+
+  /**
+   * The OS share sheet. Resolves TRUE when the sheet actually reached the user, so the caller can
+   * fall back to the popover when it didn't — the trigger must never become a dead tap.
+   *
+   * The subtlety is that @capacitor/share REJECTS on a normal dismissal, so "it threw" is not the
+   * same as "it failed". Both platforms reject with the same two hardcoded literals for outcomes
+   * where the sheet was genuinely on screen — `"Share canceled"` (user backed out) and
+   * `"Can't share while sharing is in progress"` (a second tap while it's up) — and those are the
+   * only rejections treated as success. Anything else (plugin not in this build, an unsupported
+   * payload) means the user saw nothing, so we hand them the popover instead of silence.
+   */
+  const osShareSheet = async (): Promise<boolean> => {
+    if (native) {
+      try {
+        const { Share } = await import('@capacitor/share')
+        if (!(await Share.canShare()).value) return false
+        try { await Share.share({ title: shareText, url }) } catch (err) {
+          return SHEET_WAS_PRESENTED.test((err as Error | undefined)?.message ?? '')
+        }
+        return true
+      } catch { return false } // plugin not synced into this build
+    }
+    if (typeof navigator === 'undefined' || !navigator.share) return false
+    // Web: navigator.share rejects with AbortError on dismissal — same distinction, but the DOM
+    // gives us a proper error name instead of a message to match on.
+    try { await navigator.share({ title: shareText, url }) } catch (err) {
+      return (err as Error | undefined)?.name === 'AbortError'
+    }
+    return true
+  }
+
+  const nativeShare = async () => { setOpen(false); await osShareSheet() }
+  // The popover's "More…" row is now WEB-only: in the shell the OS sheet is the PRIMARY action on
+  // the trigger (below), so the row could only appear in the fallback popover — i.e. exactly when
+  // the sheet is unavailable and the row would dead-end.
+  const hasNative = !native && typeof navigator !== 'undefined' && !!navigator.share
+
+  /**
+   * Native gets the OS sheet FIRST. On a phone the system sheet IS the share affordance — it
+   * carries the targets the user actually has (their pinned Zalo/Messenger threads, AirDrop,
+   * Notes, every installed app), which a fixed web popover can never match, and it is what a
+   * tap on ⤴ is expected to produce. The curated popover remains the WEB experience, and stays
+   * the fallback here if the sheet can't be presented, so the button is never a dead tap.
+   */
+  const onOpenChange = (next: boolean) => {
+    if (next && native) {
+      hapticTap()
+      void osShareSheet().then((presented) => { if (!presented) setOpen(true) })
       return
     }
-    try { await navigator.share?.({ title: shareText, url }) } catch { /* dismissed */ }
+    setOpen(next)
   }
-  const hasNative = isNativeShell || (typeof navigator !== 'undefined' && !!navigator.share)
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      {/* Base UI supplies toggle-on-click + aria-expanded/haspopup on the rendered button. */}
+    <Popover open={open} onOpenChange={onOpenChange}>
+      {/* Base UI supplies toggle-on-click + aria-expanded/haspopup on the rendered button. In the
+          native shell onOpenChange diverts that same click to the OS sheet and leaves `open` false,
+          so aria-expanded stays honest — the popup the trigger promises is the system one. */}
       <PopoverTrigger
         render={
           // compact: icon-only, OVER MEDIA (mirrors SaveListingButton's compact mode) — NO circle
@@ -118,12 +178,16 @@ export function ShareButton({ url, title, price, currency, className, compact = 
             // Buttons (not <a href="share-url">) so ad/social blockers (EasyList
             // "Social", Brave, Safari content blockers) can't hide these — they
             // match on anchor hrefs pointing at share URLs.
+            // openExternal keeps these third-party share endpoints in an in-app browser tab in
+            // the native shell instead of hard-exiting to Safari/Chrome; on web, and for the
+            // mailto: channel (which no in-app browser can present), it is the same window.open
+            // as before.
             <Button
               key={key}
               variant="bare"
               size="none"
               type="button"
-              onClick={() => { window.open(href, '_blank', 'noopener,noreferrer'); setOpen(false) }}
+              onClick={() => { void openExternal(href); setOpen(false) }}
               className="group flex flex-col items-center gap-1 rounded-xl py-2 transition-colors hover:bg-muted cursor-pointer"
             >
               <span className="flex h-9 w-9 items-center justify-center rounded-full text-body transition-colors group-hover:bg-muted group-hover:text-accent-foreground">

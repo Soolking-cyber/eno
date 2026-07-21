@@ -65,6 +65,37 @@ const config: CapacitorConfig = {
       // iOS-overlay geometry via CSS vars, and the native Keyboard plugin feeds that same store.
       resize: KeyboardResize.None,
     },
+    PushNotifications: {
+      // FOREGROUND presentation. Push is still DORMANT (no FCM/APNs config, no `cap sync` — see
+      // NATIVE_PUSH_SETUP.md), so this changes nothing today; it exists so the FIRST push we ever
+      // send behaves correctly instead of vanishing.
+      //
+      // Without this key the plugin swallows every foreground push on BOTH platforms:
+      //  · iOS — PushNotificationsHandler.willPresent() returns `[]` when the config array is
+      //    missing, i.e. an explicit "present nothing". A chat message that arrives while the user
+      //    has the app open would show NOTHING at all.
+      //  · Android — PushNotificationsPlugin.fireNotification() only builds + posts a system
+      //    notification when this array contains 'alert' | 'banner' | 'list'. (The FCM SDK's
+      //    auto-display only runs while the app is BACKGROUNDED, so with no config the foreground
+      //    case is likewise silent.) The two paths are mutually exclusive on app state, so there is
+      //    no double-post.
+      //
+      // 'banner' + 'list' rather than 'alert': they are the modern iOS spellings ('alert' is
+      // deprecated there and simply expands to banner+list), and Android accepts either. `list`
+      // is deliberate — a notification that arrives while you're in the app should still be
+      // waiting in Notification Center afterwards, exactly like one that arrived backgrounded.
+      // 'sound' — this is a 1:1 marketplace chat (offers, replies, dispute updates); a silent
+      // banner is missable, and the payload already asks for the default sound.
+      //
+      // ⚠️ NOT 'badge', deliberately: (1) the APNs payload we send (src/lib/native-push.ts) carries
+      // no `aps.badge`, so it would be inert; (2) badge is iOS-only; (3) nothing in the app ever
+      // clears the icon badge (no setBadgeCount/removeAllDeliveredNotifications call exists), so
+      // stamping a count on the icon of the app the user is CURRENTLY READING would leave a red
+      // dot that outlives the unread state. The in-app bell + chat unread counts are the honest
+      // foreground surface for counts. Note the plugin requests [.alert,.sound,.badge]
+      // authorization regardless of this array, so adding badges later needs no re-prompt.
+      presentationOptions: ['banner', 'list', 'sound'],
+    },
   },
 }
 

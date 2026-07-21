@@ -25,6 +25,7 @@ import { TrustMeta } from '@/components/marketplace/trust-meta'
 import { QuickReplyChips, MarkSoldPrompt } from '@/components/marketplace/quick-reply-chips'
 import { ReviewPrompt } from '@/components/marketplace/review-prompt'
 import { ChatComposer, type ChatComposerHandle } from '@/components/marketplace/chat-composer'
+import { useSafeBack } from '@/lib/safe-back'
 import { FirstContactNote, OffPlatformWarning, findOffPlatformMessageId } from '@/components/marketplace/chat-safety-note'
 import { Avatar } from '@/components/ui/avatar'
 import { fmtTime, dayKey } from '@/lib/dates'
@@ -53,6 +54,8 @@ export default function ThreadPage() {
   const { lang, tr } = useLanguage()
   const locale = moneyLocale(lang) // offer amounts follow the viewer's language
   const { getCachedThread, cacheThread, refreshUnread, refreshConvos } = useChat()
+  // Back chevron: pop the thread off the stack rather than pushing /messages on top of it.
+  const onBack = useSafeBack('/messages')
   // Paint instantly from the cached thread (e.g. one the offer/Message action just
   // seeded) and revalidate in the background — no blank "loading" flash on open.
   const [thread, setThread] = useState<Thread | null>(() => (getCachedThread(id) as Thread | null) ?? null)
@@ -449,7 +452,11 @@ export default function ThreadPage() {
         <div className="flex h-full w-full flex-col overflow-hidden">
           {/* Thread header (back arrow only on mobile — the list is always shown on desktop) */}
           <div className="flex items-center gap-3 bg-background px-4 py-3">
-            <Link href="/messages" className="text-muted-foreground hover:text-accent-foreground lg:hidden relative tap-44"><ChevronLeft className="h-5 w-5" /></Link>
+            {/* POPS the thread off the stack (see src/lib/safe-back.ts) and only pushes
+                /messages when there's nothing to pop — a push-notification tap, a shared
+                link, a cold native start. Pushing unconditionally used to grow the stack,
+                so the next hardware-back / edge-swipe re-entered the thread just left. */}
+            <Link href="/messages" onClick={onBack} aria-label={tr('Back', 'Quay lại')} className="text-muted-foreground hover:text-accent-foreground lg:hidden relative tap-44"><ChevronLeft className="h-5 w-5" aria-hidden /></Link>
             <Avatar name={thread?.counterpart.name} url={thread?.counterpart.avatarUrl} color={thread?.counterpart.avatarColor} size="sm" />
             <div className="min-w-0 flex-1 cursor-pointer">
               {thread?.counterpart.sellerId ? (

@@ -2,9 +2,19 @@
  *  Safari has NO Vibration API but fires a real system "tick" when a native
  *  <input type="checkbox" switch> toggles (Safari 17.4+, incl. standalone PWA) — so we
  *  keep one hidden switch and toggle it. All paths are SSR-safe and throttled so rapid
- *  taps never machine-gun. Silently no-ops where unsupported (older iOS, iOS 26.5+ which
- *  restricts the switch tick to a direct finger tap — for the few highest-value controls
- *  that must survive that, use attachHaptic()).
+ *  taps never machine-gun. Silently no-ops where unsupported: older iOS, and iOS 26.5+,
+ *  which restricts the switch tick to a DIRECT finger tap on the switch — a programmatic
+ *  .click() no longer plays it.
+ *
+ *  That last gap is MOBILE-SAFARI-ONLY and is deliberately left open. Inside the Capacitor
+ *  app — the platform that matters — every path below short-circuits to the real Taptic
+ *  Engine via @capacitor/haptics, which has no such restriction. There used to be an
+ *  `attachHaptic(host)` escape hatch that overlaid a real <input switch> on a control so the
+ *  USER'S own tap produced the tick; it was deleted 2026-07-21 having never gained a single
+ *  call site. An unused export that stretches a transparent input across a button's whole hit
+ *  area is not free — it is a live tap-target hazard waiting for someone to "just try it".
+ *  If iOS-Safari haptics on one specific control ever become worth it, bring it back WITH
+ *  that call site, and re-read the tap-target warning in ui/icon-button before you do.
  *
  *  ⚠️ NOT gated on prefers-reduced-motion (decoupled 2026-07-21). Reduced MOTION is an
  *  ANIMATION preference; a user who turns off animation still expects a switch to click.
@@ -122,29 +132,4 @@ export function hapticError(): void {
   if (isNativeCap()) { void nativeNotify('Error'); return } // real Taptic error pattern
   if (typeof navigator !== 'undefined' && 'vibrate' in navigator) { try { navigator.vibrate([12, 40, 12, 40, 12]) } catch { /* ignore */ }; return }
   fire(12); setTimeout(() => fire(12), 70); setTimeout(() => fire(12), 140)
-}
-
-/** Overlay a real native switch on a control so the USER'S OWN tap ticks — the only path
- *  that survives iOS 26.5+. Use sparingly (send / publish / favorite). React ref callback:
- *  `<button ref={attachHaptic}>`. Match `radius` to the host so the hit area is round. */
-export function attachHaptic(host: HTMLElement | null, radius = '999px'): void {
-  // Native app: the real Taptic Engine already fires via the control's onClick→hapticTap, so the
-  // switch-overlay hack is redundant (and a stray transparent <input> over a control could swallow
-  // native gestures). Skip it entirely.
-  if (isNativeCap()) return
-  if (!host || typeof document === 'undefined' || !isIOS()) return
-  if (host.querySelector('input[data-haptic]')) return
-  if (getComputedStyle(host).position === 'static') host.style.position = 'relative'
-  const el = document.createElement('input')
-  el.type = 'checkbox'
-  el.setAttribute('switch', '')
-  el.dataset.haptic = ''
-  el.setAttribute('aria-hidden', 'true')
-  el.tabIndex = -1
-  Object.assign(el.style, {
-    position: 'absolute', inset: '0', width: '100%', height: '100%', margin: '0',
-    opacity: '0', cursor: 'pointer', clipPath: `inset(0 round ${radius})`, touchAction: 'manipulation',
-  })
-  el.style.setProperty('-webkit-tap-highlight-color', 'transparent')
-  host.appendChild(el) // taps toggle it (tick) AND bubble to the host's onClick
 }

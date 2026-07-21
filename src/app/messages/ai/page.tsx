@@ -13,6 +13,7 @@ import { useAuth } from '@/context/auth-context'
 import { ListingCard } from '@/components/marketplace/listing-card'
 import { haptic } from '@/lib/haptics'
 import { useVirtualKeyboard } from '@/hooks/use-virtual-keyboard'
+import { useSafeBack } from '@/lib/safe-back'
 import type { SerializedListingCard } from '@/lib/types'
 import { fmtTime } from '@/lib/dates'
 
@@ -29,6 +30,8 @@ export default function AiThreadPage() {
   const router = useRouter()
   const { tr, lang } = useLanguage()
   const { user, openSignIn } = useAuth()
+  // Back chevron: pop this thread off the stack rather than pushing /messages on top of it.
+  const onBack = useSafeBack('/messages')
   const [messages, setMessages] = useState<Msg[]>([])
   const [text, setText] = useState('')
   const [loading, setLoading] = useState(false)
@@ -128,7 +131,9 @@ export default function AiThreadPage() {
     <div className="flex h-full w-full flex-col overflow-hidden bg-background">
       {/* Header — matches the thread page; back arrow only on mobile. */}
       <div className="flex items-center gap-3 bg-background px-4 py-3">
-        <Link href="/messages" className="text-muted-foreground hover:text-accent-foreground lg:hidden relative tap-44"><ChevronLeft className="h-5 w-5" /></Link>
+        {/* Pops rather than pushing /messages (src/lib/safe-back.ts) — same control, same
+            rule as the regular thread; the href stays the cold-start fallback. */}
+        <Link href="/messages" onClick={onBack} aria-label={tr('Back', 'Quay lại')} className="text-muted-foreground hover:text-accent-foreground lg:hidden relative tap-44"><ChevronLeft className="h-5 w-5" aria-hidden /></Link>
         <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-white"><Sparkles className="h-5 w-5" /></span>
         <div className="min-w-0 flex-1">
           <div className="truncate text-sm font-bold text-foreground">{tr('eno AI', 'eno AI')}</div>

@@ -256,6 +256,16 @@ export function Header() {
         // left nav rail, so it never needs a pill to avoid a collision.
         // The hairline lives on the inner max-w-7xl bar (below), not here — so it's cut to the
         // navbar's own length (owner 2026-07-17) instead of bleeding edge-to-edge across the viewport.
+        //
+        // ⚠️ `bg-background` HAS TWO REMOTE TWINS IN globals.css, and both must move with it:
+        //   · `html.native-ios { background-color: var(--background) }` — in the iOS app the WebView
+        //     rubber-bands for the native pull-to-refresh, and a sticky/fixed bar does NOT stay
+        //     pinned through that bounce, so the drag uncovers the <html> canvas directly above this
+        //     header. That rule exists solely to keep the two the same colour (it was --card until
+        //     2026-07-21, which showed as a seam in dark mode on every pull-to-refresh).
+        //   · `#status-bar-backdrop` — paints the notch strip for the moment this header auto-hides
+        //     on scroll-down, and hardcodes var(--background) for the same reason.
+        // Change the header's surface and those two are a REQUIRED part of the same change.
         'sticky top-0 z-40 bg-background pt-[env(safe-area-inset-top)] transition-[transform,opacity] duration-[250ms] ease-out [will-change:transform,opacity] motion-reduce:transition-none',
         // Facebook-style on ALL sizes (incl. desktop): slide UP off-screen + fade out on
         // scroll-down, slide back down + fade in on scroll-up (near the top = always shown).

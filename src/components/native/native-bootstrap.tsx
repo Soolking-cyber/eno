@@ -18,6 +18,102 @@ const cap = (): CapGlobal | undefined =>
   typeof window === 'undefined' ? undefined : (window as unknown as { Capacitor?: CapGlobal }).Capacitor
 const isNative = () => !!cap()?.isNativePlatform?.()
 
+// ── Status bar ───────────────────────────────────────────────────────────────────────────────
+// ONE writer for the native status bar, because two independent things drive it:
+//   · the in-app theme — dark glyphs on the light card, light glyphs on the dark card; and
+//   · the fullscreen BLACK takeovers (the vertical video feed, the PDP photo lightbox), which
+//     must force light glyphs whatever the theme says. In LIGHT theme the bar's dark glyphs are
+//     invisible against a black backdrop — the takeover looks like it ate the clock.
+// Module scope rather than React state: the takeovers live in other trees (and are lazily
+// imported), so they register through `pushBlackStatusBar()` below instead of prop-drilling.
+let blackTakeovers = 0
+let statusApplied = ''
+
+/** What the bar SHOULD be showing right now. Reads the live `.dark` class rather than
+ *  useTheme().resolved: the pre-paint head script stamps it before hydration, so the first frames
+ *  of a dark launch already get the right contrast. */
+const wantedStatusBar = () => {
+  const black = blackTakeovers > 0
+  return {
+    dark: black || document.documentElement.classList.contains('dark'),
+    // Android draws its own status-bar background; iOS shows the WebView (the bg-card header)
+    // behind a transparent bar, so it needs the style alone. Under a black takeover the Android
+    // strip has to go black too, or light glyphs land on the light card colour — the exact bug
+    // one platform down. (Android 15+ makes setBackgroundColor a documented no-op, but there the
+    // bar is transparent and viewport-fit:cover paints the takeover under it anyway.)
+    // Not a design token: this is the literal hex the NATIVE window API takes, and it must match
+    // the takeovers' own `bg-black` canvas exactly rather than any themeable surface.
+    color: black ? /* design-lint-allow */ '#000000' : cardColor(),
+  }
+}
+
+/** Push the wanted style/colour at the OS.
+ *  `force` skips the no-op guard — use it whenever the NATIVE side may have drifted underneath
+ *  us (resume, configuration change), where our cached value is no longer evidence of what the
+ *  bar is actually showing. */
+const applyStatusBar = (force = false) => {
+  if (!isNative()) return
+  const want = wantedStatusBar()
+  const key = `${want.dark}|${want.color}`
+  if (!force && key === statusApplied) return
+  statusApplied = key
+  void import('@capacitor/status-bar')
+    .then(({ StatusBar, Style }) => {
+      // ⚠️ Capacitor's Style enum is named for the BACKGROUND, not the text: Style.Dark = LIGHT
+      // text (use on a DARK ui); Style.Light = DARK text (use on a LIGHT ui). So a dark surface
+      // → Style.Dark.
+      StatusBar.setStyle({ style: want.dark ? Style.Dark : Style.Light }).catch(() => {})
+      if (want.color && cap()?.getPlatform?.() === 'android') {
+        StatusBar.setBackgroundColor({ color: want.color }).catch(() => {})
+      }
+    })
+    .catch(() => {})
+}
+
+/**
+ * Re-assert the bar after something that can silently revert it.
+ *
+ * ⚠️ Android only in practice, and not a paranoia: `@capacitor/android` ships a BUNDLED core
+ * plugin (`com.getcapacitor.plugin.SystemBars`) that keeps its OWN cached style — "DEFAULT", i.e.
+ * whatever the OS night-mode scheme is — and re-applies it in `handleOnConfigurationChanged`.
+ * `@capacitor/status-bar` re-applies OURS from the very same hook. Both end up calling
+ * `setAppearanceLightStatusBars` on the same insets controller, so a configuration change (OS
+ * night-mode flip, rotation, font-scale, locale) is a last-writer-wins race we don't get to order
+ * — and eno has its own in-app theme, which can legitimately disagree with the OS scheme. There
+ * is no JS API to teach SystemBars our style, so we simply write again after it: once
+ * immediately, once after the native handlers have settled. Cheap (a no-op bridge call) and the
+ * only fix available from the WebView side. Verified against @capacitor/android 8.4.2 sources.
+ */
+let reassertTimer: ReturnType<typeof setTimeout> | null = null
+const reassertStatusBar = () => {
+  applyStatusBar(true)
+  if (reassertTimer) clearTimeout(reassertTimer)
+  reassertTimer = setTimeout(() => { reassertTimer = null; applyStatusBar(true) }, 350)
+}
+
+/**
+ * Register a fullscreen BLACK takeover (the vertical video feed, the PDP photo lightbox) with the
+ * status bar: while one is open the bar carries LIGHT content whatever the in-app theme is.
+ *
+ * Returns the release fn — call it from the SAME effect's cleanup. React runs that cleanup on
+ * EVERY dismissal path (✕, Escape, the Android hardware back button, the iOS edge-swipe, a route
+ * change out of the surface), which is what makes the restore robust: there is no close handler to
+ * forget. Ref-counted and idempotent, so a double release, or a pair that briefly overlaps, is
+ * harmless. A no-op on web.
+ */
+export function pushBlackStatusBar(): () => void {
+  if (!isNative()) return () => {}
+  blackTakeovers += 1
+  applyStatusBar()
+  let released = false
+  return () => {
+    if (released) return
+    released = true
+    blackTakeovers = Math.max(0, blackTakeovers - 1)
+    applyStatusBar()
+  }
+}
+
 // Where the offline page should put the user back. Read by capacitor/www/error.html, which lives on
 // the LOCAL origin (capacitor://localhost) and can therefore see none of eno.vn's storage — native
 // Preferences is the one store both sides share. Keep the key in sync with that file.
@@ -314,6 +410,11 @@ export function NativeBootstrap() {
       adopt(await App.addListener('appStateChange', ({ isActive }) => {
         if (!isActive) { awayAt = Date.now(); return }
         syncZoom() // cheap + idempotent: always re-sync, even when we skip the refresh
+        // Same reasoning, one layer down: a configuration change (the user flipping the OS to
+        // dark mode from the Settings app / control centre) can land while we're backgrounded,
+        // where no matchMedia/orientation listener of ours is guaranteed to have run. Re-assert
+        // on EVERY foregrounding, not just the ones that clear the refresh threshold below.
+        reassertStatusBar()
         const now = Date.now()
         if (!awayAt || now - awayAt < AWAY_BEFORE_REFRESH_MS) return
         awayAt = 0
@@ -478,26 +579,28 @@ export function NativeBootstrap() {
   }, [pathname]) // query-only changes don't re-stamp; the path is the part worth restoring
 
   // Status bar follows the in-app theme: dark text on the light card, light text on the dark card.
+  // `resolved` is the dependency (theme flips re-run this); the style itself is computed from the
+  // live `.dark` class inside wantedStatusBar, and a black takeover overrides it while open.
+  useEffect(() => {
+    applyStatusBar()
+  }, [resolved])
+
+  // …and re-assert it after anything that can revert it behind our back (see reassertStatusBar:
+  // the bundled SystemBars plugin re-applies the OS scheme on every Android configuration change).
+  // The three signals a configuration change surfaces in the WebView: an OS night-mode flip
+  // (matchMedia), a rotation (orientationchange), and — belt and braces, since a change can also
+  // land while we're backgrounded — a foregrounding, wired into the appStateChange listener above.
   useEffect(() => {
     if (!isNative()) return
-    void (async () => {
-      const { StatusBar, Style } = await import('@capacitor/status-bar')
-      // useTheme().resolved is 'light' until hydration, but the pre-paint head script has already
-      // stamped `.dark` on <html> — read THAT for the style so the first frames of a dark launch
-      // get the right icon contrast. `resolved` stays the dependency: theme flips re-run this.
-      const dark = document.documentElement.classList.contains('dark')
-      // ⚠️ Capacitor's Style enum is named for the BACKGROUND, not the text: Style.Dark = LIGHT
-      // text (use on a DARK ui); Style.Light = DARK text (use on a LIGHT ui). So follow the theme
-      // directly — dark theme → Style.Dark (light text), light theme → Style.Light (dark text).
-      StatusBar.setStyle({ style: dark ? Style.Dark : Style.Light }).catch(() => {})
-      // Android draws its own status-bar background; iOS shows the WebView (the bg-card header)
-      // behind a transparent bar, so it only needs the style above.
-      const color = cardColor()
-      if (color && cap()?.getPlatform?.() === 'android') {
-        StatusBar.setBackgroundColor({ color }).catch(() => {})
-      }
-    })()
-  }, [resolved])
+    const mq = window.matchMedia('(prefers-color-scheme: dark)')
+    const onConfig = () => reassertStatusBar()
+    mq.addEventListener('change', onConfig)
+    window.addEventListener('orientationchange', onConfig)
+    return () => {
+      mq.removeEventListener('change', onConfig)
+      window.removeEventListener('orientationchange', onConfig)
+    }
+  }, [])
 
   // Android pull-to-refresh gating. MainActivity's SwipeRefreshLayout already blocks the pull
   // while the WebView is scrolled, but on surfaces whose scrolling is INTERNAL the document sits

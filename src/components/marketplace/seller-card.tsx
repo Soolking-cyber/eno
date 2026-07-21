@@ -121,7 +121,14 @@ export function SellerCard({
               variant="cta"
               size="none"
               onClick={onChat}
-              className="press flex-1 gap-1.5 py-2.5 active:scale-100"
+              // `active:scale-100` dropped (2026-07-21). It was added when this button was
+              // migrated from a raw <button className="press …"> to ui/button, to stop the
+              // primitive's `active:scale-[0.97]` compounding with .press's own shrink — a real
+              // problem back when .press wrote `transform` (an independent property, so the two
+              // MULTIPLIED to 0.931). .press now writes `scale` from @layer components, so the
+              // button's 0.97 simply wins and there is nothing left to cancel; the class would
+              // now genuinely suppress the press feel on this CTA instead of being a no-op.
+              className="press flex-1 gap-1.5 py-2.5"
             >
               <MessageCircle className="h-4 w-4" /> {tr('Chat now', 'Chat ngay')}
             </Button>

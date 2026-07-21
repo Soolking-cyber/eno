@@ -1,22 +1,14 @@
 'use client'
 
-import { useEffect } from 'react'
-import { usePathname, useRouter } from 'next/navigation'
 import { ChevronLeft } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
 import { useHideOnScroll } from '@/hooks/use-hide-on-scroll'
-import { hapticTap } from '@/lib/haptics'
+import { useSafeBack } from '@/lib/safe-back'
 import { cn } from '@/lib/utils'
 import { IconButton } from '@/components/ui/icon-button'
 
 // Match the header/bottom-nav lucide weight (see header.tsx STROKE).
 const STROKE = 2.25
-
-// Client-side navigations THIS document has performed (module scope survives route
-// changes, resets on a full load — exactly the lifetime history entries share).
-// document.referrer can't tell us this: it stays pinned to the ORIGINAL referrer
-// for the whole SPA session.
-let inAppNavCount = 0
 
 /** Mobile-only (lg:hidden) pushed-screen TITLE BAR for /dashboard/* section pages —
  *  the native stack-navigation affordance: back chevron · section title · optional
@@ -43,25 +35,16 @@ export function SectionHeader({ title, action, fallbackHref = '/dashboard/listin
   fallbackHref?: string
 }) {
   const { tr } = useLanguage()
-  const router = useRouter()
-  const pathname = usePathname()
-  useEffect(() => { inAppNavCount += 1 }, [pathname])
   // Same hook (same thresholds) the Header runs, so this bar's `top` swap tracks the
   // header's own hide/reveal frame-for-frame — the explorer SortStrip pattern.
   const headerHidden = useHideOnScroll()
 
-  const onBack = () => {
-    hapticTap()
-    // Deep link / fresh tab / cold native start: nothing to pop — land on the
-    // dashboard home instead of a dead tap.
-    // history.length counts ANY prior page — a dashboard deep link opened from another
-    // site would Back OUT of eno.vn. document.referrer is pinned to the ORIGINAL
-    // referrer for the whole SPA session, so it can't be the only signal (a Google
-    // arrival would never satisfy it). An in-app client-navigation counter is the
-    // truth: >1 means the previous history entry is ours.
-    if (window.history.length > 1 && (inAppNavCount > 1 || document.referrer.startsWith(window.location.origin))) router.back()
-    else router.push(fallbackHref)
-  }
+  // POP when there's one of our own entries behind us, PUSH `fallbackHref` only on a deep
+  // link / fresh tab / cold native start. Pushing unconditionally would grow the stack and
+  // let the next hardware-back walk straight back into the screen just left. The whole
+  // "is there history to pop?" question lives in src/lib/safe-back.ts — shared with the
+  // chat threads' back chevron; don't re-derive it here.
+  const onBack = useSafeBack(fallbackHref)
 
   return (
     <div

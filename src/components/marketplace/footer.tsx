@@ -4,6 +4,7 @@ import { Facebook, Instagram, Youtube } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useLanguage } from '@/context/language-context'
 import { FORUM_URL, goToForum } from '@/lib/forum-nav'
+import { handleExternalClick } from '@/lib/native-browser'
 import { COMPANY } from '@/lib/site-legal'
 import { TAXONOMY } from '@/lib/taxonomy'
 
@@ -76,10 +77,15 @@ export function Footer() {
             <p className="max-w-[220px] text-xs leading-relaxed text-muted-foreground">
               {tr("eno.vn — Vietnam's trusted marketplace for the international community.", 'eno.vn — chợ uy tín cho cộng đồng quốc tế tại Việt Nam.')}
             </p>
+            {/* The only genuinely OFF-SITE links on the page. In the native shell a plain
+                cross-origin anchor is a HARD EXIT — Capacitor hands the URL to Safari/Chrome and
+                the user has left eno for another app. handleExternalClick keeps them in an in-app
+                browser tab presented over the app instead (no-op on web: href/target/rel below
+                still do all the work there, modifier-clicks included). */}
             <div className="flex items-center gap-3 pt-1">
-              <a href="https://www.facebook.com/profile.php?id=61591370031264" target="_blank" rel="noopener noreferrer me" aria-label="eno.vn on Facebook" className="text-muted-foreground transition-colors hover:text-accent-foreground"><Facebook className="h-5 w-5" /></a>
-              <a href="https://www.instagram.com/eno.vn/" target="_blank" rel="noopener noreferrer me" aria-label="eno.vn on Instagram" className="text-muted-foreground transition-colors hover:text-accent-foreground"><Instagram className="h-5 w-5" /></a>
-              <a href="https://www.youtube.com/@enovietnam" target="_blank" rel="noopener noreferrer me" aria-label="eno.vn on YouTube" className="text-muted-foreground transition-colors hover:text-accent-foreground"><Youtube className="h-5 w-5" /></a>
+              <a href="https://www.facebook.com/profile.php?id=61591370031264" onClick={handleExternalClick} target="_blank" rel="noopener noreferrer me" aria-label="eno.vn on Facebook" className="text-muted-foreground transition-colors hover:text-accent-foreground"><Facebook className="h-5 w-5" /></a>
+              <a href="https://www.instagram.com/eno.vn/" onClick={handleExternalClick} target="_blank" rel="noopener noreferrer me" aria-label="eno.vn on Instagram" className="text-muted-foreground transition-colors hover:text-accent-foreground"><Instagram className="h-5 w-5" /></a>
+              <a href="https://www.youtube.com/@enovietnam" onClick={handleExternalClick} target="_blank" rel="noopener noreferrer me" aria-label="eno.vn on YouTube" className="text-muted-foreground transition-colors hover:text-accent-foreground"><Youtube className="h-5 w-5" /></a>
             </div>
           </div>
 
@@ -106,7 +112,11 @@ export function Footer() {
                   <li key={link.label}>
                     {/* href stays a REAL url for a11y / middle-click / cmd-click; a plain
                         left-click on a forum link is intercepted so the native app takes
-                        the single-use SSO handoff instead of arriving signed out. */}
+                        the single-use SSO handoff instead of arriving signed out. Every
+                        other link gets handleExternalClick, which is a no-op unless the
+                        href is genuinely third-party AND we're in the native shell — so
+                        the internal routes and the mailto: below behave exactly as before,
+                        and a future off-site link here can't silently become a hard exit. */}
                     <a
                       href={link.href}
                       onClick={'forumPath' in link && link.forumPath
@@ -115,7 +125,7 @@ export function Footer() {
                             e.preventDefault()
                             goToForum(link.forumPath)
                           }
-                        : undefined}
+                        : handleExternalClick}
                       className="text-xs text-muted-foreground transition-colors hover:text-accent-foreground"
                     >{link.label}</a>
                   </li>

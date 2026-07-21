@@ -5,11 +5,16 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/lib/utils"
 
 const buttonVariants = cva(
-  // Press feedback: a subtle compositor-only scale (active:scale-[0.97] at 100ms,
-  // transition-all already covers transform). Call sites that pass their own
-  // active:scale-* via className win through cn()'s tailwind-merge — no
-  // double-scale. Reduced motion: the global kill switch in globals.css makes the
-  // transition instant (the pressed state itself remains, as it should).
+  // Press feedback: a subtle compositor-only scale (active:scale-[0.97] at 100ms).
+  // `transition-all` covers it — note Tailwind v4's scale-* utilities set the standalone
+  // `scale` property, NOT `transform`; the two are independent and COMPOSE, which is
+  // exactly how a second press-scale used to compound here (see the `.press` block in
+  // globals.css). Call sites that pass their own active:scale-* via className win through
+  // cn()'s tailwind-merge — no double-scale. `.press` no longer double-scales either: its
+  // shrink is now the same `scale` property, emitted from @layer components, so this base
+  // value beats it and a `<Button className="press">` presses exactly once, at 0.97.
+  // Reduced motion: the global kill switch in globals.css makes the transition instant
+  // (the pressed state itself remains, as it should).
   // NOTE: the icon auto-size rule deliberately does NOT live here — see the
   // `iconSize` variant below. It must stay reachable from `buttonVariants()`
   // (pagination.tsx styles a bare <a> with it), which is why it is a variant

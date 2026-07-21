@@ -136,9 +136,33 @@ seconds — but add it *with* its first real call site, never ahead of one.
 
 - Springs: `--ease-spring` (default, 220–340ms), `--ease-spring-snappy`
   (toggles/chips/press, 160–220ms), `--ease-bounce` (success moments only).
-- `.press` utility for press feedback; `hapticTap`/`attachHaptic` on key taps;
-  `.bubble-in`, `.reveal-on-scroll` for entrances.
+- `.press` utility for press feedback; `hapticTap` / `hapticConfirm` /
+  `hapticError` (`src/lib/haptics.ts`) on key taps; `.bubble-in`,
+  `.reveal-on-scroll` for entrances.
 - Everything respects `prefers-reduced-motion` via the global kill switch.
+  Haptics deliberately do **not** — reduced *motion* is an animation preference,
+  and the OS already owns the haptic setting (reasoning in `haptics.ts`).
+
+**The press-scale contract.** `.press` shrinks to `0.96` using the standalone
+`scale` property, emitted from `@layer components`. Two consequences that decide
+how you write a call site:
+
+- **One scale wins, they never compound.** Tailwind v4's `scale-*` utilities set
+  `scale` too (not `transform`), and utilities outrank the components layer — so
+  any `active:scale-*` on the element simply replaces the `.press` value.
+  `active:scale-100` is therefore a real opt-out: it removes the press entirely.
+  Until 2026-07-21 `.press` used `transform: scale()`, an *independent* property
+  that multiplied with `scale` instead of losing to it — `.press` +
+  `active:scale-90` pressed to 0.864, and four call sites shipped an
+  `active:scale-100` that did nothing at all.
+- **`<Button className="press">` presses once, at ui/button's own `0.97`.** Don't
+  add `active:scale-100` to "stop the double-scale" — there is no double-scale,
+  and the class now genuinely kills the press feel. Only pass `active:scale-100`
+  when you actually want a control that does not move: a popover *anchor*
+  (floating-ui reads its rect mid-press), or a button wrapping media.
+
+Only `.press`'s `scale` is layered; its `transition` is not, so it keeps the
+spring even on a call site that also carries `transition-colors`.
 
 ## 7. Copy & formatting
 
