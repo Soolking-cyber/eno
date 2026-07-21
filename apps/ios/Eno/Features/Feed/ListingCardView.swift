@@ -1,4 +1,5 @@
 import SwiftUI
+import EnoUI
 
 // Native mirror of the web <ListingCard> + card-badges.tsx, matched to their
 // exact rules: top-left chip priority urgent → -N% drop → New(48h); bottom-left
@@ -23,13 +24,13 @@ struct ListingCardView: View {
             VStack(alignment: .leading, spacing: 2) {
                 priceRow
                 LocalizedText(source: listing.title, preferred: L10n.isVi ? listing.titleVi : nil)
-                    .scaledFont(14, weight: .medium)
-                    .foregroundStyle(Tokens.fg)
-                    .lineLimit(2)
+                    .enoText(.callout)
                     .multilineTextAlignment(.leading)
-                    // FIXED (not min) two-line height so a 1-line and a 2-line title
-                    // produce the exact same card height — symmetric grid.
-                    .frame(height: 36, alignment: .topLeading)
+                    // reservesSpace keeps a 1-line and a 2-line title the SAME height
+                    // (symmetric grid) while still GROWING with Dynamic Type — the fixed
+                    // 36pt frame this replaces clipped the second line at accessibility sizes.
+                    .lineLimit(2, reservesSpace: true)
+                    .frame(maxWidth: .infinity, alignment: .topLeading)
                 metaRow
             }
             .padding(.horizontal, 2)
@@ -130,8 +131,9 @@ struct ListingCardView: View {
     private var priceRow: some View {
         HStack(alignment: .firstTextBaseline, spacing: 5) {
             Text(Format.compactVnd(listing.price))
-                .scaledFont(18, weight: .bold)
-                .foregroundStyle(Tokens.brand)
+                .enoText(.headline, color: EnoColor.brand)
+                .fontWeight(.bold)
+                .monospacedDigit()
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
             // The struck "was" (live only inside the 3-day drop window) and the ≈USD
@@ -140,24 +142,19 @@ struct ListingCardView: View {
             // server drops prevPrice and it reads as a normal price + USD.
             if let prev = listing.prevPrice, prev > listing.price {
                 Text(Format.compactVnd(prev))
-                    .scaledFont(11, weight: .medium)
+                    .enoText(.caption, color: EnoColor.ink4)
                     .strikethrough()
-                    .foregroundStyle(Tokens.ink4)
+                    .monospacedDigit()
                     .lineLimit(1)
             }
             if AppSettings.shared.showUSD, let approx = fx.approxUSD(listing.price) {
                 Text(approx)
-                    .scaledFont(12)
-                    .foregroundStyle(Tokens.sub)
+                    .enoText(.caption, color: EnoColor.sub)
+                    .monospacedDigit()
                     .lineLimit(1)
             }
             if listing.goodPrice == true && listing.dropPercent == nil {
-                // Web: a success Badge chip, not bare text.
-                Text(L10n.tr("Good price", "Giá tốt"))
-                    .scaledFont(10, weight: .bold)
-                    .foregroundStyle(Color(red: 0.09, green: 0.4, blue: 0.2))
-                    .padding(.horizontal, 6).padding(.vertical, 2)
-                    .background(Color(red: 0.09, green: 0.4, blue: 0.2).opacity(0.14), in: RoundedRectangle(cornerRadius: 7))
+                EnoBadge(L10n.tr("Good price", "Giá tốt"), kind: .success)
             }
         }
     }
@@ -166,15 +163,13 @@ struct ListingCardView: View {
     private var metaRow: some View {
         HStack(spacing: 6) {
             Text(listing.brandModelLine)
-                .scaledFont(11)
-                .foregroundStyle(Tokens.sub)
+                .enoText(.caption, color: EnoColor.sub)
                 .lineLimit(1)
                 .truncationMode(.tail)
             Spacer(minLength: 2)
             if listing.seller.isBusiness {
                 Image(systemName: "building.2")
-                    .scaledFont(14)
-                    .foregroundStyle(Tokens.sub)
+                    .enoText(.caption, color: EnoColor.sub)
             }
             TrustMini(score: listing.seller.trustScore)
         }

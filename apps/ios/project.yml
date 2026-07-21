@@ -26,11 +26,18 @@ settings:
     # Swift 6.3 compiler, language mode 5 for now — strict-concurrency migration
     # is a later, deliberate pass; velocity matters more while screens land.
     SWIFT_VERSION: "5.0"
+# EnoUI — the design system (docs/ios-design-language.md). A LOCAL package on purpose:
+# the module boundary keeps app models / networking / L10n out of the components.
+packages:
+  EnoUI:
+    path: Packages/EnoUI
 targets:
   Eno:
     type: application
     platform: iOS
     sources: [Eno]
+    dependencies:
+      - package: EnoUI
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: vn.eno.app
