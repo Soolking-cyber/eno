@@ -1,4 +1,5 @@
 import SwiftUI
+import EnoUI
 
 // The explorer's "compact" (list) row — web listings-explorer.tsx compact mode,
 // mobile variant: thumbnail + title + price/urgent/drop/trust, with the heart as a
@@ -9,33 +10,31 @@ struct CompactListingRowView: View {
     @State private var favs = FavoritesStore.shared
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: EnoSpacing.s2) {
             NavigationLink(value: listing) {
-                HStack(spacing: 12) {
+                HStack(spacing: EnoSpacing.s3) {
                     AsyncImage(url: listing.images.first.flatMap { ImageURL.optimized($0, width: 128) }) { phase in
                         if case .success(let img) = phase { img.resizable().scaledToFill() } else { Tokens.tint }
                     }
                     .frame(width: 64, height: 56)
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .clipShape(RoundedRectangle(cornerRadius: EnoRadius.chip))
                     VStack(alignment: .leading, spacing: 3) {
                         Text(listing.displayTitle)
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundStyle(Tokens.fg)
+                            .enoText(.callout)
                             .lineLimit(1)
                             .truncationMode(.tail)
-                        HStack(spacing: 8) {
+                        HStack(spacing: EnoSpacing.s2) {
                             Text(Format.vnd(listing.price))
-                                .font(.system(size: 16, weight: .bold))
-                                .foregroundStyle(Tokens.brand)
+                                .enoText(.headline, color: EnoColor.brand)
+                                .fontWeight(.bold)
+                                .monospacedDigit()
                                 .lineLimit(1)
                                 .minimumScaleFactor(0.7)
                             if listing.urgent {
-                                Image(systemName: "bolt.fill").font(.system(size: 12)).foregroundStyle(Tokens.fg)
+                                Image(systemName: "bolt.fill").enoText(.caption)
                             } else if let pct = listing.dropPercent {
-                                Text("-\(pct)%")
-                                    .font(.system(size: 10, weight: .bold)).foregroundStyle(.white)
-                                    .padding(.horizontal, 5).padding(.vertical, 1)
-                                    .background(Tokens.danger, in: Capsule())
+                                // On a surface (not over a photo) → EnoBadge, not EnoOverlayChip.
+                                EnoBadge("-\(pct)%", kind: .danger)
                             }
                             Spacer(minLength: 4)
                             TrustMini(score: listing.seller.trustScore)
@@ -44,29 +43,29 @@ struct CompactListingRowView: View {
                 }
             }
             .buttonStyle(.plain)
-            Button { favs.toggle(listing.id) } label: {
-                Image(systemName: favs.isFavorite(listing.id) ? "heart.fill" : "heart")
-                    .font(.system(size: 17))
-                    .foregroundStyle(favs.isFavorite(listing.id) ? Tokens.brand : Tokens.sub)
-                    .frame(width: 34, height: 34)
-                    .contentShape(Rectangle())
+            EnoIconButton(
+                favs.isFavorite(listing.id) ? "heart.fill" : "heart",
+                size: 17,
+                color: favs.isFavorite(listing.id) ? EnoColor.brand : EnoColor.sub,
+                label: favs.isFavorite(listing.id) ? L10n.tr("Saved", "Đã lưu") : L10n.tr("Save", "Lưu")
+            ) {
+                favs.toggle(listing.id)
             }
-            .buttonStyle(.plain)
         }
-        .padding(.vertical, 6)
+        .padding(.vertical, EnoSpacing.s1 + 2)
     }
 }
 
 struct CompactSkeletonRow: View {
     var body: some View {
-        HStack(spacing: 12) {
-            RoundedRectangle(cornerRadius: 8).fill(Tokens.tint).frame(width: 64, height: 56)
-            VStack(alignment: .leading, spacing: 6) {
-                RoundedRectangle(cornerRadius: 4).fill(Tokens.tint).frame(width: 160, height: 12)
-                RoundedRectangle(cornerRadius: 4).fill(Tokens.tint).frame(width: 90, height: 12)
+        HStack(spacing: EnoSpacing.s3) {
+            RoundedRectangle(cornerRadius: EnoRadius.chip).fill(Tokens.tint).frame(width: 64, height: 56)
+            VStack(alignment: .leading, spacing: EnoSpacing.s1 + 2) {
+                RoundedRectangle(cornerRadius: EnoRadius.chip).fill(Tokens.tint).frame(width: 160, height: 12)
+                RoundedRectangle(cornerRadius: EnoRadius.chip).fill(Tokens.tint).frame(width: 90, height: 12)
             }
             Spacer()
         }
-        .padding(.vertical, 6)
+        .padding(.vertical, EnoSpacing.s1 + 2)
     }
 }
