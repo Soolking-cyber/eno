@@ -68,6 +68,19 @@ describe('containsContactInfo — off-platform bypass', () => {
     expect(containsContactInfo('Like new iPhone, great deal')).toBe(false)
     expect(containsContactInfo('')).toBe(false)
   })
+
+  // The English preposition "at" before a LITERAL-dot official domain is prose, not an
+  // email — e-visa/service listings kept getting blocked (user report 2026-07-21).
+  // Genuine obfuscation spells BOTH parts ("shop at gmail dot com") and still blocks.
+  it('does NOT read prose "at <site>.gov/.vn" as an obfuscated email', () => {
+    expect(containsContactInfo('Submit your application at evisa.gov.vn')).toBe(false)
+    expect(containsContactInfo('Documents are processed at immigration.gov')).toBe(false)
+    expect(containsContactInfo('Apply at the official portal before 10:00 AM')).toBe(false)
+    // still catches real obfuscation + real domains/emails:
+    expect(containsContactInfo('shop at gmail dot com')).toBe(true)       // spelled at + spelled dot
+    expect(containsContactInfo('order at myshop.com')).toBe(true)         // real .com domain (LINK)
+    expect(containsContactInfo('mail me at john@company.vn')).toBe(true)  // real email
+  })
 })
 
 describe('assertPublishable — gate priority & happy path', () => {

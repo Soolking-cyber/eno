@@ -110,7 +110,17 @@ const EMAIL = /[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i
 // can't trip it. Every quantifier is BOUNDED (local/domain ≤64, whitespace ≤4) so the
 // match is O(n): unbounded `{2,}` + `\s*` made this super-linear and a 5k-char field
 // cost ~350ms, amplified 200× by bulk import (ReDoS/DoS lever, verified 2026-07-06).
-const EMAIL_OBF = /[a-z0-9._%+-]{2,64}[ \t]{0,4}[([]?[ \t]{0,4}(?:@|\bat\b)[ \t]{0,4}[)\]]?[ \t]{0,4}[a-z0-9-]{2,64}[ \t]{0,4}[([]?[ \t]{0,4}(?:\.|\bdot\b|\bcham\b)[ \t]{0,4}[)\]]?[ \t]{0,4}(?:com|net|org|vn|io|co|info|mail|edu|gov)\b/i
+//
+// Split by separator to stop the ENGLISH PREPOSITION "at" from reading as "@" in
+// ordinary prose (user report: e-visa/service listings — "submit your application at
+// evisa.gov.vn", "processed at immigration.gov" were blocked as hidden emails):
+//   • literal "@" → accepts a literal OR spelled dot (real/typed addresses).
+//   • spelled "at" → REQUIRES a spelled "dot"/"cham" (genuine obfuscation spells both).
+// A literal-dot domain after "at" is prose, and stays consistent with a bare
+// "evisa.gov.vn" mention, which is already allowed. Real .com/.net/… domains after
+// "at" are still caught by LINK; real "@" emails by EMAIL.
+const EMAIL_OBF_AT_SIGN = /[a-z0-9._%+-]{2,64}[ \t]{0,4}[([]?[ \t]{0,4}@[ \t]{0,4}[)\]]?[ \t]{0,4}[a-z0-9-]{2,64}[ \t]{0,4}[([]?[ \t]{0,4}(?:\.|\bdot\b|\bcham\b)[ \t]{0,4}[)\]]?[ \t]{0,4}(?:com|net|org|vn|io|co|info|mail|edu|gov)\b/i
+const EMAIL_OBF_AT_WORD = /[a-z0-9._%+-]{2,64}[ \t]{0,4}[([]?[ \t]{0,4}\bat\b[ \t]{0,4}[)\]]?[ \t]{0,4}[a-z0-9-]{2,64}[ \t]{0,4}[([]?[ \t]{0,4}(?:\bdot\b|\bcham\b)[ \t]{0,4}[)\]]?[ \t]{0,4}(?:com|net|org|vn|io|co|info|mail|edu|gov)\b/i
 // Bare-domain TLDs exclude `co`/`me`: both are everyday Vietnamese syllables, and
 // no-diacritic typing with a missing space after a period ("May dep.Co the xem" =
 // "Máy đẹp. Có thể xem") reads as a .co domain — it blocked HONEST posts at the
@@ -124,7 +134,7 @@ const HOUSE = /\bsố\s*nhà\s*\d{1,4}\b/iu
 export function containsContactInfo(text: string | null | undefined): boolean {
   if (!text) return false
   const f = fold(text)
-  return EMAIL.test(text) || EMAIL_OBF.test(f) || LINK.test(text) || HANDLE.test(text) || SOCIAL.test(text) || HOUSE.test(text)
+  return EMAIL.test(text) || EMAIL_OBF_AT_SIGN.test(f) || EMAIL_OBF_AT_WORD.test(f) || LINK.test(text) || HANDLE.test(text) || SOCIAL.test(text) || HOUSE.test(text)
 }
 
 /**
