@@ -51,8 +51,16 @@
  * ## Android
  * Deliberately NOT applied. Android WebView already tracks the OS font-size setting
  * (Settings › Display › Font size) on its own, and its mechanism (`WebSettings.setTextZoom`)
- * is likewise text-only. Pushing our clamped value there would fight the OS and would shrink
- * an accessibility user's chosen 2.0 scale down to our 1.5 ceiling — a regression, not a fix.
+ * is likewise text-only. Pushing our clamped value there would fight the OS and would shrink an
+ * accessibility user's chosen 2.0 scale down to MAX_ZOOM — a regression, not a fix.
+ *
+ * ## iPad
+ * Requires `ios.preferredContentMode: 'mobile'` in capacitor.config.ts, and does NOTHING VISIBLE
+ * without it — in the most deceptive way possible. iPadOS resolves Capacitor's default
+ * `recommended` content mode to desktop-class browsing, where WebKit ignores an explicit
+ * `-webkit-text-size-adjust` percentage (WebKit bug 212122). The bridge read below still succeeds
+ * and this module still writes the style; only the rendering never changes. The two settings are a
+ * pair, same as the viewport lock above — the config comment carries the detail.
  */
 
 type PluginHeader = {
@@ -71,12 +79,46 @@ const bridge = (): CapacitorBridge | undefined =>
     ? undefined
     : (window as unknown as { Capacitor?: CapacitorBridge }).Capacitor
 
-/** Clamp: an unclamped Dynamic Type value runs from ~0.82 (xSmall) past 3.1 (AX5). Below the
- *  floor the UI stops being readable at all; above the ceiling even text-only scaling starts
- *  to overflow fixed-height chrome (the bottom nav, the sticky buy box). 1.5 is the largest
- *  step the app's densest surfaces survive intact. */
+/**
+ * Clamp. Dynamic Type's body point size ÷ 17 gives, step by step:
+ *   0.82 xSmall · 0.88 · 0.94 · 1.00 Large (the default) · 1.12 · 1.24 · 1.35 xxxLarge
+ *   — then the ACCESSIBILITY sizes — 1.65 AX1 · 1.94 AX2 · 2.35 AX3 · 2.76 AX4 · 3.12 AX5.
+ * Below the floor the UI stops being readable at all (and 0.85 vs the 0.82 iOS can actually
+ * emit is a 3% difference nobody can see).
+ *
+ * ## The ceiling is a STAGED number: 1.75 now, 2.0 next. Read this before changing it.
+ * WCAG 1.4.4 asks for text enlargement to 200% without loss of content or functionality, and the
+ * old 1.5 ceiling SILENTLY OVERRODE the user's choice: an AX3 user who asked the OS for 2.35 got
+ * 1.5 and no indication that the app had ignored them. Note where 1.5 fell — above every standard
+ * size (max 1.35) but below the FIRST accessibility size — so it was precisely the users who need
+ * enlargement most whose setting was discarded. 1.75 passes AX1 (1.65) through unclamped and lifts
+ * everyone above it by 17%.
+ *
+ * Why not 2.0 today. Text-only scaling grows and re-wraps the glyphs but leaves every box around
+ * them exactly where it was, so this ceiling is only ever as safe as the app's densest chrome —
+ * and "fixed height" is NOT the whole risk (external review, 2026-07-21): a max-height, a
+ * `white-space: nowrap` cell, a narrow flex/grid column, an absolutely-positioned label, or a
+ * control whose padding and icon don't grow with its text can all lose content without one. Note
+ * especially the LINE CLAMPS: a `line-clamp-2` listing title keeps exactly two lines whatever the
+ * text size, so bigger glyphs simply discard more of the title — no fixed height required, and
+ * WCAG counts that as the same failure. The fixed-height → min-height sweep that makes 2.0 safe
+ * landed in this same wave and has NOT been verified on a device, and truncation under large text
+ * is exactly the failure that killed the hand-built native apps — so the honest move is one step
+ * now, the second step after a real device has been walked through Settings › Accessibility ›
+ * Display & Text Size › Larger Text at AX3+ and checked on: the bottom nav, the sticky PDP buy
+ * box, the chat composer, the post wizard, the sign-in flow, and the clamped card titles — on the
+ * smallest supported iPhone AND on iPad in portrait, landscape and Split View. Raising it is then
+ * a ONE-CONSTANT change — this line — and nothing else.
+ *
+ * ⚠️ One known coupling for whoever raises it: `.bottom-nav-spacer` hard-codes `4.5rem` (in
+ * bottom-nav-spacer.tsx and again in globals.css) to match the nav's own `min-h-[4.5rem]`. The nav
+ * is free to grow when its micro-label wraps ("Đăng tin" at ~2× on a narrow phone); the spacer is
+ * not. Past the point where the bar exceeds 4.5rem the bar starts covering the bottom of the page.
+ * Nothing is CUT — the labels carry no overflow-hidden, by design — but the spacer has to learn to
+ * track the bar before the ceiling goes higher.
+ */
 const MIN_ZOOM = 0.85
-const MAX_ZOOM = 1.5
+const MAX_ZOOM = 1.75
 
 /** A bridge call for a plugin that isn't installed natively is never answered, so it would
  *  hang forever. PluginHeaders already guards that; this is the belt-and-braces backstop so a

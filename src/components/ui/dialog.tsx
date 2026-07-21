@@ -49,20 +49,36 @@ function DialogContent({
 }: DialogPrimitive.Popup.Props & {
   showCloseButton?: boolean
 }) {
-  // KEYBOARD-AWARE GEOMETRY (mobile web + the Capacitor shell).
-  // A dialog centred on the LAYOUT viewport puts its footer buttons underneath the
-  // on-screen keyboard — on iOS the keyboard OVERLAYS the page, so `50%` keeps pointing at
-  // the middle of a viewport whose bottom half is no longer visible. `--vvh`/`--vvt` (written
-  // on <html> every frame by use-virtual-keyboard, from VisualViewport on the web and from the
-  // @capacitor/keyboard plugin natively) describe the VISIBLE viewport, so `--kb-inset` below
-  // is exactly the strip of the layout viewport the keyboard covers. Re-centring on
-  // (--vvt … --vvt + --vvh) keeps the whole dialog — footer included — above it.
+  // KEYBOARD-AWARE GEOMETRY (mobile web + the Capacitor shell) — this file CONSUMES the
+  // app-wide contract published in globals.css ("KEYBOARD-AWARE SURFACES"); it must never
+  // re-derive it. A dialog centred on the LAYOUT viewport puts its footer buttons underneath
+  // the on-screen keyboard — on iOS the keyboard OVERLAYS the page, so `50%` keeps pointing at
+  // the middle of a viewport whose bottom half is no longer visible. Two published vars fix it,
+  // both written on <html> every frame by use-virtual-keyboard (VisualViewport on the web, the
+  // @capacitor/keyboard bridge natively):
+  //   var(--kb-h)  px of the LAYOUT viewport the keyboard covers, ALREADY net of WebKit's own
+  //                pan, and 0px while closed.
+  //   var(--vvh)   the VISIBLE viewport height, i.e. exactly the room left above the keyboard.
+  // ⚠️ This used to rebuild --kb-h locally as `100dvh - --vvt - --vvh` (a local `--kb-inset`).
+  // That is identical to --kb-h on the WEB but WRONG inside the native app, where --vvt is
+  // pinned to 0: the local copy was then the RAW keyboard height, while WebKit ALSO pans the
+  // document to reveal the focused field — so the dialog rose twice and either overshot the
+  // keyboard or left a gap above it. Consume --kb-h; never re-derive the raw inset.
   //
-  // The React boolean is ONLY the on/off switch — one re-render per keyboard toggle. Natively it
-  // flips on `keyboardWillShow`, i.e. as the keyboard STARTS animating, so nothing is ever seen
-  // covered; on mobile web the hook coalesces it to ~120ms after the visual viewport settles. The
-  // per-frame geometry deliberately stays in CSS: a React render on every viewport frame makes iOS
-  // abort the keyboard, the same reason the chat composer is CSS-driven (globals.css).
+  // top = 50% + --vvt/2 - --kb-h/2 re-centres the popup on the VISIBLE strip: on the web that
+  // is identically (--vvt + --vvh/2), the middle of what is still on screen. Both terms are
+  // 0px with the keyboard down (the hook forces --vvt to 0 on close, and :root seeds --kb-h),
+  // so the resting `top` computes to a plain 50% — rendered-identical to `top-1/2`, including
+  // before hydration. It is deliberately NOT gated on the React boolean: the vars self-zero,
+  // and reading them live means the re-centre rides the keyboard's own animation instead of
+  // waiting the ~120ms the coalesced boolean costs (which briefly moved the dialog the WRONG
+  // way, since only the --vvt term applied in that window).
+  //
+  // The React boolean is ONLY the on/off switch for the height clamp — one re-render per
+  // keyboard toggle. Natively it flips on `keyboardWillShow`, i.e. as the keyboard STARTS
+  // animating; on mobile web the hook coalesces it to ~120ms after the visual viewport settles.
+  // The per-frame geometry deliberately stays in CSS: a React render on every viewport frame
+  // makes iOS abort the keyboard, the same reason the chat composer is CSS-driven (globals.css).
   const { open: keyboardOpen } = useVirtualKeyboard()
 
   return (
@@ -73,14 +89,17 @@ function DialogContent({
         data-kb-open={keyboardOpen ? "" : undefined}
         className={cn(
           "fixed left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-2xl bg-background p-6 shadow-overlay duration-150 outline-none sm:max-w-lg data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
-          // Keyboard inset — 0px with no keyboard, so `top` below resolves to a plain 50%
-          // and the closed-keyboard rendering is byte-identical to `top-1/2`.
-          "[--kb-inset:0px] data-kb-open:[--kb-inset:max(0px,calc(100dvh-var(--vvt,0px)-var(--vvh,100dvh)))]",
-          "top-[calc(50%+var(--vvt,0px)/2-var(--kb-inset)/2)]",
+          // Centre on the VISIBLE viewport (see the block above). Both keyboard terms are
+          // 0px with no keyboard, so this resolves to a plain 50% and the closed-keyboard
+          // rendering is byte-identical to `top-1/2`.
+          "top-[calc(50%+var(--vvt,0px)/2-var(--kb-h,0px)/2)]",
           // Only while the keyboard is up does the popup become a clamped scroller: a dialog
           // taller than the visible strip would otherwise push its own footer back under the
-          // keyboard. Gated so tall dialogs keep their current (unclamped) layout otherwise.
-          "data-kb-open:max-h-[calc(100dvh-var(--kb-inset)-var(--vvt,0px)-2rem)] data-kb-open:overflow-y-auto data-kb-open:overscroll-contain",
+          // keyboard. --vvh IS the visible height on both platforms (on the web it equals the
+          // old `100dvh - --kb-h - --vvt`, natively the plugin publishes it directly), so this
+          // leaves 1rem of clearance top and bottom without another derived quantity. Gated so
+          // tall dialogs keep their current (unclamped) layout otherwise.
+          "data-kb-open:max-h-[calc(var(--vvh,100dvh)-2rem)] data-kb-open:overflow-y-auto data-kb-open:overscroll-contain",
           className
         )}
         {...props}

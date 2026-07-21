@@ -450,6 +450,30 @@ html.native {
   -webkit-touch-callout: none;
   -webkit-user-select: none;
   user-select: none;
+  /* TEXT-SIZE PIN — keep both lines; do NOT "free" them to `auto` for accessibility. That
+     looks like the fix and is a regression. Verified 2026-07-21 against engine source after a
+     two-family review split on it.
+     Capacitor's iOS delegate disables pinch zoom in the WebView for EVERY document it loads
+     (WebViewDelegationHandler.scrollViewWillBeginZooming turns the pinch recognizer off), so
+     in-app text enlargement is OS-driven only. This pin blocks NEITHER OS path:
+       · iOS — the shared shell injects window.Capacitor on this origin too, so the
+         @capacitor/text-zoom read writes the Dynamic Type scale as an INLINE
+         `-webkit-text-size-adjust: <n>%` on <body> (mechanism owned by eno.vn's
+         src/lib/native-text-zoom.ts). text-size-adjust is INHERITED, and an element's own
+         cascaded value beats an inherited one — so body's percentage wins for every rendered
+         node while this html-level declaration keeps doing Tailwind preflight's job of
+         blocking WebKit's automatic inflation of overflowing/legacy layouts.
+         ⚠️ The forum does not run that read yet (ForumNativeBridge never calls it), which is
+         the real gap on iOS forum pages — it is a JS gap, not a CSS one. CSS cannot reach
+         Dynamic Type: WebKit's `auto` enables its inflation heuristic, not the OS setting.
+       · Android — the shell injects NO Capacitor into eno.forum, so the OS font-size setting
+         (Settings › Display › Font size) is the only path, and it survives this pin. Blink's
+         TextAutosizer::ApplyMultiplier takes text-size-adjust's percentage and then multiplies
+         the accessibility font scale ON TOP of it ("we need to apply that scale factor on top
+         of the text-size-adjust multiplier"), covered by its own regression test
+         TextSizeAdjustDoesNotDisableAccessibility. `auto` would add no OS scaling whatsoever —
+         it only re-enables the layout-driven autosizer, which inflates text around any
+         overflowing block. */
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
 }

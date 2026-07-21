@@ -72,6 +72,41 @@ const config: CapacitorConfig = {
     // Edge-to-edge: the WebView runs under the status bar so the bg-card header fills behind it.
     // The web side pads the header by env(safe-area-inset-top) on native (see globals.css).
     contentInset: 'never',
+    // ACCESSIBILITY, not a style preference — this is what makes text enlargement work on iPad.
+    // Capacitor's default is `recommended`, which on a full-width iPad window WebKit resolves to
+    // DESKTOP-class browsing (not unconditionally — iPad mini and a narrow Split View can still
+    // land on mobile). In desktop content mode WebKit ignores an explicit
+    // `-webkit-text-size-adjust` PERCENTAGE (WebKit bug 212122) — and that percentage is the one
+    // and only mechanism src/lib/native-text-zoom.ts has. Note what that meant: the native read was
+    // fine (TextZoom.getPreferred() is plain UIFont Swift and never cared about content mode), so
+    // the app fetched an iPad user's Dynamic Type multiplier over the bridge and then silently
+    // threw it away. Mobile mode makes the write land, and puts the iPad on the same footing as the
+    // iPhone, where the viewport lock in keyboard-viewport-sync (maximum-scale=1) leaves text-zoom
+    // as the app's ONLY text-size path. The official @capacitor/text-zoom README states the
+    // requirement outright: "text-zoom plugin won't work on iPads unless `preferredContentMode`
+    // configuration is set to `mobile`".
+    //
+    // iPHONE IS UNAFFECTED — there `recommended` already resolves to `.mobile`, so this is a strict
+    // no-op on every iPhone (confirmed by both external reviewers, 2026-07-21).
+    //
+    // ⚠️ On iPad it changes more than text sizing, and that is accepted deliberately:
+    //  · the UA reverts from the desktop-class "Macintosh; Intel Mac OS X…" spoof to the real
+    //    "iPad; CPU OS…" string, and `navigator.platform` with it. Safe here: `appendUserAgent:
+    //    'EnoNativeApp/1'` rides on applicationNameForUserAgent, which WebKit appends to whichever
+    //    base UA it builds, so the forum SSO handoff gate (`ua.includes('EnoNativeApp')`) cannot
+    //    break — and our own isIOS() helpers (lib/in-app-browser, lib/haptics) already match BOTH
+    //    the iPad UA and the MacIntel+maxTouchPoints desktop-mode spelling.
+    //  · the viewport POLICY changes: desktop class sizes itself from the window and shrink-to-fits
+    //    on its own terms, mobile honours `width=device-width`. On a page as responsive as ours the
+    //    resulting innerWidth may barely move — but it can, and iPad landscape sits past `lg`,
+    //    where the bottom nav is `lg:hidden` and the desktop header takes over. Consistent with the
+    //    standing "the app MIRRORS the web app" rule; still, look at an iPad in BOTH orientations
+    //    and in Split View before shipping.
+    //
+    // ⚠️ NOT deliverable over the air. Unlike everything served from eno.vn, this is baked into the
+    // native WKWebViewConfiguration at construction time: it needs `npx cap copy ios` (which
+    // regenerates ios/App/App/capacitor.config.json) plus a native rebuild before any iPad sees it.
+    preferredContentMode: 'mobile',
   },
   plugins: {
     SplashScreen: {

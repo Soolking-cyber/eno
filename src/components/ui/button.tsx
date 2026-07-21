@@ -69,10 +69,33 @@ const buttonVariants = cva(
         // size="none" when the caller also owns the box.
         bare: "",
       },
+      // MIN-height, never height, on every size that holds TEXT.
+      //
+      // The app now applies the OS text-size preference as
+      // `-webkit-text-size-adjust: <85–150>%` on <body> (src/lib/native-text-zoom.ts).
+      // That multiplier scales the used font-size, and Tailwind v4's type scale ships
+      // UNITLESS line-height ratios (`--text-sm--line-height: calc(1.25 / 0.875)`), so the
+      // LINE BOX scales with it: text-sm's 20px line becomes ~30px at 150%. A `h-9` button
+      // is a 36px box holding 30px of line plus 16px of py — it overflows by 10px, and any
+      // ancestor with overflow:hidden turns that into the mid-word clipping that got the
+      // hand-built native apps shelved. `min-h-*` renders IDENTICALLY at 100% (the natural
+      // content height is ≤ the minimum in every case: 20+16=36 for default, 20 for sm/lg)
+      // and simply grows when the glyphs do.
+      //
+      // ⚠️ `default` is py-1.5, NOT py-2, and that 2px matters. Vertical padding is invisible
+      // under a FIXED height (the box is pinned either way) but decides the natural height under
+      // a MINIMUM one. `variant="outline"` adds a 1px border, so py-2 would have made the natural
+      // height 1+8+20+8+1 = 38px — ABOVE min-h-9's 36px — and every outline button would have
+      // grown 2px at the DEFAULT text size. py-1.5 keeps it at 34px, inside the 36px floor with
+      // or without a border, so the rendered box stays exactly 36px until the glyphs really do
+      // need more. (sm/lg carry no vertical padding: 20+2 = 22px, far under their 32/40px floors.)
+      //
+      // The ICON sizes deliberately keep `size-*`: they hold a glyph, not a line box, so
+      // nothing reflows, and they must stay SQUARE (a min-h on a circle deforms it).
       size: {
-        default: "h-9 px-4 py-2 has-[>svg]:px-3",
-        sm: "h-8 rounded-xl gap-1.5 px-3 has-[>svg]:px-2.5",
-        lg: "h-10 rounded-xl px-6 has-[>svg]:px-4",
+        default: "min-h-9 px-4 py-1.5 has-[>svg]:px-3",
+        sm: "min-h-8 rounded-xl gap-1.5 px-3 has-[>svg]:px-2.5",
+        lg: "min-h-10 rounded-xl px-6 has-[>svg]:px-4",
         icon: "size-9",
         "icon-sm": "size-7",
         "icon-xs": "size-6",

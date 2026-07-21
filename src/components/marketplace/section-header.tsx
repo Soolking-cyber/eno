@@ -50,7 +50,12 @@ export function SectionHeader({ title, action, fallbackHref = '/dashboard/listin
     <div
       className={cn(
         // Mobile-only stack chrome (mobile-nav uses the same lg:hidden gate).
-        'lg:hidden sticky z-30 flex h-12 items-center gap-1 border-b border-border bg-card',
+        // min-h-12, not h-12: with OS text scaling live (src/lib/native-text-zoom.ts) the title's
+        // line box and any `action` control grow, and a 48px box pinned by `height` would clip them
+        // (Tailwind v4's line-heights are unitless ratios, so they scale with the glyphs). At the
+        // default size the tallest child is the 40px back button, so the bar still renders at
+        // exactly 48px — identical to before.
+        'lg:hidden sticky z-30 flex min-h-12 items-center gap-1 border-b border-border bg-card',
         // Bleed to the dashboard layout's gutter (max-w-7xl px-3 sm:px-6) and pull up
         // flush under the site header through main's py-6, like a real pushed screen.
         '-mx-3 -mt-6 mb-4 px-3 sm:-mx-6 sm:px-6',

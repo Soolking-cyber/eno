@@ -44,7 +44,24 @@ function SelectTrigger({
         // Press feedback is a BACKGROUND tint, never a transform: this trigger is the popup's
         // floating anchor, and scaling it would shift the open popup (see custom-select / task 5).
         // Chevron flips via Base UI's `data-popup-open` on the trigger (transform-only, no reflow).
-        "flex w-fit items-center justify-between gap-1.5 rounded-lg border border-input bg-transparent py-2 pr-2 pl-2.5 text-sm whitespace-nowrap transition-colors outline-none select-none active:bg-muted focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 data-placeholder:text-muted-foreground data-[size=default]:h-8 data-[size=sm]:h-7 data-[size=sm]:rounded-[min(var(--radius-md),10px)] [&[data-popup-open]_[data-slot=select-chevron]]:rotate-180 *:data-[slot=select-value]:line-clamp-1 *:data-[slot=select-value]:flex *:data-[slot=select-value]:items-center *:data-[slot=select-value]:gap-1.5 dark:bg-input/30 dark:hover:bg-input/50 dark:active:bg-input/60 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+        //
+        // HEIGHT: `min-h-8` / `data-[size=sm]:min-h-7`, never `h-*`. With OS text scaling live
+        // (`-webkit-text-size-adjust`, src/lib/native-text-zoom.ts) and Tailwind v4's UNITLESS
+        // line-height ratios, text-sm's 20px line box becomes ~30px at 150% — which a fixed 32px
+        // box cannot hold once padding and borders are counted.
+        // ⚠️ The vertical padding was RE-CUT with it, and that is not cosmetic. The old pairing was
+        // `py-2` + `h-8`: 1+8+20+8+1 = 38px of content in a box pinned to 32px, i.e. the trigger
+        // was ALREADY overflowing (invisibly — flex `items-center` spills it symmetrically into the
+        // padding and nothing clips). A naive h-8→min-h-8 swap would therefore have grown every
+        // trigger 32px→38px at the DEFAULT text size. `py-1` (1+4+20+4+1 = 30 ≤ 32) and
+        // `data-[size=sm]:py-0.5` (26 ≤ 28) keep the natural height just inside the old fixed one,
+        // so both sizes render byte-identically at 100% and grow only when the glyphs do.
+        // ⚠️ The DEFAULT values are unmodified (`min-h-8 py-1`), NOT `data-[size=default]:*`, so a
+        // caller's own `min-h-11` / `py-2` still wins through cn()'s tailwind-merge. Behind a
+        // `data-[size=default]:` prefix they would NOT: different modifiers are never deduped, and
+        // the attribute selector's higher specificity would silently beat the call site
+        // (dashboard/visa's `min-h-11` trigger would have collapsed 44px→32px).
+        "flex w-fit min-h-8 items-center justify-between gap-1.5 rounded-lg border border-input bg-transparent py-1 pr-2 pl-2.5 text-sm whitespace-nowrap transition-colors outline-none select-none active:bg-muted focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 data-placeholder:text-muted-foreground data-[size=sm]:min-h-7 data-[size=sm]:py-0.5 data-[size=sm]:rounded-[min(var(--radius-md),10px)] [&[data-popup-open]_[data-slot=select-chevron]]:rotate-180 *:data-[slot=select-value]:line-clamp-1 *:data-[slot=select-value]:flex *:data-[slot=select-value]:items-center *:data-[slot=select-value]:gap-1.5 dark:bg-input/30 dark:hover:bg-input/50 dark:active:bg-input/60 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
         className
       )}
       {...props}
