@@ -299,13 +299,19 @@ export function ListingsExplorer({
   const maxOffsetRef = useRef(0)
   // Return-to-feed restoration: when set, a back-nav snapshot is being rehydrated —
   // hold the scroll target until the taller list paints, and don't let the page-1
-  // query shrink the restored list.
-  const restoredScrollRef = useRef<number | null>(null)
+  // query shrink the restored list. `anchorId` is the card that was TAPPED and
+  // `anchorTop` where it sat in the viewport; realigning that one element is what
+  // makes the restore survive a document whose height differs from the one we left
+  // (on the landing feed the rails above the grid mount lazily and may be absent
+  // entirely when we land deep in it — an absolute offset would be thousands of px out).
+  const restoredScrollRef = useRef<{ y: number; anchorId: string | null; anchorTop: number } | null>(null)
+  const restoreRafRef = useRef(0)
+  const restoreStopRef = useRef<(() => void) | null>(null)
   const skipFirstPageResetRef = useRef(false)
   // The back-nav snapshot, read once on mount and applied when the feed's filters
   // settle to the same signature (filters hydrate from the URL in an effect, so the
   // match can't be made synchronously at mount).
-  const pendingSnapRef = useRef<{ sig: string; listings: SerializedListingCard[]; page: number; totalCount: number; scrollY: number; ts: number } | null>(null)
+  const pendingSnapRef = useRef<{ sig: string; listings: SerializedListingCard[]; page: number; totalCount: number; scrollY: number; ts: number; unlocked?: boolean; anchorId?: string | null; anchorTop?: number | null } | null>(null)
   const snapReadRef = useRef(false)
   const [subcategoryCounts, setSubcategoryCounts] = useState<Record<string, number>>({})
   const [categoryTotal, setCategoryTotal] = useState(0)
@@ -910,8 +916,12 @@ export function ListingsExplorer({
         if (raw) {
           sessionStorage.removeItem('eno:feed-snap')
           const s = JSON.parse(raw)
-          // Recent, and with more rows than a fresh page-1 load would give.
-          if (s && Array.isArray(s.listings) && Date.now() - s.ts <= 30 * 60 * 1000 && s.listings.length > initialListings.length) {
+          // Recent, and with something to restore. This used to demand MORE rows than a
+          // fresh page-1 load, which silently threw away every shallow snapshot — the home
+          // feed's most common one (scrolled a screen or two, never hit "Load more"). The
+          // rows are only half the point; the SCROLL POSITION is the other half, and it is
+          // worth restoring even when the row count is unchanged.
+          if (s && Array.isArray(s.listings) && s.listings.length > 0 && Date.now() - s.ts <= 30 * 60 * 1000) {
             pendingSnapRef.current = s
           }
         }
@@ -921,23 +931,88 @@ export function ListingsExplorer({
     if (snap && snap.sig === feedSig) {
       pendingSnapRef.current = null
       skipFirstPageResetRef.current = true
-      restoredScrollRef.current = snap.scrollY
+      restoredScrollRef.current = {
+        y: snap.scrollY,
+        anchorId: typeof snap.anchorId === 'string' ? snap.anchorId : null,
+        anchorTop: typeof snap.anchorTop === 'number' ? snap.anchorTop : 0,
+      }
       setListings(snap.listings)
       seenIdsRef.current = new Set(snap.listings.map((l: SerializedListingCard) => l.id))
       maxOffsetRef.current = (snap.page - 1) * 12 // deepest offset already loaded (feed page size)
       setReachedEnd(false)
       setTotalCount(snap.totalCount)
       setPage(snap.page)
+      // Restore the home feed's pagination MODE too, not just its depth: without this the
+      // buyer came back to a deep feed whose infinite scroll was re-locked, so the next
+      // scroll dead-ended at a "Load more" button they had already pressed. (Declared
+      // further down the component — read inside an effect, so it is initialised by now.)
+      setFeedUnlocked(snap.unlocked === true)
     }
   }, [feedSig])
 
-  // Once the restored (taller) list has painted, jump to the saved scroll position.
+  // Put the buyer back where they were, once the restored rows are actually IN THE DOM.
+  // A single scrollTo in the commit that restored them is not enough: the grid renders off
+  // a useDeferredValue copy (so the urgent commit can still be painting the SHORT list, and
+  // scrollTo would clamp against a document that is not tall enough yet), and on the landing
+  // feed the rails above the grid mount lazily. So retry across a bounded number of FRAMES —
+  // frames, not milliseconds, because a backgrounded WebView pauses rAF and a time budget
+  // would burn down while the app is in the background. Aligning the tapped CARD (rather than
+  // an absolute offset) is what makes this correct when the content above the feed has a
+  // different height than it did when we left. Any real user scroll input aborts it: we never
+  // fight a finger.
   useLayoutEffect(() => {
-    if (restoredScrollRef.current != null && listings.length > initialListings.length) {
-      window.scrollTo(0, restoredScrollRef.current)
+    const target = restoredScrollRef.current
+    // Already aligning — do NOT restart (or tear down) the loop just because more rows
+    // arrived; the page-1 refetch swaps `listings` mid-restore and used to kill it.
+    if (!target || restoreStopRef.current) return
+    let frames = 0
+    const stop = () => {
+      cancelAnimationFrame(restoreRafRef.current)
+      restoreRafRef.current = 0
+      restoreStopRef.current = null
       restoredScrollRef.current = null
+      window.removeEventListener('touchmove', stop)
+      window.removeEventListener('wheel', stop)
+      window.removeEventListener('keydown', stop)
     }
+    restoreStopRef.current = stop
+    // Is the document tall enough for the saved offset to land where it did before?
+    const fits = () => document.documentElement.scrollHeight >= target.y + window.innerHeight
+    const step = () => {
+      const el = target.anchorId
+        ? document.querySelector(`[data-feed-card="${typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(target.anchorId) : target.anchorId}"]`)
+        : null
+      if (el) {
+        window.scrollBy(0, el.getBoundingClientRect().top - target.anchorTop)
+        stop()
+        return
+      }
+      if (!target.anchorId && fits()) { window.scrollTo(0, target.y); stop(); return }
+      // ~40 frames ≈ 2/3s at 60Hz. If the tapped card never reappears (sold, moderated,
+      // or reshuffled out of the refreshed page), fall back to the raw offset — but only
+      // if the page is long enough for it, else a clamp would dump them at the bottom.
+      if (frames++ < 40) { restoreRafRef.current = requestAnimationFrame(step); return }
+      if (fits()) window.scrollTo(0, target.y)
+      stop()
+    }
+    // touchMOVE, not touchstart: a bare tap (or the tail of the edge-swipe that brought us
+    // here) must not silently cancel the restore — only an actual drag counts as "the user
+    // is scrolling now".
+    window.addEventListener('touchmove', stop, { passive: true })
+    window.addEventListener('wheel', stop, { passive: true })
+    window.addEventListener('keydown', stop)
+    // First attempt runs SYNCHRONOUSLY, in the layout phase, so that when the rows are
+    // already in the DOM the jump happens before the browser paints (no visible flash of
+    // the top of the feed). step() schedules its own rAF retries when they are not.
+    step()
   }, [listings])
+
+  // Unmount is the only thing that cancels an in-flight restore from outside (the loop above
+  // deliberately survives re-renders, so it can't return its own cleanup). useLayoutEffect,
+  // NOT useEffect: a passive cleanup is flushed AFTER paint, so on a fast back-then-forward
+  // the loop would get one more frame and scroll the DESTINATION route. Layout cleanups run
+  // synchronously in the commit that removes the tree.
+  useLayoutEffect(() => () => restoreStopRef.current?.(), [])
 
   // Synchronize state and trigger history caching when data changes
   useEffect(() => {
@@ -1186,15 +1261,26 @@ export function ListingsExplorer({
     // (rows + page + scroll), not at the top of a reset feed. Cap the payload so a
     // very deep scroll can't bloat sessionStorage.
     try {
-      // Only the paginated results feed (not the landing rails) restores on back-nav.
-      if (!isLandingMode && listings.length <= 120) {
+      // The HOME feed snapshots too (it used to be excluded by `!isLandingMode`, which is
+      // exactly the feed that needed it most: it is fully paginated — Load more, then
+      // infinite scroll — so back-nav dumped the buyer on a reset page 1 at scroll 0, and
+      // the native edge-swipe made that reset read as a bug because it animates a snapshot
+      // of the deep feed first). The landing RAILS are not restored — only the paginated
+      // grid below them, realigned on the card that was tapped.
+      if (listings.length <= 120) {
+        const card = document.querySelector(`[data-feed-card="${typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(l.id) : l.id}"]`)
         sessionStorage.setItem('eno:feed-snap', JSON.stringify({
           sig: feedSig, listings, page, totalCount, scrollY: window.scrollY, ts: Date.now(),
+          // The home feed's infinite scroll is opt-in; restoring depth without the unlock
+          // would strand the buyer behind a "Load more" they already pressed.
+          unlocked: feedUnlocked,
+          anchorId: l.id,
+          anchorTop: card ? card.getBoundingClientRect().top : null,
         }))
       }
     } catch { /* ignore quota/serialization */ }
     router.push(`/listings/${l.id}`)
-  }, [isLandingMode, listings, page, totalCount, feedSig, router])
+  }, [listings, page, totalCount, feedSig, feedUnlocked, router])
   // Warm the listing page before the click (hover on desktop, touchstart on mobile)
   // so it opens instantly instead of SSR-ing on click. De-duped by Next's prefetch cache.
   const prefetchListing = useCallback((id: string) => { router.prefetch(`/listings/${id}`) }, [router])
@@ -1673,7 +1759,12 @@ export function ListingsExplorer({
                     {/* Guest capture (5a #7): one signup card at the point of interest,
                         after the 8th listing. Renders null once signed in. */}
                     {index === 8 && <CaptureCard />}
+                    {/* data-feed-card = the back-nav restore ANCHOR. The return-to-feed
+                        effect realigns this exact element, which is what makes "put me
+                        back where I was" survive a page whose height changed while we
+                        were away (the landing rails above the grid mount lazily). */}
                     <div
+                      data-feed-card={l.id}
                       className="flex flex-col h-full"
                       onMouseEnter={() => prefetchListing(l.id)}
                       onTouchStart={() => prefetchListing(l.id)}
@@ -2054,7 +2145,9 @@ export function ListingsExplorer({
                         {/* Guest capture (5a #7): one signup card at the point of interest,
                             after the 8th listing. Renders null once signed in. */}
                         {index === 8 && <CaptureCard />}
+                        {/* data-feed-card = the back-nav restore anchor (see the landing grid). */}
                         <div
+                          data-feed-card={l.id}
                           className="flex flex-col h-full"
                           onMouseEnter={() => prefetchListing(l.id)}
                           onTouchStart={() => prefetchListing(l.id)}
@@ -2138,7 +2231,8 @@ export function ListingsExplorer({
                      with a big empty middle; single column on mobile. */
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-6 gap-y-1.5">
                     {deferredListings.map((l, index) => (
-                      <div key={l.id}>
+                      /* data-feed-card = the back-nav restore anchor (see the landing grid). */
+                      <div key={l.id} data-feed-card={l.id}>
                         <CompactListingRow
                           listing={l}
                           index={index}

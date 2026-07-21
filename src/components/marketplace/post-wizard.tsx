@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { ChevronLeft, Check, Lock, Sparkles, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -640,10 +641,13 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
 
   return (
     <div className="pb-[calc(9rem+env(safe-area-inset-bottom))] lg:pb-0">
+      {/* Exit is a <Link>, not an <a>: inside the Capacitor WebView a raw anchor is a fresh
+          HTTP load of the live site — blank screen, full document teardown. The draft is
+          already autosaved to localStorage, so a soft nav loses nothing. */}
       {!embedded && (
-        <a href="/" className="inline-flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-accent-foreground transition-colors cursor-pointer">
+        <Link href="/" className="inline-flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-accent-foreground transition-colors cursor-pointer">
           <ChevronLeft className="h-4 w-4" /> {t('Thoát', 'Exit')}
-        </a>
+        </Link>
       )}
       {!embedded && <h1 className="mt-3 h-display text-foreground">{t('Tạo tin đăng', 'Create a listing')}</h1>}
       <p className={cn('text-base text-body', !embedded && 'mt-1')}>{t('Điền các mục bên dưới — bản xem trước cập nhật ngay.', 'Fill in the sections below — your preview updates live.')}</p>

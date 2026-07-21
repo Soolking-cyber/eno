@@ -10,7 +10,6 @@ import { useAuth } from '@/context/auth-context'
 import { useChat } from '@/context/chat-context'
 import { useVirtualKeyboard } from '@/hooks/use-virtual-keyboard'
 import { useHideOnScroll } from '@/hooks/use-hide-on-scroll'
-import { useRouter } from 'next/navigation'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -23,6 +22,18 @@ const STROKE = 2.25
 // Spring release (bouncy settle) instead of a linear snap; touch-action kills the tap delay.
 const TAB = 'flex flex-1 cursor-pointer transition-transform duration-[240ms] [transition-timing-function:var(--ease-spring-snappy)] active:scale-90 active:duration-[60ms] [touch-action:manipulation]'
 
+// PREFETCH (2026-07-21): every tab used to carry `prefetch={false}`, so the five most-travelled
+// destinations in the app were the only ones that paid a full cold round-trip on tap — the
+// opposite of what a bottom bar is for. They now use Next's DEFAULT (auto) prefetch, deliberately
+// NOT `prefetch={true}`:
+//   · auto warms the route's static shell / loading boundary, so the tap paints instantly, while
+//     dynamic data is still fetched fresh on navigation (staleTimes.dynamic = 0). On a marketplace
+//     that difference is a correctness one — `prefetch={true}` would park the payload under
+//     staleTimes.static (5 min), and a 5-minute-old inbox or price is a bug, not a cache hit.
+//   · the bar is on every mobile page and always in the viewport, so `true` would also fire five
+//     full RSC renders per page view at the server.
+// Back/forward navigation is instant regardless (Next restores those from the Router Cache).
+
 // The icon + micro-label stack, centred in the bar. The label (text-3xs — the canon's
 // micro-label size, §1) makes every tab unmistakable ("Post", "Saved") without turning the
 // bar into a text row. No colour of its own, so it INHERITS the tab's state colour and the
@@ -31,14 +42,18 @@ function TabStack({ icon, label }: { icon: React.ReactNode; label: string }) {
   return (
     <>
       <span className="relative">{icon}</span>
-      {/* leading-none keeps the label box at ~10px so the icon + label + the taller Post chip
-          all clear the 64px bar with headroom (even under OS font-scaling). */}
-      <span className="text-3xs font-medium leading-none">{label}</span>
+      {/* ⚠️ NO overflow-hidden / truncate on this label, ever. Vietnamese stacks diacritics
+          ABOVE the cap height and descenders below ("Đăng tin"), and leading-none makes the
+          line box exactly the font size — clipping it would cut the marks off the letters,
+          which is the mid-word-truncation failure that killed the hand-built native apps.
+          At an enlarged text size the label is allowed to WRAP and the bar grows with it
+          (min-h-16 below); nothing is ever cut. */}
+      <span className="text-3xs font-medium leading-none text-center">{label}</span>
     </>
   )
 }
 
-// gap-0.5 (not gap-1) so the taller Post chip (h-12) + its label still clear the 64px bar.
+// gap-0.5 (not gap-1) so the taller Post chip (h-12) + its label sit as one tight unit.
 const STACK = 'relative flex h-full w-full flex-col items-center justify-center gap-0.5 transition-colors'
 
 /** Content of a navigating tab: the icon + micro-label stack. Active = the whole stack turns
@@ -60,7 +75,7 @@ function TabBody({ active, icon, label }: { active: boolean; icon: React.ReactNo
  *  to a page that would gate inconsistently — so every gated action on mobile
  *  meets the SAME card. While auth is still resolving (or signed in) it's a normal
  *  Link, so a logged-in user is never wrongly shown the modal. */
-function GatedTab({ href, active, icon, label, gate, onNavigate }: { href: string; active: boolean; icon: React.ReactNode; label: string; gate: boolean; onNavigate: () => void }) {
+function GatedTab({ href, active, icon, label, gate, onClick, prefetch }: { href: string; active: boolean; icon: React.ReactNode; label: string; gate: boolean; onClick: (e: React.MouseEvent<HTMLAnchorElement>) => void; prefetch?: false }) {
   const { openSignIn } = useAuth()
   if (gate) {
     return (
@@ -71,10 +86,10 @@ function GatedTab({ href, active, icon, label, gate, onNavigate }: { href: strin
       </Button>
     )
   }
-  // Keep the <Link> (prefetch + a11y) but drive the actual nav through the slide
-  // router so it animates directionally.
+  // The <Link> performs the ACTUAL navigation (see the note on the bar below); onClick only
+  // handles the taps that are NOT a navigation, and preventDefault()s those.
   return (
-    <Link href={href} prefetch={false} aria-label={label} aria-current={active ? 'page' : undefined} className={TAB} onClick={(e) => { e.preventDefault(); onNavigate() }}>
+    <Link href={href} prefetch={prefetch} aria-label={label} aria-current={active ? 'page' : undefined} className={TAB} onClick={onClick}>
       <TabBody active={active} icon={icon} label={label} />
     </Link>
   )
@@ -88,7 +103,6 @@ export function MobileNav() {
   const { tr } = useLanguage()
   const { user, loading } = useAuth()
   const { unread } = useChat()
-  const router = useRouter()
   // The bar auto-hides on scroll like a native app (owner 2026-07-16, reversing the earlier
   // "permanent anchor"): it retracts DOWN off-screen while the user scrolls down to browse and
   // slides back on any scroll-up / near the top — the same useHideOnScroll signal the top header
@@ -124,25 +138,25 @@ export function MobileNav() {
   // after a section nav). Independent of the !accountOpen dimming the other tabs get.
   const accountActive = accountOpen || (mounted && (pathname?.startsWith('/dashboard') ?? false))
 
-  // Plain push — the template fade handles the visual. (The FB-style directional
-  // slide this once fed was reverted with the View Transitions experiment.)
-  const go = (href: string) => {
-    // If the account launcher is open, close it first — a page tab must revert to its page even when
-    // the route doesn't change (tapping Explore while already on home with the launcher up: the
-    // panel's route-driven close can't fire, so it would otherwise stay open — the reported bug).
-    if (accountOpen) window.dispatchEvent(new CustomEvent('eno:open-account', { detail: false }))
-    router.push(href)
-  }
-
-  // Native staple: re-tapping the tab you're already on scrolls that view to the top (with a
-  // haptic tick) instead of a no-op navigation — iOS/Android users reach for this reflexively.
-  const scrollTopOrGo = (href: string, isActive: boolean) => {
+  // ⚠️ The <Link> does the navigating. Every tab used to preventDefault() its own Link and
+  // router.push() instead — which silently killed the useLinkStatus() pending highlight the
+  // bar is built around (a Link that never navigates never reports `pending`), so a tap gave
+  // NO feedback until the next page painted. That indirection existed for a directional slide
+  // transition that was reverted, so it bought nothing. This handler now only intercepts the
+  // taps that are genuinely NOT a navigation, and cancels the Link for exactly those.
+  const onTabClick = (e: React.MouseEvent, isActive: boolean) => {
+    // Native staple: re-tapping the tab you're already on scrolls that view to the top (with a
+    // haptic tick) instead of a no-op navigation — iOS/Android users reach for this reflexively.
     if (isActive && typeof window !== 'undefined' && window.scrollY > 0) {
+      e.preventDefault()
       hapticTap()
       window.scrollTo({ top: 0, behavior: 'smooth' })
       return
     }
-    go(href)
+    // If the account launcher is open, close it — a page tab must revert to its page even when
+    // the route doesn't change (tapping Explore while already on home with the launcher up: the
+    // panel's route-driven close can't fire, so it would otherwise stay open — the reported bug).
+    if (accountOpen) window.dispatchEvent(new CustomEvent('eno:open-account', { detail: false }))
   }
 
   // Hidden only on the full-screen sign-in page. (The PDP used to hide it and show its own fixed
@@ -201,16 +215,22 @@ export function MobileNav() {
         off ? 'translate-y-full opacity-0 pointer-events-none' : 'translate-y-0 opacity-100',
       )}
     >
-      {/* Fixed 64px tab row; the safe-area padding sits BELOW it (filled white) so
-          the home-indicator inset never compresses the icons out of the bar. */}
-      <div className="flex h-16 items-stretch">
-      <Link href="/" prefetch={false} aria-label={tr('Explore', 'Khám phá')} aria-current={at('/') ? 'page' : undefined} className={TAB} onClick={(e) => { e.preventDefault(); scrollTopOrGo('/', at('/')) }}>
+      {/* 64px tab row, but min-h — NOT a hard h-16. The Post chip alone is h-12 (48px) and the
+          micro-label sits under it, so the row already ran within ~4px of the old fixed height:
+          the moment the OS text size is enlarged (native-text-zoom scales TEXT only, so the
+          chip stays 48px while the label grows) the stack overflowed the bar and spilled over
+          the page. min-h-16 keeps today's exact geometry at the default text size and lets the
+          bar grow instead of clipping when the label needs the room.
+          The safe-area padding sits BELOW the row (filled) so the home-indicator inset never
+          compresses the icons out of the bar. */}
+      <div className="flex min-h-16 items-stretch">
+      <Link href="/" aria-label={tr('Explore', 'Khám phá')} aria-current={at('/') ? 'page' : undefined} className={TAB} onClick={(e) => onTabClick(e, at('/'))}>
         <TabBody active={at('/')} label={tr('Explore', 'Khám phá')} icon={<Compass className="h-7 w-7" strokeWidth={STROKE} />} />
       </Link>
 
       {/* Saved is public — favorites are stored device-local (localStorage), so a
           logged-out visitor can save and review listings without an account. */}
-      <Link href="/saved" prefetch={false} aria-label={tr('Saved', 'Đã lưu')} aria-current={at('/saved') ? 'page' : undefined} className={TAB} onClick={(e) => { e.preventDefault(); scrollTopOrGo('/saved', at('/saved')) }}>
+      <Link href="/saved" aria-label={tr('Saved', 'Đã lưu')} aria-current={at('/saved') ? 'page' : undefined} className={TAB} onClick={(e) => onTabClick(e, at('/saved'))}>
         <TabBody
           active={at('/saved')}
           label={tr('Saved', 'Đã lưu')}
@@ -231,7 +251,7 @@ export function MobileNav() {
         href="/post"
         active={at('/post')}
         gate={gate}
-        onNavigate={() => go('/post')}
+        onClick={(e) => onTabClick(e, false)}
         label={tr('Post', 'Đăng tin')}
         // Emphasised but FLAT: a soft tinted chip (canon chip = rounded-full + tint, §2) with a
         // brand-blue plus — no shadow, no FAB lift, no heavy solid fill. It reads as the primary
@@ -247,7 +267,10 @@ export function MobileNav() {
         href="/messages"
         active={atPrefix('/messages')}
         gate={gate}
-        onNavigate={() => scrollTopOrGo('/messages', pathname === '/messages')}
+        // Scroll-to-top only on the inbox itself (pathname === '/messages'), never inside a
+        // thread — the tab is "active" for every /messages/* route, but from a thread the tap
+        // must navigate back OUT to the inbox.
+        onClick={(e) => onTabClick(e, pathname === '/messages')}
         label={tr('Messages', 'Tin nhắn')}
         icon={
           <>
@@ -268,13 +291,22 @@ export function MobileNav() {
         href="/dashboard"
         active={accountActive}
         gate={gate}
+        // The ONE tab that keeps prefetch off: for a signed-in user this Link never navigates
+        // (it opens the rail overlay), so prefetching /dashboard on every mobile page view
+        // would be a pure wasted RSC render.
+        prefetch={false}
         label={tr('Account', 'Tài khoản')}
-        // Logged in → open the rail. Still resolving auth (user not yet known) → fall back to
-        // navigating /dashboard, which gates correctly once auth lands, rather than popping an
-        // empty rail. (Logged-out is already handled by `gate` → openSignIn.)
+        // Logged in → open the rail INSTEAD of navigating (so this is the one tab that always
+        // cancels its Link). Still resolving auth (user not yet known) → let the Link go to
+        // /dashboard, which gates correctly once auth lands, rather than popping an empty rail.
+        // (Logged-out is already handled by `gate` → openSignIn.)
         // TOGGLE (owner 2026-07-18): the launcher has no Close button — re-tapping Account
         // closes it (CustomEvent detail:false), any other tab still closes it on navigate.
-        onNavigate={() => user ? window.dispatchEvent(new CustomEvent('eno:open-account', { detail: !accountOpen })) : go('/dashboard')}
+        onClick={(e) => {
+          if (!user) return
+          e.preventDefault()
+          window.dispatchEvent(new CustomEvent('eno:open-account', { detail: !accountOpen }))
+        }}
         icon={<User className="h-7 w-7" strokeWidth={STROKE} />}
       />
       </div>

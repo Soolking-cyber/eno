@@ -18,10 +18,16 @@ export function KeyboardViewportSync() {
     ensureKeyboardWired()
 
     // iOS ONLY: clamp the viewport scale so focusing a field never auto-zooms the page
-    // (iOS zooms any input rendered under 16px). Safari deliberately IGNORES
-    // maximum-scale for user pinch gestures (accessibility zoom keeps working) — it only
-    // suppresses the focus auto-zoom. Not applied on Android, where maximum-scale would
-    // genuinely disable pinch zoom.
+    // (iOS zooms any input rendered under 16px). In mobile SAFARI this is benign — Safari
+    // deliberately IGNORES maximum-scale for user pinch gestures (accessibility zoom keeps
+    // working), so it only suppresses the focus auto-zoom. Not applied on Android, where
+    // maximum-scale would genuinely disable pinch zoom.
+    // ⚠️ PAIRED WITH src/lib/native-text-zoom.ts — do not break the pairing. A WKWebView has
+    // no Safari-style override, so inside the Capacitor app this lock DOES kill pinch zoom.
+    // The compensating mechanism is native-text-zoom, which reads the OS Dynamic Type setting
+    // and scales TEXT ONLY (-webkit-text-size-adjust on <body>), leaving the rem-derived
+    // layout and the --vvh/--vvt keyboard math untouched. Remove that and the app has NO way
+    // to enlarge text at all; lift this lock and the focus auto-zoom comes back.
     if (isIOS()) {
       const meta = document.querySelector('meta[name="viewport"]')
       if (meta && !/maximum-scale/.test(meta.getAttribute('content') || '')) {

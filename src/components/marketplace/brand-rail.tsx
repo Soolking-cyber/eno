@@ -102,8 +102,13 @@ export function BrandRail({
   const overflowModels = modelsNeedMore ? sortedModels.filter((m, i) => i >= 7 && m.model !== activeModel) : []
 
   const tileCls = 'group flex w-[4.75rem] shrink-0 snap-start flex-col items-center gap-1.5 py-1 text-center cursor-pointer select-none'
+  // ⚠️ w-full + break-words — same containment as category-rail. The span is a flex item
+  // under `items-center`, so without w-full its width is fit-content and a long brand name
+  // ("Mercedes-Benz", or anything once OS text scaling is on) spills outside the fixed
+  // 4.75rem tile instead of wrapping into the line-clamp. break-words covers a single
+  // unbreakable wordmark that is wider than the tile on its own.
   const nameCls = (active: boolean) =>
-    cn('line-clamp-2 text-xs font-bold leading-tight transition-colors', active ? 'text-accent-foreground' : 'text-foreground group-hover:text-accent-foreground')
+    cn('line-clamp-2 w-full break-words text-xs font-bold leading-tight transition-colors', active ? 'text-accent-foreground' : 'text-foreground group-hover:text-accent-foreground')
   const modelChip = (active: boolean) =>
     cn('w-full shrink-0 whitespace-nowrap rounded-lg px-2.5 py-1 text-left text-sm font-semibold transition-colors cursor-pointer', active ? 'bg-card text-accent-foreground shadow-sm' : 'text-body hover:bg-card/70 hover:text-accent-foreground')
 

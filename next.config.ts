@@ -27,6 +27,19 @@ const nextConfig: NextConfig = {
     // Tree-shake barrel-export packages so only the icons/primitives actually used
     // are bundled (lucide-react is imported across ~68 files) — trims first-party JS.
     optimizePackageImports: ["lucide-react"],
+    // ⚠️ NO `staleTimes` here, and that is a DECISION, not an omission (2026-07-21) — the
+    // obvious "make navigation instant" lever is the wrong one for this app:
+    //   · It does NOT affect back/forward. Browser back/forward always replays the client
+    //     Router Cache; that path is already instant and staleTimes cannot make it faster.
+    //     (What actually broke back-nav here was React state, fixed in listings-explorer's
+    //     sessionStorage feed snapshot — not the router cache.)
+    //   · `dynamic` (default 0) only widens FORWARD navigations. Raising it means a tab tap
+    //     can re-serve a cached page: a sold listing still showing as available, or a stale
+    //     price, on a marketplace. That is a correctness bug traded for a few hundred ms.
+    //   · `static` already defaults to 300s and covers our prefetched/prerendered routes, so
+    //     there is nothing to gain by restating it (and lowering it only costs refetches).
+    // The latency win we DO take is prefetch: the bottom-nav tabs dropped `prefetch={false}`
+    // (see mobile-nav.tsx), which warms the shell without ever serving stale data.
   },
   // ffmpeg-static must NOT be bundled: its exported binary path is `path.join(__dirname,
   // 'ffmpeg')`, so if Next bundles it into the route chunk, __dirname resolves to the compiled

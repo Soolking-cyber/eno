@@ -3,12 +3,15 @@ package vn.eno.app;
 import android.os.Bundle;
 import android.view.ViewGroup;
 import android.webkit.JavascriptInterface;
+import android.webkit.WebResourceRequest;
+import android.webkit.WebResourceResponse;
 import android.webkit.WebView;
 
 import androidx.core.splashscreen.SplashScreen;
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
 import com.getcapacitor.BridgeActivity;
+import com.getcapacitor.BridgeWebViewClient;
 
 /**
  * Native pull-to-refresh on Android: wrap Capacitor's WebView in a SwipeRefreshLayout (the real
@@ -18,6 +21,9 @@ import com.getcapacitor.BridgeActivity;
  * disabled it via the EnoNative bridge (inner scrollers — chat thread, video feed, map pan — sit
  * at webView scrollY 0, so scroll position alone can't tell "top of page" from "top of page with
  * an inner scroller under the finger").
+ *
+ * It also narrows Capacitor's server.errorPath to genuine network failures — see the comment on the
+ * BridgeWebViewClient swap in onCreate.
  */
 public class MainActivity extends BridgeActivity {
     private SwipeRefreshLayout swipeRefresh;
@@ -54,6 +60,26 @@ public class MainActivity extends BridgeActivity {
         // ever races this anyway, the web side optional-chains and PTR falls back to the
         // scrollY-only gate (fail-open).
         webView.addJavascriptInterface(new EnoNativeBridge(), "EnoNative");
+
+        // server.errorPath (error.html — the branded "You're offline" page) must fire ONLY on a real
+        // network failure. Capacitor's BridgeWebViewClient also swaps it in from onReceivedHttpError,
+        // i.e. on ANY main-frame HTTP status >= 400 — so a removed listing (a perfectly good branded
+        // 404 page served by Next.js) told the user they had no internet. iOS never had this bug:
+        // WKWebView renders 4xx/5xx bodies and only calls didFail for transport errors, so this
+        // restores parity. onReceivedError (ERR_INTERNET_DISCONNECTED / DNS / timeout / refused) is
+        // left inherited — that IS the genuine offline signal, and the error page still shows there.
+        // The override is deliberately empty: android.webkit.WebViewClient.onReceivedHttpError is a
+        // no-op stub, and Java has no super.super to reach past BridgeWebViewClient's loadUrl. The
+        // only thing dropped is Capacitor's WebViewListener fan-out for this one event; no plugin in
+        // this app registers a WebViewListener. Swapped in the same main-thread turn as the initial
+        // load, so it is the client that sees the first response (callbacks are posted to the main
+        // looper and cannot run before onCreate yields).
+        getBridge().setWebViewClient(new BridgeWebViewClient(getBridge()) {
+            @Override
+            public void onReceivedHttpError(WebView view, WebResourceRequest request, WebResourceResponse errorResponse) {
+                // Intentionally no super call — leave the server's own 404/500 page on screen.
+            }
+        });
 
         final ViewGroup parent = (ViewGroup) webView.getParent();
         if (parent == null) return;

@@ -35,11 +35,18 @@ export function NativeBootstrap() {
   const pathname = usePathname()
   const { tr } = useLanguage()
 
-  // Native pull-to-refresh: MainViewController's UIRefreshControl fires `eno:native-refresh` on pull;
-  // soft-refresh the current route (re-fetch server components) — no full reload, so scroll + SPA
-  // state survive. No-op on web (event never fires there).
+  // Native pull-to-refresh: MainViewController's UIRefreshControl (iOS) and MainActivity's
+  // SwipeRefreshLayout (Android) both fire `eno:native-refresh` on pull; soft-refresh the current
+  // route (re-fetch server components) — no full reload, so scroll + SPA state survive. No-op on
+  // web (event never fires there).
   useEffect(() => {
-    const onRefresh = () => router.refresh()
+    const onRefresh = () => {
+      // Neither shell plays a haptic of its own (UIRefreshControl/SwipeRefreshLayout are silent),
+      // so a pull that commits feels dead. Both platforms route through THIS one handler, so a
+      // single light impact here covers both. hapticTap is reduced-motion-guarded + throttled.
+      hapticTap()
+      router.refresh()
+    }
     window.addEventListener('eno:native-refresh', onRefresh)
     return () => window.removeEventListener('eno:native-refresh', onRefresh)
   }, [router])
@@ -141,6 +148,14 @@ export function NativeBootstrap() {
       .then(({ SplashScreen }) => SplashScreen.hide({ fadeOutDuration: 200 }))
       .catch(() => {})
 
+    // OS text-size (Dynamic Type / Android font scale) → the WebView. Owned by src/lib/native-text-zoom.
+    // Imported DYNAMICALLY, inside the native-only branch, for the same reason every `@capacitor/*`
+    // import in this file is: a static import would pull the native path into the web bundle. The
+    // bundler caches the module, so the resume-time sync below re-uses the same chunk.
+    const zoom = () => import('@/lib/native-text-zoom')
+    void zoom().then((m) => m.initTextZoom()).catch(() => {})
+    const syncZoom = () => { void zoom().then((m) => m.syncTextZoom()).catch(() => {}) }
+
     void (async () => {
       const [{ Keyboard }, { App }] = await Promise.all([
         import('@capacitor/keyboard'),
@@ -197,6 +212,41 @@ export function NativeBootstrap() {
         else App.minimizeApp()
       }))
 
+      // Resume. A wrapped web app that sits in the background for an hour comes back showing
+      // whatever it rendered before — no native app does that. On foreground: re-read the OS text
+      // size (the user may have changed Dynamic Type in Settings while away) and soft-refresh the
+      // route so server data is current. router.refresh() is an RSC re-fetch, NOT a reload: scroll,
+      // SPA state, composer text and open dialogs all survive. A hard reload here would be a
+      // cold remote boot every time — exactly the "webby" feel we're removing.
+      // ⚠️ isActive:false ≠ backgrounded. Capacitor maps it to willResignActive/onPause, which also
+      // fire for a control-centre pull, a permission alert, an incoming-call banner, the share
+      // sheet or the OAuth in-app browser. Refreshing on every one of those would spam the origin
+      // and flash content mid-interaction — so gate on how long we were actually away.
+      // Set whenever a deep link kicks off a FULL-PAGE navigation (see dispatch/routeDeepLink
+      // below); the resume refresh stands down while one is in flight.
+      let hardNavAt = 0
+      // Wall-clock, deliberately: performance.now() stalls while the device sleeps, which is
+      // exactly the interval being measured. `awayAt` is cleared once consumed, so a platform
+      // that emits two isActive:true in a row can't double-refresh — that reset IS the debounce
+      // (an additional min-gap floor would be unreachable: a second refresh needs another
+      // full 30s background first).
+      const AWAY_BEFORE_REFRESH_MS = 30_000
+      let awayAt = 0
+      adopt(await App.addListener('appStateChange', ({ isActive }) => {
+        if (!isActive) { awayAt = Date.now(); return }
+        syncZoom() // cheap + idempotent: always re-sync, even when we skip the refresh
+        const now = Date.now()
+        if (!awayAt || now - awayAt < AWAY_BEFORE_REFRESH_MS) return
+        awayAt = 0
+        // A deep link that arrived on this same foregrounding is already doing a full-page
+        // navigation (OAuth callback / forum hop) — both platforms deliver appUrlOpen BEFORE
+        // didBecomeActive/onResume, so the flag is set by the time we get here. Refreshing the
+        // route we're about to leave would fetch a page nobody will see, and can flash the old
+        // view mid-unload.
+        if (now - hardNavAt < 5_000) return
+        router.refresh()
+      }))
+
       // Deep-link router (App Links + app shortcuts + share targets). Three shapes:
       //   · https://eno.vn/... | https://www.eno.vn/... → route the path in the SPA
       //   · https://eno.forum/... | https://www.eno.forum/... → full-page navigate (cross-origin)
@@ -217,6 +267,7 @@ export function NativeBootstrap() {
             if (!fr.startsWith('/')) return
             const forumResolved = new URL(fr, 'https://eno.forum')
             if (forumResolved.origin !== 'https://eno.forum') return
+            hardNavAt = Date.now()
             window.location.assign(forumResolved.toString())
             return
           }
@@ -273,6 +324,7 @@ export function NativeBootstrap() {
         if (isAuthCallback(url)) {
           const query = url.split('?')[1] ?? ''
           void import('@capacitor/browser').then(({ Browser }) => Browser.close().catch(() => {}))
+          hardNavAt = Date.now()
           window.location.assign(`/auth/callback${query ? `?${query}` : ''}`)
           return
         }

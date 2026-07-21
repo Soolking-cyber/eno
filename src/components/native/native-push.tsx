@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
+import { useRouter } from 'next/navigation'
 import { useAuth } from '@/context/auth-context'
 import { canonicalAppPath } from '@/lib/deep-link'
 
@@ -15,6 +16,12 @@ const cap = (): CapGlobal | undefined =>
 export function NativePush() {
   const { user } = useAuth()
   const started = useRef(false)
+  // The registration effect runs ONCE (started ref), so its listener would close over the first
+  // router it saw. Read through a ref instead — kept current by its own effect (never written
+  // during render, which would break render purity under concurrent React).
+  const router = useRouter()
+  const routerRef = useRef(router)
+  useEffect(() => { routerRef.current = router }, [router])
 
   useEffect(() => {
     if (!user || started.current || !cap()?.isNativePlatform?.()) return
@@ -53,7 +60,13 @@ export function NativePush() {
           // Canonicalize-then-validate (audit Phase 1): the old bare startsWith('/')
           // accepted `//evil.com` and navigated the trusted native shell to it.
           const path = typeof url === 'string' ? canonicalAppPath(url, { blockAuthPaths: true }) : null
-          if (path) window.location.assign(path)
+          if (!path) return
+          // Client-side nav, not a hard reload: location.assign re-fetched the whole remote
+          // document (a second cold boot, seconds of white) for what is an ordinary in-app
+          // route. router.push lands on it instantly and keeps the SPA warm — the same path
+          // native-bootstrap's deep-link router already takes. Fall back to the old hard
+          // navigation only if the router is somehow unavailable, so a tap is never swallowed.
+          try { routerRef.current.push(path) } catch { window.location.assign(path) }
         }))
 
         if (!disposed) await PushNotifications.register()

@@ -433,6 +433,25 @@
 .shadow-thumb { box-shadow: var(--shadow-thumb); }
 
 /* ============================================================
+   ROUTE ENTER FADE — off for BACK/FORWARD (see src/app/route-fade.tsx)
+   app/template.tsx re-mounts on every navigation and its div carries
+   `animate-in fade-in duration-150`, i.e. it starts at opacity 0. On a POP that is
+   wrong: the iOS WebView already animated its own snapshot at full opacity, so the
+   live DOM handed off underneath goes native-slide → blank → 150ms fade (and scroll
+   restoration runs while the page is invisible). `data-nav-pop` is stamped on <html>
+   by the popstate listener BEFORE the router re-renders, so the new div never starts
+   the animation; .route-fade-static then pins the same suppression onto the element
+   so clearing the flag can't start it late.
+   ⚠️ Unlayered on purpose: `animate-in` lives in Tailwind's @layer utilities, and an
+   unlayered rule beats a layered one outright — specificity never enters into it.
+   ⚠️ Not a directional slide. That was tried and reverted; do not re-add.
+   ============================================================ */
+html[data-nav-pop] .route-fade,
+.route-fade-static {
+  animation: none;
+}
+
+/* ============================================================
    VIRTUAL-KEYBOARD PINNING (iOS) — see use-virtual-keyboard.ts
    While the on-screen keyboard is up (html.kb-open, set imperatively), pin the chat
    shell as a fixed overlay EXACTLY over the visual viewport: height = its visible
@@ -461,9 +480,11 @@ html.kb-open .mobile-nav {
 html.kb-open .bottom-nav-spacer { display: none; }
 
 @media (max-width: 1023px) {
-  /* (1) DOCUMENT LOCK while inside a thread. touch-action:none on <body> is what actually
-     stops iOS scrolling the layout viewport on focus (overflow:hidden alone is ignored by
-     WebKit) → offsetTop stays ~0 → flush + no jitter. */
+  /* (1) DOCUMENT LOCK while inside a thread. Suppressing single-finger PANNING on <body>
+     via touch-action is what actually stops iOS scrolling the layout viewport on focus
+     (overflow:hidden alone is ignored by WebKit) → offsetTop stays ~0 → flush + no jitter.
+     `pinch-zoom` suppresses panning identically to `none` at 1.0 scale while leaving zoom
+     alive — see the rules below for the web/native split. */
   html.chat-locked,
   html.chat-locked body {
     overflow: hidden;
@@ -472,14 +493,32 @@ html.kb-open .bottom-nav-spacer { display: none; }
   }
   html.chat-locked body {
     position: relative;
+    /* ⚠️ `pinch-zoom`, NOT `none`, on the WEB. At 1.0 scale WebKit suppresses single-finger
+       panning for `pinch-zoom` exactly as it does for `none`, so the layout-viewport lock
+       above is byte-for-byte preserved — but two-finger zoom survives. `none` disabled zoom
+       for every mobile-browser visitor on the public site, which is a WCAG 1.4.4 failure,
+       and it did so on ALL of /messages/*, not just in the app. */
+    touch-action: pinch-zoom;
+  }
+  /* Inside the native shell, keep the hard lock. There is no pinch-zoom to protect there
+     (html.native already pins -webkit-text-size-adjust; OS text scaling is the a11y path),
+     and a zoomed visual viewport detaches the fixed composer from the keyboard — WebKit
+     must allow single-finger panning once the user is zoomed in, which is the one case
+     `pinch-zoom` behaves differently from `none`. */
+  html.native.chat-locked body {
     touch-action: none;
   }
-  /* The message list must still scroll though the body is touch-action:none — a touch that
-     STARTS on the list uses the list's own touch-action. */
+  /* The message list must still scroll though the body's panning is locked — a touch that
+     STARTS on the list uses the list's own touch-action. `pinch-zoom` here too, for the
+     same reason: the list is most of the screen, so pan-y alone would still leave a web
+     visitor unable to zoom the conversation. */
   html.chat-locked .chat-scroll {
-    touch-action: pan-y;
+    touch-action: pan-y pinch-zoom;
     overscroll-behavior: contain;
     -webkit-overflow-scrolling: touch;
+  }
+  html.native.chat-locked .chat-scroll {
+    touch-action: pan-y;
   }
 
   /* (2) FLUSH FOOTER. Only this small element tracks the keyboard per frame (cheap GPU

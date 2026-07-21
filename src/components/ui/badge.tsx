@@ -12,7 +12,8 @@ import { cn } from '@/lib/utils'
 //    `render={<Link/>}` or `render={<button/>}` to change the element. A chip that
 //    carries selected-state *logic* is still a <Button>; `interactive` is the
 //    affordance, not a state machine.
-//  · COUNT BUBBLES — `size="count"` is the 16px bubble; the VARIANT picks its tone.
+//  · COUNT BUBBLES — `size="count"` is the 16px bubble (min-height, so it grows rather
+//    than clips when text scales); the VARIANT picks its tone.
 //    `variant="counter"` = the ALERT count (destructive token). `variant="counter-brand"`
 //    = the INFORMATIONAL count (primary token) — unread messages, active-filter counts:
 //    a number that is waiting for you, not warning you. Both are on tokens, so both
@@ -21,7 +22,7 @@ import { cn } from '@/lib/utils'
 //    variants at `size="sm"`.
 //    Still hand-rolled and due to migrate:
 //      · facet-bar active-adv count — geometrically IDENTICAL to `counter-brand` +
-//        `size="count"` (h-4 min-w-4 px-1 text-3xs font-bold); a drop-in swap.
+//        `size="count"` (min-h-4 min-w-4 px-1 text-3xs font-bold); a drop-in swap.
 //      · conversation-list unread — same tone, but a 20px bubble (h-5 min-w-5 px-1.5).
 //        It is NOT a size="count" drop-in: pass the geometry on Badge's OWN className
 //        (`className="h-5 min-w-5 px-1.5"`), which goes through cn() and cleanly
@@ -63,8 +64,14 @@ const VARIANTS = {
 const SIZES = {
   sm: 'px-2 py-0.5 text-2xs',
   md: 'px-2.5 py-1 text-xs',
-  // Notification-count bubble: fixed 16px box that grows for 2–3 digits.
-  count: 'h-4 min-w-4 justify-center px-1 text-3xs tabular-nums',
+  // Notification-count bubble: 16px at rest, and it GROWS instead of clipping — wider for
+  // 2–3 digits (min-w-4), taller for taller text (min-h-4).
+  // ⚠️ min-h-4, never h-4. text-3xs is 10px × 1.3 = 13px, so the box is 16px exactly as
+  // before at the default size; but the moment OS/browser text scaling is in play the
+  // label's own line-height passes 16px, and a FIXED 16px box clips the digits at exactly
+  // the moment they matter most. Callers that want a bigger bubble still pass a hard
+  // height on Badge's own className (`h-5 min-w-5 px-1.5`) — h-5 wins over min-h-4.
+  count: 'min-h-4 min-w-4 justify-center px-1 text-3xs tabular-nums',
 } as const
 
 // Hover/active affordance for a chip that is actually clickable. Off by default.

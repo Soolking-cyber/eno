@@ -15,6 +15,7 @@
 // getElementById('pw-' + checkKey). Don't rename them.
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { ImagePlus, X, ShieldCheck, MapPin, ChevronDown, Check, Sparkles, Loader2, LocateFixed, Zap, Video } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -442,9 +443,9 @@ export function ContactSection({
             </Field>
           )}
 
-          <a href="/dashboard?tab=account" className="inline-block text-xs font-bold text-accent-foreground hover:underline">
+          <Link href="/dashboard?tab=account" className="inline-block text-xs font-bold text-accent-foreground hover:underline">
             {t('Chỉnh sửa trong Cài đặt', 'Edit in Settings')}
-          </a>
+          </Link>
         </div>
       )}
     </Section>
@@ -478,9 +479,9 @@ export function PostSuccess({
       <div className="mt-2 flex flex-wrap items-center justify-center gap-2">
         {createdId && (
           <Button asChild variant="cta" size="none">
-            <a href={`/listings/${createdId}`} className="px-6 py-2.5">
+            <Link href={`/listings/${createdId}`} className="px-6 py-2.5">
               {t('Xem tin của bạn', 'View your listing')}
-            </a>
+            </Link>
           </Button>
         )}
         {createdId && (
@@ -492,9 +493,9 @@ export function PostSuccess({
           />
         )}
       </div>
-      <a href="/dashboard" className="text-sm font-semibold text-accent-foreground hover:underline">
+      <Link href="/dashboard" className="text-sm font-semibold text-accent-foreground hover:underline">
         {t('Tới bảng điều khiển', 'Go to dashboard')}
-      </a>
+      </Link>
     </div>
   )
 }

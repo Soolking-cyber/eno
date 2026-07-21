@@ -70,4 +70,14 @@
          storage permission needed on modern Android). Camera is optional hardware. -->
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <!-- navigator.geolocation ("use my location" in search/post): Capacitor's WebChromeClient
+         requests BOTH of these at runtime for onGeolocationPermissionsShowPrompt, and Android
+         denies a request for any permission the manifest never declared — so without these two
+         the browser prompt is auto-refused and locating is permanently dead. Coarse is enough
+         for city/ward matching; fine is listed because the runtime request asks for the pair.
+         Location is optional hardware (the app works fine with the permission refused). -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-feature android:name="android.hardware.location" android:required="false" />
+    <uses-feature android:name="android.hardware.location.gps" android:required="false" />
 </manifest>

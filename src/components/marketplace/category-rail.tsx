@@ -60,8 +60,14 @@ export function CategoryRail({
   const tileCls = 'group flex w-[4.75rem] shrink-0 snap-start flex-col items-center gap-1.5 py-1 text-center cursor-pointer select-none'
   const iconCls = (active: boolean) =>
     cn('h-11 w-11 transition-transform duration-200 group-hover:scale-110', active ? 'text-accent-foreground' : 'text-body group-hover:text-accent-foreground')
+  // ⚠️ w-full + break-words. The tile is a FIXED 4.75rem column, but this span is a flex
+  // item under `items-center`, so its width is fit-content — a long label (or any label
+  // once OS text scaling is on) grew WIDER than the tile and spilled over its neighbours;
+  // line-clamp's overflow:hidden can't help, because it's the element, not its content,
+  // that overflows. w-full pins it to the tile so the clamp wraps + truncates inside it,
+  // and break-words handles a single unbreakable token (a long brand/category word).
   const nameCls = (active: boolean) =>
-    cn('line-clamp-2 text-xs font-bold leading-tight transition-colors', active ? 'text-accent-foreground' : 'text-foreground group-hover:text-accent-foreground')
+    cn('line-clamp-2 w-full break-words text-xs font-bold leading-tight transition-colors', active ? 'text-accent-foreground' : 'text-foreground group-hover:text-accent-foreground')
 
   const subChip = (active: boolean) =>
     cn('w-full shrink-0 whitespace-nowrap rounded-lg px-2.5 py-1 text-left text-sm font-semibold transition-colors cursor-pointer', active ? 'bg-card text-accent-foreground shadow-sm' : 'text-body hover:bg-card/70 hover:text-accent-foreground')
