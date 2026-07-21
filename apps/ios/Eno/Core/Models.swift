@@ -179,6 +179,10 @@ struct ListingDetail: Codable, Identifiable {
     let currency: String
     let negotiable: Bool
     let prevPrice: Int?
+    // Drop-badge expiry (ISO) while a price drop is live — powers the PDP
+    // "· còn N ngày" countdown. Detail-only: serializeListingCard omits it, so it is
+    // never present on ListingCard.
+    let dropExpiresAt: String?
     let urgent: Bool
     let location: String
     let district: String?

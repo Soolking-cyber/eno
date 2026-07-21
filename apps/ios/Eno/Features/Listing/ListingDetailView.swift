@@ -13,6 +13,7 @@ struct ListingDetailView: View {
     @State private var band: PriceBand?
     @State private var unavailable = false
     @State private var more: [ListingCard] = []
+    @State private var recentlyViewed: [ListingCard] = []
     @State private var reviews: ReviewsPreview?
     @State private var sameSeller: [ListingCard] = []
     @State private var showWeb = false
@@ -100,6 +101,7 @@ struct ListingDetailView: View {
                 .padding(.vertical, 16)
                 sameSellerRail
                 moreRail
+                recentlyViewedRail
             }
         }
         .background(Tokens.canvas)
@@ -167,6 +169,9 @@ struct ListingDetailView: View {
 
     private func load() async {
         RecentStore.recordViewed(card.id)
+        // Fire-and-forget view counter (web TrackView): best-effort, deduped
+        // server-side; never blocks the page or surfaces errors.
+        Task { try? await APIClient.shared.send("POST", "api/listings/\(card.id)/view") }
         if detail == nil {
             do {
                 let env: ListingDetailEnvelope = try await APIClient.shared.get("api/listings/\(card.id)")
@@ -185,6 +190,16 @@ struct ListingDetailView: View {
             URLQueryItem(name: "limit", value: "9"),
         ]) {
             more = page.listings.filter { $0.id != card.id }
+        }
+        // Recently-viewed trail (device-local ids, excludes this listing) — feeds the
+        // rail below "More like this" (mirrors HomeModel.loadRecentlyViewed).
+        let recentIds = RecentStore.viewedIds().filter { $0 != card.id }
+        if !recentIds.isEmpty,
+           let page: FeedPage = try? await APIClient.shared.get("api/listings", query: [
+               URLQueryItem(name: "ids", value: recentIds.joined(separator: ",")),
+           ]) {
+            let byId = Dictionary(uniqueKeysWithValues: page.listings.map { ($0.id, $0) })
+            recentlyViewed = recentIds.compactMap { byId[$0] }
         }
     }
 
@@ -217,6 +232,13 @@ struct ListingDetailView: View {
             guard let prev, prev > price, price > 0 else { return nil }
             return Int((Double(prev - price) / Double(prev) * 100).rounded())
         }()
+        // Drop-badge countdown (web DropCountdown): "· còn N ngày" while the badge
+        // window is live. dropExpiresAt is detail-only, so this appears once hydrated.
+        let daysLeft: Int? = {
+            guard let s = detail?.dropExpiresAt, let exp = Format.date(s) else { return nil }
+            let d = Int((exp.timeIntervalSinceNow / 86_400).rounded(.up))
+            return d > 0 ? d : nil
+        }()
         let negotiable = detail?.negotiable ?? card.negotiable
         return VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
@@ -237,6 +259,12 @@ struct ListingDetailView: View {
                         .foregroundStyle(.white)
                         .padding(.horizontal, 6).padding(.vertical, 2)
                         .background(Tokens.danger, in: Capsule())
+                    // "· còn N ngày" countdown (web DropCountdown) — beside the drop pill.
+                    if let daysLeft {
+                        Text(L10n.tr("· \(daysLeft) \(daysLeft == 1 ? "day" : "days") left", "· còn \(daysLeft) ngày"))
+                            .scaledFont(11, weight: .semibold)
+                            .foregroundStyle(Tokens.danger)
+                    }
                 }
                 if (detail?.urgent ?? card.urgent) {
                     // Web: a Zap lightning icon, not a text pill.
@@ -601,6 +629,32 @@ struct ListingDetailView: View {
         }
     }
 
+    // Recently-viewed trail (web recently-viewed-rail.tsx) — the buyer's own opened
+    // listings, device-local, below "More like this". Excludes this listing (load()).
+    @ViewBuilder
+    private var recentlyViewedRail: some View {
+        if !recentlyViewed.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(L10n.tr("Recently viewed", "Đã xem gần đây"))
+                    .scaledFont(18, weight: .bold)
+                    .foregroundStyle(Tokens.fg)
+                    .padding(.horizontal, 12)
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(recentlyViewed) { item in
+                            NavigationLink(value: item) {
+                                ListingCardView(listing: item).frame(width: 168)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.horizontal, 12)
+                }
+            }
+            .padding(.bottom, 16)
+        }
+    }
+
     // Buyer reviews preview (web reviews-preview.tsx): avg + up to 2 verified-first.
     @ViewBuilder
     private var reviewsPreview: some View {
@@ -795,9 +849,13 @@ struct MarketGauge: View {
     let price: Int
     let band: PriceBand
 
-    private var position: Double {
-        let span = max(band.p75 - band.p25, 1)
-        return min(max((Double(price) - band.p25) / span, 0), 1)
+    // Padded gauge scale (web market-price.tsx): pad the ends so the marker sits
+    // inside the track even for an outlier ask; the P25–P75 sub-segment is shaded.
+    private var lo: Double { min(band.p25, Double(price)) * 0.92 }
+    private var hi: Double { max(band.p75, Double(price)) * 1.08 }
+    private func at(_ v: Double) -> Double {
+        let span = max(hi - lo, 1)
+        return min(max((v - lo) / span, 0), 1)
     }
     private var accent: Color {
         if Double(price) < band.p25 { return .green }
@@ -834,14 +892,23 @@ struct MarketGauge: View {
             .foregroundStyle(Tokens.fg)
             // Track (8px) + bordered marker (14px, card-ring + soft shadow).
             GeometryReader { geo in
+                let w = geo.size.width
+                let bandLeft = at(band.p25)
+                let bandWidth = max(0.02, at(band.p75) - at(band.p25))
+                let markerLeft = at(Double(price))
                 ZStack(alignment: .leading) {
                     Capsule().fill(Tokens.tint).frame(height: 8)
+                    // Shaded typical band (P25–P75) — web bg-accent-foreground/25.
+                    Capsule().fill(Tokens.brand.opacity(0.25))
+                        .frame(width: bandWidth * w, height: 8)
+                        .offset(x: bandLeft * w)
                     Circle()
                         .fill(accent)
                         .frame(width: 14, height: 14)
                         .overlay(Circle().strokeBorder(Tokens.card, lineWidth: 2))
                         .shadow(color: .black.opacity(0.15), radius: 1.5, y: 1)
-                        .offset(x: position * (geo.size.width - 14))
+                        // Centered on the price point (web -translate-x-1/2).
+                        .offset(x: markerLeft * w - 7)
                 }
             }
             .frame(height: 14)
