@@ -1,7 +1,8 @@
-import { NextResponse } from 'next/server'
+import { NextResponse, after } from 'next/server'
 import { db } from '@/lib/db'
 import { getCurrentProfileId } from '@/lib/admin'
 import { maskEmailHandle } from '@/lib/utils'
+import { syncBadgeToProfile } from '@/lib/native-push'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -40,6 +41,11 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       where: { id },
       data: iAmBuyer ? { buyerUnread: 0 } : { sellerUnread: 0 },
     })
+    // Refresh the app-icon badge — reading messages is one of only two ways the count goes
+    // DOWN, and no ordinary push fires here. Deliberately INSIDE the `myUnread > 0` guard:
+    // this route is polled roughly every 1.5s, and syncing on every poll would hammer APNs
+    // to send the same number. after() keeps it off the response path.
+    after(() => syncBadgeToProfile(meId))
   }
 
   // Counterpart's public storefront id (so the chat header name can deep-link to

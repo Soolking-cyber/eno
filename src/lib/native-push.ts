@@ -2,6 +2,7 @@ import 'server-only'
 import crypto from 'node:crypto'
 import http2 from 'node:http2'
 import { db } from './db'
+import { badgeCountFor } from './unread'
 import type { PushPayload } from './push'
 
 /**
@@ -57,7 +58,7 @@ async function fcmAccessToken(sa: Sa): Promise<string | null> {
 }
 
 /** Returns 'ok' | 'dead' | 'fail'. */
-async function sendFcm(projectId: string, accessToken: string, token: string, p: PushPayload): Promise<'ok' | 'dead' | 'fail'> {
+async function sendFcm(projectId: string, accessToken: string, token: string, p: PushPayload, badge: number | null): Promise<'ok' | 'dead' | 'fail'> {
   const res = await fetch(`https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`, {
     method: 'POST',
     headers: { authorization: `Bearer ${accessToken}`, 'content-type': 'application/json' },
@@ -66,7 +67,10 @@ async function sendFcm(projectId: string, accessToken: string, token: string, p:
         token,
         notification: { title: p.title, body: p.body ?? '' },
         data: p.url ? { url: p.url } : undefined,
-        android: { notification: { tag: p.tag } },
+        // notification_count is the Android badge hint. Unlike iOS this is NOT guaranteed:
+        // Samsung/Xiaomi launchers render the number, stock Android shows only a dot. Sent
+        // anyway because it costs nothing and is correct where it is honoured.
+        android: { notification: { tag: p.tag, ...(badge === null ? {} : { notificationCount: badge }) } },
       },
     }),
   })
@@ -99,7 +103,7 @@ function apnsJwt(cfg: NonNullable<ReturnType<typeof apnsConfig>>): string {
 }
 
 /** Returns 'ok' | 'dead' | 'fail'. */
-function sendApns(cfg: NonNullable<ReturnType<typeof apnsConfig>>, jwt: string, token: string, p: PushPayload): Promise<'ok' | 'dead' | 'fail'> {
+function sendApns(cfg: NonNullable<ReturnType<typeof apnsConfig>>, jwt: string, token: string, p: PushPayload, badge: number | null): Promise<'ok' | 'dead' | 'fail'> {
   return new Promise((resolve) => {
     const client = http2.connect(cfg.host)
     client.on('error', () => { try { client.close() } catch { /* noop */ }; resolve('fail') })
@@ -117,7 +121,15 @@ function sendApns(cfg: NonNullable<ReturnType<typeof apnsConfig>>, jwt: string, 
       resolve(status === 410 || reason === 'Unregistered' || reason === 'BadDeviceToken' ? 'dead' : 'fail')
     })
     req.on('error', () => { try { client.close() } catch { /* noop */ }; resolve('fail') })
-    req.end(JSON.stringify({ aps: { alert: { title: p.title, body: p.body ?? '' }, sound: 'default' }, url: p.url }))
+    // `aps.badge` is the app-icon counter. iOS applies it on delivery — no plugin and no
+    // native rebuild needed, which is why the badge works on the CURRENTLY installed build.
+    // It is ABSOLUTE, not a delta, so sending the true unread total also self-heals a badge
+    // that drifted while the app was closed. Omitted (not 0) when the count failed, because
+    // sending 0 would clear a badge we simply couldn't measure.
+    req.end(JSON.stringify({
+      aps: { alert: { title: p.title, body: p.body ?? '' }, sound: 'default', ...(badge === null ? {} : { badge }) },
+      url: p.url,
+    }))
   })
 }
 
@@ -135,14 +147,16 @@ export async function sendNativePushToProfile(profileId: string, payload: PushPa
 
   const dead: string[] = []
   let sent = 0
+  // ONE count for the whole fan-out — every device of this profile shows the same number.
+  const badge = await badgeCountFor(profileId)
   const accessToken = fcm ? await fcmAccessToken(fcm.sa) : null
   const jwt = apns ? apnsJwt(apns) : null
 
   await Promise.all(tokens.map(async (t) => {
     try {
       let r: 'ok' | 'dead' | 'fail' = 'fail'
-      if (t.platform === 'android' && fcm && accessToken) r = await sendFcm(fcm.projectId, accessToken, t.token, payload)
-      else if (t.platform === 'ios' && apns && jwt) r = await sendApns(apns, jwt, t.token, payload)
+      if (t.platform === 'android' && fcm && accessToken) r = await sendFcm(fcm.projectId, accessToken, t.token, payload, badge)
+      else if (t.platform === 'ios' && apns && jwt) r = await sendApns(apns, jwt, t.token, payload, badge)
       if (r === 'ok') sent++
       else if (r === 'dead') dead.push(t.token)
     } catch { /* swallow per-token */ }
@@ -150,4 +164,51 @@ export async function sendNativePushToProfile(profileId: string, payload: PushPa
 
   if (dead.length) await db.nativePushToken.deleteMany({ where: { profileId, token: { in: dead } } })
   return sent
+}
+
+/**
+ * Push the CURRENT unread total to a profile's iOS devices as a badge-only update, with no
+ * alert and no sound — the user sees the number change, not another notification.
+ *
+ * This is the other half of the badge. `aps.badge` on a normal push keeps the count correct
+ * while notifications keep arriving, but nothing sends a push when someone READS things, so
+ * without this the circle would sit there after the inbox was already cleared. Call it from
+ * the mark-read paths.
+ *
+ * iOS only. Android has no equivalent server-side clear (its badge is a launcher-rendered
+ * hint attached to a visible notification, so it goes away when the notification does).
+ *
+ * Best-effort by construction: fire-and-forget, every failure swallowed. A missed badge sync
+ * self-heals on the next real push, which always carries the absolute count.
+ */
+export async function syncBadgeToProfile(profileId: string): Promise<void> {
+  try {
+    const apns = apnsConfig()
+    if (!apns) return
+    const badge = await badgeCountFor(profileId)
+    if (badge === null) return
+    const tokens = await db.nativePushToken.findMany({ where: { profileId, platform: 'ios' } })
+    if (tokens.length === 0) return
+    const jwt = apnsJwt(apns)
+    await Promise.all(tokens.map((t) => sendApnsBadge(apns, jwt, t.token, badge).catch(() => {})))
+  } catch { /* never let a badge refresh surface to the caller */ }
+}
+
+/** Badge-only APNs delivery: apns-push-type "background" + content-available, so iOS updates
+ *  the icon without presenting anything. Deliberately does NOT prune dead tokens — the real
+ *  push path owns that, and a badge refresh must stay a pure read of the world. */
+function sendApnsBadge(cfg: NonNullable<ReturnType<typeof apnsConfig>>, jwt: string, token: string, badge: number): Promise<void> {
+  return new Promise((resolve) => {
+    const client = http2.connect(cfg.host)
+    const done = () => { try { client.close() } catch { /* noop */ } ; resolve() }
+    client.on('error', done)
+    const req = client.request({
+      ':method': 'POST', ':path': `/3/device/${token}`,
+      authorization: `bearer ${jwt}`, 'apns-topic': cfg.bundleId, 'apns-push-type': 'background',
+      'apns-priority': '5', 'content-type': 'application/json',
+    })
+    req.on('response', () => {}); req.on('end', done); req.on('error', done)
+    req.setEncoding('utf8'); req.on('data', () => {})
+    req.end(JSON.stringify({ aps: { badge, 'content-available': 1 } }))
+  })
 }
