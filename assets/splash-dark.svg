@@ -1,7 +1,30 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2732 2732" width="2732" height="2732">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2732 2732" width="2732" height="2732" role="img" aria-label="eno.vn">
+  <!--
+    Dark-scheme twin of assets/splash.svg — same wordmark, same 820x139 box at the same
+    centre, so the two schemes cross-fade without the mark moving. Keep them in sync.
+
+    COLOUR: the wordmark is #3b8ee6, NOT the #0a66c2 used on white. That is the app's own
+    dark-surface brand token (the brand var inside `.dark` in globals.css — XML comments
+    cannot contain a double hyphen, so it is spelled out rather than quoted). It is a
+    contrast fix, not a preference: #0a66c2 on #1b1b1b measures ~2.9:1, which fails for
+    something this size, while #3b8ee6 clears ~5.2:1. The old asset dodged this by putting
+    the blue inside a tile with a white glyph on it; a bare wordmark has no such carrier.
+  -->
   <rect width="2732" height="2732" fill="#1b1b1b"/>
-  <svg x="1006" y="1006" width="720" height="720" viewBox="0 0 1024 1024">
-    <rect width="1024" height="1024" rx="224" fill="#0A66C2"/>
-    <g transform="translate(0,1024) scale(0.1,-0.1)" fill="#FFFFFF"><path d="M4790 8569 c-248 -28 -547 -97 -767 -179 -276 -104 -602 -289 -843 -480 -136 -107 -392 -366 -496 -500 -522 -674 -765 -1506 -704 -2415 58 -858 384 -1617 930 -2165 476 -478 1072 -776 1755 -880 197 -30 557 -38 758 -16 729 77 1376 395 1892 928 229 236 433 522 580 813 159 315 179 404 94 434 -45 15 -1718 15 -1774 0 -27 -8 -66 -37 -130 -96 -193 -182 -425 -303 -688 -360 -63 -14 -126 -18 -272 -17 -208 0 -284 13 -465 76 -383 135 -698 441 -810 786 -34 104 -36 130 -16 158 14 19 51 19 2163 24 l2148 5 32 23 c39 28 48 56 68 226 23 196 29 432 16 607 -88 1193 -730 2204 -1720 2708 -215 109 -422 186 -666 246 -257 64 -374 77 -705 80 -162 2 -333 -1 -380 -6z m440 -1569 c336 -30 630 -166 861 -399 109 -110 186 -217 244 -336 42 -89 75 -189 75 -231 0 -69 91 -64 -1291 -64 -1188 0 -1248 1 -1269 18 -13 10 -22 29 -22 44 0 42 41 156 95 261 196 387 613 662 1067 706 122 12 114 12 240 1z"/></g>
+  <svg x="956" y="1296" width="820" height="139" viewBox="249 35 1364 232">
+    <g fill="#3b8ee6" fill-rule="evenodd">
+      <!-- e -->
+      <path d="M 476 150 C 476 86 426 35 363 35 C 300 35 249 86 249 150 C 249 214 301 265 364 265 C 415 265 459 233 471 193 L 397 193 C 389 203 377 208 364 208 C 342 208 323 195 315 173 L 472 173 C 475 165 476 158 476 150 Z M 315 127 C 323 107 343 93 364 93 C 385 93 403 106 412 127 Z"/>
+      <!-- n -->
+      <path d="M 509 263 L 509 151 C 509 85 558 35 622 35 C 686 35 734 85 734 151 L 734 263 L 669 263 L 669 151 C 669 122 650 101 622 101 C 594 101 574 122 574 151 L 574 263 Z"/>
+      <!-- o -->
+      <path d="M 886 35 C 950 35 1002 87 1002 150 C 1002 213 950 265 886 265 C 823 265 771 213 771 150 C 771 87 823 35 886 35 Z M 886 101 C 913 101 935 123 935 150 C 935 177 913 199 886 199 C 859 199 837 177 837 150 C 837 123 859 101 886 101 Z"/>
+      <!-- . -->
+      <path d="M 1065 199 A 33 33 0 1 1 1065 265 A 33 33 0 1 1 1065 199 Z"/>
+      <!-- v -->
+      <path d="M 1130 35 L 1242.5 267 L 1355 35 L 1287 35 L 1242.5 126.8 L 1198 35 Z"/>
+      <!-- n -->
+      <path transform="translate(879 0)" d="M 509 263 L 509 151 C 509 85 558 35 622 35 C 686 35 734 85 734 151 L 734 263 L 669 263 L 669 151 C 669 122 650 101 622 101 C 594 101 574 122 574 151 L 574 263 Z"/>
+    </g>
   </svg>
 </svg>
