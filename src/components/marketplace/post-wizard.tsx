@@ -439,7 +439,12 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
     // Services sell WORK, not an object, so one photo is the bar there (owner
     // 2026-07-21). minPhotosFor is the same function the server gate uses, so the
     // checklist can never promise a listing the API will then reject.
-    { key: 'photo', ok: photos.length >= minPhotos, label: minPhotos === 1 ? t('Thêm 1 ảnh', 'Add 1 photo') : t(`Thêm ${minPhotos} ảnh`, `Add ${minPhotos} photos`) },
+    // ⚠️ Both labels are LITERAL on purpose. scripts/gen-ui-strings.mjs harvests
+    // `t('…','…')` literals to pre-warm the 9 machine-translated languages and cannot
+    // read a template literal — writing `t(\`Add ${minPhotos} photos\`)` silently dropped
+    // "Add 3 photos" from the batch and turned CI red. minPhotos is only ever
+    // 1 or MIN_IMAGE_ANGLES (3), so two literal branches cover it exactly.
+    { key: 'photo', ok: photos.length >= minPhotos, label: minPhotos === 1 ? t('Thêm 1 ảnh', 'Add 1 photo') : t('Thêm 3 ảnh', 'Add 3 photos') },
     { key: 'category', ok: !!categorySlug, label: t('Chọn danh mục', 'Pick a category') },
     { key: 'title', ok: title.trim().length >= 3, label: t('Nhập tiêu đề', 'Add a title') },
     // Details are REQUIRED (user decision 2026-07-14): listings without a real
