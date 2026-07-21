@@ -9,8 +9,6 @@ struct RootView: View {
     // Bound to the router so deep links / notification taps can switch tabs (#3).
     @State private var router = DeepLinkRouter.shared
     @State private var favs = FavoritesStore.shared
-    // Theme / language preferences, applied app-wide below.
-    @State private var settings = AppSettings.shared
 
     var body: some View {
         TabView(selection: $router.selectedTab) {
@@ -38,6 +36,13 @@ struct RootView: View {
                 .tabItem { Label(L10n.tr("Account", "Tài khoản"), systemImage: "person") }
                 .tag(4)
         }
+        // Language is read app-wide via L10n's lock-guarded flag (not @Observable),
+        // so a switch won't invalidate already-built tabs on its own. Re-key the tab
+        // CONTENT here to rebuild every screen in the new language at once. Keep this
+        // INNERMOST (right on the TabView) so the modifiers below sit OUTSIDE the
+        // reset boundary — otherwise a language switch would restart .task and a
+        // theme change would tear the tree down instead of recoloring smoothly.
+        .id(AppSettings.shared.language)
         .task { await unread.refresh() }
         // Every button in the app draws its OWN look (brand fills, tint chips, plain
         // text). Force .plain app-wide so no iOS version wraps them in system chrome —
@@ -46,12 +51,8 @@ struct RootView: View {
         .buttonStyle(.plain)
         // Theme override: System (nil) follows the OS; Light/Dark force it. The
         // Tokens.adaptive dynamic UIColors re-resolve against this automatically.
-        .preferredColorScheme(settings.colorScheme)
+        .preferredColorScheme(AppSettings.shared.colorScheme)
         // Locale for system-formatted dates/pickers.
-        .environment(\.locale, Locale(identifier: settings.isVi ? "vi" : "en"))
-        // Language is read app-wide via L10n's mirror (not @Observable), so a switch
-        // won't invalidate already-built tabs on its own. Re-key the whole tree on
-        // language change to rebuild every screen in the new language at once.
-        .id(settings.language)
+        .environment(\.locale, Locale(identifier: AppSettings.shared.isVi ? "vi" : "en"))
     }
 }

@@ -3,7 +3,9 @@ import SwiftUI
 // Theme / language / currency switchers (web parity: the settings preferences).
 // Reads + writes AppSettings.shared, which the app observes app-wide.
 struct PreferencesView: View {
-    @State private var settings = AppSettings.shared
+    // @Bindable (not @State): AppSettings is a shared singleton we don't own the
+    // lifecycle of — this just projects $bindings for the pickers/toggle.
+    @Bindable var settings = AppSettings.shared
 
     var body: some View {
         Form {
