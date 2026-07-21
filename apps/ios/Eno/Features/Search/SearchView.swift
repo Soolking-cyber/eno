@@ -1,4 +1,5 @@
 import SwiftUI
+import EnoUI
 
 // Native search v2, mirroring the web's search surfaces: empty focus shows
 // recent searches (device-local) + trending terms; typing ≥2 chars streams the
@@ -85,23 +86,15 @@ struct SearchView: View {
     // Uppercase, letter-spaced, muted eyebrow with a small leading icon (web section header).
     private func eyebrow(_ icon: String, _ text: String) -> some View {
         HStack(spacing: 5) {
-            Image(systemName: icon).font(.system(size: 11, weight: .bold))
-            Text(text).font(.system(size: 11, weight: .bold)).textCase(.uppercase).tracking(0.6)
+            Image(systemName: icon).enoIcon(.xs, color: EnoColor.sub)
+            Text(text).enoText(.micro, color: EnoColor.sub).textCase(.uppercase).tracking(0.6)
         }
-        .foregroundStyle(Tokens.sub)
     }
 
-    // Soft rounded-xl chip — NO per-chip icon (web variant="soft"). Web chip text is
-    // text-body (#525252), not near-black.
+    // Search suggestion / recent-term pill — now the canonical EnoChip (the old hand-rolled
+    // radius-12 pill converged onto the chip tier).
     private func softChip(_ label: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Text(label)
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(Tokens.sub)
-                .padding(.horizontal, 14).padding(.vertical, 8)
-                .background(Tokens.tint, in: RoundedRectangle(cornerRadius: 12))
-        }
-        .buttonStyle(.plain)
+        EnoChip(label, action: action)
     }
 
     // ── empty focus: recent + trending + popular (web search dropdown) ──
@@ -113,12 +106,10 @@ struct SearchView: View {
                     HStack {
                         eyebrow("clock", L10n.tr("Recent", "Tìm gần đây"))
                         Spacer()
-                        Button(L10n.tr("Clear", "Xóa")) {
+                        EnoButton(L10n.tr("Clear", "Xóa"), variant: .text, size: .compact, fullWidth: false) {
                             RecentStore.clearSearches()
                             recents = []
                         }
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(Tokens.sub)
                     }
                     FlowLayout(spacing: 6) { ForEach(recents, id: \.self) { t in softChip(t) { submit(t) } } }
                 }
@@ -135,13 +126,9 @@ struct SearchView: View {
                     eyebrow("chart.line.uptrend.xyaxis", L10n.tr("Popular", "Phổ biến"))
                     FlowLayout(spacing: 6) {
                         ForEach(Array(Categories.all.prefix(8))) { cat in
-                            NavigationLink(value: cat) {
-                                Text(cat.name)
-                                    .font(.system(size: 14, weight: .semibold)).foregroundStyle(Tokens.sub)
-                                    .padding(.horizontal, 14).padding(.vertical, 8)
-                                    .background(Tokens.tint, in: RoundedRectangle(cornerRadius: 12))
-                            }
-                            .buttonStyle(.plain)
+                            // NavigationLink owns the tap, so it wraps the chip VISUAL —
+                            // nesting EnoChip's own Button here would break tap + VoiceOver.
+                            NavigationLink(value: cat) { EnoChipLabel(cat.name) }
                         }
                     }
                 }
@@ -178,12 +165,8 @@ struct SearchView: View {
                         ForEach(cats) { cat in
                             if let appCat = Categories.bySlug(cat.slug) {
                                 NavigationLink(value: appCat) {
-                                    Text(L10n.isVi ? cat.nameVi : cat.name)
-                                        .font(.system(size: 14, weight: .semibold)).foregroundStyle(Tokens.fg)
-                                        .padding(.horizontal, 14).padding(.vertical, 8)
-                                        .background(Tokens.tint, in: RoundedRectangle(cornerRadius: 12))
+                                    EnoChipLabel(L10n.isVi ? cat.nameVi : cat.name)
                                 }
-                                .buttonStyle(.plain)
                             }
                         }
                     }
@@ -200,7 +183,7 @@ struct SearchView: View {
                 // No matches
                 if brands.isEmpty && cats.isEmpty && s.listings.isEmpty {
                     Text(L10n.tr("No matches yet", "Chưa có kết quả"))
-                        .font(.system(size: 12)).foregroundStyle(Tokens.sub)
+                        .enoText(.caption, color: EnoColor.sub)
                         .frame(maxWidth: .infinity).padding(.vertical, 12)
                 }
             } else {
@@ -214,11 +197,10 @@ struct SearchView: View {
     private func row(icon: String, title: String) -> some View {
         HStack(spacing: 12) {
             Image(systemName: icon)
-                .font(.system(size: 15))
-                .foregroundStyle(Tokens.sub)
+                .enoIcon(.sm, color: EnoColor.sub)
                 .frame(width: 40, height: 40)
-                .background(Tokens.tint, in: RoundedRectangle(cornerRadius: 8))
-            Text(title).font(.system(size: 14, weight: .semibold)).foregroundStyle(Tokens.fg).lineLimit(1)
+                .background(EnoColor.tint, in: RoundedRectangle(cornerRadius: EnoRadius.chip))
+            Text(title).enoText(.label).lineLimit(1)
             Spacer()
         }
         .padding(.horizontal, 16).padding(.vertical, 8).contentShape(Rectangle())
@@ -228,15 +210,16 @@ struct SearchView: View {
     private func suggestListingRow(_ l: SuggestResponse.SuggestListing) -> some View {
         HStack(spacing: 12) {
             AsyncImage(url: l.image.flatMap { ImageURL.optimized($0, width: 96) }) { phase in
-                if case .success(let img) = phase { img.resizable().scaledToFill() } else { Tokens.tint }
+                if case .success(let img) = phase { img.resizable().scaledToFill() } else { EnoColor.tint }
             }
             .frame(width: 40, height: 40)
-            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .clipShape(RoundedRectangle(cornerRadius: EnoRadius.chip))
             VStack(alignment: .leading, spacing: 2) {
-                Text(l.displayTitle).font(.system(size: 14, weight: .medium)).foregroundStyle(Tokens.fg).lineLimit(1)
-                (Text(Format.vnd(l.price)).foregroundStyle(Tokens.brand).fontWeight(.semibold)
-                    + Text(" · \(l.location)").foregroundStyle(Tokens.sub))
-                    .font(.system(size: 12)).lineLimit(1)
+                Text(l.displayTitle).enoText(.callout).lineLimit(1)
+                // Concatenated Text: keep the per-run colors, so set only the font role.
+                (Text(Format.vnd(l.price)).foregroundStyle(EnoColor.brand).fontWeight(.semibold)
+                    + Text(" · \(l.location)").foregroundStyle(EnoColor.sub))
+                    .font(EnoTextRole.caption.font).lineLimit(1)
             }
             Spacer()
         }
@@ -266,8 +249,7 @@ struct SearchView: View {
             .padding(.horizontal, 12)
             if !results.isRefreshing && results.items.isEmpty {
                 Text(L10n.tr("No results for \"\(query)\"", "Không tìm thấy \"\(query)\""))
-                    .font(.system(size: 15))
-                    .foregroundStyle(Tokens.sub)
+                    .enoText(.label, color: EnoColor.sub)
                     .frame(maxWidth: .infinity)
                     .padding(.top, 40)
             }

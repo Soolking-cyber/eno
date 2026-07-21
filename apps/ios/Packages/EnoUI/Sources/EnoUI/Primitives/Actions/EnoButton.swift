@@ -4,7 +4,9 @@ import SwiftUI
 // the min height + type; loading and disabled are built in; press-scale via EnoPressStyle.
 // `minHeight` (not a fixed frame) so it grows with Dynamic Type instead of clipping.
 public struct EnoButton: View {
-    public enum Variant { case primary, secondary, tertiary, destructive }
+    /// `.text` is a bare text action ("Clear", "See all") — no fill, no border. It still
+    /// carries a real tap target, unlike the naked `Button("Clear")` it replaces.
+    public enum Variant { case primary, secondary, tertiary, destructive, text }
     public enum Size {
         case compact, regular, large
         var minHeight: CGFloat { self == .compact ? 36 : self == .large ? 50 : 44 }
@@ -56,16 +58,16 @@ public struct EnoButton: View {
 
     private var bg: Color {
         switch variant {
-        case .primary:     return EnoColor.brand
-        case .secondary:   return .clear
-        case .tertiary:    return EnoColor.tint
-        case .destructive: return EnoColor.danger
+        case .primary:            return EnoColor.brand
+        case .secondary, .text:   return .clear
+        case .tertiary:           return EnoColor.tint
+        case .destructive:        return EnoColor.danger
         }
     }
     private var fg: Color {
         switch variant {
         case .primary, .destructive: return EnoColor.onBrand
-        case .secondary:             return EnoColor.brand
+        case .secondary, .text:      return EnoColor.brand
         case .tertiary:              return EnoColor.fg
         }
     }
