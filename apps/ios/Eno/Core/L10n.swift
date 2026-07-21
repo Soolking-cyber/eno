@@ -22,20 +22,22 @@ enum L10n {
     // Fixed UI copy. en → source, vi → curated, else → MT of the English source
     // (shows English until the batch lands, then RootView's uiGen rebuild swaps it).
     static func tr(_ en: String, _ vi: String) -> String {
+        // Register EVERY source (regardless of the active language) so a later switch
+        // can prefetch the whole UI dictionary, not just strings seen under an MT one.
+        Translator.noteUI(en)
         let lang = currentLang
         if lang == "vi" { return vi }
         if lang == "en" { return en }
-        Translator.noteUI(en)
         return Translator.cached(en, lang) ?? en
     }
 
     // User-authored dynamic content (title, description, category name, spec values).
-    // Prefers a caller-supplied curated variant (e.g. titleVi/nameVi for vi); else
-    // machine-translates the source into the active language; else shows the source.
+    // The curated variant (e.g. titleVi/nameVi) is Vietnamese, so it's used ONLY for
+    // vi; every other non-English language machine-translates the source.
     static func localizedContent(_ source: String, preferred: String? = nil) -> String {
         let lang = currentLang
         if lang == "en" { return source }
-        if let preferred, !preferred.isEmpty { return preferred }
+        if lang == "vi", let preferred, !preferred.isEmpty { return preferred }
         Translator.request(source, lang)
         return Translator.cached(source, lang) ?? source
     }

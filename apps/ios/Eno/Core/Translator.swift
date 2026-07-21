@@ -65,18 +65,25 @@ final class Translator: ObservableObject, @unchecked Sendable {
     }
 
     // ── language switch: prefetch the whole known UI dictionary at once ────────
+    // en + vi need NO prefetch — tr() serves those from the source / curated arg.
     func switchLanguage(to lang: String) {
-        guard lang != "en" else { Task { await bumpUI() }; return }
+        guard lang != "en", lang != "vi" else { Task { await bumpUI() }; return }
         let sources = Self.lock.withLock { st -> [String] in
             st.knownUI.filter { st.cache[Self.key($0, lang)] == nil }
         }
         Task {
             if !sources.isEmpty { await translate(sources, lang) }
-            await bumpUI()
+            // Skip the chrome rebuild if the user has since switched again (avoids
+            // a stale identity reset from an obsolete prefetch task).
+            if L10n.currentLang == lang { await bumpUI() }
         }
     }
 
     // ── batched drain of pending dynamic-content requests ─────────────────────
+    // ONE serial loop, not one Task per 60ms tick: `draining` stays set until the
+    // queue is empty, so continuous scrolling can't spawn concurrent request bursts
+    // (which would blow the 6-billable-req/min/IP limit). New requests just append to
+    // `pending`; this loop picks them up next tick.
     func scheduleDrain() {
         let start = Self.lock.withLock { st -> Bool in
             if st.draining { return false }
@@ -85,18 +92,23 @@ final class Translator: ObservableObject, @unchecked Sendable {
         }
         guard start else { return }
         Task {
-            try? await Task.sleep(nanoseconds: 60_000_000)   // 60ms coalesce, like mt-client
-            let work = Self.lock.withLock { st -> [String: [String]] in
-                st.draining = false
-                let w = st.pending.mapValues { Array($0) }
-                st.pending.removeAll()
-                return w
+            while true {
+                try? await Task.sleep(nanoseconds: 60_000_000)   // 60ms coalesce, like mt-client
+                let work = Self.lock.withLock { st -> [String: [String]] in
+                    let w = st.pending.mapValues { Array($0) }
+                    st.pending.removeAll()
+                    return w
+                }
+                if work.isEmpty {
+                    Self.lock.withLock { $0.draining = false }
+                    break
+                }
+                var landed = false
+                for (lang, texts) in work where !texts.isEmpty {
+                    if await translate(texts, lang) { landed = true }
+                }
+                if landed { await bumpContent() }
             }
-            var landed = false
-            for (lang, texts) in work where !texts.isEmpty {
-                if await translate(texts, lang) { landed = true }
-            }
-            if landed { await bumpContent() }
         }
     }
 
@@ -104,31 +116,43 @@ final class Translator: ObservableObject, @unchecked Sendable {
     @MainActor private func bumpUI() { uiGen &+= 1 }
 
     // POST /api/translate in server-sized chunks; write results into the cache.
-    // Fail-open: on error the source stands (retried next time it's requested).
+    // A pause between chunks keeps a big prefetch from firing >6 POSTs back-to-back
+    // (rate limit). Fail-open: on error the source stands (retried when re-requested).
     @discardableResult
     private func translate(_ texts: [String], _ lang: String) async -> Bool {
         var landed = false
+        var firstChunk = true
         for chunk in chunked(texts, maxItems: 100, maxChars: 28_000) {
+            if !firstChunk { try? await Task.sleep(nanoseconds: 400_000_000) }
+            firstChunk = false
             struct Resp: Decodable { let translations: [String] }
             guard let resp: Resp = try? await APIClient.shared.post(
                 "api/translate", body: ["texts": chunk, "target": lang]
             ), resp.translations.count == chunk.count else { continue }
+            var any = false
             Self.lock.withLock { st in
                 for (s, t) in zip(chunk, resp.translations) where !t.isEmpty {
                     st.cache[Self.key(s, lang)] = t
+                    any = true
                 }
             }
-            landed = true
+            // Only "landed" if a NON-EMPTY translation was actually stored — an
+            // all-empty success must not bump contentGen, or re-render → cache-miss →
+            // re-request would loop forever.
+            if any { landed = true }
         }
         if landed { persist() }
         return landed
     }
 
     private func persist() {
+        // Bound the IN-MEMORY cache too (not just the persisted copy) so a long
+        // scrolling session can't grow it without limit.
         let snapshot = Self.lock.withLock { st -> [String: String] in
-            st.cache.count <= Self.maxPersisted
-                ? st.cache
-                : Dictionary(uniqueKeysWithValues: st.cache.prefix(Self.maxPersisted).map { ($0.key, $0.value) })
+            if st.cache.count > Self.maxPersisted {
+                st.cache = Dictionary(uniqueKeysWithValues: st.cache.prefix(Self.maxPersisted).map { ($0.key, $0.value) })
+            }
+            return st.cache
         }
         if let data = try? JSONEncoder().encode(snapshot) {
             UserDefaults.standard.set(data, forKey: Self.defaultsKey)
