@@ -9,6 +9,9 @@ export default defineConfig({
       // `server-only` throws outside an RSC; alias it to a noop so we can unit-test the
       // pure functions inside server-only modules (e.g. the OAuth JWT crypto).
       'server-only': fileURLToPath(new URL('./src/test/empty-module.ts', import.meta.url)),
+      // Match tsconfig's `@/*` → `src/*`. Without it, any tested module that imports a
+      // sibling via the alias fails to resolve at RUNTIME even though tsc is happy.
+      '@': fileURLToPath(new URL('./src', import.meta.url)),
     },
   },
   test: {

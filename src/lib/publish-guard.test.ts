@@ -86,7 +86,9 @@ describe('containsContactInfo — off-platform bypass', () => {
 describe('assertPublishable — gate priority & happy path', () => {
   // 3 DISTINCT angles required. These URLs carry no embedded dHash (…-h<hex>.), so each counts
   // as a distinct angle (fail-open), which is what a clean 3-photo listing looks like to the gate.
-  const ok = { trustTier: 'standard', images: ['a.webp', 'b.webp', 'c.webp'], texts: ['Like new iPhone 15, great condition'] }
+  // Real HCMC coordinates: assertPublishable now also gates on location, so every fixture
+  // that is testing a DIFFERENT gate has to carry a valid point or it trips this one first.
+  const ok = { trustTier: 'standard', images: ['a.webp', 'b.webp', 'c.webp'], texts: ['Like new iPhone 15, great condition'], lat: 10.7769, lng: 106.7009 }
 
   it('passes a clean listing from a non-restricted account with 3 photos', () => {
     expect(blockCodeOf(() => assertPublishable(ok))).toBeNull()
@@ -176,6 +178,7 @@ describe('publish-guard · seller contact name', () => {
       trustTier: 'standard',
       images: ['a.webp', 'b.webp', 'c.webp'],
       texts: [title, 'Official assistance. Secure application. Expert support.'],
+      lat: 10.7769, lng: 106.7009,
     })).not.toThrow()
   })
 })
@@ -187,7 +190,7 @@ describe('publish-guard · seller contact name', () => {
 // from three sides, so the rule could only be met by padding with duplicates.
 describe('publish-guard · photo minimum by category', () => {
   const one = ['a.webp']
-  const goods = { trustTier: 'standard', texts: ['Like new iPhone 15'] }
+  const goods = { trustTier: 'standard', texts: ['Like new iPhone 15'] , lat: 10.7769, lng: 106.7009 }
 
   it('services publish with a single photo', () => {
     expect(minPhotosFor('services')).toBe(1)
@@ -222,5 +225,34 @@ describe('publish-guard · photo minimum by category', () => {
     const dup = 'x-habcdef0123456789.webp'
     expect(() => assertEnoughAngles([dup, dup], 'services')).not.toThrow()
     expect(blockCodeOf(() => assertPublishable({ ...goods, images: [dup, dup], categorySlug: 'electronics' }))).toBe('photos_min')
+  })
+})
+
+describe('publish-guard · location is required', () => {
+  const base = { trustTier: 'standard', images: ['a.webp', 'b.webp', 'c.webp'], texts: ['Like new iPhone 15'] }
+
+  it('accepts a real point', () => {
+    expect(blockCodeOf(() => assertPublishable({ ...base, lat: 10.7769, lng: 106.7009 }))).toBeNull()
+  })
+
+  it('rejects a missing point', () => {
+    expect(blockCodeOf(() => assertPublishable(base))).toBe('location_required')
+    expect(blockCodeOf(() => assertPublishable({ ...base, lat: null, lng: null }))).toBe('location_required')
+  })
+
+  // The regression this gate exists for: eight live listings stored (0,0) and plotted in
+  // the Atlantic while their district read "Hồ Chí Minh". A null check would pass all eight.
+  it('rejects Null Island, which a `!= null` check would let through', () => {
+    expect(blockCodeOf(() => assertPublishable({ ...base, lat: 0, lng: 0 }))).toBe('location_required')
+  })
+
+  it('rejects out-of-range and non-finite coordinates', () => {
+    expect(blockCodeOf(() => assertPublishable({ ...base, lat: 91, lng: 106 }))).toBe('location_required')
+    expect(blockCodeOf(() => assertPublishable({ ...base, lat: 10.7, lng: NaN }))).toBe('location_required')
+  })
+
+  // A real coordinate that happens to have one zero component is NOT Null Island.
+  it('accepts a point on the equator or prime meridian', () => {
+    expect(blockCodeOf(() => assertPublishable({ ...base, lat: 0, lng: 106.7 }))).toBeNull()
   })
 })

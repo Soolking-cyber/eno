@@ -3,9 +3,31 @@ import type { SerializedListingCard } from '@/lib/types'
 // Lean geo helpers (no Leaflet) — safe to import anywhere without pulling the map
 // bundle. Prefer stored coordinates; fall back to a deterministic district-based
 // guess so every listing has a plottable point.
+/**
+ * Is this a real point on earth, or a zero that a writer left behind?
+ *
+ * ⚠️ (0, 0) is "Null Island" — open ocean in the Gulf of Guinea, ~1,600km off Ghana. It is
+ * never a real eno.vn location, and it arrives whenever something defaults a missing
+ * coordinate to 0 instead of null: importers, seeders, and any listing whose category has
+ * no meaningful place at all (a visa service is not *somewhere*). On 2026-07-22 EIGHT of
+ * 24 live listings sat at (0,0).
+ *
+ * The damage is not limited to those listings. `typeof lat === 'number'` is true for 0, so
+ * the district fallback below was skipped and the pin was plotted mid-Atlantic — and one
+ * such pin in a result set drags the explorer map's fitBounds across the entire planet,
+ * zooming every OTHER listing into invisibility. One bad row broke the map for all of them.
+ */
+export function hasRealCoords(lat: number | null | undefined, lng: number | null | undefined): boolean {
+  if (typeof lat !== 'number' || typeof lng !== 'number') return false
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return false
+  if (lat === 0 && lng === 0) return false
+  // Out-of-range values can only be corrupt; plotting them throws inside Leaflet.
+  return lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180
+}
+
 export function getListingCoordinates(listing: Pick<SerializedListingCard, 'id' | 'lat' | 'lng' | 'city' | 'district'>) {
-  if (typeof listing.lat === 'number' && typeof listing.lng === 'number') {
-    return { lat: listing.lat, lng: listing.lng }
+  if (hasRealCoords(listing.lat, listing.lng)) {
+    return { lat: listing.lat as number, lng: listing.lng as number }
   }
   const city = listing.city.toLowerCase()
   const district = (listing.district || '').toLowerCase()

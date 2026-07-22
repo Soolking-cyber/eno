@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { ChevronLeft, Check, Lock, Sparkles, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import type { SerializedCategory } from '@/lib/types'
+import { hasRealCoords } from '@/lib/geo'
 import { CategoryIcon } from './category-icons'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -211,7 +212,9 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
   const areaBtnRef = useRef<HTMLButtonElement>(null)
   const [province, setProvince] = useState<Geo | null>(edit?.city ? { code: '', name: edit.city, nameEn: edit.city } : null)
   const [ward, setWard] = useState<Geo | null>(edit?.district ? { code: '', name: edit.district, nameEn: edit.district } : null)
-  const [nearby, setNearby] = useState<Nearby | null>(edit?.lat != null && edit?.lng != null ? { lat: edit.lat, lng: edit.lng, radiusKm: 5 } : null)
+  // hasRealCoords, not `!= null`: a listing stored at (0,0) would otherwise reopen the
+  // editor with its pin dropped in the Atlantic, and re-saving would persist that.
+  const [nearby, setNearby] = useState<Nearby | null>(hasRealCoords(edit?.lat, edit?.lng) ? { lat: edit!.lat as number, lng: edit!.lng as number, radiusKm: 5 } : null)
   const [locating, setLocating] = useState(false)
   // Quick "use my current location": geolocate → reverse-geocode → set the precise pin
   // (lat/lng) + the province/ward for display + submit. No dropdown needed.
@@ -627,6 +630,8 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
           ? t('Tin này vừa hết hạn "Bán gấp" — có thể bật lại sau 7 ngày.', 'This listing just finished an urgent run — you can turn it on again after 7 days.')
           : msg === 'duplicate_listing'
           ? t('Bạn đã có tin đang hiển thị cho sản phẩm này. Vào Tin đăng để chỉnh sửa hoặc xác nhận còn hàng thay vì đăng lại.', "You already have a live listing for this item. Open My Listings to edit it or confirm it's still available instead of posting it again.")
+          : msg === 'location_required'
+          ? t('Hãy chọn vị trí cho tin đăng — người mua cần biết món đồ ở đâu.', 'Pick a location for your listing — buyers need to know where the item is.')
           : msg === 'photo_required'
           ? t('Cần ít nhất một ảnh để đăng tin.', 'You need at least one photo to post.')
           : msg === 'photos_min'

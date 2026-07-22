@@ -5,6 +5,8 @@ import { countDistinctAngles } from './image-hash-url'
 // Every listing must show the item from at least this many DIFFERENT angles (distinct photos,
 // not the same shot repeated). Buyers can't inspect condition from one photo; it's also a cheap
 // low-effort/scam filter. Enforced server-side via the perceptual hash baked into each image URL.
+import { hasRealCoords } from '@/lib/geo'
+
 export const MIN_IMAGE_ANGLES = 3
 
 // Categories that sell WORK, not an object — one photo is enough (owner, 2026-07-21).
@@ -32,7 +34,7 @@ export function minPhotosFor(categorySlug: string | null | undefined): number {
 // dead end — a seller whose account display name was their raw email got "remove the phone
 // number/email from your LISTING" on a listing whose title and description were clean, with
 // no hint that the offending text was their own name and no way to change it from that screen.
-export type PublishBlockCode = 'account_restricted' | 'photo_required' | 'photos_min' | 'banned_words' | 'contact_in_text' | 'contact_in_name' | 'duplicate_listing'
+export type PublishBlockCode = 'account_restricted' | 'photo_required' | 'photos_min' | 'banned_words' | 'contact_in_text' | 'contact_in_name' | 'duplicate_listing' | 'location_required'
 
 export class PublishBlockedError extends Error {
   code: PublishBlockCode
@@ -191,10 +193,26 @@ export function containsContactInfo(text: string | null | undefined): boolean {
  *  2. No photo, 3. banned words, 4. phone/contact/address in text → fixable while posting.
  * `trustTier` optional so a pre-seller-resolution caller can run the content checks early.
  */
-export function assertPublishable(input: { trustTier?: string; images: unknown[]; texts: (string | null | undefined)[]; categorySlug?: string | null }) {
+export function assertPublishable(input: { trustTier?: string; images: unknown[]; texts: (string | null | undefined)[]; categorySlug?: string | null; lat?: number | null; lng?: number | null }) {
   if (input.trustTier === 'restricted') throw new PublishBlockedError('account_restricted')
   assertEnoughAngles(input.images, input.categorySlug)
   assertCleanTexts(input.texts)
+  assertHasLocation(input.lat, input.lng)
+}
+
+/** A listing must carry a real point (owner, 2026-07-22: "users shouldnt be able to post
+ *  without location").
+ *
+ *  ⚠️ The check is hasRealCoords, NOT `lat != null`, and that distinction is the whole
+ *  reason this exists. Writers that default a missing coordinate to 0 sail past a null
+ *  check and store (0,0) — open ocean off West Africa — which is exactly how eight live
+ *  listings ended up plotting "south of Africa" while their district said Hồ Chí Minh.
+ *  A gate that accepts 0 is not a gate.
+ *
+ *  Deliberately NOT relaxed per category, unlike the photo minimum: location is what makes
+ *  a marketplace listing meetable, and "where is it" has an answer even for a service. */
+export function assertHasLocation(lat: number | null | undefined, lng: number | null | undefined) {
+  if (!hasRealCoords(lat, lng)) throw new PublishBlockedError('location_required')
 }
 
 /** ≥1 photo (photo_required) AND ≥minPhotosFor(category) DISTINCT angles (photos_min) — the

@@ -1102,6 +1102,7 @@ export const UI_STRINGS: string[] = [
   "Photos",
   "Physical",
   "Pick a category",
+  "Pick a location for your listing — buyers need to know where the item is.",
   "Pick one",
   "Pick the condition",
   "Pick the right category so buyers find you.",
