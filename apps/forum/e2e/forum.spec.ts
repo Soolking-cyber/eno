@@ -109,18 +109,23 @@ test.describe('eno.forum deployable workspace', () => {
     await location.click()
     const option = page.getByRole('option', { name: /Ho Chi Minh City/i })
     await expect(option).toBeVisible()
-    // ⚠️ SECOND settle, and it is the one that matters. The await above happens BEFORE this
-    // click, so it only settles fonts for the page as it was then — the listbox does not exist
-    // yet. Opening it renders new text that can request a face the initial paint never needed,
-    // so the option was still measured mid-swap and CI kept reporting exactly
-    // 41.79998779296875 against the >= 42 floor. Settle again now that the thing being measured
-    // is on screen.
-    await page.evaluate(() => document.fonts.ready)
+    // ⚠️ POLL, do not take a one-shot measurement. Two earlier attempts to fix this by awaiting
+    // document.fonts.ready both failed, because the diagnosis was wrong: CI reported
+    // 41.79998779296875 — BIT-IDENTICAL across runs, to eleven decimals. Jitter varies; a
+    // repeatable value does not. The option really does lay out at 41.8px with the FALLBACK face,
+    // and fonts.ready cannot prevent that here — it resolves immediately when no font request is
+    // in flight, and the listbox text that triggers the request does not exist until the click
+    // above. So there was nothing pending to wait for at the moment we waited.
+    // expect.poll re-measures until the webfont has actually applied, which keeps the 42px
+    // tap-target floor enforced (a real regression still fails, after the timeout) instead of
+    // being relaxed to 41.5 to make the red go away.
+    await expect
+      .poll(async () => (await option.boundingBox())?.height ?? 0, { timeout: 5_000 })
+      .toBeGreaterThanOrEqual(42)
     const optionBox = await option.boundingBox()
     const listboxBox = await page.getByRole('listbox').boundingBox()
     expect(optionBox).not.toBeNull()
     expect(listboxBox).not.toBeNull()
-    expect(optionBox!.height).toBeGreaterThanOrEqual(42)
     const listboxEndsAbove = listboxBox!.y + listboxBox!.height <= triggerBox!.y - 4
     const listboxStartsBelow = listboxBox!.y >= triggerBox!.y + triggerBox!.height + 4
     expect(listboxEndsAbove || listboxStartsBelow).toBe(true)
@@ -129,7 +134,11 @@ test.describe('eno.forum deployable workspace', () => {
     await page.getByRole('button', { name: /More post actions/i }).first().click()
     const action = page.getByRole('menuitem', { name: /Block this member/i })
     await expect(action).toBeVisible()
-    expect((await action.boundingBox())!.height).toBeGreaterThanOrEqual(42)
+    // Same class of measurement as the option above — the menu is portalled in on click, so its
+    // text can request the webfont just as late. Poll for the same reason.
+    await expect
+      .poll(async () => (await action.boundingBox())?.height ?? 0, { timeout: 5_000 })
+      .toBeGreaterThanOrEqual(42)
   })
 
   test('searches, opens a discussion, and adds a preview reply', async ({ page }) => {
