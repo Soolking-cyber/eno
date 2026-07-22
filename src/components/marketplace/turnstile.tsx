@@ -11,7 +11,18 @@ import { useCallback, useRef } from 'react'
 // Protection), where Supabase verifies the token server-side. Only the PUBLIC site key
 // is embedded (it's visible in the rendered widget anyway), matching how the public
 // GA/Pixel IDs are hardcoded — no Vercel env write needed.
-const SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY || '0x4AAAAAADvYeXXUeqC3zRQC'
+// ⚠️ NO hardcoded fallback. There used to be one, and it is what made a total sign-in
+// outage invisible: NEXT_PUBLIC_TURNSTILE_SITE_KEY was never set in production, so every
+// build silently used a key that Cloudflare rejects on this hostname (challenges.cloudflare.com
+// answered 401, no token was ever issued). Supabase captcha was meanwhile switched ON, so
+// every email-magic-link and phone-OTP send waited the full 15s for a token that could not
+// arrive, then failed `captcha_failed`. Nobody could sign in except via Google.
+//
+// A fallback that CANNOT work is worse than no fallback: it turns "not configured" into
+// "configured and mysteriously broken". Unset now means unset — getToken() resolves
+// undefined immediately, so the failure is instant and legible instead of a 15s hang, and
+// the app behaves exactly as it did before captcha existed.
+const SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY?.trim() || null
 const SCRIPT_SRC = 'https://challenges.cloudflare.com/turnstile/v0/api.js'
 
 type TurnstileApi = {
@@ -76,6 +87,7 @@ export function useTurnstile() {
       return
     }
     if (widgetIdRef.current) return // already attached to a live node
+    if (!SITE_KEY) return // unconfigured — render nothing, getToken() resolves undefined
     loadScript()
       .then(() => {
         // el may have unmounted while the script loaded, or another mount won the race.
