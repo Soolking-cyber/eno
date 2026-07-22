@@ -95,6 +95,12 @@ test.describe('eno.forum deployable workspace', () => {
   })
 
   test('uses comfortably spaced selects and action menus', async ({ page }) => {
+    // This test MEASURES pixels, so it must not read a box mid font-swap. The helper waits for
+    // 'load', but a swapped webfont re-lays-out text after that: on a cold CI run the option
+    // measured 41.79998779296875px against a >= 42 floor, then passed on retry once the font was
+    // cached — a 0.2px fallback-metrics artifact, not a spacing regression. Settling the fonts
+    // first keeps the 42px tap-target floor meaningful instead of relaxing it to hide the race.
+    await page.evaluate(() => document.fonts.ready)
     const location = page.getByRole('combobox', { name: /Filter by location/i })
     const triggerBox = await location.boundingBox()
     expect(triggerBox).not.toBeNull()
