@@ -979,6 +979,7 @@ export const UI_STRINGS: string[] = [
   "No listings match these filters.",
   "No listings match.",
   "No listings yet — post your first one.",
+  "No matches",
   "No matches yet",
   "No matching checkpoint. You can keep your typed value.",
   "No matching destination.",

@@ -2,9 +2,16 @@
 
 import { useId, useState } from 'react'
 import { Select as SelectPrimitive } from '@base-ui/react/select'
-import { ChevronsUpDown, Check } from 'lucide-react'
+import { Combobox as ComboboxPrimitive } from '@base-ui/react/combobox'
+import { ChevronsUpDown, Check, Search } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { useLanguage } from '@/context/language-context'
 import { cn } from '@/lib/utils'
+
+/** Above this many options the picker becomes type-to-filter (owner, 2026-07-22:
+ *  "dropdowns with more than 5 options should have type and search"). Five is the point
+ *  where scanning stops being instant and a scroll appears on a phone. */
+export const SEARCHABLE_FROM = 6
 
 interface CustomSelectProps {
   value: string
@@ -26,7 +33,58 @@ interface CustomSelectProps {
   labelClassName?: string
   /** Override the trigger text (e.g. a short code) while the menu keeps full labels. */
   triggerLabel?: string
+  /** Force the type-to-filter variant on or off. Unset = automatic at SEARCHABLE_FROM.
+   *  Set it `false` for a list that is long but ORDERED (price bands, years), where
+   *  filtering by label is useless and the scroll is the point. */
+  searchable?: boolean
 }
+
+/** The trigger's box. Shared verbatim by both variants so the searchable picker is
+ *  pixel-identical to the plain one — a facet row must not visibly reflow just because
+ *  one of its filters gained a sixth option. */
+function triggerClassName(
+  open: boolean,
+  value: string,
+  activeClassName: string | undefined,
+  className: string | undefined,
+) {
+  return cn(
+    // h-12 (48px) default — kid-friendly filter target across every call site (facet
+    // bar, explorer filters, area picker). A caller that sets its own height still wins
+    // (its className lands after this in the cn). px-4 for generous horizontal room.
+    'flex min-h-12 w-full items-center justify-between gap-0 px-4 text-sm font-semibold outline-none transition-colors duration-150 cursor-pointer active:scale-100',
+    // Closed: consistent rounded-xl (no more pills). Caller className may restyle.
+    !open && 'rounded-xl',
+    // Open: flatten. The base carries rounded-xl unconditionally, so the open
+    // state must say rounded-none out loud — and it stays BEFORE `className` so a
+    // caller that hard-sets its own radius (area-filter's FIELD) still wins.
+    open && 'rounded-none',
+    !open && (value !== 'all' && value !== 'newest'
+      ? (activeClassName ?? 'bg-accent text-accent-foreground')
+      : 'text-body hover:bg-muted'), // flush at rest, color on hover (one-canvas)
+    className,
+    // Open: just emphasize the text; the menu is a detached card below
+    // (consistent with every other dropdown — no morph).
+    open && 'text-foreground',
+  )
+}
+
+/** Row styling, shared by Select.Item and Combobox.Item so the two menus match. */
+function itemClassName(isActive: boolean) {
+  return cn(
+    'flex w-full items-center justify-between gap-6 rounded-lg px-3 py-2 text-left text-sm transition-colors cursor-pointer active:scale-100 hover:bg-muted hover:text-accent-foreground data-highlighted:bg-muted data-highlighted:text-accent-foreground',
+    isActive ? 'font-semibold text-accent-foreground' : 'font-medium text-body',
+  )
+}
+
+// The popup card + the layer it sits on. z-[1200]/z-[1201] is NOT decoration: AreaFilter
+// portals its panel at z-[100] over a z-[99] scrim and facet-bar's advanced panel at
+// z-[1100] over z-[1099], so a menu opened from inside either one has to clear both or it
+// renders UNDERNEATH the scrim that owns the click. Both variants use this same stack.
+const BACKDROP_Z = 'fixed inset-0 z-[1200]'
+const POSITIONER_Z = 'z-[1201]'
+const POPUP_CARD =
+  'w-(--anchor-width) min-w-44 overflow-hidden rounded-2xl bg-popover shadow-pop duration-150 data-open:animate-in data-open:fade-in-0'
 
 /** The marketplace's facet/filter select: a detached popover card 6px under the trigger
  *  (same width, floored at 176px so a narrow pill's menu stays readable), portaled to
@@ -52,7 +110,115 @@ interface CustomSelectProps {
  *  Both are properties of the admin SKIN, not of the primitive. If ui/select ever grows a
  *  positioner className + an icon slot, collapse this into it.
  */
-export function CustomSelect({
+export function CustomSelect(props: CustomSelectProps) {
+  // One decision, made once, for every picker in the app. Call sites don't opt in —
+  // a filter that grows a sixth option becomes searchable on its own, which is the only
+  // way a rule like this survives contact with a codebase.
+  const searchable = props.searchable ?? props.options.length >= SEARCHABLE_FROM
+  return searchable ? <SearchableSelect {...props} /> : <PlainSelect {...props} />
+}
+
+/** The type-to-filter variant: Base UI COMBOBOX, with the input inside the popup.
+ *
+ *  ⚠️ It has to be a different primitive, not a text field bolted into the Select popup.
+ *  Select owns every keystroke for typeahead (that is how a native <select> behaves), so an
+ *  input inside its listbox fights the primitive for keys AND puts a textbox inside
+ *  role="listbox", which is invalid. Base UI ships Combobox for exactly this, and per the
+ *  standing Base-UI-first policy that is what we use.
+ *
+ *  Filtering is the primitive's, not ours: `items` is a list of `{ value, label }`, the shape
+ *  Base UI recognises natively — it filters on `label` and needs no itemToStringLabel.
+ */
+function SearchableSelect({
+  value, onChange, options, label, placeholder, className, activeClassName, icon, wrapperClassName, labelClassName, triggerLabel,
+}: CustomSelectProps) {
+  const uid = useId()
+  const { tr } = useLanguage()
+  const [open, setOpen] = useState(false)
+  const selectedOption = options.find((o) => o.value === value) ?? null
+
+  return (
+    // Same sizing wrapper, and for the same reason as the plain variant below: the Root
+    // emits a hidden form input as a SIBLING of its children, which would break every
+    // caller's `space-y-*` (compiled to `> :not(:last-child)`) if it landed in their column.
+    <div className={cn('relative', wrapperClassName ?? 'w-full')}>
+      <ComboboxPrimitive.Root
+        items={options}
+        value={selectedOption}
+        onValueChange={(v) => { if (v && typeof v === 'object' && 'value' in v) onChange((v as { value: string }).value) }}
+        open={open}
+        onOpenChange={setOpen}
+        // Highlight the best match as you type, so Enter picks the obvious thing.
+        autoHighlight
+      >
+        <span id={`${uid}-label`} className="sr-only" aria-hidden="true">{label}</span>
+        <ComboboxPrimitive.Trigger
+          id={`${uid}-trigger`}
+          aria-labelledby={`${uid}-label ${uid}-trigger`}
+          nativeButton
+          render={<Button type="button" variant="bare" size="none" className={triggerClassName(open, value, activeClassName, className)} />}
+        >
+          <span className="flex items-center gap-1.5 truncate">
+            {icon}
+            <span className={cn('truncate', labelClassName)}>{triggerLabel ?? (selectedOption ? selectedOption.label : placeholder)}</span>
+          </span>
+          <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 ml-1.5 text-ink-4" />
+        </ComboboxPrimitive.Trigger>
+
+        <ComboboxPrimitive.Portal>
+          <ComboboxPrimitive.Backdrop className={BACKDROP_Z} />
+          <ComboboxPrimitive.Positioner
+            // No alignItemWithTrigger here: that is a Select-only prop (it parks the
+            // selected row over the trigger, native-<select> style). Combobox is always a
+            // detached card, which is the geometry we want anyway.
+            side="bottom"
+            align="start"
+            sideOffset={6}
+            collisionPadding={8}
+            className={POSITIONER_Z}
+          >
+            <ComboboxPrimitive.Popup className={POPUP_CARD}>
+              {/* The search field. min-w-44 on the card would squeeze this on a narrow
+                  facet pill, so the popup widens to 15rem here — a filter you cannot read
+                  while typing is worse than a slightly wider card. */}
+              <div className="flex items-center gap-2 border-b border-line px-3 py-2.5 min-w-60">
+                <Search className="h-4 w-4 shrink-0 text-ink-4" aria-hidden="true" />
+                <ComboboxPrimitive.Input
+                  placeholder={tr('Search', 'Tìm kiếm')}
+                  // The input IS the combobox's accessible control once open, so it needs
+                  // the facet name too — otherwise it announces only "Search".
+                  aria-label={label}
+                  className="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-ink-4"
+                />
+              </div>
+              <ComboboxPrimitive.Empty className="px-3 py-6 text-center text-sm text-body">
+                {tr('No matches', 'Không có kết quả')}
+              </ComboboxPrimitive.Empty>
+              <ComboboxPrimitive.List className="max-h-60 overflow-y-auto overflow-x-hidden p-1.5 scroll-thin">
+                {(item: { value: string; label: string }) => {
+                  const isActive = item.value === value
+                  return (
+                    <ComboboxPrimitive.Item
+                      key={item.value}
+                      value={item}
+                      nativeButton
+                      render={<Button type="button" variant="bare" size="none" className={itemClassName(isActive)} />}
+                    >
+                      <span className="truncate">{item.label}</span>
+                      {isActive && <Check className="h-4 w-4 shrink-0" />}
+                    </ComboboxPrimitive.Item>
+                  )
+                }}
+              </ComboboxPrimitive.List>
+            </ComboboxPrimitive.Popup>
+          </ComboboxPrimitive.Positioner>
+        </ComboboxPrimitive.Portal>
+      </ComboboxPrimitive.Root>
+    </div>
+  )
+}
+
+function PlainSelect({
   value, onChange, options, label, placeholder, className, activeClassName, icon, wrapperClassName, labelClassName, triggerLabel,
 }: CustomSelectProps) {
   const uid = useId()
@@ -115,25 +281,7 @@ export function CustomSelect({
               type="button"
               variant="bare"
               size="none"
-              className={cn(
-                // h-12 (48px) default — kid-friendly filter target across every call site (facet
-                // bar, explorer filters, area picker). A caller that sets its own height still wins
-                // (its className lands after this in the cn). px-4 for generous horizontal room.
-                'flex min-h-12 w-full items-center justify-between gap-0 px-4 text-sm font-semibold outline-none transition-colors duration-150 cursor-pointer active:scale-100',
-                // Closed: consistent rounded-xl (no more pills). Caller className may restyle.
-                !open && 'rounded-xl',
-                // Open: flatten. The base carries rounded-xl unconditionally, so the open
-                // state must say rounded-none out loud — and it stays BEFORE `className` so a
-                // caller that hard-sets its own radius (area-filter's FIELD) still wins.
-                open && 'rounded-none',
-                !open && (value !== 'all' && value !== 'newest'
-                  ? (activeClassName ?? 'bg-accent text-accent-foreground')
-                  : 'text-body hover:bg-muted'), // flush at rest, color on hover (one-canvas)
-                className,
-                // Open: just emphasize the text; the menu is a detached card below
-                // (consistent with every other dropdown — no morph).
-                open && 'text-foreground',
-              )}
+              className={triggerClassName(open, value, activeClassName, className)}
             />
           }
         >
@@ -150,7 +298,7 @@ export function CustomSelect({
             absorbed here — never passing through to a card/button below, and never reaching the
             scrim of a panel this select is nested in (AreaFilter, the advanced-filter sheet),
             which would otherwise tear the whole panel down on the same tap. */}
-        <SelectPrimitive.Backdrop className="fixed inset-0 z-[1200]" />
+        <SelectPrimitive.Backdrop className={BACKDROP_Z} />
         <SelectPrimitive.Positioner
           // The menu is a detached card BELOW the trigger, not a native-select overlay that
           // morphs out of it — hence alignItemWithTrigger={false}. (The primitive defaults to
@@ -162,7 +310,7 @@ export function CustomSelect({
           align="start"
           sideOffset={6}
           collisionPadding={8}
-          className="z-[1201]"
+          className={POSITIONER_Z}
         >
           <SelectPrimitive.Popup
             // w-(--anchor-width) + min-w-44 == the old Math.max(triggerRect.width, 176):
@@ -210,10 +358,7 @@ export function CustomSelect({
                         type="button"
                         variant="bare"
                         size="none"
-                        className={cn(
-                          'flex w-full items-center justify-between gap-6 rounded-lg px-3 py-2 text-left text-sm transition-colors cursor-pointer active:scale-100 hover:bg-muted hover:text-accent-foreground data-highlighted:bg-muted data-highlighted:text-accent-foreground',
-                          isActive ? 'font-semibold text-accent-foreground' : 'font-medium text-body',
-                        )}
+                        className={itemClassName(isActive)}
                       />
                     }
                   >
