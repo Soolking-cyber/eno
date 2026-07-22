@@ -193,26 +193,33 @@ export function containsContactInfo(text: string | null | undefined): boolean {
  *  2. No photo, 3. banned words, 4. phone/contact/address in text → fixable while posting.
  * `trustTier` optional so a pre-seller-resolution caller can run the content checks early.
  */
-export function assertPublishable(input: { trustTier?: string; images: unknown[]; texts: (string | null | undefined)[]; categorySlug?: string | null; lat?: number | null; lng?: number | null }) {
+export function assertPublishable(input: { trustTier?: string; images: unknown[]; texts: (string | null | undefined)[]; categorySlug?: string | null; lat?: number | null; lng?: number | null; district?: string | null }) {
   if (input.trustTier === 'restricted') throw new PublishBlockedError('account_restricted')
   assertEnoughAngles(input.images, input.categorySlug)
   assertCleanTexts(input.texts)
-  assertHasLocation(input.lat, input.lng)
+  assertHasLocation({ district: input.district, lat: input.lat, lng: input.lng })
 }
 
-/** A listing must carry a real point (owner, 2026-07-22: "users shouldnt be able to post
+/** A listing must say WHERE it is (owner, 2026-07-22: "users shouldnt be able to post
  *  without location").
  *
- *  ⚠️ The check is hasRealCoords, NOT `lat != null`, and that distinction is the whole
- *  reason this exists. Writers that default a missing coordinate to 0 sail past a null
- *  check and store (0,0) — open ocean off West Africa — which is exactly how eight live
- *  listings ended up plotting "south of Africa" while their district said Hồ Chí Minh.
- *  A gate that accepts 0 is not a gate.
+ *  ⚠️ "Location" means the PLACE THE SELLER PICKED — the ward/district from the area
+ *  picker — NOT coordinates. lat/lng are an OPTIONAL precise pin that only exists when
+ *  someone taps "use my current location", so gating on them rejected every ordinary
+ *  listing and broke posting outright the moment it shipped. Coordinates satisfy the gate
+ *  when present, but they are never required.
  *
- *  Deliberately NOT relaxed per category, unlike the photo minimum: location is what makes
- *  a marketplace listing meetable, and "where is it" has an answer even for a service. */
-export function assertHasLocation(lat: number | null | undefined, lng: number | null | undefined) {
-  if (!hasRealCoords(lat, lng)) throw new PublishBlockedError('location_required')
+ *  `city` is NOT accepted as proof: the create path defaults it to 'Ho Chi Minh City', so
+ *  a gate that took it would pass for a seller who chose nothing at all.
+ *
+ *  hasRealCoords, not `!= null`, on the coordinate branch: writers that default a missing
+ *  coordinate to 0 store (0,0) — open ocean off West Africa — and a gate that accepts 0 is
+ *  not a gate. That is how eight live listings came to plot "south of Africa".
+ */
+export function assertHasLocation(input: { district?: string | null; lat?: number | null; lng?: number | null }) {
+  if (input.district && String(input.district).trim()) return
+  if (hasRealCoords(input.lat, input.lng)) return
+  throw new PublishBlockedError('location_required')
 }
 
 /** ≥1 photo (photo_required) AND ≥minPhotosFor(category) DISTINCT angles (photos_min) — the

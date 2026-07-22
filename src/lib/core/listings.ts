@@ -587,7 +587,7 @@ export async function createListingCore(input: {
   // contact_in_text, which tells the seller to edit a listing that is already clean.
   const guardName = body.contactName ? String(body.contactName).trim().slice(0, 80) : null
   assertCleanContactName(guardName)
-  assertPublishable({ trustTier: seller.trustTier, images, texts: [title, description], categorySlug, lat, lng })
+  assertPublishable({ trustTier: seller.trustTier, images, texts: [title, description], categorySlug, lat, lng, district })
 
   // Intent + subcategory from the taxonomy. listingType must be valid for the category
   // (else its primary type); subcategory falls back to keyword-suggest.

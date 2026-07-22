@@ -231,6 +231,19 @@ describe('publish-guard · photo minimum by category', () => {
 describe('publish-guard · location is required', () => {
   const base = { trustTier: 'standard', images: ['a.webp', 'b.webp', 'c.webp'], texts: ['Like new iPhone 15'] }
 
+  // THE REGRESSION THIS SUITE EXISTS FOR. lat/lng are an OPTIONAL precise pin; what a
+  // seller actually picks is a ward. Gating on coordinates blocked every ordinary listing
+  // and broke posting the day it shipped — "it asks to choose location" right after the
+  // seller chose one.
+  it('accepts a picked ward with NO coordinates — the ordinary path', () => {
+    expect(blockCodeOf(() => assertPublishable({ ...base, district: 'Phường Bến Nghé' }))).toBeNull()
+  })
+
+  it('still rejects when neither a ward nor a point is given', () => {
+    expect(blockCodeOf(() => assertPublishable({ ...base, district: '' }))).toBe('location_required')
+    expect(blockCodeOf(() => assertPublishable({ ...base, district: '   ' }))).toBe('location_required')
+  })
+
   it('accepts a real point', () => {
     expect(blockCodeOf(() => assertPublishable({ ...base, lat: 10.7769, lng: 106.7009 }))).toBeNull()
   })

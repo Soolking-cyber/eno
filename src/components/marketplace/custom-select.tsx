@@ -83,8 +83,13 @@ function itemClassName(isActive: boolean) {
 // renders UNDERNEATH the scrim that owns the click. Both variants use this same stack.
 const BACKDROP_Z = 'fixed inset-0 z-[1200]'
 const POSITIONER_Z = 'z-[1201]'
+// ⚠️ min-w-64 + max-w, NOT the plain w-(--anchor-width) the plain variant uses. The
+// searchable card holds a search field AND long labels ("Phường Bến Nghé, Quận 1"), and
+// AreaFilter renders its two pickers in a `grid-cols-2`, so the anchor is HALF the panel.
+// Tracking that width truncated every ward name to a few characters. The card is allowed
+// to be wider than its trigger; collisionPadding keeps it on screen.
 const POPUP_CARD =
-  'w-(--anchor-width) min-w-44 overflow-hidden rounded-2xl bg-popover shadow-pop duration-150 data-open:animate-in data-open:fade-in-0'
+  'min-w-64 max-w-[min(22rem,calc(100vw-1rem))] overflow-hidden rounded-2xl bg-popover shadow-pop duration-150 data-open:animate-in data-open:fade-in-0'
 
 /** The marketplace's facet/filter select: a detached popover card 6px under the trigger
  *  (same width, floored at 176px so a narrow pill's menu stays readable), portaled to
@@ -181,7 +186,7 @@ function SearchableSelect({
               {/* The search field. min-w-44 on the card would squeeze this on a narrow
                   facet pill, so the popup widens to 15rem here — a filter you cannot read
                   while typing is worse than a slightly wider card. */}
-              <div className="flex items-center gap-2 border-b border-line px-3 py-2.5 min-w-60">
+              <div className="flex items-center gap-2 border-b border-line px-3 py-2.5">
                 <Search className="h-4 w-4 shrink-0 text-ink-4" aria-hidden="true" />
                 <ComboboxPrimitive.Input
                   placeholder={tr('Search', 'Tìm kiếm')}
@@ -204,7 +209,7 @@ function SearchableSelect({
                       nativeButton
                       render={<Button type="button" variant="bare" size="none" className={itemClassName(isActive)} />}
                     >
-                      <span className="truncate">{item.label}</span>
+                      <span className="min-w-0 flex-1 truncate">{item.label}</span>
                       {isActive && <Check className="h-4 w-4 shrink-0" />}
                     </ComboboxPrimitive.Item>
                   )

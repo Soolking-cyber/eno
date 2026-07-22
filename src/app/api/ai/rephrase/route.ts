@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getGemini, GEMINI_MODEL } from '@/lib/gemini'
 import { aiGuard } from '@/lib/ai-guard'
 import { containsPhoneNumber } from '@/lib/phone'
+import { stripMarkdown } from '@/lib/strip-md'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -33,6 +34,8 @@ Structure the result like this:
 2. Then a few scannable bullet points (each starting with "- ") for the key features / specs that ARE in the seller's text.
 3. End with the practical info if present (condition, what's included, dimensions, reason for selling).
 
+FORMATTING — this goes straight into a PLAIN TEXT box the seller then edits, so markdown markers show up as literal characters: write plain prose only. No **bold**, no *italics*, no # headings, no backticks, no markdown links. Bullet lines start with "- " and nothing else.
+
 Rules: keep paragraphs short and the language simple, so a buyer grasps the value in seconds. Use the item's natural keywords so it's easy to find in search, but never keyword-stuff. Aim for a complete but tight description — depth without padding (roughly 80–200 words is ideal; never pad to hit a length). Write in ${outLang}. Never include a phone number or contact details. Return ONLY the rewritten description — no preamble, no heading like "Description:".
 
 Seller's text:
@@ -56,5 +59,8 @@ Seller's text:
   if (!out) return NextResponse.json({ error: 'ai_failed' }, { status: 502 })
   // Safety net: if the model slipped in a phone number, fall back to the original.
   if (containsPhoneNumber(out)) return NextResponse.json({ text }, { status: 200 })
-  return NextResponse.json({ text: out.slice(0, MAX_IN) })
+  // The prompt forbids markdown, but a prompt is not a guarantee and this runs on every
+  // polish — models reach for **bold** by habit, and the wizard's textarea is plain text,
+  // so the seller would be handed literal asterisks to edit around.
+  return NextResponse.json({ text: stripMarkdown(out).slice(0, MAX_IN) })
 }
