@@ -96,7 +96,12 @@ export const DASHBOARD_NAV: NavGroup[] = [
     items: [
       { href: '/dashboard/help', ...tr('Help center', 'Trung tâm trợ giúp'), icon: CircleHelp },
       { href: '/dashboard/trips', ...tr('Itineraries', 'Lịch trình'), icon: Route },
-      { href: '/dashboard/visa', ...tr('Vietnam e-Visa', 'E-Visa Việt Nam'), icon: FileCheck2 },
+      // KEPT, RELABELLED (owner 2026-07-22: "only 1 way should exist through the chat").
+      // The section is no longer a place to APPLY — the wizard behind this row is deleted
+      // and the application is filled in the chat thread — so the row names what it still
+      // leads to: the applicant's own cases, their status, and the way back into the
+      // thread each one lives in. "Vietnam e-Visa" read as "apply here"; this does not.
+      { href: '/dashboard/visa', ...tr('My e-Visa', 'E-Visa của tôi'), icon: FileCheck2 },
     ],
   },
   {

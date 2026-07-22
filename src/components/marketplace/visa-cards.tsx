@@ -229,8 +229,14 @@ const STEP_HINT: Record<VisaDmStep, [string, string]> = {
     'We read these from your passport. Confirm they are right — or correct them.',
     'Chúng tôi đã đọc các thông tin này từ hộ chiếu của bạn. Hãy xác nhận là đúng — hoặc sửa lại.',
   ],
-  3: ['A few details we cannot read from a document.', 'Một vài thông tin không thể đọc được từ giấy tờ.'],
-  4: ['When you are coming and where you will stay.', 'Bạn đến khi nào và ở đâu.'],
+  3: [
+    'The details no document can tell us. Common answers are filled in already — open them and change anything that is not true of you.',
+    'Những thông tin không giấy tờ nào nói được. Các câu trả lời phổ biến đã được điền sẵn — hãy mở ra và sửa những gì chưa đúng với bạn.',
+  ],
+  4: [
+    'When you are coming and where you will stay. Check the border gates and the dates — they start on the most common answer, not on yours.',
+    'Bạn đến khi nào và ở đâu. Hãy kiểm tra cửa khẩu và ngày tháng — chúng bắt đầu bằng lựa chọn phổ biến nhất, không phải của bạn.',
+  ],
   5: ['Everything is filled in. Pay to send your application to eno.', 'Đã điền xong. Thanh toán để gửi hồ sơ đến eno.'],
 }
 
@@ -238,8 +244,12 @@ const STEP_HINT: Record<VisaDmStep, [string, string]> = {
  * Payload FIELD NAME → label. The vocabulary a card is allowed to speak: names, never
  * values. Every key here is a real key of visaPayloadSchema (dm-steps.ts owns the
  * per-step allowlists these are drawn from).
+ *
+ * ⚠️ EVERY field a step renders must have an entry: the fallback below humanises the camelCase
+ * key, which reads like debug output on a legal form. visa-cards.test.ts fails the build when a
+ * field in VISA_STEP_FORM has no label here.
  */
-const FIELD_LABEL: Record<string, [string, string]> = {
+export const VISA_FIELD_LABEL: Record<string, [string, string]> = {
   surname: ['Surname', 'Họ'],
   givenNames: ['Given and middle names', 'Tên đệm và tên'],
   dateOfBirth: ['Date of birth', 'Ngày sinh'],
@@ -265,8 +275,13 @@ const FIELD_LABEL: Record<string, [string, string]> = {
   phone: ['Telephone number', 'Số điện thoại'],
   emergencyName: ['Emergency contact name', 'Tên người liên hệ khẩn cấp'],
   emergencyRelationship: ['Relationship to you', 'Mối quan hệ với bạn'],
+  emergencyAddress: ['Emergency contact address', 'Địa chỉ liên hệ khẩn cấp'],
   emergencyPhone: ['Emergency contact phone', 'Điện thoại liên hệ khẩn cấp'],
   occupation: ['Occupation', 'Nghề nghiệp'],
+  employerName: ['Employer or school', 'Cơ quan hoặc trường học'],
+  employerAddress: ['Employer address', 'Địa chỉ cơ quan'],
+  employerPhone: ['Employer phone', 'Điện thoại cơ quan'],
+  religion: ['Religion', 'Tôn giáo'],
   visaValidFrom: ['Visa starts', 'Visa bắt đầu'],
   visaValidTo: ['Visa ends', 'Visa kết thúc'],
   purposeOfEntry: ['Purpose of entry', 'Mục đích nhập cảnh'],
@@ -292,22 +307,27 @@ const FIELD_LABEL: Record<string, [string, string]> = {
   hasChildrenOnPassport: ['Children on your passport?', 'Có trẻ em đi cùng trong hộ chiếu?'],
   childrenOnPassportDetails: ['Accompanying children', 'Thông tin trẻ em đi cùng'],
   // The rest of the dashboard's trip page — fields the chat card only started rendering
-  // when the whole of TripStep was carried across (see VISA_TRIP_FORM below).
+  // when the whole of TripStep was carried across (see VISA_STEP_FORM below).
   entryType: ['Entry type', 'Loại nhập cảnh'],
   temporaryWard: ['Ward or commune', 'Phường hoặc xã'],
   estimatedExpenses: ['Estimated expenses', 'Chi phí dự kiến'],
   expensesCurrency: ['Currency', 'Tiền tệ'],
   expensesPayer: ['Who pays?', 'Ai chi trả?'],
   paymentMethod: ['Payment method', 'Hình thức chi trả'],
+  payerDetails: ['More about who pays', 'Thêm về người chi trả'],
   applicantNotes: ['Anything eno should know?', 'Thông tin thêm cho eno?'],
 }
 
 const fieldLabel = (name: string, tr: Tr) => {
-  const copy = FIELD_LABEL[name]
+  const copy = VISA_FIELD_LABEL[name]
   return copy ? tr(copy[0], copy[1]) : name.replace(/([A-Z])/g, ' $1').toLowerCase()
 }
 
-type ControlKind = 'text' | 'long' | 'date' | 'number' | 'yesno' | 'sex' | 'choice' | 'checkpoint'
+/**
+ * How a field is asked. `email`/`tel` exist for the keyboard alone — the dashboard passes
+ * inputMode/autoComplete per call site for exactly this reason, and this form lives on a phone.
+ */
+type ControlKind = 'text' | 'long' | 'date' | 'number' | 'email' | 'tel' | 'yesno' | 'sex' | 'choice' | 'checkpoint'
 
 /** One option of a `choice` control: the stored value, then its bilingual label. */
 type FieldChoice = readonly [string, readonly [string, string]]
@@ -319,8 +339,14 @@ type FieldChoice = readonly [string, readonly [string, string]]
  * step 5 owns none). The FIELD is what the card writes back through the encrypted path, and
  * it is re-checked against VISA_DM_STEP_FIELDS before anything is sent — so this map can
  * never widen what a step may write.
+ *
+ * ⚠️ THIS IS NOT THE FORM. It says how to ASK for an outstanding answer; VISA_STEP_FORM below
+ * says what a step SHOWS. The gap between the two was the bug: a field carrying a schema
+ * default never produces an issue, so an issue-driven form never asked it and the applicant
+ * shipped the default (religion "None", every declaration "no", Tan Son Nhat both ways) as if
+ * it were their answer. A card renders the FORM; issues only add a warning line to a field.
  */
-const ISSUE_FIELD: Record<string, { field: string; control: ControlKind; hint?: [string, string] }> = {
+export const VISA_ISSUE_FIELD: Record<string, { field: string; control: ControlKind; hint?: [string, string] }> = {
   // ── step 2 · confirm passport ──
   surname_required: { field: 'surname', control: 'text' },
   given_names_required: { field: 'givenNames', control: 'text' },
@@ -395,38 +421,70 @@ const ISSUE_FIELD: Record<string, { field: string; control: ControlKind; hint?: 
   children_details_required: { field: 'childrenOnPassportDetails', control: 'long' },
 }
 
-// ── Step 4 · the whole trip page, not just the gaps ───────────────────────────────
+// ── THE FORM: every step asks its WHOLE field set, not just the gaps ──────────────
 //
-// Steps 1–3 ask only what is OUTSTANDING (an issue code → a field). That is right for a
-// passport we already read: the card confirms rather than interrogates. Step 4 is the
-// opposite case and the owner called it — "copy all features" from the dashboard's
-// TripStep. Nothing on this page can be read off a document, and the payload schema
-// DEFAULTS most of it (entryGate/exitGate = Tan Son Nhat, purpose = Tourism, every yes/no
-// = no, stay = 90 days), so an issue-driven form never asks and the applicant silently
-// ships somebody else's answers: an e-Visa naming the wrong border gate is a rejected
-// entry, not a cosmetic miss. So step 4 renders the DASHBOARD'S OWN FIELD SET, in the
-// dashboard's order and sections.
+// A card used to render only what was OUTSTANDING (an issue code → a field). That reads well
+// for a passport we already photographed, and it silently loses everything else: a field
+// carrying a schema DEFAULT never produces an issue, so it was never asked and the default
+// went to the government as if the applicant had chosen it. religion 'None', passportType
+// 'ordinary', every declaration 'no', purpose 'Tourism', entryGate/exitGate 'Tan Son Nhat',
+// stay 90 days, expenses USD 1,000 paid by card — none of that was ever put to the applicant
+// anywhere except the dashboard wizard, and the dashboard wizard is being retired. An e-Visa
+// naming the wrong border gate is a refused entry, not a cosmetic miss.
 //
-// ⚠️ Mirrors src/app/dashboard/visa/apply-client.tsx → TripStep. When a field is added
-// there, add it here. (Only `payerDetails` is deliberately absent — TripStep does not
-// render it either, so leaving it out IS the parity.)
+// So each step renders its FULL VISA_DM_STEP_FIELDS set, pre-filled from the applicant's own
+// case: a default becomes a visible answer they can change, never an unasked question. The
+// partition itself is untouched (still five steps, still the same field→step map) and so is
+// the validator — a defaulted field is SHOWN, not made blocking (the owner's launch-lenience
+// policy). dm-steps.test.ts fences the partition; visa-cards.test.ts fences the coverage.
+//
+// ⚠️ Mirrors src/app/dashboard/visa/apply-client.tsx → PersonalStep + TripStep, in the
+// dashboard's order, with the dashboard's controls (checkpoint pickers, yes/no reveals, date
+// bounds). When a payload field is added, add it here — the coverage test fails otherwise.
 
-type TripSection = 'visa' | 'stay' | 'money'
+type FormSection = 'identity' | 'passport' | 'declarations' | 'contact' | 'work' | 'visa' | 'stay' | 'money'
 
-const TRIP_SECTION_TITLE: Record<TripSection, [string, string]> = {
+const SECTION_TITLE: Record<FormSection, [string, string]> = {
+  identity: ['About you', 'Về bạn'],
+  passport: ['Your passport', 'Hộ chiếu của bạn'],
+  declarations: ['Declarations', 'Khai báo'],
+  contact: ['Contact and emergency', 'Liên hệ và khẩn cấp'],
+  work: ['Work', 'Công việc'],
   visa: ['Requested visa', 'Visa yêu cầu'],
   stay: ['Your stay in Vietnam', 'Lưu trú tại Việt Nam'],
   money: ['Expenses and insurance', 'Chi phí và bảo hiểm'],
 }
 
-type TripField = {
+/**
+ * Why an answer may stay as it is. Rendered under the label in a QUIET colour — an issue hint
+ * is a warning, this is not.
+ *  · optional  — the official form accepts a blank here.
+ *  · prefilled — the schema already holds a real answer, so the box is never empty and the
+ *                applicant must be told it is a suggestion rather than something they said.
+ */
+type FieldNote = 'optional' | 'prefilled'
+
+const NOTE_COPY: Record<FieldNote, [string, string]> = {
+  optional: ['Optional', 'Không bắt buộc'],
+  prefilled: ['Prefilled — change it if it is not right', 'Đã điền sẵn — hãy sửa nếu chưa đúng'],
+}
+
+export type VisaFormField = {
   field: string
   control: ControlKind
-  section: TripSection
+  section: FormSection
   /** Fixed choices, or choices that depend on another answer (see paymentMethod). */
   options?: readonly FieldChoice[] | ((draft: Record<string, string>) => readonly FieldChoice[])
   /** A standing explanation of the field itself (issue hints are merged in on top). */
   hint?: [string, string]
+  note?: FieldNote
+  /**
+   * ⚠️ ONLY where the mapping is exact AND the value is the APPLICANT'S OWN — the same rule
+   * apply-client.tsx documents. Never on the emergency / employer / local-contact / payer
+   * numbers: those are somebody else's, and tagging them `tel` invites the browser to offer
+   * the applicant's own.
+   */
+  autoComplete?: string
   /**
    * Rendered only when the DRAFT satisfies this — the dashboard's conditional follow-ups,
    * which appear the moment the answer flips rather than after a server round trip.
@@ -444,54 +502,139 @@ const PAYMENT_METHODS: readonly FieldChoice[] = [
   ['travellers_cheques', ['Traveller’s cheques', 'Séc du lịch']],
 ]
 
-export const VISA_TRIP_FORM: readonly TripField[] = [
-  { field: 'entryType', control: 'choice', section: 'visa', options: [['single', ['Single entry', 'Nhập cảnh một lần']], ['multiple', ['Multiple entry', 'Nhập cảnh nhiều lần']]] },
-  {
-    field: 'visaValidFrom', control: 'date', section: 'visa',
-    hint: ['Pick this first — the end date, entry date and length of stay fill in automatically.', 'Chọn ngày này trước — ngày kết thúc, ngày nhập cảnh và số ngày lưu trú sẽ tự điền.'],
-  },
-  {
-    field: 'visaValidTo', control: 'date', section: 'visa',
-    hint: [`Filled automatically: an e-Visa covers at most ${MAX_EVISA_VALIDITY_DAYS} days.`, `Tự động điền: E-Visa có thời hạn tối đa ${MAX_EVISA_VALIDITY_DAYS} ngày.`],
-  },
-  { field: 'purposeOfEntry', control: 'text', section: 'stay' },
-  { field: 'currentlyOutsideVietnam', control: 'yesno', section: 'stay' },
-  { field: 'intendedEntryDate', control: 'date', section: 'stay' },
-  { field: 'stayLengthDays', control: 'number', section: 'stay' },
-  { field: 'temporaryAddress', control: 'long', section: 'stay' },
-  { field: 'temporaryProvince', control: 'text', section: 'stay' },
-  { field: 'temporaryWard', control: 'text', section: 'stay' },
-  { field: 'entryGate', control: 'checkpoint', section: 'stay' },
-  { field: 'exitGate', control: 'checkpoint', section: 'stay' },
-  { field: 'localContactName', control: 'text', section: 'stay' },
-  { field: 'localContactAddress', control: 'long', section: 'stay' },
-  { field: 'localContactPhone', control: 'text', section: 'stay' },
-  { field: 'visitedVietnamLastYear', control: 'yesno', section: 'stay' },
-  { field: 'previousVisitDetails', control: 'long', section: 'stay', when: answeredYes('visitedVietnamLastYear') },
-  { field: 'hasRelativesInVietnam', control: 'yesno', section: 'stay' },
-  { field: 'relativesInVietnamDetails', control: 'long', section: 'stay', when: answeredYes('hasRelativesInVietnam') },
-  { field: 'hasChildrenOnPassport', control: 'yesno', section: 'stay' },
-  { field: 'childrenOnPassportDetails', control: 'long', section: 'stay', when: answeredYes('hasChildrenOnPassport') },
-  { field: 'estimatedExpenses', control: 'number', section: 'money' },
-  { field: 'expensesCurrency', control: 'text', section: 'money' },
-  {
-    field: 'expensesPayer', control: 'choice', section: 'money',
-    options: [['self', ['I pay', 'Tôi tự chi trả']], ['organization', ['An organization', 'Một tổ chức']], ['other', ['Someone else', 'Người khác']]],
-  },
-  {
-    field: 'paymentMethod', control: 'choice', section: 'money',
-    // Traveller's cheques are only the applicant's OWN instrument — the dashboard drops the
-    // option the moment somebody else is paying, and applyVisaDraftEdit moves the answer off
-    // it at the same time, so the select can never hold a choice it no longer lists.
-    options: (draft) => draft.expensesPayer === 'self' ? PAYMENT_METHODS : PAYMENT_METHODS.filter(([value]) => value !== 'travellers_cheques'),
-  },
-  { field: 'payerName', control: 'text', section: 'money', when: (draft) => draft.expensesPayer !== 'self' },
-  { field: 'payerAddress', control: 'long', section: 'money', when: (draft) => draft.expensesPayer !== 'self' },
-  { field: 'payerPhone', control: 'text', section: 'money', when: (draft) => draft.expensesPayer !== 'self' },
-  { field: 'hasTravelInsurance', control: 'yesno', section: 'money' },
-  { field: 'insuranceDetails', control: 'long', section: 'money', when: answeredYes('hasTravelInsurance') },
-  { field: 'applicantNotes', control: 'long', section: 'money' },
+const PASSPORT_TYPES: readonly FieldChoice[] = [
+  ['ordinary', ['Ordinary', 'Phổ thông']],
+  ['official', ['Official', 'Công vụ']],
+  ['diplomatic', ['Diplomatic', 'Ngoại giao']],
+  ['other', ['Other', 'Khác']],
 ]
+
+/** Only if somebody in Vietnam is inviting or hosting — but then all three are needed. */
+const LOCAL_CONTACT_HINT: [string, string] = [
+  'Only if someone in Vietnam is inviting or hosting you. Fill all three, or leave all three blank.',
+  'Chỉ khi có người tại Việt Nam mời hoặc đón bạn. Điền cả ba mục, hoặc để trống cả ba.',
+]
+
+/**
+ * ⚠️ THE ONE FIELD LIST THE CHAT RENDERS. Every entry must be a field the step OWNS
+ * (VISA_DM_STEP_FIELDS) — the server refuses anything else, and visa-cards.test.ts proves
+ * the two agree in BOTH directions: nothing writable is unasked, nothing asked is unwritable.
+ *
+ * Steps 1 and 5 are empty on purpose. Step 1 is the two uploads (the payload field it owns,
+ * aiDocumentProcessingConsent, is stamped by the upload route itself — there is no question
+ * to ask), step 5 is consent + payment and owns no payload field at all.
+ */
+export const VISA_STEP_FORM: Record<VisaDmStep, readonly VisaFormField[]> = {
+  1: [],
+  // ── 2 · confirm what we read off the passport ──
+  2: [
+    { field: 'surname', control: 'text', section: 'identity' },
+    { field: 'givenNames', control: 'text', section: 'identity' },
+    { field: 'dateOfBirth', control: 'date', section: 'identity' },
+    { field: 'sex', control: 'sex', section: 'identity' },
+    { field: 'nationality', control: 'text', section: 'identity' },
+    { field: 'placeOfBirth', control: 'text', section: 'identity' },
+    { field: 'identityNumber', control: 'text', section: 'identity', note: 'optional' },
+    {
+      field: 'email', control: 'email', section: 'identity', autoComplete: 'email',
+      hint: ['The result is sent here.', 'Kết quả sẽ được gửi tới đây.'],
+    },
+    { field: 'passportNumber', control: 'text', section: 'passport' },
+    { field: 'passportType', control: 'choice', section: 'passport', options: PASSPORT_TYPES, note: 'prefilled' },
+    { field: 'passportIssuingAuthority', control: 'text', section: 'passport' },
+    { field: 'passportIssueDate', control: 'date', section: 'passport' },
+    { field: 'passportExpiryDate', control: 'date', section: 'passport' },
+  ],
+  // ── 3 · the rest of the applicant: declarations, home, next of kin, work ──
+  3: [
+    { field: 'hasOtherNationalities', control: 'yesno', section: 'declarations' },
+    { field: 'otherNationalities', control: 'text', section: 'declarations', when: answeredYes('hasOtherNationalities') },
+    { field: 'hasOtherPassports', control: 'yesno', section: 'declarations' },
+    { field: 'otherPassportDetails', control: 'long', section: 'declarations', when: answeredYes('hasOtherPassports') },
+    { field: 'usedOtherPassportsForVietnam', control: 'yesno', section: 'declarations' },
+    { field: 'usedOtherPassportDetails', control: 'long', section: 'declarations', when: answeredYes('usedOtherPassportsForVietnam') },
+    { field: 'hasVietnamLawViolation', control: 'yesno', section: 'declarations' },
+    { field: 'vietnamLawViolationDetails', control: 'long', section: 'declarations', when: answeredYes('hasVietnamLawViolation') },
+    { field: 'religion', control: 'text', section: 'declarations', note: 'prefilled' },
+    { field: 'permanentAddress', control: 'long', section: 'contact' },
+    { field: 'phone', control: 'tel', section: 'contact', autoComplete: 'tel' },
+    { field: 'emergencyName', control: 'text', section: 'contact' },
+    { field: 'emergencyRelationship', control: 'text', section: 'contact' },
+    { field: 'emergencyPhone', control: 'tel', section: 'contact' },
+    { field: 'emergencyAddress', control: 'long', section: 'contact', note: 'optional' },
+    { field: 'occupation', control: 'text', section: 'work' },
+    { field: 'employerName', control: 'text', section: 'work', note: 'optional' },
+    { field: 'employerAddress', control: 'long', section: 'work', note: 'optional' },
+    { field: 'employerPhone', control: 'tel', section: 'work', note: 'optional' },
+  ],
+  // ── 4 · the trip ──
+  4: [
+    {
+      field: 'entryType', control: 'choice', section: 'visa', note: 'prefilled',
+      options: [['single', ['Single entry', 'Nhập cảnh một lần']], ['multiple', ['Multiple entry', 'Nhập cảnh nhiều lần']]],
+    },
+    {
+      field: 'visaValidFrom', control: 'date', section: 'visa',
+      hint: ['Pick this first — the end date, entry date and length of stay fill in automatically.', 'Chọn ngày này trước — ngày kết thúc, ngày nhập cảnh và số ngày lưu trú sẽ tự điền.'],
+    },
+    {
+      field: 'visaValidTo', control: 'date', section: 'visa',
+      hint: [`Filled automatically: an e-Visa covers at most ${MAX_EVISA_VALIDITY_DAYS} days.`, `Tự động điền: E-Visa có thời hạn tối đa ${MAX_EVISA_VALIDITY_DAYS} ngày.`],
+    },
+    { field: 'purposeOfEntry', control: 'text', section: 'stay', note: 'prefilled' },
+    { field: 'currentlyOutsideVietnam', control: 'yesno', section: 'stay' },
+    { field: 'intendedEntryDate', control: 'date', section: 'stay' },
+    { field: 'stayLengthDays', control: 'number', section: 'stay', note: 'prefilled' },
+    { field: 'temporaryAddress', control: 'long', section: 'stay' },
+    { field: 'temporaryProvince', control: 'text', section: 'stay' },
+    { field: 'temporaryWard', control: 'text', section: 'stay', note: 'optional' },
+    { field: 'entryGate', control: 'checkpoint', section: 'stay', note: 'prefilled' },
+    { field: 'exitGate', control: 'checkpoint', section: 'stay', note: 'prefilled' },
+    { field: 'localContactName', control: 'text', section: 'stay', note: 'optional', hint: LOCAL_CONTACT_HINT },
+    { field: 'localContactAddress', control: 'long', section: 'stay', note: 'optional' },
+    { field: 'localContactPhone', control: 'tel', section: 'stay', note: 'optional' },
+    { field: 'visitedVietnamLastYear', control: 'yesno', section: 'stay' },
+    { field: 'previousVisitDetails', control: 'long', section: 'stay', when: answeredYes('visitedVietnamLastYear') },
+    { field: 'hasRelativesInVietnam', control: 'yesno', section: 'stay' },
+    { field: 'relativesInVietnamDetails', control: 'long', section: 'stay', when: answeredYes('hasRelativesInVietnam') },
+    { field: 'hasChildrenOnPassport', control: 'yesno', section: 'stay' },
+    { field: 'childrenOnPassportDetails', control: 'long', section: 'stay', when: answeredYes('hasChildrenOnPassport') },
+    { field: 'estimatedExpenses', control: 'number', section: 'money', note: 'prefilled' },
+    { field: 'expensesCurrency', control: 'text', section: 'money', note: 'prefilled' },
+    {
+      field: 'expensesPayer', control: 'choice', section: 'money', note: 'prefilled',
+      options: [['self', ['I pay', 'Tôi tự chi trả']], ['organization', ['An organization', 'Một tổ chức']], ['other', ['Someone else', 'Người khác']]],
+    },
+    {
+      field: 'paymentMethod', control: 'choice', section: 'money', note: 'prefilled',
+      // Traveller's cheques are only the applicant's OWN instrument — the dashboard drops the
+      // option the moment somebody else is paying, and applyVisaDraftEdit moves the answer off
+      // it at the same time, so the select can never hold a choice it no longer lists.
+      options: (draft) => draft.expensesPayer === 'self' ? PAYMENT_METHODS : PAYMENT_METHODS.filter(([value]) => value !== 'travellers_cheques'),
+    },
+    { field: 'payerName', control: 'text', section: 'money', when: (draft) => draft.expensesPayer !== 'self' },
+    { field: 'payerAddress', control: 'long', section: 'money', when: (draft) => draft.expensesPayer !== 'self' },
+    { field: 'payerPhone', control: 'tel', section: 'money', when: (draft) => draft.expensesPayer !== 'self' },
+    {
+      field: 'payerDetails', control: 'long', section: 'money', note: 'optional',
+      when: (draft) => draft.expensesPayer !== 'self',
+      hint: ['Anything else about the person or organization paying.', 'Thông tin thêm về người hoặc tổ chức chi trả.'],
+    },
+    { field: 'hasTravelInsurance', control: 'yesno', section: 'money' },
+    { field: 'insuranceDetails', control: 'long', section: 'money', when: answeredYes('hasTravelInsurance') },
+    { field: 'applicantNotes', control: 'long', section: 'money', note: 'optional' },
+  ],
+  5: [],
+}
+
+/**
+ * The fields this step shows for THIS draft — the whole set minus the follow-ups whose answer
+ * has not been given yet. The card renders exactly this; visa-cards.test.ts drives it with
+ * every combination of the step's own visible answers to prove no owned field is unreachable.
+ */
+export function visaStepFormFields(step: VisaDmStep, draft: Record<string, string>): readonly VisaFormField[] {
+  return (VISA_STEP_FORM[step] ?? []).filter((entry) => !entry.when || entry.when(draft))
+}
 
 /**
  * Numeric fields and their schema bounds — the same clamp the dashboard applies inline.
@@ -578,6 +721,12 @@ export function visaDateBounds(field: string, draft: Record<string, string>): { 
   if (field === 'intendedEntryDate') {
     return { min: draft.visaValidFrom || undefined, max: draft.visaValidTo || undefined }
   }
+  // The passport pair, from the validator's own rule (issue >= expiry ⇒ passport_dates_invalid).
+  // Deliberately no arithmetic: the picker refuses everything BEFORE the other date, and the
+  // one remaining case — the two dates equal — is left to the validator, which already says so
+  // in the applicant's words rather than being silently un-pickable.
+  if (field === 'passportExpiryDate') return { min: draft.passportIssueDate || undefined }
+  if (field === 'passportIssueDate') return { max: draft.passportExpiryDate || undefined }
   return {}
 }
 
@@ -827,36 +976,48 @@ function stepIssues(kase: VisaCase | null, step: VisaDmStep): string[] {
 type FormSpec = {
   field: string
   control: ControlKind
+  /** The field's own standing explanation, plus why its answer is outstanding. Warning tone. */
   hints: string[]
-  /** Fixed choices, for a `choice` control. */
+  /** Quiet line under the label — "Optional" / "Prefilled…". Never a warning. */
+  note?: string
+  /** Fixed choices, for a `choice` control (a `when`-dependent list is resolved by then). */
   options?: readonly FieldChoice[]
-  /** Which of the dashboard's three trip cards this field belongs to (step 4 only). */
-  section?: TripSection
+  autoComplete?: string
+  /** Which of the step's sections this field belongs to. */
+  section: FormSection
 }
 
 /** The dashboard's checkpoint list, in the shape ui/combobox groups want. */
 const EVISA_COMBOBOX_GROUPS = EVISA_CHECKPOINT_GROUPS.map((group) => ({ ...group, items: group.options }))
 
 /**
- * The fields this card should ASK for: one per outstanding issue, de-duplicated, and
- * filtered through the step's own allowlist so a card can never write outside its step
- * (the server refuses it anyway — this keeps the refusal from ever being needed).
+ * Outstanding-issue hints, BY FIELD: the sentence that says why an answer is still needed.
+ *
+ * Filtered through the step's own allowlist, so a hint can never introduce a field the step
+ * does not own (the form is the only thing that decides what is rendered — see VISA_STEP_FORM).
  */
-function formSpecsFor(step: VisaDmStep, issues: string[], tr: Tr): FormSpec[] {
+function issueHintsFor(step: VisaDmStep, issues: string[], tr: Tr): Map<string, string[]> {
   const allowed = new Set<string>(VISA_DM_STEP_FIELDS[step] ?? [])
-  const specs = new Map<string, FormSpec>()
+  const hints = new Map<string, string[]>()
+  const outstanding = new Set<string>()
   for (const issue of issues) {
-    const mapped = ISSUE_FIELD[issue]
+    const mapped = VISA_ISSUE_FIELD[issue]
     if (!mapped || !allowed.has(mapped.field)) continue
-    const existing = specs.get(mapped.field)
-    const hint = mapped.hint ? tr(mapped.hint[0], mapped.hint[1]) : null
-    if (existing) {
-      if (hint && !existing.hints.includes(hint)) existing.hints.push(hint)
-      continue
-    }
-    specs.set(mapped.field, { field: mapped.field, control: mapped.control, hints: hint ? [hint] : [] })
+    outstanding.add(mapped.field)
+    if (!mapped.hint) continue
+    const hint = tr(mapped.hint[0], mapped.hint[1])
+    const existing = hints.get(mapped.field)
+    if (!existing) hints.set(mapped.field, [hint])
+    else if (!existing.includes(hint)) existing.push(hint)
   }
-  return [...specs.values()]
+  // ⚠️ Most `*_required` codes carry no sentence of their own — they used to need none,
+  // because the form held ONLY the missing fields. Now that a step renders all nineteen of
+  // them, "which one is still missing?" cannot be left to the eye: every outstanding field
+  // gets a warning line, its own if it has one and this one otherwise.
+  for (const field of outstanding) {
+    if (!hints.has(field)) hints.set(field, [tr('Still needed', 'Vẫn cần điền')])
+  }
+  return hints
 }
 
 /** A payload value as a form string. Numbers and yes/no are strings on the wire by design. */
@@ -1034,60 +1195,50 @@ export function VisaStepCard({ meta, info, kase, caseError, live, busy, onAct, o
   const [draft, setDraft] = useState<Record<string, string>>({})
 
   const issues = useMemo(() => (live ? stepIssues(kase, meta.step) : []), [live, kase, meta.step])
-  const specs = useMemo(() => formSpecsFor(meta.step, issues, tr), [meta.step, issues, tr])
-  // Step 2 is the "confirm what we read off your passport" page: its EDIT form offers every
-  // field the extraction filled in (meta.needsReview — names only), plus anything missing.
+  // Step 2 is the "confirm what we read off your passport" page: the card lists every field
+  // the extraction filled in (meta.needsReview — names only) above the form.
   const confirmFields = useMemo(() => {
     if (meta.step !== 2) return []
     const allowed = new Set<string>(VISA_DM_STEP_FIELDS[2] ?? [])
     return meta.needsReview.filter((name) => allowed.has(name))
   }, [meta.step, meta.needsReview])
 
-  /** Issue hints by field, so the trip form can still say WHY an answer is outstanding. */
-  const issueHints = useMemo(() => new Map(specs.map((spec) => [spec.field, spec.hints])), [specs])
+  /** Issue hints by field, so a field can still say WHY its answer is outstanding. */
+  const issueHints = useMemo(() => issueHintsFor(meta.step, issues, tr), [meta.step, issues, tr])
 
-  const editFields = useMemo((): FormSpec[] => {
-    // Step 4 is the dashboard's trip page in full (see VISA_TRIP_FORM) — the conditional
-    // follow-ups appear off the DRAFT, so a "yes" reveals its detail field immediately
-    // instead of after a save, a server revalidation and a fresh card.
-    if (meta.step === 4) {
-      const allowed = new Set<string>(VISA_DM_STEP_FIELDS[4] ?? [])
-      return VISA_TRIP_FORM
-        .filter((entry) => allowed.has(entry.field) && (!entry.when || entry.when(draft)))
-        .map((entry): FormSpec => ({
-          field: entry.field,
-          control: entry.control,
-          section: entry.section,
-          options: typeof entry.options === 'function' ? entry.options(draft) : entry.options,
-          hints: [...new Set([
-            ...(entry.hint ? [tr(entry.hint[0], entry.hint[1])] : []),
-            ...(issueHints.get(entry.field) ?? []),
-          ])],
-        }))
-    }
-    const seen = new Set(specs.map((s) => s.field))
-    const extra = confirmFields.filter((f) => !seen.has(f)).map((field): FormSpec => ({
-      field,
-      control: field === 'sex' ? 'sex' : field.endsWith('Date') || field === 'dateOfBirth' ? 'date' : 'text',
-      hints: [],
+  // ⚠️ THE WHOLE STEP, NOT THE GAPS. Every field the step owns is rendered and pre-filled from
+  // the applicant's own case, so a schema default is an answer they can see and change rather
+  // than a question nobody asked (see VISA_STEP_FORM). The conditional follow-ups resolve off
+  // the DRAFT, so a "yes" reveals its detail field immediately instead of after a save, a
+  // server revalidation and a fresh card.
+  const editFields = useMemo((): FormSpec[] => (
+    visaStepFormFields(meta.step, draft).map((entry): FormSpec => ({
+      field: entry.field,
+      control: entry.control,
+      section: entry.section,
+      // "Optional" and "still needed" cannot both be true of the same box — an outstanding
+      // answer silences the quiet note (localContact*: optional as a GROUP, required once one
+      // of the three is filled).
+      note: entry.note && !issueHints.has(entry.field) ? tr(NOTE_COPY[entry.note][0], NOTE_COPY[entry.note][1]) : undefined,
+      autoComplete: entry.autoComplete,
+      options: typeof entry.options === 'function' ? entry.options(draft) : entry.options,
+      hints: [...new Set([
+        ...(entry.hint ? [tr(entry.hint[0], entry.hint[1])] : []),
+        ...(issueHints.get(entry.field) ?? []),
+      ])],
     }))
-    return [...specs, ...extra]
-  }, [meta.step, draft, specs, confirmFields, issueHints, tr])
+  ), [meta.step, draft, issueHints, tr])
 
-  /** The dashboard's three trip cards, as runs of consecutive fields. One unnamed run elsewhere. */
+  /** Does this step hold answers the SCHEMA wrote rather than the applicant? Then say so. */
+  const hasPrefilled = useMemo(() => (VISA_STEP_FORM[meta.step] ?? []).some((entry) => entry.note === 'prefilled'), [meta.step])
+
+  /** The step's own sections, as runs of consecutive fields — a long form you can navigate. */
   const editSections = useMemo(() => {
-    const groups: Array<{ key: string; title: string | null; specs: FormSpec[] }> = []
+    const groups: Array<{ key: string; title: string; specs: FormSpec[] }> = []
     for (const spec of editFields) {
-      const key = spec.section ?? 'all'
       const last = groups[groups.length - 1]
-      if (last && last.key === key) last.specs.push(spec)
-      else {
-        groups.push({
-          key,
-          title: spec.section ? tr(TRIP_SECTION_TITLE[spec.section][0], TRIP_SECTION_TITLE[spec.section][1]) : null,
-          specs: [spec],
-        })
-      }
+      if (last && last.key === spec.section) last.specs.push(spec)
+      else groups.push({ key: spec.section, title: tr(SECTION_TITLE[spec.section][0], SECTION_TITLE[spec.section][1]), specs: [spec] })
     }
     return groups
   }, [editFields, tr])
@@ -1098,8 +1249,7 @@ export function VisaStepCard({ meta, info, kase, caseError, live, busy, onAct, o
     // the ones with no outstanding issue. The date cascade rewrites its siblings, and the
     // back-fill asks whether the start date is empty; a draft holding only the MISSING
     // fields would read a saved answer as blank and overwrite it.
-    const seed = meta.step === 4 ? VISA_TRIP_FORM.map((entry) => entry.field) : editFields.map((spec) => spec.field)
-    for (const field of seed) next[field] = fieldValue(kase, field)
+    for (const entry of VISA_STEP_FORM[meta.step] ?? []) next[entry.field] = fieldValue(kase, entry.field)
     setDraft(next)
     setEditing(true)
   }
@@ -1111,7 +1261,7 @@ export function VisaStepCard({ meta, info, kase, caseError, live, busy, onAct, o
     for (const spec of editFields) {
       if (!allowed.has(spec.field)) continue
       const value = visaSubmitValue(spec.field, draft[spec.field] ?? '')
-      // ONLY WHAT CHANGED. Step 4 now renders the whole trip page, and resending thirty
+      // ONLY WHAT CHANGED. Every step now renders its whole field set, and resending thirty
       // untouched answers on every save would put a full payload through the encrypted
       // write — and let one unrelated stale value fail the save with invalid_fields.
       if (value === fieldValue(kase, spec.field)) continue
@@ -1204,7 +1354,7 @@ export function VisaStepCard({ meta, info, kase, caseError, live, busy, onAct, o
         <ul className="mt-3 space-y-1 rounded-xl bg-warning/10 p-2.5 text-2xs leading-relaxed text-warning">
           {issues.map((issue) => {
             const doc = DOC_ISSUE_COPY[issue]
-            const mapped = ISSUE_FIELD[issue]
+            const mapped = VISA_ISSUE_FIELD[issue]
             return (
               <li key={issue}>
                 • {doc
@@ -1220,11 +1370,22 @@ export function VisaStepCard({ meta, info, kase, caseError, live, busy, onAct, o
 
       {editing && kase && (
         <div className="mt-3 space-y-4">
-          {editSections.map((section) => (
-            <div key={section.key} className="space-y-3">
-              {section.title && (
-                <p className="text-2xs font-bold uppercase tracking-wide text-ink-4">{section.title}</p>
+          {/* The dashboard's own prefill sentence, in one line. An answer the applicant never
+              gave must not READ like one they did — that is the whole reason these fields are
+              on screen at all. */}
+          {hasPrefilled && (
+            <p className="rounded-xl bg-tint p-2.5 text-2xs leading-relaxed text-body">
+              {tr(
+                'Some answers are already filled in with the most common ones. They are suggestions, not assumptions about you — change anything that is not right.',
+                'Một số câu trả lời đã được điền sẵn theo lựa chọn phổ biến nhất. Đó là gợi ý, không phải giả định về bạn — hãy sửa bất kỳ mục nào chưa đúng.',
               )}
+            </p>
+          )}
+          {editSections.map((section) => (
+            // A long step stays navigable by being SECTIONED, never by hiding fields: a
+            // collapsed panel is exactly the "never asked" failure this form exists to end.
+            <div key={section.key} className="space-y-3">
+              <p className="text-2xs font-bold uppercase tracking-wide text-ink-4">{section.title}</p>
               {section.specs.map((spec) => (
                 <VisaFieldControl
                   key={spec.field}
@@ -1239,7 +1400,10 @@ export function VisaStepCard({ meta, info, kase, caseError, live, busy, onAct, o
               ))}
             </div>
           ))}
-          <div className="flex flex-wrap gap-1.5">
+          {/* STICKY, because these forms are now long: on a phone the applicant must be able to
+              save from wherever they are in the card rather than scrolling back to the bottom.
+              Pulled to the card's edges so the bar reads as chrome, not as another field. */}
+          <div className="sticky bottom-0 -mx-3.5 flex flex-wrap gap-1.5 border-t border-border bg-card px-3.5 py-2.5">
             <Button variant="cta" size="none" disabled={busy} onClick={submitEdit} className="rounded-xl px-3 py-2 text-xs">
               {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : <Check className="h-3.5 w-3.5" aria-hidden />}
               {tr('Save and continue', 'Lưu và tiếp tục')}
@@ -1271,7 +1435,10 @@ export function VisaStepCard({ meta, info, kase, caseError, live, busy, onAct, o
               className={cn('rounded-xl px-3 py-2 text-xs', issues.length ? '' : 'font-bold text-accent-foreground')}
             >
               <PencilLine className="h-3.5 w-3.5" aria-hidden />
-              {issues.length ? tr('Fill these in', 'Điền các mục này') : tr('Change something', 'Sửa lại')}
+              {/* "Check every answer", not "Change something": with the whole step on screen
+                  the button opens answers the applicant has never seen, most of them prefilled
+                  — inviting a change implies they already agreed to what is in there. */}
+              {issues.length ? tr('Fill these in', 'Điền các mục này') : tr('Check every answer', 'Kiểm tra mọi câu trả lời')}
             </Button>
           )}
           {issues.length === 0 && meta.step !== 1 && (
@@ -1288,22 +1455,24 @@ export function VisaStepCard({ meta, info, kase, caseError, live, busy, onAct, o
         </div>
       )}
 
-      {/* The full dashboard wizard stays one tap away — the chat is the fast path, not a
-          cage. Same case, same encrypted row. */}
-      {info && (
-        <Link href="/dashboard/visa" className="mt-2 inline-flex items-center gap-1 text-2xs font-semibold text-accent-foreground hover:underline">
-          {tr('Open the full form instead', 'Mở biểu mẫu đầy đủ')}
-          <ArrowRight className="h-3 w-3" aria-hidden />
-        </Link>
-      )}
+      {/* ⚠️ NO ESCAPE HATCH TO A SECOND FORM — there isn't one any more. This used to link to
+          the dashboard wizard ("the chat is the fast path, not a cage"), which the owner
+          retired: "only 1 way should exist through the chat". A link to a deleted surface is
+          the loudest kind of dead end, and it sat on EVERY step card. */}
     </CardShell>
   )
 }
 
+/** The <input type> and keyboard each typed control asks for. Anything absent is plain text. */
+const INPUT_TYPE: Partial<Record<ControlKind, string>> = { date: 'date', number: 'number', email: 'email', tel: 'tel' }
+const INPUT_MODE: Partial<Record<ControlKind, React.HTMLAttributes<HTMLInputElement>['inputMode']>> = {
+  number: 'numeric', email: 'email', tel: 'tel',
+}
+
 /**
- * One answer. Text/date/number through ui/field + ui/input; the enums through ui/select;
- * the two border gates through ui/combobox, exactly as the dashboard's CheckpointCombobox —
- * a 80-entry checkpoint list is not a thing to type from memory on a phone.
+ * One answer. Text/date/number/email/phone through ui/field + ui/input; the enums through
+ * ui/select; the two border gates through ui/combobox, exactly as the dashboard's
+ * CheckpointCombobox — an 80-entry checkpoint list is not a thing to type from memory on a phone.
  */
 function VisaFieldControl({ spec, value, bounds, onChange }: {
   spec: FormSpec
@@ -1315,6 +1484,10 @@ function VisaFieldControl({ spec, value, bounds, onChange }: {
   const { tr } = useLanguage()
   const id = `visa-field-${spec.field}`
   const label = fieldLabel(spec.field, tr)
+  // A note is QUIET (this answer may stay as it is); a hint is a WARNING (this one may not).
+  const note = spec.note
+    ? <span className="text-2xs font-normal text-ink-4">{spec.note}</span>
+    : null
 
   if (spec.control === 'checkpoint') {
     return (
@@ -1322,6 +1495,7 @@ function VisaFieldControl({ spec, value, bounds, onChange }: {
       // dashboard's FormField uses around its own CheckpointCombobox.
       <label htmlFor={id} className="flex min-w-0 flex-col gap-1 text-xs font-semibold text-foreground">
         {label}
+        {note}
         {spec.hints.map((hint) => <span key={hint} className="text-2xs font-normal text-warning">{hint}</span>)}
         <Combobox
           items={EVISA_COMBOBOX_GROUPS}
@@ -1371,6 +1545,7 @@ function VisaFieldControl({ spec, value, bounds, onChange }: {
       // Select trigger is not one — an unregistered label emits a dangling htmlFor.
       <label htmlFor={id} className="flex min-w-0 flex-col gap-1 text-xs font-semibold text-foreground">
         {label}
+        {note}
         {spec.hints.map((hint) => <span key={hint} className="text-2xs font-normal text-warning">{hint}</span>)}
         <Select value={value || null} onValueChange={(next) => onChange(typeof next === 'string' ? next : '')}>
           <SelectTrigger id={id} className="min-h-11 w-full rounded-xl bg-card"><SelectValue placeholder={tr('Choose', 'Chọn')} /></SelectTrigger>
@@ -1385,6 +1560,7 @@ function VisaFieldControl({ spec, value, bounds, onChange }: {
   return (
     <Field className="gap-1">
       <FieldLabel className="text-xs font-semibold text-foreground">{label}</FieldLabel>
+      {note}
       {spec.hints.map((hint) => <span key={hint} className="text-2xs text-warning">{hint}</span>)}
       {spec.control === 'long' ? (
         <FieldControl
@@ -1407,8 +1583,12 @@ function VisaFieldControl({ spec, value, bounds, onChange }: {
             <Input
               id={id}
               variant="outline"
-              type={spec.control === 'date' ? 'date' : spec.control === 'number' ? 'number' : 'text'}
-              inputMode={spec.control === 'number' ? 'numeric' : undefined}
+              // The keyboard is part of the answer on a phone: a number pad for a number, an
+              // @-key for the email, a dial pad for a phone. autoComplete is granted ONLY where
+              // the form entry says so — i.e. only for the applicant's OWN email and phone.
+              type={INPUT_TYPE[spec.control] ?? 'text'}
+              inputMode={INPUT_MODE[spec.control]}
+              autoComplete={spec.autoComplete}
               // ⚠️ THE LEGAL WINDOW, CARRIED BY THE CONTROL. A date outside it cannot be
               // picked at all — the same min/max pair the dashboard's TripStep sets, and the
               // reason the applicant meets "an e-Visa covers at most 90 days" while choosing
@@ -1598,6 +1778,15 @@ export type VisaResendChipProps = {
   /** The last refusal CODE, or null. Rendered as a sentence — never a raw server string. */
   error: string | null
   onResend: () => void | Promise<void>
+  /**
+   * Render the BUTTON ALONE, for a caller that owns the row and the explanatory line.
+   *
+   * The owner asked for the chips "in one neat row". Three labelled buttons, each carrying
+   * its own helper sentence, stacked into three separate blocks above the composer — which
+   * read as three unrelated features rather than one set of choices, and pushed the composer
+   * down the screen on a phone.
+   */
+  compact?: boolean
   className?: string
 }
 
@@ -1622,7 +1811,7 @@ export type VisaResendChipProps = {
  * ⚠️ NO PII, as everywhere on this surface: this component renders a verb, a mode and an error
  * code. It never touches the case.
  */
-export function VisaResendChip({ info, isDesk, busy, error, onResend, className }: VisaResendChipProps) {
+export function VisaResendChip({ info, isDesk, busy, error, onResend, compact, className }: VisaResendChipProps) {
   const { tr } = useLanguage()
   // An admin takeover pauses the guided form for the APPLICANT — dm-thread refuses to author
   // a step card in 'admin' mode, so a tap could only come back as a 409 — and the chip says
@@ -1637,8 +1826,8 @@ export function VisaResendChip({ info, isDesk, busy, error, onResend, className 
   const paused = info.mode === 'admin' && !isDesk
 
   return (
-    <div className={cn('flex flex-col gap-1', className)}>
-      <div className="flex flex-wrap items-center gap-2">
+    <div className={cn(compact ? 'contents' : 'flex flex-col gap-1', className)}>
+      <div className={compact ? 'contents' : 'flex flex-wrap items-center gap-2'}>
         <Button
           variant="soft"
           size="none"
@@ -1654,7 +1843,7 @@ export function VisaResendChip({ info, isDesk, busy, error, onResend, className 
               and nothing failed here — the card just scrolled away. */}
           {tr('Send the form again', 'Gửi lại biểu mẫu')}
         </Button>
-        {!paused && (
+        {!paused && !compact && (
           <span className="min-w-0 text-2xs leading-relaxed text-ink-4">
             {isDesk
               ? tr('Puts the applicant’s current step back at the bottom.', 'Đưa bước hiện tại của người nộp xuống cuối.')
@@ -1662,14 +1851,16 @@ export function VisaResendChip({ info, isDesk, busy, error, onResend, className 
           </span>
         )}
       </div>
+      {/* basis-full in compact mode: the wrapper is display:contents, so these notes are flex
+          items of the CALLER row — without it they would sit between the chips. */}
       {paused && (
-        <p className="text-2xs leading-relaxed text-body">
+        <p className={cn('text-2xs leading-relaxed text-body', compact && 'basis-full')}>
           {tr('Paused while a specialist is in this chat.', 'Tạm dừng trong khi chuyên viên đang trong cuộc trò chuyện này.')}
         </p>
       )}
       {/* role="status" so a screen reader hears the refusal — the chip itself does not move. */}
       {error && (
-        <p role="status" className="flex items-start gap-1.5 text-2xs leading-relaxed text-warning">
+        <p role="status" className={cn('flex items-start gap-1.5 text-2xs leading-relaxed text-warning', compact && 'basis-full')}>
           <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden />
           {visaErrorCopy(error, tr)}
         </p>
@@ -1681,18 +1872,20 @@ export function VisaResendChip({ info, isDesk, busy, error, onResend, className 
 // ── The thread strip: mode + "get a person" ───────────────────────────────────────
 
 export function VisaThreadStrip({
-  info, busy, onAskHuman, className,
+  info, busy, onAskHuman, compact, className,
 }: {
   info: VisaThreadInfo
   busy: boolean
   onAskHuman: () => void | Promise<void>
+  /** Caller owns the row (see the composer chip row) — take a full line inside it. */
+  compact?: boolean
   className?: string
 }) {
   const { tr } = useLanguage()
 
   if (info.mode === 'admin') {
     return (
-      <div className={cn('flex items-start gap-2 text-2xs leading-relaxed text-body', className)}>
+      <div className={cn('flex items-start gap-2 text-2xs leading-relaxed text-body', compact && 'basis-full', className)}>
         <UserRound className="mt-px h-3.5 w-3.5 shrink-0 text-accent-foreground" aria-hidden />
         <span>{tr('An eno specialist has taken over this chat. Just write to them below.', 'Chuyên viên eno đã tiếp nhận cuộc trò chuyện này. Bạn cứ nhắn trực tiếp bên dưới.')}</span>
       </div>
@@ -1701,7 +1894,7 @@ export function VisaThreadStrip({
 
   if (info.mode === 'human_requested') {
     return (
-      <div className={cn('flex items-start gap-2 text-2xs leading-relaxed text-body', className)}>
+      <div className={cn('flex items-start gap-2 text-2xs leading-relaxed text-body', compact && 'basis-full', className)}>
         <ShieldCheck className="mt-px h-3.5 w-3.5 shrink-0 text-success" aria-hidden />
         <span>{tr('A person has been asked to look at this. You can keep filling the form while you wait.', 'Đã yêu cầu nhân viên xem hồ sơ này. Bạn vẫn có thể tiếp tục điền trong lúc chờ.')}</span>
       </div>
@@ -1709,7 +1902,7 @@ export function VisaThreadStrip({
   }
 
   return (
-    <div className={cn('flex items-center justify-between gap-2', className)}>
+    <div className={cn(compact ? 'contents' : 'flex items-center justify-between gap-2', className)}>
       <span className="min-w-0 truncate text-2xs text-ink-4">{tr('Guided by eno’s assistant', 'Được trợ lý eno hướng dẫn')}</span>
       <Button
         variant="soft"

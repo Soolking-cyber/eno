@@ -103,6 +103,20 @@ export const VISA_DM_STEP_ISSUES: Record<VisaDmStep, ReadonlySet<string>> = {
  *
  * This is the allowlist a DM step form renders and the vocabulary a `needsReview` array
  * draws from — never values, only names (see the metaJson contract in src/lib/messages.ts).
+ *
+ * ⚠️ A STEP RENDERS ALL OF ITS FIELDS, NOT JUST THE OUTSTANDING ONES (2026-07-22, when the
+ * dashboard wizard became the chat's only alternative and then stopped being one). A field
+ * carrying a schema DEFAULT — religion, passportType, every yes/no declaration, purposeOfEntry,
+ * entryGate/exitGate, stayLengthDays, the expense fields — never produces a validation issue,
+ * so an issue-driven card never asked it and the applicant shipped the default as if it were
+ * their answer. VISA_STEP_FORM in src/components/marketplace/visa-cards.tsx renders each of
+ * these lists in full, pre-filled; visa-cards.test.ts fails the build if a name here is not
+ * reachable in the chat. Adding a field to a step is therefore a promise to ASK for it.
+ * (The single exemption is step 1's aiDocumentProcessingConsent, which is not a question: the
+ * upload route stamps it when the applicant sends the photo this step exists to collect.)
+ *
+ * Visible ≠ required: completeness is still validateVisaForReview's alone, so a defaulted
+ * field is shown and editable but never blocks the step (the owner's launch-lenience policy).
  */
 export const VISA_DM_STEP_FIELDS: Record<VisaDmStep, readonly string[]> = {
   // The uploads themselves live in visa_documents; the one payload field this step owns

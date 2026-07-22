@@ -5,6 +5,7 @@ import Link from 'next/link'
 
 import { useParams } from 'next/navigation'
 import { useAuth } from '@/context/auth-context'
+import { cn } from '@/lib/utils'
 import { useLanguage } from '@/context/language-context'
 import { useChat } from '@/context/chat-context'
 import { SignInPrompt } from '@/components/marketplace/account-actions'
@@ -74,7 +75,7 @@ function conciergeErrorCopy(code: string | undefined, tr: Tr): string {
  * existing VisaThreadStrip banner instead.
  */
 function VisaAssistChips({
-  armed, thinking, busy, error, onToggleConcierge, onAskHuman, className,
+  armed, thinking, busy, error, onToggleConcierge, onAskHuman, compact, className,
 }: {
   armed: boolean
   thinking: boolean
@@ -82,12 +83,14 @@ function VisaAssistChips({
   error: string | null
   onToggleConcierge: () => void
   onAskHuman: () => void | Promise<void>
+  /** Buttons only — the caller owns the row and the single explanatory line under it. */
+  compact?: boolean
   className?: string
 }) {
   const { tr } = useLanguage()
   return (
-    <div className={`flex flex-col gap-1 ${className ?? ''}`}>
-      <div className="flex flex-wrap items-center gap-2">
+    <div className={compact ? 'contents' : `flex flex-col gap-1 ${className ?? ''}`}>
+      <div className={compact ? 'contents' : 'flex flex-wrap items-center gap-2'}>
         {/* "name is Eno concierge" (owner) — the name is the product, identical in both
             languages, so tr() carries the same string twice rather than translating it. */}
         <Button
@@ -116,16 +119,23 @@ function VisaAssistChips({
           {tr('Request a person', 'Yêu cầu nhân viên')}
         </Button>
       </div>
-      <p className="text-2xs leading-relaxed text-ink-4">
-        {thinking
-          ? tr('Eno concierge is reading your application…', 'Eno concierge đang xem hồ sơ của bạn…')
-          : armed
-            ? tr('Ask below and Eno concierge answers here in the chat.', 'Hãy hỏi bên dưới, Eno concierge sẽ trả lời ngay trong cuộc trò chuyện.')
-            : tr('Eno concierge is an AI assistant for this application. A person can take over any time.', 'Eno concierge là trợ lý AI cho hồ sơ này. Nhân viên có thể tiếp nhận bất cứ lúc nào.')}
-      </p>
+      {/* ONE line for the whole row. The idle sentence used to explain what the two buttons
+          already say ("Eno concierge is an AI assistant… A person can take over any time"), so
+          in compact mode it is dropped entirely — the ACTIVE states still speak, because
+          "armed" and "thinking" are states a label cannot show. basis-full keeps it on its own
+          line inside the caller's flex row. */}
+      {(!compact || thinking || armed) && (
+        <p className={cn('text-2xs leading-relaxed text-ink-4', compact && 'basis-full')}>
+          {thinking
+            ? tr('Eno concierge is reading your application…', 'Eno concierge đang xem hồ sơ của bạn…')
+            : armed
+              ? tr('Ask below and Eno concierge answers here in the chat.', 'Hãy hỏi bên dưới, Eno concierge sẽ trả lời ngay trong cuộc trò chuyện.')
+              : tr('Eno concierge is an AI assistant for this application. A person can take over any time.', 'Eno concierge là trợ lý AI cho hồ sơ này. Nhân viên có thể tiếp nhận bất cứ lúc nào.')}
+        </p>
+      )}
       {/* role="status" so a screen reader hears the refusal — the chips do not move. */}
       {error && (
-        <p role="status" className="flex items-start gap-1.5 text-2xs leading-relaxed text-warning">
+        <p role="status" className={cn('flex items-start gap-1.5 text-2xs leading-relaxed text-warning', compact && 'basis-full')}>
           <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden />
           {conciergeErrorCopy(error, tr)}
         </p>
@@ -1084,34 +1094,37 @@ export default function ThreadPage() {
               in 'ai' the pair is offered; in 'human_requested'/'admin' the concierge chip does
               not exist at all and VisaThreadStrip's banner explains who is answering instead
               (it renders "Talk to a person" only in 'ai', so the two never double up). */}
-          {visaInfo && iAmApplicant && (conciergeAvailable ? (
-            <VisaAssistChips
-              armed={conciergeArmed}
-              thinking={conciergeBusy}
-              busy={visaBusy}
-              error={conciergeError}
-              onToggleConcierge={toggleConcierge}
-              onAskHuman={askVisaHuman}
-              className="px-4 pt-1.5"
-            />
-          ) : (
-            <VisaThreadStrip info={visaInfo} busy={visaBusy} onAskHuman={askVisaHuman} className="px-4 pt-1.5" />
-          ))}
-
-          {/* The way back to a form that scrolled out of reach. Deliberately mounted by the
-              COMPOSER — the one part of a chat that is always on screen — and not next to the
-              card, which is the thing that got lost. BOTH SEATS: the owner asked for the desk
-              ("admin can send visa application form from chip if the original one is way up in
-              conversation"), and the applicant scrolled past the same card. */}
+          {/* ⚠️ ONE ROW, ONE EXPLANATION (owner: "also put the chips in one neat row"). These
+              used to be two stacked blocks, each with its own helper sentence, plus the resend
+              chip's block below — three paragraphs of chrome above the composer on a phone, and
+              they read as three separate features instead of one set of choices. The row is
+              owned HERE; VisaAssistChips and VisaResendChip both render in `compact` mode
+              (display:contents), so their buttons become items of this flex row while their
+              own notes wrap onto a line of their own. */}
           {visaInfo && (
-            <VisaResendChip
-              info={visaInfo}
-              isDesk={!!thread?.iAmSeller}
-              busy={visaBusy}
-              error={visaResendError}
-              onResend={resendVisaCard}
-              className="px-4 pt-1.5"
-            />
+            <div className="flex flex-wrap items-center gap-2 px-4 pt-1.5">
+              {iAmApplicant && (conciergeAvailable ? (
+                <VisaAssistChips
+                  armed={conciergeArmed}
+                  thinking={conciergeBusy}
+                  busy={visaBusy}
+                  error={conciergeError}
+                  onToggleConcierge={toggleConcierge}
+                  onAskHuman={askVisaHuman}
+                  compact
+                />
+              ) : (
+                <VisaThreadStrip info={visaInfo} busy={visaBusy} onAskHuman={askVisaHuman} compact />
+              ))}
+              <VisaResendChip
+                info={visaInfo}
+                isDesk={!!thread?.iAmSeller}
+                busy={visaBusy}
+                error={visaResendError}
+                onResend={resendVisaCard}
+                compact
+              />
+            </div>
           )}
 
           {/* Quick replies — seller: the 3 endless questions answered in one tap;
