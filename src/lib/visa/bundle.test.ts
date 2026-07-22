@@ -98,7 +98,7 @@ vi.mock('@/lib/visa/records', () => ({
   },
 }))
 
-import { buildVisaHandoverBundle, visaCaseRef, VISA_SHEET_SECTIONS, type VisaBundleCase } from './bundle'
+import { buildVisaHandoverBundle, visaCaseRef, visaPackReference, VISA_SHEET_SECTIONS, type VisaBundleCase } from './bundle'
 import { visaPayloadSchema, type VisaPayload } from './schema'
 import { GET } from '@/app/api/visa/admin/applications/[id]/bundle/route'
 
@@ -106,7 +106,13 @@ import { GET } from '@/app/api/visa/admin/applications/[id]/bundle/route'
 // recognizable byte string is more useful here than a valid image.
 const JPEG_BYTES = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3, 4, 0xff, 0xd9])
 const CASE_ID = '3f2a91bc-1111-4222-8333-444455556666'
-const REF = '3f2a91bc'
+/** The human case number stored on visa_applications.reference. */
+const REFERENCE = 'EV-1042'
+/** The folder every pack in this file is built into. */
+const PACK = `eno-visa-${REFERENCE}`
+/** The pre-reference naming: first 8 hex of the uuid. Still the fallback for a row that
+ *  has no reference, which is the only reason it is still here. */
+const UUID_REF = '3f2a91bc'
 const GENERATED_AT = new Date('2026-07-22T03:15:00.000Z') // 10:15 in Vietnam
 
 /**
@@ -150,6 +156,7 @@ function fixturePayload(): VisaPayload {
 function fixtureCase(overrides: Partial<VisaBundleCase> = {}): VisaBundleCase {
   return {
     applicationId: CASE_ID,
+    reference: REFERENCE,
     status: 'ready_for_review',
     payload: fixturePayload(),
     documents: [
@@ -177,8 +184,10 @@ function packEntries(zip: Uint8Array): Record<string, Uint8Array> {
 
 function workbookParts(zip: Uint8Array): Record<string, Uint8Array> {
   const files = packEntries(zip)
-  const sheet = files[`eno-visa-${REF}/applicant.xlsx`]
-  expect(sheet).toBeDefined()
+  // Folder-agnostic on purpose: the pack folder is named from the CASE REFERENCE, and this
+  // file reads both reference-named packs and the uuid-fallback ones.
+  const sheet = Object.entries(files).find(([name]) => name.endsWith('/applicant.xlsx'))?.[1]
+  if (!sheet) throw new Error('the pack contains no applicant.xlsx')
   return unzipSync(sheet)
 }
 
@@ -211,23 +220,25 @@ describe('buildVisaHandoverBundle', () => {
   it('is one folder: 2 images, the spreadsheet, and a cover note', () => {
     const bundle = buildVisaHandoverBundle(fixtureCase())
     expect(Object.keys(packEntries(bundle.bytes)).sort()).toEqual([
-      `eno-visa-${REF}/README.txt`,
-      `eno-visa-${REF}/applicant.xlsx`,
-      `eno-visa-${REF}/passport.jpg`,
-      `eno-visa-${REF}/portrait.jpg`,
+      `${PACK}/README.txt`,
+      `${PACK}/applicant.xlsx`,
+      `${PACK}/passport.jpg`,
+      `${PACK}/portrait.jpg`,
     ])
     expect(bundle.missing).toEqual([])
   })
 
   it('stores the image bytes verbatim — the pack is the original files', () => {
     const files = packEntries(buildVisaHandoverBundle(fixtureCase()).bytes)
-    expect(Array.from(files[`eno-visa-${REF}/passport.jpg`])).toEqual(Array.from(JPEG_BYTES))
-    expect(Array.from(files[`eno-visa-${REF}/portrait.jpg`])).toEqual(Array.from(JPEG_BYTES))
+    expect(Array.from(files[`${PACK}/passport.jpg`])).toEqual(Array.from(JPEG_BYTES))
+    expect(Array.from(files[`${PACK}/portrait.jpg`])).toEqual(Array.from(JPEG_BYTES))
   })
 
   it('names the file from the case reference and the date — never from applicant data', () => {
     const bundle = buildVisaHandoverBundle(fixtureCase())
-    expect(bundle.filename).toBe(`eno-visa-${REF}-2026-07-22.zip`)
+    // Spelled out rather than composed from PACK: this is the exact string that lands in
+    // a Content-Disposition header and in the desk's download history.
+    expect(bundle.filename).toBe('eno-visa-EV-1042-2026-07-22.zip')
     // The whole point of the naming rule: nothing identifying may reach a download history.
     for (const secret of ['X1234567', 'OBRIEN', 'O&', 'MARY', 'mary@example.com', 'ID-556677']) {
       expect(bundle.filename).not.toContain(secret)
@@ -238,7 +249,7 @@ describe('buildVisaHandoverBundle', () => {
   it('uses the VIETNAM calendar day in the filename, not the server day', () => {
     // 22:30 UTC on the 21st is already 05:30 on the 22nd in Ho Chi Minh City.
     const bundle = buildVisaHandoverBundle(fixtureCase({ generatedAt: new Date('2026-07-21T22:30:00.000Z') }))
-    expect(bundle.filename).toBe(`eno-visa-${REF}-2026-07-22.zip`)
+    expect(bundle.filename).toBe(`${PACK}-2026-07-22.zip`)
   })
 
   it('is reproducible — same case, same bytes', () => {
@@ -301,7 +312,7 @@ describe('the spreadsheet carries every answer', () => {
 
   it('carries the case reference, the product bought and the requested dates', () => {
     const rows = sheetRows(buildVisaHandoverBundle(fixtureCase()).bytes)
-    expect(lookup(rows, 'Case reference')).toBe(REF)
+    expect(lookup(rows, 'Case reference')).toBe(REFERENCE)
     expect(lookup(rows, 'Full case id')).toBe(CASE_ID)
     expect(lookup(rows, 'Case status')).toBe('Ready for review')
     expect(lookup(rows, 'Product — entry type')).toBe('Multiple entry')
@@ -383,13 +394,13 @@ describe('a missing document degrades, never throws', () => {
     }))
     const files = packEntries(bundle.bytes)
     expect(Object.keys(files).sort()).toEqual([
-      `eno-visa-${REF}/README.txt`,
-      `eno-visa-${REF}/applicant.xlsx`,
-      `eno-visa-${REF}/passport.jpg`,
+      `${PACK}/README.txt`,
+      `${PACK}/applicant.xlsx`,
+      `${PACK}/passport.jpg`,
     ])
     expect(bundle.missing).toEqual([{ kind: 'portrait', reason: 'not_uploaded' }])
     expect(lookup(sheetRows(bundle.bytes), 'Portrait photo')).toContain('NOT IN THIS PACK')
-    const readme = strFromU8(files[`eno-visa-${REF}/README.txt`])
+    const readme = strFromU8(files[`${PACK}/README.txt`])
     expect(readme).toContain('MISSING')
     expect(readme).toContain('Portrait photo')
   })
@@ -408,8 +419,8 @@ describe('a missing document degrades, never throws', () => {
   it('survives a case with no documents at all', () => {
     const bundle = buildVisaHandoverBundle(fixtureCase({ documents: [] }))
     expect(Object.keys(packEntries(bundle.bytes)).sort()).toEqual([
-      `eno-visa-${REF}/README.txt`,
-      `eno-visa-${REF}/applicant.xlsx`,
+      `${PACK}/README.txt`,
+      `${PACK}/applicant.xlsx`,
     ])
     expect(bundle.missing.map((item) => item.kind).sort()).toEqual(['passport', 'portrait'])
   })
@@ -434,13 +445,57 @@ describe('a missing document degrades, never throws', () => {
         { kind: 'portrait', mimeType: 'image/jpeg', bytes: JPEG_BYTES },
       ],
     })).bytes)
-    expect(Array.from(files[`eno-visa-${REF}/passport.jpg`])).toEqual([9, 9, 9, 9])
+    expect(Array.from(files[`${PACK}/passport.jpg`])).toEqual([9, 9, 9, 9])
+  })
+})
+
+// ── 3½ · What the pack is NAMED after ─────────────────────────────────────────────
+//
+// The folder, the zip and the "Case reference" cell all read one string, and it reaches a
+// filesystem path and a Content-Disposition header. Two properties matter: it is the
+// HUMAN case number when the row has one, and it is a CLOSED CHARACTER SET always.
+
+describe('visaPackReference', () => {
+  it('is the stored human case number', () => {
+    expect(visaPackReference({ applicationId: CASE_ID, reference: 'EV-1042' })).toBe('EV-1042')
+    expect(visaPackReference({ applicationId: CASE_ID, reference: 'EV-1001' })).toBe('EV-1001')
+  })
+
+  it('canonicalises a reference that arrived messy', () => {
+    // Same case, however it was stored or pasted: lower case, stray padding, no hyphen.
+    for (const stored of [' ev-1042 ', 'EV1042', 'ev 1042', '\uFEFFEV-1042']) {
+      expect(visaPackReference({ applicationId: CASE_ID, reference: stored })).toBe('EV-1042')
+    }
+  })
+
+  it('falls back to the uuid slice for a row written before references existed', () => {
+    for (const missing of [null, undefined, '']) {
+      expect(visaPackReference({ applicationId: CASE_ID, reference: missing })).toBe(UUID_REF)
+    }
+  })
+
+  it('⚠️ REFUSES anything that is not a reference — a path is not a case number', () => {
+    // Each of these would be a traversal, a broken archive or a header injection if it
+    // were interpolated into the folder name. All degrade to the uuid slice instead.
+    const hostile = [
+      '../../etc/passwd', 'EV-1042/../..', 'EV-1042\r\nX-Injected: 1', 'EV-1042"; rm -rf /',
+      'EV-١٠٤٢', 'EV-1042 X1234567', 'MARY JANE', 'EV--1042', 'EV-0042', 'EV-999',
+    ]
+    for (const reference of hostile) {
+      expect(visaPackReference({ applicationId: CASE_ID, reference }), reference).toBe(UUID_REF)
+    }
+  })
+
+  it('keeps the pack ASCII-safe even when the stored reference is not', () => {
+    const bundle = buildVisaHandoverBundle(fixtureCase({ reference: 'EV-1042/../../secret' }))
+    expect(bundle.filename).toBe(`eno-visa-${UUID_REF}-2026-07-22.zip`)
+    for (const entry of bundle.entries) expect(entry).toMatch(/^[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+$/)
   })
 })
 
 describe('visaCaseRef', () => {
-  it('is the first 8 hex of the id — the string the admin case page prints', () => {
-    expect(visaCaseRef(CASE_ID)).toBe(REF)
+  it('is the first 8 hex of the id — the pre-reference naming, kept as the fallback', () => {
+    expect(visaCaseRef(CASE_ID)).toBe(UUID_REF)
     expect(visaCaseRef('ABCDEF01-2222-4333-8444-555566667777')).toBe('abcdef01')
   })
   it('never returns an empty or non-ascii reference', () => {
@@ -450,6 +505,17 @@ describe('visaCaseRef', () => {
 })
 
 // ── 4 · THE ADMIN GATE ────────────────────────────────────────────────────────────
+//
+// ⚠️ THESE PACKS ARE STILL UUID-NAMED, and that is a WIRING GAP, not a decision. The
+// builder names a pack from `kase.reference`, but the route does not read the column yet:
+// it constructs its VisaBundleCase field by field (route.ts, `buildVisaHandoverBundle({
+// applicationId: application.id, … })`) and `reference` is not among them. Closing it is
+// two lines OUTSIDE this file — `reference: string` on VisaApplicationRow
+// (src/lib/visa-admin.ts, plus the column in QUEUE_COLUMNS) and `reference:
+// application.reference` in the route — after which:
+//   · `h.state.application` gains `reference: REFERENCE`, and
+//   · the six `eno-visa-${UUID_REF}` entry expectations below become `${PACK}`.
+// Asserting the uuid form is what the route DOES today; it is not what it should do.
 
 describe('GET /api/visa/admin/applications/[id]/bundle', () => {
   const call = (id = CASE_ID) => GET(new Request(`https://eno.vn/api/visa/admin/applications/${id}/bundle`), { params: Promise.resolve({ id }) })
@@ -493,14 +559,16 @@ describe('GET /api/visa/admin/applications/[id]/bundle', () => {
     expect(res.headers.get('content-type')).toBe('application/zip')
     expect(res.headers.get('cache-control')).toContain('no-store')
     const disposition = res.headers.get('content-disposition') || ''
-    expect(disposition).toMatch(/^attachment; filename="eno-visa-[0-9a-f]{8}-\d{4}-\d{2}-\d{2}\.zip"$/)
+    // Either naming is acceptable to the HEADER contract (that is the point of the
+    // normalizer); what must never vary is the closed character set and the date.
+    expect(disposition).toMatch(/^attachment; filename="eno-visa-(EV-\d+|[0-9a-f]{8})-\d{4}-\d{2}-\d{2}\.zip"$/)
     expect(disposition).not.toContain('X1234567')
     const files = unzipSync(new Uint8Array(await res.arrayBuffer()))
     expect(Object.keys(files).sort()).toEqual([
-      `eno-visa-${REF}/README.txt`,
-      `eno-visa-${REF}/applicant.xlsx`,
-      `eno-visa-${REF}/passport.jpg`,
-      `eno-visa-${REF}/portrait.jpg`,
+      `eno-visa-${UUID_REF}/README.txt`,
+      `eno-visa-${UUID_REF}/applicant.xlsx`,
+      `eno-visa-${UUID_REF}/passport.jpg`,
+      `eno-visa-${UUID_REF}/portrait.jpg`,
     ])
     // Fetched SERVER-SIDE: the client got bytes, never a URL to a passport photo.
     expect(h.state.downloads).toBe(2)
@@ -536,7 +604,7 @@ describe('GET /api/visa/admin/applications/[id]/bundle', () => {
     const res = await call()
     expect(res.status).toBe(200)
     const files = unzipSync(new Uint8Array(await res.arrayBuffer()))
-    expect(Object.keys(files).sort()).toEqual([`eno-visa-${REF}/README.txt`, `eno-visa-${REF}/applicant.xlsx`])
+    expect(Object.keys(files).sort()).toEqual([`eno-visa-${UUID_REF}/README.txt`, `eno-visa-${UUID_REF}/applicant.xlsx`])
     expect(h.state.audits[0].metadata).toEqual({ files: 2, missing: ['passport:unavailable', 'portrait:unavailable'] })
   })
 

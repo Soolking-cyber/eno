@@ -2,6 +2,7 @@ import 'server-only'
 import { strToU8, zipSync, type Zippable } from 'fflate'
 // Relative specifiers (the crypto.ts / dm-steps.ts idiom): this module is unit-tested and
 // the alias adds nothing here. Same module either way.
+import { normalizeVisaReference } from './reference'
 import { visaPayloadSchema, type VisaPayload } from './schema'
 import { parseVisaEntryType, parseVisaSpeedCode, VISA_SPEED_SPECS } from './speed'
 
@@ -24,10 +25,20 @@ import { parseVisaEntryType, parseVisaSpeedCode, VISA_SPEED_SPECS } from './spee
 // makes "nothing is ever written to disk" a property of the code rather than a promise.
 //
 // ⚠️ NO APPLICANT VALUE MAY REACH A FILENAME. The zip and its folder are named from the
-// case reference (the first 8 hex of the application uuid — the same string the admin case
-// page prints) and the generation date. That is enough for a desk juggling several cases
-// and it puts neither a passport number nor a name into a download history, an email
-// subject, or a screen-share.
+// CASE REFERENCE (`eno-visa-EV-1042`) and the generation date. That is enough for a desk
+// juggling several cases and it puts neither a passport number nor a name into a download
+// history, an email subject, or a screen-share.
+//
+// The reference is the human-facing case number stored on visa_applications.reference
+// (src/lib/visa/reference.ts) — it replaced the first-8-hex-of-the-uuid slice, which
+// nobody could read out loud and which carried no order. Two rules follow:
+//   · It is NORMALIZED, never interpolated raw. `visaPackReference` runs the stored value
+//     through the parser, so what lands in a path and in a Content-Disposition header can
+//     only ever be `EV` + `-` + digits — a slash, a quote or a newline in that column
+//     cannot become a zip entry name or a header injection.
+//   · A row without one FALLS BACK to the old uuid slice rather than failing. After
+//     scripts/visa-reference-column.mjs runs there are no such rows, but the pack is the
+//     desk's tool for looking at broken cases and must never be the thing that breaks.
 //
 // ── WHY THESE TWO LIBRARIES ───────────────────────────────────────────────────────
 // ZIP: `fflate` (MIT, ZERO dependencies, pure JS — no native build, so it needs no
@@ -63,6 +74,9 @@ export type VisaBundleProduct = { entryType?: unknown; speed?: unknown } | null
 
 export type VisaBundleCase = {
   applicationId: string
+  /** visa_applications.reference — the human case number (`EV-1042`). Optional so a row
+   *  written before scripts/visa-reference-column.mjs ran still produces a pack. */
+  reference?: string | null
   status: string
   payload: VisaPayload
   documents: VisaBundleDocument[]
@@ -120,10 +134,27 @@ function packDay(at: Date): string {
   return /^\d{4}-\d{2}-\d{2}$/.test(parts) ? parts : '0000-00-00'
 }
 
-/** The case reference the admin page already prints: first 8 hex of the uuid. */
+/**
+ * LEGACY fallback only: the first 8 hex of the uuid, which is what named packs before
+ * visa_applications.reference existed. Kept because a pack must still build for a row that
+ * has no reference — see `visaPackReference`.
+ */
 export function visaCaseRef(applicationId: string): string {
   const hex = applicationId.toLowerCase().replace(/[^0-9a-f]/g, '')
   return (hex.slice(0, 8) || 'unknown').padEnd(8, '0')
+}
+
+/**
+ * The string this pack is named after: the stored human case number when the row has a
+ * valid one, the uuid slice when it does not.
+ *
+ * ⚠️ THE NORMALIZER IS THE SANITISER. The return value goes into zip entry paths and into
+ * the download's Content-Disposition, so it must be a closed character set. Anything the
+ * reference parser refuses — a slash, a quote, a newline, a non-ASCII digit — degrades to
+ * the uuid slice instead of travelling into a header.
+ */
+export function visaPackReference(kase: Pick<VisaBundleCase, 'applicationId' | 'reference'>): string {
+  return normalizeVisaReference(kase.reference) ?? visaCaseRef(kase.applicationId)
 }
 
 const sentence = (value: string) => (value ? value.charAt(0).toUpperCase() + value.slice(1) : value)
@@ -326,7 +357,7 @@ function productWords(product: VisaBundleProduct, payload: VisaPayload): { entry
  */
 function visaSheetRows(kase: VisaBundleCase, documents: DocumentPlan): VisaSheetRow[] {
   const payload = kase.payload
-  const ref = visaCaseRef(kase.applicationId)
+  const ref = visaPackReference(kase)
   const product = productWords(kase.product, payload)
   const rows: VisaSheetRow[] = [
     { kind: 'title', label: 'eno.vn — e-Visa application handover' },
@@ -527,7 +558,7 @@ function planDocuments(documents: VisaBundleDocument[]): DocumentPlan {
  * which is where a forwarded zip usually gets opened.
  */
 function readmeText(kase: VisaBundleCase, plan: DocumentPlan, entries: string[]): string {
-  const ref = visaCaseRef(kase.applicationId)
+  const ref = visaPackReference(kase)
   const lines = [
     'eno.vn — e-Visa application handover pack',
     'Bộ hồ sơ e-Visa chuyển cho đại lý nộp',
@@ -577,7 +608,7 @@ export function buildVisaHandoverBundle(kase: VisaBundleCase): VisaBundle {
   const payload = visaPayloadSchema.parse(kase.payload)
   const normalized: VisaBundleCase = { ...kase, payload }
   const plan = planDocuments(kase.documents)
-  const ref = visaCaseRef(kase.applicationId)
+  const ref = visaPackReference(kase)
   const folder = `eno-visa-${ref}`
   const rows = visaSheetRows(normalized, plan)
   const mtime = kase.generatedAt

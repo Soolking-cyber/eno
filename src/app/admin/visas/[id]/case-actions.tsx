@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { Download, Headset, Loader2, Sparkles } from 'lucide-react'
+import { CheckCircle2, Download, Headset, Loader2, Sparkles, Upload } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { transitionVisaStatus } from './actions'
@@ -15,11 +15,12 @@ import { transitionVisaStatus } from './actions'
 // The handover download sits in the SAME row and is always rendered — a case with no
 // legal transitions left (approved / rejected / cancelled) is still one an agent may need
 // the pack for, which is why this component no longer returns null on an empty `actions`.
-export function VisaCaseActions({ id, actions }: { id: string; actions: Array<[string, string]> }) {
+export function VisaCaseActions({ id, actions, hasResult }: { id: string; actions: Array<[string, string]>; hasResult: boolean }) {
   const [pending, startTransition] = useTransition()
   return (
     <div className="flex flex-wrap gap-2">
       <VisaHandoverDownload id={id} />
+      <VisaResultUpload id={id} hasResult={hasResult} />
       {actions.map(([status, label]) => (
         <Button
           key={status}
@@ -96,6 +97,103 @@ function VisaHandoverDownload({ id }: { id: string }) {
       {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
       Download handover pack
     </Button>
+  )
+}
+
+/**
+ * THE FINISHED VISA — the desk's last action on a case.
+ *
+ * One POST does three things (/api/visa/admin/applications/[id]/result): stores the PDF in
+ * the private bucket, posts the download card in the applicant's chat, and emails it to them
+ * with the thank-you. The route re-checks admin itself; this page's gate proves nothing
+ * about the caller of that endpoint.
+ *
+ * ⚠️ IT CAN ONLY EVER HAPPEN ONCE (owner: "should be hard cap on reuploads only 1 time
+ * result can be uploaded by admin"). Once a result exists the control renders SPENT — a
+ * disabled row with a tick, not a button that looks live and can only 409. Offering a tap
+ * that cannot succeed is the specific thing the rule asks us not to do. The refusal still
+ * exists underneath (the route checks before it stores, and a partial unique index decides
+ * a double-click), so this is presentation, never the enforcement.
+ *
+ * ⚠️ NO REPLACE, NO OVERWRITE, and none may be added. A wrong PDF is fixed by an admin
+ * deleting the visa_documents row and its storage object directly — see
+ * scripts/visa-result-unique.mjs. That is why the file input accepts only PDFs and the
+ * server re-checks the magic bytes: the moment of upload is the last moment anything can be
+ * refused.
+ *
+ * ⚠️ It does NOT change the case status. Uploading is what unlocks the existing "approved"
+ * transition (src/lib/visa-admin.ts refuses to approve a case with no result document);
+ * the operator presses that separately, in the same row.
+ */
+function VisaResultUpload({ id, hasResult }: { id: string; hasResult: boolean }) {
+  const router = useRouter()
+  const inputRef = useRef<HTMLInputElement>(null)
+  const [pending, setPending] = useState(false)
+
+  if (hasResult) {
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-lg border border-success/40 bg-success/10 px-3 py-1.5 text-xs font-bold text-success">
+        <CheckCircle2 className="h-4 w-4" aria-hidden />
+        Visa PDF delivered
+      </span>
+    )
+  }
+
+  const upload = async (file: File) => {
+    if (pending) return
+    setPending(true)
+    try {
+      const body = new FormData()
+      body.append('file', file)
+      const res = await fetch(`/api/visa/admin/applications/${id}/result`, { method: 'POST', body })
+      const data = (await res.json().catch(() => null)) as
+        | { error?: string; card?: string; email?: string; audited?: boolean }
+        | null
+      if (!res.ok) {
+        toast.error(`Upload failed: ${(data?.error || 'unknown error').replaceAll('_', ' ')}`)
+        return
+      }
+      // The upload SUCCEEDED even if the card or the email did not — the route says which,
+      // and the operator must be told rather than shown a flat "done". There is no retry
+      // for the upload itself, so a half-landed delivery is a thing a human follows up.
+      const missed = [
+        data?.card === 'posted' ? null : 'chat card',
+        data?.email === 'sent' ? null : `email (${(data?.email || 'unknown').replaceAll('_', ' ')})`,
+      ].filter(Boolean)
+      if (missed.length) toast.warning(`Visa stored, but ${missed.join(' and ')} did not go out`)
+      else toast.success('Visa delivered — card posted and emailed')
+      // The control is rendered from the server's document list; re-read it rather than
+      // holding a second copy of "has a result" on the client.
+      router.refresh()
+    } catch {
+      toast.error('Upload failed: network error')
+    } finally {
+      setPending(false)
+      // Same file re-picked after a refusal must re-fire `change`.
+      if (inputRef.current) inputRef.current.value = ''
+    }
+  }
+
+  return (
+    <>
+      {/* A file input is the platform control for picking a file; Base UI ships no
+          equivalent, and a hidden input driven by a real <Button> keeps the brand CTA. */}
+      <input
+        ref={inputRef}
+        type="file"
+        accept="application/pdf,.pdf"
+        className="sr-only"
+        id={`visa-result-${id}`}
+        onChange={(e) => {
+          const file = e.target.files?.[0]
+          if (file) void upload(file)
+        }}
+      />
+      <Button type="button" variant="cta" size="sm" disabled={pending} onClick={() => inputRef.current?.click()}>
+        {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+        Upload visa PDF
+      </Button>
+    </>
   )
 }
 

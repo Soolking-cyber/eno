@@ -29,8 +29,9 @@ import { ChatComposer, type ChatComposerHandle } from '@/components/marketplace/
 import { useSafeBack } from '@/lib/safe-back'
 import { FirstContactNote, OffPlatformWarning, findOffPlatformMessageId } from '@/components/marketplace/chat-safety-note'
 import {
-  VisaCheckoutCard, VisaResendChip, VisaStepCard, VisaThreadStrip, parseVisaCheckoutMeta,
-  parseVisaStepMeta, parseVisaThreadInfo, prepareVisaImage, useVisaCase, visaErrorCopy,
+  VisaCheckoutCard, VisaResendChip, VisaResultCard, VisaStepCard, VisaThreadStrip,
+  parseVisaCheckoutMeta, parseVisaResultMeta, parseVisaStepMeta, parseVisaThreadInfo,
+  prepareVisaImage, useVisaCase, visaErrorCopy,
   type VisaQuoteWire,
 } from '@/components/marketplace/visa-cards'
 import { Avatar } from '@/components/ui/avatar'
@@ -934,6 +935,7 @@ export default function ThreadPage() {
               // strict-parses every write, so an unreadable one is a legacy/hand-written row).
               const visaStepMeta = parseVisaStepMeta(m.kind, m.meta)
               const visaCheckoutMeta = parseVisaCheckoutMeta(m.kind, m.meta)
+              const visaResultMeta = parseVisaResultMeta(m.kind, m.meta)
               return (
               <Fragment key={m.id}>
                 {showDay && (
@@ -1012,7 +1014,12 @@ export default function ThreadPage() {
                     busy={visaBusy}
                     onPay={payVisa}
                   />
-                ) : m.kind === 'visa_step' || m.kind === 'visa_checkout' ? (
+                ) : visaResultMeta ? (
+                  // The finished visa. No `live` flag: it is never a prompt and never
+                  // expires — the card is a permanent download, for whoever the thread
+                  // belongs to (the endpoint re-proves that on every request).
+                  <VisaResultCard meta={visaResultMeta} info={visaInfo} />
+                ) : m.kind === 'visa_step' || m.kind === 'visa_checkout' || m.kind === 'visa_result' ? (
                   // A card whose meta this build cannot read. Its body is empty by design,
                   // so it must NOT fall through to an empty bubble.
                   <MessageBubble mine={m.mine} className="max-w-[78%] text-ink-4">

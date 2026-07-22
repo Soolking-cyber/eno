@@ -24,6 +24,9 @@ import { getSupabaseAdmin } from '@/lib/supabase-admin'
 export type VisaApplicationRow = {
   id: string; user_id: string; status: string; encrypted_payload: string; checklist: string[] | null
   applicant_confirmation_version: string | null; applicant_confirmed_at: string | null
+  /** The human case number (EV-1042). Assigned once by a DB default, never edited — it is
+   *  what the desk reads down a phone line and what names the handover pack. */
+  reference: string
   applicant_snapshot_hash: string | null; authorization_version: string | null; authorized_at: string | null
   authorization_snapshot_hash: string | null; assigned_admin: string | null
   submitted_at: string | null; resolved_at: string | null; retention_until: string | null
@@ -69,7 +72,7 @@ function visaDb(): SupabaseClient | null {
  *  200 × encrypted_payload was the page's dominant transfer weight (audit §G). */
 export type VisaQueueRow = Omit<VisaApplicationRow, 'encrypted_payload'>
 const QUEUE_COLUMNS =
-  'id,user_id,status,checklist,applicant_confirmation_version,applicant_confirmed_at,applicant_snapshot_hash,authorization_version,authorized_at,authorization_snapshot_hash,assigned_admin,submitted_at,resolved_at,retention_until,paid_at,payment_provider,payment_ref,created_at,updated_at'
+  'id,user_id,status,reference,checklist,applicant_confirmation_version,applicant_confirmed_at,applicant_snapshot_hash,authorization_version,authorized_at,authorization_snapshot_hash,assigned_admin,submitted_at,resolved_at,retention_until,paid_at,payment_provider,payment_ref,created_at,updated_at'
 
 export type VisaQueueData = { applications: VisaQueueRow[]; documents: VisaDocumentRow[] }
 

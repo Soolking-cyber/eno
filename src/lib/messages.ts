@@ -9,6 +9,9 @@ import { maskEmailHandle } from '@/lib/utils'
 // Field-NAME allowlist for visa card metadata (see buildCardMeta). Read-only import
 // of the shared payload schema — this file never touches a decrypted payload.
 import { visaPayloadSchema } from '@/lib/visa/schema'
+// Pure format module (no server-only, no IO) — the ONE definition of what a case reference
+// may look like, reused here so the card's `reference` field cannot hold anything else.
+import { normalizeVisaReference } from '@/lib/visa/reference'
 
 // ---------------------------------------------------------------------------
 // Structured message kinds
@@ -20,10 +23,12 @@ import { visaPayloadSchema } from '@/lib/visa/schema'
 //   'offer'         — offerAmount + offerStatus, accept/decline/counter
 //   'visa_step'     — one step of the in-thread e-Visa wizard      (metaJson)
 //   'visa_checkout' — the in-thread pay card                        (metaJson)
-export const MESSAGE_KINDS = ['text', 'offer', 'visa_step', 'visa_checkout'] as const
+//   'visa_result'   — the finished visa PDF, downloadable in chat   (metaJson)
+export const MESSAGE_KINDS = ['text', 'offer', 'visa_step', 'visa_checkout', 'visa_result'] as const
 export type MessageKind = (typeof MESSAGE_KINDS)[number]
-const VISA_CARD_KINDS = new Set<string>(['visa_step', 'visa_checkout'])
-export const isVisaCardKind = (kind: string): kind is 'visa_step' | 'visa_checkout' => VISA_CARD_KINDS.has(kind)
+export type VisaCardKind = 'visa_step' | 'visa_checkout' | 'visa_result'
+const VISA_CARD_KINDS = new Set<string>(['visa_step', 'visa_checkout', 'visa_result'])
+export const isVisaCardKind = (kind: string): kind is VisaCardKind => VISA_CARD_KINDS.has(kind)
 
 // Versioned card payloads, persisted as a JSON string in Message.metaJson.
 // ⚠️ NO VISA PII EVER LIVES HERE. metaJson carries ids, a step number, a money
@@ -46,7 +51,23 @@ export type VisaCheckoutMeta = {
   amountUsd: number
   status: 'unpaid' | 'paid' | 'failed'
 }
-export type MessageMeta = VisaStepMeta | VisaCheckoutMeta
+/**
+ * The finished visa, announced in the thread.
+ *
+ * ⚠️ IT NAMES A DOCUMENT, NOT A PERSON. Two ids and a case number, and that is the whole
+ * contract: no name, no passport number, no email, no filename, no URL. The bytes live in
+ * the private bucket and are streamed by an authenticated route that re-proves ownership,
+ * so this blob is a HANDLE and confers nothing on whoever reads it.
+ */
+export type VisaResultMeta = {
+  v: 1
+  applicationId: string
+  /** visa_documents.id of the kind='result' row. */
+  documentId: string
+  /** The human case number (`EV-1042`), canonical form only — see the schema below. */
+  reference?: string
+}
+export type MessageMeta = VisaStepMeta | VisaCheckoutMeta | VisaResultMeta
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 // The ONLY strings allowed in needsReview. Anything not a key of the visa payload
@@ -89,8 +110,28 @@ const visaCheckoutMetaSchema = z
     status: z.enum(['unpaid', 'paid', 'failed']),
   })
   .strict()
+const visaResultMetaSchema = z
+  .object({
+    v: z.literal(1),
+    applicationId,
+    documentId: z.string().regex(UUID_RE),
+    // CANONICAL FORM ONLY. normalizeVisaReference re-emits nothing it did not parse, so a
+    // value that survives this refine is provably `EV` + `-` + digits — which is what makes
+    // it safe to render into a filename and a Content-Disposition header downstream, and
+    // makes the field structurally unable to carry an applicant value.
+    reference: z.string().refine((value) => normalizeVisaReference(value) === value).optional(),
+  })
+  .strict()
 
-const metaSchemaFor = (kind: string) => (kind === 'visa_step' ? visaStepMetaSchema : visaCheckoutMetaSchema)
+// One row per card kind, so adding a kind is a line here rather than a ternary that grows
+// a wrong default. Typed to VisaCardKind: every caller has already narrowed through
+// isVisaCardKind, so there is no "unknown kind" branch to get wrong.
+const META_SCHEMAS: Record<VisaCardKind, z.ZodType> = {
+  visa_step: visaStepMetaSchema,
+  visa_checkout: visaCheckoutMetaSchema,
+  visa_result: visaResultMetaSchema,
+}
+const metaSchemaFor = (kind: VisaCardKind): z.ZodType => META_SCHEMAS[kind]
 
 /**
  * READ side. Turn a stored metaJson into a typed card payload, or null.
@@ -138,7 +179,7 @@ export type SendOpts = {
   kind?: MessageKind
   /** kind='offer' only. */
   offerAmount?: number
-  /** kind='visa_step' | 'visa_checkout' only — REQUIRED there, rejected elsewhere. */
+  /** Visa card kinds only (see VisaCardKind) — REQUIRED there, rejected elsewhere. */
   meta?: MessageMeta
   /**
    * Inbox preview line for a card sent with an EMPTY body (see the body note in
@@ -181,7 +222,7 @@ export type SendOpts = {
 // client-supplied `kind` or `meta` — they construct `{kind:'offer'}` or `undefined`
 // literally. That is gate zero, but it is an *absence*, so it is not trusted here;
 // gates 1–4 hold even if a future route starts passing the body straight through.
-function buildCardMeta(kind: 'visa_step' | 'visa_checkout', convo: ConvoForSend, senderId: string, meta: MessageMeta | undefined): { json: string; applicationId: string } {
+function buildCardMeta(kind: VisaCardKind, convo: ConvoForSend, senderId: string, meta: MessageMeta | undefined): { json: string; applicationId: string } {
   // (1) shop-side authorship
   if (!convo.sellerProfileId || convo.sellerProfileId !== senderId) throw new Error('visa_card_author_forbidden')
   // (2) thread binding

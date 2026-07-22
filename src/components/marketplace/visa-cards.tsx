@@ -3,8 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import {
-  AlertTriangle, ArrowRight, Check, CreditCard, FileImage, Loader2, LockKeyhole,
-  PencilLine, RotateCcw, ShieldCheck, Sparkles, Upload, UserRound, Wallet,
+  AlertTriangle, ArrowRight, Check, CreditCard, Download, FileImage, FileText, Loader2,
+  LockKeyhole, PencilLine, RotateCcw, ShieldCheck, Sparkles, Upload, UserRound, Wallet,
 } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
 import { Badge } from '@/components/ui/badge'
@@ -154,6 +154,34 @@ export function parseVisaCheckoutMeta(kind: string | undefined, value: unknown):
   if (typeof amountUsd !== 'number' || !Number.isFinite(amountUsd) || amountUsd <= 0) return null
   if (status !== 'unpaid' && status !== 'paid' && status !== 'failed') return null
   return { applicationId, amountUsd, status }
+}
+
+/** A `visa_result` card's metaJson — the finished visa, downloadable in the thread. */
+export type VisaResultCardMeta = {
+  applicationId: string
+  documentId: string
+  /** The human case number (`EV-1042`), or null when the case predates the column. */
+  reference: string | null
+}
+
+/**
+ * A `visa_result` card's meta, or null. Same discipline as the two above.
+ *
+ * The reference is re-checked against the canonical shape rather than trusted: it is
+ * rendered as text here, but the server also builds a filename out of it, and a client that
+ * quietly renders a reference the server would refuse is a mismatch worth not having. A
+ * value that fails is dropped, not fatal — the card is still a valid download without it.
+ */
+export function parseVisaResultMeta(kind: string | undefined, value: unknown): VisaResultCardMeta | null {
+  if (kind !== 'visa_result' || !isRecord(value)) return null
+  const { applicationId, documentId, reference } = value
+  if (typeof applicationId !== 'string' || !applicationId) return null
+  if (typeof documentId !== 'string' || !documentId) return null
+  return {
+    applicationId,
+    documentId,
+    reference: typeof reference === 'string' && /^EV-[1-9][0-9]{0,17}$/.test(reference) ? reference : null,
+  }
 }
 
 /**
@@ -797,6 +825,12 @@ const ERROR_COPY: Record<string, [string, string]> = {
   not_a_participant: ['That conversation is not yours.', 'Cuộc trò chuyện đó không phải của bạn.'],
   no_thread: ['This chat is not linked to an application yet.', 'Cuộc trò chuyện này chưa được liên kết với hồ sơ nào.'],
   not_found: ['We could not find that application.', 'Không tìm thấy hồ sơ đó.'],
+  // The result download. `result_not_ready` is the ordinary "the desk has not sent it yet"
+  // answer, not a failure — the card only exists once it has, so seeing this means the
+  // document row was removed by hand (the one recovery path from a wrong upload).
+  result_not_ready: ['Your visa is not ready to download yet.', 'Thị thực của bạn chưa sẵn sàng để tải về.'],
+  result_unavailable: ['The file could not be opened just now. Please try again.', 'Chưa mở được tệp lúc này. Vui lòng thử lại.'],
+  visa_database_unavailable: ['We could not reach your application just now. Please try again.', 'Chưa truy cập được hồ sơ của bạn lúc này. Vui lòng thử lại.'],
   shop_unavailable: ['The e-Visa desk is unavailable right now.', 'Bộ phận E-Visa hiện không khả dụng.'],
   internal_error: ['Something went wrong. Please try again.', 'Đã xảy ra lỗi. Vui lòng thử lại.'],
   thread_not_bound: ['This chat is not linked to an application yet.', 'Cuộc trò chuyện này chưa được liên kết với hồ sơ nào.'],
@@ -1764,6 +1798,117 @@ export function VisaCheckoutCard({ meta, info, kase, live, busy, onPay }: VisaCh
             : tr('Waiting for payment.', 'Đang chờ thanh toán.')}
         </p>
       )}
+    </CardShell>
+  )
+}
+
+// ── The result card ───────────────────────────────────────────────────────────────
+
+export type VisaResultCardProps = {
+  meta: VisaResultCardMeta
+  info: VisaThreadInfo | null
+}
+
+/**
+ * "Upload final result to the chat as pdf user can download there" — the finished visa,
+ * living in the conversation.
+ *
+ * ⚠️ FETCHED, NOT LINKED. The button pulls the bytes from
+ * GET /api/visa/applications/[id]/result and clicks a temporary object URL, exactly like the
+ * admin handover pack. Two reasons, and both matter more here: no URL that resolves to an
+ * identity document is ever left in the DOM, in browser history or in a referrer, and a
+ * refusal is a sentence inside the card instead of a raw JSON error page in a new tab. The
+ * object URL is revoked on a timer rather than immediately — revoking in the same task
+ * aborts the download in some browsers, and holding it forever leaves the visa alive in the
+ * tab for the rest of the session.
+ *
+ * ⚠️ NOT A ONE-SHOT LINK. Nothing here is consumed by pressing it: the endpoint re-reads the
+ * row and re-streams the file every time, so this card is still a working download a year
+ * later. That is the point of putting it in the thread rather than only in an email.
+ *
+ * ⚠️ NO APPLICANT DATA. The card renders a case number and a document icon. The name of the
+ * file is decided by the SERVER (Content-Disposition, built from the case reference alone);
+ * the fallback below is a constant, never anything off the case.
+ */
+export function VisaResultCard({ meta, info }: VisaResultCardProps) {
+  const { tr } = useLanguage()
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  // A card left behind by an earlier case (a repeat applicant rebinds the thread) is
+  // history — it still downloads, because that visa is still theirs.
+  const superseded = !!info && meta.applicationId !== info.applicationId
+
+  const download = async () => {
+    if (busy) return
+    setBusy(true)
+    setError(null)
+    try {
+      const res = await fetch(`/api/visa/applications/${meta.applicationId}/result`, { cache: 'no-store' })
+      if (!res.ok) {
+        const data = (await res.json().catch(() => null)) as { error?: string } | null
+        setError(data?.error || 'internal_error')
+        return
+      }
+      const url = URL.createObjectURL(await res.blob())
+      const anchor = document.createElement('a')
+      anchor.href = url
+      // The server names the file; this is only what the browser falls back to when the
+      // header is stripped by a proxy. A constant — never the reference, never the case id.
+      anchor.download = 'evisa.pdf'
+      anchor.click()
+      setTimeout(() => URL.revokeObjectURL(url), 10_000)
+    } catch {
+      setError('network')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <CardShell step={null} title={tr('Your e-Visa is ready', 'Thị thực điện tử của bạn đã sẵn sàng')} tone={superseded ? 'settled' : 'live'}>
+      <p className="mt-1 flex items-center gap-1.5 text-xs font-bold text-success">
+        <Check className="h-3.5 w-3.5" aria-hidden />
+        {tr('Approved', 'Đã được duyệt')}
+      </p>
+
+      <div className="mt-2.5 flex items-center gap-2.5 rounded-xl border border-line-strong bg-tint p-3">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-success/15 text-success">
+          <FileText className="h-4 w-4" aria-hidden />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-xs font-bold text-foreground">{tr('e-Visa (PDF)', 'Thị thực điện tử (PDF)')}</p>
+          {meta.reference && (
+            <p className="mt-0.5 font-mono text-2xs tracking-wide text-ink-4">{meta.reference}</p>
+          )}
+        </div>
+      </div>
+
+      <div className="mt-2.5">
+        <Button
+          variant="cta"
+          size="none"
+          disabled={busy}
+          onClick={() => void download()}
+          className="rounded-xl px-3.5 py-2.5 text-xs"
+        >
+          {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : <Download className="h-3.5 w-3.5" aria-hidden />}
+          {tr('Download your visa', 'Tải thị thực của bạn')}
+        </Button>
+      </div>
+
+      {error && (
+        <p role="alert" className="mt-2 flex items-start gap-1.5 rounded-xl bg-destructive/10 p-2.5 text-2xs leading-relaxed text-destructive">
+          <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden />
+          {visaErrorCopy(error, tr)}
+        </p>
+      )}
+
+      <p className="mt-2 text-2xs leading-relaxed text-body">
+        {tr(
+          'We also emailed it to you. This card stays here, so you can download it again whenever you need it. Print a copy and keep it with your passport.',
+          'Chúng tôi cũng đã gửi email cho bạn. Thẻ này vẫn ở đây, bạn có thể tải lại bất cứ khi nào cần. Hãy in một bản và mang theo cùng hộ chiếu.',
+        )}
+      </p>
     </CardShell>
   )
 }

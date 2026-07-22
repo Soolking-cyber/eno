@@ -149,6 +149,9 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 
     const bundle = buildVisaHandoverBundle({
       applicationId: application.id,
+      // The pack is named by the READABLE reference (eno-visa-EV-1042), not a uuid slice —
+      // the desk handles several at once and reads these numbers out loud.
+      reference: application.reference,
       status: application.status,
       payload,
       documents: [...packDocuments, ...otherKinds],

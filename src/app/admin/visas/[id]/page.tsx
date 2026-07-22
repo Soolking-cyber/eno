@@ -103,7 +103,13 @@ export default async function AdminVisaCasePage({ params }: { params: Promise<{ 
             </div>
             <p className="mt-1 font-mono text-xs text-muted-foreground">{application.id} · applicant {application.user_id.slice(0, 8)}</p>
           </div>
-          <VisaCaseActions id={application.id} actions={VISA_ADMIN_ACTIONS[application.status] || []} />
+          {/* hasResult renders the upload control as SPENT rather than offering a tap that
+              can only 409 — one result per case, ever (owner 2026-07-23). */}
+          <VisaCaseActions
+            id={application.id}
+            actions={VISA_ADMIN_ACTIONS[application.status] || []}
+            hasResult={documents.some((d) => d.kind === 'result')}
+          />
         </div>
 
         <div className="mt-5 space-y-5">
