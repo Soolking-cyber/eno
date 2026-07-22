@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createSupabaseServer } from '@/lib/supabase/server'
-import { ensureProfile } from '@/lib/profile'
+import { authRedirect, finishSignIn } from '@/lib/auth-finish'
 import { safeNextPath } from '@/lib/url'
 import { NATIVE_OAUTH_REDIRECT } from '@/lib/native-auth'
 
@@ -22,11 +22,7 @@ export async function GET(request: Request) {
 
   // Never let a proxy/CDN cache an auth redirect (it carries Set-Cookie): a cached login response
   // would hand one user's session to the next, or serve a stale bounce.
-  const redirect = (to: string) => {
-    const res = NextResponse.redirect(to)
-    res.headers.set('Cache-Control', 'private, no-store, max-age=0')
-    return res
-  }
+  const redirect = authRedirect
 
   // NATIVE app OAuth hand-off. The code arrived in the app's in-app browser tab (SFSafariViewController
   // / Chrome Custom Tab), whose cookie jar is NOT the app's WebView — so exchanging HERE would set the
@@ -63,20 +59,8 @@ export async function GET(request: Request) {
   if (code) {
     const supabase = await createSupabaseServer()
     const { data, error } = await supabase.auth.exchangeCodeForSession(code)
-    if (!error) {
-      // Provision the app Profile on sign-in (idempotent; best-effort so a
-      // transient DB hiccup never blocks login). New accounts that haven't picked
-      // individual vs business are sent through the one-time onboarding first.
-      if (data.user) {
-        try {
-          const profile = await ensureProfile(data.user)
-          if (!profile.accountType) {
-            return redirect(`${origin}/onboard?next=${encodeURIComponent(next)}`)
-          }
-        } catch (e) { console.error('[auth] ensureProfile', e) }
-      }
-      return redirect(`${origin}${next}`)
-    }
+    // Profile provisioning + the onboarding hop are shared with /auth/confirm.
+    if (!error) return finishSignIn(data.user, origin, next)
   }
   return redirect(`${origin}/?auth_error=1`)
 }

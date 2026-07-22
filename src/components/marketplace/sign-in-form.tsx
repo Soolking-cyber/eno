@@ -18,13 +18,15 @@ const RESEND_SECONDS = 60
 // api/auth/send-sms — the server is the enforcement; this keeps the button
 // honest so it never invites a tap that would be rejected).
 const SMS_RESEND_STEPS = [60, 300, 900, 1800]
+// Same contract for email, mirroring RESEND_STEPS_SEC in api/auth/email-link.
+const EMAIL_RESEND_STEPS = [30, 60, 300, 900]
 const fmtCountdown = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
 
 /** All sign-in logic + UI, with NO outer chrome — rendered by both the modal
  *  (SignInDialog) and the dedicated /signin page so they share identical
  *  handlers (Google OAuth, email magic-link, phone OTP). */
 export function SignInForm({ className }: { className?: string }) {
-  const { tr } = useLanguage()
+  const { tr, lang } = useLanguage()
   const t = (en: string, vi: string) => tr(en, vi)
 
   const [tab, setTab] = useState<'email' | 'phone'>('phone')
@@ -39,6 +41,7 @@ export function SignInForm({ className }: { className?: string }) {
   // written by the delivery hook, read back so we can point at ONE inbox.
   const [sentChannel, setSentChannel] = useState<string | null>(null)
   const smsSends = useRef(0) // client-side mirror of the server's escalation counter
+  const emailSends = useRef(0) // same, for the magic-link ladder
   const lastSubmitted = useRef('')
   // Google blocks OAuth inside in-app browsers / iOS PWAs (403 disallowed_useragent).
   // Detect that client-side and hand off to the real browser instead of dead-ending.
@@ -71,14 +74,18 @@ export function SignInForm({ className }: { className?: string }) {
     if (process.env.NODE_ENV === 'development') return window.location.origin
     return process.env.NEXT_PUBLIC_APP_URL || window.location.origin
   })()
-  const redirectTo = (() => {
-    if (typeof window === 'undefined') return undefined
+  // Where to resume after signing in — the page the visitor triggered sign-in from.
+  const nextPath = (() => {
+    if (typeof window === 'undefined') return '/'
     const { pathname, search } = window.location
-    let next = pathname + search
-    if (pathname === '/signin') next = new URLSearchParams(search).get('next') || '/' // use the intended dest, not /signin
-    if (pathname.startsWith('/auth') || pathname.startsWith('/onboard')) next = '/'
-    return `${authOrigin}/auth/callback?next=${encodeURIComponent(next)}`
+    if (pathname === '/signin') return new URLSearchParams(search).get('next') || '/' // the intended dest, not /signin
+    if (pathname.startsWith('/auth') || pathname.startsWith('/onboard')) return '/'
+    return pathname + search
   })()
+  // OAuth still round-trips through Supabase, so it needs the full allow-listed callback
+  // URL. The magic link does not: it is minted and delivered by us, and lands on
+  // /auth/confirm, so that path only needs `nextPath`.
+  const redirectTo = typeof window === 'undefined' ? undefined : `${authOrigin}/auth/callback?next=${encodeURIComponent(nextPath)}`
 
   // Resend countdown tick.
   useEffect(() => {
@@ -123,19 +130,51 @@ export function SignInForm({ className }: { className?: string }) {
     if (error) setError(error.message)
   }
 
-  // Cryptic GoTrue captcha errors → human copy; anything else shows as-is.
-  const friendlyAuthError = (message: string) =>
-    /captcha/i.test(message)
-      ? t("The security check didn't complete — try again, and tick the verification box if one appears.", 'Kiểm tra bảo mật chưa hoàn tất — thử lại và đánh dấu ô xác minh nếu nó hiện ra nhé.')
-      : message
+  const captchaCopy = () =>
+    t("The security check didn't complete — try again, and tick the verification box if one appears.", 'Kiểm tra bảo mật chưa hoàn tất — thử lại và đánh dấu ô xác minh nếu nó hiện ra nhé.')
 
+  // Cryptic GoTrue captcha errors → human copy; anything else shows as-is.
+  const friendlyAuthError = (message: string) => (/captcha/i.test(message) ? captchaCopy() : message)
+
+  // Magic link goes through OUR endpoint, not supabase.auth.signInWithOtp — see the
+  // header of api/auth/email-link for why (Supabase's SMTP credentials silently expired
+  // and took email sign-in down for three days). The captcha token and the redirect are
+  // the same values signInWithOtp received; only the sender changed.
   const sendEmail = async () => {
     setLoading(true); setError('')
     const captchaToken = await getCaptchaToken()
-    const { error } = await supabase.auth.signInWithOtp({ email: email.trim(), options: { emailRedirectTo: redirectTo, captchaToken } })
-    setLoading(false)
-    if (error) setError(friendlyAuthError(error.message))
-    else { setStage('sent'); setCountdown(RESEND_SECONDS) }
+    try {
+      const res = await fetch('/api/auth/email-link', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ email: email.trim(), captchaToken, next: nextPath, lang }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) { setError(emailSendError(data?.error, data?.retryAfterSec)); return }
+      setStage('sent')
+      setCountdown(EMAIL_RESEND_STEPS[Math.min(emailSends.current, EMAIL_RESEND_STEPS.length - 1)])
+      emailSends.current += 1
+    } catch {
+      setError(t('Could not reach eno.vn — check your connection and try again.', 'Không kết nối được tới eno.vn — kiểm tra kết nối và thử lại nhé.'))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Server error codes → human copy. Unlike the old path these are OUR codes, so they
+  // can be specific: "it didn't send" is a different instruction from "wait 30 seconds".
+  const emailSendError = (code: unknown, retryAfterSec?: number) => {
+    if (code === 'captcha_failed') return captchaCopy()
+    if (code === 'invalid_email') return t('That email address doesn’t look right.', 'Địa chỉ email này có vẻ không đúng.')
+    if (code === 'cooldown') {
+      const s = Math.max(1, Number(retryAfterSec) || 30)
+      // Placeholder + .replace, never a template literal: gen-ui-strings.mjs harvests
+      // string LITERALS only, so an interpolated t() silently ships untranslated.
+      return t('Just sent one — try again in {n} seconds.', 'Vừa gửi rồi — thử lại sau {n} giây nhé.').replace('{n}', String(s))
+    }
+    if (code === 'rate_limited') return t('Too many sign-in attempts. Try again in an hour.', 'Quá nhiều lần thử đăng nhập. Vui lòng thử lại sau một giờ.')
+    if (code === 'send_failed') return t("We couldn't send the email just now. Try again in a moment, or sign in with your phone.", 'Chúng tôi chưa gửi được email lúc này. Thử lại sau giây lát, hoặc đăng nhập bằng số điện thoại nhé.')
+    return t('Something went wrong. Please try again.', 'Đã có lỗi xảy ra. Vui lòng thử lại.')
   }
 
   // The hook finishes before signInWithOtp resolves, so one read usually hits;
