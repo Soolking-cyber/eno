@@ -14,6 +14,8 @@ import { Tr } from '@/context/language-context'
 import { ReportButton } from '@/components/marketplace/report-button'
 import { HandleChip } from '@/components/marketplace/handle-chip'
 import { StorefrontSellerCard } from '@/components/marketplace/storefront-seller-card'
+import { VisaStartPicker } from '@/components/marketplace/visa-start'
+import { getVisaShopSeller } from '@/lib/visa-shop'
 import { StorefrontRails } from '@/components/marketplace/storefront-rails'
 import { sellerMetrics } from '@/lib/seller-metrics'
 import { getEnforcement } from '@/lib/enforcement'
@@ -101,6 +103,8 @@ export async function SellerStorefront({ id }: { id: string }) {
   // Anchor "Chat" to the newest active listing (listings already ordered postedAt
   // desc). Null when there's nothing active to talk about → button self-omits.
   const chatListingId = seller.listings[0]?.id ?? null
+  // Identity, not name/handle: the desk is whichever storefront getVisaShopSeller resolves.
+  const isVisaDesk = seller.id === (await getVisaShopSeller())?.id
 
   return (
     <div className="flex min-h-screen flex-col blob-bg">
@@ -130,9 +134,14 @@ export async function SellerStorefront({ id }: { id: string }) {
               <StorefrontSellerCard
                 seller={cardSeller}
                 metrics={metrics}
-                chatListingId={chatListingId}
+                // The visa desk does not take an ordinary "Chat" about its newest listing —
+                // its threads ARE applications. Suppress the generic CTA and offer the
+                // product picker below instead, so contacting the desk always starts a case
+                // against a chosen product rather than an empty conversation.
+                chatListingId={isVisaDesk ? null : chatListingId}
                 listingCount={listings.length}
               />
+              {isVisaDesk && <VisaStartPicker className="mt-3" />}
             </div>
             {(seller.handle || seller.ownerId) && (
               <div className="flex flex-wrap items-center gap-2">

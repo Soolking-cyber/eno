@@ -1,12 +1,13 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { ArrowLeft, FileText, Lock } from 'lucide-react'
+import { ArrowLeft, FileText, Lock, MessageSquare } from 'lucide-react'
 import { getAdmin } from '@/lib/admin'
 import { AdminDenied } from '@/components/admin/admin-denied'
 import { loadVisaAdminCase, signVisaDocumentUrl, type VisaDocumentRow } from '@/lib/visa-admin'
+import { findVisaThread, getVisaThreadMode, type VisaThreadMode } from '@/lib/visa/dm-thread'
 import { VISA_ADMIN_ACTIONS, visaStatusLabel, visaStatusVariant } from '../visa-status'
-import { VisaCaseActions } from './case-actions'
+import { VisaCaseActions, VisaThreadTakeover } from './case-actions'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -23,6 +24,26 @@ export const metadata: Metadata = { title: 'Visa case — eno.vn admin', robots:
 
 const IMAGE_KINDS = ['passport', 'portrait']
 const docTitle = (kind: string) => (kind === 'passport' ? 'Passport data page' : kind === 'portrait' ? 'Portrait photo' : kind)
+
+/** Who is driving the applicant's chat right now. Derived from visa_events (newest of the
+ *  three mode events wins) — a takeover is an EVENT, never a status on the case. */
+const THREAD_MODE_COPY: Record<VisaThreadMode, { label: string; variant: 'neutral' | 'warning' | 'brand'; hint: string }> = {
+  ai: {
+    label: 'Assistant guiding',
+    variant: 'neutral',
+    hint: 'The AI wizard is walking the applicant through the five steps and posting the cards.',
+  },
+  human_requested: {
+    label: 'Human help requested',
+    variant: 'warning',
+    hint: 'The applicant asked for a person. The wizard keeps running while they wait — take over to answer them yourself.',
+  },
+  admin: {
+    label: 'You have taken over',
+    variant: 'brand',
+    hint: 'The wizard has stopped posting cards. Hand back when you are done and the applicant’s next action resumes it.',
+  },
+}
 
 export default async function AdminVisaCasePage({ params }: { params: Promise<{ id: string }> }) {
   const admin = await getAdmin()
@@ -43,6 +64,16 @@ export default async function AdminVisaCasePage({ params }: { params: Promise<{ 
     )
   }
   const { application, documents, events } = result
+
+  // The chat this case is lived out in, and who is driving it. Both are reads: the thread
+  // comes from Conversation.visaApplicationId (@unique, so at most one), and the mode is
+  // derived from visa_events. Neither fails the page — a case filed through the dashboard
+  // wizard has no thread at all, and getVisaThreadMode itself fails soft to 'ai'.
+  const [thread, threadMode] = await Promise.all([
+    findVisaThread(application.id).catch(() => null),
+    getVisaThreadMode(application.id),
+  ])
+  const modeCopy = THREAD_MODE_COPY[threadMode] ?? THREAD_MODE_COPY.ai
 
   const imageDocuments = documents.filter((d) => IMAGE_KINDS.includes(d.kind))
   const otherDocuments = documents.filter((d) => !IMAGE_KINDS.includes(d.kind))
@@ -83,6 +114,41 @@ export default async function AdminVisaCasePage({ params }: { params: Promise<{ 
               <Info label="Prefill authorization" value={application.authorized_at ? new Date(application.authorized_at).toLocaleString('en-GB') : 'Not authorized'} />
               <Info label="Service fee" value={application.paid_at ? `Paid ${new Date(application.paid_at).toLocaleString('en-GB')} · ${application.payment_provider}` : 'Not paid'} />
               <Info label="Assigned admin" value={application.assigned_admin || 'Unassigned'} />
+            </CardContent>
+          </Card>
+
+          {/* The case's CHAT — "if needed admin can take over chat but mostly ai should
+              guide" (owner). The thread is the applicant's own conversation with the visa
+              desk; this card is the way into it and the switch between the two drivers. */}
+          <Card>
+            <CardHeader><CardTitle>Applicant chat</CardTitle></CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant={modeCopy.variant}>{modeCopy.label}</Badge>
+                {thread
+                  ? <span className="font-mono text-xs text-muted-foreground">thread {thread.conversationId.slice(0, 8)}</span>
+                  : null}
+              </div>
+              <p className="text-sm text-body">{modeCopy.hint}</p>
+              {thread
+                ? (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button asChild variant="outline" size="sm">
+                      <Link href={`/messages/${thread.conversationId}`}>
+                        <MessageSquare className="h-4 w-4" />Open chat
+                      </Link>
+                    </Button>
+                    <VisaThreadTakeover id={application.id} mode={threadMode} />
+                  </div>
+                )
+                : (
+                  <p className="text-sm text-muted-foreground">
+                    No chat thread is bound to this case — the applicant filed it from the dashboard wizard rather than from a message.
+                  </p>
+                )}
+              {/* Said out loud because the link 404s for anyone else: the thread belongs to
+                  the visa storefront's own account, and that is the account it opens as. */}
+              <p className="text-xs text-ink-4">The chat opens as the visa desk account (the storefront owner), not as your personal inbox.</p>
             </CardContent>
           </Card>
 

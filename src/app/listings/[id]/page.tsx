@@ -39,6 +39,8 @@ import { sellerMetrics, topSellerReviews, sameSellerListings } from '@/lib/selle
 import { ListingDetailMap } from '@/components/marketplace/listing-detail-map'
 import { ReportButton } from '@/components/marketplace/report-button'
 import { ContactComposer } from '@/components/marketplace/contact-composer'
+import { VisaStart } from '@/components/marketplace/visa-start'
+import { isVisaShopListing } from '@/lib/visa-shop'
 import { TrackView } from '@/components/marketplace/track-view'
 import { ScrollToTop } from '@/components/marketplace/scroll-to-top'
 import { SaveListingButton } from '@/components/marketplace/save-listing-button'
@@ -172,6 +174,11 @@ export default async function ListingPage({ params }: Props) {
   // Vietnamese tab. The visible H1 still localizes per-user via <LocalizedTitle>.
   const displayTitle = listing.title
   const displayDesc = listing.description
+  // Is this one of the visa desk's products? Decides whether "contact the seller" opens an
+  // ordinary chat or STARTS the e-Visa case (see the #contact block). Resolved server-side
+  // from the storefront that owns the row — not from the title, the category or the
+  // externalId marker, any of which another seller could imitate.
+  const isVisaProduct = await isVisaShopListing(listing.id)
   // Embed the PRE-WARMED translations of the user-authored content so the H1/description/
   // location render in the visitor's language instantly (no flash, no per-request translate).
   // Runs only on ISR regen (page revalidates every 30d) → effectively free; falls back to
@@ -477,7 +484,19 @@ export default async function ListingPage({ params }: Props) {
               {/* 6 — Contact + offer (auth-gated; number never in this payload). The mobile action
                   bar mirrors these CTAs and scrolls here (#contact) for "Make offer". */}
               <div id="contact" className="order-6 scroll-mt-24">
-                <ContactComposer listingId={listing.id} listingTitle={displayTitle} listingImage={listing.images[0] ?? null} sellerName={listing.seller.name} price={listing.price} currency={listing.currency} negotiable={listing.negotiable} />
+                {/* ⚠️ A VISA PRODUCT DOES NOT OPEN AN EMPTY CHAT. The whole application happens
+                    inside the thread (owner: "user click chat then selects available product from
+                    admin shop and continues uploading images and filling up the form lastly checks
+                    out inside chat"), so contacting the desk must START the case: <VisaStart>
+                    POSTs /api/visa/applications/start, which binds a thread to the application and
+                    posts step 1. <ContactComposer> would open a blank conversation and the wizard
+                    would never begin — the flow is server-driven and nothing else emits a card.
+                    isVisaShopListing is deliberately WIDER than resolveVisaProduct: a half-built
+                    product (missing entry type or speed) still gets visa chrome rather than
+                    silently falling back to an empty chat. */}
+                {isVisaProduct
+                  ? <VisaStart listingId={listing.id} className="w-full" />
+                  : <ContactComposer listingId={listing.id} listingTitle={displayTitle} listingImage={listing.images[0] ?? null} sellerName={listing.seller.name} price={listing.price} currency={listing.currency} negotiable={listing.negotiable} />}
               </div>
 
               {/* 7 — Buyer protections */}

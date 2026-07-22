@@ -1,6 +1,6 @@
 'use client'
 
-import { Fragment, useEffect, useLayoutEffect, useRef, useState, useCallback } from 'react'
+import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState, useCallback } from 'react'
 import Link from 'next/link'
 
 import { useParams } from 'next/navigation'
@@ -27,15 +27,28 @@ import { ReviewPrompt } from '@/components/marketplace/review-prompt'
 import { ChatComposer, type ChatComposerHandle } from '@/components/marketplace/chat-composer'
 import { useSafeBack } from '@/lib/safe-back'
 import { FirstContactNote, OffPlatformWarning, findOffPlatformMessageId } from '@/components/marketplace/chat-safety-note'
+import {
+  VisaCheckoutCard, VisaStepCard, VisaThreadStrip, parseVisaCheckoutMeta, parseVisaStepMeta,
+  parseVisaThreadInfo, prepareVisaImage, useVisaCase, visaErrorCopy, type VisaQuoteWire,
+} from '@/components/marketplace/visa-cards'
 import { Avatar } from '@/components/ui/avatar'
 import { fmtTime, dayKey } from '@/lib/dates'
 
-type Msg ={ id: string; mine: boolean; body: string; createdAt: string; pending?: boolean; failed?: boolean; kind?: string; offerAmount?: number | null; offerStatus?: string | null }
+// `meta` is the structured payload of a CARD message (visa_step / visa_checkout) — the
+// thread GET parses and re-validates it server-side (parseMessageMeta), so an unreadable
+// blob arrives as null and renders as an inert bubble. Typed `unknown` here on purpose: the
+// card renderers own the shape and parse it themselves.
+type Msg ={ id: string; mine: boolean; body: string; createdAt: string; pending?: boolean; failed?: boolean; kind?: string; offerAmount?: number | null; offerStatus?: string | null; meta?: unknown }
 type Thread = {
   id: string
   me: string // current user's profile id — to tell my messages from incoming
   iAmSeller?: boolean // true = I'm the listing's seller → hide "request contact" (I'm the contact)
   hasReviewed?: boolean // buyer side: this conversation already produced a review → no prompt
+  // The e-Visa case this thread is bound to + the desk state its cards render against
+  // (mode · picked product · server-issued USD quote · live payment providers). Absent on
+  // every ordinary conversation.
+  visaApplicationId?: string | null
+  visa?: unknown
   listing: { id: string; title: string; image: string | null; price?: number; negotiable?: boolean; availabilityConfirmedAt?: string | null; status?: string }
   counterpart: {
     name: string
@@ -386,6 +399,199 @@ export default function ThreadPage() {
     }
   }
 
+  // ── e-VISA IN THE THREAD ────────────────────────────────────────────────────────
+  //
+  // "one tap e visa service should be available through direct message" — the five-step
+  // wizard, the passport uploads and the checkout all happen in these bubbles. The server
+  // owns every decision (which step, which price, who may act); this client renders the
+  // cards it is sent and calls the frozen routes.
+  //
+  // ⚠️ NO PII TAKES A DETOUR THROUGH HERE. A card's `meta` carries a step number, an
+  // application id and FIELD NAMES. The applicant's answers are fetched by useVisaCase
+  // straight into their own browser (the route scopes by user_id, so the desk's session
+  // gets a 404 and sees value-free cards), and edits go back out through the encrypted
+  // payload path. Nothing applicant-typed is logged or put in a message body.
+  const visaInfo = useMemo(() => parseVisaThreadInfo(thread?.visa), [thread?.visa])
+  // Only the APPLICANT drives the wizard: acknowledging a passport is their act, and the
+  // act route refuses anyone but the thread's buyer.
+  const iAmApplicant = !!visaInfo && !thread?.iAmSeller
+  const { kase: visaCase, unavailable: visaCaseError, reload: reloadVisaCase } = useVisaCase(visaInfo?.applicationId ?? null, iAmApplicant)
+  const [visaBusy, setVisaBusy] = useState(false)
+
+  // One POST helper for the visa routes. Never throws, and never surfaces anything but a
+  // CODE — these routes carry passport data, so a refusal names the class of failure and
+  // the client turns that into a sentence (visaErrorCopy).
+  const visaPost = useCallback(async (path: string, body?: unknown): Promise<{ ok: boolean; error?: string; data: Record<string, unknown> }> => {
+    try {
+      const isForm = body instanceof FormData
+      const res = await fetch(path, {
+        method: 'POST',
+        headers: isForm ? undefined : { 'Content-Type': 'application/json' },
+        body: isForm ? body : JSON.stringify(body ?? {}),
+      })
+      const data = (await res.json().catch(() => null)) as Record<string, unknown> | null
+      const error = typeof data?.error === 'string' ? data.error : undefined
+      return { ok: res.ok, error: res.ok ? undefined : error, data: data ?? {} }
+    } catch {
+      return { ok: false, error: 'network', data: {} }
+    }
+  }, [])
+
+  // THE LOOP, once per thread open. /advance is idempotent by contract ("make sure the card
+  // for the current step exists", never "post one"), so this recovers a flow whose card
+  // failed to post and picks up answers the applicant gave on the dashboard instead. NOT on
+  // the 15s poll: idempotent is not the same as free.
+  const visaAdvancedRef = useRef<string | null>(null)
+  useEffect(() => {
+    const applicationId = iAmApplicant ? visaInfo?.applicationId : null
+    if (!applicationId || visaAdvancedRef.current === applicationId) return
+    visaAdvancedRef.current = applicationId
+    void visaPost(`/api/visa/applications/${applicationId}/advance`).then((res) => { if (res.ok) void load() })
+  }, [iAmApplicant, visaInfo?.applicationId, visaPost, load])
+
+  // Acknowledge / skip / edit. The server recomputes the step FIRST and only then closes the
+  // card, so a "skip" that cannot actually be skipped just keeps asking — we simply refetch
+  // and let the same card render again.
+  const actOnVisaCard = async (messageId: string, action: 'acknowledge' | 'skip' | 'edit', fields?: Record<string, string>): Promise<boolean> => {
+    if (visaBusy) return false
+    setVisaBusy(true)
+    try {
+      const res = await visaPost(`/api/visa/cards/${messageId}/act`, { action, ...(fields ? { fields } : {}) })
+      if (!res.ok) toast.error(visaErrorCopy(res.error, tr))
+      await Promise.all([load(), reloadVisaCase()])
+      if (res.ok) { refreshUnread(); refreshConvos() }
+      return res.ok
+    } finally {
+      setVisaBusy(false)
+    }
+  }
+
+  // The passport / portrait upload, IN THE THREAD — the same documents + extract endpoints
+  // the dashboard wizard uses (there is deliberately no second uploader), then one /advance
+  // so the next card appears without waiting for a poll.
+  const uploadVisaDocument = async (kind: 'passport' | 'portrait', file: File) => {
+    const applicationId = visaInfo?.applicationId
+    if (!applicationId || visaBusy) return
+    setVisaBusy(true)
+    const toastId = `visa-${kind}`
+    try {
+      toast.loading(tr('Preparing your photo…', 'Đang chuẩn bị ảnh…'), { id: toastId })
+      let prepared: File
+      try {
+        prepared = await prepareVisaImage(file)
+      } catch (e) {
+        toast.error(visaErrorCopy((e as Error)?.message, tr), { id: toastId })
+        return
+      }
+      const form = new FormData()
+      form.set('kind', kind)
+      form.set('file', prepared)
+      toast.loading(tr('Sending your photo…', 'Đang gửi ảnh…'), { id: toastId })
+      const uploaded = await visaPost(`/api/visa/applications/${applicationId}/documents`, form)
+      if (!uploaded.ok) { toast.error(visaErrorCopy(uploaded.error, tr), { id: toastId }); return }
+      const documentId = (uploaded.data.document as { id?: string } | undefined)?.id
+      toast.loading(
+        kind === 'passport'
+          ? tr('Reading your passport…', 'Đang đọc hộ chiếu…')
+          : tr('Checking the portrait…', 'Đang kiểm tra ảnh chân dung…'),
+        { id: toastId },
+      )
+      const analyzed = await visaPost(`/api/visa/applications/${applicationId}/extract`, { kind, ...(documentId ? { documentId } : {}) })
+      if (!analyzed.ok) {
+        toast.error(visaErrorCopy(analyzed.error, tr), { id: toastId })
+      } else if ((analyzed.data.document as { validationStatus?: string } | undefined)?.validationStatus === 'passed') {
+        toast.success(
+          kind === 'passport'
+            ? tr('Passport read. Check the details below.', 'Đã đọc hộ chiếu. Hãy kiểm tra thông tin bên dưới.')
+            : tr('Portrait accepted.', 'Đã nhận ảnh chân dung.'),
+          { id: toastId },
+        )
+      } else {
+        // The refusal reason is on the document itself; the card lists it in full.
+        toast.error(tr('That photo did not pass the check — see the notes below.', 'Ảnh chưa đạt yêu cầu — xem ghi chú bên dưới.'), { id: toastId })
+      }
+      await visaPost(`/api/visa/applications/${applicationId}/advance`)
+      await Promise.all([load(), reloadVisaCase()])
+    } finally {
+      setVisaBusy(false)
+    }
+  }
+
+  // "they can request human intervention or help if needed" — flips the thread's mode and
+  // puts the request in front of the desk. The wizard deliberately keeps working while they
+  // wait; only an admin TAKEOVER stops the cards.
+  const askVisaHuman = async () => {
+    const applicationId = visaInfo?.applicationId
+    if (!applicationId || visaBusy) return
+    setVisaBusy(true)
+    try {
+      const res = await visaPost(`/api/visa/applications/${applicationId}/help`, {})
+      if (!res.ok) { toast.error(visaErrorCopy(res.error, tr)); return }
+      toast.success(tr('Asked for a person — we will reply here.', 'Đã yêu cầu nhân viên — chúng tôi sẽ trả lời tại đây.'))
+      await load()
+      refreshUnread(); refreshConvos()
+    } finally {
+      setVisaBusy(false)
+    }
+  }
+
+  // Pay. The body names a PRODUCT and echoes the quote that was on screen — never an amount:
+  // the server re-resolves the listing's đồng price, re-issues its own dollar quote, refuses
+  // if the two disagree, and charges its own number.
+  const payVisa = async (provider: 'stripe' | 'paypal', quote: VisaQuoteWire) => {
+    const applicationId = visaInfo?.applicationId
+    const listingId = visaInfo?.product?.listingId
+    if (!applicationId || !listingId || visaBusy) return
+    setVisaBusy(true)
+    let leaving = false
+    try {
+      const res = await visaPost(`/api/visa/applications/${applicationId}/checkout`, {
+        provider, listingId, quote, declarationAccepted: true, prefillAuthorized: true,
+      })
+      const url = typeof res.data.url === 'string' ? res.data.url : null
+      if (res.ok && url) {
+        // Leaving for the provider's hosted page — keep the CTA busy so it cannot double-fire.
+        leaving = true
+        window.location.assign(url)
+        return
+      }
+      toast.error(visaErrorCopy(res.error, tr))
+      // The price moved, the desk closed, or an answer went missing: re-read both sides so
+      // the card shows what the server is now willing to sell.
+      await Promise.all([load(), reloadVisaCase()])
+    } finally {
+      if (!leaving) setVisaBusy(false)
+    }
+  }
+
+  // WHICH card is live: the NEWEST visa_step card that speaks for the case this thread is
+  // CURRENTLY bound to and is still 'active'. Everything above it — and every card left
+  // behind by a previous case (a repeat applicant rebinds the thread) — is history, and
+  // history is never a prompt. An admin takeover silences the step cards entirely.
+  const liveVisaStepId = useMemo(() => {
+    if (!thread || !visaInfo || visaInfo.mode === 'admin') return null
+    for (let i = thread.messages.length - 1; i >= 0; i--) {
+      const m = thread.messages[i]
+      const meta = parseVisaStepMeta(m.kind, m.meta)
+      if (!meta) continue
+      return meta.state === 'active' && meta.applicationId === visaInfo.applicationId ? m.id : null
+    }
+    return null
+  }, [thread, visaInfo])
+
+  // The pay card is deliberately NOT silenced by a takeover: an admin who stepped in still
+  // needs the applicant to pay, and this card is the only way to ask.
+  const liveVisaCheckoutId = useMemo(() => {
+    if (!thread || !visaInfo) return null
+    for (let i = thread.messages.length - 1; i >= 0; i--) {
+      const m = thread.messages[i]
+      const meta = parseVisaCheckoutMeta(m.kind, m.meta)
+      if (!meta) continue
+      return meta.status === 'unpaid' && meta.applicationId === visaInfo.applicationId ? m.id : null
+    }
+    return null
+  }, [thread, visaInfo])
+
   const askingPrice = thread?.listing.price && thread.listing.price > 0 ? thread.listing.price : null
   const sliderOffer = askingPrice ? Math.round(askingPrice * (1 - offerPct / 100)) : null
   const submitOffer = () => {
@@ -520,6 +726,11 @@ export default function ThreadPage() {
                 : dk === new Date(Date.now() - 864e5).toDateString() ? tr('Yesterday', 'Hôm qua')
                 : new Date(m.createdAt).toLocaleDateString(locale === 'vi' ? 'vi-VN' : 'en-US', { month: 'short', day: 'numeric' })
               const askPct = m.kind === 'offer' && thread?.listing.price && m.offerAmount ? Math.round((m.offerAmount / thread.listing.price) * 100) : null
+              // KIND DISPATCH. Each structured kind parses its own metaJson and refuses to
+              // render as a live prompt off a blob it cannot read (the server already
+              // strict-parses every write, so an unreadable one is a legacy/hand-written row).
+              const visaStepMeta = parseVisaStepMeta(m.kind, m.meta)
+              const visaCheckoutMeta = parseVisaCheckoutMeta(m.kind, m.meta)
               return (
               <Fragment key={m.id}>
                 {showDay && (
@@ -576,6 +787,34 @@ export default function ThreadPage() {
                       <MarkSoldPrompt listingId={thread.listing.id} listingTitle={thread.listing.title} />
                     )}
                   </div>
+                ) : visaStepMeta ? (
+                  <VisaStepCard
+                    meta={visaStepMeta}
+                    info={visaInfo}
+                    kase={visaCase}
+                    caseError={visaCaseError}
+                    // Live only for the applicant, only for the newest active card of the
+                    // bound case, and never while a human has taken the thread over.
+                    live={iAmApplicant && m.id === liveVisaStepId}
+                    busy={visaBusy}
+                    onAct={(action, fields) => actOnVisaCard(m.id, action, fields)}
+                    onUpload={uploadVisaDocument}
+                  />
+                ) : visaCheckoutMeta ? (
+                  <VisaCheckoutCard
+                    meta={visaCheckoutMeta}
+                    info={visaInfo}
+                    kase={visaCase}
+                    live={iAmApplicant && m.id === liveVisaCheckoutId}
+                    busy={visaBusy}
+                    onPay={payVisa}
+                  />
+                ) : m.kind === 'visa_step' || m.kind === 'visa_checkout' ? (
+                  // A card whose meta this build cannot read. Its body is empty by design,
+                  // so it must NOT fall through to an empty bubble.
+                  <MessageBubble mine={m.mine} className="max-w-[78%] text-ink-4">
+                    {tr('This e-Visa step could not be shown here — open the full form to continue.', 'Không hiển thị được bước E-Visa này — hãy mở biểu mẫu đầy đủ để tiếp tục.')}
+                  </MessageBubble>
                 ) : (
                   <MessageBubble mine={m.mine} failed={m.failed} pending={m.pending} className="max-w-[78%]">{m.body}</MessageBubble>
                 )}
@@ -646,10 +885,19 @@ export default function ThreadPage() {
             />
           )}
 
+          {/* e-Visa thread: who is driving it, and the way out of the wizard. "they can
+              request human intervention or help if needed" — one tap, and the desk sees it.
+              Applicant-side only: the desk has its own admin takeover route. */}
+          {visaInfo && iAmApplicant && (
+            <VisaThreadStrip info={visaInfo} busy={visaBusy} onAskHuman={askVisaHuman} className="px-4 pt-1.5" />
+          )}
+
           {/* Quick replies — seller: the 3 endless questions answered in one tap;
               buyer: "still available?" that self-answers from a fresh seller
-              confirmation. Chips insert into the composer, never auto-send. */}
-          {thread && (
+              confirmation. Chips insert into the composer, never auto-send.
+              Suppressed on a visa thread: "is this still available?" is nonsense at a
+              government-form desk, and the cards are the affordance there. */}
+          {thread && !visaInfo && (
             <QuickReplyChips
               isSeller={!!thread.iAmSeller}
               hasPendingBuyerOffer={hasPendingBuyerOffer}

@@ -1,11 +1,70 @@
 import { NextResponse, after } from 'next/server'
 import { db } from '@/lib/db'
 import { getCurrentProfileId } from '@/lib/admin'
+import { MESSAGE_ROW_SELECT, parseMessageMeta } from '@/lib/messages'
 import { maskEmailHandle } from '@/lib/utils'
 import { syncBadgeToProfile } from '@/lib/native-push'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
+
+/**
+ * The e-Visa context of a thread that is BOUND to a case (Conversation.visaApplicationId).
+ *
+ * Everything here is a PUBLIC fact — a mode, a listing, a price, a rate — and nothing in it
+ * decrypts a payload or touches applicant data. The applicant's own answers reach their
+ * browser through GET /api/visa/applications/[id], which scopes by user_id; they never ride
+ * on the thread payload, which both participants read.
+ *
+ * ⚠️ LAZY IMPORTS, on purpose (the records.ts / setVisaCheckoutStatus idiom). This route is
+ * the most-polled endpoint in the app; the visa module graph (service-role Supabase client,
+ * the shop catalogue, the FX quote) must not load on the ordinary messaging path. It is
+ * pulled in only inside this function, i.e. only for a visa thread.
+ *
+ * ⚠️ MONEY IS SERVER TRUTH. The đồng price is re-read from the listing and the dollars are a
+ * SERVER-ISSUED quote (src/lib/visa/fx.ts) minted here, at display time — never converted in
+ * the browser, whose FX cache is up to 12h old. A null quote is the honest FX-down state: the
+ * client renders the đồng price, says the dollar amount is unavailable, and disables paying.
+ * The checkout route re-issues and re-compares its own quote before charging, so this one is
+ * a DISPLAY value and a confirmation token, never an input to a charge.
+ */
+async function visaThreadContext(applicationId: string) {
+  const [{ getVisaThreadMode }, { selectedVisaDmListingId }, { resolveVisaProduct }, { quoteVisaUsd }, { visaPaymentsConfig }] = await Promise.all([
+    import('@/lib/visa/dm-thread'),
+    import('@/lib/visa/dm-flow'),
+    import('@/lib/visa-shop'),
+    import('@/lib/visa/fx'),
+    import('@/lib/visa/payments'),
+  ])
+  const [mode, listingId] = await Promise.all([
+    getVisaThreadMode(applicationId),
+    selectedVisaDmListingId(applicationId),
+  ])
+  const product = listingId ? await resolveVisaProduct(listingId) : null
+  const quote = product ? await quoteVisaUsd({ listingId: product.listingId, priceVnd: product.priceVnd }) : null
+  return {
+    applicationId,
+    mode,
+    product: product
+      ? {
+        listingId: product.listingId,
+        title: product.title,
+        entryType: product.entryType,
+        speed: product.speed,
+        priceVnd: product.priceVnd,
+        currency: product.currency,
+        // The tier's submission window, recomputed per request — a thread left open must
+        // not keep offering a desk that closed twenty minutes ago.
+        acceptingNow: product.window.acceptingNow,
+        nextOpensIso: product.window.nextOpensIso,
+      }
+      : null,
+    quote,
+    // WHICH providers, never a fee: visaPaymentsConfig().feeCents prices nothing now that
+    // visa services are ordinary listings (see the note on the type).
+    providers: visaPaymentsConfig()?.providers ?? [],
+  }
+}
 
 // GET one conversation + its messages (participant-only). Marks the caller's
 // unread count to 0 (opening the thread = read) — UNLESS ?peek=1.
@@ -27,13 +86,19 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     where: { id },
     select: {
       id: true, buyerProfileId: true, sellerProfileId: true, buyerUnread: true, sellerUnread: true,
+      // The e-Visa case this thread is bound to (null on every ordinary thread). It is what
+      // every visa card is validated against server-side, and the client needs it to tell a
+      // LIVE card from the inert history a rebound thread leaves behind.
+      visaApplicationId: true,
       listing: { select: { id: true, title: true, images: true, price: true, currency: true, priceUnit: true, negotiable: true, availabilityConfirmedAt: true, status: true } },
       seller: { select: { id: true, name: true, avatarColor: true, avatarUrl: true, trustScore: true, trustTier: true, memberSince: true, reviewCount: true } },
       buyer: { select: { displayName: true, email: true, avatarColor: true, avatarUrl: true } },
       // Bounded (audit P2): the full history shipped on EVERY call × a 15s poll per
       // open tab. Last 200 in reverse, un-reversed below — covers any realistic
       // active thread; older history is simply not re-sent.
-      messages: { orderBy: { createdAt: 'desc' }, take: 200, select: { id: true, senderProfileId: true, body: true, createdAt: true, kind: true, offerAmount: true, offerStatus: true } },
+      // MESSAGE_ROW_SELECT (src/lib/messages.ts) rather than a hand-listed set: it carries
+      // metaJson, so a card kind can never be added without the thread reading its payload.
+      messages: { orderBy: { createdAt: 'desc' }, take: 200, select: MESSAGE_ROW_SELECT },
     },
   })
   if (!convo) return NextResponse.json({ error: 'not_found' }, { status: 404 })
@@ -99,6 +164,19 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   }
 
   const img = (() => { try { return (JSON.parse(convo.listing.images || '[]')[0] as string) ?? null } catch { return null } })()
+
+  // FAILS SOFT, ALWAYS. A visa lookup (Supabase, the shop catalogue, the FX feed) must never
+  // be able to 500 somebody's chat: without this block the thread simply renders the cards as
+  // inert history, which is the same thing the desk's own side sees.
+  let visa: Awaited<ReturnType<typeof visaThreadContext>> | null = null
+  if (convo.visaApplicationId) {
+    try {
+      visa = await visaThreadContext(convo.visaApplicationId)
+    } catch (e) {
+      console.error('[conversations] visa context failed', e)
+    }
+  }
+
   return NextResponse.json({
     id: convo.id,
     me: meId,
@@ -113,8 +191,21 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     counterpart: iAmBuyer
       ? { name: convo.seller.name, avatarColor: convo.seller.avatarColor, avatarUrl: convo.seller.avatarUrl, sellerId: counterpartSellerId, trust: counterpartTrust }
       : { name: convo.buyer.displayName || maskEmailHandle(convo.buyer.email) || 'Buyer', avatarColor: convo.buyer.avatarColor, avatarUrl: convo.buyer.avatarUrl, sellerId: counterpartSellerId, trust: counterpartTrust },
+    // The e-Visa case this thread is bound to, and the desk state the cards render against
+    // (mode · the picked product · the server-issued USD quote · which providers are live).
+    // null on every ordinary conversation, and on a visa thread whose context lookup failed.
+    visaApplicationId: convo.visaApplicationId,
+    visa,
     // take:200 fetched newest-first — restore chronological order for the client.
-    messages: [...convo.messages].reverse().map((m) => ({ id: m.id, mine: m.senderProfileId === meId, body: m.body, createdAt: m.createdAt.toISOString(), kind: m.kind, offerAmount: m.offerAmount, offerStatus: m.offerStatus })),
+    // `meta` is the card payload, parsed and RE-VALIDATED here (parseMessageMeta is a strict
+    // zod parse that is tolerant on read): a row that predates the column, was written by
+    // hand, or carries a version this build does not understand arrives as null and renders
+    // as an inert bubble instead of a live prompt.
+    messages: [...convo.messages].reverse().map((m) => ({
+      id: m.id, mine: m.senderProfileId === meId, body: m.body, createdAt: m.createdAt.toISOString(),
+      kind: m.kind, offerAmount: m.offerAmount, offerStatus: m.offerStatus,
+      meta: parseMessageMeta(m.kind, m.metaJson),
+    })),
   })
 }
 

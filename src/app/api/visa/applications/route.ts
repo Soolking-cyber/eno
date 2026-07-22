@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { getCurrentProfile } from '@/lib/admin'
 import { rateLimit } from '@/lib/ratelimit'
 import {
+  getVisaShopListings,
   getVisaShopProducts,
   isVisaProductReadyForAutoFill,
   type VisaEntryType,
@@ -46,6 +47,10 @@ function visaPaymentsPublicConfig(): VisaPaymentsPublicConfig | null {
 type VisaCatalogueEntry = {
   listingId: string
   title: string
+  /** Listing.titleVi — the admin's hand-authored Vietnamese title, null when unset. The
+   *  product's IDENTITY (entry type + speed) is bilingual from src/lib/visa/speed.ts; this
+   *  is the admin's own wording, and a Vietnamese buyer must read it in Vietnamese. */
+  titleVi: string | null
   entryType: VisaEntryType
   speed: VisaSpeedCode
   /** The admin's number, in whole đồng — the price they actually set on the listing. */
@@ -91,11 +96,16 @@ function isBuyableVisaProduct(
  */
 async function visaCatalogueForApplicant(): Promise<VisaCatalogueEntry[]> {
   const products = (await getVisaShopProducts()).filter(isBuyableVisaProduct)
+  // The Vietnamese title lives on the LISTING; the projected product carries only the
+  // fields the ENGINE needs. Read back from the same per-request-cached storefront list
+  // getVisaShopProducts is itself derived from, so this is a map lookup, not a query.
+  const viTitles = new Map((await getVisaShopListings()).map((listing) => [listing.id, listing.titleVi]))
   // One rate fetch serves them all (fx.ts caches it), so this is not N round-trips.
   return Promise.all(
     products.map(async (product) => ({
       listingId: product.listingId,
       title: product.title,
+      titleVi: viTitles.get(product.listingId) ?? null,
       entryType: product.entryType,
       speed: product.speed,
       priceVnd: product.priceVnd,
@@ -108,7 +118,47 @@ async function visaCatalogueForApplicant(): Promise<VisaCatalogueEntry[]> {
 export async function GET(request: Request) {
   const profile = await getCurrentProfile()
   if (!profile) return NextResponse.json({ error: 'auth_required' }, { status: 401 })
-  const activeMode = new URL(request.url).searchParams.get('active') === '1'
+  const params = new URL(request.url).searchParams
+  const activeMode = params.get('active') === '1'
+  const catalogueMode = params.get('catalogue') === '1'
+
+  // ── ?catalogue=1 — THE PICKER'S PAYLOAD, and nothing else ────────────────────────
+  //
+  // "user click chat then selects available product from admin shop" (owner): the chat
+  // entry point needs the six products and the three facts that decide whether starting
+  // one can work. It must NOT drag the applicant's case list along with it — that read
+  // decrypts nothing here but still walks visa_applications + visa_documents for a
+  // surface that renders neither, and a picker is opened far more often than a case is.
+  //
+  // ⚠️ THE DOLLARS ARE THE SERVER'S. Every row ships a SERVER-ISSUED quote (fx.ts) and the
+  // client renders that number; there is no client-side conversion, because the browser's
+  // FX rates are cached for up to 12h and a buyer must never read one number while the
+  // provider captures another. A null quote is the honest "FX is down" state.
+  //
+  // ⚠️ THE SUBMISSION WINDOW IS DELIBERATELY ABSENT — same rule as the applicant payload
+  // below: it is a pure function of the tier and the INSTANT, so the client recomputes it
+  // from src/lib/visa/speed.ts and a picker left open for an hour stops offering a desk
+  // that closed. The server's answer at checkout is still the only one that decides.
+  //
+  // NOT gated on `payments` (unlike the applicant list): the products are real whether or
+  // not the provider keys are installed, so the picker is told BOTH facts and says so
+  // itself. Hiding the catalogue on a dormant host would be a lie about the shop.
+  if (catalogueMode) {
+    const products = await visaCatalogueForApplicant().catch((error) => {
+      console.error('[visa] catalogue read failed', (error as Error)?.message?.slice(0, 200))
+      return [] as VisaCatalogueEntry[]
+    })
+    return NextResponse.json({
+      products,
+      // null while the payment providers are dormant — the flow still runs, the pay card
+      // at step 5 does not. The picker says so up front instead of dead-ending at the end.
+      payments: visaPaymentsPublicConfig(),
+      // false ⇒ POST /start answers 503 on this host; the picker refuses rather than
+      // offering a button that cannot work.
+      encryptionReady: visaCryptoReady(),
+    })
+  }
+
   try {
     // Dormant hosts do NO extra work and answer exactly as they did before per-product
     // pricing: no providers configured ⇒ no catalogue read, no products, direct submit.

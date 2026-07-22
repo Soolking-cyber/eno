@@ -691,5 +691,25 @@ export async function markVisaPaidAndHandoff(input: {
     }
   }
 
+  // FLIP THE IN-CHAT CHECKOUT CARD TO PAID. Without this the buyer pays and the card in
+  // their thread still reads "Pay" — the single most alarming thing a payment flow can do.
+  // Both completion paths (the Stripe webhook and confirm-on-return) land here, so this is
+  // the one place that covers both.
+  //
+  // ⚠️ LAZY IMPORT, and not for speed: dm-thread.ts imports visaPaymentsConfig from THIS
+  // module, so a top-level import would be a require cycle. Same idiom the thread route uses.
+  //
+  // markVisaThreadPaid re-reads visa_applications.paid_at itself and never throws — it is
+  // evidence-gated, not caller-trusted — so a failure here cannot undo a real capture. It is
+  // deliberately OUTSIDE the alreadyPaid guard: a webhook and a confirm-on-return both firing
+  // is the normal case, and the stamp is idempotent. A case with no thread returns false.
+  try {
+    const { markVisaThreadPaid } = await import('./dm-thread')
+    await markVisaThreadPaid(input.applicationId)
+  } catch (e) {
+    // Never fail a captured payment because a card could not be restamped.
+    console.error('[visa-payments] card stamp after capture', e)
+  }
+
   return { ok: true, application: app, documents: docs, handedOff, alreadyPaid }
 }
