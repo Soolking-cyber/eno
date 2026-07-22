@@ -8,6 +8,7 @@ import { SUBCATEGORIES } from '@/lib/subcategories'
 import { MoreOverflow } from './more-overflow'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
+import { useScrollArrows, ScrollArrows } from '@/hooks/use-scroll-arrows'
 import { cn } from '@/lib/utils'
 import type { SerializedCategory } from '@/lib/types'
 
@@ -40,7 +41,13 @@ export function CategoryRail({
   onIntent?: (type: string) => void
 }) {
   const { lang, tr } = useLanguage()
-  const railRef = useRef<HTMLDivElement>(null)
+  // Desktop ← / → arrows, same pair the home rails use (owner, 2026-07-22: "similar to
+  // homepage category arrows"). This strip carries ~18 categories plus an expanded
+  // subcategory grid, so it overflows at every desktop width — a mouse wheel only scrolls
+  // vertically and the scrollbar is hidden, which left pointer users with no way to page it.
+  // The hook's ref IS the rail element, so it also serves the scroll-active-into-view effect
+  // below — one node, one ref.
+  const { scrollerRef: railRef, canLeft, canRight, page, arrowTop } = useScrollArrows<HTMLDivElement>()
 
   // When a category is chosen, slide the rail so that category sits at the left edge
   // — the user immediately sees their pick with its subcategories rolled out beside it.
@@ -73,6 +80,8 @@ export function CategoryRail({
     cn('w-full shrink-0 whitespace-nowrap rounded-lg px-2.5 py-1 text-left text-sm font-semibold transition-colors cursor-pointer', active ? 'bg-card text-accent-foreground shadow-sm' : 'text-body hover:bg-card/70 hover:text-accent-foreground')
 
   return (
+    // `relative` anchors the arrows, which sit OUTSIDE the scroller's edges (-left-8).
+    <div className="relative">
     <div
       ref={railRef}
       // overscroll-x-contain: a sideways flick that hits either end must not CHAIN out to an
@@ -174,6 +183,8 @@ export function CategoryRail({
           })}
         </>
       )}
+    </div>
+      <ScrollArrows canLeft={canLeft} canRight={canRight} page={page} arrowTop={arrowTop} />
     </div>
   )
 }
