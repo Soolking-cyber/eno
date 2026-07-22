@@ -523,7 +523,7 @@ describe('resend and a human in the thread', () => {
     seedCase()
     h.state.mode = 'ai'
     await advanceVisaDmFlow({ applicationId: APPLICATION, userId: BUYER })
-    for (const call of dmThread.sendVisaStepCard.mock.calls) {
+    for (const call of vi.mocked(dmThread.sendVisaStepCard).mock.calls) {
       expect(call[0].byAdmin).toBeUndefined()
     }
   })
