@@ -25,6 +25,25 @@ Three habits that follow:
 - **Delegate search to `scout`.** Not to save money — to keep bulk grep output out of the main context. You get the conclusion, not the file dump.
 - **Escalate, don't grind.** A fix that didn't hold goes to `deep-debugger` (Opus, xhigh), not to a second guess at the same altitude.
 - **Four families, not one.** Main thread is Opus, `fable-reviewer` is Fable 5, and the two DEFAULT external reviewers are **codex (GPT-5.6)** and **antigravity (Gemini 3.1 Pro, High)** — run BOTH on substantive code (owner 2026-07-15; codex removed 2026-07-21 while its account was failing, **restored the same day once it answered again**). They fail differently, which is the whole point: an Opus review of Opus code shares its blind spots. **Anything irreversible or money/trust-adjacent — offers, publish gate, contact reveals, conversations, payments, anything that writes to prod — gets at least one non-Opus reviewer before it ships.** When everyone agrees, that's when to ask the dissenter, not when to relax. ⚠️ If codex starts erroring with *"model is not supported when using Codex with a ChatGPT account"*, that is the account/credits state, not a config bug — fall back to Gemini and carry on rather than burning turns on it.
+- **TWO MOMENTS, NOT ONE (owner, 2026-07-22 — applies to Kyle and Murat equally).** The second
+  opinion is mandatory at BOTH ends of a task, and they catch different things:
+  **(1) PLANNING** — before writing code for anything non-trivial, hand over the plan and ask
+  both to attack it. On 2026-07-22 this turned a native-email-OTP design inside out: a probe
+  proved `verifyOtp({type:'email'})` accepts tokens minted for both new and existing accounts,
+  which deleted a custom endpoint, a hand-rolled lockout, and an enumeration leak from the plan
+  before a line was written. A review after the fact would have blessed the worse design.
+  **(2) REVIEW OF THE FINISHED JOB** — after gates pass, before you call it done. Same day,
+  Gemini caught a PKCE/fragment defect that would have broken every magic link, and codex caught
+  `Combobox.Item` rendered as a native `<button>` — a focus bug that a passing click-through test
+  cannot see, because clicking still worked.
+- **⚠️ A REVIEWER THAT DID NOT ANSWER IS NOT A PASSED REVIEW.** They fail silently and often, in
+  three distinct ways seen on 2026-07-22 alone: a network error ("Network is unreachable"), a
+  headless permission prompt Gemini cannot answer (fix: an allow-rule, or
+  `--dangerously-skip-permissions`), and codex burning an entire run reading `node_modules`
+  without ever reaching a verdict. **Before treating a review as done, confirm a VERDICT exists
+  in the output** — not just that the process exited 0. If none landed, say so out loud in the
+  commit and in the handoff rather than implying the code was reviewed. Adjudicating it yourself
+  is an acceptable fallback; pretending it was reviewed is not.
 - **Ask it to REFUTE, not to "review".** The highest-signal second opinion adjudicates a specific claim ("confirm or refute this, with evidence") rather than requesting a fresh opinion. That framing caught a ship-blocker on 2026-07-21 that an open-ended review would have missed.
 
 **How to invoke the two external reviewers (both read-only, non-interactive):**
@@ -32,7 +51,10 @@ Three habits that follow:
   **Owner-set invocation (2026-07-21) — use exactly this:**
   `echo "<review prompt>" | codex exec -m gpt-5.6-sol -c model_reasoning_effort=high --sandbox read-only`
   (or heredoc into stdin). Verify the banner echoes `model: gpt-5.6-sol` / `reasoning effort: high`.
-- **antigravity** — `agy -p "<prompt>" --model "Gemini 3.1 Pro (High)"`. Feed the file CONTENT inline in the
+- **antigravity** — `agy -p "<prompt>" --model "Gemini 3.1 Pro (High)"`. ⚠️ If it returns
+  *"a tool required the command permission that headless mode cannot prompt for"*, it produced NOTHING —
+  that is not a review. Re-run with `--dangerously-skip-permissions` (it is read-only anyway) or add an
+  allow-rule. Seen 2026-07-22. Feed the file CONTENT inline in the
   prompt (its agentic file-reading mode times out on `--print-timeout`); use `--print-timeout 240s`.
 - Dispatch them **directly and in PARALLEL** as background jobs — never sequenced, never wrapped in an Opus
   subagent that shells out on their behalf.
