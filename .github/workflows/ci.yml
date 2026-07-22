@@ -47,3 +47,24 @@ jobs:
 
       - name: Test
         run: npx vitest run
+
+      # ── Forum e2e ────────────────────────────────────────────────────────────────
+      # Added 2026-07-21 after THREE forum specs sat red for weeks with nobody noticing:
+      # nothing in CI ran them. This suite is the one that can run here honestly — it needs
+      # no database and no marketplace API (FORUM_E2E_PREVIEW=1 serves static preview posts),
+      # takes ~35s, and is deterministic.
+      #
+      # The ROOT guest suite is deliberately NOT here. Its specs read LIVE listing data, so a
+      # production blip or a data change would turn PRs red for reasons the author cannot fix
+      # — the fastest way to teach everyone to re-run until green. If we want that signal it
+      # belongs on a schedule as a synthetic monitor, alerting a channel, not gating a merge.
+      - name: Install Playwright browsers (forum e2e)
+        run: npx playwright install --with-deps chromium
+        working-directory: apps/forum
+
+      - name: Forum e2e
+        run: npx playwright test
+        working-directory: apps/forum
+        timeout-minutes: 12
+        env:
+          CI: 'true'

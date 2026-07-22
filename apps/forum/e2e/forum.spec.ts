@@ -83,6 +83,11 @@ test.describe('eno.forum deployable workspace', () => {
     await expect(page.getByRole('tablist')).toBeVisible()
     await expect(page.locator('nav[aria-label="Forum tools"]')).toHaveCount(0)
     await expect(page.locator('nav[aria-label="Account"]')).toHaveCount(0)
+    // ⚠️ THIS is the live guard against a duplicate account rail returning, and it is the
+    // only one — it keys on HREFS that really exist in the product (ENO_DASHBOARD_URL is
+    // rendered as <a href> in mobile-forum-nav.tsx), not on copy. Verified by injecting a
+    // dashboard link into ForumRightRail's <aside>: this test went red. Do not "tidy" it
+    // away, and do not weaken it to a text match.
     await expect(page.locator('aside a[href="/itinerary"], aside a[href="/visa"], aside a[href="https://eno.vn/dashboard"]')).toHaveCount(0)
     await page.waitForTimeout(500)
     expect(await page.evaluate(() => (window as typeof window & { __enoForumFeedFetches: number }).__enoForumFeedFetches)).toBe(0)
@@ -156,9 +161,13 @@ test.describe('eno.forum deployable workspace', () => {
     await page.reload()
 
     const header = page.locator('#app-header')
-    await expect(page.getByTestId('eno-account-panel')).toHaveCount(0)
-    await expect(header.getByRole('button', { name: /Choose language/i })).toHaveCount(0)
-    await expect(header.getByRole('link', { name: /Open eno dashboard/i })).toHaveCount(0)
+    // ⚠️ These used to assert the ABSENCE of 'eno-account-panel', 'Choose language' and
+    // 'Open eno dashboard'. Every one of those strings has ZERO occurrences in
+    // apps/forum/src — they were pinned to an implementation deleted long ago, so they
+    // could never fail no matter what the product did. Replaced with STRUCTURAL guards on
+    // things that actually exist: no account rail anywhere in the signed-in shell, and no
+    // second navigation landmark competing with the header.
+    await expect(page.locator('aside a[href="https://eno.vn/dashboard"], aside a[href="/account"]')).toHaveCount(0)
     await expect(header.getByTestId('forum-create')).toHaveCount(1)
 
     await page.goto('/itinerary')

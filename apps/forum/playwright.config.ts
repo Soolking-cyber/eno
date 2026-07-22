@@ -22,8 +22,13 @@ export default defineConfig({
     // at a marketplace dev server on another port; browser tests must never depend on that private
     // machine state. The backend proxy targets this forum process, whose own itinerary endpoint
     // supplies the expected unauthenticated contract without requiring an external server.
-    command: 'FORUM_E2E_PREVIEW=1 NEXT_PUBLIC_MARKETPLACE_URL=https://eno.vn MARKETPLACE_API_URL=http://127.0.0.1:3101 NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=e2e-public-key npm run dev',
+    // CI builds and serves the PRODUCTION bundle. `next dev` compiles pages on demand, and a
+    // first-hit JIT compile on a small CI runner routinely exceeds the 30s navigation timeout —
+    // the classic Next e2e flake. Locally `dev` stays, for the fast edit loop.
+    command: (process.env.CI ? 'npm run build && ' : '') + 'FORUM_E2E_PREVIEW=1 NEXT_PUBLIC_MARKETPLACE_URL=https://eno.vn MARKETPLACE_API_URL=http://127.0.0.1:3101 NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=e2e-public-key ' + (process.env.CI ? 'npm run start' : 'npm run dev'),
     url: baseURL,
-    reuseExistingServer: true,
+    // Local: reuse a running dev server. CI: NEVER — a reused/stale server silently serves
+    // the wrong build, which already cost a stalled run on this machine.
+    reuseExistingServer: !process.env.CI,
   },
 })
