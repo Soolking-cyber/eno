@@ -196,7 +196,11 @@ function SearchableSelect({
                   className="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-ink-4"
                 />
               </div>
-              <ComboboxPrimitive.Empty className="px-3 py-6 text-center text-sm text-body">
+              {/* ⚠️ empty:hidden is load-bearing. Base UI keeps this element MOUNTED and visible when
+                  there are matches — it just clears the children — so measured on prod it sat 48px
+                  tall and blank above every result list. `:empty` collapses it exactly when it has
+                  no message to show. */}
+              <ComboboxPrimitive.Empty className="px-3 py-6 text-center text-sm text-body empty:hidden">
                 {tr('No matches', 'Không có kết quả')}
               </ComboboxPrimitive.Empty>
               <ComboboxPrimitive.List className="max-h-60 overflow-y-auto overflow-x-hidden p-1.5 scroll-thin">
