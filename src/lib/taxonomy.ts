@@ -971,7 +971,10 @@ export function listingMoneyFor(input: {
   const t = input.listingType
   return {
     currency: '₫',
-    priceUnit: t === 'rent' || t === 'job' ? 'VND/month' : t === 'service' ? 'VND/service (from)' : 'VND',
+    // A service price is the price OF that service, not a starting bid (owner, 2026-07-22:
+    // "we dont need broad from, exact price"). "(from)" invited a haggle the seller never
+    // offered and made every service card read as an estimate.
+    priceUnit: t === 'rent' || t === 'job' ? 'VND/month' : t === 'service' ? 'VND/service' : 'VND',
     isoCode: 'VND',
   }
 }

@@ -214,7 +214,7 @@ describe('listingMoneyFor — USD only for a visa product on the visa storefront
     for (const visaShopSeller of [false, undefined]) {
       expect(listingMoneyFor({ ...visa, visaShopSeller })).toEqual({
         currency: '₫',
-        priceUnit: 'VND/service (from)',
+        priceUnit: 'VND/service',
         isoCode: 'VND',
       })
     }
@@ -238,7 +238,7 @@ describe('listingMoneyFor — USD only for a visa product on the visa storefront
     const unit = (listingType: string) => listingMoneyFor({ categorySlug: 'vehicles', subcategorySlug: 'car', listingType }).priceUnit
     expect(unit('rent')).toBe('VND/month')
     expect(unit('job')).toBe('VND/month')
-    expect(unit('service')).toBe('VND/service (from)')
+    expect(unit('service')).toBe('VND/service')
     for (const t of ['sell', 'wanted', 'free', 'event', '']) expect(unit(t)).toBe('VND')
     // An absent intent behaves like a plain sale (create resolves one before calling).
     expect(listingMoneyFor({ categorySlug: 'vehicles', subcategorySlug: 'car' }).priceUnit).toBe('VND')
