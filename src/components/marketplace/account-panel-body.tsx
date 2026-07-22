@@ -8,7 +8,7 @@
 import { Fragment, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Settings, CircleHelp, LogOut, PanelLeft } from 'lucide-react'
+import { CircleHelp, LogOut, PanelLeft } from 'lucide-react'
 import { Tooltip } from '@/components/ui/tooltip'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
@@ -271,23 +271,33 @@ export function AccountPanel({ open, onClose }: { open: boolean; onClose: () => 
           ))}
         </nav>
 
-        {/* BOTTOM — the account: identity snippet, then Settings · Help · prefs · Sign out. */}
+        {/* BOTTOM — the account: the identity snippet (which IS the Settings link), then prefs · Sign out. */}
         <div className="mt-auto space-y-1 pt-3">
-          <div className={cn('flex items-center gap-3 rounded-2xl px-3 py-2', expanded ? 'lg:justify-start lg:gap-3 lg:px-3' : 'lg:justify-center lg:gap-0 lg:px-0')}>
+          {/* The identity snippet IS the Settings link (owner, 2026-07-22: "when user clicks on
+              profile settings should open, no need for separate icon"). The separate Settings
+              row that used to sit under this is gone with it.
+              ⚠️ STRETCHED LINK, not a wrapper <Link>. This block already contains an anchor —
+              the trust badge links to /trust — and an <a> inside an <a> is invalid HTML that
+              browsers silently un-nest, which would break BOTH targets. So the link is an
+              absolutely-positioned overlay covering the row, and the trust badge is lifted
+              above it with relative z-10 so it stays independently clickable. */}
+          <div className={cn('group relative flex items-center gap-3 rounded-2xl px-3 py-2 transition-colors hover:bg-tint', expanded ? 'lg:justify-start lg:gap-3 lg:px-3' : 'lg:justify-center lg:gap-0 lg:px-0')}>
+            <Link
+              href="/dashboard/settings"
+              aria-label={tr('Settings', 'Cài đặt')}
+              className="absolute inset-0 rounded-2xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+            />
             <Avatar url={dash?.profile.avatarUrl} name={displayName} color={dash?.profile.avatarColor} size="sm" />
             <div className={cn('min-w-0 overflow-hidden transition-[max-width,opacity] duration-200', 'max-w-[180px] flex-1 opacity-100', expanded ? 'lg:max-w-[180px] lg:flex-1 lg:opacity-100' : 'lg:max-w-0 lg:opacity-0')}>
               <span className="flex items-center gap-1.5">
-                <p className="truncate text-sm font-bold text-foreground">{displayName}</p>
-                {typeof dash?.profile.trustScore === 'number' && <TrustScore score={dash.profile.trustScore} size="sm" href="/trust" />}
+                <p className="truncate text-sm font-bold text-foreground group-hover:text-accent-foreground">{displayName}</p>
+                {typeof dash?.profile.trustScore === 'number' && (
+                  <span className="relative z-10 inline-flex"><TrustScore score={dash.profile.trustScore} size="sm" href="/trust" /></span>
+                )}
               </span>
               {dash?.profile.email && <p className="truncate text-xs text-ink-4">{dash.profile.email}</p>}
             </div>
           </div>
-
-          {/* Help is NOT here anymore — it graduated to a real rail section (Community →
-              Help center, dashboard-nav.tsx) when Forum activity was removed. Rendering it
-              in both places would show the same row twice in this panel. */}
-          {renderNav({ href: '/dashboard/settings', label: tr('Settings', 'Cài đặt'), icon: Settings })}
 
           {/* Language + theme — quiet device prefs. Only meaningful expanded (a horizontal control has
               no collapsed icon form), so it's hidden on the collapsed desktop rail; full on mobile.
