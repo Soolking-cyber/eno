@@ -188,7 +188,7 @@ test.describe('eno.forum itinerary builder', () => {
     await primaryDestination.press('Enter')
     await expect(primaryDestination).toHaveValue('Ho Chi Minh City')
 
-    await page.getByRole('button', { name: /Include flight options/i }).click()
+    await page.getByRole('checkbox', { name: /Include flight options/i }).click()
     const origin = page.getByRole('combobox', { name: /Departure city or airport/i })
     await origin.fill('SIN')
     await origin.press('Enter')
@@ -240,7 +240,7 @@ test.describe('eno.forum itinerary builder', () => {
     expect(await paceOptions.evaluateAll((options) => options.every((option) => option.scrollWidth <= option.clientWidth))).toBe(true)
 
     await page.getByLabel(/^Start date$/i).fill('2026-09-10')
-    await page.getByRole('button', { name: /Include flight options/i }).click()
+    await page.getByRole('checkbox', { name: /Include flight options/i }).click()
     await page.getByRole('combobox', { name: /Departure city or airport/i }).fill('Singapore (SIN)')
     await page.getByRole('combobox', { name: /Departure city or airport/i }).press('Enter')
     await page.getByRole('radio', { name: /Premium/i }).click()
@@ -303,7 +303,7 @@ test.describe('eno.forum itinerary builder', () => {
     })
 
     await page.getByLabel(/^Start date$/i).fill('2026-09-10')
-    await page.getByRole('button', { name: /Include flight options/i }).click()
+    await page.getByRole('checkbox', { name: /Include flight options/i }).click()
     await page.getByRole('combobox', { name: /Departure city or airport/i }).fill('Singapore (SIN)')
     await page.getByRole('combobox', { name: /Departure city or airport/i }).press('Enter')
     await page.getByRole('slider', { name: /Trip length/i }).press('Home')
