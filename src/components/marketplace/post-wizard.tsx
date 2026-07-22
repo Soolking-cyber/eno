@@ -21,7 +21,7 @@ import { containsPhoneNumber } from '@/lib/phone'
 import { containsContactInfo, findBannedWord, minPhotosFor, publicSafeName } from '@/lib/publish-guard'
 import { trackPostListing } from '@/lib/analytics'
 import { AreaFilter, findUnit, type Geo, type Nearby } from './area-filter'
-import { subcategoriesFor, typesFor, facetsFor, rangeFacetsFor, categoryHasBrand, LISTING_TYPES } from '@/lib/taxonomy'
+import { subcategoriesFor, typesFor, facetsFor, rangeFacetsFor, categoryHasBrand, isRequiredFacet, listingMoneyFor, LISTING_TYPES } from '@/lib/taxonomy'
 import { RangeSpecInput } from './range-spec-input'
 import { usePostMedia } from '@/hooks/use-post-media'
 import { PublishButton, Section, Field, Chips, Preview } from './post-wizard-parts'
@@ -280,6 +280,10 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
   const [contactPhone, setContactPhone] = useState('')
   const [postingAs, setPostingAs] = useState<string | null>(null)
   const [meLoaded, setMeLoaded] = useState(false)
+  // Am I the e-Visa storefront? Decided by /api/me on the SERVER (the client is never
+  // told which account that is) and used for one thing: the compose currency below.
+  // Defaults to false → ₫, so a slow or failed /api/me composes as the marketplace does.
+  const [visaShopOwner, setVisaShopOwner] = useState(false)
 
   // ── Draft autosave (new listings only; photos aren't persisted). Crash
   // insurance, not a drafts feature: restores only within a short window
@@ -349,6 +353,9 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
         setContactPhone(u.seller?.phone || u.phone || '')
         if (u.accountType === 'business') setPostingAs(u.businessName || u.seller?.name || null)
       }
+      // `=== true`, not truthiness: an older cached /api/me response has no such field,
+      // and only a real server-side yes may switch this form's money to dollars.
+      setVisaShopOwner(u?.visaShopOwner === true)
       setMeLoaded(true)
     }).catch(() => { if (!ctrl.signal.aborted) setMeLoaded(true) })
     // re-runs when a guest signs in mid-wizard (draft-first posting) so the
@@ -435,7 +442,24 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
   const areaLabel = ward ? `${ward.name}${province ? `, ${province.name}` : ''}` : province ? province.name : (nearby ? t('Vị trí của bạn', 'Your location') : '')
   const hasLocation = !!(province || ward || nearby)
   const minPhotos = minPhotosFor(categorySlug)
-  const priceUnit = listingType === 'rent' || listingType === 'job' ? t('/ tháng', '/ month') : listingType === 'service' ? t('/ dịch vụ', '/ service') : ''
+
+  // ── The money this form is composing ────────────────────────────────────────
+  // THE SAME FUNCTION THE SERVER WRITES WITH. storedMoneyFor() in @/lib/core/listings.ts
+  // calls listingMoneyFor() with a `visaShopSeller` it resolves from the DB; this calls it
+  // with the boolean /api/me resolved from that same storefront. One rule, two callers —
+  // so the price the poster types, the row that gets stored and the amount checkout
+  // captures cannot disagree. ⚠️ Never re-derive the rule here (an inline
+  // `categorySlug === 'services' && …` would drift the day the slot moves), and never
+  // widen it: `visaShopOwner` alone is not enough, the slot has to match too — an ordinary
+  // seller's ₫1.5m work-permit service lives at services/visa-legal as well.
+  const money = listingMoneyFor({ categorySlug, subcategorySlug: subcategorySlug || null, listingType, visaShopSeller: visaShopOwner })
+  // Display suffix beside the amount. Driven by the STORED unit, not by listingType alone:
+  // listingMoneyFor gives a visa product an empty priceUnit (the PDP renders a bare "$115"),
+  // so composing it as "$115 / service" would advertise a unit the listing does not have.
+  const priceUnit = !money.priceUnit ? ''
+    : listingType === 'rent' || listingType === 'job' ? t('/ tháng', '/ month')
+    : listingType === 'service' ? t('/ dịch vụ', '/ service')
+    : ''
 
   // Required-field checklist (drives the Publish button + the "what's left" hint).
   const checks = [
@@ -455,8 +479,13 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
     // "is it new? what year?" — make sellers answer once, up front.
     { key: 'description', ok: description.trim().length >= 20, label: t('Viết mô tả (ít nhất 20 ký tự)', 'Write a description (at least 20 characters)') },
     ...(hasCondition ? [{ key: 'condition', ok: !!condition, label: t('Chọn tình trạng', 'Pick the condition') }] : []),
-    ...(attrFacets.some((f) => f.kind !== 'range')
-      ? [{ key: 'details', ok: attrFacets.filter((f) => f.kind !== 'range').every((f) => !!attrs[f.key]), label: t('Điền thông số', 'Fill in the specifics') }]
+    // isRequiredFacet (taxonomy) is the ONE definition of "this chip blocks publish":
+    // range facets never did, and a facet the taxonomy declares `optional` opts out —
+    // that is how services/visa-legal can carry e-visa product chips without stopping an
+    // ordinary work-permit or tax listing from publishing. Same predicate below in the
+    // red-flagging and on the field itself, so the checklist and the errors agree.
+    ...(attrFacets.some(isRequiredFacet)
+      ? [{ key: 'details', ok: attrFacets.filter(isRequiredFacet).every((f) => !!attrs[f.key]), label: t('Điền thông số', 'Fill in the specifics') }]
       : []),
     { key: 'price', ok: price.trim().length > 0, label: t('Nhập giá', 'Set a price') },
     { key: 'location', ok: hasLocation, label: t('Chọn khu vực', 'Set the area') },
@@ -489,7 +518,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
     // Condition + specifics BLOCK publish (see `checks`) — flag them red on a failed
     // attempt like every other required field, not silently.
     condition: attempted && hasCondition && !condition,
-    details: attempted && attrFacets.some((f) => f.kind !== 'range' && !attrs[f.key]),
+    details: attempted && attrFacets.some((f) => isRequiredFacet(f) && !attrs[f.key]),
     location: attempted && !hasLocation,
     // Name and phone are TWO fields. One shared `contact` flag lit both of them red when
     // only one was wrong — and pointed the screen reader at the wrong one.
@@ -597,7 +626,9 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
         return
       }
       const created = (await res.json().catch(() => ({}))) as { id?: string }
-      trackPostListing({ id: created.id, title: title.trim(), price: Number(price), currency: 'VND', category: cat?.name || categorySlug, district: district || undefined })
+      // isoCode, not a literal — ListingMoney exposes it for exactly this (ad/analytics
+      // payloads). A $115 visa product reported as 115 VND would poison GA/CAPI value.
+      trackPostListing({ id: created.id, title: title.trim(), price: Number(price), currency: money.isoCode, category: cat?.name || categorySlug, district: district || undefined })
       try { localStorage.removeItem('eno-listing-draft') } catch {}
       // First-ever publish gets a distinct celebration moment on the success
       // screen (device-local flag — celebration-grade accuracy is fine).
@@ -892,7 +923,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                 </Field>
               )}
               {attrFacets.map((f, fi) => (
-                <Field group key={f.key} id={fi === 0 ? 'pw-details' : undefined} label={tr(f.label, f.labelVi)} error={err.details && f.kind !== 'range' && !attrs[f.key] ? t('Hãy chọn một mục', 'Pick one') : undefined}>
+                <Field group key={f.key} id={fi === 0 ? 'pw-details' : undefined} label={tr(f.label, f.labelVi)} error={err.details && isRequiredFacet(f) && !attrs[f.key] ? t('Hãy chọn một mục', 'Pick one') : undefined}>
                   {f.kind === 'range' && f.range ? (
                     <RangeSpecInput range={f.range} value={ranges[f.key] ?? null} onChange={(v) => setRanges((prev) => ({ ...prev, [f.key]: v }))} />
                   ) : (
@@ -912,6 +943,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
             priceErr={priceErr}
             priceBand={priceBand}
             priceUnit={priceUnit}
+            currency={money.isoCode}
             negotiable={negotiable}
             setNegotiable={setNegotiable}
             urgent={urgent}
@@ -954,7 +986,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
           <div className="sticky top-24 space-y-4">
             <div className="space-y-2">
               <span className="text-2xs font-bold uppercase tracking-wider text-ink-4">{t('Xem trước', 'Live preview')}</span>
-              <Preview cover={photos[0]?.url} title={title} price={price} priceUnit={priceUnit} area={areaLabel} categoryIcon={cat?.icon} t={t} />
+              <Preview cover={photos[0]?.url} title={title} price={price} priceUnit={priceUnit} currency={money.currency} area={areaLabel} categoryIcon={cat?.icon} t={t} />
             </div>
             <PublishButton {...publishButtonProps} />
             {missing.length > 0 && (

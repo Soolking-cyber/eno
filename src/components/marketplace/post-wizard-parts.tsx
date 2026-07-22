@@ -17,6 +17,7 @@ import {
 import { useLanguage } from '@/context/language-context'
 import { CategoryIcon } from './category-icons'
 import { formatMoneyFull, moneyLocale } from '@/lib/vnd'
+import type { ListingMoney } from '@/lib/taxonomy'
 
 export function PublishButton({
   className,
@@ -156,7 +157,20 @@ export function Chips({ options, value, onPick }: { options: { value: string; la
   )
 }
 
-export function Preview({ cover, title, price, priceUnit, area, categoryIcon, t }: { cover?: string; title: string; price: string; priceUnit: string; area: string; categoryIcon?: string; t: (vi: string, en: string) => string }) {
+export function Preview({ cover, title, price, priceUnit, currency = '₫', area, categoryIcon, t }: {
+  cover?: string
+  title: string
+  price: string
+  priceUnit: string
+  /** The symbol the row will be STORED with — `listingMoneyFor().currency`, the same one
+   *  <Price> will render this listing with on the card and the PDP. Hardcoding '₫' here
+   *  made the preview advertise a $115 e-visa as "115 VND". Defaults to ₫: every
+   *  marketplace listing, unchanged. */
+  currency?: ListingMoney['currency']
+  area: string
+  categoryIcon?: string
+  t: (vi: string, en: string) => string
+}) {
   const { lang } = useLanguage() // preview price mirrors what buyers in this language will see
   return (
     <div className="w-full">
@@ -172,7 +186,7 @@ export function Preview({ cover, title, price, priceUnit, area, categoryIcon, t 
       </div>
       <h3 className="mt-2 line-clamp-2 text-sm font-medium leading-snug text-foreground">{title || t('Tiêu đề tin của bạn', 'Your listing title')}</h3>
       <p className="mt-0.5 text-sm font-bold text-foreground">
-        {price ? formatMoneyFull(Number(price), '₫', moneyLocale(lang)) : t('Giá', 'Price')}{price && priceUnit ? <span className="font-normal text-ink-4"> {priceUnit}</span> : null}
+        {price ? formatMoneyFull(Number(price), currency, moneyLocale(lang)) : t('Giá', 'Price')}{price && priceUnit ? <span className="font-normal text-ink-4"> {priceUnit}</span> : null}
       </p>
       {area && <p className="text-xs text-muted-foreground">{area}</p>}
     </div>

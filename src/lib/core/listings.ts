@@ -24,7 +24,8 @@ async function removeVideoIfOrphaned(url: string): Promise<void> {
   }
 }
 import { categoryHasBrand, resolveBrand, bumpBrandCount, enrichBrandLogoIfMissing } from '@/lib/brand'
-import { rangeFacetsFor, subcategoriesFor, typesFor, suggestSubcategory } from '@/lib/taxonomy'
+import { rangeFacetsFor, subcategoriesFor, typesFor, suggestSubcategory, listingMoneyFor, isVisaProductSlot } from '@/lib/taxonomy'
+import { getVisaShopSeller } from '@/lib/visa-shop'
 import { syndicateListing } from '@/lib/syndicate'
 import { sendMetaCapiEvent, metaUserDataFromHeaders } from '@/lib/meta-capi'
 import { dispatchListingEvent } from '@/lib/webhooks'
@@ -115,6 +116,42 @@ export function parseVideoField(raw: unknown): { action: 'set'; url: string } | 
   if (raw === null || raw === '') return { action: 'clear' }
   if (isCanonicalVideoUrl(raw)) return { action: 'set', url: raw }
   return { action: 'ignore' }
+}
+
+/**
+ * The currency + price unit a listing must be STORED with — the one place either is
+ * decided, shared by create and update so an edit can never contradict the post.
+ *
+ * Everything on eno is ₫ except the e-Visa products the visa storefront sells, which are
+ * charged in whole US dollars (src/lib/visa-shop.ts). Two independent conditions have to
+ * hold before a row is written in USD, and the rules live apart on purpose:
+ *   · WHERE it is  — services/visa-legal, from the taxonomy (isVisaProductSlot);
+ *   · WHOSE it is  — the visa storefront itself, resolved from the DB by owner email.
+ * The seller half is not optional. services/visa-legal is a shared subcategory that also
+ * catches work-permit/tax/legal listings (suggestSubcategory routes them there by
+ * keyword), so slot alone would re-price an ordinary seller's ₫1.5m service as $1.5m.
+ *
+ * The storefront lookup only runs for a listing in the visa slot — a normal post pays
+ * nothing — and it fails to ₫ (getVisaShopSeller swallows its own errors and answers
+ * null). That is the safe direction: a visa product that lands in ₫ is refused by
+ * sellablePriceCents() and simply cannot be sold, whereas a ₫ listing mislabelled '$'
+ * would advertise 25 000× its price.
+ */
+async function storedMoneyFor(input: {
+  categorySlug: string
+  subcategorySlug: string | null
+  listingType?: string | null
+  sellerId: string
+}) {
+  let visaShopSeller = false
+  if (isVisaProductSlot(input.categorySlug, input.subcategorySlug)) {
+    try {
+      visaShopSeller = (await getVisaShopSeller())?.id === input.sellerId
+    } catch (e) {
+      console.error('[listings] visa storefront lookup', e) // → stays ₫ (unsellable, never mispriced)
+    }
+  }
+  return listingMoneyFor({ ...input, visaShopSeller })
 }
 
 /**
@@ -364,6 +401,34 @@ export async function updateListingCore(
 
   if (Object.keys(data).length === 0) return { ok: true }
 
+  // Currency RE-ASSERTION (deliberately after the no-op early return, so an empty PATCH
+  // stays a no-op). An e-visa product is charged in USD; the row must therefore still say
+  // '$' after an edit, and the amount the admin typed into the dashboard must not become
+  // đồng because the update path forgot to mention a currency. Written on every edit of a
+  // visa product — that also repairs a product posted before this rule existed, which was
+  // stored in ₫ and consequently could not be sold at all (sellablePriceCents rejects it).
+  //
+  // Nothing is written for any other listing: no PATCH on the rest of the marketplace
+  // touches `currency`/`priceUnit`, so every non-visa row stays exactly as it is — and a
+  // listing that leaves the visa slot KEEPS its '$' rather than having a dollar amount
+  // silently reinterpreted as đồng.
+  {
+    // Key presence, not `??`: an edit may set subcategorySlug to NULL, and `??` would
+    // read that deliberate clear as "unchanged" and keep pricing the row as a product.
+    const nextSubcat = 'subcategorySlug' in data ? (data.subcategorySlug as string | null) : current.subcategorySlug
+    // No listingType: only the USD branch is ever written here, and a visa product's
+    // price unit is '' whatever its intent. The ₫ price unit stays create's business.
+    const money = await storedMoneyFor({
+      categorySlug: current.category.slug,
+      subcategorySlug: nextSubcat,
+      sellerId: current.sellerId,
+    })
+    if (money.isoCode === 'USD') {
+      data.currency = money.currency
+      data.priceUnit = money.priceUnit
+    }
+  }
+
   // Full content screen on EVERY edited free-text field — the same checks as
   // create. Without this, clean-publish-then-edit was a complete bypass of the
   // banned-goods and contact filters (2026-07-06 compliance verification). Covers
@@ -545,9 +610,11 @@ export async function createListingCore(input: {
   if (!subs.some((s) => s.slug === subcategorySlug)) {
     subcategorySlug = suggestSubcategory(categorySlug, `${title} ${body.description || ''}`) || (subs[0]?.slug ?? null)
   }
-  // Price unit follows the intent (monthly for rent/job, per-service for service).
-  const priceUnit = listingType === 'rent' || listingType === 'job' ? 'VND/month'
-    : listingType === 'service' ? 'VND/service (from)' : 'VND'
+  // Currency + price unit. ₫ and intent-driven ("VND/month") for every listing on the
+  // marketplace; USD only for an e-visa product on the visa storefront, which is charged
+  // in dollars downstream — see storedMoneyFor for why the seller check is not optional.
+  const money = await storedMoneyFor({ categorySlug, subcategorySlug, listingType, sellerId: seller.id })
+  const priceUnit = money.priceUnit
   // Whitelisted, stringly-typed attribute facets (taxonomy values).
   const attributes = sanitizeAttributes(body.attributes)
 
@@ -605,7 +672,7 @@ export async function createListingCore(input: {
       description,
       price,
       priceUnit,
-      currency: '₫',
+      currency: money.currency,
       // Default to negotiable when the caller omits it (matches the column default +
       // the pre-feature norm); the wizard sends an explicit true/false, partner API /
       // MCP send it when they want a fixed price. Urgent force-enables offers —
@@ -677,7 +744,9 @@ export async function createListingCore(input: {
       sendMetaCapiEvent('Lead', {
         eventSourceUrl: headers.get('referer') || undefined,
         userData: metaUserDataFromHeaders(headers, { phone: seller.phone, externalId: seller.id }),
-        customData: { content_ids: [listing.id], content_type: 'product', content_category: category.name, value: listing.price, currency: 'VND' },
+        // Currency follows the row, not a constant: reporting a $115 visa product as
+        // "115 VND" would tell Meta the lead was worth a third of a US cent.
+        customData: { content_ids: [listing.id], content_type: 'product', content_category: category.name, value: listing.price, currency: money.isoCode },
       }),
     )
     after(() => reindexListing(listing.id)) // add the new live listing to AI search

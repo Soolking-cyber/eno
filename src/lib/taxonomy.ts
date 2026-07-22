@@ -16,6 +16,10 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import type { CategoryColor } from './types'
+// Relative specifier (the visa-shop.ts idiom): `@/…` does not resolve under vitest, and
+// this file's visa wiring is unit-tested in src/lib/taxonomy.visa.test.ts. speed.ts is a
+// pure, import-free, side-effect-free module — safe to pull into a client bundle.
+import { VISA_ENTRY_TYPES, VISA_SPEED_CODES, VISA_SPEED_SPECS } from './visa/speed'
 
 // ── Intent axis ──────────────────────────────────────────────────────────────
 export type ListingType = 'sell' | 'rent' | 'wanted' | 'free' | 'service' | 'job' | 'event'
@@ -66,7 +70,24 @@ export type FacetDef = {
   // Restrict this facet to certain subcategory slugs (e.g. cc engine for motorbikes
   // vs litre engine for cars). Absent = applies to every subcategory in the category.
   subcats?: string[]
+  // NOT required to publish. The post wizard requires every non-range facet of the
+  // chosen subcategory before it will publish (that IS the gate — see isRequiredFacet),
+  // which is right for "condition"/"transmission" but wrong for a facet that only
+  // describes ONE kind of listing inside a shared subcategory: services/visa-legal
+  // holds work-permit and tax listings as well as e-visa products, and an ordinary
+  // seller must not be blocked by a chip that means nothing for their service.
+  // Standing owner policy is maximum posting leniency at launch — mark such a facet
+  // optional rather than narrowing the subcategory. Absent/false = required as before.
+  optional?: boolean
   options: { value: string; label: string; labelVi: string }[]
+}
+
+/** A facet the post wizard BLOCKS PUBLISH on. Range facets (year/mileage/engine) were
+ *  never part of the gate — they have a value at every position of the slider — and an
+ *  `optional` facet opts out by declaration. One predicate, used by the wizard's
+ *  completeness checklist AND its red-flagging, so the two can never disagree. */
+export function isRequiredFacet(f: FacetDef): boolean {
+  return f.kind !== 'range' && !f.optional
 }
 
 // Newest selectable model year — current year + 1 (dealers list next-year models).
@@ -105,6 +126,46 @@ const COND: FacetDef = {
     { value: 'used', label: 'Used', labelVi: 'Đã dùng' },
   ],
 }
+
+// ── Visa products ────────────────────────────────────────────────────────────
+// A Vietnam e-Visa service is sold as an ORDINARY listing: one product = one entry
+// type at one processing speed, priced by whoever posts it on Listing.price. These
+// two coordinates are where such a listing lives.
+export const VISA_CATEGORY_SLUG = 'services'
+export const VISA_SUBCATEGORY_SLUG = 'visa-legal'
+
+/** Is this category+subcategory the slot an e-visa PRODUCT is sold from? Says nothing
+ *  about WHO posted it — services/visa-legal is a perfectly ordinary subcategory that
+ *  also holds work-permit, tax and legal listings from ordinary sellers. */
+export function isVisaProductSlot(categorySlug: string, subcategorySlug?: string | null): boolean {
+  return categorySlug === VISA_CATEGORY_SLUG && subcategorySlug === VISA_SUBCATEGORY_SLUG
+}
+
+// Entry-type copy. The VALUES and their order come from VISA_ENTRY_TYPES (the engine's
+// own union), so a new entry type is a TYPE ERROR here instead of a chip that silently
+// never appears. Only two exist: src/lib/visa/schema.ts models entryType alone, over one
+// window (MAX_EVISA_VALIDITY_DAYS = 90) — 90-day is implied by both options, so don't
+// invent other validities here.
+const VISA_ENTRY_TYPE_COPY: Record<(typeof VISA_ENTRY_TYPES)[number], { label: string; labelVi: string }> = {
+  single: { label: 'Single entry', labelVi: 'Nhập cảnh một lần' },
+  multiple: { label: 'Multiple entry', labelVi: 'Nhập cảnh nhiều lần' },
+}
+const VISA_ENTRY_TYPE_OPTIONS = VISA_ENTRY_TYPES.map((value) => ({ value, ...VISA_ENTRY_TYPE_COPY[value] }))
+
+// Processing-speed copy is DERIVED, never restated: src/lib/visa/speed.ts owns both the
+// codes and their wording (see the ⚠️ block at the top of that file). Restating them here
+// is what let 'Normal processing' and 'Standard' drift apart while the buyer's chip and
+// the operator's tier claimed to be the same thing — and a restated VALUE would be worse
+// still: parseVisaSpeedCode() only accepts these seven, so a rename in one file alone
+// would make every already-posted product unresolvable and therefore unsellable.
+// ⚠️ scripts/gen-ui-strings.mjs harvests EN copy out of THIS file by regex, so these seven
+// labels are no longer harvested — the script needs src/lib/visa/speed.ts added to that
+// block (it would also pick up the turnaround copy, which has never been harvested).
+const VISA_SPEED_OPTIONS = VISA_SPEED_CODES.map((code) => ({
+  value: code,
+  label: VISA_SPEED_SPECS[code].label,
+  labelVi: VISA_SPEED_SPECS[code].labelVi,
+}))
 
 // Shared colour palette — used by several product categories.
 const COLOR_OPTIONS = [
@@ -698,6 +759,31 @@ export const TAXONOMY: CategoryDef[] = [
         { value: 'individual', label: 'Individual', labelVi: 'Cá nhân' },
         { value: 'business', label: 'Business', labelVi: 'Doanh nghiệp' },
       ] },
+      // ── Visa products ────────────────────────────────────────────────────────
+      // A visa service is sold as an ORDINARY listing: one product = one entry type
+      // at one processing speed, priced by whoever posts it on Listing.price. These
+      // two facets are the product's parameters, so they ride in Listing.attributes
+      // like every other facet — there is no separate visa pricing table and nothing
+      // here encodes an amount. Scoped to `visa-legal` so cleaning/fitness/etc never
+      // see them (same mechanism as motorbike `cc` vs car `litre`).
+      //
+      // ⚠️ BOTH ARE `optional`. `visa-legal` is not a visa-products-only subcategory:
+      // its keywords are visa / work permit / legal / tax / permit / giấy tờ / thuế /
+      // pháp lý, and suggestSubcategory() drops any Services listing mentioning one of
+      // them in here. Without the flag, a Vietnamese agent posting "gia hạn work
+      // permit" could not publish until they picked an e-visa entry type — exactly the
+      // kind of gate the owner's launch-leniency policy forbids. The e-visa surfaces
+      // read these attributes defensively (parseVisaEntryType / parseVisaSpeedCode
+      // answer null, never a guessed default), so an unset chip costs a product its
+      // auto-fill, never a wrong government form.
+      { key: 'visaEntryType', label: 'Entry type', labelVi: 'Loại nhập cảnh', kind: 'toggle',
+        subcats: [VISA_SUBCATEGORY_SLUG], optional: true, options: VISA_ENTRY_TYPE_OPTIONS },
+      // Turnaround as the BUYER reads it, worded once in src/lib/visa/speed.ts. The
+      // submission cutoffs attached to each tier are an operational fact of the
+      // provider, not a price, so they live in code — never in this admin-editable
+      // data, and never as a number a client can send.
+      { key: 'visaSpeed', label: 'Processing speed', labelVi: 'Tốc độ xử lý', kind: 'toggle',
+        subcats: [VISA_SUBCATEGORY_SLUG], optional: true, options: VISA_SPEED_OPTIONS },
     ],
   },
 
@@ -836,6 +922,58 @@ export function isRangeColumn(s: string): s is RangeColumn {
 
 export function typesFor(categorySlug: string): ListingType[] {
   return CATEGORY_BY_SLUG[categorySlug]?.types ?? ['sell']
+}
+
+// ── Money: the currency a listing is stored and rendered in ──────────────────
+// eno is a VND marketplace and every listing on it is priced in đồng — with ONE
+// exception, and it is not a preference: the Vietnam e-Visa products the visa
+// storefront sells are quoted, invoiced and CHARGED in whole US dollars (the
+// checkout captures USD cents via src/lib/visa-shop.ts, whose sellablePriceCents()
+// refuses anything that is not '$'/'USD'). A visa product posted in ₫ is therefore
+// not "displayed oddly", it is UNSELLABLE. So the currency is DERIVED here — there
+// is no currency picker anywhere and a client can never send one.
+
+export type ListingMoney = {
+  /** Listing.currency — the symbol stored on the row and rendered by <Price>. */
+  currency: '₫' | '$'
+  /** Listing.priceUnit — the suffix <Price> appends ('' = none, 'VND' = none). */
+  priceUnit: string
+  /** ISO code for ad/analytics payloads (Meta CAPI). Never for display. */
+  isoCode: 'VND' | 'USD'
+}
+
+/**
+ * The money shape a listing must be stored with.
+ *
+ * ⚠️ `visaShopSeller` is load-bearing and MUST be resolved from the row's seller, not
+ * guessed from its category. The visa slot is a shared subcategory (see the facet
+ * comments above): an ordinary seller's "work permit renewal — 1.500.000" lives at
+ * services/visa-legal too, and pricing that in dollars would advertise $1,500,000 for a
+ * ₫1.5m service — a 25 000× money bug on somebody else's listing. Only the storefront
+ * that actually sells e-visas (support@eno.vn, VISA_SHOP_OWNER_EMAIL) prices in USD.
+ *
+ * Everything else is the long-standing VND behaviour, byte-for-byte: the price unit
+ * follows the intent (monthly for rent/job, per-service for a service).
+ */
+export function listingMoneyFor(input: {
+  categorySlug: string
+  subcategorySlug?: string | null
+  listingType?: string | null
+  /** True ONLY when the poster is the visa storefront itself. */
+  visaShopSeller?: boolean
+}): ListingMoney {
+  if (input.visaShopSeller && isVisaProductSlot(input.categorySlug, input.subcategorySlug)) {
+    // Empty unit on purpose — <Price> renders "$115" and would append " / USD" for any
+    // non-empty unit. Byte-identical to what scripts/seed-visa-shop.mjs writes, so a
+    // dashboard-posted product and a seeded one are the same row.
+    return { currency: '$', priceUnit: '', isoCode: 'USD' }
+  }
+  const t = input.listingType
+  return {
+    currency: '₫',
+    priceUnit: t === 'rent' || t === 'job' ? 'VND/month' : t === 'service' ? 'VND/service (from)' : 'VND',
+    isoCode: 'VND',
+  }
 }
 
 // Pick the best subcategory slug for a free-text title (post-wizard auto-suggest

@@ -2,9 +2,16 @@ import { randomUUID } from 'node:crypto'
 import { NextResponse } from 'next/server'
 import { getCurrentProfile } from '@/lib/admin'
 import { rateLimit } from '@/lib/ratelimit'
+import {
+  getVisaShopProducts,
+  isVisaProductReadyForAutoFill,
+  type VisaEntryType,
+  type VisaShopProduct,
+  type VisaSpeedCode,
+} from '@/lib/visa-shop'
 import { encryptVisaPayload, visaCryptoReady } from '@/lib/visa/crypto'
 import { getVisaDb, visaTableMissing } from '@/lib/visa/db'
-import { visaPaymentsConfig } from '@/lib/visa/payments'
+import { visaPaymentsConfig, type VisaPaymentProvider } from '@/lib/visa/payments'
 import { serializeVisa, type VisaApplicationRow, type VisaDocumentRow, type VisaEventRow } from '@/lib/visa/records'
 import { emptyVisaPayload } from '@/lib/visa/schema'
 
@@ -17,11 +24,88 @@ import { emptyVisaPayload } from '@/lib/visa/schema'
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
+/**
+ * What the BROWSER is allowed to know about the payment gate.
+ *
+ * ⚠️ feeCents NEVER CROSSES THIS BOUNDARY (owner, 2026-07-21). It is the dormant/live env
+ * switch and nothing else — visa services are ordinary marketplace listings now and their
+ * amounts live on Listing.price, so a client that renders feeCents renders a number nobody
+ * will ever be charged (which is exactly what the Review step used to do). The applicant
+ * needs two facts to draw the gate: which providers to offer, and the currency the desk
+ * charges in. The amount comes from the catalogue below, where it is attached to the
+ * PRODUCT it belongs to and can be compared with what the checkout route captures.
+ */
+type VisaPaymentsPublicConfig = { providers: VisaPaymentProvider[]; currency: 'USD' }
+function visaPaymentsPublicConfig(): VisaPaymentsPublicConfig | null {
+  const config = visaPaymentsConfig()
+  return config ? { providers: config.providers, currency: config.currency } : null
+}
+
+/** A catalogue row as the applicant sees it: WHICH product, and what it costs. */
+type VisaCatalogueEntry = {
+  listingId: string
+  title: string
+  entryType: VisaEntryType
+  speed: VisaSpeedCode
+  priceCents: number
+  currency: string
+}
+
+/**
+ * Delegates to the shop's own readiness rule and NARROWS with it, so the two can never
+ * disagree: what the buyer is offered is exactly what isVisaProductReadyForAutoFill()
+ * calls finished, and the nulls are gone from the type by the same test.
+ */
+function isBuyableVisaProduct(
+  product: VisaShopProduct,
+): product is VisaShopProduct & { entryType: VisaEntryType; speed: VisaSpeedCode } {
+  return isVisaProductReadyForAutoFill(product)
+}
+
+/**
+ * The purchasable catalogue — the marketplace IS the catalogue, so this is derived from
+ * the visa storefront's listings on every request and there is no hard-coded option list
+ * anywhere on the client.
+ *
+ * Half-built products (no entry type or no speed yet) are dropped: the shop keeps them
+ * visible so the ADMIN can see the row being set up, but they are not a service anyone can
+ * buy, and the checkout route refuses them with `product_not_configured` anyway.
+ *
+ * The `window` is deliberately NOT shipped: it is a function of the tier and the instant,
+ * and the client recomputes it from the same pure module (src/lib/visa/speed.ts) so a page
+ * left open does not keep offering a desk that closed twenty minutes ago. The server's
+ * answer at checkout time is still the only one that decides.
+ *
+ * ⚠️ Prices ride along as CENTS PER PRODUCT and are display-only — the checkout route
+ * re-resolves the amount from the listing and accepts no amount from the client.
+ */
+async function visaCatalogueForApplicant(): Promise<VisaCatalogueEntry[]> {
+  return (await getVisaShopProducts()).filter(isBuyableVisaProduct).map((product) => ({
+    listingId: product.listingId,
+    title: product.title,
+    entryType: product.entryType,
+    speed: product.speed,
+    priceCents: product.priceCents,
+    currency: product.currency,
+  }))
+}
+
 export async function GET(request: Request) {
   const profile = await getCurrentProfile()
   if (!profile) return NextResponse.json({ error: 'auth_required' }, { status: 401 })
   const activeMode = new URL(request.url).searchParams.get('active') === '1'
   try {
+    // Dormant hosts do NO extra work and answer exactly as they did before per-product
+    // pricing: no providers configured ⇒ no catalogue read, no products, direct submit.
+    // Started here (not awaited) so the storefront read overlaps the application queries;
+    // fail-soft to [] because a catalogue outage must not 500 somebody's application list.
+    const payments = visaPaymentsPublicConfig()
+    const cataloguePromise: Promise<VisaCatalogueEntry[]> = payments
+      ? visaCatalogueForApplicant().catch((error) => {
+        console.error('[visa] catalogue read failed', (error as Error)?.message?.slice(0, 200))
+        return []
+      })
+      : Promise.resolve([])
     const db = getVisaDb()
     const { data, error } = await db.from('visa_applications').select('*').eq('user_id', profile.id).order('updated_at', { ascending: false }).limit(20)
     if (error) throw error
@@ -47,7 +131,8 @@ export async function GET(request: Request) {
         application: active ? serializeVisa(active, documents.filter((document) => document.application_id === active.id), events) : null,
         applications: applications.map((item) => serializeVisa(item, documents.filter((document) => document.application_id === item.id), undefined, false)),
         encryptionReady,
-        payments: visaPaymentsConfig(),
+        payments,
+        products: await cataloguePromise,
       })
     }
     const documents = ids.length
@@ -60,9 +145,11 @@ export async function GET(request: Request) {
       // …and this flag tells the dashboard client UP FRONT whether payload routes will work,
       // so the "not configured on this host yet" state renders without a doomed write.
       encryptionReady: visaCryptoReady(),
-      // Service-fee gate state: null while dormant (client shows the direct submit),
-      // otherwise the providers + fee the Review step renders as "Pay & submit".
-      payments: visaPaymentsConfig(),
+      // Payment-gate state: null while dormant (client shows the direct submit), otherwise
+      // the providers the Review step offers. NOT a price — see visaPaymentsPublicConfig.
+      payments,
+      // The products those providers can be paid for, priced from the listings themselves.
+      products: await cataloguePromise,
     })
   } catch (error) {
     const code = (error as { code?: string }).code

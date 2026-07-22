@@ -26,6 +26,7 @@ import { Input } from '@/components/ui/input'
 import { FieldControl } from '@/components/ui/field'
 import { useLanguage } from '@/context/language-context'
 import { moneyLocale, compactPrice } from '@/lib/vnd'
+import type { ListingMoney } from '@/lib/taxonomy'
 import type { PostMedia } from '@/hooks/use-post-media'
 import { Section, Field } from './post-wizard-parts'
 import { VndInput } from './vnd-input'
@@ -229,6 +230,7 @@ export function PriceSection({
   priceErr,
   priceBand,
   priceUnit,
+  currency,
   negotiable,
   setNegotiable,
   urgent,
@@ -242,6 +244,10 @@ export function PriceSection({
   priceErr?: string
   priceBand: { n: number; p25: number; median: number; p75: number } | null
   priceUnit: string
+  /** The ISO code this listing will be STORED with — `listingMoneyFor().isoCode`,
+   *  derived once in the wizard. Threaded straight into <VndInput>, which uses it to
+   *  suppress the ₫-only unit ladder and đồng reading. See vnd-input.tsx. */
+  currency: ListingMoney['isoCode']
   negotiable: boolean
   setNegotiable: (v: boolean) => void
   urgent: boolean
@@ -252,7 +258,7 @@ export function PriceSection({
     <Section id="pw-price" title={t('Giá', 'Price')}>
       <div onBlur={() => touch('price')}>
         <div className="flex max-w-xs items-center gap-2">
-          {/* VndInput renders a <div> (input + VND suffix + preset chips), so it is not a
+          {/* VndInput renders a <div> (input + currency suffix + preset chips), so it is not a
               labelable control and cannot go inside a <FieldControl>. The Section's heading
               "Giá/Price" is a heading, not a label — so the name and the reason have to be
               handed to the inner <input> by hand, or a screen reader reads this as an
@@ -263,6 +269,7 @@ export function PriceSection({
               id="pw-price-input"
               value={price}
               onChange={setPrice}
+              currency={currency}
               placeholder={t('Nhập giá', 'Enter price')}
               invalid={errPrice}
               aria-label={t('Giá', 'Price')}

@@ -6,8 +6,10 @@ import { TAXONOMY, LISTING_TYPES, categoryHasBrand } from '@/lib/taxonomy'
 // as server props (the account panel's bulk-upload section, the native iOS
 // app's subcategory chips + post wizard). Slug + names, each category's
 // subcategories, and — for the native wizard — the category's listing types,
-// facet definitions (chips + ranges, incl. the condition toggle), and whether
-// brand/model fields apply. All from the canonical code TAXONOMY (they aren't
+// facet definitions (chips + ranges, incl. the condition toggle, each carrying
+// whether it blocks publish), and whether brand/model fields apply. Every facet
+// field is normalised here (no undefined on the wire), which is also what keeps
+// the payload additive. All from the canonical code TAXONOMY (they aren't
 // DB rows); changes only on taxonomy edits, so let the CDN hold it.
 export async function GET() {
   const categories = await db.category.findMany({
@@ -31,6 +33,19 @@ export async function GET() {
           labelVi: f.labelVi,
           kind: f.kind ?? 'select',
           subcats: f.subcats ?? null,
+          // Whether a client may publish WITHOUT this facet — the wire form of
+          // FacetDef.optional / isRequiredFacet(). Without it the native post gate
+          // can only infer "every non-range facet of the chosen subcategory is
+          // required", which is right for condition/transmission but wrong for
+          // services/visa-legal: that subcategory also holds work-permit, tax and
+          // legal listings, and an ordinary seller must not be blocked by an e-visa
+          // entry-type or processing-speed chip (owner's launch-leniency policy).
+          // Normalised to a real boolean, like `kind`/`subcats`/`range` above, so a
+          // client never has to distinguish absent from false. ADDITIVE: a client
+          // that ignores the key keeps today's behaviour exactly (false = required,
+          // which is what it already assumes) — Swift Codable and the Android
+          // `Json { ignoreUnknownKeys = true }` both drop unmodelled keys.
+          optional: f.optional === true,
           options: f.options.map((o) => ({ value: o.value, label: o.label, labelVi: o.labelVi })),
           range: f.range
             ? { min: f.range.min, max: f.range.max, step: f.range.step, unit: f.range.unit ?? null, column: f.range.column }

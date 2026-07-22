@@ -3,12 +3,13 @@
 import { Children, isValidElement, useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Check, ChevronLeft, ChevronRight, CreditCard, Download, FileCheck2, FileImage, Loader2, LockKeyhole, ShieldCheck, Sparkles, Trash2, Upload, Wallet } from 'lucide-react'
+import { AlertTriangle, Check, ChevronLeft, ChevronRight, CreditCard, Download, FileCheck2, FileImage, Loader2, LockKeyhole, ShieldCheck, Sparkles, Trash2, Upload, Wallet } from 'lucide-react'
 import { toast } from 'sonner'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage, Tr } from '@/context/language-context'
 import { validateVisaStep, visaDateDefaultsForStart, visaEndDateFor90DayWindow, type VisaPayload } from '@/lib/visa/schema'
 import { DEFAULT_EVISA_ENTRY_GATE, EVISA_CHECKPOINT_GROUPS } from '@/lib/visa/checkpoints'
+import { submissionWindow, VISA_SPEED_SPECS, type VisaEntryType, type VisaSpeedCode, type VisaWindow } from '@/lib/visa/speed'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -17,6 +18,7 @@ import { Combobox, ComboboxClear, ComboboxContent, ComboboxEmpty, ComboboxGroup,
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Input } from '@/components/ui/input'
+import { Radio, RadioDot, RadioGroup } from '@/components/ui/radio-group'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Spinner } from '@/components/ui/spinner'
 import { Textarea } from '@/components/ui/textarea'
@@ -62,9 +64,34 @@ type VisaApplication = {
   paidAt: string | null; paymentProvider?: string | null;
   createdAt: string; updatedAt: string; documents: VisaDocument[]; events?: VisaEvent[]
 }
-// The service-fee gate the list GET reports — null while payments are dormant
-// (no provider/fee env), in which case submit works without payment as before.
-type VisaPaymentsInfo = { providers: Array<'stripe' | 'paypal'>; feeCents: number; currency: string } | null
+// The payment gate the list GET reports — null while payments are dormant (no
+// provider/fee env), in which case submit works without payment exactly as before.
+//
+// ⚠️ THERE IS NO FEE FIELD HERE, DELIBERATELY. This block used to carry the env's
+// feeCents and the Review step rendered it as "eno service fee: $X" — a number that
+// prices NOTHING now that a visa service is an ordinary listing with its own
+// Listing.price. The amount a buyer reads comes from the chosen PRODUCT below and is
+// the same amount the checkout route resolves and captures. Do not re-add a fee here.
+type VisaPaymentsInfo = { providers: Array<'stripe' | 'paypal'>; currency: string } | null
+
+/**
+ * One purchasable visa service, straight from the marketplace: the admin uploads a
+ * listing per (entry type × processing speed) and the API projects those listings into
+ * this shape. NOTHING here is hard-coded on the client — an empty array means the shop
+ * has no finished product for sale, which is a real state the UI has to say out loud.
+ *
+ * `priceCents` is DISPLAY ONLY. It is shown so the buyer knows what they are agreeing to;
+ * the charge is resolved server-side from the same listing (the client sends listingId and
+ * never an amount), so the figure on screen and the figure captured have one source.
+ */
+type VisaShopClientProduct = {
+  listingId: string
+  title: string
+  entryType: VisaEntryType
+  speed: VisaSpeedCode
+  priceCents: number
+  currency: string
+}
 type VisaAnalysis = {
   document: Pick<VisaDocument, 'id' | 'validationStatus' | 'validationReport'>
   payload?: VisaPayload
@@ -74,7 +101,10 @@ type VisaAnalysis = {
 }
 
 class VisaApiError extends Error {
-  constructor(public status: number, public code: string) {
+  // `details` is the rest of the error body — some refusals carry the facts the copy
+  // needs (submission_window_closed ships the tier and when it reopens, the entry-type
+  // mismatch ships both entry types). Never money: no route returns an amount here.
+  constructor(public status: number, public code: string, public details: Record<string, unknown> = {}) {
     super(code)
   }
 }
@@ -88,7 +118,10 @@ async function visaApi<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, { ...init, headers, cache: 'no-store', credentials: 'same-origin' })
   let body: unknown = null
   try { body = await response.json() } catch { body = null }
-  if (!response.ok) throw new VisaApiError(response.status, (body as { error?: string } | null)?.error || `request_failed_${response.status}`)
+  if (!response.ok) {
+    const failure = (body && typeof body === 'object' && !Array.isArray(body) ? body : {}) as { error?: string }
+    throw new VisaApiError(response.status, failure.error || `request_failed_${response.status}`, failure as Record<string, unknown>)
+  }
   return body as T
 }
 
@@ -176,6 +209,124 @@ function uploadErrorCopy(error: unknown, tr: (en: string, vi: string) => string)
   }
   const value = copy[code] || [code.replaceAll('_', ' '), code.replaceAll('_', ' ')]
   return tr(value[0], value[1])
+}
+
+// ── The visa SHOP, as the applicant reads it ──────────────────────────────────────
+// Every word below is derived from the product's own parameters (its entry type, its
+// speed tier) or from its listing price. There is no option list in this file and there
+// must never be one: the marketplace IS the catalogue, so a service the admin has not
+// uploaded simply does not appear, and one whose price they edit is repriced everywhere
+// on the next load.
+
+/** The e-Visa form models exactly two entry types (src/lib/visa/schema.ts). */
+function entryTypeLabel(entryType: VisaEntryType, tr: (en: string, vi: string) => string) {
+  return entryType === 'multiple' ? tr('Multiple entry', 'Nhập cảnh nhiều lần') : tr('Single entry', 'Nhập cảnh một lần')
+}
+
+/** Turnaround words for a speed tier, taken from VISA_SPEED_SPECS — the same module that
+ *  owns the cutoffs, so the label and the window that gates it cannot drift apart. */
+function speedLabel(speed: VisaSpeedCode, tr: (en: string, vi: string) => string) {
+  const spec: (typeof VISA_SPEED_SPECS)[VisaSpeedCode] | undefined = VISA_SPEED_SPECS[speed]
+  return spec ? tr(spec.label, spec.labelVi) : speed
+}
+
+/** 'single' | 'multiple' out of an unknown wire value, or null. */
+function asEntryType(value: unknown): VisaEntryType | null {
+  return value === 'single' || value === 'multiple' ? value : null
+}
+
+/**
+ * When a closed tier next opens, on the HO CHI MINH CITY wall clock and labelled as such.
+ *
+ * The cutoffs are Vietnamese office hours (src/lib/visa/speed.ts). Rendering them in the
+ * viewer's own zone would tell a traveller in London the desk opens at 03:00 — true, and
+ * useless for reading the provider's published grid. Always an EXPLICIT timeZone here;
+ * never the device's.
+ */
+function formatVisaWindowTime(iso: unknown, lang: string): string | null {
+  if (typeof iso !== 'string' || !iso) return null
+  const at = new Date(iso)
+  if (Number.isNaN(at.getTime())) return null
+  return new Intl.DateTimeFormat(lang === 'vi' ? 'vi-VN' : 'en-GB', {
+    timeZone: 'Asia/Ho_Chi_Minh', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false,
+  }).format(at)
+}
+
+/**
+ * The price a buyer reads, or null when it must not be rendered at all.
+ *
+ * MONEY-HONESTY GATE. formatUsdCents prints a dollar figure, so it is only ever shown an
+ * amount that BOTH the product and the payment gate call USD; anything else renders no
+ * number (and the caller disables the purchase) rather than putting a `$` in front of
+ * something that is not dollars. The amount itself is never computed here — it is the
+ * listing's price as the server resolved it, and the server resolves it again to charge.
+ */
+function productPriceLabel(product: VisaShopClientProduct, gateCurrency: string, lang: string): string | null {
+  if ((product.currency || '').trim().toUpperCase() !== 'USD') return null
+  if ((gateCurrency || '').trim().toUpperCase() !== 'USD') return null
+  if (!Number.isFinite(product.priceCents) || product.priceCents <= 0) return null
+  return formatUsdCents(product.priceCents, moneyLocale(lang))
+}
+
+/**
+ * "1H opens again at 22 Jul, 10:00" — the one sentence a closed tier owes a buyer.
+ *
+ * `nextCutoffIso` is the batch an application handed in later can still be aimed at, which
+ * is the useful instant; `nextOpensIso` (local midnight) is the fallback. The speed CODE is
+ * used verbatim: it is what the provider's grid calls the tier, and it stays short enough
+ * to sit inside a catalogue row.
+ */
+function windowClosedCopy(speed: VisaSpeedCode, visaWindow: VisaWindow | null, tr: (en: string, vi: string) => string, lang: string): string {
+  const when = formatVisaWindowTime(visaWindow?.nextCutoffIso, lang) || formatVisaWindowTime(visaWindow?.nextOpensIso, lang)
+  return when
+    ? tr(`${speed} opens again at ${when}`, `${speed} mở lại lúc ${when}`)
+    : tr(`${speed} is closed right now`, `${speed} hiện đã đóng`)
+}
+
+/** The checkout refusals that are about the PRODUCT (not the application, not the
+ *  provider). All of them mean "this cannot be charged", and all of them are worth
+ *  re-reading the catalogue for, because the shop has usually moved under us. */
+const CHECKOUT_PRODUCT_ERRORS = new Set([
+  'listing_not_found',
+  'not_a_visa_product',
+  'product_not_for_sale',
+  'product_price_unavailable',
+  'product_not_configured',
+  'product_entry_type_mismatch',
+  'submission_window_closed',
+])
+
+/** Those refusals, in the buyer's language — each one says what to do next. */
+function checkoutErrorCopy(error: VisaApiError, tr: (en: string, vi: string) => string, lang: string): string {
+  const details = error.details
+  if (error.code === 'submission_window_closed') {
+    const speed = typeof details.speed === 'string' ? details.speed : ''
+    // nextCutoffIso is the batch a buyer can still aim at; nextOpensIso (local midnight)
+    // is the fallback for a tier that reports only the reopening.
+    const when = formatVisaWindowTime(details.nextCutoffIso, lang) || formatVisaWindowTime(details.nextOpensIso, lang)
+    if (when && speed) return tr(`${speed} is closed right now — it opens again at ${when} (Vietnam time). Choose another processing speed.`, `${speed} hiện đã đóng — sẽ mở lại lúc ${when} (giờ Việt Nam). Hãy chọn tốc độ xử lý khác.`)
+    return tr('This processing speed is not accepting applications right now. Choose another one.', 'Tốc độ xử lý này hiện không nhận hồ sơ. Hãy chọn tốc độ khác.')
+  }
+  if (error.code === 'product_entry_type_mismatch') {
+    const productEntry = asEntryType(details.productEntryType)
+    const applicationEntry = asEntryType(details.applicationEntryType)
+    if (productEntry && applicationEntry) {
+      return tr(
+        `That service is for ${entryTypeLabel(productEntry, tr).toLowerCase()}, but your application asks for ${entryTypeLabel(applicationEntry, tr).toLowerCase()}. Choose the matching service, or change the entry type on the Vietnam trip page.`,
+        `Dịch vụ đó dành cho ${entryTypeLabel(productEntry, tr).toLowerCase()}, nhưng hồ sơ của bạn yêu cầu ${entryTypeLabel(applicationEntry, tr).toLowerCase()}. Hãy chọn dịch vụ phù hợp hoặc đổi loại nhập cảnh ở trang Chuyến đi Việt Nam.`,
+      )
+    }
+    return tr('That service does not match the entry type your application asks for.', 'Dịch vụ đó không khớp với loại nhập cảnh mà hồ sơ của bạn yêu cầu.')
+  }
+  const copy: Record<string, [string, string]> = {
+    listing_not_found: ['That service is no longer available. Choose another one.', 'Dịch vụ đó không còn nữa. Hãy chọn dịch vụ khác.'],
+    not_a_visa_product: ['That is not an eno e-Visa service. Choose one from the list.', 'Đó không phải dịch vụ E-Visa của eno. Hãy chọn từ danh sách.'],
+    product_not_for_sale: ['That service is not on sale right now. Choose another one.', 'Dịch vụ đó hiện không được bán. Hãy chọn dịch vụ khác.'],
+    product_price_unavailable: ['That service has no usable price right now. Choose another one or contact eno.', 'Dịch vụ đó hiện chưa có giá hợp lệ. Hãy chọn dịch vụ khác hoặc liên hệ eno.'],
+    product_not_configured: ['That service is still being set up. Choose another one.', 'Dịch vụ đó vẫn đang được thiết lập. Hãy chọn dịch vụ khác.'],
+  }
+  const value = copy[error.code]
+  return value ? tr(value[0], value[1]) : tr('That service could not be purchased. Choose another one.', 'Không thể mua dịch vụ đó. Hãy chọn dịch vụ khác.')
 }
 
 function statusCopy(status: string, tr: (en: string, vi: string) => string) {
@@ -277,6 +428,10 @@ export function VisaApplyClient() {
   const [applications, setApplications] = useState<VisaApplication[]>([])
   const [payload, setPayload] = useState<VisaPayload | null>(null)
   const [payments, setPayments] = useState<VisaPaymentsInfo>(null)
+  // The catalogue and the applicant's pick. `listingId` is the ONLY thing checkout is
+  // told about the product — the price never travels in this direction.
+  const [products, setProducts] = useState<VisaShopClientProduct[]>([])
+  const [listingId, setListingId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [notConfigured, setNotConfigured] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -318,8 +473,11 @@ export function VisaApplyClient() {
       // ?active=1: the server picks the active case (newest non-cancelled, else newest)
       // and returns it in DETAIL form alongside the history list — one request where a
       // list→detail waterfall was.
-      const list = await visaApi<{ application: VisaApplication | null; applications: VisaApplication[]; encryptionReady?: boolean; payments?: VisaPaymentsInfo }>('/api/visa/applications?active=1')
+      const list = await visaApi<{ application: VisaApplication | null; applications: VisaApplication[]; encryptionReady?: boolean; payments?: VisaPaymentsInfo; products?: VisaShopClientProduct[] }>('/api/visa/applications?active=1')
       setPayments(list.payments ?? null)
+      // The shop, re-read on every load and background poll: an admin edit to a price,
+      // to a product's speed, or to whether it is on sale at all lands here.
+      setProducts(Array.isArray(list.products) ? list.products : [])
       if (list.encryptionReady === false) { setNotConfigured(true); setApplication(null); setPayload(null); return }
       setNotConfigured(false)
       setApplications(list.applications)
@@ -348,6 +506,51 @@ export function VisaApplyClient() {
     const timer = window.setInterval(() => void loadApplication(true), 30_000)
     return () => window.clearInterval(timer)
   }, [application, loadApplication])
+
+  // ── The product choice ───────────────────────────────────────────────────────────
+  // A visa desk is only open until its daily cutoff, so `now` ticks while the payment
+  // gate is on screen: a tier that closes (or reopens) at a cutoff changes under the
+  // applicant's eyes instead of being offered right up to a refusal. The window comes
+  // from the SAME pure module the server uses (src/lib/visa/speed.ts) — this is a
+  // fresher reading of one rule, not a second rule — and the server's reading at
+  // checkout time is still the only one that decides anything.
+  const [now, setNow] = useState(() => new Date())
+  const paymentGateOpen = !!payments && !!application && !application.paidAt && EDITABLE.has(application.status) && step === 3
+  useEffect(() => {
+    if (!paymentGateOpen || !products.length) return
+    setNow(new Date()) // the gate may have been off screen for a while
+    const timer = window.setInterval(() => setNow(new Date()), 60_000)
+    return () => window.clearInterval(timer)
+  }, [paymentGateOpen, products.length])
+
+  // Default the pick to a product that MATCHES the entry type the application asks for,
+  // preferring one whose desk is open. Nothing is auto-picked when no product matches:
+  // silently selecting a different service is exactly what the checkout route refuses,
+  // so the applicant is told and chooses deliberately.
+  const requestedEntryType = payload?.entryType ?? null
+  useEffect(() => {
+    if (!requestedEntryType) return
+    setListingId((current) => {
+      const chosen = products.find((product) => product.listingId === current) ?? null
+      // An explicit pick is kept — but only while it is still SOLD and still the service
+      // the form asks for. Changing the entry type on the trip page therefore re-points
+      // the choice at a product that can actually be charged, rather than leaving a
+      // selection the server would refuse.
+      if (chosen && chosen.entryType === requestedEntryType) return current
+      const matching = products.filter((product) => product.entryType === requestedEntryType)
+      if (!matching.length) return chosen ? current : null
+      const open = matching.find((product) => submissionWindow(product.speed, new Date()).acceptingNow)
+      return (open ?? matching[0]).listingId
+    })
+  }, [products, requestedEntryType])
+
+  const selectedProduct = products.find((product) => product.listingId === listingId) ?? null
+  const selectedWindow = selectedProduct ? submissionWindow(selectedProduct.speed, now) : null
+  // What the buyer reads. Same cents the server resolved from the same listing, and the
+  // ONLY amount rendered anywhere in this flow (see productPriceLabel for the $ gate).
+  const selectedPriceLabel = selectedProduct && payments ? productPriceLabel(selectedProduct, payments.currency, lang) : null
+  const entryTypeMismatch = !!selectedProduct && !!requestedEntryType && selectedProduct.entryType !== requestedEntryType
+  const canCheckout = !!selectedProduct && !!selectedPriceLabel && !!selectedWindow?.acceptingNow && !entryTypeMismatch
 
   const create = async () => {
     if (!user) return
@@ -547,18 +750,32 @@ export function VisaApplyClient() {
   // direct submit — they are stamped server-side onto the payment row at checkout.
   const startCheckout = async (provider: 'stripe' | 'paypal') => {
     if (!application || !payload || !declaration || !authorization) return
+    // WHICH product, never how much. The body carries a listing id and no amount; the
+    // server re-resolves that listing's price and charges THAT. A price cannot travel
+    // from this function to a provider because it is never in the request at all.
+    if (!selectedProduct) {
+      toast.error(tr('Choose the e-Visa service you want first.', 'Hãy chọn dịch vụ E-Visa bạn muốn trước.'))
+      return
+    }
     setBusy(true)
     try {
       await save(false)
       const result = await visaApi<{ url: string }>(`/api/visa/applications/${application.id}/checkout`, {
-        method: 'POST', body: JSON.stringify({ provider, declarationAccepted: true, prefillAuthorized: true }),
+        method: 'POST', body: JSON.stringify({ provider, listingId: selectedProduct.listingId, declarationAccepted: true, prefillAuthorized: true }),
       })
       // Leaving for the provider — keep busy=true so the CTA can't double-fire.
       window.location.assign(result.url)
     } catch (error) {
       if (error instanceof VisaApiError && error.code === 'application_incomplete') jumpToIncompleteStep()
       else if (error instanceof VisaApiError && error.code === 'already_paid') {
-        toast.message(tr('Your service fee is already paid — submit the application below.', 'Phí dịch vụ đã được thanh toán — hãy gửi hồ sơ bên dưới.'))
+        toast.message(tr('This application is already paid — submit it below.', 'Hồ sơ này đã được thanh toán — hãy gửi bên dưới.'))
+        await loadApplication(true).catch(() => undefined)
+      }
+      else if (error instanceof VisaApiError && CHECKOUT_PRODUCT_ERRORS.has(error.code)) {
+        // The shop moved under us (price edited, product unlisted, cutoff passed…).
+        // Say exactly what happened, then re-read the catalogue so the list on screen
+        // is the one the server is now willing to sell from.
+        toast.error(checkoutErrorCopy(error, tr, lang))
         await loadApplication(true).catch(() => undefined)
       }
       else toast.error(tr('The payment page could not be opened. Please try again.', 'Không thể mở trang thanh toán. Vui lòng thử lại.'))
@@ -768,26 +985,61 @@ export function VisaApplyClient() {
             <Consent checked={authorization} onChange={setAuthorization}>{tr('I authorize eno to transfer this approved snapshot and its images into a private hosted browser to prefill the official e-Visa form after eno review. A person must still compare the form and handle the declaration, CAPTCHA, payment, and submission.', 'Tôi cho phép eno chuyển bản thông tin đã duyệt và hình ảnh vào trình duyệt riêng để điền trước biểu mẫu E-Visa chính thức sau khi eno xem xét. Một người vẫn phải đối chiếu biểu mẫu và thực hiện xác nhận, CAPTCHA, thanh toán và nộp hồ sơ.')}</Consent>
             <p className="text-xs leading-relaxed text-body">{tr('This is the only approval eno normally needs. We will contact you only if information or an image must be corrected.', 'Đây thường là lần phê duyệt duy nhất eno cần. Chúng tôi chỉ liên hệ nếu thông tin hoặc hình ảnh cần chỉnh sửa.')}</p>
             {payments && !application.paidAt ? (
-              // Pay-before-review gate: the case reaches eno review only after the
-              // service fee is paid. Checkout is the provider's HOSTED page (redirect);
-              // the server verifies payment and completes the handoff itself.
+              // Pay-before-review gate: the case reaches eno review only after the chosen
+              // service is paid. Checkout is the provider's HOSTED page (redirect); the
+              // server verifies payment and completes the handoff itself.
+              //
+              // ⚠️ WHAT IS READ HERE IS WHAT IS CAPTURED. Both are the SELECTED LISTING's
+              // price: this block renders the catalogue row's cents, and the checkout route
+              // re-resolves that same listing to charge. The line that used to sit at the
+              // top of this box — "eno service fee: <visaPaymentsConfig().feeCents>" — priced
+              // nothing once visa services became ordinary listings, and it is gone from the
+              // bundle entirely (the API no longer even ships the number). Do not re-add it.
               <div className="rounded-2xl border border-brand/20 bg-accent/40 p-4">
-                <p className="text-sm font-bold text-foreground">
-                  {tr('eno service fee', 'Phí dịch vụ eno')}: {formatUsdCents(payments.feeCents, moneyLocale(lang))}
-                </p>
-                <p className="mt-1 text-xs leading-relaxed text-body">{tr('Paid once, securely, on the provider’s own page. Your application reaches eno review right after payment. Government e-Visa fees are separate and paid to the authority.', 'Thanh toán một lần, an toàn, trên trang của nhà cung cấp. Hồ sơ được chuyển cho eno xem xét ngay sau khi thanh toán. Lệ phí e-Visa của nhà nước là khoản riêng, nộp cho cơ quan chức năng.')}</p>
-                <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-                  {payments.providers.includes('stripe') && (
-                    <Button type="button" variant="cta" size="lg" className="h-11 w-full sm:w-auto" disabled={busy || !declaration || !authorization} onClick={() => void startCheckout('stripe')}>
-                      {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />}{tr('Pay by card & submit', 'Thanh toán thẻ & gửi hồ sơ')}
-                    </Button>
-                  )}
-                  {payments.providers.includes('paypal') && (
-                    <Button type="button" variant="outline" size="lg" className="h-11 w-full sm:w-auto" disabled={busy || !declaration || !authorization} onClick={() => void startCheckout('paypal')}>
-                      {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wallet className="h-4 w-4" />}{tr('Pay with PayPal & submit', 'Thanh toán PayPal & gửi hồ sơ')}
-                    </Button>
-                  )}
-                </div>
+                <p className="text-sm font-bold text-foreground">{tr('Choose your e-Visa service', 'Chọn dịch vụ E-Visa của bạn')}</p>
+                {products.length === 0 ? (
+                  <p className="mt-2 text-xs leading-relaxed text-body">{tr('No e-Visa service is on sale right now. Please try again shortly — nothing has been charged and your application is saved.', 'Hiện chưa có dịch vụ E-Visa nào được bán. Vui lòng thử lại sau — chưa có khoản nào bị tính phí và hồ sơ của bạn đã được lưu.')}</p>
+                ) : (
+                  <>
+                    <p className="mt-1 text-xs leading-relaxed text-body">{tr('Each service is one entry type at one processing speed, with its own price. Opening times are Vietnam time.', 'Mỗi dịch vụ gồm một loại nhập cảnh với một tốc độ xử lý và có giá riêng. Giờ mở nhận theo giờ Việt Nam.')}</p>
+                    <ProductChoice products={products} value={listingId} onChange={setListingId} gateCurrency={payments.currency} requestedEntryType={requestedEntryType} now={now} lang={lang} tr={tr} />
+                    {!selectedProduct && <p role="alert" className="mt-3 text-xs leading-relaxed text-warning">{tr('Choose a service above to continue. If none matches the entry type your application asks for, change it on the Vietnam trip page.', 'Hãy chọn một dịch vụ ở trên để tiếp tục. Nếu không có dịch vụ nào khớp với loại nhập cảnh trong hồ sơ, hãy đổi ở trang Chuyến đi Việt Nam.')}</p>}
+                    {selectedProduct && entryTypeMismatch && (
+                      // The server refuses this combination (product_entry_type_mismatch), so
+                      // the CTA must not pretend otherwise — and the applicant is offered the
+                      // one-tap fix rather than being left to find the Vietnam trip page.
+                      <div role="alert" className="mt-3 flex gap-2 rounded-xl border border-warning/30 bg-warning/10 p-3 text-xs leading-relaxed text-warning">
+                        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                        <span>
+                          {tr(`This service is for ${entryTypeLabel(selectedProduct.entryType, tr).toLowerCase()}, but your application asks for ${entryTypeLabel(requestedEntryType ?? 'single', tr).toLowerCase()}.`, `Dịch vụ này dành cho ${entryTypeLabel(selectedProduct.entryType, tr).toLowerCase()}, nhưng hồ sơ của bạn yêu cầu ${entryTypeLabel(requestedEntryType ?? 'single', tr).toLowerCase()}.`)}{' '}
+                          <Button type="button" variant="link" size="none" className="text-xs font-bold text-warning" onClick={() => { set('entryType', selectedProduct.entryType); toast.success(tr('Your application now asks for this entry type. Check the review below.', 'Hồ sơ của bạn hiện yêu cầu loại nhập cảnh này. Hãy kiểm tra phần xem lại bên dưới.')) }}>
+                            {tr(`Change my application to ${entryTypeLabel(selectedProduct.entryType, tr).toLowerCase()}`, `Đổi hồ sơ sang ${entryTypeLabel(selectedProduct.entryType, tr).toLowerCase()}`)}
+                          </Button>
+                        </span>
+                      </div>
+                    )}
+                    {selectedProduct && !entryTypeMismatch && !selectedPriceLabel && <p role="alert" className="mt-3 text-xs leading-relaxed text-warning">{tr('This service has no usable price right now. Please choose another one.', 'Dịch vụ này hiện chưa có giá hợp lệ. Vui lòng chọn dịch vụ khác.')}</p>}
+                    {selectedProduct && !entryTypeMismatch && !!selectedPriceLabel && !selectedWindow?.acceptingNow && <p role="alert" className="mt-3 text-xs leading-relaxed text-warning">{windowClosedCopy(selectedProduct.speed, selectedWindow, tr, lang)}</p>}
+                    {!!selectedPriceLabel && !entryTypeMismatch && (
+                      <p className="mt-3 text-sm font-bold text-foreground">
+                        {tr('You pay now', 'Bạn thanh toán ngay')}: {selectedPriceLabel}
+                      </p>
+                    )}
+                    <p className="mt-1 text-xs leading-relaxed text-body">{tr('Paid once, securely, on the provider’s own page. Your application reaches eno review right after payment. Government e-Visa fees are separate and paid to the authority.', 'Thanh toán một lần, an toàn, trên trang của nhà cung cấp. Hồ sơ được chuyển cho eno xem xét ngay sau khi thanh toán. Lệ phí e-Visa của nhà nước là khoản riêng, nộp cho cơ quan chức năng.')}</p>
+                    <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                      {payments.providers.includes('stripe') && (
+                        <Button type="button" variant="cta" size="lg" className="h-11 w-full sm:w-auto" disabled={busy || !declaration || !authorization || !canCheckout} onClick={() => void startCheckout('stripe')}>
+                          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />}{tr('Pay by card & submit', 'Thanh toán thẻ & gửi hồ sơ')}
+                        </Button>
+                      )}
+                      {payments.providers.includes('paypal') && (
+                        <Button type="button" variant="outline" size="lg" className="h-11 w-full sm:w-auto" disabled={busy || !declaration || !authorization || !canCheckout} onClick={() => void startCheckout('paypal')}>
+                          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wallet className="h-4 w-4" />}{tr('Pay with PayPal & submit', 'Thanh toán PayPal & gửi hồ sơ')}
+                        </Button>
+                      )}
+                    </div>
+                  </>
+                )}
               </div>
             ) : (
               <div className="flex flex-wrap items-center gap-3">
@@ -865,6 +1117,67 @@ function PastApplications({ applications, activeId, tr }: {
         })}
       </ul>
     </section>
+  )
+}
+
+/**
+ * The e-Visa PRODUCT PICKER — the catalogue, rendered.
+ *
+ * Every row is a listing the admin uploaded to the visa storefront: its own title, the
+ * entry type and processing speed they set on it, and its own price. Nothing is hard-coded
+ * here, so a new tier going on sale appears without a deploy, and a price edited in the
+ * dashboard is the price on the next load — the marketplace IS the catalogue.
+ *
+ * A row whose desk is CLOSED is disabled rather than selectable (taking money at 23:00 for
+ * a 1-hour service nobody will touch until 10:00 is the failure this prevents) and says
+ * when it opens again. The window is recomputed from `now`, which the parent ticks every
+ * minute, so a cutoff passing while the page sits open closes the row instead of leading
+ * the applicant into a refusal. A row whose price cannot be rendered honestly is disabled
+ * for the same reason: nobody may buy an amount they were not shown.
+ *
+ * ui/radio-group (Base UI) is the control — one tab stop, arrow keys, aria-checked per row
+ * and a properly announced disabled row, none of which a column of <Button>s has.
+ */
+function ProductChoice({ products, value, onChange, gateCurrency, requestedEntryType, now, lang, tr }: {
+  products: VisaShopClientProduct[]
+  value: string | null
+  onChange: (value: string) => void
+  gateCurrency: string
+  requestedEntryType: VisaEntryType | null
+  now: Date
+  lang: string
+  tr: (en: string, vi: string) => string
+}) {
+  return (
+    <RadioGroup value={value ?? ''} onValueChange={onChange} aria-label={tr('e-Visa service', 'Dịch vụ E-Visa')} className="mt-3 grid gap-2">
+      {products.map((product) => {
+        const productWindow = submissionWindow(product.speed, now)
+        const priceLabel = productPriceLabel(product, gateCurrency, lang)
+        const closed = !productWindow.acceptingNow
+        return (
+          <Radio
+            key={product.listingId}
+            value={product.listingId}
+            disabled={closed || !priceLabel}
+            className="flex w-full items-start justify-start gap-3 whitespace-normal rounded-xl border border-line-strong bg-card p-3 text-left data-checked:border-brand data-checked:bg-accent/40"
+          >
+            <RadioDot className="mt-0.5" />
+            <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+              <span className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                <span className="text-sm font-bold text-foreground">{product.title}</span>
+                {/* The price, straight from the listing — the same cents the checkout route
+                    resolves and captures. '—' when it may not be rendered honestly. */}
+                <span className="text-sm font-bold text-foreground">{priceLabel ?? '—'}</span>
+              </span>
+              <span className="text-xs text-body">{entryTypeLabel(product.entryType, tr)} · {speedLabel(product.speed, tr)}</span>
+              {closed && <span className="text-xs font-semibold text-warning">{windowClosedCopy(product.speed, productWindow, tr, lang)}</span>}
+              {!closed && !priceLabel && <span className="text-xs font-semibold text-warning">{tr('Price unavailable right now', 'Hiện chưa có giá')}</span>}
+              {!!requestedEntryType && product.entryType !== requestedEntryType && <span className="text-xs text-ink-4">{tr('Different entry type from your application', 'Khác loại nhập cảnh trong hồ sơ của bạn')}</span>}
+            </span>
+          </Radio>
+        )
+      })}
+    </RadioGroup>
   )
 }
 

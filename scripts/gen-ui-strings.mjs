@@ -46,9 +46,22 @@ for (const u of ['month', 'month (est.)', 'hour', 'visit (from)', 'service (from
 // or tr(label, labelVi) (category tiles, facet bar, post wizard), so the literal
 // scans above never see them; without this block they were NEVER pre-warmed and
 // depended entirely on the lazy paid path (2026-07-06 i18n audit — the partially
-// English RU homepage). Harvest the EN display fields from taxonomy.ts by regex.
-{
-  const tax = readFileSync('src/lib/taxonomy.ts', 'utf8')
+// English RU homepage). Harvest the EN display fields by regex.
+//
+// ⚠️ MORE THAN ONE FILE. taxonomy.ts no longer owns every taxonomy word: the seven
+// e-visa processing-speed labels live in src/lib/visa/speed.ts (VISA_SPEED_SPECS),
+// which taxonomy.ts IMPORTS to build the `visaSpeed` facet options rather than
+// restating them — so a taxonomy-only scan silently missed real chip copy and sent
+// it down the lazy paid path in all 9 machine-translated languages. Whenever
+// taxonomy display copy is deduplicated out of taxonomy.ts, add its file here.
+//
+// Why this stays English-only: the shape is `name`/`label` immediately followed by
+// `:`, so `nameVi:` / `labelVi:` never match (the `Vi` sits between the word and the
+// colon). The inline Vietnamese is the translation SOURCE's counterpart, not a
+// target — letting it into this batch would ask the translator to render Vietnamese
+// into Vietnamese and would poison the cache keyed on English.
+for (const path of ['src/lib/taxonomy.ts', 'src/lib/visa/speed.ts']) {
+  const tax = readFileSync(path, 'utf8')
   for (const m of tax.matchAll(/\b(?:name|label)\s*:\s*'((?:[^'\\]|\\.)*)'/g)) add(unesc(m[1]))
   for (const m of tax.matchAll(/\b(?:name|label)\s*:\s*"((?:[^"\\]|\\.)*)"/g)) add(unesc(m[1]))
 }
