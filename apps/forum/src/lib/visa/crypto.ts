@@ -1,9 +1,25 @@
+// GENERATED FROM src/lib/visa/crypto.ts — do not edit. Regenerate: node scripts/sync-visa-pairs.mjs --write
+// This file is that root file VERBATIM: nothing is stripped, reordered or reworded, and
+// only relative visa import specifiers ('./x') become the forum alias ('@/lib/visa/x').
+// Every comment below is therefore written from the ROOT's perspective — its paths,
+// tooling notes and TODOs describe src/ on eno.vn, not apps/forum/. Read them against
+// the root file; correct an inaccurate one THERE and re-run --write.
 import 'server-only'
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto'
+// Relative (not '@/lib/…') so vitest can resolve the module without a paths plugin —
+// crypto.test.ts covers the env gate + envelope round-trip.
 import { visaPayloadSchema, type VisaPayload } from '@/lib/visa/schema'
 
-// AES-256-GCM envelopes keyed by VISA_DATA_ENCRYPTION_KEY. The envelope format AND the
-// AAD string below are a cross-app contract — eno.vn decrypts these rows too.
+// TODO(VISA_DATA_ENCRYPTION_KEY): applicant payloads are AES-256-GCM envelopes keyed by
+// the VISA_DATA_ENCRYPTION_KEY env var, which today lives ONLY in the forum project's
+// environment (apps/forum). The owner must copy that exact value (64-char hex or base64,
+// 32 bytes) into eno.vn's env for the in-hub assistant to read/write payloads. Until
+// then every payload route fails closed with `visa_encryption_not_configured` and the
+// dashboard renders an honest "not configured on this host yet" state — never broken
+// crypto, never a plaintext fallback. Check readiness with visaCryptoReady().
+//
+// Ported from apps/forum/src/lib/visa/crypto.ts. The envelope format AND the AAD string
+// below MUST stay byte-identical to the forum's — both apps decrypt each other's rows.
 
 type Envelope = { v: 1; alg: 'A256GCM'; iv: string; tag: string; ciphertext: string }
 // ⚠️ INTEROP: this AAD is baked into every existing ciphertext. It says "eno-forum"

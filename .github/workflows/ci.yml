@@ -45,6 +45,18 @@ jobs:
           node scripts/gen-ui-strings.mjs
           git diff --exit-code src/generated/ui-strings.ts || (echo '::error::src/generated/ui-strings.ts is stale — run `node scripts/gen-ui-strings.mjs` and commit it.' && exit 1)
 
+      # Root↔forum visa sync pairs. The two apps deploy independently but decrypt and
+      # RE-ENCRYPT the same visa_applications rows, and visaPayloadSchema is z.object() —
+      # not .strict() — so zod silently STRIPS unknown keys. If root gains a payload field
+      # and the forum copy has not moved, one forum admin edit deletes that field from the
+      # ciphertext with no error and no log. This is the gate that stops that shipping.
+      #   --check  : the pairs still match (unified diff on drift, unlike vitest's dump)
+      #   node --test : the GENERATOR itself, which vitest cannot see (it globs src/**/*.test.ts)
+      - name: Visa sync pairs are in lockstep
+        run: |
+          npm run sync:visa
+          node --test scripts/sync-visa-pairs.test.mjs
+
       - name: Test
         run: npx vitest run
 

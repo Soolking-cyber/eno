@@ -1,0 +1,489 @@
+import 'server-only'
+// Relative specifiers throughout (the crypto.ts / schema.ts idiom, sanctioned by
+// src/lib/sync-pairs.test.ts): `@/…` does not resolve under vitest, and every branch in
+// this file is unit-tested. Same modules either way.
+import { db } from '../db'
+import {
+  insertMessage,
+  isVisaPayloadFieldName,
+  parseMessageMeta,
+  setVisaCheckoutStatus,
+  type VisaCheckoutMeta,
+  type VisaStepMeta,
+} from '../messages'
+import { getVisaShopProductsForSale, getVisaShopSeller } from '../visa-shop'
+import { visaDmStepPreview, type VisaDmStep } from './dm-steps'
+import { getVisaDb } from './db'
+import { visaPaymentsConfig } from './payments'
+import { recordVisaEvent } from './records'
+
+// ── The buyer ↔ visa-shop THREAD ──────────────────────────────────────────────────
+//
+// One module owns the relationship between a visa case (a row in Supabase's
+// visa_applications, outside Prisma's datamodel) and the marketplace conversation that
+// case is lived out in. Everything that writes a card, binds a thread, or asks who is
+// driving the conversation goes through here, so the four spoofing gates documented in
+// src/lib/messages.ts have exactly one authoring surface above them.
+//
+// THREE RULES THIS FILE EXISTS TO KEEP:
+//  1. THE SENDER IS NEVER AN ARGUMENT. Cards are authored as the visa shop's own
+//     account, resolved server-side from getVisaShopSeller().ownerId. There is no
+//     parameter a caller could pass to author as somebody else.
+//  2. OWNERSHIP BEFORE BINDING. Conversation.visaApplicationId is written only after
+//     visa_applications.user_id has been confirmed to equal the buyer — the binding is
+//     what every later card is validated against, so a wrong binding is a cross-tenant
+//     PII leak, not a cosmetic bug.
+//  3. MONEY IS SERVER TRUTH. The checkout card's amount is written from the value the
+//     CALLING ROUTE resolved server-side (see sendVisaCheckoutCard — pricing is
+//     per-product now, so this layer cannot re-derive it), and 'paid' is never authored
+//     at all: it is only ever stamped against provider evidence.
+//
+// ⚠️ WHAT THIS FILE DOES **NOT** GUARANTEE — read before calling it.
+// These functions take NO ACTOR. They gate on (a) a sender identity they resolve
+// themselves and (b) the thread↔case binding; none of them ever asks "who is asking?".
+// So an ENTITLED CALLER IS A PRECONDITION, not something enforced here: the route must
+// authenticate the request and prove the actor is that case's applicant (or a visa
+// admin) before calling sendVisaStepCard / sendVisaCheckoutCard / setVisaThreadMode /
+// markVisaThreadPaid. A route that skipped that check could mint a real, shop-authored
+// card in somebody else's thread, and nothing below would stop it.
+// What IS guaranteed here, exactly:
+//   · every card is authored AS THE VISA SHOP — never as the applicant, never as
+//     another seller (rule 1: there is no sender parameter to abuse);
+//   · a card can only name the case its thread is CURRENTLY bound to (re-checked and
+//     row-locked at insert time by src/lib/messages.ts);
+//   · a binding is only written after visa_applications.user_id == the buyer (rule 2),
+//     so bindVisaThread is the one function that IS self-gating and may be called with
+//     a buyerProfileId straight off the session;
+//   · 'paid' is only stamped once visa_applications.paid_at exists (rule 3).
+//
+// ⚠️ NO PII. Nothing in this file decrypts a payload or copies applicant data into a
+// Message body, a metaJson blob, or Conversation.lastMessageText.
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+/** Columns insertMessage needs (ConvoForSend) plus the binding it validates cards against. */
+const THREAD_SELECT = {
+  id: true, buyerProfileId: true, sellerProfileId: true, listingId: true, visaApplicationId: true,
+} as const
+
+export type VisaThreadMode = 'ai' | 'human_requested' | 'admin'
+export type VisaThreadRef = { conversationId: string; buyerProfileId: string; sellerProfileId: string }
+
+// Mode is DERIVED, never stored: no DDL, no new column, no migration to coordinate with
+// the forum copy of the visa tables. The three events already fit visa_events' free-text
+// `event` column, and the newest one wins.
+const MODE_EVENT: Record<VisaThreadMode, string> = {
+  ai: 'admin_takeover_ended',
+  human_requested: 'human_help_requested',
+  admin: 'admin_takeover_started',
+}
+const MODE_FOR_EVENT: Record<string, VisaThreadMode> = {
+  admin_takeover_ended: 'ai',
+  human_help_requested: 'human_requested',
+  admin_takeover_started: 'admin',
+}
+const MODE_EVENT_NAMES = Object.keys(MODE_FOR_EVENT)
+
+/**
+ * Create-or-reuse the buyer↔visa-shop thread and bind it to this case.
+ *
+ * `created` describes the CONVERSATION, not the binding: a repeat applicant reuses the
+ * thread they already have with the visa desk (the one-thread-per-buyer↔seller rule from
+ * /api/conversations) and gets created:false while their new case is bound to it.
+ */
+export async function bindVisaThread(input: { applicationId: string; buyerProfileId: string }): Promise<
+  | { ok: true; conversationId: string; created: boolean }
+  | { ok: false; error: 'shop_unavailable' | 'not_owner' | 'listing_unavailable' | 'thread_conflict' }
+> {
+  const { applicationId, buyerProfileId } = input
+  if (!UUID_RE.test(applicationId) || !buyerProfileId) return { ok: false, error: 'not_owner' }
+
+  const shop = await getVisaShopSeller()
+  // Not seeded yet (scripts/seed-visa-shop.mjs), or the support account has no profile.
+  if (!shop?.ownerId) return { ok: false, error: 'shop_unavailable' }
+  // The desk cannot serve itself: a conversation needs two distinct parties, and the
+  // author gate in messages.ts compares buyer against seller.
+  if (shop.ownerId === buyerProfileId) return { ok: false, error: 'shop_unavailable' }
+
+  // ── OWNERSHIP FIRST ──────────────────────────────────────────────────────────────
+  // Nothing above this point wrote, and nothing below writes until it passes. The check
+  // FAILS CLOSED: a Supabase error is 'not_owner', never "probably fine".
+  let owns = false
+  try {
+    const { data, error } = await getVisaDb()
+      .from('visa_applications').select('user_id').eq('id', applicationId).maybeSingle()
+    if (error) throw error
+    owns = !!buyerProfileId && (data as { user_id?: string } | null)?.user_id === buyerProfileId
+  } catch (e) {
+    console.error('[visa-dm] ownership check failed', e)
+    return { ok: false, error: 'not_owner' }
+  }
+  if (!owns) return { ok: false, error: 'not_owner' }
+
+  // Already bound? visaApplicationId is @unique, so at most one thread can name this case.
+  const bound = await db.conversation.findUnique({
+    where: { visaApplicationId: applicationId },
+    select: { id: true, buyerProfileId: true },
+  })
+  if (bound) {
+    // The case belongs to this buyer (checked above) but its thread does not — corrupt
+    // state we must not "repair" by moving the binding under another user's messages.
+    if (bound.buyerProfileId !== buyerProfileId) return { ok: false, error: 'thread_conflict' }
+    return { ok: true, conversationId: bound.id, created: false }
+  }
+
+  const existing = await db.conversation.findFirst({
+    where: { sellerId: shop.id, buyerProfileId },
+    orderBy: { lastMessageAt: 'desc' },
+    select: { id: true },
+  })
+  let conversationId = existing?.id ?? ''
+  let created = false
+  if (!existing) {
+    // A conversation needs a listing; the visa desk's listings ARE its products, so the
+    // thread opens on the catalogue's first for-sale product. (A picker that knows which
+    // product the applicant chose retargets Conversation.listingId the same way
+    // /api/conversations does — this is only the floor.)
+    const listingId = (await getVisaShopProductsForSale())[0]?.id
+    if (!listingId) return { ok: false, error: 'listing_unavailable' }
+    try {
+      const convo = await db.conversation.create({
+        data: { listingId, buyerProfileId, sellerId: shop.id, sellerProfileId: shop.ownerId },
+        select: { id: true },
+      })
+      conversationId = convo.id
+      created = true
+    } catch (e) {
+      // Double-tap loser on @@unique([listingId, buyerProfileId]) — reuse the winner's.
+      if ((e as { code?: string })?.code !== 'P2002') throw e
+      const raced = await db.conversation.findFirst({
+        where: { sellerId: shop.id, buyerProfileId },
+        orderBy: { lastMessageAt: 'desc' },
+        select: { id: true },
+      })
+      if (!raced) return { ok: false, error: 'thread_conflict' }
+      conversationId = raced.id
+    }
+  }
+
+  try {
+    await db.$transaction(async (tx) => {
+      // REBIND = UNBIND FIRST, IN THE SAME TRANSACTION. visaApplicationId is @unique and
+      // holds exactly one case, so a repeat applicant's second case is only bindable once
+      // the previous one is released — and both statements must sit under the same row
+      // lock, or a concurrent card write could land against a half-moved binding. The old
+      // case's cards STAY in the timeline as inert history: every renderer treats a card
+      // whose meta.applicationId ≠ this column as history, never as actionable
+      // (prisma/schema.prisma, Conversation.visaApplicationId).
+      await tx.conversation.updateMany({
+        where: { id: conversationId, NOT: { visaApplicationId: null } },
+        data: { visaApplicationId: null },
+      })
+      const claim = await tx.conversation.updateMany({
+        where: { id: conversationId, visaApplicationId: null },
+        data: { visaApplicationId: applicationId },
+      })
+      if (claim.count !== 1) throw new Error('visa_thread_bind_conflict')
+    })
+  } catch (e) {
+    // Includes P2002 on the @unique column: another thread claimed this case between our
+    // findUnique and the write.
+    console.error('[visa-dm] bind failed', e)
+    return { ok: false, error: 'thread_conflict' }
+  }
+  return { ok: true, conversationId, created }
+}
+
+/** The thread a case is bound to, or null. findUnique on the @unique binding column. */
+export async function findVisaThread(applicationId: string): Promise<VisaThreadRef | null> {
+  if (!UUID_RE.test(applicationId)) return null
+  const convo = await db.conversation.findUnique({
+    where: { visaApplicationId: applicationId },
+    select: { id: true, buyerProfileId: true, sellerProfileId: true },
+  })
+  // An unclaimed seller (sellerProfileId null) means nobody can author cards in it, so
+  // it is not a usable visa thread.
+  if (!convo?.sellerProfileId) return null
+  return { conversationId: convo.id, buyerProfileId: convo.buyerProfileId, sellerProfileId: convo.sellerProfileId }
+}
+
+/**
+ * Emit a visa_step card. Returns null — never throws — when the shop, the binding, or
+ * the thread's mode makes emission illegal, so a stalled wizard degrades to "no card"
+ * instead of a 500 in the middle of a chat.
+ */
+export async function sendVisaStepCard(input: {
+  conversationId: string; applicationId: string; step: VisaDmStep; needsReview?: string[]
+}): Promise<{ messageId: string } | null> {
+  const { conversationId, applicationId, step } = input
+  if (!UUID_RE.test(applicationId)) return null
+
+  // ⚠️ THE SENDER IS RESOLVED HERE, FROM THE STOREFRONT ROW — there is no sender
+  // parameter on this function and there must never be one, so a card authored through
+  // this path always speaks as the visa shop. That is NOT an entitlement check: this
+  // function has no actor to check (see the caller contract at the top of the file). It
+  // bounds the DAMAGE of a mis-authorized call (a shop-authored card in a thread the
+  // shop owns) rather than preventing one.
+  const shop = await getVisaShopSeller()
+  if (!shop?.ownerId) return null
+  const senderId = shop.ownerId
+
+  const convo = await db.conversation.findUnique({ where: { id: conversationId }, select: THREAD_SELECT })
+  if (!convo) return null
+  // The card must speak for the case THIS thread is bound to…
+  if (convo.visaApplicationId !== applicationId) return null
+  // …and the thread must be one of the visa desk's own.
+  if (convo.sellerProfileId !== senderId) return null
+
+  // A human has taken the thread over → the wizard stops talking over them.
+  // 'human_requested' deliberately does NOT silence it: that mode means the applicant is
+  // queued for help, and they can keep filling the form while they wait.
+  if ((await getVisaThreadMode(applicationId)) === 'admin') return null
+
+  // needsReview carries payload FIELD NAMES only. Filtering here (rather than letting the
+  // strict parse throw) means one stray key costs that key, not the whole card.
+  const needsReview = [...new Set(input.needsReview ?? [])].filter(isVisaPayloadFieldName).slice(0, 80)
+  const meta: VisaStepMeta = {
+    v: 1, step, applicationId, state: 'active',
+    ...(needsReview.length ? { needsReview } : {}),
+  }
+  try {
+    // Body EMPTY on purpose (the realtime-broadcast note in insertMessage) — the inbox
+    // line comes from the constant, PII-free preview.
+    const message = await insertMessage(convo, senderId, '', { kind: 'visa_step', meta, preview: visaDmStepPreview(step) })
+    return { messageId: message.id }
+  } catch (e) {
+    console.error('[visa-dm] step card refused', e)
+    return null
+  }
+}
+
+/**
+ * Emit the in-thread pay card. Null while payments are dormant (no provider keys),
+ * exactly like the rest of the payment surface.
+ *
+ * ⚠️ THE PRICE IS THE CALLING ROUTE'S RESPONSIBILITY, AND IT MUST BE SERVER-RESOLVED.
+ * e-Visa pricing is PER PRODUCT (owner, 2026-07-21): a 2 × 7 grid of
+ * (entry type: single | multiple, 90-day) × (speed: 1H, 2H, 4H, 1D, 2D, 3D, normal),
+ * each cell carrying its own USD price. There is no single flat fee to compare against
+ * any more — visaPaymentsConfig() survives here only as the dormant/live switch for the
+ * payment providers, and its feeCents is NOT the price of anything this card sells. This
+ * function therefore cannot re-derive the amount and deliberately does not try: the ROUTE
+ * that mints the card reads the authoritative grid server-side and passes that number.
+ * (The grid itself is a later task — do not invent it here.)
+ *
+ * ⚠️ A CLIENT-SUPPLIED AMOUNT MUST NEVER REACH THIS FUNCTION. Nothing here can tell a
+ * resolved price from a number lifted out of a request body, so a route that forwards
+ * `body.amountUsd` is a price-tampering hole this layer cannot close for it.
+ *
+ * What IS enforced here: the amount is a finite, positive, whole-cent USD value, and the
+ * card is written from the NORMALIZED value rather than the raw input. The strict
+ * metaJson parse in src/lib/messages.ts (min 0, max 10 000, multipleOf 0.01) is the
+ * backstop, and it throws — i.e. no card — rather than persisting a malformed amount.
+ */
+export async function sendVisaCheckoutCard(input: {
+  conversationId: string; applicationId: string; amountUsd: number
+}): Promise<{ messageId: string } | null> {
+  const { conversationId, applicationId } = input
+  if (!UUID_RE.test(applicationId)) return null
+
+  const config = visaPaymentsConfig()
+  if (!config) return null
+  // SHAPE, not value: with per-product pricing the only thing this layer can honestly
+  // assert about the amount is that it is money. Math.round() absorbs float noise
+  // (79.99 * 100 === 7998.999999999999) while the epsilon comparison still refuses a
+  // sub-cent amount like 25.999, which would be a caller computing a price wrong.
+  const cents = Math.round(input.amountUsd * 100)
+  if (!Number.isFinite(input.amountUsd) || cents <= 0 || Math.abs(input.amountUsd * 100 - cents) > 1e-6) {
+    console.error('[visa-dm] checkout amount is not a positive whole-cent USD value')
+    return null
+  }
+  const amountUsd = cents / 100
+
+  const shop = await getVisaShopSeller()
+  if (!shop?.ownerId) return null
+  const senderId = shop.ownerId
+
+  const convo = await db.conversation.findUnique({ where: { id: conversationId }, select: THREAD_SELECT })
+  if (!convo || convo.visaApplicationId !== applicationId || convo.sellerProfileId !== senderId) return null
+
+  // Always minted 'unpaid'. 'paid' is a provider fact, never authorable: both stamping
+  // paths (setVisaCheckoutStatus and stampReleasedVisaCheckoutCard below) refuse until
+  // visa_applications.paid_at exists (src/lib/messages.ts gate 3).
+  // No mode gate here, unlike the step card: an admin who took the thread over still
+  // needs the applicant to pay, and this card is the only way to ask.
+  const meta: VisaCheckoutMeta = { v: 1, applicationId, amountUsd, status: 'unpaid' }
+  try {
+    const message = await insertMessage(convo, senderId, '', {
+      kind: 'visa_checkout',
+      meta,
+      // Bilingual composite, no applicant data — the price is public.
+      preview: `Phí dịch vụ e-Visa · e-Visa service fee — $${amountUsd.toFixed(2)}`,
+    })
+    return { messageId: message.id }
+  } catch (e) {
+    console.error('[visa-dm] checkout card refused', e)
+    return null
+  }
+}
+
+/** A checkout card resolved by APPLICATION rather than by the thread's live binding. */
+type VisaCheckoutCardRow = { id: string; conversationId: string; meta: VisaCheckoutMeta }
+
+/**
+ * The newest checkout card that speaks for this case, found through the APPLICANT'S OWN
+ * visa-desk threads — not through Conversation.visaApplicationId, which a later case may
+ * already have taken over (see markVisaThreadPaid).
+ *
+ * Scoped, not scanned: the case's owner + the visa shop's sellerId narrow it to that
+ * buyer's handful of conversations (indexed), and the cards are then read off the
+ * [conversationId, createdAt] index. That scoping is also the cross-tenant guard — a card
+ * living in anyone else's thread is invisible here, whatever its metaJson claims.
+ *
+ * FAILS CLOSED ON AMBIGUITY: cards for one case spread over more than one thread is
+ * corrupt state (the binding is @unique, so it cannot be produced through this module),
+ * and money must not be stamped onto a guess.
+ */
+async function findVisaCheckoutCardByApplication(applicationId: string, ownerProfileId: string): Promise<VisaCheckoutCardRow | null> {
+  const shop = await getVisaShopSeller()
+  if (!shop?.id || !ownerProfileId) return null
+  const threads = await db.conversation.findMany({
+    where: { sellerId: shop.id, buyerProfileId: ownerProfileId },
+    select: { id: true },
+    take: 20,
+  })
+  if (!threads.length) return null
+  const rows = await db.message.findMany({
+    where: { conversationId: { in: threads.map((t) => t.id) }, kind: 'visa_checkout' },
+    orderBy: { createdAt: 'desc' },
+    select: { id: true, conversationId: true, metaJson: true },
+    take: 50,
+  })
+  const cards: VisaCheckoutCardRow[] = []
+  for (const row of rows) {
+    // parseMessageMeta re-validates on read (strict zod) and is tolerant — a hand-written
+    // or future-version blob is null here, never a throw.
+    const meta = parseMessageMeta('visa_checkout', row.metaJson)
+    if (!meta || !('status' in meta) || meta.applicationId !== applicationId) continue
+    cards.push({ id: row.id, conversationId: row.conversationId, meta })
+  }
+  if (!cards.length) return null
+  if (new Set(cards.map((card) => card.conversationId)).size > 1) {
+    console.error('[visa-dm] checkout cards for one case in multiple threads — refusing to stamp')
+    return null
+  }
+  return cards[0]
+}
+
+/**
+ * Stamp the checkout card of a case whose thread NO LONGER NAMES IT.
+ *
+ * ⚠️ SECOND WRITER OF status:'paid'. The canonical one is setVisaCheckoutStatus
+ * (src/lib/messages.ts), and it is used for every live-binding case — but it requires
+ * Conversation.visaApplicationId to still equal the case, which a rebound thread makes
+ * permanently false. Without this path a repeat applicant's FIRST case keeps an 'unpaid'
+ * card forever, for a capture that really completed.
+ *
+ * It re-asserts the same money gate rather than inheriting it: 'paid' is written only
+ * once visa_applications.paid_at exists — i.e. only once markVisaPaidAndHandoff has
+ * verified the capture with Stripe/PayPal. A Supabase error propagates to
+ * markVisaThreadPaid's catch and answers false, so this fails CLOSED.
+ * The blob written is the STORED meta with nothing changed but `status`, and the stored
+ * meta came back through parseMessageMeta's strict parse, so the result is provably still
+ * a valid VisaCheckoutMeta.
+ */
+async function stampReleasedVisaCheckoutCard(applicationId: string): Promise<boolean> {
+  const { data, error } = await getVisaDb()
+    .from('visa_applications').select('user_id,paid_at').eq('id', applicationId).maybeSingle()
+  if (error) throw error
+  const row = data as { user_id?: string | null; paid_at?: string | null } | null
+  // EVIDENCE GATE — the provider fact, not the caller's word.
+  if (!row?.paid_at || !row.user_id) return false
+  const card = await findVisaCheckoutCardByApplication(applicationId, row.user_id)
+  if (!card) return false
+  // Idempotent: a webhook and a confirm-on-return both firing is the normal case.
+  if (card.meta.status === 'paid') return true
+  // RE-VALIDATE THE RESULT BEFORE WRITING. messages.ts states the invariant plainly: every
+  // metaJson write, insert or update, passes a strict parse, so no value reaches the column
+  // unchecked (setVisaCheckoutStatus and setVisaStepState both safeParse the merged object).
+  // This function was the only writer that skipped it — an external review caught it. Round-
+  // tripping through parseMessageMeta reuses the SAME strict schema without widening
+  // messages.ts's API to export it, and it fails closed: an unparseable result writes nothing.
+  const next: VisaCheckoutMeta = { ...card.meta, status: 'paid' }
+  const validated = parseMessageMeta('visa_checkout', JSON.stringify(next))
+  if (!validated) return false
+  await db.message.update({ where: { id: card.id }, data: { metaJson: JSON.stringify(validated) } })
+  return true
+}
+
+/**
+ * Stamp this case's checkout card paid. Called from the payment completion paths
+ * (webhook + confirm-on-return), which run after the provider capture is verified.
+ *
+ * RESOLVED BY THE APPLICATION, NOT ONLY BY THE LIVE BINDING. Conversation.visaApplicationId
+ * is @unique and holds exactly one case, so a repeat applicant starting a second case
+ * RELEASES the first (bindVisaThread's unbind-then-claim). Looking the thread up by that
+ * column alone therefore returns null forever for the released case, and a capture that
+ * really completed would leave its card 'unpaid' for good — a money bug, not a cosmetic
+ * one. So: the live binding is the fast path, and a case that has been released is
+ * resolved through its own card instead.
+ *
+ * NEVER THROWS: a payment is already recorded by the time this runs, so a failure here
+ * must degrade to a stale card, never to a 500 that makes Stripe retry a completed
+ * capture. false = no card for this case anywhere, or the evidence gate refused.
+ */
+export async function markVisaThreadPaid(applicationId: string): Promise<boolean> {
+  if (!UUID_RE.test(applicationId)) return false
+  try {
+    // FAST PATH — the thread still names this case. Delegates the money claim to the
+    // canonical stamper: setVisaCheckoutStatus re-reads visa_applications.paid_at and
+    // fails closed, so this function's word is not enough.
+    const thread = await findVisaThread(applicationId)
+    if (thread && (await setVisaCheckoutStatus(thread.conversationId, applicationId, 'paid'))) return true
+    // Released (or the delegate refused for a binding reason): resolve by application.
+    // Re-running the evidence gate makes this fallback no weaker than the fast path — it
+    // can only ever stamp a capture Supabase already recorded.
+    return await stampReleasedVisaCheckoutCard(applicationId)
+  } catch (e) {
+    console.error('[visa-dm] markVisaThreadPaid', e)
+    return false
+  }
+}
+
+/**
+ * Who is driving this thread. Derived from the NEWEST of the three mode events in
+ * visa_events — no DDL, no extra column. Fails soft to 'ai' (the pre-takeover default)
+ * so a Supabase hiccup cannot wedge the wizard shut.
+ */
+export async function getVisaThreadMode(applicationId: string): Promise<VisaThreadMode> {
+  if (!UUID_RE.test(applicationId)) return 'ai'
+  try {
+    const { data, error } = await getVisaDb()
+      .from('visa_events')
+      .select('event,created_at,id')
+      .eq('application_id', applicationId)
+      .in('event', MODE_EVENT_NAMES)
+      // id as the tiebreak: two events written in the same transaction can share
+      // created_at, and "newest wins" must be deterministic.
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: false })
+      .limit(1)
+    if (error) throw error
+    const newest = (data as Array<{ event?: string }> | null)?.[0]?.event
+    return (newest && MODE_FOR_EVENT[newest]) || 'ai'
+  } catch (e) {
+    console.error('[visa-dm] thread mode lookup failed', e)
+    return 'ai'
+  }
+}
+
+/**
+ * Record a mode transition. Deliberately the ONE loud path in this file: the read above
+ * fails soft, but a takeover the caller believes landed and didn't would leave the wizard
+ * posting over a human, so a failed write THROWS and the route surfaces it.
+ */
+export async function setVisaThreadMode(input: {
+  applicationId: string; mode: VisaThreadMode; actorType: 'applicant' | 'admin'; actorRef?: string
+}): Promise<void> {
+  await recordVisaEvent(input.applicationId, input.actorType, MODE_EVENT[input.mode], input.actorRef, { mode: input.mode })
+}

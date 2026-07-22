@@ -1,4 +1,14 @@
+// GENERATED FROM src/lib/visa/schema.ts — do not edit. Regenerate: node scripts/sync-visa-pairs.mjs --write
+// This file is that root file VERBATIM: nothing is stripped, reordered or reworded, and
+// only relative visa import specifiers ('./x') become the forum alias ('@/lib/visa/x').
+// Every comment below is therefore written from the ROOT's perspective — its paths,
+// tooling notes and TODOs describe src/ on eno.vn, not apps/forum/. Read them against
+// the root file; correct an inaccurate one THERE and re-run --write.
+// Ported VERBATIM from apps/forum/src/lib/visa/schema.ts (2026-07-18 in-hub port).
+// ⚠️ INTEROP: both apps validate the same encrypted rows — keep the payload schema,
+// versions, and validation codes in lockstep with the forum copy.
 import { z } from 'zod'
+// Relative for vitest resolvability (see crypto.ts) — same module either way.
 import { DEFAULT_EVISA_ENTRY_GATE } from '@/lib/visa/checkpoints'
 
 export const VISA_PAYLOAD_VERSION = '2026-07-16'

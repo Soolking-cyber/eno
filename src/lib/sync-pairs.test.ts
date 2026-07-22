@@ -8,6 +8,26 @@ import { describe, expect, it } from 'vitest'
 // that existed only because a copy drifted. This test fails the ROOT build the moment
 // a designated pair diverges.
 //
+// THE ROOT IS THE SOURCE OF TRUTH, and moving a pair is a GENERATED step, not a manual
+// one: edit the file under src/, then run `node scripts/sync-visa-pairs.mjs --write` to
+// regenerate the forum copies from the root ones. That script's `--check` mode (its
+// default, also `npm run sync:visa`) makes exactly the comparison this test makes, so it
+// is also the pre-commit / CI-shaped way to see the drift with a unified diff, and it has
+// its own tests: `node --test scripts/sync-visa-pairs.test.mjs`. Hand-editing
+// apps/forum/src/lib/visa/* is now a mistake: EXACT pairs are copied byte-for-byte, and a
+// NORMALIZED copy is a "GENERATED FROM …" banner followed by the root file VERBATIM with
+// only './x' → '@/lib/visa/x' rewritten — the generator removes NOTHING (an earlier
+// version stripped the root's leading comment block, which silently deleted code sharing
+// a line with it, invisibly to the normalize() below; never reintroduce that) — so a
+// hand-edit on the forum side is either silently clobbered on the next --write, or, worse,
+// survives as a payload field that is out of lockstep. Why that is dangerous rather than
+// untidy: visaPayloadSchema is z.object(), NOT .strict(), so zod SILENTLY STRIPS unknown
+// keys, and both apps decrypt and re-encrypt the SAME visa_applications rows — a forum
+// copy that has not moved deletes the new field from the ciphertext on the next admin
+// edit. Undetectable data loss on encrypted passport PII.
+// The generator's pair table is a verbatim copy of the two arrays below; add or retire a
+// pair in BOTH places, and never resolve a failure here by deleting a pair.
+//
 // NOT a shared package on purpose: the deployment boundary stays (each Vercel build
 // resolves only its own tree); the guard is the cheap alternative the audit chose.
 //

@@ -19,6 +19,7 @@
     "start": "NODE_ENV=production node .next/standalone/server.js 2>&1 | tee server.log",
     "lint": "eslint . && node scripts/design-lint.mjs",
     "test": "vitest run",
+    "sync:visa": "node scripts/sync-visa-pairs.mjs --check",
     "test:watch": "vitest",
     "smoke": "node scripts/smoke.mjs",
     "seo:check": "node scripts/seo-check.mjs",

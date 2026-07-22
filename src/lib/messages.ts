@@ -53,6 +53,15 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 // schema is rejected, which makes it structurally impossible to smuggle free text
 // (a passport number, a name) through the one array field the contract exposes.
 const VISA_FIELD_NAMES = new Set(Object.keys(visaPayloadSchema.shape))
+/**
+ * The same allowlist, for card AUTHORS. A caller assembling `needsReview` filters through
+ * this instead of copying the key set (one definition, here, next to the gate that
+ * enforces it) — an unroutable entry is dropped before the write rather than throwing
+ * `visa_card_meta_invalid` and losing the whole card. Purely additive: the write path
+ * still re-checks every entry in visaStepMetaSchema, so this is a convenience, never a
+ * substitute for the gate.
+ */
+export const isVisaPayloadFieldName = (name: string): boolean => VISA_FIELD_NAMES.has(name)
 // A well-formed card is ~120–2500 bytes (needsReview dominates). The cap is a
 // belt-and-braces stop on a fat row reaching every inbox poll, not a real limit.
 const MAX_META_JSON = 4096
