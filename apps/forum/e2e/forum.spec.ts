@@ -109,6 +109,13 @@ test.describe('eno.forum deployable workspace', () => {
     await location.click()
     const option = page.getByRole('option', { name: /Ho Chi Minh City/i })
     await expect(option).toBeVisible()
+    // ⚠️ SECOND settle, and it is the one that matters. The await above happens BEFORE this
+    // click, so it only settles fonts for the page as it was then — the listbox does not exist
+    // yet. Opening it renders new text that can request a face the initial paint never needed,
+    // so the option was still measured mid-swap and CI kept reporting exactly
+    // 41.79998779296875 against the >= 42 floor. Settle again now that the thing being measured
+    // is on screen.
+    await page.evaluate(() => document.fonts.ready)
     const optionBox = await option.boundingBox()
     const listboxBox = await page.getByRole('listbox').boundingBox()
     expect(optionBox).not.toBeNull()
