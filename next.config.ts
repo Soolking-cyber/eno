@@ -10,10 +10,13 @@ const nextConfig: NextConfig = {
   // Cross-instance ISR: cache-handler.cjs replaces the per-instance filesystem
   // cache so revalidatePath purges EVERY Cloud Run instance — the correctness
   // gate for max-instances > 1 (a sold/moderated listing must vanish everywhere).
-  // The handler is DUAL-MODE internally (Redis on Cloud Run, in-process Map
+  // The handler is DUAL-MODE internally (Postgres on Cloud Run, in-process only
   // elsewhere) because the standalone server embeds this config at build time.
   // cacheMaxMemorySize 0 kills Next's own L1, which would otherwise serve stale
-  // entries without consulting the shared tombstones.
+  // entries without consulting the shared tombstones. ⚠️ This is NOT "no memory
+  // cache": the handler runs its own tombstone-aware L1, which is the thing Next's
+  // cannot be. Raising this value would re-introduce an unchecked layer ABOVE ours
+  // and resurrect purged pages — leave it at 0.
   ...(process.env.VERCEL ? {} : { cacheHandler: join(__dirname, "cache-handler.cjs"), cacheMaxMemorySize: 0 }),
   // Don't advertise the framework (`x-powered-by: Next.js`) on every response.
   poweredByHeader: false,

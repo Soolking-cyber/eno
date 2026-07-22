@@ -6,26 +6,51 @@
 // UNLOGGED tables next_cache / next_cache_tag (DDL: scripts/rate-limit-pg.mjs),
 // swept by the rl-kv-sweep pg_cron job.
 //
+// ── TWO TIERS, AND WHY (2026-07-22) ───────────────────────────────────────────────
+// The first Postgres version consulted the network on EVERY request, because Next's
+// own L1 (cacheMaxMemorySize) can't see our tombstones and would serve invalidated
+// entries. Measured over its first two days: 14,388 payload reads moving ~1.1GB, to
+// discover that 4 entries needed invalidating. Egress scaled with pageviews, at
+// prelaunch traffic.
+//
+// The fix is to notice that this cache is doing two jobs with wildly different data:
+//   · PAYLOADS — ~91kB each, 149MB total. Wanted by whoever renders. Not shared state.
+//   · INVALIDATIONS — 6 rows, 48kB, changed 16 times ever. THE only thing that must
+//     cross instance boundaries.
+// So payloads live in an in-process LRU (L1) and the network carries invalidations:
+//   · L1 answers reads with ZERO round trips, and — unlike Next's L1 — it checks the
+//     tombstones first, which is the whole reason cacheMaxMemorySize had to be 0.
+//   · The tag table is small enough to hold ENTIRELY in memory, refreshed at most
+//     every TAG_REFRESH_MS. One tiny query every few seconds per instance, whatever
+//     the traffic. Traffic no longer touches Postgres at all on the hot path.
+//   · Postgres keeps the payloads as L2 so a NEW instance (scale-up, new revision)
+//     starts warm instead of re-rendering everything. That read now happens about
+//     once per key per instance, not once per request.
+//
+// ⚠️ THE TRADE, STATED PLAINLY. An invalidation is visible to OTHER instances within
+// TAG_REFRESH_MS (3s), not instantly. It is instant on the instance that called
+// revalidateTag (write-through below). Three seconds of a sold listing staying visible
+// on 1-of-3 instances is worth ~99% of the egress and ~5ms off every cached render.
+// If a future feature needs true zero-lag global purge, that feature needs a push
+// channel (LISTEN/NOTIFY), not a return to per-request payload fetching.
+//
 // Design (tombstone tags, no key-sets):
 // · Entries live under  eno:isr:<buildId>:<key>  → { lastModified, tags, value }
 //   with Buffers (html/rsc/body) base64-encoded for JSON transport. buildId in the
 //   prefix keeps RSC payloads build-consistent; orphaned old-build keys expire via TTL.
-// · revalidateTag(tag) writes a TOMBSTONE timestamp per tag; get() compares the
-//   entry's lastModified against its tags' tombstones (one indexed ANY() probe) and
-//   treats older entries as misses. revalidatePath flows through this too (Next maps
-//   paths to internal _N_T_/<path> tags).
+// · revalidateTag(tag) writes a TOMBSTONE timestamp per tag; reads compare the entry's
+//   lastModified against its tags' tombstones and treat older entries as misses.
+//   revalidatePath flows through this too (Next maps paths to internal _N_T_/<path>).
 // · EVERY op is failure-tolerant with a hard timeout: Postgres slow/down ⇒ behave
 //   like a cache miss / no-op. Never throw into the render path.
-// · next.config sets cacheMaxMemorySize: 0 when this handler is active — the default
-//   in-memory L1 would serve stale entries WITHOUT consulting the tombstones.
 //
 // DUAL MODE (the standalone server EMBEDS the build-time config, so runtime env
 // can't choose whether a handler exists — the handler itself chooses):
-// · On Cloud Run (K_SERVICE set) → Postgres, the shared cross-instance cache.
-// · Everywhere else (local dev/build/e2e, Cloud Build) → an in-process Map with the
-//   SAME tombstone semantics: correct for a single instance and free of network RTT.
-// Build-time prerenders land in the throwaway Map; prod first-hits re-render once
-// and converge into Postgres. CJS on purpose: Next requires the handler synchronously.
+// · On Cloud Run (K_SERVICE set) → L1 + Postgres L2, shared across instances.
+// · Everywhere else (local dev/build/e2e, Cloud Build) → L1 only, same tombstone
+//   semantics: correct for a single instance and free of network RTT.
+// Build-time prerenders land in the throwaway L1; prod first-hits re-render once and
+// converge into Postgres. CJS on purpose: Next requires the handler synchronously.
 
 const { readFileSync } = require('node:fs')
 const { join } = require('node:path')
@@ -34,13 +59,26 @@ const TIMEOUT_MS = 500
 const TAG_TTL_S = 60 * 60 * 24 * 35 // outlive the longest page TTL below
 const MAX_TTL_S = 60 * 60 * 24 * 30 // our longest revalidate (listing pages) is 30d
 
+// How long a tag snapshot may be reused before we re-read it. This is the
+// cross-instance invalidation lag — see THE TRADE above.
+const TAG_REFRESH_MS = 3000
+// If the tag table has been unreadable for THIS long, stop trusting L1 and fall
+// through to L2/render. Without this, a Postgres outage would silently freeze every
+// instance's view of what's been invalidated for as long as the outage lasts —
+// serving purged pages is a worse failure than re-rendering them.
+const TAG_MAX_STALE_MS = 30_000
+
+// L1 bounds. The live build's whole working set measured ~3MB (73 entries), so these
+// are far above need — they exist to cap a pathological key space, not to ration.
+// Container is 1GiB; entries hold Buffers, not the +33% base64 form used in transport.
+const L1_MAX_ENTRIES = 1000
+const L1_MAX_BYTES = 96 * 1024 * 1024
+
 let buildId = 'unknown'
 try { buildId = readFileSync(join(process.cwd(), '.next', 'BUILD_ID'), 'utf8').trim() } catch { /* dev server */ }
 
 const K = (key) => `eno:isr:${buildId}:${key}`
 const T = (tag) => `eno:isrtag:${tag}` // tombstones are build-agnostic on purpose
-
-const withTimeout = (p) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error('cache_timeout')), TIMEOUT_MS))])
 
 const B64 = 'base64:'
 function encodeValue(value) {
@@ -65,24 +103,59 @@ function decodeValue(value) {
   return out
 }
 
-const memEntries = new Map() // module-level: shared across handler instances in-process
-const memTags = new Map()
-const MEM_MAX = 500
+// Rough byte cost of an entry, for the L1 budget. Buffers dominate by orders of
+// magnitude; everything else gets a flat allowance rather than a walk of the object.
+function sizeOf(value) {
+  let n = 2048
+  if (!value || typeof value !== 'object') return n
+  for (const f of ['html', 'rscData', 'body', 'segmentData']) {
+    const v = value[f]
+    if (Buffer.isBuffer(v)) n += v.length
+    else if (v instanceof Map) { for (const b of v.values()) n += Buffer.isBuffer(b) ? b.length : 64 }
+    else if (typeof v === 'string') n += v.length
+  }
+  return n
+}
 
-// One small pool per process, lazily created — Supavisor (pooled DATABASE_URL,
-// transaction mode) multiplexes server-side, so a few client slots suffice.
-let pool = null
-function getPool() {
-  if (pool) return pool
-  const { Pool } = require('pg')
-  pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
-    max: 4,
-    idleTimeoutMillis: 30_000,
-    connectionTimeoutMillis: TIMEOUT_MS,
-  })
-  pool.on('error', () => { /* an idle client dying must never crash the server */ })
-  return pool
+// ── L1: payloads, in-process, LRU by insertion order ───────────────────────────────
+// Module-level so every handler instance in the process shares one cache.
+const l1 = new Map() // K(key) → { lastModified, tags, value, bytes }
+let l1Bytes = 0
+
+function l1Delete(k) {
+  const e = l1.get(k)
+  if (e) { l1Bytes -= e.bytes; l1.delete(k) }
+}
+function l1Set(k, entry) {
+  l1Delete(k)
+  l1.set(k, entry)
+  l1Bytes += entry.bytes
+  // Map iterates in insertion order, so the first key is the least recently written.
+  while (l1.size > L1_MAX_ENTRIES || l1Bytes > L1_MAX_BYTES) {
+    const oldest = l1.keys().next().value
+    if (oldest === undefined) break
+    l1Delete(oldest)
+  }
+}
+function l1Get(k) {
+  const e = l1.get(k)
+  if (!e) return null
+  l1.delete(k); l1.set(k, e) // touch → most-recently-used
+  return e
+}
+
+// ── Tag snapshot: the whole tombstone table, in memory ─────────────────────────────
+const tagStamps = new Map() // T(tag) → stamp (ms)
+let tagsLoadedAt = 0
+let tagsInflight = null
+
+/** True when the entry's own tags have been tombstoned since it was stored. */
+function tombstoned(entry) {
+  for (const tag of entry.tags || []) {
+    const s = tagStamps.get(T(tag))
+    if (s != null && s >= entry.lastModified) return true
+  }
+  return false
 }
 
 module.exports = class EnoCacheHandler {
@@ -90,44 +163,105 @@ module.exports = class EnoCacheHandler {
     this.pg = Boolean(process.env.K_SERVICE && process.env.DATABASE_URL)
   }
 
-  async get(key) {
-    if (!this.pg) {
-      const entry = memEntries.get(K(key))
-      if (!entry) return null
-      for (const tag of entry.tags) {
-        const s = memTags.get(T(tag))
-        if (s != null && s >= entry.lastModified) return null
-      }
-      return { lastModified: entry.lastModified, value: entry.value }
+  // One small pool per process, lazily created — Supavisor (pooled DATABASE_URL,
+  // transaction mode) multiplexes server-side, so a few client slots suffice.
+  // statement_timeout/query_timeout do the timing out, NOT a Promise.race: a race
+  // abandons the promise but the QUERY keeps running and keeps its pool slot, so
+  // under load the pool starves itself (review 2026-07-20, fixed here).
+  static pool = null
+  static getPool() {
+    if (EnoCacheHandler.pool) return EnoCacheHandler.pool
+    const { Pool } = require('pg')
+    EnoCacheHandler.pool = new Pool({
+      connectionString: process.env.DATABASE_URL,
+      max: 4,
+      idleTimeoutMillis: 30_000,
+      connectionTimeoutMillis: TIMEOUT_MS,
+      query_timeout: TIMEOUT_MS,
+      statement_timeout: TIMEOUT_MS,
+    })
+    EnoCacheHandler.pool.on('error', () => { /* an idle client dying must never crash the server */ })
+    return EnoCacheHandler.pool
+  }
+
+  /**
+   * Refresh the tag snapshot if it's older than TAG_REFRESH_MS. Concurrent callers
+   * share one in-flight query. Returns false when the snapshot is too stale to trust.
+   */
+  async syncTags() {
+    if (!this.pg) return true
+    const age = Date.now() - tagsLoadedAt
+    if (age < TAG_REFRESH_MS) return true
+    if (!tagsInflight) {
+      tagsInflight = EnoCacheHandler.getPool()
+        .query('select tag, stamp from next_cache_tag where expires_at > now()')
+        .then(({ rows }) => {
+          tagStamps.clear()
+          for (const r of rows) tagStamps.set(r.tag, Number(r.stamp))
+          tagsLoadedAt = Date.now()
+        })
+        .catch(() => { /* keep the previous snapshot; staleness is bounded below */ })
+        .finally(() => { tagsInflight = null })
     }
+    await tagsInflight
+    return Date.now() - tagsLoadedAt < TAG_MAX_STALE_MS
+  }
+
+  async get(key) {
+    const k = K(key)
+    const tagsFresh = await this.syncTags()
+
+    // L1 — the hot path. No network, and tombstone-checked, which is precisely what
+    // Next's own L1 cannot do.
+    if (tagsFresh) {
+      const hit = l1Get(k)
+      if (hit) {
+        if (!tombstoned(hit)) return { lastModified: hit.lastModified, value: hit.value }
+        l1Delete(k) // invalidated — drop it and try L2, which may already hold the new one
+      }
+    }
+
+    if (!this.pg) return null
+
     try {
-      const { rows } = await withTimeout(getPool().query(
-        'select entry from next_cache where key = $1 and expires_at > now()', [K(key)]))
+      // ONE round trip, and it transfers the payload ONLY if the entry is still live.
+      // The old version fetched 91kB and then ran a second query to decide whether to
+      // throw it away — paying full egress for entries it was about to discard.
+      const { rows } = await EnoCacheHandler.getPool().query(
+        `select c.entry from next_cache c
+          where c.key = $1
+            and c.expires_at > now()
+            and not exists (
+              select 1 from next_cache_tag t
+               where t.tag = any (select $2::text || x
+                                    from jsonb_array_elements_text(coalesce(c.entry->'tags', '[]'::jsonb)) x)
+                 and t.stamp >= (c.entry->>'lastModified')::bigint)`,
+        [k, 'eno:isrtag:'])
       const entry = rows[0]?.entry
       if (!entry) return null
+      const value = decodeValue(entry.value)
+      const lastModified = Number(entry.lastModified)
       const tags = Array.isArray(entry.tags) ? entry.tags : []
-      if (tags.length) {
-        const { rows: dead } = await withTimeout(getPool().query(
-          'select 1 from next_cache_tag where tag = any($1) and stamp >= $2 limit 1',
-          [tags.map(T), Number(entry.lastModified)]))
-        if (dead.length) return null // tombstoned since stored
-      }
-      return { lastModified: entry.lastModified, value: decodeValue(entry.value) }
+      l1Set(k, { lastModified, tags, value, bytes: sizeOf(value) })
+      return { lastModified, value }
     } catch { return null }
   }
 
   async set(key, value, ctx = {}) {
-    if (!this.pg) {
-      const tags = [...new Set(Array.isArray(ctx.tags) ? ctx.tags : [])].filter(Boolean)
-      if (memEntries.size >= MEM_MAX) memEntries.delete(memEntries.keys().next().value)
-      memEntries.set(K(key), { lastModified: Date.now(), tags, value })
-      return
-    }
+    const k = K(key)
+    const tags = [...new Set([
+      ...(Array.isArray(ctx.tags) ? ctx.tags : []),
+      ...(typeof value?.headers?.['x-next-cache-tags'] === 'string' ? value.headers['x-next-cache-tags'].split(',') : []),
+    ])].filter(Boolean)
+    const lastModified = Date.now()
+
+    // L1 first and unconditionally: the instance that just rendered this should never
+    // have to fetch it back over the network.
+    l1Set(k, { lastModified, tags, value, bytes: sizeOf(value) })
+
+    if (!this.pg) return
+
     try {
-      const tags = [
-        ...(Array.isArray(ctx.tags) ? ctx.tags : []),
-        ...(Array.isArray(value?.headers?.['x-next-cache-tags']?.split?.(',')) ? value.headers['x-next-cache-tags'].split(',') : []),
-      ]
       // Next 16 carries the revalidate hint in different places per entry kind:
       // route/page entries → ctx.cacheControl.revalidate, fetch entries → the
       // value itself; plain ctx.revalidate is legacy. Check all three or every
@@ -135,32 +269,43 @@ module.exports = class EnoCacheHandler {
       const revalidate = [ctx.revalidate, ctx.cacheControl && ctx.cacheControl.revalidate, value && value.revalidate]
         .find((r) => typeof r === 'number' && r > 0) ?? null
       const ttl = Math.min(MAX_TTL_S, revalidate ? revalidate + 6 * 3600 : MAX_TTL_S)
-      const entry = { lastModified: Date.now(), tags: [...new Set(tags)].filter(Boolean), value: encodeValue(value) }
-      await withTimeout(getPool().query(
+      const entry = { lastModified, tags, value: encodeValue(value) }
+      await EnoCacheHandler.getPool().query(
         `insert into next_cache (key, entry, expires_at)
          values ($1, $2::jsonb, now() + make_interval(secs => $3))
          on conflict (key) do update set entry = excluded.entry, expires_at = excluded.expires_at`,
-        [K(key), JSON.stringify(entry), ttl]))
+        [k, JSON.stringify(entry), ttl])
     } catch { /* cache write is best-effort */ }
   }
 
   async revalidateTag(tags) {
     const list = (Array.isArray(tags) ? tags : [tags]).filter(Boolean)
-    if (!this.pg) {
-      for (const tag of list) memTags.set(T(tag), Math.max(memTags.get(T(tag)) || 0, Date.now()))
-      return
+    if (!list.length) return
+    const stamp = Date.now()
+
+    // Write THROUGH the local snapshot so this instance is correct immediately — the
+    // TAG_REFRESH_MS lag applies only to the OTHER instances.
+    for (const tag of list) {
+      const t = T(tag)
+      tagStamps.set(t, Math.max(tagStamps.get(t) || 0, stamp))
     }
+    // Drop anything the new tombstones just killed, so a purged page can't be served
+    // from L1 during the window before its own tombstone check would catch it.
+    for (const [k, e] of l1) if (tombstoned(e)) l1Delete(k)
+
+    if (!this.pg) return
+
     try {
       // greatest(): a delayed invalidation must never move a tombstone BACKWARD —
       // that would revive entries a newer invalidation already killed (review
       // 2026-07-20).
-      await withTimeout(getPool().query(
+      await EnoCacheHandler.getPool().query(
         `insert into next_cache_tag (tag, stamp, expires_at)
          select t, $2, now() + make_interval(secs => $3) from unnest($1::text[]) as t
          on conflict (tag) do update set
            stamp = greatest(next_cache_tag.stamp, excluded.stamp),
            expires_at = greatest(next_cache_tag.expires_at, excluded.expires_at)`,
-        [list.map(T), Date.now(), TAG_TTL_S]))
+        [list.map(T), stamp, TAG_TTL_S])
     } catch { /* a failed purge self-heals via entry TTL */ }
   }
 
