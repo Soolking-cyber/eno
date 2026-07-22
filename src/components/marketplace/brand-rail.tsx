@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { BrandLogo } from './brand-logo'
 import { MoreOverflow } from './more-overflow'
+import { useScrollArrows, ScrollArrows } from '@/hooks/use-scroll-arrows'
 
 type BrandItem = { slug: string; name: string; count: number; iconPath: string | null }
 
@@ -30,7 +31,10 @@ export function BrandRail({
   onPickModel: (model: string) => void
 }) {
   const { tr } = useLanguage()
-  const railRef = useRef<HTMLDivElement>(null)
+  // Desktop ← / → arrows, same as the home rails (owner, 2026-07-22: "category brand reels
+  // also need arrows like in home page"). The hook's ref IS the rail element, so it also
+  // serves the auto-centre-the-active-brand effect below — one node, one ref.
+  const { scrollerRef: railRef, canLeft, canRight, page, arrowTop } = useScrollArrows<HTMLDivElement>()
   const [brands, setBrands] = useState<BrandItem[]>([])
   const [models, setModels] = useState<{ model: string; count: number }[]>([])
   // Read through refs inside the fetch effects so validating the CURRENT pick
@@ -113,6 +117,8 @@ export function BrandRail({
     cn('w-full shrink-0 whitespace-nowrap rounded-lg px-2.5 py-1 text-left text-sm font-semibold transition-colors cursor-pointer', active ? 'bg-card text-accent-foreground shadow-sm' : 'text-body hover:bg-card/70 hover:text-accent-foreground')
 
   return (
+    // `relative` anchors the arrows, which sit OUTSIDE the scroller's edges (-left-8).
+    <div className="relative">
     <div
       ref={railRef}
       // overscroll-x-contain: a sideways flick that hits either end must not CHAIN out to an
@@ -206,6 +212,8 @@ export function BrandRail({
           </Fragment>
         )
       })}
+    </div>
+      <ScrollArrows canLeft={canLeft} canRight={canRight} page={page} arrowTop={arrowTop} />
     </div>
   )
 }
