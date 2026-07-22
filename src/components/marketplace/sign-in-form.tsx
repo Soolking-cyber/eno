@@ -12,6 +12,7 @@ import { cn } from '@/lib/utils'
 import { googleOauthBlocked, isNativeTabs, openInSystemBrowser } from '@/lib/in-app-browser'
 import { isNativeApp, nativeGoogleSignIn } from '@/lib/native-auth'
 import { useTurnstile } from './turnstile'
+import { canonicalEmail } from '@/lib/email-alias'
 
 const RESEND_SECONDS = 60
 // SMS resend cooldown escalates per send (mirrors the server schedule in
@@ -20,6 +21,9 @@ const RESEND_SECONDS = 60
 const SMS_RESEND_STEPS = [60, 300, 900, 1800]
 // Same contract for email, mirroring RESEND_STEPS_SEC in api/auth/email-link.
 const EMAIL_RESEND_STEPS = [30, 60, 300, 900]
+// generateLink's email_otp is EIGHT digits, and leading zeros are real (observed 00730251)
+// — it is a string end to end, never Number().
+const EMAIL_CODE_LEN = 8
 const fmtCountdown = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
 
 /** All sign-in logic + UI, with NO outer chrome — rendered by both the modal
@@ -42,6 +46,11 @@ export function SignInForm({ className }: { className?: string }) {
   const [sentChannel, setSentChannel] = useState<string | null>(null)
   const smsSends = useRef(0) // client-side mirror of the server's escalation counter
   const emailSends = useRef(0) // same, for the magic-link ladder
+  // In the native shells a magic LINK is a dead end: it opens in the system browser, so the
+  // session lands in Safari's cookie jar and the app stays logged out. /auth/* is excluded
+  // from the AASA allowlist on purpose, so Universal Links cannot bring it back either.
+  // There we email an 8-digit code and verify it in-app, exactly like phone OTP.
+  const [emailCode, setEmailCode] = useState(false)
   const lastSubmitted = useRef('')
   // Google blocks OAuth inside in-app browsers / iOS PWAs (403 disallowed_useragent).
   // Detect that client-side and hand off to the real browser instead of dead-ending.
@@ -54,7 +63,14 @@ export function SignInForm({ className }: { className?: string }) {
   // Native iOS app's embedded tabs: Google can't work there at all (no escape
   // hatch, no session handoff) — hide it and lead with Phone/Email.
   const [hideGoogle, setHideGoogle] = useState(false)
-  useEffect(() => { setOauthBlocked(googleOauthBlocked() && !isNativeApp()); setHideGoogle(isNativeTabs() && !isNativeApp()) }, [])
+  useEffect(() => {
+    setOauthBlocked(googleOauthBlocked() && !isNativeApp())
+    setHideGoogle(isNativeTabs() && !isNativeApp())
+    // Capacitor shell (both platforms) + the SwiftUI/Kotlin embedded tabs. Deliberately NOT
+    // the iOS home-screen PWA: it has the same broken-link problem but already shows a
+    // Safari hand-off hint, and widening this on the first ship widens the blast radius.
+    setEmailCode(isNativeApp() || isNativeTabs())
+  }, [])
 
   const supabase = createSupabaseBrowser()
   // Cloudflare Turnstile — mints a fresh single-use token for each OTP send so Supabase
@@ -147,11 +163,12 @@ export function SignInForm({ className }: { className?: string }) {
       const res = await fetch('/api/auth/email-link', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ email: email.trim(), captchaToken, next: nextPath, lang }),
+        body: JSON.stringify({ email: email.trim(), captchaToken, next: nextPath, lang, deliver: emailCode ? 'code' : 'link' }),
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) { setError(emailSendError(data?.error, data?.retryAfterSec)); return }
-      setStage('sent')
+      // Native gets the code-entry screen; web keeps the "check your inbox" screen.
+      if (emailCode) { setCode(''); lastSubmitted.current = ''; setStage('code') } else setStage('sent')
       setCountdown(EMAIL_RESEND_STEPS[Math.min(emailSends.current, EMAIL_RESEND_STEPS.length - 1)])
       emailSends.current += 1
     } catch {
@@ -215,12 +232,40 @@ export function SignInForm({ className }: { className?: string }) {
     // success → auth-context onAuthStateChange closes the modal / the page redirects
   }
 
-  // Auto-submit once 6 digits are in (guarded so a failed code can be retried,
+  // The emailed 8-digit code, verified through the SAME client SDK the phone flow uses —
+  // no custom endpoint. Measured 2026-07-22: type:'email' is a superset that accepts both
+  // 'magiclink'-minted (existing account) and 'signup'-minted (new account) codes, so the
+  // client never has to be told which it got — which is exactly what keeps this free of an
+  // account-existence oracle. A wrong code returns the byte-identical 403 either way, and
+  // does NOT create a user. Rate limiting is GoTrue's own.
+  //
+  // ⚠️ Verify against the CANONICAL address. The send route mints for canonicalEmail(),
+  // so a visitor who typed an alias (support@eno.vn → support@eno.forum) holds a token
+  // issued to a different string; verifying the typed one fails every time.
+  const verifyEmailCode = async (c = code) => {
+    setLoading(true); setError('')
+    const { error } = await supabase.auth.verifyOtp({
+      email: canonicalEmail(email.trim().toLowerCase()),
+      token: c.trim(),
+      type: 'email',
+    })
+    setLoading(false)
+    if (error) {
+      setError(/expired|invalid/i.test(error.message)
+        ? t('That code is wrong or has expired. Send a new one and try again.', 'Mã không đúng hoặc đã hết hạn. Hãy gửi mã mới rồi thử lại nhé.')
+        : friendlyAuthError(error.message))
+      lastSubmitted.current = '' // unlock retry, same as verifyPhone
+    }
+    // success → auth-context's onAuthStateChange closes the modal / redirects / hands the
+    // session to the native shell. Nothing else to do here.
+  }
+
+  // Auto-submit once the code is complete (guarded so a failed code can be retried,
   // and the same code never double-submits).
   const onCodeComplete = (val: string) => {
     if (loading || val === lastSubmitted.current) return
     lastSubmitted.current = val
-    verifyPhone(val)
+    if (tab === 'email') verifyEmailCode(val); else verifyPhone(val)
   }
 
   // WebOTP: on Android Chrome, read the incoming SMS one-time code and auto-fill +
@@ -229,7 +274,9 @@ export function SignInForm({ className }: { className?: string }) {
   // autocomplete="one-time-code". The request is aborted when leaving the code
   // stage so it never lingers.
   useEffect(() => {
-    if (stage !== 'code') return
+    // `tab !== 'phone'` is load-bearing: an SMS-transport OTPCredential request opened on
+    // the EMAIL code screen can never resolve, and would sit pending until aborted.
+    if (stage !== 'code' || tab !== 'phone') return
     if (typeof window === 'undefined' || !('OTPCredential' in window)) return
     const ac = new AbortController()
     navigator.credentials
@@ -245,7 +292,9 @@ export function SignInForm({ className }: { className?: string }) {
 
   // Escalation counter resets too — the server tracks it PER NUMBER, so a
   // different number legitimately starts back at 60s.
-  const reset = () => { setStage('input'); setCode(''); setError(''); lastSubmitted.current = ''; smsSends.current = 0 }
+  // Both ladders reset: the server keys its cooldowns per channel, so leaving an armed
+  // phone countdown behind would disable the email tab's resend for no reason.
+  const reset = () => { setStage('input'); setCode(''); setError(''); lastSubmitted.current = ''; smsSends.current = 0; emailSends.current = 0; setCountdown(0) }
 
   if (stage === 'sent') {
     return (
@@ -337,13 +386,55 @@ export function SignInForm({ className }: { className?: string }) {
         </TabsList>
 
         <TabsContent value="email" className="space-y-2">
-          {/* Enter submits, and the on-screen keyboard's return key SAYS so (enterKeyHint) —
-              identical to the phone field below. The guard mirrors the button's `disabled`
-              exactly, so Enter can never fire a send the button itself would refuse. */}
-          <Input type="email" inputMode="email" autoComplete="email" enterKeyHint="send" aria-label={tr('Email')} value={email} onChange={(e) => setEmail(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !loading && email.includes('@')) sendEmail() }} placeholder="you@email.com" />
-          <Button variant="cta" size="none" onClick={sendEmail} disabled={loading || !email.includes('@')} className="flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm disabled:opacity-40 transition-colors cursor-pointer">
-            {loading && <Loader2 className="h-4 w-4 animate-spin" />} {t('Send magic link', 'Gửi liên kết đăng nhập')}
-          </Button>
+          {stage === 'input' && (
+            <>
+              {/* Enter submits, and the on-screen keyboard's return key SAYS so (enterKeyHint) —
+                  identical to the phone field below. The guard mirrors the button's `disabled`
+                  exactly, so Enter can never fire a send the button itself would refuse. */}
+              <Input type="email" inputMode="email" autoComplete="email" enterKeyHint="send" aria-label={tr('Email')} value={email} onChange={(e) => setEmail(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && !loading && email.includes('@')) sendEmail() }} placeholder="you@email.com" />
+              {/* onMouseDown+preventDefault holds the email field's focus through the tap. On the
+                  native code path this is a focus TRANSFER into the code strip inside one keyboard
+                  session — the same invariant the phone "Send code" button documents. Never
+                  onPointerDown: that fires before the browser's focus handling and loses the field. */}
+              <Button variant="cta" size="none" onMouseDown={(e) => e.preventDefault()} onClick={sendEmail} disabled={loading || !email.includes('@')} className="flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm disabled:opacity-40 transition-colors cursor-pointer">
+                {loading && <Loader2 className="h-4 w-4 animate-spin" />} {emailCode ? t('Send code', 'Gửi mã') : t('Send magic link', 'Gửi liên kết đăng nhập')}
+              </Button>
+            </>
+          )}
+
+          {/* Native only (emailCode) — a link cannot deliver a session into the app, so the
+              code lands here instead. Structurally the phone code stage with an 8-slot strip;
+              the two are deliberately NOT yet extracted into one component because the phone
+              block carries a dense set of load-bearing comments (autoFocus/keyboard behaviour,
+              the disabled= progress-cue tradeoff) that a refactor would have to relocate
+              verbatim. Worth doing; not worth doing in the same change that introduces the flow. */}
+          {stage === 'code' && (
+            <div className="space-y-3">
+              <p className="text-center text-xs text-muted-foreground">
+                {t('Enter the 8-digit code sent to', 'Nhập mã 8 số gửi tới')} <strong className="text-foreground">{email}</strong>
+              </p>
+              <p className="-mt-1.5 text-center text-2xs text-ink-4">{t('Check spam if it is not there in a minute.', 'Nếu chưa thấy sau một phút, hãy kiểm tra thư rác.')}</p>
+              {/* w-9 not w-12: eight slots at the phone strip's width would overflow the dialog's
+                  content box on a 320px device. 8 × 36px == 6 × 48px, so the strip is the same
+                  total width as the phone one and the panel never reflows between tabs. */}
+              <InputOTP maxLength={EMAIL_CODE_LEN} value={code} onChange={setCode} onComplete={onCodeComplete} autoFocus autoComplete="one-time-code" inputMode="numeric" containerClassName="justify-center" disabled={loading}>
+                <InputOTPGroup>
+                  {Array.from({ length: EMAIL_CODE_LEN }, (_, i) => (
+                    <InputOTPSlot key={i} index={i} className="h-12 w-9 text-base font-semibold data-[active=true]:border-brand data-[active=true]:ring-brand/30" />
+                  ))}
+                </InputOTPGroup>
+              </InputOTP>
+              <Button variant="cta" size="none" onClick={() => verifyEmailCode()} disabled={loading || code.length < EMAIL_CODE_LEN} className="flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm disabled:opacity-40 transition-colors cursor-pointer">
+                {loading && <Loader2 className="h-4 w-4 animate-spin" />} {t('Verify', 'Xác nhận')}
+              </Button>
+              <div className="flex items-center justify-between px-1 text-xs">
+                <Button variant="bare" size="none" onClick={reset} className="text-xs font-semibold text-muted-foreground hover:text-accent-foreground cursor-pointer">{t('Change email', 'Đổi email')}</Button>
+                <Button variant="bare" size="none" onClick={sendEmail} disabled={countdown > 0 || loading} className="text-xs font-semibold text-accent-foreground hover:underline disabled:opacity-100 disabled:text-ink-4 disabled:no-underline cursor-pointer disabled:cursor-default">
+                  {countdown > 0 ? `${t('Resend in', 'Gửi lại sau')} ${fmtCountdown(countdown)}` : t('Resend code', 'Gửi lại mã')}
+                </Button>
+              </div>
+            </div>
+          )}
         </TabsContent>
 
         {/* One phone panel, two stages (input → code) — the panel only mounts while the
