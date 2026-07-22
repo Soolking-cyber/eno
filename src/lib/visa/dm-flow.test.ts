@@ -173,7 +173,9 @@ vi.mock('./dm-thread', () => ({
   getVisaThreadMode: vi.fn(async () => h.state.mode),
   bindVisaThread: vi.fn(async () => h.state.bindResult),
   sendVisaStepCard: vi.fn(async (input: any) => {
-    if (h.state.mode === 'admin') return null
+    // Mirrors the real gate (dm-thread.ts): the AUTOMATED flow is refused during a takeover,
+    // but an explicit byAdmin re-send by the desk is not — the desk IS the human.
+    if (h.state.mode === 'admin' && !input.byAdmin) return null
     h.state.stepCards.push(input)
     const id = `msg-step-${++h.state.seq}`
     h.state.messages.push({
@@ -198,8 +200,8 @@ vi.mock('./dm-thread', () => ({
 }))
 
 const {
-  advanceVisaDmFlow, applyVisaDmFieldEdit, startVisaDmFlow, visaDmStep2NeedsReview,
-  VISA_DM_EXTRACTABLE_FIELDS, VISA_DM_PRODUCT_EVENT,
+  advanceVisaDmFlow, applyVisaDmFieldEdit, resendVisaDmCard, startVisaDmFlow, visaDmStep2NeedsReview,
+  VISA_DM_EXTRACTABLE_FIELDS, VISA_DM_PRODUCT_EVENT, VISA_DM_RESEND_EVENT,
 } = await import('./dm-flow')
 const { VISA_DM_STEP_FIELDS } = await import('./dm-steps')
 const { emptyVisaPayload, visaEndDateFor90DayWindow, visaPayloadSchema } = await import('./schema')
@@ -363,6 +365,237 @@ describe('advance is idempotent', () => {
     seedProductChoice()
     const result = await advanceVisaDmFlow({ applicationId: APPLICATION, userId: BUYER })
     expect(result).toMatchObject({ ok: true, step: 5, complete: true, messageId: null })
+    expect(dmThread.sendVisaCheckoutCard).not.toHaveBeenCalled()
+  })
+})
+
+// ── RE-SEND IS THE OPPOSITE OF ADVANCE ────────────────────────────────────────────
+//
+// The chip's whole reason to exist is that the card scrolled out of reach, so "make sure it
+// exists" is worthless here — it must PUT ONE AT THE BOTTOM. These tests are written to go
+// red the moment resendVisaDmCard grows an "already asking that" shortcut of its own, and to
+// go red just as loudly if it starts changing the case it is supposed to be re-showing.
+
+const DESK = 'shop-owner'
+
+describe('resend posts a card, every time', () => {
+  it('POSTS A SECOND CARD for the step advance is already asking — and a third on the next tap', async () => {
+    seedCase()
+    const first = await advanceVisaDmFlow({ applicationId: APPLICATION, userId: BUYER })
+    // Advance, asked twice, still refuses to duplicate. That is the property being preserved.
+    await advanceVisaDmFlow({ applicationId: APPLICATION, userId: BUYER })
+    expect(dmThread.sendVisaStepCard).toHaveBeenCalledTimes(1)
+
+    const resent = await resendVisaDmCard({ applicationId: APPLICATION, actorId: BUYER })
+    expect(resent).toMatchObject({ ok: true, step: 1, kind: 'visa_step' })
+    // ⚠️ THE ASSERTION THIS FILE EXISTS FOR: a re-send that quietly became idempotent would
+    // hand back first.messageId and leave the count at 1.
+    expect(dmThread.sendVisaStepCard).toHaveBeenCalledTimes(2)
+    expect(h.state.messages.filter((m) => m.kind === 'visa_step')).toHaveLength(2)
+    expect((resent as any).messageId).not.toBe((first as any).messageId)
+
+    const again = await resendVisaDmCard({ applicationId: APPLICATION, actorId: BUYER })
+    expect(dmThread.sendVisaStepCard).toHaveBeenCalledTimes(3)
+    expect((again as any).messageId).not.toBe((resent as any).messageId)
+  })
+
+  it('makes the NEW card the newest one, and leaves the old copy exactly as it was', async () => {
+    seedCase()
+    await advanceVisaDmFlow({ applicationId: APPLICATION, userId: BUYER })
+    const original = h.state.messages[0]
+    const originalMeta = original.metaJson
+
+    const resent = await resendVisaDmCard({ applicationId: APPLICATION, actorId: BUYER })
+    const newest = [...h.state.messages].sort((a, b) => b.createdAt - a.createdAt)[0]
+    // "Newest card wins" is the renderer's rule (visa-cards.tsx + liveVisaStepId), so the
+    // re-sent card is the live one purely by ORDER — which only holds if it really is newest
+    // and really is 'active'.
+    expect(newest.id).toBe((resent as any).messageId)
+    expect(JSON.parse(newest.metaJson!)).toMatchObject({ step: 1, applicationId: APPLICATION, state: 'active' })
+    // …and nothing was flipped on the old one: no state write at all, so it becomes history
+    // by position rather than by a 'done' that would be a lie about an unfinished step.
+    expect(h.state.stateWrites).toHaveLength(0)
+    expect(original.metaJson).toBe(originalMeta)
+  })
+
+  it('does not advance the case: no payload write, no step transition, no new answers', async () => {
+    seedCase({ documents: PASSED_DOCUMENTS })
+    await advanceVisaDmFlow({ applicationId: APPLICATION, userId: BUYER })
+    const before = { ...h.state.tables.visa_applications[0] }
+
+    const resent = await resendVisaDmCard({ applicationId: APPLICATION, actorId: BUYER })
+    expect(resent).toMatchObject({ ok: true, step: 2 })
+    expect(h.state.tables.visa_applications[0]).toEqual(before)
+    expect(h.state.events.filter((e) => e.event === 'dm_step_fields_saved')).toHaveLength(0)
+  })
+
+  it('leaves advance idempotent afterwards — the re-sent card is the one it reuses', async () => {
+    seedCase()
+    await advanceVisaDmFlow({ applicationId: APPLICATION, userId: BUYER })
+    const resent = await resendVisaDmCard({ applicationId: APPLICATION, actorId: BUYER })
+
+    const after = await advanceVisaDmFlow({ applicationId: APPLICATION, userId: BUYER })
+    expect(after).toMatchObject({ ok: true, step: 1, messageId: (resent as any).messageId })
+    expect(dmThread.sendVisaStepCard).toHaveBeenCalledTimes(2) // 1 advance + 1 resend, no third
+  })
+
+  it('records WHO asked for it, with names of nothing', async () => {
+    seedCase()
+    await resendVisaDmCard({ applicationId: APPLICATION, actorId: DESK })
+    await resendVisaDmCard({ applicationId: APPLICATION, actorId: BUYER })
+    const events = h.state.events.filter((e) => e.event === VISA_DM_RESEND_EVENT)
+    expect(events).toHaveLength(2)
+    expect(events[0]).toMatchObject({ actorType: 'admin', metadata: { step: 1, kind: 'visa_step' } })
+    expect(events[1]).toMatchObject({ actorType: 'applicant', metadata: { step: 1, kind: 'visa_step' } })
+  })
+})
+
+describe('who may resend', () => {
+  it('lets the DESK re-send into a thread whose case it does not own', async () => {
+    // The visa desk is nobody's visa_applications.user_id — an ownership-scoped check would
+    // lock out the exact actor the owner asked for.
+    seedCase()
+    const result = await resendVisaDmCard({ applicationId: APPLICATION, actorId: DESK })
+    expect(result).toMatchObject({ ok: true, step: 1, kind: 'visa_step' })
+    expect(h.state.stepCards).toHaveLength(1)
+  })
+
+  it('refuses a stranger, and writes nothing', async () => {
+    seedCase()
+    const result = await resendVisaDmCard({ applicationId: APPLICATION, actorId: 'someone-else' })
+    expect(result).toMatchObject({ ok: false, error: 'not_a_participant', status: 403 })
+    expect(dmThread.sendVisaStepCard).not.toHaveBeenCalled()
+    expect(h.state.events).toHaveLength(0)
+  })
+
+  it('refuses when the case has no thread to put a card in', async () => {
+    seedCase()
+    h.state.thread = null
+    const result = await resendVisaDmCard({ applicationId: APPLICATION, actorId: BUYER })
+    expect(result).toMatchObject({ ok: false, error: 'no_thread', status: 404 })
+    expect(dmThread.sendVisaStepCard).not.toHaveBeenCalled()
+  })
+
+  it("refuses when the thread's seller is not the visa desk", async () => {
+    seedCase()
+    h.state.thread = { conversationId: 'convo-1', buyerProfileId: BUYER, sellerProfileId: 'some-other-seller' }
+    const result = await resendVisaDmCard({ applicationId: APPLICATION, actorId: BUYER })
+    expect(result).toMatchObject({ ok: false, error: 'shop_unavailable', status: 503 })
+    expect(dmThread.sendVisaStepCard).not.toHaveBeenCalled()
+  })
+
+  it('refuses while the desk is unreachable', async () => {
+    seedCase()
+    h.state.shop = null
+    const result = await resendVisaDmCard({ applicationId: APPLICATION, actorId: BUYER })
+    expect(result).toMatchObject({ ok: false, error: 'shop_unavailable', status: 503 })
+  })
+})
+
+describe('resend and a human in the thread', () => {
+  it('refuses a STEP card to the APPLICANT during an admin takeover', async () => {
+    // From the applicant's seat the wizard is automation, and dm-thread will not author a
+    // step card in 'admin' mode — a "successful" post would be an inert card with no controls.
+    seedCase()
+    h.state.mode = 'admin'
+    const result = await resendVisaDmCard({ applicationId: APPLICATION, actorId: BUYER })
+    expect(result).toMatchObject({ ok: false, error: 'admin_takeover', status: 409, step: 1 })
+    expect(dmThread.sendVisaStepCard).not.toHaveBeenCalled()
+    expect(h.state.events).toHaveLength(0)
+  })
+
+  it('LETS THE DESK re-send a step card during its own takeover', async () => {
+    // The owner's ask was literally "admin can send visa application form from chip". The
+    // invariant is "the AUTOMATED flow must not post over a human" — during a takeover the
+    // desk IS that human, so refusing here disabled the feature for the only actor named.
+    // byAdmin is what distinguishes the two, and it is set only after isDesk is proven.
+    seedCase()
+    h.state.mode = 'admin'
+    const result = await resendVisaDmCard({ applicationId: APPLICATION, actorId: DESK })
+
+    expect(result).toMatchObject({ ok: true, step: 1, kind: 'visa_step' })
+    expect(dmThread.sendVisaStepCard).toHaveBeenCalledWith(expect.objectContaining({ byAdmin: true }))
+  })
+
+  it('never sets byAdmin on the AUTOMATED advance path', async () => {
+    // The guarantee the exception must not erode: advance is the wizard, and the wizard may
+    // never post over a human no matter who triggered the recompute.
+    seedCase()
+    h.state.mode = 'ai'
+    await advanceVisaDmFlow({ applicationId: APPLICATION, userId: BUYER })
+    for (const call of dmThread.sendVisaStepCard.mock.calls) {
+      expect(call[0].byAdmin).toBeUndefined()
+    }
+  })
+
+  it('still re-sends the PAY card during a takeover — the admin needs the applicant to pay', async () => {
+    seedCase({ payload: completePayload(), documents: PASSED_DOCUMENTS })
+    seedProductChoice()
+    await advanceVisaDmFlow({ applicationId: APPLICATION, userId: BUYER })
+    h.state.mode = 'admin'
+    const result = await resendVisaDmCard({ applicationId: APPLICATION, actorId: DESK })
+    expect(result).toMatchObject({ ok: true, step: 5, kind: 'visa_checkout' })
+    expect(dmThread.sendVisaCheckoutCard).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe('resending the pay card cannot re-price it', () => {
+  it('copies the amount off the live card instead of re-quoting', async () => {
+    seedCase({ payload: completePayload(), documents: PASSED_DOCUMENTS })
+    seedProductChoice()
+    await advanceVisaDmFlow({ applicationId: APPLICATION, userId: BUYER })
+    expect(h.state.checkoutCards[0].amountUsd).toBe(114.89)
+
+    // FX moves (or the desk re-prices the listing) between the two taps. advance would — and
+    // should — supersede the card with the new number; a RE-SEND must not, because the chip's
+    // job is to move the card the buyer is already looking at, not to renegotiate it.
+    h.state.quote = { ...h.state.quote!, amountUsdCents: 20_000 }
+    const result = await resendVisaDmCard({ applicationId: APPLICATION, actorId: DESK })
+    expect(result).toMatchObject({ ok: true, step: 5, kind: 'visa_checkout' })
+    expect(h.state.checkoutCards[1].amountUsd).toBe(114.89)
+  })
+
+  it('mints the FIRST pay card through the ordinary server price chain', async () => {
+    // Nothing to copy and nothing agreed yet, so this is a first emission — and it fails
+    // closed exactly like the loop does.
+    seedCase({ payload: completePayload(), documents: PASSED_DOCUMENTS })
+    seedProductChoice()
+    const result = await resendVisaDmCard({ applicationId: APPLICATION, actorId: BUYER })
+    expect(result).toMatchObject({ ok: true, step: 5, kind: 'visa_checkout' })
+    expect(h.state.checkoutCards[0].amountUsd).toBe(114.89)
+
+    h.state.checkoutCards = []
+    h.state.messages = []
+    h.state.quote = null
+    const refused = await resendVisaDmCard({ applicationId: APPLICATION, actorId: BUYER })
+    expect(refused).toMatchObject({ ok: false, error: 'fx_unavailable', status: 503 })
+    expect(h.state.checkoutCards).toHaveLength(0)
+  })
+
+  it('refuses once the service is paid for — there is nothing left to ask', async () => {
+    seedCase({ payload: completePayload(), documents: PASSED_DOCUMENTS, paidAt: '2026-07-22T01:00:00.000Z' })
+    seedProductChoice()
+    const result = await resendVisaDmCard({ applicationId: APPLICATION, actorId: DESK })
+    expect(result).toMatchObject({ ok: false, error: 'already_paid', status: 409 })
+    expect(dmThread.sendVisaCheckoutCard).not.toHaveBeenCalled()
+  })
+
+  it('refuses a case that has left the applicant’s hands, and a cancelled one', async () => {
+    seedCase({ status: 'under_review' })
+    expect(await resendVisaDmCard({ applicationId: APPLICATION, actorId: DESK }))
+      .toMatchObject({ ok: false, error: 'application_locked', status: 409 })
+    seedCase({ status: 'cancelled' })
+    expect(await resendVisaDmCard({ applicationId: APPLICATION, actorId: BUYER }))
+      .toMatchObject({ ok: false, error: 'application_cancelled', status: 409 })
+    expect(dmThread.sendVisaStepCard).not.toHaveBeenCalled()
+  })
+
+  it('refuses while payments are dormant instead of posting a card nobody can pay', async () => {
+    seedCase({ payload: completePayload(), documents: PASSED_DOCUMENTS })
+    seedProductChoice()
+    h.state.payments = null
+    const result = await resendVisaDmCard({ applicationId: APPLICATION, actorId: BUYER })
+    expect(result).toMatchObject({ ok: false, error: 'payments_not_configured', status: 503 })
     expect(dmThread.sendVisaCheckoutCard).not.toHaveBeenCalled()
   })
 })

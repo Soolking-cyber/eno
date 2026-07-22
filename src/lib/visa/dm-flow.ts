@@ -16,7 +16,7 @@ import { decryptVisaPayload, encryptVisaPayload, visaCryptoReady } from './crypt
 import { getVisaDb, visaTableMissing } from './db'
 import { firstIncompleteVisaDmStep, VISA_DM_STEP_FIELDS, type VisaDmStep } from './dm-steps'
 import { bindVisaThread, findVisaThread, getVisaThreadMode, sendVisaCheckoutCard, sendVisaStepCard } from './dm-thread'
-import { quoteVisaUsd } from './fx'
+import { quoteVisaUsd, type VisaQuote } from './fx'
 import { visaPaymentsConfig } from './payments'
 import { recordVisaEvent, type VisaApplicationRow, type VisaDocumentRow } from './records'
 import { emptyVisaPayload, visaPayloadSchema, type VisaPayload } from './schema'
@@ -76,6 +76,16 @@ const EDITABLE_STATUSES: ReadonlySet<string> = new Set(['draft', 'needs_changes'
 export const VISA_DM_PRODUCT_EVENT = 'dm_product_selected'
 
 /**
+ * The audit line for a DELIBERATE re-post of the current card (resendVisaDmCard).
+ *
+ * A separate verb from every automatic emission on purpose: the desk must be able to tell
+ * "the wizard moved the case on" from "somebody pressed the chip", and a thread that fills
+ * up with duplicate cards should name who asked for them. Metadata carries the step, the
+ * card kind and the actor's role — public facts, no payload values.
+ */
+export const VISA_DM_RESEND_EVENT = 'dm_card_resent'
+
+/**
  * Exactly the payload keys src/app/api/visa/applications/[id]/extract can suggest — the
  * Gemini `fields` block plus everything parsePassportMrz returns except nationalityCode
  * (which is an ICAO 3-letter code, not the payload's `nationality`).
@@ -105,6 +115,8 @@ export const VISA_DM_EXTRACTABLE_FIELDS: readonly string[] = [
 const CARD_SCAN_LIMIT = 30
 
 export type VisaDmErrorCode =
+  | 'admin_takeover'
+  | 'already_paid'
   | 'application_cancelled'
   | 'application_changed_retry'
   | 'application_locked'
@@ -114,6 +126,8 @@ export type VisaDmErrorCode =
   | 'internal_error'
   | 'invalid_fields'
   | 'listing_not_found'
+  | 'no_thread'
+  | 'not_a_participant'
   | 'not_found'
   | 'payments_not_configured'
   | 'product_not_configured'
@@ -145,6 +159,10 @@ export type VisaDmAdvance =
 
 export type VisaDmStart =
   | { ok: true; applicationId: string; conversationId: string; step: VisaDmStep }
+  | VisaDmFailure
+
+export type VisaDmResend =
+  | { ok: true; messageId: string; step: VisaDmStep; kind: 'visa_step' | 'visa_checkout' }
   | VisaDmFailure
 
 const fail = (error: VisaDmErrorCode, status: number, extra?: Omit<VisaDmFailure, 'ok' | 'error' | 'status'>): VisaDmFailure =>
@@ -574,10 +592,37 @@ async function emitVisaCheckoutCard(kase: VisaDmCase, conversationId: string): P
     return { ok: true, step: 5, messageId: existing?.id ?? null, complete: true }
   }
 
+  const priced = await priceVisaCheckout(applicationId)
+  if (isFailure(priced)) return { ...priced, step: 5, complete: true }
+
+  if (existing && existing.meta.status === 'unpaid' && existing.meta.amountUsd === priced.amountUsd) {
+    return { ok: true, step: 5, messageId: existing.id, complete: true }
+  }
+
+  const card = await sendVisaCheckoutCard({ conversationId, applicationId, amountUsd: priced.amountUsd })
+  if (!card) return fail('checkout_card_refused', 503, { step: 5, complete: true })
+  await recordVisaEvent(applicationId, 'applicant', 'dm_checkout_card_sent', kase.application.user_id, {
+    listingId: priced.quote.listingId, priceVnd: priced.quote.priceVnd, amountUsdCents: priced.quote.amountUsdCents,
+    vndPerUsd: priced.quote.vndPerUsd, quotedAt: priced.quote.quotedAt,
+  })
+  return { ok: true, step: 5, messageId: card.messageId, complete: true }
+}
+
+/**
+ * THE PRICE CHAIN, on its own — the four server-side links between "this applicant picked a
+ * product" and "this is the number PayPal will capture", with every one of them failing
+ * closed under its own code.
+ *
+ * Extracted from emitVisaCheckoutCard so there is exactly ONE of it: resendVisaDmCard needs
+ * the same chain but must NOT inherit the reuse gate that sits around it (an existing card at
+ * the same amount is the very thing a re-send is asked to post again). The gate therefore
+ * stays with the caller, and the chain has no opinion about idempotence.
+ */
+async function priceVisaCheckout(applicationId: string): Promise<{ quote: VisaQuote; amountUsd: number } | VisaDmFailure> {
   const listingId = await selectedVisaDmListingId(applicationId)
   if (!listingId) return fail('product_not_selected', 409, { step: 5, complete: true })
   const product = await chargeableVisaProduct(listingId)
-  if (isFailure(product)) return { ...product, step: 5, complete: true }
+  if (isFailure(product)) return product
 
   // Dormant deployment (no fee/provider env): sendVisaCheckoutCard would answer null and
   // the applicant would sit on a finished form with no way to pay and no reason given.
@@ -589,19 +634,159 @@ async function emitVisaCheckoutCard(kase: VisaDmCase, conversationId: string): P
     console.error(`[visa-dm] no FX quote for listing ${product.listingId} at ${product.priceVnd}₫`)
     return fail('fx_unavailable', 503, { step: 5, complete: true })
   }
-  const amountUsd = quote.amountUsdCents / 100
+  return { quote, amountUsd: quote.amountUsdCents / 100 }
+}
 
-  if (existing && existing.meta.status === 'unpaid' && existing.meta.amountUsd === amountUsd) {
-    return { ok: true, step: 5, messageId: existing.id, complete: true }
+// ── Re-sending the current card ───────────────────────────────────────────────────
+
+/**
+ * Put the card the case is CURRENTLY on back at the bottom of the thread.
+ *
+ * The owner's ask, verbatim: "also admin can send visa application form from chip if the
+ * original one is way up in conversation". In a long thread the step card scrolls out of
+ * reach and there is no way back to it; this is the way back.
+ *
+ * ⚠️ THIS IS NOT AN ADVANCE, AND THE TWO MUST NEVER BE MERGED.
+ * advanceVisaDmFlow means "make sure the card for the current step EXISTS" and is called on
+ * every upload, every tap and every reconnect — it is idempotent by contract and stays that
+ * way. This function means "POST the card for the current step", every single time it is
+ * called. They are kept apart by three things, not by a flag:
+ *   · advance REUSES the newest active card at the same step (and the unpaid checkout card
+ *     at the same amount); this function never consults a card to decide whether to write —
+ *     it reads one only to copy a price it must not re-negotiate;
+ *   · advance closes superseded cards and can move the case's step forward in the applicant's
+ *     eyes; this function calls no transition and writes nothing to visa_applications;
+ *   · advance is entitled to the CASE ('userId' is compared against visa_applications.user_id);
+ *     this function is entitled to the THREAD, because the desk's admin does not own the row.
+ * A re-sent card supersedes the old one purely by ORDER: every renderer treats the NEWEST
+ * visa_step card for the bound case as the live one and everything above it as history
+ * (src/components/marketplace/visa-cards.tsx, liveVisaStepId in the thread page), so there is
+ * no state to flip and the old copy is deliberately left exactly as it was.
+ *
+ * ⚠️ IT CANNOT CHANGE THE CASE. No payload write, no status write, no step transition, no
+ * card-state transition. The only rows it creates are one Message and one visa_events audit
+ * line. `firstIncompleteVisaDmStep` is read-only, and the applicant sees the same question
+ * they were already being asked.
+ *
+ * ⚠️ IT CANNOT RE-PRICE. When the case is complete the pay card is re-posted at the amount
+ * the LIVE card already carries — copied, never re-quoted — so pressing the chip can never
+ * put a number in front of the buyer that the desk did not already have on screen. (The one
+ * exception is the case that has NO pay card yet: there is nothing to copy and nothing has
+ * been agreed, so the ordinary server price chain mints the first one.)
+ *
+ * BOTH PARTICIPANTS MAY PRESS IT (the applicant scrolled past the same card as the desk did),
+ * and the ROUTE proves the session; what is proved here is membership of the bound thread.
+ * The card is authored as the visa shop either way — sendVisaStepCard takes no sender.
+ */
+export async function resendVisaDmCard(input: { applicationId: string; actorId: string }): Promise<VisaDmResend> {
+  if (!visaCryptoReady()) return fail('visa_encryption_not_configured', 503)
+  if (!input.actorId) return fail('not_a_participant', 403)
+
+  // ── THE THREAD IS THE ENTITLEMENT, NOT THE CASE ──────────────────────────────────
+  // The desk's account does not appear in visa_applications.user_id, so "is this case
+  // yours?" is the wrong question for the actor the owner actually asked about. Membership
+  // of the conversation the case is bound to is the right one, and it is the same test the
+  // sibling routes make against Conversation.buyerProfileId — widened by exactly one seat.
+  const thread = await findVisaThread(input.applicationId)
+  if (!thread) return fail('no_thread', 404)
+  const isApplicant = input.actorId === thread.buyerProfileId
+  const isDesk = input.actorId === thread.sellerProfileId
+  if (!isApplicant && !isDesk) return fail('not_a_participant', 403)
+  const { conversationId } = thread
+
+  // The desk seat must really be THE VISA DESK. Without this a conversation whose seller is
+  // anyone else would hand a stranger the "admin" half of this route, and the card would
+  // then be refused one layer down with a much vaguer code.
+  const shop = await getVisaShopSeller()
+  if (!shop?.ownerId || shop.ownerId !== thread.sellerProfileId) return fail('shop_unavailable', 503)
+
+  // Loaded AS THE APPLICANT (the thread's buyer), never as the caller: bindVisaThread only
+  // ever writes the binding after proving visa_applications.user_id == that buyer, so this
+  // read is still scoped by user_id and the desk gains no ability to name someone else's case.
+  const kase = await loadVisaDmCase(input.applicationId, thread.buyerProfileId)
+  if (!kase) return fail('not_found', 404)
+  if (kase.application.status === 'cancelled') return fail('application_cancelled', 409)
+  // Nothing left to ask for. Re-posting a pay card for a captured service, or a form for a
+  // case that is already with the desk, would be a card nobody can act on.
+  if (kase.application.paid_at) return fail('already_paid', 409, { step: 5, complete: true })
+  if (!EDITABLE_STATUSES.has(kase.application.status)) return fail('application_locked', 409)
+
+  const step = firstIncompleteVisaDmStep(kase.payload, kase.documents)
+
+  if (step === null) {
+    // ── THE PAY CARD ───────────────────────────────────────────────────────────────
+    // Deliberately NOT gated on an admin takeover, and that is the existing rule rather
+    // than a new one: dm-thread exempts the checkout card from the mode gate because an
+    // admin who stepped in still needs the applicant to pay, and the thread page never
+    // silences the live pay card either. Re-sending it is the desk finishing its own job.
+    if (!visaPaymentsConfig()) return fail('payments_not_configured', 503, { step: 5, complete: true })
+    const existing = await newestVisaCheckoutCard(conversationId, input.applicationId)
+    // ⚠️ THE AMOUNT IS COPIED FROM THE LIVE CARD. A re-send must not become a re-quote:
+    // the buyer is looking at a price, and the chip's job is to move that card, not to
+    // renegotiate it. (advanceVisaDmFlow is where a drifted quote legitimately supersedes
+    // a stale card, and it still does.)
+    let amountUsd = existing?.meta.amountUsd ?? 0
+    if (!existing) {
+      // Never asked yet — so there is nothing to re-send and nothing to preserve. This is
+      // a FIRST emission and it goes through the ordinary server price chain.
+      const priced = await priceVisaCheckout(input.applicationId)
+      if (isFailure(priced)) return priced
+      amountUsd = priced.amountUsd
+    }
+    const card = await sendVisaCheckoutCard({ conversationId, applicationId: input.applicationId, amountUsd })
+    if (!card) return fail('checkout_card_refused', 503, { step: 5, complete: true })
+    await recordVisaResend(input, { step: 5, kind: 'visa_checkout', isDesk })
+    return { ok: true, messageId: card.messageId, step: 5, kind: 'visa_checkout' }
   }
 
-  const card = await sendVisaCheckoutCard({ conversationId, applicationId, amountUsd })
-  if (!card) return fail('checkout_card_refused', 503, { step: 5, complete: true })
-  await recordVisaEvent(applicationId, 'applicant', 'dm_checkout_card_sent', kase.application.user_id, {
-    listingId: product.listingId, priceVnd: quote.priceVnd, amountUsdCents: quote.amountUsdCents,
-    vndPerUsd: quote.vndPerUsd, quotedAt: quote.quotedAt,
-  })
-  return { ok: true, step: 5, messageId: card.messageId, complete: true }
+  // ── A STEP CARD, AND A HUMAN MAY BE HOLDING THE THREAD ───────────────────────────
+  // REFUSED during an admin takeover, for both seats (requirement 5). Not squeamishness
+  // about talking over the human — the admin IS the human and could reasonably want it.
+  // It is that the card would be DEAD: sendVisaStepCard refuses to author a step card in
+  // 'admin' mode (dm-thread's own invariant, which this module will not weaken to get a
+  // chip working), and liveVisaStepId in the thread page returns null in 'admin' mode, so
+  // even a card that got through would render as inert history with no controls on it.
+  // A named refusal that says "hand the thread back to the assistant first" is honest;
+  // posting furniture nobody can use is not. Ending the takeover re-enables the chip.
+  // ⚠️ …UNLESS THE DESK ITSELF IS ASKING. The invariant is "the AUTOMATED flow must not post
+  // over a human", and during a takeover the desk IS that human — the owner's ask was
+  // literally "admin can send visa application form from chip", and refusing here disabled
+  // the feature for the only actor they named. A review caught that the server's own
+  // allowance was unreachable from the product for exactly this reason.
+  // The applicant is still refused: from their seat the wizard is automation.
+  const mode = await getVisaThreadMode(input.applicationId)
+  if (mode === 'admin' && !isDesk) return fail('admin_takeover', 409, { step, complete: false })
+
+  // Recomputed, not copied: `needsReview` names the payload fields the passport read filled
+  // in, and re-asking with a list that predates the applicant's own corrections would be a
+  // stale question. Still FIELD NAMES ONLY — visaDmStep2NeedsReview reads values and returns
+  // none of them.
+  const needsReview = step === 2 ? visaDmStep2NeedsReview(kase) : []
+  // byAdmin ONLY here, and only when the desk asked — see the mode branch above. The
+  // automated advance path (above) never sets it, so the wizard still cannot talk over a human.
+  const card = await sendVisaStepCard({ conversationId, applicationId: input.applicationId, step, needsReview, byAdmin: isDesk })
+  // Null means the shop, the binding or the mode refused between our checks and the write.
+  if (!card) return fail('step_card_refused', 503, { step, complete: false })
+  await recordVisaResend(input, { step, kind: 'visa_step', isDesk })
+  return { ok: true, messageId: card.messageId, step, kind: 'visa_step' }
+}
+
+/**
+ * The audit line for a re-send. BEST EFFORT ON PURPOSE: the card is already in the thread by
+ * the time this runs, so a failed insert must not turn a delivered card into a 5xx the client
+ * would retry — that retry is what would actually spam the applicant. Logged instead.
+ */
+async function recordVisaResend(
+  input: { applicationId: string; actorId: string },
+  what: { step: VisaDmStep; kind: 'visa_step' | 'visa_checkout'; isDesk: boolean },
+): Promise<void> {
+  try {
+    await recordVisaEvent(input.applicationId, what.isDesk ? 'admin' : 'applicant', VISA_DM_RESEND_EVENT, input.actorId, {
+      step: what.step, kind: what.kind,
+    })
+  } catch (e) {
+    console.error('[visa-dm] resend not recorded', e)
+  }
 }
 
 // ── Starting the flow ─────────────────────────────────────────────────────────────

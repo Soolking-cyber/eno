@@ -9,7 +9,7 @@ import { useLanguage } from '@/context/language-context'
 import { useChat } from '@/context/chat-context'
 import { SignInPrompt } from '@/components/marketplace/account-actions'
 import { createSupabaseBrowser } from '@/lib/supabase/browser'
-import { ChevronLeft, Phone, Loader2, Tag, RotateCcw } from 'lucide-react'
+import { ChevronLeft, Phone, Loader2, Tag, RotateCcw, Sparkles, UserRound, AlertTriangle } from 'lucide-react'
 import { ChatSendButton, MessageBubble } from '@/components/marketplace/chat-parts'
 import { toast } from 'sonner'
 import { haptic } from '@/lib/haptics'
@@ -28,8 +28,9 @@ import { ChatComposer, type ChatComposerHandle } from '@/components/marketplace/
 import { useSafeBack } from '@/lib/safe-back'
 import { FirstContactNote, OffPlatformWarning, findOffPlatformMessageId } from '@/components/marketplace/chat-safety-note'
 import {
-  VisaCheckoutCard, VisaStepCard, VisaThreadStrip, parseVisaCheckoutMeta, parseVisaStepMeta,
-  parseVisaThreadInfo, prepareVisaImage, useVisaCase, visaErrorCopy, type VisaQuoteWire,
+  VisaCheckoutCard, VisaResendChip, VisaStepCard, VisaThreadStrip, parseVisaCheckoutMeta,
+  parseVisaStepMeta, parseVisaThreadInfo, prepareVisaImage, useVisaCase, visaErrorCopy,
+  type VisaQuoteWire,
 } from '@/components/marketplace/visa-cards'
 import { Avatar } from '@/components/ui/avatar'
 import { fmtTime, dayKey } from '@/lib/dates'
@@ -38,6 +39,101 @@ import { fmtTime, dayKey } from '@/lib/dates'
 // thread GET parses and re-validates it server-side (parseMessageMeta), so an unreadable
 // blob arrives as null and renders as an inert bubble. Typed `unknown` here on purpose: the
 // card renderers own the shape and parse it themselves.
+type Tr = (en: string, vi: string) => string
+
+// ── ENO CONCIERGE, IN THE COMPOSER ──────────────────────────────────────────────────
+//
+// "so there is 2 chips human request Eno AI concierge" (owner). Two chips, side by side,
+// mounted by the COMPOSER — the one part of a chat that is always on screen — so neither
+// is something you have to scroll up to find.
+//
+// ⚠️ THE CONCIERGE CHIP ONLY EXISTS IN 'ai' MODE. "ife person requested ai doesnt answer":
+// once a person has been asked for (or an admin has taken the thread over) the chip is not
+// rendered at all and the server refuses the route with its own code. Two locks, one door —
+// the UI rule alone would not be a rule.
+function conciergeErrorCopy(code: string | undefined, tr: Tr): string {
+  switch (code) {
+    case 'human_help_pending':
+      return tr('A person has been asked for — Eno concierge stays quiet until they reply.', 'Đã yêu cầu nhân viên — Eno concierge sẽ im lặng cho đến khi họ trả lời.')
+    case 'admin_takeover':
+      return tr('An eno specialist is in this chat — Eno concierge stays quiet.', 'Chuyên viên eno đang trong cuộc trò chuyện — Eno concierge sẽ im lặng.')
+    case 'concierge_unavailable':
+      // ⚠️ HONEST, NEVER A GUESS. The server refuses rather than inventing visa guidance, so
+      // this sentence has to point at the other chip instead of pretending to answer.
+      return tr('Eno concierge cannot answer right now. Tap “Request a person” and someone will reply here.', 'Eno concierge hiện chưa trả lời được. Hãy chạm “Yêu cầu nhân viên” để có người trả lời tại đây.')
+    case 'question_required':
+      return tr('Type your question first.', 'Hãy nhập câu hỏi trước.')
+    default:
+      return visaErrorCopy(code, tr)
+  }
+}
+
+/**
+ * The two chips. Rendered only for the APPLICANT and only while the thread is still the
+ * assistant's ('ai') — the desk drives its own side, and the other two modes render the
+ * existing VisaThreadStrip banner instead.
+ */
+function VisaAssistChips({
+  armed, thinking, busy, error, onToggleConcierge, onAskHuman, className,
+}: {
+  armed: boolean
+  thinking: boolean
+  busy: boolean
+  error: string | null
+  onToggleConcierge: () => void
+  onAskHuman: () => void | Promise<void>
+  className?: string
+}) {
+  const { tr } = useLanguage()
+  return (
+    <div className={`flex flex-col gap-1 ${className ?? ''}`}>
+      <div className="flex flex-wrap items-center gap-2">
+        {/* "name is Eno concierge" (owner) — the name is the product, identical in both
+            languages, so tr() carries the same string twice rather than translating it. */}
+        <Button
+          variant="soft"
+          size="none"
+          type="button"
+          aria-pressed={armed}
+          disabled={thinking}
+          onClick={onToggleConcierge}
+          className={`tap-44 shrink-0 gap-1.5 rounded-full border px-3 py-1.5 text-2xs font-bold ${armed ? 'border-brand bg-primary/10 text-accent-foreground' : 'border-line-strong text-foreground'}`}
+        >
+          {thinking
+            ? <Loader2 className="size-3.5 shrink-0 animate-spin" aria-hidden />
+            : <Sparkles className="size-3.5 shrink-0" aria-hidden />}
+          {tr('Eno concierge', 'Eno concierge')}
+        </Button>
+        <Button
+          variant="soft"
+          size="none"
+          type="button"
+          disabled={busy}
+          onClick={() => void onAskHuman()}
+          className="tap-44 shrink-0 gap-1.5 rounded-full border border-line-strong px-3 py-1.5 text-2xs font-bold text-foreground"
+        >
+          <UserRound className="size-3.5 shrink-0" aria-hidden />
+          {tr('Request a person', 'Yêu cầu nhân viên')}
+        </Button>
+      </div>
+      <p className="text-2xs leading-relaxed text-ink-4">
+        {thinking
+          ? tr('Eno concierge is reading your application…', 'Eno concierge đang xem hồ sơ của bạn…')
+          : armed
+            ? tr('Ask below and Eno concierge answers here in the chat.', 'Hãy hỏi bên dưới, Eno concierge sẽ trả lời ngay trong cuộc trò chuyện.')
+            : tr('Eno concierge is an AI assistant for this application. A person can take over any time.', 'Eno concierge là trợ lý AI cho hồ sơ này. Nhân viên có thể tiếp nhận bất cứ lúc nào.')}
+      </p>
+      {/* role="status" so a screen reader hears the refusal — the chips do not move. */}
+      {error && (
+        <p role="status" className="flex items-start gap-1.5 text-2xs leading-relaxed text-warning">
+          <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden />
+          {conciergeErrorCopy(error, tr)}
+        </p>
+      )}
+    </div>
+  )
+}
+
 type Msg ={ id: string; mine: boolean; body: string; createdAt: string; pending?: boolean; failed?: boolean; kind?: string; offerAmount?: number | null; offerStatus?: string | null; meta?: unknown }
 type Thread = {
   id: string
@@ -517,6 +613,61 @@ export default function ThreadPage() {
     }
   }
 
+  // ── ENO CONCIERGE ───────────────────────────────────────────────────────────────
+  //
+  // "also hook ai gemini 3.5 flash there so it can answer all related latest updates about
+  // visa application name is Eno concierge" (owner).
+  //
+  // The chip ARMS THE COMPOSER rather than opening a second input — the same idiom the offer
+  // Tag button already uses in this bar, so a phone keeps one text field and one Send. The
+  // question goes to /concierge, and the SERVER writes both messages (the applicant's
+  // question, then the answer labelled "✨ Eno concierge"), so the answer survives a reload
+  // and the desk can read what the assistant told their applicant.
+  //
+  // ⚠️ AVAILABLE ONLY IN 'ai' MODE. "ife person requested ai doesnt answer" — asking for a
+  // person disarms and un-mounts this immediately; the route refuses it a second time.
+  const [conciergeArmed, setConciergeArmed] = useState(false)
+  const [conciergeBusy, setConciergeBusy] = useState(false)
+  const [conciergeError, setConciergeError] = useState<string | null>(null)
+  const conciergeAvailable = !!visaInfo && iAmApplicant && visaInfo.mode === 'ai'
+  useEffect(() => { if (!conciergeAvailable) setConciergeArmed(false) }, [conciergeAvailable])
+
+  const askConcierge = async (raw: string) => {
+    const applicationId = visaInfo?.applicationId
+    const question = raw.trim()
+    if (!applicationId || !question || conciergeBusy) return
+    setConciergeBusy(true)
+    setConciergeError(null)
+    // Clear the field immediately (the send() idiom) — the question comes back from the
+    // server as a real message, so there is nothing to keep locally.
+    setText('')
+    composerRef.current?.clear()
+    haptic()
+    try {
+      // EN/VI only, like every other string on this surface: `lang` is one of ELEVEN
+      // interface languages, and the answer is PERSISTED into the thread where the desk has
+      // to be able to read it too. The server coerces the same way — this is belt and braces.
+      const res = await visaPost(`/api/visa/applications/${applicationId}/concierge`, { question, lang: lang === 'vi' ? 'vi' : 'en' })
+      // The refusal sits under the chips the finger is still on, not in a toast that slides
+      // away from where they are looking.
+      if (!res.ok) setConciergeError(res.error ?? 'internal_error')
+      await load()
+      // Both messages are somebody else's as far as the scroll rule is concerned (the answer
+      // is authored by the desk), so take them to it instead of leaving a "New messages" pill.
+      requestAnimationFrame(() => { scrollBottom(true); setNewBelow(false) })
+      refreshUnread(); refreshConvos()
+    } finally {
+      setConciergeBusy(false)
+    }
+  }
+
+  const toggleConcierge = () => {
+    // Arming the concierge closes the offer composer — one composer, one meaning.
+    setShowOffer(false); setCounterMode(false); setOfferInput('')
+    setConciergeError(null)
+    setConciergeArmed((armed) => !armed)
+  }
+
   // "they can request human intervention or help if needed" — flips the thread's mode and
   // puts the request in front of the desk. The wizard deliberately keeps working while they
   // wait; only an admin TAKEOVER stops the cards.
@@ -524,11 +675,51 @@ export default function ThreadPage() {
     const applicationId = visaInfo?.applicationId
     if (!applicationId || visaBusy) return
     setVisaBusy(true)
+    // Disarmed the instant a person is asked for, without waiting for the mode to come back
+    // on the reload: the composer must not still be pointed at the bot they just declined.
+    setConciergeArmed(false)
+    setConciergeError(null)
     try {
       const res = await visaPost(`/api/visa/applications/${applicationId}/help`, {})
       if (!res.ok) { toast.error(visaErrorCopy(res.error, tr)); return }
       toast.success(tr('Asked for a person — we will reply here.', 'Đã yêu cầu nhân viên — chúng tôi sẽ trả lời tại đây.'))
       await load()
+      refreshUnread(); refreshConvos()
+    } finally {
+      setVisaBusy(false)
+    }
+  }
+
+  // ── THE WAY BACK TO THE FORM ────────────────────────────────────────────────────
+  //
+  // "also admin can send visa application form from chip if the original one is way up in
+  // conversation" (owner). One tap posts the CURRENT card to the bottom of the thread.
+  //
+  // ⚠️ NOT /advance. That route is idempotent by contract — asked for a card that already
+  // exists it hands back the SAME messageId and writes nothing, which is precisely the
+  // unreachable card the user is complaining about. /resend is the separate path that
+  // deliberately posts one; it changes no step, no answer and no price.
+  //
+  // The refusal is kept in state rather than thrown at a toast: the chip sits right above the
+  // composer, so its own failure sentence belongs under it (a 429 is the expected one — the
+  // route caps this per thread on purpose).
+  const [visaResendError, setVisaResendError] = useState<string | null>(null)
+  const resendVisaCard = async () => {
+    const applicationId = visaInfo?.applicationId
+    if (!applicationId || visaBusy) return
+    setVisaBusy(true)
+    setVisaResendError(null)
+    try {
+      const res = await visaPost(`/api/visa/applications/${applicationId}/resend`)
+      if (!res.ok) { setVisaResendError(res.error ?? 'internal_error'); return }
+      haptic()
+      await load()
+      // The card is authored by the DESK, so to the applicant it arrives as somebody else's
+      // message — and the scroll rule then leaves them where they are behind a "New messages"
+      // pill, which is the exact problem this chip exists to solve. Take them to it. rAF, not
+      // straight after load(): the layout effect that decides "pill or scroll" runs on the
+      // commit, and this has to win afterwards.
+      requestAnimationFrame(() => { scrollBottom(true); setNewBelow(false) })
       refreshUnread(); refreshConvos()
     } finally {
       setVisaBusy(false)
@@ -607,7 +798,9 @@ export default function ThreadPage() {
     return groupVnd((d + '000').slice(0, 12), locale)
   })
 
-  const toggleOffer = () => { setShowOffer((s) => !s); setOfferInput(''); setOfferPct(10); setCounterMode(false) }
+  // Opening the offer composer disarms the concierge — one composer, one meaning (the
+  // mirror of toggleConcierge closing the offer composer).
+  const toggleOffer = () => { setShowOffer((s) => !s); setOfferInput(''); setOfferPct(10); setCounterMode(false); setConciergeArmed(false) }
 
   // Quick-reply chip → INSERT into the composer (never auto-send), cursor at the
   // end so partial templates ("Can meet in ") are completed in one motion.
@@ -885,11 +1078,40 @@ export default function ThreadPage() {
             />
           )}
 
-          {/* e-Visa thread: who is driving it, and the way out of the wizard. "they can
-              request human intervention or help if needed" — one tap, and the desk sees it.
-              Applicant-side only: the desk has its own admin takeover route. */}
-          {visaInfo && iAmApplicant && (
+          {/* e-Visa thread, APPLICANT SIDE — the two chips the owner asked for, side by side
+              and mounted by the composer so neither is ever scrolled out of reach.
+              ⚠️ MODE SPLIT, and it is the whole "ife person requested ai doesnt answer" rule:
+              in 'ai' the pair is offered; in 'human_requested'/'admin' the concierge chip does
+              not exist at all and VisaThreadStrip's banner explains who is answering instead
+              (it renders "Talk to a person" only in 'ai', so the two never double up). */}
+          {visaInfo && iAmApplicant && (conciergeAvailable ? (
+            <VisaAssistChips
+              armed={conciergeArmed}
+              thinking={conciergeBusy}
+              busy={visaBusy}
+              error={conciergeError}
+              onToggleConcierge={toggleConcierge}
+              onAskHuman={askVisaHuman}
+              className="px-4 pt-1.5"
+            />
+          ) : (
             <VisaThreadStrip info={visaInfo} busy={visaBusy} onAskHuman={askVisaHuman} className="px-4 pt-1.5" />
+          ))}
+
+          {/* The way back to a form that scrolled out of reach. Deliberately mounted by the
+              COMPOSER — the one part of a chat that is always on screen — and not next to the
+              card, which is the thing that got lost. BOTH SEATS: the owner asked for the desk
+              ("admin can send visa application form from chip if the original one is way up in
+              conversation"), and the applicant scrolled past the same card. */}
+          {visaInfo && (
+            <VisaResendChip
+              info={visaInfo}
+              isDesk={!!thread?.iAmSeller}
+              busy={visaBusy}
+              error={visaResendError}
+              onResend={resendVisaCard}
+              className="px-4 pt-1.5"
+            />
           )}
 
           {/* Quick replies — seller: the 3 endless questions answered in one tap;
@@ -978,9 +1200,11 @@ export default function ThreadPage() {
                 ref={composerRef}
                 value={text}
                 onChange={setText}
-                onSend={() => send()}
-                placeholder={tr('Write a message…', 'Nhập tin nhắn…')}
-                ariaLabel={tr('Write a message', 'Nhập tin nhắn')}
+                /* Armed → the same field, the same Return key, a different destination:
+                   /concierge instead of the ordinary message POST. */
+                onSend={() => (conciergeArmed ? void askConcierge(text) : send())}
+                placeholder={conciergeArmed ? tr('Ask Eno concierge…', 'Hỏi Eno concierge…') : tr('Write a message…', 'Nhập tin nhắn…')}
+                ariaLabel={conciergeArmed ? tr('Ask Eno concierge', 'Hỏi Eno concierge') : tr('Write a message', 'Nhập tin nhắn')}
               />
             )}
 
@@ -1003,10 +1227,10 @@ export default function ThreadPage() {
                  under the finger (the earlier reason tap-Send was unreliable). Return
                  still sends too (enterKeyHint="send"). */
               <ChatSendButton
-                onClick={() => send()}
-                disabled={!text.trim()}
-                aria-label={tr('Send', 'Gửi')}
-                title={tr('Send', 'Gửi')}
+                onClick={() => (conciergeArmed ? void askConcierge(text) : send())}
+                disabled={!text.trim() || conciergeBusy}
+                aria-label={conciergeArmed ? tr('Ask Eno concierge', 'Hỏi Eno concierge') : tr('Send', 'Gửi')}
+                title={conciergeArmed ? tr('Ask Eno concierge', 'Hỏi Eno concierge') : tr('Send', 'Gửi')}
               />
             )}
           </div>

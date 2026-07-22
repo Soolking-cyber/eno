@@ -4,21 +4,26 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import {
   AlertTriangle, ArrowRight, Check, CreditCard, FileImage, Loader2, LockKeyhole,
-  PencilLine, ShieldCheck, Sparkles, Upload, UserRound, Wallet,
+  PencilLine, RotateCcw, ShieldCheck, Sparkles, Upload, UserRound, Wallet,
 } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
+import {
+  Combobox, ComboboxClear, ComboboxContent, ComboboxEmpty, ComboboxGroup, ComboboxGroupLabel,
+  ComboboxInput, ComboboxInputGroup, ComboboxItem, ComboboxList, ComboboxTrigger,
+} from '@/components/ui/combobox'
 import { Field, FieldControl, FieldLabel } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 import { formatMoneyFull, formatUsdCents, moneyLocale } from '@/lib/vnd'
+import { EVISA_CHECKPOINT_GROUPS } from '@/lib/visa/checkpoints'
 import { VISA_DM_STEP_FIELDS, validateVisaDmStep, type VisaDmStep } from '@/lib/visa/dm-steps'
 import { VISA_SPEED_SPECS, type VisaSpeedCode } from '@/lib/visa/speed'
-import type { VisaPayload } from '@/lib/visa/schema'
+import { MAX_EVISA_VALIDITY_DAYS, visaDateDefaultsForStart, visaEndDateFor90DayWindow, type VisaPayload } from '@/lib/visa/schema'
 
 // ── THE e-VISA WIZARD, RENDERED INSIDE THE CHAT THREAD ─────────────────────────────
 //
@@ -286,6 +291,15 @@ const FIELD_LABEL: Record<string, [string, string]> = {
   localContactPhone: ['Contact phone', 'Điện thoại người liên hệ'],
   hasChildrenOnPassport: ['Children on your passport?', 'Có trẻ em đi cùng trong hộ chiếu?'],
   childrenOnPassportDetails: ['Accompanying children', 'Thông tin trẻ em đi cùng'],
+  // The rest of the dashboard's trip page — fields the chat card only started rendering
+  // when the whole of TripStep was carried across (see VISA_TRIP_FORM below).
+  entryType: ['Entry type', 'Loại nhập cảnh'],
+  temporaryWard: ['Ward or commune', 'Phường hoặc xã'],
+  estimatedExpenses: ['Estimated expenses', 'Chi phí dự kiến'],
+  expensesCurrency: ['Currency', 'Tiền tệ'],
+  expensesPayer: ['Who pays?', 'Ai chi trả?'],
+  paymentMethod: ['Payment method', 'Hình thức chi trả'],
+  applicantNotes: ['Anything eno should know?', 'Thông tin thêm cho eno?'],
 }
 
 const fieldLabel = (name: string, tr: Tr) => {
@@ -293,7 +307,10 @@ const fieldLabel = (name: string, tr: Tr) => {
   return copy ? tr(copy[0], copy[1]) : name.replace(/([A-Z])/g, ' $1').toLowerCase()
 }
 
-type ControlKind = 'text' | 'long' | 'date' | 'number' | 'yesno' | 'sex'
+type ControlKind = 'text' | 'long' | 'date' | 'number' | 'yesno' | 'sex' | 'choice' | 'checkpoint'
+
+/** One option of a `choice` control: the stored value, then its bilingual label. */
+type FieldChoice = readonly [string, readonly [string, string]]
 
 /**
  * Validation ISSUE CODE → the payload field that answers it, and how to ask for it.
@@ -378,6 +395,201 @@ const ISSUE_FIELD: Record<string, { field: string; control: ControlKind; hint?: 
   children_details_required: { field: 'childrenOnPassportDetails', control: 'long' },
 }
 
+// ── Step 4 · the whole trip page, not just the gaps ───────────────────────────────
+//
+// Steps 1–3 ask only what is OUTSTANDING (an issue code → a field). That is right for a
+// passport we already read: the card confirms rather than interrogates. Step 4 is the
+// opposite case and the owner called it — "copy all features" from the dashboard's
+// TripStep. Nothing on this page can be read off a document, and the payload schema
+// DEFAULTS most of it (entryGate/exitGate = Tan Son Nhat, purpose = Tourism, every yes/no
+// = no, stay = 90 days), so an issue-driven form never asks and the applicant silently
+// ships somebody else's answers: an e-Visa naming the wrong border gate is a rejected
+// entry, not a cosmetic miss. So step 4 renders the DASHBOARD'S OWN FIELD SET, in the
+// dashboard's order and sections.
+//
+// ⚠️ Mirrors src/app/dashboard/visa/apply-client.tsx → TripStep. When a field is added
+// there, add it here. (Only `payerDetails` is deliberately absent — TripStep does not
+// render it either, so leaving it out IS the parity.)
+
+type TripSection = 'visa' | 'stay' | 'money'
+
+const TRIP_SECTION_TITLE: Record<TripSection, [string, string]> = {
+  visa: ['Requested visa', 'Visa yêu cầu'],
+  stay: ['Your stay in Vietnam', 'Lưu trú tại Việt Nam'],
+  money: ['Expenses and insurance', 'Chi phí và bảo hiểm'],
+}
+
+type TripField = {
+  field: string
+  control: ControlKind
+  section: TripSection
+  /** Fixed choices, or choices that depend on another answer (see paymentMethod). */
+  options?: readonly FieldChoice[] | ((draft: Record<string, string>) => readonly FieldChoice[])
+  /** A standing explanation of the field itself (issue hints are merged in on top). */
+  hint?: [string, string]
+  /**
+   * Rendered only when the DRAFT satisfies this — the dashboard's conditional follow-ups,
+   * which appear the moment the answer flips rather than after a server round trip.
+   */
+  when?: (draft: Record<string, string>) => boolean
+}
+
+const answeredYes = (field: string) => (draft: Record<string, string>) => draft[field] === 'yes'
+
+const YES_NO: readonly FieldChoice[] = [['yes', ['Yes', 'Có']], ['no', ['No', 'Không']]]
+
+const PAYMENT_METHODS: readonly FieldChoice[] = [
+  ['credit_card', ['Credit card', 'Thẻ tín dụng']],
+  ['cash', ['Cash', 'Tiền mặt']],
+  ['travellers_cheques', ['Traveller’s cheques', 'Séc du lịch']],
+]
+
+export const VISA_TRIP_FORM: readonly TripField[] = [
+  { field: 'entryType', control: 'choice', section: 'visa', options: [['single', ['Single entry', 'Nhập cảnh một lần']], ['multiple', ['Multiple entry', 'Nhập cảnh nhiều lần']]] },
+  {
+    field: 'visaValidFrom', control: 'date', section: 'visa',
+    hint: ['Pick this first — the end date, entry date and length of stay fill in automatically.', 'Chọn ngày này trước — ngày kết thúc, ngày nhập cảnh và số ngày lưu trú sẽ tự điền.'],
+  },
+  {
+    field: 'visaValidTo', control: 'date', section: 'visa',
+    hint: [`Filled automatically: an e-Visa covers at most ${MAX_EVISA_VALIDITY_DAYS} days.`, `Tự động điền: E-Visa có thời hạn tối đa ${MAX_EVISA_VALIDITY_DAYS} ngày.`],
+  },
+  { field: 'purposeOfEntry', control: 'text', section: 'stay' },
+  { field: 'currentlyOutsideVietnam', control: 'yesno', section: 'stay' },
+  { field: 'intendedEntryDate', control: 'date', section: 'stay' },
+  { field: 'stayLengthDays', control: 'number', section: 'stay' },
+  { field: 'temporaryAddress', control: 'long', section: 'stay' },
+  { field: 'temporaryProvince', control: 'text', section: 'stay' },
+  { field: 'temporaryWard', control: 'text', section: 'stay' },
+  { field: 'entryGate', control: 'checkpoint', section: 'stay' },
+  { field: 'exitGate', control: 'checkpoint', section: 'stay' },
+  { field: 'localContactName', control: 'text', section: 'stay' },
+  { field: 'localContactAddress', control: 'long', section: 'stay' },
+  { field: 'localContactPhone', control: 'text', section: 'stay' },
+  { field: 'visitedVietnamLastYear', control: 'yesno', section: 'stay' },
+  { field: 'previousVisitDetails', control: 'long', section: 'stay', when: answeredYes('visitedVietnamLastYear') },
+  { field: 'hasRelativesInVietnam', control: 'yesno', section: 'stay' },
+  { field: 'relativesInVietnamDetails', control: 'long', section: 'stay', when: answeredYes('hasRelativesInVietnam') },
+  { field: 'hasChildrenOnPassport', control: 'yesno', section: 'stay' },
+  { field: 'childrenOnPassportDetails', control: 'long', section: 'stay', when: answeredYes('hasChildrenOnPassport') },
+  { field: 'estimatedExpenses', control: 'number', section: 'money' },
+  { field: 'expensesCurrency', control: 'text', section: 'money' },
+  {
+    field: 'expensesPayer', control: 'choice', section: 'money',
+    options: [['self', ['I pay', 'Tôi tự chi trả']], ['organization', ['An organization', 'Một tổ chức']], ['other', ['Someone else', 'Người khác']]],
+  },
+  {
+    field: 'paymentMethod', control: 'choice', section: 'money',
+    // Traveller's cheques are only the applicant's OWN instrument — the dashboard drops the
+    // option the moment somebody else is paying, and applyVisaDraftEdit moves the answer off
+    // it at the same time, so the select can never hold a choice it no longer lists.
+    options: (draft) => draft.expensesPayer === 'self' ? PAYMENT_METHODS : PAYMENT_METHODS.filter(([value]) => value !== 'travellers_cheques'),
+  },
+  { field: 'payerName', control: 'text', section: 'money', when: (draft) => draft.expensesPayer !== 'self' },
+  { field: 'payerAddress', control: 'long', section: 'money', when: (draft) => draft.expensesPayer !== 'self' },
+  { field: 'payerPhone', control: 'text', section: 'money', when: (draft) => draft.expensesPayer !== 'self' },
+  { field: 'hasTravelInsurance', control: 'yesno', section: 'money' },
+  { field: 'insuranceDetails', control: 'long', section: 'money', when: answeredYes('hasTravelInsurance') },
+  { field: 'applicantNotes', control: 'long', section: 'money' },
+]
+
+/**
+ * Numeric fields and their schema bounds — the same clamp the dashboard applies inline.
+ * Kept next to the form so a field can never be rendered as a number without one.
+ */
+const NUMBER_BOUNDS: Record<string, { min: number; max: number }> = {
+  stayLengthDays: { min: 0, max: MAX_EVISA_VALIDITY_DAYS },
+  estimatedExpenses: { min: 0, max: 1_000_000_000 },
+}
+
+/**
+ * ONE EDIT INTO THE DRAFT, PLUS EVERYTHING IT IMPLIES.
+ *
+ * ⚠️ THE 90-DAY WINDOW IS NOT DEFINED HERE. visaDateDefaultsForStart and
+ * visaEndDateFor90DayWindow (src/lib/visa/schema.ts) are the single definition of "what a
+ * start date implies", and the dashboard's TripStep calls exactly the same two functions.
+ * Two implementations WOULD drift, and a drifted visa window is a rejected application —
+ * so this function must never grow its own arithmetic over dates.
+ *
+ * Pure and exported so the cascade is testable without a DOM: visa-cards.test.ts fails the
+ * build the moment picking a start date stops filling the other three fields.
+ */
+export function applyVisaDraftEdit(
+  draft: Record<string, string>,
+  field: string,
+  value: string,
+): Record<string, string> {
+  const next = { ...draft, [field]: value }
+
+  if (field === 'visaValidFrom') {
+    // The dashboard's setVisaStart, verbatim in behaviour: clearing the start clears the
+    // window it implied, and only a real date rewrites the length of stay.
+    const defaults = visaDateDefaultsForStart(value)
+    next.visaValidFrom = defaults.visaValidFrom
+    next.visaValidTo = defaults.visaValidTo
+    next.intendedEntryDate = defaults.intendedEntryDate
+    if (value) next.stayLengthDays = String(defaults.stayLengthDays)
+    return next
+  }
+
+  if (field === 'intendedEntryDate') {
+    // The dashboard's setEntryDate: an applicant who reaches for "when am I flying in"
+    // first still ends up with a valid window, back-filled from that date.
+    if (value && !draft.visaValidFrom) {
+      next.visaValidFrom = value
+      next.visaValidTo = visaEndDateFor90DayWindow(value)
+    }
+    return next
+  }
+
+  // The dashboard's payer select does this inline: traveller's cheques are only offered to
+  // an applicant paying their own way, so a switch away from "I pay" cannot leave the form
+  // holding a method the select no longer lists.
+  if (field === 'expensesPayer' && value !== 'self' && draft.paymentMethod === 'travellers_cheques') {
+    next.paymentMethod = 'credit_card'
+    return next
+  }
+
+  const bounds = NUMBER_BOUNDS[field]
+  if (bounds) {
+    // Empty stays empty so the box can be cleared and retyped; anything else is clamped to
+    // the schema's own range (the dashboard clamps identically on every keystroke).
+    if (!value.trim()) return next
+    const parsed = Number(value)
+    next[field] = Number.isFinite(parsed)
+      ? String(Math.min(bounds.max, Math.max(bounds.min, Math.round(parsed))))
+      : (draft[field] ?? '')
+    return next
+  }
+
+  return next
+}
+
+/**
+ * The min/max a date control carries, so a date outside the legal window cannot be typed.
+ * Same bounds as the dashboard's TripStep, read off the DRAFT (not the saved case) — the
+ * applicant is editing all four dates in one pass and the bounds must move with them.
+ */
+export function visaDateBounds(field: string, draft: Record<string, string>): { min?: string; max?: string } {
+  if (field === 'visaValidTo') {
+    const from = draft.visaValidFrom || ''
+    return { min: from || undefined, max: visaEndDateFor90DayWindow(from) || undefined }
+  }
+  if (field === 'intendedEntryDate') {
+    return { min: draft.visaValidFrom || undefined, max: draft.visaValidTo || undefined }
+  }
+  return {}
+}
+
+/**
+ * A draft value as the act route wants it. Only the numeric fields need anything: an empty
+ * box means "none", which the payload schema spells 0 — the dashboard's own Number('') → 0.
+ */
+export function visaSubmitValue(field: string, value: string): string {
+  if (NUMBER_BOUNDS[field] && !value.trim()) return '0'
+  return value
+}
+
 /** The two document issues step 1 owns, in the applicant's words. */
 const DOC_ISSUE_COPY: Record<string, [string, string]> = {
   passport_image_required: ['Send your passport data page.', 'Gửi trang thông tin hộ chiếu.'],
@@ -428,6 +640,16 @@ const ERROR_COPY: Record<string, [string, string]> = {
   invalid_fields: ['Please check the highlighted answers.', 'Vui lòng kiểm tra lại các câu trả lời được đánh dấu.'],
   field_not_in_step: ['That answer belongs to another step.', 'Câu trả lời đó thuộc bước khác.'],
   rate_limited: ['Too many attempts — please try again shortly.', 'Quá nhiều lần thử — vui lòng thử lại sau.'],
+  // The re-send chip's own refusals. `too_many` is deliberately its own sentence rather than
+  // rate_limited's: this one is not "you did something wrong", it is "that card is already in
+  // the chat a few times over", and it must say so without sounding like a failure.
+  too_many: ['That form has just been sent a few times — please wait a moment before sending it again.', 'Biểu mẫu vừa được gửi lại vài lần — vui lòng chờ một chút rồi gửi tiếp.'],
+  admin_takeover: ['A specialist is handling this chat, so the guided form is paused. End the takeover to send it again.', 'Chuyên viên đang phụ trách cuộc trò chuyện này nên biểu mẫu tự động đang tạm dừng. Kết thúc tiếp nhận để gửi lại.'],
+  not_a_participant: ['That conversation is not yours.', 'Cuộc trò chuyện đó không phải của bạn.'],
+  no_thread: ['This chat is not linked to an application yet.', 'Cuộc trò chuyện này chưa được liên kết với hồ sơ nào.'],
+  not_found: ['We could not find that application.', 'Không tìm thấy hồ sơ đó.'],
+  shop_unavailable: ['The e-Visa desk is unavailable right now.', 'Bộ phận E-Visa hiện không khả dụng.'],
+  internal_error: ['Something went wrong. Please try again.', 'Đã xảy ra lỗi. Vui lòng thử lại.'],
   thread_not_bound: ['This chat is not linked to an application yet.', 'Cuộc trò chuyện này chưa được liên kết với hồ sơ nào.'],
   thread_conflict: ['This application belongs to another chat.', 'Hồ sơ này thuộc về cuộc trò chuyện khác.'],
   product_not_selected: ['Choose an e-Visa service first.', 'Hãy chọn dịch vụ E-Visa trước.'],
@@ -602,7 +824,18 @@ function stepIssues(kase: VisaCase | null, step: VisaDmStep): string[] {
   )
 }
 
-type FormSpec = { field: string; control: ControlKind; hints: string[] }
+type FormSpec = {
+  field: string
+  control: ControlKind
+  hints: string[]
+  /** Fixed choices, for a `choice` control. */
+  options?: readonly FieldChoice[]
+  /** Which of the dashboard's three trip cards this field belongs to (step 4 only). */
+  section?: TripSection
+}
+
+/** The dashboard's checkpoint list, in the shape ui/combobox groups want. */
+const EVISA_COMBOBOX_GROUPS = EVISA_CHECKPOINT_GROUPS.map((group) => ({ ...group, items: group.options }))
 
 /**
  * The fields this card should ASK for: one per outstanding issue, de-duplicated, and
@@ -810,7 +1043,28 @@ export function VisaStepCard({ meta, info, kase, caseError, live, busy, onAct, o
     return meta.needsReview.filter((name) => allowed.has(name))
   }, [meta.step, meta.needsReview])
 
-  const editFields = useMemo(() => {
+  /** Issue hints by field, so the trip form can still say WHY an answer is outstanding. */
+  const issueHints = useMemo(() => new Map(specs.map((spec) => [spec.field, spec.hints])), [specs])
+
+  const editFields = useMemo((): FormSpec[] => {
+    // Step 4 is the dashboard's trip page in full (see VISA_TRIP_FORM) — the conditional
+    // follow-ups appear off the DRAFT, so a "yes" reveals its detail field immediately
+    // instead of after a save, a server revalidation and a fresh card.
+    if (meta.step === 4) {
+      const allowed = new Set<string>(VISA_DM_STEP_FIELDS[4] ?? [])
+      return VISA_TRIP_FORM
+        .filter((entry) => allowed.has(entry.field) && (!entry.when || entry.when(draft)))
+        .map((entry): FormSpec => ({
+          field: entry.field,
+          control: entry.control,
+          section: entry.section,
+          options: typeof entry.options === 'function' ? entry.options(draft) : entry.options,
+          hints: [...new Set([
+            ...(entry.hint ? [tr(entry.hint[0], entry.hint[1])] : []),
+            ...(issueHints.get(entry.field) ?? []),
+          ])],
+        }))
+    }
     const seen = new Set(specs.map((s) => s.field))
     const extra = confirmFields.filter((f) => !seen.has(f)).map((field): FormSpec => ({
       field,
@@ -818,11 +1072,34 @@ export function VisaStepCard({ meta, info, kase, caseError, live, busy, onAct, o
       hints: [],
     }))
     return [...specs, ...extra]
-  }, [specs, confirmFields])
+  }, [meta.step, draft, specs, confirmFields, issueHints, tr])
+
+  /** The dashboard's three trip cards, as runs of consecutive fields. One unnamed run elsewhere. */
+  const editSections = useMemo(() => {
+    const groups: Array<{ key: string; title: string | null; specs: FormSpec[] }> = []
+    for (const spec of editFields) {
+      const key = spec.section ?? 'all'
+      const last = groups[groups.length - 1]
+      if (last && last.key === key) last.specs.push(spec)
+      else {
+        groups.push({
+          key,
+          title: spec.section ? tr(TRIP_SECTION_TITLE[spec.section][0], TRIP_SECTION_TITLE[spec.section][1]) : null,
+          specs: [spec],
+        })
+      }
+    }
+    return groups
+  }, [editFields, tr])
 
   const openEditor = () => {
     const next: Record<string, string> = {}
-    for (const spec of editFields) next[spec.field] = fieldValue(kase, spec.field)
+    // ⚠️ SEED EVERY FIELD THE STEP RENDERS — including the ones a `when` currently hides and
+    // the ones with no outstanding issue. The date cascade rewrites its siblings, and the
+    // back-fill asks whether the start date is empty; a draft holding only the MISSING
+    // fields would read a saved answer as blank and overwrite it.
+    const seed = meta.step === 4 ? VISA_TRIP_FORM.map((entry) => entry.field) : editFields.map((spec) => spec.field)
+    for (const field of seed) next[field] = fieldValue(kase, field)
     setDraft(next)
     setEditing(true)
   }
@@ -831,10 +1108,21 @@ export function VisaStepCard({ meta, info, kase, caseError, live, busy, onAct, o
   const submitEdit = () => {
     const allowed = new Set<string>(VISA_DM_STEP_FIELDS[meta.step] ?? [])
     const fields: Record<string, string> = {}
-    for (const [key, value] of Object.entries(draft)) {
-      if (allowed.has(key)) fields[key] = value
+    for (const spec of editFields) {
+      if (!allowed.has(spec.field)) continue
+      const value = visaSubmitValue(spec.field, draft[spec.field] ?? '')
+      // ONLY WHAT CHANGED. Step 4 now renders the whole trip page, and resending thirty
+      // untouched answers on every save would put a full payload through the encrypted
+      // write — and let one unrelated stale value fail the save with invalid_fields.
+      if (value === fieldValue(kase, spec.field)) continue
+      fields[spec.field] = value
     }
-    if (!Object.keys(fields).length) return
+    if (!Object.keys(fields).length) {
+      // Nothing to write, but the editor must still close. "I looked and it is right" is
+      // exactly the acknowledge verb — the same one the button above this form sends.
+      void Promise.resolve(onAct('acknowledge')).then((ok) => { if (ok) setEditing(false) })
+      return
+    }
     // Only close on success — a refused save must not throw away what was typed.
     void Promise.resolve(onAct('edit', fields)).then((ok) => { if (ok) setEditing(false) })
   }
@@ -931,14 +1219,25 @@ export function VisaStepCard({ meta, info, kase, caseError, live, busy, onAct, o
       )}
 
       {editing && kase && (
-        <div className="mt-3 space-y-3">
-          {editFields.map((spec) => (
-            <VisaFieldControl
-              key={spec.field}
-              spec={spec}
-              value={draft[spec.field] ?? ''}
-              onChange={(value) => setDraft((current) => ({ ...current, [spec.field]: value }))}
-            />
+        <div className="mt-3 space-y-4">
+          {editSections.map((section) => (
+            <div key={section.key} className="space-y-3">
+              {section.title && (
+                <p className="text-2xs font-bold uppercase tracking-wide text-ink-4">{section.title}</p>
+              )}
+              {section.specs.map((spec) => (
+                <VisaFieldControl
+                  key={spec.field}
+                  spec={spec}
+                  value={draft[spec.field] ?? ''}
+                  bounds={visaDateBounds(spec.field, draft)}
+                  // ⚠️ NOT a plain field write. applyVisaDraftEdit carries the dashboard's
+                  // cross-field defaults — picking a start date fills the end date, the
+                  // intended entry date and the length of stay, off the SHARED helper.
+                  onChange={(value) => setDraft((current) => applyVisaDraftEdit(current, spec.field, value))}
+                />
+              ))}
+            </div>
           ))}
           <div className="flex flex-wrap gap-1.5">
             <Button variant="cta" size="none" disabled={busy} onClick={submitEdit} className="rounded-xl px-3 py-2 text-xs">
@@ -1001,16 +1300,71 @@ export function VisaStepCard({ meta, info, kase, caseError, live, busy, onAct, o
   )
 }
 
-/** One answer. Text/date/number through ui/field + ui/input; the enums through ui/select. */
-function VisaFieldControl({ spec, value, onChange }: { spec: FormSpec; value: string; onChange: (value: string) => void }) {
+/**
+ * One answer. Text/date/number through ui/field + ui/input; the enums through ui/select;
+ * the two border gates through ui/combobox, exactly as the dashboard's CheckpointCombobox —
+ * a 80-entry checkpoint list is not a thing to type from memory on a phone.
+ */
+function VisaFieldControl({ spec, value, bounds, onChange }: {
+  spec: FormSpec
+  value: string
+  /** Date limits for this field, from visaDateBounds. Ignored by every other control. */
+  bounds?: { min?: string; max?: string }
+  onChange: (value: string) => void
+}) {
   const { tr } = useLanguage()
   const id = `visa-field-${spec.field}`
   const label = fieldLabel(spec.field, tr)
 
-  if (spec.control === 'yesno' || spec.control === 'sex') {
-    const options: Array<[string, string]> = spec.control === 'yesno'
-      ? [['yes', tr('Yes', 'Có')], ['no', tr('No', 'Không')]]
-      : [['male', tr('Male', 'Nam')], ['female', tr('Female', 'Nữ')]]
+  if (spec.control === 'checkpoint') {
+    return (
+      // Same <label htmlFor> + primitive idiom as the select below, and the same one the
+      // dashboard's FormField uses around its own CheckpointCombobox.
+      <label htmlFor={id} className="flex min-w-0 flex-col gap-1 text-xs font-semibold text-foreground">
+        {label}
+        {spec.hints.map((hint) => <span key={hint} className="text-2xs font-normal text-warning">{hint}</span>)}
+        <Combobox
+          items={EVISA_COMBOBOX_GROUPS}
+          value={value || null}
+          inputValue={value}
+          onValueChange={(next) => onChange(typeof next === 'string' ? next : '')}
+          onInputValueChange={(next) => onChange(next)}
+          autoHighlight
+        >
+          <ComboboxInputGroup>
+            {/* text-base for the same reason as every other field here: under 16px iOS
+                zooms the viewport on focus, and this form lives inside a chat thread. */}
+            <ComboboxInput
+              id={id}
+              autoComplete="off"
+              placeholder={tr('Type or choose a checkpoint', 'Nhập hoặc chọn cửa khẩu')}
+              className="text-base font-normal lg:text-sm"
+            />
+            <ComboboxClear aria-label={tr(`Clear ${label}`, `Xóa ${label}`)} />
+            <ComboboxTrigger aria-label={tr(`Open ${label} options`, `Mở lựa chọn ${label}`)} />
+          </ComboboxInputGroup>
+          <ComboboxContent>
+            <ComboboxEmpty>{tr('No matching checkpoint. You can keep what you typed.', 'Không có cửa khẩu phù hợp. Bạn có thể giữ giá trị đã nhập.')}</ComboboxEmpty>
+            <ComboboxList>
+              {(group: (typeof EVISA_COMBOBOX_GROUPS)[number]) => (
+                <ComboboxGroup key={group.id} items={group.items}>
+                  <ComboboxGroupLabel>{tr(group.label, group.labelVi)}</ComboboxGroupLabel>
+                  {group.items.map((checkpoint) => <ComboboxItem key={checkpoint} value={checkpoint}>{checkpoint}</ComboboxItem>)}
+                </ComboboxGroup>
+              )}
+            </ComboboxList>
+          </ComboboxContent>
+        </Combobox>
+      </label>
+    )
+  }
+
+  if (spec.control === 'yesno' || spec.control === 'sex' || spec.control === 'choice') {
+    const options: Array<[string, string]> = spec.control === 'choice'
+      ? (spec.options ?? []).map(([optionValue, copy]) => [optionValue, tr(copy[0], copy[1])])
+      : spec.control === 'yesno'
+        ? YES_NO.map(([optionValue, copy]) => [optionValue, tr(copy[0], copy[1])])
+        : [['male', tr('Male', 'Nam')], ['female', tr('Female', 'Nữ')]]
     return (
       // A <label htmlFor> + ui/select is the repo's own pattern for this control (the visa
       // wizard's VisaSelect): Base UI's Field.Label registers against a Field.Control, and a
@@ -1053,8 +1407,14 @@ function VisaFieldControl({ spec, value, onChange }: { spec: FormSpec; value: st
             <Input
               id={id}
               variant="outline"
-              type={spec.control === 'date' ? 'date' : 'text'}
+              type={spec.control === 'date' ? 'date' : spec.control === 'number' ? 'number' : 'text'}
               inputMode={spec.control === 'number' ? 'numeric' : undefined}
+              // ⚠️ THE LEGAL WINDOW, CARRIED BY THE CONTROL. A date outside it cannot be
+              // picked at all — the same min/max pair the dashboard's TripStep sets, and the
+              // reason the applicant meets "an e-Visa covers at most 90 days" while choosing
+              // rather than as a refusal after saving. Numbers carry the schema's own range.
+              min={spec.control === 'number' ? NUMBER_BOUNDS[spec.field]?.min : bounds?.min}
+              max={spec.control === 'number' ? NUMBER_BOUNDS[spec.field]?.max : bounds?.max}
               value={value}
               onChange={(event) => onChange(event.target.value)}
               // text-base is LOAD-BEARING on mobile: iOS zooms the viewport when focusing a
@@ -1225,6 +1585,96 @@ export function VisaCheckoutCard({ meta, info, kase, live, busy, onPay }: VisaCh
         </p>
       )}
     </CardShell>
+  )
+}
+
+// ── The re-send chip ──────────────────────────────────────────────────────────────
+
+export type VisaResendChipProps = {
+  info: VisaThreadInfo
+  /** The desk's side of the thread. Only changes the wording, never the entitlement. */
+  isDesk: boolean
+  busy: boolean
+  /** The last refusal CODE, or null. Rendered as a sentence — never a raw server string. */
+  error: string | null
+  onResend: () => void | Promise<void>
+  className?: string
+}
+
+/**
+ * "Also admin can send visa application form from chip if the original one is way up in
+ * conversation" (owner) — one tap that puts the CURRENT card back at the bottom of the thread.
+ *
+ * IT LIVES BY THE COMPOSER, NOT BY THE CARD, and that is the entire requirement: somebody who
+ * has scrolled a hundred messages past the form cannot be asked to find the form in order to
+ * ask for the form. The composer is the one part of a chat that is always on screen, so the
+ * way back sits directly above it.
+ *
+ * BOTH SEATS SEE IT. The owner asked for the desk, but the applicant scrolled past the same
+ * card and has the same problem; the route allows either participant, so hiding it from one of
+ * them would only make the capability harder to discover, not safer.
+ *
+ * ⚠️ FAILURE IS SHOWN, NEVER SWALLOWED. A refused re-send (a 429 above all, which is the
+ * likely one — the chip is deliberately capped) renders its sentence INLINE, right under the
+ * chip the finger is still on, and stays there until the next attempt. A toast would slide
+ * away from the exact place the user is looking.
+ *
+ * ⚠️ NO PII, as everywhere on this surface: this component renders a verb, a mode and an error
+ * code. It never touches the case.
+ */
+export function VisaResendChip({ info, isDesk, busy, error, onResend, className }: VisaResendChipProps) {
+  const { tr } = useLanguage()
+  // An admin takeover pauses the guided form for the APPLICANT — dm-thread refuses to author
+  // a step card in 'admin' mode, so a tap could only come back as a 409 — and the chip says
+  // why rather than offering a dead button.
+  //
+  // ⚠️ NOT for the desk. The owner's ask was "admin can send visa application form from
+  // chip", and a review caught that pausing both seats disabled the feature for exactly the
+  // actor they named: the admin who took the thread over. The invariant being protected is
+  // "the AUTOMATED flow must not post over a human" — during a takeover the desk IS that
+  // human, so it may re-post deliberately (dm-flow passes byAdmin only after proving the
+  // caller is the desk).
+  const paused = info.mode === 'admin' && !isDesk
+
+  return (
+    <div className={cn('flex flex-col gap-1', className)}>
+      <div className="flex flex-wrap items-center gap-2">
+        <Button
+          variant="soft"
+          size="none"
+          disabled={busy || paused}
+          onClick={() => void onResend()}
+          title={tr('Post the current e-Visa step again at the bottom of this chat', 'Đăng lại bước E-Visa hiện tại ở cuối cuộc trò chuyện')}
+          className="tap-44 shrink-0 gap-1.5 rounded-full border border-line-strong px-3 py-1.5 text-2xs font-bold text-foreground"
+        >
+          {busy
+            ? <Loader2 className="size-3.5 shrink-0 animate-spin" aria-hidden />
+            : <RotateCcw className="size-3.5 shrink-0" aria-hidden />}
+          {/* Names what it does, not where it goes: "resend" reads as a retry after a failure,
+              and nothing failed here — the card just scrolled away. */}
+          {tr('Send the form again', 'Gửi lại biểu mẫu')}
+        </Button>
+        {!paused && (
+          <span className="min-w-0 text-2xs leading-relaxed text-ink-4">
+            {isDesk
+              ? tr('Puts the applicant’s current step back at the bottom.', 'Đưa bước hiện tại của người nộp xuống cuối.')
+              : tr('Lost the form above? This brings it back down here.', 'Không thấy biểu mẫu ở trên? Tùy chọn này đưa nó xuống đây.')}
+          </span>
+        )}
+      </div>
+      {paused && (
+        <p className="text-2xs leading-relaxed text-body">
+          {tr('Paused while a specialist is in this chat.', 'Tạm dừng trong khi chuyên viên đang trong cuộc trò chuyện này.')}
+        </p>
+      )}
+      {/* role="status" so a screen reader hears the refusal — the chip itself does not move. */}
+      {error && (
+        <p role="status" className="flex items-start gap-1.5 text-2xs leading-relaxed text-warning">
+          <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden />
+          {visaErrorCopy(error, tr)}
+        </p>
+      )}
+    </div>
   )
 }
 

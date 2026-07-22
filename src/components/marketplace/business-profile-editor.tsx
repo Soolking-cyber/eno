@@ -177,7 +177,7 @@ export function BusinessProfileEditor({ seller, repName, onSaved }: { seller: Se
           <Input id="biz-location" autoComplete="address-level2" value={location} onChange={(e) => setLocation(e.target.value)} maxLength={120} placeholder={tr('e.g. Thảo Điền, HCMC', 'vd. Thảo Điền, TP.HCM')} />
         </div>
         <Field invalid={!!fieldErr.phone}>
-          <Label htmlFor="biz-phone">{tr('Contact phone / Zalo', 'Điện thoại / Zalo')}</Label>
+          <Label htmlFor="biz-phone">{tr('Contact phone (Zalo / WhatsApp)', 'Điện thoại (Zalo / WhatsApp)')}</Label>
           <FieldControl id="biz-phone" render={<Input id="biz-phone" autoComplete="tel" value={phone} onChange={(e) => setPhone(e.target.value)} type="tel" inputMode="tel" maxLength={20} placeholder="0901 234 567" />} />
           <FieldDescription className="text-muted-foreground">{tr('Shared with a buyer only after you reply in chat — never shown publicly.', 'Chỉ chia sẻ với người mua sau khi bạn trả lời — không hiển thị công khai.')}</FieldDescription>
           {fieldErr.phone && <FieldError>{fieldErr.phone}</FieldError>}

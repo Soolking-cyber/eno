@@ -214,6 +214,9 @@ export async function findVisaThread(applicationId: string): Promise<VisaThreadR
  */
 export async function sendVisaStepCard(input: {
   conversationId: string; applicationId: string; step: VisaDmStep; needsReview?: string[]
+  /** Set ONLY by an admin-initiated resend, after the caller is proven to be the desk.
+   *  Lets the human who took the thread over re-post the form; see the mode gate below. */
+  byAdmin?: boolean
 }): Promise<{ messageId: string } | null> {
   const { conversationId, applicationId, step } = input
   if (!UUID_RE.test(applicationId)) return null
@@ -235,10 +238,17 @@ export async function sendVisaStepCard(input: {
   // …and the thread must be one of the visa desk's own.
   if (convo.sellerProfileId !== senderId) return null
 
-  // A human has taken the thread over → the wizard stops talking over them.
+  // A human has taken the thread over → the WIZARD stops talking over them.
   // 'human_requested' deliberately does NOT silence it: that mode means the applicant is
   // queued for help, and they can keep filling the form while they wait.
-  if ((await getVisaThreadMode(applicationId)) === 'admin') return null
+  //
+  // ⚠️ byAdmin is the ONE exception, and it does not weaken the invariant — it names it
+  // precisely. What must never happen is the AUTOMATED flow posting over a human. An admin
+  // who has taken the thread over and taps "send the form" IS that human, and the owner
+  // asked for exactly this ("admin can send visa application form from chip"). Without it,
+  // the takeover silently disabled the feature for the only actor they named.
+  // Only the resend path sets it, and only after proving the caller is the desk.
+  if (!input.byAdmin && (await getVisaThreadMode(applicationId)) === 'admin') return null
 
   // needsReview carries payload FIELD NAMES only. Filtering here (rather than letting the
   // strict parse throw) means one stray key costs that key, not the whole card.
@@ -474,6 +484,42 @@ export async function getVisaThreadMode(applicationId: string): Promise<VisaThre
   } catch (e) {
     console.error('[visa-dm] thread mode lookup failed', e)
     return 'ai'
+  }
+}
+
+/**
+ * The same read, FAIL CLOSED — for callers where "I could not tell" must not become "carry on".
+ *
+ * ⚠️ Why two functions rather than a flag: the soft default above is CORRECT for the step
+ * cards. They are furniture; a transient Supabase error must not wedge the wizard shut, and a
+ * card posted during a takeover is inert anyway. It is WRONG for the Eno concierge, which is a
+ * VOICE: the owner's rule is "ife person requested ai doesnt answer", and a mode read that
+ * quietly answers 'ai' on failure turns an outage into the bot talking over the human someone
+ * just asked for. An adversarial review caught the concierge consuming the soft value and being
+ * unable to distinguish 'ai' from 'the read failed'.
+ *
+ * Every other refusal on the concierge path already fails closed (crypto not ready, rate limit,
+ * no-answer-beats-a-wrong-answer). This makes the one gate the owner stated twice match them.
+ */
+export async function readVisaThreadModeStrict(
+  applicationId: string,
+): Promise<{ ok: true; mode: VisaThreadMode } | { ok: false }> {
+  if (!UUID_RE.test(applicationId)) return { ok: false }
+  try {
+    const { data, error } = await getVisaDb()
+      .from('visa_events')
+      .select('event,created_at,id')
+      .eq('application_id', applicationId)
+      .in('event', MODE_EVENT_NAMES)
+      .order('created_at', { ascending: false })
+      .order('id', { ascending: false })
+      .limit(1)
+    if (error) throw error
+    const newest = (data as Array<{ event?: string }> | null)?.[0]?.event
+    return { ok: true, mode: (newest && MODE_FOR_EVENT[newest]) || 'ai' }
+  } catch (e) {
+    console.error('[visa-dm] strict thread mode lookup failed', e)
+    return { ok: false }
   }
 }
 

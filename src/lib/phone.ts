@@ -109,3 +109,45 @@ export function containsPhoneNumber(text: string | null | undefined): boolean {
   // dotted price that sits next to another number.
   return DOTTED_PHONE_RE.test(norm.replace(/[.·]/g, ''))
 }
+
+/**
+ * Pull the FIRST phone number out of free text, in E.164 digits (no '+').
+ *
+ * The mirror image of containsPhoneNumber, sharing its regexes on purpose: the thing that
+ * decides "this text has a number in it" and the thing that decides "…and here it is" must
+ * never disagree, or a chat bubble offers a Zalo/WhatsApp button built from something that
+ * was not a phone number. Returns null when there is nothing, or when what is there is not
+ * dialable (a spelled-out run like "oh nine one…" is DETECTED by the gate but deliberately
+ * NOT extracted — reconstructing digits from words is exactly where a wrong number comes
+ * from, and a wrong number is worse than no button).
+ *
+ * VND prices do not match, for the same reason they do not match the gate: the dot/comma
+ * thousand-separator forms are excluded by the regexes themselves.
+ */
+export function extractPhoneNumber(text: string | null | undefined): string | null {
+  if (!text) return null
+  const norm = toAsciiDigits(text)
+  const direct = norm.match(EMBEDDED_PHONE_RE)?.[0]
+  // Dotted VN form (090.123.4567) only after stripping dots — the same fallback, and the
+  // same reason: keep spaces so two adjacent numbers cannot merge into one.
+  const dotted = direct ? null : norm.replace(/[.·]/g, '').match(DOTTED_PHONE_RE)?.[0]
+  const raw = direct || dotted
+  if (!raw) return null
+  const digits = normalizePhoneNoPlus(raw)
+  // A dialable number is 8–15 digits (E.164 caps at 15). Anything outside that came from a
+  // false positive, so drop it rather than render a broken deep link.
+  return digits.length >= 8 && digits.length <= 15 ? digits : null
+}
+
+/** Deep links for the SAME number. Vietnamese sellers live on Zalo; foreign buyers usually
+ *  have only WhatsApp — and a Vietnamese mobile works for both, so we offer both rather
+ *  than making either side install an app they will never use again (owner, 2026-07-22:
+ *  "since foreigners dont have zalo ad whatsapp with same number so users can request
+ *  whatspp or zalo both same number"). */
+export function contactLinksFor(phoneDigits: string): { zalo: string; whatsapp: string; tel: string } {
+  return {
+    zalo: `https://zalo.me/${phoneDigits}`,
+    whatsapp: `https://wa.me/${phoneDigits}`,
+    tel: `tel:+${phoneDigits}`,
+  }
+}

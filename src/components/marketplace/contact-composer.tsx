@@ -132,7 +132,7 @@ export function ContactComposer({
   // answers the eno:chat-now event (the mobile action bar).
   const safetyLine = (
     <p className="text-center text-xs text-muted-foreground">
-      {tr('Request their number or Zalo once they reply.', 'Yêu cầu số điện thoại hoặc Zalo sau khi họ trả lời.')}
+      {tr('Request their number once they reply — one number works for both Zalo and WhatsApp.', 'Yêu cầu số điện thoại sau khi họ trả lời — một số dùng được cho cả Zalo và WhatsApp.')}
     </p>
   )
   const chatButton = (
