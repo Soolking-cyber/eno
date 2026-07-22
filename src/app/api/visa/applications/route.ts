@@ -10,6 +10,7 @@ import {
   type VisaSpeedCode,
 } from '@/lib/visa-shop'
 import { encryptVisaPayload, visaCryptoReady } from '@/lib/visa/crypto'
+import { quoteVisaUsd, type VisaQuote } from '@/lib/visa/fx'
 import { getVisaDb, visaTableMissing } from '@/lib/visa/db'
 import { visaPaymentsConfig, type VisaPaymentProvider } from '@/lib/visa/payments'
 import { serializeVisa, type VisaApplicationRow, type VisaDocumentRow, type VisaEventRow } from '@/lib/visa/records'
@@ -47,8 +48,11 @@ type VisaCatalogueEntry = {
   title: string
   entryType: VisaEntryType
   speed: VisaSpeedCode
-  priceCents: number
-  currency: string
+  /** The admin's number, in whole đồng — the price they actually set on the listing. */
+  priceVnd: number
+  currency: 'VND'
+  /** SERVER-ISSUED USD conversion, or null when FX is unavailable. See the note below. */
+  quote: VisaQuote | null
 }
 
 /**
@@ -76,18 +80,29 @@ function isBuyableVisaProduct(
  * left open does not keep offering a desk that closed twenty minutes ago. The server's
  * answer at checkout time is still the only one that decides.
  *
- * ⚠️ Prices ride along as CENTS PER PRODUCT and are display-only — the checkout route
- * re-resolves the amount from the listing and accepts no amount from the client.
+ * ⚠️ TWO NUMBERS, AND ONLY ONE OF THEM IS OURS TO INVENT. `priceVnd` is the admin's own
+ * figure off the listing. The USD ride-along is a SERVER-ISSUED quote, never a client-side
+ * conversion: the browser's FX rates are cached for up to 12h, so converting there lets the
+ * buyer read one number while PayPal captures another. A null quote means FX is unavailable
+ * — the UI must say so and refuse to charge rather than guess a rate.
+ *
+ * Both are still display-only: the checkout route re-quotes and accepts no amount from the
+ * client. The quote here is what the buyer AGREED to, and checkout compares against it.
  */
 async function visaCatalogueForApplicant(): Promise<VisaCatalogueEntry[]> {
-  return (await getVisaShopProducts()).filter(isBuyableVisaProduct).map((product) => ({
-    listingId: product.listingId,
-    title: product.title,
-    entryType: product.entryType,
-    speed: product.speed,
-    priceCents: product.priceCents,
-    currency: product.currency,
-  }))
+  const products = (await getVisaShopProducts()).filter(isBuyableVisaProduct)
+  // One rate fetch serves them all (fx.ts caches it), so this is not N round-trips.
+  return Promise.all(
+    products.map(async (product) => ({
+      listingId: product.listingId,
+      title: product.title,
+      entryType: product.entryType,
+      speed: product.speed,
+      priceVnd: product.priceVnd,
+      currency: 'VND' as const,
+      quote: await quoteVisaUsd({ listingId: product.listingId, priceVnd: product.priceVnd }),
+    })),
+  )
 }
 
 export async function GET(request: Request) {

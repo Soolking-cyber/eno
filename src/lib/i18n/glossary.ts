@@ -38,5 +38,4 @@ export const TR_OVERRIDES: Record<string, Partial<Record<Language, string>>> = {
   Food: { 'zh-Hans': '美食', ko: '식품', ja: '食品', ru: 'Продукты', km: 'អាហារ', ms: 'Makanan & Minuman', th: 'อาหารและเครื่องดื่ม', fr: 'Alimentation', hi: 'खान-पान' },
   // Intent shortcut tiles.
   'Free & Giveaways': { 'zh-Hans': '免费赠送', ko: '무료나눔', ja: '無料・あげます', ru: 'Отдам даром', km: 'ចែកជូនឥតគិតថ្លៃ', ms: 'Barang Percuma', th: 'แจกฟรี', fr: 'À donner', hi: 'मुफ़्त सामान' },
-  'Wanted / ISO': { 'zh-Hans': '求购', ko: '삽니다', ja: '買います', ru: 'Куплю', km: 'ចង់ទិញ', ms: 'Dicari', th: 'รับซื้อ', fr: 'Demandes', hi: 'ज़रूरत है' },
 }

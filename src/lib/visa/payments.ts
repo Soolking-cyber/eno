@@ -1,5 +1,6 @@
 import 'server-only'
 import { createHmac, timingSafeEqual } from 'node:crypto'
+import { formatMoneyFull } from '@/lib/vnd'
 import { decryptVisaPayload, visaApplicantSnapshotHash } from '@/lib/visa/crypto'
 import { getVisaDb } from '@/lib/visa/db'
 import { recordVisaEvent, type VisaApplicationRow, type VisaDocumentRow } from '@/lib/visa/records'
@@ -23,6 +24,16 @@ import { VISA_AUTHORIZATION_VERSION, VISA_DECLARATION_VERSION, validateVisaForRe
 // money (assertChargeableUsdCents), and refuses anything else — including 0, which an
 // earlier flat-fee shape could produce and which would have opened a $0 checkout.
 //
+// ⚠️ AND THE PRICE IS IN ĐỒNG WHILE THE CHARGE IS IN DOLLARS (owner, 2026-07-22).
+// Listing.price is VND; the USD figure the providers below capture is a SERVER-ISSUED
+// QUOTE of it (src/lib/visa/fx.ts), the very same quote the buyer was shown. This module
+// still never derives an amount — but it now insists on being handed the quote's evidence
+// alongside it (priceVnd, vndPerUsd, quotedAt) and writes that evidence into the
+// PROVIDER'S OWN immutable record of the payment, so "why was this card charged $114.89?"
+// is answerable months later from Stripe's or PayPal's copy alone. A charge whose evidence
+// is missing or malformed is refused rather than sent: an unevidenced currency conversion
+// is exactly the charge nobody can defend in a dispute.
+//
 // Dormant until env (the Turnstile pattern): with no provider keys or no fee env set,
 // visaPaymentsConfig() is null and submit behaves exactly as before this feature.
 // Owner activation = set VISA_SERVICE_FEE_USD + STRIPE_SECRET_KEY (and/or
@@ -44,7 +55,9 @@ export type VisaPaymentsConfig = {
    * a host that has a Stripe key set for some other reason.
    *
    * Nothing in the charging path reads this value. If you find yourself reaching for it
-   * to price something, the amount you want is resolveVisaProduct(listingId).priceCents.
+   * to price something, the amount you want is the USD cents of a SERVER-ISSUED QUOTE:
+   * quoteVisaUsd({ listingId, priceVnd: resolveVisaProduct(listingId).priceVnd }) in
+   * src/lib/visa/fx.ts. The listing's own number is đồng and is never a cent figure.
    */
   feeCents: number
   currency: 'USD'
@@ -104,9 +117,10 @@ const MAX_CHARGE_CENTS = 1_000_000_00
 /**
  * THE MONEY GATE. Every amount that reaches a provider passes through here first.
  *
- * The caller is supposed to hand over resolveVisaProduct().priceCents — an integer number
- * of USD cents that visa-shop already derived from Listing.price. This function assumes
- * none of that: it re-asserts the shape at the boundary where the money actually leaves,
+ * The caller is supposed to hand over VisaQuote.amountUsdCents — an integer number of USD
+ * cents that src/lib/visa/fx.ts derived from the listing's đồng price at a rate it recorded.
+ * This function assumes none of that: it re-asserts the shape at the boundary where the
+ * money actually leaves,
  * so a future caller that forwards a number from somewhere looser (a request body, a
  * float multiply, a nullable column) throws instead of opening a $0 — or a $0.005 —
  * checkout. Throws rather than clamps: silently charging a "corrected" amount is the one
@@ -118,8 +132,53 @@ function assertChargeableUsdCents(provider: VisaPaymentProvider, amountCents: nu
   }
   // USD is hard-coded into both provider payloads below; a foreign currency here would be
   // charged as dollars (a 25 000× bug for ₫), so it fails instead of being converted.
+  //
+  // ⚠️ `currency` is the CHARGE currency and it is always USD. It is NOT the listing's
+  // currency — a visa product is priced in đồng, and the ĐỒNG figure travels separately as
+  // quote evidence (VisaQuoteEvidence below). Do not "fix" this to '₫' when reading the
+  // listing side of the flow: that would ask a provider to capture 3 000 000 dollars.
   if ((currency || '').trim().toUpperCase() !== 'USD') throw new PaymentProviderError(provider, 'currency_not_supported')
   return amountCents
+}
+
+/**
+ * The quote a charge is the dollar face of: the admin's ĐỒNG price, the rate that turned
+ * it into cents, and when that rate was read. Comes straight off the VisaQuote the route
+ * issued (src/lib/visa/fx.ts) — this module neither derives it nor recomputes the amount
+ * from it, it only records it.
+ */
+export type VisaQuoteEvidence = {
+  /** Whole đồng, the admin's authoritative price. */
+  priceVnd: number
+  /** ĐỒNG per one dollar (≈ 26 000) — never the reciprocal. */
+  vndPerUsd: number
+  /** ISO instant the rate was read. */
+  quotedAt: string
+}
+
+/**
+ * THE EVIDENCE GATE, and it throws for the same reason the money gate does.
+ *
+ * A dollar amount converted from đồng is only defensible next to the two numbers that
+ * produced it. Sending the charge and losing the evidence would leave a capture nobody can
+ * reconstruct — so a malformed quote stops the checkout instead of quietly becoming an
+ * undocumented one. The band check is deliberately the same shape as fx.ts's (a VND/USD
+ * rate is in the tens of thousands): a caller that hands over an INVERTED rate has almost
+ * certainly computed the amount from it too, and refusing here is the last chance to catch
+ * that before a stranger's card is touched.
+ */
+function assertQuoteEvidence(provider: VisaPaymentProvider, evidence: VisaQuoteEvidence): VisaQuoteEvidence {
+  const priceVnd = evidence?.priceVnd
+  const vndPerUsd = evidence?.vndPerUsd
+  const quotedAt = evidence?.quotedAt
+  if (!Number.isSafeInteger(priceVnd) || priceVnd <= 0) throw new PaymentProviderError(provider, 'quote_price_not_recordable')
+  if (typeof vndPerUsd !== 'number' || !Number.isFinite(vndPerUsd) || vndPerUsd < 5_000 || vndPerUsd > 100_000) {
+    throw new PaymentProviderError(provider, 'quote_rate_not_recordable')
+  }
+  if (typeof quotedAt !== 'string' || !Number.isFinite(Date.parse(quotedAt))) {
+    throw new PaymentProviderError(provider, 'quote_time_not_recordable')
+  }
+  return { priceVnd, vndPerUsd, quotedAt }
 }
 
 /**
@@ -174,6 +233,30 @@ function providerProductLabel(title: string | null | undefined, max: number): st
   return clean.length > max ? `${clean.slice(0, max - 1).trimEnd()}…` : clean
 }
 
+/**
+ * The product name WITH the đồng price it is the dollar equivalent of — "Vietnam e-visa —
+ * 1 hour, single entry — 3,000,000 VND".
+ *
+ * This is the owner's rule reaching the last screen of the flow: the provider's hosted page
+ * shows the USD it is about to take, and the line beside it names the VND price the admin
+ * actually set, so the buyer never has to take the conversion on trust. It is also the
+ * cheapest dispute evidence there is — it lands in the provider's own record with no
+ * schema, no metadata lookup and no access to anything of ours.
+ *
+ * ⚠️ THE ĐỒNG NOTE IS BUDGETED FIRST and the TITLE is what gets truncated. Both providers
+ * hard-cap these fields (Stripe 120-ish for a product name, PayPal 127 for a purchase-unit
+ * description), and a long product title must not be allowed to push the price out of the
+ * string — a truncated title is cosmetic, a missing price is the evidence gone.
+ *
+ * 'en' grouping on purpose: "3,000,000 VND" is the internationally legible rendering, and
+ * this string is read by a dispute analyst as often as by the buyer. (formatMoneyFull's
+ * 'vi' form, "3.000.000 đ", reads as three thousand to anyone outside the market.)
+ */
+function providerLineLabel(title: string | null | undefined, priceVnd: number, max: number): string {
+  const note = ` — ${formatMoneyFull(priceVnd, '₫', 'en')}`
+  return `${providerProductLabel(title, Math.max(1, max - note.length))}${note}`
+}
+
 // ── Stripe (REST; form-encoded) ────────────────────────────────────────────────────
 
 async function stripeApi(path: string, body?: URLSearchParams): Promise<Record<string, unknown>> {
@@ -200,14 +283,17 @@ async function stripeApi(path: string, body?: URLSearchParams): Promise<Record<s
 /**
  * Open a Stripe Checkout session for ONE resolved visa product.
  *
- * `amountCents` is the listing's price as visa-shop resolved it — this function never
- * derives, defaults or adjusts an amount, and assertChargeableUsdCents refuses anything
- * that is not a positive whole-cent USD figure before a single byte goes to Stripe.
+ * `amountCents` is the server-issued QUOTE's amount — the dollar face of the listing's
+ * đồng price. This function never derives, defaults or adjusts an amount, and
+ * assertChargeableUsdCents refuses anything that is not a positive whole-cent USD figure
+ * before a single byte goes to Stripe.
  *
- * `listingId` and `productTitle` are DISPUTE EVIDENCE, not inputs to the price: they are
- * written into Stripe's own immutable record of the payment (metadata + the line item the
- * buyer sees), so "which product was this $115 for?" is answerable from the provider's
- * side alone, months later, without opening anything of ours.
+ * `listingId`, `productTitle` and the quote evidence are DISPUTE EVIDENCE, not inputs to
+ * the price: they are written into Stripe's own immutable record of the payment (metadata
+ * + the line item the buyer sees), so "which product was this $114.89 for, and at what
+ * rate?" is answerable from the provider's side alone, months later, without opening
+ * anything of ours. Every value is a public commercial fact — a listing id, a public
+ * title, a price, an FX rate, a timestamp. NO APPLICANT DATA reaches a provider from here.
  */
 export async function stripeCreateCheckout(input: {
   applicationId: string
@@ -216,22 +302,29 @@ export async function stripeCreateCheckout(input: {
   productTitle: string
   amountCents: number
   currency: string
+  quote: VisaQuoteEvidence
 }): Promise<{ ref: string; url: string }> {
   const origin = appOrigin()
   const amountCents = assertChargeableUsdCents('stripe', input.amountCents, input.currency)
+  const quote = assertQuoteEvidence('stripe', input.quote)
   const body = new URLSearchParams({
     mode: 'payment',
     client_reference_id: input.applicationId,
     'line_items[0][quantity]': '1',
     'line_items[0][price_data][currency]': 'usd',
     'line_items[0][price_data][unit_amount]': String(amountCents),
-    // The buyer sees the product they picked, not a generic "service fee" — the amount on
-    // the Stripe page and the name beside it come from the same listing.
-    'line_items[0][price_data][product_data][name]': providerProductLabel(input.productTitle, 120),
+    // The buyer sees the product they picked AND the đồng price it converts from, not a
+    // generic "service fee" — the dollars on the Stripe page and the đồng beside them come
+    // from the same listing and the same quote.
+    'line_items[0][price_data][product_data][name]': providerLineLabel(input.productTitle, quote.priceVnd, 120),
     'line_items[0][price_data][product_data][description]': FEE_LABEL,
     'metadata[application_id]': input.applicationId,
     'metadata[user_id]': input.userId,
     'metadata[listing_id]': input.listingId,
+    // The conversion, recorded where a chargeback investigation can reach it without us.
+    'metadata[price_vnd]': String(quote.priceVnd),
+    'metadata[vnd_per_usd]': String(quote.vndPerUsd),
+    'metadata[quoted_at]': quote.quotedAt,
     // {CHECKOUT_SESSION_ID} is substituted by Stripe on redirect; aid lets the client
     // post the confirm without waiting for its application list to load.
     success_url: `${origin}/dashboard/visa?paid=stripe&aid=${input.applicationId}&sid={CHECKOUT_SESSION_ID}`,
@@ -341,15 +434,21 @@ async function paypalApi(path: string, method: 'GET' | 'POST', body?: unknown): 
 
 /**
  * Open a PayPal order for ONE resolved visa product. Same money rule as the Stripe path:
- * the amount is the caller's resolved listing price, gated by assertChargeableUsdCents.
+ * the amount is the caller's server-issued quote, gated by assertChargeableUsdCents, and
+ * its evidence by assertQuoteEvidence.
  *
  * ⚠️ custom_id STAYS THE APPLICATION ID. paypalOrderState() reads the paid case back out
  * of it and the confirm route refuses any order whose custom_id is not this application —
  * that is the cross-application guard, so the field is not free real estate for a listing
- * id. PayPal's per-unit evidence is therefore the DESCRIPTION (the product's own title);
- * the listing id lives in our visa_events audit row, which the checkout route writes.
- * (invoice_id would be the other slot and is deliberately unused: it is unique per
+ * id. PayPal's per-unit evidence is therefore the DESCRIPTION, which now carries the
+ * product's title AND the đồng price the dollars convert from; the listing id, the rate
+ * and the quote instant live in our visa_events audit row, which the checkout route
+ * writes. (invoice_id would be the other slot and is deliberately unused: it is unique per
  * merchant account, so a retried checkout would be rejected by PayPal outright.)
+ *
+ * PayPal therefore records LESS of the conversion than Stripe's metadata map does — the
+ * asymmetry is the API's, not a choice: Orders v2 has no free-form key/value bag on a
+ * purchase unit, and the two fields that could hold one are both load-bearing here.
  */
 export async function paypalCreateOrder(input: {
   applicationId: string
@@ -357,16 +456,21 @@ export async function paypalCreateOrder(input: {
   productTitle: string
   amountCents: number
   currency: string
+  quote: VisaQuoteEvidence
 }): Promise<{ ref: string; url: string }> {
   const origin = appOrigin()
   const amountCents = assertChargeableUsdCents('paypal', input.amountCents, input.currency)
+  const quote = assertQuoteEvidence('paypal', input.quote)
   const { status, json } = await paypalApi('/v2/checkout/orders', 'POST', {
     intent: 'CAPTURE',
     purchase_units: [{
       reference_id: input.applicationId,
       custom_id: input.applicationId,
-      // 127 is PayPal's documented maximum for a purchase-unit description.
-      description: providerProductLabel(input.productTitle, 127),
+      // 127 is PayPal's documented maximum for a purchase-unit description. The đồng price
+      // rides in here because custom_id is spoken for (see the note above) — and it is the
+      // one line the buyer reads on the PayPal approval page next to the dollar total, so
+      // "you are paying US$114.89 for a 3,000,000 VND service" is stated before they click.
+      description: providerLineLabel(input.productTitle, quote.priceVnd, 127),
       amount: { currency_code: 'USD', value: usdCentsToDecimalString(amountCents) },
     }],
     payment_source: {

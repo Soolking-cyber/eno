@@ -7,10 +7,14 @@
 // nothing else. Re-running it never duplicates a row: every product is keyed on
 // `Listing.externalId` (unique per seller), so a second run UPDATES the same rows.
 //
-//   node --env-file=.env scripts/seed-visa-shop.mjs
-//   npx tsx scripts/seed-visa-shop.mjs --dry-run        # also runs the publish-gate self-check
+//   node --env-file=.env scripts/seed-visa-shop.mjs --vnd-per-usd=26100
+//   npx tsx scripts/seed-visa-shop.mjs --vnd-per-usd=26100 --dry-run   # + publish-gate self-check
 //
 // Flags
+//   --vnd-per-usd=<n> REQUIRED. Đồng per ONE dollar (≈ 26000), used to convert the USD
+//                     reference grid below into the ĐỒNG that is actually stored. There is
+//                     no default and there must never be one — see "Money".
+//   --vnd-round=<n>   round each converted price to this many đồng (default 1000)
 //   --image=<url>     artwork for every product (skips the local-file upload)
 //   --allow-no-image  seed a product with no photo (dev/staging only — see "Artwork")
 //   --force           overwrite listing copy/price/attributes/status that was edited in the dashboard
@@ -19,23 +23,45 @@
 //   --catalogue       print the products this script WOULD seed and exit. No env, no
 //                     network, no database, no writes — the one way to review the grid
 //                     (and the copy derived from src/lib/visa/speed.ts) without pointing
-//                     the seeder at a real project. Under `npx tsx` it also screens that
-//                     copy through the real publish gate.
+//                     the seeder at a real project. Still needs --vnd-per-usd, because the
+//                     đồng figures it prints are the ones a real run would write. Under
+//                     `npx tsx` it also screens that copy through the real publish gate.
 //
 // Money (READ THIS BEFORE CHANGING A PRICE)
-//   The grid below is a STARTING POINT, not the source of truth. Once a row exists, the
-//   price the buyer is charged is read off Listing.price at checkout time
+//   ⚠️ A VISA PRODUCT IS PRICED IN ĐỒNG (owner, 2026-07-22): "admin posts in vnd and you
+//   show in vnd and usd to users they checkout accordingly usd from their paypal but the
+//   vnd equivalent that admin set." Listing.price is therefore ĐỒNG, exactly like every
+//   other listing on the marketplace, and the dollars a foreign buyer sees and pays are a
+//   SERVER-ISSUED QUOTE of that đồng figure, minted per checkout by src/lib/visa/fx.ts.
+//   Nothing in this script stores, or may store, a dollar amount.
+//
+//   The grid below is the OWNER'S REFERENCE GRID and it is written in dollars, because
+//   that is how the provider publishes it. So it has to be converted, and the rate for
+//   that conversion is a fact about the world on the day of the run:
+//     · --vnd-per-usd is REQUIRED and this script REFUSES TO RUN without it. A default
+//       would not fail — it would seed a catalogue quietly 15% wrong and leave it wrong
+//       until somebody noticed. The operator reads today's number off the same feed the
+//       app uses (open.er-api.com/v6/latest/VND, where `rates.USD` is dollars per đồng, so
+//       the number wanted here is 1 / rates.USD) and types it in;
+//     · the rate is band-checked (5 000–100 000) exactly like src/lib/visa/fx.ts, so an
+//       inverted rate, a rate in thousands, or a typo is refused instead of seeded;
+//     · converted prices are rounded to whole thousands of đồng (--vnd-round), the way
+//       every price on this marketplace is written.
+//   Once a row exists, the price is read off Listing.price at checkout time
 //   (resolveVisaProduct → src/lib/visa-shop.ts), so what the card advertises and what the
 //   card captures are the same number by construction — there is no second copy of the
-//   amount anywhere for the two to drift apart. That is why the old flat-fee apparatus is
-//   gone (see "What changed", below).
+//   amount anywhere for the two to drift apart.
 //   Consequences that still bind:
-//     · prices are WHOLE USD. src/lib/visa-shop.ts refuses to sell a fractional price
-//       (sellablePriceCents) because the marketplace formatter rounds — a $25.50 listing
-//       would advertise "$26". This script asserts the same on its own grid and WARNS when
-//       a price it preserved from the dashboard would be unsellable;
-//     · `currency` is force-stamped '$' on every seeded row, because sellablePriceCents
-//       accepts '$'/'USD' only (a ₫ amount read as dollars would be a 25 000× money bug);
+//     · prices are WHOLE ĐỒNG. đồng has no minor unit, and src/lib/visa-shop.ts refuses to
+//       sell a fractional price (sellablePriceVnd) because the marketplace formatter rounds
+//       — a 3.000.000,5 ₫ listing would advertise 3.000.001 ₫. This script asserts the same
+//       on its own grid and WARNS when a price it preserved from the dashboard would be
+//       unsellable;
+//     · `currency` is force-stamped '₫' on every seeded row, because sellablePriceVnd
+//       accepts ₫/Đ/VND only. ⚠️ A row this script finds still carrying '$' from the
+//       reverted USD-storage rule (f7f8ca40) has a DOLLAR number in its price column: it is
+//       CONVERTED at --vnd-per-usd rather than re-labelled, because re-labelling $115 as
+//       115 ₫ would put a US$0.004 visa on sale;
 //     · VISA_SERVICE_FEE_USD is NOT a price any more — it is the dormant/live switch for
 //       payments (src/lib/visa/payments.ts). Nothing here derives an amount from it.
 //
@@ -110,7 +136,7 @@ if (has('help')) {
 // A retired flag must not be silently IGNORED: `--price-usd=25` used to set the price of
 // every product, and an operator repeating it from muscle memory would otherwise get a
 // completely different (grid-priced) catalogue with no hint that their number was dropped.
-const KNOWN_FLAGS = new Set(['help', 'catalogue', 'dry-run', 'allow-no-image', 'force', 'status', 'image'])
+const KNOWN_FLAGS = new Set(['help', 'catalogue', 'dry-run', 'allow-no-image', 'force', 'status', 'image', 'vnd-per-usd', 'vnd-round'])
 const RETIRED_FLAGS = {
   'price-usd': 'Prices are PER PRODUCT now: the grid in this script seeds them, and after that Listing.price (edited in the dashboard) is what checkout charges. There is no single price to pass.',
 }
@@ -127,6 +153,62 @@ const FORCE = has('force')
 const STATUS_ARG = opt('status')
 const STATUS = STATUS_ARG || 'active'
 if (!['active', 'hidden'].includes(STATUS)) fail(`--status must be active or hidden (got "${STATUS}")`)
+
+// ── the đồng/dollar rate: passed, never invented ───────────────────────────────────
+//
+// See "Money" in the header. The band is byte-equal to MIN/MAX_VND_PER_USD in
+// src/lib/visa/fx.ts and exists for the same reason: a VND/USD rate has been in the TENS
+// OF THOUSANDS since the 1990s, so 0.0000383 (the inverted rate, which is what the upstream
+// feed publishes), 26.1 (the rate in thousands) and 1 (a base mix-up) are all refused. Each
+// of those reads as an ordinary number in a log and each is a 1 000×-or-worse pricing bug.
+const MIN_VND_PER_USD = 5_000
+const MAX_VND_PER_USD = 100_000
+const VND_PER_USD_ARG = opt('vnd-per-usd')
+if (VND_PER_USD_ARG === undefined) {
+  fail(
+    'Pass --vnd-per-usd=<rate> — đồng per ONE dollar, used to convert this script\'s USD reference grid.\n' +
+    '  A visa service is priced in ĐỒNG on the listing (owner, 2026-07-22) and this script will not invent an exchange rate:\n' +
+    '  a wrong default does not fail, it seeds a catalogue that is quietly wrong and stays wrong.\n' +
+    '  Today\'s number is 1 / rates.USD from the feed the app itself uses:\n' +
+    '    curl -s https://open.er-api.com/v6/latest/VND | node -e \'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>console.log(Math.round(1/JSON.parse(s).rates.USD)))\'\n' +
+    '  Then: node --env-file=.env scripts/seed-visa-shop.mjs --vnd-per-usd=<that number>',
+  )
+}
+const VND_PER_USD = Number(VND_PER_USD_ARG)
+if (!Number.isFinite(VND_PER_USD) || VND_PER_USD <= 0) fail(`--vnd-per-usd="${VND_PER_USD_ARG}" is not a positive number.`)
+if (VND_PER_USD < MIN_VND_PER_USD || VND_PER_USD > MAX_VND_PER_USD) {
+  fail(`--vnd-per-usd=${VND_PER_USD} is outside the plausible band (${MIN_VND_PER_USD}–${MAX_VND_PER_USD} đồng per dollar). A VND/USD rate is in the tens of thousands — that number looks like an inverted rate, a rate quoted in thousands, or a typo.`)
+}
+
+// Đồng prices on this marketplace are written in whole thousands (3.002.000 ₫), never to
+// the đồng, so a converted price is rounded to that grid. The step is a flag because it is
+// a presentation decision, not a money rule: --vnd-round=1 stores the exact conversion.
+const VND_ROUND_ARG = opt('vnd-round')
+const VND_ROUND_STEP = VND_ROUND_ARG === undefined ? 1_000 : Number(VND_ROUND_ARG)
+if (!Number.isInteger(VND_ROUND_STEP) || VND_ROUND_STEP < 1 || VND_ROUND_STEP > 1_000_000) {
+  fail(`--vnd-round must be a whole number of đồng between 1 and 1000000 (got "${VND_ROUND_ARG}").`)
+}
+
+/** One dollar figure from the reference grid → the whole đồng that will be STORED. */
+function vndForUsd(usd) {
+  return Math.round((usd * VND_PER_USD) / VND_ROUND_STEP) * VND_ROUND_STEP
+}
+
+const VND_GROUP = new Intl.NumberFormat('vi-VN')
+/** Console formatting only — the app renders through formatMoneyFull(). */
+const vnd = (amount) => `${VND_GROUP.format(Number(amount))} ₫`
+
+/** How a stored currency reads. 'usd' is the tell that a row's price is a DOLLAR number
+ *  left over from the reverted USD-storage rule, which must be converted, not re-labelled. */
+function currencyKind(currency) {
+  const symbol = String(currency ?? '').trim().toUpperCase()
+  if (!symbol) return 'empty'
+  // 'đ'.toUpperCase() === 'Đ'; 'VND' is the ISO code some importers write. Same set as
+  // sellablePriceVnd in src/lib/visa-shop.ts.
+  if (symbol === '₫' || symbol === 'Đ' || symbol === 'VND') return 'vnd'
+  if (symbol === '$' || symbol === 'USD') return 'usd'
+  return 'other'
+}
 
 // ── env ────────────────────────────────────────────────────────────────────────────
 // (The two hard guards are asserted further down, AFTER the --catalogue early exit, so
@@ -148,8 +230,12 @@ const SELLER_ID = 'eno-visa-shop' // stable id, so re-runs and fixtures can addr
 
 // ── product grid ───────────────────────────────────────────────────────────────────
 // The owner's reference grid: 2 entry types × 7 processing speeds, each with its own
-// price in WHOLE USD. This is the ONLY place an amount is written, and only for rows that
-// do not exist yet — see "Money" and "Admin edits win" in the header.
+// price. ⚠️ IT IS WRITTEN IN DOLLARS BECAUSE THE PROVIDER PUBLISHES IT IN DOLLARS — the
+// price that is STORED is the đồng conversion below (vndForUsd), because Listing.price is
+// đồng. Do not "fix" this into đồng figures: the grid is the owner's document and the rate
+// changes, so the conversion belongs at run time where the rate is an explicit argument.
+// This is the ONLY place an amount is written, and only for rows that do not exist yet —
+// see "Money" and "Admin edits win" in the header.
 //
 // The AXES are not restated here: they come from src/lib/visa/speed.ts, so adding a tier
 // there fails this script loudly (assertGridCovers) instead of quietly seeding a catalogue
@@ -160,17 +246,24 @@ const PRICE_GRID = {
   multiple: { '1H': 140, '2H': 110, '4H': 86, '1D': 80, '2D': 70, '3D': 67, normal: 55 },
 }
 
-// Mirrors src/lib/visa-shop.ts → sellablePriceCents. ADVISORY ONLY: that module is the
+// Mirrors src/lib/visa-shop.ts → sellablePriceVnd. ADVISORY ONLY: that module is the
 // authority on what may be charged, and it cannot be imported here (it pulls in
 // `server-only` and the Prisma client). Kept in sync by intent, not by machinery — which
 // is exactly why it is used for a WARNING about admin-entered prices and a hard assert
 // about this file's own grid, never as a gate on a charge.
-const MAX_PRICE_USD = 1_000_000
+const MAX_PRICE_VND = 2_000_000_000
+/**
+ * Below this, a "đồng" price is almost certainly a DOLLAR number that lost its currency —
+ * ~US$4 buys no visa service anywhere, and the one way to arrive here is the f7f8ca40
+ * rows (price 115, currency '$'). Not a marketplace rule, a MIGRATION TRIPWIRE: the app
+ * would happily sell a 115 ₫ visa, which is why this script refuses to write one.
+ */
+const SUSPICIOUS_MIN_PRICE_VND = 100_000
 function unsellableReason(price) {
   const amount = Number(price)
   if (!Number.isFinite(amount) || amount <= 0) return 'is not a positive amount'
-  if (!Number.isInteger(amount)) return 'is not a whole number of dollars (the marketplace formatter rounds, so it would be advertised wrong)'
-  if (amount > MAX_PRICE_USD) return 'is implausibly large for a visa fee'
+  if (!Number.isInteger(amount)) return 'is not a whole number of đồng (đồng has no minor unit, and the marketplace formatter rounds — so it would be advertised wrong)'
+  if (amount > MAX_PRICE_VND) return 'is implausibly large for a visa fee (over 2 tỷ ₫)'
   return null
 }
 
@@ -199,8 +292,14 @@ function assertGridCovers() {
       )
     }
     for (const speed of VISA_SPEED_CODES) {
-      const reason = unsellableReason(row[speed])
-      if (reason) fail(`Grid price for ${entryType}/${speed} (${row[speed]}) ${reason}. src/lib/visa-shop.ts would drop such a product from the catalogue, so it could never be bought.`)
+      const usd = Number(row[speed])
+      if (!Number.isFinite(usd) || usd <= 0) fail(`Grid price for ${entryType}/${speed} ("${row[speed]}") is not a positive dollar amount.`)
+      // The assertion is on the ĐỒNG that will actually be stored, not on the dollars the
+      // grid is written in: what src/lib/visa-shop.ts has to be able to sell is the
+      // converted figure.
+      const reason = unsellableReason(vndForUsd(usd))
+      if (reason) fail(`Grid price for ${entryType}/${speed} ($${usd} → ${vnd(vndForUsd(usd))} at ${VND_PER_USD}) ${reason}. src/lib/visa-shop.ts would drop such a product from the catalogue, so it could never be bought.`)
+      if (vndForUsd(usd) < SUSPICIOUS_MIN_PRICE_VND) fail(`Grid price for ${entryType}/${speed} converts to ${vnd(vndForUsd(usd))}, which is far too little for a visa service. Check --vnd-per-usd=${VND_PER_USD}.`)
     }
   }
 }
@@ -211,8 +310,11 @@ const SHARED_INTRO =
   'Apply for your Vietnam e-visa without leaving the chat. Start a message thread here, upload your passport photo page and a portrait, and our assistant reads the details for you — you confirm what it found and answer only the few questions a passport cannot answer.'
 const SHARED_REQUIREMENTS =
   'Before you start: a passport valid for at least six months, one clear portrait photo, a photo page with no glare, and a planned arrival date. You must be outside Vietnam when the application is made.'
+// ⚠️ The currency sentence is deliberate buyer-facing copy, not decoration: the price on
+// this listing is đồng and the card is charged dollars, so the PDP says so in the same
+// words the application flow uses (src/app/dashboard/visa/apply-client.tsx).
 const SHARED_FEE =
-  'The price shown is the eno assistance service fee, paid securely inside the chat. Ask anything in the thread — a person can take over from the assistant at any time.'
+  'The price shown is the eno assistance service fee, paid securely inside the chat. It is set in Vietnamese đồng; if you pay by card or PayPal, you are charged the equivalent in US dollars and the exact amount is shown before you pay. Ask anything in the thread — a person can take over from the assistant at any time.'
 
 const ENTRY_COPY = {
   single: {
@@ -262,7 +364,10 @@ for (const entryType of VISA_ENTRY_TYPES) {
       key,
       entryType,
       speed,
-      price: PRICE_GRID[entryType][speed],
+      // What gets STORED: đồng. `priceUsd` is kept only so the plan can print the
+      // conversion it performed ("$115 → 3.002.000 ₫"), and is never written anywhere.
+      priceUsd: PRICE_GRID[entryType][speed],
+      price: vndForUsd(PRICE_GRID[entryType][speed]),
       externalId: `${EXTERNAL_PREFIX}${key}`,
       listingId: `visa-${key}`,
       legacyExternalId: legacyKey ? `${EXTERNAL_PREFIX}${legacyKey}` : null,
@@ -292,9 +397,10 @@ for (const entryType of VISA_ENTRY_TYPES) {
 
 // ── --catalogue: print and stop, before anything can touch env, network or disk ─────
 if (has('catalogue')) {
-  console.log(`\n${PRODUCTS.length} products — ${VISA_ENTRY_TYPES.length} entry types × ${VISA_SPEED_CODES.length} speeds, one price each\n`)
+  console.log(`\n${PRODUCTS.length} products — ${VISA_ENTRY_TYPES.length} entry types × ${VISA_SPEED_CODES.length} speeds, one price each`)
+  console.log(`prices STORED IN ĐỒNG, converted from the USD reference grid at ${VND_GROUP.format(VND_PER_USD)} ₫ per US$1 (rounded to ${VND_GROUP.format(VND_ROUND_STEP)} ₫)\n`)
   for (const p of PRODUCTS) {
-    console.log(`  ${p.key.padEnd(26)} $${String(p.price).padStart(4)}  ${p.attributes}`)
+    console.log(`  ${p.key.padEnd(26)} $${String(p.priceUsd).padStart(4)} → ${vnd(p.price).padStart(13)}  ${p.attributes}`)
     console.log(`    ${p.title}`)
     console.log(`    ${p.titleVi}`)
   }
@@ -537,7 +643,8 @@ const gridPrices = PRODUCTS.map((p) => p.price)
 console.log(`\neno visa shop — ${DRY_RUN ? 'DRY RUN' : 'seeding'}`)
 console.log(`  owner    ${OWNER_EMAIL}`)
 console.log(`  products ${PRODUCTS.length} (${VISA_ENTRY_TYPES.length} entry types × ${VISA_SPEED_CODES.length} speeds), each with its OWN price`)
-console.log(`  prices   $${Math.min(...gridPrices)}–$${Math.max(...gridPrices)} from the grid in this script; existing rows keep the dashboard's price`)
+console.log(`  rate     ${VND_GROUP.format(VND_PER_USD)} ₫ per US$1 (--vnd-per-usd), rounding to ${VND_GROUP.format(VND_ROUND_STEP)} ₫`)
+console.log(`  prices   ${vnd(Math.min(...gridPrices))}–${vnd(Math.max(...gridPrices))} converted from the USD grid in this script; existing rows keep the dashboard's price`)
 console.log(`  status   ${STATUS}\n`)
 
 await checkTaxonomyFacets()
@@ -713,19 +820,47 @@ try {
       if (kept.length) {
         console.log(`  kept     ${product.key}: ${kept.join(', ')} as edited in the dashboard (use --force to overwrite)`)
       }
-      if (kept.includes('price')) {
-        // Not a mismatch to fix — Listing.price IS what checkout charges, so the kept
-        // amount is correct by construction. Printed so a re-run never *looks* like it
-        // repriced the catalogue.
-        console.log(`  price    ${product.key}: keeping $${Number(final.price)} (grid says $${product.price})`)
+      // ── The row's price, read in the currency the row actually carries ─────────────
+      //
+      // ⚠️ THE MIGRATION HAZARD THIS BLOCK EXISTS FOR. Every seeded row is re-stamped
+      // currency '₫' below. A row written by the reverted USD-storage rule (f7f8ca40)
+      // holds price=115, currency='$' — and 115 is preserved as an admin edit, because it
+      // differs from the grid's đồng figure. Re-stamping that row without touching the
+      // number puts a 115 ₫ (US$0.004) visa on sale. So a dollar price is CONVERTED at the
+      // rate this run was given, which is also the only honest reading of it: the admin's
+      // commercial decision was "$115", and $115 at today's rate is what that means in đồng.
+      const kind = currencyKind(existing.currency)
+      const priceKept = kept.includes('price')
+      if (priceKept && kind === 'usd') {
+        const dollars = Number(final.price)
+        final.price = vndForUsd(dollars)
+        warn(`${product.key}: the row's price (${dollars}) was stored in DOLLARS ("${existing.currency}") and this seed stores đồng. Converting at --vnd-per-usd=${VND_PER_USD}: $${dollars} → ${vnd(final.price)}. (Re-labelled instead of converted it would have become a ${vnd(dollars)} visa.) Re-run with --force to reset it to the grid price ${vnd(product.price)} instead.`)
+      } else if (priceKept && kind === 'other') {
+        throw new Error(`${product.key}: the row's price (${existing.price}) is stored in "${existing.currency}", which this script cannot convert to đồng — and re-stamping the row '₫' would silently reprice it. Fix the price in the dashboard, or re-run with --force to reset it to ${vnd(product.price)}.`)
+      } else if (kind === 'usd' || kind === 'other') {
+        warn(`${product.key}: the row's currency was "${existing.currency}" and is being re-stamped '₫' (visa products are priced in đồng). Its price is this run's đồng figure, so nothing is mis-priced.`)
       }
+      if (priceKept) {
+        // Not a mismatch to fix — Listing.price IS what checkout converts and charges, so
+        // the kept amount is correct by construction. Printed so a re-run never *looks*
+        // like it repriced the catalogue.
+        console.log(`  price    ${product.key}: keeping ${vnd(final.price)} (grid says ${vnd(product.price)})`)
+      }
+      // ⚠️ WARNS AND WRITES IT ANYWAY, on purpose — and the contrast with the throw below
+      // is the whole point. An UNSELLABLE price (fractional, non-positive, absurdly large)
+      // is one src/lib/visa-shop.ts REFUSES to sell: the row is written, dropped from the
+      // catalogue, and the failure the admin sees is a missing product. Nobody is charged
+      // wrongly, and failing the run instead would block the other thirteen products over
+      // one bad row. A SELLABLE-but-wrong price is the opposite case and does throw.
       const priceProblem = unsellableReason(final.price)
       if (priceProblem) {
-        warn(`${product.key}: the price on the row ($${final.price}) ${priceProblem} — src/lib/visa-shop.ts drops such a product from the catalogue (sellablePriceCents), so nobody can buy it. Fix it in the dashboard, or re-run with --force to reset it to $${product.price}.`)
+        warn(`${product.key}: the price on the row (${final.price}) ${priceProblem} — src/lib/visa-shop.ts drops such a product from the catalogue (sellablePriceVnd), so it is written but NOBODY CAN BUY IT until you fix it in the dashboard (or re-run with --force to reset it to ${vnd(product.price)}).`)
       }
-      const currency = String(existing.currency ?? '').trim().toUpperCase()
-      if (currency && currency !== '$' && currency !== 'USD') {
-        warn(`${product.key}: the row's currency was "${existing.currency}" and is being re-stamped '$' (visa products are sold in USD). If the price on it was typed in ₫, it now advertises that number in dollars — check it.`)
+      // The tripwire, applied to what is about to be WRITTEN. Unlike the warning above,
+      // this price IS sellable — the app would put a US$0.004 visa on sale without
+      // complaint — which is exactly why it stops the run instead of logging a line.
+      if (priceKept && Number(final.price) > 0 && Number(final.price) < SUSPICIOUS_MIN_PRICE_VND) {
+        throw new Error(`${product.key}: the row's price would be stored as ${vnd(final.price)} — about US$${(Number(final.price) / VND_PER_USD).toFixed(2)}, which no visa service costs. That is what a dollar amount looks like once it is read as đồng. Fix the price in the dashboard, or re-run with --force to reset it to ${vnd(product.price)}.`)
       }
       const facets = readVisaFacets(final.attributes)
       if (facets.entryType !== product.entryType || facets.speed !== product.speed) {
@@ -742,12 +877,15 @@ try {
       ['title', final.title],
       ['titleVi', final.titleVi],
       ['description', final.description],
+      // ĐỒNG, always — see "Money" in the header.
       ['price', final.price],
-      // Empty unit: <Price> renders "$115" and appends " / <unit>" for anything else.
+      // Empty unit: <Price> renders "3.002.000 đ" and appends " / <unit>" for anything else.
       ['priceUnit', ''],
-      // Structural, never editable: src/lib/visa-shop.ts only sells '$'/'USD'
-      // (sellablePriceCents), and the app's own edit path never writes this column.
-      ['currency', '$'],
+      // Structural, never editable: src/lib/visa-shop.ts only sells ₫/Đ/VND
+      // (sellablePriceVnd), and the app's own edit path never writes this column. ⚠️ The
+      // price beside it has already been read in the row's OWN currency above — never move
+      // this stamp above that block, or a dollar amount becomes a đồng amount in place.
+      ['currency', '₫'],
       ['location', final.location],
       ['city', final.city],
       ['images', final.images],
@@ -806,7 +944,10 @@ try {
   if (others.length) console.log(`\n  ${others.length} other listing(s) on this storefront (admin-uploaded — this seed does not manage them):`)
   for (const other of others) {
     const facets = readVisaFacets(other.attributes)
-    console.log(`  also     ${other.id.padEnd(30)} ${other.currency}${other.price}  entry=${facets.entryType ?? 'unset'} speed=${facets.speed ?? 'unset'}`)
+    console.log(`  also     ${other.id.padEnd(30)} ${other.price} ${other.currency}  entry=${facets.entryType ?? 'unset'} speed=${facets.speed ?? 'unset'}`)
+    if (currencyKind(other.currency) !== 'vnd') {
+      warn(`"${other.id}" (${other.title}) is priced in "${other.currency}", not đồng. src/lib/visa-shop.ts sells ₫ only (sellablePriceVnd) — it drops this row from the catalogue rather than reinterpreting the number, so nobody can buy it until the price is re-entered in đồng.`)
+    }
     if (!facets.entryType || !facets.speed) {
       warn(`"${other.id}" (${other.title}) is on the visa storefront with no ${!facets.entryType ? 'visaEntryType' : ''}${!facets.entryType && !facets.speed ? '/' : ''}${!facets.speed ? 'visaSpeed' : ''} attribute. It can still be bought, but nothing binds the payment to a tier — set the chips on it in the dashboard, or hide it.`)
     }
@@ -826,7 +967,7 @@ try {
     console.log(
       `  ${row.action.toUpperCase().padEnd(8)} ${row.id.padEnd(30)} ` +
       `${row.product.entryType.padEnd(9)} ${row.product.speed.padEnd(6)} ` +
-      `$${String(Number(row.price)).padStart(5)}  ${count} photo(s)`,
+      `${vnd(row.price).padStart(13)}  ${count} photo(s)`,
     )
   }
   console.log(`\n  ${summary.length} product listing(s) · seller ${seller.id} · owner ${OWNER_EMAIL}`)

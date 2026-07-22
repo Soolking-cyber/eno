@@ -28,7 +28,10 @@ import { MAX_EVISA_VALIDITY_DAYS, visaDateDefaultsForStart, type VisaPayload } f
 // the marketplace; it was thrown away. Do not rebuild it.)
 //
 // Where each field comes from:
-//   · price          → Listing.price (USD, currency '$'), converted to integer cents here
+//   · price          → Listing.price (ĐỒNG, currency '₫') — the admin's authoritative
+//                      number, exposed as-is. The USD a foreign buyer is shown and charged
+//                      is DERIVED from it per checkout by src/lib/visa/fx.ts and is never
+//                      stored here (owner, 2026-07-22)
 //   · entry type     → Listing.attributes.visaEntryType   ('single' | 'multiple')
 //   · speed          → Listing.attributes.visaSpeed       ('1H' … 'normal')
 //   · cutoffs        → src/lib/visa/speed.ts — an operational FACT of the tier, from the
@@ -53,6 +56,26 @@ import { MAX_EVISA_VALIDITY_DAYS, visaDateDefaultsForStart, type VisaPayload } f
  * read from env first.
  */
 export const VISA_SHOP_OWNER_EMAIL = (process.env.VISA_SHOP_OWNER_EMAIL || 'support@eno.vn').trim().toLowerCase()
+
+/**
+ * ⚠️ A LIST, because pinning ONE address silently disabled the whole visa surface in prod.
+ *
+ * Found 2026-07-22: VISA_SHOP_OWNER_EMAIL is set in NEITHER the local env nor the deployed
+ * secret, so it fell back to 'support@eno.vn' — for which no Profile row exists. The six
+ * live e-visa products are owned by 'support@eno.forum'. getVisaShopSeller() therefore
+ * matched nothing and every card, binding and charge path failed closed, while the products
+ * sat published on the marketplace.
+ *
+ * The admin account's email was flipped in auth to support@eno.vn but its Profile row still
+ * carries the old address, so BOTH are live identities for the same person. ADMIN_EMAILS
+ * already ships both for exactly this reason; the shop lookup now matches that.
+ */
+export const VISA_SHOP_OWNER_EMAILS: readonly string[] = (
+  process.env.VISA_SHOP_OWNER_EMAIL || 'support@eno.vn,support@eno.forum'
+)
+  .split(',')
+  .map((e) => e.trim().toLowerCase())
+  .filter(Boolean)
 
 /**
  * The prefix scripts/seed-visa-shop.mjs stamps into `Listing.externalId` for the rows it
@@ -110,6 +133,23 @@ export function visaProductFromExternalId(externalId: string | null | undefined)
 }
 
 // ── Money ─────────────────────────────────────────────────────────────────────────
+//
+// ⚠️ A VISA PRODUCT IS PRICED IN ĐỒNG (owner, 2026-07-22). "admin posts in vnd and you
+// show in vnd and usd to users they checkout accordingly usd from their paypal but the
+// vnd equivalent that admin set." So Listing.price is the authority and this module
+// exposes it unchanged; the dollars a foreign buyer sees and pays are a SERVER-ISSUED
+// QUOTE of that đồng figure (src/lib/visa/fx.ts), minted at the moment of display and
+// charged at the moment of checkout so the two can never be different numbers.
+//
+// A short-lived rule stored visa products in '$' and made this file refuse everything
+// else (f7f8ca40). That is now exactly backwards — the currency gate below is the same
+// gate with the currencies swapped, and it must stay pointed at ₫: reading a ₫3.000.000
+// price as three million dollars is the 25 000× bug in the direction that empties a card.
+
+/** A sane ceiling — an absurd visa fee, so this only ever catches a data-entry accident
+ *  or a corrupted row. ⚠️ Mirrored by MAX_PRICE_VND in src/lib/visa/fx.ts, which re-asserts
+ *  it at the charge boundary rather than trusting this module. Keep the two equal. */
+const MAX_PRICE_VND = 2_000_000_000
 
 /** A sane ceiling, above which toFixed() would start rendering exponent notation and a
  *  price is obviously a data-entry accident rather than a visa fee. */
@@ -118,6 +158,13 @@ const MAX_PRICE_USD = 1_000_000
 /**
  * A USD amount → integer cents, EXACTLY. null for anything that is not a chargeable
  * amount (non-finite, zero, negative, absurdly large).
+ *
+ * ⚠️ NOTHING IN THE CATALOGUE CALLS THIS ANY MORE — visa products are priced in đồng and
+ * the dollars come from src/lib/visa/fx.ts, which converts ĐỒNG → cents directly and never
+ * goes through a USD decimal. It stays exported because it is still the correct primitive
+ * for any caller that genuinely holds a dollars-and-cents DECIMAL (a provider's "12.34",
+ * an operator's typed figure) and because its half-cent behaviour is the documented
+ * counter-example the money tests are built on. Do not use it to price a listing.
  *
  * NO FLOAT MULTIPLY, on purpose. `Math.round(usd * 100)` is wrong at exactly the
  * half-cent boundaries a money rule cares about: the double nearest 8.475 is
@@ -136,35 +183,34 @@ export function usdToCentsExact(usd: number): number | null {
 }
 
 /**
- * Listing.price + Listing.currency → the cents we may charge, or null when the listing
+ * Listing.price + Listing.currency → the ĐỒNG we may sell at, or null when the listing
  * cannot be sold honestly.
  *
- * Two gates on top of the exact conversion:
+ * Two gates:
  *
- * USD ONLY — priceCents is documented as USD cents, and reading a ₫ amount as dollars
- * would be a 25 000× money bug. '$' is what the seed and the dashboard store.
+ * ĐỒNG ONLY. Every listing on eno is priced in đồng (src/lib/taxonomy.ts, listingMoneyFor)
+ * and a visa product is not an exception. A row still carrying '$' from the reverted
+ * USD-storage rule is therefore NOT quietly reinterpreted — it is dropped from the
+ * catalogue and logged, because the two readings of the same number differ by 25 000× and
+ * guessing which one the admin meant is not a decision code gets to make. The fix is one
+ * price edit in the dashboard.
  *
- * WHOLE DOLLARS ONLY, which is a DISPLAY-HONESTY gate rather than a rounding taste: the
- * card and the PDP render this listing through formatMoneyFull(), which is
- * `group(Math.round(price))` — i.e. a 25.50 listing advertises "$26". Capturing 2550
- * cents under a card that says $26 is precisely the mismatch scripts/seed-visa-shop.mjs
- * already refuses at seed time, so a price typed into the dashboard has to clear the same
- * bar. A fractional price therefore makes the product UNSELLABLE (dropped from the
- * catalogue, logged) instead of silently mis-advertised — the fix is a whole-dollar price,
- * which is also the shape of the owner's own reference grid.
- *
- * `cents % 100 === 0` IS that display rule, not an approximation of it: if the amount
- * rounds to a whole number of cents divisible by 100, the stored price is within half a
- * cent of a whole dollar N, so formatMoneyFull's Math.round(price) is exactly N and the
- * card advertises the very amount we capture. (A sub-cent price like 25.005 therefore
- * stays sellable at $25.00 — displayed and captured still agree.)
+ * WHOLE ĐỒNG ONLY, which is a DISPLAY-HONESTY gate and not a rounding taste: the card and
+ * the PDP render this listing through formatMoneyFull(), which is `group(Math.round(price))`
+ * — so a 3 000 000,5 ₫ row advertises 3.000.001 ₫. Quoting the dollars off the un-rounded
+ * figure under a card that says something else is the mismatch we refuse everywhere else in
+ * this file, and đồng has no minor unit anyway: a fractional price is a corrupt row, not a
+ * pricing decision. The product goes unsellable (visible to the admin, unbuyable) rather
+ * than mis-advertised.
  */
-function sellablePriceCents(price: number, currency: string): number | null {
+function sellablePriceVnd(price: number, currency: string): number | null {
   const symbol = (currency || '').trim().toUpperCase()
-  if (symbol !== '$' && symbol !== 'USD') return null
-  const cents = usdToCentsExact(price)
-  if (cents === null || cents % 100 !== 0) return null
-  return cents
+  // '₫' and 'đ' are both in the wild ('đ'.toUpperCase() === 'Đ'); 'VND' is the ISO code
+  // some importers write. Anything else — '$', '€', '' — is refused, never converted.
+  if (symbol !== '₫' && symbol !== 'Đ' && symbol !== 'VND') return null
+  if (typeof price !== 'number' || !Number.isFinite(price)) return null
+  if (!Number.isInteger(price) || price <= 0 || price > MAX_PRICE_VND) return null
+  return price
 }
 
 // ── Resolvers (per-request memoized; fail-soft) ────────────────────────────────────
@@ -187,8 +233,12 @@ export type VisaShopSeller = {
  */
 export const getVisaShopSeller = cache(async (): Promise<VisaShopSeller | null> => {
   try {
+    // `in`, not `equals` — see VISA_SHOP_OWNER_EMAILS. Ordered by memberSince so that if the
+    // support account ever ends up with two identities, the ORIGINAL storefront (the one
+    // holding the live products) wins deterministically rather than by insertion luck.
     const seller = await db.seller.findFirst({
-      where: { owner: { email: VISA_SHOP_OWNER_EMAIL } },
+      where: { owner: { email: { in: [...VISA_SHOP_OWNER_EMAILS] } } },
+      orderBy: { memberSince: 'asc' },
       select: { id: true, name: true, ownerId: true, avatarUrl: true, avatarColor: true },
     })
     return seller ?? null
@@ -307,14 +357,27 @@ export const getVisaShopListings = cache(async (): Promise<VisaShopListing[]> =>
 export const getVisaShopProductsForSale = cache(async (): Promise<VisaShopListing[]> =>
   (await getVisaShopListings()).filter((l) => l.verified && l.status === 'active'))
 
-/** A sellable visa product, DERIVED FROM A LISTING — never from a hard-coded table. */
+/**
+ * A sellable visa product, DERIVED FROM A LISTING — never from a hard-coded table.
+ *
+ * ⚠️ THERE IS NO USD FIELD HERE, deliberately. The dollars a buyer sees and pays are a
+ * function of an FX rate at an INSTANT, so a dollar amount hanging off a cached catalogue
+ * row would be a number with no expiry attached — exactly the stale-rate hazard the quote
+ * exists to close. Ask src/lib/visa/fx.ts for a VisaQuote when you need dollars; it comes
+ * with the rate it used and the moment it stops being valid.
+ *
+ * (`priceCents` used to live here as USD cents. It is gone, not renamed: a field whose
+ * meaning flipped currency is the one thing a compile error must not let through.)
+ */
 export type VisaShopProduct = {
   listingId: string
   title: string
   entryType: VisaEntryType | null      // from Listing.attributes.visaEntryType
   speed: VisaSpeedCode | null          // from Listing.attributes.visaSpeed
-  priceCents: number                   // from Listing.price, in USD cents
-  currency: string
+  /** Listing.price — WHOLE ĐỒNG, the admin's authoritative number. */
+  priceVnd: number
+  /** The LISTING's currency, always đồng. Not the charge currency (that is USD). */
+  currency: 'VND'
   window: VisaWindow
 }
 
@@ -333,16 +396,16 @@ export type VisaShopProduct = {
  * with those fields null and a closed window: the admin has to be able to see the row they
  * are working on, and a buyer-facing surface can tell a half-built product from a ready one
  * by the nulls. A product whose PRICE cannot be charged honestly is a different matter and
- * is dropped — see sellablePriceCents.
+ * is dropped — see sellablePriceVnd.
  */
 export const getVisaShopProducts = cache(async (): Promise<VisaShopProduct[]> => {
   const now = new Date()
   const products: VisaShopProduct[] = []
   for (const listing of await getVisaShopProductsForSale()) {
-    const priceCents = sellablePriceCents(listing.price, listing.currency)
-    if (priceCents === null) {
+    const priceVnd = sellablePriceVnd(listing.price, listing.currency)
+    if (priceVnd === null) {
       // Loud, but PII-free: a listing id and a price are public facts.
-      console.error(`[visa-shop] listing ${listing.id} has an unsellable price (${listing.price} ${listing.currency}) — set a whole number of USD`)
+      console.error(`[visa-shop] listing ${listing.id} has an unsellable price (${listing.price} ${listing.currency}) — set a whole number of đồng`)
       continue
     }
     products.push({
@@ -350,8 +413,8 @@ export const getVisaShopProducts = cache(async (): Promise<VisaShopProduct[]> =>
       title: listing.title,
       entryType: listing.entryType,
       speed: listing.speed,
-      priceCents,
-      currency: 'USD',
+      priceVnd,
+      currency: 'VND',
       window: listing.speed ? submissionWindow(listing.speed, now) : closedVisaWindow(),
     })
   }

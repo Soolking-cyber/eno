@@ -24,7 +24,7 @@ import { Spinner } from '@/components/ui/spinner'
 import { Textarea } from '@/components/ui/textarea'
 import { SectionHeader } from '@/components/marketplace/section-header'
 import { cn } from '@/lib/utils'
-import { formatUsdCents, moneyLocale } from '@/lib/vnd'
+import { formatMoneyFull, formatUsdCents, moneyLocale } from '@/lib/vnd'
 
 // /dashboard/visa/apply — the Vietnam e-Visa ASSISTANT, ported from the forum
 // (apps/forum/src/components/visa/visa-assistant.tsx) to run INSIDE the eno.vn dashboard:
@@ -75,22 +75,98 @@ type VisaApplication = {
 type VisaPaymentsInfo = { providers: Array<'stripe' | 'paypal'>; currency: string } | null
 
 /**
+ * The payment gate out of an unknown response body — parsed, not asserted.
+ *
+ * The response is first-party and typed on the server, and that is exactly the assumption
+ * a cast encodes: `payments.providers.includes(…)` and `currency.trim()` both throw on a
+ * body whose shape changed, and they throw during RENDER, which takes the whole Review
+ * step down with a half-filled government form on it. A gate that does not parse is a gate
+ * that turns a server-side typo into a white screen, so an unreadable one is treated as
+ * "payments are dormant" — the honest, already-supported state where the direct submit
+ * path renders instead.
+ */
+function parsePaymentsWire(value: unknown): VisaPaymentsInfo {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  const blob = value as Record<string, unknown>
+  if (typeof blob.currency !== 'string' || !blob.currency.trim()) return null
+  if (!Array.isArray(blob.providers)) return null
+  const providers = blob.providers.filter((p): p is 'stripe' | 'paypal' => p === 'stripe' || p === 'paypal')
+  // No usable provider ⇒ nothing to offer ⇒ dormant, rather than a gate with no buttons.
+  if (!providers.length) return null
+  return { providers, currency: blob.currency }
+}
+
+/**
+ * A SERVER-ISSUED price quote, as it arrives over the wire — the structural mirror of
+ * `VisaQuote` in src/lib/visa/fx.ts.
+ *
+ * Mirrored rather than imported because that module is `server-only`: even a type-only
+ * import is a specifier this bundle would carry, and the whole point of the file is that
+ * the conversion happens on the server. The fields are the contract; keep them equal.
+ *
+ * ⚠️ THIS IS NOT COMPUTED HERE AND MUST NEVER BE. src/context/currency-context.tsx holds
+ * live FX rates in the browser and refreshes them every 12h, so a dollar figure derived
+ * from it can be half a day away from the one the checkout route captures — and the
+ * captured one is the one that leaves the buyer's account. The server issues ONE quote,
+ * this file renders THAT quote, the checkout echoes THAT quote, and the charge is THAT
+ * quote. When no quote exists the dollars are simply absent and paying is disabled; there
+ * is no local fallback conversion anywhere in this file.
+ */
+type VisaQuoteWire = {
+  listingId: string
+  /** The admin's number, authoritative — whole đồng off Listing.price. */
+  priceVnd: number
+  /** Integer cents the provider will actually capture. */
+  amountUsdCents: number
+  /** ĐỒNG PER ONE DOLLAR (≈ 26 000) — the rate that connects the two figures. */
+  vndPerUsd: number
+  quotedAt: string
+  /** ISO — beyond this the server re-issues, and the buyer re-confirms. */
+  expiresAt: string
+}
+
+/**
+ * The checkout refused because the number on screen is no longer the number it would
+ * charge, and here are BOTH so the buyer can decide.
+ *
+ * `shown` is what they agreed to; `fresh` is what the server would take now. Two reasons
+ * produce it and they read differently: `quote_changed` means the amount moved (the admin
+ * re-priced the listing, or the đồng/dollar rate did), `quote_expired` means the quote sat
+ * on screen past its TTL. Neither is ever auto-accepted — a price a buyer has not looked at
+ * is not a price they agreed to.
+ */
+type VisaQuoteChange = {
+  provider: 'stripe' | 'paypal'
+  reason: 'quote_changed' | 'quote_expired'
+  shown: VisaQuoteWire
+  fresh: VisaQuoteWire
+}
+
+/**
  * One purchasable visa service, straight from the marketplace: the admin uploads a
  * listing per (entry type × processing speed) and the API projects those listings into
  * this shape. NOTHING here is hard-coded on the client — an empty array means the shop
  * has no finished product for sale, which is a real state the UI has to say out loud.
  *
- * `priceCents` is DISPLAY ONLY. It is shown so the buyer knows what they are agreeing to;
- * the charge is resolved server-side from the same listing (the client sends listingId and
- * never an amount), so the figure on screen and the figure captured have one source.
+ * TWO NUMBERS, ONE OF THEM AUTHORITATIVE (owner, 2026-07-22): "admin posts in vnd and you
+ * show in vnd and usd to users they checkout accordingly usd from their paypal but the vnd
+ * equivalent that admin set." So `priceVnd` is THE price — the admin set it on an ordinary
+ * listing — and `quote` is the server's conversion of exactly that number into the dollars
+ * the provider will take. Both are DISPLAY here: the client sends a listingId (and echoes
+ * the quote it showed), never an amount, and the checkout route re-resolves the listing and
+ * re-issues the quote before charging.
  */
 type VisaShopClientProduct = {
   listingId: string
   title: string
   entryType: VisaEntryType
   speed: VisaSpeedCode
-  priceCents: number
+  /** Listing.price — WHOLE ĐỒNG. The price the admin set, and the authority. */
+  priceVnd: number
+  /** The LISTING's currency, always đồng. NOT the charge currency (that is USD). */
   currency: string
+  /** The server's conversion of `priceVnd`, or null when FX was unavailable. */
+  quote: VisaQuoteWire | null
 }
 type VisaAnalysis = {
   document: Pick<VisaDocument, 'id' | 'validationStatus' | 'validationReport'>
@@ -235,6 +311,72 @@ function asEntryType(value: unknown): VisaEntryType | null {
   return value === 'single' || value === 'multiple' ? value : null
 }
 
+/** A speed tier out of an unknown wire value, or null. VISA_SPEED_SPECS is the enum. */
+function asSpeedCode(value: unknown): VisaSpeedCode | null {
+  return typeof value === 'string' && value in VISA_SPEED_SPECS ? (value as VisaSpeedCode) : null
+}
+
+/**
+ * A quote out of an unknown wire value, STRUCTURALLY — the client-side twin of
+ * parseVisaQuote() in src/lib/visa/fx.ts.
+ *
+ * Shape only: whether the quote is still live, and whether its three money fields agree
+ * with each other, is the SERVER's ruling and is re-made on every checkout. What this
+ * refuses is a half-shaped object turning into "$NaN" on a payment button.
+ */
+function parseQuoteWire(value: unknown): VisaQuoteWire | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  const blob = value as Record<string, unknown>
+  const { listingId, priceVnd, amountUsdCents, vndPerUsd, quotedAt, expiresAt } = blob
+  if (typeof listingId !== 'string' || !listingId.trim()) return null
+  if (typeof priceVnd !== 'number' || !Number.isFinite(priceVnd)) return null
+  if (typeof amountUsdCents !== 'number' || !Number.isFinite(amountUsdCents)) return null
+  if (typeof vndPerUsd !== 'number' || !Number.isFinite(vndPerUsd) || vndPerUsd <= 0) return null
+  if (typeof quotedAt !== 'string' || typeof expiresAt !== 'string') return null
+  return { listingId: listingId.trim(), priceVnd, amountUsdCents, vndPerUsd, quotedAt, expiresAt }
+}
+
+/**
+ * The catalogue out of an unknown response body — every row parsed, never trusted.
+ *
+ * This is a money surface reading JSON, so a row that is not fully understood is DROPPED
+ * rather than half-rendered: a product with no readable đồng price is a card that would
+ * advertise `undefined`, and one whose quote is malformed is a payment button with no
+ * agreed dollar figure behind it (the quote itself is allowed to be absent — that is the
+ * honest "FX is down" state, and the UI says so and refuses to charge).
+ */
+function parseProductsWire(value: unknown): VisaShopClientProduct[] {
+  if (!Array.isArray(value)) return []
+  const products: VisaShopClientProduct[] = []
+  for (const row of value) {
+    if (!row || typeof row !== 'object') continue
+    const blob = row as Record<string, unknown>
+    const listingId = typeof blob.listingId === 'string' ? blob.listingId.trim() : ''
+    const entryType = asEntryType(blob.entryType)
+    const speed = asSpeedCode(blob.speed)
+    // ⚠️ ĐỒNG, and whole đồng: the currency has no minor unit, and src/lib/visa-shop.ts
+    // refuses a fractional price for the same reason the card would advertise a rounded
+    // number the buyer is not charged.
+    const priceVnd = typeof blob.priceVnd === 'number' && Number.isSafeInteger(blob.priceVnd) ? blob.priceVnd : 0
+    if (!listingId || !entryType || !speed || priceVnd <= 0) continue
+    products.push({
+      listingId,
+      title: typeof blob.title === 'string' ? blob.title : listingId,
+      entryType,
+      speed,
+      priceVnd,
+      currency: typeof blob.currency === 'string' ? blob.currency : '',
+      quote: parseQuoteWire(blob.quote),
+    })
+  }
+  if (Array.isArray(value) && products.length < value.length) {
+    // PII-free: a listing id and a price are public marketplace facts, and none of them
+    // are logged here anyway — just the count, so a shape change is visible at once.
+    console.error(`[visa] dropped ${value.length - products.length} unreadable catalogue row(s)`)
+  }
+  return products
+}
+
 /**
  * When a closed tier next opens, on the HO CHI MINH CITY wall clock and labelled as such.
  *
@@ -252,20 +394,102 @@ function formatVisaWindowTime(iso: unknown, lang: string): string | null {
   }).format(at)
 }
 
+// ── The two numbers ───────────────────────────────────────────────────────────────
+//
+// ĐỒNG is the price. DOLLARS are what the provider takes. The helpers below are the only
+// places either one becomes a string, and each has a gate that answers null rather than
+// print something a buyer could be charged differently for.
+
+/** The đồng symbols a listing may legitimately carry — the same set src/lib/visa-shop.ts
+ *  accepts ('đ'.toUpperCase() === 'Đ'; 'VND' is the ISO code some importers write). */
+function isVndListingCurrency(currency: string): boolean {
+  const symbol = (currency || '').trim().toUpperCase()
+  return symbol === '₫' || symbol === 'Đ' || symbol === 'VND'
+}
+
 /**
- * The price a buyer reads, or null when it must not be rendered at all.
+ * The ADMIN'S PRICE, in đồng — "3.000.000 đ" (vi) / "3,000,000 VND" (en).
  *
- * MONEY-HONESTY GATE. formatUsdCents prints a dollar figure, so it is only ever shown an
- * amount that BOTH the product and the payment gate call USD; anything else renders no
- * number (and the caller disables the purchase) rather than putting a `$` in front of
- * something that is not dollars. The amount itself is never computed here — it is the
- * listing's price as the server resolved it, and the server resolves it again to charge.
+ * null when the listing is not priced in đồng: reading a ₫ number as dollars (or the
+ * reverse) is a ~26 000× money bug, so a row whose currency we do not recognise renders no
+ * price at all and cannot be bought. formatMoneyFull is the marketplace's own formatter,
+ * so this figure matches the card and the PDP for the same listing exactly.
  */
-function productPriceLabel(product: VisaShopClientProduct, gateCurrency: string, lang: string): string | null {
-  if ((product.currency || '').trim().toUpperCase() !== 'USD') return null
+function vndPriceLabel(product: VisaShopClientProduct, lang: string): string | null {
+  if (!isVndListingCurrency(product.currency)) return null
+  if (!Number.isSafeInteger(product.priceVnd) || product.priceVnd <= 0) return null
+  return formatMoneyFull(product.priceVnd, '₫', moneyLocale(lang))
+}
+
+/**
+ * The quote we may SHOW and PAY on, or null.
+ *
+ * THE RULE THIS ENFORCES: the dollars on screen must be a conversion of the đồng on
+ * screen, for the product on screen. So a quote is usable only when it names this listing,
+ * quotes exactly the price this row is advertising, and carries a chargeable integer of
+ * cents — and only when the payment desk is charging in USD at all. A quote that fails any
+ * of those is not "close enough", it is a different number than the one being displayed,
+ * and displaying it is precisely the mismatch the whole quote mechanism exists to prevent.
+ *
+ * null is also the ordinary FX-down state (the server issued no quote). Both cases resolve
+ * the same way: no dollar figure is rendered, and the purchase is disabled.
+ *
+ * ⚠️ EXPIRY IS DELIBERATELY NOT CHECKED HERE, and the reason is the device clock. `expiresAt`
+ * can only be compared against a clock this browser owns, and a phone an hour fast would
+ * read EVERY quote as dead — closing the till on a buyer the server would happily have
+ * charged, with no way out. Expiry is the SERVER's ruling (isQuoteChargeable), the checkout
+ * route applies it to every echo, and a stale one comes back as a re-confirm dialog rather
+ * than a silent charge — so the money rule holds without trusting the clock. What keeps the
+ * screen fresh instead is the near-expiry re-quote below, which retries until it lands.
+ */
+function usableQuote(product: VisaShopClientProduct, gateCurrency: string): VisaQuoteWire | null {
   if ((gateCurrency || '').trim().toUpperCase() !== 'USD') return null
-  if (!Number.isFinite(product.priceCents) || product.priceCents <= 0) return null
-  return formatUsdCents(product.priceCents, moneyLocale(lang))
+  if (!isVndListingCurrency(product.currency)) return null
+  const quote = product.quote
+  if (!quote) return null
+  if (quote.listingId !== product.listingId) return null
+  if (quote.priceVnd !== product.priceVnd) return null
+  if (!hasRenderableAmounts(quote)) return null
+  return quote
+}
+
+/**
+ * Are this quote's two money fields numbers a human can be shown and charged?
+ *
+ * parseQuoteWire only proves the SHAPE, and a shape check would happily pass -0.5 cents
+ * through to a "Pay $-0.01" button. Both amounts are whole and positive on the server by
+ * construction (đồng has no minor unit; cents are integers), so anything else is a wire
+ * that is not what it claims to be, and nothing is rendered or confirmed from it.
+ */
+function hasRenderableAmounts(quote: VisaQuoteWire): boolean {
+  if (!Number.isSafeInteger(quote.amountUsdCents) || quote.amountUsdCents <= 0) return false
+  return Number.isSafeInteger(quote.priceVnd) && quote.priceVnd > 0
+}
+
+/** What the provider will capture — "$114.94". Never computed here: it is the integer
+ *  cents the server put in the quote, and the same integer the checkout route charges. */
+function usdChargeLabel(quote: VisaQuoteWire, lang: string): string {
+  return formatUsdCents(quote.amountUsdCents, moneyLocale(lang))
+}
+
+/** The rate that connects the two figures — "26.100 đ" for one dollar. Shown so the
+ *  conversion is checkable rather than magic. */
+function usdRateLabel(quote: VisaQuoteWire, lang: string): string {
+  return formatMoneyFull(quote.vndPerUsd, '₫', moneyLocale(lang))
+}
+
+/**
+ * When a quote stops being honourable, on the VIEWER'S OWN clock.
+ *
+ * Deliberately NOT formatVisaWindowTime's Asia/Ho_Chi_Minh: a submission cutoff is the
+ * provider's published office hour and only makes sense in Vietnam time, while this is a
+ * deadline for the person reading the screen — "you have until 14:32" is only useful in
+ * their own wall clock. Two different instants, two different zones, on purpose.
+ */
+function quoteExpiryLabel(quote: VisaQuoteWire, lang: string): string | null {
+  const at = Date.parse(quote.expiresAt)
+  if (!Number.isFinite(at)) return null
+  return new Intl.DateTimeFormat(lang === 'vi' ? 'vi-VN' : 'en-GB', { hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(at))
 }
 
 /**
@@ -294,6 +518,11 @@ const CHECKOUT_PRODUCT_ERRORS = new Set([
   'product_not_configured',
   'product_entry_type_mismatch',
   'submission_window_closed',
+  // Not the product's fault — the desk could not convert its đồng price into dollars — but
+  // it lands here for the same two reasons: it has copy of its own below, and a catalogue
+  // re-read is exactly the right response (the products come back quotable the moment the
+  // rate feed does).
+  'fx_unavailable',
 ])
 
 /** Those refusals, in the buyer's language — each one says what to do next. */
@@ -324,6 +553,10 @@ function checkoutErrorCopy(error: VisaApiError, tr: (en: string, vi: string) => 
     product_not_for_sale: ['That service is not on sale right now. Choose another one.', 'Dịch vụ đó hiện không được bán. Hãy chọn dịch vụ khác.'],
     product_price_unavailable: ['That service has no usable price right now. Choose another one or contact eno.', 'Dịch vụ đó hiện chưa có giá hợp lệ. Hãy chọn dịch vụ khác hoặc liên hệ eno.'],
     product_not_configured: ['That service is still being set up. Choose another one.', 'Dịch vụ đó vẫn đang được thiết lập. Hãy chọn dịch vụ khác.'],
+    // The desk could not convert the đồng price into dollars (src/lib/visa/fx.ts answered
+    // null). It FAILS CLOSED — no guessed rate, no charge — so this is a "try again in a
+    // moment", never a reason to show the buyer some other number.
+    fx_unavailable: ['The USD amount could not be worked out just now, so payment is paused. Nothing has been charged and your application is saved — please try again in a moment.', 'Hiện chưa tính được số tiền USD nên thanh toán tạm dừng. Chưa có khoản nào bị trừ và hồ sơ của bạn đã được lưu — vui lòng thử lại sau giây lát.'],
   }
   const value = copy[error.code]
   return value ? tr(value[0], value[1]) : tr('That service could not be purchased. Choose another one.', 'Không thể mua dịch vụ đó. Hãy chọn dịch vụ khác.')
@@ -429,9 +662,20 @@ export function VisaApplyClient() {
   const [payload, setPayload] = useState<VisaPayload | null>(null)
   const [payments, setPayments] = useState<VisaPaymentsInfo>(null)
   // The catalogue and the applicant's pick. `listingId` is the ONLY thing checkout is
-  // told about the product — the price never travels in this direction.
+  // told about the product — the price never travels in this direction. (The quote does
+  // travel back, as a CONFIRMATION TOKEN: it can make the server refuse and re-quote, and
+  // it can never make it charge less. See startCheckout.)
   const [products, setProducts] = useState<VisaShopClientProduct[]>([])
   const [listingId, setListingId] = useState<string | null>(null)
+  // A re-quote the buyer has not agreed to yet: the server refused the checkout because
+  // the number on screen was no longer the number it would charge. Never auto-accepted.
+  const [quoteChange, setQuoteChange] = useState<VisaQuoteChange | null>(null)
+  // ⚠️ OPEN IS ITS OWN FLAG, and the payload is deliberately NOT cleared on close. The Base
+  // UI Root stays mounted so `open` can go true→false and play the exit animation (the
+  // controlled-dialog rule); a dialog whose body read a payload that went null on close
+  // would blank out mid-animation. Two pieces of state, so the numbers stay put while the
+  // dialog fades and nothing has to be adjusted during render.
+  const [quoteChangeOpen, setQuoteChangeOpen] = useState(false)
   const [loading, setLoading] = useState(true)
   const [notConfigured, setNotConfigured] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -473,11 +717,13 @@ export function VisaApplyClient() {
       // ?active=1: the server picks the active case (newest non-cancelled, else newest)
       // and returns it in DETAIL form alongside the history list — one request where a
       // list→detail waterfall was.
-      const list = await visaApi<{ application: VisaApplication | null; applications: VisaApplication[]; encryptionReady?: boolean; payments?: VisaPaymentsInfo; products?: VisaShopClientProduct[] }>('/api/visa/applications?active=1')
-      setPayments(list.payments ?? null)
+      const list = await visaApi<{ application: VisaApplication | null; applications: VisaApplication[]; encryptionReady?: boolean; payments?: unknown; products?: unknown }>('/api/visa/applications?active=1')
+      // Both money fields are PARSED, never cast — see parsePaymentsWire/parseProductsWire.
+      setPayments(parsePaymentsWire(list.payments))
       // The shop, re-read on every load and background poll: an admin edit to a price,
-      // to a product's speed, or to whether it is on sale at all lands here.
-      setProducts(Array.isArray(list.products) ? list.products : [])
+      // to a product's speed, or to whether it is on sale at all lands here — as does a
+      // freshly-issued USD quote for each product (the rate moves, the đồng does not).
+      setProducts(parseProductsWire(list.products))
       if (list.encryptionReady === false) { setNotConfigured(true); setApplication(null); setPayload(null); return }
       setNotConfigured(false)
       setApplications(list.applications)
@@ -499,6 +745,36 @@ export function VisaApplyClient() {
   // last-saved server copy — silently discarding unsaved answers on a long
   // government form whenever the user switched language (audit P1 #5).
   }, [user])
+
+  /**
+   * Re-read the MONEY HALF of the response and nothing else: the payment gate and the
+   * catalogue (each product's đồng price and its freshly-issued USD quote).
+   *
+   * ⚠️ IT DELIBERATELY DOES NOT TOUCH `payload`. loadApplication() replaces the in-memory
+   * answers with the last SAVED copy, which is correct on mount and destructive at any
+   * other moment — that is audit P1 #5, and the Review step has an unsaved-edit path of
+   * its own (the "change my application to this entry type" button). A price refresh must
+   * never be able to eat a government form's answers, so it reads only what it renders.
+   *
+   * Failures are swallowed on purpose: the numbers already on screen stay, and the
+   * checkout route re-quotes and refuses on its own if they have moved. A toast here would
+   * fire on every flaky poll and teach the buyer to ignore the one that matters.
+   *
+   * ⚠️ LAST REQUEST WINS, NOT LAST RESPONSE. Several of these can be in flight at once (the
+   * near-expiry re-quote ticks while a checkout refusal fires one of its own), and responses
+   * can land out of order — which would leave an OLDER quote on screen than the one the
+   * server most recently issued. The epoch makes a superseded response a no-op.
+   */
+  const catalogueEpoch = useRef(0)
+  const refreshCatalogue = useCallback(async () => {
+    const epoch = ++catalogueEpoch.current
+    try {
+      const list = await visaApi<{ payments?: unknown; products?: unknown }>('/api/visa/applications?active=1')
+      if (catalogueEpoch.current !== epoch) return
+      setPayments(parsePaymentsWire(list.payments))
+      setProducts(parseProductsWire(list.products))
+    } catch { /* keep what is on screen — the checkout is the gate that decides */ }
+  }, [])
 
   useEffect(() => { if (!authLoading) void loadApplication() }, [authLoading, loadApplication])
   useEffect(() => {
@@ -546,11 +822,46 @@ export function VisaApplyClient() {
 
   const selectedProduct = products.find((product) => product.listingId === listingId) ?? null
   const selectedWindow = selectedProduct ? submissionWindow(selectedProduct.speed, now) : null
-  // What the buyer reads. Same cents the server resolved from the same listing, and the
-  // ONLY amount rendered anywhere in this flow (see productPriceLabel for the $ gate).
-  const selectedPriceLabel = selectedProduct && payments ? productPriceLabel(selectedProduct, payments.currency, lang) : null
+  // THE TWO NUMBERS THE BUYER AGREES TO. The đồng figure is the admin's price, straight off
+  // the listing; the dollar figure is the SERVER'S QUOTE of that same figure — the integer
+  // cents the checkout route will capture, not a conversion made in this browser.
+  const selectedVndLabel = selectedProduct ? vndPriceLabel(selectedProduct, lang) : null
+  const selectedQuote = selectedProduct && payments ? usableQuote(selectedProduct, payments.currency) : null
+  // The three strings the pay box renders, minted here so the JSX below never has to
+  // re-check the null. All three come out of the QUOTE — none is computed from a rate held
+  // in this browser (src/context/currency-context.tsx is deliberately not consulted).
+  const selectedUsdLabel = selectedQuote ? usdChargeLabel(selectedQuote, lang) : null
+  const selectedRateLabel = selectedQuote ? usdRateLabel(selectedQuote, lang) : null
+  const selectedQuoteExpiry = selectedQuote ? quoteExpiryLabel(selectedQuote, lang) : null
   const entryTypeMismatch = !!selectedProduct && !!requestedEntryType && selectedProduct.entryType !== requestedEntryType
-  const canCheckout = !!selectedProduct && !!selectedPriceLabel && !!selectedWindow?.acceptingNow && !entryTypeMismatch
+  // ⚠️ NO QUOTE, NO PAYING. FX being unavailable closes the till for a few minutes; a
+  // guessed rate mis-charges a stranger's card and cannot be taken back.
+  const canCheckout = !!selectedProduct && !!selectedVndLabel && !!selectedQuote && !!selectedWindow?.acceptingNow && !entryTypeMismatch
+  // Nothing in the shop can be priced in dollars right now (the rate feed is down), as
+  // opposed to one product being unsellable. Worth saying once, at the top of the gate.
+  const fxDown = !!payments && products.length > 0 && !products.some((product) => usableQuote(product, payments.currency))
+
+  /**
+   * A quote only lives ~15 minutes (QUOTE_TTL_MS in src/lib/visa/fx.ts). The Review step
+   * has no poll of its own — it is an EDITABLE status, which the 30s poll above skips
+   * precisely so it cannot clobber unsaved answers — so a page left open would sit on a
+   * dollar figure the server has already stopped honouring, and the buyer would meet the
+   * re-confirm dialog instead of a working button. Re-quote a minute BEFORE expiry
+   * instead, quietly, via the payload-safe refresh.
+   *
+   * ⚠️ `now` IS A DEPENDENCY, AND IT IS THE RETRY. refreshCatalogue swallows its failures,
+   * so a single flaky request would otherwise leave `quoteExpiringSoon` stuck true with no
+   * dependency left to change — the effect would never fire again and the page would ride
+   * its dead quote all the way to a refusal. `now` ticks once a minute while the gate is
+   * open, so this retries at most once a minute, and only inside the last minute of a
+   * quote's life. It stops the moment a fresh quote lands (a new expiry is 15 minutes out),
+   * and when FX is down there is no expiry to go stale, so it never fires at all.
+   */
+  const quoteExpiringSoon = !!selectedQuote && Date.parse(selectedQuote.expiresAt) - now.getTime() < 60_000
+  useEffect(() => {
+    if (!paymentGateOpen || !quoteExpiringSoon) return
+    void refreshCatalogue()
+  }, [paymentGateOpen, quoteExpiringSoon, refreshCatalogue, now])
 
   const create = async () => {
     if (!user) return
@@ -748,20 +1059,33 @@ export function VisaApplyClient() {
   // SERVER complete the review handoff once the provider confirms payment (webhook or
   // the confirm-on-return effect below). Consents are required here exactly like the
   // direct submit — they are stamped server-side onto the payment row at checkout.
-  const startCheckout = async (provider: 'stripe' | 'paypal') => {
+  const startCheckout = async (provider: 'stripe' | 'paypal', agreedQuote?: VisaQuoteWire) => {
     if (!application || !payload || !declaration || !authorization) return
-    // WHICH product, never how much. The body carries a listing id and no amount; the
-    // server re-resolves that listing's price and charges THAT. A price cannot travel
-    // from this function to a provider because it is never in the request at all.
+    // WHICH product, never how much. The body carries a listing id; the server re-resolves
+    // that listing's đồng price, re-issues its own dollar quote and charges THAT. The quote
+    // below rides along as a CONFIRMATION TOKEN and the route reads no number out of it —
+    // it can only make the server refuse, never make it charge a figure this client sent.
     if (!selectedProduct) {
       toast.error(tr('Choose the e-Visa service you want first.', 'Hãy chọn dịch vụ E-Visa bạn muốn trước.'))
+      return
+    }
+    // The quote the buyer is looking at — either the one on screen, or the re-quote they
+    // just confirmed in the dialog. It is a CONFIRMATION TOKEN, not money: the server
+    // compares it with a freshly-issued one and refuses if they disagree, and the amount it
+    // charges is its own either way. Without one there is nothing the buyer has agreed to,
+    // so this refuses to open a checkout at all rather than letting the server pick a
+    // number nobody has seen.
+    const shownQuote = agreedQuote ?? selectedQuote
+    if (!shownQuote) {
+      toast.error(tr('The US dollar amount is not available right now, so payment is paused. Nothing has been charged — please try again in a moment.', 'Hiện chưa có số tiền đô la Mỹ nên thanh toán tạm dừng. Chưa có khoản nào bị tính phí — vui lòng thử lại sau giây lát.'))
+      void refreshCatalogue()
       return
     }
     setBusy(true)
     try {
       await save(false)
       const result = await visaApi<{ url: string }>(`/api/visa/applications/${application.id}/checkout`, {
-        method: 'POST', body: JSON.stringify({ provider, listingId: selectedProduct.listingId, declarationAccepted: true, prefillAuthorized: true }),
+        method: 'POST', body: JSON.stringify({ provider, listingId: selectedProduct.listingId, quote: shownQuote, declarationAccepted: true, prefillAuthorized: true }),
       })
       // Leaving for the provider — keep busy=true so the CTA can't double-fire.
       window.location.assign(result.url)
@@ -771,17 +1095,126 @@ export function VisaApplyClient() {
         toast.message(tr('This application is already paid — submit it below.', 'Hồ sơ này đã được thanh toán — hãy gửi bên dưới.'))
         await loadApplication(true).catch(() => undefined)
       }
+      else if (error instanceof VisaApiError && (error.code === 'quote_changed' || error.code === 'quote_expired')) {
+        // THE PRICE MOVED UNDER THE BUYER — the one refusal that is not an error. The
+        // response carries the quote the server WOULD charge, so the buyer is shown old
+        // against new and confirms (or does not). Nothing was charged; nothing is retried
+        // automatically. If the fresh quote is unreadable or is for some other listing, we
+        // have nothing honest to confirm, so it falls through to the generic message and a
+        // catalogue re-read.
+        const fresh = parseQuoteWire(error.details.quote)
+        if (fresh && hasRenderableAmounts(fresh) && fresh.listingId === selectedProduct.listingId) {
+          setQuoteChange({ provider, reason: error.code, shown: shownQuote, fresh })
+          setQuoteChangeOpen(true)
+          // The rows on screen still advertise the old đồng price when the ADMIN was the
+          // one who moved it — bring the catalogue in line behind the dialog.
+          void refreshCatalogue()
+        } else {
+          toast.error(tr('The price for this service has just changed. Please check it and try again.', 'Giá của dịch vụ này vừa thay đổi. Vui lòng kiểm tra lại và thử lại.'))
+          await refreshCatalogue()
+        }
+      }
       else if (error instanceof VisaApiError && CHECKOUT_PRODUCT_ERRORS.has(error.code)) {
         // The shop moved under us (price edited, product unlisted, cutoff passed…).
         // Say exactly what happened, then re-read the catalogue so the list on screen
         // is the one the server is now willing to sell from.
+        //
+        // ⚠️ refreshCatalogue, NOT loadApplication: every refusal in this set is about the
+        // SHOP, and the shop is all that needs re-reading. loadApplication() would also
+        // replace the in-memory answers with the last SAVED copy — and this catch runs
+        // after an await, so an answer the applicant edited while the checkout request was
+        // in flight would be silently reverted (audit P1 #5, the same trap the language
+        // switch fell into). The application row itself has not changed: nothing was paid.
         toast.error(checkoutErrorCopy(error, tr, lang))
-        await loadApplication(true).catch(() => undefined)
+        await refreshCatalogue()
       }
       else toast.error(tr('The payment page could not be opened. Please try again.', 'Không thể mở trang thanh toán. Vui lòng thử lại.'))
       setBusy(false)
     }
   }
+
+  /**
+   * "The amount changed — confirm the new one." The whole point of the quote mechanism, made
+   * visible: the buyer sees the pair they agreed to and the pair the desk would charge now,
+   * in BOTH currencies, and nothing happens until they press the button.
+   *
+   * The Root is always mounted (see quoteChangeOpen) so `open` can go true→false and play
+   * the exit animation — Base UI keeps the popup mounted through it only while the Root
+   * stays — and the payload it reads outlives the close for the same reason.
+   */
+  // Same figures, re-issued: the quote simply timed out. The dialog still has to be
+  // confirmed (the buyer clicks a button that says what it will take), but calling that
+  // "the amount has changed" would be a lie, and a lie about money.
+  const quoteUnchanged = !!quoteChange
+    && quoteChange.shown.priceVnd === quoteChange.fresh.priceVnd
+    && quoteChange.shown.amountUsdCents === quoteChange.fresh.amountUsdCents
+  const quoteDialog = (
+    <Dialog open={quoteChangeOpen} onOpenChange={(open) => { if (!open && !busy) setQuoteChangeOpen(false) }}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <span className="flex h-11 w-11 items-center justify-center rounded-full bg-warning/10 text-warning"><AlertTriangle className="h-5 w-5" /></span>
+          <DialogTitle className="text-lg font-bold">
+            {quoteUnchanged
+              ? tr('Please confirm the amount again', 'Vui lòng xác nhận lại số tiền')
+              : quoteChange?.reason === 'quote_expired' ? tr('That amount has expired', 'Số tiền đó đã hết hạn') : tr('The amount has changed', 'Số tiền đã thay đổi')}
+          </DialogTitle>
+          <DialogDescription>{tr('Nothing has been charged and your application is saved. Check the amount below before you continue to the payment page.', 'Chưa có khoản nào bị tính phí và hồ sơ của bạn đã được lưu. Hãy kiểm tra số tiền bên dưới trước khi tiếp tục sang trang thanh toán.')}</DialogDescription>
+        </DialogHeader>
+        {!!quoteChange && (
+          <>
+            <dl className="grid gap-2 rounded-xl border border-line-strong bg-card p-3">
+              {/* The struck-through pair is suppressed when it is the SAME pair — an old
+                  and a new number that read identically would just look like a bug. */}
+              {!quoteUnchanged && (
+                <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                  <dt className="text-xs text-body">{tr('You were shown', 'Bạn đã được báo')}</dt>
+                  <dd className="text-sm font-medium text-body line-through">{formatMoneyFull(quoteChange.shown.priceVnd, '₫', moneyLocale(lang))} · {usdChargeLabel(quoteChange.shown, lang)}</dd>
+                </div>
+              )}
+              <div className={cn('flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1', !quoteUnchanged && 'border-t border-border pt-2')}>
+                <dt className="text-xs text-body">{tr('You would pay now', 'Bạn sẽ thanh toán')}</dt>
+                <dd className="text-sm font-bold text-foreground" data-testid="visa-requote-usd">{formatMoneyFull(quoteChange.fresh.priceVnd, '₫', moneyLocale(lang))} · {usdChargeLabel(quoteChange.fresh, lang)}</dd>
+              </div>
+            </dl>
+            {/* WHICH of the two numbers moved, because they mean different things: eno
+                re-priced the service, or the đồng price stands and the exchange rate moved.
+                The đồng figure is the one eno sets, so saying so keeps the dollars readable
+                as a conversion rather than as a second, mysterious price. */}
+            <p className="text-xs leading-relaxed text-body">
+              {quoteUnchanged
+                ? tr('Nothing has changed — the amount had simply been on screen too long and had to be worked out again.', 'Không có gì thay đổi — số tiền chỉ hiển thị quá lâu nên cần được tính lại.')
+                : quoteChange.shown.priceVnd !== quoteChange.fresh.priceVnd
+                ? tr('eno has updated the đồng price of this service.', 'eno đã cập nhật giá bằng đồng của dịch vụ này.')
+                : tr('The đồng price is unchanged — the US dollar exchange rate moved.', 'Giá bằng đồng không đổi — tỷ giá đô la Mỹ đã thay đổi.')}
+            </p>
+          </>
+        )}
+        <DialogFooter>
+          <Button type="button" variant="outline" className="h-11" disabled={busy} onClick={() => setQuoteChangeOpen(false)}>{tr('Cancel', 'Hủy')}</Button>
+          <Button
+            type="button"
+            variant="cta"
+            className="h-11"
+            data-testid="visa-requote-confirm"
+            disabled={busy || !quoteChangeOpen || !quoteChange}
+            onClick={() => {
+              const agreed = quoteChange
+              if (!agreed) return
+              // Closed FIRST, then retried with the confirmed quote echoed: the server
+              // compares that echo against a quote it issues fresh, so a second move in the
+              // seconds between confirming and clicking simply reopens this dialog with the
+              // newer pair rather than charging a number nobody looked at.
+              setQuoteChangeOpen(false)
+              void startCheckout(agreed.provider, agreed.fresh)
+            }}
+          >
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+            {quoteChange ? tr(`Pay ${usdChargeLabel(quoteChange.fresh, lang)}`, `Thanh toán ${usdChargeLabel(quoteChange.fresh, lang)}`) : tr('Pay the new amount', 'Thanh toán số tiền mới')}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
 
   // Back from Stripe/PayPal: ?paid=<provider>&aid=<application>&sid|token=<ref>.
   // The provider is re-verified SERVER-side (confirm route) — these params only tell
@@ -989,20 +1422,33 @@ export function VisaApplyClient() {
               // service is paid. Checkout is the provider's HOSTED page (redirect); the
               // server verifies payment and completes the handoff itself.
               //
-              // ⚠️ WHAT IS READ HERE IS WHAT IS CAPTURED. Both are the SELECTED LISTING's
-              // price: this block renders the catalogue row's cents, and the checkout route
-              // re-resolves that same listing to charge. The line that used to sit at the
-              // top of this box — "eno service fee: <visaPaymentsConfig().feeCents>" — priced
-              // nothing once visa services became ordinary listings, and it is gone from the
-              // bundle entirely (the API no longer even ships the number). Do not re-add it.
+              // ⚠️ WHAT IS READ HERE IS WHAT IS CAPTURED — in BOTH currencies. The đồng is
+              // the selected listing's own price, which the checkout route re-resolves; the
+              // dollars are the server's quote of that price, which the checkout route
+              // re-issues and compares against the copy this client echoes. Neither number
+              // is computed in this browser, and when the second one is missing the buttons
+              // below are dead. The line that used to sit at the top of this box — "eno
+              // service fee: <visaPaymentsConfig().feeCents>" — priced nothing once visa
+              // services became ordinary listings, and it is gone from the bundle entirely
+              // (the API no longer even ships the number). Do not re-add it.
               <div className="rounded-2xl border border-brand/20 bg-accent/40 p-4">
                 <p className="text-sm font-bold text-foreground">{tr('Choose your e-Visa service', 'Chọn dịch vụ E-Visa của bạn')}</p>
                 {products.length === 0 ? (
                   <p className="mt-2 text-xs leading-relaxed text-body">{tr('No e-Visa service is on sale right now. Please try again shortly — nothing has been charged and your application is saved.', 'Hiện chưa có dịch vụ E-Visa nào được bán. Vui lòng thử lại sau — chưa có khoản nào bị tính phí và hồ sơ của bạn đã được lưu.')}</p>
                 ) : (
                   <>
-                    <p className="mt-1 text-xs leading-relaxed text-body">{tr('Each service is one entry type at one processing speed, with its own price. Opening times are Vietnam time.', 'Mỗi dịch vụ gồm một loại nhập cảnh với một tốc độ xử lý và có giá riêng. Giờ mở nhận theo giờ Việt Nam.')}</p>
-                    <ProductChoice products={products} value={listingId} onChange={setListingId} gateCurrency={payments.currency} requestedEntryType={requestedEntryType} now={now} lang={lang} tr={tr} />
+                    <p className="mt-1 text-xs leading-relaxed text-body">{tr('Each service is priced in Vietnamese đồng and paid in US dollars. One entry type at one processing speed per service; opening times are Vietnam time.', 'Mỗi dịch vụ được niêm yết bằng đồng Việt Nam và thanh toán bằng đô la Mỹ. Mỗi dịch vụ gồm một loại nhập cảnh với một tốc độ xử lý; giờ mở nhận theo giờ Việt Nam.')}</p>
+                    {/* NOT one product's problem — the desk cannot convert ANY price into
+                        dollars, so every row below is unbuyable. Said once, at the top, with
+                        the two facts that actually matter to a worried buyer: nothing was
+                        taken, and the answers are saved. */}
+                    {fxDown && (
+                      <p role="alert" className="mt-3 flex gap-2 rounded-xl border border-warning/30 bg-warning/10 p-3 text-xs leading-relaxed text-warning">
+                        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                        <span>{tr('US dollar amounts cannot be worked out right now, so paying is paused for every service. Nothing has been charged and your application is saved — please try again in a moment.', 'Hiện chưa tính được số tiền đô la Mỹ nên thanh toán tạm dừng với mọi dịch vụ. Chưa có khoản nào bị tính phí và hồ sơ của bạn đã được lưu — vui lòng thử lại sau giây lát.')}</span>
+                      </p>
+                    )}
+                    <ProductChoice products={products} value={listingId} onChange={setListingId} gateCurrency={payments.currency} fxDown={fxDown} requestedEntryType={requestedEntryType} now={now} lang={lang} tr={tr} />
                     {!selectedProduct && <p role="alert" className="mt-3 text-xs leading-relaxed text-warning">{tr('Choose a service above to continue. If none matches the entry type your application asks for, change it on the Vietnam trip page.', 'Hãy chọn một dịch vụ ở trên để tiếp tục. Nếu không có dịch vụ nào khớp với loại nhập cảnh trong hồ sơ, hãy đổi ở trang Chuyến đi Việt Nam.')}</p>}
                     {selectedProduct && entryTypeMismatch && (
                       // The server refuses this combination (product_entry_type_mismatch), so
@@ -1018,12 +1464,39 @@ export function VisaApplyClient() {
                         </span>
                       </div>
                     )}
-                    {selectedProduct && !entryTypeMismatch && !selectedPriceLabel && <p role="alert" className="mt-3 text-xs leading-relaxed text-warning">{tr('This service has no usable price right now. Please choose another one.', 'Dịch vụ này hiện chưa có giá hợp lệ. Vui lòng chọn dịch vụ khác.')}</p>}
-                    {selectedProduct && !entryTypeMismatch && !!selectedPriceLabel && !selectedWindow?.acceptingNow && <p role="alert" className="mt-3 text-xs leading-relaxed text-warning">{windowClosedCopy(selectedProduct.speed, selectedWindow, tr, lang)}</p>}
-                    {!!selectedPriceLabel && !entryTypeMismatch && (
-                      <p className="mt-3 text-sm font-bold text-foreground">
-                        {tr('You pay now', 'Bạn thanh toán ngay')}: {selectedPriceLabel}
-                      </p>
+                    {selectedProduct && !entryTypeMismatch && !selectedVndLabel && <p role="alert" className="mt-3 text-xs leading-relaxed text-warning">{tr('This service has no usable price right now. Please choose another one.', 'Dịch vụ này hiện chưa có giá hợp lệ. Vui lòng chọn dịch vụ khác.')}</p>}
+                    {/* Priced in đồng, but not convertible right now. Said separately from
+                        "no price", because the two are different problems: the first is this
+                        product, the second is the rate feed, and only the second comes back
+                        on its own. Either way nothing may be charged. */}
+                    {selectedProduct && !entryTypeMismatch && !!selectedVndLabel && !selectedQuote && !fxDown && <p role="alert" className="mt-3 text-xs leading-relaxed text-warning">{tr('The US dollar amount for this service cannot be worked out right now, so paying is paused. Nothing has been charged and your application is saved — please try again in a moment.', 'Hiện chưa tính được số tiền đô la Mỹ cho dịch vụ này nên thanh toán tạm dừng. Chưa có khoản nào bị tính phí và hồ sơ của bạn đã được lưu — vui lòng thử lại sau giây lát.')}</p>}
+                    {selectedProduct && !entryTypeMismatch && !!selectedVndLabel && !!selectedQuote && !selectedWindow?.acceptingNow && <p role="alert" className="mt-3 text-xs leading-relaxed text-warning">{windowClosedCopy(selectedProduct.speed, selectedWindow, tr, lang)}</p>}
+                    {/* ── THE TWO NUMBERS, SIDE BY SIDE ──────────────────────────────
+                        ĐỒNG is the price eno set on the listing; the dollars are what the
+                        provider will take for it, and they are the SERVER'S quote — the
+                        exact integer of cents the checkout route captures, not a conversion
+                        this browser made from a cached rate. The rate and the deadline are
+                        printed too, so the buyer can check the arithmetic instead of
+                        trusting it. Rendered only when BOTH numbers are honest. */}
+                    {!!selectedVndLabel && !!selectedQuote && !!selectedUsdLabel && !entryTypeMismatch && (
+                      <div className="mt-3 rounded-xl border border-line-strong bg-card p-3">
+                        <dl className="grid gap-2">
+                          <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                            <dt className="text-xs text-body">{tr('Price of this service', 'Giá của dịch vụ này')}</dt>
+                            <dd className="text-sm font-bold text-foreground">{selectedVndLabel}</dd>
+                          </div>
+                          <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 border-t border-border pt-2">
+                            <dt className="text-xs text-body">{tr('Charged to your card or PayPal', 'Số tiền thẻ hoặc PayPal sẽ thu')}</dt>
+                            <dd className="text-sm font-bold text-foreground" data-testid="visa-usd-charge">{selectedUsdLabel}</dd>
+                          </div>
+                        </dl>
+                        <p className="mt-2 text-xs leading-relaxed text-body">
+                          {selectedRateLabel
+                            ? tr(`eno prices this service in Vietnamese đồng. You pay the equivalent in US dollars, converted at ${selectedRateLabel} to US$1.`, `eno niêm yết dịch vụ này bằng đồng Việt Nam. Bạn thanh toán số tiền tương đương bằng đô la Mỹ, quy đổi theo tỷ giá ${selectedRateLabel} cho 1 US$.`)
+                            : tr('eno prices this service in Vietnamese đồng. You pay the equivalent in US dollars.', 'eno niêm yết dịch vụ này bằng đồng Việt Nam. Bạn thanh toán số tiền tương đương bằng đô la Mỹ.')}
+                          {selectedQuoteExpiry ? ` ${tr(`This amount holds until ${selectedQuoteExpiry}; after that it is worked out again.`, `Số tiền này được giữ đến ${selectedQuoteExpiry}; sau đó sẽ được tính lại.`)}` : ''}
+                        </p>
+                      </div>
                     )}
                     <p className="mt-1 text-xs leading-relaxed text-body">{tr('Paid once, securely, on the provider’s own page. Your application reaches eno review right after payment. Government e-Visa fees are separate and paid to the authority.', 'Thanh toán một lần, an toàn, trên trang của nhà cung cấp. Hồ sơ được chuyển cho eno xem xét ngay sau khi thanh toán. Lệ phí e-Visa của nhà nước là khoản riêng, nộp cho cơ quan chức năng.')}</p>
                     <div className="mt-3 flex flex-col gap-2 sm:flex-row">
@@ -1060,6 +1533,8 @@ export function VisaApplyClient() {
         </div>
         <PastApplications applications={applications} activeId={application.id} tr={tr} />
         {deleteDialog}
+        {/* Only reachable from the pay gate, which only exists on this branch. */}
+        {quoteDialog}
       </div>
     </>
   )
@@ -1128,21 +1603,29 @@ function PastApplications({ applications, activeId, tr }: {
  * here, so a new tier going on sale appears without a deploy, and a price edited in the
  * dashboard is the price on the next load — the marketplace IS the catalogue.
  *
+ * EVERY ROW CARRIES BOTH NUMBERS: the đồng price the admin set — the authority — and the
+ * dollars the payment provider will take for it, which is the SERVER'S quote of that same
+ * đồng figure and never a conversion made here (src/context/currency-context.tsx's rates
+ * are up to 12h old, which is exactly how a card gets charged a number nobody was shown).
+ *
  * A row whose desk is CLOSED is disabled rather than selectable (taking money at 23:00 for
  * a 1-hour service nobody will touch until 10:00 is the failure this prevents) and says
  * when it opens again. The window is recomputed from `now`, which the parent ticks every
  * minute, so a cutoff passing while the page sits open closes the row instead of leading
- * the applicant into a refusal. A row whose price cannot be rendered honestly is disabled
- * for the same reason: nobody may buy an amount they were not shown.
+ * the applicant into a refusal. A row missing EITHER number is disabled for the same
+ * reason: nobody may buy an amount they were not shown.
  *
  * ui/radio-group (Base UI) is the control — one tab stop, arrow keys, aria-checked per row
  * and a properly announced disabled row, none of which a column of <Button>s has.
  */
-function ProductChoice({ products, value, onChange, gateCurrency, requestedEntryType, now, lang, tr }: {
+function ProductChoice({ products, value, onChange, gateCurrency, fxDown, requestedEntryType, now, lang, tr }: {
   products: VisaShopClientProduct[]
   value: string | null
   onChange: (value: string) => void
   gateCurrency: string
+  /** Every row is unquotable, and the parent has already said so once above the list —
+   *  so the rows stay disabled but do not repeat the sentence fourteen times. */
+  fxDown: boolean
   requestedEntryType: VisaEntryType | null
   now: Date
   lang: string
@@ -1152,26 +1635,39 @@ function ProductChoice({ products, value, onChange, gateCurrency, requestedEntry
     <RadioGroup value={value ?? ''} onValueChange={onChange} aria-label={tr('e-Visa service', 'Dịch vụ E-Visa')} className="mt-3 grid gap-2">
       {products.map((product) => {
         const productWindow = submissionWindow(product.speed, now)
-        const priceLabel = productPriceLabel(product, gateCurrency, lang)
+        // TWO NUMBERS PER ROW. `vndLabel` is the admin's price off the listing; `quote` is
+        // the server's conversion of exactly that number into the cents the provider will
+        // capture. A row missing either one is DISABLED — a service nobody can be quoted a
+        // dollar figure for is a service nobody may be charged for.
+        const vndLabel = vndPriceLabel(product, lang)
+        const quote = usableQuote(product, gateCurrency)
+        const usdLabel = quote ? usdChargeLabel(quote, lang) : null
         const closed = !productWindow.acceptingNow
         return (
           <Radio
             key={product.listingId}
             value={product.listingId}
-            disabled={closed || !priceLabel}
+            disabled={closed || !vndLabel || !usdLabel}
             className="flex w-full items-start justify-start gap-3 whitespace-normal rounded-xl border border-line-strong bg-card p-3 text-left data-checked:border-brand data-checked:bg-accent/40"
           >
             <RadioDot className="mt-0.5" />
             <span className="flex min-w-0 flex-1 flex-col gap-0.5">
               <span className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
                 <span className="text-sm font-bold text-foreground">{product.title}</span>
-                {/* The price, straight from the listing — the same cents the checkout route
-                    resolves and captures. '—' when it may not be rendered honestly. */}
-                <span className="text-sm font-bold text-foreground">{priceLabel ?? '—'}</span>
+                {/* THE PRICE — the admin's đồng figure, straight from the listing and
+                    formatted exactly as the card and the PDP format it. '—' when it may not
+                    be rendered honestly. */}
+                <span className="text-sm font-bold text-foreground">{vndLabel ?? '—'}</span>
               </span>
-              <span className="text-xs text-body">{entryTypeLabel(product.entryType, tr)} · {speedLabel(product.speed, tr)}</span>
+              <span className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+                <span className="text-xs text-body">{entryTypeLabel(product.entryType, tr)} · {speedLabel(product.speed, tr)}</span>
+                {/* WHAT THE PROVIDER TAKES for that đồng price. Server-issued, never
+                    converted here — see usableQuote. */}
+                {!!usdLabel && <span className="text-xs font-semibold text-body">{tr(`≈ ${usdLabel} charged in USD`, `≈ ${usdLabel} sẽ thu bằng USD`)}</span>}
+              </span>
               {closed && <span className="text-xs font-semibold text-warning">{windowClosedCopy(product.speed, productWindow, tr, lang)}</span>}
-              {!closed && !priceLabel && <span className="text-xs font-semibold text-warning">{tr('Price unavailable right now', 'Hiện chưa có giá')}</span>}
+              {!closed && !vndLabel && <span className="text-xs font-semibold text-warning">{tr('Price unavailable right now', 'Hiện chưa có giá')}</span>}
+              {!closed && !!vndLabel && !usdLabel && !fxDown && <span className="text-xs font-semibold text-warning">{tr('US dollar amount unavailable right now', 'Hiện chưa tính được số tiền USD')}</span>}
               {!!requestedEntryType && product.entryType !== requestedEntryType && <span className="text-xs text-ink-4">{tr('Different entry type from your application', 'Khác loại nhập cảnh trong hồ sơ của bạn')}</span>}
             </span>
           </Radio>

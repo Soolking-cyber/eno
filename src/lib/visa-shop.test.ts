@@ -8,6 +8,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 // (money, attributes, ordering, for-sale filtering) rather than any catalogue contents —
 // there are no expected SKUs here, because the shop decides what the SKUs are.
 //
+// ⚠️ AND THE PRICE IS ĐỒNG (owner, 2026-07-22). A visa product is an ordinary VND listing;
+// the dollars a foreign buyer sees and pays are a server-issued quote of it, minted by
+// src/lib/visa/fx.ts and tested next door. NOTHING in this module produces a USD amount,
+// and the currency gate below refuses a '$' row rather than reinterpreting its number —
+// the two readings of "3000000" differ by 25 000×.
+//
 // ⚠️ THE PRISMA MOCK HONOURS `where` and THROWS on a query it does not model. An
 // unscoped listing read would let any seller's row be sold as a visa service, and a stub
 // that ignored `where` would keep that green.
@@ -48,10 +54,17 @@ vi.mock('./db', () => ({
     seller: {
       findFirst: async (args: any) => {
         if (h.state.sellerError) throw h.state.sellerError
+        // Resolution is BY OWNER EMAIL, and it is an ALLOWLIST rather than one address:
+        // the support account exists under two identities (auth says support@eno.vn, its
+        // Profile row still says support@eno.forum), and pinning one of them silently
+        // disabled the entire visa surface in production while the products sat published.
+        // Accept either Prisma shape so this mock asserts the CONTRACT, not the syntax.
         const email = args?.where?.owner?.email
-        if (typeof email !== 'string') throw new Error('mock: seller.findFirst must resolve the storefront BY OWNER EMAIL')
-        // The module lower-cases and trims VISA_SHOP_OWNER_EMAIL at import.
-        if (email !== 'support@eno.vn') return null
+        const emails: string[] | null =
+          typeof email === 'string' ? [email] : Array.isArray(email?.in) ? email.in : null
+        if (!emails?.length) throw new Error('mock: seller.findFirst must resolve the storefront BY OWNER EMAIL')
+        // The module lower-cases and trims each address at import.
+        if (!emails.some((e) => e === 'support@eno.vn' || e === 'support@eno.forum')) return null
         return h.state.seller
       },
     },
@@ -95,8 +108,8 @@ const listing = (over: Partial<ListingRow> = {}): ListingRow => ({
   title: 'Vietnam e-visa — 4 hours, single entry',
   titleVi: null,
   description: 'desc',
-  price: 61,
-  currency: '$',
+  price: 1_600_000,
+  currency: '₫',
   priceUnit: '',
   images: '[]',
   verified: true,
@@ -148,22 +161,24 @@ describe('the shop resolves before anything is seeded', () => {
 describe('products are derived from listings, never from a table', () => {
   it('reads entry type and speed out of Listing.attributes and the price out of Listing.price', async () => {
     h.state.listings = [
-      listing({ id: 'a', price: 115, attributes: JSON.stringify({ visaEntryType: 'single', visaSpeed: '1H' }) }),
-      listing({ id: 'b', price: 140, attributes: JSON.stringify({ visaEntryType: 'multiple', visaSpeed: '1H' }) }),
+      listing({ id: 'a', price: 3_000_000, attributes: JSON.stringify({ visaEntryType: 'single', visaSpeed: '1H' }) }),
+      listing({ id: 'b', price: 3_650_000, attributes: JSON.stringify({ visaEntryType: 'multiple', visaSpeed: '1H' }) }),
     ]
     const products = await getVisaShopProducts()
-    expect(products.map((p) => [p.listingId, p.entryType, p.speed, p.priceCents, p.currency])).toEqual([
-      ['a', 'single', '1H', 11500, 'USD'],
-      ['b', 'multiple', '1H', 14000, 'USD'],
+    // ĐỒNG, exactly as the admin typed it, and no dollar figure anywhere on the row.
+    expect(products.map((p) => [p.listingId, p.entryType, p.speed, p.priceVnd, p.currency])).toEqual([
+      ['a', 'single', '1H', 3_000_000, 'VND'],
+      ['b', 'multiple', '1H', 3_650_000, 'VND'],
     ])
+    expect(products.every((p) => !('priceCents' in p))).toBe(true)
   })
 
   it('follows the listing when the admin edits the price — there is no second copy', async () => {
-    h.state.listings = [listing({ id: 'a', price: 61 })]
-    expect((await getVisaShopProducts())[0].priceCents).toBe(6100)
+    h.state.listings = [listing({ id: 'a', price: 1_600_000 })]
+    expect((await getVisaShopProducts())[0].priceVnd).toBe(1_600_000)
     // The admin re-prices the product in the dashboard, like any other seller.
-    ;(h.state.listings[0] as ListingRow).price = 72
-    expect((await getVisaShopProducts())[0].priceCents).toBe(7200)
+    ;(h.state.listings[0] as ListingRow).price = 1_900_000
+    expect((await getVisaShopProducts())[0].priceVnd).toBe(1_900_000)
   })
 
   it('keeps facet attributes alongside the visa ones', async () => {
@@ -207,7 +222,7 @@ describe('a half-built product', () => {
       expect(products, name).toHaveLength(1)
       const [product] = products
       // LISTED (the admin is mid-setup) …
-      expect(product.priceCents, name).toBe(6100)
+      expect(product.priceVnd, name).toBe(1_600_000)
       // … with exactly what the blob honestly said, and nothing guessed …
       expect(product.entryType, name).toBe(entryType)
       expect(product.speed, name).toBe(speed)
@@ -228,16 +243,24 @@ describe('a half-built product', () => {
   })
 })
 
-describe('money — the price shown is the price captured', () => {
-  it('converts whole dollars to exact integer cents', async () => {
-    for (const [usd, cents] of [[30, 3000], [42, 4200], [45, 4500], [55, 5500], [61, 6100], [85, 8500], [115, 11500], [140, 14000]] as const) {
-      h.state.listings = [listing({ price: usd })]
-      expect((await getVisaShopProducts())[0].priceCents).toBe(cents)
+describe('money — the đồng the admin typed is the đồng that is quoted', () => {
+  it('exposes Listing.price as whole đồng, and produces no dollar figure at all', async () => {
+    for (const priceVnd of [1, 1_600_000, 3_000_000, 3_650_000, 2_000_000_000]) {
+      h.state.listings = [listing({ price: priceVnd })]
+      const [product] = await getVisaShopProducts()
+      // Untouched. No rate, no rounding, no second copy — the dollars are a SERVER-ISSUED
+      // quote minted per checkout by src/lib/visa/fx.ts, and they are not this module's job.
+      expect(product.priceVnd, String(priceVnd)).toBe(priceVnd)
+      expect(product.currency, String(priceVnd)).toBe('VND')
+      expect('priceCents' in product, String(priceVnd)).toBe(false)
+      expect('amountUsdCents' in product, String(priceVnd)).toBe(false)
     }
   })
 
   it('refuses a price that cannot be charged', async () => {
-    for (const price of [0, -1, -0.01, Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY, 2_000_000]) {
+    // 2 000 000 001 ₫ is one đồng past the sanity ceiling (2 tỷ ≈ US$77 000 — an absurd
+    // visa fee, so only a data-entry accident or a corrupted row lands here).
+    for (const price of [0, -1, -0.01, Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY, 2_000_000_001]) {
       h.state.listings = [listing({ price })]
       expect(await getVisaShopProducts(), String(price)).toEqual([])
       expect(await resolveVisaProduct('listing-1'), String(price)).toBeNull()
@@ -245,34 +268,45 @@ describe('money — the price shown is the price captured', () => {
     expect(errors.length).toBeGreaterThan(0)
     // The log names the listing and the amount — both public facts, no applicant data.
     expect(errors.every((e) => e.includes('listing-1'))).toBe(true)
+    // The ceiling itself is a ceiling, not a wall one đồng lower.
+    h.state.listings = [listing({ price: 2_000_000_000 })]
+    expect((await getVisaShopProducts())[0].priceVnd).toBe(2_000_000_000)
   })
 
-  it('refuses a listing priced in anything but USD', async () => {
-    for (const currency of ['₫', 'VND', 'đ', '€', '']) {
-      h.state.listings = [listing({ price: 61, currency })]
+  it('refuses a listing priced in anything but đồng — and never reinterprets the number', async () => {
+    // ⚠️ THE DIRECTION THAT EMPTIES A CARD. A row still carrying '$' from the reverted
+    // USD-storage rule is DROPPED, not read as dollars: 3000000 means one thing in đồng
+    // and something 25 000× larger in dollars, and guessing which the admin meant is not a
+    // decision code gets to make. The fix is one price edit in the dashboard.
+    for (const currency of ['$', 'USD', 'usd', ' $ ', '€', 'EUR', '']) {
+      h.state.listings = [listing({ price: 3_000_000, currency })]
       expect(await getVisaShopProducts(), currency).toEqual([])
+      expect(await resolveVisaProduct('listing-1'), currency).toBeNull()
     }
-    for (const currency of ['$', 'USD', 'usd', ' $ ']) {
-      h.state.listings = [listing({ price: 61, currency })]
-      expect((await getVisaShopProducts())[0]?.priceCents, currency).toBe(6100)
+    // '₫' and 'đ' are both in the wild; 'VND' is what some importers write.
+    for (const currency of ['₫', 'đ', 'Đ', 'VND', 'vnd', ' ₫ ']) {
+      h.state.listings = [listing({ price: 3_000_000, currency })]
+      expect((await getVisaShopProducts())[0]?.priceVnd, currency).toBe(3_000_000)
     }
   })
 
   it('refuses a fractional price, because the card would advertise a different number', async () => {
-    // formatMoneyFull() renders `group(Math.round(price))`, so a 25.50 listing shows
-    // "$26". Charging 2550 under that card is the mismatch the seed script also refuses.
-    for (const price of [25.5, 25.4, 61.01, 30.99, 0.5]) {
+    // formatMoneyFull() renders `group(Math.round(price))`, so a 3 000 000,5 ₫ listing
+    // advertises "3.000.001 đ". Quoting the dollars off the un-rounded figure under a card
+    // that says something else is the mismatch this whole file exists to refuse — and đồng
+    // has no minor unit anyway, so a fractional price is a corrupt row, not a pricing call.
+    for (const price of [3_000_000.5, 1_600_000.01, 25.5, 0.5, 0.005]) {
       h.state.listings = [listing({ price })]
       expect(await getVisaShopProducts(), String(price)).toEqual([])
+      expect(await resolveVisaProduct('listing-1'), String(price)).toBeNull()
     }
-    // A SUB-CENT price is not that mismatch: 25.005 is 2500 cents to the nearest cent and
-    // the card renders "$25", so displayed and captured still agree and it stays sellable.
-    h.state.listings = [listing({ price: 25.005 })]
-    expect((await getVisaShopProducts())[0].priceCents).toBe(2500)
   })
 
   it('converts to cents without float error at the half-cent boundaries', async () => {
-    // usdToCentsExact is the money primitive under the catalogue's whole-dollar gate.
+    // ⚠️ usdToCentsExact NO LONGER PRICES ANYTHING — a visa product is đồng, and fx.ts
+    // converts ĐỒNG → cents directly without ever passing through a USD decimal. It stays
+    // exported (and tested) as the correct primitive for a caller that genuinely holds a
+    // dollars-and-cents DECIMAL: a provider's "12.34", an operator's typed figure.
     // These are the values where `Math.round(usd * 100)` invents a cent: the stored
     // double is BELOW the printed decimal, but multiplying by 100 rounds up to an exact
     // .5 and Math.round then goes away from zero.
@@ -321,10 +355,12 @@ describe('for sale vs. merely present', () => {
   })
 
   it('resolveVisaProduct is the authoritative lookup, and refuses anything else', async () => {
-    h.state.listings = [listing({ id: 'live', price: 85, attributes: JSON.stringify({ visaEntryType: 'single', visaSpeed: '2H' }) })]
+    h.state.listings = [listing({ id: 'live', price: 2_200_000, attributes: JSON.stringify({ visaEntryType: 'single', visaSpeed: '2H' }) })]
     const product = await resolveVisaProduct('live')
     expect(product).not.toBeNull()
-    expect(product!.priceCents).toBe(8500)
+    // ⚠️ THIS is the number a charge is built from — đồng off the listing, nothing else.
+    expect(product!.priceVnd).toBe(2_200_000)
+    expect(product!.currency).toBe('VND')
     // It answers exactly what the catalogue answers — one set of rules, not two.
     expect(product).toEqual((await getVisaShopProducts())[0])
     expect(await resolveVisaProduct('nope')).toBeNull()
@@ -337,12 +373,12 @@ describe('for sale vs. merely present', () => {
 describe('catalogue order', () => {
   it('is the owner grid: speed, then entry type, then price, then id', async () => {
     h.state.listings = [
-      listing({ id: 'normal-multi', price: 55, attributes: JSON.stringify({ visaEntryType: 'multiple', visaSpeed: 'normal' }) }),
+      listing({ id: 'normal-multi', price: 1_450_000, attributes: JSON.stringify({ visaEntryType: 'multiple', visaSpeed: 'normal' }) }),
       listing({ id: 'unset', attributes: null }),
-      listing({ id: '1h-multi', price: 140, attributes: JSON.stringify({ visaEntryType: 'multiple', visaSpeed: '1H' }) }),
-      listing({ id: '4h-single', price: 61, attributes: JSON.stringify({ visaEntryType: 'single', visaSpeed: '4H' }) }),
-      listing({ id: '1h-single', price: 115, attributes: JSON.stringify({ visaEntryType: 'single', visaSpeed: '1H' }) }),
-      listing({ id: 'normal-single', price: 30, attributes: JSON.stringify({ visaEntryType: 'single', visaSpeed: 'normal' }) }),
+      listing({ id: '1h-multi', price: 3_650_000, attributes: JSON.stringify({ visaEntryType: 'multiple', visaSpeed: '1H' }) }),
+      listing({ id: '4h-single', price: 1_600_000, attributes: JSON.stringify({ visaEntryType: 'single', visaSpeed: '4H' }) }),
+      listing({ id: '1h-single', price: 3_000_000, attributes: JSON.stringify({ visaEntryType: 'single', visaSpeed: '1H' }) }),
+      listing({ id: 'normal-single', price: 790_000, attributes: JSON.stringify({ visaEntryType: 'single', visaSpeed: 'normal' }) }),
     ]
     expect((await getVisaShopProducts()).map((p) => p.listingId)).toEqual([
       '1h-single', '1h-multi', '4h-single', 'normal-single', 'normal-multi',
@@ -353,9 +389,9 @@ describe('catalogue order', () => {
 
   it('is stable — the same input always produces the same order', async () => {
     h.state.listings = [
-      listing({ id: 'b', price: 61 }),
-      listing({ id: 'a', price: 61 }),
-      listing({ id: 'c', price: 45 }),
+      listing({ id: 'b', price: 1_600_000 }),
+      listing({ id: 'a', price: 1_600_000 }),
+      listing({ id: 'c', price: 1_200_000 }),
     ]
     const first = (await getVisaShopProducts()).map((p) => p.listingId)
     expect(first).toEqual(['c', 'a', 'b'])

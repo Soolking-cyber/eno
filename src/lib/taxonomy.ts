@@ -22,12 +22,11 @@ import type { CategoryColor } from './types'
 import { VISA_ENTRY_TYPES, VISA_SPEED_CODES, VISA_SPEED_SPECS } from './visa/speed'
 
 // ── Intent axis ──────────────────────────────────────────────────────────────
-export type ListingType = 'sell' | 'rent' | 'wanted' | 'free' | 'service' | 'job' | 'event'
+export type ListingType = 'sell' | 'rent' | 'free' | 'service' | 'job' | 'event'
 
 export const LISTING_TYPES: { value: ListingType; label: string; labelVi: string; icon: string }[] = [
   { value: 'sell', label: 'For sale', labelVi: 'Cần bán', icon: 'Tag' },
   { value: 'rent', label: 'For rent', labelVi: 'Cho thuê', icon: 'KeyRound' },
-  { value: 'wanted', label: 'Wanted', labelVi: 'Cần mua', icon: 'Search' },
   { value: 'free', label: 'Free', labelVi: 'Cho tặng', icon: 'Gift' },
   { value: 'service', label: 'Service', labelVi: 'Dịch vụ', icon: 'Wrench' },
   { value: 'job', label: 'Job', labelVi: 'Việc làm', icon: 'Briefcase' },
@@ -42,7 +41,6 @@ export const LISTING_TYPE_LABEL: Record<ListingType, { en: string; vi: string }>
 // to a listingType filter across all categories).
 export const INTENT_SHORTCUTS: { type: ListingType; name: string; nameVi: string; icon: string }[] = [
   { type: 'free', name: 'Free & Giveaways', nameVi: 'Cho tặng miễn phí', icon: 'Gift' },
-  { type: 'wanted', name: 'Wanted / ISO', nameVi: 'Cần mua / Tìm', icon: 'Search' },
 ]
 
 // ── Facets (per-category structured attributes) ──────────────────────────────
@@ -79,6 +77,16 @@ export type FacetDef = {
   // Standing owner policy is maximum posting leniency at launch — mark such a facet
   // optional rather than narrowing the subcategory. Absent/false = required as before.
   optional?: boolean
+  // The mirror image of `subcats`: applies everywhere in the category EXCEPT these
+  // subcategories. Use it when a facet is right for almost the whole category and
+  // meaningless in one corner of it — listing the other dozen subcategories in
+  // `subcats` instead would silently drop each new subcategory out of the facet.
+  excludeSubcats?: string[]
+  // DERIVED, never asked. The value is computed server-side from something the app
+  // already knows, so the wizard must not render a chip for it and it can never gate
+  // publishing — but it is still a real facet for FILTERING, and sanitizeAttributes
+  // still whitelists its key, so browse keeps working.
+  derived?: boolean
   options: { value: string; label: string; labelVi: string }[]
 }
 
@@ -87,7 +95,15 @@ export type FacetDef = {
  *  `optional` facet opts out by declaration. One predicate, used by the wizard's
  *  completeness checklist AND its red-flagging, so the two can never disagree. */
 export function isRequiredFacet(f: FacetDef): boolean {
-  return f.kind !== 'range' && !f.optional
+  return f.kind !== 'range' && !f.optional && !f.derived
+}
+
+/** Facets the POST WIZARD shows as chips. `derived` ones are computed from the account,
+ *  so asking would be redundant at best and contradictory at worst (a seller could tick
+ *  "Individual" on a registered business account). They stay in facetsFor() because
+ *  browse still filters on them. */
+export function askableFacetsFor(categorySlug: string, subcategorySlug?: string | null): FacetDef[] {
+  return facetsFor(categorySlug, subcategorySlug).filter((f) => !f.derived)
 }
 
 // Newest selectable model year — current year + 1 (dealers list next-year models).
@@ -188,7 +204,7 @@ export const TAXONOMY: CategoryDef[] = [
     icon: 'CarFront',
     color: 'sky',
     description: 'Buy or sell motorbikes, bicycles, cars, e-bikes, parts & gear. (To rent, see the Rentals category.)',
-    types: ['sell', 'wanted'],
+    types: ['sell'],
     subcategories: [
       { slug: 'motorbike', name: 'Motorbike', nameVi: 'Xe máy', icon: 'Gauge', keywords: ['motorbike', 'scooter', 'vision', 'airblade', 'air blade', 'lead', 'sh', 'vespa', 'xe ga', 'tay ga', 'manual', 'wave', 'sirius', 'exciter', 'winner', 'xe máy', 'xe số', 'côn tay'] },
       { slug: 'bicycle', name: 'Bicycle', nameVi: 'Xe đạp', icon: 'Bike', keywords: ['bicycle', 'bike', 'mountain bike', 'road bike', 'xe đạp'] },
@@ -341,7 +357,7 @@ export const TAXONOMY: CategoryDef[] = [
     icon: 'Building2',
     color: 'teal',
     description: 'Apartments, houses, land, offices & retail — to buy or sell. (To rent a home, see the Rentals category.)',
-    types: ['sell', 'wanted'],
+    types: ['sell'],
     subcategories: [
       { slug: 'apartment', name: 'Apartment', nameVi: 'Căn hộ', icon: 'Building', keywords: ['apartment', 'condo', 'buy apartment', 'căn hộ', 'chung cư', 'mua căn hộ'] },
       { slug: 'house', name: 'House', nameVi: 'Nhà', icon: 'House', keywords: ['house', 'villa', 'townhouse', 'buy house', 'nhà nguyên căn', 'nhà phố', 'biệt thự', 'mua nhà'] },
@@ -442,7 +458,7 @@ export const TAXONOMY: CategoryDef[] = [
     icon: 'Sofa',
     color: 'indigo',
     description: 'Sofas, beds, tables, storage, lighting, fridges, washers, ACs, plants & garden.',
-    types: ['sell', 'free', 'wanted'],
+    types: ['sell', 'free'],
     subcategories: [
       { slug: 'sofa-seating', name: 'Sofa', nameVi: 'Sofa', icon: 'Sofa', keywords: ['sofa', 'couch', 'armchair', 'chair', 'ghế', 'sofa'] },
       { slug: 'tables-desks', name: 'Tables', nameVi: 'Bàn', icon: 'Table', keywords: ['table', 'desk', 'dining', 'bàn', 'bàn làm việc'] },
@@ -474,7 +490,7 @@ export const TAXONOMY: CategoryDef[] = [
     icon: 'Smartphone',
     color: 'indigo',
     description: 'Phones, laptops, TVs, audio, cameras, gaming, accessories & components.',
-    types: ['sell', 'wanted', 'free'],
+    types: ['sell', 'free'],
     subcategories: [
       { slug: 'phones-tablets', name: 'Phones', nameVi: 'Điện thoại', icon: 'TabletSmartphone', keywords: ['iphone', 'ipad', 'phone', 'tablet', 'samsung', 'điện thoại', 'máy tính bảng'] },
       { slug: 'laptops-pcs', name: 'Laptops', nameVi: 'Laptop', icon: 'Laptop', keywords: ['macbook', 'laptop', 'pc', 'computer', 'dell', 'asus', 'thinkpad', 'máy tính'] },
@@ -530,7 +546,7 @@ export const TAXONOMY: CategoryDef[] = [
     icon: 'Shirt',
     color: 'violet',
     description: "Women's & men's clothing, shoes, bags, watches, jewelry and cosmetics.",
-    types: ['sell', 'wanted'],
+    types: ['sell'],
     subcategories: [
       { slug: 'womens', name: 'Women', nameVi: 'Nữ', icon: 'Venus', keywords: ['dress', 'women', 'skirt', 'đầm', 'váy', 'nữ'] },
       { slug: 'mens', name: 'Men', nameVi: 'Nam', icon: 'Mars', keywords: ['men', 'shirt', 'jacket', 'áo', 'quần', 'nam'] },
@@ -578,7 +594,7 @@ export const TAXONOMY: CategoryDef[] = [
     icon: 'Baby',
     color: 'cyan',
     description: 'Strollers, car seats, baby gear, toys, kids clothing and maternity.',
-    types: ['sell', 'free', 'wanted'],
+    types: ['sell', 'free'],
     subcategories: [
       { slug: 'strollers-seats', name: 'Strollers', nameVi: 'Xe đẩy', icon: 'Baby', keywords: ['stroller', 'pram', 'car seat', 'xe đẩy', 'ghế ô tô'] },
       { slug: 'baby-gear', name: 'Gear', nameVi: 'Đồ dùng', icon: 'Milk', keywords: ['crib', 'cot', 'high chair', 'baby', 'cũi', 'nôi', 'ghế ăn'] },
@@ -614,7 +630,7 @@ export const TAXONOMY: CategoryDef[] = [
     icon: 'Dumbbell',
     color: 'sky',
     description: 'Fitness gear, instruments, English books, board games, collectibles, camping & outdoors.',
-    types: ['sell', 'wanted', 'free'],
+    types: ['sell', 'free'],
     subcategories: [
       { slug: 'fitness', name: 'Sports', nameVi: 'Thể thao', icon: 'Dumbbell', keywords: ['dumbbell', 'weights', 'yoga', 'gym', 'treadmill', 'tạ', 'thể thao'] },
       { slug: 'instruments', name: 'Instruments', nameVi: 'Nhạc cụ', icon: 'Guitar', keywords: ['guitar', 'piano', 'keyboard', 'instrument', 'đàn', 'nhạc cụ'] },
@@ -643,7 +659,7 @@ export const TAXONOMY: CategoryDef[] = [
     icon: 'PawPrint',
     color: 'teal',
     description: 'Dogs, cats, adoption & rehoming, supplies, birds, fish and more.',
-    types: ['sell', 'free', 'wanted'],
+    types: ['sell', 'free'],
     subcategories: [
       { slug: 'dogs', name: 'Dogs', nameVi: 'Chó', icon: 'Dog', keywords: ['dog', 'puppy', 'chó', 'cún'] },
       { slug: 'cats', name: 'Cats', nameVi: 'Mèo', icon: 'Cat', keywords: ['cat', 'kitten', 'mèo'] },
@@ -681,7 +697,7 @@ export const TAXONOMY: CategoryDef[] = [
     icon: 'Briefcase',
     color: 'violet',
     description: 'Teaching, hospitality, IT, sales, marketing, admin, healthcare, trades, remote & internships.',
-    types: ['job', 'wanted'],
+    types: ['job'],
     subcategories: [
       { slug: 'teaching', name: 'Teaching', nameVi: 'Giảng dạy', icon: 'GraduationCap', keywords: ['teacher', 'teaching', 'english', 'tutor', 'esl', 'giáo viên', 'gia sư'] },
       { slug: 'hospitality', name: 'Hospitality', nameVi: 'Nhà hàng', icon: 'ConciergeBell', keywords: ['barista', 'waiter', 'chef', 'hotel', 'f&b', 'phục vụ', 'pha chế'] },
@@ -733,7 +749,7 @@ export const TAXONOMY: CategoryDef[] = [
     icon: 'Wrench',
     color: 'cyan',
     description: 'Visa & legal, language lessons, cleaning, moving, repairs, beauty, fitness, photography, childcare & more.',
-    types: ['service', 'wanted'],
+    types: ['service'],
     subcategories: [
       { slug: 'visa-legal', name: 'Visa', nameVi: 'Visa', icon: 'Stamp', keywords: ['visa', 'work permit', 'legal', 'tax', 'permit', 'giấy tờ', 'thuế', 'pháp lý'] },
       { slug: 'language-lessons', name: 'Languages', nameVi: 'Ngoại ngữ', icon: 'Languages', keywords: ['vietnamese lesson', 'english class', 'language', 'học tiếng việt', 'dạy tiếng', 'ngoại ngữ'] },
@@ -750,12 +766,20 @@ export const TAXONOMY: CategoryDef[] = [
       { slug: 'service-other', name: 'Other', nameVi: 'Khác', icon: 'Shapes', keywords: ['other', 'khác'] },
     ],
     facets: [
-      { key: 'serviceLocation', label: 'Location type', labelVi: 'Địa điểm', kind: 'toggle', options: [
+      // Not asked for visa/legal work: it is online essentially by definition, and the rare
+      // in-person case is something the applicant and the desk settle in the chat thread —
+      // a chip that always reads "Online" is a required field that carries no information.
+      { key: 'serviceLocation', label: 'Location type', labelVi: 'Địa điểm', kind: 'toggle', excludeSubcats: ['visa-legal'], options: [
         { value: 'at-customer', label: 'At yours', labelVi: 'Tận nơi' },
         { value: 'at-provider', label: 'At theirs', labelVi: 'Tại cơ sở' },
         { value: 'online', label: 'Online', labelVi: 'Trực tuyến' },
       ] },
-      { key: 'providerType', label: 'Provider', labelVi: 'Người cung cấp', kind: 'toggle', options: [
+      // DERIVED from the account, never asked. Profile.accountType already records whether
+      // this seller onboarded as a business or an individual, so a chip here is a question
+      // the app can answer itself — and one the seller could answer INCONSISTENTLY, ticking
+      // "Individual" on a registered business. Still a live browse filter; only the asking
+      // is gone (see askableFacetsFor + the write in createListingCore).
+      { key: 'providerType', label: 'Provider', labelVi: 'Người cung cấp', kind: 'toggle', derived: true, options: [
         { value: 'individual', label: 'Individual', labelVi: 'Cá nhân' },
         { value: 'business', label: 'Business', labelVi: 'Doanh nghiệp' },
       ] },
@@ -826,7 +850,7 @@ export const TAXONOMY: CategoryDef[] = [
     icon: 'Plane',
     color: 'sky',
     description: 'Event tickets, tours & experiences, transport, and visa runs.',
-    types: ['sell', 'wanted', 'service'],
+    types: ['sell', 'service'],
     subcategories: [
       { slug: 'event-tickets', name: 'Tickets', nameVi: 'Vé', icon: 'Ticket', keywords: ['ticket', 'concert', 'show', 'vé', 'vé sự kiện'] },
       { slug: 'tours', name: 'Tours', nameVi: 'Tour', icon: 'Map', keywords: ['tour', 'experience', 'trip', 'du lịch', 'trải nghiệm'] },
@@ -905,7 +929,10 @@ export function subcategoriesFor(categorySlug: string): SubcatDef[] {
 // subcategory-specific facets (can't know which engine unit applies yet).
 export function facetsFor(categorySlug: string, subcategorySlug?: string | null): FacetDef[] {
   const all = CATEGORY_BY_SLUG[categorySlug]?.facets ?? []
-  return all.filter((f) => !f.subcats || (!!subcategorySlug && f.subcats.includes(subcategorySlug)))
+  return all.filter((f) => {
+    if (f.excludeSubcats && subcategorySlug && f.excludeSubcats.includes(subcategorySlug)) return false
+    return !f.subcats || (!!subcategorySlug && f.subcats.includes(subcategorySlug))
+  })
 }
 
 // Range facets (numeric slider + min/max filter) for a category (+subcategory).
@@ -924,50 +951,44 @@ export function typesFor(categorySlug: string): ListingType[] {
   return CATEGORY_BY_SLUG[categorySlug]?.types ?? ['sell']
 }
 
-// ── Money: the currency a listing is stored and rendered in ──────────────────
-// eno is a VND marketplace and every listing on it is priced in đồng — with ONE
-// exception, and it is not a preference: the Vietnam e-Visa products the visa
-// storefront sells are quoted, invoiced and CHARGED in whole US dollars (the
-// checkout captures USD cents via src/lib/visa-shop.ts, whose sellablePriceCents()
-// refuses anything that is not '$'/'USD'). A visa product posted in ₫ is therefore
-// not "displayed oddly", it is UNSELLABLE. So the currency is DERIVED here — there
-// is no currency picker anywhere and a client can never send one.
+// ── Money: the currency a listing is stored in ───────────────────────────────
+// ⚠️ EVERY LISTING ON eno IS PRICED IN ĐỒNG. No category, no subcategory, no seller
+// is an exception — including the e-Visa storefront, whose admin prices each product
+// in VND exactly like every other seller (owner, 2026-07-22). A buyer who is charged
+// in dollars is SHOWN the USD equivalent of that VND price and charged a
+// SERVER-ISSUED quote of it; the conversion is a display/checkout concern and never
+// a stored listing currency. A short-lived rule that stored visa products as '$'
+// (f7f8ca40) was reverted for exactly this reason — do not reintroduce it.
+//
+// There is therefore no currency picker anywhere and a client can never send one:
+// the whole money shape is DERIVED here, and the literal types below are the
+// enforcement (an attempt to return anything but ₫/VND is a type error).
 
 export type ListingMoney = {
   /** Listing.currency — the symbol stored on the row and rendered by <Price>. */
-  currency: '₫' | '$'
+  currency: '₫'
   /** Listing.priceUnit — the suffix <Price> appends ('' = none, 'VND' = none). */
   priceUnit: string
   /** ISO code for ad/analytics payloads (Meta CAPI). Never for display. */
-  isoCode: 'VND' | 'USD'
+  isoCode: 'VND'
 }
 
 /**
- * The money shape a listing must be stored with.
+ * The money shape a listing must be stored with — the ONE place either half is
+ * decided, so a post and a later edit can never contradict each other.
  *
- * ⚠️ `visaShopSeller` is load-bearing and MUST be resolved from the row's seller, not
- * guessed from its category. The visa slot is a shared subcategory (see the facet
- * comments above): an ordinary seller's "work permit renewal — 1.500.000" lives at
- * services/visa-legal too, and pricing that in dollars would advertise $1,500,000 for a
- * ₫1.5m service — a 25 000× money bug on somebody else's listing. Only the storefront
- * that actually sells e-visas (support@eno.vn, VISA_SHOP_OWNER_EMAIL) prices in USD.
+ * Always đồng. The only thing that varies is the price UNIT, which follows the
+ * intent: monthly for rent/job, per-service for a service, bare otherwise.
  *
- * Everything else is the long-standing VND behaviour, byte-for-byte: the price unit
- * follows the intent (monthly for rent/job, per-service for a service).
+ * `categorySlug`/`subcategorySlug` stay in the contract because every caller knows
+ * them and a future unit rule may want them — but they DO NOT and must not affect
+ * the currency. Nor does the seller: the old `visaShopSeller` flag is gone.
  */
 export function listingMoneyFor(input: {
   categorySlug: string
   subcategorySlug?: string | null
   listingType?: string | null
-  /** True ONLY when the poster is the visa storefront itself. */
-  visaShopSeller?: boolean
 }): ListingMoney {
-  if (input.visaShopSeller && isVisaProductSlot(input.categorySlug, input.subcategorySlug)) {
-    // Empty unit on purpose — <Price> renders "$115" and would append " / USD" for any
-    // non-empty unit. Byte-identical to what scripts/seed-visa-shop.mjs writes, so a
-    // dashboard-posted product and a seeded one are the same row.
-    return { currency: '$', priceUnit: '', isoCode: 'USD' }
-  }
   const t = input.listingType
   return {
     currency: '₫',

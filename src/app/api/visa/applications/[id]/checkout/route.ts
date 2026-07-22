@@ -6,6 +6,7 @@ import { rateLimit } from '@/lib/ratelimit'
 import { getVisaShopListings, resolveVisaProduct } from '@/lib/visa-shop'
 import { decryptVisaPayload, visaApplicantSnapshotHash, visaCryptoReady } from '@/lib/visa/crypto'
 import { getVisaDb } from '@/lib/visa/db'
+import { isQuoteChargeable, parseVisaQuote, quoteVisaUsd, visaQuoteDrifted } from '@/lib/visa/fx'
 import { paypalCreateOrder, stripeCreateCheckout, visaPaymentsConfig } from '@/lib/visa/payments'
 import { recordVisaEvent, type VisaApplicationRow, type VisaDocumentRow } from '@/lib/visa/records'
 import { VISA_AUTHORIZATION_VERSION, VISA_DECLARATION_VERSION, validateVisaForReview } from '@/lib/visa/schema'
@@ -15,11 +16,20 @@ import { VISA_AUTHORIZATION_VERSION, VISA_DECLARATION_VERSION, validateVisaForRe
 // ⚠️ THE CLIENT NAMES A PRODUCT; THE SERVER NAMES THE PRICE (owner, 2026-07-21).
 // A visa service is an ordinary marketplace listing the admin uploaded — one listing per
 // (entry type × processing speed), each with its own price on Listing.price. The body
-// therefore carries a `listingId` and NOTHING resembling money: the amount comes from
-// resolveVisaProduct(listingId).priceCents, which re-reads the listing on every request,
-// and there is no other source of an amount anywhere in this file. (The body never
-// accepted a price; the schema below is `.strict()` so that a client which starts sending
-// one gets a loud 400 instead of having it silently stripped.)
+// therefore carries a `listingId` and NOTHING resembling money: the đồng amount comes from
+// resolveVisaProduct(listingId).priceVnd, which re-reads the listing on every request, and
+// there is no other source of an amount anywhere in this file. (The body never accepted a
+// price; the schema below is `.strict()` so that a client which starts sending one gets a
+// loud 400 instead of having it silently stripped.)
+//
+// ⚠️ AND THE PRICE IS IN ĐỒNG WHILE THE CHARGE IS IN DOLLARS (owner, 2026-07-22):
+// "admin posts in vnd and you show in vnd and usd to users they checkout accordingly usd
+// from their paypal but the vnd equivalent that admin set." So the dollars are a
+// SERVER-ISSUED QUOTE of the đồng price (src/lib/visa/fx.ts), minted here, immediately
+// above the charge, and charged unchanged. The client may ECHO the quote it displayed —
+// that echo is a CONFIRMATION TOKEN, never money: it can only cause this route to refuse
+// and re-quote, and no arithmetic anywhere below reads a number out of it. If FX is
+// unavailable the checkout FAILS CLOSED (503 fx_unavailable); there is no fallback rate.
 //
 // visaPaymentsConfig() is consulted only for "are payments switched on and is this
 // provider configured" — its feeCents prices nothing (see the note on the type).
@@ -46,6 +56,13 @@ const bodySchema = z.object({
   listingId: z.string().trim().min(1).max(64),
   declarationAccepted: z.literal(true),
   prefillAuthorized: z.literal(true),
+  // The quote the buyer was SHOWN, echoed back. Optional (a client that has not been
+  // shown one yet simply omits it) and deliberately typed as opaque here: parseVisaQuote()
+  // in src/lib/visa/fx.ts is the hostile-input parser, and duplicating its rules in a zod
+  // shape would create a second, quieter definition of what a quote is. It is a
+  // CONFIRMATION TOKEN — the only thing this route does with it is compare it against a
+  // freshly-issued quote and refuse if they disagree.
+  quote: z.unknown().optional(),
 }).strict()
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -71,7 +88,7 @@ async function explainUnsellable(listingId: string): Promise<{ error: string; st
   }
   if (!row.verified || row.status !== 'active') return { error: 'product_not_for_sale', status: 409 }
   // On the storefront, for sale, and still unresolvable ⇒ the price itself is unusable
-  // (non-positive, fractional, or not USD — see sellablePriceCents in visa-shop).
+  // (non-positive, fractional, or not priced in ₫ — see sellablePriceVnd in visa-shop).
   return { error: 'product_price_unavailable', status: 409 }
 }
 
@@ -140,10 +157,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       applicationEntryType: payload.entryType,
     }, { status: 409 })
   }
-  // Belt-and-braces at the decision point: visa-shop already guarantees a positive
-  // whole-cent USD amount, and payments.ts asserts it again at the provider boundary, but
-  // a non-positive price must be a NAMED refusal here rather than a provider error string.
-  if (!Number.isSafeInteger(product.priceCents) || product.priceCents <= 0 || product.currency !== 'USD') {
+  // Belt-and-braces at the decision point: visa-shop already guarantees a positive whole
+  // number of đồng, and fx.ts re-asserts it before quoting, but a non-positive price must
+  // be a NAMED refusal here rather than a provider error string.
+  if (!Number.isSafeInteger(product.priceVnd) || product.priceVnd <= 0 || product.currency !== 'VND') {
     return NextResponse.json({ error: 'product_price_unavailable' }, { status: 409 })
   }
   // Closed desk → refuse and say when it reopens, rather than taking $115 at 23:00 for a
@@ -159,17 +176,55 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       nextOpensIso: product.window.nextOpensIso,
     }, { status: 409 })
   }
-  const amountCents = product.priceCents
+
+  // ── THE QUOTE: đồng → dollars, issued once, right here ───────────────────────────
+  // Nothing above this line has touched an FX rate, so a dormant or invalid checkout
+  // never reaches the rate feed. FAIL CLOSED: no rate, an implausible rate or an
+  // unusable price ⇒ null ⇒ 503, never a guessed conversion. 503 (not 4xx) because the
+  // request is fine and the desk is temporarily unable to price it — retrying works.
+  const quote = await quoteVisaUsd({ listingId: product.listingId, priceVnd: product.priceVnd })
+  if (!quote) {
+    console.error(`[visa/checkout] no FX quote for listing ${product.listingId} at ${product.priceVnd}₫`)
+    return NextResponse.json({ error: 'fx_unavailable' }, { status: 503 })
+  }
+
+  // ── WHAT THE BUYER WAS SHOWN MUST BE WHAT THE BUYER IS CHARGED ───────────────────
+  // The client echoes the quote it rendered. It is compared, never used: every refusal
+  // below carries the NEW quote so the UI can say "the price updated, confirm again"
+  // instead of this route silently capturing a different number than the one on screen.
+  // Omitting the echo is allowed (an older client, a direct call) — the fresh quote is
+  // then both shown and charged in the same response, which is the same guarantee.
+  if (parsed.data.quote !== undefined) {
+    const shown = parseVisaQuote(parsed.data.quote)
+    if (!shown) return NextResponse.json({ error: 'invalid_request' }, { status: 400 })
+    // Expired, self-inconsistent, or a rate outside the plausible band ⇒ not a live quote.
+    // Note this can NEVER cheapen the charge: a forged-but-consistent quote still has to
+    // survive the drift comparison below, and the amount charged is the fresh one either
+    // way. The distinct code exists so the UI can say "that price is stale" precisely.
+    if (!isQuoteChargeable(shown, new Date())) {
+      return NextResponse.json({ error: 'quote_expired', quote }, { status: 409 })
+    }
+    if (visaQuoteDrifted(shown, quote)) {
+      return NextResponse.json({ error: 'quote_changed', quote }, { status: 409 })
+    }
+  }
+
+  // ⚠️ THE LINE THAT DECIDES THE CHARGED AMOUNT. It reads exactly one thing: the quote
+  // this request just issued from the admin's đồng price. Not the body, not the echo,
+  // not a config, not a cached catalogue number.
+  const amountCents = quote.amountUsdCents
 
   try {
     const session = parsed.data.provider === 'stripe'
       ? await stripeCreateCheckout({
         applicationId: id, userId, listingId: product.listingId,
-        productTitle: product.title, amountCents, currency: product.currency,
+        // currency is the CHARGE currency (USD), not the listing's (₫) — see
+        // assertChargeableUsdCents. `quote` rides along as dispute evidence only.
+        productTitle: product.title, amountCents, currency: 'USD', quote,
       })
       : await paypalCreateOrder({
         applicationId: id, listingId: product.listingId,
-        productTitle: product.title, amountCents, currency: product.currency,
+        productTitle: product.title, amountCents, currency: 'USD', quote,
       })
 
     const { error } = await db.from('visa_payments').insert({
@@ -178,10 +233,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       provider: parsed.data.provider,
       provider_ref: session.ref,
       // The amount the provider was just asked for — the local truth markVisaPaidAndHandoff
-      // makes the capture cover. It is the LISTING's price, frozen at this click, so a
-      // mid-checkout price edit by the admin can neither raise nor lower this session.
+      // makes the capture cover. It is the QUOTE, frozen at this click, so neither a
+      // mid-checkout price edit by the admin nor an FX move can raise or lower this
+      // session: the buyer pays the number they confirmed or the capture is rejected.
       amount_cents: amountCents,
-      currency: product.currency,
+      // ⚠️ The CHARGE currency, which is what this column has always meant (the capture
+      // comparison in markVisaPaidAndHandoff is against a provider's USD). The listing's
+      // đồng price is recorded beside it in the audit event below — do not write '₫' here.
+      currency: 'USD',
       status: 'created',
       consent_snapshot_hash: snapshotHash,
       consent_at: new Date().toISOString(),
@@ -192,7 +251,20 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     })
     if (error) throw new Error(`visa_payment_insert_failed:${error.message}`)
 
-    // ── Dispute evidence: WHICH product, at WHAT price, under WHICH provider ref ─────
+    // ── Dispute evidence: WHICH product, at WHAT price, at WHAT RATE, under WHICH ref ─
+    //
+    // The four numbers a currency-converted charge is defended with — priceVnd (the
+    // admin's authoritative figure), amountUsdCents (what was captured), vndPerUsd (the
+    // rate that connects them) and quotedAt (when that rate was read) — are written HERE,
+    // with the payment's provider reference, and NOWHERE ELSE in our datastore.
+    //
+    // Why it is safe: every one of them is a PUBLIC COMMERCIAL FACT. A listing price is on
+    // the PDP, an FX rate is a published number, a timestamp and a provider reference are
+    // already in the buyer's own return URL. None of it is applicant data, so the audit
+    // log's exposure is exactly what it was — and in particular this is NOT the encrypted
+    // payload and NOT any PII column: recording a price must never become a reason to
+    // decrypt, re-encrypt, or widen a passport row.
+    //
     // In visa_events, deliberately:
     //  · not a Message body — a chat card is applicant-visible content that later edits
     //    and re-renders can rewrite; the audit log is append-only and admin-facing;
@@ -216,18 +288,29 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       productTitle: product.title,
       entryType: product.entryType,
       speed: product.speed,
+      // The charge …
       amountCents,
-      currency: product.currency,
+      currency: 'USD',
+      // … and the đồng price it is the converted face of, with the conversion itself.
+      priceVnd: quote.priceVnd,
+      listingCurrency: 'VND',
+      amountUsdCents: quote.amountUsdCents,
+      vndPerUsd: quote.vndPerUsd,
+      quotedAt: quote.quotedAt,
+      quoteExpiresAt: quote.expiresAt,
     })
 
     return NextResponse.json({
       url: session.url,
       provider: parsed.data.provider,
-      // Echoed so the client can show what it is about to be charged — READ-BACK of the
-      // server's decision, never an input to it.
+      // READ-BACK of the server's decision, never an input to it: this is the quote that
+      // was charged, so the client renders these two numbers — not a locally converted
+      // pair — on the confirmation. Same object shape the client echoes back next time.
+      quote,
       listingId: product.listingId,
-      amountCents,
-      currency: product.currency,
+      priceVnd: quote.priceVnd,
+      amountUsdCents: quote.amountUsdCents,
+      currency: 'USD',
     })
   } catch (error) {
     console.error('[visa/checkout]', (error as Error)?.message?.slice(0, 300))

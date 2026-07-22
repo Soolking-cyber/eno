@@ -125,7 +125,6 @@ const brandSlugify = (s: string) => s.toLowerCase().normalize('NFD').replace(/[�
 // Per-listing-type price model (VND). [min, max] of the BASE figure.
 function priceModel(cat: CategoryDef, type: ListingType, r: number): { price: number; priceUnit: string } {
   if (type === 'free') return { price: 0, priceUnit: 'VND' }
-  if (type === 'wanted') return { price: 0, priceUnit: 'VND' }
   if (type === 'event') return { price: between(0, 300_000, r) === 0 ? 0 : niceVnd(between(50_000, 300_000, r)), priceUnit: 'VND' }
   if (type === 'job') return { price: niceVnd(between(8_000_000, 60_000_000, r)), priceUnit: 'VND/month' }
   if (type === 'service') return { price: niceVnd(between(150_000, 5_000_000, r)), priceUnit: 'VND/service (from)' }
@@ -167,7 +166,6 @@ function images(_keyword: string, seed: number, count: number): string {
 function titleFor(cat: CategoryDef, subName: string, type: ListingType, area: string, adj: string): string {
   switch (type) {
     case 'rent': return `${subName} for rent — ${area}`
-    case 'wanted': return `Wanted: ${subName} in ${area}`
     case 'free': return `Free ${subName} — ${area} (giveaway)`
     case 'service': return `${subName} — service in ${area}`
     case 'job': return `${subName} — hiring in ${area}`
@@ -179,7 +177,6 @@ function titleFor(cat: CategoryDef, subName: string, type: ListingType, area: st
 function titleViFor(subVi: string, type: ListingType, area: string): string {
   switch (type) {
     case 'rent': return `${subVi} cho thuê — ${area}`
-    case 'wanted': return `Cần mua: ${subVi} tại ${area}`
     case 'free': return `Cho tặng ${subVi} — ${area}`
     case 'service': return `${subVi} — dịch vụ tại ${area}`
     case 'job': return `${subVi} — tuyển dụng ${area}`
@@ -323,7 +320,7 @@ async function main() {
       }
       const description =
         `${adj} ${sub.name.toLowerCase()} in ${area.location}. ` +
-        `${type === 'rent' ? 'Available now for monthly rental. ' : type === 'free' ? 'Free to a good home, pickup only. ' : type === 'wanted' ? 'Looking for this — reasonable condition, fair price. ' : ''}` +
+        `${type === 'rent' ? 'Available now for monthly rental. ' : type === 'free' ? 'Free to a good home, pickup only. ' : ''}` +
         `Message in-app to arrange. Sample mock listing for testing the ${cat.name} category.`
 
       const verified = r() > 0.05 // ~5% held/unverified to exercise that filter

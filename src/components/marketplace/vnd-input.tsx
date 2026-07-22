@@ -4,7 +4,6 @@ import { useLanguage } from '@/context/language-context'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { groupVnd, parseVnd, vndWords, moneyLocale } from '@/lib/vnd'
-import type { ListingMoney } from '@/lib/taxonomy'
 import { cn } from '@/lib/utils'
 
 type Preset = { label: string; value: number }
@@ -13,29 +12,13 @@ const CAP = 999_000_000_000 // 999 tỷ — guards the ×unit chips from absurd 
 const chip = 'rounded-full bg-tint px-2.5 py-1 text-xs font-semibold text-body transition-colors hover:bg-accent hover:text-accent-foreground disabled:opacity-40 disabled:hover:bg-tint disabled:hover:text-body cursor-pointer'
 
 /**
- * Amount input for a listing price. It is VND-first because the marketplace is:
- * VND has many zeros (12.000.000), so typing is made fast with live dot-grouping,
- * ×1.000 / ×1.000.000 / ×1.000.000.000 unit multipliers (type "12" → tap
- * "×1.000.000" → 12.000.000), optional preset chips, and a "= 12 triệu VND"
- * readability helper. Emits a digits-only string.
- *
- * ## ⚠️ `currency` is a MONEY-SAFETY prop, not a label
- * Everything above is Vietnamese: the ×1.000 ladder IS nghìn → triệu → tỷ, and
- * vndWords() reads the amount out in đồng. Rendered over a USD amount they are not
- * merely mislabelled, they are WRONG — the e-Visa storefront prices in whole dollars
- * (listingMoneyFor() in @/lib/taxonomy, enforced by sellablePriceCents() in
- * @/lib/visa-shop), so one tap on "×1.000" turned a $115 e-visa into a live, buyable
- * $115,000 product while the helper line underneath read "= 115 đồng".
- *
- * So for a non-VND currency the unit ladder DOES NOT RENDER (it has no meaning outside
- * đồng) and the đồng readability line stays blank. Pass the `isoCode` that
- * `listingMoneyFor()` hands the server for this very listing — never a guess, and never
- * a value derived on the client from a shop email. The default is 'VND', which is every
- * existing call site, rendered byte-for-byte as before.
+ * VND amount input. VND has many zeros (12.000.000), so typing is made fast:
+ * live dot-grouping as you type, ×1,000 / ×1,000,000 unit multipliers
+ * (type "12" → tap "×1,000,000" → 12,000,000), optional preset chips, and a
+ * "= 12 triệu đồng" readability helper. Emits a digits-only string.
  */
 export function VndInput({
   value, onChange, presets, placeholder, autoFocus, id, className, invalid,
-  currency = 'VND',
   'aria-label': ariaLabel, 'aria-describedby': describedBy,
 }: {
   value: string
@@ -46,10 +29,6 @@ export function VndInput({
   id?: string
   className?: string
   invalid?: boolean
-  /** The ISO code this field is capturing — `listingMoneyFor().isoCode`, the same value
-   *  the server stores the row with. Drives the suffix, the đồng readability line and
-   *  whether the VN unit ladder exists at all. See the ⚠️ above before changing it. */
-  currency?: ListingMoney['isoCode']
   /** VndInput renders a <div>, so it is NOT a labelable control and cannot sit in a <FieldControl>.
    *  Its inner <input> therefore has no way to acquire a name or a reason on its own — these two
    *  props are how the caller supplies them by hand. Without them the price field announces as
@@ -61,10 +40,6 @@ export function VndInput({
   const locale = moneyLocale(lang) // grouping follows the viewer's language (vi: dots)
   const digits = (value || '').replace(/\D/g, '')
   const n = parseVnd(digits)
-  const isVnd = currency === 'VND'
-  // Empty for any non-VND amount: vndWords() renders "nghìn/triệu/tỷ … VND", which is a
-  // false reading of a dollar figure. Blank beats wrong on the field that sets the price.
-  const words = isVnd ? vndWords(n, lang) : ''
 
   const set = (d: number | string) => onChange(String(d).replace(/\D/g, ''))
   const mul = (factor: number) => { if (n > 0) set(Math.min(n * factor, CAP)) }
@@ -98,37 +73,25 @@ export function VndInput({
           aria-invalid={invalid || undefined}
           aria-label={ariaLabel}
           aria-describedby={describedBy}
-          // pr-14 is LOAD-BEARING: it reserves the room for the currency-code suffix
-          // span below — without it the digits run under the suffix.
+          // pr-14 is LOAD-BEARING: it reserves the room for the "VND" suffix span
+          // below — without it the digits run under the suffix.
           className={cn('py-2.5 pl-3.5 pr-14 text-lg font-bold tabular-nums focus:ring-brand/20', invalid && 'ring-2 ring-destructive/60')}
         />
-        {/* The code the row will be STORED with, so the poster reads the same money the
-            buyer will be charged. Never hardcode 'VND' here again. */}
-        <span className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-sm font-bold text-ink-4">{currency}</span>
+        <span className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-sm font-bold text-ink-4">VND</span>
       </div>
 
-      {/* Readability helper — VND ONLY (see the ⚠️ on the component). Its line is
-          reserved either way so the chips don't jump. */}
-      <p className={cn('mt-1 h-4 text-xs font-semibold', words ? 'text-accent-foreground' : 'text-transparent')}>
-        = {words || '—'}
+      {/* Readability helper — reserves its line so the chips don't jump */}
+      <p className={cn('mt-1 h-4 text-xs font-semibold', n > 0 ? 'text-accent-foreground' : 'text-transparent')}>
+        = {vndWords(n, lang) || '—'}
       </p>
 
       {/* Fast-entry chips */}
       <div className="mt-1.5 flex flex-wrap gap-1.5">
-        {/* ⚠️ THE VN UNIT LADDER — nghìn → triệu → tỷ — and therefore ₫-ONLY. These are
-            not "×1000 buttons with a Vietnamese label": they exist because a đồng price
-            is typed in units, and on any other currency a single tap silently multiplies
-            a real, chargeable price by a thousand. Do not "translate" them for USD; there
-            is nothing to translate. Presets and Clear are currency-agnostic and stay. */}
-        {isVnd && (
-          <>
-            <Button type="button" variant="ghost" size="none" onMouseDown={holdFocus} onClick={() => mul(1_000)} disabled={!digits} className={chip}>×{groupVnd('1000', locale)}</Button>
-            <Button type="button" variant="ghost" size="none" onMouseDown={holdFocus} onClick={() => mul(1_000_000)} disabled={!digits} className={chip}>×{groupVnd('1000000', locale)}</Button>
-            {/* tỷ / billion — completes the ladder so cars, property and other big-ticket
-                VND amounts are one tap (type "3" → 3 tỷ). */}
-            <Button type="button" variant="ghost" size="none" onMouseDown={holdFocus} onClick={() => mul(1_000_000_000)} disabled={!digits} className={chip}>×{groupVnd('1000000000', locale)}</Button>
-          </>
-        )}
+        <Button type="button" variant="ghost" size="none" onMouseDown={holdFocus} onClick={() => mul(1_000)} disabled={!digits} className={chip}>×{groupVnd('1000', locale)}</Button>
+        <Button type="button" variant="ghost" size="none" onMouseDown={holdFocus} onClick={() => mul(1_000_000)} disabled={!digits} className={chip}>×{groupVnd('1000000', locale)}</Button>
+        {/* tỷ / billion — completes the VN unit ladder (nghìn → triệu → tỷ) so cars,
+            property and other big-ticket VND amounts are one tap (type "3" → 3 tỷ). */}
+        <Button type="button" variant="ghost" size="none" onMouseDown={holdFocus} onClick={() => mul(1_000_000_000)} disabled={!digits} className={chip}>×{groupVnd('1000000000', locale)}</Button>
         {(presets ?? []).map((p) => (
           <Button type="button" variant="ghost" size="none" key={p.label} onMouseDown={holdFocus} onClick={() => set(p.value)} className={chip}>{p.label}</Button>
         ))}

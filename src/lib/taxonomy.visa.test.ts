@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
+  askableFacetsFor,
   facetsFor,
   isRequiredFacet,
   isVisaProductSlot,
@@ -67,9 +68,22 @@ describe("facetsFor('services','visa-legal')", () => {
     }
   })
 
-  it('still returns the generic Services facets alongside them', () => {
+  it('drops Location type, keeps Provider for FILTERING, and adds the two visa chips', () => {
     const keys = facetsFor('services', 'visa-legal').map((f) => f.key)
-    expect(keys).toEqual(expect.arrayContaining(['serviceLocation', 'providerType', 'visaEntryType', 'visaSpeed']))
+    // Location type is meaningless here — visa work is online by definition, and the rare
+    // exception is settled in the chat thread.
+    expect(keys).not.toContain('serviceLocation')
+    // Provider survives in facetsFor because BROWSE still filters on it; it is simply
+    // never asked (see askableFacetsFor) — it is derived from the account.
+    expect(keys).toEqual(expect.arrayContaining(['providerType', 'visaEntryType', 'visaSpeed']))
+    // …but it is NOT offered as a chip in the wizard.
+    expect(askableFacetsFor('services', 'visa-legal').map((f) => f.key)).not.toContain('providerType')
+  })
+
+  it('still asks Location type everywhere else in Services', () => {
+    // The exclusion must be surgical: an empty result here would mean excludeSubcats had
+    // knocked the facet out of the whole category.
+    expect(askableFacetsFor('services', 'cleaning').map((f) => f.key)).toContain('serviceLocation')
   })
 })
 
@@ -153,9 +167,14 @@ describe('isRequiredFacet — the publish gate', () => {
     const required = facetsFor('services', 'visa-legal').filter(isRequiredFacet).map((f) => f.key)
     expect(required).not.toContain('visaEntryType')
     expect(required).not.toContain('visaSpeed')
-    // …while the generic Services chips are STILL required — an empty result must not be
-    // what makes the two assertions above pass.
-    expect(required).toEqual(['serviceLocation', 'providerType'])
+    // Nothing is required in this slot any more: serviceLocation is excluded here and
+    // providerType is derived from the account. That IS the intent — a visa/legal listing
+    // should publish with no chips at all.
+    expect(required).toEqual([])
+    // ⚠️ The guard against that being vacuous lives one subcategory over: an ordinary
+    // service still has its required chip, so an empty set here is a scoped decision
+    // rather than the gate collapsing category-wide.
+    expect(facetsFor('services', 'cleaning').filter(isRequiredFacet).map((f) => f.key)).toContain('serviceLocation')
   })
 
   it('leaves every other subcategory\'s gate exactly as it was', () => {
@@ -180,7 +199,10 @@ describe('isRequiredFacet — the publish gate', () => {
     for (const cat of TAXONOMY) {
       for (const sub of [...cat.subcategories.map((s) => s.slug), null]) {
         const facets = facetsFor(cat.slug, sub)
-        const oldRule = facets.filter((f) => f.kind !== 'range').map((f) => f.key)
+        // The rule is now "every non-range chip that is neither optional nor DERIVED".
+        // providerType is derived in every subcategory, so it leaves the gate everywhere —
+        // that is the point: the app already knows the answer from Profile.accountType.
+        const oldRule = facets.filter((f) => f.kind !== 'range' && !f.derived).map((f) => f.key)
         const expected = isVisaProductSlot(cat.slug, sub) ? oldRule.filter((k) => !k.startsWith('visa')) : oldRule
         expect(facets.filter(isRequiredFacet).map((f) => f.key), `${cat.slug}/${sub}`).toEqual(expected)
       }
@@ -188,45 +210,29 @@ describe('isRequiredFacet — the publish gate', () => {
   })
 })
 
-// ── (a) A visa product must be PRICEABLE — i.e. stored in USD ──────────────────────
-// visa-shop's sellablePriceCents() charges USD cents and refuses any currency that is not
-// '$'/'USD', so a product stored in ₫ can never be sold. The currency is derived, never
-// picked: there is no currency control anywhere in the app and a client cannot send one.
-//
-// ⚠️ The seller half is not decoration. The slot is shared with ordinary work-permit and
-// tax listings, so "subcategory ⇒ USD" would re-price a Vietnamese agent's ₫1.500.000
-// service as $1,500,000 — the 25 000× money bug in the other direction.
+// ── (a) EVERY listing is priced in đồng, visa products included ────────────────────
+// The owner prices visa services in VND like any other seller; the USD a buyer pays is a
+// SERVER-ISSUED conversion at checkout, not a stored currency. A short-lived rule that
+// stored visa listings in '$' shipped as f7f8ca40 and was reverted — this suite is the
+// guard that it does not creep back, because a stored-currency split is how a ₫1.500.000
+// work-permit listing becomes a $1,500,000 one.
 
-describe('listingMoneyFor — USD only for a visa product on the visa storefront', () => {
+describe('listingMoneyFor — đồng, with no exceptions', () => {
   const visa = { categorySlug: 'services', subcategorySlug: 'visa-legal', listingType: 'service' }
 
-  it('prices a visa product on the visa storefront in USD', () => {
-    expect(listingMoneyFor({ ...visa, visaShopSeller: true })).toEqual({
-      currency: '$',
-      // Empty: <Price> renders "$115" and would append " / USD" for any non-empty unit.
-      priceUnit: '',
-      isoCode: 'USD',
+  it('prices a visa product in đồng, exactly like any other service', () => {
+    expect(listingMoneyFor({ ...visa })).toEqual({
+      currency: '₫',
+      priceUnit: 'VND/service',
+      isoCode: 'VND',
     })
   })
 
-  it('leaves an ORDINARY seller in the same subcategory in đồng', () => {
-    // The work-permit / tax / legal listings that share services/visa-legal.
-    for (const visaShopSeller of [false, undefined]) {
-      expect(listingMoneyFor({ ...visa, visaShopSeller })).toEqual({
-        currency: '₫',
-        priceUnit: 'VND/service',
-        isoCode: 'VND',
-      })
-    }
-  })
-
-  it('never prices anything else in USD — not even the visa storefront itself', () => {
+  it('never prices ANY category, subcategory or listing type in anything but đồng', () => {
     for (const cat of TAXONOMY) {
       for (const sub of [...cat.subcategories.map((s) => s.slug), null]) {
-        if (isVisaProductSlot(cat.slug, sub)) continue
         for (const listingType of cat.types) {
-          // visaShopSeller: true — the storefront posting a NON-visa listing is still ₫.
-          const money = listingMoneyFor({ categorySlug: cat.slug, subcategorySlug: sub, listingType, visaShopSeller: true })
+          const money = listingMoneyFor({ categorySlug: cat.slug, subcategorySlug: sub, listingType })
           expect(money.currency, `${cat.slug}/${sub}/${listingType}`).toBe('₫')
           expect(money.isoCode).toBe('VND')
         }
