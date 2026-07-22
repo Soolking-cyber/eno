@@ -115,7 +115,7 @@ export function MediaSection({
         onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
         onDragLeave={() => setDragOver(false)}
         onDrop={(e) => { e.preventDefault(); setDragOver(false); addPhotos(e.dataTransfer.files) }}
-        className={cn('grid grid-cols-3 gap-2 rounded-2xl transition-colors sm:grid-cols-4', dragOver && 'bg-brand/5 ring-2 ring-brand/40', errPhoto && 'p-2 -m-2 ring-2 ring-destructive/60')}
+        className={cn('grid grid-cols-3 gap-2 rounded-2xl transition-colors sm:grid-cols-4', dragOver && 'bg-brand/5 ring-2 ring-brand/40', errPhoto && '-mx-2 -mt-2 p-2 ring-2 ring-destructive/60')}
       >
         {photos.map((p, i) => (
           <div
@@ -198,7 +198,7 @@ export function MediaSection({
           )}
         </div>
       </div>
-      {errPhoto && <p id="pw-photo-error" role="alert" className="mt-1.5 text-xs font-semibold text-destructive">{minPhotos === 1 ? t('Thêm ít nhất 1 ảnh', 'Add at least 1 photo') : t('Thêm ít nhất 3 ảnh từ các góc khác nhau', 'Add at least 3 photos from different angles')}</p>}
+      {errPhoto && <p id="pw-photo-error" role="alert" className="mt-2 text-xs font-semibold text-destructive">{minPhotos === 1 ? t('Thêm ít nhất 1 ảnh', 'Add at least 1 photo') : t('Thêm ít nhất 3 ảnh từ các góc khác nhau', 'Add at least 3 photos from different angles')}</p>}
       {/* Media hint covers the video square in the grid above. */}
       <p id="pw-photo-hint" className="mt-1.5 text-xs text-ink-4">{t('Ảnh đầu là ảnh bìa. Video (tùy chọn) tự phát khi rê chuột và trong mục Video.', 'First photo is your cover. A video (optional) autoplays on hover and in the Video feed.')}</p>
       {aiEnabled && photos.length > 0 && (

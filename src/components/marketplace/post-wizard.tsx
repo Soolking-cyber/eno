@@ -764,7 +764,13 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                   role="group"
                   aria-label={t('Danh mục', 'Category')}
                   aria-describedby={err.category ? 'pw-category-error' : undefined}
-                  className={cn('flex flex-wrap gap-2 rounded-xl transition-colors', err.category && 'p-2 -m-2 ring-2 ring-destructive/60')}
+                  // ⚠️ -mx-2 -mt-2, NOT -m-2. `p-2 -m-2` cancels the padding on all four sides for
+                    // LAYOUT while the ring still paints 8px outside the box — so the error message
+                    // below flowed straight through the ring's bottom edge and rendered struck out.
+                    // Dropping only the negative BOTTOM margin lets that 8px occupy real space, so
+                    // the message clears the ring, while the sides and top still avoid a shift when
+                    // the error appears.
+                    className={cn('flex flex-wrap gap-2 rounded-xl transition-colors', err.category && '-mx-2 -mt-2 p-2 ring-2 ring-destructive/60')}
                 >
                   {categories.map((c) => (
                     <Button
@@ -781,7 +787,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                     </Button>
                   ))}
                 </div>
-                {err.category && <p id="pw-category-error" role="alert" className="text-xs font-semibold text-destructive">{t('Chọn một danh mục', 'Pick a category')}</p>}
+                {err.category && <p id="pw-category-error" role="alert" className="mt-2 text-xs font-semibold text-destructive">{t('Chọn một danh mục', 'Pick a category')}</p>}
               </>
             )}
 
