@@ -222,6 +222,7 @@ export function MediaSection({
    validation marker; err flags/messages are computed in the wizard (they mirror
    the publish-blocking checks there). */
 export function PriceSection({
+  fixedPriceOnly,
   price,
   setPrice,
   touch,
@@ -235,6 +236,8 @@ export function PriceSection({
   setUrgent,
   t,
 }: {
+  /** Services sell at a stated price: no offers, no urgency (owner, 2026-07-22). */
+  fixedPriceOnly?: boolean
   price: string
   setPrice: (v: string) => void
   touch: (k: string) => void
@@ -276,6 +279,11 @@ export function PriceSection({
         {/* Negotiable vs fixed — a fixed price hides the offer UI so buyers just
             ask availability and buy directly (seller's convenience). Fixed price
             also switches off Urgent: urgency promises flexibility. */}
+        {/* Services are sold at the price stated — the negotiable/fixed choice and the
+            Urgent toggle are both hidden for them (owner, 2026-07-22: "for services
+            category all products non negotiable"). The server forces the same two values,
+            so hiding the control is presentation, never the enforcement. */}
+        {!fixedPriceOnly && (
         <div className="mt-3 flex flex-wrap gap-2" role="group" aria-label={t('Kiểu giá', 'Price type')}>
           {[
             { val: true, label: t('Có thể trả giá', 'Negotiable'), hint: t('Người mua có thể trả giá', 'Buyers can send offers') },
@@ -300,10 +308,12 @@ export function PriceSection({
             </Button>
           ))}
         </div>
+        )}
         {/* Urgent sale ("Bán gấp") — free, 7 days, auto-expires. Selecting it
             force-enables offers (the server enforces the same coupling). Uses the
             destructive token (not warning): white-on-warning is unreadable in dark
             (--warning is amber-400 there). Distinct from the blue selections. */}
+        {!fixedPriceOnly && (
         <div className="mt-3">
           <Button
             type="button"
@@ -332,6 +342,7 @@ export function PriceSection({
             </span>
           </Button>
         </div>
+        )}
       </div>
     </Section>
   )

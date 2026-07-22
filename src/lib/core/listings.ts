@@ -295,7 +295,8 @@ export async function updateListingCore(
   }
   if (body.condition !== undefined) data.condition = body.condition ? String(body.condition).trim().slice(0, 60) : null
   // Price-negotiable toggle (edit): honored on the same edit path the wizard resubmits.
-  if (body.negotiable !== undefined) data.negotiable = Boolean(body.negotiable)
+  // Same rule on EDIT, or "post as goods, switch category, enable offers" is a bypass.
+  if (body.negotiable !== undefined) data.negotiable = current.category?.slug === 'services' ? false : Boolean(body.negotiable)
   // Urgent-sale toggle (edit). Activation runs the full server gate (no-op while
   // already active — never a silent renewal; 7-day re-arm cooldown; 2-per-seller
   // quota) and force-enables offers — urgency IS a promise of flexibility. An early
@@ -587,6 +588,9 @@ export async function createListingCore(input: {
   // contact_in_text, which tells the seller to edit a listing that is already clean.
   const guardName = body.contactName ? String(body.contactName).trim().slice(0, 80) : null
   assertCleanContactName(guardName)
+  // Services sell at the price stated: no offers, no urgency run.
+  const fixedPriceOnly = categorySlug === 'services'
+
   assertPublishable({ trustTier: seller.trustTier, images, texts: [title, description], categorySlug, lat, lng, district })
 
   // Intent + subcategory from the taxonomy. listingType must be valid for the category
@@ -673,8 +677,14 @@ export async function createListingCore(input: {
       // the pre-feature norm); the wizard sends an explicit true/false, partner API /
       // MCP send it when they want a fixed price. Urgent force-enables offers —
       // urgency is a promise of flexibility (the wizard mirrors this client-side).
-      negotiable: urgentOk ? true : body.negotiable === undefined ? true : Boolean(body.negotiable),
-      ...(urgentOk ? { urgentUntil: new Date(Date.now() + URGENT.DURATION_MS) } : {}),
+      // ⚠️ SERVICES ARE FIXED-PRICE, and the server decides that — not the wizard, which
+      // merely hides the controls (owner, 2026-07-22: "for services category all products
+      // non negotiable"). A service is quoted work at a stated price; an offer on it is a
+      // renegotiation of scope, which the offer flow cannot express. This also has to beat
+      // the urgent coupling below it: Urgent normally FORCES negotiable=true, so without
+      // this ordering a service posted as urgent would come back negotiable anyway.
+      negotiable: fixedPriceOnly ? false : urgentOk ? true : body.negotiable === undefined ? true : Boolean(body.negotiable),
+      ...(urgentOk && !fixedPriceOnly ? { urgentUntil: new Date(Date.now() + URGENT.DURATION_MS) } : {}),
       location,
       district,
       city,

@@ -933,6 +933,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
             setNegotiable={setNegotiable}
             urgent={urgent}
             setUrgent={setUrgent}
+            fixedPriceOnly={categorySlug === 'services'}
             t={t}
           />
 
