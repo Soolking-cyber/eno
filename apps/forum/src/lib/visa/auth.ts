@@ -2,7 +2,10 @@ import 'server-only'
 import { createClient, type User } from '@supabase/supabase-js'
 import { createSupabaseServer } from '@/lib/supabase/server'
 
-export const VISA_SUPPORT_ADMIN_EMAIL = 'support@eno.vn'
+// support@eno.vn is a mail REDIRECT into support@eno.forum, not an account (owner,
+// 2026-07-22). The single admin account lives on the .forum address; verified in the
+// database — no Profile carries the .vn address.
+export const VISA_SUPPORT_ADMIN_EMAIL = 'support@eno.forum'
 
 export async function getVisaUser(request: Request): Promise<User | null> {
   const authorization = request.headers.get('authorization')

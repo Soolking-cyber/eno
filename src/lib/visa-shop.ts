@@ -43,7 +43,7 @@ import { MAX_EVISA_VALIDITY_DAYS, visaDateDefaultsForStart, type VisaPayload } f
 // Nothing here decrypts or touches applicant PII: it deals in listings.
 
 /**
- * The account that OWNS the visa storefront and answers its threads: support@eno.vn
+ * The account that OWNS the visa storefront and answers its threads: support@eno.forum
  * (owner-locked 2026-07-21). The forum app declares the same address for the operator
  * queue (apps/forum/src/lib/visa/auth.ts:5 VISA_SUPPORT_ADMIN_EMAIL); that copy is not
  * importable from here (separate Next app, separate `@/` root), so this is the eno.vn
@@ -55,7 +55,7 @@ import { MAX_EVISA_VALIDITY_DAYS, visaDateDefaultsForStart, type VisaPayload } f
  * them equal; they are compared by nothing but a human, which is why the address is
  * read from env first.
  */
-export const VISA_SHOP_OWNER_EMAIL = (process.env.VISA_SHOP_OWNER_EMAIL || 'support@eno.vn').trim().toLowerCase()
+export const VISA_SHOP_OWNER_EMAIL = (process.env.VISA_SHOP_OWNER_EMAIL || 'support@eno.forum').trim().toLowerCase()
 
 /**
  * ⚠️ A LIST, because pinning ONE address silently disabled the whole visa surface in prod.
@@ -66,12 +66,20 @@ export const VISA_SHOP_OWNER_EMAIL = (process.env.VISA_SHOP_OWNER_EMAIL || 'supp
  * matched nothing and every card, binding and charge path failed closed, while the products
  * sat published on the marketplace.
  *
- * The admin account's email was flipped in auth to support@eno.vn but its Profile row still
- * carries the old address, so BOTH are live identities for the same person. ADMIN_EMAILS
- * already ships both for exactly this reason; the shop lookup now matches that.
+ * CORRECTED 2026-07-22 (verified in the database, both columns): the consolidation moved
+ * the account CLEANLY — auth.users.email AND Profile.email both read support@eno.forum,
+ * and no Profile anywhere carries support@eno.vn. The earlier note here had the direction
+ * backwards. The real cause was this constant's own fallback: it named the pre-migration
+ * address, so the lookup matched nothing.
+ *
+ * It stays a LIST because the failure mode it guards against is real — pinning one address
+ * takes the whole visa surface down silently — but the list now contains only addresses
+ * that actually resolve. support@eno.vn is a Cloudflare mail REDIRECT into support@eno.forum
+ * (owner: "we dont use it nowhere to create accounts"), never an account, so keeping it here
+ * would have kept a dead identity alive as a live one.
  */
 export const VISA_SHOP_OWNER_EMAILS: readonly string[] = (
-  process.env.VISA_SHOP_OWNER_EMAIL || 'support@eno.vn,support@eno.forum'
+  process.env.VISA_SHOP_OWNER_EMAIL || 'support@eno.forum'
 )
   .split(',')
   .map((e) => e.trim().toLowerCase())
@@ -312,7 +320,7 @@ function compareCatalogue(
  * rows that are hidden, unverified, or not finished being set up.
  *
  * ⚠️ MEMBERSHIP IS THE STOREFRONT, not a marker string. This seller exists to sell visa
- * services and nothing else (it is created and owned by support@eno.vn), so its listings
+ * services and nothing else (it is created and owned by support@eno.forum), so its listings
  * are its products. Filtering on `externalId` instead would drop exactly the listings this
  * feature is built around: the ones the admin uploads through the ordinary dashboard,
  * which carry no marker at all.
