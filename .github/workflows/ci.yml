@@ -48,23 +48,53 @@ jobs:
       - name: Test
         run: npx vitest run
 
-      # ── Forum e2e ────────────────────────────────────────────────────────────────
-      # Added 2026-07-21 after THREE forum specs sat red for weeks with nobody noticing:
-      # nothing in CI ran them. This suite is the one that can run here honestly — it needs
-      # no database and no marketplace API (FORUM_E2E_PREVIEW=1 serves static preview posts),
-      # takes ~35s, and is deterministic.
-      #
-      # The ROOT guest suite is deliberately NOT here. Its specs read LIVE listing data, so a
-      # production blip or a data change would turn PRs red for reasons the author cannot fix
-      # — the fastest way to teach everyone to re-run until green. If we want that signal it
-      # belongs on a schedule as a synthetic monitor, alerting a channel, not gating a merge.
-      - name: Install Playwright browsers (forum e2e)
-        run: npx playwright install --with-deps chromium
+  # ── Forum e2e ──────────────────────────────────────────────────────────────────
+  # Added 2026-07-21 after THREE forum specs sat red for weeks with nobody noticing:
+  # nothing in CI ran them.
+  #
+  # A SEPARATE job, not steps inside `check`, because apps/forum has its own
+  # package-lock.json and its own node_modules. The first attempt bolted the steps onto
+  # `check` (which only runs `npm ci` at the repo root) and died with "couldn't find the
+  # Next.js package from apps/forum/src/app" — the forum's deps were never installed.
+  #
+  # The ROOT guest suite is deliberately NOT here. Its specs read LIVE listing data, so a
+  # production blip or a data change would turn PRs red for reasons the author cannot fix —
+  # the fastest way to teach everyone to re-run until green. That signal belongs on a
+  # schedule as a synthetic monitor, not on a merge gate.
+  forum-e2e:
+    name: Forum E2E
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    defaults:
+      run:
         working-directory: apps/forum
+    steps:
+      - uses: actions/checkout@v4
 
-      - name: Forum e2e
-        run: npx playwright test
-        working-directory: apps/forum
-        timeout-minutes: 12
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: apps/forum/package-lock.json
+
+      - name: Install forum dependencies
+        run: npm ci
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      # workers=1 + retries=1 + fail-on-flaky: a shared runner is slower and more contended
+      # than a laptop, and a suite that passes only on retry is a suite that will rot again.
+      # Flaky counts as failure so the signal stays honest.
+      - name: Run forum e2e
+        run: npx playwright test --workers=1 --retries=1 --fail-on-flaky-tests
         env:
           CI: 'true'
+
+      - name: Upload Playwright report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: forum-playwright-report
+          path: apps/forum/playwright-report/
+          retention-days: 7
