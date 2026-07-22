@@ -207,11 +207,19 @@ function SearchableSelect({
                 {(item: { value: string; label: string }) => {
                   const isActive = item.value === value
                   return (
+                    // ⚠️ A DIV, not ui/button — the one place these two menus must differ.
+                    // Combobox drives the list with VIRTUAL focus: the real focus stays in the
+                    // search input while `data-highlighted` moves. A natively focusable child
+                    // breaks that twice — Base UI's own source says "Focusable items steal focus
+                    // from the input upon mouseup. Warn if the user renders a natively focusable
+                    // element like <button>, as it should be a <div> instead"
+                    // (combobox/item/ComboboxItem.mjs), and a real button also stays in the tab
+                    // order, so Tab can land on individual options. Select.Item below IS a button
+                    // on purpose: it uses roving focus, not virtual focus. Caught by codex.
                     <ComboboxPrimitive.Item
                       key={item.value}
                       value={item}
-                      nativeButton
-                      render={<Button type="button" variant="bare" size="none" className={itemClassName(isActive)} />}
+                      className={itemClassName(isActive)}
                     >
                       <span className="min-w-0 flex-1 truncate">{item.label}</span>
                       {isActive && <Check className="h-4 w-4 shrink-0" />}
