@@ -84,7 +84,12 @@ export function AccountPanelShell({ children }: { children: React.ReactNode }) {
           // the feed right to clear the wide rail (pl-280) while keeping the same 72px right gutter,
           // so it never overlaps and stays balanced beside the rail. Animates the push (transition
           // padding). Only when open (desktop, signed-in) — guests get nothing.
-          open && (expanded ? 'lg:pl-[280px] lg:pr-[var(--account-w)]' : 'lg:px-[var(--account-w)]'),
+          // ⚠️ ALWAYS the 72px rail width, never 280px — the hover-expanded rail now OVERLAYS the
+          // content instead of pushing it (owner 2026-07-23: "remove [the pin toggle] and open
+          // dashboard on hover"). Reserving 280px on hover reflowed the whole feed every time the
+          // pointer grazed the rail, which is exactly why the pin existed; overlaying keeps the
+          // page still while the labels slide open on top.
+          open && 'lg:px-[var(--account-w)]',
         )}
         style={{ transitionTimingFunction: 'var(--ease-spring)' }}
       >

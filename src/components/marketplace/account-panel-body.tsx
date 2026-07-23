@@ -8,7 +8,7 @@
 import { Fragment, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { CircleHelp, LogOut, PanelLeft } from 'lucide-react'
+import { CircleHelp, LogOut } from 'lucide-react'
 import { Tooltip } from '@/components/ui/tooltip'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
@@ -38,10 +38,11 @@ export function AccountPanel({ open, onClose }: { open: boolean; onClose: () => 
   const { unread } = useChat()
   const { count: savedCount } = useFavorites()
 
-  // DESKTOP expand — PINNED by a toggle button (Gemini "Open sidebar"), not hover: hovering a
-  // collapsed icon reveals its NAME as a tooltip instead (see renderNav). Desktop-only. State lives
-  // in the SHELL (via context) so the content padding can push the feed clear of the 280px rail;
-  // reset-on-close also lives there.
+  // DESKTOP expand — HOVER-DRIVEN (owner 2026-07-23; the pinned toggle it replaced is gone). The
+  // aside's onMouseEnter/Leave flip this; when collapsed, a hovered icon still shows its NAME as a
+  // tooltip (see renderNav). Desktop-only. State lives in the SHELL (via context) so it survives
+  // this body's re-renders and the shell can reset it on close — the shell no longer reserves
+  // 280px, so an expanded rail overlays the feed instead of pushing it.
   const { expanded, setExpanded } = useAccountPanel()
 
   // While open on MOBILE, freeze the page behind the overlay — without this the background keeps
@@ -82,9 +83,9 @@ export function AccountPanel({ open, onClose }: { open: boolean; onClose: () => 
   }, [open])
   const trapRef = useFocusTrap<HTMLElement>(modalThisOpen)
 
-  // Click/tap OUTSIDE the EXPANDED desktop rail collapses it (drawer behaviour). Desktop-only —
-  // `expanded` is never set on mobile. pointerdown so it lands before a link navigation; the
-  // expanding toggle is inside the aside, so it never self-closes.
+  // Belt-and-braces collapse: mouseleave already closes the hover-expanded rail, but a pointerdown
+  // OUTSIDE it collapses too, so a tap that never triggers mouseleave (touch on a hybrid device, or
+  // focus moving away) can't leave it stuck open. Desktop-only — `expanded` is never set on mobile.
   useEffect(() => {
     if (!expanded) return
     const onDown = (e: PointerEvent) => {
@@ -187,6 +188,13 @@ export function AccountPanel({ open, onClose }: { open: boolean; onClose: () => 
   return (
     <aside
       ref={trapRef}
+      // DESKTOP HOVER-OPEN (owner 2026-07-23). Entering the collapsed rail reveals the labels;
+      // leaving collapses them. It only sets the desktop `expanded` state — the shell no longer
+      // reserves 280px, so this overlays the feed rather than reflowing it. Mobile never fires
+      // these (the panel there is the full-screen `open` overlay, and touch has no hover), and
+      // every expanded visual is lg-gated anyway.
+      onMouseEnter={() => setExpanded(true)}
+      onMouseLeave={() => setExpanded(false)}
       role="dialog"
       aria-label={tr('Account', 'Tài khoản')}
       // Modal ONLY on mobile (full-screen, focus-trapped); a plain non-modal rail on desktop.
@@ -221,36 +229,6 @@ export function AccountPanel({ open, onClose }: { open: boolean; onClose: () => 
       {/* TOP — MOBILE ONLY: close the full-screen launcher. The desktop rail is persistent (no
           close). "Post a listing" was REMOVED here (owner 2026-07-17) — the header/bottom-nav Post
           button is the single entry point, so the rail no longer duplicates it. */}
-      {/* DESKTOP toggle — PIN the rail expanded (labels) / collapsed (icons only). This is the
-          Gemini "Open sidebar" control: it replaces whole-rail hover-expand (hover now reveals a
-          per-icon tooltip instead, see renderNav). Desktop-only. */}
-      <div className="hidden shrink-0 px-3 pt-3 lg:block">
-        <Tooltip content={expanded ? undefined : tr('Expand menu', 'Mở rộng menu')} side="right">
-          <Button
-            variant="bare"
-            size="none"
-            onClick={() => setExpanded((e) => !e)}
-            aria-label={expanded ? tr('Collapse sidebar', 'Thu gọn thanh bên') : tr('Expand sidebar', 'Mở rộng thanh bên')}
-            aria-expanded={expanded}
-            className={cn(navItem(false), 'group/toggle text-ink-4 hover:text-foreground')}
-          >
-            {/* Collapsed: the eno MARK sits here as the brand — hovering morphs it into the sidebar
-                toggle icon (its affordance), a press expands. Expanded: it's just the collapse icon. */}
-            <span className="relative flex h-5 w-5 shrink-0 items-center justify-center">
-              {!expanded && (
-                <img src="/logo-mark.svg" alt="" aria-hidden className="absolute inset-0 h-5 w-5 transition-opacity duration-150 group-hover/toggle:opacity-0" />
-              )}
-              <PanelLeft
-                strokeWidth={2}
-                aria-hidden
-                className={cn('h-5 w-5 transition-opacity duration-150', expanded ? 'opacity-100' : 'absolute inset-0 opacity-0 group-hover/toggle:opacity-100')}
-              />
-            </span>
-            <span className={labelCls}>{tr('Collapse', 'Thu gọn')}</span>
-          </Button>
-        </Tooltip>
-      </div>
-
       {/* MIDDLE + BOTTOM share ONE scroll area so nothing is ever unreachable on a short viewport or
           under text zoom. The bottom cluster gets mt-auto — pinned to the bottom when there's room to
           spare, scrolling with the rest when there isn't. pt-3 gives the first nav item top air on the
