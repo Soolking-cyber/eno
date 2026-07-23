@@ -22,9 +22,11 @@ tax registry, matches the legal name and (fuzzily) the address the seller entere
 active as of about a month ago."* **What no cheap automated source proves:** the legal
 representative's identity, or that the person clicking "upgrade" is connected to the
 company. That gap is why the single business badge (owner: one badge, granted only after
-verification — no two-tier system) needs an ownership binding IN its verification, not
-just a registry lookup: a bank account whose holder name matches the registered company,
-or a human-reviewed official extract for the exceptions.
+verification — no two-tier system) needs **at least two independent verification channels**
+(owner-confirmed), one of which proves *control*, not just existence: a bank account whose
+holder name matches the registered company (the endorsed default), or a human-reviewed
+registration document. Registry-check-alone is not a second channel — it answers the same
+"is it real?" question off the same source.
 
 > ⚠️ **THE ONE MISTAKE NOT TO MAKE (both external reviewers, independently — codex GPT-5.6
 > + Gemini): a registry match is NOT an identity check.** Every fact VietQR returns is
@@ -34,40 +36,50 @@ or a human-reviewed official extract for the exceptions.
 > control it?" With a SINGLE business badge (owner decision — see below), the verification
 > that gates it **must** answer the second question too, or the one badge is spoofable.
 
-## Recommended flow — ONE badge, granted only after verification (owner, 2026-07-23)
+## The verification — ONE badge, granted only after ≥2 channels pass (owner, 2026-07-23)
 
-**One state, one gate.** An account is either *individual* or *business*. There is no
-intermediate "registry-matched" tier and no second badge — the account flips to *business*
-only after it passes verification, and until then it stays *individual*. Because that one
-badge is the whole trust signal, the single verification does BOTH halves in one step
-before the flip:
+**One state, one gate — but the gate needs at least TWO independent channels** (owner:
+"of course at least 2 diff verification channels, bank name is a good one"). An account is
+either *individual* or *business*, with no intermediate tier and no second badge; it flips
+to *business* only after verification, and stays *individual* until then. Registry-check-
+alone is explicitly **not enough** — it is public data anyone can copy — so verification
+requires two channels that answer two different questions, and they must be *independent*
+(a forger would have to defeat both, not one). The default pair:
 
-1. **Registry check (is the company real?).** `GET api.vietqr.io/v2/business/{taxCode}`:
-   the MST exists, the returned `name` fuzzy-matches `legalName` (normalize diacritics +
-   case), the `address` fuzzy-matches (street+number only — see the address landmine), and
-   `status` is `NNT đang hoạt động`. A body `code == '51'` **routes to the official check**
-   (the registry autocomplete, option 2), never a hard fail — VietQR is a ~1-month-stale
-   private mirror, so a `51` can be a just-registered company or a Casso omission. Only a
-   `51` the official registry ALSO can't find, for a company claiming >1 month of
-   existence, is a real fail.
-2. **Ownership binding (does THIS user control it?).** The cheapest safe proof is **control
-   of a bank account whose holder name matches the registered legal name** — the seller
-   links a payout account anyway, so this adds no new friction and directly ties the person
-   to the company. A name mismatch, or any representative/charter question, escalates to a
-   **human reviewing a paid official extract** (option 4, ~$0.80) — not a second badge, just
-   the manual path to the same single decision.
+**Channel 1 — Registry (is the company REAL?).** `GET api.vietqr.io/v2/business/{taxCode}`:
+the MST exists, the returned `name` fuzzy-matches `legalName` (normalize diacritics + case),
+the `address` fuzzy-matches (street+number only — see the landmine), and `status` is
+`NNT đang hoạt động`. A body `code == '51'` **routes to the official registry check**
+(option 2), never a hard fail — VietQR lags ~1 month, so a `51` can be a just-registered
+company or a Casso omission. Only a `51` the official registry ALSO can't find, for a
+company claiming >1 month of existence, is a real fail.
 
-Only when BOTH pass does the account become a business account. Store the address the
-seller entered as their *declaration* — don't hard-block on an exact match (see the
-landmine).
+**Channel 2 — Ownership binding (does THIS user CONTROL it?).** The owner-endorsed proof is
+**a bank account whose holder name matches the registered legal name** — the seller links a
+payout account anyway, so it adds no friction and directly ties the person to the company.
+This is the channel a registry lookup can never provide: a scammer can read Vinamilk's MST
+off the web, but cannot produce a bank account in Vinamilk's name.
 
-**If the owner wants the flip on the registry check ALONE** (no ownership binding, for
-zero friction): that is a product choice, but be clear-eyed — the single badge then means
-only "a real company's public details were entered," which both reviewers flagged as a
-fraud vector (a scammer badges up with Vinamilk's public MST). If the business badge
-carries any buyer-trust weight or money privilege, keep the ownership binding in the gate;
-if it is purely cosmetic, registry-only is defensible. The recommendation is: **badge +
-any privilege ⇒ both halves; cosmetic-only ⇒ registry alone is acceptable.**
+**Channel 3 (fallback / higher assurance) — Document upload, human-reviewed.** A photo of
+the ERC (Enterprise Registration Certificate) or hộ-kinh-doanh registration certificate,
+cross-checked by an ops person against the Channel-1 registry data. Use it when Channel 2
+can't apply (see the HKD note) or as a third channel for high-value sellers, and as the
+place a ~$0.80 **official paid extract** (option 4) is pulled for disputes.
+
+**The rule: at least two of these pass, and one of the two is the ownership binding
+(Channel 2 or a human-reviewed Channel 3).** Two "is it real?" signals (VietQR + official
+registry) are NOT two channels for this purpose — they answer the same question off the
+same source; the second channel must prove *control*. Only then does the account become a
+business account. Store the address the seller entered as their *declaration* — don't
+hard-block on an exact match (see the landmine).
+
+⚠️ **Segment split — hộ kinh doanh (business households).** Many upgrading sellers are HKD,
+not enterprises: the registry (Channel 1) covers them only partially, and their "bank
+account" is usually a *personal* account in the proprietor's name. So for HKD, match
+Channel 2 against the **proprietor's name** (not a company name), and lean on **Channel 3
+(the HKD certificate, human-reviewed)** as the primary "is it real?" signal when VietQR
+returns `51`. Design the flow so an HKD that fails the enterprise lookup is routed to
+document review, never hard-rejected.
 
 ## The options, ranked
 
@@ -201,17 +213,26 @@ any privilege ⇒ both halves; cosmetic-only ⇒ registry alone is acceptable.**
 
 ## What to decide
 
-The design is settled to ONE badge, granted only after verification (owner, 2026-07-23) —
-no two-tier system. The remaining calls before any build:
-1. **Does the single verification include the ownership binding (bank-name match), or the
-   registry check alone?** Recommendation: include it whenever the business badge carries
-   ANY buyer-trust weight or money privilege — registry-alone is spoofable with public data
-   (both reviewers). Registry-alone is acceptable only if the badge is purely cosmetic.
-2. **What is the ownership proof?** Cheap default: the payout bank account's holder name
-   matching the registered legal name (the seller links it anyway — no new friction). The
-   escalation for mismatches/edge cases is a human reading a ~$0.80 official extract.
+Settled (owner, 2026-07-23): **one badge, granted only after verification, and the
+verification is ≥2 independent channels — one of which is the bank-name ownership binding.**
+The remaining calls before any build:
+1. **How to run the bank-name channel.** Two options: (a) *name-match at payout setup* — we
+   already hold the payout account's holder name, so compare it to the registered legal
+   name (free, but only as trustworthy as how the bank name was captured); (b) a **VietQR
+   `lookup` / bank-transfer-name API or a 1₫ penny-name-check** to read the account holder's
+   real registered name from the bank. (b) is stronger and worth pricing.
+2. **The channel set per segment.** Enterprises: Channel 1 (registry) + Channel 2
+   (bank-name = legal name). Hộ kinh doanh: Channel 3 (HKD certificate, human-reviewed) +
+   Channel 2 (bank-name = proprietor name), since the registry covers HKD only partially.
+   Confirm this split, and whether a document-upload channel is built now or deferred.
 3. **Worth a T-VAN trial** (option 5, DPA-able official channel) over the keyless private
-   mirror for the registry half? Recommended for production; VietQR is the right *pilot*.
+   mirror for the registry channel? Recommended for production; VietQR is the right *pilot*.
+
+**Next step when the owner greenlights a build:** this stops being a research doc and
+becomes an implementation plan — at which point it gets the both-ends reviewer pair (codex
++ Gemini) on the plan before any code, per the standing rule. The shared `WardPicker` /
+account-type-switch surfaces it touches are the same ones the earlier handoff flagged for a
+second opinion.
 
 ## Review trail
 
