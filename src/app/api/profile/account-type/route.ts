@@ -30,7 +30,7 @@ export async function POST(req: Request) {
   // CompleteRegistration conversion below isn't re-sent if the type is changed later.
   const firstOnboard = !profile.accountType
 
-  let body: { accountType?: string; businessName?: string; displayName?: string; phone?: string } = {}
+  let body: { accountType?: string; businessName?: string; displayName?: string; phone?: string; legalName?: string; legalAddress?: string; idNumber?: string } = {}
   try { body = await req.json() } catch { /* empty body → invalid below */ }
 
   const accountType = String(body.accountType || '')
@@ -44,6 +44,41 @@ export async function POST(req: Request) {
 
   if (accountType === 'business' && !businessName) {
     return NextResponse.json({ error: 'business_name_required' }, { status: 400 })
+  }
+
+  // ── Legal identity for the individual→business SWITCH (owner directive 2026-07-23;
+  //    Đ.29 ND52 collection duty). The prior type comes from the SERVER row (never the
+  //    request), so the gate can't be bypassed by lying about the current state. FIRST
+  //    onboarding (accountType null) stays lenient per the launch policy — the gate is
+  //    on the explicit upgrade, where trading intent is declared; the business editor
+  //    keeps collecting/curating these fields afterwards. Values already stored on the
+  //    owned storefront satisfy the gate (a business→individual→business round trip
+  //    is not re-typed). Validation mirrors src/lib/core/seller.ts EXACTLY (9–13
+  //    digits — deliberately the editor's lenient range, launch policy: one rule,
+  //    both doors). idNumber never renders publicly. ──
+  const legalName = String(body.legalName || '').trim().slice(0, 160) || null
+  const legalAddress = String(body.legalAddress || '').trim().slice(0, 240) || null
+  const idDigits = String(body.idNumber || '').replace(/\D/g, '')
+  if (idDigits && (idDigits.length < 9 || idDigits.length > 13)) {
+    return NextResponse.json({ error: 'bad_id_number' }, { status: 400 })
+  }
+  // One read serves the gate AND the storefront branch below (was a second lookup).
+  const ownedSeller = await db.seller.findUnique({
+    where: { ownerId: profile.id },
+    select: { id: true, legalName: true, legalAddress: true, idNumber: true },
+  })
+  if (accountType === 'business' && profile.accountType === 'individual') {
+    if (!(legalName || ownedSeller?.legalName)) return NextResponse.json({ error: 'legal_name_required' }, { status: 400 })
+    if (!(legalAddress || ownedSeller?.legalAddress)) return NextResponse.json({ error: 'legal_address_required' }, { status: 400 })
+    if (!(idDigits || ownedSeller?.idNumber)) return NextResponse.json({ error: 'id_number_required' }, { status: 400 })
+  }
+  // Persisted onto the storefront in every create/claim/update path below; the
+  // identityUpdatedAt stamp only moves when a legal field was actually provided.
+  const legalData = {
+    ...(legalName ? { legalName } : {}),
+    ...(legalAddress ? { legalAddress } : {}),
+    ...(idDigits ? { idNumber: idDigits } : {}),
+    ...(legalName || legalAddress || idDigits ? { identityUpdatedAt: new Date() } : {}),
   }
 
   // One number ↔ one account: a business rep's phone can't be a number already tied
@@ -69,21 +104,20 @@ export async function POST(req: Request) {
 
   // Business → ensure a storefront exists (name = business, contact phone = rep's).
   if (accountType === 'business') {
-    const owned = await db.seller.findUnique({ where: { ownerId: profile.id }, select: { id: true } })
-    if (owned) {
-      await db.seller.update({ where: { id: owned.id }, data: { name: businessName!, ...(phone ? { phone } : {}) } })
+    if (ownedSeller) {
+      await db.seller.update({ where: { id: ownedSeller.id }, data: { name: businessName!, ...(phone ? { phone } : {}), ...legalData } })
     } else {
       // Claim an unowned guest storefront on phone match, else create a new one.
       const byPhone = phone ? await db.seller.findUnique({ where: { phone }, select: { id: true, ownerId: true } }) : null
       try {
         if (byPhone && !byPhone.ownerId) {
-          await db.seller.update({ where: { id: byPhone.id }, data: { ownerId: profile.id, name: businessName! } })
+          await db.seller.update({ where: { id: byPhone.id }, data: { ownerId: profile.id, name: businessName!, ...legalData } })
         } else {
-          await db.seller.create({ data: { name: businessName!, ownerId: profile.id, ...(phone ? { phone } : {}), responseRate: 100 } })
+          await db.seller.create({ data: { name: businessName!, ownerId: profile.id, ...(phone ? { phone } : {}), ...legalData, responseRate: 100 } })
         }
       } catch {
         // Phone already claimed by another seller → create without it (rare).
-        await db.seller.create({ data: { name: businessName!, ownerId: profile.id, responseRate: 100 } })
+        await db.seller.create({ data: { name: businessName!, ownerId: profile.id, ...legalData, responseRate: 100 } })
       }
     }
     // ONE public handle from the business name ("Apple Store" → apple_store) so the

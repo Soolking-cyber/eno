@@ -371,14 +371,40 @@ export function AreaFilter({
 /** Compact inline Province/City + Ward picker — the "one row, two dropdowns"
  *  location control (user decision 2026-07-13) for FORMS (business profile
  *  etc.), reusing the same /api/geo two-tier dataset as the filter above.
- *  Emits the picked pair as display names; the caller owns the string field. */
-export function WardPicker({ onPick, className }: { onPick: (v: { province: Geo | null; ward: Geo | null }) => void; className?: string }) {
+ *  Emits the picked pair as display names; the caller owns the string field.
+ *
+ *  `value` is an ADOPTION prop, not full control: when the caller hands in a new
+ *  resolved pair (the editor's "Use my location" geolocate), the dropdowns sync to
+ *  it once; hand-picks stay fully internal and are never reverted by a re-render
+ *  with the same stale value (the ref guard below). onPick is NOT fired for an
+ *  adopted value — the caller already knows what it passed. */
+export function WardPicker({ onPick, value, className }: {
+  onPick: (v: { province: Geo | null; ward: Geo | null }) => void
+  value?: { province: Geo | null; ward: Geo | null } | null
+  className?: string
+}) {
   const { lang, tr } = useLanguage()
   const [provinces, setProvinces] = useState<Unit[]>([])
   const [wards, setWards] = useState<Unit[]>([])
   const [loadingWards, setLoadingWards] = useState(false)
   const [provCode, setProvCode] = useState('')
   const [wardCode, setWardCode] = useState('')
+  // Last ADOPTED value key — a same-value re-render must not clobber a newer hand-pick.
+  const adopted = useRef('')
+  useEffect(() => {
+    if (!value) {
+      // null = "nothing adopted": forget the key so a LATER locate that resolves to
+      // the very same place re-adopts (the caller nulls this on a hand-pick; without
+      // the reset, a same-key repeat locate would be silently ignored — review catch).
+      adopted.current = ''
+      return
+    }
+    const key = `${value.province?.code || ''}|${value.ward?.code || ''}`
+    if (key === adopted.current) return
+    adopted.current = key
+    setProvCode(value.province?.code || '')
+    setWardCode(value.ward?.code || '')
+  }, [value])
   const label = (u: Unit) => (lang === 'vi' ? u.name : u.nameEn)
   const toGeo = (u?: Unit): Geo | null => (u ? { code: u.code, name: u.name, nameEn: u.nameEn } : null)
 

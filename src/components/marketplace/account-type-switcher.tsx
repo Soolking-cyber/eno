@@ -22,25 +22,41 @@ export function AccountTypeSwitcher({ isBusiness, businessName, onSaved }: { isB
   // there is nothing to hang aria-describedby off, so everything there must stay form-level.
   const [err, setErr] = useState('')
   const [nameErr, setNameErr] = useState('')
+  // Legal identity — REQUIRED by the server for the individual→business switch
+  // (owner directive 2026-07-23, Đ.29 ND52): the upgrade declares trading intent,
+  // so it must carry who is legally trading. Per-field errors mirror the server codes.
+  const [legalName, setLegalName] = useState('')
+  const [legalAddress, setLegalAddress] = useState('')
+  const [idNumber, setIdNumber] = useState('')
+  const [legalErr, setLegalErr] = useState<{ legalName?: string; legalAddress?: string; idNumber?: string }>({})
 
   const target = isBusiness ? 'individual' : 'business'
 
   const submit = async () => {
-    setErr(''); setNameErr('')
+    setErr(''); setNameErr(''); setLegalErr({})
     setBusy(true)
     try {
       const res = await fetch('/api/profile/account-type', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ accountType: target, ...(target === 'business' ? { businessName: name.trim() } : {}) }),
+        body: JSON.stringify({
+          accountType: target,
+          ...(target === 'business'
+            ? { businessName: name.trim(), legalName: legalName.trim(), legalAddress: legalAddress.trim(), idNumber: idNumber.trim() }
+            : {}),
+        }),
       })
       if (res.ok) {
         setEditing(false)
         onSaved()
       } else {
         const j = await res.json().catch(() => ({}))
-        // business_name_required can only arrive while the business-name input is on screen.
+        // Field-coded errors can only arrive while their input is on screen.
         if (j.error === 'business_name_required' && target === 'business') setNameErr(tr('Enter a business name.', 'Nhập tên doanh nghiệp.'))
+        else if (j.error === 'legal_name_required') setLegalErr({ legalName: tr('Enter the legal name.', 'Nhập tên pháp lý.') })
+        else if (j.error === 'legal_address_required') setLegalErr({ legalAddress: tr('Enter the registered address.', 'Nhập địa chỉ đăng ký.') })
+        else if (j.error === 'id_number_required') setLegalErr({ idNumber: tr('Enter the CCCD or ERC number.', 'Nhập số CCCD hoặc số ĐKKD.') })
+        else if (j.error === 'bad_id_number') setLegalErr({ idNumber: tr('That number looks wrong — CCCD is 12 digits, ERC is 10.', 'Số không hợp lệ — CCCD gồm 12 số, ĐKKD gồm 10 số.') })
         else setErr(tr('Could not update. Try again.', 'Không cập nhật được. Thử lại.'))
       }
     } catch {
@@ -90,6 +106,38 @@ export function AccountTypeSwitcher({ isBusiness, businessName, onSaved }: { isB
                 </FieldDescription>
                 {nameErr && <FieldError className="font-semibold">{nameErr}</FieldError>}
               </Field>
+            ) : (
+              <></>
+            )}
+            {target === 'business' ? (
+              <div className="space-y-3">
+                {/* Legal identity — server-required for the switch (Đ.29 ND52). Kept as three
+                    separate Fields so each server error lands in its own aria-describedby. */}
+                <Field invalid={!!legalErr.legalName} className="gap-1.5">
+                  <FieldLabel render={<Label />}>{tr('Legal name (person or registered company)', 'Tên pháp lý (cá nhân hoặc công ty đã đăng ký)')}</FieldLabel>
+                  <FieldControl id="switch-legal-name"
+                    render={<Input id="switch-legal-name" value={legalName} onChange={(e) => setLegalName(e.target.value)} maxLength={160} autoComplete="name" placeholder={tr('e.g. Nguyễn Văn A / ABC Co., Ltd', 'vd. Nguyễn Văn A / Công ty TNHH ABC')} />}
+                  />
+                  {legalErr.legalName && <FieldError className="font-semibold">{legalErr.legalName}</FieldError>}
+                </Field>
+                <Field invalid={!!legalErr.legalAddress} className="gap-1.5">
+                  <FieldLabel render={<Label />}>{tr('Registered address', 'Địa chỉ đăng ký')}</FieldLabel>
+                  <FieldControl id="switch-legal-address"
+                    render={<Input id="switch-legal-address" value={legalAddress} onChange={(e) => setLegalAddress(e.target.value)} maxLength={240} autoComplete="street-address" placeholder={tr('Residence or head office', 'Nơi cư trú hoặc trụ sở chính')} />}
+                  />
+                  {legalErr.legalAddress && <FieldError className="font-semibold">{legalErr.legalAddress}</FieldError>}
+                </Field>
+                <Field invalid={!!legalErr.idNumber} className="gap-1.5">
+                  <FieldLabel render={<Label />}>{tr('CCCD or business registration (ERC) number', 'Số CCCD hoặc số đăng ký kinh doanh')}</FieldLabel>
+                  <FieldControl id="switch-id-number"
+                    render={<Input id="switch-id-number" value={idNumber} onChange={(e) => setIdNumber(e.target.value)} maxLength={20} inputMode="numeric" placeholder={tr('CCCD 12 digits · ERC 10 digits', 'CCCD 12 số · ĐKKD 10 số')} />}
+                  />
+                  <FieldDescription className="text-muted-foreground">
+                    {tr('Required by Vietnamese e-commerce law. Shared with buyers on request and authorities — never shown publicly.', 'Theo quy định TMĐT Việt Nam. Chỉ cung cấp cho người mua khi có yêu cầu và cơ quan chức năng — không hiển thị công khai.')}
+                  </FieldDescription>
+                  {legalErr.idNumber && <FieldError className="font-semibold">{legalErr.idNumber}</FieldError>}
+                </Field>
+              </div>
             ) : (
               <p className="text-xs text-muted-foreground">
                 {tr('Switching to individual hides the business storefront tools.', 'Chuyển sang cá nhân sẽ ẩn các công cụ gian hàng doanh nghiệp.')}

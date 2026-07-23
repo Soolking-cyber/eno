@@ -265,7 +265,12 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
           if (reqId === locReq.current) setLocating(false)
         }
       },
-      () => { setLocating(false); toast.error(t('Không lấy được vị trí. Hãy cho phép truy cập vị trí và thử lại.', 'Could not get your location. Allow location access and try again.')) },
+      () => {
+        // Gen-guarded like the success path: an OLD locate's error must not clear the
+        // spinner (or toast) over a NEWER locate that is still running.
+        if (reqId !== locReq.current) return
+        setLocating(false); toast.error(t('Không lấy được vị trí. Hãy cho phép truy cập vị trí và thử lại.', 'Could not get your location. Allow location access and try again.'))
+      },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 },
     )
   }
@@ -1020,7 +1025,13 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
         province={province}
         ward={ward}
         nearby={nearby}
-        onApply={({ province: p, ward: w, nearby: nb }) => { locReq.current++; setProvince(p); setWard(w); setNearby(nb) }}
+        onApply={({ province: p, ward: w, nearby: nb }) => {
+          // Superseding an in-flight locate: its finally() won't touch the spinner once
+          // it loses the generation race, so the manual apply clears it here — otherwise
+          // "Use my location" spins forever after a hand-pick (same class as the
+          // business-editor bug, dual-review catch 2026-07-23).
+          locReq.current++; setLocating(false); setProvince(p); setWard(w); setNearby(nb)
+        }}
         onReset={() => { setProvince(null); setWard(null); setNearby(null) }}
       />
     </div>

@@ -1,9 +1,9 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Loader2, Check, Plus, LocateFixed } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
-import { WardPicker } from './area-filter'
+import { WardPicker, findUnit, type Geo } from './area-filter'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -40,20 +40,50 @@ export function BusinessProfileEditor({ seller, repName, onSaved }: { seller: Se
   const [fieldErr, setFieldErr] = useState<{ name?: string; rep?: string; bio?: string; phone?: string; idNumber?: string; taxCode?: string }>({})
   const [error, setError] = useState('')
 
-  // One-tap: fill Location from the device's GPS via reverse-geocoding.
+  // The geolocated pick, resolved to REAL /api/geo units — handed to WardPicker's
+  // `value` prop so the dropdowns SHOW the located area (they used to stay empty:
+  // reverse-geocode's province/ward names were fetched and thrown away, owner-reported).
+  const [locatedPick, setLocatedPick] = useState<{ province: Geo | null; ward: Geo | null } | null>(null)
+  // Generation guard (post-wizard pattern): only the LATEST locate applies, and a
+  // manual dropdown pick supersedes an in-flight locate's seconds-long awaits.
+  const locReq = useRef(0)
+
+  // One-tap: fill Location from the device's GPS via reverse-geocoding, resolving the
+  // geocoder's display NAMES to /api/geo codes (findUnit over name/nameEn, diacritic-
+  // insensitive; ward matched from `wardCandidates` — the precise top result often
+  // omits the official 2025 ward). Mirrors post-wizard.tsx's useMyLocation.
   const useMyLocation = () => {
     if (typeof navigator === 'undefined' || !('geolocation' in navigator)) return
     setLocating(true)
+    const reqId = ++locReq.current
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
         try {
           const r = await fetch(`/api/reverse-geocode?lat=${pos.coords.latitude}&lng=${pos.coords.longitude}`)
           const d = await r.json()
           const addr = d.address || [d.ward, d.province].filter(Boolean).join(', ')
-          if (addr) setLocation(addr)
-        } catch { /* keep manual value */ } finally { setLocating(false) }
+          if (addr && reqId === locReq.current) setLocation(addr)
+          if (!d.province) return
+          const cands: string[] = Array.isArray(d.wardCandidates) && d.wardCandidates.length ? d.wardCandidates : (d.ward ? [d.ward] : [])
+          const provs = await fetch('/api/geo?type=provinces').then((res) => res.json()).then((j) => j.provinces || []).catch(() => [])
+          const p = findUnit(provs, d.province)
+          if (!p) return // names the dataset doesn't know → free-text already set above
+          let ward: Geo | null = null
+          const wl = await fetch(`/api/geo?type=wards&province=${p.code}`).then((res) => res.json()).then((j) => j.wards || []).catch(() => [])
+          for (const c of cands) { const w = findUnit(wl, c); if (w) { ward = { code: w.code, name: w.name, nameEn: w.nameEn }; break } }
+          if (reqId !== locReq.current) return // superseded by a newer locate or a hand-pick
+          setLocatedPick({ province: { code: p.code, name: p.name, nameEn: p.nameEn }, ward })
+          // Canonical display string from the RESOLVED units — but only when the ward
+          // resolved too: "Ward, Province" beats the raw geocoder string, while a bare
+          // province name would LOSE the street/ward detail already set above (review catch).
+          if (ward) setLocation([ward.name, p.name].join(', '))
+        } catch { /* keep manual value */ } finally {
+          if (reqId === locReq.current) setLocating(false)
+        }
       },
-      () => setLocating(false),
+      // Same generation guard as success: an OLD locate's error must not clear the
+      // spinner a NEWER locate still owns (review catch).
+      () => { if (reqId === locReq.current) setLocating(false) },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 },
     )
   }
@@ -169,7 +199,16 @@ export function BusinessProfileEditor({ seller, repName, onSaved }: { seller: Se
               writes "Ward, Province" into the free-text field below, which stays
               editable and keeps legacy values + the geolocate flow working. */}
           <WardPicker
+            value={locatedPick}
             onPick={({ province, ward }) => {
+              // A hand-pick supersedes any in-flight locate AND clears the adopted
+              // value, so a repeat locate to the same place can re-adopt cleanly.
+              // The superseded locate's finally() deliberately won't touch the spinner
+              // (it lost the generation race), so the pick clears it here — otherwise
+              // it spins forever (review catch).
+              locReq.current++
+              setLocating(false)
+              setLocatedPick(null)
               const parts = [ward?.name, province?.name].filter(Boolean)
               if (parts.length) setLocation(parts.join(', '))
             }}
