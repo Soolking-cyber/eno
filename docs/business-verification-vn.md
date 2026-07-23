@@ -21,52 +21,53 @@ is a captcha-gated form behind a WAF — usable by a human, never by our server.
 tax registry, matches the legal name and (fuzzily) the address the seller entered, and was
 active as of about a month ago."* **What no cheap automated source proves:** the legal
 representative's identity, or that the person clicking "upgrade" is connected to the
-company. If that matters — and it does before payouts — it needs a separate ownership
-proof (a bank account in the company name, or a one-off official extract), not a registry
-lookup.
+company. That gap is why the single business badge (owner: one badge, granted only after
+verification — no two-tier system) needs an ownership binding IN its verification, not
+just a registry lookup: a bank account whose holder name matches the registered company,
+or a human-reviewed official extract for the exceptions.
 
 > ⚠️ **THE ONE MISTAKE NOT TO MAKE (both external reviewers, independently — codex GPT-5.6
-> + Gemini): a registry match is NOT an identity check, so it must NOT auto-grant a
-> "verified business" badge or any risk-bearing privilege.** Every fact VietQR returns is
+> + Gemini): a registry match is NOT an identity check.** Every fact VietQR returns is
 > *public* — a fraudster can copy Vinamilk's MST, legal name and address off the web and
-> pass this check to wear a trusted corporate identity, defrauding buyers long before any
-> payout. The registry check answers "is this a real registered company?" It does **not**
-> answer "does the person upgrading control it?" Those are two different gates, and the
-> badge belongs to the second one.
+> pass a registry check to wear a trusted corporate identity. The registry check answers
+> "is this a real registered company?" It does **not** answer "does the person upgrading
+> control it?" With a SINGLE business badge (owner decision — see below), the verification
+> that gates it **must** answer the second question too, or the one badge is spoofable.
 
-## Recommended pipeline (two gates, not one)
+## Recommended flow — ONE badge, granted only after verification (owner, 2026-07-23)
 
-**Gate A — "registry-matched" (instant, free, low-trust).** On the upgrade form, `GET
-api.vietqr.io/v2/business/{taxCode}`, then:
-   - **Mark the account `registry-matched`** — NOT "verified business" — when the MST
-     exists, the returned `name` fuzzy-matches `legalName` (normalize diacritics + case),
-     the `address` fuzzy-matches (street+number only — see the address landmine), and
-     `status` is `NNT đang hoạt động`. This unlocks *self-declared business presentation*
-     (a business display name, the business fields) but confers **no trust badge and no
-     money privileges** on its own.
-   - **Route to the official check** (Gate A-official — the registry autocomplete, option
-     2), never hard-fail, when body `code == '51'` (not found). VietQR is a private mirror
-     with no completeness guarantee and a ~1-month lag: a `51` can mean not-found, a
-     just-registered company, or a Casso omission — none of which is proof of nonexistence.
-     A `51` that the official registry also can't find, for a company claiming >1 month of
-     existence, is the only real fail.
+**One state, one gate.** An account is either *individual* or *business*. There is no
+intermediate "registry-matched" tier and no second badge — the account flips to *business*
+only after it passes verification, and until then it stays *individual*. Because that one
+badge is the whole trust signal, the single verification does BOTH halves in one step
+before the flip:
 
-**Gate B — "verified business" (the badge + payouts). REQUIRES OWNERSHIP PROOF.** This is
-where the trust signal is earned, and the cheapest safe proof is **control of a bank
-account whose holder name matches the registered legal name** — the seller already links a
-payout account, so this adds no new friction and directly binds the person to the company.
-A name mismatch, or a representative/charter question, escalates to a **human reviewing a
-paid official extract** (option 4, ~$0.80). Only Gate B grants the badge and the money-
-bearing limits.
+1. **Registry check (is the company real?).** `GET api.vietqr.io/v2/business/{taxCode}`:
+   the MST exists, the returned `name` fuzzy-matches `legalName` (normalize diacritics +
+   case), the `address` fuzzy-matches (street+number only — see the address landmine), and
+   `status` is `NNT đang hoạt động`. A body `code == '51'` **routes to the official check**
+   (the registry autocomplete, option 2), never a hard fail — VietQR is a ~1-month-stale
+   private mirror, so a `51` can be a just-registered company or a Casso omission. Only a
+   `51` the official registry ALSO can't find, for a company claiming >1 month of
+   existence, is a real fail.
+2. **Ownership binding (does THIS user control it?).** The cheapest safe proof is **control
+   of a bank account whose holder name matches the registered legal name** — the seller
+   links a payout account anyway, so this adds no new friction and directly ties the person
+   to the company. A name mismatch, or any representative/charter question, escalates to a
+   **human reviewing a paid official extract** (option 4, ~$0.80) — not a second badge, just
+   the manual path to the same single decision.
 
-**Everywhere:** store the address the seller entered as their *declaration*; don't block on
-an exact match (see the landmine). The verification ceiling of the free path is
-name+MST+status — never present it as more.
+Only when BOTH pass does the account become a business account. Store the address the
+seller entered as their *declaration* — don't hard-block on an exact match (see the
+landmine).
 
-This gives an instant, free, zero-friction "registry-matched" state for the common case,
-a soft official path for brand-new companies, and reserves the actual trust badge for a
-cheap ownership proof the seller was going to give anyway — without buying a KYB seat or
-scraping anything, and without ever handing a fraudster a badge for public data.
+**If the owner wants the flip on the registry check ALONE** (no ownership binding, for
+zero friction): that is a product choice, but be clear-eyed — the single badge then means
+only "a real company's public details were entered," which both reviewers flagged as a
+fraud vector (a scammer badges up with Vinamilk's public MST). If the business badge
+carries any buyer-trust weight or money privilege, keep the ownership binding in the gate;
+if it is purely cosmetic, registry-only is defensible. The recommendation is: **badge +
+any privilege ⇒ both halves; cosmetic-only ⇒ registry alone is acceptable.**
 
 ## The options, ranked
 
@@ -200,25 +201,28 @@ scraping anything, and without ever handing a fraudster a badge for public data.
 
 ## What to decide
 
-The owner's call before any build:
-1. **Two gates or one?** The recommendation is the two-gate split above: a free instant
-   *registry-matched* state (no badge), and a *verified-business* badge that requires the
-   bank-name ownership proof. Or: keep it single-gate and accept that the badge means only
-   "a real company's public details were entered" (weaker, and both reviewers flagged it as
-   a fraud vector).
-2. **Does the badge carry money privileges?** If a verified business gets higher limits or
-   payout access, Gate B (ownership proof) is mandatory, not optional.
-3. **Worth a T-VAN trial** (option 5) as the official-channel, DPA-able upgrade over the
-   keyless private mirror? Recommended for production; VietQR is the right *pilot*.
+The design is settled to ONE badge, granted only after verification (owner, 2026-07-23) —
+no two-tier system. The remaining calls before any build:
+1. **Does the single verification include the ownership binding (bank-name match), or the
+   registry check alone?** Recommendation: include it whenever the business badge carries
+   ANY buyer-trust weight or money privilege — registry-alone is spoofable with public data
+   (both reviewers). Registry-alone is acceptable only if the badge is purely cosmetic.
+2. **What is the ownership proof?** Cheap default: the payout bank account's holder name
+   matching the registered legal name (the seller links it anyway — no new friction). The
+   escalation for mismatches/edge cases is a human reading a ~$0.80 official extract.
+3. **Worth a T-VAN trial** (option 5, DPA-able official channel) over the keyless private
+   mirror for the registry half? Recommended for production; VietQR is the right *pilot*.
 
 ## Review trail
 
 Dual external review, both families (owner's standing reviewer pair, 2026-07-23):
 - **codex GPT-5.6 (sol, high)** and **Gemini** independently returned the SAME top finding
-  — auto-approving a "verified business" on a registry match alone is a control failure —
-  which reshaped the pipeline into the two-gate design above. Also adopted: the PDPL/DPA
-  caveat on the Casso call, the FATF correction, and softening `code:'51'` from "proof of
-  nonexistence" to "route to the official check".
+  — granting a business badge on a registry match alone is a control failure (public data,
+  spoofable). The owner then set the shape: ONE badge, granted only after verification, no
+  two-tier system — so that finding lands as "the single verification must include an
+  ownership binding," not "add a second gate." Also adopted: the PDPL/DPA caveat on the
+  Casso call, the FATF correction, and softening `code:'51'` from "proof of nonexistence"
+  to "route to the official check".
 - **Refuted with evidence:** Gemini flagged the "63→34 provinces" and "MPI merged into MoF"
   claims as hallucinations. Web-verified against primary reporting — Resolution
   202/2025/QH15 (63→34 provinces, district tier abolished, effective 2025-07-01) and Decree
