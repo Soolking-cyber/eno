@@ -987,6 +987,7 @@ export const UI_STRINGS: string[] = [
   "North",
   "Northeast",
   "Northwest",
+  "Not found in the tax registry — double-check the number",
   "Not now",
   "Not reviewed yet",
   "Not sent — tap to retry",
@@ -1172,6 +1173,7 @@ export const UI_STRINGS: string[] = [
   "Refine in full search",
   "Registered address",
   "Registered legal name",
+  "Registry name differs",
   "Regulations",
   "Relevance",
   "Relist",
@@ -1419,6 +1421,7 @@ export const UI_STRINGS: string[] = [
   "Tap ••• at the top, choose “Open in Safari/Browser”, then sign in with Google. Or just use Phone/Email below — they work right here.",
   "Tax code (if any)",
   "Tax code format: 10 digits (or 10-3 with branch).",
+  "Tax code verified",
   "Teaching",
   "Technical problem",
   "Tell buyers about your business…",
@@ -1813,6 +1816,7 @@ export const UI_STRINGS: string[] = [
   "an already-sold item",
   "and",
   "available.",
+  "check the legal name above",
   "chưa có tin nhắn",
   "confirmed",
   "created",
@@ -1970,5 +1974,6 @@ export const UI_STRINGS: string[] = [
   "← Tất cả khiếu nại",
   "↩️ Counter-offer",
   "✅ Offer accepted",
+  "✓ Matches the tax registry",
   "❌ Offer declined"
 ]

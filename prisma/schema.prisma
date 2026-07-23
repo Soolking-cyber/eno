@@ -176,58 +176,108 @@ model NativePushToken {
 }
 
 model Seller {
-  id                String            @id @default(cuid())
+  id                   String               @id @default(cuid())
   // Link to the owning account. NULL = legacy/guest seller (no account yet).
-  ownerId           String?           @unique @db.Uuid // one Profile owns at most one Seller (1:0..1)
-  owner             Profile?          @relation(fields: [ownerId], references: [id], onDelete: SetNull)
-  claimedAt         DateTime? // when a real account claimed this guest seller
-  avatarUrl         String?
-  name              String
-  avatarColor       String            @default("#dc2626")
-  rating            Float             @default(5)
-  reviewCount       Int               @default(0)
-  verified          Boolean           @default(false)
-  verifiedSeller    Boolean           @default(false)
+  ownerId              String?              @unique @db.Uuid // one Profile owns at most one Seller (1:0..1)
+  owner                Profile?             @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  claimedAt            DateTime? // when a real account claimed this guest seller
+  avatarUrl            String?
+  name                 String
+  avatarColor          String               @default("#dc2626")
+  rating               Float                @default(5)
+  reviewCount          Int                  @default(0)
+  verified             Boolean              @default(false)
+  verifiedSeller       Boolean              @default(false)
   // Mirror of the owner Profile's trust (denormalized so a storefront card/badge
   // renders without a Profile join; recomputed whenever the owner's score changes).
-  trustScore        Int               @default(100)
-  trustTier         String            @default("standard") // restricted | standard | trusted | exceptional
-  memberSince       DateTime          @default(now())
-  responseRate      Int               @default(100)
-  responseTime      String            @default("within an hour")
+  trustScore           Int                  @default(100)
+  trustTier            String               @default("standard") // restricted | standard | trusted | exceptional
+  memberSince          DateTime             @default(now())
+  responseRate         Int                  @default(100)
+  responseTime         String               @default("within an hour")
   // Set ONLY by recomputeResponseRates() (nightly SQL, >=5-convo sample) — its presence
   // is what separates a MEASURED responseRate from the fabricated =100 default above.
   // Display (responseBucket) and trust (responseQ) both gate on it; never write it
   // anywhere else or the honesty gate is laundered.
-  responseMetricAt  DateTime?
-  location          String?
-  bio               String?
-  phone             String?           @unique // KEEP: the guest-claim join key
+  responseMetricAt     DateTime?
+  location             String?
+  bio                  String?
+  phone                String?              @unique // KEEP: the guest-claim join key
   // ── Seller legal identity (Đ.29 ND52 + Law 122/2025 collection duty; VNeID
   //    verification enforceable 1 Jan 2027). Provided to buyers on request and to
   //    authorities — idNumber/taxCode must NEVER appear in public serializations. ──
-  legalName         String? // full legal name (individual) or registered company name
-  legalAddress      String? // residence (individual) / head office (business)
-  idNumber          String? // CCCD (individual) or ERC number (business)
-  taxCode           String? // mã số thuế, if any
-  identityUpdatedAt DateTime? // when the seller last edited these fields
+  legalName            String? // full legal name (individual) or registered company name
+  legalAddress         String? // residence (individual) / head office (business)
+  idNumber             String? // CCCD (individual) or ERC number (business)
+  taxCode              String? // mã số thuế, if any
+  identityUpdatedAt    DateTime? // when the seller last edited these fields
   // ── VietQR/GDT tax-code soft check (owner "go" 2026-07-23) — FACTS only; the
   //    "verified" verdict is DERIVED at read time (src/lib/tax-lookup.ts) so a later
   //    legalName edit can never serve a stale badge. Written ATOMICALLY with taxCode
   //    in the same UPDATE (core/seller.ts) — facts always describe the row's own code.
   //    null taxCheckedAt = never checked / transient failure (self-heals next save);
   //    taxActive=false + checkedAt set = the registry POSITIVELY didn't know the code.
-  taxCheckedAt      DateTime?
-  taxRegisteredName String? // registered name GDT returned (public record)
-  taxActive         Boolean? // 'NNT đang hoạt động' at check time
-  listings          Listing[]
-  reviews           Review[]
-  conversations     Conversation[]
-  apiKeys           ApiKey[]
-  webhooks          WebhookEndpoint[]
-  handle            Handle? // public @shopname (see model Handle)
+  taxCheckedAt         DateTime?
+  taxRegisteredName    String? // registered name GDT returned (public record)
+  taxActive            Boolean? // 'NNT đang hoạt động' at check time
+  // ── Business VERIFICATION badge (owner 2026-07-23: one badge, ≥2 channels). ──
+  //    The badge is IDENTITY-HASH-DERIVED, never a plain latched flag (external
+  //    review — kills the approval-vs-edit race, the indefinite latch, and stale
+  //    evidence). At an admin approval we stamp the identity hash that was frozen at
+  //    submit; the public badge renders ONLY when this hash still equals a live hash
+  //    of the seller's CURRENT identity (any legal-name/tax/id/address/display-name
+  //    edit changes the live hash → badge silently stops matching, no reset write) AND
+  //    verifiedUntil > now AND taxVerdict()==='verified'. verifiedIdentityHash null =
+  //    never verified. See src/lib/business-verification.ts (sellerIdentityHash).
+  verifiedIdentityHash String? // sha256 of the identity approved; compared to the live one
+  verifiedAt           DateTime? // when the approving review landed
+  verifiedUntil        DateTime? // reviewedAt + 365d — the badge expires, never indefinite
+  verifiedBy           String? // admin email that approved (audit)
+  verifications        SellerVerification[]
+  listings             Listing[]
+  reviews              Review[]
+  conversations        Conversation[]
+  apiKeys              ApiKey[]
+  webhooks             WebhookEndpoint[]
+  handle               Handle? // public @shopname (see model Handle)
 
   @@index([ownerId])
+}
+
+// A single business-verification CASE — immutable once submitted, versioned so a
+// rejected seller resubmits as a new row (external review: freeze the evidence a
+// reviewer decides on). Channel 1 (tax/registry) is derived live from the Seller;
+// this record is Channel 2 — the human review of the uploaded identity + bank docs.
+// ⚠️ documents hold PRIVATE-BUCKET PATHS ONLY (never a public URL); reachable solely
+// through short-lived admin-gated signed URLs. Deleted after the decision + a dispute
+// window (retentionUntil) — PDPL data-minimization, these are review artifacts.
+model SellerVerification {
+  id             String    @id @default(cuid())
+  sellerId       String
+  seller         Seller    @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  version        Int       @default(1) // (sellerId, version) unique — resubmission = new version
+  status         String    @default("draft") // draft | pending | approved | rejected
+  // The identity FROZEN at submit — sha256(legalName|taxCode|idNumber|legalAddress|name).
+  // The approval writes this onto Seller.verifiedIdentityHash; the badge only shows while
+  // it still matches the live identity, so an edit-after-approval silently drops the badge.
+  identityHash   String?
+  // [{ kind: 'identity'|'bank'|'authorization', path, mime, sha256, uploadedAt }] — private
+  // bucket paths, magic-byte-validated at upload. Frozen when status leaves 'draft'.
+  documents      Json      @default("[]")
+  bankNameSeen   String? // holder name the reviewer read off the bank doc (audit trail)
+  consentAt      DateTime? // explicit upload consent (PDPL Decree 13/2023) — logged
+  consentVersion String?
+  submittedAt    DateTime?
+  reviewedAt     DateTime?
+  reviewedBy     String? // admin email
+  note           String? // rejection reason / reviewer note (EN, operator-facing)
+  retentionUntil DateTime? // after this, a job removes the bucket objects for this case
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@unique([sellerId, version])
+  @@index([status])
+  @@index([sellerId])
 }
 
 // ── Public @handles (Telegram-style usernames) ──────────────────────────────────

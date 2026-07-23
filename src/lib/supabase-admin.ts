@@ -10,6 +10,12 @@ export const EVIDENCE_BUCKET = 'evidence'
 // videos need a much larger size limit and a video MIME allowlist. Provisioned by
 // scripts/setup-storage.mjs. Served via public URL for <video> playback.
 export const LISTING_VIDEOS_BUCKET = 'listing-videos'
+// PRIVATE bucket for BUSINESS-VERIFICATION documents (business licence, passport, bank
+// statement — sensitive PII under PDPL Decree 13/2023). Accepts images AND PDF (a licence
+// is often a PDF), so it is NOT an image-only sharp bucket. Never public-URL'd: access is
+// via short-lived (10-min) signed URLs minted only in admin-gated review routes, and the
+// objects are deleted after the review decision + a dispute window (retention job).
+export const BUSINESS_VERIFICATION_BUCKET = 'business-verification'
 
 let _admin: SupabaseClient | null = null
 

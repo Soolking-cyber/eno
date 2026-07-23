@@ -47,3 +47,20 @@ if (buckets?.some((b) => b.name === 'evidence')) {
   if (error) { console.error('createBucket error:', error.message); process.exit(1) }
   console.log('created PRIVATE bucket "evidence"')
 }
+
+// PRIVATE business-verification bucket — business licence / passport / bank statement,
+// sensitive PII (PDPL Decree 13/2023). Accepts images AND PDF (a licence is often a PDF),
+// so unlike the image-only buckets it allows application/pdf. Served only via short-lived
+// signed URLs minted in admin-gated review routes; objects deleted after the review
+// decision + a dispute window (retention job). 15 MB cap matches the upload route.
+if (buckets?.some((b) => b.name === 'business-verification')) {
+  console.log('bucket "business-verification" already exists')
+} else {
+  const { error } = await sb.storage.createBucket('business-verification', {
+    public: false,
+    fileSizeLimit: '15728640',
+    allowedMimeTypes: ['image/jpeg', 'image/png', 'application/pdf'],
+  })
+  if (error) { console.error('createBucket error:', error.message); process.exit(1) }
+  console.log('created PRIVATE bucket "business-verification"')
+}
