@@ -521,7 +521,11 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
               set overflows. */}
           {images.length > 1 && !zoom && (
             <div
-              className="absolute inset-x-0 bottom-4 flex justify-center px-4"
+              // Safe-area term mirrors the Close button's top inset above: the lightbox is a
+              // fullscreen edge-to-edge overlay on the native WebView, so a bare bottom-4 drops
+              // the 48px thumb rail into the ~34px home-indicator band (crowding the pill + fighting
+              // the OS home-swipe). Reserve env(safe-area-inset-bottom); 0 on web.
+              className="absolute inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+1rem)] flex justify-center px-4"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="scrollbar-none flex max-w-full gap-2 overflow-x-auto rounded-2xl bg-black/40 p-2 backdrop-blur-sm">

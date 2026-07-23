@@ -52,10 +52,20 @@ export function NativeBadge() {
       if (lastWritten.current === count) return
       try {
         const { Badge } = await import('@capawesome/capacitor-badge')
-        // NOTE: no requestPermissions() here on purpose. On iOS the badge is authorised by the
-        // SAME prompt native-push.tsx already shows for notifications, so asking again would
-        // put a second permission dialog in front of the user for a capability they either
-        // already granted or already declined. If it was declined, set() simply no-ops.
+        // ⚠️ THIS FILE MUST NEVER TRIGGER THE OS NOTIFICATION PROMPT. The old note here assumed
+        // "the badge is authorised by the same prompt native-push shows" and so called set()/clear()
+        // freely — but that is wrong for @capawesome/capacitor-badge: its iOS set/clear/increase/
+        // decrease each call requestPermissions() FIRST (BadgePlugin.swift), i.e.
+        // UNUserNotificationCenter.requestAuthorization(.badge) — the OS dialog. And this component
+        // runs for a GUEST too (total 0 → clear()), so on a cold first launch it popped
+        // "eno Would Like to Send You Notifications" before the user did anything, and before
+        // native-push (which needs a signed-in user) could ever run. That premature, un-earned
+        // prompt tanks opt-in. Fix: gate on ALREADY-granted permission. checkPermissions() is
+        // silent (getNotificationSettings, no dialog); write the badge only when permission
+        // already exists, leaving native-push.tsx as the SINGLE place that ever asks. Not granted
+        // = nothing to reflect yet (a guest has no badge anyway); the next count change or
+        // foreground re-write applies it once the user has granted via the push flow.
+        if ((await Badge.checkPermissions()).display !== 'granted') return
         if (count > 0) await Badge.set({ count })
         else await Badge.clear()
         if (!cancelled) lastWritten.current = count

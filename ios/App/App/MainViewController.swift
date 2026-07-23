@@ -14,6 +14,9 @@ class MainViewController: CAPBridgeViewController {
     private var reloadAttempts = 0
     private var watchdogGeneration = 0
     private let refreshControl = UIRefreshControl()
+    /// Bumped on every pull so a stale safety-ceiling timer (or a late done-message from a previous
+    /// pull) can't retract a NEWER pull's spinner. See handlePullRefresh / endRefresh.
+    private var refreshGeneration = 0
     private var foregroundObserver: NSObjectProtocol?
     /// Where the user actually was, so a blank-page recovery can put them back (see `reloadFromServer`).
     private var lastGoodURL: URL?
@@ -30,6 +33,14 @@ class MainViewController: CAPBridgeViewController {
         foregroundObserver = NotificationCenter.default.addObserver(
             forName: UIApplication.didBecomeActiveNotification, object: nil, queue: .main
         ) { [weak self] _ in
+            // Fresh foreground → fresh recovery budget. Without this reset a sustained pure-blank
+            // outage (wv.url stays nil) drives reloadAttempts to 6 on the nil-url path — which
+            // short-circuits BEFORE the JS-probe branch that is the only place resetting it — and
+            // the `reloadAttempts < 6` guard in reloadFromServer then freezes the watchdog for good:
+            // when the network returns and the user re-opens the app, recoverIfBlank hits url==nil →
+            // reloadFromServer → guard blocks → the app stays blank until force-quit. Re-engagement
+            // must always earn a new budget.
+            self?.reloadAttempts = 0
             self?.scheduleWatchdog(after: 1.5)
         }
     }
@@ -39,6 +50,7 @@ class MainViewController: CAPBridgeViewController {
             NotificationCenter.default.removeObserver(foregroundObserver)
         }
         urlObservation?.invalidate()
+        webView?.configuration.userContentController.removeScriptMessageHandler(forName: "enoRefreshDone")
     }
 
     /// Make the WebView behave like a native iOS app instead of a page in a browser.
@@ -89,6 +101,15 @@ class MainViewController: CAPBridgeViewController {
         refreshControl.addTarget(self, action: #selector(handlePullRefresh), for: .valueChanged)
         wv.scrollView.refreshControl = refreshControl
 
+        // Web → native handshake for pull-to-refresh: the web posts `enoRefreshDone` when the RSC
+        // re-fetch actually settles (native-bootstrap wraps router.refresh() in a transition), so we
+        // retract the spinner THEN — matching the moment content updates, instead of the old flat
+        // 0.9s guess that on a slow network left the spinner gone while content was still stale.
+        // Registered through a weak proxy: userContentController holds its handlers strongly, so
+        // adding `self` directly would form a controller → webView → VC retain cycle (benign for a
+        // root VC that lives the whole app, but avoided). Removed in deinit.
+        wv.configuration.userContentController.add(WeakScriptMessageHandler(self), name: "enoRefreshDone")
+
         // Track where the user actually is, so the blank-page watchdog can restore THAT page rather
         // than teleporting them to the home feed (see reloadFromServer). WKWebView's `url` is
         // KVO-compliant and also updates on History-API pushState/replaceState, so this follows SPA
@@ -109,14 +130,36 @@ class MainViewController: CAPBridgeViewController {
               Self.firstPartyHosts.contains(host) else { return }
         if url.path.hasPrefix("/auth/") || url.path.hasPrefix("/api/") { return }
         lastGoodURL = url
+        // A committed first-party page is proof the WebView made real progress (recovery landed, or
+        // ordinary SPA navigation), so refresh the recovery budget here too: a LATER drop then earns
+        // the full retry count again instead of inheriting a spent counter. Between this and the
+        // didBecomeActive reset, the 6-try cap still throttles a truly dead network within one
+        // foreground session, but can never wedge the recovery loop permanently.
+        reloadAttempts = 0
     }
 
     @objc private func handlePullRefresh() {
-        webView?.evaluateJavaScript("window.dispatchEvent(new Event('eno:native-refresh'))", completionHandler: nil)
-        // The soft refresh is fast; end the spinner shortly after so it feels snappy, not sticky.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) { [weak self] in
-            self?.refreshControl.endRefreshing()
+        refreshGeneration += 1
+        let generation = refreshGeneration
+        // Tag the pull with its generation so the web can echo it back on `enoRefreshDone` and we
+        // only ever retract the spinner for THIS pull (see the message handler).
+        webView?.evaluateJavaScript("window.dispatchEvent(new CustomEvent('eno:native-refresh',{detail:{gen:\(generation)}}))", completionHandler: nil)
+        // Safety CEILING only. The spinner is normally retracted by the web's `enoRefreshDone`
+        // message the instant router.refresh() settles (see the message handler below); this
+        // timeout just guarantees it can never stick if that message never arrives — an older web
+        // bundle that doesn't post it, a failed refetch, or offline. Generous so a genuinely slow
+        // refresh isn't cut short.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 12.0) { [weak self] in
+            self?.endRefresh(generation: generation)
         }
+    }
+
+    /// Retract the pull-to-refresh spinner — but only for the pull that armed this call. A newer
+    /// pull has already bumped refreshGeneration, so a stale ceiling timer or a stale done-message
+    /// from a previous pull is dropped here rather than cutting the newer pull's spinner short.
+    private func endRefresh(generation: Int) {
+        guard generation == refreshGeneration else { return }
+        refreshControl.endRefreshing()
     }
 
     // First presentation only (foreground returns are covered by the didBecomeActive observer).
@@ -167,5 +210,30 @@ class MainViewController: CAPBridgeViewController {
             wv.reload()
         }
         scheduleWatchdog(after: min(2.0 + Double(reloadAttempts), 6.0))
+    }
+}
+
+// MARK: - Pull-to-refresh completion bridge
+
+extension MainViewController: WKScriptMessageHandler {
+    func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+        // The web posts this the instant its pull-to-refresh RSC re-fetch settles, echoing back the
+        // generation we tagged the pull with. Act ONLY on a gen-tagged payload so a stale done from
+        // a previous pull (bridge latency on a rapid double-pull) can never retract a newer pull's
+        // spinner. In remote-server mode the web is always the latest deploy, so it always sends
+        // {gen}; a malformed/absent payload is ignored and the 12s ceiling is the sole fallback.
+        if message.name == "enoRefreshDone", let gen = (message.body as? [String: Any])?["gen"] as? Int {
+            endRefresh(generation: gen)
+        }
+    }
+}
+
+/// Weak proxy so registering a VC as a WKScriptMessageHandler doesn't retain-cycle the WebView's
+/// userContentController (which holds its handlers strongly).
+private final class WeakScriptMessageHandler: NSObject, WKScriptMessageHandler {
+    private weak var target: WKScriptMessageHandler?
+    init(_ target: WKScriptMessageHandler) { self.target = target }
+    func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+        target?.userContentController(userContentController, didReceive: message)
     }
 }

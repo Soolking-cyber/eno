@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useRef, useTransition } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { useTheme } from '@/context/theme-context'
 import { useLanguage } from '@/context/language-context'
@@ -203,22 +203,52 @@ export function NativeBootstrap() {
   const router = useRouter()
   const pathname = usePathname()
   const { tr } = useLanguage()
+  const [isRefreshing, startRefresh] = useTransition()
 
   // Native pull-to-refresh: MainViewController's UIRefreshControl (iOS) and MainActivity's
   // SwipeRefreshLayout (Android) both fire `eno:native-refresh` on pull; soft-refresh the current
   // route (re-fetch server components) — no full reload, so scroll + SPA state survive. No-op on
   // web (event never fires there).
+  const refreshGenRef = useRef(0)
   useEffect(() => {
-    const onRefresh = () => {
+    const onRefresh = (e: Event) => {
       // Neither shell plays a haptic of its own (UIRefreshControl/SwipeRefreshLayout are silent),
       // so a pull that commits feels dead. Both platforms route through THIS one handler, so a
       // single light impact here covers both. hapticTap is reduced-motion-guarded + throttled.
       hapticTap()
-      router.refresh()
+      // iOS tags the pull with a generation on the CustomEvent detail; echo it back on the
+      // done-signal so a stale completion can't retract a NEWER pull's spinner (Android dispatches
+      // a plain Event with no detail → gen stays 0, and the done postMessage is iOS-only anyway).
+      const gen = (e as CustomEvent<{ gen?: number }>).detail?.gen
+      if (typeof gen === 'number') refreshGenRef.current = gen
+      // Wrap the RSC re-fetch in a transition so we can tell the native shell WHEN it actually
+      // settles: router.refresh() is otherwise fire-and-forget (returns void), which is why the
+      // iOS UIRefreshControl retracted on a flat 0.9s timer that desyncs from a slow-network
+      // refetch (spinner gone while content is still stale). Inside a transition, isRefreshing
+      // stays true until the refetch commits — see the completion effect below.
+      startRefresh(() => { router.refresh() })
     }
     window.addEventListener('eno:native-refresh', onRefresh)
     return () => window.removeEventListener('eno:native-refresh', onRefresh)
-  }, [router])
+  }, [router, startRefresh])
+
+  // Refresh-settled → retract the native spinner exactly when content updates (the Swift side
+  // keeps a safety-ceiling timeout in case this never arrives, e.g. an older web bundle or a
+  // failed refetch). Fire only on the real pending→false EDGE, never on mount.
+  const wasRefreshing = useRef(false)
+  useEffect(() => {
+    if (isRefreshing) { wasRefreshing.current = true; return }
+    if (!wasRefreshing.current) return
+    wasRefreshing.current = false
+    if (!isNative()) return
+    // iOS: post to the WKScriptMessageHandler MainViewController registers, tagged with the pull's
+    // generation so Swift only retracts THAT pull's spinner (guarded — the handler and `webkit`
+    // bridge exist on iOS only; undefined elsewhere, so this no-ops on Android/web).
+    try {
+      ;(window as unknown as { webkit?: { messageHandlers?: { enoRefreshDone?: { postMessage: (m: unknown) => void } } } })
+        .webkit?.messageHandlers?.enoRefreshDone?.postMessage({ gen: refreshGenRef.current })
+    } catch { /* handler not registered (older native build) — Swift's ceiling timer covers it */ }
+  }, [isRefreshing])
 
   // Long-press a listing card → native action sheet (Share / Copy link / Open) — the native gesture
   // users reach for on a card. A global, native-only touch capture: nothing is wired per-card, the
@@ -290,6 +320,15 @@ export function NativeBootstrap() {
       return link as HTMLAnchorElement | null
     }
 
+    // touchcancel (as opposed to touchend) means the touch produced NO click: the native
+    // ActionSheet took over with the finger still down, so iOS cancelled the gesture. There is
+    // therefore nothing to swallow — drop suppressClick right now instead of leaving it armed for
+    // the 700ms fallback, where it would eat the user's NEXT real tap (the first tap on a just-
+    // opened page after "Open", or a re-tap on another card after Cancel). touchEND is the opposite
+    // case: the browser DOES synthesize a ghost click right after it, and that is the one click we
+    // must swallow — so touchend clears only the timer (via `clear`), never suppressClick.
+    const onCancel = () => { clear(); suppressClick = false }
+
     let startX = 0, startY = 0, startId = -1
     const onStart = (e: TouchEvent) => {
       clear() // any new contact abandons a hold in progress
@@ -322,14 +361,14 @@ export function NativeBootstrap() {
     document.addEventListener('touchstart', onStart, { passive: true })
     document.addEventListener('touchmove', onMove, { passive: true })
     document.addEventListener('touchend', clear, { passive: true })
-    document.addEventListener('touchcancel', clear, { passive: true })
+    document.addEventListener('touchcancel', onCancel, { passive: true })
     document.addEventListener('click', onClickCapture, true)
     return () => {
       clear()
       document.removeEventListener('touchstart', onStart)
       document.removeEventListener('touchmove', onMove)
       document.removeEventListener('touchend', clear)
-      document.removeEventListener('touchcancel', clear)
+      document.removeEventListener('touchcancel', onCancel)
       document.removeEventListener('click', onClickCapture, true)
     }
   }, [tr, router])
@@ -509,6 +548,18 @@ export function NativeBootstrap() {
           // was the reference implementation.
           const path = canonicalAppPath(raw, { blockAuthPaths: true })
           if (!path) return
+          // Stand the resume-refresh down ONLY when this actually navigates to a DIFFERENT view:
+          // a push to a different route already fetches fresh RSC, so the appStateChange refresh
+          // that follows on a >=30s-background resume would be a redundant refetch of the just-
+          // pushed page (the most common share-to-app path). But a deep link to the route the user
+          // is ALREADY on is a router.push no-op that fetches nothing — there the resume refresh is
+          // exactly what freshens the now-stale content, so it must NOT be suppressed. Covers both
+          // the eno.vn https and the enovn://open?path shapes.
+          // Compare on pathname+search only: a hash-only difference is a fragment nav that fetches
+          // NO fresh RSC (same as a same-route push), so it must not suppress the resume refresh
+          // either — strip the pushed path's hash before the equality check.
+          const here = window.location.pathname + window.location.search
+          if (path.split('#')[0] !== here) hardNavAt = Date.now()
           router.push(path)
         } catch { /* unparseable URL — ignore */ }
       }
