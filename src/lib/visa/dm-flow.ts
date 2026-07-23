@@ -144,6 +144,7 @@ export type VisaDmErrorCode =
   | 'no_thread'
   | 'not_a_participant'
   | 'not_found'
+  | 'payload_unreadable'
   | 'payments_not_configured'
   | 'product_not_configured'
   | 'product_not_for_sale'
@@ -200,6 +201,13 @@ export function visaDmFailureFor(error: unknown): VisaDmFailure {
   const message = (error as Error)?.message ?? ''
   if (visaTableMissing({ code })) return fail('visa_schema_not_ready', 503)
   if (message.includes('not_configured')) return fail('visa_schema_not_ready', 503)
+  // AES-GCM auth failure / malformed envelope: the row exists but THIS deployment's key
+  // cannot read it (the forum-era key split, prod 2026-07-23). A named 409 — the case is
+  // in a state the applicant cannot fix here — instead of an anonymous 500.
+  if (message.includes('Unsupported state or unable to authenticate') || message.includes('visa_envelope_invalid')) {
+    console.error('[visa-dm] payload unreadable under the current key', error)
+    return fail('payload_unreadable', 409)
+  }
   console.error('[visa-dm] flow failed', error)
   return fail('internal_error', 500)
 }
@@ -992,17 +1000,31 @@ export async function startVisaDmFlow(input: {
   const shop = await getVisaShopSeller()
   if (!shop?.ownerId) return fail('shop_unavailable', 503)
 
-  const existing = await reusableVisaApplication(input.userId)
+  let existing = await reusableVisaApplication(input.userId)
+  // ⚠️ AN UNREADABLE DRAFT MUST NOT BRICK THE ACCOUNT (prod incident 2026-07-23): five
+  // forum-era rows are encrypted under the PREVIOUS key, and reusing one threw here —
+  // turning every /start for that account into a 500 with no way out. A draft this
+  // deployment cannot read is not reusable BY DEFINITION: log it, leave it for the
+  // data-side migration, and mint a fresh case instead.
+  let existingPayload: VisaPayload | null = null
+  if (existing) {
+    try {
+      existingPayload = decryptVisaPayload(existing.encrypted_payload)
+    } catch (e) {
+      console.error(`[visa-dm] reusable draft ${existing.id} is unreadable under the current key — starting fresh`, e)
+      existing = null
+    }
+  }
   const prefill = product ? (visaPrefillForProduct(product) ?? {}) : {}
   let applicationId: string
 
-  if (existing) {
+  if (existing && existingPayload) {
     // A generic start RESUMES the newest editable case as-is — even one that already has a
     // product (external review asked; deliberate: a second case would both proliferate
     // half-filled government forms and charge the 5/24h create budget for a re-open).
     // Changing product stays reachable via the named-product paths and the picker card.
     applicationId = existing.id
-    const payload = decryptVisaPayload(existing.encrypted_payload)
+    const payload = existingPayload
     const changed = Object.entries(prefill).some(([key, value]) => (payload as unknown as Record<string, unknown>)[key] !== value)
     const selectionDiffers = !!product && !selectionMatches(existing, product)
     if (changed || selectionDiffers) {

@@ -192,8 +192,22 @@ export async function GET(request: Request) {
       ])
       const documents = (documentsResult.data || []) as VisaDocumentRow[]
       const events = (eventsResult.data || []) as VisaEventRow[]
+      // ⚠️ ONE UNREADABLE PAYLOAD MUST NOT 500 THE WHOLE LIST (prod incident 2026-07-23:
+      // forum-era rows are ciphered under the previous key; decrypting the "active" one
+      // threw, and the dashboard lied "No applications yet" over a full account). The
+      // list rows never decrypt; the active DETAIL degrades to payload-free + a flag.
+      let activeSerialized: Record<string, unknown> | null = null
+      if (active) {
+        const activeDocuments = documents.filter((document) => document.application_id === active.id)
+        try {
+          activeSerialized = serializeVisa(active, activeDocuments, events)
+        } catch (e) {
+          console.error(`[visa] active case ${active.id} payload unreadable — serving it payload-free`, e)
+          activeSerialized = { ...serializeVisa(active, activeDocuments, events, false), payloadUnreadable: true }
+        }
+      }
       return NextResponse.json({
-        application: active ? serializeVisa(active, documents.filter((document) => document.application_id === active.id), events) : null,
+        application: activeSerialized,
         applications: applications.map((item) => serializeVisa(item, documents.filter((document) => document.application_id === item.id), undefined, false)),
         encryptionReady,
         payments,

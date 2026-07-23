@@ -38,7 +38,15 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   if (!visaCryptoReady()) return NextResponse.json({ error: 'visa_encryption_not_configured' }, { status: 503 })
   const loaded = await load(id, userId)
   if (!loaded.application) return NextResponse.json({ error: 'not_found' }, { status: 404 })
-  return NextResponse.json({ application: serializeVisa(loaded.application, loaded.documents, loaded.events) })
+  try {
+    return NextResponse.json({ application: serializeVisa(loaded.application, loaded.documents, loaded.events) })
+  } catch (e) {
+    // A forum-era row ciphered under the previous key (prod 2026-07-23): the case still
+    // EXISTS — status, documents, deletion all work — it just has no readable answers
+    // on this deployment. Payload-free + a flag, never a 500.
+    console.error(`[visa] case ${id} payload unreadable — serving it payload-free`, e)
+    return NextResponse.json({ application: { ...serializeVisa(loaded.application, loaded.documents, loaded.events, false), payloadUnreadable: true } })
+  }
 }
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {

@@ -1176,3 +1176,27 @@ describe('generic start header honesty', () => {
     expect(h.state.retargets).toEqual([])
   })
 })
+
+// ── PROD INCIDENT 2026-07-23: forum-era rows under the previous encryption key ──────
+
+describe('an unreadable draft never bricks the account', () => {
+  it('start SKIPS a draft whose payload cannot be decrypted and mints a fresh case', async () => {
+    seedCase({ selected: false })
+    // Ciphertext from the previous key: the mock's decrypt (JSON.parse) throws on it,
+    // exactly like AES-GCM's auth failure does in production.
+    h.state.tables.visa_applications[0].encrypted_payload = '{not-decryptable'
+    const result = await startVisaDmFlow({ userId: BUYER, email: 'a@b.com', allowCreate: async () => true })
+    expect(result).toMatchObject({ ok: true })
+    // A NEW case exists; the unreadable one was left exactly as it was for migration.
+    expect(h.state.tables.visa_applications).toHaveLength(2)
+    expect(h.state.tables.visa_applications[0].encrypted_payload).toBe('{not-decryptable')
+  })
+
+  it('the create-quota still applies to the fresh case (no free mints via poisoned drafts)', async () => {
+    seedCase({ selected: false })
+    h.state.tables.visa_applications[0].encrypted_payload = '{not-decryptable'
+    const denied = await startVisaDmFlow({ userId: BUYER, email: 'a@b.com', allowCreate: async () => false })
+    expect(denied).toMatchObject({ ok: false, error: 'rate_limited', status: 429 })
+    expect(h.state.tables.visa_applications).toHaveLength(1)
+  })
+})

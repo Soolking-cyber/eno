@@ -865,6 +865,8 @@ const ERROR_COPY: Record<string, [string, string]> = {
   // The client's confirmation token no longer matches the case's canonical selection —
   // almost always a stale tab. A reload re-reads the canonical product and heals it.
   listing_selection_mismatch: ['Your selection changed in another tab. Reload and try again.', 'Lựa chọn của bạn đã thay đổi ở thẻ khác. Hãy tải lại và thử lại.'],
+  // A forum-era case ciphered under the previous key — readable nowhere on this host.
+  payload_unreadable: ['This application was filed under an older system and cannot be opened here. Start a new one in chat, or ask the desk.', 'Hồ sơ này được tạo trên hệ thống cũ nên không mở được tại đây. Hãy bắt đầu hồ sơ mới trong chat hoặc hỏi bộ phận hỗ trợ.'],
   submission_window_closed: ['The desk has closed for this speed today.', 'Hôm nay đã hết giờ nhận hồ sơ cho tốc độ này.'],
   payments_not_configured: ['Paying in chat is not switched on yet.', 'Thanh toán trong tin nhắn chưa được bật.'],
   fx_unavailable: ['The US dollar amount could not be worked out just now. Nothing has been charged — try again in a moment.', 'Hiện chưa tính được số tiền đô la Mỹ. Chưa có khoản nào bị trừ — vui lòng thử lại sau giây lát.'],
