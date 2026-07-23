@@ -47,6 +47,12 @@ const authedProjects: Project[] = AUTHED_BASE
         name: 'smoke', dependencies: ['setup'], testMatch: /smoke\.spec\.ts/,
         use: { ...devices['Desktop Chrome'], baseURL: AUTHED_BASE },
       },
+      // The e-Visa applicant story (visa-ownership follow-up: eno.vn owns the applicant flow
+      // end to end and had no authed visa e2e). The applicant is the BUYER role.
+      {
+        name: 'visa', dependencies: ['setup'], testMatch: /visa-authed\.spec\.ts/,
+        use: { ...devices['Desktop Chrome'], baseURL: AUTHED_BASE, ...(existsSync(`${AUTH_DIR}/buyer.json`) ? { storageState: `${AUTH_DIR}/buyer.json` } : {}) },
+      },
     ]
   : []
 

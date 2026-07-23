@@ -21,6 +21,10 @@ await db.connect()
 const { rows } = await db.query(`SELECT id FROM "Profile" WHERE email LIKE 'e2e-%@eno.vn'`)
 const ids = rows.map((r) => r.id)
 if (ids.length) {
+  // Visa cases the applicant story (e2e/visa-authed.spec.ts) may have left behind on a
+  // crash — visa_documents/events/payments/prefill_sessions all cascade off the row.
+  // The spec is deliberately upload-free, so there are no storage objects to chase.
+  await db.query(`DELETE FROM visa_applications WHERE user_id = ANY($1)`, [ids]).catch(() => {})
   // Children first (FKs). Conversations/Messages/Listings a test may have created.
   await db.query(`DELETE FROM "Message" WHERE "conversationId" IN (SELECT id FROM "Conversation" WHERE "buyerId" = ANY($1) OR "sellerId" IN (SELECT id FROM "Seller" WHERE "ownerId" = ANY($1)))`, [ids]).catch(() => {})
   await db.query(`DELETE FROM "Conversation" WHERE "buyerId" = ANY($1) OR "sellerId" IN (SELECT id FROM "Seller" WHERE "ownerId" = ANY($1))`, [ids]).catch(() => {})
