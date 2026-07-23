@@ -320,11 +320,13 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
               `sel` walks the media entries (video first when present); clicking a
               photo opens the lightbox at that photo. eager (NOT priority): both
               breakpoints mount CSS-hidden, priority would double-fetch on phones. */}
-          {/* SQUARE viewport (owner 2026-07-23: "desktop make these square"), capped at
-              560px and centered so hero + thumb rail read as one unit — a raw
-              aspect-square on the ~750px media column would tower past the laptop fold.
-              Square-at-a-cap is also the actual Shopee shape this block cites. */}
-          <div data-protected className="mx-auto hidden w-full max-w-[560px] md:block">
+          {/* SQUARE viewport at FULL column width (owner 2026-07-23, second pass:
+              "make sure image uses full available width" — overrides the 560px cap from
+              the same morning; the tall square is the owner's accepted trade). Full width
+              also re-seats the page's Share/Save overlay (absolute right-3 top-3 on the
+              WRAPPER) onto the image's own corner — the centered cap left them floating
+              beside the hero. */}
+          <div data-protected className="hidden w-full md:block">
             <div className="relative aspect-square w-full overflow-hidden rounded-2xl bg-tint">
               {hasVideo && sel === 0 ? (
                 <GalleryVideo src={video!} poster={images[0]} className="rounded-none" />
@@ -333,7 +335,7 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
                   const photoIdx = hasVideo ? sel - 1 : sel
                   return (
                     <Button variant="bare" size="none" onClick={() => openAt(photoIdx)} className="group relative block h-full w-full overflow-hidden rounded-none cursor-pointer active:scale-100">
-                      <BlurFillImage img={images[photoIdx]} alt={`${title} — photo ${photoIdx + 1}`} sizes="(max-width:1024px) 100vw, 560px" mock={isMockImageUrl(images[photoIdx])} eager={photoIdx === 0} hover />
+                      <BlurFillImage img={images[photoIdx]} alt={`${title} — photo ${photoIdx + 1}`} sizes="(max-width:1024px) 100vw, 60vw" mock={isMockImageUrl(images[photoIdx])} eager={photoIdx === 0} hover />
                     </Button>
                   )
                 })()
