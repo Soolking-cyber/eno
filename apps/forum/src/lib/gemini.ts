@@ -20,10 +20,10 @@ function configuredModel(name: string, fallback: string) {
 // transcription and cached UI translation are bounded extraction tasks, so the
 // lower-cost Flash-Lite model is the sensible primary. A visa request can make
 // at most one fallback attempt on 3.5 when the provider returns a retryable error.
-export const GEMINI_ITINERARY_MODEL = configuredModel('GEMINI_ITINERARY_MODEL', 'gemini-3.5-flash')
+export const GEMINI_ITINERARY_MODEL = configuredModel('GEMINI_ITINERARY_MODEL', 'gemini-3.6-flash')
 export const GEMINI_ITINERARY_FALLBACK_MODEL = configuredModel('GEMINI_ITINERARY_FALLBACK_MODEL', 'gemini-3.1-flash-lite')
 export const GEMINI_VISA_MODEL = configuredModel('GEMINI_VISA_MODEL', 'gemini-3.1-flash-lite')
-export const GEMINI_VISA_FALLBACK_MODEL = configuredModel('GEMINI_VISA_FALLBACK_MODEL', 'gemini-3.5-flash')
+export const GEMINI_VISA_FALLBACK_MODEL = configuredModel('GEMINI_VISA_FALLBACK_MODEL', 'gemini-3.6-flash')
 export const GEMINI_TRANSLATION_MODEL = configuredModel('GEMINI_TRANSLATION_MODEL', 'gemini-3.1-flash-lite')
 
 let client: GoogleGenAI | null | undefined

@@ -49,7 +49,7 @@ vi.mock('../db', () => ({
 }))
 
 vi.mock('../gemini', () => ({
-  GEMINI_MODEL: 'gemini-3.5-flash',
+  GEMINI_MODEL: 'gemini-3.6-flash',
   getGemini: () => (h.state.geminiConfigured
     ? {
       models: {

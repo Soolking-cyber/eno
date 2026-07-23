@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
 
   // Optional ?model= override: probe ANY model against the LIVE prod config (project +
   // region + creds) WITHOUT committing a model change — so we can confirm e.g.
-  // gemini-3.5-flash resolves on this project's global endpoint before flipping to it.
+  // a new flash model resolves on this project's global endpoint before flipping to it.
   const probeModel = params.get('model')?.trim() || GEMINI_MODEL
   const t0 = Date.now()
   try {
