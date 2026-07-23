@@ -123,7 +123,7 @@ export const LISTING_CARD_SELECT = {
   id: true, title: true, titleVi: true, price: true, priceUnit: true, currency: true, negotiable: true,
   previousPrice: true, priceDropAt: true, urgentUntil: true,
   location: true, district: true, city: true, lat: true, lng: true, images: true, video: true,
-  brandSlug: true, model: true, marketPosition: true, verified: true, postedAt: true, savedCount: true, contactCount: true,
+  brandSlug: true, model: true, condition: true, marketPosition: true, verified: true, postedAt: true, savedCount: true, contactCount: true,
   category: { select: { id: true, name: true, nameVi: true, slug: true, icon: true, color: true } },
   seller: { select: { trustScore: true, owner: { select: { accountType: true } } } },
 } as const
@@ -133,7 +133,7 @@ type ListingCardRow = {
   currency: string; negotiable: boolean; location: string; district: string | null; city: string
   previousPrice: number | null; priceDropAt: Date | null; urgentUntil: Date | null
   lat: number | null; lng: number | null; images: string; video: string | null; brandSlug: string | null
-  model: string | null; marketPosition: string | null; verified: boolean; postedAt: Date; savedCount: number; contactCount: number
+  model: string | null; condition: string | null; marketPosition: string | null; verified: boolean; postedAt: Date; savedCount: number; contactCount: number
   category: { id: string; name: string; nameVi: string; slug: string; icon: string; color: string }
   seller: { trustScore: number; owner?: { accountType: string | null } | null }
 }
@@ -158,6 +158,7 @@ export function serializeListingCard(l: ListingCardRow): SerializedListingCard {
     video: l.video,
     brandSlug: l.brandSlug,
     model: l.model,
+    condition: l.condition,
     // "Good price" card badge = below the market band's P25. Only the deal-positive signal
     // reaches the card (never "above market" — that would just be hostile to sellers).
     goodPrice: l.marketPosition === 'low',

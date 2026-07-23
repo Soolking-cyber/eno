@@ -68,6 +68,11 @@ function ListingCardImpl({
   const images = listing.images
   const displayTitle = useLocalized(listing.title, listing.titleVi, listing.titleI18n)
   const displayLocation = useTr(listing.location)
+  // Condition badge text for the metadata line. new/used are the canonical facet values
+  // (verified in prod); an unexpected value is shown verbatim rather than dropped.
+  const conditionLabel = listing.condition === 'new' ? tr('New', 'Mới')
+    : listing.condition === 'used' ? tr('Used', 'Đã dùng')
+    : listing.condition || null
   const { isFavorite, toggle, savedDelta } = useFavorites()
   const favorited = isFavorite(listing.id)
   // Base savedCount (real, server-side) + this session's own toggle, floored at 0.
@@ -504,7 +509,10 @@ function ListingCardImpl({
             from overflowing on a 2-col mobile card, and reads cleaner. */}
         <div className="mt-auto flex items-center gap-1.5 pt-1 text-2xs text-muted-foreground">
           <span className="min-w-0 flex-1 truncate">
-            {[displayLocation, (listing.brandSlug || listing.model)
+            {/* condition leads the line (owner, 2026-07-23) — the fastest signal a buyer scans
+                for. Stored values are the two facet buckets 'new'/'used'; anything else shows
+                as-is, and null (services/jobs, where condition is meaningless) drops out. */}
+            {[conditionLabel, displayLocation, (listing.brandSlug || listing.model)
               ? [listing.brandSlug ? prettyBrand(listing.brandSlug) : null, listing.model].filter(Boolean).join(' · ')
               : null].filter(Boolean).join(' · ')}
           </span>

@@ -44,6 +44,7 @@ export type SerializedListingCard = {
   video?: string | null
   brandSlug: string | null
   model: string | null
+  condition: string | null
   // Below the market band for its brand+model+segment (< P25) → "Good price" card chip.
   // Denormalized nightly (Listing.marketPosition); the PDP shows the exact live band.
   goodPrice?: boolean
