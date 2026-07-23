@@ -1433,7 +1433,6 @@ export const UI_STRINGS: string[] = [
   "Tap ••• at the top, choose “Open in Safari/Browser”, then sign in with Google. Or just use Phone/Email below — they work right here.",
   "Tax code (if any)",
   "Tax code format: 10 digits (or 10-3 with branch).",
-  "Tax code verified",
   "Teaching",
   "Technical problem",
   "Tell buyers about your business…",
