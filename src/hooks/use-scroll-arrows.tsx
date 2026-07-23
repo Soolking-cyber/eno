@@ -104,22 +104,26 @@ export function ScrollArrows({
   // Bare BOLD chevron (no circle/outline), clear of the cards in the gutter — quiet ink → brand on
   // hover, a subtle drop-shadow so it stays legible next to a card. `top-1/2` centres on the full
   // row; an inline `top` (arrowTop) overrides that to centre on the media.
-  // Offset is RESPONSIVE: at ≤1359px the content fills the viewport (only the 32px page padding to
-  // work with), so -8 keeps the arrow fully visible with no h-scroll; once the viewport gutter opens
-  // up (≥1360px) we push out to -14 for a full arrow-width gap. This never overflows at any width.
+  // ⚠️ POSITIONED AT THE INNER EDGE, overlaying the content — NOT in the gutter outside.
+  // The old `-left-8 / -right-8` put the arrows OUTSIDE the rail, where the explorer's
+  // `overflow-x: hidden` wrapper (there to stop the page wobbling sideways) CLIPPED the
+  // right one away on wide screens: measured 2026-07-23, right arrow at x=1596 past a wrap
+  // edge of 1568 = invisible, even though it was within the viewport. Sitting them just
+  // inside each edge with a soft backdrop keeps them clear of the clip and legible over a
+  // card. Verified across 1280/1920/2560.
   const arrowCls =
-    'absolute z-10 hidden -translate-y-1/2 text-ink-4 transition-transform duration-150 hover:scale-110 hover:text-accent-foreground active:scale-90 pc:block'
-  const arrowIcon = 'size-7 [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.25))]'
+    'absolute z-10 hidden -translate-y-1/2 grid place-items-center h-9 w-9 rounded-full bg-background/80 backdrop-blur-sm shadow-pop ring-1 ring-border/60 text-ink-4 transition-transform duration-150 hover:scale-110 hover:text-accent-foreground active:scale-90 pc:grid'
+  const arrowIcon = 'size-5'
   const style = arrowTop != null ? { top: `${arrowTop}px` } : undefined
   return (
     <>
       {canLeft && (
-        <Button variant="bare" size="none" onClick={() => page(-1)} aria-label={tr('Scroll left', 'Cuộn trái')} style={style} className={cn(arrowCls, arrowTop == null && 'top-1/2', '-left-8 min-[1360px]:-left-14')}>
+        <Button variant="bare" size="none" onClick={() => page(-1)} aria-label={tr('Scroll left', 'Cuộn trái')} style={style} className={cn(arrowCls, arrowTop == null && 'top-1/2', 'left-1')}>
           <ChevronLeft className={arrowIcon} strokeWidth={2.75} />
         </Button>
       )}
       {canRight && (
-        <Button variant="bare" size="none" onClick={() => page(1)} aria-label={tr('Scroll right', 'Cuộn phải')} style={style} className={cn(arrowCls, arrowTop == null && 'top-1/2', '-right-8 min-[1360px]:-right-14')}>
+        <Button variant="bare" size="none" onClick={() => page(1)} aria-label={tr('Scroll right', 'Cuộn phải')} style={style} className={cn(arrowCls, arrowTop == null && 'top-1/2', 'right-1')}>
           <ChevronRight className={arrowIcon} strokeWidth={2.75} />
         </Button>
       )}
