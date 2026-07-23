@@ -2003,7 +2003,7 @@ export function ListingsExplorer({
     // overflow-x-CLIP (not hidden): hidden would make this section the sort strip's
     // scroll box and position:sticky would never pin; clip contains the horizontal
     // bleed without creating a scroll container.
-    <section ref={listingsRef} id="listings" className="scroll-mt-20 relative overflow-x-clip py-5 sm:py-8">
+    <section ref={listingsRef} id="listings" className="scroll-mt-20 relative overflow-x-clip pc:overflow-visible py-5 sm:py-8">
       {/* Width + edge gutter owned by the parent page <main> (see landing branch). */}
       <div className="relative w-full">
         {/* Page heading for the search/results view — keeps a sequential outline

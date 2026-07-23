@@ -13,7 +13,7 @@
 
 import type { LucideIcon } from 'lucide-react'
 import {
-  Store, MessageSquareText, Heart, Scale, Upload, Code2,
+  Store, ExternalLink, MessageSquareText, Heart, Scale, Upload, Code2,
   CircleHelp, Route, FileCheck2,
   Flag, ShieldAlert, ClipboardList, Tags, Star, Stamp,
 } from 'lucide-react'
@@ -76,7 +76,7 @@ export const DASHBOARD_NAV: NavGroup[] = [
       { href: '/dashboard/bulk', ...tr('Bulk upload', 'Tải hàng loạt'), icon: Upload, role: 'business' },
       { href: '/dashboard/dev', ...tr('Developers', 'Lập trình'), icon: Code2, role: 'business' },
       // Public storefront of the signed-in seller — href is computed by the renderer.
-      { href: '/sellers', ...tr('View storefront', 'Xem gian hàng'), icon: Store, external: true, role: 'seller', dynamic: 'storefront' },
+      { href: '/sellers', ...tr('View storefront', 'Xem gian hàng'), icon: ExternalLink, external: true, role: 'seller', dynamic: 'storefront' },
     ],
   },
   {
