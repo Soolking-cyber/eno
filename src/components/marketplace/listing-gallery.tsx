@@ -275,21 +275,21 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
     <>
       {images.length === 1 && !hasVideo ? (
         <Button variant="bare" size="none" onClick={() => openAt(0)} className="group block w-full overflow-hidden rounded-2xl cursor-pointer active:scale-100">
-          {/* SQUARE on desktop like the multi-image gallery (owner 2026-07-23: "square
-              window … height should lengthen" — this single-image branch was the one
-              spot the square pass missed, caught on the visa PDP). Mobile keeps 4:3,
-              matching the multi-image carousel. */}
-          <div data-protected className="relative aspect-[4/3] w-full overflow-hidden bg-tint md:aspect-square">
+          {/* SQUARE on every breakpoint (owner 2026-07-23: desktop first, then "in mobile
+              web ios and android … square viewport for images and videos"). This file is
+              also the Capacitor WebView the native apps load, so mobile-web square IS the
+              iOS/Android square. */}
+          <div data-protected className="relative aspect-square w-full overflow-hidden bg-tint">
             <BlurFillImage img={images[0]} alt={title} sizes="(max-width:1024px) 100vw, 60vw" mock={isMockImageUrl(images[0])} priority hover />
           </div>
         </Button>
       ) : (
         <>
           {variant !== 'desktop' && (<>
-          {/* MOBILE: full-width swipeable carousel — each photo gets the whole
-              390px, with an n/N counter so buyers know more angles exist
-              (truncated galleries hide the condition shots). Scroll-snap only,
-              no JS animation; tap opens the lightbox at that photo. */}
+          {/* MOBILE: full-width swipeable carousel — each slide is a SQUARE viewport
+              (owner 2026-07-23: "square viewport for images and videos" on mobile web =
+              the iOS/Android Capacitor apps). n/N counter so buyers know more angles
+              exist. Scroll-snap only, no JS animation; tap opens the lightbox at that photo. */}
           <div data-protected className="relative md:hidden">
             <div
               className="scrollbar-none flex snap-x snap-mandatory overflow-x-auto rounded-2xl"
@@ -300,12 +300,12 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
             >
               {/* Video is slide 0 — poster = the first photo, autoplays once it's on-screen. */}
               {hasVideo && (
-                <div className="relative aspect-[4/3] w-full shrink-0 snap-center overflow-hidden rounded-2xl">
+                <div className="relative aspect-square w-full shrink-0 snap-center overflow-hidden rounded-2xl">
                   <GalleryVideo src={video!} poster={images[0]} />
                 </div>
               )}
               {images.map((img, i) => (
-                <Button key={i} variant="bare" size="none" onClick={() => openAt(i)} className="relative block aspect-[4/3] w-full shrink-0 snap-center overflow-hidden rounded-none bg-tint cursor-pointer active:scale-100">
+                <Button key={i} variant="bare" size="none" onClick={() => openAt(i)} className="relative block aspect-square w-full shrink-0 snap-center overflow-hidden rounded-none bg-tint cursor-pointer active:scale-100">
                   <BlurFillImage img={img} alt={`${title} — photo ${i + 1}`} sizes="100vw" mock={isMockImageUrl(img)} priority={i === 0 && !hasVideo} />
                 </Button>
               ))}
