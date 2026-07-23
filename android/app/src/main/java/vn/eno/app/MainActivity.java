@@ -44,6 +44,13 @@ public class MainActivity extends BridgeActivity {
     private volatile boolean ptrEnabled = true;
 
     /**
+     * Bumped on every pull so a stale safety-ceiling timer — or a late refreshDone from a PREVIOUS
+     * pull on a rapid double-pull — can't retract a NEWER pull's spinner. Written on the UI thread
+     * (the refresh listener), read from the WebView's JS thread (the bridge), hence volatile.
+     */
+    private volatile int refreshGeneration = 0;
+
+    /**
      * False until super.onCreate() has returned. BridgeActivity.load() calls onNewIntent(getIntent())
      * from INSIDE onCreate to deliver the cold-start link; that path must stay exactly as it was —
      * the web app consumes it through App.getLaunchUrl() with a sessionStorage once-guard, and
@@ -78,6 +85,36 @@ public class MainActivity extends BridgeActivity {
         public void setPtrEnabled(boolean enabled) {
             ptrEnabled = enabled;
         }
+
+        /**
+         * Pull-to-refresh completion handshake (mirrors iOS's `enoRefreshDone` script message). The
+         * web calls this the instant its RSC re-fetch settles — router.refresh() is otherwise
+         * fire-and-forget, which is why the spinner used to retract on a flat 900ms guess that on a
+         * slow network vanished while content was still stale. `gen` is the generation we tagged the
+         * pull with, so a stale completion can't cut a newer pull short.
+         *
+         * ⚠️ @JavascriptInterface methods run on the WebView's JS thread — every View touch must be
+         * posted to the UI thread.
+         *
+         * Reachable from BOTH injected first-party origins (eno.vn and eno.forum — the bridge is
+         * injected per WebView, not per origin), same as setPtrEnabled above. That is acceptable for
+         * the same reason: allowNavigation pins this WebView to our own two origins, and the whole
+         * capability is "retract a refresh spinner" — a cosmetic native-UI effect with no data
+         * access, gated further by the generation check below.
+         */
+        @JavascriptInterface
+        public void refreshDone(int gen) {
+            runOnUiThread(() -> endRefresh(gen));
+        }
+    }
+
+    /**
+     * Retract the pull-to-refresh spinner, but only for the pull that armed this call — a newer pull
+     * has already bumped refreshGeneration. UI thread only.
+     */
+    private void endRefresh(int generation) {
+        if (generation != refreshGeneration || swipeRefresh == null) return;
+        swipeRefresh.setRefreshing(false);
     }
 
     @Override
@@ -164,9 +201,17 @@ public class MainActivity extends BridgeActivity {
         parent.addView(swipeRefresh, index);
 
         swipeRefresh.setOnRefreshListener(() -> {
-            webView.evaluateJavascript("window.dispatchEvent(new Event('eno:native-refresh'))", null);
-            // The soft refresh is fast; stop the spinner shortly after so it feels snappy.
-            webView.postDelayed(() -> swipeRefresh.setRefreshing(false), 900);
+            final int generation = ++refreshGeneration;
+            // Tag the pull with its generation so the web can echo it back through
+            // EnoNative.refreshDone() and we only ever retract the spinner for THIS pull.
+            webView.evaluateJavascript(
+                    "window.dispatchEvent(new CustomEvent('eno:native-refresh',{detail:{gen:" + generation + "}}))",
+                    null);
+            // Safety CEILING only. The spinner is normally retracted by the web's refreshDone() the
+            // instant router.refresh() settles; this just guarantees it can never stick if that call
+            // never arrives (an older web bundle, a failed refetch, offline). Generous so a genuinely
+            // slow refresh isn't cut short.
+            webView.postDelayed(() -> endRefresh(generation), 12000);
         });
         // Block the pull whenever the page disabled it, or the WebView isn't at the very top —
         // otherwise a normal scroll-up (or a drag on an inner scroller) would trigger it.

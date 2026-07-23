@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useLanguage } from '@/context/language-context'
 import { getConsent, setConsent, syncConsentCookie } from '@/lib/consent'
@@ -35,6 +35,8 @@ function Toggle({ title, desc, value, onChange, locked = false }: { title: strin
  *  personalized recommendations + ad signals; "Settings" fine-tunes each or declines. */
 export function CookieConsent() {
   const { tr } = useLanguage()
+  // Where initial focus goes when the dialog opens — see initialFocus on the Popup below.
+  const popupRef = useRef<HTMLDivElement>(null)
   const [show, setShow] = useState(false)
   const [view, setView] = useState<'ask' | 'settings'>('ask')
   const [perso, setPerso] = useState(true)
@@ -79,7 +81,20 @@ export function CookieConsent() {
       <DialogPrimitive.Portal>
         <DialogPrimitive.Backdrop className="fixed inset-0 z-[200] bg-black/40 backdrop-blur-[2px] data-open:animate-in data-open:fade-in data-closed:animate-out data-closed:fade-out" />
         <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
-          <DialogPrimitive.Popup className="relative flex w-full max-w-md items-center gap-2 overflow-hidden rounded-2xl bg-card p-3 shadow-overlay outline-none animate-in fade-in zoom-in-95 duration-150 sm:gap-3.5 sm:p-4 data-closed:animate-out data-closed:fade-out data-closed:zoom-out-95">
+          <DialogPrimitive.Popup
+            ref={popupRef}
+            // Focus the CARD, not the first tabbable thing inside it. Base UI's default is
+            // `interactionType === 'touch' ? popup : true`, and this dialog AUTO-OPENS on first
+            // visit (no trigger, so not the touch branch) — which put initial focus on the inline
+            // "Privacy policy" link mid-sentence, painting a focus ring split across the line wrap
+            // (visible on the very first screen of the native app). Focusing the popup is the same
+            // element Base UI already picks for touch: the title is still announced to screen
+            // readers, and no control gets a ring. Deliberately NOT the "Allow" button — pre-focusing
+            // the accept action on a consent dialog would make Enter consent for the user (PDPL:
+            // consent must be an affirmative act).
+            initialFocus={popupRef}
+            className="relative flex w-full max-w-md items-center gap-2 overflow-hidden rounded-2xl bg-card p-3 shadow-overlay outline-none animate-in fade-in zoom-in-95 duration-150 sm:gap-3.5 sm:p-4 data-closed:animate-out data-closed:fade-out data-closed:zoom-out-95"
+          >
             {/* Mascot — fills the card height (the tallest element), minimal padding. */}
         <Mascot name="cookie" className="h-24 w-24 shrink-0 self-center text-foreground sm:h-28 sm:w-28" />
 

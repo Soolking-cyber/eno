@@ -241,13 +241,32 @@ export function NativeBootstrap() {
     if (!wasRefreshing.current) return
     wasRefreshing.current = false
     if (!isNative()) return
-    // iOS: post to the WKScriptMessageHandler MainViewController registers, tagged with the pull's
-    // generation so Swift only retracts THAT pull's spinner (guarded — the handler and `webkit`
-    // bridge exist on iOS only; undefined elsewhere, so this no-ops on Android/web).
+    // Tell the shell the refresh has SETTLED so it retracts the spinner now, tagged with the pull's
+    // generation so a stale completion can't cut a newer pull short. Both platforms are addressed
+    // and each channel exists on exactly one of them (optional-chained, so the other is a no-op):
+    //   · iOS     — the WKScriptMessageHandler MainViewController registers
+    //   · Android — the EnoNative JS bridge MainActivity injects
+    // If neither is present (an older native build), each shell's own ceiling timer still ends it.
+    //
+    // We report the LATEST generation deliberately. A second pull that lands while the first is
+    // still pending COALESCES into the same transition — React extends the one pending period to
+    // cover both refetches — so at this single settle edge the newest pull's refresh really is done,
+    // and reporting the newest generation is what retracts its spinner. (Snapshotting the generation
+    // at pending-START instead would report a gen the shell has already superseded, and the newer
+    // pull's spinner would then hang until the 12s ceiling — a worse, more likely outcome.)
+    // ⚠️ Accepted edge (codex, 2026-07-23): if a new pull's touch lands in the sub-frame window
+    // BETWEEN React's commit of pending→false and this passive effect flushing, we report its
+    // generation without its refetch having finished, retracting that spinner early. Cosmetic and
+    // self-correcting on the next pull; not worth the coalescing regression above to close.
+    const gen = refreshGenRef.current
     try {
       ;(window as unknown as { webkit?: { messageHandlers?: { enoRefreshDone?: { postMessage: (m: unknown) => void } } } })
-        .webkit?.messageHandlers?.enoRefreshDone?.postMessage({ gen: refreshGenRef.current })
-    } catch { /* handler not registered (older native build) — Swift's ceiling timer covers it */ }
+        .webkit?.messageHandlers?.enoRefreshDone?.postMessage({ gen })
+    } catch { /* handler not registered — the shell's ceiling timer covers it */ }
+    try {
+      ;(window as unknown as { EnoNative?: { refreshDone?: (gen: number) => void } })
+        .EnoNative?.refreshDone?.(gen)
+    } catch { /* bridge absent (older build / forum origin) — ceiling timer covers it */ }
   }, [isRefreshing])
 
   // Long-press a listing card → native action sheet (Share / Copy link / Open) — the native gesture
