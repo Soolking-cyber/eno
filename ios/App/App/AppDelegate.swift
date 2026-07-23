@@ -80,6 +80,24 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         // Called when the application is about to terminate. Save data if appropriate. See also applicationDidEnterBackground:.
     }
 
+    // MARK: - Remote notification registration (Capacitor push)
+    //
+    // ⚠️ These two callbacks are the ONLY emitters of the NotificationCenter posts Capacitor's
+    // PushNotificationsPlugin observes (capacitorDidRegisterForRemoteNotifications /
+    // …DidFailToRegister). This file is a HAND-WRITTEN AppDelegate (for the deep-link/shortcut
+    // logic) that fully replaces the Capacitor template — and dropping them silently defeats push:
+    // register() would reject with "event capacitorDidRegisterForRemoteNotifications not called" and
+    // the JS `registration` listener (native-push.tsx) would never fire, so no device token is ever
+    // POSTed. Re-added here so push works the moment the aps-environment entitlement + APNs config +
+    // NEXT_PUBLIC_NATIVE_PUSH=1 are turned on, with no further native code change.
+    func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+        NotificationCenter.default.post(name: .capacitorDidRegisterForRemoteNotifications, object: deviceToken)
+    }
+
+    func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
+        NotificationCenter.default.post(name: .capacitorDidFailToRegisterForRemoteNotifications, object: error)
+    }
+
     func application(_ app: UIApplication, open url: URL, options: [UIApplication.OpenURLOptionsKey: Any] = [:]) -> Bool {
         // Called when the app was launched with a url (enovn:// custom scheme today; Associated
         // Domains are not configured, so web URLs arrive here only via `enovn://open?url=`).

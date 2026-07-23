@@ -7,9 +7,20 @@ FCM/APNs config as env, and (b) wire the plugin into the native builds. No code 
 turn it on — just the steps here.
 
 ## Already done (in the repo)
-- `@capacitor/push-notifications` installed (NOT yet `cap sync`ed, so current builds are untouched).
-- Client registration: `src/components/native/native-push.tsx` (mounted in `layout.tsx`, native-only,
-  registers after sign-in, POSTs the token, deep-links on tap).
+- `@capacitor/push-notifications` installed **and cap-synced** — `PushNotificationsPlugin` is in
+  `packageClassList` (iOS `capacitor.config.json` + `Package.swift`) and Android
+  `capacitor.plugins.json`. ⚠️ This happened BEFORE the entitlement existed, which made
+  `requestPermissions()` live: it showed the iOS "Allow Notifications?" dialog even though
+  `register()` fails at the APNs layer (no `aps-environment`) — a prompt for a dead capability.
+- **Dormancy gate (so that prompt does NOT fire until push actually works):**
+  `native-push.tsx` is gated on **`NEXT_PUBLIC_NATIVE_PUSH === '1'`** (unset ⇒ no prompt, no
+  register). Flip it in step 5, LAST, after everything below is in place.
+- **AppDelegate APNs callbacks** (`didRegisterForRemoteNotificationsWithDeviceToken` /
+  `…didFailToRegisterWithError`) are present in `ios/App/App/AppDelegate.swift` — the hand-written
+  AppDelegate had dropped them, which would have silently defeated push; re-added, so no further
+  native code change is needed at activation.
+- Client registration: `src/components/native/native-push.tsx` (mounted in `providers.tsx`,
+  native-only, registers after sign-in ONLY when the gate is on, POSTs the token, deep-links on tap).
 - Endpoints: `POST /api/push/native-subscribe`, `POST /api/push/native-unsubscribe`.
 - DB model: `NativePushToken` (in `prisma/schema.prisma`) — **table not created yet** (see step 4).
 - Send library: `src/lib/native-push.ts` — FCM v1 (Android) + APNs token-auth (iOS), env-gated,
@@ -60,15 +71,20 @@ npx prisma generate
 ```
 (Additive table — safe. See CLAUDE.md "Schema changes".)
 
-## 5. Rebuild + test
-Rebuild iOS + Android, install, sign in → the app requests notification permission and registers.
-Trigger any notification (e.g. send yourself a message) → it should arrive natively. Tapping it
-deep-links to the `url` in the payload.
+## 5. Flip the gate, rebuild + test
+Set **`NEXT_PUBLIC_NATIVE_PUSH=1`** (Cloud Run env + local `.env`) — this is the switch that lets
+`native-push.tsx` prompt + register. Deploy the web (it loads live), then rebuild iOS + Android,
+install, sign in → the app requests notification permission and registers. Trigger any notification
+(e.g. send yourself a message) → it should arrive natively. Tapping it deep-links to the `url` in the
+payload. ⚠️ Do NOT set the flag before the entitlement (step 1) exists, or you re-introduce the
+"prompt for a dead capability" bug the gate was added to prevent.
 
 ---
 
-**Env summary** (set in Vercel → Settings → Environment Variables):
+**Env summary** (set in the Cloud Run env / GCP secret; historically Vercel):
+`NEXT_PUBLIC_NATIVE_PUSH` (the client gate — `1` to enable prompt+register),
 `APNS_KEY_ID`, `APNS_TEAM_ID`, `APNS_KEY`, `APNS_BUNDLE_ID`, `APNS_PRODUCTION`,
 `FCM_PROJECT_ID`, `FCM_CREDENTIALS`.
-Missing all of them → send is a silent no-op (current state). Set the iOS set only → iOS works,
-Android no-ops (and vice-versa).
+`NEXT_PUBLIC_NATIVE_PUSH` unset → the app never prompts/registers (current state). The APNS/FCM set
+gate the SEND side: missing all → send is a silent no-op; set the iOS set only → iOS works, Android
+no-ops (and vice-versa).

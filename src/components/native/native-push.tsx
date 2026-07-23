@@ -6,9 +6,19 @@ import { useAuth } from '@/context/auth-context'
 import { canonicalAppPath } from '@/lib/deep-link'
 
 // Native push registration (Capacitor). Mounted inside AuthProvider so it registers only for a
-// signed-in user (the token endpoint is auth-gated). DORMANT until @capacitor/push-notifications is
-// wired into the native builds (cap sync) + FCM/APNs are configured — until then register() throws
-// "not implemented" and the try/catch no-ops. See NATIVE_PUSH_SETUP.md.
+// signed-in user (the token endpoint is auth-gated).
+//
+// ⚠️ GATED ON `NEXT_PUBLIC_NATIVE_PUSH === '1'`, and that gate is load-bearing, NOT belt-and-braces.
+// The old comment here claimed push was "DORMANT until cap sync … register() throws not implemented"
+// — that assumption is STALE: @capacitor/push-notifications is now cap-synced (PushNotificationsPlugin
+// is in packageClassList on both platforms), so requestPermissions() is LIVE and shows the real iOS
+// "Allow Notifications?" dialog. But there is still NO aps-environment entitlement, so register()
+// fails at the APNs layer and no push can ever arrive. Without this gate a signed-in native user is
+// therefore prompted for a capability that does nothing — burning iOS's one-shot permission grant on
+// a dead feature. So we stay truly dormant behind the flag. ACTIVATION (see NATIVE_PUSH_SETUP.md):
+// add the Push capability + aps-environment entitlement + APNs/FCM config + the AppDelegate
+// didRegisterForRemoteNotifications callbacks, THEN set NEXT_PUBLIC_NATIVE_PUSH=1.
+const PUSH_ENABLED = process.env.NEXT_PUBLIC_NATIVE_PUSH === '1'
 //
 // ⚠️ FOREGROUND CONTRACT — ONE signal, and the OS owns it. There is deliberately NO
 // 'pushNotificationReceived' listener here. A push that lands while the app is open is displayed by
@@ -36,7 +46,7 @@ export function NativePush() {
   useEffect(() => { routerRef.current = router }, [router])
 
   useEffect(() => {
-    if (!user || started.current || !cap()?.isNativePlatform?.()) return
+    if (!PUSH_ENABLED || !user || started.current || !cap()?.isNativePlatform?.()) return
     started.current = true
     let disposed = false
     const cleanups: Array<() => void> = []
@@ -85,7 +95,10 @@ export function NativePush() {
       } catch { /* plugin not wired / permission denied — dormant */ }
     })()
 
-    return () => { disposed = true; cleanups.forEach((c) => c()) }
+    // Reset `started` so a sign-out→sign-in within the SAME app session re-registers: the guard
+    // above short-circuits on started.current, and without clearing it here the second user would
+    // get no push token (the effect re-runs on the new `user` but bails immediately).
+    return () => { disposed = true; started.current = false; cleanups.forEach((c) => c()) }
   }, [user])
 
   return null
