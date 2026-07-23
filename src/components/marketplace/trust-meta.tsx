@@ -4,6 +4,7 @@ import { UserPlus } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
 import { Badge } from '@/components/ui/badge'
 import { TrustScore } from '@/components/marketplace/trust-score'
+import { lastSeenBucket } from '@/lib/last-seen'
 import type { ResponseBucket } from '@/lib/seller-metrics'
 
 type Props = {
@@ -14,6 +15,9 @@ type Props = {
   /** Account <30 days with no track record — show a neutral "New user" chip
    *  instead of a positive trust badge (asymmetric honesty). */
   isNew: boolean
+  /** Counterpart presence, DAY-coarse ('YYYY-MM-DD') — bucketed at render like the
+   *  PDP/storefront presence (owner 2026-07-23: bidirectional in threads). */
+  lastSeenDay?: string | null
 }
 
 /**
@@ -21,9 +25,12 @@ type Props = {
  * counterpart's name. Reuses the shared TrustScore chip. When `isNew`, shows a
  * neutral "New user" pill rather than a positive signal.
  */
-export function TrustMeta({ trustScore, trustTier, memberSinceYear, responseBucket, isNew }: Props) {
+export function TrustMeta({ trustScore, trustTier, memberSinceYear, responseBucket, isNew, lastSeenDay }: Props) {
   const { lang, tr } = useLanguage()
   void trustTier // tier is encoded by TrustScore's color; kept for caller symmetry
+  // Thread data arrives via client fetch (never SSR HTML), so render-time bucketing
+  // can't hydration-mismatch here — no mounted gate needed, unlike the ISR PDP.
+  const lastSeen = lastSeenBucket(lastSeenDay)
 
   return (
     <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-2xs leading-none text-muted-foreground">
@@ -44,6 +51,13 @@ export function TrustMeta({ trustScore, trustTier, memberSinceYear, responseBuck
         <>
           <span aria-hidden>·</span>
           <span>{lang === 'vi' ? responseBucket.vi : responseBucket.en}</span>
+        </>
+      )}
+
+      {lastSeen.key && (
+        <>
+          <span aria-hidden>·</span>
+          <span>{tr(lastSeen.en, lastSeen.vi)}</span>
         </>
       )}
     </div>

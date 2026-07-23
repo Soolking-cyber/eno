@@ -4,6 +4,7 @@ import { getCurrentProfileId } from '@/lib/admin'
 import { MESSAGE_ROW_SELECT, parseMessageMeta } from '@/lib/messages'
 import { maskEmailHandle } from '@/lib/utils'
 import { syncBadgeToProfile } from '@/lib/native-push'
+import { dayCoarse } from '@/lib/last-seen'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -95,8 +96,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       // LIVE card from the inert history a rebound thread leaves behind.
       visaApplicationId: true,
       listing: { select: { id: true, title: true, images: true, price: true, currency: true, priceUnit: true, negotiable: true, availabilityConfirmedAt: true, status: true } },
-      seller: { select: { id: true, name: true, avatarColor: true, avatarUrl: true, trustScore: true, trustTier: true, memberSince: true, reviewCount: true } },
-      buyer: { select: { displayName: true, email: true, avatarColor: true, avatarUrl: true } },
+      seller: { select: { id: true, name: true, avatarColor: true, avatarUrl: true, trustScore: true, trustTier: true, memberSince: true, reviewCount: true, owner: { select: { lastSeenAt: true } } } },
+      buyer: { select: { displayName: true, email: true, avatarColor: true, avatarUrl: true, lastSeenAt: true } },
       // Bounded (audit P2): the full history shipped on EVERY call × a 15s poll per
       // open tab. Last 200 in reverse, un-reversed below — covers any realistic
       // active thread; older history is simply not re-sent.
@@ -147,12 +148,18 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   // frequently-polled endpoint, so the client renders only score/tenure/new state.
   const trustSrc = iAmBuyer ? convo.seller : buyerStorefront
   const NEW_ACCOUNT_MS = 30 * 24 * 60 * 60 * 1000
+  // Counterpart PRESENCE (owner 2026-07-23: bidirectional in threads) — the other
+  // PERSON's heartbeat: the seller's owner Profile when I'm the buyer, the buyer's
+  // Profile when I'm the seller. DAY-coarse only (dayCoarse), never a raw timestamp —
+  // same contract as the PDP/storefront presence. Participant-gated above.
+  const counterpartLastSeenDay = dayCoarse(iAmBuyer ? convo.seller.owner?.lastSeenAt ?? null : convo.buyer.lastSeenAt)
   const counterpartTrust = trustSrc
     ? {
         trustScore: trustSrc.trustScore,
         trustTier: trustSrc.trustTier,
         memberSinceYear: new Date(trustSrc.memberSince).getFullYear(),
         isNew: Date.now() - new Date(trustSrc.memberSince).getTime() < NEW_ACCOUNT_MS && trustSrc.reviewCount === 0,
+        lastSeenDay: counterpartLastSeenDay,
       }
     : null
 

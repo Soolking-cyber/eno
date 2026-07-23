@@ -173,7 +173,7 @@ type Thread = {
     avatarUrl: string | null
     sellerId?: string | null
     // Trust meta for the header row (only when the counterpart has a seller identity).
-    trust?: { trustScore: number; trustTier: string; memberSinceYear: number; isNew: boolean } | null
+    trust?: { trustScore: number; trustTier: string; memberSinceYear: number; isNew: boolean; lastSeenDay?: string | null } | null
   }
   messages: Msg[]
 }
@@ -933,6 +933,7 @@ export default function ThreadPage() {
                     memberSinceYear={thread.counterpart.trust.memberSinceYear}
                     isNew={thread.counterpart.trust.isNew}
                     responseBucket={{ key: null, en: '', vi: '' }}
+                    lastSeenDay={thread.counterpart.trust.lastSeenDay}
                   />
                 </div>
               )}

@@ -211,6 +211,15 @@ model Seller {
   idNumber          String? // CCCD (individual) or ERC number (business)
   taxCode           String? // mã số thuế, if any
   identityUpdatedAt DateTime? // when the seller last edited these fields
+  // ── VietQR/GDT tax-code soft check (owner "go" 2026-07-23) — FACTS only; the
+  //    "verified" verdict is DERIVED at read time (src/lib/tax-lookup.ts) so a later
+  //    legalName edit can never serve a stale badge. Written ATOMICALLY with taxCode
+  //    in the same UPDATE (core/seller.ts) — facts always describe the row's own code.
+  //    null taxCheckedAt = never checked / transient failure (self-heals next save);
+  //    taxActive=false + checkedAt set = the registry POSITIVELY didn't know the code.
+  taxCheckedAt      DateTime?
+  taxRegisteredName String? // registered name GDT returned (public record)
+  taxActive         Boolean? // 'NNT đang hoạt động' at check time
   listings          Listing[]
   reviews           Review[]
   conversations     Conversation[]

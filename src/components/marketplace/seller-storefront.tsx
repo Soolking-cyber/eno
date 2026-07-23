@@ -17,6 +17,7 @@ import { StorefrontSellerCard } from '@/components/marketplace/storefront-seller
 import { getVisaShopSeller } from '@/lib/visa-shop'
 import { sellerMetrics } from '@/lib/seller-metrics'
 import { getEnforcement } from '@/lib/enforcement'
+import { taxVerdict } from '@/lib/tax-lookup'
 
 // Shared storefront body — rendered by BOTH the canonical clean-handle URL
 // (src/app/[handle]/page.tsx → eno.vn/<handle>) and the legacy /sellers/[id] route.
@@ -149,6 +150,15 @@ export async function SellerStorefront({ id }: { id: string }) {
                 {seller.ownerId && (
                   <span className="inline-flex items-center gap-1 text-xs font-semibold text-success">
                     <BadgeCheck className="h-4 w-4" /> <Tr text="Active account" />
+                  </span>
+                )}
+                {/* VietQR/GDT soft check (owner "go" 2026-07-23) — DERIVED verdict, shown
+                    ONLY when the registry knows the code, the taxpayer is active AND the
+                    registered name matches (suppress-when-unverified, honesty pattern:
+                    nothing renders for mismatch/unchecked — never a warning to buyers). */}
+                {taxVerdict(seller) === 'verified' && (
+                  <span className="inline-flex items-center gap-1 text-xs font-semibold text-success">
+                    <BadgeCheck className="h-4 w-4" /> <Tr text="Tax code verified" />
                   </span>
                 )}
               </div>

@@ -12,7 +12,7 @@ import { Field, FieldControl, FieldDescription, FieldError } from '@/components/
 import { getInitials } from '@/lib/utils'
 import { compressImageFile } from '@/lib/normalize-image'
 
-type Seller = { id: string; name: string; bio: string | null; location: string | null; avatarUrl: string | null; phone: string | null; legalName?: string | null; legalAddress?: string | null; idNumber?: string | null; taxCode?: string | null }
+type Seller = { id: string; name: string; bio: string | null; location: string | null; avatarUrl: string | null; phone: string | null; legalName?: string | null; legalAddress?: string | null; idNumber?: string | null; taxCode?: string | null; taxVerdict?: 'verified' | 'mismatch' | 'inactive' | 'not_found' | 'unchecked'; taxRegisteredName?: string | null }
 
 /** Inline business-profile editor (business tier). Edits the storefront's
  *  name/about/location/logo via the owner-scoped PATCH /api/seller. */
@@ -254,6 +254,25 @@ export function BusinessProfileEditor({ seller, repName, onSaved }: { seller: Se
             <Label htmlFor="biz-tax-code">{tr('Tax code (if any)', 'Mã số thuế (nếu có)')}</Label>
             <FieldControl id="biz-tax-code" render={<Input id="biz-tax-code" value={taxCode} onChange={(e) => setTaxCode(e.target.value)} inputMode="numeric" maxLength={14} placeholder="0312345678" />} />
             {fieldErr.taxCode && <FieldError>{fieldErr.taxCode}</FieldError>}
+            {/* VietQR/GDT soft-check outcome (server-derived on the dashboard payload;
+                re-checked whenever the code changes on save). Feedback only — a mismatch
+                never blocks saving (launch lenience); it shows on the UNEDITED value so a
+                mid-edit code isn't judged against stale facts. */}
+            {taxCode === (seller.taxCode || '') && seller.taxVerdict === 'verified' && (
+              <FieldDescription className="font-semibold text-success">
+                {tr('✓ Matches the tax registry', '✓ Khớp với đăng ký thuế')}{seller.taxRegisteredName ? ` — ${seller.taxRegisteredName}` : ''}
+              </FieldDescription>
+            )}
+            {taxCode === (seller.taxCode || '') && seller.taxVerdict === 'mismatch' && (
+              <FieldDescription className="text-warning">
+                {tr('Registry name differs', 'Tên trên đăng ký thuế khác')}{seller.taxRegisteredName ? `: ${seller.taxRegisteredName}` : ''} — {tr('check the legal name above', 'kiểm tra tên pháp lý ở trên')}
+              </FieldDescription>
+            )}
+            {taxCode === (seller.taxCode || '') && seller.taxVerdict === 'not_found' && (
+              <FieldDescription className="text-warning">
+                {tr('Not found in the tax registry — double-check the number', 'Không tìm thấy trong đăng ký thuế — kiểm tra lại mã số')}
+              </FieldDescription>
+            )}
           </Field>
         </div>
       </div>

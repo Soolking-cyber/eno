@@ -2043,8 +2043,10 @@ export function ListingsExplorer({
             />
 
             {/* Brand rail — brands present in this category + subcategory (logo +
-                name), tap to filter + expand the brand's models. Brand categories only. */}
-            {categoryHasBrand(activeCategory) && (
+                name), tap to filter + expand the brand's models. Brand categories — and
+                ALL (owner 2026-07-23: "when all selected show all brands available"):
+                /api/brands treats category=all as the most-listed-overall directory. */}
+            {(activeCategory === 'all' || categoryHasBrand(activeCategory)) && (
               <BrandRail
                 category={activeCategory}
                 subcategory={activeSubcategory}

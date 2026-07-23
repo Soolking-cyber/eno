@@ -1,5 +1,6 @@
 import 'server-only'
 import { db } from '@/lib/db'
+import { taxVerdict } from '@/lib/tax-lookup'
 import { serializeListing } from '@/lib/serialize'
 import { isStale } from '@/lib/stale'
 import type { Profile } from '@/generated/prisma/client'
@@ -73,6 +74,11 @@ export async function dashboardStatsCore(profile: Profile) {
           legalAddress: seller.legalAddress,
           idNumber: seller.idNumber,
           taxCode: seller.taxCode,
+          // VietQR/GDT soft-check outcome — DERIVED at read time (tax-lookup.ts), so a
+          // later legalName edit re-verdicts instantly. Facts, never a gate; the editor
+          // renders it beside the tax-code field.
+          taxVerdict: taxVerdict(seller),
+          taxRegisteredName: seller.taxRegisteredName,
         }
       : null,
     stats,

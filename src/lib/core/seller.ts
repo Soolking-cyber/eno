@@ -5,6 +5,7 @@ import { containsPhoneNumber, normalizePhone } from '@/lib/phone'
 import { phoneTakenByOther } from '@/lib/phone-unique'
 import { isListingImageUrl } from '@/lib/listing-image'
 import { recordProfileComplete } from '@/lib/trust'
+import { lookupTaxCode, TAX_FACTS_TTL_MS } from '@/lib/tax-lookup'
 
 // Storefront (Seller) edit core — decoupled from auth, takes the already-resolved
 // sellerId + owning profileId. Shared by the dashboard PATCH /api/seller and the partner
@@ -60,6 +61,39 @@ export async function updateSellerCore(
     if (tax && !/^\d{10}(-\d{3})?$/.test(tax)) return { ok: false, code: 400, error: 'bad_tax_code' }
     data.taxCode = tax || null
     identityTouched = true
+
+    // VietQR/GDT soft check (owner "go" 2026-07-23; never a gate — the save proceeds
+    // identically on any outcome). Runs when the code CHANGED or is present-but-never-
+    // checked (a transiently-failed check self-heals on the next save — review note).
+    // The lookup happens BEFORE the single UPDATE below so the facts land ATOMICALLY
+    // with the code they describe: a concurrent PATCH can't strand facts about an
+    // older code (dual plan review), and clearing the code clears the facts in the
+    // same write. Inline on purpose — a rare, deliberate action; worst case adds the
+    // 4s fetch cap, and the editor gets the verdict on its normal post-save refresh.
+    const current = await db.seller.findUnique({
+      where: { id: sellerId },
+      select: { taxCode: true, taxCheckedAt: true, taxRegisteredName: true, taxActive: true },
+    })
+    const factsStale = !current?.taxCheckedAt || Date.now() - new Date(current.taxCheckedAt).getTime() > TAX_FACTS_TTL_MS
+    const shouldCheck = !!tax && (tax !== current?.taxCode || factsStale)
+    data.taxCheckedAt = null
+    data.taxRegisteredName = null
+    data.taxActive = null
+    if (!tax) {
+      /* cleared → facts stay nulled */
+    } else if (shouldCheck) {
+      const hit = await lookupTaxCode(tax)
+      if (hit) {
+        data.taxCheckedAt = new Date()
+        data.taxRegisteredName = hit.found ? hit.registeredName : null
+        data.taxActive = hit.found ? hit.active : false
+      } // null (transient) → facts stay nulled; next save retries
+    } else if (current) {
+      // Same code, already checked — carry the existing facts through the reset above.
+      data.taxCheckedAt = current.taxCheckedAt
+      data.taxRegisteredName = current.taxRegisteredName
+      data.taxActive = current.taxActive
+    }
   }
   if (identityTouched) data.identityUpdatedAt = new Date()
 
