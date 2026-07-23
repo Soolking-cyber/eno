@@ -5,7 +5,7 @@ import { getAdmin } from '@/lib/admin'
 import { bumpBrandCount } from '@/lib/brand'
 import { reindexListing } from '@/lib/listing-index'
 import { fold } from '@/lib/fold'
-import { serializeListing } from '@/lib/serialize'
+import { LISTING_CARD_SELECT, serializeListingCard } from '@/lib/serialize'
 
 export const dynamic = 'force-dynamic'
 
@@ -29,10 +29,23 @@ export async function GET(req: NextRequest) {
   else if (verified === 'false') AND.push({ verified: false })
   const where = AND.length ? { AND } : {}
 
+  // ⚠️ CARD serializer + CARD select, matched ON PURPOSE. This handler used to feed
+  // serializeListing (the FULL-listing serializer) a seller narrowed to {name,
+  // trustScore} behind an `as never` — the serializer's `seller.memberSince
+  // .toISOString()` then threw on EVERY request, a deterministic 500 the cast had
+  // silenced since the two shipped together. Nothing e2e-opens this queue, so it
+  // surfaced only when the desk did (prod 5xx alert, 2026-07-23). The card
+  // projection carries everything this table renders; the admin extras ride the row.
   const [rows, total] = await Promise.all([
     db.listing.findMany({
       where,
-      include: { category: { select: { name: true, nameVi: true, slug: true, icon: true, color: true } }, seller: { select: { name: true, trustScore: true } } },
+      select: {
+        ...LISTING_CARD_SELECT,
+        status: true,
+        featured: true,
+        createdAt: true,
+        seller: { select: { name: true, trustScore: true, owner: { select: { accountType: true } } } },
+      },
       orderBy: { createdAt: 'desc' },
       take: limit,
       skip: offset,
@@ -41,7 +54,7 @@ export async function GET(req: NextRequest) {
   ])
 
   const listings = rows.map((r) => {
-    const l = serializeListing(r as never)
+    const l = serializeListingCard(r)
     return { id: l.id, title: l.titleVi || l.title, price: l.price, currency: l.currency, image: l.images[0] ?? null, status: r.status, verified: r.verified, featured: r.featured, sellerName: r.seller.name, category: l.category.name, createdAt: r.createdAt.toISOString() }
   })
   return NextResponse.json({ listings, total })
