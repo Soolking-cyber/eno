@@ -2,6 +2,7 @@ import 'server-only'
 import webpush from 'web-push'
 import { db } from './db'
 import { sendNativePushToProfile } from './native-push'
+import { badgeCountFor } from './unread'
 
 // Configure VAPID once per process. If the keys aren't set (e.g. local dev
 // without push configured), sending becomes a safe no-op rather than throwing.
@@ -16,7 +17,7 @@ if (PUBLIC && PRIVATE) {
   console.warn('[push] VAPID keys not set — web push disabled.')
 }
 
-export type PushPayload = { title: string; body?: string; url?: string; tag?: string }
+export type PushPayload = { title: string; body?: string; url?: string; tag?: string; badge?: number }
 
 /**
  * Send a Web Push to every device a profile registered. Dead endpoints (410
@@ -36,7 +37,18 @@ export async function sendPushToProfile(profileId: string, payload: PushPayload)
   const subs = await db.pushSubscription.findMany({ where: { profileId } })
   if (subs.length === 0) return 0
 
-  const body = JSON.stringify(payload)
+  // Stamp the recipient's CURRENT unread total so the service worker (public/sw.js) can set the
+  // home-screen app-icon badge while the PWA is closed. Done centrally here so EVERY call site
+  // (message, offer, price-drop, dispute, enforcement, reminders) carries a correct absolute count
+  // with no per-site edits — the same badgeCountFor() the native aps.badge path already uses. It
+  // never throws; on a null count we omit the field and the SW leaves the badge untouched. Placed
+  // after the empty-subs return so we never pay for the two aggregates when there's nothing to send.
+  let badge = payload.badge
+  if (badge == null) {
+    const c = await badgeCountFor(profileId)
+    if (c != null) badge = c
+  }
+  const body = JSON.stringify(badge == null ? payload : { ...payload, badge })
   const dead: string[] = []
   let sent = 0
 

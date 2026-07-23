@@ -22,6 +22,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { NativeBootstrap } from "@/components/native/native-bootstrap";
 import { NativePush } from "@/components/native/native-push";
 import { NativeBadge } from "@/components/native/native-badge";
+import { PwaBadge } from "@/components/native/pwa-badge";
 
 // The app's provider pyramid + persistent chrome, extracted VERBATIM from
 // src/app/layout.tsx (audit §E) so the layout keeps only document concerns
@@ -48,8 +49,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
               <ChatProvider>
                 {/* App-icon badge. Must sit INSIDE both providers — it reads the notification
                     and chat unread counts — and inside AuthProvider so sign-out clears it.
-                    No-op on web and on any build predating the badge plugin. */}
+                    Two mutually-exclusive halves: NativeBadge (Capacitor build, no-op on web) and
+                    PwaBadge (installed Safari/desktop PWA via the Web Badging API, no-op in the
+                    native shell and in a plain browser tab). */}
                 <NativeBadge />
+                <PwaBadge />
                 <FavoritesProvider>
                   <QueryProvider>
                     {/* One delay group for every ui/tooltip in the app: moving between adjacent
