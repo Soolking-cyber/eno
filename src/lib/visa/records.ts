@@ -1,5 +1,6 @@
 import 'server-only'
 import { decryptVisaPayload } from '@/lib/visa/crypto'
+import { normalizeVisaReference } from '@/lib/visa/reference'
 // Row shapes are already declared (verbatim from the forum) by the admin data layer —
 // reuse them instead of a third copy.
 import type { VisaApplicationRow, VisaDocumentRow, VisaEventRow } from '@/lib/visa-admin'
@@ -12,6 +13,9 @@ export type { VisaApplicationRow, VisaDocumentRow, VisaEventRow }
 export function serializeVisa(application: VisaApplicationRow, documents: VisaDocumentRow[], events?: VisaEventRow[], includePayload = true) {
   return {
     id: application.id, status: application.status,
+    // The human case number (`EV-1042`) — normalized so only the canonical shape ever
+    // reaches a client; null for cases that predate the column.
+    reference: normalizeVisaReference(application.reference) ?? null,
     payload: includePayload ? decryptVisaPayload(application.encrypted_payload) : undefined,
     checklist: Array.isArray(application.checklist) ? application.checklist : [],
     applicantConfirmedAt: application.applicant_confirmed_at, authorizedAt: application.authorized_at,

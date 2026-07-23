@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Check, Download, FileCheck2, Loader2, LockKeyhole, MessagesSquare, ShieldCheck, Trash2 } from 'lucide-react'
+import { Check, Download, FileCheck2, Loader2, LockKeyhole, MessagesSquare, ShieldCheck, Stamp, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useAuth } from '@/context/auth-context'
 import { useDashboard } from '@/hooks/use-dashboard'
@@ -17,24 +17,23 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { EmptyState } from '@/components/ui/empty-state'
 import { Spinner } from '@/components/ui/spinner'
 import { SectionHeader } from '@/components/marketplace/section-header'
-import { VisaStart, VisaStartPicker } from '@/components/marketplace/visa-start'
+import { VisaStart } from '@/components/marketplace/visa-start'
 
-// ── /dashboard/visa — YOUR e-VISA CASES. NOT a second way to file one. ─────────────
+// ── /dashboard/visa — YOUR e-VISA CASES: MANAGEMENT ONLY (Phase 3). ────────────────
 //
-// Owner, 2026-07-22: "remove the full evisa application form, only 1 way should exist
-// through the chat". The 1,960-line dashboard wizard that used to live here is DELETED —
-// every question it asked is asked by the five step cards in the thread
-// (src/components/marketplace/visa-cards.tsx, proved field-by-field by visa-cards.test.ts,
-// which reads the two surfaces' sources and fails if the chat is missing one).
+// Owner, 2026-07-23 (on seeing the picker still here): "this part is still not user visa
+// applications management tab — remove these". The product list is GONE from this page:
+// choosing a service happens IN the chat now (the Phase-2 step-0 picker card), and the
+// only start affordance here is the one-tap generic <VisaStart /> that opens that thread.
 //
-// What is left is the part the chat is NOT: a place to see the cases you already have and
-// to get back into the thread each one lives in. Nothing here creates, edits or submits an
-// application, and nothing here posts a card — the only "start" affordance is the product
-// picker, which is the same <VisaStart> the storefront and the visa PDPs render and which
-// hands off to POST /api/visa/applications/start.
+// What this page IS: every case the applicant has, each with its EV-#### reference,
+// status, the way back into the thread it lives in ("request an update"), the official
+// PDF once one exists, and deletion. Cases are linked to their threads via the IMMUTABLE
+// visa_applications.conversation_id (resolved server-side in page.tsx) — a repeat
+// applicant's earlier case keeps its chat link even after the live binding moved on.
 //
-// ⚠️ THREE THINGS ON THIS PAGE HAVE NO CHAT EQUIVALENT YET, and that is exactly why they
-// were kept rather than deleted with the form (see the wave report):
+// ⚠️ THREE THINGS ON THIS PAGE HAVE NO CHAT EQUIVALENT, and that is why they live here
+// rather than being deleted with the old wizard/picker:
 //   1. THE PAYMENT RETURN. Stripe and PayPal are told to come back to /dashboard/visa
 //      (src/lib/visa/payments.ts success_url/return_url), including for a checkout started
 //      from a chat card. Stripe also has a webhook, but PAYPAL HAS NONE: the capture only
@@ -43,16 +42,18 @@ import { VisaStart, VisaStartPicker } from '@/components/marketplace/visa-start'
 //   2. THE FINAL AUTHORIZATION. An admin can move a case to `applicant_approval`
 //      (src/app/admin/visas/visa-status.ts); the applicant must then re-consent before
 //      prefill. No card asks for that, so this is the only surface that can.
-//   3. THE RESULT PDF. The issued e-Visa arrives as a `result` document; the chat renders
-//      no download for it.
-// Anything else the wizard did — asking, uploading, validating, submitting, paying — is
-// gone from here on purpose. Do not re-add a field.
+//   3. THE RESULT PDF. The issued e-Visa arrives as a `result` document; this page (and
+//      the thread's result card) are where it downloads.
+// Anything else — asking, uploading, validating, submitting, paying, CHOOSING A
+// PRODUCT — belongs to the thread. Do not re-add a field, and do not re-add the picker.
 
 type VisaDocument = { id: string; kind: string; createdAt: string }
 type VisaEvent = { id: string; event: string; createdAt: string }
 type VisaApplication = {
   id: string
   status: string
+  /** The human case number (`EV-1042`), or null for cases predating the column. */
+  reference?: string | null
   payload?: VisaPayload
   paidAt: string | null
   createdAt: string
@@ -142,50 +143,8 @@ function Consent({ checked, onChange, children }: { checked: boolean; onChange: 
   return <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-line-strong bg-card p-4 text-sm leading-relaxed text-body"><Checkbox checked={checked} onChange={onChange} className="mt-1" /><span>{children}</span></label>
 }
 
-/** The account's OTHER cases — status only. There is no per-application page: every case
- *  is continued in its own thread, and a closed one is history. */
-function PastApplications({ applications, activeId, threads, tr }: {
-  applications: VisaApplication[]
-  activeId: string | null
-  threads: Record<string, string>
-  tr: Tr
-}) {
-  const rows = applications.filter((item) => item.id !== activeId)
-  if (!rows.length) return null
-  return (
-    <section aria-labelledby="visa-history-title" className="mt-10 border-t border-border pt-6">
-      <h2 id="visa-history-title" className="text-base font-bold text-foreground">{tr('Previous applications', 'Hồ sơ trước đây')}</h2>
-      <ul className="mt-3 space-y-2">
-        {rows.map((item) => {
-          const chip = STATUS_CHIP[item.status]
-          const conversationId = threads[item.id]
-          return (
-            <li key={item.id} className="flex items-center gap-3 rounded-2xl border border-border bg-card p-3.5">
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-tint"><FileCheck2 className="h-4 w-4 text-ink-4" /></span>
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <Badge variant={chip?.variant ?? 'neutral'}>{chip ? tr(chip.en, chip.vi) : item.status}</Badge>
-                  {item.paidAt && <Badge variant="success">{tr('Fee paid', 'Đã trả phí')}</Badge>}
-                </div>
-                <p className="mt-1 text-xs text-ink-4">
-                  {tr('Updated', 'Cập nhật')} {new Date(item.updatedAt).toLocaleDateString()} · {item.documents.length} {tr('documents', 'tài liệu')} · {item.id.slice(0, 8)}
-                </p>
-              </div>
-              {/* Only when the case still has its thread. The binding is unique per
-                  conversation, so a repeat applicant's OLDER case has none — and a link to
-                  somebody's current chat labelled with an old case would be a lie. */}
-              {conversationId && (
-                <Button variant="outline" size="sm" className="shrink-0" asChild>
-                  <Link href={`/messages/${conversationId}`}>{tr('Open chat', 'Mở trò chuyện')}</Link>
-                </Button>
-              )}
-            </li>
-          )
-        })}
-      </ul>
-    </section>
-  )
-}
+/** `EV-1042`, or the id stub for a case that predates the reference column. */
+const caseLabel = (item: VisaApplication) => item.reference || item.id.slice(0, 8)
 
 // ── The customer-facing timeline ────────────────────────────────────────────────────
 // visa_events is an INTERNAL audit log — its raw codes ("dm_card_resent",
@@ -213,9 +172,85 @@ const VISA_MILESTONES: Record<string, { key: string; en: string; vi: string }> =
   result_uploaded: { key: 'ready', en: 'Your visa is ready', vi: 'Visa của bạn đã sẵn sàng' },
 }
 
+/**
+ * One case, managed: reference, status, the way back into its thread, the PDF once it
+ * exists, deletion. `detailFor` marks the case whose attention blocks (admin message /
+ * final authorization / timeline) render below the list — the row says so.
+ */
+function CaseRow({ item, conversationId, deskThreadId, isDetail, busy, tr, onDownload, onDelete }: {
+  item: VisaApplication
+  conversationId: string | undefined
+  /** ANY thread of the viewer's — there is exactly ONE buyer↔desk conversation (cases
+   *  rebind it in turn), so an unbound row still gets a truthful way to ask the desk. */
+  deskThreadId: string | undefined
+  isDetail: boolean
+  busy: boolean
+  tr: Tr
+  onDownload: (item: VisaApplication) => void
+  onDelete: (item: VisaApplication) => void
+}) {
+  const chip = STATUS_CHIP[item.status]
+  const copy = statusCopy(item.status, tr)
+  const editable = EDITABLE.has(item.status)
+  const hasResult = item.documents.some((document) => document.kind === 'result')
+  // The row's own thread first (immutable link); the shared desk thread as the fallback
+  // (external review: a row with NO chat action strands its case, and a per-row generic
+  // START could open/rebind a DIFFERENT editable draft than the one on this row).
+  const threadId = conversationId ?? deskThreadId
+  return (
+    <li className="rounded-2xl border border-border bg-card p-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-tint"><FileCheck2 className="h-4 w-4 text-ink-4" /></span>
+        <span className="font-mono text-sm font-bold tracking-wide text-foreground">{caseLabel(item)}</span>
+        <Badge variant={chip?.variant ?? 'neutral'}>{chip ? tr(chip.en, chip.vi) : item.status}</Badge>
+        {item.paidAt && <Badge variant="success"><Check className="h-3 w-3" />{tr('Fee paid', 'Đã trả phí')}</Badge>}
+      </div>
+      <p className="mt-2 text-sm font-semibold text-foreground">{copy.title}</p>
+      <p className="mt-1 text-xs leading-relaxed text-body">{copy.detail}</p>
+      <p className="mt-1.5 text-xs text-ink-4">
+        {tr('Updated', 'Cập nhật')} {new Date(item.updatedAt).toLocaleDateString()} · {item.documents.length} {tr('documents', 'tài liệu')}
+        {isDetail && <> · {tr('details below', 'chi tiết bên dưới')}</>}
+      </p>
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        {threadId ? (
+          <Button variant={editable ? 'cta' : 'outline'} size="sm" asChild>
+            <Link href={`/messages/${threadId}`}>
+              <MessagesSquare className="h-4 w-4" />
+              {editable ? tr('Continue in chat', 'Tiếp tục trong chat') : tr('Request an update', 'Yêu cầu cập nhật')}
+            </Link>
+          </Button>
+        ) : editable ? (
+          // No thread ANYWHERE (legacy dashboard-only account): the generic start is the
+          // one honest affordance left. Labelled generically on purpose — it opens the
+          // e-Visa chat (reusing the newest editable draft), not necessarily THIS row.
+          <VisaStart label={tr('Open the e-Visa chat', 'Mở chat e-Visa')} />
+        ) : null}
+        {hasResult && (
+          <Button type="button" variant="cta" size="sm" onClick={() => onDownload(item)}>
+            <Download className="h-4 w-4" />{tr('Download e-Visa PDF', 'Tải PDF E-Visa')}
+          </Button>
+        )}
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="ml-auto border-destructive/40 text-destructive hover:bg-destructive/5 hover:text-destructive"
+          data-testid="delete-visa-application"
+          disabled={busy}
+          onClick={() => onDelete(item)}
+        >
+          <Trash2 className="h-4 w-4" />{tr('Delete', 'Xóa')}
+        </Button>
+      </div>
+    </li>
+  )
+}
+
 export function VisaCasesClient({ threads }: {
-  /** applicationId → the conversation it is bound to (Conversation.visaApplicationId,
-   *  resolved server-side in page.tsx). Missing means "no thread" — the picker rebinds. */
+  /** applicationId → the conversation it lives in — the IMMUTABLE
+   *  visa_applications.conversation_id first, live binding as the legacy fallback
+   *  (resolved server-side in page.tsx). Missing means "no thread": the generic start
+   *  re-binds the newest editable draft. */
   threads: Record<string, string>
 }) {
   const { tr } = useLanguage()
@@ -230,7 +265,8 @@ export function VisaCasesClient({ threads }: {
   const [busy, setBusy] = useState(false)
   const [declaration, setDeclaration] = useState(false)
   const [authorization, setAuthorization] = useState(false)
-  const [deleteOpen, setDeleteOpen] = useState(false)
+  /** The case a delete was asked for — per case now, not "the active one". */
+  const [deleteTarget, setDeleteTarget] = useState<VisaApplication | null>(null)
   // Latest tr for callbacks that must NOT re-mint on a language change (the load effect
   // would otherwise re-fire on every switch — audit P1 #5's smaller cousin).
   const trRef = useRef(tr)
@@ -245,7 +281,7 @@ export function VisaCasesClient({ threads }: {
     if (!user) { setApplication(null); setApplications([]); setLoading(false); return }
     if (!background) setLoading(true)
     try {
-      // ?active=1 — the history list PLUS the active case in DETAIL form (decrypted
+      // ?active=1 — the history list PLUS the newest open case in DETAIL form (decrypted
       // payload + events). The payload is read for exactly two things here: the admin's
       // message, and the read-only grid the final authorization is given against.
       const list = await visaApi<{ application: VisaApplication | null; applications: VisaApplication[]; encryptionReady?: boolean }>('/api/visa/applications?active=1')
@@ -346,16 +382,16 @@ export function VisaCasesClient({ threads }: {
     } catch (error) { toast.error((error as Error).message.replaceAll('_', ' ')) } finally { setBusy(false) }
   }
 
-  /** The issued e-Visa. The signed URL is minted per request and opened in a fresh tab
-   *  with no opener — the file is passport-grade and never becomes a shareable link here. */
-  const downloadResult = async () => {
-    if (!application) return
-    const result = application.documents.find((item) => item.kind === 'result')
+  /** The issued e-Visa, for ANY of the viewer's cases. The signed URL is minted per
+   *  request and opened in a fresh tab with no opener — the file is passport-grade and
+   *  never becomes a shareable link here. */
+  const downloadResult = async (item: VisaApplication) => {
+    const result = item.documents.find((document) => document.kind === 'result')
     if (!result) return
     const preview = window.open('about:blank', '_blank')
     if (preview) preview.opener = null
     try {
-      const signed = await visaApi<{ url: string }>(`/api/visa/applications/${application.id}/documents/${result.id}`)
+      const signed = await visaApi<{ url: string }>(`/api/visa/applications/${item.id}/documents/${result.id}`)
       if (preview) preview.location.href = signed.url
       else window.location.assign(signed.url)
     } catch (error) {
@@ -366,14 +402,13 @@ export function VisaCasesClient({ threads }: {
 
   /**
    * Delete eno's copy — the applicant's own erasure control over the most concentrated PII
-   * we hold. It no longer mints a replacement draft (the retired wizard did, which was the
-   * dashboard quietly creating a case with no product and no thread); the page falls back
-   * to the picker, so the next case starts the one supported way.
+   * we hold, now per CASE. Nothing is minted in its place: the list re-renders without the
+   * row, and a next case starts the one supported way (the chat).
    */
   const deleteApplication = async () => {
-    if (!application) return
+    if (!deleteTarget) return
     setBusy(true)
-    const deletedId = application.id
+    const deletedId = deleteTarget.id
     try {
       await visaApi<{ deleted: true; id: string }>(`/api/visa/applications/${deletedId}`, { method: 'DELETE' })
       // ⚠️ CLEAR THE SCREEN FROM THE SUCCESS, not from a reload. External review (GPT-5.6,
@@ -382,7 +417,7 @@ export function VisaCasesClient({ threads }: {
       // button. The DELETE succeeded; drop the case now.
       setApplication((cur) => (cur?.id === deletedId ? null : cur))
       setApplications((prev) => prev.filter((a) => a.id !== deletedId))
-      setDeleteOpen(false)
+      setDeleteTarget(null)
       setDeclaration(false); setAuthorization(false)
       toast.success(tr('Application deleted.', 'Đã xóa hồ sơ.'))
       // The rail's "My e-Visa" row is gated on hasVisa; deleting the last case must drop it.
@@ -395,7 +430,7 @@ export function VisaCasesClient({ threads }: {
     } finally { setBusy(false) }
   }
 
-  const sectionHeader = <SectionHeader title={tr('Vietnam e-Visa', 'E-Visa Việt Nam')} />
+  const sectionHeader = <SectionHeader title={tr('My e-Visa', 'E-Visa của tôi')} />
 
   if (authLoading || !user || (loading && user)) {
     return (
@@ -414,7 +449,7 @@ export function VisaCasesClient({ threads }: {
     return (
       <>
         {sectionHeader}
-        <h1 className="text-xl font-bold text-foreground max-lg:sr-only">{tr('Vietnam e-Visa', 'E-Visa Việt Nam')}</h1>
+        <h1 className="text-xl font-bold text-foreground max-lg:sr-only">{tr('My e-Visa', 'E-Visa của tôi')}</h1>
         <div className="mt-6">
           <EmptyState
             icon={LockKeyhole}
@@ -434,78 +469,81 @@ export function VisaCasesClient({ threads }: {
     )
   }
 
-  // NO CASE AT ALL — the only "start" on this page, and it is the chat's own entry point.
-  if (!application) {
+  // NO CASES AT ALL — the one start affordance, and it goes straight to the chat: the
+  // Phase-2 picker card in the thread is where a service gets chosen, not this page.
+  if (!applications.length) {
     return (
       <>
         {sectionHeader}
         <div className="mx-auto w-full max-w-3xl py-4 sm:py-8">
-          <Badge variant="brand"><FileCheck2 className="h-3.5 w-3.5" />{tr('Assisted Vietnam e-Visa', 'Hỗ trợ E-Visa Việt Nam')}</Badge>
-          <h1 className="mt-4 text-2xl font-bold tracking-tight sm:text-3xl">{tr('Your Vietnam e-Visa', 'E-Visa Việt Nam của bạn')}</h1>
-          <p className="mt-3 text-base leading-relaxed text-body">{tr('Pick a service and eno guides you through it in chat: upload your passport and portrait, confirm what we read off them, answer the trip questions, then pay. Your case and the specialist handling it stay in that one conversation.', 'Chọn một dịch vụ và eno sẽ hướng dẫn bạn ngay trong chat: tải lên hộ chiếu và ảnh chân dung, xác nhận thông tin đọc được, trả lời các câu hỏi về chuyến đi rồi thanh toán. Hồ sơ và chuyên viên phụ trách đều ở trong cuộc trò chuyện đó.')}</p>
-          <VisaStartPicker className="mt-6" />
+          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">{tr('My e-Visa applications', 'Hồ sơ E-Visa của tôi')}</h1>
+          <div className="mt-6">
+            <EmptyState
+              icon={Stamp}
+              title={tr('No applications yet', 'Chưa có hồ sơ nào')}
+              subtitle={tr(
+                'Start in chat: pick a service on the card eno sends you, upload your passport and portrait, answer the trip questions, then pay — all in one conversation.',
+                'Bắt đầu trong chat: chọn dịch vụ trên thẻ eno gửi, tải lên hộ chiếu và ảnh chân dung, trả lời câu hỏi về chuyến đi rồi thanh toán — tất cả trong một cuộc trò chuyện.',
+              )}
+              action={<VisaStart />}
+            />
+          </div>
           <p className="mt-6 border-t border-border pt-4 text-xs leading-relaxed text-body">{tr('eno is an independent assistance service, not a government agency. Approval is decided only by Vietnamese authorities. Official fees and eno service fees are confirmed separately in writing before payment.', 'eno là dịch vụ hỗ trợ độc lập, không phải cơ quan nhà nước. Việc phê duyệt chỉ do cơ quan chức năng Việt Nam quyết định. Lệ phí chính thức và phí dịch vụ eno được xác nhận riêng bằng văn bản trước thanh toán.')}</p>
           <p className="mt-3 text-xs leading-relaxed text-body">
             <a href="https://evisa.gov.vn/" target="_blank" rel="noreferrer" className="font-semibold text-accent-foreground hover:underline">{tr('Official e-Visa website', 'Trang E-Visa chính thức')}</a>
           </p>
-          <PastApplications applications={applications} activeId={null} threads={threads} tr={tr} />
         </div>
       </>
     )
   }
 
-  const chip = STATUS_CHIP[application.status]
-  const copy = statusCopy(application.status, tr)
-  const conversationId = threads[application.id]
-  const editable = EDITABLE.has(application.status)
-  const result = application.documents.find((item) => item.kind === 'result')
-  const adminMessage = application.payload?.adminMessage
+  const adminMessage = application?.payload?.adminMessage
 
   return (
     <>
       {sectionHeader}
       <div className="mx-auto w-full max-w-4xl">
-        <h1 className="text-2xl font-bold tracking-tight text-foreground max-lg:sr-only">{tr('Your Vietnam e-Visa', 'E-Visa Việt Nam của bạn')}</h1>
-        <div className="mt-4 flex flex-wrap items-center gap-2">
-          <Badge variant={chip?.variant ?? 'neutral'}>{chip ? tr(chip.en, chip.vi) : application.status}</Badge>
-          {application.paidAt && <Badge variant="success"><Check className="h-3 w-3" />{tr('Service fee paid', 'Đã thanh toán phí dịch vụ')}</Badge>}
-          <span className="text-xs text-ink-4">{application.id.slice(0, 8)}</span>
-        </div>
-        <h2 className="mt-3 text-xl font-bold tracking-tight text-foreground">{copy.title}</h2>
-        <p className="mt-2 text-body">{copy.detail}</p>
+        <h1 className="text-2xl font-bold tracking-tight text-foreground max-lg:sr-only">{tr('My e-Visa applications', 'Hồ sơ E-Visa của tôi')}</h1>
 
-        {/* THE ONE WAY BACK IN. A bound case opens its thread; a case with no thread — one
-            started by the retired dashboard wizard, or one whose thread a newer case took
-            over — is re-entered through the picker, which reuses this very draft
-            (startVisaDmFlow reuses the newest editable case) and binds it. */}
-        <div className="mt-5 flex flex-wrap items-center gap-3">
-          {conversationId ? (
-            <Button variant={editable ? 'cta' : 'outline'} size="lg" asChild>
-              <Link href={`/messages/${conversationId}`}>
-                <MessagesSquare className="h-4 w-4" />
-                {editable ? tr('Continue in chat', 'Tiếp tục trong chat') : tr('Open your chat', 'Mở cuộc trò chuyện')}
-              </Link>
-            </Button>
-          ) : editable ? (
-            <VisaStart label={tr('Continue in chat', 'Tiếp tục trong chat')} />
-          ) : null}
-          {result && (
-            <Button type="button" variant="cta" size="lg" onClick={() => void downloadResult()}>
-              <Download className="h-4 w-4" />{tr('Download official e-Visa PDF', 'Tải PDF E-Visa chính thức')}
-            </Button>
-          )}
-        </div>
+        {/* EVERY case, newest first — reference, status, its thread, its PDF, deletion. */}
+        <ul className="mt-4 space-y-3">
+          {applications.map((item) => (
+            <CaseRow
+              key={item.id}
+              item={item}
+              conversationId={threads[item.id]}
+              deskThreadId={Object.values(threads)[0]}
+              isDetail={!!application && item.id === application.id && (item.status === 'applicant_approval' || !!adminMessage)}
+              busy={busy}
+              tr={tr}
+              onDownload={(target) => void downloadResult(target)}
+              onDelete={setDeleteTarget}
+            />
+          ))}
+        </ul>
 
-        {adminMessage && (
+        {/* ── The active case's attention blocks (the parts only this page can do) ── */}
+
+        {application && adminMessage && (
           <Card className="mt-6">
-            <CardHeader><CardTitle>{application.status === 'needs_changes' ? tr('Changes requested', 'Yêu cầu chỉnh sửa') : tr('Private update from eno', 'Cập nhật riêng từ eno')}</CardTitle></CardHeader>
+            <CardHeader>
+              <CardTitle>
+                {application.status === 'needs_changes' ? tr('Changes requested', 'Yêu cầu chỉnh sửa') : tr('Private update from eno', 'Cập nhật riêng từ eno')}
+                <span className="ml-2 font-mono text-xs font-semibold text-ink-4">{caseLabel(application)}</span>
+              </CardTitle>
+            </CardHeader>
             <CardContent><p className="whitespace-pre-wrap text-sm leading-relaxed text-body">{adminMessage}</p></CardContent>
           </Card>
         )}
 
-        {application.status === 'applicant_approval' && application.payload && (
+        {application && application.status === 'applicant_approval' && application.payload && (
           <Card className="mt-6">
-            <CardHeader><CardTitle>{tr('Final applicant authorization', 'Ủy quyền cuối cùng của người nộp')}</CardTitle></CardHeader>
+            <CardHeader>
+              <CardTitle>
+                {tr('Final applicant authorization', 'Ủy quyền cuối cùng của người nộp')}
+                <span className="ml-2 font-mono text-xs font-semibold text-ink-4">{caseLabel(application)}</span>
+              </CardTitle>
+            </CardHeader>
             <CardContent className="space-y-4">
               <p className="text-sm text-body">{tr('Compare the details below with your passport and trip. eno will use only this approved snapshot to prepare the official form.', 'Đối chiếu thông tin bên dưới với hộ chiếu và chuyến đi. eno chỉ dùng bản đã duyệt này để chuẩn bị biểu mẫu chính thức.')}</p>
               <ReviewGrid payload={application.payload} tr={tr} />
@@ -518,7 +556,7 @@ export function VisaCasesClient({ threads }: {
           </Card>
         )}
 
-        {(() => {
+        {application && (() => {
           // "Your visa is ready" must reflect a real download, not just the audit event — a
           // rolled-back delivery leaves the event behind (external review). Gate it on the case
           // actually holding a result document.
@@ -534,7 +572,12 @@ export function VisaCasesClient({ threads }: {
           if (!milestones.length) return null
           return (
             <Card className="mt-6">
-              <CardHeader><CardTitle>{tr('Progress', 'Tiến trình')}</CardTitle></CardHeader>
+              <CardHeader>
+                <CardTitle>
+                  {tr('Progress', 'Tiến trình')}
+                  <span className="ml-2 font-mono text-xs font-semibold text-ink-4">{caseLabel(application)}</span>
+                </CardTitle>
+              </CardHeader>
               <CardContent>
                 <ol className="space-y-4">
                   {milestones.map(({ e, m }) => (
@@ -549,26 +592,23 @@ export function VisaCasesClient({ threads }: {
           )
         })()}
 
-        <div className="mt-6">
-          <Button type="button" variant="outline" className="border-destructive/40 text-destructive hover:bg-destructive/5 hover:text-destructive" data-testid="delete-visa-application" disabled={busy} onClick={() => setDeleteOpen(true)}>
-            <Trash2 className="h-4 w-4" />{tr('Delete application', 'Xóa hồ sơ')}
-          </Button>
-        </div>
+        <p className="mt-8 border-t border-border pt-4 text-xs leading-relaxed text-body">{tr('eno is an independent assistance service, not a government agency. Approval is decided only by Vietnamese authorities.', 'eno là dịch vụ hỗ trợ độc lập, không phải cơ quan nhà nước. Việc phê duyệt chỉ do cơ quan chức năng Việt Nam quyết định.')}</p>
 
-        <PastApplications applications={applications} activeId={application.id} threads={threads} tr={tr} />
-
-        <Dialog open={deleteOpen} onOpenChange={(open) => { if (!busy) setDeleteOpen(open) }}>
+        <Dialog open={!!deleteTarget} onOpenChange={(open) => { if (!busy && !open) setDeleteTarget(null) }}>
           <DialogContent className="sm:max-w-md">
             <DialogHeader>
               <span className="flex h-11 w-11 items-center justify-center rounded-full bg-destructive/10 text-destructive"><Trash2 className="h-5 w-5" /></span>
-              <DialogTitle className="text-lg font-bold">{tr('Delete this application?', 'Xóa hồ sơ này?')}</DialogTitle>
+              <DialogTitle className="text-lg font-bold">
+                {tr('Delete this application?', 'Xóa hồ sơ này?')}
+                {deleteTarget && <span className="ml-2 font-mono text-sm font-semibold text-ink-4">{caseLabel(deleteTarget)}</span>}
+              </DialogTitle>
               <DialogDescription>{tr('This permanently removes this application, its answers, uploaded documents, and case history from eno. This cannot be undone.', 'Thao tác này xóa vĩnh viễn hồ sơ, câu trả lời, giấy tờ đã tải lên và lịch sử xử lý khỏi eno. Không thể hoàn tác.')}</DialogDescription>
             </DialogHeader>
-            {['submitted', 'payment_required', 'processing', 'approved'].includes(application.status) && (
+            {deleteTarget && ['submitted', 'payment_required', 'processing', 'approved'].includes(deleteTarget.status) && (
               <p className="rounded-xl border border-warning/30 bg-warning/10 px-4 py-3 text-xs leading-relaxed text-warning">{tr('Deleting eno’s copy does not withdraw or erase an application already sent to the Vietnamese authority.', 'Việc xóa bản lưu tại eno không rút lại hoặc xóa hồ sơ đã gửi đến cơ quan chức năng Việt Nam.')}</p>
             )}
             <DialogFooter>
-              <Button type="button" variant="outline" className="h-11" disabled={busy} onClick={() => setDeleteOpen(false)}>{tr('Keep application', 'Giữ hồ sơ')}</Button>
+              <Button type="button" variant="outline" className="h-11" disabled={busy} onClick={() => setDeleteTarget(null)}>{tr('Keep application', 'Giữ hồ sơ')}</Button>
               <Button type="button" variant="destructive" className="h-11" data-testid="delete-visa-application-confirm" disabled={busy} onClick={() => void deleteApplication()}>
                 {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}{tr('Delete application', 'Xóa hồ sơ')}
               </Button>
