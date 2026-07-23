@@ -1979,7 +1979,7 @@ export function VisaResendChip({ info, isDesk, busy, error, onResend, compact, c
           disabled={busy || paused}
           onClick={() => void onResend()}
           title={tr('Post the current e-Visa step again at the bottom of this chat', 'Đăng lại bước E-Visa hiện tại ở cuối cuộc trò chuyện')}
-          className="tap-44 shrink-0 gap-1.5 rounded-full border border-line-strong px-3 py-1.5 text-2xs font-bold text-foreground"
+          className="relative tap-44 shrink-0 gap-1.5 rounded-full border border-line-strong px-3 py-1.5 text-2xs font-bold text-foreground"
         >
           {busy
             ? <Loader2 className="size-3.5 shrink-0 animate-spin" aria-hidden />

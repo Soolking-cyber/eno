@@ -75,6 +75,15 @@ function conciergeErrorCopy(code: string | undefined, tr: Tr): string {
  * assistant's ('ai') — the desk drives its own side, and the other two modes render the
  * existing VisaThreadStrip banner instead.
  */
+// ⚠️ EVERY CHIP BUTTON HERE CARRIES `relative`, AND IT IS LOAD-BEARING, NOT COSMETIC.
+// `tap-44` grows an absolutely-positioned ::before hit-target sized 100% of its containing
+// block (globals.css). Without `relative` on the button, that block is the nearest POSITIONED
+// ancestor — and inside a thread `html.chat-locked` makes <body> position:relative, so the
+// invisible target blew up to the whole viewport and swallowed every tap and swipe: the chips
+// went dead and the message list would not scroll. The compact `display:contents` row made it
+// worse by removing the wrapper boxes, so nothing stopped the ::before escaping to body.
+// Diagnosed by an external review (GPT-5.6, 2026-07-23) after the symptom was "chips unclickable
+// + broken scroll whenever the visa form card was on screen". Do not drop `relative`.
 function VisaAssistChips({
   armed, thinking, busy, error, onToggleConcierge, onAskHuman, compact, className,
 }: {
@@ -101,7 +110,7 @@ function VisaAssistChips({
           aria-pressed={armed}
           disabled={thinking}
           onClick={onToggleConcierge}
-          className={`tap-44 shrink-0 gap-1.5 rounded-full border px-3 py-1.5 text-2xs font-bold ${armed ? 'border-brand bg-primary/10 text-accent-foreground' : 'border-line-strong text-foreground'}`}
+          className={`relative tap-44 shrink-0 gap-1.5 rounded-full border px-3 py-1.5 text-2xs font-bold ${armed ? 'border-brand bg-primary/10 text-accent-foreground' : 'border-line-strong text-foreground'}`}
         >
           {thinking
             ? <Loader2 className="size-3.5 shrink-0 animate-spin" aria-hidden />
@@ -114,7 +123,7 @@ function VisaAssistChips({
           type="button"
           disabled={busy}
           onClick={() => void onAskHuman()}
-          className="tap-44 shrink-0 gap-1.5 rounded-full border border-line-strong px-3 py-1.5 text-2xs font-bold text-foreground"
+          className="relative tap-44 shrink-0 gap-1.5 rounded-full border border-line-strong px-3 py-1.5 text-2xs font-bold text-foreground"
         >
           <UserRound className="size-3.5 shrink-0" aria-hidden />
           {tr('Request a person', 'Yêu cầu nhân viên')}
