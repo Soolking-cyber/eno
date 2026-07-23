@@ -47,7 +47,7 @@ export function RecentlyViewedRail({ excludeId }: { excludeId?: string }) {
   if (listings.length < 2) return <div ref={ref} aria-hidden="true" className="absolute h-0 w-0" />
 
   return (
-    <Shelf icon={History} title={tr('Recently viewed', 'Đã xem gần đây')} sectionClassName="mb-7">
+    <Shelf icon={History} title={tr('Recently viewed', 'Đã xem gần đây')} sectionClassName="mb-7" watch={listings.length}>
       {listings.map((l) => (
         <div key={l.id} className={RAIL_CARD_W}>
           <ListingCard

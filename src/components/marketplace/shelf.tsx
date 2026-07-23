@@ -32,6 +32,7 @@ export function Shelf({
   seeAllHref,
   seeAllOnClick,
   sectionClassName,
+  watch,
   children,
 }: {
   title: React.ReactNode
@@ -41,6 +42,13 @@ export function Shelf({
   /** … or as an action (category rails that push a filter). */
   seeAllOnClick?: () => void
   sectionClassName?: string
+  /** Pass the rail's item COUNT when items arrive/refresh after mount (async fetch,
+   *  localStorage hydration). Only the scroller's children change then — its own
+   *  border box doesn't — so the arrows' ResizeObserver never re-fires and a rail
+   *  that filled up after mount stays arrow-less forever (the brand-rail bug,
+   *  2026-07-23). Threading the count into useScrollArrows re-syncs on change;
+   *  harmless for server-seeded rails whose count never moves. */
+  watch?: unknown
   children: React.ReactNode
 }) {
   const { tr } = useLanguage()
@@ -60,7 +68,7 @@ export function Shelf({
   // Desktop ← / → scroll arrows (see useScrollArrows): a mouse wheel scrolls only vertically and the
   // rail hides its scrollbar, so pointer users can't page it without a trackpad. Centre them on the
   // card PHOTO (data-rail-media), not the full card, so they sit level with the image.
-  const { scrollerRef, canLeft, canRight, page, arrowTop } = useScrollArrows({ centerSelector: '[data-rail-media]' })
+  const { scrollerRef, canLeft, canRight, page, arrowTop } = useScrollArrows({ centerSelector: '[data-rail-media]', watch })
 
   return (
     <section className={sectionClassName}>

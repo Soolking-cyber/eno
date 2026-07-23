@@ -30,6 +30,7 @@ export function SameSellerShelf({
       title={tr('More from this seller', `Tin khác từ ${sellerName}`)}
       seeAllHref={sellerHref}
       sectionClassName="mt-12"
+      watch={listings.length}
     >
       {listings.map((l) => (
         <div key={l.id} className={RAIL_CARD_W}>

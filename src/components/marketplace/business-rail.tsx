@@ -32,7 +32,7 @@ export function BusinessRail({ initial }: { initial?: SerializedListingCard[] })
   if (listings !== null && listings.length === 0) return null
 
   return (
-    <Shelf icon={Award} title={tr('Outstanding businesses', 'Doanh nghiệp nổi bật')} sectionClassName="mb-7">
+    <Shelf icon={Award} title={tr('Outstanding businesses', 'Doanh nghiệp nổi bật')} sectionClassName="mb-7" watch={listings?.length ?? 0}>
       {listings === null
         ? Array.from({ length: 6 }).map((_, i) => (
             <ListingCardSkeleton key={i} className={RAIL_CARD_W} />

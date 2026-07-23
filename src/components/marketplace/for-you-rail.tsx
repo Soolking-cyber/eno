@@ -93,6 +93,7 @@ export function ForYouRail({ initial }: { initial?: SerializedListingCard[] }) {
       icon={personalized ? Sparkles : TrendingUp}
       title={personalized ? tr('For you', 'Dành cho bạn') : tr('Trending now', 'Đang thịnh hành')}
       sectionClassName="mb-7"
+      watch={listings?.length ?? 0}
     >
       {listings === null
         ? Array.from({ length: 6 }).map((_, i) => (
