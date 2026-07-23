@@ -170,8 +170,11 @@ test.describe('one dashboard — rail integrity', () => {
       await expect(mRail.getByRole('link', { name: /View storefront|Xem gian hàng/ })).toHaveCount(1)
       const mobileLabels = await mRail.locator('nav a').evaluateAll((els) => els.map((a) => a.getAttribute('aria-label') || ''))
       expect(mobileLabels).toEqual(desktopLabels)
-      // And on mobile the labels are visible text, not just icons.
-      await expect(mRail.getByText(/Forum activity|Hoạt động diễn đàn/)).toBeVisible()
+      // And on mobile the labels are visible text, not just icons. Help center is the
+      // probe: Forum activity was REMOVED 2026-07-21 (owner: "only help center") and this
+      // line kept asserting the dead label — the one spot Kyle's CORE_HREFS un-staling
+      // (row-108) didn't reach.
+      await expect(mRail.getByText(/Help center|Trung tâm trợ giúp/)).toBeVisible()
 
       // Focus is trapped inside the drawer: it moves in on open and Tab/Shift+Tab never escape.
       const focusInside = () => mPage.evaluate(() => !!document.activeElement?.closest('aside[role="dialog"]'))

@@ -32,11 +32,10 @@ export function DisputesClient() {
     <>
       {/* Native stack-nav title bar (mobile only) — same established title string. */}
       <SectionHeader title={tr('Disputes', 'Khiếu nại')} />
-      {/* h1 stays for the outline; the SectionHeader carries the visible mobile title. */}
-      <h1 className="text-xl font-bold text-foreground max-lg:sr-only">{tr('Disputes', 'Khiếu nại')}</h1>
-      <div className="mt-4">
-        <DisputesPanel />
-      </div>
+      {/* No wrapper <h1> — DisputesPanel renders its own (icon + title), so the wrapper
+          copy made TWO h1s on one page (strict-mode e2e catch, 2026-07-23) and a doubled
+          visible title on desktop. Same fix help-client.tsx already carries. */}
+      <DisputesPanel />
     </>
   )
 }

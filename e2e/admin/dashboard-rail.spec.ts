@@ -31,12 +31,16 @@ test.describe('admin dashboard rail', () => {
     ).toBe(true)
 
     // The regular Marketplace/Community groups stay present (role-gated, not path-switched):
-    // the admin group is appended to the one rail, not swapped in for it.
-    await expect(rail.locator('a[href="/dashboard/forum"]')).toHaveCount(1)
+    // the admin group is appended to the one rail, not swapped in for it. Help center is
+    // the probe row — /dashboard/forum was REMOVED 2026-07-21 ("only help center") and
+    // this line kept asserting the dead href (found by the 2026-07-23 authed recert).
+    await expect(rail.locator('a[href="/dashboard/help"]')).toHaveCount(1)
 
     // The 'Admin' caption exists in the rail (visible once the rail is expanded — the
-    // collapsed 72px column hides captions by design).
-    await rail.getByRole('button', { name: /Expand sidebar|Mở rộng thanh bên/ }).click()
+    // collapsed 72px column hides captions by design). The rail is HOVER-open since
+    // 2026-07-23 (the pin toggle is gone, Session #4's sidebar rework) — the old
+    // "Expand sidebar" button this spec clicked no longer exists.
+    await rail.hover()
     await expect(rail.getByText('Admin', { exact: true })).toBeVisible()
   })
 
