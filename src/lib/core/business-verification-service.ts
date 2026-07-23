@@ -1,10 +1,14 @@
 import 'server-only'
 import { db } from '@/lib/db'
 import {
+  isBusinessVerified,
   sellerIdentityHash,
+  verificationView,
   VERIFICATION_VALIDITY_MS,
   VERIFICATION_DOC_RETENTION_MS,
   type SellerIdentity,
+  type VerificationFacts,
+  type VerificationView,
 } from '@/lib/business-verification'
 import {
   parseVerificationDocs,
@@ -32,6 +36,30 @@ const TAX_SELECT = {
   taxCode: true, taxCheckedAt: true, taxRegisteredName: true, taxActive: true, legalName: true, name: true,
 } as const
 
+// Everything isBusinessVerified() reads — the full identity + tax facts + the badge stamp.
+const VERIFY_SELECT = {
+  name: true, legalName: true, legalAddress: true, idNumber: true, taxCode: true,
+  taxCheckedAt: true, taxRegisteredName: true, taxActive: true,
+  verifiedIdentityHash: true, verifiedUntil: true,
+} as const
+
+/** Is this seller's badge live right now? (Reads the full verification facts.) */
+async function sellerLiveVerified(sellerId: string): Promise<boolean> {
+  const s = await db.seller.findUnique({ where: { id: sellerId }, select: VERIFY_SELECT })
+  return s ? isBusinessVerified(s as VerificationFacts) : false
+}
+
+/** The applicant-facing verification state (verified/pending/expired/rejected/…) — the
+ *  LIVE badge derivation, not the raw case status, so an edited/expired badge reads honestly. */
+export async function ownVerificationView(sellerId: string): Promise<VerificationView> {
+  const [s, latest] = await Promise.all([
+    db.seller.findUnique({ where: { id: sellerId }, select: VERIFY_SELECT }),
+    db.sellerVerification.findFirst({ where: { sellerId }, orderBy: { version: 'desc' }, select: { status: true } }),
+  ])
+  if (!s) return 'unverified'
+  return verificationView(s as VerificationFacts, (latest?.status as 'draft' | 'pending' | 'approved' | 'rejected' | undefined) ?? null)
+}
+
 /** The seller's current identity, for hashing. */
 async function sellerIdentity(sellerId: string): Promise<SellerIdentity | null> {
   const s = await db.seller.findUnique({ where: { id: sellerId }, select: IDENTITY_SELECT })
@@ -49,15 +77,21 @@ export async function loadOwnVerification(sellerId: string) {
   return { ...row, documents: parseVerificationDocs(row.documents) }
 }
 
-/** Get the seller's active DRAFT case, creating one (next version) when none is open.
- *  Returns null when a case is already pending/approved (nothing to add to). */
+/** Get the seller's active DRAFT case, creating one (next version) when the seller is
+ *  neither currently LIVE-verified nor mid-review. A rejected case, or an approved case
+ *  whose badge has since dropped (identity edited / window lapsed), opens a NEW version —
+ *  so a seller is never dead-ended out of re-verifying (external review). Returns null
+ *  only when a case is pending, or the badge is live (nothing to do). */
 export async function getOrCreateDraft(sellerId: string): Promise<{ id: string; documents: VerificationDoc[] } | null> {
   const latest = await db.sellerVerification.findFirst({
     where: { sellerId },
     orderBy: { version: 'desc' },
     select: { id: true, version: true, status: true, documents: true },
   })
-  if (latest?.status === 'pending' || latest?.status === 'approved') return null // locked / already done
+  if (latest?.status === 'pending') return null // under review — locked
+  // Already verified live? Nothing to do, whatever the latest case status is (external
+  // review: guard on the badge, not on 'approved' specifically).
+  if (await sellerLiveVerified(sellerId)) return null
   if (latest?.status === 'draft') return { id: latest.id, documents: parseVerificationDocs(latest.documents) }
   const version = (latest?.version ?? 0) + 1
   const created = await db.sellerVerification.create({
@@ -67,17 +101,28 @@ export async function getOrCreateDraft(sellerId: string): Promise<{ id: string; 
   return { id: created.id, documents: parseVerificationDocs(created.documents) }
 }
 
-/** Append a stored document to a DRAFT case (guarded: only writes while status='draft'). */
+/** Append a stored document to a DRAFT case. The read-modify-write is serialized in a
+ *  transaction so two concurrent uploads to the same draft can't lost-update each other
+ *  (external review). Guarded on status='draft' so a concurrent submit rejects a late doc. */
 export async function appendVerificationDoc(caseId: string, doc: VerificationDoc): Promise<boolean> {
-  const row = await db.sellerVerification.findUnique({ where: { id: caseId }, select: { status: true, documents: true } })
-  if (!row || row.status !== 'draft') return false
-  const docs = [...parseVerificationDocs(row.documents), doc]
-  // Guard the write on status='draft' so a concurrent submit can't accept a late doc.
-  const upd = await db.sellerVerification.updateMany({
-    where: { id: caseId, status: 'draft' },
-    data: { documents: docs as unknown as object },
+  return db.$transaction(async (tx) => {
+    const row = await tx.sellerVerification.findUnique({ where: { id: caseId }, select: { status: true, documents: true } })
+    if (!row || row.status !== 'draft') return false
+    const docs = [...parseVerificationDocs(row.documents), doc]
+    const upd = await tx.sellerVerification.updateMany({
+      where: { id: caseId, status: 'draft' },
+      data: { documents: docs as unknown as object },
+    })
+    return upd.count === 1
   })
-  return upd.count === 1
+}
+
+/** Does this case actually hold a document at `path`? Gates the admin signed-URL action
+ *  so a caller-supplied path can never reach an object outside the case (IDOR guard). */
+export async function caseHasDocument(caseId: string, path: string): Promise<boolean> {
+  const row = await db.sellerVerification.findUnique({ where: { id: caseId }, select: { documents: true } })
+  if (!row) return false
+  return parseVerificationDocs(row.documents).some((d) => d.path === path)
 }
 
 export type SubmitResult =
@@ -127,7 +172,7 @@ export async function submitVerification(sellerId: string, consentVersion: strin
 
 export type ReviewResult =
   | { ok: true }
-  | { ok: false; error: 'not_found' | 'not_pending' | 'channel1_unverified' | 'identity_moved' | 'seller_gone' }
+  | { ok: false; error: 'not_found' | 'not_pending' | 'channel1_unverified' | 'identity_moved' | 'seller_gone' | 'duplicate_tax' }
 
 /**
  * APPROVE a pending case. Re-checks Channel 1 (tax verdict) live and — critically — that
@@ -145,7 +190,7 @@ export async function approveVerification(caseId: string, adminEmail: string): P
   if (!row) return { ok: false, error: 'not_found' }
   if (row.status !== 'pending') return { ok: false, error: 'not_pending' }
 
-  const seller = await db.seller.findUnique({ where: { id: row.sellerId }, select: TAX_SELECT })
+  const seller = await db.seller.findUnique({ where: { id: row.sellerId }, select: { ...TAX_SELECT, taxCode: true } })
   if (!seller) return { ok: false, error: 'seller_gone' }
   if (taxVerdict(seller) !== 'verified') return { ok: false, error: 'channel1_unverified' }
 
@@ -155,27 +200,40 @@ export async function approveVerification(caseId: string, adminEmail: string): P
     return { ok: false, error: 'identity_moved' }
   }
 
+  // ⚠️ APPROVAL is the atomic claim point for a tax code (external review): the submit-time
+  // check + the stamp are two operations, so a fast-path check is not enough — the real
+  // guarantee is the partial unique index Seller(taxCode) WHERE verifiedIdentityHash IS NOT
+  // NULL. The transition + stamp run in ONE transaction; a concurrent approval for the same
+  // MST loses on the P2002 and the whole thing rolls back (the case stays pending).
   const now = new Date()
-  const reviewed = await db.sellerVerification.updateMany({
-    where: { id: caseId, status: 'pending' },
-    data: {
-      status: 'approved', reviewedAt: now, reviewedBy: adminEmail,
-      retentionUntil: new Date(now.getTime() + VERIFICATION_DOC_RETENTION_MS),
-    },
-  })
-  if (reviewed.count !== 1) return { ok: false, error: 'not_pending' } // lost the race
-  // Stamp the badge source-of-truth. verifiedIdentityHash == the frozen hash we just
-  // re-proved matches live, so the badge shows immediately and drops on any later edit.
-  await db.seller.update({
-    where: { id: row.sellerId },
-    data: {
-      verifiedIdentityHash: row.identityHash,
-      verifiedAt: now,
-      verifiedUntil: new Date(now.getTime() + VERIFICATION_VALIDITY_MS),
-      verifiedBy: adminEmail,
-    },
-  })
-  return { ok: true }
+  try {
+    const outcome = await db.$transaction(async (tx) => {
+      const reviewed = await tx.sellerVerification.updateMany({
+        where: { id: caseId, status: 'pending' },
+        data: {
+          status: 'approved', reviewedAt: now, reviewedBy: adminEmail,
+          retentionUntil: new Date(now.getTime() + VERIFICATION_DOC_RETENTION_MS),
+        },
+      })
+      if (reviewed.count !== 1) return 'not_pending' as const
+      // Stamp the badge source-of-truth. The partial unique index throws P2002 here if
+      // another seller already holds a live stamp for this taxCode → the tx rolls back.
+      await tx.seller.update({
+        where: { id: row.sellerId },
+        data: {
+          verifiedIdentityHash: row.identityHash,
+          verifiedAt: now,
+          verifiedUntil: new Date(now.getTime() + VERIFICATION_VALIDITY_MS),
+          verifiedBy: adminEmail,
+        },
+      })
+      return 'ok' as const
+    })
+    return outcome === 'ok' ? { ok: true } : { ok: false, error: 'not_pending' }
+  } catch (e) {
+    if ((e as { code?: string })?.code === 'P2002') return { ok: false, error: 'duplicate_tax' }
+    throw e
+  }
 }
 
 /** REJECT a pending case with an operator note. Does NOT touch the Seller badge fields. */

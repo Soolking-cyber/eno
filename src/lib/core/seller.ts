@@ -6,6 +6,7 @@ import { phoneTakenByOther } from '@/lib/phone-unique'
 import { isListingImageUrl } from '@/lib/listing-image'
 import { recordProfileComplete } from '@/lib/trust'
 import { lookupTaxCode, TAX_FACTS_TTL_MS } from '@/lib/tax-lookup'
+import { sellerIdentityHash } from '@/lib/business-verification'
 
 // Storefront (Seller) edit core — decoupled from auth, takes the already-resolved
 // sellerId + owning profileId. Shared by the dashboard PATCH /api/seller and the partner
@@ -96,6 +97,33 @@ export async function updateSellerCore(
     }
   }
   if (identityTouched) data.identityUpdatedAt = new Date()
+
+  // ── Drop the verified-business stamp when the edit MOVES the identity off the approved
+  //    snapshot (external review — else a verified seller could change their tax code away
+  //    to un-hold the MST, let another storefront claim it, then RESTORE the code and have
+  //    the identity-hash badge auto-return, leaving two live badges for one tax code). We
+  //    clear only on a real mismatch, so a no-op or bio-only save never costs the badge.
+  if (data.name !== undefined || identityTouched) {
+    const cur = await db.seller.findUnique({
+      where: { id: sellerId },
+      select: { name: true, legalName: true, legalAddress: true, idNumber: true, taxCode: true, verifiedIdentityHash: true },
+    })
+    if (cur?.verifiedIdentityHash) {
+      const nextIdentity = {
+        name: (data.name as string | undefined) ?? cur.name,
+        legalName: (data.legalName as string | null | undefined) ?? cur.legalName,
+        legalAddress: (data.legalAddress as string | null | undefined) ?? cur.legalAddress,
+        idNumber: (data.idNumber as string | null | undefined) ?? cur.idNumber,
+        taxCode: (data.taxCode as string | null | undefined) ?? cur.taxCode,
+      }
+      if (sellerIdentityHash(nextIdentity) !== cur.verifiedIdentityHash) {
+        data.verifiedIdentityHash = null
+        data.verifiedAt = null
+        data.verifiedUntil = null
+        data.verifiedBy = null
+      }
+    }
+  }
 
   // Public-facing text can't carry a phone number (same rule as listings).
   if (containsPhoneNumber(String(data.name ?? '')) || containsPhoneNumber(String(data.bio ?? ''))) {

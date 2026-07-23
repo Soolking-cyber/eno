@@ -55,6 +55,13 @@ try {
   await client.query(`create index if not exists "SellerVerification_sellerId_idx" on "SellerVerification" ("sellerId");`)
   console.log('✓ SellerVerification indexes')
 
+  // ⚠️ ONE verified badge per tax code, enforced by the DATABASE (external review): the
+  // approval-time check + stamp are two operations, so only a partial unique index makes
+  // "at most one Seller with a live verification stamp per MST" race-proof. approveVerification
+  // runs the stamp in a transaction and treats the P2002 here as duplicate_tax.
+  await client.query(`create unique index if not exists "Seller_taxCode_verified_key" on "Seller" ("taxCode") where "verifiedIdentityHash" is not null;`)
+  console.log('✓ Seller one-badge-per-tax-code partial unique index')
+
   const cols = await client.query(
     `select column_name from information_schema.columns where table_name = 'Seller' and column_name like 'verified%' order by column_name`,
   )

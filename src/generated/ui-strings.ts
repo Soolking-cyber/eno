@@ -1819,6 +1819,7 @@ export const UI_STRINGS: string[] = [
   "Your statement is in",
   "Your styled Word itinerary is ready.",
   "Your update went straight to the review team. You’ll hear back via your notifications.",
+  "Your verification no longer matches your current details (or has expired). Re-submit the two documents to verify again.",
   "a counterfeit item",
   "a duplicate listing",
   "a possible scam",

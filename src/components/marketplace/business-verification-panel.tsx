@@ -16,6 +16,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 
 type CaseStatus = 'draft' | 'pending' | 'approved' | 'rejected'
 type CaseView = { status: CaseStatus; documentKinds: string[]; submittedAt: string | null; note: string | null } | null
+type LiveView = 'unverified' | 'pending' | 'verified' | 'expired' | 'rejected' | 'changes_needed'
 
 const ERROR_COPY: Record<string, [string, string]> = {
   missing_legal_fields: ['Fill in and save your legal name, address, ID and tax code above first.', 'Hãy điền và lưu tên pháp lý, địa chỉ, số giấy tờ và mã số thuế ở trên trước.'],
@@ -31,6 +32,7 @@ const ERROR_COPY: Record<string, [string, string]> = {
 export function BusinessVerificationPanel() {
   const { tr } = useLanguage()
   const [view, setView] = useState<CaseView>(null)
+  const [live, setLive] = useState<LiveView>('unverified')
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [consent, setConsent] = useState(false)
@@ -40,7 +42,7 @@ export function BusinessVerificationPanel() {
   const load = useCallback(async () => {
     try {
       const res = await fetch('/api/seller/verification', { cache: 'no-store' })
-      if (res.ok) { const b = (await res.json()) as { case: CaseView }; setView(b.case) }
+      if (res.ok) { const b = (await res.json()) as { case: CaseView; view: LiveView }; setView(b.case); setLive(b.view ?? 'unverified') }
     } finally { setLoading(false) }
   }, [])
   useEffect(() => { void load() }, [load])
@@ -80,7 +82,11 @@ export function BusinessVerificationPanel() {
 
   if (loading) return null
 
-  const status = view?.status
+  // Drive the panel off the LIVE view (verified/pending/expired/…), not the raw case
+  // status — an approved case whose badge dropped (identity edited / expired) reads
+  // 'expired' and re-opens the upload flow rather than falsely showing "verified".
+  const isVerified = live === 'verified'
+  const isPending = live === 'pending'
   const hasId = view?.documentKinds.includes('identity')
   const hasBank = view?.documentKinds.includes('bank')
 
@@ -91,23 +97,28 @@ export function BusinessVerificationPanel() {
         <h3 className="text-sm font-bold text-foreground">{tr('Get your business verified', 'Xác minh doanh nghiệp')}</h3>
       </div>
 
-      {status === 'approved' ? (
+      {isVerified ? (
         <p className="mt-2 flex items-center gap-1.5 text-sm font-semibold text-success">
           <BadgeCheck className="h-4 w-4" /> {tr('Your business is verified.', 'Doanh nghiệp của bạn đã được xác minh.')}
         </p>
-      ) : status === 'pending' ? (
+      ) : isPending ? (
         <p className="mt-2 text-sm text-body">
           {tr('Your documents are under review. We will update this once a specialist has checked them.', 'Giấy tờ của bạn đang được xét duyệt. Chúng tôi sẽ cập nhật sau khi chuyên viên kiểm tra.')}
         </p>
       ) : (
         <>
           <p className="mt-2 text-sm leading-relaxed text-body">
-            {tr(
-              'Add two proofs and a specialist confirms them: a business or ID document, and a bank document whose account-holder name matches your legal name. Your tax code is checked automatically.',
-              'Thêm hai giấy tờ để chuyên viên xác nhận: giấy tờ kinh doanh hoặc định danh, và giấy tờ ngân hàng có tên chủ tài khoản trùng với tên pháp lý của bạn. Mã số thuế được kiểm tra tự động.',
-            )}
+            {live === 'expired'
+              ? tr(
+                'Your verification no longer matches your current details (or has expired). Re-submit the two documents to verify again.',
+                'Xác minh không còn khớp với thông tin hiện tại (hoặc đã hết hạn). Hãy gửi lại hai giấy tờ để xác minh lại.',
+              )
+              : tr(
+                'Add two proofs and a specialist confirms them: a business or ID document, and a bank document whose account-holder name matches your legal name. Your tax code is checked automatically.',
+                'Thêm hai giấy tờ để chuyên viên xác nhận: giấy tờ kinh doanh hoặc định danh, và giấy tờ ngân hàng có tên chủ tài khoản trùng với tên pháp lý của bạn. Mã số thuế được kiểm tra tự động.',
+              )}
           </p>
-          {status === 'rejected' && view?.note && (
+          {live === 'rejected' && view?.note && (
             <p className="mt-2 rounded-xl border border-warning/30 bg-warning/10 px-3 py-2 text-xs leading-relaxed text-warning">
               {tr('A specialist asked for a change:', 'Chuyên viên yêu cầu chỉnh sửa:')} {view.note}
             </p>

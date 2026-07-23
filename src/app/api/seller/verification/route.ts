@@ -3,7 +3,7 @@ import { getCurrentProfileId } from '@/lib/admin'
 import { db } from '@/lib/db'
 import { rateLimit } from '@/lib/ratelimit'
 import { VERIFICATION_CONSENT_VERSION } from '@/lib/business-verification'
-import { loadOwnVerification, submitVerification } from '@/lib/core/business-verification-service'
+import { loadOwnVerification, ownVerificationView, submitVerification } from '@/lib/core/business-verification-service'
 
 // The applicant's own verification surface.
 //   GET  → their current case status + which documents are present (no signed URLs — the
@@ -23,16 +23,19 @@ export async function GET() {
   if (!userId) return NextResponse.json({ error: 'auth_required' }, { status: 401 })
   const sellerId = await ownSellerId(userId)
   if (!sellerId) return NextResponse.json({ error: 'no_storefront' }, { status: 403 })
-  const view = await loadOwnVerification(sellerId)
+  const [caseRow, view] = await Promise.all([loadOwnVerification(sellerId), ownVerificationView(sellerId)])
   return NextResponse.json({
-    case: view
+    // The LIVE badge state (verified/expired/pending/rejected/…) — NOT the raw case status,
+    // so a badge dropped by an identity edit or expiry shows "re-verify", never stale "verified".
+    view,
+    case: caseRow
       ? {
-        status: view.status,
+        status: caseRow.status,
         // Kinds present, never the paths — the applicant never re-fetches their own docs.
-        documentKinds: [...new Set(view.documents.map((d) => d.kind))],
-        submittedAt: view.submittedAt,
-        reviewedAt: view.reviewedAt,
-        note: view.status === 'rejected' ? view.note : null,
+        documentKinds: [...new Set(caseRow.documents.map((d) => d.kind))],
+        submittedAt: caseRow.submittedAt,
+        reviewedAt: caseRow.reviewedAt,
+        note: caseRow.status === 'rejected' ? caseRow.note : null,
       }
       : null,
   })

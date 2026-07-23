@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { getAdmin } from '@/lib/admin'
-import { approveVerification, rejectVerification, type ReviewResult } from '@/lib/core/business-verification-service'
+import { approveVerification, caseHasDocument, rejectVerification, type ReviewResult } from '@/lib/core/business-verification-service'
 import { signVerificationDoc } from '@/lib/business-verification-store'
 
 // Server actions for the business-verification review. Each RE-CHECKS getAdmin() — a
@@ -37,8 +37,10 @@ export async function rejectVerificationAction(caseId: string, note: string): Pr
 export async function signVerificationDocAction(caseId: string, path: string): Promise<{ url: string } | { error: string }> {
   const admin = await getAdmin()
   if (!admin) return { error: 'not_found' }
-  // The path is namespaced <profileId>/<uuid>.<ext>; a reviewer can only reach it through
-  // this admin-gated action, and the bucket is service-role-only.
+  // ⚠️ The path MUST belong to THIS case (external review — else an admin could sign an
+  // arbitrary bucket object / another case's document; a caller-supplied path is never
+  // trusted just because the caller is an admin).
+  if (!(await caseHasDocument(caseId, path))) return { error: 'not_found' }
   const url = await signVerificationDoc(path)
   return url ? { url } : { error: 'sign_failed' }
 }
