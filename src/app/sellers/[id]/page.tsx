@@ -2,6 +2,13 @@ import { notFound, redirect } from 'next/navigation'
 import type { Metadata } from 'next'
 import { loadSeller, SellerStorefront } from '@/components/marketplace/seller-storefront'
 
+// Per-request render, like the canonical [handle] storefront (which is force-dynamic
+// on purpose). Without this the page was STATICALLY cached — no dynamic API in scope,
+// so Next froze the first render and profile edits (name/avatar/bio, presence) never
+// showed on handleless storefronts, which are exactly the ones served here
+// (handle-owners get redirected below). Owner-reported 2026-07-23.
+export const dynamic = 'force-dynamic'
+
 type Props = { params: Promise<{ id: string }> }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {

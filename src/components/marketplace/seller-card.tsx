@@ -138,7 +138,11 @@ export function SellerCard({
               // MULTIPLIED to 0.931). .press now writes `scale` from @layer components, so the
               // button's 0.97 simply wins and there is nothing left to cancel; the class would
               // now genuinely suppress the press feel on this CTA instead of being a no-op.
-              className="press flex-1 gap-1.5 py-2.5"
+              //
+              // flex-1 only on the PDP, where it splits the row with "View shop". On the
+              // storefront the button is ALONE — flex-1 stretched it edge to edge (owner
+              // 2026-07-23: "chat button too long"); content width + padding reads right.
+              className={cn('press gap-1.5 py-2.5', variant === 'pdp' ? 'flex-1' : 'px-8')}
             >
               <MessageCircle className="h-4 w-4" /> {tr('Chat now', 'Chat ngay')}
             </Button>
