@@ -2,6 +2,7 @@
 // Every static UI string in the app, warmed in one batch per language so the
 // translation swap is instant. Re-run the script when UI copy changes.
 export const UI_STRINGS: string[] = [
+  "(Vietnam time)",
   "(fixed when editing)",
   "(không đổi khi sửa)",
   "(no title)",
@@ -586,6 +587,7 @@ export const UI_STRINGS: string[] = [
   "Exceptional",
   "Exceptional — the highest tier",
   "Exit",
+  "Expected by",
   "Experience",
   "Explain what happened and attach any proof — this is your one statement.",
   "Explain what happened…",
@@ -867,7 +869,6 @@ export const UI_STRINGS: string[] = [
   "Marked as sold — congrats on the deal! 🎉",
   "Market price",
   "Marketing",
-  "Marketplace",
   "Marketplace listings",
   "Material",
   "Maternity",
@@ -1411,6 +1412,7 @@ export const UI_STRINGS: string[] = [
   "TVs",
   "Tables",
   "Take photo",
+  "Taking longer than expected — ask the desk in your chat.",
   "Talk to a person",
   "Tap the heart on any listing to save it here for later.",
   "Tap to delete all",

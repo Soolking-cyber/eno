@@ -54,7 +54,20 @@ export type VisaSpeedSpec = {
   cutoffs: string[]
   turnaround: string
   turnaroundVi: string
+  /** STRUCTURED turnaround (Phase 4, the ETA's input) — exactly ONE of the two is set.
+   *  Business-HOURS tiers spill across the end-of-day boundary; business-DAYS tiers
+   *  count the submission day as day 1 (the provider's own convention: the '2D' copy
+   *  says "the FOLLOWING afternoon", the '3D' copy "the SECOND day after"). */
+  turnaroundBusinessHours?: number
+  turnaroundBusinessDays?: number
 }
+
+/**
+ * The desk's working day, Asia/Ho_Chi_Minh wall clock — the span business-hour
+ * turnarounds are consumed inside and business-day turnarounds resolve to the END of.
+ * An operational fact like the cutoffs (which all fall inside it): code, not data.
+ */
+export const VISA_BUSINESS_HOURS = { start: '08:00', end: '17:00' } as const
 
 export const VISA_SPEED_SPECS: Record<VisaSpeedCode, VisaSpeedSpec> = {
   '1H': {
@@ -62,6 +75,7 @@ export const VISA_SPEED_SPECS: Record<VisaSpeedCode, VisaSpeedSpec> = {
     label: 'Within 1 hour',
     labelVi: 'Trong vòng 1 giờ',
     cutoffs: ['10:00', '16:00'],
+    turnaroundBusinessHours: 1,
     turnaround: 'Result within 1 hour of submission.',
     turnaroundVi: 'Có kết quả trong vòng 1 giờ sau khi nộp hồ sơ.',
   },
@@ -70,6 +84,7 @@ export const VISA_SPEED_SPECS: Record<VisaSpeedCode, VisaSpeedSpec> = {
     label: 'Within 2 hours',
     labelVi: 'Trong vòng 2 giờ',
     cutoffs: ['10:00', '15:00'],
+    turnaroundBusinessHours: 2,
     turnaround: 'Result within 2 hours of submission.',
     turnaroundVi: 'Có kết quả trong vòng 2 giờ sau khi nộp hồ sơ.',
   },
@@ -78,6 +93,7 @@ export const VISA_SPEED_SPECS: Record<VisaSpeedCode, VisaSpeedSpec> = {
     label: 'Within 4 hours',
     labelVi: 'Trong vòng 4 giờ',
     cutoffs: ['08:30', '14:30'],
+    turnaroundBusinessHours: 4,
     turnaround: 'Result within 4 hours of submission.',
     turnaroundVi: 'Có kết quả trong vòng 4 giờ sau khi nộp hồ sơ.',
   },
@@ -87,6 +103,7 @@ export const VISA_SPEED_SPECS: Record<VisaSpeedCode, VisaSpeedSpec> = {
     labelVi: '1 ngày làm việc',
     // The grid words these as "morning before 09:00, afternoon before 13:00".
     cutoffs: ['09:00', '13:00'],
+    turnaroundBusinessDays: 1,
     turnaround: 'Result within one working day of submission.',
     turnaroundVi: 'Có kết quả trong vòng một ngày làm việc sau khi nộp hồ sơ.',
   },
@@ -95,6 +112,7 @@ export const VISA_SPEED_SPECS: Record<VisaSpeedCode, VisaSpeedSpec> = {
     label: '2 working days',
     labelVi: '2 ngày làm việc',
     cutoffs: ['15:30'],
+    turnaroundBusinessDays: 2,
     turnaround: 'Submitted before 15:30 — result the following afternoon.',
     turnaroundVi: 'Nộp trước 15:30 — có kết quả vào chiều hôm sau.',
   },
@@ -103,6 +121,7 @@ export const VISA_SPEED_SPECS: Record<VisaSpeedCode, VisaSpeedSpec> = {
     label: '3 working days',
     labelVi: '3 ngày làm việc',
     cutoffs: ['15:30'],
+    turnaroundBusinessDays: 3,
     turnaround: 'Submitted before 15:30 — result on the afternoon of the second day after submission.',
     turnaroundVi: 'Nộp trước 15:30 — có kết quả vào chiều ngày thứ hai sau khi nộp hồ sơ.',
   },
@@ -111,6 +130,7 @@ export const VISA_SPEED_SPECS: Record<VisaSpeedCode, VisaSpeedSpec> = {
     label: 'Standard',
     labelVi: 'Tiêu chuẩn',
     cutoffs: [],
+    turnaroundBusinessDays: 5,
     turnaround: 'Standard processing — submit at any time, no daily cutoff.',
     turnaroundVi: 'Xử lý tiêu chuẩn — nộp bất cứ lúc nào, không có giờ chốt.',
   },
@@ -261,6 +281,18 @@ export function submissionWindow(code: VisaSpeedCode, now: Date): VisaWindow {
     nextOpensIso: new Date(utcMsForWallClock(today.year, today.month, today.day + 1, 0, 0)).toISOString(),
   }
 }
+
+// ── Wall-clock helpers, exported for ./eta.ts (Phase 4) ────────────────────────────
+// The ETA needs exactly this module's TZ discipline; re-implementing the two-pass
+// offset fix there would be a second copy of subtle code waiting to drift. Aliased with
+// an hcm- prefix so the import site says which wall these numbers are on.
+
+/** The Ho-Chi-Minh-City wall clock at an instant — see wallClockAt. */
+export const hcmWallClockAt = wallClockAt
+/** The UTC instant (ms) of an HCM wall-clock time — see utcMsForWallClock. `day` may
+ *  overflow its month; Date.UTC normalises (the roll-to-tomorrow behaviour). */
+export const hcmUtcMsForWallClock = utcMsForWallClock
+export type HcmWallClock = WallClock
 
 // ── Defensive parsers (the shop's `attributes` blob is admin-typed JSON) ───────────
 

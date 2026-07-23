@@ -34,7 +34,11 @@ describe('the speed tier table', () => {
       expect(spec.turnaroundVi.length).toBeGreaterThan(0)
       // The tier carries operational facts ONLY — a price on it would be a second source
       // of truth beside Listing.price.
-      expect(Object.keys(spec).sort()).toEqual(['code', 'cutoffs', 'label', 'labelVi', 'turnaround', 'turnaroundVi'])
+      // Exactly ONE structured turnaround (Phase 4's ETA input) — still an operational
+      // fact, still no price. The key pin keeps refusing any money-shaped field.
+      const structured = spec.turnaroundBusinessHours !== undefined ? 'turnaroundBusinessHours' : 'turnaroundBusinessDays'
+      expect(spec.turnaroundBusinessHours !== undefined && spec.turnaroundBusinessDays !== undefined).toBe(false)
+      expect(Object.keys(spec).sort()).toEqual(['code', 'cutoffs', 'label', 'labelVi', structured, 'turnaround', 'turnaroundVi'].sort())
     }
   })
 

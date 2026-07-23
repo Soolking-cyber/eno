@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Check, Download, FileCheck2, Loader2, LockKeyhole, MessagesSquare, ShieldCheck, Stamp, Trash2 } from 'lucide-react'
+import { Check, Clock, Download, FileCheck2, Loader2, LockKeyhole, MessagesSquare, ShieldCheck, Stamp, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useAuth } from '@/context/auth-context'
 import { useDashboard } from '@/hooks/use-dashboard'
@@ -17,7 +17,9 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { EmptyState } from '@/components/ui/empty-state'
 import { Spinner } from '@/components/ui/spinner'
 import { SectionHeader } from '@/components/marketplace/section-header'
-import { VisaStart } from '@/components/marketplace/visa-start'
+import { useMinuteTick, VisaStart } from '@/components/marketplace/visa-start'
+import { expectedVisaReadyAt } from '@/lib/visa/eta'
+import { parseVisaSpeedCode } from '@/lib/visa/speed'
 
 // ── /dashboard/visa — YOUR e-VISA CASES: MANAGEMENT ONLY (Phase 3). ────────────────
 //
@@ -54,6 +56,8 @@ type VisaApplication = {
   status: string
   /** The human case number (`EV-1042`), or null for cases predating the column. */
   reference?: string | null
+  /** The canonical product choice's speed tier (Phase 2) — the ETA's input. */
+  selectedSpeed?: string | null
   payload?: VisaPayload
   paidAt: string | null
   createdAt: string
@@ -146,6 +150,54 @@ function Consent({ checked, onChange, children }: { checked: boolean; onChange: 
 /** `EV-1042`, or the id stub for a case that predates the reference column. */
 const caseLabel = (item: VisaApplication) => item.reference || item.id.slice(0, 8)
 
+// ── The delivery promise (Phase 4) ──────────────────────────────────────────────────
+// Shown ONLY while the case is with the DESK and the fee is PAID (external review: a
+// confirmed-but-unpaid case bought nothing, and `applicant_approval` is blocked on the
+// TRAVELLER — a countdown there would blame the desk for the applicant's own wait).
+const ETA_STATUSES = new Set(['ready_for_review', 'under_review', 'ready_to_submit', 'processing', 'submitted'])
+
+/** "Mon, 27 Jul, 08:45" on the Vietnamese wall clock, whatever zone the viewer is in. */
+const hcmPromise = (instant: Date, lang: string) =>
+  new Intl.DateTimeFormat(lang === 'vi' ? 'vi-VN' : 'en-GB', {
+    timeZone: 'Asia/Ho_Chi_Minh', weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false,
+  }).format(instant)
+
+/** Coarse honest remainder — "about 3 h" / "about 2 days"; null once under a minute. */
+function remainingCopy(ms: number, tr: Tr): string | null {
+  if (ms < 60_000) return null
+  if (ms < 3_600_000) return tr(`about ${Math.round(ms / 60_000)} min left`, `còn khoảng ${Math.round(ms / 60_000)} phút`)
+  if (ms < 48 * 3_600_000) return tr(`about ${Math.round(ms / 3_600_000)} h left`, `còn khoảng ${Math.round(ms / 3_600_000)} giờ`)
+  return tr(`about ${Math.round(ms / 86_400_000)} days left`, `còn khoảng ${Math.round(ms / 86_400_000)} ngày`)
+}
+
+/** The case's promise line, or null when no honest one exists (fails closed with eta.ts). */
+function CaseEta({ item, now, lang, tr }: { item: VisaApplication; now: Date | null; lang: string; tr: Tr }) {
+  if (!now || !item.paidAt || !ETA_STATUSES.has(item.status)) return null
+  const speed = parseVisaSpeedCode(item.selectedSpeed)
+  if (!speed) return null
+  const readyAt = expectedVisaReadyAt({ startedAt: item.paidAt, speed })
+  if (!readyAt) return null
+  const remaining = readyAt.getTime() - now.getTime()
+  if (remaining <= 0) {
+    // The first promise was missed. No silent re-promise — the desk owns that
+    // conversation, and the row's "Request an update" is one tap away.
+    return (
+      <p className="mt-1.5 flex items-center gap-1.5 text-xs text-warning">
+        <Clock className="h-3.5 w-3.5 shrink-0" aria-hidden />
+        {tr('Taking longer than expected — ask the desk in your chat.', 'Lâu hơn dự kiến — hãy hỏi bộ phận hỗ trợ trong chat.')}
+      </p>
+    )
+  }
+  const left = remainingCopy(remaining, tr)
+  return (
+    <p className="mt-1.5 flex items-center gap-1.5 text-xs text-body">
+      <Clock className="h-3.5 w-3.5 shrink-0 text-accent-foreground" aria-hidden />
+      {tr('Expected by', 'Dự kiến trước')} {hcmPromise(readyAt, lang)} {tr('(Vietnam time)', '(giờ Việt Nam)')}
+      {left ? <span className="text-ink-4">· {left}</span> : null}
+    </p>
+  )
+}
+
 // ── The customer-facing timeline ────────────────────────────────────────────────────
 // visa_events is an INTERNAL audit log — its raw codes ("dm_card_resent",
 // "dm_product_selected", "dm_concierge_answered") leaked to the applicant as
@@ -177,7 +229,7 @@ const VISA_MILESTONES: Record<string, { key: string; en: string; vi: string }> =
  * exists, deletion. `detailFor` marks the case whose attention blocks (admin message /
  * final authorization / timeline) render below the list — the row says so.
  */
-function CaseRow({ item, conversationId, deskThreadId, isDetail, busy, tr, onDownload, onDelete }: {
+function CaseRow({ item, conversationId, deskThreadId, isDetail, busy, now, lang, tr, onDownload, onDelete }: {
   item: VisaApplication
   conversationId: string | undefined
   /** ANY thread of the viewer's — there is exactly ONE buyer↔desk conversation (cases
@@ -185,6 +237,10 @@ function CaseRow({ item, conversationId, deskThreadId, isDetail, busy, tr, onDow
   deskThreadId: string | undefined
   isDetail: boolean
   busy: boolean
+  /** Minute tick — null until the first client tick, so the promise line never asserts
+   *  during SSR/hydration (the useMinuteTick contract). */
+  now: Date | null
+  lang: string
   tr: Tr
   onDownload: (item: VisaApplication) => void
   onDelete: (item: VisaApplication) => void
@@ -207,6 +263,7 @@ function CaseRow({ item, conversationId, deskThreadId, isDetail, busy, tr, onDow
       </div>
       <p className="mt-2 text-sm font-semibold text-foreground">{copy.title}</p>
       <p className="mt-1 text-xs leading-relaxed text-body">{copy.detail}</p>
+      <CaseEta item={item} now={now} lang={lang} tr={tr} />
       <p className="mt-1.5 text-xs text-ink-4">
         {tr('Updated', 'Cập nhật')} {new Date(item.updatedAt).toLocaleDateString()} · {item.documents.length} {tr('documents', 'tài liệu')}
         {isDetail && <> · {tr('details below', 'chi tiết bên dưới')}</>}
@@ -253,9 +310,11 @@ export function VisaCasesClient({ threads }: {
    *  re-binds the newest editable draft. */
   threads: Record<string, string>
 }) {
-  const { tr } = useLanguage()
+  const { tr, lang } = useLanguage()
   const { user, loading: authLoading } = useAuth()
   const { refresh: refreshDashboard } = useDashboard()
+  // One minute tick for every row's promise line — never an interval per row.
+  const now = useMinuteTick()
   const router = useRouter()
   const search = useSearchParams()
   const [application, setApplication] = useState<VisaApplication | null>(null)
@@ -515,6 +574,8 @@ export function VisaCasesClient({ threads }: {
               deskThreadId={Object.values(threads)[0]}
               isDetail={!!application && item.id === application.id && (item.status === 'applicant_approval' || !!adminMessage)}
               busy={busy}
+              now={now}
+              lang={lang}
               tr={tr}
               onDownload={(target) => void downloadResult(target)}
               onDelete={setDeleteTarget}
