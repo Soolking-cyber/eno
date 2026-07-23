@@ -194,16 +194,19 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
             body: JSON.stringify({ texts, target: lang }),
           })
             .then((r) => (r.ok ? r.json() : null))
-            .then((d) => (d && Array.isArray(d.translations) ? (d.translations as string[]) : null))
+            // A partial answer (the route's degraded rate-limited path) seeds the UI but
+            // must not be PERSISTED: under the current cache key a 99%-complete dict
+            // would freeze its English stragglers until the harvest hash next changes.
+            .then((d) => (d && Array.isArray(d.translations) ? { translations: d.translations as string[], partial: d.partial === true } : null))
             .catch(() => null),
         ),
       ).then((results) => {
         if (cancelled) return
         const map: Record<string, string> = {}
         let anyFail = false
-        results.forEach((translations, ci) => {
-          if (!translations) anyFail = true
-          chunks[ci].forEach((s, i) => { map[s] = translations ? (translations[i] ?? s) : s })
+        results.forEach((res, ci) => {
+          if (!res || res.partial) anyFail = true
+          chunks[ci].forEach((s, i) => { map[s] = res ? (res.translations[i] ?? s) : s })
         })
         seedFromMap(lang, map)
         // Cache only a COMPLETE, actually-translated dictionary — never persist a

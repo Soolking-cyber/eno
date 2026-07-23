@@ -157,7 +157,7 @@ async function translateChunk(chunk: string[], target: Lang): Promise<string[] |
  * duplicates. Results are cached in the DB so the same source string is never
  * re-translated. If AZURE_TRANSLATOR_KEY is missing, returns inputs as-is.
  */
-export async function translateBatch(texts: string[], target: Lang): Promise<string[]> {
+export async function translateBatch(texts: string[], target: Lang, opts?: { cachedOnly?: boolean }): Promise<string[]> {
   // Collect the unique, non-trivial strings that actually need translating.
   const uniq = Array.from(new Set(texts.filter((t) => t && t.trim().length > 0)))
   const out = new Map<string, string>() // source text -> translated
@@ -177,7 +177,11 @@ export async function translateBatch(texts: string[], target: Lang): Promise<str
 
   // 2) Translate the misses via Azure (if configured), else passthrough.
   if (misses.length > 0) {
-    if (!GOOGLE_KEY && !AZURE_KEY) {
+    // cachedOnly = the route's degrade path (rate-limited/budget-exhausted caller):
+    // serve the free cache hits, pass misses through as source, call NO provider.
+    if (opts?.cachedOnly) {
+      for (const t of misses) out.set(t, t)
+    } else if (!GOOGLE_KEY && !AZURE_KEY) {
       if (!warnedNoKey) {
         console.warn('[translate] no provider configured (set GOOGLE_TRANSLATE_API_KEY) — returning source text untranslated.')
         warnedNoKey = true

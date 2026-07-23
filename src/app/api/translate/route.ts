@@ -62,10 +62,17 @@ export async function POST(req: Request) {
       // single IP). Real users trigger at most a couple of misses per page; cache hits below
       // stay unlimited so the translated UI never throttles.
       const rl = await rateLimit('translate', ip, 6, '1 m', { strict: true })
-      if (!rl.success) return NextResponse.json({ error: 'rate_limited' }, { status: 429 })
-      // Global daily spend ceiling across ALL IPs.
-      if (!(await chargeCharBudget(newChars))) {
-        return NextResponse.json({ error: 'budget_exhausted' }, { status: 429 })
+      // Budget only charged when the limiter passed (&& short-circuits).
+      const allowed = rl.success && (await chargeCharBudget(newChars))
+      if (!allowed) {
+        // DEGRADE, never refuse (owner report 2026-07-23): a 429 here used to blank a
+        // whole 100-string UI-dictionary chunk to English — ONE unwarmed string made
+        // the chunk billable, and the free cache hits died with the refusal. Serve the
+        // hits + source passthrough for the misses: spends nothing (no provider call),
+        // and partial:true tells the client to seed but NOT persist, so the dict
+        // self-heals once the nightly warm covers the new strings.
+        const translations = await translateBatch(list, target as Lang, { cachedOnly: true })
+        return NextResponse.json({ translations, partial: true })
       }
     }
 
