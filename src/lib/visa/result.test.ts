@@ -58,6 +58,8 @@ const h = vi.hoisted(() => {
         id: 'convo-1', buyerProfileId: 'applicant-1', sellerProfileId: 'shop-owner-1',
         listingId: 'listing-1', visaApplicationId: application.id,
       } as Record<string, unknown> | null,
+      /** The case's immutable conversation_id link. 'convo-1' = linked; null = no link yet. */
+      conversationIdCol: 'convo-1' as string | null,
       // counters — the "nothing happened" proof
       caseLoads: 0,
       docLookups: 0,
@@ -105,9 +107,27 @@ vi.mock('@/lib/visa/storage', () => ({
 }))
 vi.mock('@/lib/db', () => ({
   db: {
-    conversation: { findUnique: async () => h.state.conversation },
+    conversation: {
+      // Honours the WHERE clause so the two resolution paths are told apart: lookup BY ID is
+      // the immutable-conversation_id path, lookup BY visaApplicationId is the live-binding
+      // fallback. Modelling one conversation row honestly is the whole point of the stranding
+      // tests — a rebound row's id still matches while its live binding no longer does.
+      findUnique: async ({ where }: { where?: { id?: string; visaApplicationId?: string } }) => {
+        const c = h.state.conversation as (Record<string, unknown> & { id?: string; visaApplicationId?: string | null }) | null
+        if (!c) return null
+        if (where?.id !== undefined) return where.id === c.id ? c : null
+        if (where?.visaApplicationId !== undefined) return where.visaApplicationId === c.visaApplicationId ? c : null
+        return c
+      },
+    },
     profile: { findUnique: async () => ({ locale: 'en' }) },
   },
+}))
+// The immutable case↔thread link (visa_applications.conversation_id) that result delivery
+// resolves the thread through. dm-thread is mocked so its Supabase read is not pulled in here;
+// its own suite proves the real column read. null models a case that has no link yet.
+vi.mock('@/lib/visa/dm-thread', () => ({
+  visaConversationIdFor: async () => h.state.conversationIdCol,
 }))
 vi.mock('@/lib/messages', () => ({
   insertMessage: async (convo: { id: string }, senderId: string, _body: string, opts?: { kind?: string; meta?: unknown; preview?: string }) => {
@@ -216,6 +236,7 @@ beforeEach(() => {
     id: 'convo-1', buyerProfileId: 'applicant-1', sellerProfileId: 'shop-owner-1',
     listingId: 'listing-1', visaApplicationId: APP_ID,
   }
+  s.conversationIdCol = 'convo-1'
   s.caseLoads = 0
   s.docLookups = 0
   s.uploads = []
@@ -430,6 +451,59 @@ describe('upload route — delivery', () => {
     expect(h.state.deletes.some((d) => d.table === 'visa_documents')).toBe(true)
     // …and the object does not linger in the bucket.
     expect(h.state.removed.length).toBe(1)
+  })
+
+  // ── THE STRANDING FIX (immutable case↔thread link) ────────────────────────────────
+  // One buyer↔desk conversation is rebound from case to case, so the LIVE binding
+  // (Conversation.visaApplicationId) names only the case in flight. A repeat applicant who
+  // starts case B while case A is still processing moves that pointer to B. Result delivery
+  // must still reach case A's thread — through visa_applications.conversation_id, the handle
+  // that was stamped once and never rebinds.
+  it('delivers a result to the IMMUTABLE conversation even after the thread was rebound to a later case', async () => {
+    // The shared thread's LIVE binding now names case B, not this case…
+    h.state.conversation = {
+      id: 'convo-1', buyerProfileId: 'applicant-1', sellerProfileId: 'shop-owner-1',
+      listingId: 'listing-1', visaApplicationId: 'a-later-case-id',
+    }
+    // …but this case's immutable link still points at convo-1.
+    h.state.conversationIdCol = 'convo-1'
+    const res = await POST(uploadRequest(pdf('the visa')), params())
+    expect(res.status).toBe(201)
+    expect(await res.json()).toMatchObject({ card: 'posted' })
+    // The card landed in the immutable thread, authored as the shop — even though the live
+    // pointer had moved on. (insertMessage is mocked here; its own atomic binding guard, which
+    // still keys on the live pointer, is the companion messages.ts fix noted in the handoff.)
+    expect(h.state.cards).toHaveLength(1)
+    expect(h.state.cards[0].senderId).toBe('shop-owner-1')
+    expect(h.state.cards[0].kind).toBe('visa_result')
+  })
+
+  it('WITHOUT the immutable link, a rebound case cannot be delivered — the stranding bug', async () => {
+    // The pre-fix world: the case has no conversation_id, so delivery falls back to the live
+    // binding — which now names a later case. The thread is not found, the route treats that as
+    // "not delivered", and undoes the upload. This is exactly the failure the immutable link fixes.
+    h.state.conversation = {
+      id: 'convo-1', buyerProfileId: 'applicant-1', sellerProfileId: 'shop-owner-1',
+      listingId: 'listing-1', visaApplicationId: 'a-later-case-id',
+    }
+    h.state.conversationIdCol = null
+    const res = await POST(uploadRequest(pdf()), params())
+    expect(res.status).toBe(503)
+    expect(await res.json()).toMatchObject({ error: 'result_not_delivered' })
+    expect(h.state.cards).toEqual([])
+    // The cap is un-spent: the row and the object are rolled back so the desk can retry.
+    expect(h.state.deletes.some((d) => d.table === 'visa_documents')).toBe(true)
+    expect(h.state.removed).toHaveLength(1)
+  })
+
+  it('falls back to the live binding for a legacy case that has no link but is still bound', async () => {
+    // conversation_id null, but the live binding still names THIS case (never rebound): the
+    // fallback finds it and delivery proceeds. Fallback is correct here, just not for a rebind.
+    h.state.conversationIdCol = null
+    // Default conversation.visaApplicationId is APP_ID (see beforeEach) — still bound to us.
+    const res = await POST(uploadRequest(pdf()), params())
+    expect(res.status).toBe(201)
+    expect(h.state.cards).toHaveLength(1)
   })
 
   it('still answers 201 when only the EMAIL failed — the card is the route that matters', async () => {

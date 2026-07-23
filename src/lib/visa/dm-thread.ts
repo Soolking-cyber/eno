@@ -85,11 +85,68 @@ const MODE_FOR_EVENT: Record<string, VisaThreadMode> = {
 const MODE_EVENT_NAMES = Object.keys(MODE_FOR_EVENT)
 
 /**
+ * The IMMUTABLE conversation this case is linked to (visa_applications.conversation_id),
+ * or null. Written ONCE at bind time (stampVisaConversationId) and never rebound, so —
+ * unlike Conversation.visaApplicationId, which a later case takes over — it still resolves
+ * for a case a subsequent case took the live pointer away from. Null for a case that
+ * predates the column (backfill could not resolve it) or has never bound to a thread.
+ *
+ * FAIL-SOFT to null: a Supabase hiccup must let a caller degrade to its live-binding
+ * fallback, never throw in the middle of delivering a result.
+ */
+export async function visaConversationIdFor(applicationId: string): Promise<string | null> {
+  if (!UUID_RE.test(applicationId)) return null
+  // ⚠️ null MEANS "no link", and NOTHING ELSE. A genuine null (unstamped case) and a lookup
+  // ERROR must not collapse into the same value (external review, GPT-5.6 2026-07-23): callers
+  // decide real behaviour off this — the card guard treats non-null as authoritative, and result
+  // delivery falls back to the live binding only on a TRUE null. If a Supabase hiccup returned
+  // null-on-error, a transient failure would silently refuse a legitimate card, or misroute a
+  // finished visa to the wrong thread and undo the upload. So an error THROWS; the caller may
+  // fail loud (retryable) but never acts on a wrong answer.
+  const { data, error } = await getVisaDb()
+    .from('visa_applications').select('conversation_id').eq('id', applicationId).maybeSingle()
+  if (error) { console.error('[visa-dm] conversation_id lookup failed', error.code); throw new Error('visa_conversation_lookup_failed') }
+  const value = (data as { conversation_id?: string | null } | null)?.conversation_id
+  return typeof value === 'string' && value.trim() ? value : null
+}
+
+/**
+ * Stamp visa_applications.conversation_id ONCE, so this case keeps a stable handle to the
+ * thread its cards live in even after a later case rebinds Conversation.visaApplicationId.
+ *
+ * ⚠️ WRITE-ONCE THROUGH THIS HELPER (not a DB-level immutability trigger — external review was
+ * right to flag the earlier "the database enforces it" as overstated). The `is('conversation_id',
+ * null)` predicate means a row that already carries a link is matched by NOTHING here, so the
+ * FIRST thread a case binds to is the one it keeps, and a concurrent second bind through this
+ * path can only no-op. A different service-role query COULD still overwrite it — there is no FK
+ * or trigger — so treat the column as append-only by convention and never write it elsewhere.
+ * FAIL-SOFT by contract: the bind has already succeeded and every live-binding path still works,
+ * so a failed stamp is logged and swallowed — it must never fail the bind. (The residual: a bind
+ * whose stamp failed leaves the case on the live-binding fallback until the next stamp attempt.)
+ */
+async function stampVisaConversationId(applicationId: string, conversationId: string): Promise<void> {
+  try {
+    const { error } = await getVisaDb()
+      .from('visa_applications')
+      .update({ conversation_id: conversationId })
+      .eq('id', applicationId)
+      .is('conversation_id', null)
+    if (error) throw error
+  } catch (e) {
+    console.error('[visa-dm] conversation_id stamp failed (bind unaffected)', e)
+  }
+}
+
+/**
  * Create-or-reuse the buyer↔visa-shop thread and bind it to this case.
  *
  * `created` describes the CONVERSATION, not the binding: a repeat applicant reuses the
  * thread they already have with the visa desk (the one-thread-per-buyer↔seller rule from
  * /api/conversations) and gets created:false while their new case is bound to it.
+ *
+ * SIDE EFFECT: on every success path it stamps visa_applications.conversation_id with the
+ * resolved conversation (once — see stampVisaConversationId), so the case retains an
+ * immutable handle to its thread. That stamp is fail-soft and never changes the bind result.
  */
 export async function bindVisaThread(input: { applicationId: string; buyerProfileId: string }): Promise<
   | { ok: true; conversationId: string; created: boolean }
@@ -129,6 +186,8 @@ export async function bindVisaThread(input: { applicationId: string; buyerProfil
     // The case belongs to this buyer (checked above) but its thread does not — corrupt
     // state we must not "repair" by moving the binding under another user's messages.
     if (bound.buyerProfileId !== buyerProfileId) return { ok: false, error: 'thread_conflict' }
+    // Heal the immutable link if this case predates the column (no-op once set).
+    await stampVisaConversationId(applicationId, bound.id)
     return { ok: true, conversationId: bound.id, created: false }
   }
 
@@ -191,6 +250,11 @@ export async function bindVisaThread(input: { applicationId: string; buyerProfil
     console.error('[visa-dm] bind failed', e)
     return { ok: false, error: 'thread_conflict' }
   }
+  // ── THE IMMUTABLE LINK ────────────────────────────────────────────────────────────
+  // The binding is committed; now record the case's permanent handle to this thread. Set
+  // once, never overwritten, so once a later case rebinds the live pointer this column is
+  // still how case A finds the thread its cards (result PDF included) live in.
+  await stampVisaConversationId(applicationId, conversationId)
   return { ok: true, conversationId, created }
 }
 
@@ -205,6 +269,47 @@ export async function findVisaThread(applicationId: string): Promise<VisaThreadR
   // it is not a usable visa thread.
   if (!convo?.sellerProfileId) return null
   return { conversationId: convo.id, buyerProfileId: convo.buyerProfileId, sellerProfileId: convo.sellerProfileId }
+}
+
+export type VisaThreadResolution = VisaThreadRef & {
+  /** Which handle answered — 'immutable' via conversation_id, 'live' via the binding fallback. */
+  source: 'immutable' | 'live'
+}
+
+/**
+ * The thread a case's cards live in, resolved through the IMMUTABLE conversation_id first
+ * and through Conversation.visaApplicationId (the live binding) only when that column is
+ * NULL. This is the read that survives a rebind: findVisaThread answers null for a case a
+ * later case took the live pointer from, but its conversation_id still names the thread.
+ *
+ * `source` reports which handle answered so a caller can log the fallback ("resolved by the
+ * live binding" is the pre-immutable-link path and cannot reach a rebound case).
+ *
+ * ⚠️ A NON-NULL LINK IS AUTHORITATIVE. When conversation_id is set but resolves to no usable
+ * desk thread (a vanished conversation, or one whose seller is unclaimed) this returns null
+ * rather than falling through to the live binding — a link that points nowhere is corrupt
+ * state, not a signal to try the very pointer the link exists to replace. The fallback is
+ * reserved strictly for a NULL link. Tolerates a null link everywhere: a case may genuinely
+ * have no thread, and the answer is simply null.
+ */
+export async function findVisaThreadByCase(applicationId: string): Promise<VisaThreadResolution | null> {
+  if (!UUID_RE.test(applicationId)) return null
+  const conversationId = await visaConversationIdFor(applicationId)
+  if (conversationId) {
+    const convo = await db.conversation.findUnique({
+      where: { id: conversationId },
+      select: { id: true, buyerProfileId: true, sellerProfileId: true },
+    })
+    if (!convo?.sellerProfileId) return null
+    return {
+      conversationId: convo.id,
+      buyerProfileId: convo.buyerProfileId,
+      sellerProfileId: convo.sellerProfileId,
+      source: 'immutable',
+    }
+  }
+  const live = await findVisaThread(applicationId)
+  return live ? { ...live, source: 'live' } : null
 }
 
 /**

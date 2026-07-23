@@ -27,6 +27,13 @@ export type VisaApplicationRow = {
   /** The human case number (EV-1042). Assigned once by a DB default, never edited — it is
    *  what the desk reads down a phone line and what names the handover pack. */
   reference: string
+  // Phase-1 redesign (scripts/visa-case-conversation-cols.mjs). conversation_id = the IMMUTABLE
+  // thread this case's cards live in (set once, never rebound — fixes result-delivery stranding).
+  // selected_* = the CANONICAL product choice (what checkout charges; frozen at pay), not just
+  // the dm_product_selected audit event. All nullable: an older/orphan case may carry none.
+  conversation_id: string | null
+  selected_listing_id: string | null; selected_entry_type: string | null
+  selected_speed: string | null; selected_at: string | null
   applicant_snapshot_hash: string | null; authorization_version: string | null; authorized_at: string | null
   authorization_snapshot_hash: string | null; assigned_admin: string | null
   submitted_at: string | null; resolved_at: string | null; retention_until: string | null
@@ -72,7 +79,7 @@ function visaDb(): SupabaseClient | null {
  *  200 × encrypted_payload was the page's dominant transfer weight (audit §G). */
 export type VisaQueueRow = Omit<VisaApplicationRow, 'encrypted_payload'>
 const QUEUE_COLUMNS =
-  'id,user_id,status,reference,checklist,applicant_confirmation_version,applicant_confirmed_at,applicant_snapshot_hash,authorization_version,authorized_at,authorization_snapshot_hash,assigned_admin,submitted_at,resolved_at,retention_until,paid_at,payment_provider,payment_ref,created_at,updated_at'
+  'id,user_id,status,reference,conversation_id,selected_listing_id,selected_entry_type,selected_speed,selected_at,checklist,applicant_confirmation_version,applicant_confirmed_at,applicant_snapshot_hash,authorization_version,authorized_at,authorization_snapshot_hash,assigned_admin,submitted_at,resolved_at,retention_until,paid_at,payment_provider,payment_ref,created_at,updated_at'
 
 export type VisaQueueData = { applications: VisaQueueRow[]; documents: VisaDocumentRow[] }
 

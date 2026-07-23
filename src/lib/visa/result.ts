@@ -8,6 +8,7 @@ import { VISA_BUCKET } from '@/lib/visa-admin'
 import { getVisaShopSeller } from '@/lib/visa-shop'
 import { decryptVisaPayload, visaCryptoReady } from './crypto'
 import { getVisaDb } from './db'
+import { visaConversationIdFor } from './dm-thread'
 import { removeVisaFiles } from './storage'
 import { normalizeVisaReference } from './reference'
 
@@ -216,15 +217,63 @@ export async function insertVisaResultDocument(applicationId: string, stored: St
   return { ok: false, error: 'insert_failed' }
 }
 
+/** The conversation columns insertMessage needs (ConvoForSend) plus the binding it validates. */
+const RESULT_THREAD_SELECT = {
+  id: true, buyerProfileId: true, sellerProfileId: true, listingId: true, visaApplicationId: true,
+} as const
+
+type ResultThread = {
+  id: string
+  buyerProfileId: string
+  sellerProfileId: string | null
+  listingId: string
+  visaApplicationId: string | null
+}
+
+/**
+ * The thread this case's result card belongs in, resolved through the IMMUTABLE
+ * visa_applications.conversation_id — NOT through Conversation.visaApplicationId.
+ *
+ * ⚠️ THIS IS THE STRANDING FIX. One buyer↔desk conversation is rebound from case to case, so
+ * the live binding names only the case in flight. A repeat applicant who starts case B while
+ * case A is still processing moves that pointer to B; looking case A's thread up by the live
+ * binding then returns nothing, the result route treats "no thread" as "not delivered", and
+ * DELETES the freshly uploaded PDF — case A's paid-for visa vanishes. conversation_id is the
+ * handle that survives: set once at bind time, never rebound, so case A still finds the thread
+ * its cards live in.
+ *
+ * Falls back to the live binding ONLY when conversation_id is null (a case that predates the
+ * column, or one that never bound) — and SAYS SO in the log, because a delivery riding the
+ * live pointer is exactly the pre-fix path that cannot reach a rebound case. A non-null link
+ * is authoritative and never falls through.
+ */
+async function resolveVisaResultThread(applicationId: string): Promise<ResultThread | null> {
+  const conversationId = await visaConversationIdFor(applicationId)
+  if (conversationId) {
+    return (await db.conversation.findUnique({ where: { id: conversationId }, select: RESULT_THREAD_SELECT })) ?? null
+  }
+  // No immutable link: the live binding is the only handle left, and it cannot reach a case a
+  // later case rebound away. Named out loud so an operator can tell the fallback happened.
+  console.warn('[visa-result] case has no conversation_id — resolving the thread by the live binding')
+  return (await db.conversation.findUnique({ where: { visaApplicationId: applicationId }, select: RESULT_THREAD_SELECT })) ?? null
+}
+
 /**
  * Announce the finished visa in the applicant's own thread.
  *
  * ⚠️ AUTHORED AS THE SHOP, AND THERE IS NO SENDER ARGUMENT — the same rule
  * src/lib/visa/dm-thread.ts states for every other visa card, re-asserted here rather than
- * inherited: the sender is resolved server-side from the storefront row, the conversation
- * must be one of the desk's own, and it must still be bound to THIS case. (It lives in this
- * module rather than in dm-thread.ts only because the result feature owns its own file; the
- * four authoring gates that actually enforce this are in src/lib/messages.ts, unchanged.)
+ * inherited: the sender is resolved server-side from the storefront row, and the conversation
+ * must be one of the desk's own. The thread is now resolved by the IMMUTABLE conversation_id
+ * (resolveVisaResultThread), not the live binding, so case A's result reaches case A's thread
+ * even after case B rebinds the live pointer. The four authoring gates are in
+ * src/lib/messages.ts, unchanged.
+ *
+ * insertMessage's binding guard now ACCEPTS the immutable link too (src/lib/messages.ts
+ * buildCardMeta: the immutable link is authoritative, the live pointer only a fallback for a
+ * case with no link), so a card for a REBOUND case is no longer refused there. Resolving the
+ * right thread here + accepting it there together close the stranding bug end to end
+ * (companion fixes, external review 2026-07-23).
  *
  * NO MODE GATE, deliberately: unlike a wizard step card, this is not the assistant talking
  * over a human. An admin who has taken the thread over is the very person who just uploaded
@@ -245,10 +294,7 @@ export async function sendVisaResultCard(input: {
     if (!shop?.ownerId) return null
     const senderId = shop.ownerId
 
-    const convo = await db.conversation.findUnique({
-      where: { visaApplicationId: input.applicationId },
-      select: { id: true, buyerProfileId: true, sellerProfileId: true, listingId: true, visaApplicationId: true },
-    })
+    const convo = await resolveVisaResultThread(input.applicationId)
     if (!convo || convo.sellerProfileId !== senderId) return null
 
     const reference = normalizeVisaReference(input.reference)

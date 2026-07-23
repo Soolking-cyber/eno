@@ -29,9 +29,11 @@ const h = vi.hoisted(() => ({
   state: {
     shop: null as null | { id: string; name: string; ownerId: string | null },
     products: [] as Array<{ id: string }>,
-    /** visa_applications, by id. Absent = no row. */
-    applications: {} as Record<string, { user_id: string | null; paid_at: string | null }>,
+    /** visa_applications, by id. Absent = no row. conversation_id is the immutable link. */
+    applications: {} as Record<string, { user_id: string | null; paid_at: string | null; conversation_id?: string | null }>,
     applicationError: null as unknown,
+    /** Fault injection for the conversation_id stamp only (leaves the ownership read intact). */
+    stampError: null as unknown,
     events: [] as Array<{ event: string }>,
     eventsError: null as unknown,
     /** THE Conversation TABLE. */
@@ -202,13 +204,37 @@ vi.mock('./db', () => ({
       if (table === 'visa_applications') {
         let columns = ''
         let id = ''
+        let updateData: Record<string, unknown> | null = null
+        let requireConvNull = false
         const chain: any = {
           select: (cols: string) => { columns = cols; return chain },
+          update: (data: Record<string, unknown>) => { updateData = data; return chain },
           eq: (column: string, value: string) => { if (column === 'id') id = value; return chain },
+          // PostgREST `conversation_id IS NULL` — the immutability predicate on the stamp.
+          is: (column: string, value: unknown) => {
+            if (column === 'conversation_id' && value === null) requireConvNull = true
+            return chain
+          },
           maybeSingle: async () => {
-            h.state.writes.push(columns.includes('paid_at') ? 'paid-evidence-read' : 'ownership-read')
+            h.state.writes.push(
+              columns.includes('paid_at') ? 'paid-evidence-read'
+                : columns.includes('conversation_id') ? 'conversation-id-read'
+                : 'ownership-read',
+            )
             if (h.state.applicationError) return { data: null, error: h.state.applicationError }
             return { data: h.state.applications[id] ?? null, error: null }
+          },
+          // The stamp is a bare `update(...).eq(...).is(...)` — awaited directly, so the chain
+          // is thenable. It HONOURS the IS NULL guard: a row that already carries a link is
+          // matched by nothing, exactly as Postgres would, which is how immutability is proven.
+          then: (resolve: (v: unknown) => unknown) => {
+            if (h.state.stampError) return resolve({ data: null, error: h.state.stampError })
+            const row = h.state.applications[id]
+            if (row && updateData && (!requireConvNull || (row.conversation_id ?? null) === null)) {
+              Object.assign(row, updateData)
+              h.state.writes.push(`stamp-conversation:${String(updateData.conversation_id)}`)
+            }
+            return resolve({ data: null, error: null })
           },
         }
         return chain
@@ -235,8 +261,8 @@ vi.mock('./records', () => ({
 vi.mock('./payments', () => ({ visaPaymentsConfig: () => h.state.payments }))
 
 import {
-  bindVisaThread, findVisaThread, getVisaThreadMode, markVisaThreadPaid,
-  sendVisaCheckoutCard, sendVisaStepCard, setVisaThreadMode,
+  bindVisaThread, findVisaThread, findVisaThreadByCase, getVisaThreadMode, markVisaThreadPaid,
+  sendVisaCheckoutCard, sendVisaStepCard, setVisaThreadMode, visaConversationIdFor,
 } from './dm-thread'
 import { visaDmStepPreview } from './dm-steps'
 
@@ -265,10 +291,10 @@ beforeEach(() => {
   Object.assign(h.state, {
     shop: SHOP, products: [{ id: 'listing-1' }],
     applications: {
-      [APP_ID]: { user_id: BUYER, paid_at: null },
-      [OTHER_APP_ID]: { user_id: BUYER, paid_at: null },
+      [APP_ID]: { user_id: BUYER, paid_at: null, conversation_id: null },
+      [OTHER_APP_ID]: { user_id: BUYER, paid_at: null, conversation_id: null },
     },
-    applicationError: null,
+    applicationError: null, stampError: null,
     events: [], eventsError: null,
     conversations: [], messages: [],
     createThrows: null, raceWinner: null, createdConversationId: 'convo-created', refuseUnbind: false,
@@ -401,6 +427,48 @@ describe('bindVisaThread', () => {
     expect(result).toEqual({ ok: true, conversationId: 'convo-winner', created: false })
     expect(convoById('convo-winner')?.visaApplicationId).toBe(APP_ID)
   })
+
+  // ── THE IMMUTABLE LINK (visa_applications.conversation_id) ─────────────────────────
+  it('stamps conversation_id with the conversation it just bound', async () => {
+    const result = await bindVisaThread({ applicationId: APP_ID, buyerProfileId: BUYER })
+    expect(result).toEqual({ ok: true, conversationId: 'convo-created', created: true })
+    expect(h.state.applications[APP_ID].conversation_id).toBe('convo-created')
+    expect(h.state.writes).toContain('stamp-conversation:convo-created')
+    // Stamped AFTER the binding landed, never before it.
+    expect(h.state.writes.indexOf(`bind:${APP_ID}`)).toBeLessThan(h.state.writes.indexOf('stamp-conversation:convo-created'))
+  })
+
+  it('stamps the immutable link on the reused-thread path too', async () => {
+    h.state.conversations = [convoRow({ id: 'convo-existing' })]
+    await bindVisaThread({ applicationId: APP_ID, buyerProfileId: BUYER })
+    expect(h.state.applications[APP_ID].conversation_id).toBe('convo-existing')
+  })
+
+  it('heals a null link on the already-bound path (a case that predates the column)', async () => {
+    h.state.conversations = [convoRow({ visaApplicationId: APP_ID })]
+    h.state.applications[APP_ID].conversation_id = null
+    const result = await bindVisaThread({ applicationId: APP_ID, buyerProfileId: BUYER })
+    expect(result).toEqual({ ok: true, conversationId: 'convo-1', created: false })
+    expect(h.state.applications[APP_ID].conversation_id).toBe('convo-1')
+  })
+
+  it('NEVER overwrites a conversation_id that is already set — it is immutable', async () => {
+    h.state.conversations = [convoRow({ id: 'convo-existing' })]
+    h.state.applications[APP_ID].conversation_id = 'convo-original'
+    await bindVisaThread({ applicationId: APP_ID, buyerProfileId: BUYER })
+    // The DB `IS NULL` predicate matched nothing, so the original link stands.
+    expect(h.state.applications[APP_ID].conversation_id).toBe('convo-original')
+    expect(h.state.writes).not.toContain('stamp-conversation:convo-existing')
+  })
+
+  it('a failed stamp does not fail the bind (fail-soft)', async () => {
+    h.state.stampError = { message: 'stamp write boom' }
+    const result = await bindVisaThread({ applicationId: APP_ID, buyerProfileId: BUYER })
+    expect(result).toEqual({ ok: true, conversationId: 'convo-created', created: true })
+    // The bind landed even though the link could not be recorded — the row keeps its binding.
+    expect(convoById('convo-created')?.visaApplicationId).toBe(APP_ID)
+    expect(h.state.applications[APP_ID].conversation_id ?? null).toBeNull()
+  })
 })
 
 describe('findVisaThread', () => {
@@ -421,6 +489,77 @@ describe('findVisaThread', () => {
   it('does not answer with a thread bound to a DIFFERENT case', async () => {
     h.state.conversations = [convoRow({ visaApplicationId: OTHER_APP_ID })]
     expect(await findVisaThread(APP_ID)).toBeNull()
+  })
+})
+
+describe('visaConversationIdFor', () => {
+  it('returns the immutable link when the column is set', async () => {
+    h.state.applications[APP_ID].conversation_id = 'convo-x'
+    expect(await visaConversationIdFor(APP_ID)).toBe('convo-x')
+    // Read off the conversation_id column, not the ownership/evidence reads.
+    expect(h.state.writes).toContain('conversation-id-read')
+  })
+
+  it('is null for an unlinked case, a blank value, a missing row, or a non-uuid', async () => {
+    h.state.applications[APP_ID].conversation_id = null
+    expect(await visaConversationIdFor(APP_ID)).toBeNull()
+    h.state.applications[APP_ID].conversation_id = '   '
+    expect(await visaConversationIdFor(APP_ID)).toBeNull()
+    h.state.applications = {}
+    expect(await visaConversationIdFor(APP_ID)).toBeNull()
+    expect(await visaConversationIdFor('not-a-uuid')).toBeNull()
+  })
+
+  it('THROWS on a lookup error — never collapses error into null', async () => {
+    // ⚠️ Corrected per external review (GPT-5.6, 2026-07-23). null must mean "no link" and
+    // nothing else: the card guard treats a non-null link as authoritative and result delivery
+    // falls back to the live binding only on a TRUE null, so a null-on-error would silently
+    // refuse a real card or misroute a finished visa. The caller may fail loud (retryable);
+    // it must never act on a wrong answer.
+    h.state.applicationError = { message: 'supabase down' }
+    await expect(visaConversationIdFor(APP_ID)).rejects.toThrow('visa_conversation_lookup_failed')
+  })
+})
+
+describe('findVisaThreadByCase', () => {
+  // THE STRANDING FIX: the live pointer names a LATER case, but the immutable link still
+  // finds the thread this case's cards live in.
+  it('resolves through the immutable link even when the live binding points at another case', async () => {
+    h.state.applications[APP_ID].conversation_id = 'convo-1'
+    h.state.conversations = [convoRow({ id: 'convo-1', visaApplicationId: OTHER_APP_ID })]
+    expect(await findVisaThreadByCase(APP_ID)).toEqual({
+      conversationId: 'convo-1', buyerProfileId: BUYER, sellerProfileId: SHOP_OWNER, source: 'immutable',
+    })
+    // The live binding alone would have answered nothing for this case.
+    expect(await findVisaThread(APP_ID)).toBeNull()
+  })
+
+  it('falls back to the live binding — and says so — when there is no immutable link', async () => {
+    h.state.applications[APP_ID].conversation_id = null
+    h.state.conversations = [convoRow({ id: 'convo-1', visaApplicationId: APP_ID })]
+    expect(await findVisaThreadByCase(APP_ID)).toEqual({
+      conversationId: 'convo-1', buyerProfileId: BUYER, sellerProfileId: SHOP_OWNER, source: 'live',
+    })
+  })
+
+  it('does NOT fall through to the live binding when a non-null link points nowhere', async () => {
+    h.state.applications[APP_ID].conversation_id = 'convo-gone'
+    // A live binding for this case DOES exist, and must still be ignored: a link that resolves
+    // to nothing is corrupt state, not a cue to trust the pointer the link exists to replace.
+    h.state.conversations = [convoRow({ id: 'convo-1', visaApplicationId: APP_ID })]
+    expect(await findVisaThreadByCase(APP_ID)).toBeNull()
+  })
+
+  it('is null when the linked thread has an unclaimed seller', async () => {
+    h.state.applications[APP_ID].conversation_id = 'convo-1'
+    h.state.conversations = [convoRow({ id: 'convo-1', sellerProfileId: null })]
+    expect(await findVisaThreadByCase(APP_ID)).toBeNull()
+  })
+
+  it('is null for a non-uuid or a case with neither a link nor a live binding', async () => {
+    expect(await findVisaThreadByCase('nope')).toBeNull()
+    h.state.applications[APP_ID].conversation_id = null
+    expect(await findVisaThreadByCase(APP_ID)).toBeNull()
   })
 })
 

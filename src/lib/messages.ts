@@ -222,22 +222,49 @@ export type SendOpts = {
 // client-supplied `kind` or `meta` — they construct `{kind:'offer'}` or `undefined`
 // literally. That is gate zero, but it is an *absence*, so it is not trusted here;
 // gates 1–4 hold even if a future route starts passing the body straight through.
-function buildCardMeta(kind: VisaCardKind, convo: ConvoForSend, senderId: string, meta: MessageMeta | undefined): { json: string; applicationId: string } {
+async function buildCardMeta(kind: VisaCardKind, convo: ConvoForSend, senderId: string, meta: MessageMeta | undefined): Promise<{ json: string; applicationId: string; proof: 'immutable' | 'live' }> {
   // (1) shop-side authorship
   if (!convo.sellerProfileId || convo.sellerProfileId !== senderId) throw new Error('visa_card_author_forbidden')
-  // (2) thread binding
-  const boundTo = convo.visaApplicationId ?? null
-  if (!boundTo) throw new Error('visa_card_thread_not_bound')
-  // (4) shape
+  // (4) shape — parse first so the binding check below has the card's applicationId.
   const parsed = metaSchemaFor(kind).safeParse(meta)
   if (!parsed.success) throw new Error('visa_card_meta_invalid')
   const data = parsed.data as MessageMeta
-  if (data.applicationId !== boundTo) throw new Error('visa_card_application_mismatch')
+
+  // (2) THREAD BINDING. The card must belong to THIS thread. Two eras coexist, and their
+  // precedence is not symmetric (external review, GPT-5.6, 2026-07-23):
+  //
+  //   · THE IMMUTABLE LINK IS AUTHORITATIVE WHEN IT EXISTS. visa_applications.conversation_id
+  //     is the permanent home of a case's cards. If a case HAS one, it decides — and the live
+  //     Conversation.visaApplicationId pointer (which names only the currently-active case, and
+  //     could be stale or wrong) MUST NOT override it. Checking the live binding first would let
+  //     a card land in a thread that is not the case's home whenever the live pointer happens to
+  //     match. So: if the immutable link is non-null, the card is accepted iff it equals convo.id.
+  //     This is also the STRANDING fix — a finished visa for an earlier case is delivered to the
+  //     thread it actually lives in, even after a newer case rebound the live pointer.
+  //
+  //   · THE LIVE BINDING IS THE FALLBACK, only for a case with NO immutable link (legacy rows,
+  //     or a bind whose stamp failed). There a concurrent rebind IS possible between here and the
+  //     insert, so the caller re-asserts the live binding inside the transaction (see `proof`).
+  //
+  // visaConversationIdFor THROWS on a lookup error (it no longer collapses error into null), so a
+  // transient Supabase failure fails the write loudly rather than silently refusing a real case.
+  // Lazy import breaks the dm-thread↔messages cycle and only loads on a visa-card write.
+  const { visaConversationIdFor } = await import('@/lib/visa/dm-thread')
+  const immutableHome = await visaConversationIdFor(data.applicationId)
+  let proof: 'immutable' | 'live'
+  if (immutableHome !== null) {
+    if (immutableHome !== convo.id) throw new Error('visa_card_application_mismatch')
+    proof = 'immutable'
+  } else {
+    if (!convo.visaApplicationId || convo.visaApplicationId !== data.applicationId) throw new Error('visa_card_application_mismatch')
+    proof = 'live'
+  }
+
   // (3) money claim
   if (kind === 'visa_checkout' && (data as VisaCheckoutMeta).status === 'paid') throw new Error('visa_checkout_paid_not_authorable')
   const json = JSON.stringify(data)
   if (json.length > MAX_META_JSON) throw new Error('visa_card_meta_too_large')
-  return { json, applicationId: data.applicationId }
+  return { json, applicationId: data.applicationId, proof }
 }
 
 /**
@@ -263,7 +290,7 @@ export async function insertMessage(convo: ConvoForSend, senderId: string, text:
   // metaJson belongs to cards ONLY — a 'text'/'offer' message carrying one would be
   // a card the renderers don't gate on, so refuse rather than silently drop it.
   if (opts?.meta && !isCard) throw new Error('message_meta_not_allowed')
-  const card = isCard ? buildCardMeta(kind, convo, senderId, opts?.meta) : null
+  const card = isCard ? await buildCardMeta(kind, convo, senderId, opts?.meta) : null
 
   // Cards are sent with an empty body (see the note above) — fall back to the
   // caller-supplied bilingual preview so the inbox row isn't blank. Unchanged for
@@ -292,20 +319,21 @@ export async function insertMessage(convo: ConvoForSend, senderId: string, text:
   type MessageRow = { id: string; body: string; createdAt: Date; kind: string; offerAmount: number | null; offerStatus: string | null; metaJson: string | null }
   let message: MessageRow
   if (card) {
-    // ATOMIC BINDING GUARD (external review, 2026-07-22). buildCardMeta compared the
-    // card against the CALLER'S conversation object, which is a read from earlier in
-    // the request — a concurrent rebind (a repeat applicant starting a second case in
-    // the same buyer↔seller thread) could land the card in a thread that no longer
-    // belongs to that application. So the conversation row is re-checked and LOCKED
-    // in the same transaction as the insert: the updateMany matches only while the
-    // binding still holds, and holds the row lock until commit. count!==1 → the
-    // binding moved (or vanished) under us and the card is refused outright.
+    // ATOMIC GUARD — the WHERE depends on HOW buildCardMeta proved the binding (external
+    // review, GPT-5.6 2026-07-23):
+    //   · IMMUTABLE proof → lock by { id } alone. The visa_applications.conversation_id link
+    //     is permanent and cannot move, so re-asserting the LIVE pointer here would be the very
+    //     stranding bug (a rebound thread makes it match 0 rows and refuses a legitimate card
+    //     for an earlier case). count!==1 then means only the conversation itself is gone.
+    //   · LIVE fallback → keep the { id, visaApplicationId } predicate. That proof rested on a
+    //     mutable pointer, so a concurrent rebind between buildCardMeta and here IS possible;
+    //     the predicate rejects the insert if the binding moved under us.
+    const guardWhere = card.proof === 'immutable'
+      ? { id: convo.id }
+      : { id: convo.id, visaApplicationId: card.applicationId }
     message = (await db.$transaction(async (tx) => {
-      const guard = await tx.conversation.updateMany({
-        where: { id: convo.id, visaApplicationId: card.applicationId },
-        data: convoUpdate,
-      })
-      if (guard.count !== 1) throw new Error('visa_card_application_mismatch')
+      const guard = await tx.conversation.updateMany({ where: guardWhere, data: convoUpdate })
+      if (guard.count !== 1) throw new Error(card.proof === 'immutable' ? 'visa_card_conversation_gone' : 'visa_card_application_mismatch')
       return tx.message.create(createArgs)
     })) as MessageRow
   } else {

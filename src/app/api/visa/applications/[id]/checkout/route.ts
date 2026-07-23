@@ -6,21 +6,35 @@ import { rateLimit } from '@/lib/ratelimit'
 import { getVisaShopListings, resolveVisaProduct } from '@/lib/visa-shop'
 import { decryptVisaPayload, visaApplicantSnapshotHash, visaCryptoReady } from '@/lib/visa/crypto'
 import { getVisaDb } from '@/lib/visa/db'
+import { selectedVisaDmListingId } from '@/lib/visa/dm-flow'
 import { isQuoteChargeable, parseVisaQuote, quoteVisaUsd, visaQuoteDrifted } from '@/lib/visa/fx'
 import { paypalCreateOrder, stripeCreateCheckout, visaPaymentsConfig } from '@/lib/visa/payments'
 import { recordVisaEvent, type VisaApplicationRow, type VisaDocumentRow } from '@/lib/visa/records'
 import { VISA_AUTHORIZATION_VERSION, VISA_DECLARATION_VERSION, validateVisaForReview } from '@/lib/visa/schema'
 
-// Start a checkout for a COMPLETE application, for ONE product the applicant picked.
+// Start a checkout for a COMPLETE application, for the ONE product THE CASE selected.
 //
-// ⚠️ THE CLIENT NAMES A PRODUCT; THE SERVER NAMES THE PRICE (owner, 2026-07-21).
-// A visa service is an ordinary marketplace listing the admin uploaded — one listing per
-// (entry type × processing speed), each with its own price on Listing.price. The body
-// therefore carries a `listingId` and NOTHING resembling money: the đồng amount comes from
-// resolveVisaProduct(listingId).priceVnd, which re-reads the listing on every request, and
-// there is no other source of an amount anywhere in this file. (The body never accepted a
-// price; the schema below is `.strict()` so that a client which starts sending one gets a
-// loud 400 instead of having it silently stripped.)
+// ⚠️ THE CASE NAMES THE PRODUCT; THE SERVER NAMES THE PRICE (owner 2026-07-21; product
+// source hardened 2026-07-23 per external review). A visa service is an ordinary
+// marketplace listing the admin uploaded — one listing per (entry type × processing speed),
+// each with its own price on Listing.price. WHICH listing is charged comes from CANONICAL
+// CASE STATE, never the request body: visa_applications.selected_listing_id, falling back
+// during the Phase-1 transition to the newest dm_product_selected event
+// (selectedVisaDmListingId). The body still carries a `listingId`, but it is now a
+// CONFIRMATION TOKEN exactly like the quote echo below — it may only AGREE with the
+// canonical selection (listing_selection_mismatch otherwise) and can never redirect the
+// charge. (Before this, the route trusted the body's listingId and never compared it with
+// the case's real selection, so a completed case could check out ANY active visa listing
+// whose entry type happened to match — the speed was not even compared.) The đồng amount
+// then comes from resolveVisaProduct(canonicalListingId).priceVnd, which re-reads the
+// listing on every request, and there is no other source of an amount anywhere in this
+// file. (The body never accepted a price; the schema below is `.strict()` so that a client
+// which starts sending one gets a loud 400 instead of having it silently stripped.)
+//
+// ⚠️ A CASE WITH NO SELECTION CANNOT PAY. If neither the column nor a dm_product_selected
+// event names a listing, checkout refuses with product_not_selected — fail closed. (Phase 2
+// adds the picker that sets selected_listing_id; until then the dm flow's event is the only
+// writer of a selection, and a productless case simply has no price to quote.)
 //
 // ⚠️ AND THE PRICE IS IN ĐỒNG WHILE THE CHARGE IS IN DOLLARS (owner, 2026-07-22):
 // "admin posts in vnd and you show in vnd and usd to users they checkout accordingly usd
@@ -50,9 +64,11 @@ export const dynamic = 'force-dynamic'
 
 const bodySchema = z.object({
   provider: z.enum(['stripe', 'paypal']),
-  // WHICH product, never how much. Listing ids are cuids, so this is a bounded opaque
-  // string — its authority comes from matching a for-sale listing on the visa storefront,
-  // not from its shape.
+  // A CONFIRMATION of which product, never a choice of one and never how much. The charged
+  // listing is the case's CANONICAL selection (see the header); this field is only ever
+  // checked to EQUAL it, so a body naming a different listing refuses rather than redirects
+  // the charge. Listing ids are bounded opaque strings — authority now comes from equalling
+  // the canonical selection, not from the shape and not from matching some for-sale listing.
   listingId: z.string().trim().min(1).max(64),
   declarationAccepted: z.literal(true),
   prefillAuthorized: z.literal(true),
@@ -112,7 +128,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     db.from('visa_documents').select('*').eq('application_id', id),
   ])
   if (!application) return NextResponse.json({ error: 'not_found' }, { status: 404 })
-  const app = application as VisaApplicationRow & { paid_at?: string | null }
+  // The Phase-1 canonical-selection columns (scripts/visa-case-conversation-cols.mjs) are
+  // read through this local widening: visa-admin.ts's VisaApplicationRow predates them and
+  // is another session's file. `selected_listing_id` is nullable and backfilled only where
+  // resolvable, so the code below MUST tolerate null — hence the dm_product_selected
+  // fallback and the product_not_selected refusal.
+  const app = application as VisaApplicationRow & { paid_at?: string | null; selected_listing_id?: string | null }
   if (app.paid_at) return NextResponse.json({ error: 'already_paid' }, { status: 409 })
   if (!['draft', 'needs_changes'].includes(app.status)) return NextResponse.json({ error: 'invalid_status_transition' }, { status: 409 })
 
@@ -126,10 +147,35 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   }
   const snapshotHash = visaApplicantSnapshotHash(payload)
 
+  // ── WHICH PRODUCT: THE CASE'S OWN SELECTION, NEVER THE CLIENT'S ───────────────────
+  // Canonical case state decides what is charged. Prefer the immutable column the picker
+  // writes (Phase 2); during the Phase-1 transition it may be null, so fall back to the
+  // newest dm_product_selected event — the only writer of a selection until the picker
+  // ships. The body's listingId is NOT consulted here: it is a confirmation token, checked
+  // for equality below and nowhere trusted to name the product. (A blank/whitespace column
+  // is treated as unset — `|| fallback` — because an empty string is not a listing id.)
+  const storedSelection = typeof app.selected_listing_id === 'string' ? app.selected_listing_id.trim() : ''
+  const canonicalListingId = storedSelection || (await selectedVisaDmListingId(id))
+  if (!canonicalListingId) {
+    // No column, no event → nothing to price. Fail closed rather than let the body choose.
+    return NextResponse.json({ error: 'product_not_selected' }, { status: 409 })
+  }
+  // The body may only CONFIRM the canonical selection. A mismatch refuses (and names the
+  // canonical listing so the UI can re-point at the right product) instead of charging the
+  // listing the client asked for. A listing id is a public marketplace fact (it is already
+  // echoed on success and on the PDP), so returning it here exposes nothing.
+  if (parsed.data.listingId !== canonicalListingId) {
+    return NextResponse.json({
+      error: 'listing_selection_mismatch',
+      selectedListingId: canonicalListingId,
+    }, { status: 409 })
+  }
+
   // ── THE PRICE. One lookup, one source, immediately above the charge ───────────────
-  const product = await resolveVisaProduct(parsed.data.listingId)
+  // Resolved from the CANONICAL listing id, never parsed.data.listingId.
+  const product = await resolveVisaProduct(canonicalListingId)
   if (!product) {
-    const { error, status } = await explainUnsellable(parsed.data.listingId)
+    const { error, status } = await explainUnsellable(canonicalListingId)
     return NextResponse.json({ error }, { status })
   }
   // A half-built product must not be sold: entry type and speed ARE the service (a
