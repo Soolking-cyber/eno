@@ -11,6 +11,7 @@ import { Spinner } from '@/components/ui/spinner'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ProfileEditor } from '@/components/marketplace/profile-editor'
 import { BusinessProfileEditor } from '@/components/marketplace/business-profile-editor'
+import { BusinessVerificationPanel } from '@/components/marketplace/business-verification-panel'
 import { HandleSettings } from '@/components/marketplace/handle-settings'
 import { ChangeEmailForm } from '@/components/marketplace/change-email-form'
 import { AccountTypeSwitcher } from '@/components/marketplace/account-type-switcher'
@@ -70,6 +71,7 @@ export function SettingsClient() {
                 ? <BusinessProfileEditor seller={dash.seller} repName={dash.profile.displayName} onSaved={refresh} />
                 : <ProfileEditor profile={dash.profile} onSaved={refresh} />}
             </div>
+            {isBusiness && dash.seller && <BusinessVerificationPanel />}
           </section>
 
           <section>

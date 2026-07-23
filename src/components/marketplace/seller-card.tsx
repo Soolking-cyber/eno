@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { MessageCircle, Store, Building2 } from 'lucide-react'
+import { MessageCircle, Store, Building2, BadgeCheck } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
 import { TrustScore } from '@/components/marketplace/trust-score'
 import { RatingValue, CountValue } from '@/components/marketplace/rating-value'
@@ -23,6 +23,9 @@ export type SellerCardSeller = {
   avatarColor: string
   avatarUrl?: string | null
   isBusiness: boolean
+  /** The verified-business badge (server-computed isBusinessVerified). Optional so
+   *  older serializers that don't send it degrade to the plain "Business" label. */
+  businessVerified?: boolean
 }
 
 export type SellerCardProps = {
@@ -101,12 +104,15 @@ export function SellerCard({
               <span className="truncate text-sm font-bold text-foreground">{seller.name}</span>
             )}
             {seller.isBusiness && (
-              <Badge
-                variant="neutral"
-                className="px-1.5 py-0.5 font-semibold text-accent-foreground"
-              >
-                <Building2 className="h-3 w-3" /> {tr('Business', 'Doanh nghiệp')}
-              </Badge>
+              seller.businessVerified ? (
+                <Badge variant="success" className="px-1.5 py-0.5 font-semibold">
+                  <BadgeCheck className="h-3 w-3" /> {tr('Business verified', 'Doanh nghiệp đã xác minh')}
+                </Badge>
+              ) : (
+                <Badge variant="neutral" className="px-1.5 py-0.5 font-semibold text-accent-foreground">
+                  <Building2 className="h-3 w-3" /> {tr('Business', 'Doanh nghiệp')}
+                </Badge>
+              )
             )}
             <TrustScore score={trustScore} variant="mini" size="sm" href="/trust" />
           </div>

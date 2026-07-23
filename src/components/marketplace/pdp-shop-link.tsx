@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { ChevronRight, Building2 } from 'lucide-react'
+import { ChevronRight, Building2, BadgeCheck } from 'lucide-react'
 import { Avatar } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { TrustScore } from './trust-score'
@@ -17,11 +17,12 @@ import type { SellerMetrics } from '@/lib/seller-metrics'
  *  reviews) AND the "Shop >" jump to the storefront — so the old duplicate seller-card lower in the
  *  buy box is gone (its "Chat now" lives on in the ContactComposer). The whole strip is a div (not
  *  one anchor) so the trust chip and the Shop link can each be their own real link. */
-export function PdpShopLink({ name, avatarColor, avatarUrl, isBusiness, href, metrics, className }: {
+export function PdpShopLink({ name, avatarColor, avatarUrl, isBusiness, businessVerified, href, metrics, className }: {
   name: string
   avatarColor?: string | null
   avatarUrl?: string | null
   isBusiness?: boolean
+  businessVerified?: boolean
   href: string
   metrics: SellerMetrics
   className?: string
@@ -59,9 +60,15 @@ export function PdpShopLink({ name, avatarColor, avatarUrl, isBusiness, href, me
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
           <span className="truncate text-sm font-bold text-foreground">{name}</span>
           {isBusiness && (
-            <Badge variant="neutral" className="px-1.5 py-0.5 font-semibold text-accent-foreground">
-              <Building2 className="h-3 w-3" /> {tr('Business', 'Doanh nghiệp')}
-            </Badge>
+            businessVerified ? (
+              <Badge variant="success" className="px-1.5 py-0.5 font-semibold">
+                <BadgeCheck className="h-3 w-3" /> {tr('Business verified', 'Doanh nghiệp đã xác minh')}
+              </Badge>
+            ) : (
+              <Badge variant="neutral" className="px-1.5 py-0.5 font-semibold text-accent-foreground">
+                <Building2 className="h-3 w-3" /> {tr('Business', 'Doanh nghiệp')}
+              </Badge>
+            )
           )}
           <TrustScore score={trustScore} variant="mini" size="sm" href="/trust" />
         </div>

@@ -4,6 +4,7 @@ import { serializeListing } from '@/lib/serialize'
 import { localizeListingTitles } from '@/lib/translate'
 import { topSellerReviews, sellerMetrics } from '@/lib/seller-metrics'
 import { lastSeenBucket } from '@/lib/last-seen'
+import { isBusinessVerified } from '@/lib/business-verification'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -58,6 +59,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       bio: seller.bio,
       location: seller.location,
       isBusiness: seller.owner?.accountType === 'business',
+      businessVerified: seller.owner?.accountType === 'business' && isBusinessVerified(seller),
       handle: seller.handle?.handle ?? null,
       trustScore: metrics.trustScore,
       trustTier: metrics.trustTier,

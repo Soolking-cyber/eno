@@ -50,6 +50,7 @@ import { getEnforcement } from '@/lib/enforcement'
 import { getPriceBand } from '@/lib/price-stat'
 import { MarketPrice } from '@/components/marketplace/market-price'
 import { SafetyStrip } from '@/components/marketplace/safety-strip'
+import { isBusinessVerified } from '@/lib/business-verification'
 
 type Props = {
   params: Promise<{ id: string }>
@@ -224,6 +225,10 @@ export default async function ListingPage({ params }: Props) {
     },
     convoCount90,
   )
+  // The verified-business badge (>=2-channel identity-hash gate). Computed off the RAW
+  // seller — it has every scalar column, unlike the serialized shape — and passed to the
+  // shop link; the serialized seller deliberately doesn't carry the identity fields.
+  const sellerBusinessVerified = listing.seller.isBusiness && isBusinessVerified(rawListing.seller)
   const sellerHref = `/sellers/${listing.sellerId}`
   // Caution line for throttled/held/suspended sellers (warned is notice-only, never
   // public). Held/suspended pages are usually pulled (404) — direct-link stragglers
@@ -390,7 +395,7 @@ export default async function ListingPage({ params }: Props) {
               order-2 (same slot as the gallery) + placed first in source so it sits just above it;
               md:hidden — the desktop twin lives in the left column. */}
           <div className="order-2 md:hidden">
-            <PdpShopLink name={listing.seller.name} avatarColor={listing.seller.avatarColor} isBusiness={listing.seller.isBusiness} href={sellerHref} metrics={sellerMetricsBundle} />
+            <PdpShopLink name={listing.seller.name} avatarColor={listing.seller.avatarColor}  isBusiness={listing.seller.isBusiness} businessVerified={sellerBusinessVerified} href={sellerHref} metrics={sellerMetricsBundle} />
           </div>
 
           {/* 2 — Gallery, MOBILE mount: edge-to-edge (negative gutter cancels <main>'s padding),
@@ -535,7 +540,7 @@ export default async function ListingPage({ params }: Props) {
                 leads the left column at lg (above the gallery) and follows only the breadcrumb when
                 the layout is a single flattened column at md; hidden below md (mobile twin above). */}
             <div className="order-1 hidden md:block">
-              <PdpShopLink name={listing.seller.name} avatarColor={listing.seller.avatarColor} isBusiness={listing.seller.isBusiness} href={sellerHref} metrics={sellerMetricsBundle} />
+              <PdpShopLink name={listing.seller.name} avatarColor={listing.seller.avatarColor}  isBusiness={listing.seller.isBusiness} businessVerified={sellerBusinessVerified} href={sellerHref} metrics={sellerMetricsBundle} />
             </div>
 
             {/* Gallery, DESKTOP mount (hidden below md; the mobile mount handles small screens) */}

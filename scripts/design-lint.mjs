@@ -72,6 +72,7 @@ const RAW_CONTROL_ALLOW = [
   { file: 'src/app/reports/[id]/page.tsx', match: 'type="file"', reason: 'hidden screenshot input inside the Add <label>' },
   { file: 'src/components/admin/admin-brands-client.tsx', match: 'type="file"', reason: 'hidden .svg input inside the Upload <label>; needs the raw node for its value="" reset' },
   { file: 'src/app/dashboard/visa/apply/apply-client.tsx', match: 'type="file"', reason: 'hidden visa passport/portrait input inside the dashed dropzone <label> (forum-ported UploadCard); needs the raw node for its value="" re-pick reset' },
+  { file: 'src/components/marketplace/business-verification-panel.tsx', match: 'type="file"', reason: 'two hidden identity/bank document inputs, fired by their Upload buttons via refs; need the raw node for the value="" re-pick reset' },
 
   // B. Nested interactive content. A <button> may not contain another button/input — the
   //    HTML parser reparents it and hydration breaks.
