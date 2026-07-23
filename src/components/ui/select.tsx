@@ -18,6 +18,12 @@ function SelectGroup({ className, ...props }: SelectPrimitive.Group.Props) {
   )
 }
 
+/**
+ * ⚠️ RENDERS THE RAW VALUE unless the Select ROOT gets `items` (a value→label record or
+ * `{value,label}[]`) or this element gets a children function. A call site whose labels
+ * differ from its values MUST pass `items` — skipping it shipped "credit_card" to an
+ * applicant where "Credit card" belonged (owner report, 2026-07-23).
+ */
 function SelectValue({ className, ...props }: SelectPrimitive.Value.Props) {
   return (
     <SelectPrimitive.Value

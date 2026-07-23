@@ -1608,7 +1608,9 @@ function VisaFieldControl({ spec, value, bounds, onChange }: {
         {label}
         {note}
         {spec.hints.map((hint) => <span key={hint} className="text-2xs font-normal text-warning">{hint}</span>)}
-        <Select value={value || null} onValueChange={(next) => onChange(typeof next === 'string' ? next : '')}>
+        {/* ⚠️ `items` is LOAD-BEARING: without it Base UI's Select.Value renders the RAW
+            stored value — the owner saw "credit_card" where "Credit card" belongs. */}
+        <Select items={Object.fromEntries(options)} value={value || null} onValueChange={(next) => onChange(typeof next === 'string' ? next : '')}>
           <SelectTrigger id={id} className="min-h-11 w-full rounded-xl bg-card"><SelectValue placeholder={tr('Choose', 'Chọn')} /></SelectTrigger>
           <SelectContent>
             {options.map(([optionValue, optionLabel]) => <SelectItem key={optionValue} value={optionValue}>{optionLabel}</SelectItem>)}
