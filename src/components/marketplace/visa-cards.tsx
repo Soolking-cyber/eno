@@ -19,6 +19,7 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
+import { useMinuteTick, useVisaCatalogue, VisaProductRow } from '@/components/marketplace/visa-start'
 import { formatMoneyFull, formatUsdCents, moneyLocale } from '@/lib/vnd'
 import { EVISA_CHECKPOINT_GROUPS } from '@/lib/visa/checkpoints'
 import { VISA_DM_STEP_FIELDS, validateVisaDmStep, type VisaDmStep } from '@/lib/visa/dm-steps'
@@ -154,6 +155,27 @@ export function parseVisaCheckoutMeta(kind: string | undefined, value: unknown):
   if (typeof amountUsd !== 'number' || !Number.isFinite(amountUsd) || amountUsd <= 0) return null
   if (status !== 'unpaid' && status !== 'paid' && status !== 'failed') return null
   return { applicationId, amountUsd, status }
+}
+
+/** A `visa_picker` card's metaJson — the step-0 product choice for a generic start. */
+export type VisaPickerCardMeta = {
+  applicationId: string
+  state: 'active' | 'done'
+  /** Display-only history: which product a 'done' picker recorded. Never a price source. */
+  selectedListingId: string | null
+}
+
+/** A `visa_picker` card's meta, or null. Same discipline as parseVisaStepMeta. */
+export function parseVisaPickerMeta(kind: string | undefined, value: unknown): VisaPickerCardMeta | null {
+  if (kind !== 'visa_picker' || !isRecord(value)) return null
+  const { applicationId, state, selectedListingId } = value
+  if (typeof applicationId !== 'string' || !applicationId) return null
+  if (state !== 'active' && state !== 'done') return null
+  return {
+    applicationId,
+    state,
+    selectedListingId: typeof selectedListingId === 'string' && selectedListingId ? selectedListingId : null,
+  }
 }
 
 /** A `visa_result` card's metaJson — the finished visa, downloadable in the thread. */
@@ -840,6 +862,9 @@ const ERROR_COPY: Record<string, [string, string]> = {
   product_not_for_sale: ['That service is not on sale right now.', 'Dịch vụ đó hiện không được bán.'],
   product_price_unavailable: ['That service has no usable price right now.', 'Dịch vụ đó hiện chưa có giá hợp lệ.'],
   product_entry_type_mismatch: ['The service you picked does not match the entry type on your form.', 'Dịch vụ bạn chọn không khớp với loại nhập cảnh trên hồ sơ.'],
+  // The client's confirmation token no longer matches the case's canonical selection —
+  // almost always a stale tab. A reload re-reads the canonical product and heals it.
+  listing_selection_mismatch: ['Your selection changed in another tab. Reload and try again.', 'Lựa chọn của bạn đã thay đổi ở thẻ khác. Hãy tải lại và thử lại.'],
   submission_window_closed: ['The desk has closed for this speed today.', 'Hôm nay đã hết giờ nhận hồ sơ cho tốc độ này.'],
   payments_not_configured: ['Paying in chat is not switched on yet.', 'Thanh toán trong tin nhắn chưa được bật.'],
   fx_unavailable: ['The US dollar amount could not be worked out just now. Nothing has been charged — try again in a moment.', 'Hiện chưa tính được số tiền đô la Mỹ. Chưa có khoản nào bị trừ — vui lòng thử lại sau giây lát.'],
@@ -2060,5 +2085,108 @@ export function VisaThreadStrip({
         {tr('Talk to a person', 'Gặp nhân viên')}
       </Button>
     </div>
+  )
+}
+
+// ── The product-picker card (step 0) ──────────────────────────────────────────────
+//
+// A GENERIC start has no product yet; this card is where the applicant chooses one, IN
+// the thread (owner spec, Phase 2). It is deliberately a thin frame around the same
+// catalogue building blocks the storefront picker uses (visa-start.tsx): the catalogue is
+// FETCHED live per render of the live card — the message's metaJson carries no products
+// and no prices, so a card authored yesterday can never advertise yesterday's price.
+//
+// ⚠️ A PRODUCT, NEVER A PRICE: a tap POSTs { listingId } to
+// /api/visa/applications/[id]/select-product; every number on the rows came from the
+// catalogue GET (đồng off the listing, dollars off a server-issued quote).
+
+export type VisaPickerCardProps = {
+  meta: VisaPickerCardMeta
+  info: VisaThreadInfo | null
+  /** This is the newest active picker AND the viewer is the applicant (not takeover). */
+  live: boolean
+  busy: boolean
+  onSelect: (listingId: string) => boolean | Promise<boolean>
+}
+
+export function VisaPickerCard({ meta, info, live, busy, onSelect }: VisaPickerCardProps) {
+  const { tr } = useLanguage()
+  // Fetched only while the card is live — settled/historical pickers render static text
+  // and cost nothing. Re-fetched when a thread re-render remounts the live card, which
+  // keeps the 15-minute quote honesty of the storefront picker.
+  const catalogue = useVisaCatalogue(live)
+  const now = useMinuteTick()
+  const done = meta.state === 'done'
+  // The product this thread currently selects, for the settled line — from the canonical
+  // thread context (survives product renames); meta.selectedListingId stays display-only.
+  const chosenTitle = done && info?.product ? info.product.title : null
+
+  if (done || !live) {
+    return (
+      <CardShell step={null} title={tr('Choose your e-Visa service', 'Chọn dịch vụ e-Visa')} tone="settled">
+        {done ? (
+          <p className="mt-1 flex items-center gap-1.5 text-xs font-bold text-success">
+            <Check className="h-3.5 w-3.5" aria-hidden />
+            {chosenTitle
+              ? `${tr('Service chosen', 'Đã chọn dịch vụ')} · ${chosenTitle}`
+              : tr('Service chosen', 'Đã chọn dịch vụ')}
+          </p>
+        ) : (
+          <p className="mt-1 text-2xs leading-relaxed text-body">
+            {tr('A service is being chosen for this application.', 'Dịch vụ cho hồ sơ này đang được chọn.')}
+          </p>
+        )}
+      </CardShell>
+    )
+  }
+
+  return (
+    <CardShell step={null} title={tr('Choose your e-Visa service', 'Chọn dịch vụ e-Visa')} tone="live">
+      <p className="mt-1 text-2xs leading-relaxed text-body">
+        {tr(
+          'Pick a service to continue — five short steps in this chat, then pay.',
+          'Chọn một dịch vụ để tiếp tục — năm bước ngắn ngay trong chat, sau đó thanh toán.',
+        )}
+      </p>
+
+      {catalogue.status === 'loading' && (
+        <p className="mt-2.5 flex items-center gap-2 text-2xs text-muted-foreground" role="status">
+          <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+          {tr('Loading services…', 'Đang tải dịch vụ…')}
+        </p>
+      )}
+      {(catalogue.status === 'error' || (catalogue.status === 'ready' && !catalogue.ready)) && (
+        <p className="mt-2.5 text-2xs leading-relaxed text-body">
+          {tr('The e-Visa desk is unavailable right now — please try again later.', 'Bộ phận e-Visa hiện không khả dụng — vui lòng thử lại sau.')}
+        </p>
+      )}
+      {catalogue.status === 'ready' && catalogue.ready && !catalogue.products.length && (
+        <p className="mt-2.5 text-2xs leading-relaxed text-body">
+          {tr('No e-Visa services are on sale right now.', 'Hiện chưa có dịch vụ e-Visa nào được bán.')}
+        </p>
+      )}
+
+      {catalogue.status === 'ready' && catalogue.ready && catalogue.products.length > 0 && (
+        <div className="mt-2.5 space-y-2">
+          {catalogue.products.map((product) => (
+            <VisaProductRow
+              key={product.listingId}
+              product={product}
+              now={now}
+              disabled={busy}
+              onPick={(listingId) => void onSelect(listingId)}
+            />
+          ))}
+          {catalogue.status === 'ready' && !catalogue.payable && (
+            <p className="text-2xs leading-relaxed text-muted-foreground">
+              {tr(
+                'Paying in chat is not switched on yet — pick a service and the desk will confirm how to pay.',
+                'Thanh toán trong chat chưa được bật — bạn cứ chọn dịch vụ, bộ phận hỗ trợ sẽ hướng dẫn cách thanh toán.',
+              )}
+            </p>
+          )}
+        </div>
+      )}
+    </CardShell>
   )
 }

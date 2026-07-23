@@ -30,8 +30,8 @@ import { ChatComposer, type ChatComposerHandle } from '@/components/marketplace/
 import { useSafeBack } from '@/lib/safe-back'
 import { FirstContactNote, OffPlatformWarning, findOffPlatformMessageId } from '@/components/marketplace/chat-safety-note'
 import {
-  VisaCheckoutCard, VisaResendChip, VisaResultCard, VisaStepCard, VisaThreadStrip,
-  parseVisaCheckoutMeta, parseVisaResultMeta, parseVisaStepMeta, parseVisaThreadInfo,
+  VisaCheckoutCard, VisaPickerCard, VisaResendChip, VisaResultCard, VisaStepCard, VisaThreadStrip,
+  parseVisaCheckoutMeta, parseVisaPickerMeta, parseVisaResultMeta, parseVisaStepMeta, parseVisaThreadInfo,
   prepareVisaImage, useVisaCase, visaErrorCopy,
   type VisaQuoteWire,
 } from '@/components/marketplace/visa-cards'
@@ -563,8 +563,14 @@ export default function ThreadPage() {
     const applicationId = iAmApplicant ? visaInfo?.applicationId : null
     if (!applicationId || visaAdvancedRef.current === applicationId) return
     visaAdvancedRef.current = applicationId
-    void visaPost(`/api/visa/applications/${applicationId}/advance`).then((res) => { if (res.ok) void load() })
-  }, [iAmApplicant, visaInfo?.applicationId, visaPost, load])
+    void visaPost(`/api/visa/applications/${applicationId}/advance`).then((res) => {
+      if (res.ok) { void load(); return }
+      // SURFACED, not swallowed (external review): a complete case the desk cannot price
+      // (FX down, product withdrawn, payments dormant) used to be a SILENT dead-end on
+      // thread open — the one toast is the only signal the applicant gets.
+      toast.error(visaErrorCopy(res.error, tr))
+    })
+  }, [iAmApplicant, visaInfo?.applicationId, visaPost, load, tr])
 
   // Acknowledge / skip / edit. The server recomputes the step FIRST and only then closes the
   // card, so a "skip" that cannot actually be skipped just keeps asking — we simply refetch
@@ -627,8 +633,29 @@ export default function ThreadPage() {
         // The refusal reason is on the document itself; the card lists it in full.
         toast.error(tr('That photo did not pass the check — see the notes below.', 'Ảnh chưa đạt yêu cầu — xem ghi chú bên dưới.'), { id: toastId })
       }
-      await visaPost(`/api/visa/applications/${applicationId}/advance`)
+      const advanced = await visaPost(`/api/visa/applications/${applicationId}/advance`)
+      // Same surfacing rule as the mount-time advance: a failure here means the NEXT card
+      // could not be ensured, and the applicant deserves the sentence, not silence. The
+      // upload toasts above already told their own story, so reuse the id.
+      if (!advanced.ok) toast.error(visaErrorCopy(advanced.error, tr), { id: toastId })
       await Promise.all([load(), reloadVisaCase()])
+    } finally {
+      setVisaBusy(false)
+    }
+  }
+
+  // The step-0 picker's POST: write the case's canonical product choice, then refetch —
+  // the server closes the picker card and posts the next card in the same round-trip.
+  const selectVisaProduct = async (listingId: string): Promise<boolean> => {
+    const applicationId = visaInfo?.applicationId
+    if (!applicationId || visaBusy) return false
+    setVisaBusy(true)
+    try {
+      const res = await visaPost(`/api/visa/applications/${applicationId}/select-product`, { listingId })
+      if (!res.ok) toast.error(visaErrorCopy(res.error, tr))
+      await Promise.all([load(), reloadVisaCase()])
+      if (res.ok) { refreshUnread(); refreshConvos() }
+      return res.ok
     } finally {
       setVisaBusy(false)
     }
@@ -785,6 +812,20 @@ export default function ThreadPage() {
     for (let i = thread.messages.length - 1; i >= 0; i--) {
       const m = thread.messages[i]
       const meta = parseVisaStepMeta(m.kind, m.meta)
+      if (!meta) continue
+      return meta.state === 'active' && meta.applicationId === visaInfo.applicationId ? m.id : null
+    }
+    return null
+  }, [thread, visaInfo])
+
+  // WHICH picker is live — same rule as the step cards: newest 'active' picker for the
+  // bound case, silenced by an admin takeover (a human is driving; the wizard's step-0
+  // question would talk over them exactly like a step card would).
+  const liveVisaPickerId = useMemo(() => {
+    if (!thread || !visaInfo || visaInfo.mode === 'admin') return null
+    for (let i = thread.messages.length - 1; i >= 0; i--) {
+      const m = thread.messages[i]
+      const meta = parseVisaPickerMeta(m.kind, m.meta)
       if (!meta) continue
       return meta.state === 'active' && meta.applicationId === visaInfo.applicationId ? m.id : null
     }
@@ -961,6 +1002,7 @@ export default function ThreadPage() {
               const visaStepMeta = parseVisaStepMeta(m.kind, m.meta)
               const visaCheckoutMeta = parseVisaCheckoutMeta(m.kind, m.meta)
               const visaResultMeta = parseVisaResultMeta(m.kind, m.meta)
+              const visaPickerMeta = parseVisaPickerMeta(m.kind, m.meta)
               return (
               <Fragment key={m.id}>
                 {showDay && (
@@ -1044,7 +1086,15 @@ export default function ThreadPage() {
                   // expires — the card is a permanent download, for whoever the thread
                   // belongs to (the endpoint re-proves that on every request).
                   <VisaResultCard meta={visaResultMeta} info={visaInfo} />
-                ) : m.kind === 'visa_step' || m.kind === 'visa_checkout' || m.kind === 'visa_result' ? (
+                ) : visaPickerMeta ? (
+                  <VisaPickerCard
+                    meta={visaPickerMeta}
+                    info={visaInfo}
+                    live={iAmApplicant && m.id === liveVisaPickerId}
+                    busy={visaBusy}
+                    onSelect={selectVisaProduct}
+                  />
+                ) : m.kind === 'visa_step' || m.kind === 'visa_checkout' || m.kind === 'visa_result' || m.kind === 'visa_picker' ? (
                   // A card whose meta this build cannot read. Its body is empty by design,
                   // so it must NOT fall through to an empty bubble.
                   <MessageBubble mine={m.mine} className="max-w-[78%] text-ink-4">

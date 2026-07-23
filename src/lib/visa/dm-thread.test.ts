@@ -262,7 +262,7 @@ vi.mock('./payments', () => ({ visaPaymentsConfig: () => h.state.payments }))
 
 import {
   bindVisaThread, findVisaThread, findVisaThreadByCase, getVisaThreadMode, markVisaThreadPaid,
-  sendVisaCheckoutCard, sendVisaStepCard, setVisaThreadMode, visaConversationIdFor,
+  sendVisaCheckoutCard, sendVisaPickerCard, sendVisaStepCard, setVisaThreadMode, visaConversationIdFor,
 } from './dm-thread'
 import { visaDmStepPreview } from './dm-steps'
 
@@ -854,5 +854,72 @@ describe('visa thread mode', () => {
     const records = await import('./records')
     vi.spyOn(records, 'recordVisaEvent').mockRejectedValueOnce(new Error('visa_event_failed'))
     await expect(setVisaThreadMode({ applicationId: APP_ID, mode: 'admin', actorType: 'admin' })).rejects.toThrow('visa_event_failed')
+  })
+})
+
+// ── PHASE 2: THE STEP-0 PICKER CARD ────────────────────────────────────────────────
+// Same authoring surface, same four gates as the step card — the picker only differs in
+// what it asks. The suite mirrors sendVisaStepCard's shape so a gate that loosens on one
+// kind and not the other fails loudly here.
+describe('sendVisaPickerCard', () => {
+  beforeEach(() => { h.state.conversations = [convoRow({ visaApplicationId: APP_ID })] })
+
+  it('authors the card AS THE SHOP SELLER, empty body, constant price-free preview', async () => {
+    const result = await sendVisaPickerCard({ conversationId: 'convo-1', applicationId: APP_ID })
+    expect(result).toEqual({ messageId: 'message-1' })
+    const [call] = h.state.inserted
+    expect(call.senderId).toBe(SHOP_OWNER)
+    expect(call.text).toBe('')
+    expect(call.opts.kind).toBe('visa_picker')
+    expect(call.opts.meta).toEqual({ v: 1, applicationId: APP_ID, state: 'active' })
+    // The preview is a CONSTANT — no products, no prices, nothing applicant-shaped.
+    expect(call.opts.preview).toBe('Chọn dịch vụ e-Visa · Choose your e-Visa service')
+  })
+
+  it('refuses when the thread is bound to a DIFFERENT case', async () => {
+    h.state.conversations = [convoRow({ visaApplicationId: OTHER_APP_ID })]
+    expect(await sendVisaPickerCard({ conversationId: 'convo-1', applicationId: APP_ID })).toBeNull()
+    expect(h.state.inserted).toEqual([])
+  })
+
+  it('refuses on an unbound thread, a foreign seller, a missing thread, or no shop', async () => {
+    h.state.conversations = [convoRow({ visaApplicationId: null })]
+    expect(await sendVisaPickerCard({ conversationId: 'convo-1', applicationId: APP_ID })).toBeNull()
+    h.state.conversations = [convoRow({ visaApplicationId: APP_ID, sellerProfileId: 'another-seller' })]
+    expect(await sendVisaPickerCard({ conversationId: 'convo-1', applicationId: APP_ID })).toBeNull()
+    h.state.conversations = []
+    expect(await sendVisaPickerCard({ conversationId: 'convo-1', applicationId: APP_ID })).toBeNull()
+    h.state.conversations = [convoRow({ visaApplicationId: APP_ID })]
+    h.state.shop = null
+    expect(await sendVisaPickerCard({ conversationId: 'convo-1', applicationId: APP_ID })).toBeNull()
+    expect(h.state.inserted).toEqual([])
+  })
+
+  it('goes quiet during an admin takeover — unless the desk itself asks (byAdmin)', async () => {
+    h.state.events = [{ event: 'admin_takeover_started' }]
+    expect(await sendVisaPickerCard({ conversationId: 'convo-1', applicationId: APP_ID })).toBeNull()
+    expect(await sendVisaPickerCard({ conversationId: 'convo-1', applicationId: APP_ID, byAdmin: true })).toEqual({ messageId: 'message-1' })
+  })
+
+  it('degrades to null instead of throwing when the write is refused', async () => {
+    h.state.insertThrows = new Error('visa_card_author_forbidden')
+    expect(await sendVisaPickerCard({ conversationId: 'convo-1', applicationId: APP_ID })).toBeNull()
+  })
+})
+
+// ── PHASE 2: THE GENERIC ANCHOR AT BIND TIME ───────────────────────────────────────
+describe('bindVisaThread anchorListingId', () => {
+  it('a NEW conversation opens on the caller-supplied anchor, not the catalogue floor', async () => {
+    const result = await bindVisaThread({ applicationId: APP_ID, buyerProfileId: BUYER, anchorListingId: 'visa-generic' })
+    expect(result).toEqual({ ok: true, conversationId: 'convo-created', created: true })
+    expect(convoById('convo-created')?.listingId).toBe('visa-generic')
+  })
+
+  it('an EXISTING conversation keeps its listing — the anchor is create-time only', async () => {
+    h.state.conversations = [convoRow({ visaApplicationId: null })]
+    const result = await bindVisaThread({ applicationId: APP_ID, buyerProfileId: BUYER, anchorListingId: 'visa-generic' })
+    expect(result).toEqual({ ok: true, conversationId: 'convo-1', created: false })
+    expect(h.state.writes).not.toContain('conversation.create')
+    expect(convoById('convo-1')?.listingId).toBe('listing-1')
   })
 })

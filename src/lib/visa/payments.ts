@@ -618,6 +618,7 @@ export async function markVisaPaidAndHandoff(input: {
   if (payFlip.error) throw new Error(`visa_payment_update_failed:${payFlip.error.message}`)
 
   const alreadyPaid = !!app.paid_at
+  let stampedNow = false
   if (!alreadyPaid) {
     const stampRes = await db.from('visa_applications')
       .update({ paid_at: now, payment_provider: input.provider, payment_ref: input.providerRef, updated_at: now })
@@ -625,6 +626,7 @@ export async function markVisaPaidAndHandoff(input: {
       .select('*').maybeSingle()
     if (stampRes.error) throw new Error(`visa_paid_stamp_failed:${stampRes.error.message}`)
     if (stampRes.data) {
+      stampedNow = true
       app = stampRes.data as VisaApplicationRow
       // The join key of the dispute trail: this event carries the provider reference, and
       // the 'checkout_started' event the checkout route wrote under the SAME reference
@@ -651,9 +653,67 @@ export async function markVisaPaidAndHandoff(input: {
     }
   }
 
+  // ── THE CAPTURE-TIME SELECTION GUARD (Phase 2) ────────────────────────────────────
+  // What was CHARGED is the listing in this ref's own `checkout_started` event; what the
+  // case SELECTS is the canonical column (event fallback for legacy rows). A stale-tab
+  // capture — the applicant re-selected a product, then paid a provider session minted
+  // for the OLD one — must not silently hand a mismatched case to review. The payment
+  // stamps regardless (money is provider truth); only the HANDOFF is withheld, and the
+  // desk sees a named event instead of a bare consent-hash miss.
+  //
+  // ⚠️ THIS GUARD IS THE ONLY GATE FOR A SAME-ENTRY-TYPE SWAP (external review): the
+  // consent hash is a PAYLOAD hash, and swapping 1H→1D single leaves the payload — and
+  // so the hash — untouched. It therefore FAILS CLOSED, twice over: an UNREADABLE trail
+  // withholds the handoff (a paid draft is desk-visible via the queue's paid-row rule,
+  // and the other capture path retries the read), and a charge whose case has NO
+  // canonical selection at all is treated as a mismatch, not waved through.
+  let withholdHandoff = false
+  if (['draft', 'needs_changes'].includes(app.status)) {
+    try {
+      const eventRes = await db.from('visa_events')
+        .select('metadata')
+        .eq('application_id', input.applicationId)
+        .eq('event', 'checkout_started')
+        .eq('metadata->>providerRef', input.providerRef)
+        .order('created_at', { ascending: false })
+        .limit(1)
+      if (eventRes.error) throw eventRes.error
+      const charged = (eventRes.data?.[0]?.metadata as { listingId?: unknown } | undefined)?.listingId
+      const stored = typeof app.selected_listing_id === 'string' ? app.selected_listing_id.trim() : ''
+      let canonical = stored || null
+      if (!canonical) {
+        const sel = await db.from('visa_events')
+          .select('metadata,created_at,id')
+          .eq('application_id', input.applicationId)
+          .eq('event', 'dm_product_selected')
+          .order('created_at', { ascending: false })
+          .order('id', { ascending: false })
+          .limit(1)
+        if (sel.error) throw sel.error
+        const listingId = (sel.data?.[0]?.metadata as { listingId?: unknown } | undefined)?.listingId
+        canonical = typeof listingId === 'string' && listingId.trim() ? listingId.trim() : null
+      }
+      if (typeof charged === 'string' && charged && charged !== canonical) {
+        withholdHandoff = true
+        if (stampedNow) {
+          await recordVisaEvent(input.applicationId, 'system', 'payment_selection_mismatch', input.actorRef, {
+            provider: input.provider, providerRef: input.providerRef,
+            chargedListingId: charged, selectedListingId: canonical,
+          })
+        }
+        console.error(`[visa-payments] capture for ${charged} but case selects ${canonical ?? 'nothing'} — handoff withheld (${input.applicationId})`)
+      }
+    } catch (e) {
+      // FAIL CLOSED: an unverifiable charge/selection pairing is not handed to review.
+      // The payment stamps below regardless; the desk sees a paid draft in the queue.
+      withholdHandoff = true
+      console.error('[visa-payments] selection guard unreadable — handoff withheld until it can be verified', e)
+    }
+  }
+
   // Handoff — only from an applicant-editable state, only with intact checkout consent.
   let handedOff = false
-  if (['draft', 'needs_changes'].includes(app.status)) {
+  if (!withholdHandoff && ['draft', 'needs_changes'].includes(app.status)) {
     const consentHash = paymentRow.consent_snapshot_hash
     const payload = decryptVisaPayload(app.encrypted_payload)
     const snapshotHash = visaApplicantSnapshotHash(payload)

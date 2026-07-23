@@ -4,6 +4,7 @@ import { getCurrentProfileId } from '@/lib/admin'
 import { rateLimit } from '@/lib/ratelimit'
 import { decryptVisaPayload, visaApplicantSnapshotHash, visaCryptoReady } from '@/lib/visa/crypto'
 import { getVisaDb } from '@/lib/visa/db'
+import { canonicalVisaListingId } from '@/lib/visa/dm-flow'
 import { visaPaymentsConfig } from '@/lib/visa/payments'
 import { recordVisaEvent, serializeVisa, type VisaApplicationRow, type VisaDocumentRow } from '@/lib/visa/records'
 import { VISA_AUTHORIZATION_VERSION, VISA_DECLARATION_VERSION, validateVisaForReview } from '@/lib/visa/schema'
@@ -55,6 +56,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const now = new Date().toISOString()
   if (parsed.data.action === 'send_for_review') {
     if (!['draft', 'needs_changes'].includes(app.status)) return NextResponse.json({ error: 'invalid_status_transition' }, { status: 409 })
+    // No product, no submission — IN BOTH payments modes (Phase 2, external review: the
+    // dormant-payments path previously let a product-less case reach the desk, because
+    // the only selection gate lived in checkout and checkout never ran). The picker card
+    // in the thread is where this state gets fixed, and the client already has copy for
+    // this code.
+    if (!(await canonicalVisaListingId(id))) {
+      return NextResponse.json({ error: 'product_not_selected' }, { status: 409 })
+    }
     // Pay-before-admin gate (owner 2026-07-18): with payments configured, the handoff
     // to ready_for_review requires the service fee to be PAID — the normal path is the
     // checkout route + server-side handoff on confirmation, and this direct action only

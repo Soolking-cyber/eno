@@ -4,8 +4,16 @@ import { randomUUID } from 'node:crypto'
 // branch below is unit-tested in dm-flow.test.ts, and the sibling modules are mocked by
 // the same specifier the source uses. Same modules either way.
 import { db } from '../db'
-import { parseMessageMeta, setVisaStepState, type VisaCheckoutMeta, type VisaStepMeta } from '../messages'
 import {
+  parseMessageMeta,
+  setVisaPickerState,
+  setVisaStepState,
+  type VisaCheckoutMeta,
+  type VisaPickerMeta,
+  type VisaStepMeta,
+} from '../messages'
+import {
+  findVisaGenericAnchor,
   getVisaShopListings,
   getVisaShopSeller,
   resolveVisaProduct,
@@ -15,7 +23,14 @@ import {
 import { decryptVisaPayload, encryptVisaPayload, visaCryptoReady } from './crypto'
 import { getVisaDb, visaTableMissing } from './db'
 import { firstIncompleteVisaDmStep, VISA_DM_STEP_FIELDS, type VisaDmStep } from './dm-steps'
-import { bindVisaThread, findVisaThread, getVisaThreadMode, sendVisaCheckoutCard, sendVisaStepCard } from './dm-thread'
+import {
+  bindVisaThread,
+  findVisaThread,
+  getVisaThreadMode,
+  sendVisaCheckoutCard,
+  sendVisaPickerCard,
+  sendVisaStepCard,
+} from './dm-thread'
 import { quoteVisaUsd, type VisaQuote } from './fx'
 import { visaPaymentsConfig } from './payments'
 import { recordVisaEvent, type VisaApplicationRow, type VisaDocumentRow } from './records'
@@ -154,7 +169,8 @@ export type VisaDmFailure = {
 }
 
 export type VisaDmAdvance =
-  | { ok: true; step: VisaDmStep; messageId: string | null; complete: boolean }
+  /** `picker` — the flow's next thing is the step-0 product picker (no selection yet). */
+  | { ok: true; step: VisaDmStep; messageId: string | null; complete: boolean; picker?: true }
   | VisaDmFailure
 
 export type VisaDmStart =
@@ -162,7 +178,11 @@ export type VisaDmStart =
   | VisaDmFailure
 
 export type VisaDmResend =
-  | { ok: true; messageId: string; step: VisaDmStep; kind: 'visa_step' | 'visa_checkout' }
+  | { ok: true; messageId: string; step: VisaDmStep; kind: 'visa_step' | 'visa_checkout' | 'visa_picker' }
+  | VisaDmFailure
+
+export type VisaDmSelect =
+  | { ok: true; changed: boolean; advance: VisaDmAdvance | null }
   | VisaDmFailure
 
 const fail = (error: VisaDmErrorCode, status: number, extra?: Omit<VisaDmFailure, 'ok' | 'error' | 'status'>): VisaDmFailure =>
@@ -286,6 +306,31 @@ export async function selectedVisaDmListingId(applicationId: string): Promise<st
 }
 
 /**
+ * THE canonical answer to "which product is this case for". Column first (Phase 2 writes
+ * `visa_applications.selected_listing_id` transactionally), newest `dm_product_selected`
+ * event as the LEGACY fallback — rows created before the column gained a writer have the
+ * event only. Same precedence as the checkout route's own read; every other consumer
+ * (advance pricing, thread context, concierge) goes through here so the client can never
+ * learn a listingId that checkout would refuse. Fails CLOSED (null on error).
+ */
+export async function canonicalVisaListingId(applicationId: string): Promise<string | null> {
+  try {
+    const { data, error } = await getVisaDb()
+      .from('visa_applications')
+      .select('selected_listing_id')
+      .eq('id', applicationId)
+      .maybeSingle()
+    if (error) throw error
+    const stored = (data as { selected_listing_id?: unknown } | null)?.selected_listing_id
+    if (typeof stored === 'string' && stored.trim()) return stored.trim()
+  } catch (e) {
+    console.error('[visa-dm] canonical selection lookup failed', e)
+    return null
+  }
+  return await selectedVisaDmListingId(applicationId)
+}
+
+/**
  * Why this listing cannot start (or finish) a visa thread. resolveVisaProduct answers one
  * honest null for every reason, which is right for a money lookup and useless for a buyer.
  *
@@ -344,6 +389,42 @@ async function visaStepCards(conversationId: string, applicationId: string): Pro
   return cards
 }
 
+type PickerCardRow = { id: string; meta: VisaPickerMeta }
+
+/** This case's picker cards in the thread, newest first (same scoping as visaStepCards). */
+async function visaPickerCards(conversationId: string, applicationId: string): Promise<PickerCardRow[]> {
+  const rows = await db.message.findMany({
+    where: { conversationId, kind: 'visa_picker' },
+    orderBy: { createdAt: 'desc' },
+    select: { id: true, metaJson: true },
+    take: CARD_SCAN_LIMIT,
+  })
+  const cards: PickerCardRow[] = []
+  for (const row of rows) {
+    const meta = parseMessageMeta('visa_picker', row.metaJson)
+    if (!meta || !('state' in meta) || 'step' in meta || 'amountUsd' in meta) continue
+    if (meta.applicationId !== applicationId) continue
+    cards.push({ id: row.id, meta: meta as VisaPickerMeta })
+  }
+  return cards
+}
+
+/**
+ * Mark this case's active picker cards 'done', recording what was chosen. Cosmetic
+ * bookkeeping with the same never-fail contract as closeSupersededStepCards.
+ */
+async function closeVisaPickerCards(conversationId: string, applicationId: string, selectedListingId?: string): Promise<void> {
+  const cards = await visaPickerCards(conversationId, applicationId)
+  for (const card of cards) {
+    if (card.meta.state !== 'active') continue
+    try {
+      await setVisaPickerState(conversationId, card.id, 'done', selectedListingId)
+    } catch (e) {
+      console.error('[visa-dm] could not close picker card', e)
+    }
+  }
+}
+
 /** The newest checkout card that speaks for this case in this thread, or null. */
 async function newestVisaCheckoutCard(conversationId: string, applicationId: string): Promise<CheckoutCardRow | null> {
   const rows = await db.message.findMany({
@@ -399,6 +480,10 @@ async function writeVisaPayload(input: {
   userId: string
   expectedUpdatedAt: string
   payload: VisaPayload
+  /** Extra columns to SET in the SAME CAS write (the select-product path rides the
+   *  selection columns on the payload update — two updates would invalidate each
+   *  other's CAS token). Values only ever come from server-resolved products. */
+  extraSet?: Record<string, string | null>
 }): Promise<boolean> {
   const now = new Date().toISOString()
   const { data, error } = await getVisaDb()
@@ -411,11 +496,16 @@ async function writeVisaPayload(input: {
       authorized_at: null, authorization_version: null,
       applicant_snapshot_hash: null, authorization_snapshot_hash: null,
       last_applicant_action_at: now,
+      ...(input.extraSet ?? {}),
     })
     .eq('id', input.applicationId)
     .eq('user_id', input.userId)
     .in('status', [...EDITABLE_STATUSES])
     .eq('updated_at', input.expectedUpdatedAt)
+    // Money guard, IN the predicate (both external reviewers independently demanded
+    // this): the JS-side paid_at check is advisory; a payment capture that lands
+    // between our read and this write must void the write, not be overwritten around.
+    .is('paid_at', null)
     .select('id')
     .maybeSingle()
   if (error) throw error
@@ -549,6 +639,23 @@ export async function advanceVisaDmFlow(input: { applicationId: string; userId: 
     return { ok: true, step: step ?? 5, messageId: null, complete: step === null }
   }
 
+  // ── STEP 0: NO PRODUCT PICKED YET ─────────────────────────────────────────────────
+  // A generic start has no selection; the flow's next thing is the PICKER, not step 1 —
+  // and not an error (the applicant did nothing wrong). Column first, event fallback:
+  // the same precedence as the checkout route, read off the row already in hand.
+  const storedSelection =
+    typeof kase.application.selected_listing_id === 'string' ? kase.application.selected_listing_id.trim() : ''
+  const selection = storedSelection || (await selectedVisaDmListingId(input.applicationId))
+  if (!selection) {
+    const pickers = await visaPickerCards(conversationId, input.applicationId)
+    const active = pickers.find((card) => card.meta.state === 'active')
+    // Same idempotence as step cards: already asking → reuse, never a double-post.
+    if (active) return { ok: true, step: 1, picker: true, messageId: active.id, complete: false }
+    const card = await sendVisaPickerCard({ conversationId, applicationId: input.applicationId })
+    if (!card) return fail('step_card_refused', 503, { step: 1, complete: false })
+    return { ok: true, step: 1, picker: true, messageId: card.messageId, complete: false }
+  }
+
   if (step === null) return await emitVisaCheckoutCard(kase, conversationId)
 
   const cards = await visaStepCards(conversationId, input.applicationId)
@@ -619,7 +726,7 @@ async function emitVisaCheckoutCard(kase: VisaDmCase, conversationId: string): P
  * stays with the caller, and the chain has no opinion about idempotence.
  */
 async function priceVisaCheckout(applicationId: string): Promise<{ quote: VisaQuote; amountUsd: number } | VisaDmFailure> {
-  const listingId = await selectedVisaDmListingId(applicationId)
+  const listingId = await canonicalVisaListingId(applicationId)
   if (!listingId) return fail('product_not_selected', 409, { step: 5, complete: true })
   const product = await chargeableVisaProduct(listingId)
   if (isFailure(product)) return product
@@ -711,6 +818,20 @@ export async function resendVisaDmCard(input: { applicationId: string; actorId: 
   if (kase.application.paid_at) return fail('already_paid', 409, { step: 5, complete: true })
   if (!EDITABLE_STATUSES.has(kase.application.status)) return fail('application_locked', 409)
 
+  // ── NO PRODUCT PICKED YET → RE-POST THE PICKER ─────────────────────────────────────
+  // Same shape as the step-card branch below: refused for the applicant during a takeover
+  // (the automated flow must not post over a human), allowed for the desk (byAdmin).
+  const resendStored =
+    typeof kase.application.selected_listing_id === 'string' ? kase.application.selected_listing_id.trim() : ''
+  if (!resendStored && !(await selectedVisaDmListingId(input.applicationId))) {
+    const pickerMode = await getVisaThreadMode(input.applicationId)
+    if (pickerMode === 'admin' && !isDesk) return fail('admin_takeover', 409, { step: 1, complete: false })
+    const picker = await sendVisaPickerCard({ conversationId, applicationId: input.applicationId, byAdmin: isDesk })
+    if (!picker) return fail('step_card_refused', 503, { step: 1, complete: false })
+    await recordVisaResend(input, { step: 1, kind: 'visa_picker', isDesk })
+    return { ok: true, messageId: picker.messageId, step: 1, kind: 'visa_picker' }
+  }
+
   const step = firstIncompleteVisaDmStep(kase.payload, kase.documents)
 
   if (step === null) {
@@ -778,7 +899,7 @@ export async function resendVisaDmCard(input: { applicationId: string; actorId: 
  */
 async function recordVisaResend(
   input: { applicationId: string; actorId: string },
-  what: { step: VisaDmStep; kind: 'visa_step' | 'visa_checkout'; isDesk: boolean },
+  what: { step: VisaDmStep; kind: 'visa_step' | 'visa_checkout' | 'visa_picker'; isDesk: boolean },
 ): Promise<void> {
   try {
     await recordVisaEvent(input.applicationId, what.isDesk ? 'admin' : 'applicant', VISA_DM_RESEND_EVENT, input.actorId, {
@@ -798,10 +919,32 @@ async function reusableVisaApplication(userId: string): Promise<VisaApplicationR
     .select('*')
     .eq('user_id', userId)
     .in('status', [...EDITABLE_STATUSES])
+    // A paid case is never "reusable": a paid-but-still-draft row exists only while the
+    // desk resolves a payment/selection mismatch, and re-prefilling it would both fail
+    // the writer's paid_at guard and rewrite a case money already changed hands on.
+    .is('paid_at', null)
     .order('updated_at', { ascending: false })
     .limit(1)
   if (error) throw error
   return ((data as VisaApplicationRow[] | null) || [])[0] ?? null
+}
+
+/** The canonical selection columns, as one SET fragment — always from a server-resolved product. */
+const selectionColumns = (product: VisaShopProduct, at?: string): Record<string, string | null> => ({
+  selected_listing_id: product.listingId,
+  selected_entry_type: product.entryType,
+  selected_speed: product.speed,
+  selected_at: at ?? new Date().toISOString(),
+})
+
+/** Does the row's canonical selection already record exactly this product? */
+const selectionMatches = (application: VisaApplicationRow, product: VisaShopProduct): boolean => {
+  const stored = typeof application.selected_listing_id === 'string' ? application.selected_listing_id.trim() : ''
+  return (
+    stored === product.listingId &&
+    application.selected_entry_type === product.entryType &&
+    application.selected_speed === product.speed
+  )
 }
 
 /**
@@ -825,7 +968,12 @@ async function reusableVisaApplication(userId: string): Promise<VisaApplicationR
 export async function startVisaDmFlow(input: {
   userId: string
   email: string
-  listingId: string
+  /**
+   * ABSENT = the GENERIC start (Phase 2): no product yet — the case binds to the hidden
+   * $0 anchor listing and the first card is the step-0 picker. Present = the pre-chosen
+   * path (PDP / storefront row), which now ALSO writes the canonical selected_* columns.
+   */
+  listingId?: string
   /**
    * The route's create quota, asked ONLY on the branch that actually mints a case.
    *
@@ -837,7 +985,7 @@ export async function startVisaDmFlow(input: {
   allowCreate?: () => Promise<boolean>
 }): Promise<VisaDmStart> {
   if (!visaCryptoReady()) return fail('visa_encryption_not_configured', 503)
-  const product = await chargeableVisaProduct(input.listingId)
+  const product = input.listingId ? await chargeableVisaProduct(input.listingId) : null
   if (isFailure(product)) return product
   // Fail BEFORE creating a case: an application minted against a desk that cannot answer
   // is an orphan the applicant then has to be told about.
@@ -845,18 +993,27 @@ export async function startVisaDmFlow(input: {
   if (!shop?.ownerId) return fail('shop_unavailable', 503)
 
   const existing = await reusableVisaApplication(input.userId)
-  const prefill = visaPrefillForProduct(product) ?? {}
+  const prefill = product ? (visaPrefillForProduct(product) ?? {}) : {}
   let applicationId: string
 
   if (existing) {
+    // A generic start RESUMES the newest editable case as-is — even one that already has a
+    // product (external review asked; deliberate: a second case would both proliferate
+    // half-filled government forms and charge the 5/24h create budget for a re-open).
+    // Changing product stays reachable via the named-product paths and the picker card.
     applicationId = existing.id
     const payload = decryptVisaPayload(existing.encrypted_payload)
     const changed = Object.entries(prefill).some(([key, value]) => (payload as unknown as Record<string, unknown>)[key] !== value)
-    if (changed) {
+    const selectionDiffers = !!product && !selectionMatches(existing, product)
+    if (changed || selectionDiffers) {
       const parsed = visaPayloadSchema.safeParse({ ...payload, ...prefill })
       if (!parsed.success) return fail('invalid_fields', 400)
       const wrote = await writeVisaPayload({
         applicationId, userId: input.userId, expectedUpdatedAt: existing.updated_at, payload: parsed.data,
+        // The selection rides the SAME CAS write as the prefill (two updates would
+        // invalidate each other's token) — and only when it actually changed, so a
+        // same-product re-open never bumps selected_at or clears consent stamps.
+        ...(product && selectionDiffers ? { extraSet: selectionColumns(product) } : {}),
       })
       if (!wrote) return fail('application_changed_retry', 409)
     }
@@ -870,6 +1027,7 @@ export async function startVisaDmFlow(input: {
       id: applicationId, user_id: input.userId, status: 'draft',
       encrypted_payload: encryptVisaPayload(parsed.data),
       payload_version: 1, checklist: [], last_applicant_action_at: now, created_at: now, updated_at: now,
+      ...(product ? selectionColumns(product, now) : {}),
     })
     if (error) throw error
     await recordVisaEvent(applicationId, 'applicant', 'application_created', input.userId, { surface: 'dm' })
@@ -879,7 +1037,15 @@ export async function startVisaDmFlow(input: {
   // bindVisaThread is the one self-gating function in dm-thread: it re-proves
   // visa_applications.user_id == this buyer before it writes Conversation.visaApplicationId,
   // so passing a session's profile id straight in is the documented, safe usage.
-  const bound = await bindVisaThread({ applicationId, buyerProfileId: input.userId })
+  // A GENERIC start anchors a newly-created conversation on the hidden $0 anchor listing —
+  // never an arbitrary sellable product with a price the applicant did not choose. Missing
+  // anchor (unseeded deployment) falls back to dm-thread's floor rather than blocking.
+  const anchor = product ? null : await findVisaGenericAnchor()
+  const bound = await bindVisaThread({
+    applicationId,
+    buyerProfileId: input.userId,
+    ...(anchor ? { anchorListingId: anchor.id } : {}),
+  })
   if (!bound.ok) {
     if (bound.error === 'thread_conflict') return fail('thread_conflict', 409)
     if (bound.error === 'not_owner') return fail('not_found', 404)
@@ -887,14 +1053,144 @@ export async function startVisaDmFlow(input: {
     return fail('shop_unavailable', 503)
   }
 
-  await recordVisaEvent(applicationId, 'applicant', VISA_DM_PRODUCT_EVENT, input.userId, {
-    listingId: product.listingId, conversationId: bound.conversationId,
-    entryType: product.entryType, speed: product.speed, priceVnd: product.priceVnd,
-  })
+  if (product) {
+    await recordVisaEvent(applicationId, 'applicant', VISA_DM_PRODUCT_EVENT, input.userId, {
+      listingId: product.listingId, conversationId: bound.conversationId,
+      entryType: product.entryType, speed: product.speed, priceVnd: product.priceVnd,
+    })
+  } else if (anchor) {
+    // A REUSED desk thread keeps whatever listing its last case pointed it at — which for
+    // a selection-less generic case would put an unchosen product (and its price) in the
+    // thread header (external review). Converge the anchor for exactly that state; a
+    // resumed case WITH a selection keeps its truthful product header.
+    const stored = existing && typeof existing.selected_listing_id === 'string' ? existing.selected_listing_id.trim() : ''
+    const hasSelection = !!stored || (!!existing && !!(await selectedVisaDmListingId(applicationId)))
+    if (!hasSelection) await retargetVisaThreadListing(bound.conversationId, anchor.id)
+  }
 
   // The first card is the first INCOMPLETE step, which for a fresh draft is step 1 — a
   // returning applicant is put back where they stopped rather than made to re-do Documents.
+  // (For a product-less case, advance emits the step-0 picker instead.)
   const advanced = await advanceVisaDmFlow({ applicationId, userId: input.userId })
   if (!advanced.ok) return advanced
   return { ok: true, applicationId, conversationId: bound.conversationId, step: advanced.step }
+}
+
+// ── Choosing the product IN the thread ────────────────────────────────────────────
+
+/**
+ * Point the thread's Conversation.listingId at the chosen product, so the thread header
+ * stops showing the anchor/floor listing's title and price (the bait-and-switch both
+ * external reviews flagged in Phase 1).
+ *
+ * FAIL-SOFT COSMETICS, NEVER AUTHORITY: the charged product is the canonical column, so a
+ * skipped retarget costs a stale header line, not money. The one real failure mode is
+ * P2002 on `@@unique([listingId, buyerProfileId])` — the buyer already has an ORDINARY
+ * thread on this listing — and the precedent in /api/conversations 500s on exactly that
+ * (route.ts:114-117, unguarded); this helper exists so the visa path does not copy it.
+ */
+async function retargetVisaThreadListing(conversationId: string, listingId: string): Promise<void> {
+  try {
+    // NOT-filtered so an already-correct anchor is a 0-row no-op, not a wasted write.
+    await db.conversation.updateMany({ where: { id: conversationId, NOT: { listingId } }, data: { listingId } })
+  } catch (e) {
+    if ((e as { code?: string })?.code === 'P2002') {
+      console.error(`[visa-dm] thread retarget skipped: buyer already has a thread on listing ${listingId}`)
+      return
+    }
+    console.error('[visa-dm] thread retarget failed (selection unaffected)', e)
+  }
+}
+
+/**
+ * The step-0 selection: write the canonical selected_* columns (and the entryType the
+ * product implies) in ONE CAS-guarded update, then bring the thread up to date.
+ *
+ * IDEMPOTENT BY DESIGN (external review): re-selecting the product the case already
+ * records is a NO-OP write — no consent-stamp clearing, no duplicate audit event, no
+ * selected_at bump — while the follow-ups (picker close, retarget, the chained advance)
+ * are re-ensured on EVERY call, so a retry after a partial failure converges instead of
+ * punishing the applicant with a second consent reset.
+ *
+ * ⚠️ MONEY RULES INHERITED, NOT RESTATED: the listing must be a chargeable product
+ * (resolveVisaProduct — the hidden $0 anchor and half-built rows all refuse here), the
+ * write's predicate carries status ∈ EDITABLE and `paid_at IS NULL` (writeVisaPayload),
+ * and nothing from the request body ever reaches a price.
+ */
+export async function selectVisaDmProduct(input: {
+  applicationId: string
+  userId: string
+  listingId: string
+}): Promise<VisaDmSelect> {
+  if (!visaCryptoReady()) return fail('visa_encryption_not_configured', 503)
+  const kase = await loadVisaDmCase(input.applicationId, input.userId)
+  if (!kase) return fail('not_found', 404)
+  const thread = await findVisaThread(input.applicationId)
+  if (!thread) return fail('thread_not_bound', 409)
+  if (thread.buyerProfileId !== input.userId) return fail('thread_conflict', 409)
+  const { conversationId } = thread
+
+  if (kase.application.status === 'cancelled') return fail('application_cancelled', 409)
+  if (kase.application.paid_at) return fail('already_paid', 409)
+  if (!EDITABLE_STATUSES.has(kase.application.status)) return fail('application_locked', 409)
+
+  const product = await chargeableVisaProduct(input.listingId)
+  if (isFailure(product)) return product
+
+  // Only what the product actually implies: entryType. NOT the full start-time prefill —
+  // stayLengthDays and the trip dates may carry the applicant's own edits by now, and a
+  // product change has no opinion about them.
+  const entryType = product.entryType
+  const payloadRecord = kase.payload as unknown as Record<string, unknown>
+  const prefillDiffers = entryType !== null && payloadRecord.entryType !== entryType
+  const selectionDiffers = !selectionMatches(kase.application, product)
+
+  let changed = false
+  if (selectionDiffers || prefillDiffers) {
+    const parsed = visaPayloadSchema.safeParse({ ...kase.payload, ...(entryType ? { entryType } : {}) })
+    if (!parsed.success) return fail('invalid_fields', 400)
+    const wrote = await writeVisaPayload({
+      applicationId: input.applicationId,
+      userId: input.userId,
+      expectedUpdatedAt: kase.application.updated_at,
+      payload: parsed.data,
+      extraSet: selectionColumns(product),
+    })
+    if (!wrote) return fail('application_changed_retry', 409)
+    changed = true
+    // Audit AFTER the authoritative write, and only when one happened — the event stream
+    // stays the legacy fallback read, so a no-op must not re-point it either. BEST
+    // EFFORT (external review): the selection is already canonical in the column; a
+    // failed audit insert must not turn it into a 5xx whose retry would then skip the
+    // event forever (the no-op path deliberately records nothing).
+    try {
+      await recordVisaEvent(input.applicationId, 'applicant', VISA_DM_PRODUCT_EVENT, input.userId, {
+        listingId: product.listingId, conversationId,
+        entryType: product.entryType, speed: product.speed, priceVnd: product.priceVnd,
+      })
+    } catch (e) {
+      console.error('[visa-dm] selection event not recorded (selection landed)', e)
+    }
+  }
+
+  // ── Follow-ups, on every call (a retry after partial failure converges) ────────────
+  // The retarget aims at the RE-READ canonical value, not this request's listing
+  // (external review): two rapid re-picks can complete out of order, and a stale
+  // request must converge the header to whatever actually won, never overwrite it.
+  const canonicalNow = (await canonicalVisaListingId(input.applicationId)) ?? product.listingId
+  await retargetVisaThreadListing(conversationId, canonicalNow)
+
+  // The next card (step 1, or a re-quoted checkout) posts in the same round-trip — the
+  // act route's pattern. A failure here does NOT undo the selection: it landed, and the
+  // picker card is only closed AFTER a successful advance (external review) — a failed
+  // advance leaves the picker ACTIVE as the applicant's visible retry affordance
+  // (re-picking is the idempotent no-op that re-runs exactly these follow-ups).
+  let advance: VisaDmAdvance | null = null
+  try {
+    advance = await advanceVisaDmFlow({ applicationId: input.applicationId, userId: input.userId })
+  } catch (e) {
+    console.error('[visa-dm] post-selection advance failed (selection landed)', e)
+  }
+  if (advance?.ok) await closeVisaPickerCards(conversationId, input.applicationId, canonicalNow)
+  return { ok: true, changed, advance }
 }

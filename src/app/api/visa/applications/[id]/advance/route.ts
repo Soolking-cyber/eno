@@ -47,7 +47,11 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
     }
     // messageId is null only when nothing may be posted — an admin has taken the thread
     // over (requirement 5: the wizard does not talk over a human).
-    return NextResponse.json({ step: advanced.step, messageId: advanced.messageId, complete: advanced.complete })
+    // `picker: true` = the flow's next thing is the step-0 product picker, not a form step.
+    return NextResponse.json({
+      step: advanced.step, messageId: advanced.messageId, complete: advanced.complete,
+      ...(advanced.picker ? { picker: true } : {}),
+    })
   } catch (error) {
     const failure = visaDmFailureFor(error)
     return NextResponse.json({ error: failure.error }, { status: failure.status })

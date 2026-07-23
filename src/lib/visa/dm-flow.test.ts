@@ -38,9 +38,15 @@ const h = vi.hoisted(() => ({
     cryptoReady: true,
     /** Fault injection: a concurrent writer lands between the case READ and the CAS write. */
     raceAfterLoad: false,
+    /** The hidden $0 anchor a generic start binds to (null = unseeded deployment). */
+    genericAnchor: null as null | { id: string },
+    /** Fault injection for the fail-soft Conversation.listingId retarget. */
+    retargetError: null as unknown,
     // observations
     stepCards: [] as Array<{ conversationId: string; applicationId: string; step: number; needsReview?: string[] }>,
     checkoutCards: [] as Array<{ conversationId: string; applicationId: string; amountUsd: number }>,
+    pickerCards: [] as Array<{ conversationId: string; applicationId: string; byAdmin?: boolean }>,
+    retargets: [] as Array<{ conversationId: string; listingId: string }>,
     events: [] as Array<{ applicationId: string; actorType: string; event: string; metadata: any }>,
     stateWrites: [] as Array<{ messageId: string; state: string }>,
     seq: 0,
@@ -50,7 +56,12 @@ const h = vi.hoisted(() => ({
 // ── The Supabase mock ─────────────────────────────────────────────────────────────
 vi.mock('./db', () => {
   const matches = (row: Row, filters: Array<[string, string, any]>) =>
-    filters.every(([op, key, value]) => (op === 'eq' ? row[key] === value : Array.isArray(value) && value.includes(row[key])))
+    filters.every(([op, key, value]) => {
+      // `.is(key, null)` — SQL IS NULL. A row that never gained the column (undefined)
+      // is as NULL as an explicit null, exactly like PostgREST reading a real table.
+      if (op === 'is') return value === null ? row[key] === null || row[key] === undefined : row[key] === value
+      return op === 'eq' ? row[key] === value : Array.isArray(value) && value.includes(row[key])
+    })
 
   const from = (table: string) => {
     const q = {
@@ -83,6 +94,7 @@ vi.mock('./db', () => {
       select: () => api,
       eq: (key: string, value: unknown) => { q.filters.push(['eq', key, value]); return api },
       in: (key: string, value: unknown) => { q.filters.push(['in', key, value]); return api },
+      is: (key: string, value: unknown) => { q.filters.push(['is', key, value]); return api },
       order: (column: string, opts?: { ascending?: boolean }) => { q.orderBy.push([column, opts?.ascending !== false]); return api },
       limit: (n: number) => { q.limitN = n; return api },
       insert: (payload: any) => { q.op = 'insert'; q.payload = payload; return api },
@@ -103,7 +115,7 @@ vi.mock('./db', () => {
   }
 })
 
-// ── The Prisma mock (Message reads only — dm-flow never writes one directly) ───────
+// ── The Prisma mock (Message reads + the fail-soft Conversation retarget) ──────────
 vi.mock('../db', () => ({
   db: {
     message: {
@@ -113,18 +125,34 @@ vi.mock('../db', () => ({
         return (take ? rows.slice(0, take) : rows).map((m) => ({ id: m.id, metaJson: m.metaJson }))
       }),
     },
+    conversation: {
+      // retargetVisaThreadListing's write. `retargetError` injects the P2002 collision.
+      updateMany: vi.fn(async ({ where, data }: any) => {
+        if (h.state.retargetError) throw h.state.retargetError
+        h.state.retargets.push({ conversationId: where.id, listingId: data.listingId })
+        return { count: 1 }
+      }),
+    },
   },
 }))
 
 vi.mock('../messages', () => ({
   parseMessageMeta: (kind: string, metaJson: string | null) => {
-    if (!metaJson || !['visa_step', 'visa_checkout'].includes(kind)) return null
+    if (!metaJson || !['visa_step', 'visa_checkout', 'visa_picker'].includes(kind)) return null
     try { return JSON.parse(metaJson) } catch { return null }
   },
   setVisaStepState: vi.fn(async (_conversationId: string, messageId: string, state: string) => {
     const row = h.state.messages.find((m) => m.id === messageId)
     if (!row?.metaJson) return null
     const meta = { ...JSON.parse(row.metaJson), state }
+    row.metaJson = JSON.stringify(meta)
+    h.state.stateWrites.push({ messageId, state })
+    return meta
+  }),
+  setVisaPickerState: vi.fn(async (_conversationId: string, messageId: string, state: string, selectedListingId?: string) => {
+    const row = h.state.messages.find((m) => m.id === messageId)
+    if (!row?.metaJson) return null
+    const meta = { ...JSON.parse(row.metaJson), state, ...(selectedListingId ? { selectedListingId } : {}) }
     row.metaJson = JSON.stringify(meta)
     h.state.stateWrites.push({ messageId, state })
     return meta
@@ -137,6 +165,7 @@ vi.mock('../visa-shop', () => ({
   resolveVisaProduct: async (listingId: string) => h.state.products.find((p) => p.listingId === listingId) ?? null,
   visaPrefillForProduct: (product: { entryType: string | null }) =>
     product?.entryType ? { entryType: product.entryType, stayLengthDays: 90 } : null,
+  findVisaGenericAnchor: async () => h.state.genericAnchor,
 }))
 
 vi.mock('./crypto', () => ({
@@ -197,10 +226,22 @@ vi.mock('./dm-thread', () => ({
     })
     return { messageId: id }
   }),
+  sendVisaPickerCard: vi.fn(async (input: any) => {
+    // Same takeover gate as the step card (mirrors dm-thread.ts).
+    if (h.state.mode === 'admin' && !input.byAdmin) return null
+    h.state.pickerCards.push(input)
+    const id = `msg-picker-${++h.state.seq}`
+    h.state.messages.push({
+      id, conversationId: input.conversationId, kind: 'visa_picker', createdAt: h.state.seq,
+      metaJson: JSON.stringify({ v: 1, applicationId: input.applicationId, state: 'active' }),
+    })
+    return { messageId: id }
+  }),
 }))
 
 const {
-  advanceVisaDmFlow, applyVisaDmFieldEdit, resendVisaDmCard, startVisaDmFlow, visaDmStep2NeedsReview,
+  advanceVisaDmFlow, applyVisaDmFieldEdit, canonicalVisaListingId, resendVisaDmCard,
+  selectVisaDmProduct, startVisaDmFlow, visaDmStep2NeedsReview,
   VISA_DM_EXTRACTABLE_FIELDS, VISA_DM_PRODUCT_EVENT, VISA_DM_RESEND_EVENT,
 } = await import('./dm-flow')
 const { VISA_DM_STEP_FIELDS } = await import('./dm-steps')
@@ -233,11 +274,21 @@ const PASSED_DOCUMENTS = [
   { id: 'doc-2', application_id: APPLICATION, kind: 'passport', validation_status: 'passed', validation_report: { mrzChecks: { composite: true } } },
 ]
 
-function seedCase(opts: { payload?: unknown; documents?: Row[]; status?: string; userId?: string; paidAt?: string | null; checklist?: string[] } = {}) {
+function seedCase(opts: { payload?: unknown; documents?: Row[]; status?: string; userId?: string; paidAt?: string | null; checklist?: string[]; selected?: boolean } = {}) {
+  // `selected` defaults TRUE and mirrors a post-backfill Phase-2 row: the canonical
+  // selected_* columns are populated (matching listing-1) so the wizard's step tests run
+  // past the step-0 selection gate. Pass `selected: false` for a genuinely product-less
+  // case (the picker path), and use seedProductChoice() WITHOUT the columns to exercise
+  // the legacy event-fallback read.
+  const selected = opts.selected !== false
   h.state.tables.visa_applications = [{
     id: APPLICATION, user_id: opts.userId ?? BUYER, status: opts.status ?? 'draft',
     encrypted_payload: JSON.stringify(opts.payload ?? emptyVisaPayload('traveller@example.com')),
     checklist: opts.checklist ?? [], paid_at: opts.paidAt ?? null,
+    selected_listing_id: selected ? 'listing-1' : null,
+    selected_entry_type: selected ? 'single' : null,
+    selected_speed: selected ? '1H' : null,
+    selected_at: selected ? '2026-07-01T00:00:00.000Z' : null,
     created_at: '2026-07-01T00:00:00.000Z', updated_at: '2026-07-02T00:00:00.000Z',
   }]
   h.state.tables.visa_documents = opts.documents ?? []
@@ -266,8 +317,12 @@ beforeEach(() => {
   h.state.quote = { listingId: 'listing-1', priceVnd: 3_000_000, amountUsdCents: 11_489, vndPerUsd: 26_112, quotedAt: '2026-07-22T00:00:00.000Z', expiresAt: '2026-07-22T00:15:00.000Z' }
   h.state.payments = { providers: ['paypal'], feeCents: 100, currency: 'USD' }
   h.state.cryptoReady = true
+  h.state.genericAnchor = { id: 'visa-generic' }
+  h.state.retargetError = null
   h.state.stepCards = []
   h.state.checkoutCards = []
+  h.state.pickerCards = []
+  h.state.retargets = []
   h.state.events = []
   h.state.stateWrites = []
   h.state.seq = 0
@@ -769,10 +824,15 @@ describe('the pay card fails closed', () => {
     expect(dmThread.sendVisaCheckoutCard).not.toHaveBeenCalled()
   })
 
-  it('refuses when no product was ever picked', async () => {
-    seedCase({ payload: completePayload(), documents: PASSED_DOCUMENTS })
+  it('a complete case with no product gets the PICKER, not a refusal (Phase 2)', async () => {
+    // Pre-Phase-2 this was a 409 product_not_selected dead-end. Now the missing selection
+    // is a step-0 state the applicant can fix in the thread — the pay card is simply
+    // never reached until they do.
+    seedCase({ payload: completePayload(), documents: PASSED_DOCUMENTS, selected: false })
     const result = await advanceVisaDmFlow({ applicationId: APPLICATION, userId: BUYER })
-    expect(result).toMatchObject({ ok: false, error: 'product_not_selected', status: 409 })
+    expect(result).toMatchObject({ ok: true, picker: true, complete: false })
+    expect(h.state.pickerCards).toHaveLength(1)
+    expect(h.state.checkoutCards).toHaveLength(0)
   })
 
   it('refuses a product that left the catalogue mid-flow', async () => {
@@ -849,5 +909,270 @@ describe('start', () => {
     const result = await startVisaDmFlow({ userId: BUYER, email: 'a@b.com', listingId: 'listing-1', allowCreate: async () => true })
     expect(result).toMatchObject({ ok: false, error: 'shop_unavailable', status: 503 })
     expect(h.state.tables.visa_applications).toHaveLength(0)
+  })
+})
+
+// ── PHASE 2: THE STEP-0 PICKER ─────────────────────────────────────────────────────
+
+describe('the step-0 picker', () => {
+  it('a product-less case gets the picker, idempotently', async () => {
+    seedCase({ selected: false })
+    const first = await advanceVisaDmFlow({ applicationId: APPLICATION, userId: BUYER })
+    expect(first).toMatchObject({ ok: true, picker: true, complete: false })
+    expect(h.state.pickerCards).toHaveLength(1)
+    // Second advance REUSES the active picker — same messageId, no double-post.
+    const second = await advanceVisaDmFlow({ applicationId: APPLICATION, userId: BUYER })
+    expect(second).toMatchObject({ ok: true, picker: true, messageId: (first as any).messageId })
+    expect(h.state.pickerCards).toHaveLength(1)
+    expect(h.state.stepCards).toHaveLength(0)
+  })
+
+  it('an admin takeover suppresses the picker like any wizard card', async () => {
+    seedCase({ selected: false })
+    h.state.mode = 'admin'
+    const result = await advanceVisaDmFlow({ applicationId: APPLICATION, userId: BUYER })
+    expect(result).toMatchObject({ ok: true, messageId: null })
+    expect(h.state.pickerCards).toHaveLength(0)
+  })
+
+  it('a LEGACY event-only selection still counts (no picker, steps proceed)', async () => {
+    seedCase({ selected: false })
+    seedProductChoice()
+    const result = await advanceVisaDmFlow({ applicationId: APPLICATION, userId: BUYER })
+    expect(result).toMatchObject({ ok: true, step: 1 })
+    expect((result as any).picker).toBeUndefined()
+    expect(h.state.pickerCards).toHaveLength(0)
+    expect(h.state.stepCards).toHaveLength(1)
+  })
+
+  it('canonicalVisaListingId: the column beats the event; the event is the fallback', async () => {
+    seedCase()          // column says listing-1
+    seedProductChoice('listing-2')  // newer event says listing-2
+    expect(await canonicalVisaListingId(APPLICATION)).toBe('listing-1')
+    h.state.tables.visa_applications[0].selected_listing_id = null
+    expect(await canonicalVisaListingId(APPLICATION)).toBe('listing-2')
+  })
+
+  it('resend re-posts the picker for a product-less case, and the desk may do it during a takeover', async () => {
+    seedCase({ selected: false })
+    const applicant = await resendVisaDmCard({ applicationId: APPLICATION, actorId: BUYER })
+    expect(applicant).toMatchObject({ ok: true, kind: 'visa_picker' })
+    h.state.mode = 'admin'
+    const refused = await resendVisaDmCard({ applicationId: APPLICATION, actorId: BUYER })
+    expect(refused).toMatchObject({ ok: false, error: 'admin_takeover', status: 409 })
+    const desk = await resendVisaDmCard({ applicationId: APPLICATION, actorId: 'shop-owner' })
+    expect(desk).toMatchObject({ ok: true, kind: 'visa_picker' })
+    expect(h.state.pickerCards.at(-1)).toMatchObject({ byAdmin: true })
+  })
+})
+
+// ── PHASE 2: SELECTING THE PRODUCT IN THE THREAD ───────────────────────────────────
+
+describe('selectVisaDmProduct', () => {
+  it('writes the canonical columns + entryType prefill in ONE update, records the event, retargets and advances', async () => {
+    seedCase({ selected: false })
+    h.state.products = [{ ...h.state.products[0], entryType: 'multiple' }]
+    const result = await selectVisaDmProduct({ applicationId: APPLICATION, userId: BUYER, listingId: 'listing-1' })
+    expect(result).toMatchObject({ ok: true, changed: true })
+    const row = h.state.tables.visa_applications[0]
+    expect(row.selected_listing_id).toBe('listing-1')
+    expect(row.selected_entry_type).toBe('multiple')
+    expect(row.selected_speed).toBe('1H')
+    expect(row.selected_at).toBeTruthy()
+    expect(JSON.parse(row.encrypted_payload).entryType).toBe('multiple')
+    // Consent stamps nulled by the same write (selection change voids consent).
+    expect(row.applicant_confirmed_at).toBeNull()
+    expect(h.state.events.filter((e) => e.event === VISA_DM_PRODUCT_EVENT)).toHaveLength(1)
+    expect(h.state.retargets).toEqual([{ conversationId: 'convo-1', listingId: 'listing-1' }])
+    // The chained advance posted the next card (step 1 for an empty payload).
+    expect((result as any).advance).toMatchObject({ ok: true, step: 1 })
+    expect(h.state.stepCards).toHaveLength(1)
+  })
+
+  it('re-selecting the SAME product is a no-op write — no event, no consent reset — but follow-ups re-run', async () => {
+    seedCase() // column already = listing-1 (entry single), payload entryType default 'single'
+    const before = h.state.tables.visa_applications[0].updated_at
+    const result = await selectVisaDmProduct({ applicationId: APPLICATION, userId: BUYER, listingId: 'listing-1' })
+    expect(result).toMatchObject({ ok: true, changed: false })
+    expect(h.state.tables.visa_applications[0].updated_at).toBe(before)
+    expect(h.state.events.filter((e) => e.event === VISA_DM_PRODUCT_EVENT)).toHaveLength(0)
+    // Follow-ups still converge: the retarget re-ran (idempotent server-side).
+    expect(h.state.retargets).toHaveLength(1)
+  })
+
+  it('a concurrent writer voids the CAS — application_changed_retry, nothing written', async () => {
+    seedCase({ selected: false })
+    h.state.raceAfterLoad = true
+    const result = await selectVisaDmProduct({ applicationId: APPLICATION, userId: BUYER, listingId: 'listing-1' })
+    expect(result).toMatchObject({ ok: false, error: 'application_changed_retry', status: 409 })
+    expect(h.state.tables.visa_applications[0].selected_listing_id).toBeNull()
+  })
+
+  it('refuses a paid case, a locked case and a cancelled case', async () => {
+    seedCase({ selected: false, paidAt: '2026-07-20T00:00:00.000Z' })
+    expect(await selectVisaDmProduct({ applicationId: APPLICATION, userId: BUYER, listingId: 'listing-1' }))
+      .toMatchObject({ ok: false, error: 'already_paid', status: 409 })
+    seedCase({ selected: false, status: 'under_review' })
+    expect(await selectVisaDmProduct({ applicationId: APPLICATION, userId: BUYER, listingId: 'listing-1' }))
+      .toMatchObject({ ok: false, error: 'application_locked', status: 409 })
+    seedCase({ selected: false, status: 'cancelled' })
+    expect(await selectVisaDmProduct({ applicationId: APPLICATION, userId: BUYER, listingId: 'listing-1' }))
+      .toMatchObject({ ok: false, error: 'application_cancelled', status: 409 })
+  })
+
+  it('refuses the hidden anchor and any unchargeable listing — the picker cannot buy the unbuyable', async () => {
+    seedCase({ selected: false })
+    h.state.listings = [...h.state.listings, { id: 'visa-generic', verified: true, status: 'hidden' }]
+    expect(await selectVisaDmProduct({ applicationId: APPLICATION, userId: BUYER, listingId: 'visa-generic' }))
+      .toMatchObject({ ok: false, error: 'product_not_for_sale', status: 409 })
+    expect(h.state.tables.visa_applications[0].selected_listing_id).toBeNull()
+  })
+
+  it('a P2002 retarget collision is SKIPPED — the selection still lands', async () => {
+    seedCase({ selected: false })
+    h.state.retargetError = Object.assign(new Error('unique'), { code: 'P2002' })
+    const result = await selectVisaDmProduct({ applicationId: APPLICATION, userId: BUYER, listingId: 'listing-1' })
+    expect(result).toMatchObject({ ok: true, changed: true })
+    expect(h.state.tables.visa_applications[0].selected_listing_id).toBe('listing-1')
+  })
+
+  it('closes the active picker card once a product is chosen', async () => {
+    seedCase({ selected: false })
+    await advanceVisaDmFlow({ applicationId: APPLICATION, userId: BUYER }) // posts the picker
+    await selectVisaDmProduct({ applicationId: APPLICATION, userId: BUYER, listingId: 'listing-1' })
+    const picker = h.state.messages.find((m) => m.kind === 'visa_picker')!
+    expect(JSON.parse(picker.metaJson!)).toMatchObject({ state: 'done', selectedListingId: 'listing-1' })
+  })
+
+  it('changing product after an unpaid checkout card re-quotes: a new amount supersedes the card', async () => {
+    seedCase({ payload: completePayload(), documents: PASSED_DOCUMENTS })
+    await advanceVisaDmFlow({ applicationId: APPLICATION, userId: BUYER }) // mints the pay card
+    expect(h.state.checkoutCards).toHaveLength(1)
+    h.state.products = [
+      ...h.state.products,
+      { listingId: 'listing-2', title: 'e-Visa 1D', entryType: 'single', speed: '1D', priceVnd: 1_000_000, currency: 'VND', window: { acceptingNow: true } },
+    ]
+    h.state.quote = { ...h.state.quote, listingId: 'listing-2', priceVnd: 1_000_000, amountUsdCents: 3_830 }
+    const result = await selectVisaDmProduct({ applicationId: APPLICATION, userId: BUYER, listingId: 'listing-2' })
+    expect(result).toMatchObject({ ok: true, changed: true })
+    // The chained advance re-quoted and superseded the stale amount with a fresh card.
+    expect(h.state.checkoutCards).toHaveLength(2)
+    expect(h.state.checkoutCards.at(-1)!.amountUsd).toBeCloseTo(38.30)
+    expect(h.state.tables.visa_applications[0].selected_listing_id).toBe('listing-2')
+  })
+})
+
+// ── PHASE 2: THE GENERIC (PRODUCT-LESS) START ──────────────────────────────────────
+
+describe('generic start', () => {
+  it('creates a case with NO prefill and NO selection, binds to the anchor, and the first card is the picker', async () => {
+    h.state.tables.visa_applications = []
+    const result = await startVisaDmFlow({ userId: BUYER, email: 'a@b.com', allowCreate: async () => true })
+    expect(result).toMatchObject({ ok: true, conversationId: 'convo-1' })
+    const row = h.state.tables.visa_applications[0]
+    expect(row.selected_listing_id).toBeUndefined()
+    expect(JSON.parse(row.encrypted_payload).entryType).toBe('single') // the schema default, not a prefill
+    expect(dmThread.bindVisaThread).toHaveBeenCalledWith(
+      expect.objectContaining({ anchorListingId: 'visa-generic' }),
+    )
+    expect(h.state.events.find((e) => e.event === VISA_DM_PRODUCT_EVENT)).toBeUndefined()
+    expect(h.state.pickerCards).toHaveLength(1)
+    expect(h.state.stepCards).toHaveLength(0)
+  })
+
+  it('an unseeded anchor falls back to the floor rather than blocking the applicant', async () => {
+    h.state.tables.visa_applications = []
+    h.state.genericAnchor = null
+    const result = await startVisaDmFlow({ userId: BUYER, email: 'a@b.com', allowCreate: async () => true })
+    expect(result).toMatchObject({ ok: true })
+    expect(dmThread.bindVisaThread).toHaveBeenCalledWith(
+      expect.not.objectContaining({ anchorListingId: expect.anything() }),
+    )
+  })
+
+  it('a generic start RESUMES an already-selected draft (no picker, no duplicate case)', async () => {
+    seedCase()
+    const result = await startVisaDmFlow({ userId: BUYER, email: 'a@b.com' })
+    expect(result).toMatchObject({ ok: true, applicationId: APPLICATION, step: 1 })
+    expect(h.state.tables.visa_applications).toHaveLength(1)
+    expect(h.state.pickerCards).toHaveLength(0)
+    expect(h.state.stepCards).toHaveLength(1)
+  })
+
+  it('a NAMED-product start now dual-writes the canonical columns on create', async () => {
+    h.state.tables.visa_applications = []
+    await startVisaDmFlow({ userId: BUYER, email: 'a@b.com', listingId: 'listing-1', allowCreate: async () => true })
+    const row = h.state.tables.visa_applications[0]
+    expect(row.selected_listing_id).toBe('listing-1')
+    expect(row.selected_entry_type).toBe('single')
+    expect(row.selected_speed).toBe('1H')
+  })
+
+  it('a paid-but-still-draft case is never "reused" by a fresh start', async () => {
+    seedCase({ paidAt: '2026-07-20T00:00:00.000Z' })
+    const result = await startVisaDmFlow({ userId: BUYER, email: 'a@b.com', listingId: 'listing-1', allowCreate: async () => true })
+    expect(result).toMatchObject({ ok: true })
+    // A NEW case was minted; the paid one was left exactly as it was.
+    expect(h.state.tables.visa_applications).toHaveLength(2)
+    expect(h.state.tables.visa_applications[0].paid_at).toBe('2026-07-20T00:00:00.000Z')
+  })
+})
+
+// ── PHASE 2: THE POST-REVIEW HARDENINGS (codex diff verdict, 2026-07-23) ───────────
+
+describe('selection follow-up hardenings', () => {
+  it('an advance that FAILS outright leaves the picker active and the selection intact', async () => {
+    seedCase({ selected: false })
+    await advanceVisaDmFlow({ applicationId: APPLICATION, userId: BUYER }) // posts the picker
+    // Selection write succeeds; the chained advance then blows up on a dead thread.
+    const thread = h.state.thread
+    let first = true
+    const { findVisaThread } = await import('./dm-thread')
+    ;(findVisaThread as any).mockImplementation(async () => {
+      if (first) { first = false; return thread } // the selection's own thread check
+      return null                                  // the chained advance's check → thread_not_bound
+    })
+    const result = await selectVisaDmProduct({ applicationId: APPLICATION, userId: BUYER, listingId: 'listing-1' })
+    expect(result).toMatchObject({ ok: true, changed: true })
+    expect((result as any).advance).toMatchObject({ ok: false })
+    // The picker is STILL the live affordance — not closed over a failed advance.
+    const picker = h.state.messages.find((m) => m.kind === 'visa_picker')!
+    expect(JSON.parse(picker.metaJson!).state).toBe('active')
+    ;(findVisaThread as any).mockImplementation(async () => h.state.thread)
+  })
+
+  it('a stale request converges the retarget to the CURRENT canonical, never backwards', async () => {
+    seedCase() // canonical column = listing-1
+    h.state.products = [
+      ...h.state.products,
+      { listingId: 'listing-2', title: 'e-Visa 1D', entryType: 'single', speed: '1D', priceVnd: 1_000_000, currency: 'VND', window: { acceptingNow: true } },
+    ]
+    // Request for listing-2 lands and the column now says listing-2. A LATE duplicate
+    // request for listing-1-era state re-picks listing-2 idempotently; but even a re-POST
+    // of listing-1 would first WRITE listing-1 canonically — so the stale-overwrite case
+    // the review named is the no-op path: same-selection retry retargets to the RE-READ
+    // canonical, which this asserts.
+    await selectVisaDmProduct({ applicationId: APPLICATION, userId: BUYER, listingId: 'listing-2' })
+    expect(h.state.tables.visa_applications[0].selected_listing_id).toBe('listing-2')
+    const retargets = h.state.retargets.map((r) => r.listingId)
+    expect(retargets[retargets.length - 1]).toBe('listing-2')
+    // The idempotent re-POST of the SAME selection retargets to canonical (listing-2).
+    await selectVisaDmProduct({ applicationId: APPLICATION, userId: BUYER, listingId: 'listing-2' })
+    expect(h.state.retargets[h.state.retargets.length - 1].listingId).toBe('listing-2')
+  })
+})
+
+describe('generic start header honesty', () => {
+  it('a REUSED thread serving a selection-less generic case is retargeted to the anchor', async () => {
+    seedCase({ selected: false })
+    const result = await startVisaDmFlow({ userId: BUYER, email: 'a@b.com' })
+    expect(result).toMatchObject({ ok: true })
+    expect(h.state.retargets).toEqual([{ conversationId: 'convo-1', listingId: 'visa-generic' }])
+  })
+
+  it('a resumed case WITH a selection keeps its truthful product header (no retarget)', async () => {
+    seedCase()
+    await startVisaDmFlow({ userId: BUYER, email: 'a@b.com' })
+    expect(h.state.retargets).toEqual([])
   })
 })

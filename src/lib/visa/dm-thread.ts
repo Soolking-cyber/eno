@@ -9,6 +9,7 @@ import {
   parseMessageMeta,
   setVisaCheckoutStatus,
   type VisaCheckoutMeta,
+  type VisaPickerMeta,
   type VisaStepMeta,
 } from '../messages'
 import { getVisaShopProductsForSale, getVisaShopSeller } from '../visa-shop'
@@ -148,7 +149,14 @@ async function stampVisaConversationId(applicationId: string, conversationId: st
  * resolved conversation (once — see stampVisaConversationId), so the case retains an
  * immutable handle to its thread. That stamp is fail-soft and never changes the bind result.
  */
-export async function bindVisaThread(input: { applicationId: string; buyerProfileId: string }): Promise<
+export async function bindVisaThread(input: {
+  applicationId: string
+  buyerProfileId: string
+  /** Listing to anchor a NEWLY-CREATED conversation on (the generic start passes the
+   *  hidden $0 anchor so a product-less case never opens on a sellable product's price).
+   *  Ignored when the buyer already has a desk thread. Absent → the catalogue floor. */
+  anchorListingId?: string
+}): Promise<
   | { ok: true; conversationId: string; created: boolean }
   | { ok: false; error: 'shop_unavailable' | 'not_owner' | 'listing_unavailable' | 'thread_conflict' }
 > {
@@ -200,10 +208,10 @@ export async function bindVisaThread(input: { applicationId: string; buyerProfil
   let created = false
   if (!existing) {
     // A conversation needs a listing; the visa desk's listings ARE its products, so the
-    // thread opens on the catalogue's first for-sale product. (A picker that knows which
-    // product the applicant chose retargets Conversation.listingId the same way
-    // /api/conversations does — this is only the floor.)
-    const listingId = (await getVisaShopProductsForSale())[0]?.id
+    // thread opens on the caller's anchor when given (the generic start's hidden $0
+    // anchor), else the catalogue's first for-sale product as the floor. (The Phase-2
+    // picker retargets Conversation.listingId once a product is actually chosen.)
+    const listingId = input.anchorListingId ?? (await getVisaShopProductsForSale())[0]?.id
     if (!listingId) return { ok: false, error: 'listing_unavailable' }
     try {
       const convo = await db.conversation.create({
@@ -369,6 +377,47 @@ export async function sendVisaStepCard(input: {
     return { messageId: message.id }
   } catch (e) {
     console.error('[visa-dm] step card refused', e)
+    return null
+  }
+}
+
+/**
+ * Emit the step-0 product picker (a generic start has no product yet — the applicant
+ * chooses IN the thread). Same refusal contract as the step card: null, never a throw.
+ * The card carries NO products and NO prices (the client fetches the live catalogue),
+ * so nothing here can go stale or become a price authority.
+ */
+export async function sendVisaPickerCard(input: {
+  conversationId: string; applicationId: string
+  /** Same admin-resend exception as sendVisaStepCard — set only after the caller is proven to be the desk. */
+  byAdmin?: boolean
+}): Promise<{ messageId: string } | null> {
+  const { conversationId, applicationId } = input
+  if (!UUID_RE.test(applicationId)) return null
+
+  const shop = await getVisaShopSeller()
+  if (!shop?.ownerId) return null
+  const senderId = shop.ownerId
+
+  const convo = await db.conversation.findUnique({ where: { id: conversationId }, select: THREAD_SELECT })
+  if (!convo) return null
+  if (convo.visaApplicationId !== applicationId) return null
+  if (convo.sellerProfileId !== senderId) return null
+
+  // Same mode gate as the step card: the automated flow never talks over a human.
+  if (!input.byAdmin && (await getVisaThreadMode(applicationId)) === 'admin') return null
+
+  const meta: VisaPickerMeta = { v: 1, applicationId, state: 'active' }
+  try {
+    const message = await insertMessage(convo, senderId, '', {
+      kind: 'visa_picker',
+      meta,
+      // Constant bilingual preview — no applicant data, no prices.
+      preview: 'Chọn dịch vụ e-Visa · Choose your e-Visa service',
+    })
+    return { messageId: message.id }
+  } catch (e) {
+    console.error('[visa-dm] picker card refused', e)
     return null
   }
 }

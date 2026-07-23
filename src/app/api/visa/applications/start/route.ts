@@ -24,17 +24,22 @@ import { startVisaDmFlow, visaDmFailureFor } from '@/lib/visa/dm-flow'
 // There is no branch on which a caller can reach a case, a thread or a card that is not
 // their own.
 //
-// ⚠️ THE CLIENT NAMES A PRODUCT, NEVER A PRICE. The body is `{ listingId }` and the schema
+// ⚠️ THE CLIENT NAMES A PRODUCT, NEVER A PRICE. The body is `{ listingId? }` and the schema
 // is .strict(), so a client that starts sending an amount gets a loud 400 instead of having
 // it quietly ignored. The đồng price is re-read from Listing.price and the dollars are a
 // server-issued quote — see src/lib/visa/dm-flow.ts.
+//
+// listingId is OPTIONAL (Phase 2): the GENERIC "Apply" starts a product-less case — the
+// thread's step-0 picker card is where the product gets chosen, via
+// /api/visa/applications/[id]/select-product. A present listingId keeps the pre-chosen
+// PDP/storefront path exactly as it was.
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 const bodySchema = z.object({
   // Listing ids are cuids, so this is a bounded opaque string — its authority comes from
   // matching a for-sale listing on the visa storefront, never from its shape.
-  listingId: z.string().trim().min(1).max(64),
+  listingId: z.string().trim().min(1).max(64).optional(),
 }).strict()
 
 export async function POST(request: Request) {

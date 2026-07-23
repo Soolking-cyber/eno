@@ -87,11 +87,15 @@ export type VisaQueueData = { applications: VisaQueueRow[]; documents: VisaDocum
  *  DRAFTS ARE EXCLUDED (owner 2026-07-18): a draft is the applicant's private local work —
  *  the admin first sees a case when it reaches ready_for_review, which (with payments
  *  configured) happens only after the service fee is paid. needs_changes stays visible:
- *  by then the admin has already engaged with the case. */
+ *  by then the admin has already engaged with the case.
+ *  ⚠️ …EXCEPT A PAID DRAFT (Phase 2, external review): a capture whose handoff was
+ *  withheld (consent hash voided by a late edit, or a payment/selection mismatch) leaves
+ *  the case paid but still 'draft' — money taken, and under the plain status filter the
+ *  desk would never see it. Paid cases are ALWAYS visible, whatever their status. */
 export async function listVisaAdminCases(): Promise<VisaQueueData | null> {
   const db = visaDb()
   if (!db) return null
-  const apps = await db.from('visa_applications').select(QUEUE_COLUMNS).neq('status', 'draft').order('updated_at', { ascending: false }).limit(200)
+  const apps = await db.from('visa_applications').select(QUEUE_COLUMNS).or('status.neq.draft,paid_at.not.is.null').order('updated_at', { ascending: false }).limit(200)
   if (tableMissing(apps.error)) return null
   if (apps.error) throw new Error(`visa_queue_failed:${apps.error.message}`)
   // Documents scoped to the fetched cases — an unfiltered read walks the WHOLE table

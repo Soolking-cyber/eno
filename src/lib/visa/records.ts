@@ -18,6 +18,12 @@ export function serializeVisa(application: VisaApplicationRow, documents: VisaDo
     assignedAdmin: application.assigned_admin, submittedAt: application.submitted_at, resolvedAt: application.resolved_at,
     // Rows created before the payment columns shipped read undefined via PostgREST — coerce to null.
     paidAt: application.paid_at ?? null, paymentProvider: application.payment_provider ?? null,
+    // The canonical product choice (Phase 2) — ids and public product facts, never PII.
+    // Same undefined→null coercion: the columns postdate most rows.
+    selectedListingId: application.selected_listing_id ?? null,
+    selectedEntryType: application.selected_entry_type ?? null,
+    selectedSpeed: application.selected_speed ?? null,
+    selectedAt: application.selected_at ?? null,
     createdAt: application.created_at, updatedAt: application.updated_at,
     documents: documents.map(({ storage_path: _storage, sha256: _hash, application_id: _application, ...document }) => ({
       id: document.id, kind: document.kind, mimeType: document.mime_type, sizeBytes: document.size_bytes,

@@ -8,7 +8,7 @@ import { insertMessage } from '../messages'
 import { rateLimit } from '../ratelimit'
 import { resolveVisaProduct, getVisaShopSeller, type VisaShopProduct } from '../visa-shop'
 import { visaCryptoReady } from './crypto'
-import { loadVisaDmCase, selectedVisaDmListingId } from './dm-flow'
+import { canonicalVisaListingId, loadVisaDmCase } from './dm-flow'
 import { firstIncompleteVisaDmStep, VISA_DM_STEP_ISSUES, type VisaDmDoc, type VisaDmStep } from './dm-steps'
 import { getVisaThreadMode,
   readVisaThreadModeStrict, type VisaThreadMode } from './dm-thread'
@@ -417,7 +417,9 @@ export async function askVisaConcierge(input: {
   const refusal = visaConciergeModeRefusal(mode)
   if (refusal) return fail(refusal, 409)
 
-  const listingId = await selectedVisaDmListingId(input.applicationId)
+  // Canonical (column-first) so the AI's product grounding can never disagree with what
+  // checkout would actually charge (Phase 2).
+  const listingId = await canonicalVisaListingId(input.applicationId)
   const product = listingId ? await resolveVisaProduct(listingId) : null
   const grounding = buildVisaConciergeGrounding({
     payload: kase.payload,

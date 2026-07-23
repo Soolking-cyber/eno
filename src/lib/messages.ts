@@ -24,10 +24,11 @@ import { normalizeVisaReference } from '@/lib/visa/reference'
 //   'visa_step'     — one step of the in-thread e-Visa wizard      (metaJson)
 //   'visa_checkout' — the in-thread pay card                        (metaJson)
 //   'visa_result'   — the finished visa PDF, downloadable in chat   (metaJson)
-export const MESSAGE_KINDS = ['text', 'offer', 'visa_step', 'visa_checkout', 'visa_result'] as const
+//   'visa_picker'   — the step-0 product picker for generic starts  (metaJson)
+export const MESSAGE_KINDS = ['text', 'offer', 'visa_step', 'visa_checkout', 'visa_result', 'visa_picker'] as const
 export type MessageKind = (typeof MESSAGE_KINDS)[number]
-export type VisaCardKind = 'visa_step' | 'visa_checkout' | 'visa_result'
-const VISA_CARD_KINDS = new Set<string>(['visa_step', 'visa_checkout', 'visa_result'])
+export type VisaCardKind = 'visa_step' | 'visa_checkout' | 'visa_result' | 'visa_picker'
+const VISA_CARD_KINDS = new Set<string>(['visa_step', 'visa_checkout', 'visa_result', 'visa_picker'])
 export const isVisaCardKind = (kind: string): kind is VisaCardKind => VISA_CARD_KINDS.has(kind)
 
 // Versioned card payloads, persisted as a JSON string in Message.metaJson.
@@ -67,7 +68,19 @@ export type VisaResultMeta = {
   /** The human case number (`EV-1042`), canonical form only — see the schema below. */
   reference?: string
 }
-export type MessageMeta = VisaStepMeta | VisaCheckoutMeta | VisaResultMeta
+/**
+ * The step-0 product picker (generic starts pick their e-Visa service IN the thread).
+ * Carries NO products and NO prices — the card fetches the live catalogue at render
+ * time, so a message row is never a price authority and never goes stale.
+ * `selectedListingId` is display-only history: which product a 'done' picker recorded.
+ */
+export type VisaPickerMeta = {
+  v: 1
+  applicationId: string
+  state: 'active' | 'done'
+  selectedListingId?: string
+}
+export type MessageMeta = VisaStepMeta | VisaCheckoutMeta | VisaResultMeta | VisaPickerMeta
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 // The ONLY strings allowed in needsReview. Anything not a key of the visa payload
@@ -126,10 +139,22 @@ const visaResultMetaSchema = z
 // One row per card kind, so adding a kind is a line here rather than a ternary that grows
 // a wrong default. Typed to VisaCardKind: every caller has already narrowed through
 // isVisaCardKind, so there is no "unknown kind" branch to get wrong.
+const visaPickerMetaSchema = z
+  .object({
+    v: z.literal(1),
+    applicationId,
+    state: z.enum(['active', 'done']),
+    // A Listing id (cuid or seed id like `visa-evisa-90-single-1h`) — bounded and
+    // shape-checked so the one free-ish string here cannot carry applicant data.
+    selectedListingId: z.string().min(1).max(64).regex(/^[A-Za-z0-9_-]+$/).optional(),
+  })
+  .strict()
+
 const META_SCHEMAS: Record<VisaCardKind, z.ZodType> = {
   visa_step: visaStepMetaSchema,
   visa_checkout: visaCheckoutMetaSchema,
   visa_result: visaResultMetaSchema,
+  visa_picker: visaPickerMetaSchema,
 }
 const metaSchemaFor = (kind: VisaCardKind): z.ZodType => META_SCHEMAS[kind]
 
@@ -429,6 +454,35 @@ export async function setVisaStepState(conversationId: string, messageId: string
   const candidate = visaStepMetaSchema.safeParse({ ...meta, state })
   if (!candidate.success) return null
   const next = candidate.data as VisaStepMeta
+  await db.message.update({ where: { id: row.id }, data: { metaJson: JSON.stringify(next) } })
+  return next
+}
+
+/**
+ * Close (or re-stamp) a picker card. Same contract as setVisaStepState: applicationId is
+ * re-emitted from the stored blob, the result is re-validated through the strict schema,
+ * and the caller must already have verified thread participation. `selectedListingId` is
+ * display-only history ("you chose X") — never a price or charge authority.
+ */
+export async function setVisaPickerState(
+  conversationId: string,
+  messageId: string,
+  state: VisaPickerMeta['state'],
+  selectedListingId?: string,
+): Promise<VisaPickerMeta | null> {
+  const row = await db.message.findFirst({
+    where: { id: messageId, conversationId, kind: 'visa_picker' },
+    select: { id: true, metaJson: true },
+  })
+  const meta = row ? parseMessageMeta('visa_picker', row.metaJson) : null
+  if (!row || !meta || !('state' in meta) || 'step' in meta || 'amountUsd' in meta) return null
+  const candidate = visaPickerMetaSchema.safeParse({
+    ...meta,
+    state,
+    ...(selectedListingId ? { selectedListingId } : {}),
+  })
+  if (!candidate.success) return null
+  const next = candidate.data as VisaPickerMeta
   await db.message.update({ where: { id: row.id }, data: { metaJson: JSON.stringify(next) } })
   return next
 }

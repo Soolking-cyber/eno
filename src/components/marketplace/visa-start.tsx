@@ -8,7 +8,6 @@ import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Skeleton } from '@/components/ui/skeleton'
 import { hapticConfirm, hapticTap } from '@/lib/haptics'
 import { formatMoneyFull, formatUsdCents, moneyLocale } from '@/lib/vnd'
@@ -166,8 +165,9 @@ function useVisaStart(onStarted?: () => void) {
     }
   }, [tr])
 
-  const start = useCallback(async (listingId: string) => {
-    if (!listingId) return
+  // listingId ABSENT = the GENERIC start (Phase 2): the case opens product-less and the
+  // step-0 picker card in the thread is where the service gets chosen.
+  const start = useCallback(async (listingId?: string) => {
     setBusy(true)
     try {
       const res = await fetch('/api/visa/applications/start', {
@@ -175,7 +175,7 @@ function useVisaStart(onStarted?: () => void) {
         headers: { 'Content-Type': 'application/json' },
         // ⚠️ A PRODUCT, NEVER A PRICE — the route's body schema is .strict(), so an amount
         // sent from here would be a loud 400 rather than a quietly ignored key.
-        body: JSON.stringify({ listingId }),
+        body: JSON.stringify(listingId ? { listingId } : {}),
       })
       const data = (await res.json().catch(() => null)) as { conversationId?: string; error?: string } | null
       if (!res.ok || !data?.conversationId) {
@@ -198,7 +198,7 @@ function useVisaStart(onStarted?: () => void) {
 
 /** Live "now", ticked once a minute so a picker left open stops offering a desk that closed.
  *  null until the first client tick — the window is never asserted during SSR/hydration. */
-function useMinuteTick(): Date | null {
+export function useMinuteTick(): Date | null {
   const [now, setNow] = useState<Date | null>(null)
   useEffect(() => {
     setNow(new Date())
@@ -213,7 +213,7 @@ function useMinuteTick(): Date | null {
  * component unmounts with the dialog), which is deliberate: a server-issued quote is only
  * honoured for 15 minutes, so the dollars on screen are always freshly issued.
  */
-function useVisaCatalogue(enabled: boolean): CatalogueState {
+export function useVisaCatalogue(enabled: boolean): CatalogueState {
   const [state, setState] = useState<CatalogueState>({ status: 'loading' })
   useEffect(() => {
     // The endpoint is session-scoped (401 for a guest), so a guest is offered sign-in
@@ -254,7 +254,7 @@ function hcmClock(iso: string, lang: string): string {
   }
 }
 
-function ProductRow({ product, now, disabled, onPick }: {
+export function VisaProductRow({ product, now, disabled, onPick }: {
   product: VisaStartProduct
   now: Date | null
   disabled: boolean
@@ -386,7 +386,7 @@ export function VisaStartPicker({ className, onStarted }: { className?: string; 
     <div className={className}>
       <div className="space-y-2">
         {state.products.map((product) => (
-          <ProductRow key={product.listingId} product={product} now={now} disabled={busy} onPick={start} />
+          <VisaProductRow key={product.listingId} product={product} now={now} disabled={busy} onPick={start} />
         ))}
       </div>
       {!state.payable && (
@@ -411,9 +411,11 @@ export function VisaStartPicker({ className, onStarted }: { className?: string; 
  * The start affordance.
  *
  * With a `listingId` (a visa-desk PDP) it starts THAT product straight away — one tap from
- * the listing to a thread with the step-1 card already in it. Without one (the storefront,
- * or any generic "chat with the desk" entry) it opens the picker, because a visa case cannot
- * be priced until the applicant has said which service they want.
+ * the listing to a thread with the step-1 card already in it. Without one (any generic
+ * "Apply" / "chat with the desk" entry) it starts a PRODUCT-LESS case the same one-tap way
+ * (Phase 2, owner spec): the product gets chosen IN the thread, on the step-0 picker card —
+ * not in a dialog here. (The old no-listing dialog picker is gone on purpose; the inline
+ * <VisaStartPicker> remains only for the storefront panel until Phase 3 removes it.)
  */
 export function VisaStart({ listingId, label, className }: {
   listingId?: string
@@ -422,7 +424,6 @@ export function VisaStart({ listingId, label, className }: {
 }) {
   const { user, loading, openSignIn } = useAuth()
   const { tr } = useLanguage()
-  const [pickerOpen, setPickerOpen] = useState(false)
   const { busy, start } = useVisaStart()
 
   // A tap that lands while auth is still resolving is BUFFERED, not dropped (the
@@ -435,8 +436,7 @@ export function VisaStart({ listingId, label, className }: {
       openSignIn()
       return
     }
-    if (chosen) void start(chosen)
-    else setPickerOpen(true)
+    void start(chosen)
   }, [user, loading, openSignIn, start])
 
   useEffect(() => {
@@ -449,34 +449,17 @@ export function VisaStart({ listingId, label, className }: {
   }, [user, loading, act])
 
   return (
-    <>
-      <Button
-        variant="cta"
-        size="lg"
-        className={className}
-        disabled={busy}
-        onClick={() => { hapticTap(); act(listingId) }}
-      >
-        {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Stamp className="h-4 w-4" />}
-        {label ?? (listingId
-          ? tr('Apply in chat', 'Nộp hồ sơ qua chat')
-          : tr('Start an e-Visa in chat', 'Bắt đầu e-Visa qua chat'))}
-      </Button>
-
-      <Dialog open={pickerOpen} onOpenChange={setPickerOpen}>
-        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>{tr('Choose your e-Visa service', 'Chọn dịch vụ e-Visa')}</DialogTitle>
-            <DialogDescription>
-              {tr(
-                'Pick a service and we will guide you through it in chat — five short steps, then pay.',
-                'Chọn một dịch vụ, chúng tôi sẽ hướng dẫn bạn ngay trong chat — năm bước ngắn, sau đó thanh toán.',
-              )}
-            </DialogDescription>
-          </DialogHeader>
-          <VisaStartPicker onStarted={() => setPickerOpen(false)} />
-        </DialogContent>
-      </Dialog>
-    </>
+    <Button
+      variant="cta"
+      size="lg"
+      className={className}
+      disabled={busy}
+      onClick={() => { hapticTap(); act(listingId) }}
+    >
+      {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Stamp className="h-4 w-4" />}
+      {label ?? (listingId
+        ? tr('Apply in chat', 'Nộp hồ sơ qua chat')
+        : tr('Start an e-Visa in chat', 'Bắt đầu e-Visa qua chat'))}
+    </Button>
   )
 }

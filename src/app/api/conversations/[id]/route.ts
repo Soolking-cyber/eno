@@ -29,16 +29,20 @@ export const dynamic = 'force-dynamic'
  * a DISPLAY value and a confirmation token, never an input to a charge.
  */
 async function visaThreadContext(applicationId: string) {
-  const [{ getVisaThreadMode }, { selectedVisaDmListingId }, { resolveVisaProduct }, { quoteVisaUsd }, { visaPaymentsConfig }] = await Promise.all([
+  const [{ getVisaThreadMode }, { canonicalVisaListingId }, { resolveVisaProduct }, { quoteVisaUsd }, { visaPaymentsConfig }] = await Promise.all([
     import('@/lib/visa/dm-thread'),
     import('@/lib/visa/dm-flow'),
     import('@/lib/visa-shop'),
     import('@/lib/visa/fx'),
     import('@/lib/visa/payments'),
   ])
+  // CANONICAL, not event-derived (Phase 2): this listingId is what the client echoes back
+  // to checkout as its confirmation token, so it must be the same read checkout compares
+  // against — column first, legacy event fallback — or every pay attempt after a picker
+  // selection would 409 `listing_selection_mismatch`.
   const [mode, listingId] = await Promise.all([
     getVisaThreadMode(applicationId),
-    selectedVisaDmListingId(applicationId),
+    canonicalVisaListingId(applicationId),
   ])
   const product = listingId ? await resolveVisaProduct(listingId) : null
   const quote = product ? await quoteVisaUsd({ listingId: product.listingId, priceVnd: product.priceVnd }) : null

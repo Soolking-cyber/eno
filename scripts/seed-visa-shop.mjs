@@ -930,6 +930,53 @@ try {
   // rankScore from the ONE shared formula (imported above, never re-typed).
   await db.query(`UPDATE "Listing" SET "rankScore" = ${rankScoreExprSql()} WHERE id = ANY($1)`, [seededIds])
 
+  // ── The GENERIC ANCHOR (Phase 2) ───────────────────────────────────────────────
+  // A chat case started WITHOUT a product (the generic "Apply") still needs a truthful
+  // Conversation.listingId to sit on — never an arbitrary sellable product whose price
+  // the applicant did not choose. This row is that anchor, and it is deliberately
+  // UNSELLABLE THREE WAYS: status 'hidden' (out of the feed, PDP 404s, still
+  // messageable), price 0 (sellablePriceVnd/usablePriceVnd/checkout all refuse ≤0), and
+  // no visaEntryType/visaSpeed (chargeableVisaProduct refuses half-built rows). It lives
+  // OUTSIDE the PRODUCTS grid on purpose — assertGridCovers would refuse a 15th key, and
+  // --status must never flip this row to 'active' (an active ₫0 row error-logs on every
+  // catalogue read). Runtime lookup: findVisaGenericAnchor() in src/lib/visa-shop.ts,
+  // by this externalId.
+  const ANCHOR_EXTERNAL_ID = `${EXTERNAL_PREFIX}generic`
+  const ANCHOR_ID = 'visa-generic'
+  const anchorExisting = (await db.query(
+    `SELECT id FROM "Listing" WHERE "sellerId" = $1 AND "externalId" = $2`,
+    [seller.id, ANCHOR_EXTERNAL_ID],
+  )).rows[0]
+  if (anchorExisting) {
+    // Structural invariants only — re-asserted every run, copy left alone.
+    await db.query(
+      `UPDATE "Listing" SET price = 0, currency = '₫', status = 'hidden', verified = true, negotiable = false, "updatedAt" = now() WHERE id = $1`,
+      [anchorExisting.id],
+    )
+    console.log(`  anchor   ${anchorExisting.id} (generic anchor — hidden, ₫0, unsellable by design)`)
+    seededIds.push(anchorExisting.id)
+  } else {
+    const anchorTitle = 'Generic Visa Application'
+    const anchorTitleVi = 'Hồ sơ e-Visa chung'
+    const anchorDescription =
+      'Anchors in-chat e-Visa applications started before a service is chosen. Not for sale — pick a real service in the chat.'
+    await db.query(
+      `INSERT INTO "Listing" (id, "sellerId", title, "titleVi", description, price, "priceUnit", currency,
+         location, city, images, "categoryId", "subcategorySlug", "listingType", attributes, "searchText",
+         "sellerTrustScore", status, "externalId", negotiable, verified, "rankScore", "postedAt", "createdAt", "updatedAt")
+       VALUES ($1, $2, $3, $4, $5, 0, '', '₫', $6, $7, '[]', $8, $9, $10, $11, $12, $13, 'hidden', $14, false, true, 0, now(), now(), now())`,
+      [
+        ANCHOR_ID, seller.id, anchorTitle, anchorTitleVi, anchorDescription,
+        SHOP_LOCATION, SHOP_CITY, category.id, SUBCATEGORY_SLUG, LISTING_TYPE,
+        JSON.stringify({ serviceLocation: 'online', providerType: 'business' }),
+        buildSearchText([anchorTitle, anchorDescription, null, category.name, category.nameVi, null, null]),
+        seller.trustScore, ANCHOR_EXTERNAL_ID,
+      ],
+    )
+    console.log(`  anchor   ${ANCHOR_ID} CREATED (generic anchor — hidden, ₫0, unsellable by design)`)
+    seededIds.push(ANCHOR_ID)
+  }
+
   // Anything else on this storefront is a product the ADMIN uploaded through the ordinary
   // dashboard — which is the whole point of the model, so it is reported, not flagged. The
   // app treats every listing this seller owns as a visa product (membership is the

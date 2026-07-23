@@ -489,3 +489,17 @@ export async function isVisaShopListing(listingId: string): Promise<boolean> {
   if (!listingId) return false
   return (await getVisaShopListings()).some((l) => l.id === listingId)
 }
+
+/** Listing.externalId of the hidden $0 anchor a GENERIC (product-less) case binds to. */
+export const VISA_GENERIC_ANCHOR_EXTERNAL_ID = `${VISA_PRODUCT_EXTERNAL_PREFIX}generic`
+
+/**
+ * The "Generic Visa Application" anchor listing, or null when the deployment has not
+ * seeded it. Deliberately looked up by externalId over the RAW storefront read (hidden
+ * rows included): the anchor is status='hidden' + price 0 by design, so it can never be
+ * resolved as a product, never be charged, and never appear in any public surface — it
+ * exists only so a product-less case's conversation has a truthful listing to sit on.
+ */
+export async function findVisaGenericAnchor(): Promise<VisaShopListing | null> {
+  return (await getVisaShopListings()).find((l) => l.externalId === VISA_GENERIC_ANCHOR_EXTERNAL_ID) ?? null
+}

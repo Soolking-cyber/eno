@@ -85,7 +85,8 @@ vi.mock('./dm-flow', () => ({
   loadVisaDmCase: async (applicationId: string, userId: string) =>
     // Mirrors the real scope: `.eq('id').eq('user_id')` — another user's read finds nothing.
     (applicationId === 'app-1' && userId === h.state.kase?.application.user_id ? h.state.kase : null),
-  selectedVisaDmListingId: async () => h.state.selectedListingId,
+  // Phase 2: the concierge grounds on the CANONICAL selection (column-first read).
+  canonicalVisaListingId: async () => h.state.selectedListingId,
 }))
 
 // readVisaThreadModeStrict mirrors the real module: it FAILS CLOSED, so the mock must be
