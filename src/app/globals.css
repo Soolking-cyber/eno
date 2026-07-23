@@ -774,15 +774,46 @@ input, select, textarea {
   font-family: inherit;
 }
 
-/* Keyboard focus — a clear ring on any interactive element, ONLY for keyboard
-   navigation (:focus-visible), so mouse clicks don't show it. Inputs keep their own
-   focus:ring; this guarantees icon buttons/links are never invisible to keyboard
-   users (WCAG 2.4.7). Modern browsers render outline along the element's radius. */
+/* Keyboard focus — a clear ring on interactive elements, driven by :focus-visible so an
+   ordinary mouse click doesn't show one. Inputs keep their own focus:ring; this guarantees
+   icon buttons/links are never invisible to keyboard users (WCAG 2.4.7). Modern browsers
+   render the outline along the element's radius. (Note :focus-visible is the ENGINE's
+   heuristic, not a pure keyboard test — WebKit also applies it to programmatic focus, which
+   is exactly how the container bug below became visible on touch.)
+
+   ⚠️ The `[tabindex]` arm skips ONE precise shape: an element that is BOTH tabindex="-1" AND a
+   dialog/alertdialog popup. Base UI popups carry tabIndex="-1" and Base UI focuses the popup
+   ITSELF on touch by default, so every tapped dialog on mobile/native drew a 2px ring around its
+   entire card. It could not be turned off at the call site either: an attribute+pseudo-class
+   selector outspecificities an `outline-none` utility.
+
+   `<main id="main" tabIndex={-1}>` gets the same container ring after a skip-link and is
+   deliberately NOT excluded: that outline is the only confirmation a keyboard user gets that
+   "Skip to content" actually moved focus (2.4.7), so a big ugly ring beats a silent jump. Fix
+   that one with a nicer local style if it ever bothers anyone — do not delete the indicator.
+
+   ⚠️⚠️ It is written as a DENY-list of containers, NOT an allow-list of interactive things, and
+   that distinction is load-bearing. tabindex="-1" does not mean "unreachable by keyboard":
+   roving-tabindex widgets park -1 on inactive items and move focus with the ARROW keys, so those
+   items are keyboard-focusable and must keep an indicator (2.4.7 is about keyboard operation,
+   not the Tab key). Excluding every -1 element therefore silently stripped the ring from real
+   controls — verified here, since Base UI's Menu.Item renders a <div role="menuitem">, and this
+   app hand-writes role="menuitem"/"option"/"radio" in 11 places. Enumerating interactive roles
+   to re-include was the obvious next move and is ALSO wrong: the list can never be exhaustive
+   (combobox, listbox, spinbutton, gridcell, scrollbar… — codex kept finding gaps), and every
+   omission is an invisible a11y regression. Naming the CONTAINER shapes that actually caused the
+   bug is closed-ended and fails safe: anything interactive keeps its ring by default, and the
+   worst case of a wrong entry here is a cosmetic ring, never a missing one.
+
+   The `tabindex="-1"` half of each exclusion is what keeps even THAT safe. Anything deliberately
+   made operable carries tabindex="0" (it has to, to be reachable), so an interactive
+   `<section tabindex="0">` — or any container someone later wires up with JS — still matches and
+   still gets its ring. Only the programmatically-focused, not-tab-reachable container is skipped. */
 a:focus-visible,
 button:focus-visible,
 [role="button"]:focus-visible,
-[tabindex]:focus-visible,
-summary:focus-visible {
+summary:focus-visible,
+[tabindex]:focus-visible:not([tabindex="-1"][role="dialog"]):not([tabindex="-1"][role="alertdialog"]) {
   outline: 2px solid var(--ring);
   outline-offset: 2px;
 }
