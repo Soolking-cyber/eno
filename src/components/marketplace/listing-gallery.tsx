@@ -275,7 +275,11 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
     <>
       {images.length === 1 && !hasVideo ? (
         <Button variant="bare" size="none" onClick={() => openAt(0)} className="group block w-full overflow-hidden rounded-2xl cursor-pointer active:scale-100">
-          <div data-protected className="relative aspect-[4/3] w-full overflow-hidden bg-tint">
+          {/* SQUARE on desktop like the multi-image gallery (owner 2026-07-23: "square
+              window … height should lengthen" — this single-image branch was the one
+              spot the square pass missed, caught on the visa PDP). Mobile keeps 4:3,
+              matching the multi-image carousel. */}
+          <div data-protected className="relative aspect-[4/3] w-full overflow-hidden bg-tint md:aspect-square">
             <BlurFillImage img={images[0]} alt={title} sizes="(max-width:1024px) 100vw, 60vw" mock={isMockImageUrl(images[0])} priority hover />
           </div>
         </Button>
