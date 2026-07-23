@@ -33,3 +33,28 @@ export async function recordVisaEvent(applicationId: string, actorType: 'applica
   const { error } = await getVisaDb().from('visa_events').insert({ id: crypto.randomUUID(), application_id: applicationId, actor_type: actorType, actor_ref: actorRef || null, event, metadata })
   if (error) throw new Error(`visa_event_failed:${error.message}`)
 }
+
+/**
+ * Does this user hold ANY e-Visa case? Cheap head-only count (no rows, no decrypt), fail-soft.
+ *
+ * Drives the dashboard rail: the "My e-Visa" row is shown ONLY to people who have applied
+ * (owner 2026-07-23 — "available only for people who applied for visa in chat"), and applying
+ * is a chat-only flow now, so the row is dead weight for everyone else. Fails to `false`: if
+ * the visa tables are unprovisioned or Supabase hiccups, hiding the row is the safe default —
+ * far better than showing a section that then errors, and a real applicant sees it next load.
+ */
+export async function userHasVisaApplication(userId: string): Promise<boolean> {
+  if (!userId) return false
+  try {
+    const { getVisaDb } = await import('@/lib/visa/db')
+    const { count, error } = await getVisaDb()
+      .from('visa_applications')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', userId)
+    if (error) throw error
+    return (count ?? 0) > 0
+  } catch (e) {
+    console.error('[visa] hasApplication check failed', e)
+    return false
+  }
+}

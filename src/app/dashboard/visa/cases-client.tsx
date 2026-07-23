@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { Check, Download, FileCheck2, Loader2, LockKeyhole, MessagesSquare, ShieldCheck, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useAuth } from '@/context/auth-context'
+import { useDashboard } from '@/hooks/use-dashboard'
 import { useLanguage } from '@/context/language-context'
 import type { VisaPayload } from '@/lib/visa/schema'
 import { Badge } from '@/components/ui/badge'
@@ -186,6 +187,32 @@ function PastApplications({ applications, activeId, threads, tr }: {
   )
 }
 
+// ── The customer-facing timeline ────────────────────────────────────────────────────
+// visa_events is an INTERNAL audit log — its raw codes ("dm_card_resent",
+// "dm_product_selected", "dm_concierge_answered") leaked to the applicant as
+// "Dm Card Resent" × N (owner's screenshot). Two rules make it a milestone timeline
+// instead of a debug dump:
+//   1. Only MEANINGFUL milestones are shown — the DM plumbing (card resends, concierge
+//      replies, per-step saves, product re-picks) is noise here and is dropped.
+//   2. Each surviving code gets a HUMAN, bilingual label. An unmapped code is dropped, not
+//      titlecased — a new internal event must never appear raw again.
+// The label AND the dedup key. `paid`/`payment_recorded` share a key so two rows never both
+// say "Payment received" (external review, GPT-5.6 2026-07-23). result_uploaded is here but
+// GATED at render on an actual result document — the audit event survives a rolled-back
+// delivery, so the event alone must not promise "your visa is ready".
+const VISA_MILESTONES: Record<string, { key: string; en: string; vi: string }> = {
+  application_created: { key: 'created', en: 'Application started', vi: 'Đã bắt đầu hồ sơ' },
+  prefill_authorized: { key: 'authorized', en: 'You authorized us to file', vi: 'Bạn đã cho phép nộp hồ sơ' },
+  payment_recorded: { key: 'paid', en: 'Payment received', vi: 'Đã nhận thanh toán' },
+  paid: { key: 'paid', en: 'Payment received', vi: 'Đã nhận thanh toán' },
+  sent_for_review: { key: 'review', en: 'Sent to our team', vi: 'Đã gửi cho đội ngũ' },
+  human_help_requested: { key: 'human', en: 'You asked for a person', vi: 'Bạn đã yêu cầu nhân viên' },
+  admin_takeover_started: { key: 'specialist', en: 'A specialist joined the chat', vi: 'Chuyên viên đã tham gia' },
+  admin_takeover_ended: { key: 'specialist_end', en: 'The specialist handed the chat back', vi: 'Chuyên viên đã trả lại cuộc trò chuyện' },
+  application_cancelled: { key: 'cancelled', en: 'Application cancelled', vi: 'Đã hủy hồ sơ' },
+  result_uploaded: { key: 'ready', en: 'Your visa is ready', vi: 'Visa của bạn đã sẵn sàng' },
+}
+
 export function VisaCasesClient({ threads }: {
   /** applicationId → the conversation it is bound to (Conversation.visaApplicationId,
    *  resolved server-side in page.tsx). Missing means "no thread" — the picker rebinds. */
@@ -193,6 +220,7 @@ export function VisaCasesClient({ threads }: {
 }) {
   const { tr } = useLanguage()
   const { user, loading: authLoading } = useAuth()
+  const { refresh: refreshDashboard } = useDashboard()
   const router = useRouter()
   const search = useSearchParams()
   const [application, setApplication] = useState<VisaApplication | null>(null)
@@ -227,7 +255,11 @@ export function VisaCasesClient({ threads }: {
       setApplication(list.application)
     } catch (error) {
       if (error instanceof VisaApiError && error.code === 'visa_encryption_not_configured') setNotConfigured(true)
-      else if (!(error instanceof VisaApiError && error.status === 401)) toast.error(trRef.current('Could not load visa assistance.', 'Không thể tải dịch vụ hỗ trợ visa.'))
+      // ⚠️ SILENT ON A BACKGROUND RELOAD. This runs after a delete and on a poll; a transient
+      // failure there must not throw a red "could not load" toast on top of the green "deleted"
+      // one (owner's screenshot showed exactly that double message). The foreground load still
+      // surfaces a real error.
+      else if (!background && !(error instanceof VisaApiError && error.status === 401)) toast.error(trRef.current('Could not load visa assistance.', 'Không thể tải dịch vụ hỗ trợ visa.'))
     } finally { if (!background) setLoading(false) }
   }, [user])
 
@@ -341,12 +373,23 @@ export function VisaCasesClient({ threads }: {
   const deleteApplication = async () => {
     if (!application) return
     setBusy(true)
+    const deletedId = application.id
     try {
-      await visaApi<{ deleted: true; id: string }>(`/api/visa/applications/${application.id}`, { method: 'DELETE' })
+      await visaApi<{ deleted: true; id: string }>(`/api/visa/applications/${deletedId}`, { method: 'DELETE' })
+      // ⚠️ CLEAR THE SCREEN FROM THE SUCCESS, not from a reload. External review (GPT-5.6,
+      // 2026-07-23) caught that this relied entirely on loadApplications() to reconcile — so a
+      // failed reload left "deleted" on screen next to the still-rendered case AND its delete
+      // button. The DELETE succeeded; drop the case now.
+      setApplication((cur) => (cur?.id === deletedId ? null : cur))
+      setApplications((prev) => prev.filter((a) => a.id !== deletedId))
       setDeleteOpen(false)
       setDeclaration(false); setAuthorization(false)
       toast.success(tr('Application deleted.', 'Đã xóa hồ sơ.'))
-      await loadApplications(true).catch(() => undefined)
+      // The rail's "My e-Visa" row is gated on hasVisa; deleting the last case must drop it.
+      refreshDashboard()
+      // Reconcile in the background (picks up any OTHER case); its failure is now cosmetic
+      // because the deleted one is already gone from view, and it stays quiet (see loadApplications).
+      void loadApplications(true).catch(() => undefined)
     } catch {
       toast.error(tr('Could not finish deleting this application. Please retry.', 'Chưa thể hoàn tất việc xóa hồ sơ này. Vui lòng thử lại.'))
     } finally { setBusy(false) }
@@ -475,21 +518,36 @@ export function VisaCasesClient({ threads }: {
           </Card>
         )}
 
-        {!!application.events?.length && (
-          <Card className="mt-6">
-            <CardHeader><CardTitle>{tr('Case timeline', 'Tiến trình hồ sơ')}</CardTitle></CardHeader>
-            <CardContent>
-              <ol className="space-y-4">
-                {application.events.map((event) => (
-                  <li key={event.id} className="flex items-start justify-between gap-4 border-l-2 border-brand/30 pl-3">
-                    <span className="text-sm font-medium capitalize text-foreground">{event.event.replaceAll('_', ' ')}</span>
-                    <time className="shrink-0 text-xs text-ink-4">{new Date(event.createdAt).toLocaleDateString()}</time>
-                  </li>
-                ))}
-              </ol>
-            </CardContent>
-          </Card>
-        )}
+        {(() => {
+          // "Your visa is ready" must reflect a real download, not just the audit event — a
+          // rolled-back delivery leaves the event behind (external review). Gate it on the case
+          // actually holding a result document.
+          const hasResult = (application.documents ?? []).some((d) => d.kind === 'result')
+          const milestones = (application.events ?? [])
+            .map((e) => ({ e, m: VISA_MILESTONES[e.event] }))
+            .filter((x): x is { e: VisaEvent; m: NonNullable<typeof x.m> } => !!x.m)
+            .filter((x) => x.m.key !== 'ready' || hasResult)
+            // ⚠️ SORT (newest first) BEFORE dedup, so a repeated code keeps its LATEST date.
+            // Deduping first kept the oldest occurrence and then sorting could not recover it.
+            .sort((a, b) => new Date(b.e.createdAt).getTime() - new Date(a.e.createdAt).getTime())
+            .filter((x, i, arr) => arr.findIndex((y) => y.m.key === x.m.key) === i)
+          if (!milestones.length) return null
+          return (
+            <Card className="mt-6">
+              <CardHeader><CardTitle>{tr('Progress', 'Tiến trình')}</CardTitle></CardHeader>
+              <CardContent>
+                <ol className="space-y-4">
+                  {milestones.map(({ e, m }) => (
+                    <li key={e.id} className="flex items-start justify-between gap-4 border-l-2 border-brand/30 pl-3">
+                      <span className="text-sm font-medium text-foreground">{tr(m.en, m.vi)}</span>
+                      <time className="shrink-0 text-xs text-ink-4">{new Date(e.createdAt).toLocaleDateString()}</time>
+                    </li>
+                  ))}
+                </ol>
+              </CardContent>
+            </Card>
+          )
+        })()}
 
         <div className="mt-6">
           <Button type="button" variant="outline" className="border-destructive/40 text-destructive hover:bg-destructive/5 hover:text-destructive" data-testid="delete-visa-application" disabled={busy} onClick={() => setDeleteOpen(true)}>

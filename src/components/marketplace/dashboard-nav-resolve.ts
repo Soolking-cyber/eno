@@ -24,6 +24,8 @@ export type NavResolveCtx = {
   isBusiness: boolean
   /** SERVER-computed (isAdminEmail → /api/dashboard payload) — the client never decides it. */
   isAdmin: boolean
+  /** Does the viewer hold any e-Visa case? Gates the `requiresVisa` row (chat-only apply flow). */
+  hasVisa: boolean
   /** The signed-in user's seller profile, when one exists (drives 'seller' role + storefront). */
   seller: { id: string; handle: string | null } | null
   /** Live badge counters, bound to config `badge` keys. */
@@ -65,7 +67,7 @@ export function resolveNavGroups(nav: NavGroup[], ctx: NavResolveCtx): ResolvedN
       // Caption tolerates vi-less groups (Admin renders its EN caption verbatim).
       caption: g.vi ? ctx.label(g.en, g.vi) : g.en,
       items: g.items
-        .filter((it) => roleOk(ctx, it.role))
+        .filter((it) => roleOk(ctx, it.role) && (!it.requiresVisa || ctx.hasVisa))
         .flatMap((it) => { const r = toRail(it, ctx); return r ? [r] : [] }),
     }))
 }

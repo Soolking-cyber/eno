@@ -40,6 +40,8 @@ export type Dash = {
    *  every admin surface still enforces getAdmin() server-side. Legacy cached payloads may
    *  lack the field; load() defaults it to false until revalidate overwrites. */
   isAdmin: boolean
+  /** Viewer holds at least one e-Visa case → the "My e-Visa" rail row shows. */
+  hasVisa: boolean
 }
 
 const CACHE_KEY = 'eno-dashboard'
@@ -103,7 +105,7 @@ function load(uid: string) {
       // isAdmin is FORCED false from cache: a revoked admin must never see the Admin
       // rail group replayed from localStorage (offline, or before revalidate lands).
       // Real admins get it back one fetch later — the safe direction to flash.
-      if (c?.userId === uid && c.dashboard) cached = { ...c.dashboard, isAdmin: false }
+      if (c?.userId === uid && c.dashboard) cached = { ...c.dashboard, isAdmin: false, hasVisa: c.dashboard.hasVisa ?? false }
     } catch { /* corrupt cache — ignore */ }
     set({ userId: uid, dash: cached, loading: !cached })
   }

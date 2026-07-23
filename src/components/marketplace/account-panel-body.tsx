@@ -176,6 +176,9 @@ export function AccountPanel({ open, onClose }: { open: boolean; onClose: () => 
   const GROUPS = resolveNavGroups(DASHBOARD_NAV, {
     isBusiness,
     isAdmin,
+    // Server-computed; hides the "My e-Visa" row until the viewer has a case. Undefined while
+    // the dashboard payload loads → false → the row simply appears once it resolves.
+    hasVisa: dash?.hasVisa === true,
     seller: dash?.seller ?? null,
     counters: { unread, saved: savedCount },
     label: tr,

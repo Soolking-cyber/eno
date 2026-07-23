@@ -4,6 +4,7 @@ import { getAdmin, getCurrentProfile } from '@/lib/admin'
 import { computeTrustV2 } from '@/lib/trust'
 import { FLAG_REASONS, getEnforcement } from '@/lib/enforcement'
 import { dashboardStatsCore } from '@/lib/core/dashboard'
+import { userHasVisaApplication } from '@/lib/visa/records'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -95,6 +96,8 @@ export async function GET() {
       // but existing Profile rows are not re-synced, and the rail must agree with the
       // server's own getAdmin() verdict.
       isAdmin: !!(await getAdmin()),
+      // Gates the "My e-Visa" rail row to people who have actually applied (chat-only flow).
+      hasVisa: await userHasVisaApplication(profile.id),
       enforcement,
       trustProgress: i
         ? {

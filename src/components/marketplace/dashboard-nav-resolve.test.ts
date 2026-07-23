@@ -15,6 +15,7 @@ const label = (_en: string, vi: string) => vi
 const ctx = (over: Partial<NavResolveCtx> = {}): NavResolveCtx => ({
   isBusiness: false,
   isAdmin: false,
+  hasVisa: false,
   seller: null,
   counters: { unread: 0, saved: 0 },
   label,
@@ -28,6 +29,7 @@ const FIXTURE: NavGroup[] = [
       { href: '/dashboard', en: 'Home', vi: 'Trang chủ', icon, exact: true },
       { href: '/messages', en: 'Messages', vi: 'Tin nhắn', icon, badge: 'unread' },
       { href: '/saved', en: 'Saved', vi: 'Đã lưu', icon, badge: 'saved' },
+      { href: '/dashboard/visa', en: 'My e-Visa', vi: 'E-Visa của tôi', icon, requiresVisa: true },
       { href: '/dashboard/bulk', en: 'Bulk upload', vi: 'Tải hàng loạt', icon, role: 'business' },
       { href: '/sellers', en: 'View storefront', vi: 'Xem gian hàng', icon, external: true, role: 'seller', dynamic: 'storefront' },
     ],
@@ -35,6 +37,23 @@ const FIXTURE: NavGroup[] = [
   // vi-less group + items (the admin-chrome EN-only convention).
   { en: 'Admin', role: 'admin', items: [{ href: '/admin', en: 'Reports', icon, exact: true }] },
 ]
+
+describe('resolveNavGroups requiresVisa gating', () => {
+  const visaRow = (over = {}) =>
+    resolveNavGroups(FIXTURE, ctx(over)).flatMap((g) => g.items).find((it) => it.href === '/dashboard/visa')
+
+  it('HIDES the e-Visa row from a viewer with no case', () => {
+    expect(visaRow({ hasVisa: false })).toBeUndefined()
+  })
+  it('SHOWS it once the viewer has a case', () => {
+    expect(visaRow({ hasVisa: true })?.href).toBe('/dashboard/visa')
+  })
+  it('does not gate ordinary rows on hasVisa', () => {
+    // Saved has no requiresVisa, so it is present regardless — proves the filter is scoped.
+    const saved = resolveNavGroups(FIXTURE, ctx({ hasVisa: false })).flatMap((g) => g.items).find((it) => it.href === '/saved')
+    expect(saved?.href).toBe('/saved')
+  })
+})
 
 describe('resolveNavGroups role gating', () => {
   it('individual (no seller, no business, no admin): only all-role rows, no Admin group', () => {

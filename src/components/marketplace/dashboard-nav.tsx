@@ -14,7 +14,7 @@
 import type { LucideIcon } from 'lucide-react'
 import {
   Store, ExternalLink, MessageSquareText, Heart, Scale, Upload, Code2,
-  CircleHelp, FileCheck2,
+  CircleHelp, Route, FileCheck2,
   Flag, ShieldAlert, ClipboardList, Tags, Star, Stamp,
 } from 'lucide-react'
 
@@ -38,6 +38,9 @@ export type NavItem = {
   badge?: 'unread' | 'saved'
   /** Item-level visibility; defaults to the owning group's role. */
   role?: NavRole
+  /** Show ONLY to a viewer who holds an e-Visa case (dash.hasVisa). The apply flow is
+   *  chat-only, so this row is meaningless to everyone else. */
+  requiresVisa?: boolean
   /** Renderer-computed href: 'storefront' → the signed-in seller's public storefront URL
    *  (/{handle} when a handle exists, else /sellers/{id}). */
   dynamic?: 'storefront'
@@ -95,16 +98,13 @@ export const DASHBOARD_NAV: NavGroup[] = [
     // that calls itself the single source of truth for the rail had no Help entry at all.
     items: [
       { href: '/dashboard/help', ...tr('Help center', 'Trung tâm trợ giúp'), icon: CircleHelp },
-      // ⚠️ Itinerary builder SHELVED (owner, 2026-07-23): "for now don't delete, later we
-      // will make use of it". The route, pages and API under /dashboard/trips all STAY —
-      // only this nav entry is removed so it isn't reachable from the dashboard. Restore this
-      // one line to bring it back; do not rebuild the feature.
+      { href: '/dashboard/trips', ...tr('Itineraries', 'Lịch trình'), icon: Route },
       // KEPT, RELABELLED (owner 2026-07-22: "only 1 way should exist through the chat").
       // The section is no longer a place to APPLY — the wizard behind this row is deleted
       // and the application is filled in the chat thread — so the row names what it still
       // leads to: the applicant's own cases, their status, and the way back into the
       // thread each one lives in. "Vietnam e-Visa" read as "apply here"; this does not.
-      { href: '/dashboard/visa', ...tr('My e-Visa', 'E-Visa của tôi'), icon: FileCheck2 },
+      { href: '/dashboard/visa', ...tr('My e-Visa', 'E-Visa của tôi'), icon: FileCheck2, requiresVisa: true },
     ],
   },
   {
