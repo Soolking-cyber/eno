@@ -86,11 +86,21 @@ export function AccountPanel({ open, onClose }: { open: boolean; onClose: () => 
   // Belt-and-braces collapse: mouseleave already closes the hover-expanded rail, but a pointerdown
   // OUTSIDE it collapses too, so a tap that never triggers mouseleave (touch on a hybrid device, or
   // focus moving away) can't leave it stuck open. Desktop-only — `expanded` is never set on mobile.
+  //
+  // ⚠️ A press inside a PORTALED popup counts as INSIDE. The prefs language/currency
+  // selects (bottom cluster) render their menus in a base-ui portal on <body> — DOM-wise
+  // outside the aside. Collapsing on that press hides the popup's ANCHOR (the cluster is
+  // `expanded ? lg:block : lg:hidden`) mid-interaction; floating-ui flags anchor-hidden
+  // and parks the open menu at the VIEWPORT ORIGIN, so the user watches their menu fly
+  // to the top-left corner and the mouseup lands on nothing (owner report, proven
+  // mid-press 2026-07-23: (16,550) → (0,47) with data-anchor-hidden set).
   useEffect(() => {
     if (!expanded) return
     const onDown = (e: PointerEvent) => {
       const node = trapRef.current
-      if (node && !node.contains(e.target as Node)) setExpanded(false)
+      const target = e.target as Node | null
+      if ((target as Element | null)?.closest?.('[data-base-ui-portal]')) return
+      if (node && target && !node.contains(target)) setExpanded(false)
     }
     document.addEventListener('pointerdown', onDown)
     return () => document.removeEventListener('pointerdown', onDown)
@@ -194,7 +204,14 @@ export function AccountPanel({ open, onClose }: { open: boolean; onClose: () => 
       // these (the panel there is the full-screen `open` overlay, and touch has no hover), and
       // every expanded visual is lg-gated anyway.
       onMouseEnter={() => setExpanded(true)}
-      onMouseLeave={() => setExpanded(false)}
+      // Same portal rule as the pointerdown collapse above: leaving INTO a portaled
+      // menu (a wide currency popup can overflow the 280px rail) must not collapse
+      // the rail out from under the menu's anchor.
+      onMouseLeave={(e) => {
+        const to = e.relatedTarget as Element | null
+        if (to?.closest?.('[data-base-ui-portal]')) return
+        setExpanded(false)
+      }}
       role="dialog"
       aria-label={tr('Account', 'Tài khoản')}
       // Modal ONLY on mobile (full-screen, focus-trapped); a plain non-modal rail on desktop.
