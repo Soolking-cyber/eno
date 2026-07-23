@@ -314,9 +314,44 @@ export async function sendVisaResultCard(input: {
     })
     return { messageId: message.id }
   } catch (e) {
+    // ⚠️ The catch is also the RACE DECIDER for resume-delivery: two concurrent retries can
+    // both see "no card yet" and both insert, and the loser lands HERE on the partial unique
+    // index message_one_result_card_per_document (scripts/visa-result-card-unique.mjs) —
+    // returning null keeps the loser from also sending the thank-you email (exactly-once,
+    // dual plan review 2026-07-23).
     console.error('[visa-result] card refused', e)
     return null
   }
+}
+
+/**
+ * Is this document already announced in the case's thread? The resume-delivery check:
+ * the admin result route calls this on the hard-cap path so a committed-but-undelivered
+ * upload can be DELIVERED on retry instead of refused (the old design undid the whole
+ * upload instead — wasteful, and a transient blip cost a 10MB re-upload cycle).
+ *
+ * ⚠️ THROWS on any failure to LOOK (thread resolution, the message read) — the caller must
+ * 503 without resuming, because "I could not tell whether a card exists" resumed anyway
+ * could double-deliver. Returns null only on a POSITIVE "the thread is there and holds no
+ * card for this document".
+ */
+export async function findVisaResultCard(applicationId: string, documentId: string): Promise<{ messageId: string } | null> {
+  const convo = await resolveVisaResultThread(applicationId)
+  // No thread at all is a real answer, not a lookup failure: there is nowhere a card could
+  // be. The resume attempt that follows will fail card-side and 503 — same terminal state,
+  // reported by the half that owns it.
+  if (!convo) return null
+  const rows = await db.message.findMany({
+    where: { conversationId: convo.id, kind: 'visa_result' },
+    select: { id: true, metaJson: true },
+  })
+  for (const row of rows) {
+    try {
+      const meta = JSON.parse(row.metaJson ?? 'null') as { documentId?: string } | null
+      if (meta?.documentId === documentId) return { messageId: row.id }
+    } catch { /* an unreadable historic card is not THIS card */ }
+  }
+  return null
 }
 
 export type VisaResultMailOutcome = 'sent' | 'no_address' | 'unavailable' | 'failed'
@@ -386,38 +421,9 @@ export async function sendVisaResultThankYou(input: {
   }
 }
 
-/**
- * Undo a committed result upload, so a delivery failure does not spend the one-shot cap.
- *
- * ⚠️ WHY THIS EXISTS. The cap is one upload per case, and the chat card is the applicant's
- * only route to the file. Two external reviewers (GPT-5.6 and Gemini 3.1, 2026-07-23) landed
- * on the same dead end from different directions: commit the row, fail to post the card, and
- * the visa sits in a private bucket its owner cannot open — with the desk's single attempt
- * already used. Rolling back is the only move that keeps BOTH invariants: exactly one
- * DELIVERED result, and never a customer stranded from a document they paid for.
- *
- * ORDER MATTERS: the ROW goes first. While the row exists the partial unique index still
- * blocks a retry, so deleting the object first would leave a live row pointing at nothing —
- * the one state that is worse than either failure alone. Losing the object but keeping the
- * row would be unrecoverable through this route; losing the row but keeping the object is a
- * harmless few hundred KB that the retention sweep collects.
- *
- * Best-effort by necessity (it is already the failure path) but LOUD: a rollback that itself
- * fails is exactly the case a human has to look at, so it says so rather than passing quietly.
- */
-export async function undoVisaResultUpload(input: { documentId: string; storagePath: string }): Promise<void> {
-  try {
-    const { error } = await getVisaDb().from('visa_documents').delete().eq('id', input.documentId)
-    if (error) throw error
-  } catch (e) {
-    // The cap stays spent for this case and only a human can clear it — say so plainly.
-    console.error('[visa-result] ROLLBACK FAILED: result row survives an undelivered upload', e)
-    return
-  }
-  try {
-    await removeVisaFiles([input.storagePath])
-  } catch (e) {
-    // The row is gone, so the desk can re-upload; this is a stray object, not a blocked case.
-    console.error('[visa-result] rollback left a stored object behind', e)
-  }
-}
+// undoVisaResultUpload was DELETED 2026-07-23 (dual plan review): a card failure no longer
+// rolls the committed upload back — the admin route's hard-cap branch is delivery-aware and
+// RESUMES (findVisaResultCard above → post the missing card for the EXISTING document), so
+// the state the undo repaired is now the resume branch's precondition, a blip no longer
+// costs a 10MB re-upload cycle, and the cap is still never left pointing at an unreachable
+// document. The insert-race loser's object cleanup (route step 8) never used this function.

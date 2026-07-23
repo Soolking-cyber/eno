@@ -60,7 +60,10 @@ export function Footer() {
       links: [
         { label: tr('Community forum', 'Diễn đàn cộng đồng'), href: `${FORUM_URL}/`, forumPath: '/' },
         { label: tr('Trip planner', 'Lập kế hoạch chuyến đi'), href: `${FORUM_URL}/itinerary`, forumPath: '/itinerary' },
-        { label: tr('Vietnam e-Visa help', 'Hỗ trợ e-Visa Việt Nam'), href: `${FORUM_URL}/visa`, forumPath: '/visa' },
+        // e-Visa lives on eno.vn now (ownership row, 2026-07-21): the desk's storefront is
+        // where a visitor applies (in-chat flow) — the forum wizard is legacy awaiting
+        // retirement. Plain SAME-ORIGIN link: no forumPath, no goToForum interception.
+        { label: tr('Vietnam e-Visa help', 'Hỗ trợ e-Visa Việt Nam'), href: '/eno_vietnam' },
       ],
     },
   ]

@@ -64,7 +64,12 @@ const tr = (en: string, vi?: string) => ({ en, vi })
 /** Group order is part of the spec: Marketplace → Community → Admin. */
 export const DASHBOARD_NAV: NavGroup[] = [
   {
-    ...tr('Marketplace', 'Chợ eno'),
+    // Headerless ON PURPOSE (owner 2026-07-23: "remove marketplace text on top when
+    // dashboard opened") — the first group's rows need no banner above them; the rail
+    // renderer's `{caption && …}` skips an empty one. Community/Admin keep theirs, so
+    // the section BREAKS below still read.
+    en: '',
+    vi: '',
     role: 'all',
     items: [
       // The "Home" (/dashboard) row was removed (owner 2026-07-23: "useless"). The sections

@@ -60,6 +60,10 @@ const h = vi.hoisted(() => {
       } as Record<string, unknown> | null,
       /** The case's immutable conversation_id link. 'convo-1' = linked; null = no link yet. */
       conversationIdCol: 'convo-1' as string | null,
+      /** Existing visa_result rows IN the thread — what the resume-delivery check reads. */
+      threadCards: [] as Array<{ id: string; metaJson: string | null }>,
+      /** Simulate a transient failure of that read (findVisaResultCard must THROW → 503). */
+      threadCardsError: null as Error | null,
       // counters — the "nothing happened" proof
       caseLoads: 0,
       docLookups: 0,
@@ -104,6 +108,12 @@ vi.mock('@/lib/visa/records', () => ({
 }))
 vi.mock('@/lib/visa/storage', () => ({
   removeVisaFiles: async (paths: string[]) => { h.state.removed.push(...paths); return true },
+  // The resume branch re-reads the committed PDF for the email attachment.
+  readVisaFile: async (path: string) => {
+    h.state.storageDownloads.push(path)
+    if (h.state.downloadFails) throw new Error('visa_storage_read_failed')
+    return h.state.storedBytes
+  },
 }))
 vi.mock('@/lib/db', () => ({
   db: {
@@ -121,6 +131,13 @@ vi.mock('@/lib/db', () => ({
       },
     },
     profile: { findUnique: async () => ({ locale: 'en' }) },
+    message: {
+      // The resume-delivery check (findVisaResultCard): visa_result rows in the thread.
+      findMany: async () => {
+        if (h.state.threadCardsError) throw h.state.threadCardsError
+        return h.state.threadCards
+      },
+    },
   },
 }))
 // The immutable case↔thread link (visa_applications.conversation_id) that result delivery
@@ -237,6 +254,8 @@ beforeEach(() => {
     listingId: 'listing-1', visaApplicationId: APP_ID,
   }
   s.conversationIdCol = 'convo-1'
+  s.threadCards = []
+  s.threadCardsError = null
   s.caseLoads = 0
   s.docLookups = 0
   s.uploads = []
@@ -349,6 +368,9 @@ describe('upload route — validation', () => {
 describe('upload route — the hard cap', () => {
   it('refuses a second upload BEFORE anything is stored', async () => {
     h.state.resultDocs = [{ id: DOC_ID, storage_path: 'applicant-1/case/result-1.pdf', created_at: '2026-07-22T00:00:00Z' }]
+    // The card is already in the thread — a TRUE duplicate (the resume branch only fires
+    // when the card is missing; that case has its own tests below).
+    h.state.threadCards = [{ id: 'card-1', metaJson: JSON.stringify({ v: 1, applicationId: APP_ID, documentId: DOC_ID }) }]
     const res = await POST(uploadRequest(pdf()), params())
     expect(res.status).toBe(409)
     expect(await res.json()).toEqual({ error: 'result_already_uploaded' })
@@ -436,21 +458,20 @@ describe('upload route — delivery', () => {
     expect(JSON.stringify(audit?.metadata)).not.toContain('applicant-1/')
   })
 
-  it('UNDOES the upload when the card cannot be posted, so the cap is not spent', async () => {
-    // ⚠️ This test previously asserted 201 — it codified the dead end as success. Two external
-    // reviewers (GPT-5.6 and Gemini 3.1, 2026-07-23) found it independently: the cap is one
-    // upload per case and the card is the applicant's ONLY route to the file, so committing
-    // the row while the card fails leaves a paid-for visa in a private bucket its owner cannot
-    // open, with the desk's single attempt already spent. Delivery failure must un-spend it.
+  it('KEEPS the upload when the card cannot be posted — the retry resumes delivery', async () => {
+    // ⚠️ This test has now asserted three different fates for this state. 201 codified the
+    // dead end as success; then the 2026-07-23 plan review made it UNDO (un-spend the cap);
+    // and the follow-up dual review replaced the undo with resume-delivery: the upload stays
+    // committed, the desk gets a 503, and the RETRY posts the missing card for this very
+    // document (see "resume delivery" below). Nothing is rolled back any more.
     h.state.conversation = null
     const res = await POST(uploadRequest(pdf()), params())
 
     expect(res.status).toBe(503)
     expect(await res.json()).toMatchObject({ error: 'result_not_delivered' })
-    // The row is gone, so the desk can simply upload again…
-    expect(h.state.deletes.some((d) => d.table === 'visa_documents')).toBe(true)
-    // …and the object does not linger in the bucket.
-    expect(h.state.removed.length).toBe(1)
+    expect(h.state.deletes).toEqual([])
+    expect(h.state.removed).toEqual([])
+    expect(h.state.inserts.some((r) => r.table === 'visa_documents')).toBe(true)
   })
 
   // ── THE STRANDING FIX (immutable case↔thread link) ────────────────────────────────
@@ -491,9 +512,10 @@ describe('upload route — delivery', () => {
     expect(res.status).toBe(503)
     expect(await res.json()).toMatchObject({ error: 'result_not_delivered' })
     expect(h.state.cards).toEqual([])
-    // The cap is un-spent: the row and the object are rolled back so the desk can retry.
-    expect(h.state.deletes.some((d) => d.table === 'visa_documents')).toBe(true)
-    expect(h.state.removed).toHaveLength(1)
+    // The upload is KEPT (resume-delivery, 2026-07-23): no rollback, no orphan sweep —
+    // the desk's retry lands in the delivery-aware cap branch and posts the missing card.
+    expect(h.state.deletes).toEqual([])
+    expect(h.state.removed).toEqual([])
   })
 
   it('falls back to the live binding for a legacy case that has no link but is still bound', async () => {
@@ -614,5 +636,61 @@ describe('visaResultFilename', () => {
       expect(visaResultFilename(hostile)).toBe('eno-evisa.pdf')
     }
     expect(visaResultFilename('ev 1042')).toBe('EV-1042-evisa.pdf')
+  })
+})
+
+// ── 6. RESUME DELIVERY (2026-07-23) — a committed document with no card is DELIVERED on
+//      retry, never refused and never rolled back ─────────────────────────────────────
+
+describe('upload route — resume delivery', () => {
+  const seedExistingDoc = () => {
+    h.state.resultDocs = [{ id: DOC_ID, storage_path: 'applicant-1/case/result-1.pdf', created_at: '2026-07-22T00:00:00Z' }]
+  }
+
+  it('posts the missing card for the EXISTING document and sends the never-sent email', async () => {
+    seedExistingDoc() // no threadCards: the original delivery died at the card step
+    const res = await POST(uploadRequest(pdf('a brand new pdf that must NOT be stored')), params())
+    expect(res.status).toBe(200)
+    expect(await res.json()).toMatchObject({ resumed: true, card: 'posted', email: 'sent', document: { id: DOC_ID } })
+    // Nothing new stored — the resume serves the COMMITTED upload…
+    expect(h.state.uploads).toEqual([])
+    expect(h.state.inserts).toEqual([])
+    // …the card names the existing document…
+    expect(h.state.cards).toHaveLength(1)
+    expect((h.state.cards[0].meta as { documentId: string }).documentId).toBe(DOC_ID)
+    // …and the email attachment was RE-READ from storage (the request body is not trusted).
+    expect(h.state.storageDownloads).toEqual(['applicant-1/case/result-1.pdf'])
+    expect(h.state.mails).toHaveLength(1)
+    expect(h.state.events.some((e) => e.event === 'result_delivery_resumed')).toBe(true)
+  })
+
+  it('503s WITHOUT resuming when the delivery check itself fails — "could not tell" never re-posts', async () => {
+    seedExistingDoc()
+    h.state.threadCardsError = new Error('transient')
+    const res = await POST(uploadRequest(pdf()), params())
+    expect(res.status).toBe(503)
+    expect(await res.json()).toEqual({ error: 'visa_database_unavailable' })
+    expect(h.state.cards).toEqual([])
+    expect(h.state.mails).toEqual([])
+  })
+
+  it('503s with NO email when the resumed card also fails (the race loser path)', async () => {
+    seedExistingDoc()
+    h.state.shop = null // sendVisaResultCard → null, same surface as a 23505 race loss
+    const res = await POST(uploadRequest(pdf()), params())
+    expect(res.status).toBe(503)
+    expect(await res.json()).toEqual({ error: 'result_not_delivered' })
+    expect(h.state.mails).toEqual([]) // ⚠️ exactly-once: the loser must not also email
+    expect(h.state.deletes).toEqual([]) // and still nothing is rolled back
+  })
+
+  it('still resumes with email "failed" when the stored PDF cannot be re-read — the card wins', async () => {
+    seedExistingDoc()
+    h.state.downloadFails = true
+    const res = await POST(uploadRequest(pdf()), params())
+    expect(res.status).toBe(200)
+    expect(await res.json()).toMatchObject({ resumed: true, card: 'posted', email: 'failed' })
+    expect(h.state.cards).toHaveLength(1)
+    expect(h.state.mails).toEqual([])
   })
 })

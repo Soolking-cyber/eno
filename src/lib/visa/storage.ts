@@ -35,6 +35,14 @@ export async function signVisaFile(path: string, ttl = 300) {
   return data.signedUrl
 }
 
+/** Server-side byte fetch (gated callers only — the bucket is private; no URL escapes).
+ *  Throws on any storage failure so callers must decide the degrade, never guess it. */
+export async function readVisaFile(path: string): Promise<Buffer> {
+  const { data, error } = await getVisaDb().storage.from(VISA_BUCKET).download(path)
+  if (error || !data) throw new Error('visa_storage_read_failed')
+  return Buffer.from(await data.arrayBuffer())
+}
+
 export async function removeVisaFiles(paths: string[], options: { strict?: boolean } = {}) {
   if (!paths.length) return true
   const { error } = await getVisaDb().storage.from(VISA_BUCKET).remove(paths)

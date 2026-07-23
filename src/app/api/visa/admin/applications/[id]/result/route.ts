@@ -6,14 +6,14 @@ import { recordVisaEvent } from '@/lib/visa/records'
 import {
   VISA_RESULT_MAX_BYTES,
   checkVisaResultPdf,
+  findVisaResultCard,
   findVisaResultDocument,
   insertVisaResultDocument,
   sendVisaResultCard,
-  undoVisaResultUpload,
   sendVisaResultThankYou,
   storeVisaResultPdf,
 } from '@/lib/visa/result'
-import { removeVisaFiles } from '@/lib/visa/storage'
+import { readVisaFile, removeVisaFiles } from '@/lib/visa/storage'
 
 // THE DESK UPLOADS THE FINISHED VISA — the last thing that happens to a case.
 //
@@ -111,8 +111,59 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   // (4) THE HARD CAP, before the body is read — nothing is stored on the refusing path, and
   // a 10 MB upload is not buffered just to be thrown away. Throws (fails closed) if the
   // lookup itself errors: "I could not tell" must never read as "there is no result yet".
+  //
+  // DELIVERY-AWARE since 2026-07-23 (dual plan review): a hit here is a true duplicate ONLY
+  // when the document's card is already in the thread. A committed document with NO card is
+  // the aftermath of a delivery failure (the card step below answered 503 without undoing),
+  // and the desk's retry must RESUME — post the missing card for the EXISTING document and
+  // send the never-sent email — not be told "already uploaded" about a visa its owner
+  // cannot reach. findVisaResultCard THROWS when it cannot tell (transient) → 503, no
+  // resume; the concurrent-retry double-card race is decided by the partial unique index
+  // message_one_result_card_per_document (the loser's card refuses → it 503s without
+  // emailing; exactly-once holds).
   try {
-    if (await findVisaResultDocument(id)) return refuse('result_already_uploaded', 409)
+    const existing = await findVisaResultDocument(id)
+    if (existing) {
+      let delivered: { messageId: string } | null
+      try {
+        delivered = await findVisaResultCard(id, existing.id)
+      } catch {
+        console.error('[visa-result] delivery check failed — refusing without resume')
+        return refuse('visa_database_unavailable', 503)
+      }
+      if (delivered) return refuse('result_already_uploaded', 409)
+
+      const card = await sendVisaResultCard({ applicationId: id, documentId: existing.id, reference: application.reference })
+      if (!card) {
+        console.error('[visa-result] resume could not post the card — still undelivered')
+        return refuse('result_not_delivered', 503)
+      }
+      // The thank-you email provably never went: it is only ever sent AFTER a successful
+      // card post, and this document had no card until just now. The attachment is re-read
+      // from storage (the original request's bytes are long gone); an unreadable object
+      // degrades to the email's own 'failed' outcome — the card, the route that matters,
+      // is already up.
+      let mail: Awaited<ReturnType<typeof sendVisaResultThankYou>> = 'failed'
+      try {
+        const pdf = await readVisaFile(existing.storage_path)
+        mail = await sendVisaResultThankYou({
+          applicationId: id,
+          userId: application.user_id,
+          encryptedPayload: application.encrypted_payload,
+          reference: application.reference,
+          pdf,
+        })
+      } catch {
+        console.error('[visa-result] resume could not re-read the stored PDF for the email')
+      }
+      try {
+        await recordVisaEvent(id, 'admin', 'result_delivery_resumed', admin, { documentId: existing.id })
+      } catch { console.error('[visa-result] audit write failed for a resumed delivery') }
+      return NextResponse.json(
+        { document: { id: existing.id, kind: 'result' }, card: 'posted', email: mail, resumed: true },
+        { status: 200, headers: NO_STORE },
+      )
+    }
   } catch {
     console.error('[visa-result] existing-result lookup failed — upload refused')
     return refuse('visa_database_unavailable', 503)
@@ -175,20 +226,16 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   // (10) The card in the applicant's own thread, authored server-side as the shop.
   const card = await sendVisaResultCard({ applicationId: id, documentId: inserted.id, reference: application.reference })
 
-  // ⚠️ NO CARD ⇒ UNDO THE UPLOAD. Both external reviewers (GPT-5.6 and Gemini 3.1, 2026-07-23)
-  // independently found the same dead end, and it is the one failure this feature could not
-  // absorb: the cap is ONE upload per case, and the card is the applicant's only way to reach
-  // the file. Commit the row, fail to post the card, and the visa exists in a private bucket
-  // that its owner cannot open — with the desk's single attempt already spent.
-  //
-  // So delivery failure un-spends the cap: drop the row and the object, and answer 503 so the
-  // desk simply clicks again. Nothing was delivered, so nothing is lost by pretending it never
-  // happened — and the alternative (leaving it committed) is a customer who paid for a visa
-  // they cannot download. The email is NOT attempted in this branch: an attachment arriving
-  // for a case with no card is the confusing half-state we are avoiding.
+  // ⚠️ NO CARD ⇒ 503, UPLOAD KEPT (the undo this branch used to run is gone, 2026-07-23
+  // dual plan review). The dead end the undo guarded — a committed visa its owner cannot
+  // reach, cap spent — is now closed the other way round: the desk's retry lands in step
+  // (4)'s delivery-aware branch, which RESUMES by posting the missing card for this very
+  // document. Keeping the upload means a transient blip no longer costs a 10MB re-upload
+  // cycle, and delivery is idempotent instead of destructive. The email is still NOT
+  // attempted here: an attachment arriving for a case with no card is the confusing
+  // half-state we are avoiding — the resume branch sends it after the card lands.
   if (!card) {
-    console.error('[visa-result] card could not be posted — undoing the upload so the cap is not spent')
-    await undoVisaResultUpload({ documentId: inserted.id, storagePath: stored.storage_path })
+    console.error('[visa-result] card could not be posted — upload kept; retry resumes delivery')
     return refuse('result_not_delivered', 503)
   }
 
