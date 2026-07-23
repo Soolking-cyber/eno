@@ -14,7 +14,7 @@
 import type { LucideIcon } from 'lucide-react'
 import {
   Store, ExternalLink, MessageSquareText, Heart, Scale, Upload, Code2,
-  CircleHelp, Route, FileCheck2,
+  CircleHelp, FileCheck2,
   Flag, ShieldAlert, ClipboardList, Tags, Star, Stamp,
 } from 'lucide-react'
 
@@ -98,7 +98,13 @@ export const DASHBOARD_NAV: NavGroup[] = [
     // that calls itself the single source of truth for the rail had no Help entry at all.
     items: [
       { href: '/dashboard/help', ...tr('Help center', 'Trung tâm trợ giúp'), icon: CircleHelp },
-      { href: '/dashboard/trips', ...tr('Itineraries', 'Lịch trình'), icon: Route },
+      // ⚠️ Itinerary builder SHELVED (owner, 2026-07-23): "for now don't delete, later we
+      // will make use of it". The route, pages and API under /dashboard/trips all STAY —
+      // only this nav entry is removed so it isn't reachable from the dashboard. Restore this
+      // one line to bring it back; do not rebuild the feature.
+      // (Shelved in c8090df0, accidentally reverted 2 minutes later by 0ef45423 committing a
+      // stale working-tree copy of this file; re-applied since. If this row is back and no
+      // owner decision says so, that's the same accident again — not a restoration.)
       // KEPT, RELABELLED (owner 2026-07-22: "only 1 way should exist through the chat").
       // The section is no longer a place to APPLY — the wizard behind this row is deleted
       // and the application is filled in the chat thread — so the row names what it still
