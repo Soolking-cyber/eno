@@ -1,11 +1,30 @@
 # Automatic business verification for Vietnam — options & recommendation
 
 **Status: RESEARCH ONLY. No code built.** The owner asked whether an individual→business
-upgrade can be *automatically* verified, cheaply/freely and securely. This is the answer,
-with every load-bearing claim live-probed on 2026-07-23 (public companies only — Vinamilk
-`0300588569`, Viettel `0100109106` + branch `-011`, FPT `0101248141`; no individual tax
-IDs touched). Build only after an owner nod, and put the chosen design through the
-both-ends second opinion first (this is a trust gate on money-adjacent accounts).
+upgrade can be *automatically* verified, cheaply/freely and securely, and how the other VN
+marketplaces (Shopee, Lazada, TikTok Shop, Tiki, Chợ Tốt, Sendo) do it. This is the answer,
+with every load-bearing claim live-probed or source-verified on 2026-07-23 (public companies
+only — Vinamilk `0300588569`, Viettel `0100109106` + branch `-011`, FPT `0101248141`; no
+individual tax IDs touched). Build only after an owner nod, and put the chosen design
+through the both-ends second opinion first (this is a trust gate on money-adjacent accounts).
+
+> ⚠️ **VERIFICATION IS NOT OPTIONAL — it is the legal floor, and the bar rises 2026-07-01.**
+> Three stacked instruments, all source-verified (KPMG/Baker McKenzie/EY/Vietnam-Briefing):
+> **(1) Decrees 52/2013 + 85/2021** already require a platform to *collect + store* seller
+> identity (business-registration number + MST for orgs; CCCD/tax code for individuals).
+> **(2) Decree 117/2025/NĐ-CP** (effective **2025-07-01**) — a platform *with a payment
+> function* must withhold VAT+PIT per transaction and therefore collect each seller's
+> MST/CCCD; this is why every incumbent forced a "update your tax + identity" step in 2025.
+> **(3) Law on E-commerce 122/2025/QH15** (effective **2026-07-01**) — an intermediary
+> platform must **electronically authenticate the seller's identity via the national VNeID
+> system BEFORE allowing them to sell** (a real gate, not just collection); foreign sellers
+> verify via lawful documents. **Two things this means for eno.vn specifically:** (a) the
+> tax-*withholding* piece is payment-function-gated — it bites the visa checkout, less so
+> the classifieds contact-reveal side — but the *identity* floor applies regardless; (b)
+> **VNeID covers Vietnamese nationals only, and eno.vn is an EXPAT marketplace** — many
+> sellers are foreigners who verify by passport + documents, so the document-upload channel
+> below is a *primary* path for eno.vn, not just a fallback. Design it swappable for a
+> VNeID call so the domestic half is ready for 2026-07-01.
 
 ## Bottom line
 
@@ -58,13 +77,22 @@ company claiming >1 month of existence, is a real fail.
 **a bank account whose holder name matches the registered legal name** — the seller links a
 payout account anyway, so it adds no friction and directly ties the person to the company.
 This is the channel a registry lookup can never provide: a scammer can read Vinamilk's MST
-off the web, but cannot produce a bank account in Vinamilk's name.
+off the web, but cannot produce a bank account in Vinamilk's name. It gets cheaper and
+stronger from 2026: **Circular 25/2025/TT-NHNN** makes the bank guarantee
+account-name == registered-name == CCCD-name (household accounts from 2026-03-01), so the
+bank does the KYC and we only cross-check it against Channel 1. No incumbent markets this as
+a verification channel — it's eno.vn's genuine differentiator.
 
-**Channel 3 (fallback / higher assurance) — Document upload, human-reviewed.** A photo of
-the ERC (Enterprise Registration Certificate) or hộ-kinh-doanh registration certificate,
-cross-checked by an ops person against the Channel-1 registry data. Use it when Channel 2
-can't apply (see the HKD note) or as a third channel for high-value sellers, and as the
-place a ~$0.80 **official paid extract** (option 4) is pulled for disputes.
+**Channel 3 (primary for expats / fallback otherwise) — Document upload, human-reviewed.** A
+photo of the ERC (Enterprise Registration Certificate) or hộ-kinh-doanh registration
+certificate — and for a **foreign seller, the passport + business docs** — cross-checked by
+an ops person against the Channel-1 registry data. On an *expat* marketplace this is a
+primary path, not just a fallback: **VNeID (the identity system Law 122 mandates from
+2026-07-01) covers Vietnamese nationals only**, so foreigners always verify by documents.
+Also the place a ~$0.80 **official paid extract** (option 4) is pulled for disputes.
+**Build this channel swappable for a VNeID authentication call** so the domestic half is
+ready for the 2026-07-01 gate. This is also the universal incumbent mechanism (every mall
+reviews the business license + trademark by hand here).
 
 **The rule: at least two of these pass, and one of the two is the ownership binding
 (Channel 2 or a human-reviewed Channel 3).** Two "is it real?" signals (VietQR + official
@@ -80,6 +108,74 @@ Channel 2 against the **proprietor's name** (not a company name), and lean on **
 (the HKD certificate, human-reviewed)** as the primary "is it real?" signal when VietQR
 returns `51`. Design the flow so an HKD that fails the enterprise lookup is routed to
 document review, never hard-rejected.
+
+## How the VN marketplaces verify sellers (benchmark, 2026-07-23)
+
+Researched across Shopee, Lazada, TikTok Shop, Tiki, **Chợ Tốt** (our closest analogue) and
+Sendo. Confidence varies: TikTok Shop, Tiki and Chợ Tốt are from the platforms' own seller
+docs; **Shopee Mall specifics, all of Lazada VN, and Sendo are "reported"** (corroborated
+across guides, not scraped from a binding policy page). Re-check before citing in a build.
+
+| Platform | To LIST at all | To become a BUSINESS / "official store" | ~Channels (business) |
+|---|---|---|---|
+| **Chợ Tốt** (classifieds — our lane) | phone + SMS OTP only; phone shown publicly | opt-in "Xác minh" (CCCD photos + SIM-registry TTTB→1414) / paid Partner tier; ĐKKD only for jobs | 2–3 |
+| **Shopee / Shopee Mall** | phone-OTP; then mandatory eKYC (CCCD NFC + face) + MST | Mall: business license + trademark/authorization + category certs + performance gate | ~5 |
+| **TikTok Shop** (strictest) | full KYC first — CCCD NFC + selfie liveness + bank-name-match + MST; no list-first path | business/household certificate + corporate MST (registry-checked) + business bank-name-match + rep NFC eKYC | 4–5 |
+| **Lazada / LazMall** *(reported)* | phone/email OTP + gov ID + bank + address | LazMall: business license + trademark/authorization + a multi-month performance track record | ~4 |
+| **Tiki / Official Store** | ID + selfie-holding-ID + MST + bank | GPKD + MST + rep CCCD + bank-name-match; Official Store adds trademark + a signed seller contract | 4–5 |
+| **Sendo / SenMall** *(reported)* | CCCD + phone + email (+ bank on payout) | SenMall: ĐKKD + trademark/authorization + category cert | ~4 |
+
+**The common skeleton (every managed marketplace):** the business badge is *never* one check
+— it is a 3–5 channel stack that recurs almost verbatim: (a) **registry/tax** (ĐKKD + MST),
+(b) **rights/brand** (trademark cert *or* a level-1/2/3 distribution-authorization letter),
+(c) **identity** (representative CCCD, increasingly NFC + selfie eKYC), (d) **bank-name**
+match to the entity, and (e) a **performance** gate. eno.vn's proposed trio
+(registry/tax + bank-name + document-upload) is exactly **(a)+(d)+(b/c)** — the load-bearing
+three, minus the brand and performance gates that certify *service quality* rather than
+*identity*.
+
+**Where eno.vn's design agrees:** multi-channel-by-construction is the right instinct
+(every incumbent badge is inherently ≥2 channels); registry/tax is table-stakes; document
+-upload + human review is the universal license/trademark mechanism; and a two-speed
+pipeline (instant automated identity for all, slow manual review for the badge) is the norm.
+
+**Where it differs — mostly for the better:**
+- **Automated registry/tax lookup would BEAT every incumbent.** None of them auto-verify the
+  ĐKKD/MST at signup — they all do document-upload + *manual* human review (Shopee Mall
+  7–14 business days, Tiki ≤5 days, Lazada ~2–3 days). Vietnam exposes queryable public
+  registries, so a real-time registry+tax check is an innovation, not gold-plating — and our
+  two cheap channels (registry + bank-name) can return an **instant** result, humans only on
+  the document channel. Strictly faster than every incumbent.
+- **Bank-name as a first-class identity channel is a genuine differentiator** — incumbents
+  collect a bank account for *payouts* (an implicit match) but none *market* it as
+  verification. It's about to get much cheaper and stronger: **Circular 25/2025/TT-NHNN**
+  forces the bank itself to guarantee account-name == registered-name == CCCD-name (household
+  accounts from **2026-03-01**; personal accounts follow, reported). The bank does the KYC;
+  we cross-check. This directly validates the owner's "bank name is a good one."
+- **Chợ Tốt is our floor, the malls are the ceiling.** Classifieds gate *nothing* on identity
+  to list (phone+OTP, phone shown publicly) and make CCCD/SIM/license opt-in behind a trust
+  badge or paid Partner tier — a 2–3-channel verified seller. eno.vn sits in the classifieds
+  lane, so keep *listing* near-frictionless and reserve the multi-channel stack for the
+  business badge — but our specific combination is more rigorous and more automated than any
+  classifieds peer, a defensible differentiated middle.
+
+**Channels the incumbents use that our design omits — and whether to care:**
+1. **Trademark / brand-authorization** — the single most consistent *extra* channel (all five
+   malls). It is the line between a legal-entity-KYC badge (what we're building) and a
+   brand/"genuine goods" official store. **Not needed for v1**; it's the lever only if eno.vn
+   later wants an "authorized reseller" signal.
+2. **Selfie/NFC eKYC** — TikTok/Shopee run biometric identity; our document-upload is the
+   photo-based equivalent, and the strategic end-state is the **VNeID call Law 122 makes
+   table-stakes by 2026-07-01** (for Vietnamese nationals; expats stay on documents).
+3. **Performance / track-record gate** — correctly omitted; our badge certifies *identity*,
+   not *service quality*.
+4. **Anti-abuse account caps** (TikTok: 1 shop per CCCD, ≤5 per business cert) and a
+   **signed seller contract** (Tiki) — cheap to mirror so one verified identity can't spawn
+   unlimited business badges. Worth adopting.
+5. **No refundable deposit / ký quỹ** — none of the incumbents charge one. The enforcement
+   lever is *liability + performance* (Shopee's genuine-goods compensation, higher fees),
+   not held cash. If eno.vn wants skin-in-the-game, a penalty regime is the incumbent-aligned
+   choice, not a bond.
 
 ## The options, ranked
 
@@ -227,6 +323,11 @@ The remaining calls before any build:
    Confirm this split, and whether a document-upload channel is built now or deferred.
 3. **Worth a T-VAN trial** (option 5, DPA-able official channel) over the keyless private
    mirror for the registry channel? Recommended for production; VietQR is the right *pilot*.
+4. **Cheap incumbent-aligned add-ons** (from the benchmark): an **anti-abuse cap** (one
+   business badge per verified identity / per MST, à la TikTok's 1-shop-per-CCCD) and, if a
+   stake is wanted, a **penalty/liability regime rather than a deposit**. Adopt now or defer?
+5. **Timeline hook:** design Channel 3 **swappable for a VNeID call** so the domestic path is
+   ready for the 2026-07-01 Law-122 identity gate; expats stay on documents/passport.
 
 **Next step when the owner greenlights a build:** this stops being a research doc and
 becomes an implementation plan — at which point it gets the both-ends reviewer pair (codex
