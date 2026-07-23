@@ -345,6 +345,17 @@ export function ListingsExplorer({
     setActiveSubcategory('all')
     setActiveBrand('all')
     setActiveModel('all')
+    // ⚠️ Reset EVERY axis applyParams() reads, not just the common ones. The
+    // showExplorer sync effect re-opens the explorer whenever ANY facet is
+    // non-default, so one missed axis undoes the whole reset: a lingering
+    // listingType ('/?type=free' — the intent tiles) flipped the explorer straight
+    // back open after a logo tap and the URL effect re-wrote the param, making the
+    // wordmark appear dead (owner-reported, 2026-07-23). looseMatch/sort don't
+    // re-open the explorer but would silently haunt the NEXT search from landing.
+    setListingType('all')
+    setConditionFilter('all')
+    setLooseMatch(false)
+    setSort('newest')
     setCustomFilters({})
     setPriceRange('all')
     setShowExplorer(false)
