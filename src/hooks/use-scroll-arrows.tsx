@@ -93,12 +93,17 @@ export function ScrollArrows({
   canRight,
   page,
   arrowTop,
+  tight,
 }: {
   canLeft: boolean
   canRight: boolean
   page: (dir: 1 | -1) => void
   /** Measured media centre (px from the wrapper top); falls back to `top-1/2` when undefined. */
   arrowTop?: number
+  /** Half the gutter gap. The homepage rails are tuned to -8/-14; the explorer's
+   *  category + brand rails sit closer to their icons (owner, 2026-07-23). Default keeps
+   *  the homepage exactly as-is. */
+  tight?: boolean
 }) {
   const { tr } = useLanguage()
   // Bare BOLD chevron (no circle/outline), clear of the cards in the gutter — quiet ink → brand on
@@ -110,16 +115,19 @@ export function ScrollArrows({
   const arrowCls =
     'absolute z-10 hidden -translate-y-1/2 text-ink-4 transition-transform duration-150 hover:scale-110 hover:text-accent-foreground active:scale-90 pc:block'
   const arrowIcon = 'size-7 [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.25))]'
+  // 50% less space when tight: -8→-4 (32→16px), -14→-7 (56→28px).
+  const leftInset = tight ? '-left-4 min-[1360px]:-left-7' : '-left-8 min-[1360px]:-left-14'
+  const rightInset = tight ? '-right-4 min-[1360px]:-right-7' : '-right-8 min-[1360px]:-right-14'
   const style = arrowTop != null ? { top: `${arrowTop}px` } : undefined
   return (
     <>
       {canLeft && (
-        <Button variant="bare" size="none" onClick={() => page(-1)} aria-label={tr('Scroll left', 'Cuộn trái')} style={style} className={cn(arrowCls, arrowTop == null && 'top-1/2', '-left-8 min-[1360px]:-left-14')}>
+        <Button variant="bare" size="none" onClick={() => page(-1)} aria-label={tr('Scroll left', 'Cuộn trái')} style={style} className={cn(arrowCls, arrowTop == null && 'top-1/2', leftInset)}>
           <ChevronLeft className={arrowIcon} strokeWidth={2.75} />
         </Button>
       )}
       {canRight && (
-        <Button variant="bare" size="none" onClick={() => page(1)} aria-label={tr('Scroll right', 'Cuộn phải')} style={style} className={cn(arrowCls, arrowTop == null && 'top-1/2', '-right-8 min-[1360px]:-right-14')}>
+        <Button variant="bare" size="none" onClick={() => page(1)} aria-label={tr('Scroll right', 'Cuộn phải')} style={style} className={cn(arrowCls, arrowTop == null && 'top-1/2', rightInset)}>
           <ChevronRight className={arrowIcon} strokeWidth={2.75} />
         </Button>
       )}

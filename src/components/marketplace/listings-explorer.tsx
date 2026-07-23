@@ -1678,7 +1678,7 @@ export function ListingsExplorer({
                 </Button>
               ))}
             </div>
-            <ScrollArrows canLeft={catCanLeft} canRight={catCanRight} page={catPage} />
+            <ScrollArrows canLeft={catCanLeft} canRight={catCanRight} page={catPage} tight />
             </div>
           </div>
 

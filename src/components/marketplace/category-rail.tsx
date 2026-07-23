@@ -184,7 +184,7 @@ export function CategoryRail({
         </>
       )}
     </div>
-      <ScrollArrows canLeft={canLeft} canRight={canRight} page={page} arrowTop={arrowTop} />
+      <ScrollArrows canLeft={canLeft} canRight={canRight} page={page} arrowTop={arrowTop} tight />
     </div>
   )
 }

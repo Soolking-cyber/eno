@@ -213,7 +213,7 @@ export function BrandRail({
         )
       })}
     </div>
-      <ScrollArrows canLeft={canLeft} canRight={canRight} page={page} arrowTop={arrowTop} />
+      <ScrollArrows canLeft={canLeft} canRight={canRight} page={page} arrowTop={arrowTop} tight />
     </div>
   )
 }
