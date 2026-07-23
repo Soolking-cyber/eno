@@ -14,9 +14,7 @@ import { Tr } from '@/context/language-context'
 import { ReportButton } from '@/components/marketplace/report-button'
 import { HandleChip } from '@/components/marketplace/handle-chip'
 import { StorefrontSellerCard } from '@/components/marketplace/storefront-seller-card'
-import { VisaStartPicker } from '@/components/marketplace/visa-start'
 import { getVisaShopSeller } from '@/lib/visa-shop'
-import { StorefrontRails } from '@/components/marketplace/storefront-rails'
 import { sellerMetrics } from '@/lib/seller-metrics'
 import { getEnforcement } from '@/lib/enforcement'
 
@@ -137,13 +135,13 @@ export async function SellerStorefront({ id }: { id: string }) {
                 seller={cardSeller}
                 metrics={metrics}
                 // The visa desk does not take an ordinary "Chat" about its newest listing —
-                // its threads ARE applications. Suppress the generic CTA and offer the
-                // product picker below instead, so contacting the desk always starts a case
-                // against a chosen product rather than an empty conversation.
+                // its threads ARE applications. Suppress the generic CTA: the buyer picks a
+                // product from the grid below and its PDP "Apply" starts the case with that
+                // product pre-chosen (the inline speed-tier picker that used to sit here was
+                // removed on owner direction 2026-07-23 — the sortable grid is the chooser).
                 chatListingId={isVisaDesk ? null : chatListingId}
                 listingCount={listings.length}
               />
-              {isVisaDesk && <VisaStartPicker className="mt-3" />}
             </div>
             {(seller.handle || seller.ownerId) && (
               <div className="flex flex-wrap items-center gap-2">
@@ -176,12 +174,6 @@ export async function SellerStorefront({ id }: { id: string }) {
               : <Tr text="This seller's account is on hold — don't send money or deposits" />}
           </p>
         )}
-
-        {/* Auto-curated showcase rails (Shopee-style). Self-omit at ≤8 active
-            listings; above that, two ListingCard rails ("Mới đăng" postedAt-desc /
-            "Được quan tâm nhất" contactCount-desc) merchandise the shop above the
-            full grid. Derived from the already-loaded set — no extra query. */}
-        <StorefrontRails listings={listings} />
 
         {/* Reviews */}
         {reviews.length > 0 && (
