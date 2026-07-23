@@ -28,7 +28,16 @@ import { cn } from '@/lib/utils'
  * listing rail they sit level with the photo, not dragged down by the title/price rows beneath it.
  */
 export function useScrollArrows<T extends HTMLElement = HTMLDivElement>(
-  { centerSelector }: { centerSelector?: string } = {},
+  { centerSelector, watch }: {
+    centerSelector?: string
+    /** Re-measure when this changes. ⚠️ REQUIRED for rails whose items load ASYNC. The
+     *  ResizeObserver watches the scroller's OWN box, which is unchanged when children
+     *  arrive and overflow it — only scrollWidth grows — so a rail that mounts empty
+     *  (brand-rail fetches its brands) computes "no overflow" once and never corrects.
+     *  Pass the item count. A rail whose data is present at mount (server-seeded
+     *  categories) does not need it. */
+    watch?: unknown
+  } = {},
 ) {
   const scrollerRef = useRef<T>(null)
   const [canLeft, setCanLeft] = useState(false)
@@ -58,10 +67,17 @@ export function useScrollArrows<T extends HTMLElement = HTMLDivElement>(
     if (!el) return
     sync()
     el.addEventListener('scroll', sync, { passive: true })
-    const ro = new ResizeObserver(sync) // content/width changes (lazy items, viewport resize)
+    const ro = new ResizeObserver(sync) // viewport / width changes
     ro.observe(el)
     return () => { el.removeEventListener('scroll', sync); ro.disconnect() }
-  }, [sync])
+    // `watch` in deps re-runs sync (and re-attaches the listeners) once async items exist.
+    // ⚠️ A MutationObserver here was TRIED and REJECTED (Gemini proposed it, 2026-07-23):
+    // its callback fires as a microtask BEFORE the browser lays out the new children, so
+    // sync reads a stale scrollWidth and the arrows never appear — MEASURED, 30 brands
+    // stayed arrowless. The React effect runs after commit, where reading scrollWidth forces
+    // correct layout. codex's own probe used double-requestAnimationFrame for the same reason.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sync, watch])
 
   const page = useCallback((dir: 1 | -1) => {
     const el = scrollerRef.current

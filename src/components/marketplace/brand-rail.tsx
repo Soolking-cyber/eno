@@ -34,8 +34,8 @@ export function BrandRail({
   // Desktop ← / → arrows, same as the home rails (owner, 2026-07-22: "category brand reels
   // also need arrows like in home page"). The hook's ref IS the rail element, so it also
   // serves the auto-centre-the-active-brand effect below — one node, one ref.
-  const { scrollerRef: railRef, canLeft, canRight, page, arrowTop } = useScrollArrows<HTMLDivElement>()
   const [brands, setBrands] = useState<BrandItem[]>([])
+  const { scrollerRef: railRef, canLeft, canRight, page, arrowTop } = useScrollArrows<HTMLDivElement>({ watch: brands.length })
   const [models, setModels] = useState<{ model: string; count: number }[]>([])
   // Read through refs inside the fetch effects so validating the CURRENT pick
   // doesn't add it to the deps (which would refetch on every brand/model tap).
