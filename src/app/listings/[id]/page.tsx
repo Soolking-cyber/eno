@@ -71,7 +71,9 @@ export async function generateStaticParams() {
 const getListing = cache((id: string) =>
   db.listing.findUnique({
     where: { id },
-    include: { category: true, seller: { include: { owner: { select: { accountType: true } } } } },
+    // owner.lastSeenAt: presence for the seller strip — consumed server-side into a
+    // day-coarse bucket input (sellerMetrics), the raw timestamp never serializes.
+    include: { category: true, seller: { include: { owner: { select: { accountType: true, lastSeenAt: true } } } } },
   }),
 )
 
@@ -210,8 +212,18 @@ export default async function ListingPage({ params }: Props) {
     getPriceBand({ brandSlug: listing.brandSlug, model: listing.model, condition: listing.condition, year: listing.year }),
   ])
   // Honest, decomposed seller display bundle (raw responseRate never leaves here —
-  // only the suppressed/bucketed label rides into the client SellerCard).
-  const sellerMetricsBundle = sellerMetrics(listing.seller, convoCount90)
+  // only the suppressed/bucketed label rides into the client SellerCard). The two
+  // fields the SERIALIZED seller deliberately doesn't carry — the compute receipt
+  // responseMetricAt and the owner's presence heartbeat — thread in from rawListing,
+  // so neither raw value ever touches a client-visible shape.
+  const sellerMetricsBundle = sellerMetrics(
+    {
+      ...listing.seller,
+      responseMetricAt: rawListing.seller.responseMetricAt,
+      lastSeenAt: rawListing.seller.owner?.lastSeenAt ?? null,
+    },
+    convoCount90,
+  )
   const sellerHref = `/sellers/${listing.sellerId}`
   // Caution line for throttled/held/suspended sellers (warned is notice-only, never
   // public). Held/suspended pages are usually pulled (404) — direct-link stragglers

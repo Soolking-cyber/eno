@@ -67,6 +67,11 @@ model Profile {
   //    a newer TOS_VERSION (src/lib/site-legal.ts). ──
   tosAcceptedAt        DateTime?
   tosVersion           String?
+  // Presence heartbeat — written at most once per 5 min by getCurrentProfile()'s
+  // atomic guarded update (admin.ts), NEVER on the hot getCurrentProfileId path.
+  // Nullable on purpose: a never-seen profile must surface NOTHING, not "now".
+  // Only the DAY-coarse bucket ever leaves the server (src/lib/last-seen.ts).
+  lastSeenAt           DateTime?
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
 
@@ -190,6 +195,11 @@ model Seller {
   memberSince       DateTime          @default(now())
   responseRate      Int               @default(100)
   responseTime      String            @default("within an hour")
+  // Set ONLY by recomputeResponseRates() (nightly SQL, >=5-convo sample) — its presence
+  // is what separates a MEASURED responseRate from the fabricated =100 default above.
+  // Display (responseBucket) and trust (responseQ) both gate on it; never write it
+  // anywhere else or the honesty gate is laundered.
+  responseMetricAt  DateTime?
   location          String?
   bio               String?
   phone             String?           @unique // KEEP: the guest-claim join key

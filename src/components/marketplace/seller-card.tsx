@@ -9,6 +9,8 @@ import { Avatar } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
+import { lastSeenBucket } from '@/lib/last-seen'
+import { useMounted } from '@/hooks/use-mounted'
 import type { SellerMetrics } from '@/lib/seller-metrics'
 
 // Only the identity fields SellerCard needs — kept structural so BOTH the PDP
@@ -54,11 +56,19 @@ export function SellerCard({
   className,
 }: SellerCardProps) {
   const { tr } = useLanguage()
-  const { responseBucket, memberSinceYear, reviewCount, rating, trustScore } = metrics
+  const { responseBucket, lastSeenDay, memberSinceYear, reviewCount, rating, trustScore } = metrics
+
+  // Presence, bucketed from the day-coarse date (never a raw timestamp) — computed
+  // client-side so a stale ISR PDP can only under-claim, and rendered only AFTER
+  // mount so the leaf can't structurally mismatch server HTML across a bucket
+  // boundary (see use-mounted.ts + src/lib/last-seen.ts).
+  const mounted = useMounted()
+  const lastSeen = mounted ? lastSeenBucket(lastSeenDay) : { key: null as null, en: '', vi: '' }
 
   // Metrics strip leaves — build only the ones that exist, join with middots.
   const strip: React.ReactNode[] = []
   if (responseBucket.key) strip.push(tr(responseBucket.en, responseBucket.vi))
+  if (lastSeen.key) strip.push(tr(lastSeen.en, lastSeen.vi))
   strip.push(tr(`Joined ${memberSinceYear}`, `Tham gia ${memberSinceYear}`))
   if (reviewCount > 0) {
     strip.push(

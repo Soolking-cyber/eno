@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { serializeListing } from '@/lib/serialize'
 import { localizeListingTitles } from '@/lib/translate'
 import { topSellerReviews, sellerMetrics } from '@/lib/seller-metrics'
+import { lastSeenBucket } from '@/lib/last-seen'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -16,7 +17,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const seller = await db.seller.findUnique({
     where: { id },
     include: {
-      owner: { select: { accountType: true } },
+      owner: { select: { accountType: true, lastSeenAt: true } },
       handle: { select: { handle: true } },
       listings: {
         where: { verified: true, status: 'active' },
@@ -36,11 +37,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     {
       responseRate: seller.responseRate,
       responseTime: seller.responseTime,
+      responseMetricAt: seller.responseMetricAt,
       memberSince: seller.memberSince,
       reviewCount: seller.reviewCount,
       rating: seller.rating,
       trustScore: seller.trustScore,
       trustTier: seller.trustTier,
+      lastSeenAt: seller.owner?.lastSeenAt ?? null,
     },
     convoCount,
   )
@@ -65,6 +68,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       responseLabel: metrics.responseBucket.key
         ? { en: metrics.responseBucket.en, vi: metrics.responseBucket.vi }
         : null,
+      // Coarse presence ("Active today/this week/this month") — null when unknown or
+      // >30d stale. Bucketed server-side: this route is force-dynamic, so unlike the
+      // ISR PDP the label can't freeze. Additive; existing decoders ignore it.
+      lastSeenLabel: (() => {
+        const b = lastSeenBucket(metrics.lastSeenDay)
+        return b.key ? { en: b.en, vi: b.vi } : null
+      })(),
     },
     listings,
     reviews,

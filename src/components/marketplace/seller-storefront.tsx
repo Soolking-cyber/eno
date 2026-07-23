@@ -33,7 +33,9 @@ export const loadSeller = cache((id: string) =>
     include: {
       listings: { where: { verified: true, status: 'active' }, orderBy: { postedAt: 'desc' }, include: { category: true, seller: true } },
       handle: { select: { handle: true } }, // public shopname → the shareable eno.vn/<name> link
-      owner: { select: { accountType: true } }, // → SellerCard's Business chip
+      // accountType → SellerCard's Business chip; lastSeenAt → the presence bucket
+      // (consumed server-side by sellerMetrics — only the day-coarse value escapes).
+      owner: { select: { accountType: true, lastSeenAt: true } },
     },
   }),
 )
@@ -92,7 +94,7 @@ export async function SellerStorefront({ id }: { id: string }) {
   // stays server-side; only the bucketed label escapes). Trust score / rating /
   // member-year now ride in the card's metrics strip, so the old flat Stat grid is
   // retired to avoid duplicating the same three signals.
-  const metrics = sellerMetrics(seller, convoCount)
+  const metrics = sellerMetrics({ ...seller, lastSeenAt: seller.owner?.lastSeenAt ?? null }, convoCount)
   const cardSeller = {
     id: seller.id,
     name: seller.name,

@@ -8,6 +8,8 @@ import { TrustScore } from './trust-score'
 import { RatingValue, CountValue } from './rating-value'
 import { useLanguage } from '@/context/language-context'
 import { cn } from '@/lib/utils'
+import { lastSeenBucket } from '@/lib/last-seen'
+import { useMounted } from '@/hooks/use-mounted'
 import type { SellerMetrics } from '@/lib/seller-metrics'
 
 /** Shopee "shop on top": the SINGLE seller surface on the PDP, sitting directly above the media.
@@ -25,11 +27,22 @@ export function PdpShopLink({ name, avatarColor, avatarUrl, isBusiness, href, me
   className?: string
 }) {
   const { tr } = useLanguage()
-  const { responseBucket, memberSinceYear, reviewCount, rating, trustScore } = metrics
+  const { responseBucket, lastSeenDay, memberSinceYear, reviewCount, rating, trustScore } = metrics
+
+  // Presence, bucketed from the day-coarse date (the PDP is 30d-ISR, so a
+  // server-baked label would freeze — client recompute only ever under-claims; see
+  // src/lib/last-seen.ts). Rendered ONLY after mount: the bucket depends on the
+  // client's clock, so baking it into SSR HTML risks a STRUCTURAL hydration mismatch
+  // on a stale ISR serve (the span itself appears/disappears across the 1/7/30-day
+  // boundaries — suppressHydrationWarning can't cover element topology; dual review
+  // caught it). Two-pass render is the React-sanctioned shape for client-time values.
+  const mounted = useMounted()
+  const lastSeen = mounted ? lastSeenBucket(lastSeenDay) : { key: null as null, en: '', vi: '' }
 
   // Honest metrics strip — only signals that exist (never zero-filled), joined with middots.
   const strip: React.ReactNode[] = []
   if (responseBucket.key) strip.push(tr(responseBucket.en, responseBucket.vi))
+  if (lastSeen.key) strip.push(tr(lastSeen.en, lastSeen.vi))
   strip.push(tr(`Joined ${memberSinceYear}`, `Tham gia ${memberSinceYear}`))
   if (reviewCount > 0) {
     strip.push(

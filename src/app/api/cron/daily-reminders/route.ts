@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { sendPushToProfile } from '@/lib/push'
 import { STALE_DAYS } from '@/lib/stale'
 import { runTrustMaintenance } from '@/lib/trust'
+import { recomputeResponseRates } from '@/lib/response-rate'
 import { recomputeRankScoreAllActive } from '@/lib/ranking'
 import { rollupListingDailyStats } from '@/lib/listing-analytics'
 import { sweepDisputeWindows } from '@/lib/dispute'
@@ -104,6 +105,13 @@ export async function GET(req: NextRequest) {
   // recovery and inactivity dock are gone) — the daily pass re-evaluates the
   // windowed/decayed composite so penalties fade on their half-lives, the 365d/90d
   // windows slide, and freshness stays honest. Bounded (count + soft deadline).
+  // Real response metrics FIRST — the trust pass right below reads the denormalized
+  // Seller.responseRate, so the order is load-bearing (dual review caught it flipped:
+  // trust was scoring yesterday's rates). One set-based SQL; sellers below the 5-convo
+  // sample floor are never written — see response-rate.ts.
+  let responseRates = 0
+  try { responseRates = await recomputeResponseRates() } catch (e) { console.error('[cron] response rates', e) }
+
   let trust = { recomputed: 0, scanned: 0 }
   try { trust = await runTrustMaintenance() } catch (e) { console.error('[cron] trust maintenance', e) }
 
@@ -121,5 +129,5 @@ export async function GET(req: NextRequest) {
   let disputeNudges = 0
   try { disputeNudges = await sweepDisputeWindows() } catch (e) { console.error('[cron] dispute window sweep', e) }
 
-  return NextResponse.json({ ok: true, sellersWithStale: countByOwner.size, skipped: skippedRecent, notified, pushed, trust, reranked, statRows, disputeNudges })
+  return NextResponse.json({ ok: true, sellersWithStale: countByOwner.size, skipped: skippedRecent, notified, pushed, trust, responseRates, reranked, statRows, disputeNudges })
 }

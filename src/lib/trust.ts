@@ -217,7 +217,7 @@ export async function computeTrustV2(profileId: string): Promise<TrustBreakdown 
 
   const seller = await db.seller.findUnique({
     where: { ownerId: profileId },
-    select: { id: true, responseRate: true },
+    select: { id: true, responseRate: true, responseMetricAt: true },
   })
 
   // Seller-side source data (Q + T + tier volumes). Buyer-only profiles skip all of it.
@@ -321,16 +321,20 @@ export async function computeTrustV2(profileId: string): Promise<TrustBreakdown 
   )
 
   // Q · responsiveness — Wilson lower bound over last-90d conversations. p̂ comes from
-  // the denormalized Seller.responseRate (the app's replied-within-24h measure);
-  // n from the indexed Conversation count. successes = round(p̂·n) — the closest
-  // fair approximation without a per-message reply scan.
-  // HONESTY GATE: Seller.responseRate is NOT computed from real reply behaviour yet
-  // (it's the fabricated =100 default — see RESPONSE_METRIC_IS_REAL in seller-metrics).
-  // Feeding that fake 100% into the score inflated EVERY seller's Q term AND the
-  // Exceptional Wilson gate (via inputs.responseWilson). Zero the whole response term
-  // until real first-reply latency exists — same suppression as the display bucket.
-  const responseWilson = seller && RESPONSE_METRIC_IS_REAL ? wilsonLowerBound(Math.round(((seller.responseRate ?? 0) / 100) * conversations90), conversations90) : 0
-  const responseQ = RESPONSE_METRIC_IS_REAL ? responseScore(responseWilson) : 0
+  // the denormalized Seller.responseRate (the app's replied-within-24h measure,
+  // recomputed nightly by recomputeResponseRates()); n from the indexed Conversation
+  // count. successes = round(p̂·n) — the closest fair approximation without a
+  // per-message reply scan.
+  // HONESTY GATE, row-level: a seller the nightly job has never written (n<5 at every
+  // run) still holds the fabricated =100 DEFAULT in responseRate — and the Wilson
+  // bound does NOT neutralize small n (wilsonLowerBound(3,3) ≈ 0.65, not ~0). Only a
+  // non-null responseMetricAt (the job's write receipt) proves the number was
+  // measured; without it the whole term stays zero. Same receipt gates the display
+  // bucket (seller-metrics.ts) so trust and display can never disagree about whether
+  // the metric is real.
+  const responseIsMeasured = RESPONSE_METRIC_IS_REAL && !!seller?.responseMetricAt
+  const responseWilson = seller && responseIsMeasured ? wilsonLowerBound(Math.round(((seller.responseRate ?? 0) / 100) * conversations90), conversations90) : 0
+  const responseQ = responseIsMeasured ? responseScore(responseWilson) : 0
 
   // Q · availability freshness.
   const freshQ = freshnessScore(freshActiveListings, activeListings)

@@ -54,6 +54,29 @@ export async function getCurrentProfile(): Promise<Profile | null> {
   if (data.user.phone_confirmed_at && existing.trustScore < BASE_SCORE + PHONE_VERIFIED_BONUS) {
     try { after(() => recordPhoneVerified(existing.id).catch(() => {})) } catch { /* no request scope */ }
   }
+
+  // Presence heartbeat (powers the coarse "Active today/this week" bucket — see
+  // src/lib/last-seen.ts). Rides this call because it already reads the row; NEVER
+  // add it to getCurrentProfileId (hot messaging path, deliberately zero DB) or
+  // proxy.ts (edge, no Prisma). The in-row check is only a cheap pre-filter — a
+  // page load fans out parallel requests that all see the same stale value, so the
+  // WRITE itself re-checks the throttle in its WHERE (updateMany): concurrent
+  // stragglers match zero rows instead of stacking redundant updates. after() defers
+  // past the response; fire-and-forget.
+  const HEARTBEAT_MS = 5 * 60_000
+  if (!existing.lastSeenAt || Date.now() - existing.lastSeenAt.getTime() > HEARTBEAT_MS) {
+    try {
+      after(() =>
+        db.profile.updateMany({
+          where: {
+            id: existing.id,
+            OR: [{ lastSeenAt: null }, { lastSeenAt: { lt: new Date(Date.now() - HEARTBEAT_MS) } }],
+          },
+          data: { lastSeenAt: new Date() },
+        }).catch(() => {}),
+      )
+    } catch { /* no request scope */ }
+  }
   return existing
 }
 

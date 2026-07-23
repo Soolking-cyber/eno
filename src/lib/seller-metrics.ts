@@ -2,6 +2,7 @@ import 'server-only'
 import { cache } from 'react'
 import { db } from '@/lib/db'
 import { serializeListingCard, LISTING_CARD_SELECT } from '@/lib/serialize'
+import { dayCoarse } from '@/lib/last-seen'
 import type { SerializedListingCard } from '@/lib/types'
 
 // ── Seller display metrics (SellerCard / storefront / PDP) ───────────────────────
@@ -13,9 +14,11 @@ import type { SerializedListingCard } from '@/lib/types'
 //      defaults to 100 (a lie for a seller with no history), so exposing "100%"
 //      would fabricate trust. We only ever emit a coarse bucket label.
 //   2. The response bucket is SUPPRESSED (key: null) below RESPONSE_MIN_CONVOS
-//      buyer-initiated conversations in the trust window — the same >=5 bar the
-//      trust engine effectively uses (wilsonLowerBound(_, n<5) contributes ~0).
-//      A fresh seller shows nothing, never a placeholder.
+//      buyer-initiated conversations in the trust window, AND whenever the row lacks
+//      a responseMetricAt receipt (the nightly job's n>=5 write marker). NOTE the
+//      Wilson bound alone is NOT a substitute for these gates — wilsonLowerBound(3,3)
+//      ≈ 0.65, not ~0 — which is why trust.ts gates its responseQ term on the same
+//      receipt. A fresh seller shows nothing, never a placeholder.
 //
 // convoCount is the 90d Conversation count the caller already has (it's computed by
 // the trust engine as `conversations90`, or via one indexed
@@ -26,16 +29,20 @@ import type { SerializedListingCard } from '@/lib/types'
 export const RESPONSE_MIN_CONVOS = 5
 /** responseRate at/above this reads as "responds quickly". */
 const RESPONSE_FAST_RATE = 80
-// HONESTY GATE. Seller.responseRate / responseTime are NOT yet computed from real
-// conversation-reply data anywhere in the app — responseRate is only ever written as
-// the =100 default and responseTime stays "within an hour". Bucketing off those would
-// fabricate a "responds quickly" claim for EVERY seller (the exact raw-100 leak the
-// module header forbids). So until a job measures real first-reply latency, we suppress
-// the responsiveness label entirely (asymmetric honesty: show nothing, never a fake).
-// Flip to true — and keep it typed `boolean` so the bucket logic stays reachable — the
-// moment those columns are backed by real data. The >=5-convo gate proves activity, not
-// responsiveness, so it can't stand in for a real signal.
-export const RESPONSE_METRIC_IS_REAL: boolean = false
+/** Below this replied-within-24h rate NO label shows — "Responds within a day" would
+ *  be a false claim about a seller who mostly doesn't. Show nothing, never a fake. */
+const RESPONSE_DAY_FLOOR = 50
+// HONESTY GATE — flipped true 2026-07-23: recomputeResponseRates() (response-rate.ts,
+// nightly via the daily-reminders cron, backfilled first) now measures the real
+// replied-within-24h rate + median first-reply gap over 90d buyer conversations.
+// The flag alone is NOT the whole gate: a seller the job has never written (thin
+// history, n<5 at every run) still carries the fabricated =100 DEFAULT, so both the
+// display bucket below and the trust responseQ term additionally require a non-null
+// Seller.responseMetricAt — the compute job's write receipt. That per-row gate is
+// what closes the crossing-the-threshold race (a seller reaching 5 convos midday
+// would otherwise pass the live convoCount gate while still holding the default;
+// dual external review caught it, 2026-07-23).
+export const RESPONSE_METRIC_IS_REAL: boolean = true
 
 export type ResponseBucket = {
   key: 'fast' | 'day' | null
@@ -47,6 +54,9 @@ export type ResponseBucket = {
 type ResponseSellerInput = {
   responseRate: number | null
   responseTime: string | null
+  /** recomputeResponseRates()'s write receipt — null means the row still holds the
+   *  fabricated =100 default and MUST stay suppressed regardless of convoCount. */
+  responseMetricAt: Date | string | null
 }
 
 /**
@@ -55,25 +65,36 @@ type ResponseSellerInput = {
  */
 export function responseBucket(seller: ResponseSellerInput, convoCount: number): ResponseBucket {
   const SUPPRESS: ResponseBucket = { key: null, en: '', vi: '' }
-  // Until responseRate/responseTime are real (see RESPONSE_METRIC_IS_REAL), any label
-  // would launder the =100 default — so show nothing.
-  if (!RESPONSE_METRIC_IS_REAL) return SUPPRESS
-  // No track record → suppress entirely (a fresh seller must not show a fake "100%").
+  // Flag off = the compute job isn't live anywhere; row-level receipt missing = the
+  // job has never measured THIS seller. Either way the stored number is the =100
+  // default and any label would launder it — show nothing.
+  if (!RESPONSE_METRIC_IS_REAL || !seller.responseMetricAt) return SUPPRESS
+  // No current track record → suppress even if once measured (the 90d window slid).
   if (convoCount < RESPONSE_MIN_CONVOS) return SUPPRESS
 
   const rate = seller.responseRate ?? 0
   const time = (seller.responseTime ?? '').toLowerCase()
-  // "<1h" signalled either by a high replied-within-24h rate OR a sub-hour typical time.
+  // "<1h" signalled by a high replied-within-24h rate AND a sub-hour median gap —
+  // either alone can mislead (a seller who answers 1 of 10 threads instantly has a
+  // sub-hour median but is not "quick").
   const subHour = time.includes('hour') || time.includes('minute') || time.includes('min')
-  if (rate >= RESPONSE_FAST_RATE || subHour) {
+  if (rate >= RESPONSE_FAST_RATE && subHour) {
     return { key: 'fast', en: 'Responds quickly', vi: 'Phản hồi nhanh' }
   }
-  return { key: 'day', en: 'Responds within a day', vi: 'Phản hồi trong ngày' }
+  // "Within a day" must be TYPICAL to be claimed: majority replied within 24h.
+  if (rate >= RESPONSE_DAY_FLOOR) {
+    return { key: 'day', en: 'Responds within a day', vi: 'Phản hồi trong ngày' }
+  }
+  return SUPPRESS
 }
 
 /** Client-safe metrics bundle for SellerCard / storefront / PDP seller block. */
 export type SellerMetrics = {
   responseBucket: ResponseBucket
+  /** Presence as a UTC day string ('YYYY-MM-DD') or null — NEVER the raw timestamp.
+   *  Day-coarse so the client can compute the bucket at render time (the PDP is
+   *  30d-ISR; a server-computed bucket would freeze — see src/lib/last-seen.ts). */
+  lastSeenDay: string | null
   memberSinceYear: number
   reviewCount: number
   rating: number
@@ -81,14 +102,18 @@ export type SellerMetrics = {
   trustTier: string
 }
 
-/** Seller fields sellerMetrics reads. Raw responseRate/responseTime are consumed here
- *  and only the bucketed result escapes — never add them to the return shape. */
+/** Seller fields sellerMetrics reads. Raw responseRate/responseTime/lastSeenAt are
+ *  consumed here and only the bucketed/day-coarse results escape — never add the
+ *  raw values to the return shape. */
 type MetricsSellerInput = ResponseSellerInput & {
   memberSince: Date | string
   reviewCount: number
   rating: number
   trustScore: number
   trustTier: string
+  /** The owning Profile's presence heartbeat (seller.owner.lastSeenAt); optional so
+   *  guest sellers (no owner) and older call sites simply surface nothing. */
+  lastSeenAt?: Date | string | null
 }
 
 /**
@@ -99,6 +124,7 @@ export function sellerMetrics(seller: MetricsSellerInput, convoCount: number): S
   const since = seller.memberSince instanceof Date ? seller.memberSince : new Date(seller.memberSince)
   return {
     responseBucket: responseBucket(seller, convoCount),
+    lastSeenDay: dayCoarse(seller.lastSeenAt ?? null),
     memberSinceYear: since.getFullYear(),
     reviewCount: seller.reviewCount,
     rating: seller.rating,
