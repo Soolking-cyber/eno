@@ -13,7 +13,7 @@
 
 import type { LucideIcon } from 'lucide-react'
 import {
-  House, Store, MessageSquareText, Heart, Scale, Upload, Code2,
+  Store, MessageSquareText, Heart, Scale, Upload, Code2,
   CircleHelp, Route, FileCheck2,
   Flag, ShieldAlert, ClipboardList, Tags, Star, Stamp,
 } from 'lucide-react'
@@ -64,10 +64,10 @@ export const DASHBOARD_NAV: NavGroup[] = [
     ...tr('Marketplace', 'Chợ eno'),
     role: 'all',
     items: [
-      // /dashboard is a real HOME (owner 2026-07-18: one cross-property dashboard on the
-      // forum's card design). EXACT match only — every section also lives under /dashboard/,
-      // so prefix matching would light this row on /dashboard/listings etc.
-      { href: '/dashboard', exact: true, ...tr('Home', 'Trang chủ'), icon: House },
+      // The "Home" (/dashboard) row was removed (owner 2026-07-23: "useless"). The sections
+      // below ARE the dashboard, so a link back to a bare overview earned its place in the
+      // rail only by habit. /dashboard itself still resolves — nothing routes THROUGH this
+      // link — so an existing bookmark or a redirect target is unaffected.
       { href: '/dashboard/listings', ...tr('My listings', 'Tin của tôi'), icon: Store },
       { href: '/messages', ...tr('Messages', 'Tin nhắn'), icon: MessageSquareText, badge: 'unread' },
       { href: '/saved', ...tr('Saved', 'Đã lưu'), icon: Heart, badge: 'saved' },

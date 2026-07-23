@@ -33,6 +33,7 @@ const HEX_ALLOW = new Set([
 const BRAND_HEX = new Set([
   '#4285f4', '#ea4335', '#fbbc05', '#34a853', // Google
   '#0068ff', // Zalo
+  '#25d366', // WhatsApp — the official brand green; the chat contact bar offers it beside Zalo
 ])
 
 // ── THE PRIMITIVES GATE ───────────────────────────────────────────────────────────

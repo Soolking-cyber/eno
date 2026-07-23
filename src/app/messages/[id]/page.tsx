@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { useParams } from 'next/navigation'
 import { useAuth } from '@/context/auth-context'
 import { cn } from '@/lib/utils'
+import { contactLinksFor, extractPhoneNumber } from '@/lib/phone'
 import { useLanguage } from '@/context/language-context'
 import { useChat } from '@/context/chat-context'
 import { SignInPrompt } from '@/components/marketplace/account-actions'
@@ -913,16 +914,31 @@ export default function ThreadPage() {
                   <a href={contact.zaloHref} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 rounded-xl bg-[#0068ff] px-3 py-1.5 text-xs font-bold text-white">
                     Zalo
                   </a>
+                  {/* WhatsApp off the SAME number (owner: "request Zalo or Whatsapp in chat
+                      top"). A Vietnamese seller lives on Zalo; a foreign buyer usually has only
+                      WhatsApp, and one VN mobile reaches both — so pinning both here is the
+                      point. The digits come from the revealed number, not a second lookup:
+                      contact.zaloHref already ends in the E.164 digits, but extractPhoneNumber
+                      re-derives them from the display string so a formatting change to either
+                      side can't desync the two links. */}
+                  {(() => {
+                    const digits = extractPhoneNumber(contact.phone)
+                    return digits ? (
+                      <a href={contactLinksFor(digits).whatsapp} target="_blank" rel="noreferrer nofollow" className="flex items-center gap-1.5 rounded-xl bg-[#25d366] px-3 py-1.5 text-xs font-bold text-white">
+                        WhatsApp
+                      </a>
+                    ) : null
+                  })()}
                 </>
               ) : thread.messages.some((m) => !m.mine) ? (
                 <Button variant="bare" size="none" onClick={requestContact} disabled={revealing} className="gap-1.5 rounded-full border border-line-strong px-3 py-1.5 text-xs font-semibold text-foreground hover:bg-muted cursor-pointer">
                   {revealing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Phone className="h-3.5 w-3.5" />}
-                  {tr('Request number / Zalo', 'Lấy số / Zalo')}
+                  {tr('Request number · Zalo / WhatsApp', 'Lấy số · Zalo / WhatsApp')}
                 </Button>
               ) : (
                 <p className="flex items-center gap-1.5 text-2xs text-body">
                   <Phone className="h-3.5 w-3.5 shrink-0 text-ink-4" />
-                  {tr("You can request the seller's number or Zalo once they reply.", 'Bạn có thể xin số hoặc Zalo sau khi người bán trả lời.')}
+                  {tr("You can request the seller's number once they reply — one number works for both Zalo and WhatsApp.", 'Bạn có thể xin số sau khi người bán trả lời — một số dùng được cho cả Zalo và WhatsApp.')}
                 </p>
               )}
             </div>
