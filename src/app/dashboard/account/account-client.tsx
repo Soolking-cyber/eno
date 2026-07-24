@@ -59,10 +59,16 @@ function Row({ item, first, last }: { item: ResolvedNavItem; first: boolean; las
       <ChevronRight className="h-4 w-4 shrink-0 text-ink-4" aria-hidden />
     </>
   )
-  // tap-48 + py-3: the density fix these rows exist for — every row clears the 44px minimum
-  // without the list growing taller than the overlay's cramped one did.
+  // ⚠️ NO `tap-48` HERE, DELIBERATELY. These rows are already 57px tall (py-3 + a 32px icon),
+  // comfortably past the 48px floor, so the utility would add nothing — and it is actively
+  // DANGEROUS on an unpositioned element: `tap-48::before` is `position:absolute` sized 100% of
+  // its containing block, so without `relative` on the row it resolves against a distant
+  // positioned ancestor and each row's hit layer covers THE WHOLE LIST. Stacked, the LAST row
+  // wins every tap — which is exactly what shipped: every row opened the last one's page. The
+  // utility's own comment in globals.css says "add `relative` too"; the honest fix here is to
+  // not need it at all.
   const cls = cn(
-    'flex w-full items-center gap-3 px-4 py-3 tap-48 transition-colors active:bg-tint/70 hover:bg-tint/50',
+    'flex w-full items-center gap-3 px-4 py-3 transition-colors active:bg-tint/70 hover:bg-tint/50',
     first && 'rounded-t-2xl',
     last && 'rounded-b-2xl',
   )
@@ -130,7 +136,7 @@ export function AccountClient() {
       <Link
         href="/dashboard/settings"
         aria-label={tr('Settings', 'Cài đặt')}
-        className="flex items-center gap-3 rounded-2xl px-1 py-2 tap-48 transition-colors hover:bg-tint/50 active:bg-tint/70"
+        className="flex items-center gap-3 rounded-2xl px-1 py-2 transition-colors hover:bg-tint/50 active:bg-tint/70"
       >
         <Avatar name={name} url={dash?.profile.avatarUrl} color={dash?.profile.avatarColor} size="xl" />
         <div className="min-w-0 flex-1">
