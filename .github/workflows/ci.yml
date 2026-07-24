@@ -25,8 +25,35 @@ jobs:
           node-version: 24
           cache: npm
 
+      # ⚠️ node_modules IS CACHED, and that is the actual fix. `cache: npm` above only caches
+      # the npm registry cache (~/.npm) — but `ffmpeg-static`'s install script downloads a
+      # SEPARATE GitHub release binary, which that cache never covers, so every single push
+      # hit github.com and a 504 there turned main red for reasons no author could fix (twice
+      # in fifteen minutes on 2026-07-24). With node_modules restored, the usual push installs
+      # nothing at all.
+      - name: Cache node_modules
+        id: node-modules-cache
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: node-modules-${{ runner.os }}-node24-${{ hashFiles('package-lock.json') }}
+
+      # Only runs on a cache MISS (a lockfile change). Retried, because the download it makes
+      # is a third-party CDN fetch that fails transiently — and `--ignore-scripts` is NOT an
+      # option here: esbuild, sharp and unrs-resolver all need their install scripts, so
+      # disabling scripts wholesale would break lint and the build instead.
+      # ⚠️ The `ok` flag is load-bearing: a bare `for … done` loop exits with the status of the
+      # last command (the sleep), so a failing install would report SUCCESS.
       - name: Install dependencies
-        run: npm ci
+        if: steps.node-modules-cache.outputs.cache-hit != 'true'
+        run: |
+          ok=0
+          for i in 1 2 3; do
+            if npm ci; then ok=1; break; fi
+            echo "npm ci failed (attempt $i/3) — retrying in $((i * 15))s"
+            sleep $((i * 15))
+          done
+          [ "$ok" = 1 ] || { echo '::error::npm ci failed after 3 attempts'; exit 1; }
 
       - name: Generate Prisma client
         run: npx prisma generate
@@ -89,8 +116,18 @@ jobs:
           cache: npm
           cache-dependency-path: apps/forum/package-lock.json
 
+      # Same retry as the root job — the forum has no ffmpeg-static, but an npm registry blip
+      # is the same class of failure and the same one-line cure. (No node_modules cache here:
+      # this job installs from apps/forum and is not the one that was going red.)
       - name: Install forum dependencies
-        run: npm ci
+        run: |
+          ok=0
+          for i in 1 2 3; do
+            if npm ci; then ok=1; break; fi
+            echo "npm ci failed (attempt $i/3) — retrying in $((i * 15))s"
+            sleep $((i * 15))
+          done
+          [ "$ok" = 1 ] || { echo '::error::npm ci failed after 3 attempts'; exit 1; }
 
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
