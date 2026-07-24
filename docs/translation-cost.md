@@ -59,3 +59,29 @@ Almost entirely backend (`src/lib/translate.ts`, the warm cron, `/api/translate`
 — **Kyle's lane**. ⚠️ **Kyle is mid-flight in `translate.ts` for the chat-translate server lane, so
 this cost work QUEUES AFTER that lands** (both edit the same file; no concurrent edits). Murat owns
 this plan + the dual-reviews + the attribution query; there is no client piece.
+
+---
+## RESULTS — attribution done + first lever SHIPPED (2026-07-24)
+
+**Attribution (Step 0) — done by querying the `Translation` cache directly (no code, no collision):**
+30,411 cached strings, ~1.09M value-chars. Key findings:
+- **>54% of all translation volume (592K of 1.09M value-chars) goes to 5 low-traffic languages**
+  (km/ms/th/fr/hi) — even though the per-listing eager-warm only covers the top 5.
+- Long content (descriptions, ≥120 chars) = 419K chars (39%).
+- The `@@unique([hash,target])` constraint means the SAME (source,target) is never re-billed —
+  so cost is purely NEW (string × language) pairs, i.e. VOLUME, not re-translation. (Lever 2 was
+  already handled by the DB.)
+- Driver identified: the **daily `warm-translations` cron** was translating every recent listing's
+  title/description/location into ALL 11 languages, including the 5 rarely browsed.
+
+**Lever 1 — SHIPPED (`ab14bff3`):** the cron now warms the UI dictionary for all languages but
+listing CONTENT only for the top-5 visitor languages; the rare 5 translate listing text on-demand
+at view time (PDP already client-translates missing languages, then caches forever). Expected to
+remove the bulk of the recurring rare-language listing spend at zero quality change (same Google
+engine) — the exact saving will show in next month's bill + the cron's `report` logs (which now
+show far fewer `missing`/`healed` for the rare langs). Dual-reviewed (Gemini CONFIRMED; codex
+REFUTED a lost dedup → fixed).
+
+**Still open (Kyle's lane, when he's out of translate.ts):** lever 0 as durable CODE (per-source
+billable-char counter, so future spikes are attributable without a manual query); lever 3 (skip
+trivial before billing on the UI/listing warm paths). Chat stays ephemeral; no provider switch.
