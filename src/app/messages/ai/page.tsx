@@ -214,7 +214,14 @@ export default function AiThreadPage() {
             variant="cta"
             size="none"
             onClick={() => openSignIn()}
-            className="w-full rounded-2xl px-4 py-3 active:scale-[0.98] tap-44"
+            // ⚠️ NO `tap-44`. This button is `w-full` + py-3, already well past the 44px
+            // floor — and the utility is actively harmful on an UNPOSITIONED element: its
+            // ::before is `position:absolute` sized 100% of the containing block, which here
+            // resolved to the PAGE ROOT, so an invisible layer covered the whole viewport and
+            // swallowed taps on the header and the Log in link (found by a runtime audit,
+            // 2026-07-24 — the same class of bug as a053e5d5). globals.css says "add
+            // `relative` too"; not needing the pseudo-element at all is better.
+            className="w-full rounded-2xl px-4 py-3 active:scale-[0.98]"
           >
             {tr('Sign in to use eno AI', 'Đăng nhập để dùng eno AI')}
           </Button>

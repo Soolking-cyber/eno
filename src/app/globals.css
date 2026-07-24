@@ -839,8 +839,25 @@ summary:focus-visible,
 /* a11y — guarantee a ≥44×44px TAP target on compact icon controls WITHOUT changing
    their visual size: an invisible centered hit area (::before) that overflows the
    element; pointer events on it dispatch to the element. Add `tap-44` to a small
-   icon button/link. The element must be positioned — add `relative` too unless it is
-   already absolute/fixed/relative. (Apple/Google 44px minimum, WCAG 2.5.5 AAA.) */
+   icon button/link. (Apple/Google 44px minimum, WCAG 2.5.5 AAA.)
+
+   ⚠️⚠️ THE ELEMENT MUST BE POSITIONED — add `relative` unless it is already
+   absolute/fixed/relative/sticky. This is not a style nicety, it is a TAP-STEALING BUG:
+   `100%` is of the CONTAINING BLOCK, so on an unpositioned element the pseudo does not hug
+   the control — it covers the nearest positioned ancestor, and on a page with none it covers
+   the ENTIRE VIEWPORT. Two shipped instances (2026-07-24): every account row opened the last
+   row's page (a053e5d5), and a signed-out "Sign in to use eno AI" button covered the whole
+   /messages/ai viewport. Both were invisible in the DOM, in getBoundingClientRect() and in a
+   screenshot.
+
+   ⚠️ PREFER NOT NEEDING IT. If the control is already ≥44px (a row with py-3, a w-full
+   button), do NOT add the utility at all — that is the fix used in both cases above.
+
+   HOW TO CHECK: never eyeball it. In the browser,
+     [...document.querySelectorAll('[class*="tap-4"]')].filter(el => getComputedStyle(el).position === 'static')
+   must be EMPTY. `ui/icon-button` bakes `relative` beside its `tap-44`, so IconButton call
+   sites are safe; `ui/button` does NOT. Note `click({force:true})` in Playwright HIDES this
+   bug — it dispatches at the coordinates and lets the covering layer take them. */
 .tap-44::before {
   content: '';
   position: absolute;
