@@ -40,6 +40,13 @@ export const VISA_SPEED_CODES: readonly VisaSpeedCode[] = ['1H', '2H', '4H', '1D
  */
 export const VISA_ENTRY_TYPES: readonly VisaEntryType[] = ['single', 'multiple'] as const
 
+/** Bilingual words for an entry type. Here beside VISA_SPEED_SPECS so every surface that names
+ *  a visa type — the cases list, the chat's "which form?" picker — says it the same way. */
+export const VISA_ENTRY_TYPE_LABELS: Record<VisaEntryType, { en: string; vi: string }> = {
+  single: { en: 'Single entry', vi: 'Một lần' },
+  multiple: { en: 'Multiple entry', vi: 'Nhiều lần' },
+}
+
 /**
  * Operational tier facts — cutoffs and turnaround copy. NOT prices.
  *

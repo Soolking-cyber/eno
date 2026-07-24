@@ -32,7 +32,7 @@ import { FirstContactNote, OffPlatformWarning, findOffPlatformMessageId } from '
 import {
   VisaCheckoutCard, VisaPickerCard, VisaResendChip, VisaResultCard, VisaStepCard, VisaThreadStrip,
   parseVisaCheckoutMeta, parseVisaPickerMeta, parseVisaResultMeta, parseVisaStepMeta, parseVisaThreadInfo,
-  prepareVisaImage, useVisaCase, visaErrorCopy,
+  prepareVisaImage, useVisaCase, visaErrorCopy, visaTypeWords, EDITABLE_VISA_STATUSES,
   type VisaQuoteWire,
 } from '@/components/marketplace/visa-cards'
 import { Avatar } from '@/components/ui/avatar'
@@ -776,6 +776,51 @@ export default function ThreadPage() {
   // composer, so its own failure sentence belongs under it (a 429 is the expected one — the
   // route caps this per thread on purpose).
   const [visaResendError, setVisaResendError] = useState<string | null>(null)
+  // The applicant's OTHER editable cases, for the resend chip's "which form?" picker. A buyer
+  // can hold several drafts since applying for a different visa type started minting its own
+  // case (2026-07-24), and ONE thread shows one of them at a time — so the chip needs a way to
+  // bring a different one down. Applicant-only and lazily fetched: the desk has no "my cases",
+  // and a non-visa thread never asks.
+  const [visaOtherCases, setVisaOtherCases] = useState<Array<{ id: string; label: string }>>([])
+  useEffect(() => {
+    if (!iAmApplicant || !visaInfo?.applicationId) { setVisaOtherCases([]); return }
+    let cancelled = false
+    void (async () => {
+      try {
+        const res = await fetch('/api/visa/applications', { cache: 'no-store', credentials: 'same-origin' })
+        if (!res.ok) return
+        const body = (await res.json()) as { applications?: Array<Record<string, unknown>> }
+        const rows = (body.applications ?? [])
+          .filter((a) => a.id !== visaInfo.applicationId && EDITABLE_VISA_STATUSES.has(String(a.status)))
+          .map((a) => ({
+            id: String(a.id),
+            // Public facts only — the reference and the type. Never a payload value.
+            label: [
+              typeof a.reference === 'string' && a.reference ? a.reference : null,
+              visaTypeWords(a.selectedEntryType, a.selectedSpeed, tr),
+            ].filter(Boolean).join(' · ') || tr('Draft', 'Bản nháp'),
+          }))
+        if (!cancelled) setVisaOtherCases(rows)
+      } catch { /* the picker simply does not appear */ }
+    })()
+    return () => { cancelled = true }
+  }, [iAmApplicant, visaInfo?.applicationId, tr])
+
+  /** Bring ANOTHER case's form into this thread: rebind + re-post, then reload. */
+  const switchVisaCase = async (applicationId: string) => {
+    if (visaBusy) return
+    setVisaBusy(true)
+    setVisaResendError(null)
+    try {
+      const res = await visaPost(`/api/visa/applications/${applicationId}/resume`)
+      if (!res.ok) { setVisaResendError(res.error ?? 'internal_error'); return }
+      haptic()
+      await load()
+      requestAnimationFrame(() => { scrollBottom(true); setNewBelow(false) })
+      refreshUnread(); refreshConvos()
+    } catch { setVisaResendError('internal_error') } finally { setVisaBusy(false) }
+  }
+
   const resendVisaCard = async () => {
     const applicationId = visaInfo?.applicationId
     if (!applicationId || visaBusy) return
@@ -1259,6 +1304,8 @@ export default function ThreadPage() {
                 busy={visaBusy}
                 error={visaResendError}
                 onResend={resendVisaCard}
+                otherCases={iAmApplicant ? visaOtherCases : undefined}
+                onSwitchCase={iAmApplicant ? switchVisaCase : undefined}
                 compact
               />
             </div>

@@ -21,7 +21,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { SectionHeader } from '@/components/marketplace/section-header'
 import { useMinuteTick, VisaStart } from '@/components/marketplace/visa-start'
 import { expectedVisaReadyAt } from '@/lib/visa/eta'
-import { parseVisaSpeedCode, VISA_SPEED_SPECS } from '@/lib/visa/speed'
+import { parseVisaSpeedCode, VISA_ENTRY_TYPE_LABELS, VISA_SPEED_SPECS, type VisaEntryType } from '@/lib/visa/speed'
 
 // ── /dashboard/visa — YOUR e-VISA CASES: MANAGEMENT ONLY (Phase 3). ────────────────
 //
@@ -195,7 +195,10 @@ function VisaTypeLabel({ item, tr, className }: { item: VisaApplication; tr: Tr;
   const speed = parseVisaSpeedCode(item.selectedSpeed)
   const entry = item.selectedEntryType
   if (!entry && !speed) return null
-  const entryText = entry === 'multiple' ? tr('Multiple entry', 'Nhiều lần') : entry === 'single' ? tr('Single entry', 'Một lần') : null
+  // Words come from the shared table so this page and the chat's "which form?" picker can
+  // never drift into naming the same visa type two different ways.
+  const words = entry ? VISA_ENTRY_TYPE_LABELS[entry as VisaEntryType] : undefined
+  const entryText = words ? tr(words.en, words.vi) : null
   const spec = speed ? VISA_SPEED_SPECS[speed] : null
   const speedText = spec ? tr(spec.label, spec.labelVi) : null
   return (
@@ -273,7 +276,7 @@ const VISA_MILESTONES: Record<string, { key: string; en: string; vi: string }> =
  * exists, deletion. `detailFor` marks the case whose attention blocks (admin message /
  * final authorization / timeline) render below the list — the row says so.
  */
-function CaseRow({ item, conversationId, deskThreadId, isDetail, busy, now, lang, tr, onDownload, onDelete }: {
+function CaseRow({ item, conversationId, deskThreadId, isDetail, busy, now, lang, tr, onDownload, onDelete, onResume }: {
   item: VisaApplication
   conversationId: string | undefined
   /** ANY thread of the viewer's — there is exactly ONE buyer↔desk conversation (cases
@@ -288,6 +291,7 @@ function CaseRow({ item, conversationId, deskThreadId, isDetail, busy, now, lang
   tr: Tr
   onDownload: (item: VisaApplication) => void
   onDelete: (item: VisaApplication) => void
+  onResume: (item: VisaApplication, fallbackThreadId: string | undefined) => void
 }) {
   const chip = STATUS_CHIP[item.status]
   const copy = statusCopy(item.status, tr)
@@ -326,11 +330,18 @@ function CaseRow({ item, conversationId, deskThreadId, isDetail, busy, now, lang
         {isDetail && <> · {tr('details below', 'chi tiết bên dưới')}</>}
       </p>
       <div className="mt-3 flex flex-wrap items-center gap-2">
-        {threadId ? (
-          <Button variant={editable ? 'cta' : 'outline'} size="sm" asChild>
+        {editable ? (
+          // Resume THIS case — see resumeInChat. Works even with no thread yet: the bind
+          // creates/findsthe desk conversation, which is what the generic start used to do.
+          <Button variant="cta" size="sm" disabled={busy} onClick={() => void onResume(item, threadId)}>
+            <MessagesSquare className="h-4 w-4" />
+            {tr('Continue in chat', 'Tiếp tục trong chat')}
+          </Button>
+        ) : threadId ? (
+          <Button variant="outline" size="sm" asChild>
             <Link href={`/messages/${threadId}`}>
               <MessagesSquare className="h-4 w-4" />
-              {editable ? tr('Continue in chat', 'Tiếp tục trong chat') : tr('Request an update', 'Yêu cầu cập nhật')}
+              {tr('Request an update', 'Yêu cầu cập nhật')}
             </Link>
           </Button>
         ) : editable ? (
@@ -519,6 +530,52 @@ export function VisaCasesClient({ threads }: {
   }
 
   /**
+   * Open THIS case in the chat — not just "the chat".
+   *
+   * A buyer can now hold several editable drafts against ONE buyer↔desk conversation whose
+   * live pointer names a single active case, so a plain link would open whichever case
+   * happened to hold it: the row would lie about what it opens. /resume rebinds the thread to
+   * this case and posts its current form at the bottom, then we navigate.
+   *
+   * Fails SOFT into the old behaviour: if resume refuses (rate limit, desk down), we still go
+   * to the thread the row already knows about rather than trapping the applicant on a dead
+   * button — they just may need the "Send the form again" chip once there.
+   */
+  const resumeInChat = async (item: VisaApplication, fallbackThreadId: string | undefined) => {
+    setBusy(true)
+    try {
+      const res = await visaApi<{ conversationId: string; cardPosted?: boolean; superseded?: boolean }>(
+        `/api/visa/applications/${item.id}/resume`, { method: 'POST' },
+      )
+      // Another tab moved the live pointer between our bind and our card. Say so rather than
+      // dropping them into a thread whose form is quietly a different application.
+      if (res.superseded) {
+        toast.warning(tr('Another tab switched to a different application.', 'Một tab khác đã chuyển sang hồ sơ khác.'))
+      } else if (res.cardPosted === false) {
+        toast.info(tr('Opened. Use “Send the form again” if you don’t see the form.', 'Đã mở. Dùng “Gửi lại biểu mẫu” nếu bạn không thấy biểu mẫu.'))
+      }
+      router.push(`/messages/${res.conversationId}`)
+    } catch (error) {
+      const failure = error as { status?: number; message?: string }
+      const code = (failure.message ?? 'internal_error').replaceAll('_', ' ')
+      // ⚠️ THE FALLBACK MUST NOT LIE (codex, review of the finished diff). Silently routing to
+      // the thread the row already knew is how the OLD behaviour worked — but that thread may
+      // be showing a DIFFERENT application, which is the exact confusion this route exists to
+      // remove. An entitlement refusal is final, so do not stage a navigation that pretends
+      // otherwise; anything transient may still open the thread, but only with a warning that
+      // says what the applicant is about to be looking at.
+      if (failure.status === 403 || failure.status === 404) { toast.error(code); return }
+      if (fallbackThreadId) {
+        toast.warning(tr(
+          'Could not switch to this application — the chat may be showing a different one.',
+          'Không thể chuyển sang hồ sơ này — cuộc trò chuyện có thể đang hiển thị hồ sơ khác.',
+        ))
+        router.push(`/messages/${fallbackThreadId}`)
+      } else toast.error(code)
+    } finally { setBusy(false) }
+  }
+
+  /**
    * Delete eno's copy — the applicant's own erasure control over the most concentrated PII
    * we hold, now per CASE. Nothing is minted in its place: the list re-renders without the
    * row, and a next case starts the one supported way (the chat).
@@ -682,11 +739,19 @@ export function VisaCasesClient({ threads }: {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-0.5">
-                        {threadId && (
-                          <Button variant="ghost" size="icon" asChild aria-label={chatLabel} title={chatLabel}>
-                            <Link href={`/messages/${threadId}`}>{editable ? <Pencil className="h-4 w-4" /> : <MessagesSquare className="h-4 w-4" />}</Link>
+                        {editable ? (
+                          // Resume THIS case (rebind + bring its form down), never "the chat".
+                          <Button variant="ghost" size="icon" disabled={busy} aria-label={chatLabel} title={chatLabel} onClick={() => void resumeInChat(item, threadId)}>
+                            <Pencil className="h-4 w-4" />
                           </Button>
-                        )}
+                        ) : threadId ? (
+                          // Nothing to resume on a submitted/paid case — asking the desk is the
+                          // honest action, and moving the live pointer onto it would only make a
+                          // real draft's cards inert.
+                          <Button variant="ghost" size="icon" asChild aria-label={chatLabel} title={chatLabel}>
+                            <Link href={`/messages/${threadId}`}><MessagesSquare className="h-4 w-4" /></Link>
+                          </Button>
+                        ) : null}
                         {hasResult && (
                           <Button variant="ghost" size="icon" disabled={busy} onClick={() => void downloadResult(item)} aria-label={tr('Download e-Visa PDF', 'Tải PDF E-Visa')} title={tr('Download', 'Tải xuống')}>
                             <Download className="h-4 w-4" />
@@ -721,6 +786,7 @@ export function VisaCasesClient({ threads }: {
               tr={tr}
               onDownload={(target) => void downloadResult(target)}
               onDelete={setDeleteTarget}
+              onResume={(target, fallback) => void resumeInChat(target, fallback)}
             />
           ))}
         </ul>

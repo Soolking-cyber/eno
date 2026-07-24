@@ -3,13 +3,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import {
-  AlertTriangle, ArrowRight, Check, CreditCard, Download, FileImage, FileText, Loader2,
+  AlertTriangle, ArrowRight, Check, ChevronDown, CreditCard, Download, FileImage, FileText, Loader2,
   LockKeyhole, PencilLine, RotateCcw, ShieldCheck, Sparkles, Upload, UserRound, Wallet,
 } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import {
   Combobox, ComboboxClear, ComboboxContent, ComboboxEmpty, ComboboxGroup, ComboboxGroupLabel,
   ComboboxInput, ComboboxInputGroup, ComboboxItem, ComboboxList, ComboboxTrigger,
@@ -23,7 +26,7 @@ import { useMinuteTick, useVisaCatalogue, VisaProductRow } from '@/components/ma
 import { formatMoneyFull, formatUsdCents, moneyLocale } from '@/lib/vnd'
 import { EVISA_CHECKPOINT_GROUPS } from '@/lib/visa/checkpoints'
 import { VISA_DM_STEP_FIELDS, validateVisaDmStep, type VisaDmStep } from '@/lib/visa/dm-steps'
-import { VISA_SPEED_SPECS, type VisaSpeedCode } from '@/lib/visa/speed'
+import { parseVisaSpeedCode, VISA_ENTRY_TYPE_LABELS, VISA_SPEED_SPECS, type VisaEntryType, type VisaSpeedCode } from '@/lib/visa/speed'
 import { MAX_EVISA_VALIDITY_DAYS, visaDateDefaultsForStart, visaEndDateFor90DayWindow, type VisaPayload } from '@/lib/visa/schema'
 
 // ── THE e-VISA WIZARD, RENDERED INSIDE THE CHAT THREAD ─────────────────────────────
@@ -1963,6 +1966,25 @@ export function VisaResultCard({ meta, info }: VisaResultCardProps) {
 
 // ── The re-send chip ──────────────────────────────────────────────────────────────
 
+/** draft / needs_changes — the statuses the CHAT can still write to (mirrors the dashboard). */
+export const EDITABLE_VISA_STATUSES = new Set(['draft', 'needs_changes'])
+
+/**
+ * "Single entry · Within 1 hour" — the visa TYPE as one bilingual string.
+ *
+ * PUBLIC PRODUCT FACTS ONLY: an entry type and a speed tier, both from the canonical
+ * selected_* columns. Never a payload value, so it is safe on any surface that lists cases.
+ * Returns '' when the case has not chosen a product yet, so callers can fall back.
+ */
+export function visaTypeWords(entryType: unknown, speed: unknown, tr: (en: string, vi: string) => string): string {
+  const entry = typeof entryType === 'string' ? VISA_ENTRY_TYPE_LABELS[entryType as VisaEntryType] : undefined
+  const code = parseVisaSpeedCode(typeof speed === 'string' ? speed : null)
+  const spec = code ? VISA_SPEED_SPECS[code] : null
+  return [entry ? tr(entry.en, entry.vi) : null, spec ? tr(spec.label, spec.labelVi) : null]
+    .filter(Boolean)
+    .join(' · ')
+}
+
 export type VisaResendChipProps = {
   info: VisaThreadInfo
   /** The desk's side of the thread. Only changes the wording, never the entitlement. */
@@ -1971,6 +1993,17 @@ export type VisaResendChipProps = {
   /** The last refusal CODE, or null. Rendered as a sentence — never a raw server string. */
   error: string | null
   onResend: () => void | Promise<void>
+  /**
+   * The applicant's OTHER editable cases, for the "bring which form?" picker (owner,
+   * 2026-07-24). Empty/absent ⇒ no dropdown at all: with one draft there is nothing to
+   * choose between, and a menu with a single item is just a slower button.
+   *
+   * ⚠️ PUBLIC FACTS ONLY — an EV reference and the visa type. Nothing here decrypts a
+   * payload, matching the rest of this surface.
+   */
+  otherCases?: Array<{ id: string; label: string }>
+  /** Switch the thread to another case (rebind + bring its form down). */
+  onSwitchCase?: (applicationId: string) => void | Promise<void>
   /**
    * Render the BUTTON ALONE, for a caller that owns the row and the explanatory line.
    *
@@ -2004,7 +2037,7 @@ export type VisaResendChipProps = {
  * ⚠️ NO PII, as everywhere on this surface: this component renders a verb, a mode and an error
  * code. It never touches the case.
  */
-export function VisaResendChip({ info, isDesk, busy, error, onResend, compact, className }: VisaResendChipProps) {
+export function VisaResendChip({ info, isDesk, busy, error, onResend, otherCases, onSwitchCase, compact, className }: VisaResendChipProps) {
   const { tr } = useLanguage()
   // An admin takeover pauses the guided form for the APPLICANT — dm-thread refuses to author
   // a step card in 'admin' mode, so a tap could only come back as a 409 — and the chip says
@@ -2036,6 +2069,36 @@ export function VisaResendChip({ info, isDesk, busy, error, onResend, compact, c
               and nothing failed here — the card just scrolled away. */}
           {tr('Send the form again', 'Gửi lại biểu mẫu')}
         </Button>
+        {/* WHICH form? Only rendered when the applicant actually has another editable case —
+            which became possible on 2026-07-24, when applying for a different visa type
+            started minting its own case instead of overwriting the draft. Choosing one
+            rebinds the thread to it and brings ITS form down (POST …/resume). */}
+        {!paused && !!otherCases?.length && onSwitchCase && (
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={
+                <Button
+                  variant="soft"
+                  size="none"
+                  disabled={busy}
+                  aria-label={tr('Choose which application to bring', 'Chọn hồ sơ cần đưa xuống')}
+                  title={tr('Choose which application to bring', 'Chọn hồ sơ cần đưa xuống')}
+                  className="relative tap-44 shrink-0 gap-1 rounded-full border border-line-strong px-2.5 py-1.5 text-2xs font-bold text-foreground"
+                />
+              }
+            >
+              <ChevronDown className="size-3.5 shrink-0" aria-hidden />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="max-w-[16rem]">
+              <DropdownMenuLabel>{tr('Bring another application', 'Đưa hồ sơ khác xuống')}</DropdownMenuLabel>
+              {otherCases.map((c) => (
+                <DropdownMenuItem key={c.id} disabled={busy} onClick={() => void onSwitchCase(c.id)}>
+                  {c.label}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
         {!paused && !compact && (
           <span className="min-w-0 text-2xs leading-relaxed text-ink-4">
             {isDesk
