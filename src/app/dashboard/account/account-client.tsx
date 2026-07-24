@@ -18,6 +18,7 @@ import { TrustScore } from '@/components/marketplace/trust-score'
 import { DASHBOARD_NAV } from '@/components/marketplace/dashboard-nav'
 import { resolveNavGroups, type ResolvedNavItem } from '@/components/marketplace/dashboard-nav-resolve'
 import { Rows, Row as RowItem, RowsSection } from '@/components/ui/rows'
+import { PreferencesInline } from '@/components/marketplace/preferences-inline'
 import { cn } from '@/lib/utils'
 
 // ── /dashboard/account — THE ACCOUNT DESTINATION (mobile) ────────────────────────────
@@ -181,6 +182,15 @@ export function AccountClient() {
             </Rows>
           </RowsSection>
         ))}
+
+        {/* DISPLAY — language / currency / theme. The desktop account rail carries these
+            (account-panel-body → PreferencesInline); on mobile the Account tab is a route, so the
+            same shared control lives here or the phone has no way to reach them (owner 2026-07-24:
+            "mobile account navbar … no language currency or theme selector"). Same component the
+            desktop reads, so both stay in sync. */}
+        <RowsSection caption={tr('Display', 'Hiển thị')}>
+          <PreferencesInline className="pt-1" />
+        </RowsSection>
       </div>
 
       <div className="mt-6 border-t border-border pt-6">

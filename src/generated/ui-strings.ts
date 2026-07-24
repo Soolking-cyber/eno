@@ -514,6 +514,7 @@ export const UI_STRINGS: string[] = [
   "Discount percent",
   "Discount selected",
   "Dismiss",
+  "Display",
   "Display currency",
   "Dispute case opened",
   "Dispute center",
