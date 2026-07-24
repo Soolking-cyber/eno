@@ -151,7 +151,11 @@ export function TripCard({ trip }: { trip: SavedItinerary }) {
   const budget = trip.estimatedBudget ? money(trip.estimatedBudget, trip.currency, moneyLocale(lang)) : null
 
   return (
-    <Collapsible.Root render={<article className="overflow-hidden rounded-2xl border border-line-strong bg-card" />}>
+    // Flat design language (§3b): a saved itinerary is a ROW in a divided list, not a bordered
+    // box — the parent <Rows> (trips-client) draws the hairline between siblings. `overflow-hidden`
+    // stays for the height collapse animation; the panel keeps its own border-t between header and
+    // detail. Renders <li> because <Rows> is a <ul>.
+    <Collapsible.Root render={<li className="overflow-hidden" />}>
       <Collapsible.Trigger
         render={
           // Overrides live on the Button (cn-merged); a className on a render CHILD would
@@ -159,7 +163,7 @@ export function TripCard({ trip }: { trip: SavedItinerary }) {
           <Button
             variant="bare"
             size="none"
-            className="group w-full items-start justify-start gap-3 whitespace-normal p-4 text-left font-normal active:scale-100"
+            className="group w-full items-start justify-start gap-3 whitespace-normal py-4 text-left font-normal active:scale-100"
           />
         }
       >
@@ -179,7 +183,7 @@ export function TripCard({ trip }: { trip: SavedItinerary }) {
         <ChevronDown className="mt-2 h-4 w-4 shrink-0 text-ink-4 transition-transform group-data-[panel-open]:rotate-180" />
       </Collapsible.Trigger>
 
-      <Collapsible.Panel className="border-t border-border px-4 py-4">
+      <Collapsible.Panel className="border-t border-border py-4">
         {Array.isArray(trip.interests) && trip.interests.length > 0 && (
           <div className="mb-4 flex flex-wrap gap-1.5">
             {trip.interests.map((interest) => {

@@ -9,6 +9,7 @@ import { useLanguage } from '@/context/language-context'
 import { SignInPrompt } from '@/components/marketplace/account-actions'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Rows, Row } from '@/components/ui/rows'
 import { cn } from '@/lib/utils'
 
 // My dispute cases — both roles: cases I filed and cases about me/my storefront.
@@ -91,18 +92,18 @@ export function DisputesPanel({ compact = false }: { compact?: boolean }) {
       </p>
 
       {loading ? (
-        <div className="mt-6 space-y-1">
-          {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-[72px] rounded-2xl" />)}
-        </div>
+        <Rows className="mt-6">
+          {Array.from({ length: 3 }).map((_, i) => <Row key={i}><Skeleton className="h-12 rounded-lg" /></Row>)}
+        </Rows>
       ) : !user ? (
         <div className="mt-10 text-center">
           <p className="text-sm text-muted-foreground">{t('Sign in to see your dispute cases.', 'Đăng nhập để xem hồ sơ khiếu nại của bạn.')}</p>
           <div className="mt-4"><SignInPrompt /></div>
         </div>
       ) : cases === null ? (
-        <div className="mt-6 space-y-1">
-          {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-[72px] rounded-2xl" />)}
-        </div>
+        <Rows className="mt-6">
+          {Array.from({ length: 3 }).map((_, i) => <Row key={i}><Skeleton className="h-12 rounded-lg" /></Row>)}
+        </Rows>
       ) : cases.length === 0 ? (
         <div className="mt-14 text-center">
           <Scale className="mx-auto h-10 w-10 text-ink-4" />
@@ -117,14 +118,14 @@ export function DisputesPanel({ compact = false }: { compact?: boolean }) {
            rail it squeezed each case into ~200px, truncating the title and stranding
            the chevron. Mobile's plain list is the right shape at this width — so it's
            now the only shape. */
-        <ul className="mt-6">
+        <Rows className="mt-6">
           {cases.map((c) => {
             const [en, vi] = REASON_LABELS[c.reason] || REASON_LABELS.other
             return (
               <li key={c.id}>
                 <Link
                   href={`/disputes/${c.id}`}
-                  className="flex items-center gap-3 rounded-2xl px-2 py-3 transition-colors hover:bg-muted"
+                  className="flex items-center gap-3 py-3 transition-colors hover:bg-muted"
                 >
                   {c.listing?.image ? (
                     <Image src={c.listing.image} alt="" width={48} height={48} className="h-12 w-12 shrink-0 rounded-xl object-cover" />
@@ -153,7 +154,7 @@ export function DisputesPanel({ compact = false }: { compact?: boolean }) {
               </li>
             )
           })}
-        </ul>
+        </Rows>
       )}
     </div>
   )

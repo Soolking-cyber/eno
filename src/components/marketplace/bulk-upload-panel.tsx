@@ -112,7 +112,7 @@ export function BulkUploadPanel({ onDone }: { onDone?: () => void }) {
 
         {/* Result */}
         {result ? (
-          <div className="mt-6 rounded-2xl bg-card p-5 shadow-pop">
+          <div className="mt-6 rounded-2xl bg-popover p-5 shadow-pop">
             <CheckCircle2 className="h-8 w-8 text-accent-foreground" />
             <p className="mt-2 text-sm font-bold text-foreground">{tr('Import complete', 'Hoàn tất')}</p>
             {/* role=status: the outcome is the answer to the action just taken — spoken, not only shown. */}<p role="status" aria-live="polite" className="mt-1 text-sm text-muted-foreground">{result.created} {tr('listings created', 'tin đã tạo')}{result.failed > 0 ? `, ${result.failed} ${tr('failed', 'lỗi')}` : ''}.</p>
@@ -165,7 +165,7 @@ export function BulkUploadPanel({ onDone }: { onDone?: () => void }) {
                 </div>
                 <div className="mt-3 space-y-1.5">
                   {rows.map((r) => (
-                    <div key={r._row} className={cn('flex items-center gap-2 rounded-xl border px-3 py-2 text-xs', r._error ? 'border-destructive/30 bg-destructive/5' : 'border-border bg-card')}>
+                    <div key={r._row} className={cn('flex items-center gap-2 rounded-xl border px-3 py-2 text-xs', r._error ? 'border-destructive/30 bg-destructive/5' : 'border-border bg-tint')}>
                       <span className="w-6 shrink-0 font-mono text-muted-foreground">{r._row}</span>
                       <span className="min-w-0 flex-1 truncate font-medium text-foreground">{r.title || <span className="italic text-ink-4">{tr('(no title)', '(không có tiêu đề)')}</span>}</span>
                       <span className="shrink-0 text-muted-foreground">{r.category_slug}</span>

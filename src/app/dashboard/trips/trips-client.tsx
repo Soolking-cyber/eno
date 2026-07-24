@@ -8,6 +8,7 @@ import { useLanguage } from '@/context/language-context'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Rows, Row } from '@/components/ui/rows'
 import { useLatestRequest } from '@/hooks/use-latest-request'
 import { SectionHeader } from '@/components/marketplace/section-header'
 import { ItineraryBuilder } from './plan/itinerary-builder'
@@ -117,17 +118,19 @@ export function TripsClient() {
                 }
               />
             ) : trips === null ? (
-              <div className="space-y-2.5">
+              <Rows>
                 {Array.from({ length: 2 }).map((_, i) => (
-                  <Skeleton key={i} className="h-[76px] rounded-2xl" />
+                  <Row key={i}><Skeleton className="h-11 rounded-lg" /></Row>
                 ))}
-              </div>
+              </Rows>
             ) : (
-              <div className="space-y-2.5">
+              // Flat divided list of expandable itineraries (§3b) — hairlines between rows, no
+              // per-item box. TripCard renders each <li>.
+              <Rows>
                 {trips.map((trip) => (
                   <TripCard key={trip.id} trip={trip} />
                 ))}
-              </div>
+              </Rows>
             )}
           </div>
         </section>

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Rows, Row } from '@/components/ui/rows'
 import { DisputesPanel } from '@/components/marketplace/disputes-panel'
 import { SectionHeader } from '@/components/marketplace/section-header'
 
@@ -25,9 +26,9 @@ export function DisputesClient() {
     return (
       <div role="status" aria-label={tr('Loading…', 'Đang tải…')}>
         <SectionHeader title={tr('Disputes', 'Khiếu nại')} />
-        <div className="mt-2 space-y-2.5">
-          {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-2xl" />)}
-        </div>
+        <Rows className="mt-2">
+          {Array.from({ length: 3 }).map((_, i) => <Row key={i}><Skeleton className="h-12 rounded-lg" /></Row>)}
+        </Rows>
       </div>
     )
   }
