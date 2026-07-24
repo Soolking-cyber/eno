@@ -686,7 +686,11 @@ export function VisaCasesClient({ threads }: {
   return (
     <>
       {sectionHeader}
-      <div className="mx-auto w-full max-w-5xl">
+      {/* FULL WIDTH (owner, 2026-07-24). The page was capped at max-w-5xl inside the dashboard's
+          own max-w-7xl shell, which left the seven-column cases table squeezed and scrolling
+          horizontally while the space beside it sat empty. The shell keeps the canonical page
+          width and gutter, so dropping this cap is exactly "full width" and nothing wider. */}
+      <div className="w-full">
         <h1 className="text-2xl font-bold tracking-tight text-foreground max-lg:sr-only">{tr('My e-Visa applications', 'Hồ sơ E-Visa của tôi')}</h1>
 
         <p className="mt-1 hidden text-sm text-body lg:block">{tr('Every application on your account — track its status, continue a draft, or download an approved e-Visa. A draft can be deleted; a submitted or paid application is kept.', 'Mọi hồ sơ trên tài khoản của bạn — theo dõi trạng thái, tiếp tục bản nháp, hoặc tải e-Visa đã duyệt. Bản nháp có thể xóa; hồ sơ đã gửi hoặc đã thanh toán được giữ lại.')}</p>

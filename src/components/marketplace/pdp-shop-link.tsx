@@ -55,10 +55,20 @@ export function PdpShopLink({ name, avatarColor, avatarUrl, isBusiness, business
 
   return (
     <div className={cn('flex items-center gap-3', className)}>
-      <Avatar name={name} url={avatarUrl} color={avatarColor} size="lg" />
+      {/* AVATAR + NAME BOTH GO TO THE STOREFRONT (owner, 2026-07-24: "in product page make sure
+          store avatar and name are clickable that leads to storefront"). They are two SEPARATE
+          links rather than one wrapper, because the row also holds the trust chip and the
+          "Shop ›" link — wrapping the whole strip would nest interactive elements inside an
+          anchor, which is invalid and is why this was a plain div to begin with.
+          The avatar is aria-hidden with tabIndex -1: it points at the same place as the name
+          beside it, so exposing it would add a duplicate tab stop and a second identical
+          announcement for no gain. The NAME carries the accessible link. */}
+      <Link href={href} aria-hidden tabIndex={-1} className="shrink-0 rounded-full">
+        <Avatar name={name} url={avatarUrl} color={avatarColor} size="lg" />
+      </Link>
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-          <span className="truncate text-sm font-bold text-foreground">{name}</span>
+          <Link href={href} className="truncate text-sm font-bold text-foreground hover:underline">{name}</Link>
           {isBusiness && (
             businessVerified ? (
               <Badge variant="success" className="px-1.5 py-0.5 font-semibold">
