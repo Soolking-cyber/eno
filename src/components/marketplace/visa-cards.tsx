@@ -1695,8 +1695,9 @@ export type VisaCheckoutCardProps = {
 export function VisaCheckoutCard({ meta, info, kase, live, busy, onPay }: VisaCheckoutCardProps) {
   const { tr, lang } = useLanguage()
   const locale = moneyLocale(lang)
-  const [declaration, setDeclaration] = useState(false)
-  const [authorization, setAuthorization] = useState(false)
+  // ONE consent tick covering both legal acts (see the label below); the server still
+  // receives + records them as two distinct versioned consents.
+  const [consented, setConsented] = useState(false)
 
   const paid = meta.status === 'paid' || !!kase?.paidAt
   const product = info?.product ?? null
@@ -1778,13 +1779,31 @@ export function VisaCheckoutCard({ meta, info, kase, live, busy, onPay }: VisaCh
 
       {live && (
         <div className="mt-3 space-y-2">
+          {/* ONE tick, both legal acts (owner 2026-07-24: "combine these into 1 shorter clearer").
+              The two consents the SERVER records stay distinct — the checkout body still sends
+              declarationAccepted AND prefillAuthorized, and visa_payments still stores both
+              consent_*_version columns, so a dispute can still tell the truthfulness declaration
+              from the prefill authorization. Only the applicant-facing wording is merged, and both
+              version constants were bumped with it (src/lib/visa/schema.ts) — the stored version
+              must always name text the applicant actually saw. Bundling is defensible here because
+              NEITHER consent is optional: no visa can be prepared without both.
+              The merged sentence deliberately keeps EVERY material element of the two originals —
+              "every … approved", answers AND images, "true, complete and accurate", "prefill the
+              official e-Visa form", "refusal and legal consequences", "a person still reviews the
+              form before it is submitted" — so nothing is legally weaker than the two-tick version
+              (codex made us restore each of those on review).
+              The two consent_*_version columns sit on ONE visa_payments row, written in a single
+              atomic checkout write with one timestamp — that row IS the evidence both were accepted
+              in one act.
+              ⚠️ The version constants are SHARED with the dashboard approve-for-prefill consent
+              (cases-client.tsx), which is deliberately NOT merged: its authorization is a materially
+              MORE specific disclosure (transfer into a temporary hosted browser, recording/session
+              logs/CAPTCHA-solving disabled, human review before declaration, payment and submission)
+              and collapsing it would destroy real safeguard disclosure. So the version is a POLICY
+              date, not a per-surface text hash — do not suffix it with anything surface-specific. */}
           <label className="flex cursor-pointer items-start gap-2 text-2xs leading-relaxed text-body">
-            <Checkbox checked={declaration} onChange={setDeclaration} className="mt-0.5 h-4 w-4 shrink-0" />
-            <span>{tr('I confirm that every answer is complete, true, and accurate. I understand false information can cause refusal and legal consequences.', 'Tôi xác nhận mọi câu trả lời đầy đủ, trung thực và chính xác. Tôi hiểu thông tin sai có thể dẫn đến từ chối và hậu quả pháp lý.')}</span>
-          </label>
-          <label className="flex cursor-pointer items-start gap-2 text-2xs leading-relaxed text-body">
-            <Checkbox checked={authorization} onChange={setAuthorization} className="mt-0.5 h-4 w-4 shrink-0" />
-            <span>{tr('I authorize eno to use these approved answers and images to prefill the official e-Visa form. A person still reviews the form before it is submitted.', 'Tôi cho phép eno dùng các câu trả lời và hình ảnh đã duyệt để điền trước biểu mẫu E-Visa chính thức. Vẫn có người kiểm tra biểu mẫu trước khi nộp.')}</span>
+            <Checkbox checked={consented} onChange={setConsented} className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>{tr('I confirm that every answer and image I have approved is true, complete and accurate, and I authorise eno to use them to prefill the official e-Visa form. False information can cause refusal and legal consequences; a person still reviews the form before it is submitted.', 'Tôi xác nhận mọi câu trả lời và hình ảnh tôi đã duyệt đều trung thực, đầy đủ và chính xác, và tôi cho phép eno dùng chúng để điền trước biểu mẫu E-Visa chính thức. Thông tin sai có thể dẫn đến từ chối và hậu quả pháp lý; vẫn có người kiểm tra biểu mẫu trước khi nộp.')}</span>
           </label>
 
           <div className="flex flex-wrap gap-1.5 pt-0.5">
@@ -1792,7 +1811,7 @@ export function VisaCheckoutCard({ meta, info, kase, live, busy, onPay }: VisaCh
               <Button
                 variant="cta"
                 size="none"
-                disabled={busy || !quote || closed || !declaration || !authorization}
+                disabled={busy || !quote || closed || !consented}
                 onClick={() => quote && void onPay('paypal', quote)}
                 className="rounded-xl px-3.5 py-2.5 text-xs"
               >
@@ -1804,7 +1823,7 @@ export function VisaCheckoutCard({ meta, info, kase, live, busy, onPay }: VisaCh
               <Button
                 variant="outline"
                 size="none"
-                disabled={busy || !quote || closed || !declaration || !authorization}
+                disabled={busy || !quote || closed || !consented}
                 onClick={() => quote && void onPay('stripe', quote)}
                 className="rounded-xl px-3.5 py-2.5 text-xs font-bold"
               >

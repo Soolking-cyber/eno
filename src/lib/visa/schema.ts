@@ -6,8 +6,8 @@ import { z } from 'zod'
 import { DEFAULT_EVISA_ENTRY_GATE } from './checkpoints'
 
 export const VISA_PAYLOAD_VERSION = '2026-07-16'
-export const VISA_DECLARATION_VERSION = 'evisa-applicant-declaration-2026-07-16'
-export const VISA_AUTHORIZATION_VERSION = 'eno-hosted-prefill-authorization-2026-07-17'
+export const VISA_DECLARATION_VERSION = 'evisa-applicant-declaration-2026-07-24'
+export const VISA_AUTHORIZATION_VERSION = 'eno-hosted-prefill-authorization-2026-07-24'
 export const MAX_EVISA_VALIDITY_DAYS = 90
 
 export function visaEndDateFor90DayWindow(startDate: string) {
