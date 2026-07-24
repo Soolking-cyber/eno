@@ -82,7 +82,7 @@ export function BusinessVerificationPanel() {
   }
 
   if (loading) return (
-    <div role="status" className="mt-6 rounded-2xl border border-border bg-card p-4">
+    <div role="status" className="mt-6 rounded-2xl bg-tint p-4">
       <Skeleton className="h-5 w-40 rounded-lg" />
       <Skeleton className="mt-3 h-4 w-full rounded-lg" />
       <Skeleton className="mt-2 h-4 w-2/3 rounded-lg" />
@@ -98,7 +98,7 @@ export function BusinessVerificationPanel() {
   const hasBank = view?.documentKinds.includes('bank')
 
   return (
-    <div className="mt-6 rounded-2xl border border-border bg-card p-4">
+    <div className="mt-6 rounded-2xl bg-tint p-4">
       <div className="flex items-center gap-2">
         <ShieldCheck className="h-4 w-4 text-accent-foreground" />
         <h3 className="text-sm font-bold text-foreground">{tr('Get your business verified', 'Xác minh doanh nghiệp')}</h3>

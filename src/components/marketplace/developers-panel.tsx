@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Rows, Row } from '@/components/ui/rows'
 
 // Dashboard "Developers" tab (business-tier). Mint / list / revoke partner API keys via
 // /api/keys. The full secret is shown ONCE at creation; afterwards only the prefix.
@@ -113,7 +114,7 @@ export function DevelopersPanel() {
               <p className="text-sm font-bold text-foreground">{tr('Copy your key now', 'Sao chép khóa ngay')}</p>
               <p className="mt-0.5 text-xs text-body">{tr("This is the only time the full key is shown. Store it somewhere safe.", 'Đây là lần duy nhất hiển thị khóa đầy đủ. Hãy lưu lại nơi an toàn.')}</p>
               <div className="mt-2 flex items-center gap-2">
-                <code className="min-w-0 flex-1 truncate rounded-lg bg-card px-3 py-2 font-mono text-xs text-foreground">{secret}</code>
+                <code className="min-w-0 flex-1 truncate rounded-lg border border-line-strong bg-card px-3 py-2 font-mono text-xs text-foreground">{secret}</code>
                 <Button variant="cta" size="none" onClick={copySecret} className="shrink-0 gap-1.5 rounded-lg px-3 py-2 text-xs">
                   {copied ? <Check className="size-4" /> : <Copy className="h-3.5 w-3.5" />} {copied ? tr('Copied', 'Đã chép') : tr('Copy', 'Chép')}
                 </Button>
@@ -173,8 +174,9 @@ export function DevelopersPanel() {
             <p className="mt-2 text-sm text-muted-foreground">{tr('No API keys yet.', 'Chưa có khóa API nào.')}</p>
           </div>
         ) : (
-          active.map((k) => (
-            <div key={k.id} className="flex items-center gap-3 rounded-2xl border border-border p-3.5">
+          // Flat (§3b): one ui/rows divided list, not a stack of per-item outline cards.
+          <Rows>{active.map((k) => (
+            <Row key={k.id} className="flex items-center gap-3">
               <KeyRound className="h-5 w-5 shrink-0 text-accent-foreground" />
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
@@ -197,8 +199,8 @@ export function DevelopersPanel() {
                   <Trash2 className="h-4 w-4" />
                 </IconButton>
               )}
-            </div>
-          ))
+            </Row>
+          ))}</Rows>
         )}
       </div>
 
@@ -302,7 +304,7 @@ function WebhooksSection() {
               <p className="text-sm font-bold text-foreground">{tr('Copy your signing secret now', 'Sao chép khóa ký ngay')}</p>
               <p className="mt-0.5 text-xs text-body">{tr('This is the only time it is shown. Use it to verify the signature on every delivery.', 'Đây là lần duy nhất hiển thị. Dùng nó để xác minh chữ ký trên mỗi lần gửi.')}</p>
               <div className="mt-2 flex items-center gap-2">
-                <code className="min-w-0 flex-1 truncate rounded-lg bg-card px-3 py-2 font-mono text-xs text-foreground">{secret}</code>
+                <code className="min-w-0 flex-1 truncate rounded-lg border border-line-strong bg-card px-3 py-2 font-mono text-xs text-foreground">{secret}</code>
                 <Button variant="cta" size="none" onClick={copySecret} className="shrink-0 gap-1.5 rounded-lg px-3 py-2 text-xs">
                   {copied ? <Check className="size-4" /> : <Copy className="h-3.5 w-3.5" />} {copied ? tr('Copied', 'Đã chép') : tr('Copy', 'Chép')}
                 </Button>
@@ -363,8 +365,9 @@ function WebhooksSection() {
             <p className="mt-2 text-sm text-muted-foreground">{tr('No webhooks yet.', 'Chưa có webhook nào.')}</p>
           </div>
         ) : (
-          hooks.map((h) => (
-            <div key={h.id} className="flex items-center gap-3 rounded-2xl border border-border p-3.5">
+          // Flat (§3b): one ui/rows divided list, not a stack of per-item outline cards.
+          <Rows>{hooks.map((h) => (
+            <Row key={h.id} className="flex items-center gap-3">
               <Webhook className={cn('h-5 w-5 shrink-0', h.enabled ? 'text-accent-foreground' : 'text-ink-4')} />
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
@@ -399,8 +402,8 @@ function WebhooksSection() {
                   </IconButton>
                 </div>
               )}
-            </div>
-          ))
+            </Row>
+          ))}</Rows>
         )}
       </div>
     </div>
