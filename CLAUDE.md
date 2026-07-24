@@ -25,7 +25,7 @@ Three habits that follow:
 - **Delegate search to `scout`.** Not to save money — to keep bulk grep output out of the main context. You get the conclusion, not the file dump.
 - **Escalate, don't grind.** A fix that didn't hold goes to `deep-debugger` (Opus, xhigh), not to a second guess at the same altitude.
 - **Four families, not one.** Main thread is Opus, `fable-reviewer` is Fable 5, and the two DEFAULT external reviewers are **codex (GPT-5.6 sol, high)** and **antigravity (Gemini 3.6 Flash, High)** — run BOTH on substantive code, on the PLAN and the finished diff, and on **every security or bug audit** (owner 2026-07-15; codex removed 2026-07-21 during an account outage, **RESTORED by the owner 2026-07-23** — "codex is not banned, add codex to loop when planning"). ⚠️ **VERIFY a reviewer's factual claims** — on 2026-07-23 Gemini called two TRUE facts (VN's 63→34 province merger, MPI→Ministry-of-Finance) "hallucinations" because its training predates the mid-2025 reforms; both were confirmed via primary sources. Test what a reviewer tells you rather than trusting it. They fail differently, which is the whole point: an Opus review of Opus code shares its blind spots. **Anything irreversible or money/trust-adjacent — offers, publish gate, contact reveals, conversations, payments, anything that writes to prod — gets at least one non-Opus reviewer before it ships.** When everyone agrees, that's when to ask the dissenter, not when to relax. ⚠️ If codex starts erroring with *"model is not supported when using Codex with a ChatGPT account"*, that is the account/credits state, not a config bug — fall back to Gemini and carry on rather than burning turns on it.
-- **TWO MOMENTS, NOT ONE (owner, 2026-07-22 — applies to Kyle and Murat equally).** The second
+- **TWO MOMENTS, NOT ONE (owner, 2026-07-22 — applies to Kai and Murat equally).** The second
   opinion is mandatory at BOTH ends of a task, and they catch different things:
   **(1) PLANNING** — before writing code for anything non-trivial, hand over the plan and ask
   both to attack it. On 2026-07-22 this turned a native-email-OTP design inside out: a probe
@@ -107,25 +107,48 @@ These carry invariants recorded in their own comments. Read the comments before 
 
 `messages/[id]/page.tsx` deserves its own line, because the invariant here is easy to state backwards. **Text mode DOES have a tap-Send button** (the Zalo/FB pattern). The real rule is *why* it's safe: `ChatSendButton` fires on **`onMouseDown` + `preventDefault`, never `onPointerDown`** — that holds the composer's focus, so the tap can't blur the field, dismiss the keyboard, and shift the button out from under the finger. That focus-hold is the invariant; "no tap-Send" was an earlier workaround and is **obsolete** — don't let anyone "restore" it. Enter still sends (`enterKeyHint="send"`), and the Counter button must stay gated by `negotiable !== false` (a counter sends an offer; on a fixed-price listing the server 409s and docks the buyer's trust).
 
-## Parallel sessions (owner, 2026-07-19)
+## Parallel sessions — Cockpit v2 (owner, 2026-07-25)
 
-Multiple Claude Code sessions may run in THIS worktree concurrently. The standing
-setup is the 4-terminal cockpit (`~/eno-cockpit.sh`, auto-ensured by the
-SessionStart hook in .claude/settings.json): workers **Kyle** and **Murat**
-(Claude Code) plus the second-opinion terminals **Codex** (GPT-5.6) and **Agy**
-(Gemini). Run `echo $ENO_SESSION` to learn your name; sign the claims board with
-it. Rules:
-- **Claims board**: `.claude/COORDINATION.md` — read it before picking up work,
-  claim your item (and the TaskList task) there, release when done. Pick tasks
-  the other session hasn't claimed.
-- **Stage explicitly — `git add -A` at the repo root is BANNED** (it once
-  scooped another session's mid-flight edit into a broken commit, 5550b99b).
-  Add the exact files you changed.
-- Before committing: anything dirty outside your claim belongs to the other
-  session — leave it. If HEAD moved since your gates, re-run tsc before push.
-- A red pipeline after your push: check whether the other session already
-  shipped the fix before writing your own (both sessions watching the same
-  build → duplicate fixes collide).
+**This supersedes the shared-worktree protocol of 2026-07-19.** Sessions no longer
+share a working tree, and only one role pushes. Five seats, converged by
+`~/eno-cockpit.sh ensure` (SessionStart hook in `.claude/settings.json`):
+
+| Role | Worktree | Branch | Job |
+|---|---|---|---|
+| **Alex** | `~/eno.vn` | `main` | plan · write tasks · gate · review · merge · **push** |
+| **Kai** (ex-Kyle) | `~/eno-kai` | `work/kai` | implement |
+| **Murat** | `~/eno-murat` | `work/murat` | implement |
+| **Codex** / **Agy** | `~/eno.vn` | — | second opinions, read-only |
+
+Run `echo $ENO_SESSION` to learn your seat. **If it comes back empty, ask the owner
+— do not guess from memory** (guessing once had two sessions signing the same name
+and misattributed a feature).
+
+**Why worktrees:** codex and Gemini independently refuted the shared tree. Pathspec
+discipline does nothing about two workers clobbering each other's `.next`,
+DerivedData, or Gradle output; and with everyone on one local `main`, the shipper's
+push carries every worker commit whether it was gated or not. Separate trees also
+turn a two-tasks-one-file overlap into a visible **merge conflict** instead of a
+silent lost update.
+
+**The board is `/Users/mk1e3/eno-cockpit/TASKS.md`** — outside the repo, because
+workers on different branches would otherwise conflict on it every merge.
+`.claude/COORDINATION.md` is now **history and incident log only**, not a live queue.
+The real coordination state is `~/eno-cockpit/claims/<ID>.claim`, taken atomically
+via `~/eno-cockpit/claim.sh take <ID> $ENO_SESSION` (non-zero exit = you lost the
+race). Alex sweeps claims whose pid died or whose heartbeat is >30 min stale.
+
+Rules that still bind everyone:
+- **Workers never push, never touch `main`, never merge.** Commit to your own branch.
+- **`git add -A` and `commit -a` are BANNED** — they scooped another session's
+  mid-flight work into broken commits twice (5550b99b, 72aea9b6). Commit by literal
+  pathspec: `git commit -m "…" -- ':(literal)path'`, after reading back
+  `git diff HEAD -- <paths>`. Plain globs and directory pathspecs over-match.
+- **Stay inside your task's declared Owned paths.** Anything dirty outside them is
+  someone else's — leave it. If a task can't be done without widening scope, mark it
+  BLOCKED and say why.
+- Workers run `/loop /work` (`.claude/skills/work/SKILL.md`) and drain the board
+  unprompted. A wrong task reported BLOCKED beats a wrong task silently "completed".
 
 ## Shipping
 

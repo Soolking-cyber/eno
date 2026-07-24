@@ -8,7 +8,7 @@
             "type": "command",
             "command": "bash /Users/mk1e3/eno-cockpit.sh ensure",
             "timeout": 20,
-            "statusMessage": "Ensuring the eno cockpit (Kyle · Murat · Codex · Agy)…"
+            "statusMessage": "Ensuring the eno cockpit (Alex · Kai · Murat · Codex · Agy)…"
           }
         ]
       }

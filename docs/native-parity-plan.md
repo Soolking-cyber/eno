@@ -1,6 +1,6 @@
 # Native Parity Plan + Coordination Board
 
-_Synthesized 2026-07-20 from 8 per-domain web↔native audits (home-feed, pdp, search, messages-chat, post-wizard, dashboard-account, auth-onboard-trust, design-system). Two engineers: **Kyle** (Core/Feed/Listing/Search/Notifications/MyListings + server endpoints + Android generalist) and **Murat** (Auth/Messages/Post/Dashboard/Saved). Each owns their domains on **both** platforms._
+_Synthesized 2026-07-20 from 8 per-domain web↔native audits (home-feed, pdp, search, messages-chat, post-wizard, dashboard-account, auth-onboard-trust, design-system). Two engineers: **Kai** (Core/Feed/Listing/Search/Notifications/MyListings + server endpoints + Android generalist) and **Murat** (Auth/Messages/Post/Dashboard/Saved). Each owns their domains on **both** platforms._
 
 ## 1. State of parity
 
@@ -12,41 +12,41 @@ Legend — **Kind**: bugfix / feature / style. **Effort**: S (<½ day) · M (~1 
 
 | # | Item | Domain | Platform | Kind | Effort | Priority | Lane |
 |---|------|--------|----------|------|--------|----------|------|
-| 1 | Android My Listings: add Edit/View action (none exists today) | dashboard | android | bugfix | S | P0 | Kyle |
-| 2 | Android search suggest: render category rows (parsed then dropped) + nav to CategoryFeed | search | android | bugfix | S | P0 | Kyle |
-| 3 | Sold/removed/hidden listing: graceful "no longer available" state (kill infinite spinner; render from tapped card) | pdp | both | bugfix | M | P0 | Kyle |
-| 4 | Android search results: offset pagination / infinite scroll (one-shot 24-cap today) | search | android | bugfix | M | P0 | Kyle |
-| 5 | ◆ Android urgent badge: red→solid slate + ⚡ bolt glyph (collides with drop = red) | design/feed | android | bugfix | S | P1 | Kyle |
-| 6 | ◆ Android feed+saved: pull-to-refresh (Material3 PullToRefreshBox) | design/feed | android | feature | S | P1 | Kyle |
+| 1 | Android My Listings: add Edit/View action (none exists today) | dashboard | android | bugfix | S | P0 | Kai |
+| 2 | Android search suggest: render category rows (parsed then dropped) + nav to CategoryFeed | search | android | bugfix | S | P0 | Kai |
+| 3 | Sold/removed/hidden listing: graceful "no longer available" state (kill infinite spinner; render from tapped card) | pdp | both | bugfix | M | P0 | Kai |
+| 4 | Android search results: offset pagination / infinite scroll (one-shot 24-cap today) | search | android | bugfix | M | P0 | Kai |
+| 5 | ◆ Android urgent badge: red→solid slate + ⚡ bolt glyph (collides with drop = red) | design/feed | android | bugfix | S | P1 | Kai |
+| 6 | ◆ Android feed+saved: pull-to-refresh (Material3 PullToRefreshBox) | design/feed | android | feature | S | P1 | Kai |
 | 7 | ◆ .press tactile scale(0.96) spring on all tappables (cards/chips/CTAs) | design | both | style | M | P1 | Murat |
 | 8 | ◆ Haptics on key taps (publish/send/offer/favorite/sort-chip/tab) | design | both | feature | M | P1 | Murat |
-| 9 | ◆ Android: replace emoji glyphs (🔔 ♡ ♥ 🛡 ⋮) with Lucide/Material vectors | design | android | style | M | P1 | Kyle |
-| 10 | ◆ Android feed+search: loading skeleton cards (exact 10:11 geometry) | design/feed | android | feature | M | P1 | Kyle |
-| 11 | ◆ Re-sync native tokens to de-blued true-neutral ramp (+5-level ink, radius 11/9) | design | both | style | M | P1 | Kyle |
-| 12 | ◆ Trust ladder: add Elite/violet tier + earned-tier gradient fills + tap→/trust | design/trust | both | style | M | P1 | Kyle |
-| 13 | For-You / Trending rail on Android home (`GET /api/recommendations`) | home-feed | android | feature | S | P1 | Kyle |
-| 14 | AI ✨ concierge entry in Android feed header (→ /messages/ai) | home-feed/search | android | feature | S | P1 | Kyle |
-| 15 | Android search results: sort tabs (5 sorts) | search | android | feature | S | P1 | Kyle |
-| 16 | Android search: price filter chip + bottom sheet (priceMin/priceMax) | search | android | feature | S | P1 | Kyle |
-| 17 | Android feed: offline/failed + Try-again state | home-feed | android | feature | S | P1 | Kyle |
-| 18 | Android PDP: market-price gauge (priceBand fetched then dropped) | pdp | android | feature | S | P1 | Kyle |
-| 19 | Android PDP: prevPrice strikethrough + urgent "Bán gấp" chip | pdp | android | feature | S | P1 | Kyle |
-| 20 | Android PDP: meta row posted-ago + condition + year/mileage chips | pdp | android | feature | S | P1 | Kyle |
-| 21 | Android PDP: Save (favorite) + Share controls | pdp | android | feature | S | P1 | Kyle |
-| 22 | Android PDP: video-first gallery page (ExoPlayer, poster=first image) | pdp | android | feature | S | P1 | Kyle |
-| 23 | Category-aware safety strip near the contact CTA (bilingual copy in file) | pdp | both | feature | S | P1 | Kyle |
-| 24 | Android My Listings: delete confirmation dialog (one-tap irreversible today) | dashboard | android | bugfix | S | P1 | Kyle |
-| 25 | Android My Listings: empty + loading states | dashboard | android | bugfix | S | P1 | Kyle |
-| 26 | Android saved-count: track session delta + clearDeltas (base+delta landmine) | home-feed | android | bugfix | M | P1 | Kyle |
-| 27 | Visual / photo search in the search bar (camera+upload → vision → query+category) | search | both | feature | M | P1 | Kyle |
-| 28 | Condition (new/used) filter in the shared filter sheet | home-feed/search | both | feature | M | P1 | Kyle |
-| 29 | Android PDP seller card: trust/rating/reviews/business/member-since + storefront tap-through | pdp/trust | android | feature | M | P1 | Kyle |
-| 30 | Description/attributes "Details" table (decode attributes/engineL, render) | pdp | both | feature | M | P1 | Kyle |
-| 31 | † Reviews preview on PDP (avg + ≤2 verified-first snippets) | pdp/trust | both | feature | M | P1 | Kyle |
-| 32 | Report sheet + listing/seller entry points (reason radio → `/api/report`) | pdp/trust | both | feature | M | P1 | Kyle |
-| 33 | QuickDiscount (one-tap price-drop) on My Listings rows | dashboard | both | feature | M | P1 | Kyle |
-| 34 | Area / location filter (province→ward→near-you radius, reverse-geocode) | home-feed/search | both | feature | L | P1 | Kyle |
-| 35 | Availability daily-review sheet + overdue nudge pill on My Listings | dashboard | both | feature | L | P1 | Kyle |
+| 9 | ◆ Android: replace emoji glyphs (🔔 ♡ ♥ 🛡 ⋮) with Lucide/Material vectors | design | android | style | M | P1 | Kai |
+| 10 | ◆ Android feed+search: loading skeleton cards (exact 10:11 geometry) | design/feed | android | feature | M | P1 | Kai |
+| 11 | ◆ Re-sync native tokens to de-blued true-neutral ramp (+5-level ink, radius 11/9) | design | both | style | M | P1 | Kai |
+| 12 | ◆ Trust ladder: add Elite/violet tier + earned-tier gradient fills + tap→/trust | design/trust | both | style | M | P1 | Kai |
+| 13 | For-You / Trending rail on Android home (`GET /api/recommendations`) | home-feed | android | feature | S | P1 | Kai |
+| 14 | AI ✨ concierge entry in Android feed header (→ /messages/ai) | home-feed/search | android | feature | S | P1 | Kai |
+| 15 | Android search results: sort tabs (5 sorts) | search | android | feature | S | P1 | Kai |
+| 16 | Android search: price filter chip + bottom sheet (priceMin/priceMax) | search | android | feature | S | P1 | Kai |
+| 17 | Android feed: offline/failed + Try-again state | home-feed | android | feature | S | P1 | Kai |
+| 18 | Android PDP: market-price gauge (priceBand fetched then dropped) | pdp | android | feature | S | P1 | Kai |
+| 19 | Android PDP: prevPrice strikethrough + urgent "Bán gấp" chip | pdp | android | feature | S | P1 | Kai |
+| 20 | Android PDP: meta row posted-ago + condition + year/mileage chips | pdp | android | feature | S | P1 | Kai |
+| 21 | Android PDP: Save (favorite) + Share controls | pdp | android | feature | S | P1 | Kai |
+| 22 | Android PDP: video-first gallery page (ExoPlayer, poster=first image) | pdp | android | feature | S | P1 | Kai |
+| 23 | Category-aware safety strip near the contact CTA (bilingual copy in file) | pdp | both | feature | S | P1 | Kai |
+| 24 | Android My Listings: delete confirmation dialog (one-tap irreversible today) | dashboard | android | bugfix | S | P1 | Kai |
+| 25 | Android My Listings: empty + loading states | dashboard | android | bugfix | S | P1 | Kai |
+| 26 | Android saved-count: track session delta + clearDeltas (base+delta landmine) | home-feed | android | bugfix | M | P1 | Kai |
+| 27 | Visual / photo search in the search bar (camera+upload → vision → query+category) | search | both | feature | M | P1 | Kai |
+| 28 | Condition (new/used) filter in the shared filter sheet | home-feed/search | both | feature | M | P1 | Kai |
+| 29 | Android PDP seller card: trust/rating/reviews/business/member-since + storefront tap-through | pdp/trust | android | feature | M | P1 | Kai |
+| 30 | Description/attributes "Details" table (decode attributes/engineL, render) | pdp | both | feature | M | P1 | Kai |
+| 31 | † Reviews preview on PDP (avg + ≤2 verified-first snippets) | pdp/trust | both | feature | M | P1 | Kai |
+| 32 | Report sheet + listing/seller entry points (reason radio → `/api/report`) | pdp/trust | both | feature | M | P1 | Kai |
+| 33 | QuickDiscount (one-tap price-drop) on My Listings rows | dashboard | both | feature | M | P1 | Kai |
+| 34 | Area / location filter (province→ward→near-you radius, reverse-geocode) | home-feed/search | both | feature | L | P1 | Kai |
+| 35 | Availability daily-review sheet + overdue nudge pill on My Listings | dashboard | both | feature | L | P1 | Kai |
 | 36 | MarkSoldPrompt anchored under a just-accepted offer (seller only) | messages | both | feature | S | P1 | Murat |
 | 37 | Off-platform scam warning under the first luring incoming message | messages | both | feature | S | P1 | Murat |
 | 38 | Chat-thread report entry (reuse ReportSheet, chat reasons scam/offensive/other) | messages/trust | both | feature | S | P1 | Murat |
@@ -75,43 +75,43 @@ Legend — **Kind**: bugfix / feature / style. **Effort**: S (<½ day) · M (~1 
 | 61 | Disputes native entry (list + case-room link; WebSheet acceptable v1) | trust/dashboard | both | feature | M | P1 | Murat |
 | 62 | Post: video upload (≤60s, sign→PUT→complete→transcode-poll) | post | both | feature | L | P1 | Murat |
 | 63 | Native business-profile editor (storefront name/rep/bio/ward/logo/legal) | dashboard | both | feature | L | P1 | Murat |
-| 64 | Android card: business Building2 glyph in meta | home-feed | android | feature | S | P2 | Kyle |
-| 65 | Android card: "Good price" badge in price row | home-feed | android | feature | S | P2 | Kyle |
-| 66 | Android card: bottom-left video play chip | home-feed | android | feature | S | P2 | Kyle |
-| 67 | Verified-only toggle in the filter sheet | home-feed/search | both | feature | S | P2 | Kyle |
-| 68 | Compact (list) view toggle + CompactRow | home-feed | both | feature | S | P2 | Kyle |
-| 69 | iOS home: FilterChip on Latest heading (filters unreachable from home) | home-feed | ios | feature | S | P2 | Kyle |
-| 70 | Brand suggestions in typeahead → brand feed | search | both | feature | S | P2 | Kyle |
-| 71 | Suggest ordering: query row FIRST + accent-insensitive match bolding | search | both | style | S | P2 | Kyle |
-| 72 | Android search empty chips: emoji→vector icons (folds into #9) | search | android | style | S | P2 | Kyle |
-| 73 | Zero-results recovery (trending / clear-filters) instead of bare "No results" | search | both | feature | S | P2 | Kyle |
-| 74 | PDP: brand chip + logo in meta row | pdp | both | feature | S | P2 | Kyle |
-| 75 | PDP: price-drop % badge + countdown ("N days left") | pdp | both | feature | S | P2 | Kyle |
-| 76 | PDP: "Fixed price" badge when !negotiable | pdp | both | style | S | P2 | Kyle |
-| 77 | PDP: priceUnit suffix (/month rentals) — rentals read as one-off today | pdp | both | bugfix | S | P2 | Kyle |
-| 78 | PDP: ProtectionsRow explainer strip + sheet | pdp | both | feature | S | P2 | Kyle |
-| 79 | PDP inline gallery: photo n/N counter + "Video" badge | pdp | both | style | S | P2 | Kyle |
-| 80 | PDP: bottom safety note (meet-in-public copy) | pdp | both | style | S | P2 | Kyle |
-| 81 | Android PDP: stats row (views/saved/contacted) | pdp | android | style | S | P2 | Kyle |
-| 82 | PDP: recently-viewed rail + native view_item/ViewContent beacon | pdp | both | feature | S | P2 | Kyle |
-| 83 | My Listings row: saved count (Heart) in meta (add savedCount to Android model) | dashboard | both | style | S | P2 | Kyle |
-| 84 | My Listings: greeting hero "Hi {name}" | dashboard | both | style | S | P2 | Kyle |
-| 85 | My Listings: stats strip align (Saves + tappable Unread→Messages) | dashboard | both | style | S | P2 | Kyle |
-| 86 | My Listings: demand nudge line ("N saved — a price drop usually sells it" + Edit price) | dashboard | both | feature | S | P2 | Kyle |
-| 87 | My Listings: per-listing Share action | dashboard | both | feature | S | P2 | Kyle |
-| 88 | ◆ 5-level ink ramp + radius tiers 11/9 (rides with #11) | design | both | style | S | P2 | Kyle |
-| 89 | Recent LOCATIONS chips in search empty-focus (depends on #34) | search | both | feature | S | P2 | Kyle |
-| 90 | Android card: brand·model meta line (add brandSlug/model to Core.kt ListingCard) | home-feed | android | feature | M | P2 | Kyle |
-| 91 | Card image carousel (swipe + dots + arrows) | home-feed | both | feature | M | P2 | Kyle |
-| 92 | † More-from-this-seller shelf (sameSellerListings) | pdp | both | feature | M | P2 | Kyle |
-| 93 | PDP location map section (MapKit / Maps Compose pin) | pdp/search | both | feature | M | P2 | Kyle |
-| 94 | PDP inline gallery: blur-fill no-crop (object-contain over blurred backdrop) | pdp | both | style | M | P2 | Kyle |
-| 95 | Business analytics: 14-day view/lead sparkline under rows (`/api/dashboard/analytics`) | dashboard | both | feature | M | P2 | Kyle |
-| 96 | Skeleton shimmer sweep + branded wordmark overlay | design | both | style | M | P2 | Kyle |
-| 97 | Per-category facets in results (year/mileage/RAM ranges + attr selects) | home-feed/search | both | feature | L | P2 | Kyle |
-| 98 | Card video autoplay (muted, IO/visibility-gated loop) | home-feed | both | feature | L | P2 | Kyle |
-| 99 | Native map view with Airbnb-style price pins + info card + near-you radius | home-feed/search | both | feature | L | P2 | Kyle |
-| 100 | TikTok-style full-screen vertical video feed view | home-feed | both | feature | L | P2 | Kyle |
+| 64 | Android card: business Building2 glyph in meta | home-feed | android | feature | S | P2 | Kai |
+| 65 | Android card: "Good price" badge in price row | home-feed | android | feature | S | P2 | Kai |
+| 66 | Android card: bottom-left video play chip | home-feed | android | feature | S | P2 | Kai |
+| 67 | Verified-only toggle in the filter sheet | home-feed/search | both | feature | S | P2 | Kai |
+| 68 | Compact (list) view toggle + CompactRow | home-feed | both | feature | S | P2 | Kai |
+| 69 | iOS home: FilterChip on Latest heading (filters unreachable from home) | home-feed | ios | feature | S | P2 | Kai |
+| 70 | Brand suggestions in typeahead → brand feed | search | both | feature | S | P2 | Kai |
+| 71 | Suggest ordering: query row FIRST + accent-insensitive match bolding | search | both | style | S | P2 | Kai |
+| 72 | Android search empty chips: emoji→vector icons (folds into #9) | search | android | style | S | P2 | Kai |
+| 73 | Zero-results recovery (trending / clear-filters) instead of bare "No results" | search | both | feature | S | P2 | Kai |
+| 74 | PDP: brand chip + logo in meta row | pdp | both | feature | S | P2 | Kai |
+| 75 | PDP: price-drop % badge + countdown ("N days left") | pdp | both | feature | S | P2 | Kai |
+| 76 | PDP: "Fixed price" badge when !negotiable | pdp | both | style | S | P2 | Kai |
+| 77 | PDP: priceUnit suffix (/month rentals) — rentals read as one-off today | pdp | both | bugfix | S | P2 | Kai |
+| 78 | PDP: ProtectionsRow explainer strip + sheet | pdp | both | feature | S | P2 | Kai |
+| 79 | PDP inline gallery: photo n/N counter + "Video" badge | pdp | both | style | S | P2 | Kai |
+| 80 | PDP: bottom safety note (meet-in-public copy) | pdp | both | style | S | P2 | Kai |
+| 81 | Android PDP: stats row (views/saved/contacted) | pdp | android | style | S | P2 | Kai |
+| 82 | PDP: recently-viewed rail + native view_item/ViewContent beacon | pdp | both | feature | S | P2 | Kai |
+| 83 | My Listings row: saved count (Heart) in meta (add savedCount to Android model) | dashboard | both | style | S | P2 | Kai |
+| 84 | My Listings: greeting hero "Hi {name}" | dashboard | both | style | S | P2 | Kai |
+| 85 | My Listings: stats strip align (Saves + tappable Unread→Messages) | dashboard | both | style | S | P2 | Kai |
+| 86 | My Listings: demand nudge line ("N saved — a price drop usually sells it" + Edit price) | dashboard | both | feature | S | P2 | Kai |
+| 87 | My Listings: per-listing Share action | dashboard | both | feature | S | P2 | Kai |
+| 88 | ◆ 5-level ink ramp + radius tiers 11/9 (rides with #11) | design | both | style | S | P2 | Kai |
+| 89 | Recent LOCATIONS chips in search empty-focus (depends on #34) | search | both | feature | S | P2 | Kai |
+| 90 | Android card: brand·model meta line (add brandSlug/model to Core.kt ListingCard) | home-feed | android | feature | M | P2 | Kai |
+| 91 | Card image carousel (swipe + dots + arrows) | home-feed | both | feature | M | P2 | Kai |
+| 92 | † More-from-this-seller shelf (sameSellerListings) | pdp | both | feature | M | P2 | Kai |
+| 93 | PDP location map section (MapKit / Maps Compose pin) | pdp/search | both | feature | M | P2 | Kai |
+| 94 | PDP inline gallery: blur-fill no-crop (object-contain over blurred backdrop) | pdp | both | style | M | P2 | Kai |
+| 95 | Business analytics: 14-day view/lead sparkline under rows (`/api/dashboard/analytics`) | dashboard | both | feature | M | P2 | Kai |
+| 96 | Skeleton shimmer sweep + branded wordmark overlay | design | both | style | M | P2 | Kai |
+| 97 | Per-category facets in results (year/mileage/RAM ranges + attr selects) | home-feed/search | both | feature | L | P2 | Kai |
+| 98 | Card video autoplay (muted, IO/visibility-gated loop) | home-feed | both | feature | L | P2 | Kai |
+| 99 | Native map view with Airbnb-style price pins + info card + near-you radius | home-feed/search | both | feature | L | P2 | Kai |
+| 100 | TikTok-style full-screen vertical video feed view | home-feed | both | feature | L | P2 | Kai |
 | 101 | Thread header: trust meta + "New user" honesty pill + tappable seller/listing links | messages/trust | both | feature | S | P2 | Murat |
 | 102 | Inbox conversation search (client-side filter) | messages | both | feature | S | P2 | Murat |
 | 103 | 5-second delete-undo (defer DELETE) instead of immediate delete | messages | both | feature | S | P2 | Murat |
@@ -145,7 +145,7 @@ Legend — **Kind**: bugfix / feature / style. **Effort**: S (<½ day) · M (~1 
 | 131 | Native edit-prefill Post form + PATCH (replace web edit sheet) | post | both | feature | L | P2 | Murat |
 | 132 | Supabase realtime delivery to replace the 12s poll | messages | both | feature | L | P2 | Murat |
 
-**Load balance:** Kyle ≈ 66 items (Android bug cleanup + PDP/Feed/Search buildout + MyListings + card/trust surfacing), Murat ≈ 66 items (all of Post + Messages transactional depth + Settings/Account + Auth + Saved). Roughly even; both lists are far larger than one day — priorities and the foundations block are what gate "today."
+**Load balance:** Kai ≈ 66 items (Android bug cleanup + PDP/Feed/Search buildout + MyListings + card/trust surfacing), Murat ≈ 66 items (all of Post + Messages transactional depth + Settings/Account + Auth + Saved). Roughly even; both lists are far larger than one day — priorities and the foundations block are what gate "today."
 
 ## 3. Shared foundations first (do before dependent feature work)
 
@@ -160,7 +160,7 @@ These are cheap, cross-cutting, and every later item inherits them. **Land them 
 
 ## 4. Per-lane ordered checklists
 
-### Kyle — start here (Android bugs → Android styling sweep → tokens/trust → Feed/Search/PDP/MyListings)
+### Kai — start here (Android bugs → Android styling sweep → tokens/trust → Feed/Search/PDP/MyListings)
 
 **Block A — P0 bugs (ship today):**
 1. `#1` Android My Listings Edit/View action — `MyListings.kt:143-152`, add DropdownMenuItem → `WebTab('/listings/{id}')` (mirror iOS `MyListingsView.swift:186`).
@@ -195,8 +195,8 @@ These are cheap, cross-cutting, and every later item inherits them. **Land them 
 3. `#39` subcategory+type · `#40` brand+model · `#41` gate condition · `#42` urgent+coupling · `#43` contactName · `#44` full autofill apply · `#53` chip+range facets · `#54` errors by body code (`Post.kt:206`). Ensure `submit()` sends every new field.
 
 **Block C — Messages transactional depth (both platforms):**
-4. `#38` chat report entry (needs ReportSheet — coordinate with Kyle #32; whoever lands first owns the shared component) · `#37` off-platform warning · `#36` MarkSoldPrompt.
-5. `#47` contact reveal (phone/Zalo) · `#48` buyer offer in thread · `#49` quick-reply chips (**† availabilityConfirmedAt**) · `#50` review prompt (**† hasReviewed**) · `#51` opener+offer from listing detail (**edits `ListingDetailView.swift`/`Detail.kt` — coordinate with Kyle**).
+4. `#38` chat report entry (needs ReportSheet — coordinate with Kai #32; whoever lands first owns the shared component) · `#37` off-platform warning · `#36` MarkSoldPrompt.
+5. `#47` contact reveal (phone/Zalo) · `#48` buyer offer in thread · `#49` quick-reply chips (**† availabilityConfirmedAt**) · `#50` review prompt (**† hasReviewed**) · `#51` opener+offer from listing detail (**edits `ListingDetailView.swift`/`Detail.kt` — coordinate with Kai**).
 
 **Block D — Post both-platform P1:**
 6. `#55` geolocate+lat/lng · `#56` missing-field checklist · `#57` success screen · `#62` video upload (L, Supabase buckets).
@@ -208,7 +208,7 @@ These are cheap, cross-cutting, and every later item inherits them. **Land them 
 
 ## 5. Callouts — new endpoints, owner input, paid/config dependencies
 
-**New / extended server endpoints or payload fields (Kyle owns server side):**
+**New / extended server endpoints or payload fields (Kai owns server side):**
 - `#31` **PDP reviews preview** — `/api/listings/[id]` envelope currently returns only `{listing, priceBand}` (`route.ts:33`); add `reviews[]/avg/total` (from `topSellerReviews`).
 - `#92` **More-from-this-seller** — add `sameSellerListings` to the envelope or a new `GET /api/sellers/[id]/listings`.
 - `#49` `#50` **Chat models** — decode `listing.availabilityConfirmedAt` and `hasReviewed` (both absent from native `ChatThread`); server already has the data.
@@ -227,4 +227,4 @@ These are cheap, cross-cutting, and every later item inherits them. **Land them 
 
 **Coordination hotspots (avoid clobbering):**
 - `#32`/`#38` share one **ReportSheet** component — first lander builds it, the other imports. Announce on the board.
-- `#51` (Murat) **edits `ListingDetailView.swift`/`Detail.kt`** which are Kyle's PDP files — sequence after Kyle's Block D or pair up. `git add -A` remains **banned**; stage explicit paths.
+- `#51` (Murat) **edits `ListingDetailView.swift`/`Detail.kt`** which are Kai's PDP files — sequence after Kai's Block D or pair up. `git add -A` remains **banned**; stage explicit paths.

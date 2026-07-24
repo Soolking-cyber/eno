@@ -1,4 +1,28 @@
-# Multi-session coordination board
+# Multi-session coordination board — ARCHIVE (as of 2026-07-25)
+
+> ## ⛔ THIS FILE IS NO LONGER THE LIVE BOARD
+>
+> **The live board is `/Users/mk1e3/eno-cockpit/TASKS.md`** (outside the repo), with
+> the real claim state in `~/eno-cockpit/claims/` via `~/eno-cockpit/claim.sh`.
+> Protocol: CLAUDE.md → "Parallel sessions — Cockpit v2".
+>
+> Keep this file for **history and incident record only**. Do not claim work here.
+> The rows below are a log; **a row's status field is not evidence** — several rows
+> read OPEN or ACTIVE for work that has long since shipped. Check the tree.
+>
+> **⚠️ NATIVE IS UN-SHELVED (owner, 2026-07-25).** This **supersedes the "STOP native
+> app work / SHELVE apps/ios AND apps/android" directive of 2026-07-21** below, and the
+> "rows 48–92 are SUPERSEDED, not open" tombstone with it. `apps/ios` and `apps/android`
+> are claimable work again, now assigned via the new board. The Capacitor mobile-web
+> path is not cancelled — native simply resumed alongside it.
+>
+> **Names: the two workers are KAI (renamed from Kyle, 2026-07-25) and MURAT**, plus
+> **ALEX**, who plans and ships and is the only seat that pushes. Historical rows below
+> still say "Kyle" — that is deliberate, so past attribution stays accurate.
+> **Kyle == Kai.**
+
+<details>
+<summary>Retired protocol (2026-07-19, shared-worktree era) — kept for context</summary>
 
 Two or more Claude Code sessions often work this repo **in the same worktree**.
 This file is the live claims board. Protocol (also in CLAUDE.md, "Parallel
@@ -21,6 +45,12 @@ sessions"):
 cockpit launcher (`~/eno-cockpit.sh`, wired into the SessionStart hook; it also keeps
 the two second-opinion terminals, Codex and Agy, open). At session start run
 `echo $ENO_SESSION` to learn which one you are; sign this board with that name.
+
+</details>
+
+The `git add -A` ban and the "leave anything dirty outside your claim" rule **still
+bind** — they moved to CLAUDE.md and the `/work` skill, hardened into literal-pathspec
+commits.
 
 | Session (started) | Claim | Files / area | Status |
 |---|---|---|---|
