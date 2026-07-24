@@ -1702,6 +1702,7 @@ export const UI_STRINGS: string[] = [
   "Villa",
   "Visa",
   "Visa runs",
+  "Visa type",
   "Visit in person before paying any deposit — never wire money to hold a place.",
   "Visit shop",
   "Visit the Help center",
