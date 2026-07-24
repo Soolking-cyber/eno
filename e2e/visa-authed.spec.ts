@@ -117,8 +117,15 @@ test.describe.serial('e-Visa applicant · generic start → picker in chat → m
         .or(page.getByRole('button', { name: /Continue in chat|Tiếp tục trong chat/ }))
         .first(),
     ).toBeVisible()
-    // Still no product rows: management stayed management after the case exists.
-    await expect(page.getByText(/Single entry|Multiple entry|Nhập cảnh một lần/)).toHaveCount(0)
+    // Still MANAGEMENT, not a shop — but the old proxy for that ("the words 'Single entry'
+    // never appear anywhere") stopped expressing it on 2026-07-24, when the case row began
+    // NAMING the visa type it was applied for. That label is the opposite of a picker: it
+    // describes a case you already have. So assert the thing the contract actually means —
+    // nothing here offers a product to CHOOSE, i.e. no prices and no product rows.
+    await expect(page.getByText(/\d[\d.,]*\s*(₫|đ|VND)/)).toHaveCount(0)
+    // …and positively: the row DOES name its type, which is what lets a buyer tell two of
+    // their cases apart now that a different type starts its own case.
+    await expect(page.getByText(/Single entry|Multiple entry|Một lần|Nhiều lần/).first()).toBeVisible()
   })
 
   test('phase 4 · applicant entitlements: admin surfaces refuse, foreign cases do not exist', async ({ page }) => {

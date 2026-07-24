@@ -863,11 +863,98 @@ describe('start', () => {
     expect(h.state.stepCards).toHaveLength(1)
   })
 
-  it("prefills the entry type the picked product determines", async () => {
-    seedCase()
+  it('prefills the entry type the picked product determines', async () => {
+    // A draft with NO type yet ADOPTS the picked product — there is no earlier choice to
+    // preserve, so this must not mint a second case.
+    seedCase({ selected: false })
     h.state.products = [{ ...h.state.products[0], entryType: 'multiple' }]
     await startVisaDmFlow({ userId: BUYER, email: 'traveller@example.com', listingId: 'listing-1' })
+    expect(h.state.tables.visa_applications).toHaveLength(1)
     expect(JSON.parse(h.state.tables.visa_applications[0].encrypted_payload).entryType).toBe('multiple')
+  })
+
+  // ── Applying for a DIFFERENT visa type starts its own case (owner, 2026-07-24) ──────
+  it('a DIFFERENT visa type mints a new case and leaves the earlier draft untouched', async () => {
+    seedCase() // committed to single / 1H
+    const before = { ...h.state.tables.visa_applications[0] }
+    h.state.products = [{ ...h.state.products[0], entryType: 'multiple' }]
+    const result = await startVisaDmFlow({ userId: BUYER, email: 'traveller@example.com', listingId: 'listing-1' })
+    expect(result).toMatchObject({ ok: true })
+    expect(h.state.tables.visa_applications).toHaveLength(2)
+    // The earlier draft is preserved EXACTLY — same type, same payload, same timestamp. Losing
+    // this is precisely the bug: one draft, last tap wins.
+    const kept = h.state.tables.visa_applications.find((r: Row) => r.id === APPLICATION)!
+    expect(kept.selected_entry_type).toBe('single')
+    expect(kept.selected_speed).toBe('1H')
+    expect(kept.encrypted_payload).toBe(before.encrypted_payload)
+    expect(kept.updated_at).toBe(before.updated_at)
+    // …and the NEW case carries the newly picked type.
+    const minted = h.state.tables.visa_applications.find((r: Row) => r.id !== APPLICATION)!
+    expect(minted.selected_entry_type).toBe('multiple')
+    expect(minted.status).toBe('draft')
+  })
+
+  it('re-opening the OLDER type finds ITS case — switching back and forth never piles up drafts', async () => {
+    // ⚠️ The reuse lookup used to return only the NEWEST draft. Once a buyer legitimately holds
+    // two (one per type), comparing against the newest would see a different type and mint a
+    // duplicate on every switch back (codex, review of the finished diff). The lookup is
+    // type-aware now, so this settles at exactly two cases no matter how often you flip.
+    seedCase() // single / 1H  (the older draft)
+    const multiple = { ...h.state.products[0], entryType: 'multiple' as const }
+    const single = { ...h.state.products[0] }
+    h.state.products = [multiple]
+    await startVisaDmFlow({ userId: BUYER, email: 'traveller@example.com', listingId: 'listing-1' })
+    expect(h.state.tables.visa_applications).toHaveLength(2)
+    // Back to the ORIGINAL type — must re-open the first case, not mint a third.
+    h.state.products = [single]
+    await startVisaDmFlow({ userId: BUYER, email: 'traveller@example.com', listingId: 'listing-1' })
+    expect(h.state.tables.visa_applications).toHaveLength(2)
+    // And forth again — still two.
+    h.state.products = [multiple]
+    await startVisaDmFlow({ userId: BUYER, email: 'traveller@example.com', listingId: 'listing-1' })
+    expect(h.state.tables.visa_applications).toHaveLength(2)
+  })
+
+  it('an UNREADABLE draft of the right type falls through to a readable one, it does not mint', async () => {
+    // The old lookup decrypted exactly one row, so an unreadable favourite forced a new case
+    // even when a perfectly good draft of the same type sat behind it (codex, confirm round).
+    seedCase() // single / 1H, readable
+    const readable = h.state.tables.visa_applications[0]
+    // A NEWER row of the same type whose payload this deployment cannot decrypt.
+    h.state.tables.visa_applications = [
+      { ...readable, id: 'unreadable-1', encrypted_payload: '!!not-json!!', updated_at: '2026-07-03T00:00:00.000Z' },
+      readable,
+    ]
+    const result = await startVisaDmFlow({ userId: BUYER, email: 'traveller@example.com', listingId: 'listing-1' })
+    expect(result).toMatchObject({ ok: true, applicationId: APPLICATION })
+    expect(h.state.tables.visa_applications).toHaveLength(2) // nothing minted
+  })
+
+  it('the SAME visa type is still a re-open, not a new case', async () => {
+    seedCase() // single / 1H, and the product is the same
+    await startVisaDmFlow({ userId: BUYER, email: 'traveller@example.com', listingId: 'listing-1' })
+    expect(h.state.tables.visa_applications).toHaveLength(1)
+  })
+
+  it('a re-open whose LISTING id changed but whose type did not is NOT a new case', async () => {
+    // ⚠️ The reason "different type" is decided on entry type + speed and never on listingId
+    // (codex, plan review): a legacy row can carry a null selected_listing_id beside a good
+    // type, and the desk re-creating a listing changes its id while selling the same visa.
+    // Comparing ids would mint a redundant case for a plain re-open.
+    seedCase()
+    h.state.tables.visa_applications[0].selected_listing_id = null
+    await startVisaDmFlow({ userId: BUYER, email: 'traveller@example.com', listingId: 'listing-1' })
+    expect(h.state.tables.visa_applications).toHaveLength(1)
+  })
+
+  it('a different type still obeys the create quota and the concurrent cap', async () => {
+    seedCase()
+    h.state.products = [{ ...h.state.products[0], entryType: 'multiple' }]
+    const denied = await startVisaDmFlow({
+      userId: BUYER, email: 'traveller@example.com', listingId: 'listing-1', allowCreate: async () => false,
+    })
+    expect(denied).toMatchObject({ ok: false, error: 'rate_limited', status: 429 })
+    expect(h.state.tables.visa_applications).toHaveLength(1) // nothing minted, nothing overwritten
   })
 
   it('creates a case when there is no draft, and honours the create quota', async () => {

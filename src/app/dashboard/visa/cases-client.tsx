@@ -10,6 +10,7 @@ import { useDashboard } from '@/hooks/use-dashboard'
 import { useLanguage } from '@/context/language-context'
 import type { VisaPayload } from '@/lib/visa/schema'
 import { Badge } from '@/components/ui/badge'
+import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -20,7 +21,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { SectionHeader } from '@/components/marketplace/section-header'
 import { useMinuteTick, VisaStart } from '@/components/marketplace/visa-start'
 import { expectedVisaReadyAt } from '@/lib/visa/eta'
-import { parseVisaSpeedCode } from '@/lib/visa/speed'
+import { parseVisaSpeedCode, VISA_SPEED_SPECS } from '@/lib/visa/speed'
 
 // ── /dashboard/visa — YOUR e-VISA CASES: MANAGEMENT ONLY (Phase 3). ────────────────
 //
@@ -59,6 +60,10 @@ type VisaApplication = {
   reference?: string | null
   /** The canonical product choice's speed tier (Phase 2) — the ETA's input. */
   selectedSpeed?: string | null
+  /** The canonical product choice's entry type. With `selectedSpeed` this IS the visa type
+   *  the case was applied for — the one fact that tells two of a buyer's cases apart at a
+   *  glance (owner 2026-07-24: "user should distinguish visa types they applied for"). */
+  selectedEntryType?: string | null
   payload?: VisaPayload
   paidAt: string | null
   createdAt: string
@@ -178,6 +183,29 @@ const hcmPromise = (instant: Date, lang: string) =>
     timeZone: 'Asia/Ho_Chi_Minh', weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false,
   }).format(instant)
 
+/**
+ * The visa TYPE this case was applied for — "Single entry · 1 working day".
+ *
+ * The one line that tells a buyer's cases apart: the reference is opaque (EV-1042), the status
+ * is often identical across rows, and now that applying for a DIFFERENT type mints its own case
+ * (startVisaDmFlow), a buyer can legitimately hold several at once. Returns null when the case
+ * has no product yet (a generic draft still at the picker) — nothing is invented.
+ */
+function VisaTypeLabel({ item, tr, className }: { item: VisaApplication; tr: Tr; className?: string }) {
+  const speed = parseVisaSpeedCode(item.selectedSpeed)
+  const entry = item.selectedEntryType
+  if (!entry && !speed) return null
+  const entryText = entry === 'multiple' ? tr('Multiple entry', 'Nhiều lần') : entry === 'single' ? tr('Single entry', 'Một lần') : null
+  const spec = speed ? VISA_SPEED_SPECS[speed] : null
+  const speedText = spec ? tr(spec.label, spec.labelVi) : null
+  return (
+    <span className={cn('inline-flex min-w-0 items-center gap-1.5', className)}>
+      {entryText && <Badge variant="neutral" className="whitespace-nowrap">{entryText}</Badge>}
+      {speedText && <span className="truncate text-xs text-body">{speedText}</span>}
+    </span>
+  )
+}
+
 /** Coarse honest remainder — "about 3 h" / "about 2 days"; null once under a minute. */
 function remainingCopy(ms: number, tr: Tr): string | null {
   if (ms < 60_000) return null
@@ -280,6 +308,16 @@ function CaseRow({ item, conversationId, deskThreadId, isDetail, busy, now, lang
         <Badge variant={chip?.variant ?? 'neutral'}>{chip ? tr(chip.en, chip.vi) : item.status}</Badge>
         {item.paidAt && <Badge variant="success"><Check className="h-3 w-3" />{tr('Fee paid', 'Đã trả phí')}</Badge>}
       </div>
+      {/* MOBILE PARITY (owner 2026-07-24: "desktop shows but mobile is still as before").
+          The desktop table gained Visa type / Full name / Date of birth columns; the phone
+          card still showed only the reference and a status sentence, so two cases for the
+          same person were indistinguishable on the surface most buyers actually use. */}
+      <VisaTypeLabel item={item} tr={tr} className="mt-2 flex-wrap" />
+      {(fullNameOf(item) || dobOf(item)) && (
+        <p className="mt-1.5 truncate text-xs text-body">
+          {fullNameOf(item) ?? '—'}{dobOf(item) ? ` · ${dobOf(item)}` : ''}
+        </p>
+      )}
       <p className="mt-2 text-sm font-semibold text-foreground">{copy.title}</p>
       <p className="mt-1 text-xs leading-relaxed text-body">{copy.detail}</p>
       <CaseEta item={item} now={now} lang={lang} tr={tr} />
@@ -605,6 +643,9 @@ export function VisaCasesClient({ threads }: {
               <TableRow className="bg-tint/60 hover:bg-tint/60">
                 <TableHead className="w-10 text-center">{tr('No', 'STT')}</TableHead>
                 <TableHead>{tr('App no.', 'Mã hồ sơ')}</TableHead>
+                {/* The visa TYPE — the column that tells a repeat applicant's cases apart now
+                    that applying for a different type mints its own case. */}
+                <TableHead>{tr('Visa type', 'Loại thị thực')}</TableHead>
                 <TableHead>{tr('Full name', 'Họ và tên')}</TableHead>
                 <TableHead>{tr('Date of birth', 'Ngày sinh')}</TableHead>
                 <TableHead>{tr('Date', 'Ngày')}</TableHead>
@@ -629,6 +670,7 @@ export function VisaCasesClient({ threads }: {
                   <TableRow key={item.id}>
                     <TableCell className="text-center text-ink-4">{i + 1}</TableCell>
                     <TableCell className="whitespace-nowrap font-mono text-sm font-bold text-accent-foreground">{caseLabel(item)}</TableCell>
+                    <TableCell><VisaTypeLabel item={item} tr={tr} /> {!item.selectedEntryType && !item.selectedSpeed && <span className="text-ink-4">—</span>}</TableCell>
                     <TableCell className="font-semibold text-foreground">{fullNameOf(item) ?? <span className="font-normal text-ink-4">—</span>}</TableCell>
                     <TableCell className="whitespace-nowrap text-body">{dobOf(item) ?? '—'}</TableCell>
                     <TableCell className="whitespace-nowrap text-body">{caseDate(item)}</TableCell>

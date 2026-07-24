@@ -943,7 +943,7 @@ async function recordVisaResend(
 // ── Starting the flow ─────────────────────────────────────────────────────────────
 
 /** Newest case this applicant may still edit, or null. */
-async function reusableVisaApplication(userId: string): Promise<VisaApplicationRow | null> {
+async function reusableVisaApplications(userId: string): Promise<VisaApplicationRow[]> {
   const { data, error } = await getVisaDb()
     .from('visa_applications')
     .select('*')
@@ -954,9 +954,22 @@ async function reusableVisaApplication(userId: string): Promise<VisaApplicationR
     // the writer's paid_at guard and rewrite a case money already changed hands on.
     .is('paid_at', null)
     .order('updated_at', { ascending: false })
-    .limit(1)
+    // Deterministic tiebreak: two drafts touched in the same millisecond would otherwise be
+    // ordered arbitrarily, so which one a re-open lands on could change between calls (codex).
+    .order('created_at', { ascending: false })
+    .order('id', { ascending: false })
+    // ⚠️ Was `.limit(1)`. Now that applying for a different visa type keeps the earlier draft,
+    // a buyer legitimately holds SEVERAL editable drafts, and "the newest" is no longer the
+    // right answer — re-opening the OLDER type would compare against the newer draft, see a
+    // different type, and mint a duplicate every single time (codex, review of the finished
+    // diff). Bounded by the concurrent-case ceiling, so this reads at most that many rows.
+    // Headroom ABOVE the concurrent ceiling on purpose: that ceiling is enforced at create
+    // time with an accepted soft race (two simultaneous starts can overshoot by one), and a
+    // matching draft that fell outside this window would be invisible — minting the duplicate
+    // this lookup exists to prevent (codex).
+    .limit(MAX_ACTIVE_VISA_APPLICATIONS * 2)
   if (error) throw error
-  return ((data as VisaApplicationRow[] | null) || [])[0] ?? null
+  return (data as VisaApplicationRow[] | null) || []
 }
 
 /** The canonical selection columns, as one SET fragment — always from a server-resolved product. */
@@ -966,6 +979,56 @@ const selectionColumns = (product: VisaShopProduct, at?: string): Record<string,
   selected_speed: product.speed,
   selected_at: at ?? new Date().toISOString(),
 })
+
+/**
+ * Has this case already committed to a visa TYPE? (A generic draft sitting at the picker
+ * has not, so adopting it for a freshly picked product overwrites nothing.)
+ */
+const hasVisaType = (application: VisaApplicationRow): boolean =>
+  !!application.selected_entry_type && !!application.selected_speed
+
+/**
+ * Is the case's committed visa TYPE the same one this product sells?
+ *
+ * ⚠️ ENTRY TYPE + SPEED ONLY — deliberately NOT the listingId, which `selectionMatches`
+ * below does include. The listing is merely WHICH ROW the product came from: a legacy case
+ * can carry a null `selected_listing_id` beside a perfectly good entry type and speed, and
+ * the desk re-creating a listing changes its id while selling the identical visa. Deciding
+ * "is this a different visa type" on the listing id would call both of those a different
+ * type and mint a redundant case for a plain re-open (both external reviewers, plan review).
+ * The owner's rule is about the TYPE, so this is what it compares.
+ */
+const sameVisaType = (application: VisaApplicationRow, product: VisaShopProduct): boolean =>
+  application.selected_entry_type === product.entryType &&
+  application.selected_speed === product.speed
+
+/**
+ * Which of the buyer's editable drafts should this start RE-OPEN — or none, meaning mint one?
+ *
+ * `candidates` arrive newest-first, so every `.find` below picks the most recent match.
+ *   · GENERIC start (no product): the newest draft, exactly as before — a re-open of "my
+ *     application", with no product opinion to reconcile.
+ *   · A draft ALREADY on this visa type: a re-open of that case. Chosen BEFORE anything else
+ *     so switching back and forth between two types keeps landing on the same two cases
+ *     instead of minting a third, fourth, fifth… (codex).
+ *   · Otherwise a draft with NO committed type — including a half-written legacy row missing
+ *     one of the two columns — can adopt the picked product: there is no earlier choice to
+ *     protect, so filling it in destroys nothing.
+ *   · Otherwise every draft is on a DIFFERENT type: leave them all alone and return null, and
+ *     the caller mints a new case for the newly picked type.
+ */
+function reusableVisaCandidates(
+  candidates: VisaApplicationRow[],
+  product: VisaShopProduct | null,
+): VisaApplicationRow[] {
+  if (!candidates.length || !product) return candidates
+  // Drafts on a DIFFERENT type are deliberately absent from this list: they are exactly what
+  // the owner asked to preserve, so they are never reused and never overwritten.
+  return [
+    ...candidates.filter((c) => hasVisaType(c) && sameVisaType(c, product)),
+    ...candidates.filter((c) => !hasVisaType(c)),
+  ]
+}
 
 /** Does the row's canonical selection already record exactly this product? */
 const selectionMatches = (application: VisaApplicationRow, product: VisaShopProduct): boolean => {
@@ -1022,19 +1085,26 @@ export async function startVisaDmFlow(input: {
   const shop = await getVisaShopSeller()
   if (!shop?.ownerId) return fail('shop_unavailable', 503)
 
-  let existing = await reusableVisaApplication(input.userId)
+  // Which draft (if any) this start re-opens. A named product prefers a draft ALREADY on its
+  // visa type, so applying for a DIFFERENT type leaves the earlier one untouched and mints its
+  // own case below (owner, 2026-07-24) — see pickReusableVisaApplication.
   // ⚠️ AN UNREADABLE DRAFT MUST NOT BRICK THE ACCOUNT (prod incident 2026-07-23): five
   // forum-era rows are encrypted under the PREVIOUS key, and reusing one threw here —
   // turning every /start for that account into a 500 with no way out. A draft this
-  // deployment cannot read is not reusable BY DEFINITION: log it, leave it for the
-  // data-side migration, and mint a fresh case instead.
+  // deployment cannot read is not reusable BY DEFINITION.
+  //
+  // We walk the candidates IN PREFERENCE ORDER rather than decrypting only the best one: an
+  // unreadable favourite must not mint a new case while a perfectly readable draft of the same
+  // type sits behind it (codex). Only when none of them opens do we fall through and create.
+  let existing: VisaApplicationRow | null = null
   let existingPayload: VisaPayload | null = null
-  if (existing) {
+  for (const candidate of reusableVisaCandidates(await reusableVisaApplications(input.userId), product)) {
     try {
-      existingPayload = decryptVisaPayload(existing.encrypted_payload)
+      existingPayload = decryptVisaPayload(candidate.encrypted_payload)
+      existing = candidate
+      break
     } catch (e) {
-      console.error(`[visa-dm] reusable draft ${existing.id} is unreadable under the current key — starting fresh`, e)
-      existing = null
+      console.error(`[visa-dm] reusable draft ${candidate.id} is unreadable under the current key — trying the next`, e)
     }
   }
   const prefill = product ? (visaPrefillForProduct(product) ?? {}) : {}
