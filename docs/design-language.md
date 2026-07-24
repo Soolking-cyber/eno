@@ -68,6 +68,33 @@ free. **Allowlisted raw hex:** third-party brand marks (Google logo, payment
 logos), map/canvas drawing code, `theme-color`/OG meta, email templates. The
 allowlist lives in `scripts/design-lint.mjs`.
 
+## 3b. Flat surfaces — lines, not boxes
+
+Owner, 2026-07-24: *"minimal boxes as much as open borders with lines between elements … adapt
+it to all pages … background color as uniform as possible almost no boxes."* Planned and
+CONFIRMED by both external reviewers; migration plan in `docs/flat-surface-plan.md`.
+
+**ONE canvas.** `--card` is deliberately IDENTICAL to `--background` in both themes. A panel is
+not a lighter rectangle — it is content on the same surface, separated by a hairline.
+
+- Related rows → `divide-y divide-border` (use the `ui/rows` primitive).
+- Sections → a single `border-t border-border` + vertical rhythm (`RowsSection`).
+- Wells and chips that genuinely need to sit apart → `tint`, never a restored card.
+- ⚠️ **Never add a second general-purpose panel colour** to get depth back. A fill that is
+  nearly the canvas colour is precisely the faint-box look this replaced.
+
+**Elevation must mean something.** Surface + shadow survive ONLY where the element floats above
+the page and the boundary carries information: dialog, popover/menu, toast, sticky bar, media
+lightbox. Those use `popover`, not `card`. Everything in normal flow is flat.
+
+**Structure has to be real, not painted.** Removing a fill removes a *visual* group, so the
+semantic one must exist: headings, `<section>`, list markup. Hairlines that identify a control
+keep non-text contrast (WCAG 1.4.11), and focus rings must stay obvious on the flat canvas.
+
+⚠️ **The marketplace GRID is not flattened yet — deliberately.** The two reviewers split on it:
+a product card's boundary is what says *this is one item*, and getting that wrong in a feed
+costs conversions. It stays a separate, owner-reviewed decision.
+
 ## 4. Spacing & layout
 
 - 8pt rhythm: prefer `1 / 2 / 3 / 4 / 6 / 8 / 12` steps (4–48px).

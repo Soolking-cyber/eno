@@ -130,7 +130,16 @@
      gain subtle Airbnb-style depth without reintroducing borders/boxes. */
   --background: #fafafa;
   --foreground: #171717;
-  --card: #ffffff;
+  /* ⚠️ THE FLAT CANVAS (owner 2026-07-24: "background color as uniform as possible almost no
+     boxes"). `--card` is deliberately IDENTICAL to `--background`, which flattens all ~112
+     `bg-card` call sites at once without editing one of them — the surface stops being a box
+     and separation becomes the job of hairlines and rhythm instead.
+     ⚠️ Do NOT reintroduce a second general-purpose panel colour to "get some depth back"
+     (codex): a near-identical fill is exactly the faint-box look this replaces. Something that
+     genuinely needs to sit apart uses `--tint` (a real well) or a `--border` hairline. Things
+     that FLOAT — dialog, popover, menu, toast, sticky bar, lightbox — keep their own elevated
+     surface, because there the boundary is the information. See docs/flat-surface-plan.md. */
+  --card: #fafafa;
   --card-foreground: #171717;
   /* Floating panels MATCH the canvas (user decision 2026-07-13 — pure-white
      dropdowns read lighter than the #fafafa app). Dark keeps its lighter
@@ -276,7 +285,9 @@
 
   --background: #1b1b1b;   /* soft neutral canvas (lighter than near-black) */
   --foreground: #f0f0f0;
-  --card: #242424;         /* elevated surface, sits clearly above the canvas */
+  /* Flat canvas in dark too — same reasoning as light. Floating surfaces (--popover) keep the
+     lift; an in-flow panel does not. */
+  --card: #1b1b1b;
   --card-foreground: #f0f0f0;
   --popover: #2a2a2a;
   --popover-foreground: #f0f0f0;

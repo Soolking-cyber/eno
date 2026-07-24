@@ -62,7 +62,12 @@ export function Segmented<T extends string>({
           total horizontal padding); translateX by whole segment widths keeps it grid-aligned. */}
       <span
         aria-hidden
-        className="pointer-events-none absolute inset-y-1 left-1 -z-10 rounded-lg bg-card shadow-sm motion-safe:transition-transform"
+        // ⚠️ bg-background, NOT bg-card. The sliding pill has to read against the `bg-tint`
+        // track, and since the flat-canvas change made `--card` identical to `--background`
+        // (2026-07-24) a `bg-card` pill on a tint track is a ~2% difference — i.e. no visible
+        // selection at all. This is a WELL/PILL pairing, one of the cases the flat language
+        // keeps on purpose: tint track, canvas-coloured pill, plus the shadow.
+        className="pointer-events-none absolute inset-y-1 left-1 -z-10 rounded-lg bg-background shadow-sm motion-safe:transition-transform"
         style={{
           width: `calc((100% - 0.5rem) / ${count})`,
           transform: `translateX(${index * 100}%)`,
