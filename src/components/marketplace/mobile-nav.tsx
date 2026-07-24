@@ -197,9 +197,12 @@ export function MobileNav() {
     <nav
       inert={keyboardOpen}
       className={cn(
-        // No top border — the bar is a pure bg-card layer that blends into the canvas; the
-        // spatial split + the active-tab colour carry the hierarchy, not a divider line.
-        'mobile-nav lg:hidden fixed inset-x-0 bottom-0 z-40 bg-card pb-[env(safe-area-inset-bottom)] transition-[transform,opacity] duration-[250ms] ease-out [will-change:transform,opacity] motion-reduce:transition-none',
+        // A hairline top divider. The flat pass (design-language §3b) collapsed --card INTO
+        // --background, so a bare bg-card bar is now the SAME colour as the page and blended
+        // invisibly into the content scrolling beneath it — the old "no top border, the fill
+        // carries it" choice broke the moment the fill stopped differing from the canvas. The
+        // border-t is the "line, not box" separation the flat language uses.
+        'mobile-nav lg:hidden fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card pb-[env(safe-area-inset-bottom)] transition-[transform,opacity] duration-[250ms] ease-out [will-change:transform,opacity] motion-reduce:transition-none',
         // Reveal-on-focus: if a keyboard user tabs into the (scroll-hidden) bar, :focus-within
         // out-specificities the retract below and slides it back into view — never an invisible,
         // focused control. (Harmless while docked; a no-op when inert during keyboard-up.)

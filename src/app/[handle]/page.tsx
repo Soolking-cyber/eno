@@ -120,7 +120,7 @@ export default async function HandlePage({ params }: Props) {
     <div className="flex min-h-screen flex-col blob-bg">
       <Header />
       <main id="main" tabIndex={-1} className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-10 pb-12">
-        <div className="mx-auto max-w-md rounded-2xl bg-card p-8 text-center shadow-xs">
+        <div className="mx-auto max-w-md rounded-2xl bg-popover p-8 text-center shadow-xs">
           <Avatar name={name} url={row.profile.avatarUrl} color={row.profile.avatarColor} size="2xl" className="mx-auto" />
           <h1 className="mt-4 text-xl font-bold text-foreground">{name}</h1>
           <p className="mt-0.5 text-sm font-semibold text-accent-foreground">@{row.handle}</p>

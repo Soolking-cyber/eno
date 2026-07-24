@@ -15,7 +15,7 @@ export default function BrandsLoading() {
         <Skeleton className="mt-2 h-5 w-full max-w-md" />
         <div className="mt-7 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
           {Array.from({ length: 15 }).map((_, i) => (
-            <div key={i} className="flex flex-col items-center gap-3 rounded-2xl bg-card px-4 py-6">
+            <div key={i} className="flex flex-col items-center gap-3 rounded-2xl bg-tint px-4 py-6">
               {/* BrandLogo size=44 (square monotone mark) */}
               <Skeleton className="h-11 w-11 rounded-lg" />
               {/* name: text-sm (20px) · count: text-xs (16px) */}
