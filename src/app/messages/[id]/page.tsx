@@ -147,7 +147,7 @@ function VisaAssistChips({
           "armed" and "thinking" are states a label cannot show. basis-full keeps it on its own
           line inside the caller's flex row. */}
       {(!compact || thinking || armed) && (
-        <p className={cn('text-2xs leading-relaxed text-ink-4', compact && 'basis-full')}>
+        <p className={cn('text-2xs leading-relaxed text-ink-4', compact && 'basis-full order-last')}>
           {thinking
             ? tr('Eno concierge is reading your application…', 'Eno concierge đang xem hồ sơ của bạn…')
             : armed
@@ -157,7 +157,7 @@ function VisaAssistChips({
       )}
       {/* role="status" so a screen reader hears the refusal — the chips do not move. */}
       {error && (
-        <p role="status" className={cn('flex items-start gap-1.5 text-2xs leading-relaxed text-warning', compact && 'basis-full')}>
+        <p role="status" className={cn('flex items-start gap-1.5 text-2xs leading-relaxed text-warning', compact && 'basis-full order-last')}>
           <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden />
           {conciergeErrorCopy(error, tr)}
         </p>

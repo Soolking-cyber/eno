@@ -2129,13 +2129,13 @@ export function VisaResendChip({ info, isDesk, busy, error, onResend, otherCases
       {/* basis-full in compact mode: the wrapper is display:contents, so these notes are flex
           items of the CALLER row — without it they would sit between the chips. */}
       {paused && (
-        <p className={cn('text-2xs leading-relaxed text-body', compact && 'basis-full')}>
+        <p className={cn('text-2xs leading-relaxed text-body', compact && 'basis-full order-last')}>
           {tr('Paused while a specialist is in this chat.', 'Tạm dừng trong khi chuyên viên đang trong cuộc trò chuyện này.')}
         </p>
       )}
       {/* role="status" so a screen reader hears the refusal — the chip itself does not move. */}
       {error && (
-        <p role="status" className={cn('flex items-start gap-1.5 text-2xs leading-relaxed text-warning', compact && 'basis-full')}>
+        <p role="status" className={cn('flex items-start gap-1.5 text-2xs leading-relaxed text-warning', compact && 'basis-full order-last')}>
           <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0" aria-hidden />
           {visaErrorCopy(error, tr)}
         </p>
