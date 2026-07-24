@@ -1,7 +1,6 @@
 import { cache } from 'react'
 import { notFound } from 'next/navigation'
-import Link from 'next/link'
-import { AlertTriangle, BadgeCheck, ChevronLeft } from 'lucide-react'
+import { AlertTriangle, BadgeCheck } from 'lucide-react'
 import { db } from '@/lib/db'
 import { Button } from '@/components/ui/button'
 import { serializeListing } from '@/lib/serialize'
@@ -115,18 +114,6 @@ export async function SellerStorefront({ id }: { id: string }) {
       <ScrollToTop />
       <Header />
       <main id="main" tabIndex={-1} className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-4 pb-12">
-        <div className="mb-5">
-          {/* Collision-safe: gap-1 (vs base gap-2) and transition-colors/duration-150
-              (vs base transition-all duration-100) MUST sit on the <Button> — Base UI
-              concatenates a render-child's className, so they'd lose to the base on
-              stylesheet order if they rode the <Link>. */}
-          <Button asChild variant="bare" size="none" className="gap-1 text-muted-foreground hover:text-accent-foreground transition-colors duration-150">
-            <Link href="/">
-              <ChevronLeft className="h-4 w-4" /> <span><Tr text="Back to Home" /></span>
-            </Link>
-          </Button>
-        </div>
-
         {/* Seller header — shared SellerCard (identity + trust + honest metrics
             strip + the primary "Chat" CTA that was previously ABSENT here). The
             storefront variant omits the "View shop" link back to itself. Storefront-

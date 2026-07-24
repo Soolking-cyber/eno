@@ -183,7 +183,6 @@ export const UI_STRINGS: string[] = [
   "Available!",
   "Baby",
   "Back",
-  "Back to Home",
   "Back to eno.vn",
   "Back to your dashboard",
   "Bags",
