@@ -131,7 +131,7 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
                 single-handle offer slider the contact composer uses. w-28 keeps
                 the row's action cluster from growing. */}
             <EnoSlider
-              min={5} max={50} step={5}
+              min={5} max={50} step={1}
               value={offer}
               onChange={setOffer}
               aria-label={tr('Discount', 'Mức giảm')}

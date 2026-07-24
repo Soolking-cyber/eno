@@ -1361,7 +1361,7 @@ export default function ThreadPage() {
               <div className="flex h-10 min-w-0 flex-1 items-center gap-2.5 self-center px-1 animate-in slide-in-from-left-2 fade-in duration-150">
                 <span className="shrink-0 text-xs font-bold tabular-nums text-foreground">−{offerPct}%</span>
                 <EnoSlider
-                  min={5} max={50} step={5}
+                  min={5} max={50} step={1}
                   value={offerPct}
                   onChange={setOfferPct}
                   aria-label={tr('Discount', 'Mức giảm')}

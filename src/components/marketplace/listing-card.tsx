@@ -410,7 +410,7 @@ function ListingCardImpl({
             <div className="flex items-center gap-2">
               <span className="shrink-0 text-2xs font-bold tabular-nums text-foreground">−{quickOffer}%</span>
               <Slider
-                min={5} max={50} step={5}
+                min={5} max={50} step={1}
                 value={quickOffer}
                 onChange={setQuickOffer}
                 aria-label={tr('Discount', 'Mức giảm')}
