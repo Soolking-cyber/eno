@@ -18,7 +18,7 @@ export default function Error({ error, reset }: { error: Error & { digest?: stri
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center blob-bg px-4 py-16 text-center">
-      <div className="w-full max-w-md rounded-2xl bg-card p-8 shadow-pop">
+      <div className="w-full max-w-md rounded-2xl bg-popover p-8 shadow-pop">
         <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-primary/10 text-brand">
           <AlertTriangle className="h-7 w-7" />
         </span>

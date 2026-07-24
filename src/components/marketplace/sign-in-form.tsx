@@ -378,7 +378,7 @@ export function SignInForm({ className }: { className?: string }) {
       <Tabs value={tab} onValueChange={(v) => { setTab(v as 'email' | 'phone'); reset() }} className="gap-3">
         <TabsList className="flex w-full items-stretch rounded-full bg-tint p-1 text-sm font-semibold group-data-horizontal/tabs:h-auto">
           {(['phone', 'email'] as const).map((m) => (
-            <TabsTrigger key={m} value={m} className="flex h-auto cursor-pointer rounded-full border-0 px-0 py-1.5 text-sm font-semibold outline-none transition-colors duration-100 active:scale-[0.97] text-muted-foreground hover:text-muted-foreground dark:text-muted-foreground dark:hover:text-muted-foreground data-active:bg-card data-active:text-accent-foreground data-active:shadow-sm dark:data-active:bg-card dark:data-active:text-accent-foreground">
+            <TabsTrigger key={m} value={m} className="flex h-auto cursor-pointer rounded-full border-0 px-0 py-1.5 text-sm font-semibold outline-none transition-colors duration-100 active:scale-[0.97] text-muted-foreground hover:text-muted-foreground dark:text-muted-foreground dark:hover:text-muted-foreground data-active:bg-popover data-active:text-accent-foreground data-active:shadow-sm dark:data-active:bg-popover dark:data-active:text-accent-foreground">
               {m === 'email' ? <Mail className="h-4 w-4" /> : <Phone className="h-4 w-4" />}
               {m === 'email' ? tr('Email') : t('Phone', 'Điện thoại')}
             </TabsTrigger>

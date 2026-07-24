@@ -93,7 +93,7 @@ export function CookieConsent() {
             // the accept action on a consent dialog would make Enter consent for the user (PDPL:
             // consent must be an affirmative act).
             initialFocus={popupRef}
-            className="relative flex w-full max-w-md items-center gap-2 overflow-hidden rounded-2xl bg-card p-3 shadow-overlay outline-none animate-in fade-in zoom-in-95 duration-150 sm:gap-3.5 sm:p-4 data-closed:animate-out data-closed:fade-out data-closed:zoom-out-95"
+            className="relative flex w-full max-w-md items-center gap-2 overflow-hidden rounded-2xl bg-popover p-3 shadow-overlay outline-none animate-in fade-in zoom-in-95 duration-150 sm:gap-3.5 sm:p-4 data-closed:animate-out data-closed:fade-out data-closed:zoom-out-95"
           >
             {/* Mascot — fills the card height (the tallest element), minimal padding. */}
         <Mascot name="cookie" className="h-24 w-24 shrink-0 self-center text-foreground sm:h-28 sm:w-28" />
