@@ -1756,6 +1756,7 @@ export const UI_STRINGS: string[] = [
   "Yes, that is correct",
   "Yesterday",
   "You",
+  "You already have 10 e-Visa applications in progress. Finish or delete one in your applications list before starting a new one.",
   "You already have 2 urgent listings running — wait for one to expire and try again.",
   "You can add evidence and follow progress. The eno.vn team will review and decide.",
   "You can only report a conversation you are part of.",
