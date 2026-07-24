@@ -209,18 +209,40 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (!Number.isSafeInteger(product.priceVnd) || product.priceVnd <= 0 || product.currency !== 'VND') {
     return NextResponse.json({ error: 'product_price_unavailable' }, { status: 409 })
   }
-  // Closed desk → refuse and say when it reopens, rather than taking $115 at 23:00 for a
-  // 1H service nobody will touch until 10:00. `nextCutoffIso` is the batch a buyer can
-  // still aim at (the "opens again at 10:00" instant); `nextOpensIso` is when the tier
-  // starts accepting again (local midnight). A tier with no cutoffs is always accepting,
-  // so this can only fire for a tier that has them.
+  // ⚠️ A CLOSED DESK NO LONGER REFUSES THE MONEY (owner, 2026-07-24: "they can apply and pay
+  // but before pay warning it processes the next working day first hours so we dont lose
+  // clients and give them what they need when can").
+  //
+  // This route used to 409 `submission_window_closed` rather than take $115 at 23:00 for a 1H
+  // service nobody would touch until 10:00. The owner's call is that refusing loses the
+  // customer outright, and the honest alternative is to take the order and TELL THEM when it
+  // will actually be done. So the guard is now a DISCLOSURE obligation on the client instead
+  // of a refusal here — the pay card shows the computed ready time before the button.
+  //
+  // ⚠️ WHAT MAKES THAT HONEST rather than a worse deal: expectedVisaReadyAt already batches a
+  // payment made outside the window to the NEXT WORKING DAY's first cutoff (weekend- and
+  // holiday-aware) and consumes business hours from there. The promise the buyer sees is
+  // therefore the real one — "ready Monday ~10:00", not "within 1 hour".
+  //
+  // ⚠️ BUT THE SERVER STILL REFUSES WHEN IT CANNOT NAME A DATE (codex + Gemini both refuted the
+  // first version of this change for removing the guard outright). The disclosure lives in the
+  // client, and a client can be stale, scrolled past or bypassed entirely by calling this route
+  // directly — so "we told them" cannot be the only protection. The rule that survives is
+  // narrower than the old one but is the part that actually mattered: no charge for a promise
+  // this system cannot state. A closed desk WITH a computable ready instant sells; a closed
+  // desk without one (unknown tier, or a closure longer than the holiday calendar covers)
+  // still 409s, and the pay buttons are disabled for the same case.
   if (!product.window.acceptingNow) {
-    return NextResponse.json({
-      error: 'submission_window_closed',
-      speed: product.speed,
-      nextCutoffIso: product.window.nextCutoffIso,
-      nextOpensIso: product.window.nextOpensIso,
-    }, { status: 409 })
+    const { expectedVisaReadyAt } = await import('@/lib/visa/eta')
+    const readyAt = product.speed ? expectedVisaReadyAt({ startedAt: new Date(), speed: product.speed }) : null
+    if (!readyAt) {
+      return NextResponse.json({
+        error: 'submission_window_closed',
+        speed: product.speed,
+        nextCutoffIso: product.window.nextCutoffIso,
+        nextOpensIso: product.window.nextOpensIso,
+      }, { status: 409 })
+    }
   }
 
   // ── THE QUOTE: đồng → dollars, issued once, right here ───────────────────────────

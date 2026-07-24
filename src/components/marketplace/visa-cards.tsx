@@ -106,6 +106,9 @@ export type VisaThreadInfo = {
     priceVnd: number
     acceptingNow: boolean
     nextOpensIso: string | null
+    /** Server-computed ready instant for an order placed NOW (weekend/holiday aware).
+     *  Null when no honest promise exists — the pay card then refuses to offer payment. */
+    expectedReadyIso?: string | null
   } | null
   quote: VisaQuoteWire | null
   providers: Array<'stripe' | 'paypal'>
@@ -1712,6 +1715,22 @@ export function VisaCheckoutCard({ meta, info, kase, live, busy, onPay }: VisaCh
   const providers = info?.providers ?? []
   const speedSpec = product?.speed ? VISA_SPEED_SPECS[product.speed] : null
   const closed = !!product && !product.acceptingNow
+  // The REAL ready instant for a payment made right now, batched to the next working day by
+  // expectedVisaReadyAt (weekend/holiday aware). Null when the tier or calendar makes no honest
+  // promise — in which case the notice simply omits the date rather than inventing one.
+  // ⚠️ SERVER VALUE, not a render-time clock. `new Date()` here hydrated differently and went
+  // stale across a cutoff/midnight/weekend boundary while the card sat open (codex + Gemini).
+  // `expectedReadyIso` is computed per request in the thread payload by the same pure function.
+  const closedReadyIso = closed ? product?.expectedReadyIso ?? null : null
+  const closedReadyAt = closedReadyIso
+    ? new Date(closedReadyIso).toLocaleString(locale === 'vi' ? 'vi-VN' : 'en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+    : null
+  // ⚠️ NO HONEST PROMISE ⇒ NO SALE. If the desk is closed and the server could not compute a
+  // ready instant (an unknown tier, or a closure run longer than the calendar covers), we are
+  // back to taking money for a date we cannot state — which is exactly what the removed 409
+  // protected against. Paying stays disabled in that one case; the checkout route refuses it
+  // server-side too, so this is a courtesy, not the guard.
+  const unpromisable = closed && !closedReadyIso
 
   const title = tr('Pay for your e-Visa', 'Thanh toán E-Visa')
 
@@ -1768,10 +1787,23 @@ export function VisaCheckoutCard({ meta, info, kase, live, busy, onPay }: VisaCh
           {tr('The US dollar amount is not available right now, so paying is paused. Nothing has been charged — try again in a moment.', 'Hiện chưa có số tiền đô la Mỹ nên thanh toán tạm dừng. Chưa có khoản nào bị trừ — vui lòng thử lại sau giây lát.')}
         </p>
       )}
+      {/* ⚠️ THE DISCLOSURE THAT REPLACED A REFUSAL (owner, 2026-07-24: "they can apply and pay
+          but before pay warning it processes the next working day first hours so we dont lose
+          clients"). Checkout used to 409 outside the window; it accepts now, so THIS notice is
+          the whole consumer protection — it must state the real ready time BEFORE the pay
+          buttons, never after, and never imply the headline turnaround. `readyAt` comes from
+          expectedVisaReadyAt, which batches an out-of-window payment to the NEXT WORKING DAY's
+          first cutoff (weekend- and holiday-aware), so this is the true date, not a guess. */}
       {closed && (
         <p className="mt-2 rounded-xl bg-warning/10 p-2.5 text-2xs leading-relaxed text-warning">
-          {tr('Today’s cut-off for this speed has passed.', 'Đã qua giờ chốt hôm nay cho tốc độ này.')}
-          {product?.nextOpensIso ? ` ${tr('Opens again', 'Mở lại')} ${new Date(product.nextOpensIso).toLocaleString(locale === 'vi' ? 'vi-VN' : 'en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}.` : ''}
+          <strong className="font-bold">
+            {tr('Processed on the next working day.', 'Được xử lý vào ngày làm việc tiếp theo.')}
+          </strong>{' '}
+          {tr(
+            'The desk is closed right now, so processing starts when it opens — not when you pay.',
+            'Bộ phận hiện đã đóng, nên việc xử lý bắt đầu khi mở cửa — không phải khi bạn thanh toán.',
+          )}
+          {closedReadyAt ? ` ${tr('Expected ready', 'Dự kiến xong')}: ${closedReadyAt}.` : ''}
         </p>
       )}
       {live && !providers.length && (
@@ -1814,7 +1846,7 @@ export function VisaCheckoutCard({ meta, info, kase, live, busy, onPay }: VisaCh
               <Button
                 variant="cta"
                 size="none"
-                disabled={busy || !quote || closed || !consented}
+                disabled={busy || !quote || !consented || unpromisable}
                 onClick={() => quote && void onPay('paypal', quote)}
                 className="rounded-xl px-3.5 py-2.5 text-xs"
               >
@@ -1826,7 +1858,7 @@ export function VisaCheckoutCard({ meta, info, kase, live, busy, onPay }: VisaCh
               <Button
                 variant="outline"
                 size="none"
-                disabled={busy || !quote || closed || !consented}
+                disabled={busy || !quote || !consented || unpromisable}
                 onClick={() => quote && void onPay('stripe', quote)}
                 className="rounded-xl px-3.5 py-2.5 text-xs font-bold"
               >

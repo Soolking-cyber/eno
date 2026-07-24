@@ -277,6 +277,11 @@ export function VisaProductRow({ product, now, disabled, onPick }: {
   // function the server uses, so the two answers cannot disagree. Standard + day tiers are
   // always open; only the hour tiers ever close (weekend/holiday or past a cutoff). Unknown
   // until the first client tick, and an unknown window never blocks a tap.
+  // ⚠️ `closed` NO LONGER DISABLES THE BUTTON (owner, 2026-07-24). An hour tier outside its
+  // window used to be un-tappable, which lost the customer at the door. It is applyable now and
+  // the pay card discloses the real ready time before any money moves — see the checkout route.
+  // The window is still computed because the row SAYS what it means ("processed next working
+  // day"), which is the whole point: sell it, but never imply "within 1 hour" at 23:00.
   const window = now ? submissionGate(product.speed, now) : null
   const closed = !!window && !window.acceptingNow
   const title = lang === 'vi' ? (product.titleVi || product.title) : product.title
@@ -285,7 +290,7 @@ export function VisaProductRow({ product, now, disabled, onPick }: {
     <Button
       variant="outline"
       size="none"
-      disabled={disabled || closed}
+      disabled={disabled}
       onClick={() => { hapticTap(); onPick(product.listingId) }}
       // whitespace-normal on the BUTTON (ui/button's base is whitespace-nowrap, and a
       // turnaround sentence has to wrap); the override belongs on the primitive's own
@@ -318,9 +323,13 @@ export function VisaProductRow({ product, now, disabled, onPick }: {
         </Badge>
         {closed && window?.nextOpensIso
           ? (
+            // ⚠️ NO TIME HERE. `nextOpensIso` is local MIDNIGHT (when the tier starts
+            // accepting again), NOT when work begins — printing it read as "processed from
+            // 00:00", which is false (codex). The honest short form is the DAY; the exact
+            // ready instant is disclosed on the pay card, computed server-side.
             <Badge variant="warning">
               <Clock className="h-3 w-3" />
-              {tr('Opens', 'Mở lại')} {hcmClock(window.nextOpensIso, lang)} {tr('Vietnam time', 'giờ VN')}
+              {tr('Processed next working day', 'Xử lý vào ngày làm việc tiếp theo')}
             </Badge>
           )
           : window?.nextCutoffIso

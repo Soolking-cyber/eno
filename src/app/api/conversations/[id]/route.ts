@@ -37,6 +37,7 @@ async function visaThreadContext(applicationId: string) {
     import('@/lib/visa/fx'),
     import('@/lib/visa/payments'),
   ])
+  const { expectedVisaReadyAt } = await import('@/lib/visa/eta')
   // CANONICAL, not event-derived (Phase 2): this listingId is what the client echoes back
   // to checkout as its confirmation token, so it must be the same read checkout compares
   // against — column first, legacy event fallback — or every pay attempt after a picker
@@ -62,6 +63,14 @@ async function visaThreadContext(applicationId: string) {
         // not keep offering a desk that closed twenty minutes ago.
         acceptingNow: product.window.acceptingNow,
         nextOpensIso: product.window.nextOpensIso,
+        // ⚠️ THE AUTHORITATIVE READY INSTANT, computed on the SERVER at request time. The pay
+        // card discloses this before taking money for a closed-desk order, and it must not be
+        // derived from a `new Date()` in a client render — that hydrates differently and goes
+        // stale across a cutoff/midnight/weekend boundary while the card sits open (codex +
+        // Gemini). Null when no honest promise exists; the card then refuses to offer payment.
+        expectedReadyIso: product.speed
+          ? (expectedVisaReadyAt({ startedAt: new Date(), speed: product.speed })?.toISOString() ?? null)
+          : null,
       }
       : null,
     quote,
