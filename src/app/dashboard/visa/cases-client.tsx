@@ -88,6 +88,10 @@ async function visaApi<T>(path: string, init?: RequestInit): Promise<T> {
 
 /** draft / needs_changes — the statuses the CHAT can still write to. */
 const EDITABLE = new Set(['draft', 'needs_changes'])
+/** Statuses a user may HARD-DELETE — but ONLY while UNPAID (see the DELETE route: visa_payments is
+ *  ON DELETE CASCADE, so a paid case's financial record must never be user-destroyable). `needs_changes`
+ *  is deliberately excluded (it exists only after a paid submission). Must mirror the server guard. */
+const DELETABLE = new Set(['draft', 'cancelled'])
 
 // Status → chip. Keys are the statuses the visa routes actually write; anything
 // unrecognized falls back to a neutral chip showing the raw word, so a NEW status degrades
@@ -248,6 +252,9 @@ function CaseRow({ item, conversationId, deskThreadId, isDetail, busy, now, lang
   const chip = STATUS_CHIP[item.status]
   const copy = statusCopy(item.status, tr)
   const editable = EDITABLE.has(item.status)
+  // Only offer delete on a pre-submission draft / dead case that carries no payment — matches the
+  // server guard so we never show an action that will 409 (a submitted or paid case cannot be deleted).
+  const deletable = DELETABLE.has(item.status) && !item.paidAt
   const hasResult = item.documents.some((document) => document.kind === 'result')
   // The row's own thread first (immutable link); the shared desk thread as the fallback
   // (external review: a row with NO chat action strands its case, and a per-row generic
@@ -287,17 +294,19 @@ function CaseRow({ item, conversationId, deskThreadId, isDetail, busy, now, lang
             <Download className="h-4 w-4" />{tr('Download e-Visa PDF', 'Tải PDF E-Visa')}
           </Button>
         )}
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="ml-auto border-destructive/40 text-destructive hover:bg-destructive/5 hover:text-destructive"
-          data-testid="delete-visa-application"
-          disabled={busy}
-          onClick={() => onDelete(item)}
-        >
-          <Trash2 className="h-4 w-4" />{tr('Delete', 'Xóa')}
-        </Button>
+        {deletable && (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="ml-auto border-destructive/40 text-destructive hover:bg-destructive/5 hover:text-destructive"
+            data-testid="delete-visa-application"
+            disabled={busy}
+            onClick={() => onDelete(item)}
+          >
+            <Trash2 className="h-4 w-4" />{tr('Delete', 'Xóa')}
+          </Button>
+        )}
       </div>
     </li>
   )
@@ -484,8 +493,17 @@ export function VisaCasesClient({ threads }: {
       // Reconcile in the background (picks up any OTHER case); its failure is now cosmetic
       // because the deleted one is already gone from view, and it stays quiet (see loadApplications).
       void loadApplications(true).catch(() => undefined)
-    } catch {
-      toast.error(tr('Could not finish deleting this application. Please retry.', 'Chưa thể hoàn tất việc xóa hồ sơ này. Vui lòng thử lại.'))
+    } catch (e) {
+      if (e instanceof VisaApiError && e.code === 'application_not_deletable') {
+        // The case left the deletable set (a concurrent submit/payment) after the dialog opened —
+        // do NOT drop it from view; it is a live/paid record now. Close the dialog and reconcile to
+        // its true status so the (now absent) delete button matches the server.
+        toast.error(tr('This application can no longer be deleted — it has been submitted or paid.', 'Không thể xóa hồ sơ này nữa — hồ sơ đã được gửi hoặc đã thanh toán.'))
+        setDeleteTarget(null)
+        void loadApplications(true).catch(() => undefined)
+      } else {
+        toast.error(tr('Could not finish deleting this application. Please retry.', 'Chưa thể hoàn tất việc xóa hồ sơ này. Vui lòng thử lại.'))
+      }
     } finally { setBusy(false) }
   }
 

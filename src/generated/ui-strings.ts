@@ -1480,6 +1480,7 @@ export const UI_STRINGS: string[] = [
   "They return automatically when the review clears — completed sales also work the hold off.",
   "They return automatically when the review clears.",
   "This appeal isn’t available on your account.",
+  "This application can no longer be deleted — it has been submitted or paid.",
   "This e-Visa step could not be shown here — open the full form to continue.",
   "This is a mistake? Appeal the decision.",
   "This is the contact point designated for users and for competent state authorities (market surveillance, tax, public security). Requests from authorities to remove violating content are actioned within 24 hours.",
