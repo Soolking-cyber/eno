@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import {
   expectedVisaReadyAt,
+  submissionGate,
   VIETNAM_HOLIDAYS_COVERED_FROM,
   VIETNAM_HOLIDAYS_COVERED_THROUGH,
   VIETNAM_PUBLIC_HOLIDAYS,
@@ -176,5 +177,129 @@ describe('fails closed — no promise beats a wrong one', () => {
       expect(year).toBeGreaterThanOrEqual(VIETNAM_HOLIDAYS_COVERED_FROM)
       expect(year).toBeLessThanOrEqual(VIETNAM_HOLIDAYS_COVERED_THROUGH)
     }
+  })
+})
+
+// ── submissionGate — the working-day-aware "can I apply right now?" ────────────────
+//
+// Same TZ discipline as above: `now` is an HCM wall clock converted to a UTC instant by
+// hand, and every expected reopening is an absolute …Z, so nothing moves under a
+// different process TZ. The owner's rule (2026-07-24): only the HOUR tiers can close;
+// standard + day tiers are always submittable; a closed hour tier reopens on the NEXT
+// WORKING day (never a weekend or a public holiday) — the exact defect the plan review
+// caught: a Friday-evening close must point at Monday, not Saturday.
+//
+// Reference dates: 2026-07-24 Fri, -25 Sat, -26 Sun, -27 Mon (all ordinary working/rest
+// days). Holidays used: 2026-01-01 Thu (New Year) → 2026-01-02 Fri working; Tet
+// 2026-02-14..22 → first working day 2026-02-23 Mon.
+const hcm = (isoLocal: string, offsetHours = 7) =>
+  new Date(new Date(`${isoLocal}Z`).getTime() - offsetHours * 3_600_000)
+
+describe('submissionGate — fails closed', () => {
+  it('refuses an unknown code (a bad attributes.speed is never sellable)', () => {
+    for (const bad of ['5H', '1h', 'NORMAL', 'constructor', '']) {
+      expect(submissionGate(bad as VisaSpeedCode, hcm('2026-07-24T10:00'))).toEqual({
+        acceptingNow: false, nextCutoffIso: null, nextOpensIso: null,
+      })
+    }
+  })
+  it('refuses an invalid instant', () => {
+    expect(submissionGate('normal', new Date('nonsense'))).toEqual({
+      acceptingNow: false, nextCutoffIso: null, nextOpensIso: null,
+    })
+  })
+})
+
+describe('submissionGate — standard + day tiers are ALWAYS open (apply any time, any day)', () => {
+  // The heart of the owner's ask: none of these may EVER close, whatever the clock says.
+  const instants = [
+    '2026-07-24T09:00', // Fri, mid-morning
+    '2026-07-24T23:30', // Fri, late night
+    '2026-07-25T10:00', // Sat
+    '2026-07-26T10:00', // Sun
+    '2026-01-01T10:00', // New Year holiday
+    '2026-02-17T10:00', // Tet holiday
+  ]
+  for (const code of ['normal', '1D', '2D', '3D'] as const) {
+    it(`${code} accepts at every instant, with nothing to count down to`, () => {
+      for (const local of instants) {
+        expect(submissionGate(code, hcm(local))).toEqual({
+          acceptingNow: true, nextCutoffIso: null, nextOpensIso: null,
+        })
+      }
+    })
+  }
+})
+
+describe('submissionGate — hour tiers gate on a working day AND a cutoff window', () => {
+  it('4H open before the first cutoff on a working day == the raw time-of-day window', () => {
+    // Fri 08:29:59.999 — the 08:30 batch is still catchable.
+    expect(submissionGate('4H', hcm('2026-07-24T08:29:59.999'))).toEqual({
+      acceptingNow: true, nextCutoffIso: '2026-07-24T01:30:00.000Z', nextOpensIso: null,
+    })
+    // Between cutoffs (08:30..14:30): still open, the 14:30 batch is next.
+    expect(submissionGate('4H', hcm('2026-07-24T12:00'))).toEqual({
+      acceptingNow: true, nextCutoffIso: '2026-07-24T07:30:00.000Z', nextOpensIso: null,
+    })
+  })
+
+  it('4H past the last cutoff on a FRIDAY reopens MONDAY, not Saturday (the review defect)', () => {
+    // Fri 15:00, past 14:30 → closed. Next working day is Mon 2026-07-27; first cutoff 08:30.
+    expect(submissionGate('4H', hcm('2026-07-24T15:00'))).toEqual({
+      acceptingNow: false,
+      nextCutoffIso: '2026-07-27T01:30:00.000Z',        // Mon 08:30 HCM
+      nextOpensIso: '2026-07-26T17:00:00.000Z',         // Mon 00:00 HCM
+    })
+  })
+
+  it('4H is CLOSED all day Saturday and Sunday even before a cutoff time', () => {
+    // Sat 10:00 is before the 14:30 cutoff by the clock, but the desk is shut.
+    for (const local of ['2026-07-25T10:00', '2026-07-25T08:00', '2026-07-26T09:00']) {
+      expect(submissionGate('4H', hcm(local))).toEqual({
+        acceptingNow: false,
+        nextCutoffIso: '2026-07-27T01:30:00.000Z',      // reopens Mon 08:30
+        nextOpensIso: '2026-07-26T17:00:00.000Z',
+      })
+    }
+  })
+
+  it('1H is CLOSED on a public holiday, reopening the next working day', () => {
+    // Thu 2026-01-01 (New Year) → next working day Fri 2026-01-02; 1H first cutoff 10:00.
+    expect(submissionGate('1H', hcm('2026-01-01T10:30'))).toEqual({
+      acceptingNow: false,
+      nextCutoffIso: '2026-01-02T03:00:00.000Z',        // Fri 10:00 HCM
+      nextOpensIso: '2026-01-01T17:00:00.000Z',         // Fri 00:00 HCM
+    })
+  })
+
+  it('2H stays closed through the whole Tet break, reopening the first working day after', () => {
+    // Tet 2026-02-14..22 all non-working; first working day is Mon 2026-02-23. 2H cutoff 10:00.
+    expect(submissionGate('2H', hcm('2026-02-17T09:00'))).toEqual({
+      acceptingNow: false,
+      nextCutoffIso: '2026-02-23T03:00:00.000Z',        // Mon 2026-02-23 10:00 HCM
+      nextOpensIso: '2026-02-22T17:00:00.000Z',
+    })
+  })
+
+  it('fails CLOSED for an hour tier outside the holiday table coverage (no false working-day)', () => {
+    // 2029 is past VIETNAM_HOLIDAYS_COVERED_THROUGH (2028). Even on what LOOKS like a working
+    // weekday, we cannot verify the calendar, so an hour tier must NOT be offered — mirroring
+    // expectedVisaReadyAt, which returns null past coverage (a same-day visa with no honest
+    // delivery date can't be sold). Day/standard tiers stay open (they don't need the calendar).
+    const uncovered = hcm(`${VIETNAM_HOLIDAYS_COVERED_THROUGH + 1}-06-06T09:00`) // 2029-06-06, a Wednesday
+    expect(submissionGate('1H', uncovered)).toEqual({ acceptingNow: false, nextCutoffIso: null, nextOpensIso: null })
+    expect(submissionGate('normal', uncovered).acceptingNow).toBe(true)
+    expect(submissionGate('2D', uncovered).acceptingNow).toBe(true)
+    // A caller who OWNS coverage (explicit holidays) opts out of the guard, like the ETA.
+    expect(submissionGate('1H', uncovered, []).acceptingNow).toBe(true)
+  })
+
+  it('honours a caller-supplied holiday set (turns an ordinary working day into a closed one)', () => {
+    // Mon 2026-07-27 is normally a working day → 4H open at 09:00.
+    expect(submissionGate('4H', hcm('2026-07-27T09:00')).acceptingNow).toBe(true)
+    // Declare it a holiday → closed, reopening Tue 2026-07-28.
+    const gated = submissionGate('4H', hcm('2026-07-27T09:00'), ['2026-07-27'])
+    expect(gated.acceptingNow).toBe(false)
+    expect(gated.nextCutoffIso).toBe('2026-07-28T01:30:00.000Z') // Tue 08:30 HCM
   })
 })

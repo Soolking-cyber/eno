@@ -242,6 +242,27 @@ const alwaysOpenWindow = (): VisaWindow => ({ acceptingNow: true, nextCutoffIso:
  *  no speed to ask about (an unconfigured product) uses the same answer this module does. */
 export const closedVisaWindow = closedWindow
 
+/** The always-open window: a tier that never gates (standard + the day tiers) hands this out
+ *  so every caller agrees on the shape — nothing to count down to, always accepting. */
+export const alwaysOpenVisaWindow = alwaysOpenWindow
+
+/**
+ * Does this tier BLOCK submission outside its window? ONLY the super-fast HOUR tiers
+ * (1H/2H/4H) do — a "result within N hours" is a promise the desk cannot keep once it is
+ * closed for the day or the weekend, so we must refuse rather than take money for it. The
+ * DAY tiers (1D/2D/3D) and STANDARD never gate: an application handed in at any hour, any
+ * day, simply QUEUES for the next working batch, and eta.ts computes a weekday/holiday-aware
+ * delivery date for it. Hour tiers are exactly those the spec gives a `turnaroundBusinessHours`.
+ *
+ * ⚠️ This is only HALF the gate — "is this the kind of tier that can close". The other half
+ * (is it closed right NOW, and when does it reopen) is submissionGate() in ./eta.ts, which
+ * owns the working-day calendar. Never gate on this predicate alone.
+ */
+export function tierGatesSubmission(code: VisaSpeedCode): boolean {
+  const spec = parseVisaSpeedCode(code) ? VISA_SPEED_SPECS[code] : null
+  return !!spec?.turnaroundBusinessHours
+}
+
 /**
  * Asia/Ho_Chi_Minh regardless of server TZ (Cloud Run is UTC). `now` injectable for tests.
  *

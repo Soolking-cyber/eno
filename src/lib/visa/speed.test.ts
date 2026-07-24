@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import {
+  alwaysOpenVisaWindow,
+  closedVisaWindow,
   parseVisaEntryType,
   parseVisaSpeedCode,
   submissionWindow,
+  tierGatesSubmission,
   VISA_ENTRY_TYPES,
   VISA_SPEED_CODES,
   VISA_SPEED_SPECS,
@@ -187,6 +190,39 @@ describe('submissionWindow — Asia/Ho_Chi_Minh boundaries', () => {
     expect(submissionWindow('overnight' as VisaSpeedCode, new Date())).toEqual({ acceptingNow: false, nextCutoffIso: null, nextOpensIso: null })
     // A prototype key must not resolve to a spec.
     expect(submissionWindow('constructor' as VisaSpeedCode, new Date())).toEqual({ acceptingNow: false, nextCutoffIso: null, nextOpensIso: null })
+  })
+})
+
+describe('tierGatesSubmission — only the hour tiers can ever close', () => {
+  it('gates 1H/2H/4H (the same-day "within N hours" promise) and nothing else', () => {
+    for (const code of ['1H', '2H', '4H'] as const) expect(tierGatesSubmission(code)).toBe(true)
+    // Standard + every day tier NEVER gate — they queue for the next working batch.
+    for (const code of ['1D', '2D', '3D', 'normal'] as const) expect(tierGatesSubmission(code)).toBe(false)
+  })
+
+  it('agrees exactly with the presence of turnaroundBusinessHours', () => {
+    for (const code of VISA_SPEED_CODES) {
+      expect(tierGatesSubmission(code)).toBe(VISA_SPEED_SPECS[code].turnaroundBusinessHours !== undefined)
+    }
+  })
+
+  it('is false for an unknown code — the value is not the gate, the higher gate fails closed', () => {
+    for (const value of ['5H', '1h', 'NORMAL', 'constructor', '', 'bogus']) {
+      expect(tierGatesSubmission(value as VisaSpeedCode)).toBe(false)
+    }
+  })
+})
+
+describe('window factories', () => {
+  it('alwaysOpenVisaWindow accepts with nothing to count down to', () => {
+    expect(alwaysOpenVisaWindow()).toEqual({ acceptingNow: true, nextCutoffIso: null, nextOpensIso: null })
+  })
+  it('closedVisaWindow accepts nothing and schedules nothing', () => {
+    expect(closedVisaWindow()).toEqual({ acceptingNow: false, nextCutoffIso: null, nextOpensIso: null })
+  })
+  it('hands out a FRESH object each call (no shared mutable window across products)', () => {
+    expect(alwaysOpenVisaWindow()).not.toBe(alwaysOpenVisaWindow())
+    expect(closedVisaWindow()).not.toBe(closedVisaWindow())
   })
 })
 

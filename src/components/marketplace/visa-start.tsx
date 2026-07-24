@@ -14,11 +14,14 @@ import { formatMoneyFull, formatUsdCents, moneyLocale } from '@/lib/vnd'
 import {
   parseVisaEntryType,
   parseVisaSpeedCode,
-  submissionWindow,
+  tierGatesSubmission,
   VISA_SPEED_SPECS,
   type VisaEntryType,
   type VisaSpeedCode,
 } from '@/lib/visa/speed'
+// submissionGate (NOT the raw submissionWindow) so the client live-tick agrees with the server:
+// standard + day tiers always open, hour tiers close on weekends/holidays. eta.ts is client-safe.
+import { submissionGate } from '@/lib/visa/eta'
 
 // ── ONE TAP → the e-Visa desk, inside a chat ──────────────────────────────────────
 //
@@ -263,10 +266,11 @@ export function VisaProductRow({ product, now, disabled, onPick }: {
   const { lang, tr } = useLanguage()
   const locale = moneyLocale(lang)
   const spec = VISA_SPEED_SPECS[product.speed]
-  // The window is a pure function of the tier and the INSTANT (src/lib/visa/speed.ts) — the
-  // same module the server uses, so the two answers cannot disagree. Unknown until the first
-  // client tick, and an unknown window never blocks a tap.
-  const window = now ? submissionWindow(product.speed, now) : null
+  // The GATE is a pure function of the tier and the INSTANT (submissionGate) — the same
+  // function the server uses, so the two answers cannot disagree. Standard + day tiers are
+  // always open; only the hour tiers ever close (weekend/holiday or past a cutoff). Unknown
+  // until the first client tick, and an unknown window never blocks a tap.
+  const window = now ? submissionGate(product.speed, now) : null
   const closed = !!window && !window.acceptingNow
   const title = lang === 'vi' ? (product.titleVi || product.title) : product.title
 
@@ -319,7 +323,17 @@ export function VisaProductRow({ product, now, disabled, onPick }: {
                 {tr('Cut-off', 'Giờ chốt')} {hcmClock(window.nextCutoffIso, lang)} {tr('Vietnam time', 'giờ VN')}
               </Badge>
             )
-            : null}
+            // Non-gating tiers (standard + the day tiers) take applications at any hour, any
+            // day — including weekends. Say so, so a traveller isn't left wondering about a
+            // cut-off that does not apply to them.
+            : !tierGatesSubmission(product.speed)
+              ? (
+                <Badge variant="outline">
+                  <Clock className="h-3 w-3" />
+                  {tr('Apply any time', 'Nộp bất cứ lúc nào')}
+                </Badge>
+              )
+              : null}
       </span>
 
       <span className="text-xs font-normal text-muted-foreground">
@@ -389,6 +403,16 @@ export function VisaStartPicker({ className, onStarted }: { className?: string; 
           <VisaProductRow key={product.listingId} product={product} now={now} disabled={busy} onPick={start} />
         ))}
       </div>
+      {/* The weekday nuance, once, under the whole list: Vietnam Immigration works on business
+          days, so the DELIVERY date is counted in working days — but a traveller can hand in a
+          standard or multi-day application at any hour, any day. Only the same-day "within N
+          hours" tiers must wait for the desk to be open. */}
+      <p className="mt-3 text-xs text-muted-foreground">
+        {tr(
+          'Apply any time — including weekends. Vietnam Immigration processes on working days, so delivery times are counted in working days; only the same-day (1–4 hour) tiers pause after each day’s cut-off and on non-working days.',
+          'Nộp hồ sơ bất cứ lúc nào — kể cả cuối tuần. Cục Quản lý xuất nhập cảnh xử lý vào ngày làm việc, nên thời gian trả kết quả tính theo ngày làm việc; chỉ các gói lấy nhanh trong ngày (1–4 giờ) mới tạm dừng sau giờ chốt mỗi ngày và vào ngày nghỉ.',
+        )}
+      </p>
       {!state.payable && (
         <p className="mt-3 text-xs text-muted-foreground">
           {tr(

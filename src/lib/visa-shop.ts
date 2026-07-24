@@ -8,13 +8,16 @@ import {
   closedVisaWindow,
   parseVisaEntryType,
   parseVisaSpeedCode,
-  submissionWindow,
   VISA_ENTRY_TYPES,
   VISA_SPEED_CODES,
   type VisaEntryType,
   type VisaSpeedCode,
   type VisaWindow,
 } from './visa/speed'
+// The GATE, not the raw time-of-day window: submissionGate overlays the working-day calendar,
+// so standard + day tiers are always open and hour tiers close on weekends/holidays with a
+// correct next-working-day reopening. This ONE source feeds checkout, concierge and the client.
+import { submissionGate } from './visa/eta'
 import { MAX_EVISA_VALIDITY_DAYS, visaDateDefaultsForStart, type VisaPayload } from './visa/schema'
 
 // ── The eno e-Visa SHOP ────────────────────────────────────────────────────────────
@@ -423,7 +426,7 @@ export const getVisaShopProducts = cache(async (): Promise<VisaShopProduct[]> =>
       speed: listing.speed,
       priceVnd,
       currency: 'VND',
-      window: listing.speed ? submissionWindow(listing.speed, now) : closedVisaWindow(),
+      window: listing.speed ? submissionGate(listing.speed, now) : closedVisaWindow(),
     })
   }
   return products

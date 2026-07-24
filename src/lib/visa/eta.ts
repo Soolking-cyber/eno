@@ -28,12 +28,17 @@
 // Intl only — eta.test.ts pins the no-local-TZ-API rule on this SOURCE.
 
 import {
+  alwaysOpenVisaWindow,
+  closedVisaWindow,
   hcmUtcMsForWallClock,
   hcmWallClockAt,
   parseVisaSpeedCode,
+  submissionWindow,
+  tierGatesSubmission,
   VISA_BUSINESS_HOURS,
   VISA_SPEED_SPECS,
   type VisaSpeedCode,
+  type VisaWindow,
 } from './speed'
 
 /**
@@ -229,4 +234,70 @@ export function expectedVisaReadyAt(input: {
 
   // A spec with neither structured field (should not exist — the type promises one).
   return null
+}
+
+// ── SUBMISSION GATE — "can this be applied for right now?" ──────────────────────────
+//
+// submissionWindow() (./speed) answers only the TIME-OF-DAY question against a tier's
+// cutoffs; it is calendar-blind, so on a Saturday it would still say an hour tier is
+// "accepting" before 16:00 — offering a 1-hour visa the government is closed to deliver.
+// This function is the cohesive authority the whole app gates on: it overlays the
+// working-day calendar (weekends + Vietnam public holidays, the SAME table the delivery
+// ETA uses) so the answer and its "reopens at" are never self-contradictory.
+//
+// The owner's rule (2026-07-24): only the HOUR tiers gate. STANDARD and the DAY tiers are
+// always submittable — apply any hour, any day, including weekends; the application queues
+// for the next working batch and expectedVisaReadyAt() dates it honestly. So:
+//   · unknown / invalid code            → CLOSED (fail closed, never permissively open)
+//   · normal, 1D, 2D, 3D                → ALWAYS open
+//   · 1H, 2H, 4H                        → open ⟺ today is a working day AND before a cutoff;
+//                                          otherwise closed, reopening at the NEXT WORKING
+//                                          day's first cutoff (never a weekend/holiday time).
+export function submissionGate(code: VisaSpeedCode, now: Date, holidays?: readonly string[]): VisaWindow {
+  // Fail CLOSED for an unknown code — a bad `attributes.speed` must never become sellable.
+  if (!parseVisaSpeedCode(code)) return closedVisaWindow()
+  const t = now instanceof Date ? now.getTime() : NaN
+  if (!Number.isFinite(t)) return closedVisaWindow()
+  // Standard + day tiers never gate: queue any time, incl. weekends.
+  if (!tierGatesSubmission(code)) return alwaysOpenVisaWindow()
+
+  // Hour tier. First the plain time-of-day answer, then veto it if today is not a working day.
+  const usingDefaultTable = holidays === undefined
+  const holidaySet = new Set(holidays ?? VIETNAM_PUBLIC_HOLIDAYS)
+  // Coverage guard, EXACTLY as expectedVisaReadyAt (external review): outside the default
+  // table's years an unlisted weekday public holiday would masquerade as a working day and
+  // leave an hour tier OPEN when the desk is shut. A same-day tier we cannot honestly compute
+  // a delivery date for (the ETA returns null past coverage) must not be submittable either —
+  // so fail CLOSED rather than trust weekend-only math. A caller who overrides `holidays` owns
+  // coverage and opts out of this guard, same contract as the ETA.
+  const inCoverage = (year: number) =>
+    !usingDefaultTable || (year >= VIETNAM_HOLIDAYS_COVERED_FROM && year <= VIETNAM_HOLIDAYS_COVERED_THROUGH)
+  const wall = hcmWallClockAt(now)
+  if (!inCoverage(wall.year)) return closedVisaWindow()
+  const todayWorking = isWorkingDay(wall.year, wall.month, wall.day, holidaySet)
+  const raw = submissionWindow(code, now)
+  // Open only when the desk is genuinely open: a working day AND still before a cutoff. When
+  // open, `raw` already carries today's correct nextCutoffIso (nextOpensIso null).
+  if (todayWorking && raw.acceptingNow) return raw
+
+  // Closed. Reopening is the FIRST cutoff of the next WORKING day — recomputed against the
+  // calendar rather than trusting raw's nextCutoffIso, which only ever rolls to the next
+  // CALENDAR day and would land on a Saturday or a holiday. (We are always past every cutoff
+  // available today here: either today is non-working, or raw.acceptingNow was false.)
+  const spec = VISA_SPEED_SPECS[code]
+  const [firstH, firstM] = parseHm([...spec.cutoffs].sort()[0])
+  let cursor: DayCursor = nextDay({ year: wall.year, month: wall.month, day: wall.day })
+  let guard = 0
+  while (!isWorkingDay(cursor.year, cursor.month, cursor.day, holidaySet)) {
+    cursor = nextDay(cursor)
+    if (++guard > 60) return closedVisaWindow() // 60+ days of closures → make no promise
+  }
+  // The reopening day must itself be inside the trusted calendar; a run that crosses out of
+  // coverage (late-2028 edge) yields no honest reopening time, so close without one.
+  if (!inCoverage(cursor.year)) return closedVisaWindow()
+  return {
+    acceptingNow: false,
+    nextCutoffIso: new Date(hcmUtcMsForWallClock(cursor.year, cursor.month, cursor.day, firstH, firstM)).toISOString(),
+    nextOpensIso: new Date(hcmUtcMsForWallClock(cursor.year, cursor.month, cursor.day, 0, 0)).toISOString(),
+  }
 }
