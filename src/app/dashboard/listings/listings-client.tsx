@@ -13,6 +13,7 @@ import { SectionHeader } from '@/components/marketplace/section-header'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { EmptyState } from '@/components/ui/empty-state'
+import { Segmented } from '@/components/ui/segmented'
 
 /** /dashboard/listings — the seller's listings management, rendered in <main>.
  *  Reads the shared dashboard cache so an edit/delete here re-pulls the one source. */
@@ -21,6 +22,10 @@ export function ListingsClient() {
   const { tr, lang } = useLanguage()
   const router = useRouter()
   const { dash, refresh } = useDashboard()
+  // Native segmented status filter over the seller's own listings (shown only once there are
+  // enough to be worth filtering). 'active' includes a held (unverified) listing — its chip reads
+  // "Held" but it is still status:'active'.
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'sold' | 'hidden'>('all')
 
   useEffect(() => {
     if (!loading && !user) router.replace('/signin?next=/dashboard/listings')
@@ -93,13 +98,40 @@ export function ListingsClient() {
             subtitle={tr('Post your first one — it only takes a minute.', 'Đăng tin đầu tiên — chỉ mất một phút.')}
             action={<Button variant="cta" asChild><Link href="/post">{tr('Post a listing', 'Đăng tin')}</Link></Button>}
           />
-        ) : (
-          <div className="space-y-2.5">
-            {dash.listings.map((l) => (
-              <DashboardListingRow key={l.id} listing={l} onChanged={refresh} />
-            ))}
-          </div>
-        )}
+        ) : (() => {
+          // Show the filter only once there are enough listings to warrant it — and when it's
+          // HIDDEN, ignore any remembered filter (else deleting down to ≤3 would leave the list
+          // silently filtered with the control gone and no way to reset it — codex).
+          const showFilter = dash.listings.length > 3
+          const shown = showFilter && statusFilter !== 'all' ? dash.listings.filter((l) => l.status === statusFilter) : dash.listings
+          return (
+            <>
+              {showFilter && (
+                <Segmented
+                  className="mb-3"
+                  aria-label={tr('Filter listings by status', 'Lọc tin theo trạng thái')}
+                  value={statusFilter}
+                  onValueChange={setStatusFilter}
+                  options={[
+                    { value: 'all', label: tr('All', 'Tất cả') },
+                    { value: 'active', label: tr('Active', 'Đang đăng') },
+                    { value: 'sold', label: tr('Sold', 'Đã bán') },
+                    { value: 'hidden', label: tr('Hidden', 'Đã ẩn') },
+                  ]}
+                />
+              )}
+              {shown.length === 0 ? (
+                <p className="py-10 text-center text-sm text-muted-foreground">{tr('No listings in this filter.', 'Không có tin nào phù hợp bộ lọc.')}</p>
+              ) : (
+                <div className="space-y-2.5">
+                  {shown.map((l) => (
+                    <DashboardListingRow key={l.id} listing={l} onChanged={refresh} />
+                  ))}
+                </div>
+              )}
+            </>
+          )
+        })()}
       </div>
     </>
   )
