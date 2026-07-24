@@ -52,7 +52,30 @@ class ThreadViewModel(val convoId: String) : ViewModel() {
         private set
     var actionError by mutableStateOf<String?>(null)
 
+    // Review #9: ONE lock for the whole conversation, not per message. The
+    // accept/decline endpoint is conversation-scoped (/offer), so two different
+    // offer cards racing each other are as harmful as one double-tap.
+    var acting by mutableStateOf(false)
+        private set
+
     private var poller: kotlinx.coroutines.Job? = null
+
+    // Review #3: the server dedupes a send by clientId. A retry MUST re-send the
+    // ORIGINAL key or the ledger sees a new one and inserts again — a duplicate
+    // OFFER. ChatMsg can't carry it (ChatModels.kt is another lane), so the
+    // local-bubble id → clientId mapping lives here for the ViewModel's lifetime.
+    private val clientIds = HashMap<String, String>()
+
+    // Review #4/#14: a server message of mine may reconcile AT MOST ONE local
+    // bubble, ever. Without this, a deliberate second identical message ("ok"
+    // twice) matches the FIRST one's echo and vanishes from the UI.
+    private val consumedServerIds = HashSet<String>()
+
+    // Review #10: two guards, because they stop different things. `mutationGen`
+    // discards a poll that a write overtook; `loadSeq` discards a poll that a
+    // NEWER poll overtook (same generation, out-of-order responses).
+    private var loadSeq = 0
+    private var mutationGen = 0
 
     fun clearError() { actionError = null }
 
@@ -67,27 +90,92 @@ class ThreadViewModel(val convoId: String) : ViewModel() {
         }
     }
 
+    // Review #6: MessagesScreen hosts threads internally, so every keyed
+    // ThreadViewModel stays in the Activity's store — without this, visiting N
+    // conversations leaves N concurrent authed 12s pollers running for the
+    // whole session (battery, data, and server load).
+    fun stop() {
+        poller?.cancel()
+        poller = null
+    }
+
+    // After a write, restart the poll loop instead of just loading. Cancelling
+    // kills any in-flight GET, which closes the window `mutationGen` cannot:
+    // a poll that STARTED after the write but read the DB before it committed
+    // is not stale by generation, yet still carries pre-write data.
+    private fun restartPolling() {
+        // Screen already gone (stop() ran): don't resurrect a poller nobody is
+        // watching — re-entry calls start(), which loads fresh anyway.
+        if (poller == null) return
+        stop()
+        start()
+    }
+
+    override fun onCleared() {
+        poller?.cancel()
+        super.onCleared()
+    }
+
     suspend fun load() {
+        val seq = ++loadSeq
+        val gen = mutationGen
         try {
             val t = msgGet<ChatThread>("api/conversations/$convoId")
+            // Review #10: drop a snapshot that a newer poll or a local write has
+            // already superseded — otherwise a slow poll that started before an
+            // Accept lands after it and reverts the card to "pending" for ~12s.
+            if (seq != loadSeq || gen != mutationGen) return
             val server = t.messages
             val serverIds = server.map { it.id }.toHashSet()
+            consumedServerIds.retainAll(serverIds) // bound growth to the live thread
+
             // Duplication guard for the poll-vs-send race: a poll that STARTED
             // before a send committed returns the list WITHOUT it (would blink
             // the bubble out); a poll that finished AFTER returns the DB copy
-            // while the local bubble is still pending. Keep pending/failed/
-            // recent-own locals that the server hasn't echoed, but drop a
-            // pending local whose content matches a recent own server message
-            // (that IS the same message — let the late replace() no-op).
-            val recentMineKeys = server.filter { it.mine }.takeLast(10)
-                .map { "${it.body}|${it.offerAmount ?: -1}" }.toHashSet()
+            // while the local bubble is still pending.
+            //
+            // Review #4/#14: reconcile against a POOL that each server message
+            // can leave only once. Matching on content alone was wrong twice
+            // over — it kept a failed bubble forever beside its delivered twin
+            // (the phantom "Not sent"), and it silently ate a deliberate second
+            // identical message by matching it to the first one's echo.
+            val pool = server.filter { it.mine }.takeLast(10)
+                .filterNot { consumedServerIds.contains(it.id) }
+                .toMutableList()
+            fun consumeEcho(m: ChatMsg): Boolean {
+                val key = "${m.body}|${m.offerAmount ?: -1}"
+                val echo = pool.firstOrNull { "${it.body}|${it.offerAmount ?: -1}" == key }
+                    ?: return false
+                pool.remove(echo)
+                consumedServerIds.add(echo.id)
+                clientIds.remove(m.id)
+                return true
+            }
             val keep = thread?.messages.orEmpty().filter { m ->
                 if (serverIds.contains(m.id)) return@filter false
-                val key = "${m.body}|${m.offerAmount ?: -1}"
                 when {
-                    m.pending -> !recentMineKeys.contains(key)
-                    m.failed -> true
-                    m.mine && ChatTime.secondsAgo(m.createdAt) < 60 -> !recentMineKeys.contains(key)
+                    // A PENDING bubble is resolved exactly by replace() when its
+                    // POST returns, so never content-guess at it. Guessing loses
+                    // real messages: with two identical sends in flight, the
+                    // older local can claim the YOUNGER one's echo and vanish —
+                    // permanently, if its own POST then fails. A brief
+                    // double-render until replace() lands is the cheaper evil.
+                    m.pending -> true
+                    // A FAILED bubble never gets a replace() — its response was
+                    // the thing we lost — so content reconciliation is the only
+                    // way to clear the phantom "Not sent" standing beside a
+                    // message that actually committed (#4).
+                    //
+                    // But content matching is a GUESS (the server does not echo
+                    // clientId), and on an offer a wrong guess hides real money:
+                    // the bubble disappears and the seller thinks the offer
+                    // landed. So never guess at an offer — leave it saying
+                    // "Not sent". That is honest, and it is self-healing:
+                    // retry() re-sends the ORIGINAL clientId, so if it did
+                    // commit the server returns the same message and replace()
+                    // resolves the bubble EXACTLY, with no duplicate.
+                    m.failed -> if (m.offerAmount != null) true else !consumeEcho(m)
+                    m.mine && ChatTime.secondsAgo(m.createdAt) < 60 -> !consumeEcho(m)
                     else -> false
                 }
             }
@@ -98,19 +186,34 @@ class ThreadViewModel(val convoId: String) : ViewModel() {
         } catch (_: Exception) { /* transient; the poll retries */ }
     }
 
-    fun send(text: String) {
+    // `clientId` is non-null only on a RETRY, where re-using the original key is
+    // what makes the resend idempotent server-side.
+    fun send(text: String, clientId: String? = null) {
         val body = text.trim()
         if (body.isEmpty() || body.length > 2000) return
-        deliver(JSONObject().put("body", body).put("clientId", UUID.randomUUID().toString()), body, null)
+        val cid = clientId ?: UUID.randomUUID().toString()
+        deliver(JSONObject().put("body", body).put("clientId", cid), body, null, cid)
     }
 
-    fun counter(amount: Long) {
+    fun counter(amount: Long, clientId: String? = null) {
         if (amount <= 0) return
-        deliver(JSONObject().put("offerAmount", amount).put("clientId", UUID.randomUUID().toString()), "", amount)
+        val cid = clientId ?: UUID.randomUUID().toString()
+        deliver(JSONObject().put("offerAmount", amount).put("clientId", cid), "", amount, cid)
     }
 
-    private fun deliver(payload: JSONObject, localBody: String, offerAmount: Long?) {
+    private fun deliver(payload: JSONObject, localBody: String, offerAmount: Long?, clientId: String) {
         val localId = "local-${UUID.randomUUID()}"
+        clientIds[localId] = clientId
+        // CAUSALITY (money-critical). Reconciliation matches on content, so
+        // without this a failed NEW offer silently matches an identical OLDER
+        // one already in the thread — the bubble vanishes and the seller
+        // believes an offer landed that never committed. Nothing that already
+        // exists can be the echo of a send that hasn't happened yet, so retire
+        // every currently-known server message from the pool up front. Only
+        // messages that appear AFTER this moment can reconcile this bubble.
+        thread?.messages.orEmpty().forEach { m ->
+            if (!m.id.startsWith("local-")) consumedServerIds.add(m.id)
+        }
         val local = ChatMsg(
             id = localId, mine = true, body = localBody,
             createdAt = java.time.Instant.now().toString(),
@@ -121,8 +224,11 @@ class ThreadViewModel(val convoId: String) : ViewModel() {
         viewModelScope.launch {
             try {
                 val sent = msgPost<ChatMsg>("api/conversations/$convoId/messages", payload.toString())
+                mutationGen++ // my own write outranks any poll already in flight
                 replace(localId, sent)
-                if (offerAmount != null) load() // a counter flips older offers server-side
+                // A counter flips older offers server-side, so refresh — via a
+                // poll restart, so an in-flight pre-write GET can't undo it.
+                if (offerAmount != null) restartPolling()
             } catch (_: Exception) {
                 mark(localId, failed = true)
             }
@@ -131,31 +237,57 @@ class ThreadViewModel(val convoId: String) : ViewModel() {
 
     fun retry(msg: ChatMsg) {
         if (!msg.failed) return
-        thread = thread?.let { it.copy(messages = it.messages.filterNot { m -> m.id == msg.id }) }
+        val cid = clientIds[msg.id]
         val amt = msg.offerAmount
-        if (amt != null) counter(amt) else send(msg.body)
+        if (cid == null && amt != null) {
+            // Money path: a "failed" send may still have COMMITTED (the response
+            // was what we lost). Re-sending under a fresh idempotency key is
+            // exactly the duplicate-offer bug, so refuse rather than risk it.
+            actionError = L10n.tr(
+                "Couldn't safely resend that offer. Reopen the chat to see if it went through.",
+                "Không thể gửi lại đề nghị an toàn. Hãy mở lại cuộc trò chuyện để kiểm tra.",
+            )
+            return
+        }
+        clientIds.remove(msg.id)
+        thread = thread?.let { it.copy(messages = it.messages.filterNot { m -> m.id == msg.id }) }
+        if (amt != null) counter(amt, cid) else send(msg.body, cid)
     }
 
     // iOS review #6: only reload on a real 2xx; surface every other outcome so a
     // swallowed failure can't leave optimistic accept/decline state standing.
     fun act(msg: ChatMsg, action: String) {
+        // Review #9: a second tap while the first is in flight 409s, which used
+        // to raise "this offer can't be updated" straight after a SUCCESSFUL
+        // accept. The lock is conversation-wide because the endpoint is.
+        if (acting) return
+        acting = true
         viewModelScope.launch {
-            val status = msgSendStatus(
-                "POST", "api/conversations/$convoId/offer",
-                JSONObject().put("messageId", msg.id).put("action", action).toString(),
-            )
-            when {
-                status in 200..299 -> load()
-                status == 409 -> {
-                    actionError = L10n.tr("This offer can't be updated anymore.", "Đề nghị này không còn hiệu lực.")
-                    load()
+            try {
+                val status = msgSendStatus(
+                    "POST", "api/conversations/$convoId/offer",
+                    JSONObject().put("messageId", msg.id).put("action", action).toString(),
+                )
+                when {
+                    status in 200..299 -> { mutationGen++; restartPolling() }
+                    status == 409 -> {
+                        actionError = L10n.tr("This offer can't be updated anymore.", "Đề nghị này không còn hiệu lực.")
+                        mutationGen++
+                        restartPolling()
+                    }
+                    else -> actionError = L10n.tr("Could not update the offer. Try again.", "Không cập nhật được đề nghị. Thử lại.")
                 }
-                else -> actionError = L10n.tr("Could not update the offer. Try again.", "Không cập nhật được đề nghị. Thử lại.")
+            } finally {
+                acting = false
             }
         }
     }
 
     private fun replace(localId: String, server: ChatMsg) {
+        clientIds.remove(localId)
+        // This server message is now accounted for, so a later identical message
+        // can't be mistaken for its echo and dropped (#14).
+        consumedServerIds.add(server.id)
         val t = thread ?: return
         thread = if (t.messages.any { it.id == server.id }) {
             // The poll already delivered the server copy — drop the local bubble
@@ -180,7 +312,12 @@ fun ThreadScreen(convoId: String, onBack: () -> Unit) {
     // fresh instance rather than the previous thread's messages.
     val vm: ThreadViewModel = viewModel(key = "thread-$convoId") { ThreadViewModel(convoId) }
     var counterPrompt by remember { mutableStateOf(false) }
-    LaunchedEffect(convoId) { vm.start() }
+    // Review #6: cancel the 12s poll when the thread leaves composition, or every
+    // conversation ever opened keeps polling for the life of the session.
+    DisposableEffect(convoId) {
+        vm.start()
+        onDispose { vm.stop() }
+    }
 
     val t = vm.thread
     Column(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
@@ -388,10 +525,10 @@ private fun OfferCard(m: ChatMsg, t: ChatThread, vm: ThreadViewModel, onCounter:
         if (!mine && m.offerStatus == "pending") {
             Spacer(Modifier.height(4.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                Button(onClick = { vm.act(m, "accept") }, contentPadding = PaddingValues(horizontal = 16.dp)) {
+                Button(onClick = { vm.act(m, "accept") }, enabled = !vm.acting, contentPadding = PaddingValues(horizontal = 16.dp)) {
                     Text(L10n.tr("Accept", "Chấp nhận"), fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                 }
-                FilledTonalButton(onClick = { vm.act(m, "decline") }, contentPadding = PaddingValues(horizontal = 16.dp)) {
+                FilledTonalButton(onClick = { vm.act(m, "decline") }, enabled = !vm.acting, contentPadding = PaddingValues(horizontal = 16.dp)) {
                     Text(L10n.tr("Decline", "Từ chối"), fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                 }
                 // Landmine invariant: Counter only on negotiable listings.

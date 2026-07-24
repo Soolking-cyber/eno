@@ -51,6 +51,9 @@ class InboxViewModel : ViewModel() {
     val convos: StateFlow<List<InboxConvo>> = _convos
     var loaded by mutableStateOf(false)
         private set
+    var actionError by mutableStateOf<String?>(null)
+
+    fun clearError() { actionError = null }
 
     fun load() {
         viewModelScope.launch {
@@ -61,9 +64,31 @@ class InboxViewModel : ViewModel() {
         }
     }
 
+    // Review #12: the row used to disappear whether or not the server agreed, so
+    // a 403/429/500 — or no network at all — left the user believing a
+    // conversation was deleted until it reappeared on the next refresh.
+    // NOTE: msgSendStatus returns 0 when the request never completed.
     fun delete(convo: InboxConvo) {
+        val idx = _convos.value.indexOfFirst { it.id == convo.id }
+        if (idx < 0) return
         _convos.value = _convos.value.filterNot { it.id == convo.id }
-        viewModelScope.launch { msgSendStatus("DELETE", "api/conversations/${convo.id}") }
+        viewModelScope.launch {
+            val status = msgSendStatus("DELETE", "api/conversations/${convo.id}")
+            // 404 = already gone server-side, which is the outcome we wanted.
+            if (status !in 200..299 && status != 404) {
+                // A concurrent load() may already have restored the row. Adding
+                // it again would put two items with the same id in the list, and
+                // LazyColumn keys by id — a duplicate key crashes the screen.
+                _convos.value = _convos.value.let { cur ->
+                    if (cur.any { it.id == convo.id }) cur
+                    else cur.toMutableList().also { it.add(idx.coerceAtMost(it.size), convo) }
+                }
+                actionError = L10n.tr(
+                    "Could not delete that conversation. Try again.",
+                    "Không xóa được cuộc trò chuyện. Thử lại.",
+                )
+            }
+        }
     }
 }
 
@@ -182,6 +207,14 @@ private fun Inbox(onOpen: (String) -> Unit) {
                 WebTab("/messages/ai")
             }
         }
+    }
+
+    vm.actionError?.let { err ->
+        AlertDialog(
+            onDismissRequest = { vm.clearError() },
+            confirmButton = { TextButton(onClick = { vm.clearError() }) { Text("OK") } },
+            text = { Text(err) },
+        )
     }
 }
 
