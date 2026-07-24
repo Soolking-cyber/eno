@@ -141,10 +141,17 @@ function Button({
     return (
       <ButtonPrimitive
         data-slot="button"
-        // asChild renders a NON-native-button element (every call site passes a <Link>/anchor), so
-        // tell Base UI so — otherwise it expects a real <button> and logs a dev console error.
-        // Mirrors the canonical eno.vn ui/button (src/components/ui/button.tsx).
-        nativeButton={false}
+        // ⚠️ Do NOT add `nativeButton={false}` here (it was tried and reverted). The forum's
+        // asChild call sites render NAVIGATING links — `<a href>` post/permalink links (e.g.
+        // ForumPostCard "Open replies"). Base UI's useButton adds `role="button"` UNCONDITIONALLY
+        // when nativeButton is false, which turns those links into buttons: it broke the Forum E2E
+        // (`getByRole('link', …)` no longer matches) and mis-announces content links as buttons.
+        // Leaving nativeButton at its default (true) keeps the link's role="link"; Base UI logs a
+        // dev-only console warning about a non-<button> render, which is harmless (dev only) and far
+        // preferable to the semantic regression. (The canonical eno.vn ui/button sets it false, but
+        // ITS asChild sites are button-like actions, not content links queried by role.) The real
+        // fix for a link-styled-as-button is to drop the Button primitive and apply buttonVariants
+        // to the <a> directly — deferred, out of scope for a lint-noise fix.
         render={children as React.ReactElement<Record<string, unknown>>}
         className={cn(buttonVariants({ variant, size, iconSize, className }))}
         {...rest}
