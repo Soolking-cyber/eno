@@ -42,6 +42,8 @@ export function NativeBadge() {
 
   // Skip the redundant write when the number has not moved — this runs on every poll tick.
   const lastWritten = useRef<number | null>(null)
+  // Ask for badge authorization at most once per mount (a denial sticks; don't nag).
+  const requested = useRef(false)
 
   useEffect(() => {
     if (!cap()?.isNativePlatform?.()) return
@@ -52,20 +54,22 @@ export function NativeBadge() {
       if (lastWritten.current === count) return
       try {
         const { Badge } = await import('@capawesome/capacitor-badge')
-        // ⚠️ THIS FILE MUST NEVER TRIGGER THE OS NOTIFICATION PROMPT. The old note here assumed
-        // "the badge is authorised by the same prompt native-push shows" and so called set()/clear()
-        // freely — but that is wrong for @capawesome/capacitor-badge: its iOS set/clear/increase/
-        // decrease each call requestPermissions() FIRST (BadgePlugin.swift), i.e.
-        // UNUserNotificationCenter.requestAuthorization(.badge) — the OS dialog. And this component
-        // runs for a GUEST too (total 0 → clear()), so on a cold first launch it popped
-        // "eno Would Like to Send You Notifications" before the user did anything, and before
-        // native-push (which needs a signed-in user) could ever run. That premature, un-earned
-        // prompt tanks opt-in. Fix: gate on ALREADY-granted permission. checkPermissions() is
-        // silent (getNotificationSettings, no dialog); write the badge only when permission
-        // already exists, leaving native-push.tsx as the SINGLE place that ever asks. Not granted
-        // = nothing to reflect yet (a guest has no badge anyway); the next count change or
-        // foreground re-write applies it once the user has granted via the push flow.
-        if ((await Badge.checkPermissions()).display !== 'granted') return
+        // ⚠️ NEVER PROMPT A GUEST, AND NEVER FOR NOTHING. iOS shows NO app-icon badge without
+        // badge authorization, and NOTHING else asks for it: @capawesome/capacitor-badge's
+        // set/clear each call requestPermissions() (the OS dialog), and native-push — the other
+        // asker — is gated OFF (no aps-environment entitlement), so a "gate on already-granted"
+        // rule (the previous version) meant the badge could NEVER appear. So acquire it HERE, but
+        // narrowly: a SIGNED-IN user (never a guest cold launch — that un-earned prompt tanks
+        // opt-in), only when there's actually a count to show (count > 0), and only ONCE. This is
+        // badge-only authorization (.badge), independent of push registration — no entitlement
+        // needed. A 'denied' result sticks (checkPermissions returns it → no re-ask).
+        const settings = await Badge.checkPermissions()
+        let granted = settings.display === 'granted'
+        if (!granted && settings.display === 'prompt' && user && count > 0 && !requested.current) {
+          requested.current = true
+          granted = (await Badge.requestPermissions()).display === 'granted'
+        }
+        if (!granted) return
         if (count > 0) await Badge.set({ count })
         else await Badge.clear()
         if (!cancelled) lastWritten.current = count
