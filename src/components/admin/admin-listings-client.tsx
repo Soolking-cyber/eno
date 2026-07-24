@@ -53,7 +53,10 @@ export function AdminListingsClient() {
   // Last non-null value keeps the dialog copy stable while it animates out
   // (clearing on close would flash "Delete 0 listing(s)?" mid-exit).
   const lastDelete = useRef<string[]>([])
-  if (pendingDelete) lastDelete.current = pendingDelete
+  // ⚠️ Written in an EFFECT, not during render. A render-phase ref write is mutation from a
+  // render React may abandon or replay under concurrent rendering (both reviewers flagged it).
+  // The dialog copy still stays stable while it animates out, which is all this ref is for.
+  useEffect(() => { if (pendingDelete) lastDelete.current = pendingDelete }, [pendingDelete])
 
   // Stale-async guard (audit Phase 2): typing 'iph' → 'iphone' (or a filter switch
   // during a slow query) put two requests in flight; the EARLIER response landing
@@ -66,7 +69,7 @@ export function AdminListingsClient() {
     if (q.trim()) p.set('q', q.trim())
     fetch(`/api/admin/listings?${p}`, { signal: req.signal })
       .then((r) => r.json())
-      .then((d) => { if (!req.isCurrent()) return; setRows(d.listings || []); setTotal(d.total || 0); setSel(new Set()) })
+      .then((d) => { if (!req.isCurrent()) return; setRows(d.listings || []); setTotal(d.total || 0); setSel((prev) => (prev.size ? new Set() : prev)) })
       .catch(() => { if (req.isCurrent()) toast.error('Could not load listings') })
       .finally(() => { if (req.isCurrent()) setLoading(false) })
   }, [q, status, verified, latest])
@@ -238,10 +241,26 @@ export function AdminListingsClient() {
         {busy && <Loader2 className="ml-1 h-4 w-4 animate-spin text-ink-4" />}
       </div>
 
-      {loading ? (
+      {/* ⚠️ THE FLICKER (owner, 2026-07-24). This used to be `loading ? <spinner> : <table>`, so
+          EVERY fetch unmounted the whole table and replaced it with a centred spinner — a full
+          content swap on each keystroke of the 200ms-debounced search and on every filter
+          change. (Before the useLatestRequest identity fix it also fired ~2.6×/second forever,
+          which is what made it constant.) Both external reviewers ranked this the top remaining
+          cause once the loop was gone.
+
+          Now the table STAYS MOUNTED across refetches: only a genuinely empty first load shows
+          the spinner, and a refresh over existing rows just dims them slightly while the small
+          inline spinner beside the count does the talking. No unmount, no reflow, no flash. */}
+      {loading && rows.length === 0 ? (
         <div className="flex justify-center py-16"><Loader2 className="h-6 w-6 animate-spin text-ink-4" /></div>
       ) : (
-        <div className="mt-4 overflow-x-auto rounded-2xl border">
+        <div
+          aria-busy={loading || undefined}
+          className={cn(
+            'mt-4 overflow-x-auto rounded-2xl border transition-opacity duration-150',
+            loading && 'opacity-60',
+          )}
+        >
           <Table>
             <TableHeader>
               {table.getHeaderGroups().map((hg) => (
