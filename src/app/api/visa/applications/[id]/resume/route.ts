@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getCurrentProfileId } from '@/lib/admin'
 import { rateLimit } from '@/lib/ratelimit'
-import { resendVisaDmCard, visaDmFailureFor } from '@/lib/visa/dm-flow'
+import { advanceVisaDmFlow, resendVisaDmCard, visaDmFailureFor } from '@/lib/visa/dm-flow'
 import { bindVisaThread, findVisaThread } from '@/lib/visa/dm-thread'
 
 // RESUME A SPECIFIC CASE IN THE CHAT — "when i edit visa in my evisa page it should load the
@@ -66,6 +66,21 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
     // pretending the resume failed: the client still navigates to a correctly-bound thread and
     // the chip can post the form itself. (Its own rate limit is the usual reason.)
     const resent = await resendVisaDmCard({ applicationId: id, actorId: userId })
+    let cardPosted = resent.ok
+    let cardError = resent.ok ? undefined : resent.error
+    if (!resent.ok) {
+      // ⚠️ A REBIND WITHOUT A LIVE CARD IS THE WORST STATE THIS ROUTE CAN LEAVE. The pointer
+      // has already moved, so the newest card on screen belongs to the case that just lost it
+      // — and tapping that card answers "This chat is not linked to an application yet"
+      // (advanceVisaDmFlow's thread_not_bound). Telling the applicant to press the chip is not
+      // a fix when the chip is what just failed.
+      //
+      // advance is the idempotent "make sure the card for the current step EXISTS" path, so it
+      // recovers exactly this: it cannot double-post (a card already live for the step is
+      // precisely what it refuses to re-send), and it needs no re-quote or payload write.
+      const advanced = await advanceVisaDmFlow({ applicationId: id, userId })
+      if (advanced.ok) { cardPosted = true; cardError = undefined }
+    }
 
     // ⚠️ BIND AND RESEND ARE TWO AWAITS, NOT ONE TRANSACTION (codex, plan review). A second
     // resume — another tab, a double tap — can move the live pointer in between, and the card
@@ -76,8 +91,8 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
     const stillLive = await findVisaThread(id)
     return NextResponse.json({
       conversationId: bound.conversationId,
-      cardPosted: resent.ok,
-      ...(resent.ok ? {} : { cardError: resent.error }),
+      cardPosted,
+      ...(cardError ? { cardError } : {}),
       // The client uses this to say "another tab switched application" rather than dropping
       // the applicant into a thread whose form is silently not the one they asked for.
       ...(stillLive ? {} : { superseded: true }),

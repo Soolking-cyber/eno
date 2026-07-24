@@ -19,6 +19,8 @@ const h = vi.hoisted(() => ({
     bindCalls: [] as Row[],
     resendResult: { ok: true, messageId: 'msg-1', step: 2 } as Row,
     resendCalls: [] as Row[],
+    advanceCalls: [] as Row[],
+    advanceResult: { ok: true, step: 1, messageId: 'msg-adv' } as Row,
     /** What findVisaThread reports AFTER the resend — null = another case took the pointer. */
     stillBound: { conversationId: 'convo-1' } as Row | null,
   },
@@ -37,6 +39,7 @@ vi.mock('@/lib/visa/dm-thread', () => ({
 }))
 vi.mock('@/lib/visa/dm-flow', () => ({
   resendVisaDmCard: (input: Row) => { h.state.resendCalls.push(input); return Promise.resolve(h.state.resendResult) },
+  advanceVisaDmFlow: (input: Row) => { h.state.advanceCalls.push(input); return Promise.resolve(h.state.advanceResult) },
   visaDmFailureFor: () => ({ error: 'internal_error', status: 500 }),
 }))
 
@@ -58,6 +61,8 @@ beforeEach(() => {
   h.state.bindCalls = []
   h.state.resendResult = { ok: true, messageId: 'msg-1', step: 2 }
   h.state.resendCalls = []
+  h.state.advanceCalls = []
+  h.state.advanceResult = { ok: true, step: 1, messageId: 'msg-adv' }
   h.state.stillBound = { conversationId: 'convo-1' }
 })
 
@@ -109,13 +114,23 @@ describe('visa resume — honest outcomes', () => {
     expect(h.state.resendCalls[0]).toEqual({ applicationId: APP_ID, actorId: 'buyer-1' })
   })
 
-  it('a refused CARD still succeeds — the binding is what mattered', async () => {
-    // The thread is correctly bound either way; the chip can post the form. Failing the whole
-    // resume here would strand the applicant on a case they are entitled to open.
-    h.state.resendResult = { ok: false, error: 'too_many', status: 429 }
+  it('a refused re-post falls back to advance, so the bound case always has a live card', async () => {
+    // ⚠️ A rebind with NO live card is the worst state: the newest card belongs to the case
+    // that just lost the pointer, and tapping it says "This chat is not linked to an
+    // application yet". advance is the idempotent ensure-a-card path and recovers it.
+    h.state.resendResult = { ok: false, error: 'step_card_refused', status: 503 }
     const { status, json } = await post()
     expect(status).toBe(200)
-    expect(json).toMatchObject({ conversationId: 'convo-1', cardPosted: false, cardError: 'too_many' })
+    expect(h.state.advanceCalls[0]).toEqual({ applicationId: APP_ID, userId: 'buyer-1' })
+    expect(json).toMatchObject({ conversationId: 'convo-1', cardPosted: true })
+    expect(json.cardError).toBeUndefined()
+  })
+
+  it('reports cardPosted:false only when BOTH the re-post and the advance refuse', async () => {
+    h.state.resendResult = { ok: false, error: 'step_card_refused', status: 503 }
+    h.state.advanceResult = { ok: false, error: 'thread_not_bound', status: 409 }
+    const { json } = await post()
+    expect(json).toMatchObject({ cardPosted: false, cardError: 'step_card_refused' })
   })
 
   it('reports `superseded` when another resume stole the pointer mid-flight', async () => {

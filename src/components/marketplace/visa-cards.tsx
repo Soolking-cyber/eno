@@ -11,7 +11,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger,
+  DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import {
   Combobox, ComboboxClear, ComboboxContent, ComboboxEmpty, ComboboxGroup, ComboboxGroupLabel,
@@ -2075,27 +2075,39 @@ export function VisaResendChip({ info, isDesk, busy, error, onResend, otherCases
             rebinds the thread to it and brings ITS form down (POST …/resume). */}
         {!paused && !!otherCases?.length && onSwitchCase && (
           <DropdownMenu>
+            {/* ⚠️ The icon lives INSIDE the rendered Button, not as Trigger children. Base UI's
+                `render` REPLACES the trigger element, so children passed to the Trigger alongside
+                a self-closing render element are dropped and the menu never opens — which is
+                exactly how this shipped broken the first time. Match ui/more-overflow. */}
             <DropdownMenuTrigger
               render={
                 <Button
+                  type="button"
                   variant="soft"
                   size="none"
                   disabled={busy}
                   aria-label={tr('Choose which application to bring', 'Chọn hồ sơ cần đưa xuống')}
                   title={tr('Choose which application to bring', 'Chọn hồ sơ cần đưa xuống')}
-                  className="relative tap-44 shrink-0 gap-1 rounded-full border border-line-strong px-2.5 py-1.5 text-2xs font-bold text-foreground"
-                />
+                  className="relative tap-44 shrink-0 gap-1 rounded-full border border-line-strong px-2.5 py-1.5 text-2xs font-bold text-foreground active:scale-100"
+                >
+                  <ChevronDown className="size-3.5 shrink-0" aria-hidden />
+                </Button>
               }
-            >
-              <ChevronDown className="size-3.5 shrink-0" aria-hidden />
-            </DropdownMenuTrigger>
+            />
             <DropdownMenuContent align="start" className="max-w-[16rem]">
-              <DropdownMenuLabel>{tr('Bring another application', 'Đưa hồ sơ khác xuống')}</DropdownMenuLabel>
-              {otherCases.map((c) => (
-                <DropdownMenuItem key={c.id} disabled={busy} onClick={() => void onSwitchCase(c.id)}>
-                  {c.label}
-                </DropdownMenuItem>
-              ))}
+              {/* ⚠️ THE GROUP IS NOT DECORATION. DropdownMenuLabel renders Base UI's
+                  Menu.GroupLabel, which THROWS "MenuGroupContext is missing" unless it sits
+                  inside a Menu.Group — and the throw happens when the popup mounts, so the
+                  menu simply never opens. That is exactly how this shipped broken: the chevron
+                  rendered, the click registered, and nothing appeared. */}
+              <DropdownMenuGroup>
+                <DropdownMenuLabel>{tr('Bring another application', 'Đưa hồ sơ khác xuống')}</DropdownMenuLabel>
+                {otherCases.map((c) => (
+                  <DropdownMenuItem key={c.id} disabled={busy} onClick={() => void onSwitchCase(c.id)}>
+                    {c.label}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuGroup>
             </DropdownMenuContent>
           </DropdownMenu>
         )}
