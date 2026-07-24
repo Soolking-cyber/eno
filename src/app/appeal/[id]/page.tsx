@@ -63,20 +63,20 @@ export default function AppealPage() {
         {loading ? (
           <div className="flex justify-center py-20"><Loader2 className="h-6 w-6 animate-spin text-accent-foreground" /></div>
         ) : !user ? (
-          <div className="rounded-2xl bg-card p-8 text-center shadow-pop">
+          <div className="rounded-2xl bg-popover p-8 text-center shadow-pop">
             <ShieldQuestion className="mx-auto h-10 w-10 text-ink-4" />
             <p className="mt-3 text-sm text-muted-foreground">{t('Sign in to appeal a decision on your account.', 'Đăng nhập để khiếu nại quyết định trên tài khoản của bạn.')}</p>
             <div className="mt-4"><SignInPrompt /></div>
           </div>
         ) : done ? (
-          <div className="rounded-2xl bg-card p-8 text-center shadow-pop">
+          <div className="rounded-2xl bg-popover p-8 text-center shadow-pop">
             <CheckCircle2 className="mx-auto h-12 w-12 text-accent-foreground" />
             <h1 className="mt-3 text-lg font-bold text-foreground">{t('Appeal submitted', 'Đã gửi khiếu nại')}</h1>
             <p className="mt-1 text-sm text-muted-foreground">{t('The eno.vn team will review your appeal and the proof you sent. You’ll hear back via your notifications.', 'Đội ngũ eno.vn sẽ xem xét khiếu nại và bằng chứng của bạn. Bạn sẽ nhận phản hồi qua thông báo.')}</p>
             <Button asChild variant="cta" size="none"><Link href="/" className="mt-5 px-6 py-2">{t('Back to eno.vn', 'Về eno.vn')}</Link></Button>
           </div>
         ) : (
-          <div className="rounded-2xl bg-card p-6 shadow-pop">
+          <div className="rounded-2xl bg-popover p-6 shadow-pop">
             <h1 className="text-lg font-bold text-foreground">{t('Appeal this decision', 'Khiếu nại quyết định này')}</h1>
             <p className="mt-1 text-sm text-muted-foreground">{t('Tell us why you think this was a mistake and attach proof (screenshots, photos). We’ll re-review your case.', 'Hãy cho chúng tôi biết vì sao bạn cho rằng đây là nhầm lẫn và đính kèm bằng chứng (ảnh chụp màn hình, ảnh). Chúng tôi sẽ xem xét lại.')}</p>
 

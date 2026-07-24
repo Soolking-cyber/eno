@@ -1427,7 +1427,9 @@ export function ListingsExplorer({
               {/* One cohesive search pill that morphs into a seamless suggestions
                   panel on focus (Google-style): flat bottom + shared shadow/border. */}
               <div className={cn(
-                'flex items-center bg-card transition-all duration-200',
+                // bg-popover (not bg-card): when open the pill floats (shadow-pop) and must lift
+                // off the canvas in dark mode; the closed state overrides to bg-tint below.
+                'flex items-center bg-popover transition-all duration-200',
                 heroPanelOpen
                   ? 'rounded-t-2xl shadow-pop'
                   : 'rounded-2xl bg-tint focus-within:ring-2 focus-within:ring-ring/30',
@@ -1524,7 +1526,7 @@ export function ListingsExplorer({
               {heroPanelOpen && (
                 <>
                   <div aria-hidden className="fixed inset-0 z-40 cursor-default" onClick={() => setShowSuggestions(false)} /> {/* design-lint-allow */}
-                  <div className="absolute top-full left-0 right-0 -mt-px z-50 rounded-b-2xl bg-card p-4 shadow-pop text-left max-h-[440px] overflow-y-auto scroll-thin space-y-4 animate-in fade-in slide-in-from-top-1 duration-100">
+                  <div className="absolute top-full left-0 right-0 -mt-px z-50 rounded-b-2xl bg-popover p-4 shadow-pop text-left max-h-[440px] overflow-y-auto scroll-thin space-y-4 animate-in fade-in slide-in-from-top-1 duration-100">
                     {landingQuery.trim().length >= 2 ? (
                       <SearchSuggest
                         items={heroSuggestItems}

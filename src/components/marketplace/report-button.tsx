@@ -122,7 +122,7 @@ export function ReportButton({ listingId, sellerId, conversationId, className }:
       </Button>
 
       <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) reset() }}>
-        <DialogContent className="bg-card rounded-2xl shadow-overlay w-full max-w-sm p-6 gap-0">
+        <DialogContent className="bg-popover rounded-2xl shadow-overlay w-full max-w-sm p-6 gap-0">
           <DialogHeader>
             <DialogTitle className="text-center text-lg font-bold text-foreground">
               {title}

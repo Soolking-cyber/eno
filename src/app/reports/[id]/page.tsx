@@ -72,20 +72,20 @@ export default function ReportSupplementPage() {
         {loading ? (
           <div className="flex justify-center py-20"><Loader2 className="h-6 w-6 animate-spin text-accent-foreground" /></div>
         ) : !user ? (
-          <div className="rounded-2xl bg-card p-8 text-center shadow-pop">
+          <div className="rounded-2xl bg-popover p-8 text-center shadow-pop">
             <MessageSquareWarning className="mx-auto h-10 w-10 text-ink-4" />
             <p className="mt-3 text-sm text-muted-foreground">{t('Sign in to add details to your report.', 'Đăng nhập để bổ sung chi tiết cho báo cáo của bạn.')}</p>
             <div className="mt-4"><SignInPrompt /></div>
           </div>
         ) : done ? (
-          <div className="rounded-2xl bg-card p-8 text-center shadow-pop">
+          <div className="rounded-2xl bg-popover p-8 text-center shadow-pop">
             <CheckCircle2 className="mx-auto h-12 w-12 text-accent-foreground" />
             <h1 className="mt-3 text-lg font-bold text-foreground">{t('Details added — thank you', 'Đã bổ sung — cảm ơn bạn')}</h1>
             <p className="mt-1 text-sm text-muted-foreground">{t('Your update went straight to the review team. You’ll hear back via your notifications.', 'Thông tin bổ sung đã được gửi thẳng đến đội xem xét. Bạn sẽ nhận phản hồi qua thông báo.')}</p>
             <Button asChild variant="cta" size="none"><Link href="/" className="mt-5 px-6 py-2">{t('Back to eno.vn', 'Về eno.vn')}</Link></Button>
           </div>
         ) : (
-          <div className="rounded-2xl bg-card p-6 shadow-pop">
+          <div className="rounded-2xl bg-popover p-6 shadow-pop">
             <h1 className="text-lg font-bold text-foreground">{t('Add details to your report', 'Bổ sung chi tiết cho báo cáo')}</h1>
             <p className="mt-1 text-sm text-muted-foreground">{t('Screenshots or the exact messages help us review faster and get it right. Everything you add goes straight to the case.', 'Ảnh chụp màn hình hoặc tin nhắn cụ thể giúp chúng tôi xử lý nhanh và chính xác hơn. Mọi thông tin bạn thêm sẽ vào thẳng hồ sơ.')}</p>
 
