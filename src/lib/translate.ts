@@ -39,6 +39,20 @@ function hash(text: string): string {
   return crypto.createHash('sha1').update(text).digest('hex')
 }
 
+// A word-free, universal string — a bare year, a phone number, an ASCII price ("12000000"),
+// pure emoji or symbols — is identical in every language, so it must never reach the paid provider.
+// Two things still count as translatable: (1) any script's LETTERS (`\p{L}` — Latin, CJK, Hangul,
+// Cyrillic, Thai, Arabic…), so real content always translates; (2) NATIVE-SCRIPT NUMERALS (Thai
+// ๑๒๓, Khmer ១២៣, Devanagari १२३ — Unicode category Nd but not ASCII 0-9), which DO change per
+// language (an English reader needs 123), so they must not be skipped. Used by translateBatch AND
+// uncachedStats so the billing estimate and the actual paid work stay in lock-step.
+function worthTranslating(t: string): boolean {
+  if (!t || t.trim().length === 0) return false
+  if (/\p{L}/u.test(t)) return true
+  return /[^\P{Nd}0-9]/u.test(t) // a decimal digit that is NOT an ASCII 0-9 ⇒ a native-script numeral
+}
+const translatableUniq = (texts: string[]): string[] => Array.from(new Set(texts.filter(worthTranslating)))
+
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
 let warnedNoKey = false
@@ -185,10 +199,17 @@ export async function translateBatch(
      * final (codex + Gemini, review of the chat-translate endpoint).
      */
     stats?: { providerFailed: boolean }
+    /**
+     * Attribution tag for the `[translate:spend]` billable-char log — 'warm' | 'warm-cron' |
+     * 'api' | 'chat' | 'health' | … Lets a future cost spike be diagnosed by source in the logs,
+     * INCLUDING ephemeral chat, which never lands in the cache table a SQL query could tally.
+     */
+    source?: string
   },
 ): Promise<string[]> {
-  // Collect the unique, non-trivial strings that actually need translating.
-  const uniq = Array.from(new Set(texts.filter((t) => t && t.trim().length > 0)))
+  // Collect the unique strings that actually need translating (letter-free strings — prices,
+  // phone numbers, emoji — are identical in every language and never billed; see worthTranslating).
+  const uniq = translatableUniq(texts)
   const out = new Map<string, string>() // source text -> translated
 
   if (uniq.length === 0) return texts
@@ -217,6 +238,8 @@ export async function translateBatch(
       }
       for (const t of misses) out.set(t, t)
     } else {
+      let billedChars = 0
+      let billedStrings = 0
       for (const chunk of chunkTexts(misses)) {
         const translated = await translateChunk(chunk, target)
         // A response with a DIFFERENT length than the request is misaligned — pairing
@@ -226,6 +249,8 @@ export async function translateBatch(
           if (opts?.stats) opts.stats.providerFailed = true
           continue
         }
+        billedChars += chunk.reduce((n, s) => n + s.length, 0) // this chunk reached the paid provider
+        billedStrings += chunk.length
         await Promise.all(
           chunk.map(async (src, i) => {
             const value = translated[i] ?? src
@@ -244,6 +269,12 @@ export async function translateBatch(
           }),
         )
       }
+      // Per-source billable-char attribution (structured log): a future cost spike is one
+      // `[translate:spend]` grep away, source-tagged — including ephemeral chat, which never
+      // reaches the cache table a SQL tally could see.
+      if (billedChars > 0) {
+        console.log('[translate:spend]', JSON.stringify({ source: opts?.source ?? 'other', target, chars: billedChars, strings: billedStrings }))
+      }
     }
   }
 
@@ -259,7 +290,7 @@ export async function translateBatch(
  * listing views), which cost nothing.
  */
 export async function uncachedStats(texts: string[], target: Lang): Promise<{ count: number; chars: number }> {
-  const uniq = Array.from(new Set(texts.filter((t) => t && t.trim().length > 0)))
+  const uniq = translatableUniq(texts)
   if (uniq.length === 0) return { count: 0, chars: 0 }
   const cached = await db.translation.findMany({
     where: { target, hash: { in: uniq.map(hash) } },
@@ -293,7 +324,7 @@ export async function warmTranslations(texts: string[], langs: Lang[] = EAGER_WA
   const clean = Array.from(new Set(texts.filter((t) => t && t.trim().length > 0)))
   if (clean.length === 0 || (!GOOGLE_KEY && !AZURE_KEY)) return
   for (const l of langs) {
-    try { await translateBatch(clean, l) } catch { /* best-effort per language */ }
+    try { await translateBatch(clean, l, { source: 'warm' }) } catch { /* best-effort per language */ }
   }
   // Vietnamese-authored (or any non-Latin) content must ALSO warm INTO English —
   // the EN UI renders source text verbatim otherwise (user report 2026-07-14:
@@ -302,7 +333,7 @@ export async function warmTranslations(texts: string[], langs: Lang[] = EAGER_WA
   // langs param so the nightly cron gets it too.
   const nonEn = clean.filter((t) => detectContentLang(t) !== null)
   if (nonEn.length > 0) {
-    try { await translateBatch(nonEn, 'en') } catch { /* best-effort */ }
+    try { await translateBatch(nonEn, 'en', { source: 'warm' }) } catch { /* best-effort */ }
   }
 }
 

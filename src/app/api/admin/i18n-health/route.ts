@@ -40,7 +40,7 @@ export async function GET(req: NextRequest) {
   // server-side even when set — the 2026-07-06 outage).
   const sentinel = `The translation provider health probe ${Date.now()}`
   const t0 = Date.now()
-  const [out] = await translateBatch([sentinel], 'ru')
+  const [out] = await translateBatch([sentinel], 'ru', { source: 'health' })
   // translateBatch caches successful results — delete the junk probe row.
   await db.translation.deleteMany({ where: { hash: sha1(sentinel), target: 'ru' } }).catch(() => {})
   return NextResponse.json({

@@ -73,7 +73,7 @@ export async function GET(req: Request) {
       // to source-text passthrough WITHOUT a DB write, so a failed day simply
       // retries tomorrow. Cap per run to bound provider spend.
       const chunkTexts = missing.slice(0, 1500)
-      const out = await translateBatch(chunkTexts, lang) // ordered, index-aligned
+      const out = await translateBatch(chunkTexts, lang, { source: 'warm-cron' }) // ordered, index-aligned
       healed = chunkTexts.reduce((n, t, i) => (out[i] && out[i] !== t ? n + 1 : n), 0)
     }
     report[lang] = { missing: missing.length, healed }

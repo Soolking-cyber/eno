@@ -76,7 +76,7 @@ export async function POST(req: Request) {
       }
     }
 
-    const translations = await translateBatch(list, target as Lang)
+    const translations = await translateBatch(list, target as Lang, { source: 'api' })
     return NextResponse.json({ translations })
   } catch (err) {
     console.error('[api/translate]', err)

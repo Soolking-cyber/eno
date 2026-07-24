@@ -179,7 +179,7 @@ export async function POST(req: Request) {
 
     if (!overBudget.day && !overBudget.user) {
       const stats = { providerFailed: false }
-      const work = translateBatch(misses, lang, { skipWrite: true, stats }).catch(() => null)
+      const work = translateBatch(misses, lang, { skipWrite: true, stats, source: 'chat' }).catch(() => null)
       let timer: ReturnType<typeof setTimeout> | undefined
       const timed = await Promise.race([
         work,
