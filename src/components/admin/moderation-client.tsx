@@ -475,8 +475,12 @@ function CaseRow({ c, active, checked, readOnly, onSelect, onCheck }: {
 }) {
   const t = c.target
   const isListing = t.kind === 'listing' && t.listing
+  // Flat (§3b): a hairline-separated row, not a per-item outline card. Keep only the left border-l
+  // severity rail (RAIL); the active row is a bg-tint well, inactive rows show the canvas + a hover.
+  // The old rounded border+bg-card box read as a stack of faint outlines once the fill collapsed into
+  // the canvas; the container draws the divide-y between rows.
   return (
-    <button type="button" onClick={onSelect} className={cn('block w-full text-left cursor-pointer rounded-xl border border-l-[3px] p-2.5 transition-colors', RAIL[c.bucket], active ? 'border-brand/40 bg-tint ring-1 ring-brand/40' : 'border-border bg-card hover:bg-muted/50')}> {/* design-lint-allow */}
+    <button type="button" onClick={onSelect} className={cn('block w-full text-left cursor-pointer border-l-[3px] p-2.5 transition-colors', RAIL[c.bucket], active ? 'bg-tint' : 'hover:bg-muted/50')}> {/* design-lint-allow */}
       <div className="flex items-start gap-2">
         {!readOnly && onCheck && <Checkbox checked={!!checked} onClick={(e) => e.stopPropagation()} onChange={onCheck} className="mt-0.5 h-3.5 w-3.5" aria-label="Select case" />}
         {isListing && (
@@ -643,7 +647,7 @@ export function ModerationClient({ cases, resolved }: { cases: ModCase[]; resolv
       </div>
 
       {!showResolved && checked.size > 0 && (
-        <div className="sticky top-2 z-10 mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-border bg-card p-2 shadow-pop">
+        <div className="sticky top-2 z-10 mb-3 flex flex-wrap items-center gap-2 rounded-xl border border-border bg-popover p-2 shadow-pop">
           <span className="text-xs font-bold text-foreground">{checked.size} selected{targetsOfChecked > 1 ? ` · ${targetsOfChecked} targets` : ''}</span>
           <Button size="none" variant="ghost" onClick={() => bulk('bulk-dismiss')} disabled={bulkBusy} className="rounded-lg border border-line-strong px-2.5 py-1 text-2xs font-bold text-foreground hover:bg-muted hover:text-foreground disabled:opacity-40 cursor-pointer">Dismiss selected</Button>
           <span className="ml-1 flex items-center gap-1">
@@ -675,7 +679,7 @@ export function ModerationClient({ cases, resolved }: { cases: ModCase[]; resolv
 
           {/* Desktop: master-detail. Left = compact list; right = the selected case in full. */}
           {viewport !== 'narrow' && <div className="hidden lg:grid lg:grid-cols-[minmax(300px,380px)_1fr] lg:items-start lg:gap-4">
-            <div className="max-h-[calc(100vh-150px)] space-y-1.5 overflow-y-auto pr-1">
+            <div className="max-h-[calc(100vh-150px)] divide-y divide-border overflow-y-auto pr-1">
               {filtered.map((c, i) => (
                 <CaseRow
                   key={c.id}

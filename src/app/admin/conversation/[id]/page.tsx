@@ -58,7 +58,7 @@ export default async function AdminConversationPage({ params }: Props) {
         {!convo ? (
           <EmptyState tone="admin" title="Conversation not found (it may have been deleted)." className="py-16" />
         ) : (
-          <div className="rounded-2xl bg-card p-4 shadow-pop sm:p-6">
+          <div className="rounded-2xl bg-popover p-4 shadow-pop sm:p-6">
             <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
               <h1 className="text-base font-bold text-foreground">
                 <span className="text-accent-foreground">{buyerName}</span>

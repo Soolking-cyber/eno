@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 export function AdminDenied() {
   return (
     <main id="main" tabIndex={-1} className="flex flex-1 items-center justify-center px-3">
-      <div className="max-w-sm rounded-2xl bg-card p-8 text-center shadow-pop">
+      <div className="max-w-sm rounded-2xl bg-popover p-8 text-center shadow-pop">
         <ShieldAlert className="mx-auto h-10 w-10 text-ink-4" />
         <h1 className="mt-4 text-lg font-bold text-foreground">Restricted area</h1>
         <p className="mt-2 text-sm text-muted-foreground">Sign in with an authorized eno.vn admin account to access this tool.</p>
