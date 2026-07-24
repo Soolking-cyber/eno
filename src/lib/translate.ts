@@ -157,7 +157,36 @@ async function translateChunk(chunk: string[], target: Lang): Promise<string[] |
  * duplicates. Results are cached in the DB so the same source string is never
  * re-translated. If AZURE_TRANSLATOR_KEY is missing, returns inputs as-is.
  */
-export async function translateBatch(texts: string[], target: Lang, opts?: { cachedOnly?: boolean }): Promise<string[]> {
+export async function translateBatch(
+  texts: string[],
+  target: Lang,
+  opts?: {
+    cachedOnly?: boolean
+    /**
+     * EPHEMERAL mode: translate, but do NOT write the result into the shared `Translation`
+     * table. Reads still hit it (a cache hit costs nothing and reveals nothing).
+     *
+     * ⚠️ Required for PRIVATE text — live chat translation (POST /api/messages/translate).
+     * The cache is keyed by `sha1(source)` with NO owner column and is read by every page
+     * for every user, so a written row is effectively public: anyone who can guess or
+     * replay a message's exact text could confirm it, and the row outlives the message
+     * (chat deletion would not evict it). The provider still sees the text — that is
+     * inherent to translating it — but our own database must not accumulate a permanent,
+     * unowned copy of people's conversations.
+     */
+    skipWrite?: boolean
+    /**
+     * Optional out-param: set `providerFailed = true` if any chunk came back null or
+     * misaligned, i.e. the returned text is SOURCE FALLBACK rather than a translation.
+     *
+     * Without this a caller cannot tell "the provider is down" from "this text translates
+     * to itself" — both look like output === input. A live request needs that distinction
+     * to answer retryably instead of handing back originals the client would cache as
+     * final (codex + Gemini, review of the chat-translate endpoint).
+     */
+    stats?: { providerFailed: boolean }
+  },
+): Promise<string[]> {
   // Collect the unique, non-trivial strings that actually need translating.
   const uniq = Array.from(new Set(texts.filter((t) => t && t.trim().length > 0)))
   const out = new Map<string, string>() // source text -> translated
@@ -194,12 +223,15 @@ export async function translateBatch(texts: string[], target: Lang, opts?: { cac
         // translated[i] with chunk[i] would cache wrong translations forever (audit).
         if (!translated || translated.length !== chunk.length) {
           for (const t of chunk) out.set(t, t) // failure/misalignment → source fallback
+          if (opts?.stats) opts.stats.providerFailed = true
           continue
         }
         await Promise.all(
           chunk.map(async (src, i) => {
             const value = translated[i] ?? src
             out.set(src, value)
+            // skipWrite = private text (chat): serve the translation, persist nothing.
+            if (opts?.skipWrite) return
             try {
               await db.translation.upsert({
                 where: { hash_target: { hash: hash(src), target } },

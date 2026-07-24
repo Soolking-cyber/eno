@@ -51,11 +51,18 @@ function safeSet(key: string, value: string) {
   try { localStorage.setItem(key, value) } catch { /* storage unavailable — non-fatal */ }
 }
 
-// A plain-text INCOMING message worth translating: not mine, no structured `kind`
-// (offer/visa/system cards render their own derived copy and must NEVER be translated),
-// has a real body, and isn't a still-pending/failed optimistic row.
+// A plain-text INCOMING message worth translating: not mine, PLAIN TEXT (offer/visa/system
+// cards render their own derived copy and must NEVER be translated), has a real body, and
+// isn't a still-pending/failed optimistic row.
+//
+// ⚠️ `kind === 'text'` must be accepted explicitly. `Message.kind` is `@default("text")` in
+// the schema and the conversation serializer sends it verbatim, so EVERY real message from
+// the API carries kind:'text' — the original `!m.kind` test was true only for optimistic
+// client rows, which are always `mine`. That one predicate silently made the whole feature
+// a no-op: nothing was ever translatable. Undefined is still allowed for local rows.
 function isTranslatable(m: ChatMsg): boolean {
-  return !m.mine && !m.kind && !!m.body.trim() && !m.pending && !m.failed
+  const plain = !m.kind || m.kind === 'text'
+  return !m.mine && plain && !!m.body.trim() && !m.pending && !m.failed
 }
 
 export function useChatTranslation(opts: {

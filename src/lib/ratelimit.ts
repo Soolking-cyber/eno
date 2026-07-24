@@ -118,6 +118,50 @@ export const kv = {
     return Number(rows[0]?.v ?? 0)
   },
   async del(key: string): Promise<void> {
-    await db.$queryRaw`select kv_del(${key})`
+    // ⚠️ $executeRaw, NOT $queryRaw. `kv_del` is declared `returns void`, and $queryRaw
+    // tries to DESERIALIZE the result column — Postgres `void` has no Prisma type, so this
+    // ALWAYS threw "Failed to deserialize column of type 'void'" (found 2026-07-24 probing
+    // the KV primitives against the real database).
+    //
+    // The delete itself was fine: the statement executes and commits, and only the reply
+    // parsing blows up — a probe confirmed the key is gone after the throw. Both call sites
+    // wrap this in `.catch(() => {})`, so behaviour was correct by accident. It is fixed
+    // anyway because a promise that always rejects is a trap for the next caller: anyone
+    // who awaits it without a catch, or adds error logging, inherits a guaranteed failure.
+    // $executeRaw returns a row count and deserializes nothing, which is what a
+    // void-returning statement wants.
+    await db.$executeRaw`select kv_del(${key})`
+  },
+
+  /**
+   * Batch `get` — ONE round trip for many keys, returned as a Map of the keys that HIT
+   * (misses are simply absent). Built on the same `kv_get` function as `get`, so TTL and
+   * expiry semantics are identical; it is not a second implementation.
+   *
+   * Exists because a per-request lookup loop is fine for 1–2 keys and unacceptable for 50:
+   * the live chat translator checks up to 50 message hashes on a single, latency-sensitive
+   * request (src/app/api/messages/translate/route.ts).
+   */
+  async mget<T = unknown>(keys: string[]): Promise<Map<string, T>> {
+    const out = new Map<string, T>()
+    if (!keys.length) return out
+    const rows = await db.$queryRaw<Array<{ k: string; v: T | null }>>`
+      select k, kv_get(k) as v from unnest(${keys}::text[]) as k`
+    for (const r of rows) if (r.v != null) out.set(r.k, r.v)
+    return out
+  },
+
+  /**
+   * Batch `set` with a shared TTL — ONE round trip. Never NX (a plain overwrite), which is
+   * what a cache write wants. `entries` are [key, value] pairs; values are JSON-encoded
+   * exactly as `set` does.
+   */
+  async mset(entries: Array<[string, unknown]>, exSec: number): Promise<void> {
+    if (!entries.length) return
+    const keys = entries.map(([k]) => k)
+    const vals = entries.map(([, v]) => JSON.stringify(v))
+    await db.$queryRaw`
+      select kv_set(t.k, t.v::jsonb, ${exSec}::int, false)
+        from unnest(${keys}::text[], ${vals}::text[]) as t(k, v)`
   },
 }

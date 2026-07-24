@@ -96,8 +96,11 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       // LIVE card from the inert history a rebound thread leaves behind.
       visaApplicationId: true,
       listing: { select: { id: true, title: true, images: true, price: true, currency: true, priceUnit: true, negotiable: true, availabilityConfirmedAt: true, status: true } },
-      seller: { select: { id: true, name: true, avatarColor: true, avatarUrl: true, trustScore: true, trustTier: true, memberSince: true, reviewCount: true, owner: { select: { lastSeenAt: true } } } },
-      buyer: { select: { displayName: true, email: true, avatarColor: true, avatarUrl: true, lastSeenAt: true } },
+      // `owner.locale` / `buyer.locale` = the counterpart's persisted app language, the ONLY
+      // signal the live-translation toggle keys off (contract A). It is a language preference,
+      // not personal data: nothing here says who they are or where they are.
+      seller: { select: { id: true, name: true, avatarColor: true, avatarUrl: true, trustScore: true, trustTier: true, memberSince: true, reviewCount: true, owner: { select: { lastSeenAt: true, locale: true } } } },
+      buyer: { select: { displayName: true, email: true, avatarColor: true, avatarUrl: true, lastSeenAt: true, locale: true } },
       // Bounded (audit P2): the full history shipped on EVERY call × a 15s poll per
       // open tab. Last 200 in reverse, un-reversed below — covers any realistic
       // active thread; older history is simply not re-sent.
@@ -199,9 +202,14 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     listing: { id: convo.listing.id, title: convo.listing.title, image: img, price: convo.listing.price, currency: convo.listing.currency, priceUnit: convo.listing.priceUnit, negotiable: convo.listing.negotiable, availabilityConfirmedAt: convo.listing.availabilityConfirmedAt?.toISOString() ?? null, status: convo.listing.status },
     // Buyer already reviewed this conversation → the thread UIs hide the review prompt.
     hasReviewed,
+    // `locale` drives the live-translation toggle: the client offers it ONLY when the
+    // counterpart's app language is KNOWN and differs from the viewer's. Null (they have
+    // never synced a language) means no toggle at all — we never guess a language from a
+    // name, a listing, or an IP, because a wrong guess translates a message that did not
+    // need it and hides the words the other person actually chose.
     counterpart: iAmBuyer
-      ? { name: convo.seller.name, avatarColor: convo.seller.avatarColor, avatarUrl: convo.seller.avatarUrl, sellerId: counterpartSellerId, trust: counterpartTrust }
-      : { name: convo.buyer.displayName || maskEmailHandle(convo.buyer.email) || 'Buyer', avatarColor: convo.buyer.avatarColor, avatarUrl: convo.buyer.avatarUrl, sellerId: counterpartSellerId, trust: counterpartTrust },
+      ? { name: convo.seller.name, avatarColor: convo.seller.avatarColor, avatarUrl: convo.seller.avatarUrl, sellerId: counterpartSellerId, trust: counterpartTrust, locale: convo.seller.owner?.locale ?? null }
+      : { name: convo.buyer.displayName || maskEmailHandle(convo.buyer.email) || 'Buyer', avatarColor: convo.buyer.avatarColor, avatarUrl: convo.buyer.avatarUrl, sellerId: counterpartSellerId, trust: counterpartTrust, locale: convo.buyer.locale ?? null },
     // The e-Visa case this thread is bound to, and the desk state the cards render against
     // (mode · the picked product · the server-issued USD quote · which providers are live).
     // null on every ordinary conversation, and on a visa thread whose context lookup failed.
