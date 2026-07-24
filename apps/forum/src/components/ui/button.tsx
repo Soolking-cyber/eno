@@ -134,29 +134,25 @@ function Button({
   VariantProps<typeof buttonVariants> & {
     asChild?: boolean
   }) {
-  // Base UI has no Slot; `asChild` maps onto the primitive's render prop so the
-  // 19 existing <Button asChild><Link/></Button> call sites keep working verbatim.
+  // asChild = a real Slot (Base UI ships none): merge the button STYLING onto the child element
+  // itself rather than wrapping it in Base UI's Button. The forum's asChild call sites pass
+  // NAVIGATING <a href> links (e.g. ForumPostCard "Open replies"), and Base UI's useButton stamps
+  // `role="button"` when nativeButton is false (breaking `getByRole('link')` + mis-announcing links
+  // as buttons) while nativeButton true only trades that for a dev console warning. Cloning keeps
+  // the child's native role="link", applies the styling, and emits no warning. Safe as a plain
+  // clone: every asChild site passes a SINGLE element with nothing but styling on <Button>, so
+  // `rest` is empty and href/onClick/ref on the child are preserved. Mirrors the canonical eno.vn
+  // ui/button (src/components/ui/button.tsx).
   if (asChild) {
     const { children, ...rest } = props as { children?: React.ReactNode }
-    return (
-      <ButtonPrimitive
-        data-slot="button"
-        // ⚠️ Do NOT add `nativeButton={false}` here (it was tried and reverted). The forum's
-        // asChild call sites render NAVIGATING links — `<a href>` post/permalink links (e.g.
-        // ForumPostCard "Open replies"). Base UI's useButton adds `role="button"` UNCONDITIONALLY
-        // when nativeButton is false, which turns those links into buttons: it broke the Forum E2E
-        // (`getByRole('link', …)` no longer matches) and mis-announces content links as buttons.
-        // Leaving nativeButton at its default (true) keeps the link's role="link"; Base UI logs a
-        // dev-only console warning about a non-<button> render, which is harmless (dev only) and far
-        // preferable to the semantic regression. (The canonical eno.vn ui/button sets it false, but
-        // ITS asChild sites are button-like actions, not content links queried by role.) The real
-        // fix for a link-styled-as-button is to drop the Button primitive and apply buttonVariants
-        // to the <a> directly — deferred, out of scope for a lint-noise fix.
-        render={children as React.ReactElement<Record<string, unknown>>}
-        className={cn(buttonVariants({ variant, size, iconSize, className }))}
-        {...rest}
-      />
-    )
+    const child = React.Children.only(children) as React.ReactElement<Record<string, unknown>>
+    // Behavioral props (onClick, ref, …) belong on the CHILD, not <Button asChild> — handlers are
+    // NOT composed here. `...rest` spread first so it can never clobber data-slot/className.
+    return React.cloneElement(child, {
+      ...rest,
+      'data-slot': 'button',
+      className: cn(buttonVariants({ variant, size, iconSize, className }), child.props.className as string | undefined),
+    })
   }
   return (
     <ButtonPrimitive

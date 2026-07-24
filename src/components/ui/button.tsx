@@ -162,21 +162,34 @@ function Button({
   VariantProps<typeof buttonVariants> & {
     asChild?: boolean
   }) {
-  // Base UI has no Slot; `asChild` maps onto the primitive's render prop so the
-  // 19 existing <Button asChild><Link/></Button> call sites keep working verbatim.
+  // asChild = a real Slot (Base UI ships none): merge the button STYLING onto the child element
+  // itself rather than wrapping it in Base UI's Button.
+  //
+  // ⚠️ Why NOT the old `<ButtonPrimitive render={child} nativeButton={false}>`: every asChild call
+  // site passes a NAVIGATING <Link>/<a>, and Base UI's useButton stamps `role="button"` UNCONDITION-
+  // ALLY when nativeButton is false — so all 28 CTAs shipped as `<a href role="button">`, i.e. links
+  // announced to assistive tech as buttons (verified live: `<a href="/post" role="button">`). And
+  // `nativeButton` true instead only trades that for a dev console warning. Cloning keeps the child's
+  // native role="link", applies the styling via className, and emits no warning.
+  //
+  // Safe as a plain clone: audited all 28 sites — each passes a SINGLE element and puts nothing but
+  // styling on <Button> (no onClick/DOM props), so `rest` is empty and there is nothing to compose;
+  // href/onClick/ref already living on the child are preserved by cloneElement. className is the one
+  // thing that must be merged by hand (child's own classes win via tailwind-merge).
+  //
+  // ⚠️ CONTRACT for asChild: put BEHAVIORAL props (onClick, onKeyDown, ref, …) on the CHILD element,
+  // not on <Button asChild>. Unlike the old Base-UI render path this does NOT compose handlers, so a
+  // handler on <Button> would silently replace the child's. `...rest` is spread FIRST so it can never
+  // clobber `data-slot`/`className`; if a call site ever legitimately needs a merged handler on the
+  // wrapper, add composition here rather than moving the prop.
   if (asChild) {
     const { children, ...rest } = props as { children?: React.ReactNode }
-    return (
-      <ButtonPrimitive
-        data-slot="button"
-        // asChild renders a NON-native-button element (every call site passes a <Link>/anchor), so
-        // tell Base UI so — otherwise it expects a real <button> and logs a dev console error.
-        nativeButton={false}
-        render={children as React.ReactElement<Record<string, unknown>>}
-        className={cn(buttonVariants({ variant, size, iconSize, className }))}
-        {...rest}
-      />
-    )
+    const child = React.Children.only(children) as React.ReactElement<Record<string, unknown>>
+    return React.cloneElement(child, {
+      ...rest,
+      'data-slot': 'button',
+      className: cn(buttonVariants({ variant, size, iconSize, className }), child.props.className as string | undefined),
+    })
   }
   return (
     <ButtonPrimitive
