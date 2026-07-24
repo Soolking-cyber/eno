@@ -16,7 +16,13 @@ import { cn } from '@/lib/utils'
  *  brings the real thing the raw <input type="range"> only half-had: arrow/Home/End/
  *  PageUp/PageDown keys, pointer-capture touch dragging, and full ARIA on a nested
  *  range input. The look is a verbatim port of the old `.eno-slider` CSS:
- *    Track     = the grey rail   (was the absolutely-positioned bg-muted div)
+ *    Track     = the grey rail
+ *
+ * ⚠️ The rail is `bg-line-strong` (neutral-300), NOT `bg-muted`. On the flat canvas
+ * (canon §3b) `--muted` sits ~2% off `--background`, so a muted rail was very nearly
+ * invisible — the owner reported exactly that. The rail and the knob are the two parts of
+ * this control that MUST read against the page: the rail is the darkest neutral, the knob
+ * is `--knob` (the one raised fill in the ramp), and the filled portion stays brand blue.
  *    Indicator = the blue fill   (was the bg-primary div sized by an inline width %)
  *    Thumb     = the white handle (was ::-webkit-slider-thumb / ::-moz-range-thumb)
  *
@@ -51,7 +57,7 @@ export function Slider({
       {/* The whole 20px-tall band is the hit area — same as the old input, which was
           absolutely stretched to 100% × 100% of the wrapper. */}
       <BaseSlider.Control className="flex h-full w-full touch-none items-center select-none">
-        <BaseSlider.Track className="relative h-1 w-full rounded-full bg-muted">
+        <BaseSlider.Track className="relative h-1.5 w-full rounded-full bg-line-strong">
           {/* Base UI sizes this itself (width: var(--start-position); height: inherit),
               so it needs no positioning class — only the paint. */}
           <BaseSlider.Indicator className="rounded-full bg-primary" />

@@ -17,6 +17,7 @@ import { SectionHeader } from '@/components/marketplace/section-header'
 import { TrustScore } from '@/components/marketplace/trust-score'
 import { DASHBOARD_NAV } from '@/components/marketplace/dashboard-nav'
 import { resolveNavGroups, type ResolvedNavItem } from '@/components/marketplace/dashboard-nav-resolve'
+import { Rows, Row as RowItem, RowsSection } from '@/components/ui/rows'
 import { cn } from '@/lib/utils'
 
 // ── /dashboard/account — THE ACCOUNT DESTINATION (mobile) ────────────────────────────
@@ -46,7 +47,7 @@ import { cn } from '@/lib/utils'
 // role-gating (business/seller/admin/visa) and the same live badges as the desktop rail, via the
 // pure resolveNavGroups. A parallel list here would drift the moment a section is added.
 
-function Row({ item, first, last }: { item: ResolvedNavItem; first: boolean; last: boolean }) {
+function NavRow({ item }: { item: ResolvedNavItem }) {
   const Icon = item.icon
   const body = (
     <>
@@ -67,11 +68,10 @@ function Row({ item, first, last }: { item: ResolvedNavItem; first: boolean; las
   // wins every tap — which is exactly what shipped: every row opened the last one's page. The
   // utility's own comment in globals.css says "add `relative` too"; the honest fix here is to
   // not need it at all.
-  const cls = cn(
-    'flex w-full items-center gap-3 px-4 py-3 transition-colors active:bg-tint/70 hover:bg-tint/50',
-    first && 'rounded-t-2xl',
-    last && 'rounded-b-2xl',
-  )
+  // No radius, no fill: on the flat canvas a row is separated by the hairline above it and
+  // nothing else. -mx-1/px-1 lets the pressed/hover tint bleed to the gutter so it reads as a
+  // full-width row rather than a floating pill.
+  const cls = 'flex w-full items-center gap-3 -mx-1 px-1 py-3 transition-colors active:bg-tint/60 hover:bg-tint/40'
   return item.external
     ? <a href={item.href} className={cls}>{body}</a>
     : <Link href={item.href} className={cls}>{body}</Link>
@@ -117,8 +117,10 @@ export function AccountClient() {
             <Skeleton className="h-20 w-20 rounded-full" />
             <div className="flex-1 space-y-1.5"><Skeleton className="h-5 w-40" /><Skeleton className="h-3 w-52" /></div>
           </div>
-          <div className="mt-5 space-y-5">
-            {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-40 rounded-2xl" />)}
+          {/* Skeleton geometry must match what replaces it — flat rows, not cards, or the
+              page visibly re-flows on hydrate. */}
+          <div className="mt-6 space-y-3">
+            {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-11 rounded-lg" />)}
           </div>
         </div>
       </div>
@@ -136,7 +138,7 @@ export function AccountClient() {
       <Link
         href="/dashboard/settings"
         aria-label={tr('Settings', 'Cài đặt')}
-        className="flex items-center gap-3 rounded-2xl px-1 py-2 transition-colors hover:bg-tint/50 active:bg-tint/70"
+        className="flex items-center gap-3 -mx-1 px-1 py-3 transition-colors hover:bg-tint/40 active:bg-tint/60"
       >
         <Avatar name={name} url={dash?.profile.avatarUrl} color={dash?.profile.avatarColor} size="xl" />
         <div className="min-w-0 flex-1">
@@ -164,22 +166,24 @@ export function AccountClient() {
         <ChevronRight className="h-5 w-5 shrink-0 text-ink-4" aria-hidden />
       </Link>
 
-      {/* NATIVE "INSET GROUPED" LISTS — muted caption above a rounded card of divided rows,
-          matching the Settings groups shipped in the same lane so the two read as one app. */}
-      <div className="mt-5 space-y-5">
-        {groups.map((group) => (
-          <section key={group.caption}>
-            <h2 className="px-1 text-xs font-semibold uppercase tracking-wide text-ink-4">{group.caption}</h2>
-            <div className="mt-1.5 divide-y divide-border overflow-hidden rounded-2xl border border-border bg-card">
-              {group.items.map((item, i) => (
-                <Row key={item.href + item.label} item={item} first={i === 0} last={i === group.items.length - 1} />
+      {/* FLAT (canon §3b): a caption, a hairline above the block, and rows separated by lines —
+          no card around the list. RowsSection/Rows carry the semantics (section + ul/li) that the
+          removed border used to carry visually. */}
+      <div className="mt-2">
+        {groups.map((group, gi) => (
+          <RowsSection key={group.caption} caption={group.caption} first={gi === 0}>
+            <Rows>
+              {group.items.map((item) => (
+                <RowItem key={item.href + item.label} className="py-0">
+                  <NavRow item={item} />
+                </RowItem>
               ))}
-            </div>
-          </section>
+            </Rows>
+          </RowsSection>
         ))}
       </div>
 
-      <div className="mt-6 px-1">
+      <div className="mt-6 border-t border-border pt-6">
         <Button variant="outline" size="sm" onClick={() => void signOut()} className="w-full justify-center text-destructive">
           <LogOut className="h-4 w-4" />
           {tr('Sign out', 'Đăng xuất')}

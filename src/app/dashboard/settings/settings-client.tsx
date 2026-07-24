@@ -72,8 +72,11 @@ export function SettingsClient() {
           <Skeleton className="h-10 rounded-xl" />
         </div>
       ) : (
-        <div className="mt-6 space-y-6">
-          <SettingsGroup caption={isBusiness ? tr('Business profile', 'Hồ sơ doanh nghiệp') : tr('Your profile', 'Hồ sơ của bạn')}>
+        <div
+          // No space-y: each SettingsGroup carries its own hairline + rhythm now.
+          className="mt-6"
+        >
+          <SettingsGroup first caption={isBusiness ? tr('Business profile', 'Hồ sơ doanh nghiệp') : tr('Your profile', 'Hồ sơ của bạn')}>
             {isBusiness && dash.seller
               ? <BusinessProfileEditor seller={dash.seller} repName={dash.profile.displayName} onSaved={refresh} />
               : <ProfileEditor profile={dash.profile} onSaved={refresh} />}
@@ -106,13 +109,18 @@ export function SettingsClient() {
   )
 }
 
-// A native iOS "inset grouped" settings block: a small muted caption above a rounded inset card
-// (dashboard native-feel review — the reviewers' incremental card wrap, "90% of the native look").
-function SettingsGroup({ caption, danger, children }: { caption: string; danger?: boolean; children: React.ReactNode }) {
+// A settings block on the FLAT canvas: a small muted caption, a hairline separating it from the
+// block above, and the content — no card around it (canon §3b, owner 2026-07-24).
+//
+// ⚠️ Only the CONTAINER changed. This was an iOS "inset grouped" card until the flat-surface
+// directive; the structure, ordering and skeleton parity from that work are untouched and still
+// carry the native feel. Both external reviewers read the directive the same way: it supersedes
+// the box, not the layout inside it.
+function SettingsGroup({ caption, danger, first, children }: { caption: string; danger?: boolean; first?: boolean; children: React.ReactNode }) {
   return (
-    <section>
-      <h2 className={cn('px-1 text-xs font-semibold uppercase tracking-wide', danger ? 'text-destructive' : 'text-ink-4')}>{caption}</h2>
-      <div className="mt-1.5 rounded-2xl border border-border bg-card p-4">{children}</div>
+    <section className={cn(!first && 'mt-6 border-t border-border pt-6')}>
+      <h2 className={cn('text-xs font-semibold uppercase tracking-wide', danger ? 'text-destructive' : 'text-ink-4')}>{caption}</h2>
+      <div className="mt-3">{children}</div>
     </section>
   )
 }

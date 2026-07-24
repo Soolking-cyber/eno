@@ -177,6 +177,12 @@
   --ink-4: #616161;        /* neutral-gray ~5.6:1 on tint / 6:1 on white — AA for placeholder/meta/chevrons/small icons on BOTH white and bg-tint (was #6b7280 gray-500, 4.1:1 on tint → failed AA on the tinted search pill) */
   --body: #525252;        /* neutral-600 */
   --tint: #f5f5f5;        /* neutral-100 */
+  /* ⚠️ A CONTROL KNOB, NOT A PANEL. The flat canvas made --card equal --background, which is
+     right for panels and WRONG for a draggable handle: a slider thumb has to read as a solid
+     object sitting on its track. This is deliberately the one raised fill in the ramp and it is
+     scoped to knobs (slider thumbs) — do not reach for it to give a container "some depth"
+     (canon §3b). */
+  --knob: #ffffff;
   --line-strong: #d4d4d4; /* neutral-300 */
   --skeleton: #f0f0f0;             /* loading placeholder base */
   --skeleton-sheen: rgba(255, 255, 255, 0.6); /* sweep highlight */
@@ -314,6 +320,7 @@
   --ink-4: #a0a0a0;        /* ~5.9:1 on canvas / AA on the dark bg-tint too (was #8995a6, ~4.4:1 on dark tint) */
   --body: #cccccc;         /* ~8.8:1 on card — comfortable body text */
   --tint: #262626;
+  --knob: #d4d4d4;        /* light knob, clearly above the dark track */
   --line-strong: #414141;
   /* Trust-score tiers — DARK theme: lightened so the number passes AA on dark cards.
      Same intuition: red=bad, yellow=warning, green=good, emerald=great, purple=royal. */
@@ -1186,7 +1193,7 @@ html.native-tabs .bottom-nav-spacer {
   height: 1.25rem;
   width: 1.25rem;
   border-radius: 9999px;
-  background: var(--card);
+  background: var(--knob);
   border: 2px solid var(--ring);
   box-shadow: 0 1px 4px rgba(16, 24, 40, 0.18);
   cursor: pointer;
@@ -1197,7 +1204,7 @@ html.native-tabs .bottom-nav-spacer {
   height: 1.25rem;
   width: 1.25rem;
   border-radius: 9999px;
-  background: var(--card);
+  background: var(--knob);
   border: 2px solid var(--ring);
   box-shadow: 0 1px 4px rgba(16, 24, 40, 0.18);
   cursor: pointer;
@@ -1218,7 +1225,7 @@ html.native-tabs .bottom-nav-spacer {
   height: 1.25rem;
   width: 1.25rem;
   border-radius: 9999px;
-  background: var(--card);
+  background: var(--knob);
   border: 2px solid var(--ring);
   box-shadow: 0 1px 4px rgba(16, 24, 40, 0.18);
   cursor: pointer;

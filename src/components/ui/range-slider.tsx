@@ -95,7 +95,7 @@ export function RangeSlider({
           touch-none is required by Base UI: without it a scroll gesture cancels the
           pointer capture mid-drag and the thumb is dropped. */}
       <SliderPrimitive.Control className="relative flex h-5 w-full cursor-pointer touch-none items-center select-none">
-        <SliderPrimitive.Track className="h-1 w-full rounded-full bg-muted">
+        <SliderPrimitive.Track className="h-1.5 w-full rounded-full bg-line-strong">
           {/* Indicator = the old blue fill div; Base UI positions it between the two
               thumbs itself (inset-inline-start + width, height: inherit from Track). */}
           <SliderPrimitive.Indicator className="rounded-full bg-primary" />
