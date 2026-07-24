@@ -7,8 +7,8 @@ import { Button } from '@/components/ui/button'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import { useDashboard } from '@/hooks/use-dashboard'
-import { Spinner } from '@/components/ui/spinner'
 import { Skeleton } from '@/components/ui/skeleton'
+import { cn } from '@/lib/utils'
 import { ProfileEditor } from '@/components/marketplace/profile-editor'
 import { BusinessProfileEditor } from '@/components/marketplace/business-profile-editor'
 import { BusinessVerificationPanel } from '@/components/marketplace/business-verification-panel'
@@ -34,9 +34,15 @@ export function SettingsClient() {
   }, [loading, user, router])
 
   if (loading || !user) {
+    // Content-shaped first paint (matches the other dashboard sections, f359299b): the stack title
+    // bar + grouped-card skeletons, not a centered spinner.
     return (
-      <div role="status" className="flex justify-center py-20">
-        <Spinner size="lg" />
+      <div role="status" aria-label={tr('Loading…', 'Đang tải…')}>
+        <SectionHeader title={tr('Settings', 'Cài đặt')} />
+        <div className="max-w-2xl space-y-6">
+          <Skeleton className="h-7 w-28 rounded-lg max-lg:hidden" />
+          {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-28 rounded-2xl" />)}
+        </div>
       </div>
     )
   }
@@ -63,61 +69,45 @@ export function SettingsClient() {
           <Skeleton className="h-10 rounded-xl" />
         </div>
       ) : (
-        <div className="mt-6 space-y-8">
-          <section>
-            <h2 className="text-sm font-bold text-foreground">{isBusiness ? tr('Business profile', 'Hồ sơ doanh nghiệp') : tr('Your profile', 'Hồ sơ của bạn')}</h2>
-            <div className="mt-3">
-              {isBusiness && dash.seller
-                ? <BusinessProfileEditor seller={dash.seller} repName={dash.profile.displayName} onSaved={refresh} />
-                : <ProfileEditor profile={dash.profile} onSaved={refresh} />}
-            </div>
-            {isBusiness && dash.seller && <BusinessVerificationPanel />}
-          </section>
-
-          <section>
-            <h2 className="text-sm font-bold text-foreground">{tr('Handle', 'Tên định danh')}</h2>
-            <div className="mt-3"><HandleSettings /></div>
-          </section>
-
-          <section>
-            <h2 className="text-sm font-bold text-foreground">{tr('Email', 'Email')}</h2>
-            <div className="mt-3"><ChangeEmailForm currentEmail={dash.profile.email} /></div>
-          </section>
-
-          <section>
-            <h2 className="text-sm font-bold text-foreground">{tr('Account type', 'Loại tài khoản')}</h2>
-            <div className="mt-3"><AccountTypeSwitcher isBusiness={isBusiness} businessName={dash.profile.businessName} onSaved={refresh} /></div>
-          </section>
-
-          <section>
-            <h2 className="text-sm font-bold text-foreground">{tr('Reminders', 'Nhắc nhở')}</h2>
-            <div className="mt-3"><ReminderSettings /></div>
-          </section>
-
-          {/* Consent withdrawal (PDPL): the footer's "Cookie settings" link is the other
-              entry point, but the footer is hidden in the native app — this row must exist
-              so withdrawing consent stays as easy as giving it, on every platform. */}
-          <section>
-            <h2 className="text-sm font-bold text-foreground">{tr('Privacy', 'Quyền riêng tư')}</h2>
-            <div className="mt-3">
-              <Button
-                variant="ghost"
-                size="none"
-                onClick={() => window.dispatchEvent(new CustomEvent('eno:open-consent'))}
-                className="px-4 py-2 font-semibold text-body hover:bg-muted hover:text-body"
-              >
-                <Cookie className="h-4 w-4" /> {tr('Cookie settings', 'Cài đặt cookie')}
-              </Button>
-            </div>
-          </section>
-
-          <section>
-            <h2 className="text-sm font-bold text-destructive">{tr('Danger zone', 'Vùng nguy hiểm')}</h2>
-            <div className="mt-3"><DeleteAccount /></div>
-          </section>
+        <div className="mt-6 space-y-6">
+          <SettingsGroup caption={isBusiness ? tr('Business profile', 'Hồ sơ doanh nghiệp') : tr('Your profile', 'Hồ sơ của bạn')}>
+            {isBusiness && dash.seller
+              ? <BusinessProfileEditor seller={dash.seller} repName={dash.profile.displayName} onSaved={refresh} />
+              : <ProfileEditor profile={dash.profile} onSaved={refresh} />}
+            {isBusiness && dash.seller && <div className="mt-4 border-t border-border pt-4"><BusinessVerificationPanel /></div>}
+          </SettingsGroup>
+          <SettingsGroup caption={tr('Handle', 'Tên định danh')}><HandleSettings /></SettingsGroup>
+          <SettingsGroup caption={tr('Email', 'Email')}><ChangeEmailForm currentEmail={dash.profile.email} /></SettingsGroup>
+          <SettingsGroup caption={tr('Account type', 'Loại tài khoản')}><AccountTypeSwitcher isBusiness={isBusiness} businessName={dash.profile.businessName} onSaved={refresh} /></SettingsGroup>
+          <SettingsGroup caption={tr('Reminders', 'Nhắc nhở')}><ReminderSettings /></SettingsGroup>
+          {/* Consent withdrawal (PDPL): the footer's "Cookie settings" link is the other entry
+              point, but the footer is hidden in the native app — this row must exist so withdrawing
+              consent stays as easy as giving it, on every platform. */}
+          <SettingsGroup caption={tr('Privacy', 'Quyền riêng tư')}>
+            <Button
+              variant="ghost"
+              size="none"
+              onClick={() => window.dispatchEvent(new CustomEvent('eno:open-consent'))}
+              className="px-4 py-2 font-semibold text-body hover:bg-muted hover:text-body"
+            >
+              <Cookie className="h-4 w-4" /> {tr('Cookie settings', 'Cài đặt cookie')}
+            </Button>
+          </SettingsGroup>
+          <SettingsGroup caption={tr('Danger zone', 'Vùng nguy hiểm')} danger><DeleteAccount /></SettingsGroup>
         </div>
       )}
       </div>
     </>
+  )
+}
+
+// A native iOS "inset grouped" settings block: a small muted caption above a rounded inset card
+// (dashboard native-feel review — the reviewers' incremental card wrap, "90% of the native look").
+function SettingsGroup({ caption, danger, children }: { caption: string; danger?: boolean; children: React.ReactNode }) {
+  return (
+    <section>
+      <h2 className={cn('px-1 text-xs font-semibold uppercase tracking-wide', danger ? 'text-destructive' : 'text-ink-4')}>{caption}</h2>
+      <div className="mt-1.5 rounded-2xl border border-border bg-card p-4">{children}</div>
+    </section>
   )
 }
