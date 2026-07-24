@@ -110,7 +110,9 @@ export function MediaSection({
       <div
         role="group"
         aria-label={t('Ảnh', 'Photos')}
-        aria-invalid={errPhoto ? true : undefined}
+        // No aria-invalid on role="group" (unsupported per ARIA; jsx-a11y flags it and SRs ignore
+        // it) — the error is announced via aria-describedby → the role="alert" message. The visual
+        // error ring is state-driven (errPhoto in className), not aria-invalid.
         aria-describedby={errPhoto ? 'pw-photo-error pw-photo-hint' : 'pw-photo-hint'}
         onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
         onDragLeave={() => setDragOver(false)}
@@ -375,7 +377,8 @@ export function LocationSection({
       <div
         role="group"
         aria-label={t('Khu vực', 'Location')}
-        aria-invalid={errLocation ? true : undefined}
+        // aria-invalid is unsupported on role="group" (jsx-a11y flags it; SRs ignore it). The error
+        // reaches AT through the focusable trigger + aria-describedby → the error message.
         aria-describedby={errLocation ? 'pw-location-error' : undefined}
         className="flex max-w-md items-center gap-2"
       >

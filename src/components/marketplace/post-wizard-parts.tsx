@@ -109,7 +109,10 @@ export function Field({ id, label, counter, hint, error, group, children }: { id
           <span id={labelId} className="text-sm font-semibold text-foreground">{label}</span>
           {counter && <span className="text-2xs text-ink-4">{counter}</span>}
         </div>
-        <div role="group" aria-labelledby={labelId} aria-invalid={error ? true : undefined} aria-describedby={describedBy}>
+        {/* aria-invalid is not a supported prop on role="group" (jsx-a11y/role-supports-aria-props),
+            and screen readers ignore it there — the error reaches AT via aria-describedby → the
+            role="alert" message below. */}
+        <div role="group" aria-labelledby={labelId} aria-describedby={describedBy}>
           {children}
         </div>
         {hint && <p id={hintId} className="text-xs text-muted-foreground">{hint}</p>}

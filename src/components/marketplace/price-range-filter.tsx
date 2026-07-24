@@ -203,7 +203,7 @@ export function PriceRangeFilter({
                 className="mt-1"
                 value={[effLo, effHi]}
                 min={dataMin} max={dataMax} step={step}
-                aria-label={[tr('Minimum price', 'Giá tối thiểu'), tr('Maximum price', 'Giá tối đa')]}
+                thumbAriaLabels={[tr('Minimum price', 'Giá tối thiểu'), tr('Maximum price', 'Giá tối đa')]}
                 onChange={([nlo, nhi]) => { setLo(nlo); setHi(nhi) }}
                 onCommit={([nlo, nhi]) => commit(nlo, nhi)}
               />

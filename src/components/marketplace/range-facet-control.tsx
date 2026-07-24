@@ -70,7 +70,7 @@ export function RangeFacetControl({
           nearest thumb and the thumbs cannot cross; nothing to re-implement here. */}
       <RangeSlider
         value={[lo, hi]} min={min} max={max} step={step}
-        aria-label={[tr('Minimum', 'Tối thiểu'), tr('Maximum', 'Tối đa')]}
+        thumbAriaLabels={[tr('Minimum', 'Tối thiểu'), tr('Maximum', 'Tối đa')]}
         onChange={([a, b]) => { setLo(a); setHi(b) }}
         onCommit={([a, b]) => commit(a, b)}
       />

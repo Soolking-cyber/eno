@@ -39,7 +39,7 @@ import { cn } from '@/lib/utils'
  *  `::-webkit-slider-thumb` rule `.eno-slider` uses) so the two read as one family.
  */
 export function RangeSlider({
-  value, min, max, step = 1, onChange, onCommit, className, 'aria-label': ariaLabel,
+  value, min, max, step = 1, onChange, onCommit, className, thumbAriaLabels: ariaLabel,
 }: {
   value: [number, number]
   min: number
@@ -49,8 +49,11 @@ export function RangeSlider({
   /** Settle callback: pointer-up / key-up / track press. */
   onCommit?: (value: [number, number]) => void
   className?: string
-  /** [minLabel, maxLabel] — one per thumb. */
-  'aria-label'?: [string, string]
+  /** [minLabel, maxLabel] — one string per thumb; each is applied as the individual
+   *  Slider.Thumb's own `aria-label` below. NOT a DOM `aria-label` (that must be a string),
+   *  so this deliberately does NOT reuse the `aria-label` name — an array there is a valid
+   *  per-thumb API but jsx-a11y/aria-proptypes reads the JSX literally and false-flags it. */
+  thumbAriaLabels?: [string, string]
 }) {
   // Degenerate bounds: the price panel's histogram can hold a single price, i.e.
   // dataMin === dataMax. Base UI divides by (max - min) and an infinite percentage

@@ -141,6 +141,10 @@ function Button({
     return (
       <ButtonPrimitive
         data-slot="button"
+        // asChild renders a NON-native-button element (every call site passes a <Link>/anchor), so
+        // tell Base UI so — otherwise it expects a real <button> and logs a dev console error.
+        // Mirrors the canonical eno.vn ui/button (src/components/ui/button.tsx).
+        nativeButton={false}
         render={children as React.ReactElement<Record<string, unknown>>}
         className={cn(buttonVariants({ variant, size, iconSize, className }))}
         {...rest}
