@@ -3,11 +3,12 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
-import { Loader2, Scale, ChevronRight } from 'lucide-react'
+import { Scale, ChevronRight } from 'lucide-react'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import { SignInPrompt } from '@/components/marketplace/account-actions'
 import { Badge } from '@/components/ui/badge'
+import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
 
 // My dispute cases — both roles: cases I filed and cases about me/my storefront.
@@ -90,14 +91,18 @@ export function DisputesPanel({ compact = false }: { compact?: boolean }) {
       </p>
 
       {loading ? (
-        <div className="flex justify-center py-20"><Loader2 className="h-6 w-6 animate-spin text-accent-foreground" /></div>
+        <div className="mt-6 space-y-1">
+          {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-[72px] rounded-2xl" />)}
+        </div>
       ) : !user ? (
         <div className="mt-10 text-center">
           <p className="text-sm text-muted-foreground">{t('Sign in to see your dispute cases.', 'Đăng nhập để xem hồ sơ khiếu nại của bạn.')}</p>
           <div className="mt-4"><SignInPrompt /></div>
         </div>
       ) : cases === null ? (
-        <div className="flex justify-center py-20"><Loader2 className="h-6 w-6 animate-spin text-accent-foreground" /></div>
+        <div className="mt-6 space-y-1">
+          {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-[72px] rounded-2xl" />)}
+        </div>
       ) : cases.length === 0 ? (
         <div className="mt-14 text-center">
           <Scale className="mx-auto h-10 w-10 text-ink-4" />
