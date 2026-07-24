@@ -11,7 +11,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger,
+  DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import {
   Combobox, ComboboxClear, ComboboxContent, ComboboxEmpty, ComboboxGroup, ComboboxGroupLabel,
@@ -2054,31 +2054,17 @@ export function VisaResendChip({ info, isDesk, busy, error, onResend, otherCases
   return (
     <div className={cn(compact ? 'contents' : 'flex flex-col gap-1', className)}>
       <div className={compact ? 'contents' : 'flex flex-wrap items-center gap-2'}>
-        <Button
-          variant="soft"
-          size="none"
-          disabled={busy || paused}
-          onClick={() => void onResend()}
-          title={tr('Post the current e-Visa step again at the bottom of this chat', 'Đăng lại bước E-Visa hiện tại ở cuối cuộc trò chuyện')}
-          className="relative tap-44 shrink-0 gap-1.5 rounded-full border border-line-strong px-3 py-1.5 text-2xs font-bold text-foreground"
-        >
-          {busy
-            ? <Loader2 className="size-3.5 shrink-0 animate-spin" aria-hidden />
-            : <RotateCcw className="size-3.5 shrink-0" aria-hidden />}
-          {/* Names what it does, not where it goes: "resend" reads as a retry after a failure,
-              and nothing failed here — the card just scrolled away. */}
-          {tr('Send the form again', 'Gửi lại biểu mẫu')}
-        </Button>
-        {/* WHICH form? Only rendered when the applicant actually has another editable case —
-            which became possible on 2026-07-24, when applying for a different visa type
-            started minting its own case instead of overwriting the draft. Choosing one
-            rebinds the thread to it and brings ITS form down (POST …/resume). */}
-        {!paused && !!otherCases?.length && onSwitchCase && (
+        {/* ONE control (owner 2026-07-24: "send the form again is itself a dropdown and when opened
+            upwards user can select from available options" — the resend chip + a separate chevron
+            was two pills eating a phone's width). When the applicant has OTHER editable cases, the
+            chip IS the dropdown: it opens UPWARD (side="top", it sits above the composer) to resend
+            THIS form, or bring a different application's form down. With no other case (the common
+            single-case applicant), it stays a plain one-tap button. */}
+        {!paused && !!otherCases?.length && onSwitchCase ? (
           <DropdownMenu>
-            {/* ⚠️ The icon lives INSIDE the rendered Button, not as Trigger children. Base UI's
-                `render` REPLACES the trigger element, so children passed to the Trigger alongside
-                a self-closing render element are dropped and the menu never opens — which is
-                exactly how this shipped broken the first time. Match ui/more-overflow. */}
+            {/* ⚠️ The icon+label live INSIDE the rendered Button, not as Trigger children — Base UI's
+                `render` REPLACES the trigger, so any sibling children are dropped and the menu never
+                opens (how this shipped broken once). */}
             <DropdownMenuTrigger
               render={
                 <Button
@@ -2086,20 +2072,25 @@ export function VisaResendChip({ info, isDesk, busy, error, onResend, otherCases
                   variant="soft"
                   size="none"
                   disabled={busy}
-                  aria-label={tr('Choose which application to bring', 'Chọn hồ sơ cần đưa xuống')}
-                  title={tr('Choose which application to bring', 'Chọn hồ sơ cần đưa xuống')}
-                  className="relative tap-44 shrink-0 gap-1 rounded-full border border-line-strong px-2.5 py-1.5 text-2xs font-bold text-foreground active:scale-100"
+                  aria-label={tr('Send a form to this chat', 'Gửi biểu mẫu vào cuộc trò chuyện này')}
+                  className="relative tap-44 shrink-0 gap-1.5 rounded-full border border-line-strong px-3 py-1.5 text-2xs font-bold text-foreground active:scale-100"
                 >
-                  <ChevronDown className="size-3.5 shrink-0" aria-hidden />
+                  {busy
+                    ? <Loader2 className="size-3.5 shrink-0 animate-spin" aria-hidden />
+                    : <RotateCcw className="size-3.5 shrink-0" aria-hidden />}
+                  {tr('Send the form again', 'Gửi lại biểu mẫu')}
+                  <ChevronDown className="size-3 shrink-0 opacity-60" aria-hidden />
                 </Button>
               }
             />
-            <DropdownMenuContent align="start" className="max-w-[16rem]">
-              {/* ⚠️ THE GROUP IS NOT DECORATION. DropdownMenuLabel renders Base UI's
-                  Menu.GroupLabel, which THROWS "MenuGroupContext is missing" unless it sits
-                  inside a Menu.Group — and the throw happens when the popup mounts, so the
-                  menu simply never opens. That is exactly how this shipped broken: the chevron
-                  rendered, the click registered, and nothing appeared. */}
+            <DropdownMenuContent side="top" align="start" className="max-w-[16rem]">
+              <DropdownMenuItem disabled={busy} onClick={() => void onResend()}>
+                <RotateCcw /> {tr('Send this form again', 'Gửi lại biểu mẫu này')}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              {/* ⚠️ DropdownMenuLabel (Base UI Menu.GroupLabel) THROWS "MenuGroupContext is missing"
+                  unless it sits inside a Menu.Group — the throw happens on popup mount, so the menu
+                  would never open. Keep the label inside the group. */}
               <DropdownMenuGroup>
                 <DropdownMenuLabel>{tr('Bring another application', 'Đưa hồ sơ khác xuống')}</DropdownMenuLabel>
                 {otherCases.map((c) => (
@@ -2110,6 +2101,22 @@ export function VisaResendChip({ info, isDesk, busy, error, onResend, otherCases
               </DropdownMenuGroup>
             </DropdownMenuContent>
           </DropdownMenu>
+        ) : (
+          <Button
+            variant="soft"
+            size="none"
+            disabled={busy || paused}
+            onClick={() => void onResend()}
+            title={tr('Post the current e-Visa step again at the bottom of this chat', 'Đăng lại bước E-Visa hiện tại ở cuối cuộc trò chuyện')}
+            className="relative tap-44 shrink-0 gap-1.5 rounded-full border border-line-strong px-3 py-1.5 text-2xs font-bold text-foreground"
+          >
+            {busy
+              ? <Loader2 className="size-3.5 shrink-0 animate-spin" aria-hidden />
+              : <RotateCcw className="size-3.5 shrink-0" aria-hidden />}
+            {/* Names what it does, not where it goes: "resend" reads as a retry after a failure,
+                and nothing failed here — the card just scrolled away. */}
+            {tr('Send the form again', 'Gửi lại biểu mẫu')}
+          </Button>
         )}
         {!paused && !compact && (
           <span className="min-w-0 text-2xs leading-relaxed text-ink-4">
