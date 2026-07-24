@@ -29,11 +29,27 @@ test.describe('Guest · e-Visa', () => {
     expect([401, 403]).toContain(res.status())
   })
 
+  // ⚠️ The desk's storefront is reachable ONLY by its @handle — there is no stable /visa route
+  // to key off. This spec pointed at `/eno_vietnam` until 2026-07-24, by which time the desk had
+  // been renamed to `Eno Visa` / `@eno_visa`; the page 404'd and the assertion failed on the
+  // LINK COUNT, which reads like "the desk has no products" and cost a real misdiagnosis (the
+  // 14 products were live the whole time). So resolve the page first and say so plainly.
+  const VISA_DESK_HANDLE = 'eno_visa'
+
   test('the visa storefront renders its products to a guest', async ({ page }) => {
-    await page.goto('/eno_vietnam')
+    const res = await page.goto(`/${VISA_DESK_HANDLE}`)
+    expect(
+      res?.status(),
+      `/${VISA_DESK_HANDLE} did not resolve — the visa desk was probably renamed. Check the ` +
+      `handle of the storefront owned by VISA_SHOP_OWNER_EMAILS and update VISA_DESK_HANDLE; ` +
+      `this is NOT evidence that the desk has no products.`,
+    ).toBe(200)
     // The desk's storefront: header identity + at least one product card. Product NAMES are
     // owner-editable, so assert structure (listing links) rather than copy.
     await expect(page.locator('h1').first()).toBeVisible()
-    expect(await page.locator('a[href^="/listings/"]').count()).toBeGreaterThan(0)
+    expect(
+      await page.locator('a[href^="/listings/"]').count(),
+      'the desk storefront resolved but rendered no product links',
+    ).toBeGreaterThan(0)
   })
 })

@@ -117,6 +117,10 @@ export type SerializedListing = {
     id: string
     name: string
     avatarColor: string
+    /** The shop's photo. `avatarColor` is only the initials FALLBACK — a surface that reads
+     *  the colour without this renders initials for a shop that has a real logo, which is how
+     *  the PDP and the storefront ended up showing the same seller two different ways. */
+    avatarUrl: string | null
     rating: number
     reviewCount: number
     verifiedSeller: boolean

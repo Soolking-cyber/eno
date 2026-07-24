@@ -77,6 +77,12 @@ export function serializeListing(
       id: l.seller.id,
       name: l.seller.name,
       avatarColor: l.seller.avatarColor,
+      // The shop's PHOTO. It was missing here, so every PDP fell back to initials-on-colour
+      // while the storefront showed the real logo — the same shop looked like two different
+      // sellers depending on which page you were on (owner 2026-07-24: "product page store
+      // name image to be exact"). avatarColor alone is only the FALLBACK; without the url
+      // beside it the fallback is all anyone ever saw.
+      avatarUrl: l.seller.avatarUrl,
       rating: l.seller.rating,
       reviewCount: l.seller.reviewCount,
       verifiedSeller: l.seller.verifiedSeller,
