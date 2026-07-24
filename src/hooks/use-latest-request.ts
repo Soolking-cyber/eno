@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 
 // The ONE stale-async guard (audit Phase 2): ~8 components hand-rolled overlapping
 // fetch lifecycles — a slow earlier response landing after a fast later one would
@@ -19,6 +19,14 @@ import { useCallback, useEffect, useRef } from 'react'
 //
 // Unmount aborts the in-flight request. AbortError rejections from superseded fetches
 // are the caller's to swallow (catch → if (!req.isCurrent()) return).
+//
+// ⚠️ THE RETURN VALUE IS MEMOIZED, AND THAT IS LOAD-BEARING. Callers legitimately put
+// `latest` in a dependency array (`useCallback(load, [q, filters, latest])`), so a fresh
+// `{ begin }` object literal per render made `load` a new function every render, which
+// re-ran the effect that calls it, which set state, which rendered again — an endless
+// re-fetch loop. It shipped that way on /admin/listings: ~21 requests in 8 IDLE seconds
+// and a table that visibly flickered (owner report, 2026-07-24). `begin` was already
+// stable; the wrapper object was not.
 
 export type LatestRequest = {
   /** AbortSignal for the fetch of THIS request. */
@@ -48,5 +56,6 @@ export function useLatestRequest(): { begin: () => LatestRequest } {
     }
   }, [])
 
-  return { begin }
+  // Stable identity — see the note above. Never return a bare object literal here.
+  return useMemo(() => ({ begin }), [begin])
 }
