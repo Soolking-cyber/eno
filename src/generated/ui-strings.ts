@@ -1870,6 +1870,7 @@ export const UI_STRINGS: string[] = [
   "an already-sold item",
   "and",
   "available.",
+  "average",
   "check the legal name above",
   "chưa có tin nhắn",
   "confirmed",

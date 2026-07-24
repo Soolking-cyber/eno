@@ -1,6 +1,6 @@
 import { cache } from 'react'
 import { notFound } from 'next/navigation'
-import { AlertTriangle, BadgeCheck } from 'lucide-react'
+import { AlertTriangle, BadgeCheck, Star } from 'lucide-react'
 import { db } from '@/lib/db'
 import { Button } from '@/components/ui/button'
 import { serializeListing } from '@/lib/serialize'
@@ -12,6 +12,7 @@ import { SellerListings } from '@/components/marketplace/seller-listings'
 import { Tr } from '@/context/language-context'
 import { ReportButton } from '@/components/marketplace/report-button'
 import { HandleChip } from '@/components/marketplace/handle-chip'
+import { Badge } from '@/components/ui/badge'
 import { StorefrontSellerCard } from '@/components/marketplace/storefront-seller-card'
 import { getVisaShopSeller } from '@/lib/visa-shop'
 import { sellerMetrics } from '@/lib/seller-metrics'
@@ -49,19 +50,21 @@ const loadReviews = cache(async (sellerId: string) => {
     const rows = await db.review.findMany({
       where: { sellerId },
       orderBy: { createdAt: 'desc' },
-      select: { id: true, author: true, rating: true, text: true, conversationId: true, authorProfileId: true },
+      select: { id: true, author: true, rating: true, text: true, createdAt: true, conversationId: true, authorProfileId: true },
     })
     // "Verified buyer" is EARNED: only reviews born from a real conversation
     // (post-transaction, api/sellers/[id]/reviews) carry provenance. Seeded/legacy
     // rows have neither field → no badge.
-    return rows.map((r) => ({ id: r.id, author: r.author, rating: r.rating, text: r.text, verified: !!(r.conversationId || r.authorProfileId) }))
+    // createdAt is SELECTED and serialized: the review row shows when it was left, which
+    // is half of what makes a rating credible.
+    return rows.map((r) => ({ id: r.id, author: r.author, rating: r.rating, text: r.text, createdAt: r.createdAt.toISOString(), verified: !!(r.conversationId || r.authorProfileId) }))
   } catch {
     const rows = await db.review.findMany({
       where: { sellerId },
       orderBy: { createdAt: 'desc' },
-      select: { id: true, author: true, rating: true, text: true },
+      select: { id: true, author: true, rating: true, text: true, createdAt: true },
     })
-    return rows.map((r) => ({ ...r, verified: false }))
+    return rows.map((r) => ({ ...r, createdAt: r.createdAt.toISOString(), verified: false }))
   }
 })
 
@@ -134,6 +137,10 @@ export async function SellerStorefront({ id }: { id: string }) {
                 listingCount={listings.length}
               />
             </div>
+            {/* ONE LINE: the identity chips and the (rare) Report action share a row instead of
+                stacking into two more blocks under the card. Owner 2026-07-24: "what can be put
+                in one line put, small chips" — the header was five stacked blocks on a phone
+                (identity · metrics · Chat · chips · Report) before any content. */}
             {(seller.handle || seller.ownerId) && (
               <div className="flex flex-wrap items-center gap-2">
                 {seller.handle && <HandleChip handle={seller.handle.handle} />}
@@ -146,24 +153,18 @@ export async function SellerStorefront({ id }: { id: string }) {
                     tax check (a copyable public MST) can no longer flash a partial
                     "verified" signal to buyers. */}
                 {cardSeller.businessVerified ? (
-                  <span className="inline-flex items-center gap-1 text-xs font-semibold text-success">
-                    <BadgeCheck className="h-4 w-4" /> <Tr text="Business verified" />
-                  </span>
+                  <Badge variant="success"><BadgeCheck className="h-3.5 w-3.5" /> <Tr text="Business verified" /></Badge>
                 ) : (
-                  <>
-                    {seller.ownerId && (
-                      <span className="inline-flex items-center gap-1 text-xs font-semibold text-success">
-                        <BadgeCheck className="h-4 w-4" /> <Tr text="Active account" />
-                      </span>
-                    )}
-                  </>
+                  seller.ownerId && (
+                    <Badge variant="success"><BadgeCheck className="h-3.5 w-3.5" /> <Tr text="Active account" /></Badge>
+                  )
                 )}
+                {/* Report rides the END of this line. It is a rare, secondary action — as its
+                    own red block under the CTA it read as loud as "Chat now". */}
+                <span className="ml-auto"><ReportButton sellerId={seller.id} /></span>
               </div>
             )}
             {seller.bio && <p className="max-w-2xl text-sm text-body"><Tr text={seller.bio} /></p>}
-          </div>
-          <div className="shrink-0">
-            <ReportButton sellerId={seller.id} />
           </div>
         </div>
 
@@ -185,24 +186,50 @@ export async function SellerStorefront({ id }: { id: string }) {
         {/* Reviews */}
         {reviews.length > 0 && (
           <section className="mt-10 space-y-4">
-            <h2 className="h-section text-foreground"><Tr text="Reviews" /> ({seller.reviewCount})</h2>
-            <div className="grid gap-4 sm:grid-cols-2">
+            {/* ⚠️ The RATING and the DATE were already in the data (topSellerReviews returns
+                both) and neither was rendered — a review read as an unattributed sentence with
+                a green badge. Showing them is the difference between "someone said this" and
+                "a verified buyer rated this 5/5 in July". */}
+            <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+              <h2 className="h-section text-foreground"><Tr text="Reviews" /> ({seller.reviewCount})</h2>
+              {seller.reviewCount > 0 && (
+                <span className="inline-flex items-center gap-1 text-sm text-body">
+                  <Star className="h-4 w-4 fill-rating text-rating" aria-hidden />
+                  <span className="font-bold text-foreground">{seller.rating.toFixed(1)}</span>
+                  <Tr text="average" />
+                </span>
+              )}
+            </div>
+            {/* Flat list, one review per row (canon §3b) — a two-up grid of naked blocks made
+                two reviews read as one paragraph. */}
+            <ul className="divide-y divide-border border-t border-border">
               {reviews.map((r) => (
-                <div key={r.id}>
-                  <div className="flex items-center gap-2">
-                    <span className="flex h-8 w-8 items-center justify-center rounded-full bg-accent text-xs font-bold text-accent-foreground">
+                <li key={r.id} className="py-4">
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent text-xs font-bold text-accent-foreground">
                       {r.author.split(' ').map((w) => w[0]).join('').toUpperCase()}
                     </span>
                     <span className="text-sm font-semibold text-foreground">{r.author}</span>
                     {/* Earned badge: only reviews with real conversation provenance. */}
                     {r.verified && (
-                      <span className="ml-auto inline-flex items-center gap-1 text-2xs font-semibold text-success"><BadgeCheck className="h-3.5 w-3.5" /> <Tr text="Verified buyer" /></span>
+                      <Badge variant="success"><BadgeCheck className="h-3.5 w-3.5" /> <Tr text="Verified buyer" /></Badge>
                     )}
+                    {/* Rating + date: pushed right when the row fits, but a plain LEFT-aligned
+                        second line once it wraps on a phone — `ml-auto` alone left it as a
+                        right-aligned orphan under the name. */}
+                    <span className="inline-flex w-full items-center gap-1.5 text-xs text-ink-4 sm:ml-auto sm:w-auto">
+                      <span className="inline-flex items-center gap-0.5" aria-label={`${r.rating}/5`}>
+                        {[1, 2, 3, 4, 5].map((n) => (
+                          <Star key={n} className={n <= Math.round(r.rating) ? 'h-3.5 w-3.5 fill-rating text-rating' : 'h-3.5 w-3.5 text-line-strong'} aria-hidden />
+                        ))}
+                      </span>
+                      <time dateTime={r.createdAt}>{new Date(r.createdAt).toLocaleDateString()}</time>
+                    </span>
                   </div>
                   <p className="mt-2 text-sm leading-relaxed text-body"><Tr text={r.text} /></p>
-                </div>
+                </li>
               ))}
-            </div>
+            </ul>
           </section>
         )}
 
