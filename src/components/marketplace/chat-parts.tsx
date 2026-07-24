@@ -50,7 +50,11 @@ export function MessageBubble({
     <div
       className={cn(
         'allow-select rounded-2xl px-3.5 py-2 text-sm leading-relaxed',
-        failed ? 'border border-destructive/30 bg-destructive/10 text-destructive' : mine ? 'bg-primary text-white' : 'bg-card text-foreground',
+        // Received bubble: a subtle `tint` well. `bg-card` collapsed into the canvas in the flat
+        // design pass (docs/design-language.md §3b), which left received messages with NO fill —
+        // bare text on the page. `tint` restores the light-grey received-bubble well (the shape
+        // every chat app uses), distinct from the blue sent bubble; alignment carries the rest.
+        failed ? 'border border-destructive/30 bg-destructive/10 text-destructive' : mine ? 'bg-primary text-white' : 'bg-tint text-foreground',
         pending && 'opacity-70',
         className,
       )}

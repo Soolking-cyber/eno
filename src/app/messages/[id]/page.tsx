@@ -977,7 +977,7 @@ export default function ThreadPage() {
     <div className="flex h-full w-full flex-col bg-background">
       {!loading && !user ? (
         <div className="flex flex-1 items-center justify-center px-3">
-          <div className="rounded-2xl bg-card p-8 text-center shadow-pop">
+          <div className="rounded-2xl bg-popover p-8 text-center shadow-pop">
             <p className="text-sm text-muted-foreground">{tr('Sign in to view this conversation.', 'Đăng nhập để xem cuộc trò chuyện này.')}</p>
             <div className="mt-4"><SignInPrompt /></div>
           </div>
@@ -1106,7 +1106,7 @@ export default function ThreadPage() {
                     history never mass-animates on thread open. */}
                 <div className={`flex flex-col ${m.mine ? 'items-end' : 'items-start'} ${i === arr.length - 1 ? 'bubble-in' : ''}`}>
                 {m.kind === 'offer' ? (
-                  <div className={`allow-select max-w-[80%] rounded-2xl border px-3 py-2.5 ${m.mine ? 'border-brand/30 bg-primary/5' : 'border-border bg-card'}`}>
+                  <div className={`allow-select max-w-[80%] rounded-2xl border px-3 py-2.5 ${m.mine ? 'border-brand/30 bg-primary/5' : 'border-border bg-tint'}`}>
                     {/* Offer line is DERIVED from the structured offerAmount (tr'd + money
                         format) — never from the stored body. Legacy messages still carry a
                         baked "💰 Offered …₫" body: skip it (rendering it too would double up). */}
