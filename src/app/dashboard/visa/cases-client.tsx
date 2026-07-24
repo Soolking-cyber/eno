@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Check, Clock, Download, FileCheck2, Loader2, LockKeyhole, MessagesSquare, ShieldCheck, Stamp, Trash2 } from 'lucide-react'
+import { Check, Clock, Download, FileCheck2, Loader2, LockKeyhole, MessagesSquare, Pencil, ShieldCheck, Stamp, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useAuth } from '@/context/auth-context'
 import { useDashboard } from '@/hooks/use-dashboard'
@@ -16,6 +16,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Spinner } from '@/components/ui/spinner'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { SectionHeader } from '@/components/marketplace/section-header'
 import { useMinuteTick, VisaStart } from '@/components/marketplace/visa-start'
 import { expectedVisaReadyAt } from '@/lib/visa/eta'
@@ -153,6 +154,17 @@ function Consent({ checked, onChange, children }: { checked: boolean; onChange: 
 
 /** `EV-1042`, or the id stub for a case that predates the reference column. */
 const caseLabel = (item: VisaApplication) => item.reference || item.id.slice(0, 8)
+
+// Table columns, mirroring the official e-Visa "List of submitted applications" view. Name/DOB
+// come from the case's OWN decrypted payload (the viewer's own data) — null while a draft is still
+// blank or the payload is unreadable (old key), rendered as an em dash rather than an empty cell.
+const fullNameOf = (item: VisaApplication) => {
+  const name = [item.payload?.surname, item.payload?.givenNames].filter(Boolean).join(' ').trim()
+  return name || null
+}
+const dobOf = (item: VisaApplication) => (item.payload?.dateOfBirth || '').trim() || null
+// The date shown per row: the submission (paid) date once submitted, else the case's start date.
+const caseDate = (item: VisaApplication) => new Date(item.paidAt || item.createdAt).toLocaleDateString()
 
 // ── The delivery promise (Phase 4) ──────────────────────────────────────────────────
 // Shown ONLY while the case is with the DESK and the fee is PAID (external review: a
@@ -579,11 +591,81 @@ export function VisaCasesClient({ threads }: {
   return (
     <>
       {sectionHeader}
-      <div className="mx-auto w-full max-w-4xl">
+      <div className="mx-auto w-full max-w-5xl">
         <h1 className="text-2xl font-bold tracking-tight text-foreground max-lg:sr-only">{tr('My e-Visa applications', 'Hồ sơ E-Visa của tôi')}</h1>
 
-        {/* EVERY case, newest first — reference, status, its thread, its PDF, deletion. */}
-        <ul className="mt-4 space-y-3">
+        <p className="mt-1 hidden text-sm text-body lg:block">{tr('Every application on your account — track its status, continue a draft, or download an approved e-Visa. A draft can be deleted; a submitted or paid application is kept.', 'Mọi hồ sơ trên tài khoản của bạn — theo dõi trạng thái, tiếp tục bản nháp, hoặc tải e-Visa đã duyệt. Bản nháp có thể xóa; hồ sơ đã gửi hoặc đã thanh toán được giữ lại.')}</p>
+
+        {/* DESKTOP — the official-portal-style table (No · App no. · Full name · DOB · Date ·
+            Status · Operation), but in eno's OWN design language (no government banner/motif). A
+            seven-column table can't fit a phone, so mobile keeps the cards below. */}
+        <div className="mt-4 hidden overflow-x-auto rounded-2xl border border-border lg:block">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-tint/60 hover:bg-tint/60">
+                <TableHead className="w-10 text-center">{tr('No', 'STT')}</TableHead>
+                <TableHead>{tr('App no.', 'Mã hồ sơ')}</TableHead>
+                <TableHead>{tr('Full name', 'Họ và tên')}</TableHead>
+                <TableHead>{tr('Date of birth', 'Ngày sinh')}</TableHead>
+                <TableHead>{tr('Date', 'Ngày')}</TableHead>
+                <TableHead>{tr('Status', 'Trạng thái')}</TableHead>
+                <TableHead className="text-right">{tr('Operation', 'Thao tác')}</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {applications.map((item, i) => {
+                const chip = STATUS_CHIP[item.status]
+                const editable = EDITABLE.has(item.status)
+                const deletable = DELETABLE.has(item.status) && !item.paidAt
+                const hasResult = item.documents.some((d) => d.kind === 'result')
+                // Own thread first (immutable link); the shared desk thread as the fallback — there
+                // is exactly ONE buyer↔desk conversation (cases rebind it in turn), so an unbound row
+                // still gets a truthful way to reach the desk. Mirrors CaseRow's threadId + its HONEST
+                // labelling: an editable draft "continues", anything else "requests an update" (asks
+                // the desk) — never "open THIS case", since the fallback may be another case's thread.
+                const threadId = threads[item.id] ?? Object.values(threads)[0]
+                const chatLabel = editable ? tr('Continue in chat', 'Tiếp tục trong chat') : tr('Request an update', 'Yêu cầu cập nhật')
+                return (
+                  <TableRow key={item.id}>
+                    <TableCell className="text-center text-ink-4">{i + 1}</TableCell>
+                    <TableCell className="whitespace-nowrap font-mono text-sm font-bold text-accent-foreground">{caseLabel(item)}</TableCell>
+                    <TableCell className="font-semibold text-foreground">{fullNameOf(item) ?? <span className="font-normal text-ink-4">—</span>}</TableCell>
+                    <TableCell className="whitespace-nowrap text-body">{dobOf(item) ?? '—'}</TableCell>
+                    <TableCell className="whitespace-nowrap text-body">{caseDate(item)}</TableCell>
+                    <TableCell className="whitespace-nowrap">
+                      <span className="inline-flex items-center gap-1.5">
+                        <Badge variant={chip?.variant ?? 'neutral'}>{chip ? tr(chip.en, chip.vi) : item.status}</Badge>
+                        {item.paidAt && <Badge variant="success"><Check className="h-3 w-3" />{tr('Paid', 'Đã trả')}</Badge>}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex items-center justify-end gap-0.5">
+                        {threadId && (
+                          <Button variant="ghost" size="icon" asChild aria-label={chatLabel} title={chatLabel}>
+                            <Link href={`/messages/${threadId}`}>{editable ? <Pencil className="h-4 w-4" /> : <MessagesSquare className="h-4 w-4" />}</Link>
+                          </Button>
+                        )}
+                        {hasResult && (
+                          <Button variant="ghost" size="icon" disabled={busy} onClick={() => void downloadResult(item)} aria-label={tr('Download e-Visa PDF', 'Tải PDF E-Visa')} title={tr('Download', 'Tải xuống')}>
+                            <Download className="h-4 w-4" />
+                          </Button>
+                        )}
+                        {deletable && (
+                          <Button variant="ghost" size="icon" disabled={busy} className="text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => setDeleteTarget(item)} aria-label={tr('Delete application', 'Xóa hồ sơ')} title={tr('Delete', 'Xóa')}>
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                )
+              })}
+            </TableBody>
+          </Table>
+        </div>
+
+        {/* MOBILE — the same cases as cards (a seven-column table can't fit a phone; app is mobile-first). */}
+        <ul className="mt-4 space-y-3 lg:hidden">
           {applications.map((item) => (
             <CaseRow
               key={item.id}
