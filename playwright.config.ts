@@ -53,6 +53,13 @@ const authedProjects: Project[] = AUTHED_BASE
         name: 'visa', dependencies: ['setup'], testMatch: /visa-authed\.spec\.ts/,
         use: { ...devices['Desktop Chrome'], baseURL: AUTHED_BASE, ...(existsSync(`${AUTH_DIR}/buyer.json`) ? { storageState: `${AUTH_DIR}/buyer.json` } : {}) },
       },
+      // Live chat translation needs THREE actors at once (buyer, seller, and a non-participant
+      // to be refused), so like `smoke` it opens its own contexts and takes no project-level
+      // storageState.
+      {
+        name: 'chat-translate', dependencies: ['setup'], testMatch: /chat-translate-authed\.spec\.ts/,
+        use: { ...devices['Desktop Chrome'], baseURL: AUTHED_BASE },
+      },
     ]
   : []
 
