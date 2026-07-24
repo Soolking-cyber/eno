@@ -145,6 +145,8 @@ export const UI_STRINGS: string[] = [
   "Application deleted.",
   "Apply",
   "Apply Filters",
+  "Apply any time",
+  "Apply any time — including weekends. Vietnam Immigration processes on working days, so delivery times are counted in working days; only the same-day (1–4 hour) tiers pause after each day’s cut-off and on non-working days.",
   "Apply discount",
   "Apply in chat",
   "Approve for official prefill",

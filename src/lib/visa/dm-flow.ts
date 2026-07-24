@@ -34,7 +34,7 @@ import {
 import { quoteVisaUsd, type VisaQuote } from './fx'
 import { visaPaymentsConfig } from './payments'
 import { recordVisaEvent, type VisaApplicationRow, type VisaDocumentRow } from './records'
-import { emptyVisaPayload, visaPayloadSchema, type VisaPayload } from './schema'
+import { emptyVisaPayload, visaPayloadSchema, visaStatuses, type VisaPayload } from './schema'
 
 // ── THE IN-DM e-VISA WIZARD LOOP ───────────────────────────────────────────────────
 //
@@ -129,6 +129,27 @@ export const VISA_DM_EXTRACTABLE_FIELDS: readonly string[] = [
  */
 const CARD_SCAN_LIMIT = 30
 
+/**
+ * Anti-spam ceiling (owner 2026-07-24): a buyer may hold at most this many UN-RESOLVED visa
+ * applications at once — mirroring the official portal's "list of submitted documents". This is
+ * a CONCURRENT cap, orthogonal to the per-day create rate limit (start route's allowCreate): the
+ * rate limit bounds how FAST new cases appear, this bounds how MANY can be open at all. A case
+ * only stops counting once it reaches a terminal state (the applicant is done with it) — or is
+ * deleted from the cases list.
+ */
+export const MAX_ACTIVE_VISA_APPLICATIONS = 10
+/** Terminal = the applicant's involvement is over, so it no longer counts toward the cap. Kept as
+ *  a subset of visaStatuses (src/lib/visa/schema.ts); everything NOT here is "in progress". */
+const TERMINAL_VISA_STATUSES = ['approved', 'rejected', 'cancelled'] as const
+/** The statuses that DO count toward the cap — derived, so any status added to visaStatuses later
+ *  counts as active by default (the safe direction: a new in-flight state occupies a slot). Filtered
+ *  positively (an `.in(...)` list) rather than a negated `not in`, which the Supabase client models
+ *  more cleanly and the count query below can index. */
+const ACTIVE_VISA_STATUSES = visaStatuses.filter(
+  (status): status is Exclude<(typeof visaStatuses)[number], (typeof TERMINAL_VISA_STATUSES)[number]> =>
+    !(TERMINAL_VISA_STATUSES as readonly string[]).includes(status),
+)
+
 export type VisaDmErrorCode =
   | 'admin_takeover'
   | 'already_paid'
@@ -152,6 +173,7 @@ export type VisaDmErrorCode =
   | 'product_price_unavailable'
   | 'rate_limited'
   | 'shop_unavailable'
+  | 'too_many_applications'
   | 'step_card_refused'
   | 'thread_conflict'
   | 'thread_not_bound'
@@ -1041,6 +1063,24 @@ export async function startVisaDmFlow(input: {
     }
   } else {
     if (input.allowCreate && !(await input.allowCreate())) return fail('rate_limited', 429)
+    // Concurrent-application ceiling (anti-spam). Count only the buyer's UN-resolved cases; a
+    // terminal one no longer occupies a slot. Checked here, at the one create site, so both the
+    // product start and the generic (product-less) start are covered.
+    // Order is deliberate: the per-day create rate limit (allowCreate) runs FIRST, so a spam burst
+    // is thrown out by the cheap limiter before it ever reaches this DB count. The trade-off is
+    // that a buyer already AT the cap spends one of their daily create tokens on a refused attempt
+    // — acceptable: they get a clear 409 telling them to free a slot, and 5/day is generous.
+    // ⚠️ Accepted soft race: two simultaneous /start calls could each read count 9 and both
+    // insert, momentarily overshooting by one. That is harmless for an anti-spam ceiling (no
+    // money, no security), and the start route's per-day create rate limit already caps velocity;
+    // a DB constraint would be far heavier than the risk warrants.
+    const { count, error: countError } = await getVisaDb()
+      .from('visa_applications')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', input.userId)
+      .in('status', ACTIVE_VISA_STATUSES)
+    if (countError) throw countError
+    if ((count ?? 0) >= MAX_ACTIVE_VISA_APPLICATIONS) return fail('too_many_applications', 409)
     const parsed = visaPayloadSchema.safeParse({ ...emptyVisaPayload(input.email), ...prefill })
     if (!parsed.success) return fail('invalid_fields', 400)
     applicationId = randomUUID()

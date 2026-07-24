@@ -142,6 +142,13 @@ function useVisaStart(onStarted?: () => void) {
         return tr('Sign in to start your e-Visa application.', 'Đăng nhập để bắt đầu hồ sơ e-Visa.')
       case 'rate_limited':
         return tr('Too many attempts — try again in a little while.', 'Thử quá nhiều lần — vui lòng thử lại sau ít phút.')
+      case 'too_many_applications':
+        // The concurrent-application ceiling (dm-flow MAX_ACTIVE_VISA_APPLICATIONS). Point the
+        // applicant at the cases list, where they can finish or delete one to free a slot.
+        return tr(
+          'You already have 10 e-Visa applications in progress. Finish or delete one in your applications list before starting a new one.',
+          'Bạn đang có 10 hồ sơ e-Visa đang xử lý. Hãy hoàn tất hoặc xóa một hồ sơ trong danh sách hồ sơ trước khi bắt đầu hồ sơ mới.',
+        )
       case 'listing_not_found':
         return tr('The desk no longer offers this service.', 'Dịch vụ này không còn được cung cấp.')
       case 'product_not_for_sale':

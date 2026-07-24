@@ -70,15 +70,19 @@ vi.mock('./db', () => {
       payload: null as any,
       orderBy: [] as Array<[string, boolean]>,
       limitN: null as number | null,
+      count: false,
     }
     const run = () => {
-      if (h.state.dbError) return { data: null, error: h.state.dbError }
+      if (h.state.dbError) return { data: null, error: h.state.dbError, count: null }
       const rows = (h.state.tables[table] ||= [])
       if (q.op === 'insert') {
         for (const row of Array.isArray(q.payload) ? q.payload : [q.payload]) rows.push({ ...row })
         return { data: null, error: null }
       }
       let hit = rows.filter((row) => matches(row, q.filters))
+      // `.select(cols, { count:'exact', head:true })` — the real client returns the row count and
+      // no data, ignoring order/limit. Used by the concurrent-application cap.
+      if (q.count) return { data: null, error: null, count: hit.length }
       if (q.op === 'update') for (const row of hit) Object.assign(row, q.payload)
       // Applied in reverse so the FIRST .order() is the primary key (Postgres semantics).
       for (const [column, ascending] of [...q.orderBy].reverse()) {
@@ -91,7 +95,7 @@ vi.mock('./db', () => {
       return { data: hit.map((row) => ({ ...row })), error: null }
     }
     const api: any = {
-      select: () => api,
+      select: (_columns?: unknown, opts?: { count?: string; head?: boolean }) => { if (opts?.count) q.count = true; return api },
       eq: (key: string, value: unknown) => { q.filters.push(['eq', key, value]); return api },
       in: (key: string, value: unknown) => { q.filters.push(['in', key, value]); return api },
       is: (key: string, value: unknown) => { q.filters.push(['is', key, value]); return api },
@@ -876,6 +880,35 @@ describe('start', () => {
     expect(created).toMatchObject({ ok: true, step: 1 })
     expect(h.state.tables.visa_applications).toHaveLength(1)
     expect(h.state.tables.visa_applications[0].user_id).toBe(BUYER)
+  })
+
+  it('refuses a new application at the concurrent cap, counting only non-terminal cases', async () => {
+    // Ten IN-PROGRESS but non-editable cases (under_review): no draft to reuse, so /start hits
+    // the create branch — and the anti-spam ceiling. Seeded directly (seedCase holds one row).
+    h.state.tables.visa_applications = Array.from({ length: 10 }, (_, i) => ({
+      id: `held-${i}`, user_id: BUYER, status: 'under_review',
+      encrypted_payload: JSON.stringify(emptyVisaPayload('a@b.com')),
+      checklist: [], paid_at: null, selected_listing_id: null, selected_entry_type: null,
+    }))
+    const capped = await startVisaDmFlow({ userId: BUYER, email: 'a@b.com', allowCreate: async () => true })
+    expect(capped).toMatchObject({ ok: false, error: 'too_many_applications', status: 409 })
+    expect(h.state.tables.visa_applications).toHaveLength(10) // nothing minted
+
+    // Terminal cases free their slot: flip three to approved/rejected/cancelled → 7 active → allowed.
+    ;['approved', 'rejected', 'cancelled'].forEach((s, i) => { h.state.tables.visa_applications[i].status = s })
+    const created = await startVisaDmFlow({ userId: BUYER, email: 'a@b.com', allowCreate: async () => true })
+    expect(created).toMatchObject({ ok: true })
+    expect(h.state.tables.visa_applications).toHaveLength(11)
+  })
+
+  it('the cap is scoped to the buyer — another user\'s cases never count', async () => {
+    h.state.tables.visa_applications = Array.from({ length: 10 }, (_, i) => ({
+      id: `other-${i}`, user_id: 'someone-else', status: 'under_review',
+      encrypted_payload: JSON.stringify(emptyVisaPayload('a@b.com')),
+      checklist: [], paid_at: null, selected_listing_id: null, selected_entry_type: null,
+    }))
+    const created = await startVisaDmFlow({ userId: BUYER, email: 'a@b.com', allowCreate: async () => true })
+    expect(created).toMatchObject({ ok: true })
   })
 
   it('does not touch a case that is under review', async () => {
