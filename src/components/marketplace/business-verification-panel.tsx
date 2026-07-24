@@ -5,6 +5,7 @@ import { BadgeCheck, Loader2, ShieldCheck, Upload } from 'lucide-react'
 import { toast } from 'sonner'
 import { useLanguage } from '@/context/language-context'
 import { Button } from '@/components/ui/button'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Checkbox } from '@/components/ui/checkbox'
 
 // The seller's own "get verified" surface (mounts under the business profile editor).
@@ -80,7 +81,13 @@ export function BusinessVerificationPanel() {
     } finally { setBusy(false) }
   }
 
-  if (loading) return null
+  if (loading) return (
+    <div role="status" className="mt-6 rounded-2xl border border-border bg-card p-4">
+      <Skeleton className="h-5 w-40 rounded-lg" />
+      <Skeleton className="mt-3 h-4 w-full rounded-lg" />
+      <Skeleton className="mt-2 h-4 w-2/3 rounded-lg" />
+    </div>
+  )
 
   // Drive the panel off the LIVE view (verified/pending/expired/…), not the raw case
   // status — an approved case whose badge dropped (identity edited / expired) reads

@@ -74,8 +74,10 @@ export function SettingsClient() {
             {isBusiness && dash.seller
               ? <BusinessProfileEditor seller={dash.seller} repName={dash.profile.displayName} onSaved={refresh} />
               : <ProfileEditor profile={dash.profile} onSaved={refresh} />}
-            {isBusiness && dash.seller && <div className="mt-4 border-t border-border pt-4"><BusinessVerificationPanel /></div>}
           </SettingsGroup>
+          {/* Its OWN inset card (mt-6 rounded-2xl border bg-card) — must NOT be wrapped in a
+              SettingsGroup or it double-borders. Renders as a sibling group in the space-y-6 flow. */}
+          {isBusiness && dash.seller && <BusinessVerificationPanel />}
           <SettingsGroup caption={tr('Handle', 'Tên định danh')}><HandleSettings /></SettingsGroup>
           <SettingsGroup caption={tr('Email', 'Email')}><ChangeEmailForm currentEmail={dash.profile.email} /></SettingsGroup>
           <SettingsGroup caption={tr('Account type', 'Loại tài khoản')}><AccountTypeSwitcher isBusiness={isBusiness} businessName={dash.profile.businessName} onSaved={refresh} /></SettingsGroup>

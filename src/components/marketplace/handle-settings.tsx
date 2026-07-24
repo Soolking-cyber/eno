@@ -1,5 +1,7 @@
 'use client'
 
+import { Skeleton } from '@/components/ui/skeleton'
+
 import { useEffect, useState } from 'react'
 import { useLanguage } from '@/context/language-context'
 import { HandleEditor } from './handle-editor'
@@ -21,7 +23,12 @@ export function HandleSettings() {
     return () => { alive = false }
   }, [])
 
-  if (!me) return null
+  if (!me) return (
+    <div role="status" className="space-y-5">
+      <Skeleton className="h-4 w-3/4 rounded-lg" />
+      <Skeleton className="h-11 w-full rounded-xl" />
+    </div>
+  )
   // The single handle lives on the SHOP only for a BUSINESS account; an individual
   // (even one with a lingering storefront row) manages a personal handle.
   const isBusiness = me.accountType === 'business' && !!me.sellerId
