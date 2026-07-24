@@ -39,7 +39,7 @@ export function SettingsClient() {
     return (
       <div role="status" aria-label={tr('Loading…', 'Đang tải…')}>
         <SectionHeader title={tr('Settings', 'Cài đặt')} />
-        <div className="max-w-2xl space-y-6">
+        <div className="w-full space-y-6">
           <Skeleton className="h-7 w-28 rounded-lg max-lg:hidden" />
           {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-28 rounded-2xl" />)}
         </div>
@@ -53,12 +53,15 @@ export function SettingsClient() {
   const isBusiness = dash?.tier === 'business'
 
   return (
-    // SectionHeader sits OUTSIDE the max-w-2xl column: its gutter bleed (-mx-3/sm:-mx-6)
-    // must be measured from the layout's full-width main, not the capped text column.
+    // FULL WIDTH (owner, 2026-07-24) — the 2xl reading column left most of the dashboard
+    // shell empty beside it while the two-up form fields stayed cramped. The shell already
+    // supplies the canonical page width and gutter, so `w-full` is exactly "full width".
+    // SectionHeader still sits OUTSIDE this column: its gutter bleed (-mx-3/sm:-mx-6) must be
+    // measured from the layout's full-width main.
     <>
       {/* Native stack-nav title bar (mobile only) — same established title string. */}
       <SectionHeader title={tr('Settings', 'Cài đặt')} />
-      <div className="max-w-2xl">
+      <div className="w-full">
         {/* h1 stays for the outline; the SectionHeader carries the visible mobile title. */}
         <h1 className="text-xl font-bold text-foreground max-lg:sr-only">{tr('Settings', 'Cài đặt')}</h1>
 
