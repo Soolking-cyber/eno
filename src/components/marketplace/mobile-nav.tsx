@@ -127,23 +127,15 @@ export function MobileNav() {
   const [mounted, setMounted] = useState(false)
   useEffect(() => setMounted(true), [])
 
-  // The account rail opens as a full-screen OVERLAY on mobile (via the eno:open-account event),
-  // so tapping Account never changes the route — the tab could never light up. The shell
-  // broadcasts its open state on eno:account-open-change; while the rail is open it IS the active
-  // surface, so the Account tab shows the indicator and the page tabs dim (one active tab that
-  // follows the current surface, matching every other tab's feel).
-  const [accountOpen, setAccountOpen] = useState(false)
-  useEffect(() => {
-    const onChange = (e: Event) => setAccountOpen((e as CustomEvent).detail === true)
-    window.addEventListener('eno:account-open-change', onChange)
-    return () => window.removeEventListener('eno:account-open-change', onChange)
-  }, [])
-
-  const at = (p: string) => mounted && pathname === p && !accountOpen
-  const atPrefix = (p: string) => mounted && (pathname?.startsWith(p) ?? false) && !accountOpen
-  // The Account tab is active while the rail is open OR on any /dashboard/* page (rail closed
-  // after a section nav). Independent of the !accountOpen dimming the other tabs get.
-  const accountActive = accountOpen || (mounted && (pathname?.startsWith('/dashboard') ?? false))
+  // ⚠️ NO MORE OVERLAY STATE. The Account tab used to open a full-screen rail that never
+  // changed the route, so this component had to track that surface through a CustomEvent pair
+  // just to know which tab to light. Account is a real page now (/dashboard/account), so every
+  // tab's active state comes from the ONE source it should: the pathname.
+  const at = (p: string) => mounted && pathname === p
+  const atPrefix = (p: string) => mounted && (pathname?.startsWith(p) ?? false)
+  // Account owns the whole /dashboard/** subtree, so it stays lit while you are inside any
+  // section you reached from it (codex, plan review).
+  const accountActive = mounted && (pathname?.startsWith('/dashboard') ?? false)
 
   // ⚠️ The <Link> does the navigating. Every tab used to preventDefault() its own Link and
   // router.push() instead — which silently killed the useLinkStatus() pending highlight the
@@ -160,10 +152,6 @@ export function MobileNav() {
       window.scrollTo({ top: 0, behavior: 'smooth' })
       return
     }
-    // If the account launcher is open, close it — a page tab must revert to its page even when
-    // the route doesn't change (tapping Explore while already on home with the launcher up: the
-    // panel's route-driven close can't fire, so it would otherwise stay open — the reported bug).
-    if (accountOpen) window.dispatchEvent(new CustomEvent('eno:open-account', { detail: false }))
   }
 
   // Hidden only on the full-screen sign-in page. (The PDP used to hide it and show its own fixed
@@ -295,26 +283,20 @@ export function MobileNav() {
       {/* Account = the dashboard nav rail. On mobile the rail is a launcher: tapping this OPENS
           it (full-screen menu) via a window event the shell listens for, then picking a section
           navigates to its /dashboard/* page and the rail closes. Active on any dashboard page. */}
+      {/* ⚠️ AN ORDINARY TAB AGAIN (owner 2026-07-24, dashboard native-feel). This used to
+          preventDefault its own Link and dispatch `eno:open-account`, opening a body-locked,
+          focus-trapped full-screen overlay that re-tapping dismissed. Because the route never
+          changed, Android hardware-back and browser-back could not close it, the URL never said
+          where you were, and nothing was linkable. /dashboard/account is a real page, so all of
+          that comes free and this tab behaves exactly like the other four. */}
       <GatedTab
-        href="/dashboard"
+        href="/dashboard/account"
         active={accountActive}
         gate={gate}
-        // The ONE tab that keeps prefetch off: for a signed-in user this Link never navigates
-        // (it opens the rail overlay), so prefetching /dashboard on every mobile page view
-        // would be a pure wasted RSC render.
-        prefetch={false}
+        // Same handler as every other tab now: re-tapping Account while already inside the
+        // dashboard scrolls to top, exactly like the other four.
+        onClick={(e) => onTabClick(e, accountActive)}
         label={tr('Account', 'Tài khoản')}
-        // Logged in → open the rail INSTEAD of navigating (so this is the one tab that always
-        // cancels its Link). Still resolving auth (user not yet known) → let the Link go to
-        // /dashboard, which gates correctly once auth lands, rather than popping an empty rail.
-        // (Logged-out is already handled by `gate` → openSignIn.)
-        // TOGGLE (owner 2026-07-18): the launcher has no Close button — re-tapping Account
-        // closes it (CustomEvent detail:false), any other tab still closes it on navigate.
-        onClick={(e) => {
-          if (!user) return
-          e.preventDefault()
-          window.dispatchEvent(new CustomEvent('eno:open-account', { detail: !accountOpen }))
-        }}
         icon={<User className="h-7 w-7" strokeWidth={STROKE} />}
       />
       </div>

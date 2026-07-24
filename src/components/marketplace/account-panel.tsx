@@ -37,24 +37,16 @@ export function AccountPanelShell({ children }: { children: React.ReactNode }) {
   const [mounted, setMounted] = useState(false)
   if (open && !mounted) setMounted(true)
 
-  // Mobile entry point. The bottom-nav "Account" tab lives OUTSIDE this provider, so it drives the
-  // rail via a window event rather than the context — the launcher gesture on phones (tap Account →
-  // the rail menu opens full-screen → pick a section → it navigates and the rail closes). The event
-  // carries `detail`: `false` CLOSES it (dispatched by the OTHER bottom-nav tabs) so tapping e.g.
-  // Explore while the launcher is open reverts to that page EVEN WHEN the route doesn't change (the
-  // route-driven close below can't fire when you're already on the target — the reported bug).
-  useEffect(() => {
-    const onEvt = (e: Event) => setOpen((e as CustomEvent).detail !== false)
-    window.addEventListener('eno:open-account', onEvt)
-    return () => window.removeEventListener('eno:open-account', onEvt)
-  }, [])
-
-  // Broadcast the rail's open state back out (the reverse of eno:open-account) so the bottom-nav
-  // Account tab — which lives OUTSIDE this provider — can light its active indicator while the rail
-  // is open, exactly like the other tabs do for their page. Fires on every change (incl. closes).
-  useEffect(() => {
-    window.dispatchEvent(new CustomEvent('eno:account-open-change', { detail: open }))
-  }, [open])
+  // ⚠️ THIS IS NOW DESKTOP-ONLY (owner 2026-07-24, dashboard native-feel). There used to be a
+  // MOBILE entry point here: the bottom-nav Account tab dispatched `eno:open-account` and this
+  // shell opened the rail as a full-screen launcher, broadcasting `eno:account-open-change` back
+  // so that tab could light itself. Account is a real page now (/dashboard/account), so both
+  // events and the launcher are gone — `open` is decided solely by the media query below, which
+  // means on a phone the rail never opens and its chunk is never even downloaded.
+  //
+  // Do not reintroduce a mobile launcher here: the whole point was that a route gives Android
+  // hardware-back, browser-back, a shareable URL and route-driven tab state for free, none of
+  // which an overlay can offer.
 
   // PERMANENT desktop rail (owner 2026-07-17). The collapsed 72px icon column is ALWAYS on the left
   // for a signed-in user on desktop — on every page, not just /dashboard/* — mirroring Gmail/Discord.
