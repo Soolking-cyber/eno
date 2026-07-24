@@ -11,7 +11,7 @@ import { useLanguage } from '@/context/language-context'
 import { useChat } from '@/context/chat-context'
 import { SignInPrompt } from '@/components/marketplace/account-actions'
 import { createSupabaseBrowser } from '@/lib/supabase/browser'
-import { ChevronLeft, Phone, Loader2, Tag, RotateCcw, Sparkles, UserRound, AlertTriangle } from 'lucide-react'
+import { ChevronLeft, Phone, Loader2, Tag, RotateCcw, Sparkles, UserRound, AlertTriangle, Languages } from 'lucide-react'
 import { ChatSendButton, MessageBubble } from '@/components/marketplace/chat-parts'
 import { toast } from 'sonner'
 import { haptic } from '@/lib/haptics'
@@ -36,6 +36,9 @@ import {
   type VisaQuoteWire,
 } from '@/components/marketplace/visa-cards'
 import { Avatar } from '@/components/ui/avatar'
+import { Checkbox } from '@/components/ui/checkbox'
+import { LANGUAGES } from '@/lib/i18n/langs'
+import { useChatTranslation } from '@/hooks/use-chat-translation'
 import { fmtTime, dayKey } from '@/lib/dates'
 
 // `meta` is the structured payload of a CARD message (visa_step / visa_checkout) — the
@@ -172,6 +175,9 @@ type Thread = {
     avatarColor: string
     avatarUrl: string | null
     sellerId?: string | null
+    // The counterpart's persisted app language (Profile.locale), for the live-translation
+    // toggle. Null when they've never synced a locale — then no mismatch is claimed.
+    locale?: string | null
     // Trust meta for the header row (only when the counterpart has a seller identity).
     trust?: { trustScore: number; trustTier: string; memberSinceYear: number; isNew: boolean; lastSeenDay?: string | null } | null
   }
@@ -189,6 +195,24 @@ export default function ThreadPage() {
   // Paint instantly from the cached thread (e.g. one the offer/Message action just
   // seeded) and revalidate in the background — no blank "loading" flash on open.
   const [thread, setThread] = useState<Thread | null>(() => (getCachedThread(id) as Thread | null) ?? null)
+  // Live translation of the COUNTERPART's messages into the viewer's language. Server does
+  // the by-id, membership-checked, ephemeral translation; this owns the toggle + rendering.
+  const translate = useChatTranslation({
+    conversationId: id,
+    userId: thread?.me,
+    myLang: lang,
+    counterpartLang: thread?.counterpart.locale ?? null,
+    messages: thread?.messages ?? [],
+  })
+  const myLangNative = LANGUAGES.find((l) => l.code === lang)?.native ?? lang
+  // Per-message "show original" reveal (translated messages only). A Set, not the bubble's
+  // own state, so it survives the list re-rendering on every poll/realtime append.
+  const [revealOriginal, setRevealOriginal] = useState<Set<string>>(new Set())
+  const toggleOriginal = useCallback((mid: string) => setRevealOriginal((prev) => {
+    const next = new Set(prev)
+    if (next.has(mid)) next.delete(mid); else next.add(mid)
+    return next
+  }), [])
   const [notFound, setNotFound] = useState(false)
   const [text, setText] = useState('')
   const [showOffer, setShowOffer] = useState(false) // offer-amount input visible
@@ -944,6 +968,20 @@ export default function ThreadPage() {
             {thread && <ReportButton conversationId={thread.id} className="shrink-0" />}
           </div>
 
+          {/* Live-translation toggle — shown ONLY when the two participants' app languages
+              differ (owner ask). Defaults ON on that mismatch; the choice persists per
+              conversation. Ticking translates the OTHER party's messages into your language. */}
+          {thread && translate.available && (
+            <div className="flex items-center gap-2 border-t border-border bg-background px-4 py-2">
+              <Languages className="h-3.5 w-3.5 shrink-0 text-ink-4" aria-hidden />
+              <label className="flex cursor-pointer items-center gap-2 text-xs font-medium text-body">
+                <Checkbox checked={translate.enabled} onChange={translate.setEnabled} />
+                <span>{tr('Translate messages to', 'Dịch tin nhắn sang')} {myLangNative}</span>
+              </label>
+              <span className="ml-auto shrink-0 text-3xs text-ink-4">{tr('Machine translation', 'Dịch tự động')}</span>
+            </div>
+          )}
+
           {/* Contact is requested IN-CHAT, and only once the seller has replied —
               this is what gets sellers logging in daily to answer + keep listings fresh. */}
           {thread && !thread.iAmSeller && (
@@ -1101,8 +1139,24 @@ export default function ThreadPage() {
                   <MessageBubble mine={m.mine} className="max-w-[78%] text-ink-4">
                     {tr('This e-Visa step could not be shown here — open the full form to continue.', 'Không hiển thị được bước E-Visa này — hãy mở biểu mẫu đầy đủ để tiếp tục.')}
                   </MessageBubble>
-                ) : (
-                  <MessageBubble mine={m.mine} failed={m.failed} pending={m.pending} className="max-w-[78%]">{m.body}</MessageBubble>
+                ) : (() => {
+                  // Live translation: show the counterpart's message in MY language when the
+                  // toggle is on and a translation landed, unless this message is showing its
+                  // original. The child stays a STRING so MessageBubble's ContactChips safety
+                  // scanner still runs (it only fires for string children).
+                  const translated = translate.translationFor(m.id)
+                  const shown = translated && !revealOriginal.has(m.id) ? translated : m.body
+                  return <MessageBubble mine={m.mine} failed={m.failed} pending={m.pending} className="max-w-[78%]">{shown}</MessageBubble>
+                })()}
+                {/* Reveal the original / re-hide it — only on an incoming message we translated. */}
+                {!m.mine && translate.translationFor(m.id) && (
+                  <button
+                    type="button"
+                    onClick={() => toggleOriginal(m.id)}
+                    className="mt-0.5 px-1 text-3xs font-semibold text-accent-foreground/80 hover:text-accent-foreground"
+                  >
+                    {revealOriginal.has(m.id) ? tr('Show translation', 'Xem bản dịch') : tr('Show original', 'Xem bản gốc')}
+                  </button>
                 )}
                   {m.mine && m.failed ? (
                     // A send that FAILED must be spoken, not just reddened. The scroller
