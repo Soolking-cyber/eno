@@ -154,7 +154,9 @@ function ReviewGrid({ payload, tr }: { payload: VisaPayload; tr: (en: string, vi
 }
 
 function Consent({ checked, onChange, children }: { checked: boolean; onChange: (value: boolean) => void; children: React.ReactNode }) {
-  return <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-line-strong bg-card p-4 text-sm leading-relaxed text-body"><Checkbox checked={checked} onChange={onChange} className="mt-1" /><span>{children}</span></label>
+  // A genuine WELL, not a card: this groups a legal statement the applicant must read before
+  // ticking, so it keeps a tint fill (canon §3b allows tint for real wells) — but no border box.
+  return <label className="flex cursor-pointer items-start gap-3 rounded-xl bg-tint p-4 text-sm leading-relaxed text-body"><Checkbox checked={checked} onChange={onChange} className="mt-1" /><span>{children}</span></label>
 }
 
 /** `EV-1042`, or the id stub for a case that predates the reference column. */
@@ -305,7 +307,7 @@ function CaseRow({ item, conversationId, deskThreadId, isDetail, busy, now, lang
   // START could open/rebind a DIFFERENT editable draft than the one on this row).
   const threadId = conversationId ?? deskThreadId
   return (
-    <li className="rounded-2xl border border-border bg-card p-4">
+    <li className="border-b border-border py-4">
       <div className="flex flex-wrap items-center gap-2">
         <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-tint"><FileCheck2 className="h-4 w-4 text-ink-4" /></span>
         <span className="font-mono text-sm font-bold tracking-wide text-foreground">{caseLabel(item)}</span>
@@ -698,7 +700,9 @@ export function VisaCasesClient({ threads }: {
         {/* DESKTOP — the official-portal-style table (No · App no. · Full name · DOB · Date ·
             Status · Operation), but in eno's OWN design language (no government banner/motif). A
             seven-column table can't fit a phone, so mobile keeps the cards below. */}
-        <div className="mt-4 hidden overflow-x-auto rounded-2xl border border-border lg:block">
+        {/* Flat (canon §3b): no box around the table — the header rule and the row hairlines
+            already say where it starts and how it divides. */}
+        <div className="mt-4 hidden overflow-x-auto border-t border-border lg:block">
           <Table>
             <TableHeader>
               <TableRow className="bg-tint/60 hover:bg-tint/60">
@@ -776,7 +780,8 @@ export function VisaCasesClient({ threads }: {
         </div>
 
         {/* MOBILE — the same cases as cards (a seven-column table can't fit a phone; app is mobile-first). */}
-        <ul className="mt-4 space-y-3 lg:hidden">
+        {/* Flat list: each row brings its own bottom hairline, so no gap stack. */}
+        <ul className="mt-2 border-t border-border lg:hidden">
           {applications.map((item) => (
             <CaseRow
               key={item.id}
