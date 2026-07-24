@@ -28,12 +28,23 @@ export async function GET(req: Request) {
   }
 
   const targets = LANGS.filter((l): l is Lang => l !== 'en')
-  // The corpus to heal = the harvested UI dictionary + LISTING TEXT (title/description/
-  // location of recent active listings). The listing sweep is what backfills the languages
-  // the create/edit eager-warm no longer covers (warmTranslations warms only the top
-  // visitor languages since 2026-07-10) — without it, km/ms/th/fr/hi listing text would
-  // only ever fill through the throttled lazy /api/translate path. Recent window + row cap
-  // keep the sweep bounded on a big catalog; older listings age out of relevance anyway.
+  // Top visitor languages — a mirror of EAGER_WARM_LANGS in translate.ts (KEEP IN SYNC).
+  // The UI dictionary is warmed for ALL languages (small, stable, and the app chrome must
+  // render fully in whatever language the visitor picked). LISTING CONTENT — titles and,
+  // above all, long descriptions — is pre-warmed ONLY for these top languages; the rare
+  // languages (km/ms/th/fr/hi) translate listing text ON-DEMAND at view time (the PDP
+  // client-machine-translates any missing language, then it caches forever). Attribution
+  // (docs/translation-cost.md) showed >54% of all translation spend was going to those 5
+  // rare languages — mostly listing descriptions almost nobody reads in them — because this
+  // cron eagerly translated every recent listing into all 11. On-demand covers the rare
+  // reader for the cost of one first-view translate, instead of paying for the whole catalog
+  // in languages that are never browsed.
+  const LISTING_WARM_LANGS = new Set<Lang>(['vi', 'zh-Hans', 'ko', 'ja', 'ru'])
+  const uiCorpus = Array.from(new Set(UI_STRINGS))
+  const uiHashes = uiCorpus.map(sha1)
+
+  // Listing text (title/description/location of recent active listings). Recent window + row
+  // cap keep the sweep bounded on a big catalog; older listings age out of relevance anyway.
   const recent = await db.listing.findMany({
     where: { status: 'active', verified: true, postedAt: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) } },
     select: { title: true, description: true, location: true },
@@ -41,11 +52,17 @@ export async function GET(req: Request) {
     take: 400,
   })
   const listingTexts = Array.from(new Set(recent.flatMap((l) => [l.title, l.description, l.location]).filter((t): t is string => !!t && t.trim().length > 0)))
-  const corpus = Array.from(new Set([...UI_STRINGS, ...listingTexts]))
-  const hashes = corpus.map(sha1)
+  // Deduped ACROSS the UI set + listing text (a listing whose text equals a UI string must not
+  // be translated or counted twice) — preserves the original single-corpus dedup for the warmed
+  // languages; index alignment holds because each corpus is paired with its own hash array.
+  const fullCorpus = Array.from(new Set([...uiCorpus, ...listingTexts]))
+  const fullHashes = fullCorpus.map(sha1)
   const report: Record<string, { missing: number; healed: number }> = {}
 
   for (const lang of targets) {
+    // UI dictionary for every language; listing content only for the top visitor languages.
+    const corpus = LISTING_WARM_LANGS.has(lang) ? fullCorpus : uiCorpus
+    const hashes = LISTING_WARM_LANGS.has(lang) ? fullHashes : uiHashes
     const have = new Set(
       (await db.translation.findMany({ where: { target: lang, hash: { in: hashes } }, select: { hash: true } })).map((r) => r.hash),
     )
