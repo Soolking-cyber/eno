@@ -42,17 +42,24 @@ const VERIFIED = [
  * What each admin action actually WRITES — shown on hover in both places it can be triggered
  * (the bulk bar and the row menu), so the two can never drift apart.
  *
- * The owner asked for these after "what do these do, release and feature": the labels do not
- * say, and two of them are easy to read backwards. `Release` writes `verified: true`, which is
- * the PUBLISH gate (an unverified listing 404s and is absent from feed/search/digest), and
- * `Feature` is only a ranking boost — not a badge, not a pinned slot. Guessing wrong changes
- * what buyers can see, so each hint states the EFFECT rather than restating the label.
+ * The owner asked for these after "what do these do, release and feature": the labels did not
+ * say, and two were easy to read backwards.
+ *
+ * ⚠️ THE PUBLISH ACTION WAS LABELLED "Release" UNTIL 2026-07-24. Beside "Activate" that read as
+ * something about holds or escrow, and an admin could reasonably think Activate was the publish
+ * button — while Activate only flips `status`. Renamed to "Publish"; the underlying action is
+ * still `verify` and the API is untouched, so nothing outside this file changed.
+ *
+ * `Publish` writes `verified: true`, the gate that makes a listing publicly live (an unverified
+ * one 404s and is absent from feed/search/digest). `Feature` is only a ranking boost — not a
+ * badge, not a pinned slot. Guessing wrong changes what buyers can see, so each hint states the
+ * EFFECT rather than restating the label.
  */
 const ACTION_HINT = {
-  activate: 'Sets status to active — undoes Hide. On its own this does NOT publish: a listing still needs Release.',
+  activate: 'Sets status to active — undoes Hide. On its own this does NOT publish: a listing still needs Publish.',
   hide: 'Sets status to hidden — pulls it from the feed, search and its product page without deleting anything. Reversible with Activate.',
   feature: 'Boosts ranking in browse. Not a badge and not a pinned slot — worth about as much as being brand new. Reversible.',
-  verify: 'PUBLISH. Marks the listing verified; until then its product page 404s and it is absent from feed, search and the digest. This is what clears a listing held by the duplicate/illegal-content guard.',
+  verify: 'Makes the listing publicly live (sets verified). Until then its product page 404s and it is absent from feed, search and the digest. This is also what clears a listing held by the duplicate/illegal-content guard.',
   delete: 'Permanently deletes the listing and its data. Cannot be undone — use Hide unless you mean it.',
 } as const
 
@@ -213,7 +220,7 @@ export function AdminListingsClient() {
                 <DropdownMenuItem disabled={busy} title={ACTION_HINT.activate} onClick={() => act('activate', [row.original.id])}><Eye /> Activate</DropdownMenuItem>
                 <DropdownMenuItem disabled={busy} title={ACTION_HINT.hide} onClick={() => act('hide', [row.original.id])}><EyeOff /> Hide</DropdownMenuItem>
                 <DropdownMenuItem disabled={busy} title={ACTION_HINT.feature} onClick={() => act('feature', [row.original.id])}><Star /> Feature</DropdownMenuItem>
-                <DropdownMenuItem disabled={busy} title={ACTION_HINT.verify} onClick={() => act('verify', [row.original.id])}><Check /> Release</DropdownMenuItem>
+                <DropdownMenuItem disabled={busy} title={ACTION_HINT.verify} onClick={() => act('verify', [row.original.id])}><Check /> Publish</DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem variant="destructive" disabled={busy} title={ACTION_HINT.delete} onClick={() => act('delete', [row.original.id])}><Trash2 /> Delete</DropdownMenuItem>
               </DropdownMenuContent>
@@ -262,7 +269,7 @@ export function AdminListingsClient() {
           hint={ACTION_HINT.hide} />
         <ActionBtn onClick={() => act('feature')} disabled={actionsDisabled} icon={<Star className="h-4 w-4" />} label="Feature"
           hint={ACTION_HINT.feature} />
-        <ActionBtn onClick={() => act('verify')} disabled={actionsDisabled} icon={<Check className="h-4 w-4" />} label="Release"
+        <ActionBtn onClick={() => act('verify')} disabled={actionsDisabled} icon={<Check className="h-4 w-4" />} label="Publish"
           hint={ACTION_HINT.verify} />
         <ActionBtn onClick={() => act('delete')} disabled={actionsDisabled} icon={<Trash2 className="h-4 w-4" />} label="Delete" danger
           hint={ACTION_HINT.delete} />
@@ -355,10 +362,9 @@ export function AdminListingsClient() {
 /**
  * A bulk-action button with a hover explanation of what it actually WRITES.
  *
- * Owner asked for this after "what do these do, release and feature" — the labels do not say.
- * `Release` writes `verified: true` (the PUBLISH gate: an unverified listing 404s and stays out
- * of the feed), and `Feature` is only a ranking boost, not a placement. Guessing wrong here
- * changes what buyers can see, so the hint states the effect, not a synonym of the label.
+ * Owner asked for this after "what do these do, release and feature" — the labels did not say.
+ * The wording lives in ACTION_HINT (see the note there, including why "Release" became
+ * "Publish"); this component only renders it.
  *
  * ⚠️ THE TOOLTIP HANGS ON A WRAPPER, NOT THE BUTTON. These are disabled until rows are
  * selected — which is exactly when an admin most wants to know what they do — and a disabled
