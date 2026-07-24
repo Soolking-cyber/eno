@@ -32,6 +32,9 @@ const h = vi.hoisted(() => ({
     snapshotHash: 'consent-hash',
     updates: [] as Array<{ table: string; payload: Row }>,
     recorded: [] as Array<{ event: string; metadata: Row }>,
+    /** Simulate the RACE: the app is present at the initial read but a concurrent delete
+     *  removed it by the time the atomic RPC runs → the RPC returns 'app_gone'. */
+    appGoneAtRpc: false,
   },
 }))
 
@@ -73,7 +76,39 @@ vi.mock('@/lib/visa/db', () => {
     b.then = (onF: (v: unknown) => unknown, onR?: (e: unknown) => unknown) => Promise.resolve().then(result).then(onF, onR)
     return b
   }
-  return { getVisaDb: () => ({ from }) }
+  // The atomic capture RPC (scripts/visa-capture-payment-fn.mjs) — mirror its outcome logic:
+  // lock+verify the app, flip the payment created→paid at most once bound to application_id,
+  // stamp the app (coalesce), and classify flipped | already_paid | app_gone | unexpected.
+  const rpc = async (fn: string, args: Row) => {
+    if (fn !== 'visa_capture_payment') return { data: null, error: null }
+    const app = h.state.application
+    if (h.state.appGoneAtRpc || !app || app.id !== args.p_app_id) return { data: 'app_gone', error: null }
+    const appWasUnstamped = !app.paid_at // captured at the (FOR UPDATE) lock, before stamping
+    const pay = h.state.paymentRow
+    const refMatch = !!pay && pay.application_id === args.p_app_id
+      && pay.provider === args.p_provider && pay.provider_ref === args.p_provider_ref
+    let flipped = false
+    if (refMatch && pay!.status === 'created') {
+      pay!.status = 'paid'; pay!.paid_at = args.p_now
+      pay!.amount_cents = args.p_amount_cents; pay!.currency = args.p_currency
+      flipped = true
+    } else if (refMatch && pay!.status === 'paid') {
+      // already paid — a replay; may still complete a legacy-partial case below.
+    } else {
+      // Unexpected → the real RPC RAISES, rolling back the whole tx (NO app stamp). Surface as an
+      // rpc error and leave the app untouched.
+      return { data: null, error: { message: 'visa_capture_unexpected' } }
+    }
+    // Stamp the app — reached ONLY for flipped/already_paid (coalesce, so a replay keeps paid_at).
+    app.paid_at = app.paid_at ?? args.p_now
+    app.payment_provider = app.payment_provider ?? args.p_provider
+    app.payment_ref = app.payment_ref ?? args.p_provider_ref
+    app.updated_at = args.p_now
+    // 'flipped' whenever THIS call advanced the capture (money freshly recorded OR case freshly
+    // stamped); only a fully-settled replay is 'already_paid'.
+    return { data: (flipped || appWasUnstamped) ? 'flipped' : 'already_paid', error: null }
+  }
+  return { getVisaDb: () => ({ from, rpc }) }
 })
 
 vi.mock('@/lib/visa/crypto', () => ({
@@ -119,7 +154,7 @@ beforeEach(() => {
   Object.assign(h.state, {
     application: null, documents: [], paymentRow: null, events: [], eventsError: null,
     payload: { entryType: 'single' }, issues: [], snapshotHash: 'consent-hash',
-    updates: [], recorded: [],
+    updates: [], recorded: [], appGoneAtRpc: false,
   })
 })
 
@@ -179,5 +214,59 @@ describe('the capture-time selection guard', () => {
     expect(result).toMatchObject({ ok: true, handedOff: false })
     const mismatch = h.state.recorded.find((r) => r.event === 'payment_selection_mismatch')
     expect(mismatch!.metadata).toMatchObject({ chargedListingId: 'listing-A', selectedListingId: null })
+  })
+})
+
+describe('the atomic capture (visa_capture_payment RPC) — race + idempotency outcomes', () => {
+  it('flipped: records the payment_recorded event exactly once and reports alreadyPaid=false', async () => {
+    seed({ selected: 'listing-A', charged: 'listing-A' })
+    const result = await capture()
+    expect(result).toMatchObject({ ok: true, alreadyPaid: false })
+    expect(h.state.recorded.filter((r) => r.event === 'payment_recorded')).toHaveLength(1)
+    expect(h.state.paymentRow!.status).toBe('paid')
+  })
+
+  it('already_paid: a replay (payment already paid) does NOT re-record the money and reports alreadyPaid=true', async () => {
+    seed({ selected: 'listing-A', charged: 'listing-A' })
+    h.state.paymentRow!.status = 'paid' // a prior capture already flipped it
+    h.state.application!.paid_at = '2026-07-23T01:00:00.000Z'
+    const result = await capture()
+    expect(result).toMatchObject({ ok: true, alreadyPaid: true })
+    // No second payment_recorded — the money was recorded by the earlier call.
+    expect(h.state.recorded.filter((r) => r.event === 'payment_recorded')).toHaveLength(0)
+  })
+
+  it('legacy partial (payment paid, app NOT yet stamped): completes the case AND records the event', async () => {
+    // The old two-write flow could crash between the payment flip and the app stamp. Recovering that
+    // state must still record payment_recorded (the case is being completed now), not treat it as a
+    // settled replay (codex, 2026-07-24).
+    seed({ selected: 'listing-A', charged: 'listing-A' })
+    h.state.paymentRow!.status = 'paid'      // payment already flipped by the crashed call…
+    h.state.application!.paid_at = null       // …but the app was never stamped
+    const result = await capture()
+    expect(result).toMatchObject({ ok: true, alreadyPaid: false })
+    expect(h.state.recorded.filter((r) => r.event === 'payment_recorded')).toHaveLength(1)
+    expect(h.state.application!.paid_at).toBeTruthy()
+  })
+
+  it('app_gone: a delete lands BETWEEN the read and the atomic flip → not_found, no paid record', async () => {
+    // The app is present at the initial read (so this exercises the RPC's app_gone, not the
+    // early not_found), then a concurrent delete removes it before the atomic flip runs.
+    seed({ selected: 'listing-A', charged: 'listing-A' })
+    h.state.appGoneAtRpc = true
+    const result = await capture()
+    expect(result).toMatchObject({ ok: false, error: 'not_found' })
+    // The payment was NOT flipped to paid against a ghost application — no fabricated record.
+    expect(h.state.paymentRow!.status).toBe('created')
+    expect(h.state.recorded.some((r) => r.event === 'payment_recorded')).toBe(false)
+  })
+
+  it('unexpected: a shaky checkout row → the tx ROLLS BACK (throws, app NOT stamped paid)', async () => {
+    seed({ selected: 'listing-A', charged: 'listing-A' })
+    h.state.paymentRow!.status = 'cancelled' // neither created nor paid — a shaky state
+    await expect(capture()).rejects.toThrow(/visa_capture_unexpected/)
+    // The RPC raised before stamping → the application must NOT be marked paid off a bad payment.
+    expect(h.state.application!.paid_at).toBeFalsy()
+    expect(h.state.recorded.some((r) => r.event === 'payment_recorded')).toBe(false)
   })
 })

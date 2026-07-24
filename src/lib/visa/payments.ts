@@ -610,47 +610,80 @@ export async function markVisaPaidAndHandoff(input: {
 
   const now = new Date().toISOString()
 
-  // Flip the checkout row created→paid AT MOST ONCE (replays keep the original audit
-  // timestamps; the amounts written are the provider-verified ones from that first flip).
-  const payFlip = await db.from('visa_payments')
-    .update({ status: 'paid', paid_at: now, amount_cents: input.amountCents, currency: input.currency })
-    .eq('provider', input.provider).eq('provider_ref', input.providerRef).eq('status', 'created')
-  if (payFlip.error) throw new Error(`visa_payment_update_failed:${payFlip.error.message}`)
+  // ── ATOMIC MONEY CORE: flip the payment created→paid AND stamp the application, in ONE
+  // transaction, with the application row locked FIRST. This is the deadlock-free half of the
+  // capture-vs-delete race (the follow-up scripts/visa-delete-guard-trigger.mjs documents).
+  //
+  // Supabase JS calls are each their own transaction, so a SELECT..FOR UPDATE cannot be held
+  // across the flip and the stamp — hence a Postgres RPC. Locking visa_applications FIRST matches
+  // the DELETE path's app→payments order (no deadlock), and MODIFYING the app row (not merely
+  // locking it) is what forces a concurrent delete — blocked on our lock — to re-evaluate the
+  // changed row via EvalPlanQual and re-fire its BEFORE trigger against the now-committed 'paid'
+  // (codex, 2026-07-24). The RPC is service_role-only (visa-capture-payment-fn.mjs) — never
+  // end-user callable — and binds application_id so a leaked ref can't pay against the wrong case.
+  const cap = await db.rpc('visa_capture_payment', {
+    p_app_id: input.applicationId,
+    p_provider: input.provider,
+    p_provider_ref: input.providerRef,
+    p_amount_cents: input.amountCents,
+    p_currency: input.currency,
+    p_now: now,
+  })
+  // A shaky payment (missing / wrong status / cross-case) RAISES inside the RPC, so the whole
+  // transaction — including any app stamp — rolls back and surfaces here as cap.error. Refuse.
+  if (cap.error) throw new Error(`visa_capture_failed:${cap.error.message}`)
+  const outcome = cap.data as 'flipped' | 'already_paid' | 'app_gone' | null
 
-  const alreadyPaid = !!app.paid_at
-  let stampedNow = false
-  if (!alreadyPaid) {
-    const stampRes = await db.from('visa_applications')
-      .update({ paid_at: now, payment_provider: input.provider, payment_ref: input.providerRef, updated_at: now })
-      .eq('id', input.applicationId).is('paid_at', null)
-      .select('*').maybeSingle()
-    if (stampRes.error) throw new Error(`visa_paid_stamp_failed:${stampRes.error.message}`)
-    if (stampRes.data) {
-      stampedNow = true
-      app = stampRes.data as VisaApplicationRow
-      // The join key of the dispute trail: this event carries the provider reference, and
-      // the 'checkout_started' event the checkout route wrote under the SAME reference
-      // carries the listing that was picked and the price it was picked at. Two rows in
-      // visa_events, joined by (provider, providerRef), answer "what was this charge for"
-      // without a schema change and without touching anything encrypted.
-      // `chargedAmountCents` is the provider-verified capture; `checkoutAmountCents` is the
-      // local checkout-time truth it had to cover — a dispute wants both, not a merged one.
-      await recordVisaEvent(input.applicationId, 'system', 'payment_recorded', input.actorRef, {
-        provider: input.provider,
-        providerRef: input.providerRef,
-        amountCents: input.amountCents,
-        chargedAmountCents: input.amountCents,
-        checkoutAmountCents: paymentRow.amount_cents,
-        currency: input.currency,
-      })
-    } else {
-      // Lost the paid-stamp race to a concurrent webhook/confirm. Re-read and FALL
-      // THROUGH to the handoff — if the winner crashed after stamping, this request
-      // completes the transition; if the winner finished, the status guard no-ops.
-      const freshRes = await db.from('visa_applications').select('*').eq('id', input.applicationId).maybeSingle()
-      if (freshRes.error) throw new Error(`visa_paid_read_failed:${freshRes.error.message}`)
-      if (freshRes.data) app = freshRes.data as VisaApplicationRow
-    }
+  if (outcome === 'app_gone') {
+    // The draft was deleted out from under a provider capture. The money may already be captured
+    // at the provider with no local case to record it against — surface it LOUD for reconciliation
+    // (a refund is an ops call) and fail safe: never fabricate a paid record for a ghost.
+    console.error('[visa-payments][MONEY] captured payment has no application to record against — refund/reconcile', {
+      provider: input.provider, providerRef: input.providerRef, amountCents: input.amountCents, currency: input.currency,
+    })
+    return { ok: false, error: 'not_found' }
+  }
+  if (outcome !== 'flipped' && outcome !== 'already_paid') {
+    // Defensive: the RPC only ever returns flipped | already_paid | app_gone (unexpected RAISES).
+    // A null/unknown here means the contract drifted — refuse rather than proceed on a guess.
+    throw new Error(`visa_capture_unexpected:${String(outcome)}`)
+  }
+  // `flipped` = THIS call recorded the money (payment created→paid). `already_paid` = a replay of
+  // an already-paid row (a second webhook/confirm) — the RPC re-verified it is paid for THIS case.
+  const stampedNow = outcome === 'flipped'
+
+  // The RPC stamped paid_at + provider/ref inside its transaction; re-read the current row so the
+  // handoff below runs against the stamped state. The row MUST be present — the payment is now
+  // 'paid', so the delete trigger protects it — a null read means something is badly wrong; fail
+  // rather than hand off a stale pre-capture snapshot (codex, 2026-07-24).
+  const freshRes = await db.from('visa_applications').select('*').eq('id', input.applicationId).maybeSingle()
+  if (freshRes.error) throw new Error(`visa_paid_read_failed:${freshRes.error.message}`)
+  if (!freshRes.data) throw new Error('visa_paid_read_failed:application_vanished_after_capture')
+  app = freshRes.data as VisaApplicationRow
+
+  if (stampedNow) {
+    // The join key of the dispute trail: this event carries the provider reference, and the
+    // 'checkout_started' event the checkout route wrote under the SAME reference carries the
+    // listing that was picked and the price it was picked at. Two rows in visa_events, joined by
+    // (provider, providerRef), answer "what was this charge for" without a schema change and
+    // without touching anything encrypted. `chargedAmountCents` is the provider-verified capture;
+    // `checkoutAmountCents` is the local checkout-time truth it had to cover — a dispute wants both.
+    //
+    // ⚠️ KNOWN RESIDUAL (pre-existing, non-money — codex 2026-07-24): this write is OUTSIDE the
+    // capture RPC transaction, so a crash in the ~ms window between the RPC commit and here — with
+    // no later webhook/confirm replay to re-enter (stampedNow) — could leave the dispute-trail event
+    // missing. The MONEY is unaffected (visa_payments.status='paid' is committed atomically inside
+    // the RPC); only this audit row would be absent. Fully closing it means writing the event inside
+    // the RPC (event JSON in plpgsql) or self-healing on the already_paid replay — a follow-up, not
+    // this race fix. In practice the webhook+confirm double-delivery almost always provides a replay.
+    await recordVisaEvent(input.applicationId, 'system', 'payment_recorded', input.actorRef, {
+      provider: input.provider,
+      providerRef: input.providerRef,
+      amountCents: input.amountCents,
+      chargedAmountCents: input.amountCents,
+      checkoutAmountCents: paymentRow.amount_cents,
+      currency: input.currency,
+    })
   }
 
   // ── THE CAPTURE-TIME SELECTION GUARD (Phase 2) ────────────────────────────────────
@@ -771,5 +804,7 @@ export async function markVisaPaidAndHandoff(input: {
     console.error('[visa-payments] card stamp after capture', e)
   }
 
-  return { ok: true, application: app, documents: docs, handedOff, alreadyPaid }
+  // alreadyPaid = the money was recorded by an EARLIER call, not this one (a replay). It is the
+  // inverse of stampedNow (this call being the one that flipped created→paid).
+  return { ok: true, application: app, documents: docs, handedOff, alreadyPaid: !stampedNow }
 }
