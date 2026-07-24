@@ -11,7 +11,8 @@ import { useLanguage } from '@/context/language-context'
 import { useChat } from '@/context/chat-context'
 import { SignInPrompt } from '@/components/marketplace/account-actions'
 import { createSupabaseBrowser } from '@/lib/supabase/browser'
-import { ChevronLeft, Phone, Loader2, Tag, RotateCcw, Sparkles, UserRound, AlertTriangle, Languages } from 'lucide-react'
+import { ChevronLeft, Phone, Loader2, Tag, RotateCcw, Sparkles, UserRound, AlertTriangle, Languages, ChevronDown, Check } from 'lucide-react'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { ChatSendButton, MessageBubble } from '@/components/marketplace/chat-parts'
 import { toast } from 'sonner'
 import { haptic } from '@/lib/haptics'
@@ -104,34 +105,41 @@ function VisaAssistChips({
   const { tr } = useLanguage()
   return (
     <div className={compact ? 'contents' : `flex flex-col gap-1 ${className ?? ''}`}>
+      {/* ONE control (owner 2026-07-24: "eno concierge and request a person similar, tap once,
+          choose ai or human") — a single Help chip whose menu opens UPWARD (it sits just above the
+          composer) to arm the AI concierge or ask a person, instead of two wrapping chips eating a
+          phone's vertical space. The trigger reflects the ARMED state so the AI-is-listening cue is
+          never lost; the helper line below still carries the armed/thinking sentence. */}
       <div className={compact ? 'contents' : 'flex flex-wrap items-center gap-2'}>
-        {/* "name is Eno concierge" (owner) — the name is the product, identical in both
-            languages, so tr() carries the same string twice rather than translating it. */}
-        <Button
-          variant="soft"
-          size="none"
-          type="button"
-          aria-pressed={armed}
-          disabled={thinking}
-          onClick={onToggleConcierge}
-          className={`relative tap-44 shrink-0 gap-1.5 rounded-full border px-3 py-1.5 text-2xs font-bold ${armed ? 'border-brand bg-primary/10 text-accent-foreground' : 'border-line-strong text-foreground'}`}
-        >
-          {thinking
-            ? <Loader2 className="size-3.5 shrink-0 animate-spin" aria-hidden />
-            : <Sparkles className="size-3.5 shrink-0" aria-hidden />}
-          {tr('Eno concierge', 'Eno concierge')}
-        </Button>
-        <Button
-          variant="soft"
-          size="none"
-          type="button"
-          disabled={busy}
-          onClick={() => void onAskHuman()}
-          className="relative tap-44 shrink-0 gap-1.5 rounded-full border border-line-strong px-3 py-1.5 text-2xs font-bold text-foreground"
-        >
-          <UserRound className="size-3.5 shrink-0" aria-hidden />
-          {tr('Request a person', 'Yêu cầu nhân viên')}
-        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={
+              <Button
+                variant="soft"
+                size="none"
+                type="button"
+                aria-label={tr('Get help with this application', 'Nhận trợ giúp cho hồ sơ này')}
+                className={`relative tap-44 shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-2xs font-bold ${armed ? 'border-brand bg-primary/10 text-accent-foreground' : 'border-line-strong text-foreground'}`}
+              >
+                {thinking
+                  ? <Loader2 className="size-3.5 shrink-0 animate-spin" aria-hidden />
+                  : <Sparkles className="size-3.5 shrink-0" aria-hidden />}
+                {armed ? tr('Eno concierge', 'Eno concierge') : tr('Get help', 'Trợ giúp')}
+                <ChevronDown className="size-3 shrink-0 opacity-60" aria-hidden />
+              </Button>
+            }
+          />
+          <DropdownMenuContent side="top" align="start" sideOffset={6} className="min-w-52">
+            {/* "name is Eno concierge" (owner) — same string in both languages, not translated. */}
+            <DropdownMenuItem disabled={thinking} onClick={onToggleConcierge}>
+              <Sparkles /> {tr('Eno concierge', 'Eno concierge')}
+              {armed && <Check className="ml-auto size-4 text-accent-foreground" aria-label={tr('on', 'đang bật')} />}
+            </DropdownMenuItem>
+            <DropdownMenuItem disabled={busy} onClick={() => void onAskHuman()}>
+              <UserRound /> {tr('Request a person', 'Yêu cầu nhân viên')}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
       {/* ONE line for the whole row. The idle sentence used to explain what the two buttons
           already say ("Eno concierge is an AI assistant… A person can take over any time"), so
