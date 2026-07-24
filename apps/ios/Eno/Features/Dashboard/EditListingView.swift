@@ -35,30 +35,46 @@ struct EditListingView: View {
 
     var body: some View {
         NavigationStack {
-            Form {
+            // List, not Form: Form imposes its own row chrome, which double-decorates the
+            // EnoField/EnoTextArea boxes (they already own their fill, radius and focus ring).
+            // Same structure as BusinessProfileView, the other native dashboard editor.
+            List {
                 Section(L10n.tr("Title", "Tiêu đề")) {
-                    TextField(L10n.tr("Title", "Tiêu đề"), text: $title, axis: .vertical)
+                    // Single-line, where this was previously `axis: .vertical`. EnoField IS the
+                    // single-line input, and it matches the post wizard's title field — a title
+                    // written on one line in Post shouldn't wrap to a paragraph box when edited.
+                    EnoField(placeholder: L10n.tr("Title", "Tiêu đề"), text: $title)
                 }
+                .listRowSeparator(.hidden)
                 Section(L10n.tr("Price (₫)", "Giá (₫)")) {
-                    TextField("0", text: $priceText).keyboardType(.numberPad)
+                    // kind: .number carries the numberPad, so the call site no longer has to
+                    // remember `.keyboardType` — that was the point of the primitive.
+                    EnoField(placeholder: "0", text: $priceText, kind: .number)
                     EnoToggle(L10n.tr("Accept offers", "Cho phép trả giá"), isOn: $negotiable)
                 }
+                .listRowSeparator(.hidden)
                 Section(L10n.tr("Description", "Mô tả")) {
-                    TextField(L10n.tr("Description", "Mô tả"), text: $descriptionText, axis: .vertical)
-                        .lineLimit(4...12)
+                    // minHeight 120 ≈ the 4-line floor the old `.lineLimit(4...12)` gave this
+                    // box. EnoTextArea drops the 12-line ceiling deliberately — it scrolls
+                    // inside itself rather than pushing the Save button off screen.
+                    EnoTextArea(placeholder: L10n.tr("Description", "Mô tả"),
+                                text: $descriptionText, minHeight: 120)
                 }
+                .listRowSeparator(.hidden)
                 if let errorText {
-                    Text(errorText).font(.system(size: 13)).foregroundStyle(Tokens.danger)
+                    Section {
+                        Text(errorText).enoText(.caption, color: EnoColor.danger)
+                    }
+                    .listRowSeparator(.hidden)
                 }
                 Section {
-                    Button { showWeb = true } label: {
-                        Label(L10n.tr("More options (photos, category…)", "Thêm tùy chọn (ảnh, danh mục…)"),
-                              systemImage: "square.and.pencil")
-                    }
+                    EnoButton(L10n.tr("More options (photos, category…)", "Thêm tùy chọn (ảnh, danh mục…)"),
+                              icon: "square.and.pencil", variant: .secondary) { showWeb = true }
                 } footer: {
                     Text(L10n.tr("Photos and category are edited on the full form.",
                                  "Ảnh và danh mục được sửa ở biểu mẫu đầy đủ."))
                 }
+                .listRowSeparator(.hidden)
             }
             .navigationTitle(L10n.tr("Edit listing", "Sửa tin"))
             .navigationBarTitleDisplayMode(.inline)

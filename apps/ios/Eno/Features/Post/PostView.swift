@@ -68,10 +68,11 @@ struct PostView: View {
                 // back button. Add an explicit leading control to leave the form
                 // back to browsing — parity with the arrow every pushed page has.
                 ToolbarItem(placement: .topBarLeading) {
-                    Button { DeepLinkRouter.shared.selectedTab = 0 } label: {
-                        Image(systemName: "chevron.left")
-                            .fontWeight(.semibold)
-                            .foregroundStyle(Tokens.brand)
+                    // EnoIconButton also supplies the accessibility label this control was
+                    // missing — a bare chevron announces nothing to VoiceOver.
+                    EnoIconButton("chevron.left", size: 17, color: EnoColor.brand,
+                                  label: L10n.tr("Back", "Quay lại")) {
+                        DeepLinkRouter.shared.selectedTab = 0
                     }
                 }
                 // Explicit dismiss above the keyboard (the numeric price/phone pads
@@ -141,7 +142,9 @@ struct PostView: View {
                         .frame(width: 84, height: 84)
                         .background(EnoColor.brandTint, in: RoundedRectangle(cornerRadius: EnoRadius.card))
                     }
-                    .buttonStyle(.plain)
+                    // EnoButton can't present a Menu, and EnoPressStyle is internal to EnoUI
+                    // by design, so .plain is the only way to stop SwiftUI tinting our label.
+                    .buttonStyle(.plain) // eno-lint-allow: plain-button-style — native Menu label
                     ForEach(model.photos) { photo in
                         photoThumb(photo)
                     }
@@ -172,22 +175,13 @@ struct PostView: View {
             // ✨ AI auto-fill — appears once there's a photo; reads the item and
             // prefills category/condition/title (the seller reviews + adds the rest).
             if !model.photos.isEmpty {
-                Button {
+                // .accent is the primitive's soft brand action — brand-tint fill, brand
+                // label — and `loading` already swaps the icon for a spinner and disables
+                // the button, which is exactly what this call site hand-rolled.
+                EnoButton(L10n.tr("Auto-fill from photo", "Điền tự động từ ảnh"),
+                          icon: "sparkles", variant: .accent, loading: model.autofilling) {
                     Task { await model.autofill() }
-                } label: {
-                    HStack(spacing: 8) {
-                        if model.autofilling { ProgressView().tint(EnoColor.brand) }
-                        else { Image(systemName: "sparkles").enoIcon(.sm, color: EnoColor.brand) }
-                        Text(L10n.tr("Auto-fill from photo", "Điền tự động từ ảnh"))
-                            .font(EnoTextRole.subheadline.font.weight(.semibold))
-                    }
-                    .foregroundStyle(EnoColor.brand)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 44)
-                    .background(EnoColor.brandTint, in: RoundedRectangle(cornerRadius: EnoRadius.control))
                 }
-                .buttonStyle(.plain)
-                .disabled(model.autofilling)
                 if let err = model.autofillError {
                     Text(err).enoText(.caption, color: EnoColor.danger)
                 }
@@ -227,6 +221,10 @@ struct PostView: View {
                 ProgressView().frame(width: 84, height: 84)
             }
             if photo.failed {
+                // Stays raw (still baselined debt, not exempted): the whole 84×84 thumb is
+                // the retry target, and EnoIconButton is a fixed 44×44 glyph — migrating
+                // would shrink the tap area to the centre of the tile. Needs an
+                // EnoIconButton overlay/fill variant — see primitiveGaps.
                 Button {
                     Task { await model.retryUpload(photo.id) }
                 } label: {
@@ -236,6 +234,12 @@ struct PostView: View {
                         .background(.black.opacity(0.45), in: RoundedRectangle(cornerRadius: Tokens.radiusCard))
                 }
             }
+            // Stays raw (still baselined debt, not exempted): this is a 22pt circular badge
+            // pinned to the corner of an 84pt tile, and EnoIconButton draws a fixed 44×44
+            // frame with no background — it would cover half the photo. Needs a circular
+            // badge variant — see primitiveGaps.
+            // ⚠️ Also a real a11y gap to fix WITH that variant: 22×22 is under the 44pt
+            // minimum target, and the glyph carries no accessibility label.
             Button {
                 model.remove(photo.id)
             } label: {
@@ -284,6 +288,12 @@ struct PostView: View {
                 }
             }
             if model.brandable {
+                // Stays raw (still baselined debt, not exempted): a brand/model is an
+                // IDENTIFIER typed on a normal keyboard, and EnoField.Kind has no case for
+                // that — `.text` re-enables autocorrect (which mangles "Xiaomi"), and
+                // `.url` would hand the seller a URL keyboard. The primitive applies its
+                // contract internally and deliberately beats a call-site override, so this
+                // needs a new `.identifier` case — see primitiveGaps.
                 TextField(L10n.tr("Brand (optional)", "Hãng (không bắt buộc)"), text: $model.brand)
                     .autocorrectionDisabled()
                 if !model.brand.trimmingCharacters(in: .whitespaces).isEmpty {
@@ -297,9 +307,8 @@ struct PostView: View {
     // ── details ──
     private var detailsSection: some View {
         Section {
-            TextField(L10n.tr("Title", "Tiêu đề"), text: $model.title)
-            TextField(L10n.tr("Description", "Mô tả"), text: $model.descriptionText, axis: .vertical)
-                .lineLimit(3...8)
+            EnoField(placeholder: L10n.tr("Title", "Tiêu đề"), text: $model.title)
+            EnoTextArea(placeholder: L10n.tr("Description", "Mô tả"), text: $model.descriptionText)
         } header: {
             Text(L10n.tr("Details", "Chi tiết"))
         } footer: {
@@ -345,6 +354,10 @@ struct PostView: View {
                         HStack {
                             Text(facet.displayLabel)
                             Spacer()
+                            // Stays raw (still baselined debt, not exempted): engineL needs
+                            // a decimalPad and EnoField.Kind has no `.decimal` — its
+                            // `.number` forces numberPad, which makes "1.5" untypeable.
+                            // Same gap FilterSheet already records — see primitiveGaps.
                             TextField(rangePlaceholder(range), text: Binding(
                                 get: { model.rangeTexts[range.column] ?? "" },
                                 set: { model.rangeTexts[range.column] = $0 }
@@ -369,6 +382,11 @@ struct PostView: View {
     // ── price ──
     private var priceSection: some View {
         Section {
+            // Stays raw (still baselined debt, not exempted): the "đ" is a UNIT SUFFIX for
+            // this input, and EnoField has no trailing-accessory slot — dropping it in here
+            // puts the currency outside the field's border, floating beside the box instead
+            // of reading as part of it. Same shape as the range-facet rows below. Needs an
+            // EnoField suffix slot — see primitiveGaps.
             HStack {
                 TextField("0", text: $model.priceText)
                     .keyboardType(.numberPad)
@@ -397,22 +415,14 @@ struct PostView: View {
         Section {
             // Web parity: a one-tap "Use my current location" that geolocates and
             // fills Province + Ward, above the manual pickers.
-            Button {
+            // .text is the bare brand action (no fill, no border) — closest to the
+            // transparent row this replaces, and `loading` owns the spinner swap. The
+            // label now centres rather than hugging the leading edge, which is how the
+            // rest of the button family behaves.
+            EnoButton(L10n.tr("Use my current location", "Dùng vị trí hiện tại"),
+                      icon: "location.fill", variant: .text, loading: model.locating) {
                 Task { await model.useMyLocation() }
-            } label: {
-                HStack(spacing: 8) {
-                    if model.locating {
-                        ProgressView().controlSize(.small)
-                    } else {
-                        Image(systemName: "location.fill")
-                    }
-                    Text(L10n.tr("Use my current location", "Dùng vị trí hiện tại"))
-                        .fontWeight(.semibold)
-                    Spacer()
-                }
-                .foregroundStyle(Tokens.brand)
             }
-            .disabled(model.locating)
             if let err = model.locationError {
                 Text(err).enoText(.caption, color: EnoColor.danger)
             }
@@ -442,9 +452,12 @@ struct PostView: View {
     // ── contact ──
     private var contactSection: some View {
         Section {
-            TextField(L10n.tr("Name or shop name", "Tên hoặc tên cửa hàng"), text: $model.contactName)
-            TextField(L10n.tr("Phone number", "Số điện thoại"), text: $model.contactPhone)
-                .keyboardType(.phonePad)
+            EnoField(placeholder: L10n.tr("Name or shop name", "Tên hoặc tên cửa hàng"),
+                     text: $model.contactName)
+            // kind: .phone carries the phonePad AND the telephoneNumber content type, so
+            // autofill now offers the seller's own number — the raw field had neither.
+            EnoField(placeholder: L10n.tr("Phone number", "Số điện thoại"),
+                     text: $model.contactPhone, kind: .phone)
         } header: {
             Text(L10n.tr("Contact", "Liên hệ"))
         } footer: {
@@ -456,7 +469,12 @@ struct PostView: View {
     // ── submit ──
     private func submitSection(_ proxy: ScrollViewProxy) -> some View {
         Section {
-            Button {
+            // `blocked:` is the primitive's name for exactly this contract — reads as
+            // inactive (muted fill) but STAYS tappable, so the tap can reveal what's
+            // missing instead of going dead. It replaces the hand-rolled
+            // `canSubmit ? brand : sub` fill one-for-one.
+            EnoButton(L10n.tr("Post listing", "Đăng tin"), size: .large,
+                      loading: model.submitting, blocked: !model.canSubmit) {
                 if model.canSubmit {
                     Task { await model.submit() }
                 } else {
@@ -467,23 +485,7 @@ struct PostView: View {
                         withAnimation { proxy.scrollTo(first, anchor: .top) }
                     }
                 }
-            } label: {
-                Group {
-                    if model.submitting {
-                        ProgressView().tint(EnoColor.onBrand)
-                    } else {
-                        Text(L10n.tr("Post listing", "Đăng tin"))
-                    }
-                }
-                .font(EnoTextRole.headline.font)
-                .foregroundStyle(EnoColor.onBrand)
-                .frame(maxWidth: .infinity)
-                .frame(height: 48)
-                .background(model.canSubmit ? EnoColor.brand : EnoColor.sub, in: RoundedRectangle(cornerRadius: EnoRadius.control))
             }
-            // Stays tappable when incomplete — the tap reveals what's missing and
-            // scrolls to it, instead of a dead disabled button (web parity).
-            .disabled(model.submitting)
             .listRowBackground(Color.clear)
             .listRowInsets(EdgeInsets())
             if let err = model.errorMessage {
