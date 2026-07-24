@@ -194,7 +194,7 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row', serie
   return (
     <div className={cn('flex gap-3 rounded-2xl p-3 transition-colors', selected ? 'bg-accent' : 'hover:bg-muted')} onMouseEnter={prefetch} onTouchStart={prefetch}>
       {selectable && <span className="self-center">{checkbox}</span>}
-      <Button variant="bare" size="none" onClick={open} className="relative h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-tint active:scale-100" aria-label={title}>
+      <Button variant="bare" size="none" onClick={open} className="press relative h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-tint" aria-label={title}>
         {img && (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={img} alt="" className="h-full w-full object-cover" loading="lazy" />

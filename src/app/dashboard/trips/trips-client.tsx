@@ -8,7 +8,6 @@ import { useLanguage } from '@/context/language-context'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Spinner } from '@/components/ui/spinner'
 import { useLatestRequest } from '@/hooks/use-latest-request'
 import { SectionHeader } from '@/components/marketplace/section-header'
 import { ItineraryBuilder } from './plan/itinerary-builder'
@@ -67,9 +66,15 @@ export function TripsClient() {
   }, [user, load])
 
   if (loading || switching || !user) {
+    // Content-shaped first paint: the stack title bar + a builder-shaped block, not a spinner.
     return (
-      <div role="status" className="flex min-h-[50vh] items-center justify-center">
-        <Spinner size="lg" />
+      <div role="status" aria-label={tr('Loading…', 'Đang tải…')}>
+        <SectionHeader title={tr('Itineraries', 'Lịch trình')} />
+        <Skeleton className="h-56 w-full rounded-2xl" />
+        <div className="mt-8 space-y-2.5 border-t border-border pt-8">
+          <Skeleton className="h-6 w-56 rounded-lg" />
+          {Array.from({ length: 2 }).map((_, i) => <Skeleton key={i} className="h-20 rounded-2xl" />)}
+        </div>
       </div>
     )
   }

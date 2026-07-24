@@ -4,7 +4,7 @@ import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
-import { Spinner } from '@/components/ui/spinner'
+import { Skeleton } from '@/components/ui/skeleton'
 import { DisputesPanel } from '@/components/marketplace/disputes-panel'
 import { SectionHeader } from '@/components/marketplace/section-header'
 
@@ -21,9 +21,13 @@ export function DisputesClient() {
   }, [loading, user, router])
 
   if (loading || !user) {
+    // Content-shaped first paint: the stack title bar + row skeletons, not a centered spinner.
     return (
-      <div role="status" className="flex min-h-[50vh] items-center justify-center">
-        <Spinner size="lg" />
+      <div role="status" aria-label={tr('Loading…', 'Đang tải…')}>
+        <SectionHeader title={tr('Disputes', 'Khiếu nại')} />
+        <div className="mt-2 space-y-2.5">
+          {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-2xl" />)}
+        </div>
       </div>
     )
   }

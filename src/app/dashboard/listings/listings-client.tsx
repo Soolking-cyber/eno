@@ -12,7 +12,7 @@ import { DashboardListingRow } from '@/components/marketplace/dashboard-listing-
 import { SectionHeader } from '@/components/marketplace/section-header'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Spinner } from '@/components/ui/spinner'
+import { EmptyState } from '@/components/ui/empty-state'
 
 /** /dashboard/listings — the seller's listings management, rendered in <main>.
  *  Reads the shared dashboard cache so an edit/delete here re-pulls the one source. */
@@ -27,9 +27,23 @@ export function ListingsClient() {
   }, [loading, user, router])
 
   if (loading || !user) {
+    // Content-shaped first paint (dashboard native-feel review, Gemini): the auth-resolving gate
+    // renders the SAME shell as the loaded state — stack title bar + greeting + a 4-tile stats grid
+    // + three row skeletons — matching geometry exactly, so entering the section never flashes a
+    // spinner then pops to a full layout.
     return (
-      <div role="status" className="flex min-h-[40vh] items-center justify-center">
-        <Spinner size="lg" />
+      <div role="status" aria-label={tr('Loading…', 'Đang tải…')}>
+        <SectionHeader title={tr('My listings', 'Tin của tôi')} />
+        <div className="space-y-1.5">
+          <Skeleton className="h-8 w-40 rounded-lg" />
+          <Skeleton className="h-4 w-52 rounded-lg" />
+        </div>
+        <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-[68px] rounded-xl" />)}
+        </div>
+        <div className="mt-6 space-y-2.5">
+          {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-[92px] rounded-2xl" />)}
+        </div>
       </div>
     )
   }
@@ -73,14 +87,12 @@ export function ListingsClient() {
             ))}
           </div>
         ) : dash.listings.length === 0 ? (
-          <div className="flex flex-col items-center gap-4 py-16 text-center">
-            <p className="text-sm text-muted-foreground">
-              {tr('No listings yet — post your first one.', 'Chưa có tin nào — đăng tin đầu tiên.')}
-            </p>
-            <Button variant="cta" asChild>
-              <Link href="/post">{tr('Post a listing', 'Đăng tin')}</Link>
-            </Button>
-          </div>
+          <EmptyState
+            icon={ListChecks}
+            title={tr('No listings yet', 'Chưa có tin nào')}
+            subtitle={tr('Post your first one — it only takes a minute.', 'Đăng tin đầu tiên — chỉ mất một phút.')}
+            action={<Button variant="cta" asChild><Link href="/post">{tr('Post a listing', 'Đăng tin')}</Link></Button>}
+          />
         ) : (
           <div className="space-y-2.5">
             {dash.listings.map((l) => (
