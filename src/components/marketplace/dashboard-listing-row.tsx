@@ -1,10 +1,10 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { Eye, MessageSquareText, CheckCircle2, RotateCcw, Trash2, ExternalLink, Pencil, Heart, Check } from 'lucide-react'
+import { toast } from 'sonner'
+import { Eye, MessageSquareText, CheckCircle2, RotateCcw, Trash2, ExternalLink, Pencil, Heart, Check, MoreHorizontal, Link2 } from 'lucide-react'
 import type { SerializedListing } from '@/lib/types'
 import { Price } from './price'
-import { ShareButton } from './share-button'
 import { QuickDiscount } from './quick-discount'
 import { ListingSparkline, type SparkPoint } from './listing-sparkline'
 import { useListingActions } from './use-listing-actions'
@@ -12,6 +12,8 @@ import { useLanguage } from '@/context/language-context'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { copyText } from '@/lib/copy-text'
 import { cn } from '@/lib/utils'
 
 // One row in the seller dashboard's listings table. Lifecycle actions are
@@ -123,14 +125,18 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row', serie
     </p>
   ) : null
 
+  // Row density (dashboard native-feel review, codex + Gemini): the old 5-6 wrapping chips read
+  // webby and half were under 44px. Keep the TWO high-value quick actions inline — the price-cut
+  // (only for a priced live listing — the owner's differentiated shortcut) and the status flip
+  // (Mark sold / Relist) — and fold the rest into a trailing "…" overflow menu (native list-row
+  // pattern), so each row is a couple of clean ≥44px taps, not a dense chip grid.
+  const listingUrl = `${typeof window !== 'undefined' ? window.location.origin : 'https://eno.vn'}/listings/${listing.id}`
+  const copyLink = async () => { if (await copyText(listingUrl)) toast.success(tr('Link copied', 'Đã sao chép liên kết')) }
   const actions = (
-    <div className="flex flex-wrap gap-2">
-      {/* Obvious price-cut action (was buried in Edit). Only for a priced, LIVE
-          listing — a free/sold/hidden item can't be discounted. Same chip as the rest. */}
+    <div className="flex flex-wrap items-center gap-2">
       {status === 'active' && listing.price > 0 && (
         <QuickDiscount listing={{ id: listing.id, price: listing.price, currency: listing.currency }} onChanged={onChanged} className={chip} />
       )}
-      {/* Availability confirmation lives in the daily review popup now — not here. */}
       {status === 'active' ? (
         <Button variant="bare" size="none" onClick={() => setStatus('sold')} className={chip}>
           <CheckCircle2 className="size-4" /> {tr('Mark sold', 'Đã bán')}
@@ -140,27 +146,27 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row', serie
           <RotateCcw className="size-4" /> {tr('Relist', 'Đăng lại')}
         </Button>
       )}
-      <Button variant="bare" size="none" onClick={() => router.push(`/listings/${listing.id}/edit`)} onMouseEnter={() => router.prefetch(`/listings/${listing.id}/edit`)} className={chip}>
-        <Pencil className="size-4" /> {tr('Edit', 'Sửa')}
-      </Button>
-      <Button variant="bare" size="none" onClick={open} className={chip}>
-        <ExternalLink className="size-4" /> {tr('View', 'Xem')}
-      </Button>
-      {/* Quick share — only meaningful for a LIVE listing (a held/sold one has no
-          public page). Reuses the curated share popover from the detail page. */}
-      {status === 'active' && listing.verified && (
-        <ShareButton
-          url={`${typeof window !== 'undefined' ? window.location.origin : 'https://eno.vn'}/listings/${listing.id}`}
-          title={title}
-          price={listing.price}
-          currency={listing.currency}
-          className={chip}
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          render={
+            <Button variant="bare" size="none" aria-label={tr('More actions', 'Thêm thao tác')} className={cn(chip, 'relative tap-44 px-2.5')}>
+              <MoreHorizontal className="size-4" />
+            </Button>
+          }
         />
-      )}
-      {/* Delete stays a chip but reads destructive: neutral trash icon → red on hover. */}
-      <Button variant="bare" size="none" onClick={del} aria-label={tr('Delete listing', 'Xóa tin')} className={cn(chip, 'relative tap-44 [&_svg]:text-ink-4 hover:bg-destructive/10 hover:text-destructive hover:[&_svg]:text-destructive')}>
-        <Trash2 className="size-4" />
-      </Button>
+        <DropdownMenuContent align="end" side="bottom" sideOffset={6} className="min-w-44">
+          <DropdownMenuItem onMouseEnter={() => router.prefetch(`/listings/${listing.id}/edit`)} onClick={() => router.push(`/listings/${listing.id}/edit`)}><Pencil /> {tr('Edit', 'Sửa')}</DropdownMenuItem>
+          <DropdownMenuItem onClick={open}><ExternalLink /> {tr('View listing', 'Xem tin')}</DropdownMenuItem>
+          {/* Copy link — only meaningful for a LIVE, verified listing (held/sold/hidden has no
+              public page). navigator.share is unreliable in the Android WebView, so a copy is the
+              portable action; the PDP keeps the full curated share. */}
+          {status === 'active' && listing.verified && (
+            <DropdownMenuItem onClick={() => void copyLink()}><Link2 /> {tr('Copy link', 'Sao chép liên kết')}</DropdownMenuItem>
+          )}
+          <DropdownMenuSeparator />
+          <DropdownMenuItem variant="destructive" onClick={del}><Trash2 /> {tr('Delete listing', 'Xóa tin')}</DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
   )
 
