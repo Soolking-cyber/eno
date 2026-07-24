@@ -14,6 +14,7 @@ import { toast } from 'sonner'
 import { createSupabaseBrowser } from '@/lib/supabase/browser'
 import { compressVideo, videoCompressionSupported } from '@/lib/video-compress'
 import { compressImageFile } from '@/lib/normalize-image'
+import { centerCropSquare } from '@/lib/square-crop'
 import { uploadInBatches } from '@/lib/upload-client'
 import { usePointerReorder } from '@/hooks/use-pointer-reorder'
 
@@ -30,7 +31,11 @@ export function usePostMedia({
 }) {
   // In edit mode, existing images seed as URL-only entries (no File); new uploads add a
   // File. Submit uploads only the File ones and keeps the URL ones (preserving order).
-  const [photos, setPhotos] = useState<{ url: string; file?: File }[]>(() => edit?.images?.map((url) => ({ url })) ?? [])
+  // `file` is what gets uploaded (square by default). `original` is the un-cropped, ≤1600
+  // natural-aspect source kept per NEW photo so the seller can reframe the square or "keep full"
+  // non-lossily (owner: "square by default, keep-full option"). `square` = is `file` a 1:1 crop.
+  // Edit-mode seeds (URL-only, already hosted) have no File/original → not re-croppable.
+  const [photos, setPhotos] = useState<{ url: string; file?: File; original?: File; square?: boolean }[]>(() => edit?.images?.map((url) => ({ url })) ?? [])
   // Optional single video: url-only in edit mode (already hosted); a new pick carries a File
   // + a blob: preview URL. ≤60s (duration-gated client-side) — autoplays on hover + in the feed.
   const [video, setVideo] = useState<{ url: string; file?: File; hevc?: boolean } | null>(() => (edit?.video ? { url: edit.video } : null))
@@ -74,12 +79,17 @@ export function usePostMedia({
       for (const f of incoming) {
         try {
           // HEIC (iPhone) → JPEG + downscale/recompress in-browser so it previews,
-          // uploads small (no 413 on big phone photos), and AI-reads cleanly.
+          // uploads small (no 413 on big phone photos), and AI-reads cleanly. `norm` is the
+          // un-cropped source; the platform format is 1:1, so we default `file` to a centered
+          // square crop of it (owner: "square by default") while keeping `norm` for reframe/full.
           const norm = await compressImageFile(f)
-          const url = trackBlobUrl(URL.createObjectURL(norm))
+          const squareFile = await centerCropSquare(norm)
+          const url = trackBlobUrl(URL.createObjectURL(squareFile))
           setPhotos((p) => {
             if (p.length >= 6) { URL.revokeObjectURL(url); return p }
-            return [...p, { url, file: norm }]
+            // centerCropSquare returns `norm` ITSELF if it couldn't crop → the flag must reflect
+            // reality (an un-cropped photo mustn't claim to be square) (codex).
+            return [...p, { url, file: squareFile, original: norm, square: squareFile !== norm }]
           })
         } catch {
           toast.error(t('Không đọc được ảnh này.', "Couldn't read that photo."))
@@ -88,6 +98,25 @@ export function usePostMedia({
     } finally {
       setConverting(false)
     }
+  }
+
+  // Reframe photo `index` to the square the seller chose (a 1:1 File), or fall back to the full
+  // non-square `original`. Both are non-lossy — `original` is retained. No-op unless the photo has
+  // an `original` (edit-mode hosted images are excluded). Guard on the render value + create the
+  // blob url OUTSIDE the state updater: updaters must be side-effect-free (React can replay them),
+  // and the crop dialog is MODAL so no tile can be removed/reordered while it's open. The previous
+  // url is left for the unmount cleanup, exactly like addPhotos (codex: no side effects in updaters).
+  const setPhotoFile = (index: number, file: File, square: boolean) => {
+    if (!photos[index]?.original) return
+    const url = trackBlobUrl(URL.createObjectURL(file))
+    setPhotos((p) => p.map((ph, i) => (i === index && ph.original ? { ...ph, url, file, square } : ph)))
+  }
+  // The dialog's cropToSquare returns the SAME `original` on failure → `file !== original` is the
+  // honest "did it actually crop" flag.
+  const applySquareCrop = (index: number, file: File) => setPhotoFile(index, file, file !== photos[index]?.original)
+  const keepFullPhoto = (index: number) => {
+    const original = photos[index]?.original
+    if (original) setPhotoFile(index, original, false)
   }
 
   // Optional listing clip. Validate type + size + DURATION (≤60s, read from metadata) + CODEC
@@ -286,6 +315,8 @@ export function usePostMedia({
     photos,
     setPhotos,
     addPhotos,
+    applySquareCrop,
+    keepFullPhoto,
     movePhoto,
     bindPhoto,
     draggingPhoto,

@@ -17,7 +17,7 @@
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { toast } from 'sonner'
-import { ImagePlus, X, ShieldCheck, MapPin, ChevronDown, Check, Sparkles, Loader2, LocateFixed, Zap, Video, Camera } from 'lucide-react'
+import { ImagePlus, X, ShieldCheck, MapPin, ChevronDown, Check, Sparkles, Loader2, LocateFixed, Zap, Video, Camera, Crop } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { captureNativePhoto, nativePhotoCaptureAvailable } from '@/lib/native-photos'
 import { Button } from '@/components/ui/button'
@@ -31,6 +31,7 @@ import { Section, Field } from './post-wizard-parts'
 import { VndInput } from './vnd-input'
 import { Mascot } from './mascot'
 import { ShareButton } from './share-button'
+import { SquareCropDialog } from './square-crop-dialog'
 
 type T = (vi: string, en: string) => string
 
@@ -53,7 +54,9 @@ export function MediaSection({
   autofillFromPhoto: () => void
   t: T
 }) {
-  const { photos, setPhotos, addPhotos, movePhoto, bindPhoto, draggingPhoto, converting, video, videoBusy, addVideo, removeVideo } = media
+  const { photos, setPhotos, addPhotos, applySquareCrop, keepFullPhoto, movePhoto, bindPhoto, draggingPhoto, converting, video, videoBusy, addVideo, removeVideo } = media
+  // Which photo's square-reframe dialog is open (index), or null.
+  const [cropIndex, setCropIndex] = useState<number | null>(null)
   const [dragOver, setDragOver] = useState(false)
 
   // ── Native camera (Capacitor) ───────────────────────────────────────────────
@@ -149,6 +152,19 @@ export function MediaSection({
             <IconButton size="xs" variant="overlay" aria-label={t('Xóa ảnh', 'Remove photo')} onClick={() => { URL.revokeObjectURL(p.url); setPhotos((arr) => arr.filter((_, j) => j !== i)) }} className="absolute right-1 top-1 h-6 w-6">
               <X className="h-4 w-4" />
             </IconButton>
+            {/* Reframe / keep-full — only on a NEW photo (edit-mode hosted images have no source
+                to re-crop). Always visible (mobile can't hover); the label says the current state. */}
+            {p.original && (
+              <button
+                type="button"
+                onClick={() => setCropIndex(i)}
+                aria-label={t('Cắt ảnh thành hình vuông', 'Crop photo to square')}
+                className="absolute bottom-1 right-1 flex h-6 items-center gap-1 rounded-lg bg-black/55 px-1.5 text-3xs font-bold text-white cursor-pointer"
+              >
+                <Crop className="h-3 w-3" />
+                {p.square === false ? t('Đầy đủ', 'Full') : t('Vuông', 'Square')}
+              </button>
+            )}
           </div>
         ))}
         {/* Native only — the direct camera. Sits BEFORE the library tile: photographing the item
@@ -216,6 +232,12 @@ export function MediaSection({
           {t('Tự điền từ ảnh', 'Autofill from photo')}
         </Button>
       )}
+      <SquareCropDialog
+        file={cropIndex != null ? photos[cropIndex]?.original ?? null : null}
+        onApply={(square) => { if (cropIndex != null) applySquareCrop(cropIndex, square); setCropIndex(null) }}
+        onKeepFull={() => { if (cropIndex != null) keepFullPhoto(cropIndex); setCropIndex(null) }}
+        onCancel={() => setCropIndex(null)}
+      />
     </Section>
   )
 }

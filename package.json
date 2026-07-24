@@ -83,6 +83,7 @@
     "pg": "^8.22.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "react-easy-crop": "^6.2.2",
     "resend": "^6.17.1",
     "sharp": "^0.34.3",
     "simple-icons": "^16.24.0",
