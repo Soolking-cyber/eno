@@ -25,11 +25,17 @@ export default async function BrandsPage() {
   // Defensive: only a genuinely missing catalogue table (pre-migration build, Prisma
   // P2021) falls back to empty. Transient DB errors RETHROW so ISR keeps serving the
   // last good HTML instead of caching a false "No brands" page for 6h.
+  // Curated brands (the seeded top-100, `curatedAt` set) always show — a real
+  // brand wall from day one — plus any organic brand that has live listings.
+  // Brands with inventory rank first; the rest of the catalogue follows by name.
   const brands = await db.brand.findMany({
-    where: { status: 'active', listingCount: { gt: 0 } },
+    where: { status: 'active', OR: [{ curatedAt: { not: null } }, { listingCount: { gt: 0 } }] },
     select: { slug: true, name: true, iconSlug: true, logoPath: true, listingCount: true },
     orderBy: [{ listingCount: 'desc' }, { name: 'asc' }],
-    take: 300,
+    // Headroom well beyond the curated set (~100) + organic brands, so the 0-listing
+    // curated brands (which sort last) are never truncated. Revisit with keyset
+    // pagination if the catalogue ever approaches this.
+    take: 1000,
   }).catch((error: unknown) => {
     if ((error as { code?: string })?.code === 'P2021') return []
     throw error
@@ -73,7 +79,13 @@ export default async function BrandsPage() {
                 <BrandLogo name={b.name} iconPath={b.iconPath} size={44} className="transition-transform group-hover:scale-105" />
                 <span className="line-clamp-1 text-sm font-semibold text-foreground">{b.name}</span>
                 <span className="text-xs text-muted-foreground">
-                  {b.listingCount} {b.listingCount === 1 ? <Tr text="listing" /> : <Tr text="listings" />}
+                  {b.listingCount > 0 ? (
+                    <>
+                      {b.listingCount} {b.listingCount === 1 ? <Tr text="listing" /> : <Tr text="listings" />}
+                    </>
+                  ) : (
+                    <Tr text="Explore" />
+                  )}
                 </span>
               </Link>
             ))}
