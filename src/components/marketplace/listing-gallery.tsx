@@ -248,7 +248,9 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
   }, [open, last])
 
   if (images.length === 0) {
-    return <div className="h-[300px] w-full rounded-2xl bg-tint" />
+    // Radius tracks the real gallery (square on mobile) so the empty state doesn't flash a
+    // different shape than what replaces it.
+    return <div className="h-[300px] w-full rounded-none md:rounded-2xl bg-tint" />
   }
 
 
@@ -274,7 +276,16 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
   return (
     <>
       {images.length === 1 && !hasVideo ? (
-        <Button variant="bare" size="none" onClick={() => openAt(0)} className="group block w-full overflow-hidden rounded-2xl cursor-pointer active:scale-100">
+        <Button
+          variant="bare"
+          size="none"
+          onClick={() => openAt(0)}
+          // Corners: SQUARE on mobile (owner 2026-07-24, screenshot of the mobile PDP: "no
+          // corner roundings, make it straight square"), rounded from md up where the media
+          // sits inside a card. This single-photo branch renders on BOTH breakpoints, so the
+          // radius has to be the responsive pair, not a removal.
+          className="group block w-full overflow-hidden rounded-none md:rounded-2xl cursor-pointer active:scale-100"
+        >
           {/* SQUARE on every breakpoint (owner 2026-07-23: desktop first, then "in mobile
               web ios and android … square viewport for images and videos"). This file is
               also the Capacitor WebView the native apps load, so mobile-web square IS the
@@ -292,7 +303,10 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
               exist. Scroll-snap only, no JS animation; tap opens the lightbox at that photo. */}
           <div data-protected className="relative md:hidden">
             <div
-              className="scrollbar-none flex snap-x snap-mandatory overflow-x-auto rounded-2xl"
+              // Square corners (owner 2026-07-24). The radius lived on the SCROLLER, so it
+              // clipped the whole strip rather than each slide — dropping it here is what
+              // actually squares the mobile viewport.
+              className="scrollbar-none flex snap-x snap-mandatory overflow-x-auto"
               onScroll={(e) => {
                 const el = e.currentTarget
                 setSlide(Math.round(el.scrollLeft / el.clientWidth))
@@ -300,7 +314,7 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
             >
               {/* Video is slide 0 — poster = the first photo, autoplays once it's on-screen. */}
               {hasVideo && (
-                <div className="relative aspect-square w-full shrink-0 snap-center overflow-hidden rounded-2xl">
+                <div className="relative aspect-square w-full shrink-0 snap-center overflow-hidden rounded-none">
                   <GalleryVideo src={video!} poster={images[0]} />
                 </div>
               )}
