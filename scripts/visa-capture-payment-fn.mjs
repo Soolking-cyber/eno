@@ -26,16 +26,55 @@ if (!url) { console.error('Set DIRECT_URL / DATABASE_URL'); process.exit(1) }
 const client = new pg.Client({ connectionString: url })
 await client.connect()
 
-const SIG = 'public.visa_capture_payment(uuid, text, text, integer, text, timestamptz)'
+// ⚠️ The ARG LIST CHANGED (2026-07-24): p_actor_ref was added so the dispute-trail event can be
+// written INSIDE this transaction. Adding a parameter creates an OVERLOAD rather than replacing
+// the function, and PostgREST would then have two candidates to resolve between — so the OLD
+// signature is dropped explicitly in the same transaction as the new one is created.
+const SIG = 'public.visa_capture_payment(uuid, text, text, integer, text, timestamptz, text, boolean)'
 
 const stmts = [
+  // ⚠️ DROP EVERY EXISTING OVERLOAD FIRST, by introspection rather than by a hardcoded list.
+  // Each time this function gained a parameter, `create or replace` produced a NEW overload
+  // beside the old one instead of replacing it — and once two of them have defaults, a call
+  // that omits an argument matches both and Postgres refuses it outright:
+  //   "function visa_capture_payment(...) is not unique"
+  // which is a BROKEN CAPTURE, not a warning. Dropping by name inside this same transaction
+  // guarantees exactly one signature exists at commit, whatever the history was.
+  `do $drop$
+   declare r record;
+   begin
+     for r in
+       select p.oid::regprocedure as sig
+         from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+        where n.nspname = 'public' and p.proname = 'visa_capture_payment'
+     loop
+       execute format('drop function if exists %s', r.sig);
+     end loop;
+   end
+   $drop$;`,
+
   `create or replace function public.visa_capture_payment(
      p_app_id uuid,
      p_provider text,
      p_provider_ref text,
      p_amount_cents integer,
      p_currency text,
-     p_now timestamptz
+     p_now timestamptz,
+     -- ⚠️ DEFAULT NULL is a DEPLOYMENT-ORDER guard, not laziness. The DDL is applied by hand and
+     -- the code ships on a later push, so there is always a window where one side is older than
+     -- the other. With a default, the 6-argument call the CURRENTLY DEPLOYED code makes still
+     -- resolves to this function (PostgREST matches by name and allows omitted defaults), and the
+     -- 7-argument call the new code makes resolves to it too. Neither order breaks a capture.
+     p_actor_ref text default null,
+     -- ⚠️ WHO WRITES THE AUDIT ROW, and why this is a parameter rather than always-on. The DDL
+     -- lands before the code does, so for a few minutes the CURRENTLY DEPLOYED (old) caller is
+     -- still doing its own recordVisaEvent after this returns. If the function also wrote one,
+     -- a capture in that window would produce TWO payment_recorded rows for one payment (codex).
+     -- Defaulting to FALSE means the old 6-argument call keeps its old behaviour exactly, and
+     -- only the new caller — which no longer writes its own — asks the function to do it.
+     -- Once the new code is everywhere this stays true forever; the default is what makes the
+     -- transition safe, not a permanent opt-out.
+     p_write_event boolean default false
    ) returns text
    language plpgsql
    volatile
@@ -46,6 +85,7 @@ const stmts = [
      v_flipped integer;
      v_paid_exists boolean;
      v_app_was_unstamped boolean;
+     v_checkout_amount_cents integer;
    begin
      -- (1) Lock the application row FIRST — matches the DELETE path's app→payments order, so the two
      -- can never deadlock. Fail closed if the draft was already deleted. Capture whether the case was
@@ -57,6 +97,22 @@ const stmts = [
      if not found then
        return 'app_gone';
      end if;
+
+     -- (1b) The checkout-time amount, read BEFORE step 2 overwrites amount_cents with the
+     -- captured figure. The dispute trail wants BOTH numbers: what the applicant was quoted at
+     -- checkout, and what the provider actually captured.
+     -- ORDERED, not a bare limit 1: nothing constrains (application_id, provider, provider_ref)
+     -- to one row, so an unordered pick would be nondeterministic (codex). Prefer the row step 2
+     -- is about to flip — that is the one whose amount_cents is the checkout QUOTE, before the
+     -- captured figure overwrites it. A legacy-partial case has only the already-paid row, which
+     -- is then the honest best available. No row at all leaves NULL, written as JSON null.
+     select amount_cents into v_checkout_amount_cents
+       from public.visa_payments
+      where application_id = p_app_id
+        and provider = p_provider
+        and provider_ref = p_provider_ref
+      order by (status = 'created') desc, created_at desc
+      limit 1;
 
      -- (2) Flip THIS application's checkout row created→paid, at most once. Binding application_id
      -- (not only provider/ref) keeps the locked application and the paid payment the SAME case — a
@@ -97,6 +153,31 @@ const stmts = [
             payment_ref = coalesce(payment_ref, p_provider_ref),
             updated_at = p_now
       where id = p_app_id;
+
+     -- (5) THE DISPUTE-TRAIL EVENT, IN THIS TRANSACTION. It used to be written by the caller
+     -- after the RPC returned, which left a window: a crash in the ~ms between this commit and
+     -- that write lost the row for good, because a replay returns 'already_paid' and skipped it.
+     -- Both external reviewers independently said the same thing — a self-heal on replay only
+     -- NARROWS the window, since recovery depends on a replay that may never come — so the write
+     -- moved in here, where it either commits with the money or rolls back with it.
+     -- Written only when this call ADVANCED the capture -- exactly the old stampedNow condition
+     -- in the caller -- so a replay still writes nothing and no duplicate can appear.
+     -- This is the JOIN KEY of the trail: 'checkout_started', written earlier under the SAME
+     -- (provider, providerRef), carries which listing was picked and at what price.
+     if p_write_event and (v_flipped > 0 or v_app_was_unstamped) then
+       insert into public.visa_events (id, application_id, actor_type, actor_ref, event, metadata)
+       values (
+         gen_random_uuid(), p_app_id, 'system', p_actor_ref, 'payment_recorded',
+         jsonb_build_object(
+           'provider', p_provider,
+           'providerRef', p_provider_ref,
+           'amountCents', p_amount_cents,
+           'chargedAmountCents', p_amount_cents,
+           'checkoutAmountCents', v_checkout_amount_cents,
+           'currency', p_currency
+         )
+       );
+     end if;
 
      -- 'flipped' whenever THIS call ADVANCED the capture — either the payment freshly flipped
      -- created→paid, OR the case was not yet stamped and is now (a legacy partial state from the old

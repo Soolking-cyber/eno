@@ -621,6 +621,8 @@ export async function markVisaPaidAndHandoff(input: {
   // changed row via EvalPlanQual and re-fire its BEFORE trigger against the now-committed 'paid'
   // (codex, 2026-07-24). The RPC is service_role-only (visa-capture-payment-fn.mjs) — never
   // end-user callable — and binds application_id so a leaked ref can't pay against the wrong case.
+  // p_actor_ref: the RPC also writes the `payment_recorded` dispute-trail event inside this
+  // same transaction (see below), so it needs the actor the event is attributed to.
   const cap = await db.rpc('visa_capture_payment', {
     p_app_id: input.applicationId,
     p_provider: input.provider,
@@ -628,6 +630,12 @@ export async function markVisaPaidAndHandoff(input: {
     p_amount_cents: input.amountCents,
     p_currency: input.currency,
     p_now: now,
+    p_actor_ref: input.actorRef ?? null,
+    // ⚠️ THIS caller no longer writes its own payment_recorded row, so it asks the function to.
+    // The flag defaults to FALSE in the DDL precisely so the still-deployed OLD caller — which
+    // does write its own — keeps working unchanged during the window between applying the
+    // migration and shipping this code, instead of producing two rows for one payment (codex).
+    p_write_event: true,
   })
   // A shaky payment (missing / wrong status / cross-case) RAISES inside the RPC, so the whole
   // transaction — including any app stamp — rolls back and surfaces here as cap.error. Refuse.
@@ -661,30 +669,23 @@ export async function markVisaPaidAndHandoff(input: {
   if (!freshRes.data) throw new Error('visa_paid_read_failed:application_vanished_after_capture')
   app = freshRes.data as VisaApplicationRow
 
-  if (stampedNow) {
-    // The join key of the dispute trail: this event carries the provider reference, and the
-    // 'checkout_started' event the checkout route wrote under the SAME reference carries the
-    // listing that was picked and the price it was picked at. Two rows in visa_events, joined by
-    // (provider, providerRef), answer "what was this charge for" without a schema change and
-    // without touching anything encrypted. `chargedAmountCents` is the provider-verified capture;
-    // `checkoutAmountCents` is the local checkout-time truth it had to cover — a dispute wants both.
-    //
-    // ⚠️ KNOWN RESIDUAL (pre-existing, non-money — codex 2026-07-24): this write is OUTSIDE the
-    // capture RPC transaction, so a crash in the ~ms window between the RPC commit and here — with
-    // no later webhook/confirm replay to re-enter (stampedNow) — could leave the dispute-trail event
-    // missing. The MONEY is unaffected (visa_payments.status='paid' is committed atomically inside
-    // the RPC); only this audit row would be absent. Fully closing it means writing the event inside
-    // the RPC (event JSON in plpgsql) or self-healing on the already_paid replay — a follow-up, not
-    // this race fix. In practice the webhook+confirm double-delivery almost always provides a replay.
-    await recordVisaEvent(input.applicationId, 'system', 'payment_recorded', input.actorRef, {
-      provider: input.provider,
-      providerRef: input.providerRef,
-      amountCents: input.amountCents,
-      chargedAmountCents: input.amountCents,
-      checkoutAmountCents: paymentRow.amount_cents,
-      currency: input.currency,
-    })
-  }
+  // ── THE `payment_recorded` DISPUTE-TRAIL EVENT NOW COMMITS WITH THE MONEY ────────────
+  // It used to be written HERE, right after the RPC returned, guarded by `stampedNow`. That
+  // left a real hole: a crash in the ~ms between the RPC commit and this write lost the audit
+  // row permanently, because the retry returns 'already_paid' and skipped the write. The money
+  // was never at risk — visa_payments.status='paid' commits atomically inside the RPC — but the
+  // row that answers "what was this charge for" could simply be absent from a dispute.
+  //
+  // The obvious patch (self-heal on the replay) was put to codex and Gemini, and BOTH refused
+  // it for the same reason: recovery would depend on a replay that may never arrive, so the
+  // window is narrowed, not closed — and it invites duplicate/inconsistent audit rows. So the
+  // insert moved INSIDE `visa_capture_payment` (scripts/visa-capture-payment-fn.mjs step 5),
+  // under the same `v_flipped > 0 or v_app_was_unstamped` condition `stampedNow` reflects here.
+  // It now either commits with the capture or rolls back with it, and a replay writes nothing,
+  // so there is no duplicate to dedupe. `checkoutAmountCents` is read in-transaction BEFORE the
+  // flip overwrites amount_cents, so the trail keeps BOTH the quoted and the captured figure.
+  //
+  // `stampedNow` is still the handoff's signal below — it just no longer gates an event write.
 
   // ── THE CAPTURE-TIME SELECTION GUARD (Phase 2) ────────────────────────────────────
   // What was CHARGED is the listing in this ref's own `checkout_started` event; what the

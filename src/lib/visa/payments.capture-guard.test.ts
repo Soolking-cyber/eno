@@ -31,7 +31,7 @@ const h = vi.hoisted(() => ({
     issues: [] as unknown[],
     snapshotHash: 'consent-hash',
     updates: [] as Array<{ table: string; payload: Row }>,
-    recorded: [] as Array<{ event: string; metadata: Row }>,
+    recorded: [] as Array<{ event: string; metadata: Row; actorRef?: string | null }>,
     /** Simulate the RACE: the app is present at the initial read but a concurrent delete
      *  removed it by the time the atomic RPC runs → the RPC returns 'app_gone'. */
     appGoneAtRpc: false,
@@ -88,6 +88,9 @@ vi.mock('@/lib/visa/db', () => {
     const refMatch = !!pay && pay.application_id === args.p_app_id
       && pay.provider === args.p_provider && pay.provider_ref === args.p_provider_ref
     let flipped = false
+    // The checkout-time amount, read BEFORE the flip overwrites it — the real function does the
+    // same so the dispute trail keeps BOTH the quoted and the captured figure.
+    const checkoutAmountCents = pay?.amount_cents
     if (refMatch && pay!.status === 'created') {
       pay!.status = 'paid'; pay!.paid_at = args.p_now
       pay!.amount_cents = args.p_amount_cents; pay!.currency = args.p_currency
@@ -104,6 +107,21 @@ vi.mock('@/lib/visa/db', () => {
     app.payment_provider = app.payment_provider ?? args.p_provider
     app.payment_ref = app.payment_ref ?? args.p_provider_ref
     app.updated_at = args.p_now
+    // ⚠️ The dispute-trail event is written INSIDE this transaction now (step 5 of the real
+    // function), under exactly this advanced-condition — not by the caller afterwards. Modelling
+    // it here is what keeps these tests honest about where the row comes from.
+    // Mirrors the real gate: the function writes the event ONLY when the caller asked it to
+    // (p_write_event), which is what keeps the old caller from double-writing during the deploy.
+    if (args.p_write_event && (flipped || appWasUnstamped)) {
+      h.state.recorded.push({
+        event: 'payment_recorded', actorRef: args.p_actor_ref,
+        metadata: {
+          provider: args.p_provider, providerRef: args.p_provider_ref,
+          amountCents: args.p_amount_cents, chargedAmountCents: args.p_amount_cents,
+          checkoutAmountCents, currency: args.p_currency,
+        },
+      })
+    }
     // 'flipped' whenever THIS call advanced the capture (money freshly recorded OR case freshly
     // stamped); only a fully-settled replay is 'already_paid'.
     return { data: (flipped || appWasUnstamped) ? 'flipped' : 'already_paid', error: null }
@@ -158,9 +176,10 @@ beforeEach(() => {
   })
 })
 
-const capture = () => markVisaPaidAndHandoff({
+const capture = (over: Partial<Parameters<typeof markVisaPaidAndHandoff>[0]> = {}) => markVisaPaidAndHandoff({
   applicationId: APP_ID, provider: 'stripe', providerRef: 'cs_1',
   amountCents: 11_489, currency: 'USD', actorRef: 'webhook',
+  ...over,
 })
 
 describe('the capture-time selection guard', () => {
@@ -224,6 +243,27 @@ describe('the atomic capture (visa_capture_payment RPC) — race + idempotency o
     expect(result).toMatchObject({ ok: true, alreadyPaid: false })
     expect(h.state.recorded.filter((r) => r.event === 'payment_recorded')).toHaveLength(1)
     expect(h.state.paymentRow!.status).toBe('paid')
+  })
+
+  it('the dispute-trail event is the RPC’s job, and carries BOTH the quoted and the captured amount', async () => {
+    // The write lives inside visa_capture_payment now, so it commits with the money or rolls back
+    // with it — there is no window in which the payment is recorded but the trail is not. What the
+    // caller still owes the RPC is the actor and the amounts; assert they arrive.
+    seed({ selected: 'listing-A', charged: 'listing-A' })
+    h.state.paymentRow!.amount_cents = 4_200 // what the applicant was QUOTED at checkout
+    await capture({ amountCents: 4_500 })    // what the provider actually CAPTURED
+    const ev = h.state.recorded.find((r) => r.event === 'payment_recorded')
+    expect(ev!.metadata).toMatchObject({
+      checkoutAmountCents: 4_200,
+      chargedAmountCents: 4_500,
+      amountCents: 4_500,
+      provider: 'stripe',
+    })
+    // Attributed to the caller's actor, passed through as p_actor_ref.
+    expect(ev!.actorRef).toBe('webhook')
+    // And the payment row now holds the captured figure — proving checkoutAmountCents was read
+    // BEFORE the flip overwrote it, which is the ordering the real function has to preserve.
+    expect(h.state.paymentRow!.amount_cents).toBe(4_500)
   })
 
   it('already_paid: a replay (payment already paid) does NOT re-record the money and reports alreadyPaid=true', async () => {
