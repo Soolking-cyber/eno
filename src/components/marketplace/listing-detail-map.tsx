@@ -13,9 +13,16 @@ import { useNearViewport } from '@/hooks/use-near-viewport'
 // stage of this can move the page.
 function MapPlaceholder() {
   return (
-    <div className="w-full h-full bg-tint flex flex-col items-center justify-center gap-2 select-none animate-pulse">
+    // ⚠️ No `animate-pulse` here, and ink-4 rather than muted-foreground. Both are contrast
+    // fixes, and they only became visible once this placeholder started PERSISTING until the
+    // map scrolls into view — before that it flashed for one chunk-load and axe never sampled
+    // it. `animate-pulse` fades the whole subtree to 50% opacity, which lightened this 10px
+    // bold label to #868686 on #f6f6f6 = 3.36:1, a serious axe failure (AA wants 4.5). The
+    // Spinner already says "loading", so the pulse was redundant with it anyway; ink-4 is the
+    // token documented as AA on both white and bg-tint for exactly this kind of small meta text.
+    <div className="w-full h-full bg-tint flex flex-col items-center justify-center gap-2 select-none">
       <Spinner size="md" />
-      <span className="text-3xs font-bold text-muted-foreground uppercase tracking-wider">
+      <span className="text-3xs font-bold text-ink-4 uppercase tracking-wider">
         <Tr text="Loading map…" />
       </span>
     </div>
