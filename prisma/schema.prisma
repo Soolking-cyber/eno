@@ -105,6 +105,7 @@ model Profile {
   forumPostRevisions      ForumPostRevision[]     @relation("ForumPostRevisionEditor")
   forumCommentRevisions   ForumCommentRevision[]  @relation("ForumCommentRevisionEditor")
   itineraries             Itinerary[]
+  tripAssistance          TripAssistanceRequest[]
 
   @@index([phone])
   @@index([trustTier])
@@ -1159,8 +1160,9 @@ model Itinerary {
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
-  dayPlans ItineraryDay[]
-  stays    ItineraryStay[]
+  dayPlans   ItineraryDay[]
+  stays      ItineraryStay[]
+  assistance TripAssistanceRequest[]
 
   @@index([profileId, updatedAt])
   @@index([status, updatedAt])
@@ -1244,4 +1246,86 @@ model ItineraryStay {
 
   @@unique([itineraryId, position])
   @@index([itineraryId])
+}
+
+// ── Trip assistance ─────────────────────────────────────────────────────────────────
+//
+// The traveller asks eno to arrange an itinerary; an operator quotes a 10% service fee
+// IN CHAT and the traveller pays suppliers directly. There is deliberately NO payment
+// code anywhere near this: eno's filed MoIT position is "no own sales, no payment
+// processing", so this stores what was AGREED, never a charge.
+//
+// Modelled in PRISMA, alongside Itinerary — NOT as raw Supabase tables like the visa
+// desk. That split is a historical accident of the forum migration and there is no
+// reason to inherit it; the compare-and-set the workflow depends on is not a Supabase
+// feature, it is an UPDATE whose WHERE names the expected prior status, which Prisma
+// does with updateMany + count (see src/lib/messages.ts:557, src/lib/trips/status.ts).
+model TripAssistanceRequest {
+  id          String    @id @default(cuid())
+  itineraryId String
+  itinerary   Itinerary @relation(fields: [itineraryId], references: [id], onDelete: Cascade)
+  // The traveller. Cascade with the profile: an account deletion must not leave an
+  // assistance case addressed to nobody.
+  profileId   String    @db.Uuid
+  profile     Profile   @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  // Workflow state. The ONLY legal moves are in TRIP_TRANSITIONS (src/lib/trips/status.ts)
+  // and every write goes through applyTripTransition, which compare-and-sets on the prior
+  // value — so a stale operator tab cannot clobber a status somebody else already moved.
+  status String @default("requested")
+
+  // The marketplace thread this case is lived out in. A plain id, not a relation: the
+  // binding is only meaningful once ownership has been PROVEN (buyer == traveller), which
+  // is dm-thread's job, and an FK here would imply a validity this column cannot enforce.
+  conversationId String?
+
+  // MONEY IS OPERATOR-TYPED AND NULLABLE UNTIL QUOTED. ⚠️ No amount may ever arrive from a
+  // request body — the traveller cannot propose a fee, and no client payload is trusted to
+  // set either column. Both are plain VND integers; suppliers are paid directly by the
+  // traveller, so nothing here is ever captured or charged.
+  supplierTotalVnd Int?
+  feeVnd           Int?
+  quotedAt         DateTime?
+
+  assignedAdmin String?
+  resolvedAt    DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  events TripAssistanceEvent[]
+
+  // ⚠️ TWO CHECK CONSTRAINTS live in scripts/trip-assistance-ddl.sql and have no Prisma
+  // equivalent, so they are invisible here: `status` must be one of the eight names in
+  // TRIP_TRANSITIONS (the NODE set, not the edges — an unknown status would strand a case
+  // forever, because the machine fails closed), and a quote is BOTH money columns or neither.
+  // If you add a status, edit TRIP_TRANSITIONS *and* that CHECK.
+  //
+  // Mirrors Itinerary's pair: one for the traveller's own list, one for the operator queue.
+  @@index([profileId, updatedAt])
+  @@index([status, updatedAt])
+  @@index([itineraryId])
+}
+
+// Append-only audit trail. Written best-effort AFTER a committed transition, never in the
+// same breath: a failed event must not report that the transition failed, because it did
+// not, and telling the operator otherwise baits a re-click into an invalid transition
+// (the lesson recorded at src/lib/visa-admin.ts:205-213).
+model TripAssistanceEvent {
+  id        String                @id @default(cuid())
+  requestId String
+  request   TripAssistanceRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  // 'traveller' | 'admin' | 'system' — who acted. actorRef is an id or an admin email,
+  // deliberately free-text so a system actor needs no fake profile.
+  actorType String
+  actorRef  String
+  event     String
+
+  // ⚠️ NEVER TRAVELLER PII. Ids, a step, a status pair, field NAMES — nothing else. Same
+  // rule as Message.metaJson, and for the same reason: this table has no owner column and
+  // outlives the case it describes.
+  metaJson  String?
+  createdAt DateTime @default(now())
+
+  @@index([requestId, createdAt])
 }
