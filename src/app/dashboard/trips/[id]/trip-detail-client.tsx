@@ -224,7 +224,7 @@ export function TripDetailClient({ id }: { id: string }) {
               selectedStopId={selectedStopId}
               onSelectStop={setSelectedStopId}
             />
-            <AssistancePanel />
+            <AssistancePanel itineraryId={trip.id} />
           </div>
           <aside className="hidden lg:block">
             <div className="sticky top-24 h-[calc(100vh-9rem)]">
@@ -244,20 +244,59 @@ export function TripDetailClient({ id }: { id: string }) {
 }
 
 /**
- * "Want us to arrange this?" — the assistance offer.
+ * "Want us to arrange this?" — the assistance offer, now live.
  *
- * ⚠️ DISABLED on purpose until the assistance flow lands. The button is rendered and explains
- * itself rather than being hidden, because the offer is the point of the service and the owner
- * wants it promoted; a missing button would read as "not offered".
+ * ⚠️ NO payment surface here and there must never be one. eno arranges; the traveller pays each
+ * supplier directly, and the 10% is quoted BY AN OPERATOR in the chat thread. The request body is
+ * `{ itineraryId }` and nothing else — the endpoint's schema is `.strict()` precisely so a caller
+ * cannot smuggle an amount, and this component must never grow a field that tries.
  *
- * ⚠️ There is NO payment code here and there must never be. eno advises and arranges; the
- * traveller pays suppliers directly, and the 10% service fee is quoted and invoiced IN CHAT, the
- * way the visa desk already handles money. eno's filed MoIT position is "no own sales, no payment
- * processing" — a checkout on this panel would break it. If a future change seems to need one,
- * it is the wrong change.
+ * Opening a case is IDEMPOTENT server-side ("open a case on the caller's OWN itinerary, or return
+ * the one that is already open", guarded by an advisory lock), so a second tap re-enters the same
+ * thread rather than creating a second case. That is why the button is not disabled after success.
  */
-function AssistancePanel() {
+function AssistancePanel({ itineraryId }: { itineraryId: string }) {
   const { tr } = useLanguage()
+  const router = useRouter()
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  // Set when the case was recorded but no thread could be bound. Deliberately NOT an error state:
+  // the case exists, so inviting a retry would ask the traveller to re-request something already
+  // on the desk's queue.
+  const [recorded, setRecorded] = useState(false)
+
+  const request = async () => {
+    if (busy) return
+    setBusy(true); setError(null)
+    try {
+      const res = await fetch('/api/trips/assistance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ itineraryId }),
+      })
+      const data = (await res.json().catch(() => ({}))) as { conversationId?: string | null; error?: string }
+      if (!res.ok) {
+        setError(
+          res.status === 429
+            ? tr('Too many requests just now — try again in a minute.', 'Quá nhiều yêu cầu — thử lại sau một phút.')
+            : res.status === 401
+              ? tr('Please sign in again.', 'Vui lòng đăng nhập lại.')
+              : tr("We couldn't start that request. Try again.", 'Không gửi được yêu cầu. Thử lại.'),
+        )
+        return
+      }
+      // The thread is where the conversation actually happens — go there rather than leaving the
+      // traveller on a page that says "requested" with nothing to read.
+      if (data.conversationId) { router.push(`/messages/${data.conversationId}`); return }
+      setRecorded(true)
+    } catch {
+      setError(tr('Check your connection and try again.', 'Kiểm tra kết nối và thử lại.'))
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return (
     <section
       aria-labelledby="trip-assistance-title"
@@ -271,21 +310,31 @@ function AssistancePanel() {
         {tr('Our team can book the stays, transport and tours on this itinerary for you, and be on the other end of a chat while you travel.',
             'Đội ngũ của chúng tôi có thể đặt chỗ ở, di chuyển và tour trong lịch trình này, và luôn sẵn sàng trò chuyện suốt chuyến đi.')}
       </p>
-      {/* The fee, stated up front rather than discovered later. */}
       <p className="mt-3 text-sm leading-relaxed text-body">
         <span className="font-semibold text-foreground">{tr('Service fee: 10%', 'Phí dịch vụ: 10%')}</span>
         {' — '}
         {tr('you pay each hotel, driver and guide directly at their own price. We quote our 10% in the chat before anything is booked, and nothing is charged here.',
             'bạn trả trực tiếp cho từng khách sạn, tài xế và hướng dẫn viên theo giá của họ. Chúng tôi báo phí 10% trong phần trò chuyện trước khi đặt bất cứ thứ gì, và không thu tiền ở đây.')}
       </p>
-      <Button disabled className="mt-4 w-full gap-2 sm:w-auto">
-        <MessageSquare className="h-4 w-4" />
-        {tr('Request assistance', 'Yêu cầu hỗ trợ')}
-      </Button>
-      <p className="mt-2 text-xs text-ink-4">
-        {tr('Coming shortly — this will open a chat with our trip desk.',
-            'Sắp có — thao tác này sẽ mở cuộc trò chuyện với bộ phận chuyến đi.')}
-      </p>
+
+      {recorded ? (
+        <p className="mt-4 rounded-xl bg-tint p-3 text-sm text-body" role="status">
+          {tr("Your request is with our trip desk — we'll message you here shortly.",
+              'Yêu cầu của bạn đã đến bộ phận chuyến đi — chúng tôi sẽ nhắn cho bạn sớm.')}
+        </p>
+      ) : (
+        <>
+          <Button onClick={request} disabled={busy} className="mt-4 w-full gap-2 sm:w-auto">
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageSquare className="h-4 w-4" />}
+            {tr('Request assistance', 'Yêu cầu hỗ trợ')}
+          </Button>
+          <p className="mt-2 text-xs text-ink-4">
+            {tr('This opens a chat with our trip desk. Nothing is booked or charged until you say so.',
+                'Thao tác này mở cuộc trò chuyện với bộ phận chuyến đi. Không đặt chỗ hay thu phí cho đến khi bạn đồng ý.')}
+          </p>
+        </>
+      )}
+      {error && <p role="alert" className="mt-2 text-xs font-semibold text-destructive">{error}</p>}
     </section>
   )
 }

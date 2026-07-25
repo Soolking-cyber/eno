@@ -5,6 +5,7 @@ import { serializeListing, safeParse } from '@/lib/serialize'
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import { Button } from '@/components/ui/button'
 import { Header } from '@/components/marketplace/header'
 import { ListingGallery } from '@/components/marketplace/listing-gallery'
 import { PdpShopLink } from '@/components/marketplace/pdp-shop-link'
@@ -41,6 +42,7 @@ import { ReportButton } from '@/components/marketplace/report-button'
 import { ContactComposer } from '@/components/marketplace/contact-composer'
 import { VisaStart } from '@/components/marketplace/visa-start'
 import { isVisaShopListing } from '@/lib/visa-shop'
+import { getTripAssistanceListingId } from '@/lib/trips/dm-thread'
 import { TrackView } from '@/components/marketplace/track-view'
 import { ScrollToTop } from '@/components/marketplace/scroll-to-top'
 import { SaveListingButton } from '@/components/marketplace/save-listing-button'
@@ -182,6 +184,12 @@ export default async function ListingPage({ params }: Props) {
   // from the storefront that owns the row — not from the title, the category or the
   // externalId marker, any of which another seller could imitate.
   const isVisaProduct = await isVisaShopListing(listing.id)
+  // Is this the trip desk's own listing? Same trust shape as the visa check above — resolved
+  // server-side from (seller, externalId) on the desk that owns the row, never from the title or
+  // the category, which another seller could imitate. `cache()`d, so this costs one query per
+  // render at most and returns null (→ false) whenever the desk or its listing is not seeded.
+  const tripListingId = await getTripAssistanceListingId()
+  const isTripProduct = tripListingId !== null && tripListingId === listing.id
   // Embed the PRE-WARMED translations of the user-authored content so the H1/description/
   // location render in the visitor's language instantly (no flash, no per-request translate).
   // Runs only on ISR regen (page revalidates every 30d) → effectively free; falls back to
@@ -517,7 +525,29 @@ export default async function ListingPage({ params }: Props) {
                     silently falling back to an empty chat. */}
                 {isVisaProduct
                   ? <VisaStart listingId={listing.id} className="w-full" />
-                  : <ContactComposer listingId={listing.id} listingTitle={displayTitle} listingImage={listing.images[0] ?? null} sellerName={listing.seller.name} price={listing.price} currency={listing.currency} negotiable={listing.negotiable} />}
+                  : <>
+                      {/* ⚠️ The trip desk's listing is contacted, never bought — and the thing a
+                          visitor actually wants here is the PLAN, which is free and needs no
+                          conversation. So lead with the builder. ContactComposer stays BELOW it
+                          rather than being replaced: this same listing is the anchor every
+                          assistance thread binds to (Conversation.listingId is NOT NULL,
+                          @@unique([listingId, buyerProfileId])), so removing the contact path
+                          would take away the only way to reach the desk from its own storefront. */}
+                      {isTripProduct && (
+                        <div className="mb-3 rounded-2xl border border-border/70 bg-card p-4">
+                          <p className="text-sm font-semibold text-foreground">
+                            <Tr text="Start with a free plan" />
+                          </p>
+                          <p className="mt-1 text-sm leading-relaxed text-body">
+                            <Tr text="Build a day-by-day itinerary in a couple of minutes — free, no account needed to look. Ask us to arrange it only if you want to." />
+                          </p>
+                          <Button asChild variant="cta" size="lg" className="mt-3 w-full">
+                            <Link href="/dashboard/trips/plan"><Tr text="Plan my trip — free" /></Link>
+                          </Button>
+                        </div>
+                      )}
+                      <ContactComposer listingId={listing.id} listingTitle={displayTitle} listingImage={listing.images[0] ?? null} sellerName={listing.seller.name} price={listing.price} currency={listing.currency} negotiable={listing.negotiable} />
+                    </>}
               </div>
 
               {/* 7 — Buyer protections */}

@@ -111,7 +111,7 @@ export default function ItineraryLandingPage() {
       eyebrow="Trip planner"
       title="Plan a Vietnam trip, day by day"
       intro={
-        <Tr text="Tell us where you're going, how long you have and roughly what you want to spend. You get a day-by-day itinerary with real places, times, rough costs and what to book ahead — and every stop plotted on a map, so you can see whether a day actually makes sense before you're standing in it." />
+        <Tr text="Tell us where you're going, how long you have and roughly what you want to spend. You get a day-by-day itinerary with real places, times and rough costs — every stop plotted on a map, so you can see whether a day makes sense before you're standing in it." />
       }
       sections={[
         { id: 'how', label: 'How it works' },
@@ -119,6 +119,22 @@ export default function ItineraryLandingPage() {
         { id: 'assistance', label: 'Want us to arrange it?' },
       ]}
     >
+      {/* ⚠️ THE ASK COMES FIRST. Before this, a phone showed the eyebrow, the H1, a six-line intro
+          and three numbered steps before offering anything to click — a page that described the
+          service instead of selling it. The detail below is for people who want it; nobody should
+          have to scroll past an explanation to reach the thing being explained. */}
+      <div className="mb-8 rounded-2xl border border-border/70 bg-card p-5">
+        <Button asChild variant="cta" size="lg" className="w-full sm:w-auto">
+          <Link href="/dashboard/trips/plan">
+            <CalendarDays className="h-4 w-4" />
+            <Tr text="Plan my trip — free" />
+          </Link>
+        </Button>
+        <p className="mt-2.5 text-sm text-body">
+          <Tr text="Free, and it takes about two minutes. No card, and nothing to pay unless you ask us to arrange the bookings." />
+        </p>
+      </div>
+
       <ContentSection id="how" title="How it works">
         <ol className="space-y-3">
           <Step
@@ -137,17 +153,6 @@ export default function ItineraryLandingPage() {
             body={<Tr text="Saved trips live under My Trips. Export one to Word, or generate another and compare." />}
           />
         </ol>
-        <div className="pt-2">
-          <Button asChild variant="cta" size="lg">
-            <Link href="/dashboard/trips/plan">
-              <CalendarDays className="h-4 w-4" />
-              <Tr text="Plan my trip — free" />
-            </Link>
-          </Button>
-          <p className="mt-2 text-xs text-ink-4">
-            <Tr text="Free to use. No card, and nothing to pay unless you ask us to arrange the bookings." />
-          </p>
-        </div>
       </ContentSection>
 
       <ContentSection id="map" title="Every stop on a map" wide>
