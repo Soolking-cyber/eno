@@ -370,11 +370,53 @@ export async function addPartyStatementOnce(
  *  most once per day. */
 export async function sweepDisputeWindows(): Promise<number> {
   const now = Date.now()
-  const cases = await db.report.findMany({
-    where: { status: 'open', evidenceUntil: { gt: new Date(now), lt: new Date(now + 24 * 3600_000) } },
-    select: { id: true, reporterProfileId: true, targetProfileId: true, targetSellerId: true, sellerRespondedAt: true, appealedAt: true },
-    take: 200,
-  })
+  let nudged = 0
+  // Page through EVERY matching case (fixed 2026-07-25, confirmed by codex + Gemini). A
+  // bare take:200 starved the tail: a nudged case still matches this WHERE, so the same
+  // 200 rows refilled the limit on each daily run while cases beyond them expired
+  // un-nudged. With no orderBy the 200 were nondeterministic too.
+  //
+  // ⚠️ Paginate with a plain `id > cursor` PREDICATE, never Prisma's `cursor` + `skip: 1`
+  // (Gemini refuted the first version of this fix). Prisma compiles that pair into
+  // `id >= cursor` plus `OFFSET 1`, which assumes the cursor row is still in the filtered
+  // set. It need not be: this sweep awaits I/O per case, and a concurrent transaction can
+  // resolve a dispute in the meantime — the moment the cursor row's status leaves 'open'
+  // it is filtered out BEFORE the offset, so `OFFSET 1` would discard the first still-
+  // unprocessed case and that dispute would never be nudged. A `gt` predicate cannot fail
+  // that way because it does not depend on the cursor row existing at all. (Same defect
+  // class as the drain loop in enforcement.ts, but caused by another writer, not this one.)
+  let cursor: string | undefined
+  for (;;) {
+    const cases = await db.report.findMany({
+      where: {
+        status: 'open',
+        evidenceUntil: { gt: new Date(now), lt: new Date(now + 24 * 3600_000) },
+        ...(cursor ? { id: { gt: cursor } } : {}),
+      },
+      select: { id: true, reporterProfileId: true, targetProfileId: true, targetSellerId: true, sellerRespondedAt: true, appealedAt: true },
+      orderBy: { id: 'asc' },
+      take: 200,
+    })
+    if (!cases.length) break
+    nudged += await nudgeBatch(cases, now)
+    if (cases.length < 200) break
+    cursor = cases[cases.length - 1].id
+  }
+  return nudged
+}
+
+type SweepCase = {
+  id: string
+  reporterProfileId: string | null
+  targetProfileId: string | null
+  targetSellerId: string | null
+  sellerRespondedAt: Date | null
+  appealedAt: Date | null
+}
+
+/** One page of the sweep: nudge each respondent who hasn't spoken and wasn't nudged
+ *  in the last 20h. Extracted so the paging loop above stays readable. */
+async function nudgeBatch(cases: SweepCase[], now: number): Promise<number> {
   let nudged = 0
   for (const c of cases) {
     // Already engaged: a legacy one-shot reply OR a filed appeal both count as "spoke".

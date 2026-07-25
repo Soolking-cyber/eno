@@ -193,11 +193,29 @@ module.exports = class EnoCacheHandler {
     const age = Date.now() - tagsLoadedAt
     if (age < TAG_REFRESH_MS) return true
     if (!tagsInflight) {
+      // ⚠️ MERGE, never clear (fixed 2026-07-25, confirmed by codex + Gemini). This SELECT
+      // takes its snapshot at queryStart; a revalidateTag() running while it is in flight
+      // commits its tombstone AFTER that snapshot and write-throughs to tagStamps. The old
+      // tagStamps.clear() then deleted that just-written stamp when the query resolved, so
+      // THIS instance served stale L1 for the tag it had just revalidated — breaking the
+      // "instant on the calling instance" promise documented at the top of this file, and
+      // lasting until a later sync happened to succeed.
+      const queryStart = Date.now()
       tagsInflight = EnoCacheHandler.getPool()
         .query('select tag, stamp from next_cache_tag where expires_at > now()')
         .then(({ rows }) => {
-          tagStamps.clear()
-          for (const r of rows) tagStamps.set(r.tag, Number(r.stamp))
+          const seen = new Set()
+          for (const r of rows) {
+            seen.add(r.tag)
+            const stamp = Number(r.stamp)
+            if (stamp > (tagStamps.get(r.tag) || 0)) tagStamps.set(r.tag, stamp)
+          }
+          // Still evict tags the DB no longer has (expired tombstones) — that is what the
+          // clear() was really for — but keep any stamp written locally after the snapshot,
+          // because its row simply wasn't visible yet.
+          for (const [tag, stamp] of tagStamps) {
+            if (!seen.has(tag) && stamp < queryStart) tagStamps.delete(tag)
+          }
           tagsLoadedAt = Date.now()
         })
         .catch(() => { /* keep the previous snapshot; staleness is bounded below */ })

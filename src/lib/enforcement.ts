@@ -249,26 +249,47 @@ export async function applyEnforcement(
         let pulled = carried
         if (nextSev >= ENFORCEMENT_SEVERITY.held) {
           // Pull every live listing (verified=false → out of the public feed), recording
-          // exactly which so a lift restores precisely those. Cursor-paged in 500-row
-          // batches: a >500-listing seller must have EVERY live listing pulled AND
-          // recorded — an unrecorded pull could never be restored by a lift.
+          // exactly which so a lift restores precisely those. Drained in 500-row batches:
+          // a >500-listing seller must have EVERY live listing pulled AND recorded — an
+          // unrecorded pull could never be restored by a lift.
+          //
+          // ⚠️ NO cursor/skip here, deliberately (fixed 2026-07-25, confirmed by codex +
+          // Gemini). `cursor: { id } , skip: 1` LEAKED one listing per batch boundary:
+          // Prisma compiles the cursor to an outer `id >= cursor` predicate and `skip: 1`
+          // to `OFFSET 1`, but this loop has just set the cursor row verified=false, so it
+          // no longer satisfies `verified: true` and is filtered out BEFORE the offset
+          // applies — so OFFSET 1 discarded the first still-unprocessed row instead of the
+          // cursor row. One active listing per ~501 stayed publicly visible on a
+          // held/suspended seller. No cursor is needed at all: each updateMany removes its
+          // own batch from the WHERE, so the matching set strictly shrinks and a plain
+          // take-500 loop drains it. Don't "optimise" the cursor back in.
           const owned = await tx.seller.findMany({ where: { ownerId: profileId }, select: { id: true } })
           if (owned.length) {
             const pulledNow: string[] = []
-            let cursor: string | undefined
-            for (;;) {
+            // Bound the loop so a pathological state can't hold transaction locks forever.
+            // ⚠️ It must FAIL LOUDLY, never silently finish: codex refuted the first version
+            // of this fix because exhausting the bound would have left matching listings
+            // public while reporting success — the very defect being fixed. `drained` is
+            // true only on proof of completion (an empty or short batch).
+            let drained = false
+            for (let pass = 0; pass < 1000; pass++) {
               const live = await tx.listing.findMany({
                 where: { sellerId: { in: owned.map((s) => s.id) }, status: 'active', verified: true },
                 select: { id: true },
                 orderBy: { id: 'asc' },
                 take: 500,
-                ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
               })
-              if (!live.length) break
+              if (!live.length) { drained = true; break }
               await tx.listing.updateMany({ where: { id: { in: live.map((l) => l.id) } }, data: { verified: false } })
               pulledNow.push(...live.map((l) => l.id))
-              if (live.length < 500) break
-              cursor = live[live.length - 1].id
+              if (live.length < 500) { drained = true; break }
+            }
+            // Throwing rolls the whole transaction back, so the account is left UNCHANGED
+            // rather than sanctioned-but-still-visible with a half-recorded pull list an
+            // admin lift could not undo. Unreachable for real data (500k listings on one
+            // seller); if it ever fires, that is a bug worth seeing.
+            if (!drained) {
+              throw new Error(`applyEnforcement: listing drain did not complete for profile ${profileId}`)
             }
             if (pulledNow.length) {
               touched.push(...pulledNow)
@@ -564,11 +585,18 @@ export async function checkBanEvasion(
     // One review per account EVER (any status): an admin lift/dismiss is a human
     // "false positive" ruling that must stick — without this, the cleared family
     // member would be re-held on every subsequent login.
-    const prior = await db.enforcementAction.findFirst({
-      where: { profileId, reason: { in: [ENFORCEMENT_REASON.BAN_EVASION_REVIEW, ENFORCEMENT_REASON.BAN_EVASION_EMAIL] } },
+    //
+    // ⚠️ The two reasons are NOT interchangeable (fixed 2026-07-25, confirmed by codex
+    // + Gemini). Checking `in: [REVIEW, EMAIL]` and returning early meant a single
+    // SILENT email annotation — which by design changes nothing about the account —
+    // made that account permanently immune to the phone-match HOLD. A banned phone is
+    // the strong signal; it must never be shielded by the weak one. Only a prior
+    // REVIEW (the actual admin-ruling case) suppresses the hold.
+    const priorReview = await db.enforcementAction.findFirst({
+      where: { profileId, reason: ENFORCEMENT_REASON.BAN_EVASION_REVIEW },
       select: { id: true },
     })
-    if (prior) return
+    if (priorReview) return
 
     if (identity.phone) {
       // sourceProfileId ≠ self: the suspended account logging back in isn't "evasion".
