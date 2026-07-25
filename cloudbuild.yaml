@@ -4,8 +4,20 @@
 # Build-time env (NEXT_PUBLIC_* inlining + SSG data collection) is pulled from
 # Secret Manager into a BuildKit secret mount — never a layer, never metadata.
 steps:
+  # Pull the deploy image WHILE the docker build runs. Measured: the cloud-sdk:slim
+  # pull is ~40s of the ~62s deploy step, whereas cloud-builders/docker is already
+  # cached on the worker (0.009s). Cloud Build bills wall-clock, so overlapping it
+  # with the ~300s build makes it free and gets fixes to prod ~40s sooner.
+  # `|| true` is load-bearing: this step runs under set -e, and a transient GCR blip
+  # must never be able to stop a production deploy.
+  - id: warm-deploy-image
+    name: gcr.io/cloud-builders/docker
+    waitFor: ['-']
+    entrypoint: bash
+    args: ['-c', 'docker pull gcr.io/google.com/cloudsdktool/cloud-sdk:slim || true']
   - id: build-push
     name: gcr.io/cloud-builders/docker
+    waitFor: ['-']
     entrypoint: bash
     secretEnv: ['BUILDENV']
     args:
@@ -23,6 +35,7 @@ steps:
         docker push --all-tags asia-southeast1-docker.pkg.dev/$PROJECT_ID/eno/eno-vn
   - id: deploy
     name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    waitFor: ['build-push', 'warm-deploy-image']
     entrypoint: gcloud
     args:
       - run
@@ -41,6 +54,10 @@ substitutions:
 options:
   # No machineType pin: the project lacks E2_HIGHCPU_8 quota in the trigger
   # region (europe-west1) — default machines build this in acceptable time.
+  # Measured 2026-07-25, so nobody re-litigates it: only ~104s of a ~362s build is
+  # non-CPU-bound, so an upgrade must cost <= $0.0105/min to break even. E2_HIGHCPU_8
+  # is $0.016/min — it loses even with an infinitely fast CPU — and pinning any
+  # machineType also forfeits the 2,500 free e2-medium build-minutes (~$7.50/mo).
   logging: CLOUD_LOGGING_ONLY
   dynamicSubstitutions: true
 timeout: 1800s

@@ -3,9 +3,17 @@
 # runs therefore submit FROM THE REPO ROOT:
 #   gcloud builds submit --config apps/forum/cloudbuild.yaml --substitutions=_TAG=$(git rev-parse --short HEAD)
 steps:
+  # Warm the deploy image in parallel with the build — see the root cloudbuild.yaml
+  # for the measurements. `|| true` so a GCR blip can never block a deploy.
+  - id: warm-deploy-image
+    name: gcr.io/cloud-builders/docker
+    waitFor: ['-']
+    entrypoint: bash
+    args: ['-c', 'docker pull gcr.io/google.com/cloudsdktool/cloud-sdk:slim || true']
   - id: build-push
     name: gcr.io/cloud-builders/docker
     dir: apps/forum
+    waitFor: ['-']
     entrypoint: bash
     secretEnv: ['BUILDENV']
     args:
@@ -23,6 +31,7 @@ steps:
         docker push --all-tags asia-southeast1-docker.pkg.dev/$PROJECT_ID/eno/eno-forum
   - id: deploy
     name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    waitFor: ['build-push', 'warm-deploy-image']
     entrypoint: gcloud
     args:
       - run
