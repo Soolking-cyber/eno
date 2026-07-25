@@ -342,7 +342,7 @@ export default async function ListingPage({ params }: Props) {
   )
 
   return (
-    <div className="flex min-h-screen flex-col blob-bg pb-[calc(4rem+env(safe-area-inset-bottom))] lg:pb-0">
+    <div className="flex min-h-screen flex-col blob-bg">
       {/* JSON-LD — indexable listings only (no rich snippets for hidden/sold/pending) */}
       {indexable && (
         <>
@@ -367,8 +367,9 @@ export default async function ListingPage({ params }: Props) {
 
       <Header />
 
-      {/* The mobile action bar's clearance lives on the ROOT (pb above) so it covers the
-          footer too, not just <main> — otherwise the fixed bar hides footer links at scroll end. */}
+      {/* No bottom clearance here on purpose. This page used to reserve 4rem on the ROOT for
+          a fixed mobile action bar; that bar is gone, and <BottomNavSpacer/> already reserves
+          the tab bar's 4.5rem globally — so the old padding just left a dead band above it. */}
       <main id="main" tabIndex={-1} className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-4 pb-8 lg:pb-12">
         {/* ONE responsive tree, TWO layouts. On mobile it is a single flex column and the
             `order-*` on each block sequences the whole page — the LEFT/RIGHT column wrappers are
@@ -384,9 +385,12 @@ export default async function ListingPage({ params }: Props) {
           {/* 1 — Breadcrumb (subdued, full width). Leaf crumb hidden on mobile (it duplicates
               the H1); the BreadcrumbList JSON-LD still carries all 3 levels. */}
           <nav aria-label="Breadcrumb" className="order-1 truncate text-sm text-muted-foreground lg:col-span-12">
-            <Link href="/" className="transition-colors hover:text-accent-foreground"><Tr text="Home" /></Link>
+            {/* prefetch={false} on both crumbs: they sit above the fold on every PDP, so auto
+                prefetch fires two extra RSC requests per listing view for links most visitors
+                never take (the way back is the tab bar or the browser's back button). */}
+            <Link href="/" prefetch={false} className="transition-colors hover:text-accent-foreground"><Tr text="Home" /></Link>
             <span className="mx-1.5 text-line-strong">/</span>
-            <Link href={`/c/${rawListing.category.slug}`} className="transition-colors hover:text-accent-foreground"><Tr text={listing.category.name} /></Link>
+            <Link href={`/c/${rawListing.category.slug}`} prefetch={false} className="transition-colors hover:text-accent-foreground"><Tr text={listing.category.name} /></Link>
             <span className="mx-1.5 hidden text-line-strong md:inline">/</span>
             <span className="hidden font-medium text-foreground md:inline"><LocalizedTitle title={listing.title} titleVi={listing.titleVi} i18n={i18n[listing.title]} /></span>
           </nav>
@@ -454,7 +458,7 @@ export default async function ListingPage({ params }: Props) {
                     posted · social proof; flex-wrap spills to a second row only when it must. */}
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 text-sm text-muted-foreground">
                   {brand && (
-                    <Badge size="md" interactive render={<Link href={`/?brand=${encodeURIComponent(listing.brandSlug!)}`} />} className="w-fit gap-1.5 font-semibold text-foreground">
+                    <Badge size="md" interactive render={<Link href={`/?brand=${encodeURIComponent(listing.brandSlug!)}`} prefetch={false} />} className="w-fit gap-1.5 font-semibold text-foreground">
                       <BrandLogo name={brand.name} iconPath={brandLogoPath} size={16} />
                       {brand.name}
                     </Badge>

@@ -76,7 +76,9 @@ export function InstallHint() {
     <div
       role="dialog"
       aria-label={tr('Get the eno app', 'Tải ứng dụng eno')}
-      className="fixed inset-x-0 bottom-[calc(4rem+env(safe-area-inset-bottom))] z-50 lg:bottom-4 lg:px-4"
+      // 4.5rem tracks <BottomNavSpacer/> — the tab bar's real height. At the stale 4rem this
+      // sat half a rem too low and clipped behind the nav.
+      className="fixed inset-x-0 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-50 lg:bottom-4 lg:px-4"
     >
       <div className="mx-auto flex w-full max-w-md items-center gap-3 rounded-t-2xl bg-card p-3.5 shadow-overlay animate-in fade-in slide-in-from-bottom-4 duration-300 lg:rounded-2xl">
         <Image src="/icon-192.png" alt="" width={40} height={40} className="h-10 w-10 shrink-0 rounded-xl" />

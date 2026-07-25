@@ -13,7 +13,10 @@ export default function ListingLoading() {
   return (
     <div className="flex min-h-screen flex-col blob-bg">
       <Header />
-      <main id="main" tabIndex={-1} className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-4 pb-[calc(8.5rem+env(safe-area-inset-bottom))] lg:pb-12">
+      {/* Padding matches the live page's <main> EXACTLY (pb-8 lg:pb-12). It used to reserve
+          8.5rem for a mobile contact bar that no longer exists, so the skeleton was taller
+          than the page it stands in for and the content jumped on hydrate. */}
+      <main id="main" tabIndex={-1} className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-4 pb-8 lg:pb-12">
         <div className="flex flex-col">
         {/* Breadcrumb (text-sm → 20px line) */}
         <Skeleton className="order-1 mb-4 h-5 w-48 lg:order-none" />

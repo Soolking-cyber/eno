@@ -33,6 +33,16 @@ const TAB = 'flex flex-1 cursor-pointer transition-transform duration-[240ms] [t
 //   · the bar is on every mobile page and always in the viewport, so `true` would also fire five
 //     full RSC renders per page view at the server.
 // Back/forward navigation is instant regardless (Next restores those from the Router Cache).
+//
+// REFINEMENT (2026-07-25): a tab carries `prefetch={false}` only when the current route IS that
+// tab's href. That does not walk back the above — every other tab still gets auto prefetch, which
+// is the whole point of the bar. It drops the one prefetch that cannot pay off: warming the shell
+// of the page already on screen, once per mobile page view, from a bar that is always in viewport.
+// ⚠️ Keyed on an EXACT href match (`onHref`), NOT on `active`. Two tabs are active by PREFIX while
+// pointing somewhere else — Messages is active across /messages/* but hrefs /messages, and Account
+// is active across /dashboard/* but hrefs /dashboard/account. For those, "active" taps are real
+// navigations to a different route, so using `active` here would have killed a prefetch that DOES
+// pay off. (codex caught exactly that; Gemini's pass confirmed the diff and missed it.)
 
 // The icon + micro-label stack, centred in the bar. The label (text-3xs — the canon's
 // micro-label size, §1) makes every tab unmistakable ("Post", "Saved") without turning the
@@ -82,7 +92,7 @@ function TabBody({ active, icon, label, stack = STACK }: { active: boolean; icon
  *  to a page that would gate inconsistently — so every gated action on mobile
  *  meets the SAME card. While auth is still resolving (or signed in) it's a normal
  *  Link, so a logged-in user is never wrongly shown the modal. */
-function GatedTab({ href, active, icon, label, gate, onClick, prefetch, stack }: { href: string; active: boolean; icon: React.ReactNode; label: string; gate: boolean; onClick: (e: React.MouseEvent<HTMLAnchorElement>) => void; prefetch?: false; stack?: string }) {
+function GatedTab({ href, active, onHref, icon, label, gate, onClick, prefetch, stack }: { href: string; active: boolean; onHref?: boolean; icon: React.ReactNode; label: string; gate: boolean; onClick: (e: React.MouseEvent<HTMLAnchorElement>) => void; prefetch?: false; stack?: string }) {
   const { openSignIn } = useAuth()
   if (gate) {
     return (
@@ -96,14 +106,16 @@ function GatedTab({ href, active, icon, label, gate, onClick, prefetch, stack }:
   // The <Link> performs the ACTUAL navigation (see the note on the bar below); onClick only
   // handles the taps that are NOT a navigation, and preventDefault()s those.
   return (
-    <Link href={href} prefetch={prefetch} aria-label={label} aria-current={active ? 'page' : undefined} className={TAB} onClick={onClick}>
+    <Link href={href} prefetch={onHref ? false : prefetch} aria-label={label} aria-current={active ? 'page' : undefined} className={TAB} onClick={onClick}>
       <TabBody active={active} icon={icon} label={label} stack={stack} />
     </Link>
   )
 }
 
-/** Mobile-only bottom tab bar (Airbnb pattern). Hidden on listing detail
- *  pages, which show their own sticky contact CTA instead. */
+/** Mobile-only bottom tab bar (Airbnb pattern). Rendered UNCONDITIONALLY from
+ *  app/providers.tsx — including on listing detail pages. (It used to be hidden
+ *  there, behind a sticky contact CTA; that bar was deleted and the tab bar came
+ *  back, so any layout that still reserves its own clearance on a PDP is stale.) */
 export function MobileNav() {
   const pathname = usePathname()
   const { count } = useFavorites()
@@ -222,13 +234,13 @@ export function MobileNav() {
           The safe-area padding sits BELOW the row (filled) so the home-indicator inset never
           compresses the icons out of the bar. */}
       <div className="flex min-h-[4.5rem] items-stretch">
-      <Link href="/" aria-label={tr('Explore', 'Khám phá')} aria-current={at('/') ? 'page' : undefined} className={TAB} onClick={(e) => onTabClick(e, at('/'))}>
+      <Link href="/" prefetch={at('/') ? false : undefined} aria-label={tr('Explore', 'Khám phá')} aria-current={at('/') ? 'page' : undefined} className={TAB} onClick={(e) => onTabClick(e, at('/'))}>
         <TabBody active={at('/')} label={tr('Explore', 'Khám phá')} icon={<Compass className="h-7 w-7" strokeWidth={STROKE} />} />
       </Link>
 
       {/* Saved is public — favorites are stored device-local (localStorage), so a
           logged-out visitor can save and review listings without an account. */}
-      <Link href="/saved" aria-label={tr('Saved', 'Đã lưu')} aria-current={at('/saved') ? 'page' : undefined} className={TAB} onClick={(e) => onTabClick(e, at('/saved'))}>
+      <Link href="/saved" prefetch={at('/saved') ? false : undefined} aria-label={tr('Saved', 'Đã lưu')} aria-current={at('/saved') ? 'page' : undefined} className={TAB} onClick={(e) => onTabClick(e, at('/saved'))}>
         <TabBody
           active={at('/saved')}
           label={tr('Saved', 'Đã lưu')}
@@ -248,6 +260,7 @@ export function MobileNav() {
       <GatedTab
         href="/post"
         active={at('/post')}
+        onHref={at('/post')}
         gate={gate}
         onClick={(e) => onTabClick(e, false)}
         label={tr('Post', 'Đăng tin')}
@@ -265,6 +278,10 @@ export function MobileNav() {
       <GatedTab
         href="/messages"
         active={atPrefix('/messages')}
+        // EXACT, not the prefix `active`: inside a thread (/messages/<id>) this tab is still
+        // "active", but its href is a DIFFERENT route and the tap is a real navigation out to
+        // the inbox — so that prefetch is the opposite of dead and must stay on.
+        onHref={at('/messages')}
         gate={gate}
         // Scroll-to-top only on the inbox itself (pathname === '/messages'), never inside a
         // thread — the tab is "active" for every /messages/* route, but from a thread the tap
@@ -295,6 +312,9 @@ export function MobileNav() {
       <GatedTab
         href="/dashboard/account"
         active={accountActive}
+        // Same trap as Messages: accountActive is startsWith('/dashboard'), so on
+        // /dashboard/listings this tab is active while its href is another route.
+        onHref={at('/dashboard/account')}
         gate={gate}
         // Same handler as every other tab now: re-tapping Account while already inside the
         // dashboard scrolls to top, exactly like the other four.
