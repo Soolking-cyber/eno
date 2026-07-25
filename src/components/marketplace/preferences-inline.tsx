@@ -56,8 +56,22 @@ export function PreferencesInline({ className, compact = false }: { className?: 
         title={isDark ? tr('Dark', 'Tối') : tr('Light', 'Sáng')}
         className="relative h-9 w-[3.75rem] bg-muted data-checked:bg-muted tap-44"
         thumbClassName={cn(
-          'h-7 w-7 top-1 left-1 data-checked:left-7 bg-card shadow-sm duration-200 ease-out',
-          isDark ? 'text-accent-foreground' : 'text-warning',
+          // NO bg override: ui/switch's own `bg-white` thumb is what makes this legible. The
+          // `bg-card` that used to be here was the bug — against the bg-muted track it measured
+          // 1.14:1 in dark (#1b1b1b thumb on #262626 track) and 1.04:1 in light, so the knob
+          // dissolved into the track and only its glyph marked the position.
+          //
+          // White fixes dark outright (15.1:1 on #262626). It does NOT fix light: the track is
+          // #f5f5f5, so a white fill is 1.09:1 there no matter what, and a shadow is not a
+          // contrast boundary. The ring is therefore load-bearing in light mode and has to be
+          // dark enough to clear the 3:1 floor for a non-text UI part on its own — ink-3
+          // (#737373) is 4.35:1 against the track and 4.74:1 against the knob. In dark it is
+          // #b8b8b8 and merely decorative, because the fill already carries the boundary.
+          'h-7 w-7 top-1 left-1 data-checked:left-7 shadow-sm ring-1 ring-ink-3 duration-200 ease-out',
+          // The glyph sits on WHITE now, so its colour must work against white, not against the
+          // old dark thumb: accent-foreground was 2.22:1 there, under the 3:1 floor for a
+          // non-text UI element. --primary is #0a66c2 in BOTH themes → 5.69:1.
+          isDark ? 'text-primary' : 'text-warning',
         )}
       >
         {isDark ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
