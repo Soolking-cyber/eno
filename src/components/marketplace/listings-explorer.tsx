@@ -58,8 +58,6 @@ import { AISearchButton } from './ai-concierge'
 import { useSuggestKeyboardNav, activeSuggestOptionId, visualSearchFromPaste, RECENT_LOCATIONS_KEY } from '@/hooks/use-search-box'
 import { RECENT_SEARCHES_KEY } from '@/lib/reco-signals'
 import { ListingCardSkeleton } from './listing-card-skeleton'
-import { ExplorerFiltersDrawer } from './explorer-filters'
-import { CompactListingRow } from './compact-listing-row'
 
 // Custom filters are keyed by facet KEY in state, but range facets (year/mileage/
 // engine) travel in the URL + API keyed by their numeric COLUMN as `range_<col>`
@@ -119,6 +117,30 @@ function DeferredCategoryRails(props: React.ComponentProps<typeof CategoryRails>
   )
 }
 const FacetBar = dynamic(() => import('./facet-bar').then((m) => m.FacetBar), { ssr: false })
+
+// Perf: the LIST view's row and the MOBILE filters drawer were static imports, so both shipped
+// in the home route's first load even though the default view is the GRID and the drawer is a
+// mobile overlay nobody has opened yet.
+//
+// The row needs a placeholder with the real row's geometry, because in list view many of these
+// render at once — a null while the chunk arrives would collapse the whole column and then push
+// it back down. Mirrors CompactListingRow's own box: p-1.5 pr-1 around an h-14 thumbnail.
+const CompactListingRow = dynamic(() => import('./compact-listing-row').then((m) => m.CompactListingRow), {
+  ssr: false,
+  loading: () => (
+    <div className="flex items-center gap-3 rounded-xl p-1.5 pr-1">
+      <Skeleton className="h-14 w-16 shrink-0 rounded-lg" />
+      <div className="min-w-0 flex-1 space-y-1.5">
+        <Skeleton className="h-[15px] w-3/4" />
+        <Skeleton className="h-3 w-1/3" />
+      </div>
+    </div>
+  ),
+})
+
+const ExplorerFiltersDrawer = dynamic(() => import('./explorer-filters').then((m) => m.ExplorerFiltersDrawer), {
+  ssr: false,
+})
 
 const ListingsMap = dynamic(() => import('./listings-map').then((m) => m.ListingsMap), {
   ssr: false,
@@ -248,6 +270,30 @@ export function ListingsExplorer({
   const [focusListing, setFocusListing] = useState<SerializedListingCard | null>(null)
   const router = useRouter()
   const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false)
+  // Deferring the drawer's IMPORT is not enough on its own: it was rendered unconditionally, so
+  // next/dynamic would fetch the chunk the moment the page hydrates and the bytes would still
+  // arrive on every home load — the import alone would only move them out of the first bundle.
+  //
+  // Rendered on `isMobileFilterOpen || filtersEverOpened`: the first term mounts it in the SAME
+  // render as the open, so nothing waits a tick; the latch then keeps it mounted afterwards, so
+  // closing still plays the drawer's exit animation instead of unmounting mid-flight.
+  //
+  // ⚠️ Today this is moot, and the reason is worth knowing: the drawer is UNREACHABLE. The only
+  // caller of setIsMobileFilterOpen(true) is the 'open-mobile-filters' listener below, and
+  // NOTHING in the repo dispatches that event — Header's events were renamed to the `eno:*`
+  // convention and this one was orphaned (grepped src/, apps/, capacitor/). So its bytes were
+  // shipping on every home load for a panel no user can open. Deferring it is the safe half of
+  // the fix; whether to re-wire the trigger or delete the drawer is a product call, not this
+  // task's. Deferring this and the list row together measured -118.4 KB of downloaded JS on the
+  // home route; that total is not separable per component, so don't quote a figure for either.
+  //
+  // If the trigger is ever re-wired, consider a `loading:` for this dynamic — the first open
+  // waits on the chunk with no visual feedback (both reviewers raised it; untestable while the
+  // drawer is unreachable, so no speculative UI was added).
+  const [filtersEverOpened, setFiltersEverOpened] = useState(false)
+  useEffect(() => {
+    if (isMobileFilterOpen) setFiltersEverOpened(true)
+  }, [isMobileFilterOpen])
   const [showExplorer, setShowExplorer] = useState(false)
   // The sticky sort strip tracks the auto-hiding header (same hook): header shown →
   // pinned just below it; header rolled away → pinned at the viewport top.
@@ -2286,7 +2332,9 @@ export function ListingsExplorer({
         </div>
       </div>
 
-      {/* MOBILE BOTTOM SLIDE-UP DRAWER OVERLAY */}
+      {/* MOBILE BOTTOM SLIDE-UP DRAWER OVERLAY — mounted on first open (see filtersEverOpened),
+          then kept mounted so its exit animation survives every subsequent close. */}
+      {(isMobileFilterOpen || filtersEverOpened) && (
       <ExplorerFiltersDrawer
         open={isMobileFilterOpen}
         onOpenChange={setIsMobileFilterOpen}
@@ -2305,6 +2353,7 @@ export function ListingsExplorer({
         customFilters={customFilters}
         setCustomFilters={setCustomFilters}
       />
+      )}
 
     </section>
   )
