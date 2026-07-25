@@ -51,7 +51,7 @@ export function Footer() {
     },
     {
       title: tr('Community', 'Cộng đồng'),
-      // ⚠️ These three leave the origin. They MUST carry forumPath so the click is
+      // ⚠️ Any link here that LEAVES the origin MUST carry forumPath so the click is
       // intercepted by goToForum() below — a plain cross-origin anchor drops the
       // native app on eno.forum as a GUEST (sessions are per-origin cookies; the
       // forum mints its own only via the /auth/bridge handoff). That was a live bug
@@ -59,7 +59,11 @@ export function Footer() {
       // the footer still handed users a raw URL.
       links: [
         { label: tr('Community forum', 'Diễn đàn cộng đồng'), href: `${FORUM_URL}/`, forumPath: '/' },
-        { label: tr('Trip planner', 'Lập kế hoạch chuyến đi'), href: `${FORUM_URL}/itinerary`, forumPath: '/itinerary' },
+        // Trip planner is SAME-ORIGIN now (owner, 2026-07-25): the itinerary service moved to
+        // eno.vn and /itinerary is a real page here, not a redirect off to the forum. So it
+        // must NOT carry forumPath — routing a same-origin link through the SSO handoff would
+        // bounce the visitor to eno.forum and back to fetch a session they already have.
+        { label: tr('Trip planner', 'Lập kế hoạch chuyến đi'), href: '/itinerary' },
         // e-Visa lives on eno.vn now (ownership row, 2026-07-21): the desk's storefront is
         // where a visitor applies (in-chat flow) — the forum wizard is legacy awaiting
         // retirement. Plain SAME-ORIGIN link: no forumPath, no goToForum interception.

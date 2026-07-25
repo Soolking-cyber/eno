@@ -65,6 +65,12 @@ export async function GET() {
       xml += `  <url><loc>${hostUrl}/${p}</loc>${lm(STATIC_LASTMOD)}<changefreq>monthly</changefreq><priority>0.4</priority></url>\n`
     }
 
+    // The Trip service's landing page. Its own entry rather than joining either group above:
+    // it is not a static info page like /terms, and it does not funnel to a category like the
+    // keyword pages — it is a service surface the owner wants promoted, so it sits between the
+    // two on priority and refreshes weekly as the service changes.
+    xml += `  <url><loc>${hostUrl}/itinerary</loc>${lm(STATIC_LASTMOD)}<changefreq>weekly</changefreq><priority>0.7</priority></url>\n`
+
     // SEO keyword landing pages (funnel to categories → track the site's freshest content)
     for (const p of [
       'housing-vietnam-expats',
