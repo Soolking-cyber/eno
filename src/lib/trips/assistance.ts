@@ -40,7 +40,9 @@ export type AssistanceResult<T = undefined> =
 export type AssistanceError =
   | 'not_signed_in'
   | 'forbidden'
-  | 'itinerary_not_found'
+  // 'itinerary_not_found' REMOVED, not merely unused: while it existed, the create path could
+  // distinguish "no such itinerary" from "not yours" and became an enumeration oracle. Deleting
+  // the member makes reintroducing that split a type error rather than a judgement call.
   | 'request_not_found'
   | 'invalid_amount'
   | 'invalid_status_transition'
@@ -83,8 +85,13 @@ export async function requestAssistance(input: { itineraryId: string }): Promise
     where: { id: input.itineraryId },
     select: { id: true, profileId: true },
   })
-  if (!itinerary) return { ok: false, error: 'itinerary_not_found' }
-  if (itinerary.profileId !== profile.id) return { ok: false, error: 'forbidden' }
+  // ⚠️ ONE answer for both "no such itinerary" and "not yours" — codex caught that splitting them
+  // made this endpoint an enumeration oracle. Any signed-in user could POST itinerary ids and read
+  // 404-vs-403 to learn which ones exist, i.e. confirm another traveller's trip is real. The case
+  // route already collapses its two outcomes for exactly this reason; the CREATE path was missed.
+  // Both are `forbidden`, matching that precedent: a stranger is told what they may do, never what
+  // exists. A traveller who mistypes their own id sees the same thing, which is the price.
+  if (!itinerary || itinerary.profileId !== profile.id) return { ok: false, error: 'forbidden' }
 
   const open = openStatuses()
   let outcome: { id: string; opened: boolean }

@@ -20,7 +20,6 @@ const STATUS: Record<AssistanceError, number> = {
   // from fake ones by the status alone. Both external reviewers found it independently, against
   // an earlier version of this very comment claiming the endpoint disclosed nothing.
   forbidden: 403,
-  itinerary_not_found: 404,
   // Still mapped, and still reachable — but only on paths where the caller has ALREADY been
   // authorised (the admin actions), so it cannot be used to probe for ids.
   request_not_found: 404,

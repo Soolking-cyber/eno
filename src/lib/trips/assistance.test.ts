@@ -179,8 +179,11 @@ describe('requestAssistance', () => {
     expect(h.state.creates).toHaveLength(0)
   })
 
-  it('refuses an unknown itinerary', async () => {
-    expect(await requestAssistance({ itineraryId: 'nope' })).toEqual({ ok: false, error: 'itinerary_not_found' })
+  it('gives an unknown itinerary the SAME answer as someone else\'s, so ids cannot be enumerated', async () => {
+    // Both must be 'forbidden'. If these two ever differ again, a signed-in user can probe
+    // itinerary ids and read the difference to confirm another traveller's trip exists.
+    const unknown = await requestAssistance({ itineraryId: 'nope' })
+    expect(unknown).toEqual({ ok: false, error: 'forbidden' })
   })
 
   it('creates a case with NO money on it', async () => {
