@@ -40,8 +40,27 @@ export const TRIP_TRANSITIONS: Record<string, string[]> = {
   cancelled: [],
 }
 
-/** Statuses that end the case, and so stamp `resolvedAt`. */
-const TERMINAL = new Set(['completed', 'declined', 'cancelled'])
+/**
+ * Statuses that end the case, and so stamp `resolvedAt`.
+ *
+ * DERIVED from the map rather than listed again: a terminal status is exactly one with no legal
+ * exits. Writing the three names out a second time is how the two drift — add a terminal status
+ * to TRIP_TRANSITIONS with `[]` and forget this line, and the case would never stamp resolvedAt.
+ */
+const TERMINAL = new Set(
+  Object.entries(TRIP_TRANSITIONS).filter(([, next]) => next.length === 0).map(([status]) => status),
+)
+
+/** Is this a status the case cannot leave? Unknown statuses are NOT terminal — they are unknown,
+ *  and canTransition already refuses every move out of them (the machine fails closed). */
+export function isTerminalStatus(status: string): boolean {
+  return TERMINAL.has(status)
+}
+
+/** The statuses a case is still live in — the operator queue and the "already open?" check. */
+export function openStatuses(): string[] {
+  return Object.keys(TRIP_TRANSITIONS).filter((status) => !TERMINAL.has(status))
+}
 
 export type TripStatus = keyof typeof TRIP_TRANSITIONS
 export type TripActorType = 'traveller' | 'admin' | 'system'
