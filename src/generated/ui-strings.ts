@@ -1859,6 +1859,7 @@ export const UI_STRINGS: string[] = [
   "Your styled Word itinerary is ready.",
   "Your update went straight to the review team. You’ll hear back via your notifications.",
   "Your verification no longer matches your current details (or has expired). Re-submit the two documents to verify again.",
+  "You’re offline. We’ll reconnect automatically.",
   "Zoom",
   "a counterfeit item",
   "a duplicate listing",
