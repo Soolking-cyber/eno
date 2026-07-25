@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { Mail, Phone, Loader2, ExternalLink } from 'lucide-react'
-import { createSupabaseBrowser } from '@/lib/supabase/browser'
 import { useLanguage } from '@/context/language-context'
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp'
 import { Button } from '@/components/ui/button'
@@ -72,7 +71,27 @@ export function SignInForm({ className }: { className?: string }) {
     setEmailCode(isNativeApp() || isNativeTabs())
   }, [])
 
-  const supabase = createSupabaseBrowser()
+  // supabase-js (~248 KB) is loaded on demand, per handler, instead of at module
+  // scope: /signin must render its form without shipping the auth SDK first. The
+  // client is a SINGLETON (src/lib/supabase/browser.ts), so calling this in each
+  // handler costs one dynamic import and returns the same instance every time —
+  // which is what keeps Realtime on a single socket and auth in sync.
+  // Fails SOFT and returns null: a dynamic import can reject where a static one
+  // never could — offline, or a stale chunk 404ing after a deploy. Left to throw,
+  // it would escape the handler as an unhandled rejection, so the button would
+  // keep spinning (setLoading(false) is never reached) and the user would be told
+  // nothing. Every caller must therefore bail on null. (codex + Gemini both
+  // flagged exactly this on the first cut of this change.)
+  const getSupabase = async () => {
+    try {
+      return (await import('@/lib/supabase/browser')).createSupabaseBrowser()
+    } catch {
+      setError(t('Connection problem — check your network and try again.',
+                 'Sự cố kết nối — kiểm tra mạng và thử lại.'))
+      setLoading(false)
+      return null
+    }
+  }
   // Cloudflare Turnstile — mints a fresh single-use token for each OTP send so Supabase
   // Auth CAPTCHA can gate SMS/email OTP against spam + SMS-pumping toll fraud. Only the
   // send steps (signInWithOtp) are gated; verifyOtp and OAuth are not (per Supabase).
@@ -134,7 +153,9 @@ export function SignInForm({ className }: { className?: string }) {
       let next = pathname + search
       if (pathname === '/signin') next = new URLSearchParams(search).get('next') || '/'
       if (pathname.startsWith('/auth') || pathname.startsWith('/onboard')) next = '/'
-      try { await nativeGoogleSignIn(supabase, next) }
+      const sb = await getSupabase()
+      if (!sb) return
+      try { await nativeGoogleSignIn(sb, next) }
       catch (e) { setError(e instanceof Error ? e.message : 'Google sign-in failed') }
       return
     }
@@ -142,7 +163,9 @@ export function SignInForm({ className }: { className?: string }) {
     // out to the real browser instead of letting Google show its block page.
     if (oauthBlocked) { openGoogleInBrowser(); return }
     setError('')
-    const { error } = await supabase.auth.signInWithOAuth({ provider, options: { redirectTo } })
+    const sb = await getSupabase()
+    if (!sb) return
+    const { error } = await sb.auth.signInWithOAuth({ provider, options: { redirectTo } })
     if (error) setError(error.message)
   }
 
@@ -214,7 +237,9 @@ export function SignInForm({ className }: { className?: string }) {
     const d = phone.replace(/\D/g, '')
     const intl = d.startsWith('0') ? `+84${d.slice(1)}` : d.startsWith('84') ? `+${d}` : `+${d}`
     const captchaToken = await getCaptchaToken()
-    const { error } = await supabase.auth.signInWithOtp({ phone: intl, options: { captchaToken } })
+    const sb = await getSupabase()
+    if (!sb) return
+    const { error } = await sb.auth.signInWithOtp({ phone: intl, options: { captchaToken } })
     setLoading(false)
     if (error) { setError(friendlyAuthError(error.message)); return }
     setPhone(intl); setCode(''); lastSubmitted.current = ''
@@ -226,7 +251,9 @@ export function SignInForm({ className }: { className?: string }) {
 
   const verifyPhone = async (c = code) => {
     setLoading(true); setError('')
-    const { error } = await supabase.auth.verifyOtp({ phone, token: c.trim(), type: 'sms' })
+    const sb = await getSupabase()
+    if (!sb) return
+    const { error } = await sb.auth.verifyOtp({ phone, token: c.trim(), type: 'sms' })
     setLoading(false)
     if (error) { setError(error.message); lastSubmitted.current = '' }
     // success → auth-context onAuthStateChange closes the modal / the page redirects
@@ -244,7 +271,9 @@ export function SignInForm({ className }: { className?: string }) {
   // issued to a different string; verifying the typed one fails every time.
   const verifyEmailCode = async (c = code) => {
     setLoading(true); setError('')
-    const { error } = await supabase.auth.verifyOtp({
+    const sb = await getSupabase()
+    if (!sb) return
+    const { error } = await sb.auth.verifyOtp({
       email: canonicalEmail(email.trim().toLowerCase()),
       token: c.trim(),
       type: 'email',

@@ -3,7 +3,6 @@
 import { useState } from 'react'
 import { Loader2, TriangleAlert } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
-import { createSupabaseBrowser } from '@/lib/supabase/browser'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -59,7 +58,12 @@ export function DeleteAccount() {
         return
       }
       // Server already removed the auth user; this clears local session state.
-      try { await createSupabaseBrowser().auth.signOut() } catch {}
+      // Loaded on demand — see change-email-form: supabase-js must not ship in
+      // the settings route's first load just to sign out after a deletion.
+      try {
+        const { createSupabaseBrowser } = await import('@/lib/supabase/browser')
+        await createSupabaseBrowser().auth.signOut()
+      } catch {}
       window.location.href = '/'
     } catch {
       setError(tr('Something went wrong — try again.', 'Có lỗi xảy ra — thử lại nhé.'))

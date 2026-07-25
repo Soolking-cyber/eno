@@ -7,7 +7,6 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Field, FieldControl, FieldDescription, FieldError, FieldLabel } from '@/components/ui/field'
-import { createSupabaseBrowser } from '@/lib/supabase/browser'
 
 // Change-email under account Settings. supabase.auth.updateUser({ email }) sends a
 // confirmation to the new address (the branded "Change Email" template); the email
@@ -33,6 +32,9 @@ export function ChangeEmailForm({ currentEmail }: { currentEmail: string | null 
     if (next === (currentEmail || '').toLowerCase()) { setEmailErr(tr('That is already your email.', 'Đây đã là email của bạn.')); return }
     setBusy(true)
     try {
+      // Loaded on demand: supabase-js is ~248 KB and this form is a rarely-used
+      // corner of Settings, so it must not sit in the route's first-load bundle.
+      const { createSupabaseBrowser } = await import('@/lib/supabase/browser')
       const supabase = createSupabaseBrowser()
       const { error } = await supabase.auth.updateUser(
         { email: next },

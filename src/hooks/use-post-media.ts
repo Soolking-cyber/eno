@@ -11,7 +11,6 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
-import { createSupabaseBrowser } from '@/lib/supabase/browser'
 import { compressVideo, videoCompressionSupported } from '@/lib/video-compress'
 import { compressImageFile } from '@/lib/normalize-image'
 import { centerCropSquare } from '@/lib/square-crop'
@@ -249,6 +248,12 @@ export function usePostMedia({
   const resolveVideoUrl = async (): Promise<string | null> => {
     let videoUrl: string | null = null
     if (video?.file) {
+      // Loaded on demand: only a seller who actually attached a CLIP needs
+      // supabase-js, so it must not sit in /post's first-load bundle for the
+      // photo-only majority. Fetched BEFORE the signing call on purpose — the
+      // signed token is short-lived, and downloading ~242 kB after minting it
+      // would burn part of that window on a slow connection (codex).
+      const { createSupabaseBrowser } = await import('@/lib/supabase/browser')
       const sig = await fetch('/api/upload/video/sign', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

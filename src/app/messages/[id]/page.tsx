@@ -10,7 +10,6 @@ import { contactLinksFor, extractPhoneNumber } from '@/lib/phone'
 import { useLanguage } from '@/context/language-context'
 import { useChat } from '@/context/chat-context'
 import { SignInPrompt } from '@/components/marketplace/account-actions'
-import { createSupabaseBrowser } from '@/lib/supabase/browser'
 import { ChevronLeft, Phone, Loader2, Tag, RotateCcw, Sparkles, UserRound, AlertTriangle, Languages, ChevronDown, Check } from 'lucide-react'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { ChatSendButton, MessageBubble } from '@/components/marketplace/chat-parts'
@@ -287,24 +286,38 @@ export default function ThreadPage() {
     // up to the 45s poll (glaring on the desktop two-pane next to the open thread).
     load().then(() => { refreshUnread(); refreshConvos() })
 
-    const supabase = createSupabaseBrowser()
-    let channel: ReturnType<typeof supabase.channel> | null = null
+    // supabase-js (~248 KB) is loaded on demand inside join() rather than imported
+    // statically, so opening a thread doesn't pay for realtime before it connects.
+    // `typeof import(...)` here is a TYPE-ONLY reference — erased at build, so it
+    // adds nothing to the bundle while keeping the client and channel types exact.
+    type SupabaseBrowser = ReturnType<typeof import('@/lib/supabase/browser').createSupabaseBrowser>
+    let supabase: SupabaseBrowser | null = null
+    let channel: ReturnType<SupabaseBrowser['channel']> | null = null
     let retry: ReturnType<typeof setTimeout> | null = null
     let cancelled = false
     let attempts = 0
 
     // Tear down WITHOUT re-entrancy: null the ref first so the 'CLOSED' status
-    // callback can't recurse back into teardown.
-    const drop = () => { if (channel) { const c = channel; channel = null; supabase.removeChannel(c) } }
+    // callback can't recurse back into teardown. Guards on `supabase` too: the
+    // module may not have loaded yet when cleanup runs on a fast unmount.
+    const drop = () => { if (channel && supabase) { const c = channel; channel = null; supabase.removeChannel(c) } }
 
     const join = async () => {
       if (cancelled) return
       drop()
-      const { data } = await supabase.auth.getSession()
+      if (!supabase) {
+        const { createSupabaseBrowser } = await import('@/lib/supabase/browser')
+        // Re-check: the thread can unmount while the chunk is in flight.
+        if (cancelled) return
+        supabase = createSupabaseBrowser()
+      }
+      // Local alias so the null-narrowing survives the awaits below.
+      const client = supabase
+      const { data } = await client.auth.getSession()
       if (cancelled || !data.session) return
-      await supabase.realtime.setAuth(data.session.access_token)
+      await client.realtime.setAuth(data.session.access_token)
       if (cancelled) return
-      channel = supabase
+      channel = client
         .channel(`convo:${id}`, { config: { private: true } })
         .on('broadcast', { event: 'new_message' }, ({ payload }) => {
           const p = (payload ?? {}) as { id?: string; senderProfileId?: string; body?: string; createdAt?: string }
