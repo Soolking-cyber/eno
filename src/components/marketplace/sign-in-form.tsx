@@ -89,6 +89,12 @@ export function SignInForm({ className }: { className?: string }) {
       setError(t('Connection problem — check your network and try again.',
                  'Sự cố kết nối — kiểm tra mạng và thử lại.'))
       setLoading(false)
+      // Unlock the OTP auto-submit latch. The verify handlers bail on `!sb` BEFORE their own
+      // `lastSubmitted.current = ''` reset, so without this a failed chunk load leaves the
+      // typed code latched and onCodeComplete swallows the identical re-entry — the user
+      // retypes the same digits and nothing happens. Resetting here means every future
+      // caller inherits the unlock. (Integration review, 2026-07-25.)
+      lastSubmitted.current = ''
       return null
     }
   }
@@ -144,29 +150,44 @@ export function SignInForm({ className }: { className?: string }) {
   }
 
   const oauth = async (provider: 'google') => {
+    // In-flight guard + synchronous `loading`, the same way sendPhone/sendEmail do it. The
+    // client is now a dynamic import, so there is a real chunk-fetch gap between the tap and
+    // signInWithOAuth — long enough to tap twice. Two concurrent calls both reach
+    // signInWithOAuth, which writes the PKCE verifier under ONE shared storage key, so the
+    // second overwrites the first; on iOS-Capacitor the second Browser.open is then swallowed
+    // (SFSafariViewController is already presented) and the user is left on an authorize page
+    // whose verifier is gone. Recoverable by re-tapping, but it should not happen.
+    // (Integration review, 2026-07-25.)
+    if (loading) return
     // Native app (Capacitor): Google rejects OAuth in the embedded WebView, so open it in a real
     // in-app browser tab and finish via the deep-link handler in native-bootstrap. `googleOauthBlocked`
     // does NOT catch the Capacitor WebView (it's not a known in-app browser UA), so gate on isNativeApp.
     if (isNativeApp()) {
       setError('')
+      setLoading(true)
       const { pathname, search } = window.location
       let next = pathname + search
       if (pathname === '/signin') next = new URLSearchParams(search).get('next') || '/'
       if (pathname.startsWith('/auth') || pathname.startsWith('/onboard')) next = '/'
       const sb = await getSupabase()
-      if (!sb) return
+      if (!sb) return // getSupabase already cleared loading and set the error
       try { await nativeGoogleSignIn(sb, next) }
       catch (e) { setError(e instanceof Error ? e.message : 'Google sign-in failed') }
+      finally { setLoading(false) }
       return
     }
     // In an in-app browser / iOS PWA, OAuth is rejected (disallowed_useragent) — break
-    // out to the real browser instead of letting Google show its block page.
+    // out to the real browser instead of letting Google show its block page. Stays BEFORE any
+    // await on purpose: openInSystemBrowser needs the live user gesture.
     if (oauthBlocked) { openGoogleInBrowser(); return }
     setError('')
+    setLoading(true)
     const sb = await getSupabase()
     if (!sb) return
     const { error } = await sb.auth.signInWithOAuth({ provider, options: { redirectTo } })
-    if (error) setError(error.message)
+    // On success supabase-js calls location.assign and this document is going away — leave
+    // `loading` set so the button cannot be tapped again during the navigation.
+    if (error) { setError(error.message); setLoading(false) }
   }
 
   const captchaCopy = () =>
@@ -362,7 +383,7 @@ export function SignInForm({ className }: { className?: string }) {
           In the native app's embedded tabs it's hidden outright (isNativeTabs). */}
       {!hideGoogle && (
         <>
-          <Button variant="ghost" size="none" onClick={() => oauth('google')} className="w-full py-2.5 font-bold text-foreground hover:bg-muted hover:text-foreground cursor-pointer">
+          <Button variant="ghost" size="none" disabled={loading} onClick={() => oauth('google')} className="w-full py-2.5 font-bold text-foreground hover:bg-muted hover:text-foreground cursor-pointer">
             <GoogleIcon /> {oauthBlocked ? t('Open Google in your browser', 'Mở Google trong trình duyệt') : t('Continue with Google', 'Tiếp tục với Google')}
             {oauthBlocked && <ExternalLink className="size-3.5 text-ink-4" />}
           </Button>

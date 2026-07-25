@@ -352,7 +352,17 @@ export default function ThreadPage() {
           }
         })
     }
-    join()
+    // .catch is load-bearing since the supabase client became a dynamic import: the capped
+    // retry ladder above lives inside subscribe()'s status callback, which never fires if the
+    // import itself rejects (offline, or a chunk 404 mid-deploy). Without this the thread
+    // silently falls back to the 15s poll for its whole lifetime AND raises an unhandled
+    // ChunkLoadError. (Integration review, 2026-07-25.)
+    join().catch(() => {
+      if (!cancelled && !retry && attempts < 5) {
+        attempts++
+        retry = setTimeout(() => { retry = null; void join() }, 3000)
+      }
+    })
 
     // Backstop poll, gated on visibility (audit P2 — the chat-context idiom): a
     // backgrounded tab used to keep polling every 15s indefinitely. Realtime is

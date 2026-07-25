@@ -119,8 +119,13 @@ function DeferredCategoryRails(props: React.ComponentProps<typeof CategoryRails>
 const FacetBar = dynamic(() => import('./facet-bar').then((m) => m.FacetBar), { ssr: false })
 
 // Perf: the LIST view's row and the MOBILE filters drawer were static imports, so both shipped
-// in the home route's first load even though the default view is the GRID and the drawer is a
-// mobile overlay nobody has opened yet.
+// in the home route's first load even though neither is on the landing path — the landing mode
+// renders its own ListingCard grid and the drawer is a mobile overlay nobody has opened yet.
+// ⚠️ NOT because "the default view is the grid" — it is not. viewMode defaults to 'compact'
+// (see the useState below), so this row IS the default results view once the explorer opens;
+// almost all of the saved bytes are the drawer. Nothing here was ever server-rendered
+// (showExplorer starts false), so ssr:false costs no HTML, but the row's chunk does land on the
+// primary browse path — keep the skeleton geometry-matched. (Corrected 2026-07-25.)
 //
 // The row needs a placeholder with the real row's geometry, because in list view many of these
 // render at once — a null while the chunk arrives would collapse the whole column and then push

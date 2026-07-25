@@ -109,11 +109,34 @@ function OfflineBanner() {
   // be in the DOM first for the insertion to be observed. `pointer-events-none` is what makes
   // an always-present full-width fixed overlay safe: while empty it must not swallow taps meant
   // for the header underneath it, so the banner itself re-enables them.
+  // ⚠️ ANCHORED TO THE BOTTOM, above the tab bar — never to the top (integration review,
+  // 2026-07-25). At top-0 this overlay is pointer-events-auto at root z-50 while #app-header
+  // is root z-40, and the alert occupied y≈8→65 — so it covered the logo, the search input,
+  // the AI button and the account icon: elementFromPoint returned the banner for all four,
+  // and offline taps on the primary nav silently did nothing, the exact symptom this
+  // component exists to explain. (The at-top e2e passed only because the prelaunch banner
+  // happens to push the header down to y≈57.)
+  //
+  // Offsetting below the header instead was the first fix and it is NOT robust: the header's
+  // y depends on whether #prelaunch-banner is present, which differs between native (hidden),
+  // mobile web at scroll-top, and mobile web scrolled — three geometries, and a wrong guess
+  // silently blocks nav again. The bottom cannot collide with the header in ANY of them, and
+  // a connectivity strip above the tab bar is the platform-conventional place for this.
+  // The offset reuses bottom-nav-spacer's exact token so it tracks the tab bar; at lg the tab
+  // bar is hidden (mobile-nav is lg:hidden) so it drops to a plain inset.
+  //
+  // `pr-18` below lg keeps the strip clear of back-to-top.tsx's z-[60] cluster, which owns the
+  // bottom-right corner at right-4 (measured x 330→374 on a 390pt viewport; this strip reached
+  // 378 and swallowed its OWN dismiss button, because z-60 beats this z-50 — the e2e caught
+  // it). Solved horizontally on purpose: that cluster's VERTICAL position is dynamic — it takes
+  // an inline `bottom: lift + 12` whenever a bottom bar is on screen — so any clearance
+  // computed from its y would be wrong half the time. At lg it moves to right-6 while this
+  // strip is a centred max-w-md island far from the edge, so the reservation drops away.
   return (
     <div
       role="status"
       aria-live="polite"
-      className="pointer-events-none fixed inset-x-0 top-0 z-50 flex justify-center px-3 pt-[env(safe-area-inset-top)]"
+      className="pointer-events-none fixed inset-x-0 bottom-[calc(4.5rem+env(safe-area-inset-bottom)+0.75rem)] z-50 flex justify-center px-3 pr-18 lg:bottom-4 lg:pr-3"
     >
       {offline && !dismissed && (
         <Alert
@@ -130,7 +153,11 @@ function OfflineBanner() {
               <X className="h-4 w-4" />
             </IconButton>
           }
-          className="pointer-events-auto mt-2 w-full max-w-md rounded-xl pr-11 shadow-overlay"
+          /* No pr-11 here: tailwind-merge keeps it AND the primitive's
+             has-data-[slot=alert-action]:pr-18, and the has() rule wins on specificity, so
+             the alert got 72px of right padding and the Vietnamese copy wrapped onto a
+             second line. Let the primitive's own action padding stand. */
+          className="pointer-events-auto w-full max-w-md rounded-xl shadow-overlay"
         >
           {tr(
             'You’re offline. We’ll reconnect automatically.',
