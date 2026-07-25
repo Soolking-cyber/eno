@@ -1183,8 +1183,48 @@ model ItineraryDay {
   eveningVi   String?
   createdAt   DateTime  @default(now())
 
+  stops ItineraryStop[]
+
   @@unique([itineraryId, dayNumber])
   @@index([itineraryId])
+}
+
+// One mappable activity within a day. ADDITIVE: the three prose columns above
+// (morning/afternoon/evening) stay exactly as they are, because trip-card.tsx and both
+// docx export routes still read them — this model runs alongside, it does not replace them.
+//
+// It exists because the generator already produces `place`, `travelMinutes`,
+// `estimatedCostVnd` and `bookingAdvice` per activity, and the save path was flattening all
+// four away into `"${time} · ${title} — ${details}"`. A saved trip was therefore three prose
+// blobs per day and could never be drawn on a map, which is what "manage trips booked" needs.
+//
+// lat/lng are NULLABLE and stops are written even when they are null: a stop with no
+// coordinate is still a real stop with a name, a cost and booking advice. Only the map skips
+// it. Resolving names → coordinates is a separate task; this model is just the place to put
+// them when it lands.
+model ItineraryStop {
+  id     String       @id @default(cuid())
+  dayId  String
+  day    ItineraryDay @relation(fields: [dayId], references: [id], onDelete: Cascade)
+  // Order WITHIN the day (0 = morning, 1 = afternoon, 2 = evening today). The map draws its
+  // per-day polyline in this order, so it is the stop's identity within the day, not a hint.
+  position Int
+  // The searchable place — what a coordinate is resolved FROM ("Bến Thành Market").
+  place String
+  // What the traveller is doing there ("Breakfast + first walk"). Distinct from `place`:
+  // several activities can share one place, and the pin label wants the place.
+  name             String
+  time             String?
+  details          String?
+  lat              Float?
+  lng              Float?
+  travelMinutes    Int?
+  estimatedCostVnd Int?
+  bookingAdvice    String?
+  createdAt        DateTime @default(now())
+
+  @@unique([dayId, position])
+  @@index([dayId])
 }
 
 model ItineraryStay {
