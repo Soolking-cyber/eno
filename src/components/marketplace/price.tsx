@@ -35,16 +35,24 @@ type Props = {
  */
 export function Price({ price, currency, priceUnit, compact = false, dual = true, unit: showUnit = true, className }: Props) {
   void compact // amounts are always shown in full now
-  const { lang } = useLanguage()
+  const { lang, tr } = useLanguage()
   const { currency: displayCur, rates, format } = useCurrency()
   const locale = moneyLocale(lang)
+  // A zero price is FREE, not "0 VND". Rendering the number was actively misleading on the one
+  // surface that has one — the trip-planning service, where planning genuinely costs nothing and
+  // the fee is quoted later in chat — because "0 VND" in 3xl bold reads as a broken card rather
+  // than a deliberate offer. The unit suffix is dropped with it: "Free / service" is nonsense.
+  // Guarded on price > 0 rather than truthiness so a negative never slips through as free.
   // Unit suffix is translatable; bare "VND"/empty has none.
   const unitRaw = !priceUnit || priceUnit === 'VND' ? null : priceUnit.replace(/^VND\/?/, '').trim() || null
   const unit = useTr(unitRaw ?? '') // hook called unconditionally (no-op when empty)
   // VND-stored listings convert to the display currency; the rare non-VND listing
   // is shown in its own currency, unconverted.
-  const amount = currency === '₫' ? format(price, locale) : formatMoneyFull(price, currency, locale)
-  const suffix = unitRaw && showUnit !== false ? ` / ${unit}` : null
+  const isFree = price === 0
+  const amount = isFree
+    ? tr('Free', 'Miễn phí')
+    : currency === '₫' ? format(price, locale) : formatMoneyFull(price, currency, locale)
+  const suffix = !isFree && unitRaw && showUnit !== false ? ` / ${unit}` : null
 
   // Approximation: USD unless the display already IS USD (then VND). Rendered only
   // once rates exist (prefetched + cached 12h by the provider) and for real prices.

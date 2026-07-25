@@ -33,6 +33,7 @@ type ListingRow = {
   verified: boolean
   status: string
   attributes: string | null
+  subcategorySlug: string | null
 }
 
 const SHOP_ID = 'eno-visa-shop'
@@ -75,9 +76,18 @@ vi.mock('./db', () => ({
         if (typeof sellerId !== 'string') {
           throw new Error('mock: listing.findMany must be scoped by sellerId — an unscoped read would sell another shop\'s listing as a visa')
         }
-        if (Object.keys(args.where).length !== 1) throw new Error(`mock: unmodelled where clause ${JSON.stringify(args.where)}`)
+        // The subcategory scope is EXCLUDE-shaped: an OR of "is the visa subcategory" and "is
+        // unclassified". Modelled faithfully so the mock cannot pass an implementation that
+        // silently drops an unclassified visa row.
+        const or = args?.where?.OR
+        if (!Array.isArray(or) || !or.length) {
+          throw new Error('mock: listing.findMany must ALSO be subcategory-scoped — without it a non-visa service on the same storefront is sold as a visa')
+        }
+        const allowed = new Set(or.map((clause: any) => clause?.subcategorySlug ?? null))
+        if (Object.keys(args.where).length !== 2) throw new Error(`mock: unmodelled where clause ${JSON.stringify(args.where)}`)
         h.state.listingQueries.push(args)
-        const rows = (h.state.listings as ListingRow[]).filter((l) => l.sellerId === sellerId)
+        const rows = (h.state.listings as ListingRow[])
+          .filter((l) => l.sellerId === sellerId && allowed.has(l.subcategorySlug ?? null))
         return typeof args.take === 'number' ? rows.slice(0, args.take) : rows
       },
     },
@@ -115,6 +125,10 @@ const listing = (over: Partial<ListingRow> = {}): ListingRow => ({
   verified: true,
   status: 'active',
   attributes: JSON.stringify({ visaEntryType: 'single', visaSpeed: '4H' }),
+  // The desk's storefront is an ordinary Seller and may carry non-visa services, so the read is
+  // scoped to this subcategory as well as the seller — model it here or the mock cannot catch a
+  // scope regression.
+  subcategorySlug: 'visa-legal',
   ...over,
 })
 
@@ -159,6 +173,33 @@ describe('the shop resolves before anything is seeded', () => {
 })
 
 describe('products are derived from listings, never from a table', () => {
+  it('ignores a NON-VISA service sitting on the same storefront', async () => {
+    // The desk's storefront is an ordinary Seller row and legitimately carries the trip-planning
+    // listing. Claiming it made the PDP render <VisaStart> for a listing that is contacted, not
+    // bought — and because sellablePriceVnd refuses price 0, the page told visitors the service
+    // "is not available to buy right now". Scope is by subcategory as well as seller.
+    h.state.listings = [
+      listing({ id: 'visa-one' }),
+      listing({ id: 'trip-desk', subcategorySlug: 'service-other', price: 0, externalId: 'trip-assistance-anchor' }),
+    ]
+    expect((await getVisaShopListings()).map((l) => l.id)).toEqual(['visa-one'])
+    expect(await isVisaShopListing('trip-desk')).toBe(false)
+    expect(await isVisaShopListing('visa-one')).toBe(true)
+  })
+
+  it('KEEPS an unclassified row — only a DIFFERENT subcategory is excluded', async () => {
+    // codex refuted the include-shaped first cut: a legacy or admin-uploaded visa row whose
+    // subcategory was never set would have silently lost visa chrome, and an anchor created
+    // outside seed-visa-shop.mjs would have become unresolvable. Dropping a real product
+    // breaks a money path; keeping an unclassified one merely preserves the status quo.
+    h.state.listings = [
+      listing({ id: 'classified' }),
+      listing({ id: 'unclassified', subcategorySlug: null }),
+      listing({ id: 'other-service', subcategorySlug: 'service-other' }),
+    ]
+    expect((await getVisaShopListings()).map((l) => l.id).sort()).toEqual(['classified', 'unclassified'])
+  })
+
   it('reads entry type and speed out of Listing.attributes and the price out of Listing.price', async () => {
     h.state.listings = [
       listing({ id: 'a', price: 3_000_000, attributes: JSON.stringify({ visaEntryType: 'single', visaSpeed: '1H' }) }),

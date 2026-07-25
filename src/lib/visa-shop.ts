@@ -18,6 +18,9 @@ import {
 // so standard + day tiers are always open and hour tiers close on weekends/holidays with a
 // correct next-working-day reopening. This ONE source feeds checkout, concierge and the client.
 import { submissionGate } from './visa/eta'
+// The ONE definition of the visa subcategory — never a literal here, so this scope and the
+// taxonomy cannot drift apart.
+import { VISA_SUBCATEGORY_SLUG } from './taxonomy'
 import { MAX_EVISA_VALIDITY_DAYS, visaDateDefaultsForStart, type VisaPayload } from './visa/schema'
 
 // ── The eno e-Visa SHOP ────────────────────────────────────────────────────────────
@@ -333,7 +336,24 @@ export const getVisaShopListings = cache(async (): Promise<VisaShopListing[]> =>
   if (!seller) return []
   try {
     const rows = await db.listing.findMany({
-      where: { sellerId: seller.id },
+      // ⚠️ Scoped to the visa SUBCATEGORY, not just the seller. The desk's storefront is a
+      // normal Seller row and can legitimately carry a non-visa service — the trip-planning
+      // listing does. Claiming every row on the storefront made the PDP render <VisaStart> for
+      // it, and because sellablePriceVnd refuses price 0 the page said "This service is not
+      // available to buy right now" on a listing that was never meant to be bought: it is
+      // contacted, not purchased.
+      // ⚠️ EXCLUDE-shaped, not include-shaped, and that asymmetry is deliberate. A row is
+      // dropped ONLY when it DECLARES a different subcategory; an unclassified row (null) is
+      // kept. codex refuted the first cut of this — scoping to visa-legal alone would silently
+      // strip visa chrome from any legacy or admin-uploaded row whose subcategory was never
+      // set, and findVisaGenericAnchor() reads through here too, so an anchor created outside
+      // seed-visa-shop.mjs would become unresolvable. The costs are not symmetric: dropping a
+      // real product breaks a money path, while keeping an unclassified row merely leaves the
+      // status quo. So the rule is "not something else", never "must be visa-legal".
+      where: {
+        sellerId: seller.id,
+        OR: [{ subcategorySlug: VISA_SUBCATEGORY_SLUG }, { subcategorySlug: null }],
+      },
       select: {
         id: true, externalId: true, title: true, titleVi: true, description: true,
         price: true, currency: true, priceUnit: true, images: true, verified: true, status: true,
