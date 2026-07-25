@@ -58,10 +58,6 @@ const translatableUniq = (texts: string[]): string[] => Array.from(new Set(texts
 const VI_DIACRITIC =
   /[àáảãạâầấẩẫậăằắẳẵặèéẻẽẹêềếểễệìíỉĩịòóỏõọôồốổỗộơờớởỡợùúủũụưừứửữựỳýỷỹỵđÀÁẢÃẠÂẦẤẨẪẬĂẰẮẲẴẶÈÉẺẼẸÊỀẾỂỄỆÌÍỈĨỊÒÓỎÕỌÔỒỐỔỖỘƠỜỚỞỠỢÙÚỦŨỤƯỪỨỬỮỰỲÝỶỸỴĐ]/
 
-// Character classes for the scripts detectContentLang can name, WIDER than its own probes:
-// it only needs one diagnostic character to identify a language, whereas we need to know how
-// much of the whole string sits in that script. Japanese therefore includes kanji, and Korean
-// jamo, or a kanji-heavy sentence would look mostly "foreign" to its own ratio test.
 // Scripts whose presence genuinely establishes ONE language. Hangul is Korean-exclusive and
 // Thai script is Thai-exclusive, so a high ratio of either really does certify the string.
 //
@@ -78,8 +74,10 @@ const VI_DIACRITIC =
 // In both cases a wrong skip would serve a reader text in a language they did not ask for, and
 // the ambiguity is not narrow or rare, so ja→ja and ru→ru keep paying.
 const SCRIPT_OF: Record<string, RegExp> = {
-  ko: /[가-힣ᄀ-ᇿ㄰-㆏]/u,
-  th: /[฀-๿]/u,
+  // \u escapes, not literal characters: a multibyte range is unreadable in a diff and does not
+  // survive every review pipeline intact (one reviewer saw `th` as /[-]/ and reported it broken).
+  ko: /[\u1100-\u11FF\u3130-\u318F\uAC00-\uD7A3]/u, // Hangul jamo + syllables
+  th: /[\u0E00-\u0E7F]/u, // Thai
 }
 
 /** Longest run of consecutive words carrying NO Vietnamese diacritic. */
