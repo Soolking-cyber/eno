@@ -22,7 +22,6 @@ import { SectionHeader } from '@/components/marketplace/section-header'
 import { useMinuteTick, VisaStart } from '@/components/marketplace/visa-start'
 import { expectedVisaReadyAt } from '@/lib/visa/eta'
 import { parseVisaSpeedCode, VISA_ENTRY_TYPE_LABELS, VISA_SPEED_SPECS, type VisaEntryType } from '@/lib/visa/speed'
-import { handleExternalClick } from '@/lib/native-browser'
 
 // ── /dashboard/visa — YOUR e-VISA CASES: MANAGEMENT ONLY (Phase 3). ────────────────
 //
@@ -677,7 +676,18 @@ export function VisaCasesClient({ threads }: {
           </div>
           <p className="mt-6 border-t border-border pt-4 text-xs leading-relaxed text-body">{tr('eno is an independent assistance service, not a government agency. Approval is decided only by Vietnamese authorities. Official fees and eno service fees are confirmed separately in writing before payment.', 'eno là dịch vụ hỗ trợ độc lập, không phải cơ quan nhà nước. Việc phê duyệt chỉ do cơ quan chức năng Việt Nam quyết định. Lệ phí chính thức và phí dịch vụ eno được xác nhận riêng bằng văn bản trước thanh toán.')}</p>
           <p className="mt-3 text-xs leading-relaxed text-body">
-            <a href="https://evisa.gov.vn/" onClick={handleExternalClick} target="_blank" rel="noreferrer" className="font-semibold text-accent-foreground hover:underline">{tr('Official e-Visa website', 'Trang E-Visa chính thức')}</a>
+            {/* ⚠️ DELIBERATELY NOT routed through handleExternalClick (Alex's ruling on
+                Gemini's dissent, 2026-07-25) — the one external link in the app that keeps
+                the HARD handoff to the system browser. Two reasons, both specific to this
+                destination: (1) evisa.gov.vn is a document flow — applicants download and
+                print the e-visa PDF, upload photos and pay official fees, and
+                SFSafariViewController is a poor host for downloads; (2) this link exists so a
+                user can INDEPENDENTLY verify the disclaimer directly above it — that eno is
+                not a government agency — so it should land in their own browser, not in a tab
+                whose toolbar we tint with our brand colour. The flight/stay links in
+                plan-results.tsx are the opposite case (pure "go look at a price", one Done tap
+                back) and correctly keep the in-app browser. */}
+            <a href="https://evisa.gov.vn/" target="_blank" rel="noreferrer" className="font-semibold text-accent-foreground hover:underline">{tr('Official e-Visa website', 'Trang E-Visa chính thức')}</a>
           </p>
         </div>
       </>
