@@ -53,6 +53,109 @@ function worthTranslating(t: string): boolean {
 }
 const translatableUniq = (texts: string[]): string[] => Array.from(new Set(texts.filter(worthTranslating)))
 
+// Any Vietnamese diacritic, not just the language-exclusive ones. Used ONLY to judge whether
+// a WORD looks Vietnamese-shaped, so that a long undiacriticked passage can be spotted.
+const VI_DIACRITIC =
+  /[àáảãạâầấẩẫậăằắẳẵặèéẻẽẹêềếểễệìíỉĩịòóỏõọôồốổỗộơờớởỡợùúủũụưừứửữựỳýỷỹỵđÀÁẢÃẠÂẦẤẨẪẬĂẰẮẲẴẶÈÉẺẼẸÊỀẾỂỄỆÌÍỈĨỊÒÓỎÕỌÔỒỐỔỖỘƠỜỚỞỠỢÙÚỦŨỤƯỪỨỬỮỰỲÝỶỸỴĐ]/
+
+// Character classes for the scripts detectContentLang can name, WIDER than its own probes:
+// it only needs one diagnostic character to identify a language, whereas we need to know how
+// much of the whole string sits in that script. Japanese therefore includes kanji, and Korean
+// jamo, or a kanji-heavy sentence would look mostly "foreign" to its own ratio test.
+// Scripts whose presence genuinely establishes ONE language. Hangul is Korean-exclusive and
+// Thai script is Thai-exclusive, so a high ratio of either really does certify the string.
+//
+// ⚠️ 'ja' and 'ru' are deliberately ABSENT — decisions, not omissions. Both share their script
+// with other languages, so a script test cannot certify them (both found by codex reviewing
+// this change):
+//  · Japanese shares Han with Chinese, and detectContentLang probes kana BEFORE Han, so Chinese
+//    carrying one decorative kana ("價格非常優惠 の" — ordinary CJK marketing copy) reports 'ja'.
+//    Measured, that string is 6.7% kana and a real kanji-heavy Japanese title is 9%: no gap, so
+//    no defensible threshold.
+//  · Cyrillic is not Russian. Bulgarian, Serbian and Macedonian are written in it, and Bulgarian
+//    in particular shares essentially all of Russian's letters — a veto list of Ukrainian
+//    letters does not exclude it.
+// In both cases a wrong skip would serve a reader text in a language they did not ask for, and
+// the ambiguity is not narrow or rare, so ja→ja and ru→ru keep paying.
+const SCRIPT_OF: Record<string, RegExp> = {
+  ko: /[가-힣ᄀ-ᇿ㄰-㆏]/u,
+  th: /[฀-๿]/u,
+}
+
+/** Longest run of consecutive words carrying NO Vietnamese diacritic. */
+function longestUndiacritickedRun(text: string): number {
+  let run = 0
+  let max = 0
+  for (const word of text.split(/\s+/)) {
+    if (!/\p{L}/u.test(word)) continue // pure digits/punctuation break nothing
+    if (VI_DIACRITIC.test(word)) run = 0
+    else if (++run > max) max = run
+  }
+  return max
+}
+
+/**
+ * Is `text` ALREADY in `target`, as a WHOLE? Then translating it is a paid no-op.
+ *
+ * warmTranslations pushes every listing string into each of EAGER_WARM_LANGS, and 'vi' is one
+ * of them — so on a Vietnamese-first marketplace the vi→vi leg was billed on every create and
+ * edit and returned the input. (The mirror case, EN source → 'en', was already guarded at the
+ * warm call site; this closes the other direction, for every caller rather than just warm.)
+ *
+ * ⚠️ WHAT THIS DOES AND DOES NOT PROVE. detectContentLang needs a SINGLE diagnostic character
+ * to name a language — by design, since it exists to add a WCAG lang attribute. Reused naively
+ * as "this string needs no translation", one Vietnamese word in an otherwise English
+ * description ("Brand new sealed iPhone, worldwide shipping, cảm ơn") would skip the whole
+ * string and serve a Vietnamese reader untranslated English.
+ *
+ * So detection is only the entry condition, and each language then applies a DOMINANCE test.
+ * Be clear about the strength of that: dominance shows the string is mostly the detected
+ * language; it does NOT prove the string is monolingual, and therefore does not prove
+ * translation is unnecessary (codex, reviewing this change — the tests below reduce
+ * mixed-language false positives, they do not eliminate them). The tests are:
+ *  · Latin-script Vietnamese cannot be certified by script, so it is certified by SHAPE: real
+ *    Vietnamese prose is densely diacriticked, and its longest undiacriticked run measures 1-2
+ *    words (model names, "pin", "view"), whereas a mostly-English string measures 8-10. The
+ *    cut-off sits in that gap with room to spare.
+ *  · The non-Latin scripts are certified by RATIO — at least half the letters must actually be
+ *    in the detected script, so an English sentence with one Korean word is not "Korean".
+ *  · null (plain Latin) is never skipped: the detector refuses to distinguish en/fr/ms/km, so
+ *    neither can we.
+ *  · 'zh' is never skipped even when it matches, because the detector reports Han script as
+ *    'zh' while the supported target is zh-Hans — Han text may be TRADITIONAL, and
+ *    Traditional→Simplified is real conversion work.
+ *
+ * ⚠️ THE TRADE THIS MAKES, stated plainly so it can be reversed on purpose rather than by
+ * accident. Because these are dominance tests and not language identification, a MIXED string
+ * can still be skipped while carrying a substantial foreign-language portion — most obviously
+ * one that alternates word by word ("Brand new cảm ơn sealed iPhone rất đẹp worldwide shipping
+ * giá tốt"), which trips no long undiacriticked run, but in principle any mixed Korean/English
+ * or Thai/English string that clears 50% too.
+ *
+ * And the scope is every caller, not just the warm path: this sits inside translateBatch, so it
+ * covers cache warming, the nightly cron, /api/translate and live chat translation. The failure
+ * mode is a reader seeing part of a string in a language they did not ask for.
+ *
+ * That is accepted here as a deliberate best-effort cost reduction — the alternative is billing
+ * every vi→vi leg on every listing create and edit — and it is the right call only so long as
+ * "occasionally leaving mixed-language content untranslated" is acceptable. If it ever is not,
+ * the fix is NOT to tune these thresholds: delete the skip and pay, or add real language
+ * identification. Do not let this drift into being treated as a correctness guarantee.
+ */
+function alreadyInTarget(text: string, target: Lang): boolean {
+  const detected = detectContentLang(text)
+  if (!detected || detected === 'zh') return false
+  if (detected !== target.split('-')[0]) return false
+
+  if (detected === 'vi') return longestUndiacritickedRun(text) <= 3
+
+  const script = SCRIPT_OF[detected]
+  if (!script) return false
+  const letters = text.match(/\p{L}/gu)
+  if (!letters?.length) return false
+  return letters.filter((c) => script.test(c)).length / letters.length >= 0.5
+}
+
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
 let warnedNoKey = false
@@ -218,10 +321,23 @@ export async function translateBatch(
   const hashes = uniq.map(hash)
   const cached = await db.translation.findMany({ where: { target, hash: { in: hashes } } })
   const cachedByHash = new Map(cached.map((c) => [c.hash, c.value]))
+  // Anything not cached is a candidate for paid work — EXCEPT a string already in the target
+  // language, which resolves to itself for free: no provider call, and no cache row (an
+  // identity row would be pure noise, and skipWrite callers must persist nothing anyway).
+  //
+  // The same-language test sits AFTER the cache read, deliberately. A string may have been
+  // translated to something better than itself on an earlier pass, and a cached value must
+  // always beat our own guess — testing first would discard that translation and hand back
+  // source text.
+  //
+  // A skip must NOT set stats.providerFailed: "translates to itself" is exactly the case that
+  // flag exists to distinguish from "the provider is down", so a live caller still answers 200
+  // rather than 503.
   const misses: string[] = []
   for (const t of uniq) {
     const hit = cachedByHash.get(hash(t))
     if (hit != null) out.set(t, hit)
+    else if (alreadyInTarget(t, target)) out.set(t, t)
     else misses.push(t)
   }
 
@@ -290,7 +406,11 @@ export async function translateBatch(
  * listing views), which cost nothing.
  */
 export async function uncachedStats(texts: string[], target: Lang): Promise<{ count: number; chars: number }> {
-  const uniq = translatableUniq(texts)
+  // Same-language strings are excluded for the same reason worthTranslating's output is: this
+  // estimate and the actual paid work must stay in LOCK-STEP (see worthTranslating). Counting
+  // a string translateBatch will now skip would over-state the bill and could reject a batch
+  // that is in fact free.
+  const uniq = translatableUniq(texts).filter((t) => !alreadyInTarget(t, target))
   if (uniq.length === 0) return { count: 0, chars: 0 }
   const cached = await db.translation.findMany({
     where: { target, hash: { in: uniq.map(hash) } },
