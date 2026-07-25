@@ -78,15 +78,37 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
 
       {/* One-liner: title on top, price · location · trust score on a tight meta line */}
       <div className="min-w-0 flex-1">
-        <h4 className="truncate text-sm font-medium leading-snug text-foreground group-hover:underline">
-          {displayTitle}
-        </h4>
-        <div className="mt-0.5 flex items-center gap-x-2 text-xs text-muted-foreground">
+        {/* On a phone the trust badge rides the TITLE line, not the price line. The
+            column is only ~162px on a 390pt device, and the badge cost ~40px of it —
+            enough that a real property price (9,500,000,000 VND needs ~195px) got
+            CLIPPED by the overflow guard below. A clipped price is a wrong price, so
+            the badge yields and the price owns the whole line. At sm+ there is room,
+            so it returns to the meta line and keeps the vertical badge column the
+            owner picked on 2026-07-14. */}
+        <div className="flex min-w-0 items-center gap-x-2">
+          <h4 className="truncate text-sm font-medium leading-snug text-foreground group-hover:underline">
+            {displayTitle}
+          </h4>
+          <TrustScore
+            score={l.seller.trustScore}
+            variant="mini"
+            size="sm"
+            className={cn('ml-auto shrink-0 sm:hidden', offer !== null && 'hidden')}
+          />
+        </div>
+        {/* min-w-0 is load-bearing: without it this flex row can never shrink below
+            its content, so a wide price (shrink-0, and it must stay shrink-0 — a
+            truncated price is a wrong price) overflowed the column and painted
+            straight over the action icons to its right. */}
+        <div className="mt-0.5 flex min-w-0 items-center gap-x-2 overflow-hidden text-xs text-muted-foreground">
           {/* Same app-wide badges as the grid card (card-badges.tsx), inline form:
               urgent before the price, drop % after — the row is one line, so signals
               stay glyph-sized. */}
           {/* The row's single color anchor — brand blue, matching the grid card. */}
-          <Price price={l.price} currency={l.currency} priceUnit={l.priceUnit} compact dual="sm" className="shrink-0 text-base font-bold text-accent-foreground" />
+          {/* unit="sm" for the same reason as dual="sm": on a phone " / service" is
+              the widest and least informative part of the row — every visa row says
+              it — and it is what pushed the amount into the action cluster. */}
+          <Price price={l.price} currency={l.currency} priceUnit={l.priceUnit} compact dual="sm" unit="sm" className="shrink-0 text-base font-bold text-accent-foreground" />
           {/* Urgent — RIGHT of the price (user-picked 2026-07-14): the bare black
               bolt on EVERY breakpoint. The desktop chip (outline + "Urgent" word)
               is gone — one glyph reads the same everywhere and keeps the one-line
@@ -111,7 +133,7 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
               {tr(`${formatCount(l.contactCount, moneyLocale(lang))} contacted`, `Đã liên hệ ${formatCount(l.contactCount, moneyLocale(lang))}`)}
             </span>
           )}
-          <TrustScore score={l.seller.trustScore} variant="mini" size="sm" className={cn('ml-auto shrink-0', offer !== null && 'hidden')} />
+          <TrustScore score={l.seller.trustScore} variant="mini" size="sm" className={cn('ml-auto hidden shrink-0 sm:flex', offer !== null && 'sm:hidden')} />
         </div>
       </div>
 

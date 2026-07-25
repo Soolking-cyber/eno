@@ -14,6 +14,13 @@ type Props = {
   /** Dual-currency approximation (user decision 2026-07-13): true = always show,
    *  'sm' = only at sm+ (one-line rows that fight for phone width), false = off. */
   dual?: boolean | 'sm'
+  /** Unit suffix (" / service", " / month"): true = always, 'sm' = only at sm+,
+   *  false = never. Same three-way contract as `dual`, for the same reason — on a
+   *  phone the suffix is the widest, least informative part of a one-line row
+   *  (every visa row reads "/ service"), and it is what pushed the price into the
+   *  action icons. Hiding it is preferred over shrinking the amount: a truncated
+   *  price is a wrong price. */
+  unit?: boolean | 'sm'
   className?: string
 }
 
@@ -26,7 +33,7 @@ type Props = {
  * ("12.000.000 đ" for vi). Locale-swap stays hydration-safe the tr() way. A rare
  * non-VND stored listing shows as-is, with no approximation (no reliable rate).
  */
-export function Price({ price, currency, priceUnit, compact = false, dual = true, className }: Props) {
+export function Price({ price, currency, priceUnit, compact = false, dual = true, unit: showUnit = true, className }: Props) {
   void compact // amounts are always shown in full now
   const { lang } = useLanguage()
   const { currency: displayCur, rates, format } = useCurrency()
@@ -37,6 +44,7 @@ export function Price({ price, currency, priceUnit, compact = false, dual = true
   // VND-stored listings convert to the display currency; the rare non-VND listing
   // is shown in its own currency, unconverted.
   const amount = currency === '₫' ? format(price, locale) : formatMoneyFull(price, currency, locale)
+  const suffix = unitRaw && showUnit !== false ? ` / ${unit}` : null
 
   // Approximation: USD unless the display already IS USD (then VND). Rendered only
   // once rates exist (prefetched + cached 12h by the provider) and for real prices.
@@ -50,7 +58,12 @@ export function Price({ price, currency, priceUnit, compact = false, dual = true
     // tabular-nums: fixed-width digits so price columns align across card grids.
     <span className={cn('tabular-nums', className)}>
       {amount}
-      {unitRaw ? ` / ${unit}` : ''}
+      {/* The bare text node is kept for the default (always-on) case so the other
+          call sites' DOM is byte-identical to before; only the 'sm' variant needs a
+          wrapper element to hang the breakpoint class on. */}
+      {suffix && (showUnit === 'sm'
+        ? <span className="hidden sm:inline">{suffix}</span>
+        : suffix)}
       {approx && (
         <span className={cn('ml-1.5 text-[0.8em] font-medium text-muted-foreground', dual === 'sm' && 'hidden sm:inline')}>
           {'≈'} {approx}
