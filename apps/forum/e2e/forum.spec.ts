@@ -192,10 +192,8 @@ test.describe('eno.forum deployable workspace', () => {
     await expect(page.locator('aside a[href="https://eno.vn/dashboard"], aside a[href="/account"]')).toHaveCount(0)
     await expect(header.getByTestId('forum-create')).toHaveCount(1)
 
-    await page.goto('/itinerary')
-    await expect(page.locator('main[data-hydrated]')).toHaveAttribute('data-hydrated', 'true')
-    await expect(page.locator('#app-header').getByRole('button')).toHaveCount(0)
-    await expect(page.locator('#app-header').getByRole('link', { name: /Open eno dashboard/i })).toHaveCount(0)
+    // /itinerary is no longer a forum surface (owner, 2026-07-25) — it 308s to eno.vn, so it
+    // cannot be asserted as part of the signed-in shell. /visa below carries the same guard.
 
     // The local signed-in cookie is synthetic, so keep the visa load focused on
     // the canonical account entry rather than validating it against Supabase.
@@ -208,10 +206,11 @@ test.describe('eno.forum deployable workspace', () => {
     await expect(page.locator('#app-header').getByRole('link', { name: /Open eno dashboard/i })).toHaveCount(0)
   })
 
-  test('shares the 11-language preference across forum, itinerary, and visa pages', async ({ page }) => {
+  test('shares the 11-language preference across forum and visa pages', async ({ page }) => {
+    // The itinerary leg was dropped 2026-07-25: that surface moved to eno.vn and this host
+    // now 308s it away, so there is no forum-rendered heading left to translate.
     const french: Record<string, string> = {
       'Vietnam feels easier together.': 'Le Vietnam devient plus simple ensemble.',
-      'A Vietnam itinerary that survives reality.': 'Un itinéraire au Vietnam adapté à la réalité.',
       'One guided application. Every answer stays yours.': 'Une demande guidée. Chaque réponse reste la vôtre.',
     }
     await page.route('**/api/translate', async (route) => {
@@ -234,9 +233,23 @@ test.describe('eno.forum deployable workspace', () => {
     await expect(page.getByRole('heading', { name: french['Vietnam feels easier together.'] })).toBeVisible()
     await expect(page.locator('html')).toHaveAttribute('lang', 'fr')
 
-    await page.goto('/itinerary')
-    await expect(page.getByRole('heading', { name: french['A Vietnam itinerary that survives reality.'] })).toBeVisible()
     await page.goto('/visa')
     await expect(page.getByRole('heading', { name: french['One guided application. Every answer stays yours.'] })).toBeVisible()
+  })
+
+  test('hands /itinerary to eno.vn instead of serving or 404ing it', async ({ page }) => {
+    // The trip service moved to eno.vn (owner, 2026-07-25) and this app's copy was deleted.
+    // The redirect is the whole reason that deletion is safe — every existing link, bookmark
+    // and search result depends on it — so it is asserted here rather than left to a comment.
+    // Checked WITHOUT following, because what matters is the 308 and its target: a 200 would
+    // mean the page came back, and a 404 would mean we broke every inbound link.
+    for (const path of ['/itinerary', '/itinerary/anything']) {
+      const res = await page.request.get(path, { maxRedirects: 0 })
+      expect(res.status(), `${path} must redirect, not serve or 404`).toBe(308)
+      expect(res.headers()['location']).toBe('https://eno.vn/itinerary')
+    }
+    // And the builder's API is genuinely gone, not merely unlinked.
+    const api = await page.request.post('/api/itineraries/generate', { data: {}, maxRedirects: 0 })
+    expect(api.status()).toBe(404)
   })
 })
