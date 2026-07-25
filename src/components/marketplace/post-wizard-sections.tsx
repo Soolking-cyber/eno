@@ -75,7 +75,28 @@ export function MediaSection({
   // Resolved AFTER mount so the server and the first client render emit identical markup (the
   // extra tile appears on-device only, where there is no SSR mismatch to create).
   const [nativeCamera, setNativeCamera] = useState(false)
+  // ── Native camcorder (Capacitor, ANDROID only) ──────────────────────────────
+  // The same trap as the photo input, one layer down. Capacitor's Android
+  // BridgeWebChromeClient only launches ACTION_VIDEO_CAPTURE when the input carries
+  // `capture` AND its accept list literally contains `video/*` — the existing video input has
+  // neither, so an Android seller cannot film the item they are holding. iOS is unaffected:
+  // WKWebView's own file picker already offers "Record Video", so gating on android keeps a
+  // redundant tile off that platform.
+  //
+  // ⚠️ It has to be a SECOND input, never `capture` on the existing one: with `capture`,
+  // Android goes straight to the camcorder and the library branch is gone (the photo comment
+  // above spells this out). And it has to be a <label>+<input>, not a Button that clicks an
+  // input — the file dialog needs the label's own user activation, which nothing consumes.
+  const [androidCamcorder, setAndroidCamcorder] = useState(false)
   useEffect(() => { setNativeCamera(nativePhotoCaptureAvailable()) }, [])
+  // Resolved after mount for the same reason as nativeCamera: the server and the first client
+  // render must emit identical markup, so the extra tile appears on-device only.
+  useEffect(() => {
+    const cap = (window as unknown as {
+      Capacitor?: { isNativePlatform?: () => boolean; getPlatform?: () => string }
+    }).Capacitor
+    setAndroidCamcorder(!!cap?.isNativePlatform?.() && cap.getPlatform?.() === 'android')
+  }, [])
   // Two guards, deliberately. The REF is the real one: `capturing` state is read from a render
   // closure, so a double-tap inside one tick sees the stale `false` and launches the camera
   // twice — Capacitor keeps a single pending call per plugin, so the second launch orphans the
@@ -195,6 +216,42 @@ export function MediaSection({
             size, flowing INLINE right after the "Add photo" tile on EVERY size (owner
             2026-07-17: dropped the old col-start-1 that pushed it to its own row below on
             mobile — it now sits to the RIGHT of "Add photo"). */}
+        {/* Android only — the direct camcorder, sitting BEFORE the library tile for the same
+            reason the camera does: filming the item in your hands is the primary act on a
+            phone. ⚠️ The 60s cap is stated up front because ACTION_VIDEO_CAPTURE has NO
+            duration limit of its own — the length is only checked after the recording comes
+            back (use-post-media's ≤61s probe), so a seller who films three minutes would
+            otherwise lose all of it to a rejection they were never warned about. */}
+        {androidCamcorder && !video && (
+          // ⚠️ Disabled while a pick/probe is in flight, and deliberately WITHOUT its own
+          // spinner. `addVideo` early-returns while videoBusy, so a camcorder launched mid-probe
+          // would come back to a silent drop — the seller films 40 seconds and nothing appears.
+          // A disabled input cannot be activated through its label, which closes that path; the
+          // tile beside it owns the single "Checking…" indicator, so there is never a second
+          // spinner competing with it. (codex + Gemini both flagged this on the first cut.)
+          <label
+            aria-disabled={videoBusy || undefined}
+            className={cn(
+              'flex aspect-square flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-line-strong text-ink-4 transition-colors',
+              videoBusy ? 'pointer-events-none opacity-50' : 'cursor-pointer hover:border-brand hover:text-accent-foreground',
+            )}
+          >
+            <Video className="h-6 w-6" />
+            <span className="text-3xs font-semibold">{t('Quay video', 'Record video')}</span>
+            <span className="text-3xs leading-tight text-ink-4">{t('tối đa 60 giây', 'stop before 60s')}</span>
+            {/* `accept` must literally contain `video/*` and `capture` must be present, or
+                Capacitor's Android bridge silently opens the file picker instead. */}
+            <input
+              type="file"
+              accept="video/*"
+              capture="environment"
+              className="hidden"
+              disabled={videoBusy}
+              onChange={(e) => { addVideo(e.target.files); e.currentTarget.value = '' }}
+            />
+          </label>
+        )}
+
         <div className="aspect-square">
           {video ? (
             <div className="group relative h-full w-full overflow-hidden rounded-xl bg-black">
@@ -207,11 +264,24 @@ export function MediaSection({
               </IconButton>
             </div>
           ) : (
-            <label className="flex h-full w-full cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-line-strong text-ink-4 transition-colors hover:border-brand hover:text-accent-foreground">
+            // Same busy guard as the camcorder tile: a second pick landing mid-probe hits
+            // addVideo's early return and is dropped without a word. This tile keeps the
+            // spinner — it is the slot the finished video appears in.
+            <label
+              aria-disabled={videoBusy || undefined}
+              className={cn(
+                'flex h-full w-full flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-line-strong text-ink-4 transition-colors',
+                videoBusy ? 'pointer-events-none' : 'cursor-pointer hover:border-brand hover:text-accent-foreground',
+              )}
+            >
               {videoBusy ? <Loader2 className="h-6 w-6 animate-spin" /> : <Video className="h-6 w-6" />}
-              <span className="text-3xs font-semibold">{videoBusy ? t('Đang kiểm tra…', 'Checking…') : t('Thêm video', 'Add video')}</span>
+              {/* Relabelled when the camcorder tile is beside it, so the two tiles read as
+                  "record" vs "pick" rather than two identical "Add video"s. */}
+              <span className="text-3xs font-semibold">{videoBusy ? t('Đang kiểm tra…', 'Checking…') : androidCamcorder ? t('Thư viện', 'Library') : t('Thêm video', 'Add video')}</span>
               <span className="text-3xs leading-tight text-ink-4">{t('tùy chọn · 60 giây', 'optional · 60s')}</span>
-              <input type="file" accept="video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov,.m4v" className="hidden" onChange={(e) => { addVideo(e.target.files); e.currentTarget.value = '' }} />
+              {/* disabled, not just pointer-events-none: the label can also be reached by
+                  keyboard, and only a disabled input refuses to open the picker. */}
+              <input type="file" accept="video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov,.m4v" className="hidden" disabled={videoBusy} onChange={(e) => { addVideo(e.target.files); e.currentTarget.value = '' }} />
             </label>
           )}
         </div>
