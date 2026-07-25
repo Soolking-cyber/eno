@@ -110,40 +110,86 @@
         } catch (e) { return ORIGIN + '/' }
       }
 
+      // ⚠️ `Capacitor.Plugins.<Name>` does NOT exist here. That object is built by @capacitor/core's
+      // registerPlugin() when a JS BUNDLE imports the plugin; the native bridge injected into every
+      // WebView (native-bridge.js) only ever *reads* `cap.Plugins` — it never creates it. This page
+      // has no bundle, so the low-level `Capacitor.nativePromise(plugin, method, options)` the bridge
+      // always defines is the real channel. It resolves with the plugin's own result object
+      // (`{ value }` for Preferences.get, `{ url }` for App.getLaunchUrl) — the same shape the SDK
+      // returns. The Plugins branch stays as a no-cost fast path in case this file is ever loaded
+      // inside the app bundle. Ported verbatim from error.html, which already had this right.
+      // Note nativePromise NEVER settles when the bridge is missing (toNative just warns), which is
+      // exactly why every caller below either owns a timeout or is safe to leave hanging.
+      function nativeCall(plugin, method, options) {
+        var C = window.Capacitor
+        if (!C) return null
+        try {
+          var P = C.Plugins && C.Plugins[plugin]
+          if (P && typeof P[method] === 'function') return P[method](options)
+          if (typeof C.nativePromise === 'function') return C.nativePromise(plugin, method, options)
+        } catch (e) { /* fall through */ }
+        return null
+      }
+
+      // PAGE-scoped, not per-call: this shell's whole job is exactly ONE navigation. Two
+      // things can otherwise fire it twice. (a) Within one go(): the 350ms timeout lands,
+      // then the bridge resolves late — and with nativePromise that window is wider than it
+      // was with the (never-populated) Plugins object. (b) ACROSS calls: the `online`
+      // listener re-enters go() while a previous attempt is still pending, and a per-call
+      // flag cannot see the other attempt, so both replace() — possibly to different
+      // targets. Once we have committed to a destination, a second replace() is a visible
+      // flash and a junk history entry, so the first one wins. (codex caught the cross-call
+      // case; the offline early-return below never sets this, so retry-when-online still works.)
+      var navigated = false
+
       function go() {
         document.getElementById('offline').style.display = 'none'
         if (navigator.onLine === false) {
           document.getElementById('offline').style.display = 'flex'
           return
         }
+        if (navigated) return
         var target = ORIGIN + '/'
-        var C = window.Capacitor
-        var done = function () { window.location.replace(target) }
-        if (C && C.Plugins && C.Plugins.App && C.Plugins.App.getLaunchUrl) {
-          // Bounded: a hung plugin call must never strand the shell.
-          var t = setTimeout(done, 350)
-          C.Plugins.App.getLaunchUrl().then(function (r) {
-            clearTimeout(t)
-            if (r && r.url) target = targetFromLaunch(r.url)
-            done()
-          }).catch(function () { clearTimeout(t); done() })
-        } else {
-          done()
+        var done = function () {
+          if (navigated) return
+          navigated = true
+          // Release the latch if replace() throws synchronously (a blocked or otherwise
+          // rejected navigation). Without this the flag would stay set after a navigation
+          // that never happened, and every later go() — including the `online` retry —
+          // would return early, stranding the launch on the skeleton for good. (codex)
+          try {
+            window.location.replace(target)
+          } catch (e) {
+            navigated = false
+          }
         }
+        var p = nativeCall('App', 'getLaunchUrl')
+        if (!p || typeof p.then !== 'function') { done(); return }
+        // Bounded: a hung bridge must never strand the shell on the skeleton.
+        var t = setTimeout(done, 350)
+        p.then(function (r) {
+          clearTimeout(t)
+          if (r && r.url) target = targetFromLaunch(r.url)
+          done()
+        }).catch(function () { clearTimeout(t); done() })
       }
 
       // Apply the APP's last resolved theme (native Preferences mirror) over the OS guess.
+      // No timeout: if the bridge never answers, the OS guess simply stands — which is the
+      // behaviour this page had for its whole life, since the old Plugins deref never resolved.
       try {
-        var P = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.Preferences
-        if (P && P.get) P.get({ key: 'eno-resolved-theme' }).then(function (r) {
+        var pTheme = nativeCall('Preferences', 'get', { key: 'eno-resolved-theme' })
+        if (pTheme && typeof pTheme.then === 'function') pTheme.then(function (r) {
           if (r && (r.value === 'light' || r.value === 'dark')) document.documentElement.className = 't-' + r.value
         }).catch(function () {})
       } catch (e) {}
 
       // Reveal instantly: the shell IS the paint — no reason to hold the splash.
       try {
-        var SS = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.SplashScreen
-        if (SS && SS.hide) SS.hide({ fadeOutDuration: 150 })
+        var pSplash = nativeCall('SplashScreen', 'hide', { fadeOutDuration: 150 })
+        // Swallow a rejection so a missing/!enabled SplashScreen plugin can't surface as an
+        // unhandled rejection in the WebView console on every launch.
+        if (pSplash && typeof pSplash.catch === 'function') pSplash.catch(function () {})
       } catch (e) {}
 
       // A failed eno.vn navigation falls to Capacitor's errorPath (error.html) natively;
