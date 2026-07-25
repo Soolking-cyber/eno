@@ -8,10 +8,11 @@ import { CITIES } from './itinerary-data'
 // option the server rejects AFTER the user filled the whole form. Same for the root
 // app's own generate route. Static source extraction keeps this self-maintaining.
 
-const GENERATE_ROUTES = [
-  'src/app/api/itineraries/generate/route.ts',
-  'apps/forum/src/app/api/itineraries/generate/route.ts',
-]
+// Only one generate route now: the forum's duplicate was deleted 2026-07-25 when the trip
+// service moved to eno.vn. The guard still earns its place — it catches a city added to CITIES
+// without mirroring the server's zod-enum CITY_CATALOG, which would let the client offer an
+// option the server rejects only after the user filled the whole form.
+const GENERATE_ROUTES = ['src/app/api/itineraries/generate/route.ts']
 
 function catalogIds(source: string): string[] {
   const start = source.indexOf('const CITY_CATALOG')

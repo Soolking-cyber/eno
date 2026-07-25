@@ -24,11 +24,14 @@
 // ciphertext — undetectable data loss on encrypted passport PII.
 //
 // The pair table below is COPIED VERBATIM from src/lib/sync-pairs.test.ts and must stay in
-// lockstep with it. It is deliberately NOT derived by walking directories: the itinerary
-// entry is ASYMMETRIC (src/lib/itinerary-resources.ts →
-// apps/forum/src/components/itinerary/itinerary-resources.ts), so any walk keyed on
-// matching paths would silently drop it — and that is the file carrying the SAFE_SCHEMES /
-// safeHrefOnly scheme allowlist on itinerary link output (a javascript:-URL XSS gate).
+// lockstep with it. ⚠️ Two copies of one list: editing either alone is how this breaks. On
+// 2026-07-25 the itinerary pair was retired from the test but not from here, and this script
+// crashed ENOENT on the deleted forum file — the test went green while `npm run sync:visa`
+// was broken. Change BOTH, every time.
+//
+// It is deliberately NOT derived by walking directories: the remaining pairs are all visa
+// files, but the table has carried an ASYMMETRIC entry before (a root lib mapping to a forum
+// component path), which any walk keyed on matching paths would silently drop.
 //
 // TESTS: scripts/sync-visa-pairs.test.mjs — `node --test scripts/sync-visa-pairs.test.mjs`.
 // They build a TEMP FIXTURE REPO and never touch this repo's own files. The exports below
@@ -50,7 +53,8 @@ export const EXACT_PAIRS = [
   ['src/lib/visa/image-normalization.ts', 'apps/forum/src/lib/visa/image-normalization.ts'],
   ['src/lib/visa/checkpoints.ts', 'apps/forum/src/lib/visa/checkpoints.ts'],
   ['src/lib/languages.ts', 'apps/forum/src/lib/languages.ts'],
-  ['src/lib/itinerary-resources.ts', 'apps/forum/src/components/itinerary/itinerary-resources.ts'],
+  // itinerary-resources: RETIRED 2026-07-25 (forum copy deleted with the trip service move).
+  // Kept in lockstep with src/lib/sync-pairs.test.ts, which retired the same entry.
 ]
 
 // Pairs whose ONLY sanctioned differences are comments and import specifiers

@@ -18,7 +18,9 @@ export async function GET() {
             appIDs: [`${teamId}.${bundleId}`],
             components: [
               { '/': '/', comment: 'Forum home' },
-              { '/': '/itinerary*', comment: 'Saved and new itineraries' },
+              // /itinerary* deliberately absent: the trip service moved to eno.vn, whose own
+              // AASA claims it via the catch-all `{"/": "/*"}`. Claiming it here too would
+              // deep-link the app to a host that only 308s away.
               { '/': '/visa*', comment: 'Vietnam e-Visa assistance' },
               { '/': '/dashboard*', comment: 'Unified eno dashboard' },
             ],

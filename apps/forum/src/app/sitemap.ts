@@ -42,7 +42,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const forumUrl = process.env.NEXT_PUBLIC_FORUM_URL || 'https://eno.forum'
   const staticEntries: MetadataRoute.Sitemap = [
     { url: forumUrl, changeFrequency: 'daily', priority: 1 },
-    { url: `${forumUrl}/itinerary`, changeFrequency: 'weekly', priority: 0.8 },
+    // No /itinerary here: the trip service lives on eno.vn now and this host 308s to it.
+    // Advertising a redirect in a sitemap is a soft-404 signal to crawlers.
     { url: `${forumUrl}/visa`, changeFrequency: 'weekly', priority: 0.8 },
   ]
   const posts = await livePosts()

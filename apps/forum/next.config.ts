@@ -18,6 +18,13 @@ const nextConfig: NextConfig = {
   turbopack: { root: __dirname },
   async redirects() {
     return [
+      // The trip service moved to eno.vn (owner, 2026-07-25) and the forum's copy of the
+      // builder was deleted with it. This redirect is what stops that from being a 404 for
+      // every existing link, bookmark and search result — it must OUTLIVE the deletion, so do
+      // not tidy it away. It sits FIRST so it wins for both hosts: matching here sends a
+      // visitor straight to eno.vn instead of bouncing them through the apex→www hop below.
+      { source: '/itinerary', destination: 'https://eno.vn/itinerary', permanent: true },
+      { source: '/itinerary/:path*', destination: 'https://eno.vn/itinerary', permanent: true },
       { source: '/forum', destination: '/', permanent: true },
       // Canonical-host redirect: Vercel's domain config used to 308 apex→www;
       // on Cloud Run behind the LB both hosts reach the app, so the app owns it.

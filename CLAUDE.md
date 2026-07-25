@@ -152,10 +152,19 @@ Rules that still bind everyone:
 
 ## Shipping
 
-**Forum/itinerary deployment boundary — cutover complete (owner, 2026-07-18; narrowed 2026-07-21):**
-`/Users/mk1e3/eno.vn/apps/forum` is the only source of truth for `eno.forum`, including
-the forum, itinerary, and concierge surfaces (**e-Visa was removed from this list —
-see "Visa ownership" below**). Make all such changes only under `apps/forum/**`. The
+**Forum deployment boundary — cutover complete (owner, 2026-07-18; narrowed 2026-07-21 and
+again 2026-07-25):** `/Users/mk1e3/eno.vn/apps/forum` is the only source of truth for
+`eno.forum`, including the forum and concierge surfaces (**e-Visa was removed from this list —
+see "Visa ownership" below**). Make all such changes only under `apps/forum/**`.
+
+**⚠️ ITINERARY IS NO LONGER A FORUM SURFACE (owner, 2026-07-25).** The trip service belongs to
+**eno.vn end to end** — the public landing page (`src/app/itinerary/page.tsx`), the builder and
+My Trips (`src/app/dashboard/trips/**`), the APIs (`src/app/api/itineraries/**`) and the libs
+(`src/lib/itinerary-*.ts`). The forum's duplicate builder, its generate/docx routes, its
+`/itinerary` page and its copies of the libs were **DELETED**; `apps/forum/next.config.ts` 308s
+`/itinerary*` to `https://eno.vn/itinerary` and that redirect must outlive the deletion. Do not
+recreate an itinerary surface under `apps/forum/**`, and do not "restore" the retired
+`itinerary-resources` sync-pair — `src/lib/itinerary-resources.ts` is single-owner now. The
 former `/Users/mk1e3/eno-forum` checkout and `Soolking-cyber/eno-forum` repository are
 retired migration history: never edit, push, or deploy from them. The `eno.forum`
 deployment stays a separate service (it owns the forum domains and environment

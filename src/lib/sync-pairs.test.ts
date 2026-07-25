@@ -49,7 +49,9 @@ const EXACT_PAIRS: Array<[string, string]> = [
   ['src/lib/visa/image-normalization.ts', 'apps/forum/src/lib/visa/image-normalization.ts'],
   ['src/lib/visa/checkpoints.ts', 'apps/forum/src/lib/visa/checkpoints.ts'],
   ['src/lib/languages.ts', 'apps/forum/src/lib/languages.ts'],
-  ['src/lib/itinerary-resources.ts', 'apps/forum/src/components/itinerary/itinerary-resources.ts'],
+  // itinerary-resources: pair RETIRED 2026-07-25. The forum's copy was deleted when the trip
+  // service moved to eno.vn, so there is nothing left to byte-couple. src/lib/itinerary-resources.ts
+  // is now a single-owner file and may be edited directly — no more `sync-visa-pairs --write`.
 ]
 
 // Pairs whose ONLY sanctioned differences are comments and import specifiers
