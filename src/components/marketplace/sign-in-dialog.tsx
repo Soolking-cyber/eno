@@ -24,7 +24,7 @@ export function SignInDialog({ open, onOpenChange, listingTitle, listingImage, s
   const seller = sellerName || tr('the seller', 'người bán')
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-card rounded-2xl shadow-overlay w-full max-w-sm p-6 gap-0">
+      <DialogContent className="rounded-2xl shadow-overlay w-full max-w-sm p-6 gap-0">
         <DialogHeader>
           {listingTitle ? (
             <div className="flex items-center gap-3 text-left">

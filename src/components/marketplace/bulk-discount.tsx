@@ -77,7 +77,7 @@ export function BulkDiscount({
 
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!saving) onOpenChange(o) }}>
-      <DialogContent className="bg-card rounded-2xl shadow-overlay w-full max-w-sm p-6 gap-0">
+      <DialogContent className="rounded-2xl shadow-overlay w-full max-w-sm p-6 gap-0">
         <DialogHeader>
           <DialogTitle className="text-center text-lg font-bold text-foreground">
             {tr('Discount selected', 'Giảm giá đã chọn')}
