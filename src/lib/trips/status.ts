@@ -152,7 +152,11 @@ export async function applyTripTransition(args: {
         actorType,
         actorRef,
         event: 'status_changed',
-        metaJson: JSON.stringify({ from: expectedPrior, to: next, ...sanitiseMeta(meta) }),
+        // ⚠️ Authoritative from/to go LAST so caller meta can never shadow them. With the
+        // spread first, a caller passing { from, to } forged the audit record: an event named
+        // 'status_changed' could describe a transition that never happened, on the trail that
+        // backs an operator's money quote. Both external reviewers caught this independently.
+        metaJson: JSON.stringify({ ...sanitiseMeta(meta), from: expectedPrior, to: next }),
       },
     })
   } catch {

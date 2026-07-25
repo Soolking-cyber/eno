@@ -278,9 +278,10 @@ describe('metaJson is bounded, not merely documented', () => {
       meta: { from: 'completed', to: 'completed' } as never,
     })
     const meta = JSON.parse(store.events[0]!.metaJson!)
-    // ⚠️ Spread order matters: sanitised caller meta comes AFTER from/to, so a caller COULD shadow
-    // them. Pinning current behaviour so a change is deliberate.
-    expect(meta.from).toBe('completed')
-    expect(meta.to).toBe('completed')
+    // The authoritative values win: from/to are spread LAST, so caller meta cannot forge the
+    // audit record. (This test previously asserted the opposite and pinned the bug — there was
+    // no prior behaviour to preserve, the file was new in the same commit.)
+    expect(meta.from).toBe('reviewing')
+    expect(meta.to).toBe('quoted')
   })
 })
