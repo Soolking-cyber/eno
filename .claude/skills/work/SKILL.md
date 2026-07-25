@@ -80,6 +80,19 @@ production and call it a pass.
 **Stop at the first red gate.** A failing gate is not a READY task. If you can't get it
 green, mark the row `BLOCKED`, write what failed into the claim note, and stop.
 
+⚠️ **ALWAYS run these two, whatever the task row says** — CI enforces both, and they have
+each turned `main` red in this repo after a task passed its own listed gates:
+
+```bash
+node scripts/gen-ui-strings.mjs && git diff --exit-code src/generated/ui-strings.ts
+npm run sync:visa
+```
+
+The first is the i18n harvest: **any new `tr(...)` string makes the committed
+`src/generated/ui-strings.ts` stale**, and CI fails with "ui-strings.ts is stale". If it
+rewrites the file, commit it as part of your task (it belongs to whoever added the string).
+The second is the byte-coupled visa/forum pair guard. Neither is optional.
+
 ### 5. Get the two second opinions — MANDATORY, every task
 
 Owner rule: **every finished task gets both external reviewers before it is handed off.**
