@@ -2,6 +2,8 @@ import { ThinkingLevel, Type } from '@google/genai'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { aiGuard } from '@/lib/ai-guard'
+import { fold } from '@/lib/fold'
+import { findPlace } from '@/lib/itinerary-places'
 import { aiErrorStatus, withAiRetry } from '@/lib/ai-retry'
 import { db } from '@/lib/db'
 import { GEMINI_MODEL, GEMINI_MODEL_FALLBACK, getGemini } from '@/lib/gemini'
@@ -111,6 +113,12 @@ const activitySchema = z.object({
   travelMinutes: z.number().int().min(0).max(720),
   estimatedCostVnd: z.number().int().min(0).max(1_000_000_000),
   bookingAdvice: z.string().max(400),
+  // Resolved SERVER-SIDE from `place` after generation — never requested from the model and never
+  // parsed out of its output. See attachStopCoordinates: the model names a place, the catalog
+  // decides where it is. Optional because an unresolved place gets NO coordinate rather than a
+  // guessed one, and the map simply does not pin it.
+  lat: z.number().optional(),
+  lng: z.number().optional(),
 })
 
 const planSchema = z.object({
@@ -279,6 +287,129 @@ const responseSchema = {
   required: ['title', 'summary', 'routeSummary', 'routeRationale', 'budget', 'routeLegs', 'flights', 'stays', 'days', 'practical', 'bookingChecklist', 'assumptions'],
 }
 
+/**
+ * Attach a coordinate to each activity by resolving its `place` against the curated catalog.
+ *
+ * ⚠️ THE MODEL IS NEVER ASKED FOR COORDINATES, and that is the whole design. A generated lat/lng
+ * looks perfectly plausible and lands in the wrong province; src/lib/itinerary-places.ts exists
+ * precisely because a coordinate has to be cross-checked before anyone plots it. So the model
+ * supplies a NAME — which it is good at — and the catalog supplies the point, or nothing.
+ *
+ * Scoped to the itinerary's OWN destinations (`cityIds` from the request, not the free-text
+ * `day.city` the model wrote). findPlace with a cityId never falls back nationwide, so a
+ * "Central Market" on a Hoi An trip cannot resolve to a market 800km away. A name that matches in
+ * two of the trip's cities is ambiguous and is therefore dropped rather than guessed at.
+ *
+ * Anything unresolved is left WITHOUT lat/lng — the bbox and per-city radius gates live inside
+ * findPlace, so a place that fails them returns null here and is simply not mappable.
+ */
+function attachStopCoordinates<T extends { days: { city: string; morning: unknown; afternoon: unknown; evening: unknown }[] }>(
+  plan: T,
+  cityIds: readonly CityId[],
+): { plan: T; resolved: number; total: number } {
+  let resolved = 0
+  let total = 0
+
+  // Map the model's free-text day.city back onto one of the trip's OWN city ids, so resolution can
+  // be scoped to the city the activity is actually in.
+  //
+  // ⚠️ This is what stops a WRONG pin, and both reviewers landed on it independently. Searching
+  // every selected city looks conservative because it demands a unique hit — but if the intended
+  // place is uncatalogued in Hoi An while a same-named entry exists in Hue, then Hue is the ONLY
+  // hit, and a confident, unique, wrong coordinate is exactly the false pin this whole approach
+  // exists to avoid.
+  const byFoldedName = new Map<string, CityId>()
+  for (const id of cityIds) {
+    byFoldedName.set(fold(CITY_CATALOG[id].name), id)
+    byFoldedName.set(fold(id), id)
+  }
+  const cityIdFor = (dayCity: string): CityId | null => {
+    const key = fold(dayCity ?? '')
+    if (!key) return null
+    const exact = byFoldedName.get(key)
+    if (exact) return exact
+    // The model may write "Hoi An (Quang Nam)" or "Ha Long Bay"; accept a containment match, but
+    // only when exactly one of the trip's cities matches, never a first-wins guess.
+    const hits = [...byFoldedName.entries()].filter(([name]) => key.includes(name) || name.includes(key))
+    const unique = [...new Set(hits.map(([, id]) => id))]
+    return unique.length === 1 ? unique[0] : null
+  }
+
+  const resolve = (activity: { place?: string; lat?: number; lng?: number }, scope: readonly CityId[]) => {
+    // Count only slots that actually name a place. Counting empty slots too would inflate the
+    // denominator and make the resolved ratio read worse than it is (Gemini spotted this).
+    if (!activity?.place) return
+    total += 1
+    const hits = scope
+      .map((cityId) => findPlace(activity.place as string, cityId))
+      .filter((hit): hit is NonNullable<typeof hit> => hit !== null)
+    // Distinct places only: one catalogue row reached via two scopes is one answer.
+    const unique = [...new Map(hits.map((hit) => [hit.id, hit])).values()]
+    if (unique.length !== 1) return
+    activity.lat = unique[0].lat
+    activity.lng = unique[0].lng
+    resolved += 1
+  }
+
+  for (const day of plan.days) {
+    const dayCity = cityIdFor(day.city)
+    // Prefer the day's own city. Only when it cannot be mapped do we widen to the whole trip, and
+    // there a unique match is still required.
+    const scope = dayCity ? [dayCity] : cityIds
+    for (const slot of ['morning', 'afternoon', 'evening'] as const) {
+      resolve(day[slot] as { place?: string; lat?: number; lng?: number }, scope)
+    }
+  }
+  return { plan, resolved, total }
+}
+
+/**
+ * One line per generation, so spend is greppable before this gets promoted.
+ *
+ * This is the most expensive path in the app — gemini-3.6-flash WITH googleSearch grounding — and
+ * until now no per-call cost was recorded anywhere, which made "what does the trip planner cost
+ * us?" unanswerable except by reading a bill. Deliberately a structured console line rather than a
+ * table: it needs to survive on a serverless log drain with no schema to migrate, exactly like
+ * `[translate:spend]`.
+ *
+ * Token counts come from the provider's own usageMetadata; they are reported as null rather than 0
+ * when absent, so a missing count can never be mistaken for a free call. Usage is summed over
+ * EVERY attempt — a retry is a second paid call, and logging only the winner undercounts it.
+ *
+ * ⚠️ This records USAGE, not currency, deliberately: a price table in the code would go stale
+ * silently and start lying about spend, which is worse than no number. It also does NOT capture
+ * grounding search requests, which googleSearch bills separately from tokens — so treat this as
+ * the token side of the bill, not the whole of it.
+ */
+function logGenerationCost(args: {
+  model: string
+  days: number
+  attempts: number
+  /** EVERY attempt's usage, not just the winning one — a retry is a second paid call. */
+  usages: ({ promptTokenCount?: number; candidatesTokenCount?: number; totalTokenCount?: number } | undefined)[]
+  resolvedStops: number
+  totalStops: number
+}): void {
+  const { model, days, attempts, usages, resolvedStops, totalStops } = args
+  // Sum across attempts, but keep null distinguishable from zero: if NO attempt reported a count,
+  // report null rather than a 0 that reads as a free call.
+  const sum = (pick: (u: NonNullable<(typeof usages)[number]>) => number | undefined): number | null => {
+    const values = usages.filter((u) => u != null).map((u) => pick(u!)).filter((n): n is number => typeof n === 'number')
+    return values.length ? values.reduce((a, b) => a + b, 0) : null
+  }
+  console.log('[itinerary:cost]', JSON.stringify({
+    model,
+    days,
+    attempts,
+    tokensIn: sum((u) => u.promptTokenCount),
+    tokensOut: sum((u) => u.candidatesTokenCount),
+    tokensTotal: sum((u) => u.totalTokenCount),
+    grounded: true,
+    stopsResolved: resolvedStops,
+    stopsTotal: totalStops,
+  }))
+}
+
 function safeUrl(value: string): string {
   try {
     const url = new URL(value)
@@ -367,6 +498,8 @@ Planning rules:
   try {
     const attempts = Array.from(new Set([GEMINI_MODEL, GEMINI_MODEL_FALLBACK]))
       .map((model) => ({ model, delay: 0 }))
+    // Every attempt is a paid call, so collect them all rather than only the winner's.
+    const usages: (typeof undefined | { promptTokenCount?: number; candidatesTokenCount?: number; totalTokenCount?: number })[] = []
     const generated = await withAiRetry(attempts, async (attempt, index) => {
       const response = await ai.models.generateContent({
         model: attempt.model,
@@ -390,6 +523,7 @@ Planning rules:
           },
         },
       })
+      usages.push(response.usageMetadata)
       try {
         const plan = planSchema.parse(JSON.parse(cleanModelJson(response.text || '{}')))
         if (plan.days.length !== input.days) throw new SyntaxError('itinerary_day_count_mismatch')
@@ -402,6 +536,17 @@ Planning rules:
 
     plan.flights = plan.flights.map((flight) => ({ ...flight, url: safeUrl(flight.url) }))
     plan.stays = plan.stays.map((stay) => ({ ...stay, url: safeUrl(stay.url) }))
+
+    // Make the days mappable: resolve each activity's place against the curated catalog.
+    const { resolved: stopsResolved, total: totalStops } = attachStopCoordinates(plan, input.cityIds)
+    logGenerationCost({
+      model: generated.model,
+      days: input.days,
+      attempts: generated.attempts,
+      usages,
+      resolvedStops: stopsResolved,
+      totalStops,
+    })
 
     const metadata = response.candidates?.[0]?.groundingMetadata
     const seen = new Set<string>()
