@@ -12,6 +12,9 @@ import { visaPayloadSchema } from '@/lib/visa/schema'
 // Pure format module (no server-only, no IO) — the ONE definition of what a case reference
 // may look like, reused here so the card's `reference` field cannot hold anything else.
 import { normalizeVisaReference } from '@/lib/visa/reference'
+// The ONE trip status machine. Imported for its NODE set only (see tripStatusMetaSchema) so
+// the card contract and the workflow cannot drift into two different ideas of a valid status.
+import { TRIP_TRANSITIONS } from '@/lib/trips/status'
 
 // ---------------------------------------------------------------------------
 // Structured message kinds
@@ -25,11 +28,30 @@ import { normalizeVisaReference } from '@/lib/visa/reference'
 //   'visa_checkout' — the in-thread pay card                        (metaJson)
 //   'visa_result'   — the finished visa PDF, downloadable in chat   (metaJson)
 //   'visa_picker'   — the step-0 product picker for generic starts  (metaJson)
-export const MESSAGE_KINDS = ['text', 'offer', 'visa_step', 'visa_checkout', 'visa_result', 'visa_picker'] as const
+//   'trip_quote'    — the trip desk's live quote, accept/decline     (metaJson)
+//   'trip_status'   — a trip case moved to a new status              (metaJson)
+export const MESSAGE_KINDS = [
+  'text', 'offer',
+  'visa_step', 'visa_checkout', 'visa_result', 'visa_picker',
+  'trip_quote', 'trip_status',
+] as const
 export type MessageKind = (typeof MESSAGE_KINDS)[number]
 export type VisaCardKind = 'visa_step' | 'visa_checkout' | 'visa_result' | 'visa_picker'
 const VISA_CARD_KINDS = new Set<string>(['visa_step', 'visa_checkout', 'visa_result', 'visa_picker'])
 export const isVisaCardKind = (kind: string): kind is VisaCardKind => VISA_CARD_KINDS.has(kind)
+
+export type TripCardKind = 'trip_quote' | 'trip_status'
+const TRIP_CARD_KINDS = new Set<string>(['trip_quote', 'trip_status'])
+export const isTripCardKind = (kind: string): kind is TripCardKind => TRIP_CARD_KINDS.has(kind)
+
+/**
+ * Every kind that carries metaJson. The two families are gated SEPARATELY — a visa card is
+ * bound to a visa case, a trip card to an assistance request — so nothing here merges their
+ * authorship checks; this union exists only so the shared plumbing (schema lookup, read-side
+ * parse, "may this kind carry meta at all?") has one list to consult instead of two.
+ */
+export type CardKind = VisaCardKind | TripCardKind
+export const isCardKind = (kind: string): kind is CardKind => isVisaCardKind(kind) || isTripCardKind(kind)
 
 // Versioned card payloads, persisted as a JSON string in Message.metaJson.
 // ⚠️ NO VISA PII EVER LIVES HERE. metaJson carries ids, a step number, a money
@@ -80,7 +102,73 @@ export type VisaPickerMeta = {
   state: 'active' | 'done'
   selectedListingId?: string
 }
-export type MessageMeta = VisaStepMeta | VisaCheckoutMeta | VisaResultMeta | VisaPickerMeta
+/**
+ * The trip desk's quote, as a LIVE HANDLE — `requestId` and nothing else.
+ *
+ * ⚠️ IT CARRIES NO MONEY, DELIBERATELY, and that is the whole design. The amounts live in
+ * TripAssistanceRequest.supplierTotalVnd / feeVnd and are read at render time, so:
+ *
+ *   · a message row is NEVER a price authority and can never go stale — the same reason
+ *     visa_picker carries no prices (see its note above). An operator who re-quotes does not
+ *     leave a contradicting number sitting in the traveller's timeline.
+ *   · THE CARD CHANNEL cannot carry an amount at all: there is no money key, .strict() rejects
+ *     one, and there is nowhere to put it. Scope that precisely (codex): this closes the
+ *     message path, it does NOT make "no amount from a request body" true system-wide. A route
+ *     that reads body.feeVnd and writes the row directly would bypass all of this. That rule
+ *     still has to be enforced where money is WRITTEN — it is simply unreachable from here.
+ *
+ * The card renders accept/decline only while the case is actually `quoted`, which it also
+ * reads live — so a quote that was accepted, withdrawn, or cancelled in another tab stops
+ * being actionable without any message having to be rewritten.
+ */
+export type TripQuoteMeta = {
+  v: 1
+  /** TripAssistanceRequest.id — a cuid, NOT a uuid (see TRIP_ID_RE). */
+  requestId: string
+}
+/**
+ * A status announcement in the thread.
+ *
+ * Unlike the quote, this one DOES carry its status, and the asymmetry is the point: an
+ * announcement is a historical FACT ("this case moved to arranging"), so re-reading it live
+ * would rewrite the past — a card posted on Tuesday would silently start claiming today's
+ * status. A quote is a live OFFER, so it must re-read. Fact → store it; offer → fetch it.
+ */
+export type TripStatusMeta = {
+  v: 1
+  requestId: string
+  /** One of the nodes in TRIP_TRANSITIONS — validated against that map, never a second list. */
+  status: string
+}
+export type VisaMeta = VisaStepMeta | VisaCheckoutMeta | VisaResultMeta | VisaPickerMeta
+export type TripMeta = TripQuoteMeta | TripStatusMeta
+export type MessageMeta = VisaMeta | TripMeta
+
+/**
+ * kind → the exact payload that kind stores. Lets parseMessageMeta hand a caller the precise
+ * type for a LITERAL kind instead of the whole union.
+ *
+ * ⚠️ This replaced a structural narrowing that had been silently load-bearing. Callers used to
+ * write `if (!('status' in meta)) continue` to pick VisaCheckoutMeta out of the union — which
+ * worked only because it was the sole member with a `status` key. TripStatusMeta has one too,
+ * so the check now narrows to `VisaCheckoutMeta | TripStatusMeta`.
+ *
+ * Be precise about what broke (codex): the `in` test itself did NOT become an error — it is
+ * still valid narrowing, just weaker. The errors appeared one line later, where those sites read
+ * `.applicationId`, a field TripStatusMeta lacks. That is a lucky failure, not a safety net: a
+ * site touching only fields the two share would have compiled and quietly widened its meaning.
+ * The `in` check never expressed "this is a checkout card", it expressed "no other card happens
+ * to look like this" — not an invariant anyone can maintain. Indexing by kind says the thing
+ * that was actually meant, and it is why the sites now pass a LITERAL kind.
+ */
+type MetaForKind = {
+  visa_step: VisaStepMeta
+  visa_checkout: VisaCheckoutMeta
+  visa_result: VisaResultMeta
+  visa_picker: VisaPickerMeta
+  trip_quote: TripQuoteMeta
+  trip_status: TripStatusMeta
+}
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 // The ONLY strings allowed in needsReview. Anything not a key of the visa payload
@@ -150,13 +238,62 @@ const visaPickerMetaSchema = z
   })
   .strict()
 
-const META_SCHEMAS: Record<VisaCardKind, z.ZodType> = {
+// TRIP IDS ARE CUIDS, NOT UUIDS (TripAssistanceRequest.id is @default(cuid())), so UUID_RE
+// would reject every real id. Bounded charset rather than an exact cuid grammar, on purpose:
+// pinning the generator's shape here would mean a cuid version bump silently invalidates rows
+// that are already stored. `[A-Za-z0-9_-]{1,64}` is the same bound visa_picker already accepts
+// for a Listing id, and it is what actually matters — no spaces, no punctuation, so the field
+// structurally cannot carry a traveller's name, address, or note.
+const TRIP_ID_RE = /^[A-Za-z0-9_-]{1,64}$/
+const tripRequestId = z.string().regex(TRIP_ID_RE)
+
+const tripQuoteMetaSchema = z
+  .object({ v: z.literal(1), requestId: tripRequestId })
+  .strict()
+const tripStatusMetaSchema = z
+  .object({
+    v: z.literal(1),
+    requestId: tripRequestId,
+    // Validated against the ONE transition map rather than a copy of its key list — a status
+    // added there is accepted here with no second edit, and one deleted stops parsing.
+    //
+    // ⚠️ An OWN-PROPERTY check is required. `status in TRIP_TRANSITIONS` and a truthiness check
+    // on the lookup both accept inherited Object.prototype keys, so a card claiming
+    // status:'toString', 'constructor' or '__proto__' would validate (all four are pinned in
+    // messages.trip-cards.test.ts, verified to fail if this reverts to `in`). Object.hasOwn is
+    // one way to say it, not the only one — hasOwnProperty.call or a Set would do as well.
+    status: z.string().refine((value) => Object.hasOwn(TRIP_TRANSITIONS, value)),
+  })
+  .strict()
+
+// ⚠️ TYPED PER KEY, not `Record<CardKind, z.ZodType>` — but be exact about how far that goes,
+// because I overstated it once already and then measured it.
+//
+// codex refuted the original "MetaForKind and this table agree by construction" claim: with the
+// loose Record, any kind could be mapped to any other kind's schema with no error, making
+// parseMessageMeta's return type silently wrong. `z.ZodType<MetaForKind[K]>` fixes that only
+// PARTLY, and the asymmetry is worth knowing:
+//
+//   · mapping trip_status → tripQuoteMetaSchema IS a type error (the output would be missing
+//     `status`, which TripStatusMeta requires). Verified.
+//   · mapping trip_quote → tripStatusMetaSchema COMPILES CLEAN. TripQuoteMeta is a structural
+//     SUBSET of TripStatusMeta, so ZodType accepts it covariantly. Also verified — by making the
+//     swap and watching tsc pass.
+//
+// So the type catches a schema that is too NARROW and misses one that is too WIDE. What closes
+// the remaining half is runtime, not types: every schema here is .strict(), so it rejects any
+// other kind's payload on the unknown key. That is pinned as a cross-product test
+// ('the registry maps each kind to ITS OWN schema' in messages.trip-cards.test.ts) rather than
+// left to a comment — the test fails on exactly the swap tsc lets through.
+const META_SCHEMAS: { [K in CardKind]: z.ZodType<MetaForKind[K]> } = {
   visa_step: visaStepMetaSchema,
   visa_checkout: visaCheckoutMetaSchema,
   visa_result: visaResultMetaSchema,
   visa_picker: visaPickerMetaSchema,
+  trip_quote: tripQuoteMetaSchema,
+  trip_status: tripStatusMetaSchema,
 }
-const metaSchemaFor = (kind: VisaCardKind): z.ZodType => META_SCHEMAS[kind]
+const metaSchemaFor = (kind: CardKind): z.ZodType => META_SCHEMAS[kind]
 
 /**
  * READ side. Turn a stored metaJson into a typed card payload, or null.
@@ -165,11 +302,18 @@ const metaSchemaFor = (kind: VisaCardKind): z.ZodType => META_SCHEMAS[kind]
  * bubble, never 500 the whole thread. Re-validates on read so nothing that bypassed
  * insertMessage (raw SQL, a future migration) can reach the client as a live card.
  */
-export function parseMessageMeta(kind: string, metaJson: string | null | undefined): MessageMeta | null {
-  if (!metaJson || !isVisaCardKind(kind)) return null
+export function parseMessageMeta<K extends string>(
+  kind: K,
+  metaJson: string | null | undefined,
+): (K extends CardKind ? MetaForKind[K] : MessageMeta) | null {
+  type Result = (K extends CardKind ? MetaForKind[K] : MessageMeta) | null
+  if (!metaJson || !isCardKind(kind)) return null
   try {
     const parsed = metaSchemaFor(kind).safeParse(JSON.parse(metaJson))
-    return parsed.success ? (parsed.data as MessageMeta) : null
+    // The cast is the boundary between a runtime lookup and the compile-time index: zod has
+    // just re-validated against META_SCHEMAS[kind], which is the same mapping MetaForKind
+    // describes, so the two agree by construction. Keep them edited together.
+    return parsed.success ? (parsed.data as Result) : null
   } catch {
     return null
   }
@@ -253,7 +397,7 @@ async function buildCardMeta(kind: VisaCardKind, convo: ConvoForSend, senderId: 
   // (4) shape — parse first so the binding check below has the card's applicationId.
   const parsed = metaSchemaFor(kind).safeParse(meta)
   if (!parsed.success) throw new Error('visa_card_meta_invalid')
-  const data = parsed.data as MessageMeta
+  const data = parsed.data as VisaMeta
 
   // (2) THREAD BINDING. The card must belong to THIS thread. Two eras coexist, and their
   // precedence is not symmetric (external review, GPT-5.6, 2026-07-23):
@@ -292,6 +436,86 @@ async function buildCardMeta(kind: VisaCardKind, convo: ConvoForSend, senderId: 
   return { json, applicationId: data.applicationId, proof }
 }
 
+// ---------------------------------------------------------------------------
+// WHO MAY AUTHOR A TRIP CARD
+// ---------------------------------------------------------------------------
+// Same shape as the visa gate above, one gate heavier, because the binding lives on the
+// OTHER side of the relation and is weaker:
+//
+//   · visa   — Conversation.visaApplicationId is @unique, so a case has at most one thread
+//              and "is this card's case bound here?" has exactly one answer.
+//   · trip   — the pointer is TripAssistanceRequest.conversationId, and it is NOT unique
+//              (prisma/schema.prisma). Two assistance cases may therefore name the same
+//              thread. That does not make the binding check unsound — `request.conversationId
+//              === convo.id` still proves THIS case belongs to THIS thread — but it does mean
+//              the thread→case direction is ambiguous, so nothing here may ask it.
+//
+// ⚠️ FLAGGED FOR ALEX, NOT CHANGED: making that column @unique would make the two families
+// structurally identical and turn a double-bind into a database error instead of a silent
+// second case in the same thread. It is a one-line schema addition + a guarded CREATE UNIQUE
+// INDEX, but prisma/schema.prisma and the DDL are NOT in T307's Owned paths, so it is raised
+// rather than taken. Nothing below depends on it: gate (3) proves the traveller directly.
+//
+// ⚠️ WHAT THESE GATES DO NOT COVER — state it plainly, because the two external reviewers
+// disagreed about it and one of them was wrong. `convo` and `senderId` are ARGUMENTS, not
+// database facts re-proven here. Gate (1) compares convo.sellerProfileId to senderId, so a
+// caller that fabricated BOTH would satisfy it. What the gates defend is the CARD channel: a
+// forged `kind` or `meta` cannot mint a card, name another case, or carry money. They do not
+// authenticate the speaker.
+//
+// So the contract on every caller, inherited from insertMessage itself ("Caller is responsible
+// for the participant check"): load `convo` from the database and take `senderId` from the
+// session — never from a request body. Routes do this today; it is written down because the
+// gates below read like they prove more than they do.
+//
+//  1. DESK-SIDE AUTHORSHIP. Only the thread's sellerProfileId — the trip desk — may mint a
+//     trip card. The traveller's own messages are 'text'; they ACT on cards, never author
+//     them, so a forwarded request body cannot fabricate a quote in the traveller's own thread.
+//  2. THREAD BINDING. The named case must point at THIS conversation.
+//  3. TRAVELLER MATCH. The case's profileId must be the thread's buyer. Redundant while
+//     bindings are written correctly, and deliberately kept anyway: it is the check that
+//     would stop a mis-bound case from surfacing one traveller's itinerary to another, and
+//     it costs one column on a row already being read.
+//  4. SHAPE + SIZE. .strict() zod, bounded id charset, status drawn from TRIP_TRANSITIONS.
+//     Note what the shape ALSO excludes: there is no money key in either trip schema, so
+//     "no amount from a request body" is enforced by the absence of a channel, not by a rule.
+async function buildTripCardMeta(kind: TripCardKind, convo: ConvoForSend, senderId: string, meta: MessageMeta | undefined): Promise<{ json: string; requestId: string; guard: { status?: string } }> {
+  // (1) desk-side authorship
+  if (!convo.sellerProfileId || convo.sellerProfileId !== senderId) throw new Error('trip_card_author_forbidden')
+  // (4) shape — first, so the binding check below has a trusted requestId.
+  const parsed = metaSchemaFor(kind).safeParse(meta)
+  if (!parsed.success) throw new Error('trip_card_meta_invalid')
+  const data = parsed.data as TripMeta
+
+  // (2)+(3). One read, both gates. `select` is narrow on purpose: this function must never
+  // pull a money column or an itinerary field into a code path that serialises to metaJson.
+  const request = await db.tripAssistanceRequest.findUnique({
+    where: { id: data.requestId },
+    select: { id: true, conversationId: true, profileId: true },
+  })
+  if (!request) throw new Error('trip_card_request_not_found')
+  if (request.conversationId !== convo.id) throw new Error('trip_card_conversation_mismatch')
+  if (request.profileId !== convo.buyerProfileId) throw new Error('trip_card_traveller_mismatch')
+
+  // (5) AN ANNOUNCEMENT MUST BE TRUE WHEN IT IS POSTED. A trip_status card names a status, and
+  // the extra predicate here makes the row prove it: the transaction's compare-and-set matches
+  // only while the case is ACTUALLY at that status, atomically with the insert.
+  //
+  // I first shipped this ungated, arguing the desk is the only author so a wrong status would
+  // merely be our own bug. codex refuted that: the card carries no event id and checked nothing,
+  // so "historical fact" was a claim the data could not support — the desk could publish any
+  // valid state as something that had happened. It was right, and the fix is one predicate.
+  //
+  // The cost, accepted deliberately: if an operator moves a case twice in quick succession, the
+  // first announcement can lose the race and never post. That is the better failure. A dropped
+  // card omits a step the traveller can still see in the case timeline; a published one that
+  // was already superseded is misinformation about their trip.
+  const guard = 'status' in data ? { status: data.status } : {}
+  const json = JSON.stringify(data)
+  if (json.length > MAX_META_JSON) throw new Error('trip_card_meta_too_large')
+  return { json, requestId: data.requestId, guard }
+}
+
 /**
  * Insert a message into a conversation and keep the denormalized state consistent
  * (last-message + the other party's unread), then best-effort notify the
@@ -311,11 +535,17 @@ export async function insertMessage(convo: ConvoForSend, senderId: string, text:
   // Runtime guard for JS callers / a value widened past the union somewhere.
   if (!(MESSAGE_KINDS as readonly string[]).includes(kind)) throw new Error('message_kind_invalid')
   const isOffer = kind === 'offer'
-  const isCard = isVisaCardKind(kind)
+  // The two card families are built by SEPARATE gates and never share one — a visa card is
+  // bound to a visa case, a trip card to an assistance request, and collapsing them into one
+  // "isCard" build step is exactly how a future kind would inherit the wrong ownership check.
+  const isVisaCard = isVisaCardKind(kind)
+  const isTripCard = isTripCardKind(kind)
+  const isCard = isVisaCard || isTripCard
   // metaJson belongs to cards ONLY — a 'text'/'offer' message carrying one would be
   // a card the renderers don't gate on, so refuse rather than silently drop it.
   if (opts?.meta && !isCard) throw new Error('message_meta_not_allowed')
-  const card = isCard ? await buildCardMeta(kind, convo, senderId, opts?.meta) : null
+  const card = isVisaCard ? await buildCardMeta(kind, convo, senderId, opts?.meta) : null
+  const tripCard = isTripCard ? await buildTripCardMeta(kind, convo, senderId, opts?.meta) : null
 
   // Cards are sent with an empty body (see the note above) — fall back to the
   // caller-supplied bilingual preview so the inbox row isn't blank. Unchanged for
@@ -329,7 +559,7 @@ export async function insertMessage(convo: ConvoForSend, senderId: string, text:
       kind,
       offerAmount: isOffer ? opts?.offerAmount ?? null : null,
       offerStatus: isOffer ? 'pending' : null,
-      metaJson: card?.json ?? null,
+      metaJson: card?.json ?? tripCard?.json ?? null,
     },
     // `as const` (not a plain literal): Prisma derives the row type from `true`
     // literals — a widened `boolean` here collapses the inferred payload.
@@ -359,6 +589,38 @@ export async function insertMessage(convo: ConvoForSend, senderId: string, text:
     message = (await db.$transaction(async (tx) => {
       const guard = await tx.conversation.updateMany({ where: guardWhere, data: convoUpdate })
       if (guard.count !== 1) throw new Error(card.proof === 'immutable' ? 'visa_card_conversation_gone' : 'visa_card_application_mismatch')
+      return tx.message.create(createArgs)
+    })) as MessageRow
+  } else if (tripCard) {
+    // ATOMIC GUARD for a trip card. buildTripCardMeta proved the binding a moment ago against
+    // a MUTABLE column, so a concurrent rebind between that read and this insert is possible;
+    // the guard re-asserts it inside the transaction.
+    //
+    // ⚠️ IT IS AN UPDATE, NOT A READ, AND THAT IS THE POINT. A plain findFirst inside the
+    // transaction would not lock the row under READ COMMITTED — it would just re-read the same
+    // pre-rebind snapshot and prove nothing. Writing `conversationId` back to the value it
+    // already holds is a real row write, so it takes a genuine lock and the WHERE clause
+    // becomes a compare-and-set: if the case was rebound, this matches zero rows and the whole
+    // transaction (message included) rolls back. This repo learned the read-does-not-lock
+    // lesson the expensive way in the visa capture race — locking a row is not enough, the
+    // statement has to MODIFY it.
+    //
+    // Consequence, deliberate: @updatedAt bumps, so the operator queue (@@index([status,
+    // updatedAt])) orders by last desk activity rather than last state change. That is the
+    // ordering a support queue wants; noting it because it is a behaviour change, not a no-op.
+    message = (await db.$transaction(async (tx) => {
+      const bound = await tx.tripAssistanceRequest.updateMany({
+        // EVERY gate that can be re-asserted cheaply IS re-asserted here, not just the binding.
+        // codex's refutation was right: proving the traveller in buildTripCardMeta and then
+        // only re-checking conversationId in the transaction left gate (3) resting on a read
+        // that a concurrent write could have invalidated. Both predicates cost nothing — they
+        // are columns on a row this statement already touches.
+        where: { id: tripCard.requestId, conversationId: convo.id, profileId: convo.buyerProfileId, ...tripCard.guard },
+        data: { conversationId: convo.id },
+      })
+      if (bound.count !== 1) throw new Error('trip_card_conversation_mismatch')
+      const guard = await tx.conversation.updateMany({ where: { id: convo.id }, data: convoUpdate })
+      if (guard.count !== 1) throw new Error('trip_card_conversation_gone')
       return tx.message.create(createArgs)
     })) as MessageRow
   } else {
