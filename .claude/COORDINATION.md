@@ -10,11 +10,16 @@
 > The rows below are a log; **a row's status field is not evidence** — several rows
 > read OPEN or ACTIVE for work that has long since shipped. Check the tree.
 >
-> **⚠️ NATIVE IS UN-SHELVED (owner, 2026-07-25).** This **supersedes the "STOP native
-> app work / SHELVE apps/ios AND apps/android" directive of 2026-07-21** below, and the
-> "rows 48–92 are SUPERSEDED, not open" tombstone with it. `apps/ios` and `apps/android`
-> are claimable work again, now assigned via the new board. The Capacitor mobile-web
-> path is not cancelled — native simply resumed alongside it.
+> **⛔ NATIVE STAYS SHELVED (owner, re-affirmed 2026-07-25).** The 2026-07-21 directive
+> — "STOP native app work. SHELVE `apps/ios` (SwiftUI) AND `apps/android` (Kotlin)" —
+> **still stands**, and so does the rows-48–92 tombstone. A brief un-shelve was recorded
+> earlier on 2026-07-25 and the owner **reversed it the same day**: *"roll back all native
+> tasks — only through Capacitor; native we do later."*
+> **Nothing under `apps/ios/**` or `apps/android/**` is claimable work.** Mobile ships
+> through the **Capacitor** remote-server WebView, so improving the app means improving the
+> **mobile web app** + the Capacitor plugin layer — not SwiftUI or Kotlin. `apps/ios`,
+> `apps/android`, `EnoUI` and `docs/ios-design-language.md` are shelved for later, **not
+> deleted**.
 >
 > **Names: the two workers are KAI (renamed from Kyle, 2026-07-25) and MURAT**, plus
 > **ALEX**, who plans and ships and is the only seat that pushes. Historical rows below

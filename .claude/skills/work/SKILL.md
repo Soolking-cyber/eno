@@ -21,9 +21,15 @@ Run this under `/loop /work` so it repeats. One invocation = **one task**, start
   to prod in this repo (5550b99b, 72aea9b6). Commit by explicit literal pathspec only.
 - **Never edit a file outside your task's declared Owned paths.** If the task can't be
   done without touching something else, mark it BLOCKED and say why — don't widen scope.
-- **Never edit `apps/ios/Scripts/ios-design-lint-baseline.json`.** Alex re-snapshots it.
+- **Never finish a task without the two external second opinions.** Mandatory, every
+  task, no exceptions — see step 5.
 - You work in **your own worktree** (`~/eno-kai` or `~/eno-murat`) on **your own branch**
   (`work/kai` / `work/murat`). Never `cd` into `~/eno.vn` — that is Alex's tree.
+- **⛔ `apps/ios/**` and `apps/android/**` are SHELVED** (owner, 2026-07-21, re-affirmed
+  2026-07-25 after a same-day un-shelve was reversed). Mobile ships through the
+  **Capacitor** remote-server WebView, so the app is improved by improving the **mobile
+  web app** (`src/**`) and the Capacitor layer — never SwiftUI or Kotlin. If a task asks
+  you to edit native, that task is wrong: mark it BLOCKED and say so.
 
 ## Procedure
 
@@ -58,8 +64,8 @@ Won it? Set that row's Status to `CLAIMED` in `TASKS.md`.
 
 Read the task's linked recipe docs before writing anything. Stay strictly inside the
 Owned paths. Match the surrounding code — this repo has a real design canon
-(`docs/design-language.md`, `docs/ios-design-language.md`) and the PostToolUse hooks will
-reject canon breaches on the spot.
+(`docs/design-language.md`) and the PostToolUse hooks will reject canon breaches on the
+spot. Reuse the shared primitives in `src/components/ui/**` rather than hand-rolling.
 
 On long tasks, call `claim.sh beat <ID>` occasionally, or Alex's sweep (30 min idle) will
 reclaim your task out from under you.
@@ -67,12 +73,43 @@ reclaim your task out from under you.
 ### 4. Gate it
 
 Run exactly the Gates named in the task row, in your own worktree. They're safe to run
-concurrently now — your `.next`, DerivedData and Gradle output are yours alone.
+concurrently now — your `.next` and every other build output are yours alone. ⚠️ e2e
+**fails OPEN**: always set `E2E_BASE=http://localhost:3100`, or you will silently test
+production and call it a pass.
 
 **Stop at the first red gate.** A failing gate is not a READY task. If you can't get it
 green, mark the row `BLOCKED`, write what failed into the claim note, and stop.
 
-### 5. Commit to your branch
+### 5. Get the two second opinions — MANDATORY, every task
+
+Owner rule: **every finished task gets both external reviewers before it is handed off.**
+An Opus review of Opus code shares its blind spots; these two fail differently, which is
+the entire point. Run them **in parallel**, as background jobs in the same turn — never in
+sequence — and **ask them to REFUTE a specific claim**, not to "review this":
+
+```bash
+# codex — STDIN only; the argument form hangs. Forbid exploration or it never reaches a verdict.
+codex exec -m gpt-5.6-sol -c model_reasoning_effort=high -c web_search=disabled \
+  --skip-git-repo-check --sandbox read-only < /tmp/review-prompt.txt
+
+# agy — inline the diff CONTENT; its agentic file-reading mode times out.
+agy -p "<prompt with the diff inlined>" --model "Gemini 3.1 Pro (High)" --print-timeout 240s
+```
+
+Open the prompt with: *"Answer ONLY from the diff below. Do NOT read files, search, or
+explore. Your FIRST line MUST be `VERDICT: CONFIRMED` or `VERDICT: REFUTED`."* Then state
+the claim to attack, e.g. *"This change fixes X without introducing a regression in Y."*
+
+**⚠️ A reviewer that did not answer is NOT a passed review.** They fail silently — network
+errors, headless permission prompts, or burning the whole run exploring. **Confirm a
+VERDICT actually exists in the output**, not merely that the process exited 0. If one
+never landed, say so out loud in your commit message and your handoff. Adjudicating it
+yourself is an acceptable fallback; pretending it was reviewed is not.
+
+Fix what they catch, then re-run the gates. Record both verdicts in the `gates` string you
+pass to `claim.sh ready`.
+
+### 6. Commit to your branch
 
 Read back exactly what you're about to commit, then commit by literal pathspec:
 
@@ -91,7 +128,7 @@ voice, prefixed `[T###]`. End with:
 Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
 ```
 
-### 6. Hand off to Alex
+### 7. Hand off to Alex
 
 ```bash
 /Users/mk1e3/eno-cockpit/claim.sh ready T101 "$(git rev-parse --abbrev-ref HEAD)" \
