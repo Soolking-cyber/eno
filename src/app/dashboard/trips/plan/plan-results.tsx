@@ -57,6 +57,7 @@ import {
   type GeneratedItineraryResponse,
 } from '@/lib/itinerary-data'
 import { buildItineraryResourceGroups, type ItineraryResourceKind } from '@/lib/itinerary-resources'
+import { handleExternalClick } from '@/lib/native-browser'
 import { requestDocxTranslations } from './plan-docx'
 
 const RESOURCE_ICONS: Record<ItineraryResourceKind, typeof Landmark> = {
@@ -76,6 +77,14 @@ const RESOURCE_ICONS: Record<ItineraryResourceKind, typeof Landmark> = {
 
 /** Locale-aware money per the app canon (full grouped amount via vnd.ts —
  *  "12,000,000 VND" / "12.000.000 đ"); zero renders the forum's "—". */
+// Last gate before <a href>, mirroring safeHrefOnly in itinerary-resources.ts. Flight and stay
+// urls are AI-origin: they are safeUrl'd at generation time (api/itineraries/generate/route.ts
+// safeUrl → http(s) only, and `new URL(v)` with no base so a scheme-less "www.host/x" is
+// rejected rather than becoming a FIRST-PARTY relative link). A plan STORED before that gate
+// existed still renders straight from the row, so re-check here — a javascript:/data: href
+// must never reach the DOM, whatever produced it.
+const isHttpUrl = (url?: string | null): boolean => !!url && /^https?:\/\//i.test(url.trim())
+
 function useVnd() {
   const { lang } = useLanguage()
   return (amount: number) => (amount ? formatMoneyFull(amount, '₫', moneyLocale(lang)) : '—')
@@ -270,7 +279,7 @@ export function PlanResults({ result, travelers, days, onSave, saving, saved }: 
                 </div>
                 <p className="mt-4 text-sm font-bold text-accent-foreground">{flight.priceLowVnd ? `${vnd(flight.priceLowVnd)}–${vnd(flight.priceHighVnd)}` : tr('No defensible fare found', 'Chưa tìm thấy mức giá đáng tin')}</p>
                 <p className="mt-2 text-xs leading-relaxed text-body">{flight.fareNote}</p>
-                {flight.url && <a href={flight.url} target="_blank" rel="noreferrer" className={buttonVariants({ variant: 'link', size: 'none', className: 'mt-4 h-auto justify-start p-0 text-xs font-bold' })}>{tr('Check this option', 'Kiểm tra lựa chọn này')}<ExternalLink className="h-3.5 w-3.5" /></a>}
+                {isHttpUrl(flight.url) && <a href={flight.url} onClick={handleExternalClick} target="_blank" rel="noreferrer" className={buttonVariants({ variant: 'link', size: 'none', className: 'mt-4 h-auto justify-start p-0 text-xs font-bold' })}>{tr('Check this option', 'Kiểm tra lựa chọn này')}<ExternalLink className="h-3.5 w-3.5" /></a>}
               </Card>
             ))}
           </div>
@@ -301,7 +310,7 @@ export function PlanResults({ result, travelers, days, onSave, saving, saved }: 
               <p className="mt-1 flex items-center gap-1 text-xs text-body"><MapPin className="h-3.5 w-3.5" />{stay.area}</p>
               <p className="mt-3 text-xs leading-relaxed text-body">{stay.why}</p>
               <p className="mt-3 text-xs font-bold text-accent-foreground">{vnd(stay.nightlyLowVnd)}–{vnd(stay.nightlyHighVnd)}{tr('/night', '/đêm')}</p>
-              {stay.url && <a href={stay.url} target="_blank" rel="noreferrer" className={buttonVariants({ variant: 'link', size: 'none', className: 'mt-3 h-auto justify-start p-0 text-xs font-bold' })}>{tr('View source', 'Xem nguồn')}<ExternalLink className="h-3.5 w-3.5" /></a>}
+              {isHttpUrl(stay.url) && <a href={stay.url} onClick={handleExternalClick} target="_blank" rel="noreferrer" className={buttonVariants({ variant: 'link', size: 'none', className: 'mt-3 h-auto justify-start p-0 text-xs font-bold' })}>{tr('View source', 'Xem nguồn')}<ExternalLink className="h-3.5 w-3.5" /></a>}
             </Card>
           ))}
         </div>

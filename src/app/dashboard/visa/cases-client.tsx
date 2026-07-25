@@ -22,6 +22,7 @@ import { SectionHeader } from '@/components/marketplace/section-header'
 import { useMinuteTick, VisaStart } from '@/components/marketplace/visa-start'
 import { expectedVisaReadyAt } from '@/lib/visa/eta'
 import { parseVisaSpeedCode, VISA_ENTRY_TYPE_LABELS, VISA_SPEED_SPECS, type VisaEntryType } from '@/lib/visa/speed'
+import { handleExternalClick } from '@/lib/native-browser'
 
 // ── /dashboard/visa — YOUR e-VISA CASES: MANAGEMENT ONLY (Phase 3). ────────────────
 //
@@ -676,7 +677,7 @@ export function VisaCasesClient({ threads }: {
           </div>
           <p className="mt-6 border-t border-border pt-4 text-xs leading-relaxed text-body">{tr('eno is an independent assistance service, not a government agency. Approval is decided only by Vietnamese authorities. Official fees and eno service fees are confirmed separately in writing before payment.', 'eno là dịch vụ hỗ trợ độc lập, không phải cơ quan nhà nước. Việc phê duyệt chỉ do cơ quan chức năng Việt Nam quyết định. Lệ phí chính thức và phí dịch vụ eno được xác nhận riêng bằng văn bản trước thanh toán.')}</p>
           <p className="mt-3 text-xs leading-relaxed text-body">
-            <a href="https://evisa.gov.vn/" target="_blank" rel="noreferrer" className="font-semibold text-accent-foreground hover:underline">{tr('Official e-Visa website', 'Trang E-Visa chính thức')}</a>
+            <a href="https://evisa.gov.vn/" onClick={handleExternalClick} target="_blank" rel="noreferrer" className="font-semibold text-accent-foreground hover:underline">{tr('Official e-Visa website', 'Trang E-Visa chính thức')}</a>
           </p>
         </div>
       </>

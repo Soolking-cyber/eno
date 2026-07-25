@@ -14,6 +14,7 @@ import { SignInPrompt } from '@/components/marketplace/account-actions'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
+import { handleExternalClick } from '@/lib/native-browser'
 import { cn } from '@/lib/utils'
 
 // The dispute case room (Binance-P2P style): one shared timeline where the reporter,
@@ -341,7 +342,10 @@ export default function DisputeRoomPage() {
                       {item.images.length > 0 && (
                         <div className={cn('flex flex-wrap gap-2', item.body && 'mt-2')}>
                           {item.images.map((src, i) => (
-                            <a key={i} href={src} target="_blank" rel="noreferrer" className="block h-24 w-24 overflow-hidden rounded-xl bg-background/50">
+                            // Evidence lives on signed storage URLs — a third-party host, so in
+                            // the native shell this anchor would hand the user to Safari/Chrome
+                            // and drop them out of the app mid-dispute. No-op on web.
+                            <a key={i} href={src} onClick={handleExternalClick} target="_blank" rel="noreferrer" className="block h-24 w-24 overflow-hidden rounded-xl bg-background/50">
                               {/* Signed URLs expire hourly — plain <img>, never the Next image cache. */}
                               {/* eslint-disable-next-line @next/next/no-img-element */}
                               <img src={src} alt="" className="h-full w-full object-cover" loading="lazy" />
