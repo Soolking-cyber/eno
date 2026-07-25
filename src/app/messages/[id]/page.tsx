@@ -35,6 +35,7 @@ import {
   prepareVisaImage, useVisaCase, visaErrorCopy, visaTypeWords, EDITABLE_VISA_STATUSES,
   type VisaQuoteWire,
 } from '@/components/marketplace/visa-cards'
+import { TripQuoteCard, TripStatusCard } from '@/components/marketplace/trip-cards'
 import { Avatar } from '@/components/ui/avatar'
 import { Checkbox } from '@/components/ui/checkbox'
 import { LANGUAGES } from '@/lib/i18n/langs'
@@ -163,6 +164,20 @@ function VisaAssistChips({
       )}
     </div>
   )
+}
+
+/**
+ * Read one string field out of a trip card's `meta`, which arrives here as `unknown`.
+ *
+ * Narrowing by VALUE rather than by key: `'requestId' in meta` is rejected for an unknown operand
+ * and would still admit a non-string. The server has already re-validated this blob through
+ * parseMessageMeta, so this is the last mile — enough to hand a typed prop to the card, and it
+ * degrades to the "could not be shown" bubble instead of rendering a card with undefined in it.
+ */
+function tripField(meta: unknown, key: 'requestId' | 'status'): string | null {
+  if (!meta || typeof meta !== 'object') return null
+  const value = (meta as Record<string, unknown>)[key]
+  return typeof value === 'string' && value ? value : null
 }
 
 type Msg ={ id: string; mine: boolean; body: string; createdAt: string; pending?: boolean; failed?: boolean; kind?: string; offerAmount?: number | null; offerStatus?: string | null; meta?: unknown }
@@ -1209,6 +1224,18 @@ export default function ThreadPage() {
                     busy={visaBusy}
                     onSelect={selectVisaProduct}
                   />
+                ) : m.kind === 'trip_quote' && tripField(m.meta, 'requestId') ? (
+                  // LIVE: the row carries only a requestId, so the card reads the amounts itself.
+                  <TripQuoteCard requestId={tripField(m.meta, 'requestId')!} />
+                ) : m.kind === 'trip_status' && tripField(m.meta, 'status') ? (
+                  // HISTORICAL: rendered from meta, never re-read — see trip-cards.tsx.
+                  <TripStatusCard status={tripField(m.meta, 'status')!} />
+                ) : m.kind === 'trip_quote' || m.kind === 'trip_status' ? (
+                  // A trip card whose meta this build cannot read. Its body is empty by design, so
+                  // it must NOT fall through to an empty bubble.
+                  <MessageBubble mine={m.mine} className="max-w-[78%] text-ink-4">
+                    {tr('This trip update could not be shown here.', 'Không hiển thị được cập nhật chuyến đi này.')}
+                  </MessageBubble>
                 ) : m.kind === 'visa_step' || m.kind === 'visa_checkout' || m.kind === 'visa_result' || m.kind === 'visa_picker' ? (
                   // A card whose meta this build cannot read. Its body is empty by design,
                   // so it must NOT fall through to an empty bubble.

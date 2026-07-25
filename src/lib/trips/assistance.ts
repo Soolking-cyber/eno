@@ -117,6 +117,56 @@ export async function requestAssistance(input: { itineraryId: string }): Promise
   return { ok: true, requestId: outcome.id }
 }
 
+/** What a trip card renders. Amounts are null until an operator has quoted. */
+export type AssistanceView = {
+  requestId: string
+  status: string
+  supplierTotalVnd: number | null
+  feeVnd: number | null
+  quotedAt: string | null
+  /** True for the traveller whose case it is — the only viewer who may accept or decline. */
+  mine: boolean
+}
+
+/**
+ * Read a case for rendering. This is what makes the quote card a LIVE handle: the message row
+ * carries only a requestId, and the numbers come from here on every render, so a re-quote is never
+ * contradicted by a stale card sitting in the timeline.
+ *
+ * Visible to the traveller who owns it and to an admin, and to nobody else. `mine` is computed
+ * here rather than by the caller, so a surface cannot accidentally offer the accept button to an
+ * operator (who would then be accepting a quote on the traveller's behalf).
+ */
+export async function viewAssistance(input: { requestId: string }): Promise<{ ok: true; data: AssistanceView } | { ok: false; error: AssistanceError }> {
+  const profile = await getCurrentProfile()
+  if (!profile) return { ok: false, error: 'not_signed_in' }
+  const request = await db.tripAssistanceRequest.findUnique({
+    where: { id: input.requestId },
+    select: { id: true, profileId: true, status: true, supplierTotalVnd: true, feeVnd: true, quotedAt: true },
+  })
+  const mine = request?.profileId === profile.id
+  // ⚠️ MISSING AND FORBIDDEN ARE THE SAME ANSWER. Returning 'request_not_found' for an id that
+  // does not exist and 'forbidden' for one that does is an EXISTENCE ORACLE: a signed-in stranger
+  // enumerates real case ids by comparing 404s to 403s. codex found this, against a comment of
+  // mine that claimed the endpoint never confirms which ids are real — it did.
+  //
+  // The cost is that a traveller whose own case was deleted sees 'forbidden' rather than a precise
+  // 404. That is the correct trade: they have one case id, and the difference tells them nothing
+  // they need, while the distinction tells an attacker everything.
+  if (!request || (!mine && !(await getAdmin()))) return { ok: false, error: 'forbidden' }
+  return {
+    ok: true,
+    data: {
+      requestId: request.id,
+      status: request.status,
+      supplierTotalVnd: request.supplierTotalVnd,
+      feeVnd: request.feeVnd,
+      quotedAt: request.quotedAt ? request.quotedAt.toISOString() : null,
+      mine,
+    },
+  }
+}
+
 /** An operator picks the case up: requested → reviewing. */
 export async function startReview(input: { requestId: string }): Promise<AssistanceResult> {
   const admin = await getAdmin()
@@ -225,9 +275,10 @@ async function transitionAsTraveller(requestId: string, next: string): Promise<A
     where: { id: requestId },
     select: { status: true, profileId: true },
   })
-  if (!request) return { ok: false, error: 'request_not_found' }
-  // Ownership, proven against the SESSION profile — there is no argument to forge.
-  if (request.profileId !== profile.id) return { ok: false, error: 'forbidden' }
+  // Ownership, proven against the SESSION profile — there is no argument to forge. Missing and
+  // not-yours collapse to ONE answer for the same reason as viewAssistance: otherwise the action
+  // routes are an existence oracle for any signed-in user (codex).
+  if (!request || request.profileId !== profile.id) return { ok: false, error: 'forbidden' }
   const result = await applyTripTransition({
     id: requestId, expectedPrior: request.status, next,
     actorType: 'traveller', actorRef: profile.id,

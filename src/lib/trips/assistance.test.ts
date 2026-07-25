@@ -121,7 +121,7 @@ vi.mock('../db', () => {
   return mod
 })
 
-import { acceptQuote, cancelAssistance, declineQuote, quoteAssistance, requestAssistance, startReview } from './assistance'
+import { acceptQuote, cancelAssistance, declineQuote, quoteAssistance, requestAssistance, startReview, viewAssistance } from './assistance'
 import { isTerminalStatus, openStatuses } from './status'
 
 const ITIN = 'itin-1'
@@ -414,5 +414,55 @@ describe('startReview', () => {
     expect(await startReview({ requestId: 'case-1' })).toEqual({ ok: true, requestId: 'case-1' })
     expect(h.state.requests['case-1'].status).toBe('reviewing')
     expect(h.state.requests['case-1'].assignedAdmin).toBe('ops@eno.vn')
+  })
+})
+
+describe('no existence oracle', () => {
+  // Both external reviewers found this independently: returning 'request_not_found' for a
+  // nonexistent case and 'forbidden' for one that exists lets a SIGNED-IN stranger enumerate real
+  // case ids by comparing statuses. Missing and not-yours must be indistinguishable.
+
+  it('viewAssistance answers the same for a missing case and someone elses', async () => {
+    seedCase({ id: 'theirs', profileId: 'another-traveller' })
+    const missing = await viewAssistance({ requestId: 'no-such-case' })
+    const theirs = await viewAssistance({ requestId: 'theirs' })
+    expect(missing).toEqual({ ok: false, error: 'forbidden' })
+    expect(theirs).toEqual({ ok: false, error: 'forbidden' })
+    expect(missing).toEqual(theirs)
+  })
+
+  it('traveller actions answer the same for a missing case and someone elses', async () => {
+    seedCase({ id: 'theirs', status: 'quoted', profileId: 'another-traveller' })
+    const missing = await acceptQuote({ requestId: 'no-such-case' })
+    const theirs = await acceptQuote({ requestId: 'theirs' })
+    expect(missing).toEqual({ ok: false, error: 'forbidden' })
+    expect(missing).toEqual(theirs)
+  })
+
+  it('still shows the OWNER their own case', async () => {
+    // The collapse must not blind a legitimate traveller to their own data.
+    seedCase({ id: 'mine', status: 'quoted' })
+    h.state.requests['mine'].supplierTotalVnd = 12_000_000
+    h.state.requests['mine'].feeVnd = 900_000
+    const result = await viewAssistance({ requestId: 'mine' })
+    expect(result.ok).toBe(true)
+    if (result.ok) {
+      expect(result.data.mine).toBe(true)
+      expect(result.data.supplierTotalVnd).toBe(12_000_000)
+    }
+  })
+
+  it('lets an ADMIN read a case that is not theirs, with mine=false', async () => {
+    // An operator must be able to see the case; `mine` false is what keeps the accept button away.
+    seedCase({ id: 'theirs', status: 'quoted', profileId: 'another-traveller' })
+    h.state.admin = 'ops@eno.vn'
+    const result = await viewAssistance({ requestId: 'theirs' })
+    expect(result.ok).toBe(true)
+    if (result.ok) expect(result.data.mine).toBe(false)
+  })
+
+  it('refuses a signed-out reader before any lookup', async () => {
+    h.state.profile = null
+    expect(await viewAssistance({ requestId: 'anything' })).toEqual({ ok: false, error: 'not_signed_in' })
   })
 })
