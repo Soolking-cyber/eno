@@ -41,7 +41,6 @@ export async function expectNoA11yViolations(page: Page, context = 'page') {
     .analyze()
   const blocking = results.violations.filter((v) => v.impact === 'serious' || v.impact === 'critical')
   if (blocking.length) {
-    // eslint-disable-next-line no-console
     console.log(`a11y violations on ${context}:\n` + blocking.map((v) => `  • [${v.impact}] ${v.id} — ${v.help} (${v.nodes.length} node(s))`).join('\n'))
   }
   expect(blocking, `serious/critical a11y violations on ${context}`).toEqual([])

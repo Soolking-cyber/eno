@@ -165,7 +165,6 @@ export function Preview({ cover, title, price, priceUnit, area, categoryIcon, t 
     <div className="w-full">
       <div className="relative aspect-square w-full overflow-hidden rounded-xl bg-tint">
         {cover ? (
-          // eslint-disable-next-line @next/next/no-img-element
           <img src={cover} alt="" className="h-full w-full object-cover" />
         ) : (
           <div className="flex h-full w-full items-center justify-center">

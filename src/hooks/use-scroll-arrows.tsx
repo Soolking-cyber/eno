@@ -76,7 +76,6 @@ export function useScrollArrows<T extends HTMLElement = HTMLDivElement>(
     // sync reads a stale scrollWidth and the arrows never appear — MEASURED, 30 brands
     // stayed arrowless. The React effect runs after commit, where reading scrollWidth forces
     // correct layout. codex's own probe used double-requestAnimationFrame for the same reason.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sync, watch])
 
   const page = useCallback((dir: 1 | -1) => {

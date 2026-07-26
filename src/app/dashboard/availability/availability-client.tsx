@@ -135,7 +135,7 @@ export function AvailabilityClient() {
               return (
                 <Button key={l.id} variant="bare" size="none" onClick={() => toggle(l.id)} className={cn('flex w-full items-center justify-start gap-3 whitespace-normal rounded-2xl p-2.5 text-left transition-colors active:scale-100 cursor-pointer', sold ? 'bg-accent' : 'hover:bg-muted')}>
                   <span className="relative h-14 w-14 shrink-0 overflow-hidden rounded-xl bg-tint">
-                    {l.images[0] && /* eslint-disable-next-line @next/next/no-img-element */ <img src={l.images[0]} alt="" className={cn('h-full w-full object-cover transition-opacity', sold && 'opacity-50')} loading="lazy" />}
+                    {l.images[0] && <img src={l.images[0]} alt="" className={cn('h-full w-full object-cover transition-opacity', sold && 'opacity-50')} loading="lazy" />}
                   </span>
                   <div className="min-w-0 flex-1">
                     <p className={cn('truncate text-sm font-semibold', sold ? 'text-muted-foreground line-through' : 'text-foreground')}>{l.titleVi || l.title}</p>

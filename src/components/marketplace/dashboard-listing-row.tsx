@@ -179,7 +179,6 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row', serie
       <div className={cn('flex flex-col rounded-2xl border bg-card transition-colors', selected ? 'border-brand ring-1 ring-brand' : 'border-border/70 hover:border-line-strong')} onMouseEnter={prefetch} onTouchStart={prefetch}>
         <button onClick={open} className="relative aspect-square w-full overflow-hidden rounded-t-2xl bg-tint cursor-pointer" aria-label={title}>
           {img && (
-            // eslint-disable-next-line @next/next/no-img-element
             <img src={img} alt="" className="h-full w-full object-cover" loading="lazy" />
           )}
           {selectable && <span className="absolute right-2 top-2">{checkbox}</span>}
@@ -202,7 +201,6 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row', serie
       {selectable && <span className="self-center">{checkbox}</span>}
       <Button variant="bare" size="none" onClick={open} className="press relative h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-tint" aria-label={title}>
         {img && (
-          // eslint-disable-next-line @next/next/no-img-element
           <img src={img} alt="" className="h-full w-full object-cover" loading="lazy" />
         )}
       </Button>

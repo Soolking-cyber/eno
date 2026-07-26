@@ -34,7 +34,7 @@ export function RangeSpecInput({
   // isn't focused (so an external change — e.g. dragging the slider — updates it).
   const [text, setText] = useState(value == null ? '' : display(value))
   const focused = useRef(false)
-  useEffect(() => { if (!focused.current) setText(value == null ? '' : display(value)) }, [value]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (!focused.current) setText(value == null ? '' : display(value)) }, [value])
 
   const onType = (raw: string) => {
     const cleaned = decimals > 0 ? raw.replace(/[^0-9.]/g, '') : raw.replace(/[^0-9]/g, '')

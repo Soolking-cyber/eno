@@ -102,7 +102,6 @@ export function ContactComposer({
     const opts = pendingRef.current
     pendingRef.current = null
     send(opts)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, loading])
 
   // Touch feedback on the two highest-commitment taps in the app. Fired in the gesture
@@ -133,7 +132,6 @@ export function ContactComposer({
       if (quickOffer != null) setDiscount(quickOffer)
     }, 150)
     return () => window.clearTimeout(t)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // The SellerCard's "Chat now" sends the opener directly (one tap → live thread).
@@ -143,7 +141,6 @@ export function ContactComposer({
     const onChat = () => chatNow()
     window.addEventListener('eno:chat-now', onChat)
     return () => window.removeEventListener('eno:chat-now', onChat)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canOffer, user, loading])
 
   // "Chat now" is now this composer's OWN primary CTA (moved here 2026-07-17 when the seller card

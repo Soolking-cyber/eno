@@ -58,7 +58,6 @@ export function OnboardClient() {
     if (loading) return
     if (!user) { router.replace('/'); return }
     if (accountType) router.replace(computeNext())
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, user, accountType, rawNext, router])
 
   const nameOk = name.trim().length >= 2

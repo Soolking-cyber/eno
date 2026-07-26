@@ -76,7 +76,7 @@ export function CardVideo({ src, hover, suspend = false }: {
   // holding a slot (hover-started, then tap-through to the PDP) would leak its entry in the
   // module-level `playing` Set forever — two leaks and the cap permanently kills autoplay
   // for the session. release() is idempotent, so double-stop with the IO cleanup is safe.
-  useEffect(() => () => stop(), []) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => () => stop(), [])
 
   // Viewport-driven autoplay (the mobile path). One observer per card-with-video —
   // cheap, and only cards that HAVE a clip render this component at all.
@@ -107,7 +107,6 @@ export function CardVideo({ src, hover, suspend = false }: {
     )
     obs.observe(el)
     return () => { obs.disconnect(); stop() }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // Desktop hover: instant start (no settle beat, bypasses the concurrency cap).
@@ -124,7 +123,6 @@ export function CardVideo({ src, hover, suspend = false }: {
     if (suspend) return
     if (realHover) { activatedAt.current ||= Date.now(); start(true) }
     else if (!inViewRef.current) stop()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hover, suspend])
 
   // Carousel-swipe suspension: stop immediately; when the buyer returns to the cover
@@ -132,7 +130,6 @@ export function CardVideo({ src, hover, suspend = false }: {
   useEffect(() => {
     if (suspend) stop()
     else if (inViewRef.current || hoverRef.current) start(hoverRef.current)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [suspend])
 
   const onPlaying = () => {

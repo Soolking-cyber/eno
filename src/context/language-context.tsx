@@ -232,7 +232,6 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
       })
     })
     return () => { cancelled = true }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lang])
 
   // Keep <html lang> in sync so screen readers use the right voice (WCAG 3.1.1).
@@ -274,7 +273,6 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
 
   // t/tr read module-level caches at call time, so [lang, dicts] deps are enough —
   // async translation arrivals repaint via the external store, not new closures.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   const value = useMemo(() => ({ lang, setLang, t, tr }), [lang, dicts])
 
   return (

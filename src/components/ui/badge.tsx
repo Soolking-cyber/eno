@@ -101,7 +101,6 @@ export function Badge({
   )
 
   if (render) {
-    /* eslint-disable @typescript-eslint/no-explicit-any */
     const childProps = render.props as Record<string, any>
     const ownProps = props as Record<string, any>
     // Child first, Badge's own props second — but neither may silently EAT the other:
@@ -122,7 +121,6 @@ export function Badge({
     merged.className = cn(own, childProps.className, className)
     merged.children = ownProps.children ?? childProps.children
     return React.cloneElement(render, merged)
-    /* eslint-enable @typescript-eslint/no-explicit-any */
   }
 
   return <span className={cn(own, className)} {...props} />

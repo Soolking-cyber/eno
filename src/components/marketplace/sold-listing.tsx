@@ -50,7 +50,6 @@ export function SoldListing({
           <div className="mx-auto mt-6 flex max-w-sm items-center gap-3 rounded-2xl bg-tint p-3 text-left">
             {cover ? (
               <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-xl bg-muted">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={cover} alt="" className="h-full w-full object-cover opacity-55 grayscale" />
                 <span className="absolute inset-x-0 bottom-0 bg-foreground/75 py-0.5 text-center text-3xs font-bold uppercase tracking-wide text-background">
                   <Tr text="Sold" />

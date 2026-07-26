@@ -436,7 +436,7 @@ export default function ThreadPage() {
     // 240px ≈ "I was at the bottom" even after the new bubble pushed the height.
     if (last?.mine || distanceFromBottom() < 240) scrollBottom(true)
     else setNewBelow(true)
-  }, [thread?.messages.length, id, scrollBottom]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [thread?.messages.length, id, scrollBottom])
   useEffect(() => { setNewBelow(false) }, [id])
   useEffect(() => { meRef.current = thread?.me ?? null }, [thread?.me])
 

@@ -69,7 +69,6 @@ function ReportAlert({ report }: { report: EnforcementInfo['openReports'][number
           {report.listing && (
             <span className="mt-1.5 flex items-center gap-2.5">
               {report.listing.image ? (
-                // eslint-disable-next-line @next/next/no-img-element
                 <img src={report.listing.image} alt="" className="h-9 w-9 shrink-0 rounded-lg object-cover" />
               ) : (
                 <span className="h-9 w-9 shrink-0 rounded-lg bg-tint" />

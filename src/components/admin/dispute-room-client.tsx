@@ -297,7 +297,6 @@ export function DisputeRoomAdmin({ data }: { data: AdminCase }) {
                   <div className={cn('flex flex-wrap gap-2', item.body && 'mt-2')}>
                     {item.images.map((src, i) => (
                       <a key={i} href={src} target="_blank" rel="noreferrer" className="block h-28 w-28 overflow-hidden rounded-xl bg-background/50">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img src={src} alt="" className="h-full w-full object-cover" loading="lazy" />
                       </a>
                     ))}

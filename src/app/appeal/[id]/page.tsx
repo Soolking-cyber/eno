@@ -87,7 +87,6 @@ export default function AppealPage() {
             <div className="mt-1 flex flex-wrap gap-2">
               {files.map((f, i) => (
                 <div key={i} className="relative h-20 w-20 overflow-hidden rounded-xl bg-tint">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={f.url} alt="" className="h-full w-full object-cover" />
                   <Button variant="bare" size="none" onClick={() => removeFile(i)} aria-label={t('Remove', 'Xóa')} className="absolute right-0.5 top-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-black/60 text-white active:scale-100"><X className="h-3 w-3" /></Button>
                 </div>

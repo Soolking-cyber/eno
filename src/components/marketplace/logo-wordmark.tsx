@@ -23,7 +23,6 @@ export function LogoWordmark({ className }: { className?: string }) {
   return (
     <>
       <link rel="preload" href="/logo.svg" as="image" fetchPriority="high" />
-      {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src="/logo.svg"
         alt="eno.vn Logo"

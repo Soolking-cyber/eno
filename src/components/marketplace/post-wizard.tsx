@@ -321,7 +321,6 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
       }
     } catch {}
     draftHydrated.current = true
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [edit])
   useEffect(() => {
     if (edit || !draftHydrated.current) return

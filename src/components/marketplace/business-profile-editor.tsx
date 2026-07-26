@@ -165,7 +165,6 @@ export function BusinessProfileEditor({ seller, repName, onSaved }: { seller: Se
     <div>
       <label className="group relative inline-block cursor-pointer" title={tr('Change logo', 'Đổi logo')}>
         {avatarUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
           <img src={avatarUrl} alt="" className="h-20 w-20 rounded-full object-cover" />
         ) : (
           <span className="flex h-20 w-20 items-center justify-center rounded-full bg-accent text-xl font-bold text-accent-foreground">{initials}</span>

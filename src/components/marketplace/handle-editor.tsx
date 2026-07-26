@@ -53,7 +53,6 @@ export function HandleEditor({ target, initial, label }: { target: 'profile' | '
       } catch { if (req.isCurrent()) setState('idle') }
     }, 400)
     return () => { if (timer.current) clearTimeout(timer.current) }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [normalized, dirty])
 
   const save = async () => {

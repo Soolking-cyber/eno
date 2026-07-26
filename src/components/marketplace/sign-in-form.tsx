@@ -337,7 +337,6 @@ export function SignInForm({ className }: { className?: string }) {
       })
       .catch(() => { /* aborted, no SMS, or denied — manual entry still works */ })
     return () => ac.abort()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stage])
 
   // Escalation counter resets too — the server tracks it PER NUMBER, so a

@@ -38,9 +38,9 @@ export function RangeFacetControl({
   const loFoc = useRef(false)
   const hiFoc = useRef(false)
 
-  useEffect(() => { const [a, b] = fromValue(value); setLo(a); setHi(b) /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [value])
-  useEffect(() => { if (!loFoc.current) setLoText(lo <= min ? '' : fmt(lo)) /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [lo])
-  useEffect(() => { if (!hiFoc.current) setHiText(hi >= max ? '' : fmt(hi)) /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [hi])
+  useEffect(() => { const [a, b] = fromValue(value); setLo(a); setHi(b) }, [value])
+  useEffect(() => { if (!loFoc.current) setLoText(lo <= min ? '' : fmt(lo)) }, [lo])
+  useEffect(() => { if (!hiFoc.current) setHiText(hi >= max ? '' : fmt(hi)) }, [hi])
 
   const commit = (nlo: number, nhi: number) => {
     const mn = nlo <= min ? '' : String(round(nlo))

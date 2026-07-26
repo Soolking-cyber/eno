@@ -70,7 +70,6 @@ setup('authenticate seeded roles', async () => {
   if (!AUTHED_BASE) { setup.skip(true, 'E2E_AUTHED_BASE not set — guest-only run'); return }
   for (const [role, email] of Object.entries(ROLES)) {
     const done = await captureRole(role, email)
-    // eslint-disable-next-line no-console
     console.log(`[auth.setup] ${role}: ${done ? 'storageState written' : 'skipped (env missing)'}`)
   }
 })

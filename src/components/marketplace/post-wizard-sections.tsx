@@ -153,7 +153,6 @@ export function MediaSection({
               draggingPhoto === i && 'z-10 scale-105 shadow-xl ring-2 ring-brand/50',
             )}
           >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={p.url} alt="" draggable={false} className="pointer-events-none h-full w-full object-cover" />
             {i === 0 ? (
               <span className="absolute left-1.5 top-1.5 rounded-lg bg-primary px-1.5 py-0.5 text-3xs font-bold text-white">{t('Bìa', 'Cover')}</span>

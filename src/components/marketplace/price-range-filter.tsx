@@ -67,7 +67,6 @@ export function PriceRangeFilter({
     const [mn, mx] = value !== 'all' ? value.split('-') : ['', '']
     setLo(mn ? Number(mn) : dataMin)
     setHi(mx ? Number(mx) : dataMax)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prices, value])
 
   const effLo = lo ?? dataMin

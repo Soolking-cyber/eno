@@ -119,7 +119,12 @@ const eslintConfig = [...nextCoreWebVitals, ...nextTypescript, {
   files: ["e2e/**"],
   rules: { "react-hooks/rules-of-hooks": "off" },
 }, {
-  ignores: ["node_modules/**", ".next/**", "out/**", "build/**", "next-env.d.ts", "examples/**", "skills", "apps/forum/**", "src/generated/prisma/**", "public/vendor/**", "cache-handler.cjs", "playwright-report/**", "test-results/**"]
+  // ⚠️ "build/**" matches only a TOP-LEVEL build/, so Gradle output was being linted:
+  // android/app/build/intermediates/.../native-bridge.js is git-ignored (android/.gitignore:24)
+  // yet accounted for a large share of the repo's lint warnings — noise from a generated file
+  // nobody can act on, in a directory that only exists after an Android build. The nested globs
+  // below cover both native projects' build output and their Pods/Gradle caches.
+  ignores: ["node_modules/**", ".next/**", "out/**", "build/**", "**/build/**", "android/**/build/**", "ios/**/Pods/**", "apps/android/**/build/**", "next-env.d.ts", "examples/**", "skills", "apps/forum/**", "src/generated/prisma/**", "public/vendor/**", "cache-handler.cjs", "playwright-report/**", "test-results/**"]
 }];
 
 export default eslintConfig;

@@ -96,7 +96,6 @@ export default function ReportSupplementPage() {
             <div className="mt-1 flex flex-wrap gap-2">
               {files.map((f, i) => (
                 <div key={i} className="relative h-20 w-20 overflow-hidden rounded-xl bg-tint">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={f.url} alt="" className="h-full w-full object-cover" />
                   <IconButton size="xs" tapTarget={false} onClick={() => removeFile(i)} aria-label={t('Remove', 'Xóa')} className="absolute right-0.5 top-0.5 size-5 bg-black/60 text-white"><X className="h-3 w-3" /></IconButton>
                 </div>

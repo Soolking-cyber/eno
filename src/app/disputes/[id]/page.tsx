@@ -347,7 +347,6 @@ export default function DisputeRoomPage() {
                             // and drop them out of the app mid-dispute. No-op on web.
                             <a key={i} href={src} onClick={handleExternalClick} target="_blank" rel="noreferrer" className="block h-24 w-24 overflow-hidden rounded-xl bg-background/50">
                               {/* Signed URLs expire hourly — plain <img>, never the Next image cache. */}
-                              {/* eslint-disable-next-line @next/next/no-img-element */}
                               <img src={src} alt="" className="h-full w-full object-cover" loading="lazy" />
                             </a>
                           ))}
@@ -383,7 +382,6 @@ export default function DisputeRoomPage() {
                 <div className="mt-2 flex flex-wrap items-center gap-2">
                   {files.map((f, i) => (
                     <div key={i} className="relative h-16 w-16 overflow-hidden rounded-xl bg-tint">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img src={f.url} alt="" className="h-full w-full object-cover" />
                       {/* NOT IconButton: its xs box is h-7 and it bakes a 44px tap target,
                           which would spill onto the neighbouring gap-2 thumbnail. */}

@@ -106,7 +106,6 @@ function pinHtml(label: string, active: boolean): string {
   return `<div style="transform:translate(-50%,-50%) scale(${scale});display:inline-block;background:${bg};color:${color};border:1px solid ${border};border-radius:9999px;padding:4px 9px;font-size:12px;font-weight:700;line-height:1;white-space:nowrap;box-shadow:0 1px 5px rgba(0,0,0,.22);transition:transform .12s ease, background .12s ease;">${esc}</div>`
 }
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * The basemap credit. A LICENCE OBLIGATION, not a design flourish.
  *
@@ -376,7 +375,6 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
       markersRef.current.clear()
       radiusCircleRef.current = null // removed with the map; drop the stale ref
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready])
 
   // Draw / refresh markers when listings change.
@@ -464,7 +462,6 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
     // position → the '_leaflet_pos' crash. The ref check skips a map that's been torn down.
     const sizeT = setTimeout(() => { if (mapInstanceRef.current === map) map.invalidateSize() }, 80)
     return () => clearTimeout(sizeT)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [listings, ready, activeDistrict, areaKey, nearby, locale])
 
   // Update marker styling on selection / hover (no full rebuild).
@@ -478,7 +475,6 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
       if (selectedId === id) marker.setZIndexOffset(1000)
       else marker.setZIndexOffset(0)
     })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId, ready])
 
   // Fly to a specific listing when requested ("locate on map").
@@ -488,7 +484,6 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
     if (!l) return
     const { lat, lng } = getListingCoordinates(l)
     mapInstanceRef.current.flyTo([lat, lng], 15, { duration: 0.6 })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusId, ready])
 
   return (

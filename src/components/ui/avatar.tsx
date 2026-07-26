@@ -30,7 +30,6 @@ export function Avatar({
 }) {
   const base = cn('shrink-0 overflow-hidden rounded-full', SIZES[size], className)
   if (url) {
-    // eslint-disable-next-line @next/next/no-img-element
     return <img src={url} alt="" className={cn(base, 'object-cover')} />
   }
   return (
