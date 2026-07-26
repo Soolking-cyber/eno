@@ -16,11 +16,16 @@ import { stripToPlainText } from '../reorder'
 /**
  * "Not this one — what else?" Suggest replacements for a single stop.
  *
- * ⚠️ THIS ROUTE WRITES NOTHING. It reads the day to build context and returns candidates; the
- * traveller then applies one through the `replace` action on the sibling stops endpoint, which is
- * where the write and its compare-and-set live. Declining costs a model call and changes not one
- * byte — which is the point, because "delete, then find something else" was previously a one-way
- * door.
+ * ⚠️ THIS ROUTE WRITES NO ITINERARY DATA. It reads the day to build context and returns candidates;
+ * the traveller then applies one through the `replace` action on the sibling stops endpoint, which is
+ * where the write and its compare-and-set live. Declining costs a model call and changes not one byte
+ * of the trip — which is the point, because "delete, then find something else" was previously a
+ * one-way door.
+ *
+ * It is not literally write-free, and the earlier version of this comment said so and was wrong: the
+ * per-itinerary refinement counter below is a write. Nothing a traveller can read or export changes,
+ * which is the property that matters here, but "writes nothing" invites someone to add a second write
+ * on the strength of it.
  *
  * ⚠️ IT IS A SECOND AI ENTRANCE, and pretending otherwise would be a lie I have already had
  * corrected once. A new named bucket (`ai-itinerary-refine`) is a new door into paid inference. What

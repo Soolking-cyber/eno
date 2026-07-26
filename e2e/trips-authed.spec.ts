@@ -89,6 +89,84 @@ test('two NON-adjacent stops can be swapped, which move-up/down cannot express',
     .toBe(`${last} | ${middle} | ${first}`)
 })
 
+test('a rejected activity can be REPLACED, and the map follows', async ({ page }) => {
+  // ⚠️ THE REACHABILITY GATE FOR T323, and the same lesson as the swap test above: the owner's
+  // complaint was not that removal was broken but that it left a hole — "when I edit itinerary it
+  // deletes but doesn't suggest something else instead". A route with 32 unit tests that no button
+  // reaches would satisfy every one of those tests and none of the complaint.
+  //
+  // ⚠️ THE MODEL CALL IS STUBBED; THE WRITE IS NOT. /stops/suggest is intercepted so the test is
+  // deterministic and costs nothing — what it proves is the path either side of the model: the
+  // dialog opens from the row, a suggestion becomes a real POST to the real stops endpoint, the
+  // real database row changes, and the map re-derives from it. The route's own behaviour (guards,
+  // lifetime cap, stripping, dedup) is unit-tested; none of that is what this file is for.
+  const NEW_NAME = 'REPLACEMENT STOP'
+  const NEW_PLACE = 'Hanoi Opera House'
+  await page.route('**/stops/suggest', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        remaining: 11,
+        suggestions: [{
+          name: NEW_NAME,
+          place: NEW_PLACE,
+          time: '15:00',
+          details: 'A short guided visit.',
+          travelMinutes: 12,
+          estimatedCostVnd: 120_000,
+          bookingAdvice: 'Book the day before.',
+          // A real Hanoi coordinate, materially away from the fixture's three, so "the map
+          // followed" is a claim about this stop and not about a redraw that happened anyway.
+          lat: 21.0245,
+          lng: 105.8572,
+          mapped: true,
+        }],
+      }),
+    }))
+
+  await page.goto('/dashboard/trips')
+  const row = page.getByRole('button', { name: new RegExp(PLAN, 'i') })
+  await expect(row).toBeVisible({ timeout: 20_000 })
+  await row.click()
+  await page.getByRole('link', { name: /open & edit|mở & chỉnh sửa/i }).click()
+  await expect(page).toHaveURL(/\/dashboard\/trips\/[^/]+$/)
+
+  const before = await order(page)
+  expect(before.length, 'fixture should render three stops').toBeGreaterThanOrEqual(3)
+  const doomed = before[before.length - 1] // the last row, so the earlier tests' fixtures are untouched
+
+  // 1 ── THE DOOR: the remove control opens the flow rather than deleting on the spot.
+  await page.locator('[data-stop-id]').last()
+    .getByRole('button', { name: /remove or replace this activity|xóa hoặc thay hoạt động/i }).click()
+  const dialog = page.getByRole('dialog')
+  await expect(dialog).toBeVisible()
+
+  // 2 ── REMOVING OUTRIGHT MUST STILL BE ONE TAP FROM HERE. Asserted, not assumed: this flow adds a
+  // path and must never become the only one.
+  await expect(dialog.getByRole('button', { name: /just remove it|chỉ cần xóa/i })).toBeVisible()
+
+  // 3 ── THE ASK: a reason chip, a preference, and the suggestion request.
+  await dialog.getByRole('button', { name: /too expensive|quá đắt/i }).click()
+  await dialog.getByRole('textbox').fill('somewhere quieter')
+  await dialog.getByRole('button', { name: /suggest replacements|gợi ý thay thế/i }).click()
+
+  // 4 ── THE CHOICE, and only then a write.
+  await expect(dialog.getByText(NEW_NAME)).toBeVisible({ timeout: 20_000 })
+  await dialog.getByRole('button', { name: /use this one|chọn cái này/i }).click()
+
+  // 5 ── THE PROOF, part one: the row really changed, via a refetch of the real database.
+  await expect.poll(async () => (await order(page)).join(' | '), { timeout: 20_000 })
+    .toContain(NEW_NAME)
+  expect((await order(page)).join(' | ')).not.toContain(doomed)
+
+  // 6 ── THE PROOF, part two: THE MAP FOLLOWED. Selecting the row opens that stop's popup on the
+  // map, so a popup naming the replacement is the map asserting it re-derived from the new row —
+  // not the list re-rendering on its own.
+  await page.locator(`[data-stop-id]`).filter({ hasText: NEW_NAME }).first().click()
+  await expect(page.locator('.leaflet-popup')).toContainText(NEW_PLACE, { timeout: 20_000 })
+})
+
 test('the edit controls are absent for a stop nobody owns', async ({ page }) => {
   // The counterpart to the reachability test: reachable must not mean open. A trip id that is not
   // this traveller's must not render an editable plan — the API answers 404/403 either way, but the

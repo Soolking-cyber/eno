@@ -96,7 +96,14 @@ type Props = {
    * @@unique([dayId, position]) makes "swap two rows" a transaction, not two writes.
    */
   onMoveStop?: (dayId: string, stopId: string, toIndex: number) => void | Promise<void>
-  onDeleteStop?: (dayId: string, stopId: string) => void | Promise<void>
+  /**
+   * Open the removal flow for a stop. NOT "delete it" — the surface decides what removing means.
+   *
+   * ⚠️ IT HANDS BACK THE WHOLE STOP, not an id, because the owner of this callback has to NAME the
+   * activity in its dialog ("Replace Walk the old town?"). Passing an id would make every caller
+   * look the row back up in a list this component already has in its hand.
+   */
+  onRemoveStop?: (dayId: string, stop: TripStop) => void
   /**
    * Exchange two stops in a day. ⚠️ ARBITRARY pairs, not adjacent ones — up/down already covers
    * adjacent, and the owner's words were literal: "activities we want to swap". Swapping A with C
@@ -107,7 +114,7 @@ type Props = {
   busyStopIds?: ReadonlySet<string>
 }
 
-export function TripDayList({ days, activeDay, onSelectDay, selectedStopId = null, onSelectStop, onMoveStop, onDeleteStop, onSwapStops, busyStopIds }: Props) {
+export function TripDayList({ days, activeDay, onSelectDay, selectedStopId = null, onSelectStop, onMoveStop, onRemoveStop, onSwapStops, busyStopIds }: Props) {
   const { tr, lang } = useLanguage()
   const listIsBeside = useListIsBesideMap()
   const shown = activeDay === null ? days : days.filter((d) => d.dayNumber === activeDay)
@@ -191,7 +198,7 @@ export function TripDayList({ days, activeDay, onSelectDay, selectedStopId = nul
                     busy={busyStopIds?.has(stop.id) ?? false}
                     onMoveUp={onMoveStop ? () => onMoveStop(day.id, stop.id, index - 1) : undefined}
                     onMoveDown={onMoveStop ? () => onMoveStop(day.id, stop.id, index + 1) : undefined}
-                    onDelete={onDeleteStop ? () => onDeleteStop(day.id, stop.id) : undefined}
+                    onRemove={onRemoveStop ? () => onRemoveStop(day.id, stop) : undefined}
                     // The partner list is the day's other stops, in the order shown, so the reader
                     // picks by the name they are looking at rather than by an index.
                     swapTargets={onSwapStops && ordered.length > 1
@@ -252,7 +259,7 @@ function DayTab({ active, onClick, children }: { active: boolean; onClick: () =>
 
 function StopRow({
   stop, cityName, dayNumber, pinIndex, selected, onSelect, lang, tr,
-  canMoveUp, canMoveDown, busy, onMoveUp, onMoveDown, onDelete, swapTargets, onSwap,
+  canMoveUp, canMoveDown, busy, onMoveUp, onMoveDown, onRemove, swapTargets, onSwap,
 }: {
   stop: TripStop
   cityName: string
@@ -267,12 +274,12 @@ function StopRow({
   busy?: boolean
   onMoveUp?: () => void | Promise<void>
   onMoveDown?: () => void | Promise<void>
-  onDelete?: () => void | Promise<void>
+  onRemove?: () => void
   swapTargets?: Array<{ id: string; name: string }>
   onSwap?: (otherId: string) => void | Promise<void>
 }) {
   // Editing is offered only when the surface passed handlers for it.
-  const editable = Boolean(onMoveUp || onMoveDown || onDelete || onSwap)
+  const editable = Boolean(onMoveUp || onMoveDown || onRemove || onSwap)
   const meta = (
     <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink-4">
       {stop.time && (
@@ -381,10 +388,16 @@ function StopRow({
                 </SelectContent>
                 </Select>
             )}
+            {/* ⚠️ IT OPENS A FLOW, IT DOES NOT DELETE — so it announces a dialog rather than
+                promising an immediate removal. The owner's complaint was that removing an activity
+                left a hole ("it deletes but doesn't suggest something else instead"), and the answer
+                is a step in between; `aria-haspopup` is what stops that step being a surprise to
+                anyone who cannot see it appear. Removing outright is still one tap once inside. */}
             <IconButton
-              aria-label={tr('Remove this activity', 'Xóa hoạt động này')}
+              aria-label={tr('Remove or replace this activity', 'Xóa hoặc thay hoạt động này')}
+              aria-haspopup="dialog"
               disabled={busy}
-              onClick={(e) => { e.stopPropagation(); void onDelete?.() }}
+              onClick={(e) => { e.stopPropagation(); onRemove?.() }}
               className="tap-44 ml-1 h-7 w-7 text-ink-4 hover:text-destructive"
             >
               {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : <Trash2 className="h-3.5 w-3.5" aria-hidden />}
