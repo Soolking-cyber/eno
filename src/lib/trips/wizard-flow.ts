@@ -2,11 +2,15 @@ import 'server-only'
 import { db } from '../db'
 import { getCurrentProfile } from '../admin'
 import { insertMessage, parseMessageMeta, type TripStepMeta } from '../messages'
-import { getTripDesk } from './dm-thread'
+import { getTripAssistanceListingId, getTripDesk } from './dm-thread'
+
 import {
   LAST_TRIP_WIZARD_STEP, TRIP_WIZARD_STEPS, tripWizardStepSchema,
   type TripWizardStep,
 } from './itinerary-wizard'
+
+/** Whatever getTripDesk resolves — named here so the gate can hand it back without restating it. */
+type TripDesk = NonNullable<Awaited<ReturnType<typeof getTripDesk>>>
 
 /**
  * Driving the in-chat itinerary wizard.
@@ -111,13 +115,8 @@ export async function startTripWizard(input: { conversationId: string }): Promis
     return { ok: true, step: existing.meta.step, messageId: existing.id }
   }
 
-  const desk = await getTripDesk()
+  const desk = await threadHostsWizard(context.convo)
   if (!desk) return { ok: false, error: 'desk_unavailable' }
-  if (!context.convo.sellerProfileId || context.convo.sellerProfileId !== desk.ownerId) {
-    // The card is authored BY the desk, so a thread the current desk does not answer cannot host
-    // a wizard — the authorship gate would refuse the write anyway; this is the honest error.
-    return { ok: false, error: 'desk_unavailable' }
-  }
 
   try {
     const message = await insertMessage(context.convo, desk.ownerId, '', {
@@ -213,10 +212,10 @@ export async function completeTripWizard(input: { conversationId: string; itiner
 export async function tripWizardEligibility(input: { conversationId: string }): Promise<{ eligible: boolean; step: TripWizardStep | null }> {
   const context = await requireTraveller(input.conversationId)
   if (typeof context === 'string') return { eligible: false, step: null }
-  const desk = await getTripDesk()
-  // Eligible means: the desk answers this thread, so a card authored by it would be accepted.
-  const eligible = Boolean(desk && context.convo.sellerProfileId === desk.ownerId)
-  if (!eligible) return { eligible: false, step: null }
+  // ⚠️ THE SAME PREDICATE `start` USES, not a second opinion about it. An eligibility read that
+  // says no while `start` still says yes is the bug with extra steps: the chip hides and the
+  // route stays open. One function, both callers.
+  if (!(await threadHostsWizard(context.convo))) return { eligible: false, step: null }
   const card = await activeWizardCard(input.conversationId)
   return { eligible: true, step: card && card.meta.state === 'active' ? card.meta.step : null }
 }
@@ -230,6 +229,37 @@ export async function tripWizardEligibility(input: { conversationId: string }): 
  * step and the traveller's inbox does not churn.
  */
 const WIZARD_PREVIEW = 'Lên kế hoạch chuyến đi · Planning your trip'
+
+/**
+ * Can this thread host a wizard? BOTH the desk AND its trip listing must match.
+ *
+ * ⚠️ THE LISTING HALF IS NOT REDUNDANT, AND OMITTING IT WAS A SHIP BLOCKER. codex refuted the
+ * claim that desk-authorship alone was sufficient, and the database agreed: the trip desk and the
+ * e-Visa shop are the SAME Seller — one Profile owns at most one storefront (`Seller.ownerId` is
+ * @unique), so the desk owns 15 active listings, 14 of them visa products. Gating on the desk
+ * alone therefore offered the trip wizard inside every e-Visa thread, and `start` would have
+ * authored a trip card into one. That is precisely the visa/trip crossover the owner reported on
+ * 2026-07-25, running the other way, and it got MORE likely the day the storefront was shared.
+ *
+ * So the thread must be about the trip ANCHOR listing specifically — resolved server-side from
+ * (seller, externalId), never from the title or the category, which any seller could imitate.
+ *
+ * Fails CLOSED: no desk, or no seeded anchor, and no thread hosts a wizard.
+ *
+ * ⚠️ The refusal deliberately collapses into the caller's existing answer ('desk_unavailable' /
+ * "not eligible"). A distinct "wrong listing" code would re-open the oracle this module closed:
+ * it would let a signed-in stranger tell a desk thread from a non-desk one.
+ */
+async function threadHostsWizard(convo: ThreadContext['convo']): Promise<TripDesk | null> {
+  const [desk, anchorListingId] = await Promise.all([getTripDesk(), getTripAssistanceListingId()])
+  if (!desk || !anchorListingId) return null
+  if (!convo.sellerProfileId || convo.sellerProfileId !== desk.ownerId) return null
+  if (convo.listingId !== anchorListingId) return null
+  // Returned rather than re-fetched: `start` needs this exact desk as the card's author, and a
+  // second lookup could resolve a DIFFERENT one — the gate would then have approved a desk that
+  // is not the one that signs the card.
+  return desk
+}
 
 /**
  * Update a card's metaJson in place, RE-VALIDATING through the same schema the write gate uses.

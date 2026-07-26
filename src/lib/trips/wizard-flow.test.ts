@@ -9,6 +9,9 @@ const h = vi.hoisted(() => ({
     profile: { id: 'traveller' } as { id: string } | null,
     desk: { id: 'desk-seller', ownerId: 'desk-owner', name: 'eno Vietnam' } as { id: string; ownerId: string; name: string } | null,
     convo: null as Record<string, unknown> | null,
+    // The seeded trip anchor. The fixture convo is about listing 'L', so the default makes an
+    // ordinary desk thread eligible; tests that point the thread elsewhere prove the gate bites.
+    anchorListingId: 'L' as string | null,
     itineraries: {} as Record<string, { id: string; profileId: string }>,
     // The newest trip_step message row, as the DB would hand it back.
     card: null as { id: string; metaJson: string | null } | null,
@@ -22,7 +25,10 @@ const h = vi.hoisted(() => ({
 }))
 
 vi.mock('../admin', () => ({ getCurrentProfile: async () => h.state.profile }))
-vi.mock('./dm-thread', () => ({ getTripDesk: async () => h.state.desk }))
+vi.mock('./dm-thread', () => ({
+  getTripDesk: async () => h.state.desk,
+  getTripAssistanceListingId: async () => h.state.anchorListingId,
+}))
 vi.mock('../messages', async (orig) => ({
   ...(await orig<typeof import('../messages')>()),
   insertMessage: async (_convo: unknown, senderId: string, _text: string, opts: any) => {
@@ -69,6 +75,7 @@ beforeEach(() => {
   h.state.profile = { id: 'traveller' }
   h.state.desk = { id: 'desk-seller', ownerId: 'desk-owner', name: 'eno Vietnam' }
   h.state.convo = { id: CONVO, buyerProfileId: 'traveller', sellerProfileId: 'desk-owner', listingId: 'L', visaApplicationId: null }
+  h.state.anchorListingId = 'L'
   h.state.itineraries = { 'itin-1': { id: 'itin-1', profileId: 'traveller' } }
   h.state.card = null
   h.state.cardWhere = null
@@ -325,6 +332,40 @@ describe('eligibility — the entry point the feature would be unreachable witho
 
   it('is not eligible when the desk is unavailable', async () => {
     h.state.desk = null
+    expect(await tripWizardEligibility({ conversationId: CONVO })).toEqual({ eligible: false, step: null })
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────────────────────
+// The thread must be about the TRIP ANCHOR, not merely answered by the desk.
+//
+// ⚠️ THIS IS A REGRESSION FENCE FOR A SHIP BLOCKER. The trip desk and the e-Visa shop are the
+// SAME Seller — Seller.ownerId is @unique, so one Profile cannot own two storefronts — and that
+// seller has 15 active listings, 14 of them visa products. While eligibility gated on the desk
+// alone, every e-Visa thread offered the trip wizard and `start` would author a trip card into
+// one. Both entry points are pinned, because a chip that hides while the route stays open is the
+// same bug with extra steps.
+describe('the wizard is confined to the trip listing', () => {
+  it('a desk thread about a DIFFERENT listing (e.g. an e-Visa product) cannot start one', async () => {
+    h.state.convo = { ...h.state.convo!, listingId: 'visa-product-7' }
+    expect(await startTripWizard({ conversationId: CONVO })).toEqual({ ok: false, error: 'desk_unavailable' })
+    expect(h.state.inserted).toHaveLength(0)
+  })
+
+  it('and is not offered one — the launcher asks the same question the route answers', async () => {
+    h.state.convo = { ...h.state.convo!, listingId: 'visa-product-7' }
+    expect(await tripWizardEligibility({ conversationId: CONVO })).toEqual({ eligible: false, step: null })
+  })
+
+  it('the anchor thread is still eligible, so the gate is not simply off', async () => {
+    expect(await tripWizardEligibility({ conversationId: CONVO })).toEqual({ eligible: true, step: null })
+    expect((await startTripWizard({ conversationId: CONVO })).ok).toBe(true)
+    expect(h.state.inserted).toHaveLength(1)
+  })
+
+  it('fails CLOSED when the anchor listing is not seeded', async () => {
+    h.state.anchorListingId = null
+    expect(await startTripWizard({ conversationId: CONVO })).toEqual({ ok: false, error: 'desk_unavailable' })
     expect(await tripWizardEligibility({ conversationId: CONVO })).toEqual({ eligible: false, step: null })
   })
 })
