@@ -1,9 +1,10 @@
 import { ThinkingLevel, Type } from '@google/genai'
-import { NextResponse } from 'next/server'
+import { after, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { aiGuard } from '@/lib/ai-guard'
 import { fold } from '@/lib/fold'
-import { findPlace } from '@/lib/itinerary-places'
+import { resolvePlaceName } from '@/lib/itinerary-places'
+import { fillMissingStopCoordinates } from '@/lib/itinerary-geocode'
 import { aiErrorStatus, withAiRetry } from '@/lib/ai-retry'
 import { db } from '@/lib/db'
 import { GEMINI_MODEL, GEMINI_MODEL_FALLBACK, getGemini } from '@/lib/gemini'
@@ -288,6 +289,36 @@ const responseSchema = {
 }
 
 /**
+ * Map the model's free-text day city ("Hoi An (Quang Nam)") onto one of the trip's OWN city ids.
+ *
+ * ⚠️ HOISTED SO THERE IS EXACTLY ONE OF THESE. It used to be a closure inside
+ * attachStopCoordinates; the post-response geocode pass needs the same mapping, and a second copy
+ * would be two ideas about which city an area is — the after() pass could scope a lookup to a
+ * different city than the inline pass did, for the same stop.
+ *
+ * A containment match is accepted only when exactly ONE of the trip's cities matches. Never a
+ * first-wins guess: if the intended place is uncatalogued in Hoi An while a same-named entry exists
+ * in Hue, then Hue is the only hit, and a confident unique wrong coordinate is exactly the false
+ * pin this whole approach exists to avoid.
+ */
+function makeCityResolver(cityIds: readonly CityId[]): (area: string) => CityId | null {
+  const byFoldedName = new Map<string, CityId>()
+  for (const id of cityIds) {
+    byFoldedName.set(fold(CITY_CATALOG[id].name), id)
+    byFoldedName.set(fold(id), id)
+  }
+  return (dayCity: string): CityId | null => {
+    const key = fold(dayCity ?? '')
+    if (!key) return null
+    const exact = byFoldedName.get(key)
+    if (exact) return exact
+    const hits = [...byFoldedName.entries()].filter(([name]) => key.includes(name) || name.includes(key))
+    const unique = [...new Set(hits.map(([, id]) => id))]
+    return unique.length === 1 ? unique[0] : null
+  }
+}
+
+/**
  * Attach a coordinate to each activity by resolving its `place` against the curated catalog.
  *
  * ⚠️ THE MODEL IS NEVER ASKED FOR COORDINATES, and that is the whole design. A generated lat/lng
@@ -301,7 +332,14 @@ const responseSchema = {
  * two of the trip's cities is ambiguous and is therefore dropped rather than guessed at.
  *
  * Anything unresolved is left WITHOUT lat/lng — the bbox and per-city radius gates live inside
- * findPlace, so a place that fails them returns null here and is simply not mappable.
+ * resolvePlaceName, so a place that fails them returns null here and is simply not mappable.
+ *
+ * ⚠️ Resolution goes through resolvePlaceName, not findPlace, so a COMPOUND name is split: the
+ * generator writes "Independence Palace & Tao Dan Park", which the catalogue has never held whole.
+ * A name offering ALTERNATIVES ("X or Y") is deliberately refused rather than half-taken — see the
+ * note there. What this pass still cannot reach is the long tail of real venues no landmark
+ * catalogue holds; those are geocoded AFTER the response by fillMissingStopCoordinates, so the
+ * generation itself never waits on a gazetteer.
  */
 function attachStopCoordinates<T extends { days: { city: string; morning: unknown; afternoon: unknown; evening: unknown }[] }>(
   plan: T,
@@ -318,22 +356,7 @@ function attachStopCoordinates<T extends { days: { city: string; morning: unknow
   // place is uncatalogued in Hoi An while a same-named entry exists in Hue, then Hue is the ONLY
   // hit, and a confident, unique, wrong coordinate is exactly the false pin this whole approach
   // exists to avoid.
-  const byFoldedName = new Map<string, CityId>()
-  for (const id of cityIds) {
-    byFoldedName.set(fold(CITY_CATALOG[id].name), id)
-    byFoldedName.set(fold(id), id)
-  }
-  const cityIdFor = (dayCity: string): CityId | null => {
-    const key = fold(dayCity ?? '')
-    if (!key) return null
-    const exact = byFoldedName.get(key)
-    if (exact) return exact
-    // The model may write "Hoi An (Quang Nam)" or "Ha Long Bay"; accept a containment match, but
-    // only when exactly one of the trip's cities matches, never a first-wins guess.
-    const hits = [...byFoldedName.entries()].filter(([name]) => key.includes(name) || name.includes(key))
-    const unique = [...new Set(hits.map(([, id]) => id))]
-    return unique.length === 1 ? unique[0] : null
-  }
+  const cityIdFor = makeCityResolver(cityIds)
 
   const resolve = (activity: { place?: string; lat?: number; lng?: number }, scope: readonly CityId[]) => {
     // Count only slots that actually name a place. Counting empty slots too would inflate the
@@ -341,7 +364,7 @@ function attachStopCoordinates<T extends { days: { city: string; morning: unknow
     if (!activity?.place) return
     total += 1
     const hits = scope
-      .map((cityId) => findPlace(activity.place as string, cityId))
+      .map((cityId) => resolvePlaceName(activity.place as string, cityId))
       .filter((hit): hit is NonNullable<typeof hit> => hit !== null)
     // Distinct places only: one catalogue row reached via two scopes is one answer.
     const unique = [...new Map(hits.map((hit) => [hit.id, hit])).values()]
@@ -592,6 +615,14 @@ Planning rules:
       savedItineraryId = itinerary.id
     } catch (error) {
       console.error('[itineraries/generate] auto-save failed', (error as Error)?.message?.slice(0, 300))
+    }
+
+    // The long tail, filled AFTER the response is sent. Generation is already the most expensive
+    // path in the app and must not also wait on a gazetteer — and because every answer is
+    // remembered, this costs anything at all only the first time somebody is sent somewhere new.
+    if (savedItineraryId) {
+      const savedId = savedItineraryId
+      after(() => fillMissingStopCoordinates(savedId, input.cityIds, makeCityResolver(input.cityIds)))
     }
 
     return NextResponse.json({ ...result, savedItineraryId })
