@@ -15,6 +15,9 @@ import { normalizeVisaReference } from '@/lib/visa/reference'
 // The ONE trip status machine. Imported for its NODE set only (see tripStatusMetaSchema) so
 // the card contract and the workflow cannot drift into two different ideas of a valid status.
 import { TRIP_TRANSITIONS } from '@/lib/trips/status'
+// The ONE wizard step machine — imported for its step list so the card contract and the wizard
+// cannot disagree about what a step is.
+import { TRIP_WIZARD_STEPS, type TripWizardStep } from '@/lib/trips/itinerary-wizard'
 
 // ---------------------------------------------------------------------------
 // Structured message kinds
@@ -30,18 +33,19 @@ import { TRIP_TRANSITIONS } from '@/lib/trips/status'
 //   'visa_picker'   — the step-0 product picker for generic starts  (metaJson)
 //   'trip_quote'    — the trip desk's live quote, accept/decline     (metaJson)
 //   'trip_status'   — a trip case moved to a new status              (metaJson)
+//   'trip_step'     — one step of the in-thread itinerary wizard     (metaJson)
 export const MESSAGE_KINDS = [
   'text', 'offer',
   'visa_step', 'visa_checkout', 'visa_result', 'visa_picker',
-  'trip_quote', 'trip_status',
+  'trip_quote', 'trip_status', 'trip_step',
 ] as const
 export type MessageKind = (typeof MESSAGE_KINDS)[number]
 export type VisaCardKind = 'visa_step' | 'visa_checkout' | 'visa_result' | 'visa_picker'
 const VISA_CARD_KINDS = new Set<string>(['visa_step', 'visa_checkout', 'visa_result', 'visa_picker'])
 export const isVisaCardKind = (kind: string): kind is VisaCardKind => VISA_CARD_KINDS.has(kind)
 
-export type TripCardKind = 'trip_quote' | 'trip_status'
-const TRIP_CARD_KINDS = new Set<string>(['trip_quote', 'trip_status'])
+export type TripCardKind = 'trip_quote' | 'trip_status' | 'trip_step'
+const TRIP_CARD_KINDS = new Set<string>(['trip_quote', 'trip_status', 'trip_step'])
 export const isTripCardKind = (kind: string): kind is TripCardKind => TRIP_CARD_KINDS.has(kind)
 
 /**
@@ -140,8 +144,33 @@ export type TripStatusMeta = {
   /** One of the nodes in TRIP_TRANSITIONS — validated against that map, never a second list. */
   status: string
 }
+/**
+ * One step of the in-thread itinerary wizard.
+ *
+ * ⚠️ IT NAMES NO CASE, AND THAT IS THE DESIGN. trip_quote and trip_status carry a requestId
+ * because they are ABOUT a TripAssistanceRequest. A wizard step is about a CONVERSATION: the
+ * traveller has no itinerary yet — producing one is the entire point — and a case cannot exist
+ * before an itinerary does, because TripAssistanceRequest.itineraryId is a required FK. Binding a
+ * step card to a case would therefore make the wizard able to run only for travellers who already
+ * had a plan, which is the opposite of what it is for.
+ *
+ * What proves a step card instead: the thread. The desk authors it, the thread's buyer is the
+ * traveller, and the card carries no case data to leak. See buildTripCardMeta's `bind` switch.
+ *
+ * ⚠️ NO ANSWERS LIVE HERE. A step number and a state — never a city, a date, a traveller count,
+ * and above all never the notes field. The values stay on the traveller's device until they are
+ * spent on one generate request; `itineraryId` appears only on the closing card, and an id is not
+ * an answer.
+ */
+export type TripStepMeta = {
+  v: 1
+  step: TripWizardStep
+  state: 'active' | 'done'
+  /** Set ONLY on the final card — the Itinerary the wizard produced. */
+  itineraryId?: string
+}
 export type VisaMeta = VisaStepMeta | VisaCheckoutMeta | VisaResultMeta | VisaPickerMeta
-export type TripMeta = TripQuoteMeta | TripStatusMeta
+export type TripMeta = TripQuoteMeta | TripStatusMeta | TripStepMeta
 export type MessageMeta = VisaMeta | TripMeta
 
 /**
@@ -168,6 +197,7 @@ type MetaForKind = {
   visa_picker: VisaPickerMeta
   trip_quote: TripQuoteMeta
   trip_status: TripStatusMeta
+  trip_step: TripStepMeta
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -285,6 +315,17 @@ const tripStatusMetaSchema = z
 // other kind's payload on the unknown key. That is pinned as a cross-product test
 // ('the registry maps each kind to ITS OWN schema' in messages.trip-cards.test.ts) rather than
 // left to a comment — the test fails on exactly the swap tsc lets through.
+const tripStepMetaSchema = z
+  .object({
+    v: z.literal(1),
+    // Derived from the ONE step machine, so a wizard that grows a step cannot post a card the
+    // reader refuses — and a step removed there stops parsing here.
+    step: z.number().int().refine((n): n is TripWizardStep => (TRIP_WIZARD_STEPS as readonly number[]).includes(n)),
+    state: z.enum(['active', 'done']),
+    itineraryId: z.string().regex(TRIP_ID_RE).optional(),
+  })
+  .strict()
+
 const META_SCHEMAS: { [K in CardKind]: z.ZodType<MetaForKind[K]> } = {
   visa_step: visaStepMetaSchema,
   visa_checkout: visaCheckoutMetaSchema,
@@ -292,6 +333,7 @@ const META_SCHEMAS: { [K in CardKind]: z.ZodType<MetaForKind[K]> } = {
   visa_picker: visaPickerMetaSchema,
   trip_quote: tripQuoteMetaSchema,
   trip_status: tripStatusMetaSchema,
+  trip_step: tripStepMetaSchema,
 }
 const metaSchemaFor = (kind: CardKind): z.ZodType => META_SCHEMAS[kind]
 
@@ -479,41 +521,72 @@ async function buildCardMeta(kind: VisaCardKind, convo: ConvoForSend, senderId: 
 //  4. SHAPE + SIZE. .strict() zod, bounded id charset, status drawn from TRIP_TRANSITIONS.
 //     Note what the shape ALSO excludes: there is no money key in either trip schema, so
 //     "no amount from a request body" is enforced by the absence of a channel, not by a rule.
-async function buildTripCardMeta(kind: TripCardKind, convo: ConvoForSend, senderId: string, meta: MessageMeta | undefined): Promise<{ json: string; requestId: string; guard: { status?: string } }> {
-  // (1) desk-side authorship
+/**
+ * What a built trip card needs from the write path. DISCRIMINATED, because the two families of
+ * trip card are bound to different things and must not share a code path:
+ *
+ *   · 'case'   — trip_quote / trip_status. Bound to a TripAssistanceRequest, so the insert
+ *                re-asserts that binding (and the traveller, and the announced status) in a
+ *                compare-and-set.
+ *   · 'thread' — trip_step. Bound to the CONVERSATION, which the desk-authorship gate has already
+ *                proven. There is no case row to compare against and none is invented.
+ *
+ * ⚠️ THIS REPLACED A GUARD COMPUTED AS `'status' in data ? {...} : {}`. That worked only while
+ * every kind was a case card: a third kind fell into the else and got an EMPTY predicate — a
+ * transactional guard that asserts nothing, silently. It is the exact structural-narrowing trap
+ * this file warns about at the MetaForKind comment, written sixty lines above the code that then
+ * committed it. The switch below is exhaustive on the kind, so a NEW card kind cannot be added
+ * without declaring how it binds; the compiler refuses to build until it does.
+ */
+type TripCardBuild =
+  | { bind: 'case'; json: string; requestId: string; guard: { status?: string } }
+  | { bind: 'thread'; json: string }
+
+async function buildTripCardMeta(kind: TripCardKind, convo: ConvoForSend, senderId: string, meta: MessageMeta | undefined): Promise<TripCardBuild> {
+  // (1) desk-side authorship — every trip card, whatever it binds to.
   if (!convo.sellerProfileId || convo.sellerProfileId !== senderId) throw new Error('trip_card_author_forbidden')
-  // (4) shape — first, so the binding check below has a trusted requestId.
+  // (4) shape — first, so any binding check below has trusted values.
   const parsed = metaSchemaFor(kind).safeParse(meta)
   if (!parsed.success) throw new Error('trip_card_meta_invalid')
   const data = parsed.data as TripMeta
 
-  // (2)+(3). One read, both gates. `select` is narrow on purpose: this function must never
-  // pull a money column or an itinerary field into a code path that serialises to metaJson.
-  const request = await db.tripAssistanceRequest.findUnique({
-    where: { id: data.requestId },
-    select: { id: true, conversationId: true, profileId: true },
-  })
-  if (!request) throw new Error('trip_card_request_not_found')
-  if (request.conversationId !== convo.id) throw new Error('trip_card_conversation_mismatch')
-  if (request.profileId !== convo.buyerProfileId) throw new Error('trip_card_traveller_mismatch')
-
-  // (5) AN ANNOUNCEMENT MUST BE TRUE WHEN IT IS POSTED. A trip_status card names a status, and
-  // the extra predicate here makes the row prove it: the transaction's compare-and-set matches
-  // only while the case is ACTUALLY at that status, atomically with the insert.
-  //
-  // I first shipped this ungated, arguing the desk is the only author so a wrong status would
-  // merely be our own bug. codex refuted that: the card carries no event id and checked nothing,
-  // so "historical fact" was a claim the data could not support — the desk could publish any
-  // valid state as something that had happened. It was right, and the fix is one predicate.
-  //
-  // The cost, accepted deliberately: if an operator moves a case twice in quick succession, the
-  // first announcement can lose the race and never post. That is the better failure. A dropped
-  // card omits a step the traveller can still see in the case timeline; a published one that
-  // was already superseded is misinformation about their trip.
-  const guard = 'status' in data ? { status: data.status } : {}
   const json = JSON.stringify(data)
   if (json.length > MAX_META_JSON) throw new Error('trip_card_meta_too_large')
-  return { json, requestId: data.requestId, guard }
+
+  switch (kind) {
+    case 'trip_step': {
+      // THREAD-BOUND. Gate (1) is the whole proof: the desk is speaking in a thread whose buyer is
+      // the traveller, and the card carries a step number and a state — nothing that could belong
+      // to another traveller, and nothing to cross-reference. An itineraryId, when present, names a
+      // row the traveller is about to be sent to; it is not read back as an authorisation.
+      return { bind: 'thread', json }
+    }
+    case 'trip_quote':
+    case 'trip_status': {
+      const caseMeta = data as TripQuoteMeta | TripStatusMeta
+      // (2)+(3). One read, both gates. `select` is narrow on purpose: this function must never
+      // pull a money column or an itinerary field into a code path that serialises to metaJson.
+      const request = await db.tripAssistanceRequest.findUnique({
+        where: { id: caseMeta.requestId },
+        select: { id: true, conversationId: true, profileId: true },
+      })
+      if (!request) throw new Error('trip_card_request_not_found')
+      if (request.conversationId !== convo.id) throw new Error('trip_card_conversation_mismatch')
+      if (request.profileId !== convo.buyerProfileId) throw new Error('trip_card_traveller_mismatch')
+
+      // (5) AN ANNOUNCEMENT MUST BE TRUE WHEN IT IS POSTED. A trip_status card names a status, and
+      // the extra predicate makes the row prove it: the transaction's compare-and-set matches only
+      // while the case is ACTUALLY at that status, atomically with the insert.
+      //
+      // I first shipped this ungated, arguing the desk is the only author so a wrong status would
+      // merely be our own bug. codex refuted that: the card carried no event id and checked
+      // nothing, so "historical fact" was a claim the data could not support. The fix is one
+      // predicate. Accepted cost: an operator moving a case twice quickly can lose the first
+      // announcement — better than publishing a superseded one as fact.
+      const guard = kind === 'trip_status' ? { status: (caseMeta as TripStatusMeta).status } : {}
+      return { bind: 'case', json, requestId: caseMeta.requestId, guard }
+    }
+  }
 }
 
 /**
@@ -608,17 +681,23 @@ export async function insertMessage(convo: ConvoForSend, senderId: string, text:
     // Consequence, deliberate: @updatedAt bumps, so the operator queue (@@index([status,
     // updatedAt])) orders by last desk activity rather than last state change. That is the
     // ordering a support queue wants; noting it because it is a behaviour change, not a no-op.
+    const caseBinding = tripCard.bind === 'case' ? tripCard : null
     message = (await db.$transaction(async (tx) => {
-      const bound = await tx.tripAssistanceRequest.updateMany({
-        // EVERY gate that can be re-asserted cheaply IS re-asserted here, not just the binding.
-        // codex's refutation was right: proving the traveller in buildTripCardMeta and then
-        // only re-checking conversationId in the transaction left gate (3) resting on a read
-        // that a concurrent write could have invalidated. Both predicates cost nothing — they
-        // are columns on a row this statement already touches.
-        where: { id: tripCard.requestId, conversationId: convo.id, profileId: convo.buyerProfileId, ...tripCard.guard },
-        data: { conversationId: convo.id },
-      })
-      if (bound.count !== 1) throw new Error('trip_card_conversation_mismatch')
+      // A THREAD-BOUND card (trip_step) has no case row to compare against, so this step is
+      // skipped rather than faked. Its proof is desk authorship, established in buildTripCardMeta;
+      // inventing a predicate here would only look like a guard.
+      if (caseBinding) {
+        const bound = await tx.tripAssistanceRequest.updateMany({
+          // EVERY gate that can be re-asserted cheaply IS re-asserted here, not just the binding.
+          // codex's refutation was right: proving the traveller in buildTripCardMeta and then
+          // only re-checking conversationId in the transaction left gate (3) resting on a read
+          // that a concurrent write could have invalidated. Both predicates cost nothing — they
+          // are columns on a row this statement already touches.
+          where: { id: caseBinding.requestId, conversationId: convo.id, profileId: convo.buyerProfileId, ...caseBinding.guard },
+          data: { conversationId: convo.id },
+        })
+        if (bound.count !== 1) throw new Error('trip_card_conversation_mismatch')
+      }
       const guard = await tx.conversation.updateMany({ where: { id: convo.id }, data: convoUpdate })
       if (guard.count !== 1) throw new Error('trip_card_conversation_gone')
       return tx.message.create(createArgs)
