@@ -121,7 +121,7 @@ vi.mock('../db', () => {
   return mod
 })
 
-import { acceptQuote, cancelAssistance, declineQuote, quoteAssistance, requestAssistance, startReview, viewAssistance } from './assistance'
+import { acceptQuote, cancelAssistance, declineQuote, moveAssistanceAsAdmin, quoteAssistance, requestAssistance, startReview, viewAssistance } from './assistance'
 import { isTerminalStatus, openStatuses } from './status'
 
 const ITIN = 'itin-1'
@@ -467,5 +467,59 @@ describe('no existence oracle', () => {
   it('refuses a signed-out reader before any lookup', async () => {
     h.state.profile = null
     expect(await viewAssistance({ requestId: 'anything' })).toEqual({ ok: false, error: 'not_signed_in' })
+  })
+})
+
+describe('moveAssistanceAsAdmin — the ONE admin transition both surfaces use', () => {
+  // Exists to delete a second copy of the announce rule. The admin queue route composed
+  // transition-then-announce itself because this was private; two copies of "when does a card get
+  // posted" is how a double click starts posting duplicates on one surface and not the other.
+
+  it('is admin-only', async () => {
+    h.state.admin = null
+    seedCase({ status: 'requested' })
+    expect(await moveAssistanceAsAdmin({ requestId: 'case-1', next: 'reviewing' }))
+      .toEqual({ ok: false, error: 'forbidden' })
+    expect(h.state.cards).toHaveLength(0)
+  })
+
+  it('moves the case and announces the move', async () => {
+    h.state.admin = 'ops@eno.vn'
+    seedCase({ status: 'requested' })
+    expect(await moveAssistanceAsAdmin({ requestId: 'case-1', next: 'reviewing' }))
+      .toEqual({ ok: true, requestId: 'case-1' })
+    expect(h.state.requests['case-1'].status).toBe('reviewing')
+    expect(h.state.cards).toEqual([{ kind: 'trip_status', requestId: 'case-1', status: 'reviewing' }])
+  })
+
+  it('does NOT announce a repeat — the rule the duplication was risking', async () => {
+    // applyTripTransition returns ok for a repeat but records no audit event; a card must follow
+    // suit or the second click posts a duplicate into the traveller's thread.
+    h.state.admin = 'ops@eno.vn'
+    seedCase({ status: 'reviewing' })
+    expect((await moveAssistanceAsAdmin({ requestId: 'case-1', next: 'reviewing' })).ok).toBe(true)
+    expect(h.state.cards).toHaveLength(0)
+  })
+
+  it('REFUSES an illegal move and announces nothing', async () => {
+    h.state.admin = 'ops@eno.vn'
+    seedCase({ status: 'requested' })
+    expect(await moveAssistanceAsAdmin({ requestId: 'case-1', next: 'completed' }))
+      .toEqual({ ok: false, error: 'invalid_status_transition' })
+    expect(h.state.cards).toHaveLength(0)
+    expect(h.state.requests['case-1'].status).toBe('requested')
+  })
+
+  it('reports an unknown case', async () => {
+    h.state.admin = 'ops@eno.vn'
+    expect(await moveAssistanceAsAdmin({ requestId: 'nope', next: 'reviewing' }))
+      .toEqual({ ok: false, error: 'request_not_found' })
+  })
+
+  it('writes no money on any path', async () => {
+    h.state.admin = 'ops@eno.vn'
+    seedCase({ status: 'requested' })
+    await moveAssistanceAsAdmin({ requestId: 'case-1', next: 'reviewing' })
+    expect(h.state.updates.every((u) => !('feeVnd' in u.data) && !('supplierTotalVnd' in u.data))).toBe(true)
   })
 })

@@ -1,9 +1,7 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getAdmin } from '@/lib/admin'
-import { db } from '@/lib/db'
-import { announceTripStatus } from '@/lib/trips/dm-flow'
-import { applyTripTransition, canTransition } from '@/lib/trips/status'
+import { moveAssistanceAsAdmin } from '@/lib/trips/assistance'
 
 /**
  * Move one trip-assistance case. The operator half of the lifecycle.
@@ -38,38 +36,22 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const parsed = bodySchema.safeParse(body)
   if (!parsed.success) return NextResponse.json({ error: 'invalid_body' }, { status: 400 })
 
-  const current = await db.tripAssistanceRequest.findUnique({ where: { id }, select: { status: true } })
-  if (!current) return NextResponse.json({ error: 'not_found' }, { status: 404 })
-  // Checked here for an honest error message; applyTripTransition re-checks against the ONE map
-  // regardless, so this is convenience rather than the enforcement point.
-  if (!canTransition(current.status, parsed.data.next)) {
-    return NextResponse.json({ error: 'invalid_status_transition', from: current.status }, { status: 409 })
-  }
-
-  const result = await applyTripTransition({
-    id,
-    expectedPrior: current.status,
-    next: parsed.data.next,
-    actorType: 'admin',
-    actorRef: admin,
-  })
+  // ⚠️ ONE CALL, AND THAT IS THE POINT. This route used to read the status, check the map, call
+  // applyTripTransition and then re-implement the "only announce a REAL move" rule — a second copy
+  // of when a card gets posted, which I flagged at the time because assistance.ts was not in T320's
+  // owned paths. moveAssistanceAsAdmin now owns the whole composition, resolves its own admin, and
+  // is shared with the traveller-facing paths, so the two surfaces cannot disagree.
+  const result = await moveAssistanceAsAdmin({ requestId: id, next: parsed.data.next })
   if (!result.ok) {
-    const status = result.error === 'not_found' ? 404 : result.error === 'update_failed' ? 500 : 409
+    const status = result.error === 'request_not_found'
+      ? 404
+      : result.error === 'forbidden'
+        // Same reasoning as the gate above: an operator surface does not confirm it exists.
+        ? 404
+        : result.error === 'update_failed'
+          ? 500
+          : 409
     return NextResponse.json({ error: result.error }, { status })
   }
-
-  // ⚠️ ANNOUNCE ONLY A REAL MOVE. applyTripTransition returns ok for a repeat of the same status —
-  // a double-clicked button has not failed at anything — but records no audit event for one, and a
-  // card must follow the same rule or the second click posts a duplicate into the traveller's
-  // thread. This is the rule assistance.ts's own transitionAsAdmin applies.
-  //
-  // ⚠️ AND THAT IS A SECOND COPY OF IT, which is worth naming rather than hiding: assistance.ts has
-  // a private transitionAsAdmin doing exactly this composition, but it is not exported and
-  // src/lib/trips/assistance.ts is not in this task's owned paths. Flagged for Alex — exporting it
-  // is one line, and then the traveller path and this one cannot disagree about when a card is
-  // posted. Until then the rule is duplicated here deliberately, not accidentally.
-  if (current.status !== parsed.data.next) {
-    await announceTripStatus({ requestId: id, status: parsed.data.next })
-  }
-  return NextResponse.json({ status: result.status })
+  return NextResponse.json({ status: parsed.data.next })
 }
