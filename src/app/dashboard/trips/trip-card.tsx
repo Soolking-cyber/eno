@@ -1,7 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { CalendarDays, ChevronDown, Download, Loader2 } from 'lucide-react'
+import Link from 'next/link'
+import { CalendarDays, ChevronDown, Download, Loader2, Map } from 'lucide-react'
 import { Collapsible } from '@base-ui/react/collapsible'
 import { toast } from 'sonner'
 import { useLanguage } from '@/context/language-context'
@@ -242,7 +243,17 @@ export function TripCard({ trip }: { trip: SavedItinerary }) {
           </div>
         )}
 
-        <div className="mt-5 flex justify-end border-t border-border pt-4">
+        {/* ⚠️ THE ONLY ROUTE FROM THIS LIST TO THE MAP. This card expands IN PLACE, so until now a
+            saved trip could be read here and downloaded, but the day-by-day map view at
+            /dashboard/trips/[id] — with the per-stop Directions and per-day Route links — was
+            reachable only by knowing the URL. A feature nobody can navigate to is not shipped. */}
+        <div className="mt-5 flex flex-wrap justify-end gap-2 border-t border-border pt-4">
+          <Button variant="cta" asChild>
+            <Link href={`/dashboard/trips/${trip.id}`}>
+              <Map className="h-4 w-4" />
+              {tr('View on map', 'Xem trên bản đồ')}
+            </Link>
+          </Button>
           <Button type="button" variant="outline" onClick={downloadWord} disabled={downloading}>
             {downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
             {downloading ? tr('Creating Word file…', 'Đang tạo tệp Word…') : tr('Download Word file', 'Tải tệp Word')}
