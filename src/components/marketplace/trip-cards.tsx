@@ -409,10 +409,31 @@ export function TripWizardCard({ conversationId, meta }: { conversationId: strin
         ) : step === 3 ? (
           <>
             <p className="text-sm text-ink-3">{tr('Budget', 'Ngân sách')}</p>
-            <div className="flex flex-wrap gap-1.5">
+            {/* ⚠️ THE PER-DAY RANGE IS SHOWN, NOT JUST THE TIER NAME (owner, 2026-07-26: "add price
+                ranges for customers to have expense range idea"). "Smart / Comfort / Premium" tells
+                a traveller nothing about what they are committing to, and this is the step where
+                they decide it — the number is the whole point of the question.
+
+                The figures are NOT written here: they come from BUDGETS.detail/detailVi in
+                itinerary-data.ts, the same source the dashboard builder renders and the same tier
+                whose `daily` value is sent to the generator. One place to change a price.
+
+                Full-width ROWS rather than the chip row this replaced: three chips each carrying a
+                second line do not fit a chat card (the shared shell caps at 28rem, so ~138px per
+                chip against "Tối đa 1,2 triệu/ngày"), and shrinking the range to fit would defeat
+                the purpose. Rows also match the builder's own budget control, so the two surfaces
+                read the same. Pace stays a chip row — its options carry no number. */}
+            <div className="flex flex-col gap-1.5">
               {BUDGETS.map((budget) => (
-                <Button key={budget.id} size="sm" variant={draft.budgetId === budget.id ? 'default' : 'outline'} onClick={() => patch({ budgetId: budget.id })}>
-                  {lang === 'vi' ? budget.labelVi : budget.label}
+                <Button
+                  key={budget.id}
+                  size="none"
+                  variant={draft.budgetId === budget.id ? 'default' : 'outline'}
+                  onClick={() => patch({ budgetId: budget.id })}
+                  className="w-full flex-col items-start gap-0 rounded-xl px-3 py-2 text-left"
+                >
+                  <span className="text-sm font-bold">{lang === 'vi' ? budget.labelVi : budget.label}</span>
+                  <span className="text-2xs font-medium opacity-80">{lang === 'vi' ? budget.detailVi : budget.detail}</span>
                 </Button>
               ))}
             </div>

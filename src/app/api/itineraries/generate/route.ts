@@ -12,6 +12,7 @@ import { db } from '@/lib/db'
 import { GEMINI_MODEL, GEMINI_MODEL_FALLBACK, getGemini } from '@/lib/gemini'
 import { buildItinerarySavePayload } from '@/lib/itinerary-save'
 import { MAX_ROUTE_CITIES, itineraryRequestSchema, type ItineraryRequest } from '@/lib/trips/itinerary-wizard'
+import { BUDGETS } from '@/lib/itinerary-data'
 import { languageName } from '@/lib/languages'
 import { kv, rateLimit } from '@/lib/ratelimit'
 
@@ -538,7 +539,13 @@ async function runGeneration(input: ItineraryRequest) {
   const start = new Date(`${input.startDate}T00:00:00.000Z`)
   const end = new Date(start)
   end.setUTCDate(end.getUTCDate() + input.days - 1)
-  const dailyBudget = input.budgetId === 'smart' ? 1_200_000 : input.budgetId === 'premium' ? 5_000_000 : 2_500_000
+  // ⚠️ FROM BUDGETS, not re-typed. This line held its own copy of 1_200_000 / 2_500_000 /
+  // 5_000_000 — the same three figures the wizard and the builder show a traveller as
+  // "Up to ₫1.2m/day". A price edited in itinerary-data.ts would have moved what the traveller
+  // is PROMISED while the model kept planning to the old number, and nothing would have failed.
+  // The `?? ` falls back to the comfort tier for a value the enum somehow let through.
+  const dailyBudget = BUDGETS.find((tier) => tier.id === input.budgetId)?.daily
+    ?? BUDGETS.find((tier) => tier.id === 'comfort')!.daily
   const language = languageName(input.locale)
   const generatedAt = new Date().toISOString()
 
