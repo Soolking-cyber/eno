@@ -1,10 +1,11 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { ArrowDown, ArrowUp, Clock, Footprints, Loader2, MapPinOff, Navigation, Route, Search, Trash2, Wallet, Info } from 'lucide-react'
+import { ArrowDown, ArrowUp, Clock, Footprints, Loader2, MapPinOff, Navigation, Repeat, Route, Search, Trash2, Wallet, Info } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
 import { formatMoneyFull, moneyLocale } from '@/lib/vnd'
 import { formatTravel } from '@/lib/travel'
@@ -96,11 +97,17 @@ type Props = {
    */
   onMoveStop?: (dayId: string, stopId: string, toIndex: number) => void | Promise<void>
   onDeleteStop?: (dayId: string, stopId: string) => void | Promise<void>
+  /**
+   * Exchange two stops in a day. ⚠️ ARBITRARY pairs, not adjacent ones — up/down already covers
+   * adjacent, and the owner's words were literal: "activities we want to swap". Swapping A with C
+   * is not the same permutation as moving A to C's index, which shifts everything between them.
+   */
+  onSwapStops?: (dayId: string, stopIdA: string, stopIdB: string) => void | Promise<void>
   /** Ids currently being written, so a row can disable itself without the parent re-rendering all. */
   busyStopIds?: ReadonlySet<string>
 }
 
-export function TripDayList({ days, activeDay, onSelectDay, selectedStopId = null, onSelectStop, onMoveStop, onDeleteStop, busyStopIds }: Props) {
+export function TripDayList({ days, activeDay, onSelectDay, selectedStopId = null, onSelectStop, onMoveStop, onDeleteStop, onSwapStops, busyStopIds }: Props) {
   const { tr, lang } = useLanguage()
   const listIsBeside = useListIsBesideMap()
   const shown = activeDay === null ? days : days.filter((d) => d.dayNumber === activeDay)
@@ -185,6 +192,12 @@ export function TripDayList({ days, activeDay, onSelectDay, selectedStopId = nul
                     onMoveUp={onMoveStop ? () => onMoveStop(day.id, stop.id, index - 1) : undefined}
                     onMoveDown={onMoveStop ? () => onMoveStop(day.id, stop.id, index + 1) : undefined}
                     onDelete={onDeleteStop ? () => onDeleteStop(day.id, stop.id) : undefined}
+                    // The partner list is the day's other stops, in the order shown, so the reader
+                    // picks by the name they are looking at rather than by an index.
+                    swapTargets={onSwapStops && ordered.length > 1
+                      ? ordered.filter((other) => other.id !== stop.id).map((other) => ({ id: other.id, name: other.name }))
+                      : undefined}
+                    onSwap={onSwapStops ? (otherId: string) => onSwapStops(day.id, stop.id, otherId) : undefined}
                     pinIndex={mapped ? pin : null}
                     selected={selectedStopId === stop.id}
                     // Only wired when the map is actually beside the list: on a phone the map
@@ -239,7 +252,7 @@ function DayTab({ active, onClick, children }: { active: boolean; onClick: () =>
 
 function StopRow({
   stop, cityName, dayNumber, pinIndex, selected, onSelect, lang, tr,
-  canMoveUp, canMoveDown, busy, onMoveUp, onMoveDown, onDelete,
+  canMoveUp, canMoveDown, busy, onMoveUp, onMoveDown, onDelete, swapTargets, onSwap,
 }: {
   stop: TripStop
   cityName: string
@@ -255,9 +268,11 @@ function StopRow({
   onMoveUp?: () => void | Promise<void>
   onMoveDown?: () => void | Promise<void>
   onDelete?: () => void | Promise<void>
+  swapTargets?: Array<{ id: string; name: string }>
+  onSwap?: (otherId: string) => void | Promise<void>
 }) {
   // Editing is offered only when the surface passed handlers for it.
-  const editable = Boolean(onMoveUp || onMoveDown || onDelete)
+  const editable = Boolean(onMoveUp || onMoveDown || onDelete || onSwap)
   const meta = (
     <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink-4">
       {stop.time && (
@@ -335,6 +350,37 @@ function StopRow({
             >
               <ArrowDown className="h-3.5 w-3.5" aria-hidden />
             </IconButton>
+            {/* ⚠️ A SELECT, not another arrow. Swap's whole point is reaching a NON-adjacent stop, so
+                the affordance has to name the partner; a pair of arrows would just be move-up/down
+                again. `swap` was the last of the three server actions with no caller.
+
+                ⚠️ stopPropagation on the trigger for the same reason as the buttons — the row is
+                itself a button when the map is beside the list. The Select's own popup closes on an
+                outside press, so the wrapper must not swallow that. */}
+            {swapTargets && swapTargets.length > 0 && onSwap && (
+              <Select
+                value=""
+                onValueChange={(value) => { if (typeof value === 'string' && value) void onSwap(value) }}
+                disabled={busy}
+                >
+                <SelectTrigger
+                  aria-label={tr('Swap this activity with another', 'Đổi chỗ hoạt động này với hoạt động khác')}
+                  // On the TRIGGER, not a wrapper span: the row is itself a button when the map is
+                  // beside the list, and design-lint is right to refuse a click handler on a
+                  // generic element. The popup is portalled, so its own clicks never bubble here.
+                  onClick={(e) => e.stopPropagation()}
+                  className="ml-1 h-7 w-auto gap-1 border-line-strong bg-card px-2 text-3xs text-ink-4"
+                >
+                  <Repeat className="h-3.5 w-3.5" aria-hidden />
+                  <SelectValue>{tr('Swap', 'Đổi chỗ')}</SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {swapTargets.map((target) => (
+                    <SelectItem key={target.id} value={target.id}>{target.name}</SelectItem>
+                  ))}
+                </SelectContent>
+                </Select>
+            )}
             <IconButton
               aria-label={tr('Remove this activity', 'Xóa hoạt động này')}
               disabled={busy}

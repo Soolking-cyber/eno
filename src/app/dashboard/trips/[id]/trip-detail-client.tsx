@@ -142,6 +142,21 @@ export function TripDetailClient({ id }: { id: string }) {
     editStop({ action: 'reorder', dayId, stopId, toIndex }, stopId), [editStop])
   const deleteStop = useCallback((dayId: string, stopId: string) =>
     editStop({ action: 'delete', dayId, stopId }, stopId), [editStop])
+  /**
+   * Exchange two stops — the last of the route's three actions to get a caller.
+   *
+   * ⚠️ THROUGH THE SAME `editStop`, deliberately. It already owns the 409-reload, the busy set and
+   * the refresh that makes the map follow; a second write path beside it would be a worse copy of
+   * all three, and the reason this task exists is that one action had no caller — not that it needed
+   * its own plumbing.
+   *
+   * ⚠️ NOT the same as a reorder. Moving A to C's index shifts everything between them; swapping A
+   * and C leaves the rest alone. The server does it in one transaction because
+   * @@unique([dayId, position]) makes two writes impossible, which is why the client must not try
+   * to express it as two moves.
+   */
+  const swapStops = useCallback((dayId: string, stopIdA: string, stopIdB: string) =>
+    editStop({ action: 'swap', dayId, stopIdA, stopIdB }, stopIdA), [editStop])
 
   const days: TripDay[] = useMemo(() => {
     if (!trip) return []
@@ -281,6 +296,7 @@ export function TripDetailClient({ id }: { id: string }) {
               onSelectStop={setSelectedStopId}
               onMoveStop={moveStop}
               onDeleteStop={deleteStop}
+              onSwapStops={swapStops}
               busyStopIds={busyStopIds}
             />
             <AssistancePanel itineraryId={trip.id} />

@@ -16,6 +16,13 @@ import { test, expect } from '@playwright/test'
 
 const PLAN = 'E2E Editable Plan'
 
+// ⚠️ SERIAL, because these tests share ONE fixture day. The config runs fullyParallel, so the
+// reorder test and the swap test were mutating the same three stops at the same time on two workers:
+// each read its own "before" order, the other's write landed in between, and the swap case went
+// flaky (failed, passed on retry). Nothing was wrong with the app — the suite was racing itself.
+// Serial is the honest fix; giving each test its own itinerary fixture would be the other one.
+test.describe.configure({ mode: 'serial' })
+
 /** The stop names in the order the page currently shows them. */
 async function order(page: import('@playwright/test').Page): Promise<string[]> {
   const rows = page.locator('[data-stop-id]')
@@ -52,6 +59,34 @@ test('a saved plan is reachable from the list, and its stops can be reordered', 
   await expect
     .poll(async () => (await order(page)).slice(0, 2).join(' | '), { timeout: 20_000 })
     .toBe(`${second} | ${first}`)
+})
+
+test('two NON-adjacent stops can be swapped, which move-up/down cannot express', async ({ page }) => {
+  // ⚠️ SWAP WAS THE LAST OF THE THREE SERVER ACTIONS WITH NO CALLER, and it is the one the owner
+  // asked for by name ("activities we want to swap"). It is not reducible to a reorder: moving the
+  // first stop to the last index shifts the middle one up, whereas swapping first and last leaves
+  // it exactly where it was. This test asserts precisely that difference, so a future "simplify" that
+  // re-expresses swap as a move fails here.
+  await page.goto('/dashboard/trips')
+  const row = page.getByRole('button', { name: new RegExp(PLAN, 'i') })
+  await expect(row).toBeVisible({ timeout: 20_000 })
+  await row.click()
+  await page.getByRole('link', { name: /open & edit|mở & chỉnh sửa/i }).click()
+  await expect(page).toHaveURL(/\/dashboard\/trips\/[^/]+$/)
+
+  const before = await order(page)
+  expect(before.length, 'fixture should render three stops').toBeGreaterThanOrEqual(3)
+  const [first, middle, last] = before
+
+  // Swap the FIRST stop with the LAST one, two rows apart.
+  const firstRow = page.locator('[data-stop-id]').first()
+  await firstRow.getByRole('combobox', { name: /swap this activity|đổi chỗ hoạt động/i }).click()
+  await page.getByRole('option', { name: last }).click()
+
+  // The middle stop must not have moved — that is what makes this a swap and not a reorder.
+  await expect
+    .poll(async () => (await order(page)).slice(0, 3).join(' | '), { timeout: 20_000 })
+    .toBe(`${last} | ${middle} | ${first}`)
 })
 
 test('the edit controls are absent for a stop nobody owns', async ({ page }) => {

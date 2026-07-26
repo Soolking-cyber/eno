@@ -1520,6 +1520,8 @@ export const UI_STRINGS: string[] = [
   "Submitted for review.",
   "Suppliers",
   "Supplies",
+  "Swap",
+  "Swap this activity with another",
   "Switch to business",
   "Switch to individual",
   "Switching to business adds a storefront, analytics and bulk upload.",
