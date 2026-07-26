@@ -100,7 +100,16 @@ test('a rejected activity can be REPLACED, and the map follows', async ({ page }
   // dialog opens from the row, a suggestion becomes a real POST to the real stops endpoint, the
   // real database row changes, and the map re-derives from it. The route's own behaviour (guards,
   // lifetime cap, stripping, dedup) is unit-tested; none of that is what this file is for.
-  const NEW_NAME = 'REPLACEMENT STOP'
+  // ⚠️ UNIQUE PER RUN, AND THAT IS NOT TIDINESS — it is what makes this suite runnable twice.
+  // A fixed name looked fine and passed, because it was always read straight after a reseed. But
+  // this test is the only one here that writes a NAME: reorder and swap shuffle rows the seed will
+  // re-order anyway, whereas a replacement PERSISTS. Run the suite a second time without reseeding
+  // and the day holds two stops called "REPLACEMENT STOP" — `not.toContain(doomed)` then fails
+  // against the copy it just created, and the swap test's `getByRole('option', { name })` dies of a
+  // strict-mode violation two rows away from the change that caused it. Found at the ship gate on
+  // 2026-07-27 by running the suite twice back to back, which is now how it is verified.
+  const RUN_ID = `${Date.now().toString(36).slice(-5)}`
+  const NEW_NAME = `REPLACEMENT STOP ${RUN_ID}`
   const NEW_PLACE = 'Hanoi Opera House'
   await page.route('**/stops/suggest', (route) =>
     route.fulfill({
@@ -156,9 +165,15 @@ test('a rejected activity can be REPLACED, and the map follows', async ({ page }
   await dialog.getByRole('button', { name: /use this one|chọn cái này/i }).click()
 
   // 5 ── THE PROOF, part one: the row really changed, via a refetch of the real database.
-  await expect.poll(async () => (await order(page)).join(' | '), { timeout: 20_000 })
-    .toContain(NEW_NAME)
-  expect((await order(page)).join(' | ')).not.toContain(doomed)
+  //
+  // ⚠️ MEMBERSHIP, NOT SUBSTRING. Joining the names and asking `toContain` reads the same and is
+  // not: one stop's name being a PREFIX of another's makes the join say yes to a row that is gone.
+  // That is not hypothetical — it is what failed here on 2026-07-27, when a fixture left over from
+  // the fixed-name version of this test made `doomed` ("REPLACEMENT STOP") a substring of the
+  // suffixed name that replaced it, and the test failed against the row it had just written.
+  await expect.poll(async () => await order(page), { timeout: 20_000 }).toContain(NEW_NAME)
+  expect(await order(page), 'the rejected activity is gone, not merely pushed down')
+    .not.toContain(doomed)
 
   // 6 ── THE PROOF, part two: THE MAP FOLLOWED. Selecting the row opens that stop's popup on the
   // map, so a popup naming the replacement is the map asserting it re-derived from the new row —

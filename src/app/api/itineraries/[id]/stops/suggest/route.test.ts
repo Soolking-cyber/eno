@@ -27,6 +27,13 @@ const h = vi.hoisted(() => ({
     /** What the fake model returns for `suggestions`. */
     modelSuggestions: [] as unknown[],
     modelThrows: null as Error | null,
+    /** Raw text the fake model answers with, bypassing `modelSuggestions` — for the billed-but-
+     *  unusable case, which is the one that must NOT be refunded. */
+    modelRawText: null as string | null,
+    /** Model calls that actually resolved, i.e. calls we were charged for. */
+    modelCalls: 0,
+    /** Make the gazetteer lookup blow up, to prove a post-model failure is still our cost. */
+    geocodeThrows: false,
     /** The prompt the route actually sent — the injection tests read it. */
     lastPrompt: '' as string,
     geocode: null as null | { lat: number; lng: number },
@@ -92,6 +99,10 @@ vi.mock('@/lib/gemini', () => ({
         generateContent: async ({ contents }: { contents: string }) => {
           h.state.lastPrompt = contents
           if (h.state.modelThrows) throw h.state.modelThrows
+          // Counted AFTER the throw and BEFORE the return, which is the same boundary the route
+          // draws: a call that rejects was never billed, a call that resolves was.
+          h.state.modelCalls++
+          if (h.state.modelRawText !== null) return { text: h.state.modelRawText }
           return { text: JSON.stringify({ suggestions: h.state.modelSuggestions }) }
         },
       },
@@ -100,7 +111,12 @@ vi.mock('@/lib/gemini', () => ({
 }))
 
 // The catalogue lookup is exercised for real (it is pure); only the network side is faked.
-vi.mock('@/lib/itinerary-geocode', () => ({ geocodePlace: async () => h.state.geocode }))
+vi.mock('@/lib/itinerary-geocode', () => ({
+  geocodePlace: async () => {
+    if (h.state.geocodeThrows) throw new Error('gazetteer unreachable')
+    return h.state.geocode
+  },
+}))
 
 import { POST } from './route'
 
@@ -155,6 +171,9 @@ beforeEach(() => {
   h.state.modelThrows = null
   h.state.lastPrompt = ''
   h.state.geocode = null
+  h.state.modelRawText = null
+  h.state.modelCalls = 0
+  h.state.geocodeThrows = false
 })
 
 describe('POST /api/itineraries/[id]/stops/suggest', () => {
@@ -299,6 +318,30 @@ describe('POST /api/itineraries/[id]/stops/suggest', () => {
       const res = await POST(req(VALID), PARAMS)
       expect(res.status).toBe(502)
       expect((await res.json()).error).toBe('no_suggestions')
+      expect(h.state.counters.get('itinerary-refine:itin-1')).toBe(1)
+    })
+
+    it('does NOT refund an answer we could not PARSE, which is billed twice over', async () => {
+      // ⚠️ THE GAP BETWEEN THE COMMENT AND THE CODE, found at the ship gate on 2026-07-27. The route
+      // always claimed a call that reached the model costs a refinement, but every throw shared one
+      // `catch` that refunded, and unparseable output throws. It is the expensive shape, not the
+      // cheap one: `isRetryableAiError` counts a SyntaxError as retryable, so junk output spends the
+      // primary model AND the fallback — two paid calls — and then handed the refinement back.
+      h.state.modelRawText = 'I am afraid I cannot do that.'
+      const res = await POST(req(VALID), PARAMS)
+      expect(res.status).toBe(502)
+      expect(h.state.modelCalls, 'the retry means junk output is billed on BOTH models').toBe(2)
+      expect(h.state.counters.get('itinerary-refine:itin-1'), 'a billed call is never refunded').toBe(1)
+    })
+
+    it('does NOT refund when something AFTER the model throws — the geocoder, say', async () => {
+      // The second half of the same finding. Failing to use an answer we have paid for is our
+      // problem; charging the traveller nothing for it would make any downstream flake a free
+      // inference coupon.
+      h.state.modelSuggestions = [CANDIDATE]
+      h.state.geocodeThrows = true
+      const res = await POST(req(VALID), PARAMS)
+      expect(res.status).toBe(502)
       expect(h.state.counters.get('itinerary-refine:itin-1')).toBe(1)
     })
 

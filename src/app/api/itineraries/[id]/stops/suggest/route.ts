@@ -257,8 +257,22 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
    * survived validation" deliberately costs a refinement.
    *
    * Best effort: it can only ever lower the count, so it cannot let a request past the cap.
+   *
+   * ⚠️ IT ASKS `billed`, BECAUSE THE COMMENT ABOVE WAS NOT WHAT THE CODE DID (found at the gate,
+   * 2026-07-27, by an adversarial pass on this diff). Every throw below — including a response the
+   * model DID return and we could not parse — landed in one `catch` that refunded unconditionally.
+   * Worse than a single wasted call: `isRetryableAiError` treats `SyntaxError` as retryable, so an
+   * unparseable answer spends the primary model AND the fallback, and then hands the refinement
+   * back. The same path refunded a paid call whenever anything downstream of the model threw, the
+   * geocoder included.
+   *
+   * `billed` flips the instant `generateContent` RESOLVES, which is exactly the moment we owe money,
+   * so the two cases the comment always claimed now actually hold: a provider that failed (rejected,
+   * nothing billed) refunds, and a model that answered does not — however unusable the answer was.
    */
+  let billed = false
   const refund = async () => {
+    if (billed) return
     try { await kv.incrby(`itinerary-refine:${itineraryId}`, -1) } catch { /* the cap holding too tightly is the safe direction */ }
   }
 
@@ -350,6 +364,9 @@ Return only the JSON.`
           httpOptions: { timeout: index === 0 ? 25_000 : 15_000, retryOptions: { attempts: 1 } },
         },
       })
+      // ⚠️ HERE, not after the parse. A resolved generateContent IS the charge — everything below
+      // this line is us failing to use something we have already paid for, and must not be refunded.
+      billed = true
       const decoded: unknown = JSON.parse(cleanModelJson(response.text || '{}'))
       const returned = (decoded as { suggestions?: unknown })?.suggestions
       if (!Array.isArray(returned)) throw new SyntaxError('suggest_response_invalid')
