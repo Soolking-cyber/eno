@@ -59,6 +59,26 @@ const CORE_HREFS = [
 // The one sanctioned cross-site row, identified by its explicit label (EN/VI).
 const HANDOFF_LABEL = /^(Open eno\.forum|Mở eno\.forum)$/
 
+/**
+ * The [{href, label}] a nav surface actually offers, in DOM order.
+ *
+ * ⚠️ THE LABEL IS `children[1]`, NOT the anchor's text and NOT its aria-label, and both exclusions
+ * are load-bearing:
+ *   · the anchor's own text swallows the badge, so "Messages" reads as "Messages3" the moment the
+ *     seeded seller has an unread — the two surfaces would then disagree for a reason that has
+ *     nothing to do with the rows;
+ *   · the desktop rail FOLDS the badge into aria-label on purpose ("Messages, 3 new", so screen
+ *     readers hear the count), while the account page leaves the badge a separate element.
+ * Comparing either one compares two different things. Both surfaces render
+ * `<a><span>{icon}</span><span>{label}</span>…</a>` — verified against the rendered DOM of both
+ * before this was written, not assumed — so the second child is the label on each.
+ */
+const rowsOf = (links: import('@playwright/test').Locator) =>
+  links.evaluateAll((els) => els.map((a) => ({
+    href: a.getAttribute('href') || '',
+    label: (a.children[1]?.textContent || '').trim(),
+  })))
+
 test.describe('one dashboard — rail integrity', () => {
   test.skip(!process.env.E2E_AUTHED_BASE, 'requires a standalone server + seeded seller (E2E_AUTHED_BASE)')
   const BASE = (process.env.E2E_AUTHED_BASE || 'http://localhost:3100').replace(/\/$/, '')
@@ -139,53 +159,89 @@ test.describe('one dashboard — rail integrity', () => {
     await expect(rail.locator('a[href^="/admin"]')).toHaveCount(0)
   })
 
-  test('mobile: the Account tab opens a focus-trapped drawer with the same rows as desktop', async ({ browser }) => {
-    // Same storageState as the project, but explicit contexts: real phone vs desktop.
+  test('mobile: the Account tab is a DESTINATION offering the same rows as the desktop rail', async ({ browser }) => {
+    // ⚠️ THIS TEST USED TO ASSERT A DRAWER, AND WAS RED ON EVERY RUN FOR THREE DAYS. It waited for
+    // `aside[role="dialog"]` after tapping the mobile Account tab — but `4e31b06b` (2026-07-24,
+    // "the Account tab is a destination, not an overlay") deleted that overlay ON PURPOSE, along
+    // with the body lock, the focus trap and the `eno:open-account` event pair. A modal wearing a
+    // tab's clothes could not be closed by Android hardware-back, had no URL, and could not be
+    // linked to or reloaded.
+    //
+    // So the old assertions were not protecting anything — they were pinning a design that had been
+    // deliberately removed, and a permanently red suite teaches everyone to skim past red. ⚠️ DO NOT
+    // "repair" this by restoring the drawer.
+    //
+    // The invariant underneath it is still worth every line: mobile and desktop must offer the SAME
+    // rows, from the SAME source (dashboard-nav.tsx → resolveNavGroups), in the SAME order. A second
+    // hand-written list on either side would drift the first time a section is added. That claim is
+    // re-expressed below against /dashboard/account as a page.
     const state = 'e2e/.auth/seller.json'
     const desktop = await browser.newContext({ ...devices['Desktop Chrome'], baseURL: BASE, storageState: state })
     const mobile = await browser.newContext({ ...devices['Pixel 5'], baseURL: BASE, storageState: state })
     try {
-      // Desktop: rail is persistent — collect its row labels once role rows have settled.
+      // Desktop: rail is persistent — collect its rows once the role-gated ones have settled.
       const dPage = await desktop.newPage()
       await dPage.goto('/dashboard/listings')
       const dRail = dPage.locator(RAIL)
       await expect(dRail).toBeVisible()
       await expect(dRail.getByRole('link', { name: /View storefront|Xem gian hàng/ })).toHaveCount(1)
-      const desktopLabels = await dRail.locator('nav a').evaluateAll((els) => els.map((a) => a.getAttribute('aria-label') || ''))
+      const desktopRows = await rowsOf(dRail.locator('nav a'))
 
-      // Mobile: closed by default; the bottom-nav Account tab opens it full-screen (eno:open-account).
+      // Mobile: the tab is a LINK to a route, and the route is where you end up.
       const mPage = await mobile.newPage()
       await mPage.goto('/dashboard/listings')
-      // Wait for auth to resolve (the home greets the account) so the tab opens the rail
-      // rather than falling back to a plain /dashboard navigation.
+      // Wait for auth to resolve (the home greets the account) so the role-gated rows are present.
       await expect(mPage.locator('#main h1').filter({ hasText: /Hi|Chào/ })).toBeVisible()
-      const mRail = mPage.locator(RAIL)
-      await expect(mRail).toHaveCount(0) // launcher model: nothing mounted until opened
       await mPage.getByRole('link', { name: /^(Account|Tài khoản)$/ }).click()
-      await expect(mRail).toBeVisible()
-      // Full-screen MODAL on mobile (aria-modal), unlike the desktop non-modal rail.
-      await expect(mRail).toHaveAttribute('aria-modal', 'true')
+      await expect(mPage).toHaveURL(/\/dashboard\/account/)
 
-      // SAME item source (dashboard-nav.tsx): identical row labels, identical order.
-      await expect(mRail.getByRole('link', { name: /View storefront|Xem gian hàng/ })).toHaveCount(1)
-      const mobileLabels = await mRail.locator('nav a').evaluateAll((els) => els.map((a) => a.getAttribute('aria-label') || ''))
-      expect(mobileLabels).toEqual(desktopLabels)
-      // And on mobile the labels are visible text, not just icons. Help center is the
-      // probe: Forum activity was REMOVED 2026-07-21 (owner: "only help center") and this
-      // line kept asserting the dead label — the one spot Kyle's CORE_HREFS un-staling
-      // (row-108) didn't reach.
-      await expect(mRail.getByText(/Help center|Trung tâm trợ giúp/)).toBeVisible()
+      // ⚠️ A PAGE, NOT AN OVERLAY — asserted from both ends. The URL changed (above), and NO rail
+      // dialog is mounted (below). Restoring the drawer would satisfy neither.
+      await expect(mPage.locator(RAIL)).toHaveCount(0)
+      // And because it is history, Back leaves — which is the single thing the overlay could not do
+      // on Android, and the reason it was deleted.
+      await mPage.goBack()
+      await expect(mPage).toHaveURL(/\/dashboard\/listings/)
+      await mPage.goForward()
+      await expect(mPage).toHaveURL(/\/dashboard\/account/)
 
-      // Focus is trapped inside the drawer: it moves in on open and Tab/Shift+Tab never escape.
-      const focusInside = () => mPage.evaluate(() => !!document.activeElement?.closest('aside[role="dialog"]'))
-      await expect.poll(focusInside, { message: 'focus should move into the drawer on open' }).toBe(true)
-      for (let i = 0; i < 12; i++) {
-        await mPage.keyboard.press('Tab')
-        expect(await focusInside(), `focus escaped the drawer after ${i + 1} Tab presses`).toBe(true)
-      }
-      await mPage.keyboard.press('Shift+Tab')
-      await mPage.keyboard.press('Shift+Tab')
-      expect(await focusInside(), 'focus escaped the drawer on Shift+Tab').toBe(true)
+      // SAME item source: identical hrefs, identical labels, identical order.
+      await expect(mPage.getByRole('link', { name: /View storefront|Xem gian hàng/ })).toHaveCount(1)
+      const accountRows = await rowsOf(mPage.locator('#main li a'))
+      expect(accountRows).toEqual(desktopRows)
+
+      // ⚠️ NEITHER LIST MAY BE EMPTY OR UNLABELLED, and this guard is the point rather than padding:
+      // both sides read `children[1]`, so a DOM reshuffle that broke the label extraction would make
+      // BOTH sides `''` and the deepEqual above would pass vacuously against nothing at all.
+      expect(desktopRows.length).toBeGreaterThanOrEqual(5)
+      expect(desktopRows.filter((r) => !r.label || !r.href)).toEqual([])
+
+      // On mobile the labels are VISIBLE TEXT, not icon-only chrome — checked through the rendered
+      // box, so `opacity-0`/`display:none` cannot satisfy it. Help center is the probe: Forum
+      // activity was REMOVED 2026-07-21 (owner: "only help center") and the old line kept asserting
+      // the dead label.
+      // ⚠️ SCOPED TO #main. Unscoped this is a strict-mode violation, because the app FOOTER carries
+      // its own "Help center" link to /help — invisible while the drawer wrapped the assertion, and
+      // the first thing to bite once the rows live on an ordinary page.
+      await expect(mPage.locator('#main').getByText(/Help center|Trung tâm trợ giúp/)).toBeVisible()
+      //
+      // ⚠️ A REAL BOX, NOT `> 0`, and the threshold is measured rather than guessed. Every label on
+      // this page renders 289×20 (they are `flex-1`), so 40×10 has enormous headroom — while `> 0`
+      // would have waved through `sr-only`, which is exactly how "icon-only with a screen-reader
+      // label" regresses in practice: the accessible name survives, so the role queries above stay
+      // green, and only the geometry gives it away.
+      const labelBoxes = await mPage.locator('#main li a > span:nth-child(2)').evaluateAll((els) =>
+        els.map((el) => {
+          const r = el.getBoundingClientRect()
+          return { text: (el.textContent || '').trim(), w: Math.round(r.width), h: Math.round(r.height) }
+        }))
+      expect(labelBoxes.length).toBe(accountRows.length)
+      expect(labelBoxes.filter((b) => !b.text || b.w < 40 || b.h < 10)).toEqual([])
+
+      // A seller is not an admin, on either surface. Admin-ness is server-computed, so this is a
+      // real gate rather than a styling check.
+      await expect(mPage.locator('#main a[href^="/admin"]')).toHaveCount(0)
+      await expect(mPage.locator('#main section h2').filter({ hasText: /^Admin$/i })).toHaveCount(0)
     } finally {
       await desktop.close()
       await mobile.close()
