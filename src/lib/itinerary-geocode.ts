@@ -136,7 +136,33 @@ async function geocodeGoogle(name: string, cityId: CityId): Promise<GeocodeHit |
   return { lat: loc.lat, lng: loc.lng, source: 'google' }
 }
 
+/**
+ * Nominatim's one-request-per-second policy, enforced HERE rather than by the caller.
+ *
+ * ⚠️ IT LIVED IN THE CALLER AND WAS BYPASSABLE TWO WAYS, both of which were live:
+ *  1. The delay was conditional on `!GOOGLE_KEY`, on the assumption that a configured key means
+ *     Google answers. It does not follow. A key that is present but REFUSED — which is exactly
+ *     the state of this project's key, since Maps Platform is billing-blocked — falls straight
+ *     through to Nominatim with the delay switched off. Configuring the key would therefore have
+ *     started hammering a free community service, i.e. made things worse than having no key.
+ *  2. The caller `continue`d on a miss before reaching its own sleep, so a run of unresolvable
+ *     names issued back-to-back requests even with no key configured at all.
+ *
+ * Both disappear once the throttle belongs to the function that makes the request: it cannot be
+ * skipped by a control-flow path, and it does not care which provider the caller HOPED would win.
+ * The gap is measured from the last request rather than slept unconditionally, so a cache hit or a
+ * catalogue hit in between costs nothing.
+ */
+const NOMINATIM_MIN_SPACING_MS = 1100
+let lastNominatimAt = 0
+async function throttleNominatim(): Promise<void> {
+  const wait = lastNominatimAt + NOMINATIM_MIN_SPACING_MS - Date.now()
+  if (wait > 0) await new Promise((r) => setTimeout(r, wait))
+  lastNominatimAt = Date.now()
+}
+
 async function geocodeNominatim(name: string, cityId: CityId): Promise<GeocodeHit | null> {
+  await throttleNominatim()
   // countrycodes=vn narrows before we do — cheaper than rejecting a Portland result afterwards,
   // though isInVietnam still runs either way.
   const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=vn&q=${encodeURIComponent(queryFor(name, cityId))}`
@@ -168,7 +194,6 @@ async function geocodeNominatim(name: string, cityId: CityId): Promise<GeocodeHi
  * generation or the backfill script — an unmapped stop is a known state, not a broken one.
  */
 const MAX_GEOCODES_PER_PASS = 8
-const NOMINATIM_MIN_SPACING_MS = 1100
 
 export async function fillMissingStopCoordinates(
   itineraryId: string,
@@ -199,7 +224,9 @@ export async function fillMissingStopCoordinates(
         data: { lat: hit.lat, lng: hit.lng },
       })
       if (written.count === 1) filled += 1
-      if (!GOOGLE_KEY) await new Promise((r) => setTimeout(r, NOMINATIM_MIN_SPACING_MS))
+      // No sleep here any more — throttleNominatim owns the spacing, so it applies on a MISS too
+      // (this loop used to `continue` past the delay) and is not disabled by a configured-but-
+      // refused Google key.
     }
   } catch (e) {
     // Best-effort by design: the itinerary is saved and served either way.
