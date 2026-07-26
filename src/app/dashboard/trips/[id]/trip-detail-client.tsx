@@ -12,6 +12,7 @@ import { CITY_MAP, BUDGETS, type CityId } from '@/lib/itinerary-data'
 import { formatMoneyFull, moneyLocale } from '@/lib/vnd'
 import { TripMap, TripMapDrawer, type TripDay } from '@/components/itinerary/trip-map'
 import { TripDayList } from '@/components/itinerary/trip-day-list'
+import { StopRefineDialog, type RefineTarget, type StopReplacement } from './stop-refine-dialog'
 import type { SavedItinerary, SavedItineraryDay } from '../trip-card'
 
 // "My Trips" — one saved itinerary, reopened in full. Deliberately a sibling of
@@ -69,6 +70,15 @@ export function TripDetailClient({ id }: { id: string }) {
   /** Stops with a write in flight, so their own row disables without freezing the others. */
   const [busyStopIds, setBusyStopIds] = useState<ReadonlySet<string>>(new Set())
   const [editError, setEditError] = useState<'stale' | 'failed' | null>(null)
+  /**
+   * The activity whose removal dialog is open, or null.
+   *
+   * ⚠️ HELD HERE, not inside the list. The dialog fetches suggestions and then writes through the
+   * same `editStop` every other action uses, so the state belongs beside that — a dialog owned by a
+   * row would need the write path handed down to it anyway, and would unmount mid-request the moment
+   * the refresh re-rendered the list under it.
+   */
+  const [refineTarget, setRefineTarget] = useState<RefineTarget | null>(null)
 
   // Sibling dashboard sections' auth gate — signed-out users go to sign-in and back.
   useEffect(() => {
@@ -157,6 +167,17 @@ export function TripDetailClient({ id }: { id: string }) {
    */
   const swapStops = useCallback((dayId: string, stopIdA: string, stopIdB: string) =>
     editStop({ action: 'swap', dayId, stopIdA, stopIdB }, stopIdA), [editStop])
+  /**
+   * Apply a suggested replacement — the last of the four stop actions, and the one the whole refine
+   * flow exists to reach.
+   *
+   * ⚠️ THROUGH `editStop` LIKE THE OTHERS, so it inherits the 409-reload, the busy set and the
+   * refresh that makes the map follow the edit. That last one is the point: a replacement usually
+   * moves the pin, and `days` is derived from `trip`, so re-reading is what keeps the map honest
+   * without a second piece of state to get wrong.
+   */
+  const replaceStop = useCallback((dayId: string, stopId: string, replacement: StopReplacement) =>
+    editStop({ action: 'replace', dayId, stopId, replacement }, stopId), [editStop])
 
   const days: TripDay[] = useMemo(() => {
     if (!trip) return []
@@ -295,11 +316,18 @@ export function TripDetailClient({ id }: { id: string }) {
               selectedStopId={selectedStopId}
               onSelectStop={setSelectedStopId}
               onMoveStop={moveStop}
-              onDeleteStop={deleteStop}
+              onRemoveStop={(dayId, stop) => setRefineTarget({ dayId, stopId: stop.id, name: stop.name, place: stop.place })}
               onSwapStops={swapStops}
               busyStopIds={busyStopIds}
             />
             <AssistancePanel itineraryId={trip.id} />
+            <StopRefineDialog
+              itineraryId={trip.id}
+              target={refineTarget}
+              onClose={() => setRefineTarget(null)}
+              onRemove={deleteStop}
+              onApply={replaceStop}
+            />
           </div>
           <aside className="hidden lg:block">
             <div className="sticky top-24 h-[calc(100vh-9rem)]">

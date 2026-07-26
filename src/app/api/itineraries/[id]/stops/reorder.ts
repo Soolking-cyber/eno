@@ -36,6 +36,32 @@ export type StopEditResult =
   | { ok: false; error: StopEditError }
 export type StopEditError = 'not_found' | 'forbidden' | 'invalid_order' | 'stale' | 'update_failed'
 
+/**
+ * Flatten anything that could render as more than plain text.
+ *
+ * Markup, link syntax and bare URLs come out; the words stay. Suggested activity text is shown
+ * inside the traveller's own itinerary and later exported to Word, so a smuggled anchor is a real
+ * (if self-inflicted) phishing surface, and stripping is cheaper than trusting every renderer
+ * downstream to escape it forever.
+ *
+ * ⚠️ ONE definition, deliberately, even though it is text handling in a module about database
+ * writes. Both stop routes need it — `suggest` before it DISPLAYS a candidate, `stops` before it
+ * WRITES one — and a sanitiser with two copies is a sanitiser where one copy quietly stops matching
+ * the other. It lives here because this is the module both of those routes already import.
+ *
+ * ⚠️ It can return an EMPTY string (input of `**`, or a bare URL and nothing else). Every caller
+ * must decide what that means rather than assuming a non-empty result — a field that strips to
+ * nothing is dropped, never written blank.
+ */
+export function stripToPlainText(value: string): string {
+  return value
+    .replace(/<[^>]*>/g, ' ')                       // tags
+    .replace(/\]\(|\[|\]|[`*_~|]/g, ' ')            // markdown link/emphasis syntax
+    .replace(/\b(?:https?:\/\/|www\.)\S+/gi, ' ')   // URLs
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
 type StopRow = { id: string; position: number }
 
 /**
@@ -157,6 +183,74 @@ export async function deleteStop(input: {
     if (!stops.some((s) => s.id === input.stopId)) return null
     return stops.filter((s) => s.id !== input.stopId).map((s) => s.id)
   }, input.stopId)
+}
+
+/** What a replacement may set. Every field is the traveller's to see — none is derived from money. */
+export type StopReplacement = {
+  name: string
+  place: string
+  time: string | null
+  details: string | null
+  lat: number | null
+  lng: number | null
+  travelMinutes: number | null
+  estimatedCostVnd: number | null
+  bookingAdvice: string | null
+}
+
+/**
+ * Swap a stop's CONTENT for a different activity, leaving the day's order untouched.
+ *
+ * ⚠️ NOT A REORDER, so it does not go through `runEdit`: nothing about the permutation changes, and
+ * `runEdit`'s whole job is computing one. What it shares is the discipline — ownership proven through
+ * the itinerary in the PATH, and a compare-and-set so the write cannot land on a row somebody else
+ * already moved or deleted.
+ *
+ * ⚠️ `updateMany`, NOT `update`. `update` throws when the predicate misses, which would surface as
+ * update_failed (500) for what is really a lost race (409). The count IS the CAS: 0 means the row is
+ * no longer where the caller thought it was, and the honest answer is `stale` so the client reloads
+ * rather than retrying a write against a picture that has moved.
+ *
+ * ⚠️ It returns the day's EXISTING order as `positions`, unchanged. Every action on this endpoint
+ * answers the same shape so one client reconcile path serves all of them — a replace that returned
+ * nothing would make the caller special-case it, and special cases are where clients drift.
+ *
+ * ⚠️ NOTHING HERE IS TRUSTED FROM A MODEL. The route validates the replacement through a strict
+ * schema before this is called; this function assumes bounded, already-stripped values and writes
+ * them verbatim. Do not "helpfully" re-derive or re-format a field here — the validation boundary is
+ * the route, and two boundaries mean neither is authoritative.
+ */
+export async function replaceStop(input: {
+  dayId: string
+  itineraryId: string
+  stopId: string
+  profileId: string
+  replacement: StopReplacement
+}): Promise<StopEditResult> {
+  try {
+    return await db.$transaction(async (tx) => {
+      const stops = await loadOwnedDay(tx, input.dayId, input.itineraryId, input.profileId)
+      if (!stops) return { ok: false, error: 'not_found' as const }
+      // A stop that is not in THIS day is the same answer as a day that is not yours — see the note
+      // on loadOwnedDay. It must not become a probe for which stop ids exist.
+      if (!stops.some((s) => s.id === input.stopId)) return { ok: false, error: 'not_found' as const }
+
+      const written = await tx.itineraryStop.updateMany({
+        where: { id: input.stopId, dayId: input.dayId },
+        data: { ...input.replacement },
+      })
+      if (written.count !== 1) return { ok: false, error: 'stale' as const }
+
+      return {
+        ok: true as const,
+        positions: stops.map((s, index) => ({ id: s.id, position: index })),
+      }
+    })
+  } catch (e) {
+    if (e instanceof StaleError) return { ok: false, error: 'stale' }
+    console.error('[itinerary-stops] replace failed', (e as Error)?.message?.slice(0, 200))
+    return { ok: false, error: 'update_failed' }
+  }
 }
 
 /**

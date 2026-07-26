@@ -42,6 +42,15 @@ vi.mock('@/lib/db', () => {
     itineraryStop: {
       findMany: async ({ where }: any) =>
         [...(h.state.days[where.dayId] ?? [])].sort((a, b) => a.position - b.position).map((s) => ({ ...s })),
+      updateMany: async ({ where, data }: any) => {
+        if (h.state.mutateBeforeWrite) { h.state.mutateBeforeWrite(); h.state.mutateBeforeWrite = null }
+        const list = h.state.days[where.dayId] ?? []
+        const row = list.find((s) => s.id === where.id)
+        // The CAS is the COUNT: a row that has moved out of this day matches nothing.
+        if (!row) return { count: 0 }
+        Object.assign(row, data)
+        return { count: 1 }
+      },
       deleteMany: async ({ where }: any) => {
         // The hook fires before the FIRST write, whichever it is — a delete race happens between
         // the ownership read and this statement, not later.
@@ -90,7 +99,7 @@ vi.mock('@/lib/db', () => {
   return { db: { $transaction: async (fn: (t: unknown) => unknown) => fn(tx) } }
 })
 
-import { deleteStop, reorderStop, swapStops } from './reorder'
+import { deleteStop, reorderStop, replaceStop, swapStops } from './reorder'
 
 const DAY = 'day-1'
 const ITIN = 'itin-1'
@@ -227,5 +236,61 @@ describe('ownership and legality', () => {
   it('rejects deleting a stop that is not in this day', async () => {
     expect(await deleteStop({ dayId: DAY, itineraryId: ITIN, stopId: 's-nope', profileId: ME }))
       .toEqual({ ok: false, error: 'invalid_order' })
+  })
+})
+
+
+describe('replace swaps a stop\'s CONTENT without touching the day\'s order', () => {
+  const OWNER = 'p-1'
+  const DAY = 'day-1'
+  const ITIN = 'itin-1'
+  const replacement = {
+    name: 'Rooftop coffee', place: 'Ly Thai To street', time: '16:00', details: 'Quieter than the lake road.',
+    lat: 21.03, lng: 105.85, travelMinutes: 12, estimatedCostVnd: 90_000, bookingAdvice: null,
+  }
+
+  beforeEach(() => {
+    h.state.days = { [DAY]: [{ id: 's1', position: 0 }, { id: 's2', position: 1 }, { id: 's3', position: 2 }] }
+    h.state.dayMeta = { [DAY]: { profileId: OWNER, itineraryId: ITIN } }
+    h.state.statements = []
+    h.state.mutateBeforeWrite = null
+  })
+
+  it('rewrites the row and reports the order UNCHANGED', async () => {
+    const result = await replaceStop({ dayId: DAY, itineraryId: ITIN, stopId: 's2', profileId: OWNER, replacement })
+    expect(result).toEqual({ ok: true, positions: [{ id: 's1', position: 0 }, { id: 's2', position: 1 }, { id: 's3', position: 2 }] })
+    // Same shape as every other action, so one client reconcile path serves all four.
+    expect(h.state.days[DAY].find((s) => s.id === 's2')).toMatchObject({ position: 1, name: 'Rooftop coffee' })
+  })
+
+  it('writes NO staging statements — a replace is not a permutation', async () => {
+    await replaceStop({ dayId: DAY, itineraryId: ITIN, stopId: 's2', profileId: OWNER, replacement })
+    expect(h.state.statements).toEqual([])
+  })
+
+  it('leaves the OTHER stops byte-identical', async () => {
+    const before = JSON.stringify(h.state.days[DAY].filter((s) => s.id !== 's2'))
+    await replaceStop({ dayId: DAY, itineraryId: ITIN, stopId: 's2', profileId: OWNER, replacement })
+    expect(JSON.stringify(h.state.days[DAY].filter((s) => s.id !== 's2'))).toBe(before)
+  })
+
+  it('answers not_found for a stop that is not in this day — no existence oracle', async () => {
+    const result = await replaceStop({ dayId: DAY, itineraryId: ITIN, stopId: 'somebody-elses-stop', profileId: OWNER, replacement })
+    expect(result).toEqual({ ok: false, error: 'not_found' })
+  })
+
+  it('answers not_found for a day this profile does not own, and for a mismatched itinerary', async () => {
+    expect(await replaceStop({ dayId: DAY, itineraryId: ITIN, stopId: 's2', profileId: 'someone-else', replacement }))
+      .toEqual({ ok: false, error: 'not_found' })
+    expect(await replaceStop({ dayId: DAY, itineraryId: 'another-itinerary', stopId: 's2', profileId: OWNER, replacement }))
+      .toEqual({ ok: false, error: 'not_found' })
+  })
+
+  it('⚠️ LOSES CLEANLY to a concurrent delete — 409, not a silent no-op', async () => {
+    // The row is removed between the ownership read and the write, so updateMany matches nothing.
+    // `stale` is what tells the client to reload; `update` would have thrown and become a 500.
+    h.state.mutateBeforeWrite = () => { h.state.days[DAY] = h.state.days[DAY].filter((s) => s.id !== 's2') }
+    const result = await replaceStop({ dayId: DAY, itineraryId: ITIN, stopId: 's2', profileId: OWNER, replacement })
+    expect(result).toEqual({ ok: false, error: 'stale' })
   })
 })
