@@ -7,6 +7,8 @@ import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
 import { Spinner } from '@/components/ui/spinner'
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from '@/components/ui/drawer'
+import { cn } from '@/lib/utils'
+import { handleExternalClick } from '@/lib/native-browser'
 
 // The saved-trip map. A day is a colour, a stop is a numbered pin in that colour, and each
 // day's stops are joined by a polyline in visiting order.
@@ -217,6 +219,94 @@ type Props = {
   className?: string
 }
 
+/**
+ * The basemap credit. A LICENCE OBLIGATION, not a design flourish.
+ *
+ * The tiles come from `basemaps.cartocdn.com` — CARTO's free basemaps, rendered from
+ * OpenStreetMap data under the ODbL. We pay nothing for them and crediting both parties is the
+ * condition of that. Both of this app's maps had `attributionControl: false` and passed no
+ * `attribution` string, so a commercial marketplace was serving those tiles with no credit at all.
+ *
+ * ⚠️ HAND-ROLLED RATHER THAN LEAFLET'S CONTROL, deliberately. `L.control.attribution` renders an
+ * unstyled `.leaflet-control-attribution` box (white, 11px, its own font stack) that conforms to
+ * nothing in docs/design-language.md, and the only way to restyle it is a global selector —
+ * globals.css is not this task's file, and a global override for two components is the wrong shape
+ * anyway. The task sanctions a custom line for exactly this reason.
+ *
+ * ⚠️ `pointer-events-none` on the wrapper with `pointer-events-auto` on the links: the credit must
+ * be clickable (a credit nobody can follow is decoration) while the ~2px of padding around it must
+ * not swallow a map drag that happens to start there.
+ *
+ * ⚠️ The basemap is ALWAYS LIGHT — CARTO `light_all` does not follow the app theme — so this needs
+ * a backdrop rather than a theme-coloured text token alone, or it becomes unreadable wherever the
+ * tiles are pale. Same treatment as the trip map's legend and coverage notice.
+ */
+/**
+ * Where the map's own overlays sit in the stack.
+ *
+ * ⚠️ THE OBVIOUS READING OF LEAFLET'S Z-LADDER IS WRONG, and it is worth writing down because it
+ * looks alarming. leaflet.css:107-114 gives panes tiles 200, overlay 400, shadow 500, MARKERS 600,
+ * tooltips 650, POPUPS 700 — so a reviewer (agy did) reasonably concludes that an overlay at z-500
+ * is buried by every pin and popup. Measured, it is not: `.leaflet-map-pane` carries a
+ * `transform: matrix(…)`, which opens a STACKING CONTEXT, so all of 600/700 are resolved *inside*
+ * it and the whole map pane competes with these siblings as a single z-400 box. A probe injected
+ * into the marker and popup panes loses to the credit even when the credit is forced back to 500.
+ *
+ * So why 800? Insurance for the one case where that containment disappears: where Leaflet cannot
+ * use 3D transforms it positions the map pane with left/top instead, no transform, no stacking
+ * context — and then the panes' 600/700 really do float up here. 800 clears them, and stays below
+ * `.leaflet-top`/`.leaflet-bottom` (1000) so the zoom control keeps its place on top.
+ */
+const OVERLAY_Z = 'z-[800]'
+
+function MapCredit({ className }: { className?: string }) {
+  const { tr } = useLanguage()
+  return (
+    <p
+      className={cn(
+        // `gap-1` separates the two credits instead of a whitespace text node: `jsx-no-literals`
+        // rejects bare strings in JSX — including `{\' \'}` — and the rule is right to, because it
+        // is what stops untranslated copy shipping. So the words go through `tr` and the spacing
+        // is layout.
+        // ⚠️ OPAQUE `bg-card`, not `bg-card/85`. The basemap is always light, so a translucent chip
+        // composites toward WHITE — in dark mode that lightened the chip under light-grey `ink-4`
+        // text and measured 4.19:1, under the 4.5:1 floor. Present-but-illegible does not discharge
+        // a licence obligation. Opaque, the chip is the theme's own surface and the ratio is 5.9:1
+        // (light) / 6.6:1 (dark) regardless of what the tiles are doing underneath. Both measured on a
+        // production build, not derived — an earlier version of this comment claimed 12.6:1 for dark,
+        // which was a guess written before the measurement and wrong.
+        `pointer-events-none absolute ${OVERLAY_Z} flex items-center gap-1 rounded-lg bg-card px-1.5 py-0.5 text-3xs leading-none text-ink-4`,
+        className,
+      )}
+    >
+      {/* ⚠️ `handleExternalClick`, like every other third-party link in the app. Inside the
+          Capacitor shell a bare target=_blank hands the URL to Safari/Chrome and LEAVES eno —
+          src/lib/native-browser.ts calls that hard exit "the most jarring thing a wrapped app
+          does". These are pure go-and-look destinations, so they belong in the in-app browser, one
+          Done tap from the map. (The single documented exception is evisa.gov.vn, for reasons that
+          do not apply here.) A credit the native app cannot follow is decoration. */}
+      <a
+        className="pointer-events-auto underline-offset-2 hover:underline"
+        href="https://www.openstreetmap.org/copyright"
+        onClick={handleExternalClick}
+        target="_blank"
+        rel="noreferrer"
+      >
+        {tr('© OpenStreetMap contributors', '© Cộng tác viên OpenStreetMap')}
+      </a>
+      <a
+        className="pointer-events-auto underline-offset-2 hover:underline"
+        href="https://carto.com/attributions"
+        onClick={handleExternalClick}
+        target="_blank"
+        rel="noreferrer"
+      >
+        {tr('© CARTO', '© CARTO')}
+      </a>
+    </p>
+  )
+}
+
 export function TripMap({ days, activeDay = null, selectedStopId = null, onSelectStop, className }: Props) {
   const { tr } = useLanguage()
   const mapRef = useRef<HTMLDivElement>(null)
@@ -262,6 +352,8 @@ export function TripMap({ days, activeDay = null, selectedStopId = null, onSelec
   useEffect(() => {
     if (!ready || !mapRef.current || mapInstanceRef.current) return
     const L = (window as any).L
+    // attributionControl stays OFF — <MapCredit> renders the OSM/CARTO credit in a form that
+    // conforms to the design language. Enabling this would show the credit twice.
     const map = L.map(mapRef.current, { zoomControl: true, attributionControl: false, scrollWheelZoom: true })
       .setView([16.0, 107.5], 5)
     L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(map)
@@ -448,7 +540,12 @@ export function TripMap({ days, activeDay = null, selectedStopId = null, onSelec
   const legendDays = shownDays.filter((d) => mappableStops(d).length > 0)
 
   return (
-    <div className={className ?? 'relative h-full w-full overflow-hidden rounded-2xl'}>
+    // ⚠️ `isolate` is applied UNCONDITIONALLY, outside the `??`. Every real caller passes its own
+    // className (trip-detail-client and the drawer both do), so putting it in the default would have
+    // left the stacking context open on exactly the surfaces that ship — and an z-[800] overlay in an
+    // un-isolated container competes with the whole page, which is how a map corner ends up painted
+    // over a dialog. listings-map's wrapper has carried `isolate` for this reason all along.
+    <div className={cn('isolate', className ?? 'relative h-full w-full overflow-hidden rounded-2xl')}>
       <div ref={mapRef} className="h-full w-full" role="application" aria-label={tr('Trip map', 'Bản đồ chuyến đi')} />
 
       {/* ⚠️ NO `animate-pulse` on any overlay here. It fades the subtree to 50% opacity, which
@@ -472,6 +569,11 @@ export function TripMap({ days, activeDay = null, selectedStopId = null, onSelec
         </div>
       )}
 
+      {/* ⚠️ Gated on Leaflet being up and the tile layer added. The credit sits at OVERLAY_Z and the
+          loading/error panel is a plain absolute overlay, so an ungated credit floated on top of the
+          spinner — crediting a basemap that had not loaded, over a panel saying it failed to. */}
+      {ready && !loadError && <MapCredit className="bottom-1 left-2" />}
+
       {/* The day-colour key. Top-RIGHT: Leaflet puts its zoom control top-left, the coverage
           notice sits along the bottom, and the popup opens upward from a pin. */}
       {ready && !loadError && legendDays.length > 0 && (
@@ -481,7 +583,7 @@ export function TripMap({ days, activeDay = null, selectedStopId = null, onSelec
           // that ignores the pointer cannot be scrolled — the days past the fold would be
           // unreachable. It therefore takes a small bite out of the draggable surface, exactly as
           // Leaflet's own zoom control does in the opposite corner. (Found by codex.)
-          className="absolute right-2 top-2 z-[500] max-h-[min(50%,12rem)] space-y-1 overflow-y-auto overscroll-contain rounded-xl bg-card/95 px-2.5 py-2 shadow-overlay"
+          className="absolute right-2 top-2 z-[800] max-h-[min(50%,12rem)] space-y-1 overflow-y-auto overscroll-contain rounded-xl bg-card/95 px-2.5 py-2 shadow-overlay"
         >
           {legendDays.map((day) => (
             <li key={day.dayNumber} className="flex items-center gap-1.5 text-3xs font-bold text-ink-3">
@@ -497,7 +599,10 @@ export function TripMap({ days, activeDay = null, selectedStopId = null, onSelec
           is the difference between "the map is broken" and "these three could not be located" —
           the first is what a silently shorter map reads as. */}
       {ready && !loadError && (total === 0 || unmapped > 0) && (
-        <div className="absolute inset-x-3 bottom-3 z-[500] rounded-xl bg-card/95 px-3 py-2 text-center text-xs text-ink-4 shadow-overlay">
+        // ⚠️ `bottom-7`, not `bottom-3`: this notice spans the full width, so at the old offset it
+        // sat directly on top of the basemap credit — and a credit covered by our own UI does not
+        // discharge the licence. It rides one row higher now.
+        <div className="absolute inset-x-3 bottom-7 z-[800] rounded-xl bg-card/95 px-3 py-2 text-center text-xs text-ink-4 shadow-overlay">
           {total === 0
             ? tr('No stops on this trip could be placed on the map yet.', 'Chưa có điểm dừng nào của chuyến đi được định vị trên bản đồ.')
             : tr(

@@ -2074,6 +2074,8 @@ export const UI_STRINGS: string[] = [
   "your_name",
   "{n} available",
   "{n} stars",
+  "© CARTO",
+  "© OpenStreetMap contributors",
   "Đang kiểm tra…",
   "Đang lưu…",
   "Đang nén video… 0%",

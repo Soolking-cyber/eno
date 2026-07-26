@@ -16,6 +16,7 @@ import { LocalizedText } from './listing-content'
 import { getListingCoordinates } from '@/lib/geo'
 import type { Nearby } from './area-filter'
 import { cn } from '@/lib/utils'
+import { handleExternalClick } from '@/lib/native-browser'
 import { Spinner } from '@/components/ui/spinner'
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
@@ -106,6 +107,80 @@ function pinHtml(label: string, active: boolean): string {
 }
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
+/**
+ * The basemap credit. A LICENCE OBLIGATION, not a design flourish.
+ *
+ * The tiles come from `basemaps.cartocdn.com` — CARTO's free basemaps, rendered from
+ * OpenStreetMap data under the ODbL. We pay nothing for them and crediting both parties is the
+ * condition of that. Both of this app's maps had `attributionControl: false` and passed no
+ * `attribution` string, so a commercial marketplace was serving those tiles with no credit at all.
+ *
+ * ⚠️ HAND-ROLLED RATHER THAN LEAFLET'S CONTROL, deliberately. `L.control.attribution` renders an
+ * unstyled `.leaflet-control-attribution` box (white, 11px, its own font stack) that conforms to
+ * nothing in docs/design-language.md, and the only way to restyle it is a global selector —
+ * globals.css is not this task's file, and a global override for two components is the wrong shape
+ * anyway. The task sanctions a custom line for exactly this reason.
+ *
+ * ⚠️ `pointer-events-none` on the wrapper with `pointer-events-auto` on the links: the credit must
+ * be clickable (a credit nobody can follow is decoration) while the ~2px of padding around it must
+ * not swallow a map drag that happens to start there.
+ *
+ * ⚠️ The basemap is ALWAYS LIGHT — CARTO `light_all` does not follow the app theme — so this needs
+ * a backdrop rather than a theme-coloured text token alone, or it becomes unreadable wherever the
+ * tiles are pale. Same treatment as the trip map's legend and coverage notice.
+ */
+function MapCredit({ className }: { className?: string }) {
+  const { tr } = useLanguage()
+  return (
+    <p
+      className={cn(
+        // `gap-1` separates the two credits instead of a whitespace text node: `jsx-no-literals`
+        // rejects bare strings in JSX — including `{\' \'}` — and the rule is right to, because it
+        // is what stops untranslated copy shipping. So the words go through `tr` and the spacing
+        // is layout.
+        // ⚠️ OPAQUE `bg-card`, not `bg-card/85`. The basemap is always light, so a translucent chip
+        // composites toward WHITE — in dark mode that lightened the chip under light-grey `ink-4`
+        // text and measured 4.19:1, under the 4.5:1 floor. Present-but-illegible does not discharge
+        // a licence obligation. Opaque, the chip is the theme's own surface and the ratio is 5.9:1
+        // (light) / 6.6:1 (dark) regardless of what the tiles are doing underneath. Both measured on a
+        // production build, not derived — an earlier version of this comment claimed 12.6:1 for dark,
+        // which was a guess written before the measurement and wrong.
+        // z-800: below `.leaflet-bottom` (1000) so the zoom control stays on top, and below the
+        // floating listing card (1100). It does NOT need to beat the popup pane's 700 — see the note
+        // on OVERLAY_Z in trip-map.tsx: `.leaflet-map-pane`'s transform contains that whole ladder at
+        // z-400. 800 is insurance for Leaflet's non-transform fallback, where it would not.
+        'pointer-events-none absolute z-[800] flex items-center gap-1 rounded-lg bg-card px-1.5 py-0.5 text-3xs leading-none text-ink-4',
+        className,
+      )}
+    >
+      {/* ⚠️ `handleExternalClick`, like every other third-party link in the app. Inside the
+          Capacitor shell a bare target=_blank hands the URL to Safari/Chrome and LEAVES eno —
+          src/lib/native-browser.ts calls that hard exit "the most jarring thing a wrapped app
+          does". These are pure go-and-look destinations, so they belong in the in-app browser, one
+          Done tap from the map. (The single documented exception is evisa.gov.vn, for reasons that
+          do not apply here.) A credit the native app cannot follow is decoration. */}
+      <a
+        className="pointer-events-auto underline-offset-2 hover:underline"
+        href="https://www.openstreetmap.org/copyright"
+        onClick={handleExternalClick}
+        target="_blank"
+        rel="noreferrer"
+      >
+        {tr('© OpenStreetMap contributors', '© Cộng tác viên OpenStreetMap')}
+      </a>
+      <a
+        className="pointer-events-auto underline-offset-2 hover:underline"
+        href="https://carto.com/attributions"
+        onClick={handleExternalClick}
+        target="_blank"
+        rel="noreferrer"
+      >
+        {tr('© CARTO', '© CARTO')}
+      </a>
+    </p>
+  )
+}
+
 export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedId, onHover, focusId, nearby, areaKey, onPinOpen, onMove }: Props) {
   const { lang: uiLang, tr } = useLanguage()
   const { isFavorite, toggle } = useFavorites()
@@ -257,7 +332,8 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
   useEffect(() => {
     if (!ready || !mapRef.current || mapInstanceRef.current) return
     const L = (window as any).L
-    // No attribution control — neutral map, no flags/branding badge.
+    // Leaflet's own attribution control stays OFF — the credit is rendered by <MapCredit> below
+    // so it can conform to the design language. Turning this on would double the credit.
     const map = L.map(mapRef.current, { zoomControl: true, attributionControl: false, scrollWheelZoom: true })
       .setView([10.7769, 106.7009], 12)
     // Keep +/- in the bottom-right — the info card pops centred ABOVE a tapped pin (upper
@@ -456,6 +532,18 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
         </div>
       )}
       <div ref={mapRef} className="w-full h-full" />
+
+      {/* Gated on `ready` for the same reason as the trip map: no tiles, nothing to credit, and the
+          loading/retry panel should not have a credit sitting over it.
+
+          ⚠️ ONE BOUNDED CASE IS ACCEPTED, not overlooked: the floating listing card is z-[1100], so a
+          card opened over a pin low and to the left CAN cover this chip. Hovering all 12 pins on the
+          live explorer never reproduced it, but the geometry allows it. It is deliberately NOT fixed
+          by out-ranking the card — the card is what the reader just asked for, and a credit painted
+          over it would be worse. This is also exactly how stock Leaflet behaves: its own attribution
+          control sits under an open popup. The map displays the credit; a transient overlay the user
+          opened themselves does not undo that. */}
+      {ready && <MapCredit className="bottom-1 left-2" />}
 
       {/* Airbnb-style info card — pops ON TOP of the tapped pin, magnifying out of it */}
       {card && cardPos && (
