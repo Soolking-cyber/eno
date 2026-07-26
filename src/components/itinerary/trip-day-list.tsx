@@ -1,12 +1,14 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Clock, Footprints, MapPinOff, Wallet, Info } from 'lucide-react'
+import { Clock, Footprints, MapPinOff, Navigation, Route, Search, Wallet, Info } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { formatMoneyFull, moneyLocale } from '@/lib/vnd'
 import { formatTravel } from '@/lib/travel'
+import { openExternal } from '@/lib/native-browser'
+import { dayRouteLink, stopMapsLink } from '@/lib/itinerary-maps-links'
 import { PIN_PATH, PIN_VIEWBOX, dayColor, type TripDay, type TripStop } from './trip-map'
 
 // The list half of the trip view. List-LED on purpose: an itinerary is read as a sequence of
@@ -146,6 +148,7 @@ export function TripDayList({ days, activeDay, onSelectDay, selectedStopId = nul
                 {tr(`Day ${day.dayNumber}`, `Ngày ${day.dayNumber}`)} · {day.title}
               </h3>
               <span className="text-xs text-ink-4">{day.area}</span>
+              <DayRouteButton day={day} />
             </header>
 
             <ol className="divide-y divide-border/70 overflow-hidden rounded-2xl border border-border/70 bg-card">
@@ -154,6 +157,7 @@ export function TripDayList({ days, activeDay, onSelectDay, selectedStopId = nul
                 if (mapped) pin += 1
                 return (
                   <StopRow
+                    cityName={day.area}
                     key={stop.id}
                     stop={stop}
                     dayNumber={day.dayNumber}
@@ -209,8 +213,9 @@ function DayTab({ active, onClick, children }: { active: boolean; onClick: () =>
   )
 }
 
-function StopRow({ stop, dayNumber, pinIndex, selected, onSelect, lang, tr }: {
+function StopRow({ stop, cityName, dayNumber, pinIndex, selected, onSelect, lang, tr }: {
   stop: TripStop
+  cityName: string
   dayNumber: number
   pinIndex: number | null
   selected: boolean
@@ -252,6 +257,13 @@ function StopRow({ stop, dayNumber, pinIndex, selected, onSelect, lang, tr }: {
             {tr('Not on the map yet', 'Chưa có trên bản đồ')}
           </p>
         )}
+        {/* ⚠️ SHOWN FOR AN UNMAPPED STOP TOO — that is the point of the feature, not an oversight.
+            Refusing to draw a false pin on OUR map is not a reason to withhold the tool that might
+            actually find the place, so an unmapped row shows both: "not on the map yet", and a way
+            to go there anyway. */}
+        <div className="mt-1.5 -ml-2">
+          <StopMapsButton stop={stop} cityName={cityName} />
+        </div>
         {meta}
         {stop.bookingAdvice && (
           <p className="mt-1.5 inline-flex items-start gap-1 text-xs text-ink-4">
@@ -284,5 +296,64 @@ function StopRow({ stop, dayNumber, pinIndex, selected, onSelect, lang, tr }: {
         {body}
       </Button>
     </li>
+  )
+}
+
+/**
+ * "Directions" for a whole day, and for one stop.
+ *
+ * ⚠️ EVERY LINK GOES THROUGH openExternal(). A bare target="_blank" opens INSIDE the Capacitor
+ * WebView and traps the traveller in the app with no way back — which is the worst possible outcome
+ * for a button whose entire job is to hand them off to their phone's navigation.
+ *
+ * These are buttons, not anchors, for that reason: an anchor invites the browser to navigate before
+ * the handler can route it. (Same reason the Share popover uses buttons.)
+ */
+function DayRouteButton({ day }: { day: TripDay }) {
+  const { tr } = useLanguage()
+  // day.area is the city label the generator wrote ("Ho Chi Minh City") — the qualifier a name
+  // needs so Google's resolver has something to narrow on.
+  const route = dayRouteLink(day.stops, day.area)
+  if (!route) return null
+  return (
+    <Button
+      variant="ghost"
+      size="sm"
+      className="ml-auto shrink-0 text-xs"
+      onClick={() => void openExternal(route.url)}
+      // Truncation is SAID, never silent: a long day routes its first stops and the label admits it,
+      // rather than emitting a URL Google rejects or quietly dropping the middle of someone's day.
+      title={route.truncated
+        ? tr(`Route covers the first ${route.includedCount} stops`, `Tuyến đi gồm ${route.includedCount} điểm đầu tiên`)
+        : undefined}
+    >
+      <Route className="h-3.5 w-3.5" />
+      {route.truncated
+        ? tr(`Route (first ${route.includedCount})`, `Tuyến (${route.includedCount} điểm đầu)`)
+        : tr('Route this day', 'Chỉ đường cả ngày')}
+    </Button>
+  )
+}
+
+function StopMapsButton({ stop, cityName }: { stop: TripStop; cityName: string }) {
+  const { tr } = useLanguage()
+  const link = stopMapsLink(stop, cityName)
+  if (!link) return null
+  const isSearch = link.kind === 'search'
+  return (
+    <Button
+      variant="ghost"
+      size="sm"
+      className="shrink-0 text-xs"
+      onClick={(event) => { event.stopPropagation(); void openExternal(link.url) }}
+      // An ambiguous name gets SEARCH, and the label says so: "Directions" on a name Google would
+      // pick for us would promise a certainty this stop does not have.
+      title={isSearch
+        ? tr('This stop names more than one place — search instead', 'Điểm này nêu nhiều địa điểm — hãy tìm kiếm')
+        : undefined}
+    >
+      {isSearch ? <Search className="h-3.5 w-3.5" /> : <Navigation className="h-3.5 w-3.5" />}
+      {isSearch ? tr('Find', 'Tìm') : tr('Directions', 'Chỉ đường')}
+    </Button>
   )
 }
