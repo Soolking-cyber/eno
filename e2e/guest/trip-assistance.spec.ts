@@ -134,3 +134,30 @@ test.describe('Guest · itinerary stop edits', () => {
     expect([401, 403]).toContain(res.status())
   })
 })
+
+test.describe('Guest · admin trips queue', () => {
+  // The operator surface. A guest reaching the transition route could move somebody's case through
+  // the lifecycle, so the refusal is the feature here.
+  test('the queue page does not render its contents to a guest', async ({ page }) => {
+    await page.goto('/admin/trips')
+    // AdminDenied, a redirect, or a 404 — anything but the queue's own heading.
+    await expect(page.getByRole('heading', { name: 'Trip assistance queue' })).toHaveCount(0)
+  })
+
+  test('the transition route is closed to guests', async ({ request }) => {
+    const res = await request.post('/api/admin/trips/ckguestcase00000000000001', { data: { next: 'reviewing' } })
+    expect([401, 403, 404]).toContain(res.status())
+  })
+
+  test('answers 404 for a real-looking and a nonsense case id alike', async ({ request }) => {
+    // An operator surface must not confirm to a non-admin which case ids exist.
+    const a = await request.post('/api/admin/trips/ckguestcase00000000000001', { data: { next: 'reviewing' } })
+    const b = await request.post('/api/admin/trips/nope', { data: { next: 'reviewing' } })
+    expect(a.status()).toBe(b.status())
+  })
+
+  test('a malformed body is still refused, not 400 — identity is checked first', async ({ request }) => {
+    const res = await request.post('/api/admin/trips/ckguestcase00000000000001', { data: { nonsense: true } })
+    expect([401, 403, 404]).toContain(res.status())
+  })
+})
