@@ -36,6 +36,32 @@ export type StopEditResult =
   | { ok: false; error: StopEditError }
 export type StopEditError = 'not_found' | 'forbidden' | 'invalid_order' | 'stale' | 'update_failed'
 
+/**
+ * Flatten anything that could render as more than plain text.
+ *
+ * Markup, link syntax and bare URLs come out; the words stay. Suggested activity text is shown
+ * inside the traveller's own itinerary and later exported to Word, so a smuggled anchor is a real
+ * (if self-inflicted) phishing surface, and stripping is cheaper than trusting every renderer
+ * downstream to escape it forever.
+ *
+ * ⚠️ ONE definition, deliberately, even though it is text handling in a module about database
+ * writes. Both stop routes need it — `suggest` before it DISPLAYS a candidate, `stops` before it
+ * WRITES one — and a sanitiser with two copies is a sanitiser where one copy quietly stops matching
+ * the other. It lives here because this is the module both of those routes already import.
+ *
+ * ⚠️ It can return an EMPTY string (input of `**`, or a bare URL and nothing else). Every caller
+ * must decide what that means rather than assuming a non-empty result — a field that strips to
+ * nothing is dropped, never written blank.
+ */
+export function stripToPlainText(value: string): string {
+  return value
+    .replace(/<[^>]*>/g, ' ')                       // tags
+    .replace(/\]\(|\[|\]|[`*_~|]/g, ' ')            // markdown link/emphasis syntax
+    .replace(/\b(?:https?:\/\/|www\.)\S+/gi, ' ')   // URLs
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
 type StopRow = { id: string; position: number }
 
 /**

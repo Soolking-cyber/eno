@@ -2,7 +2,22 @@ import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { getCurrentProfile } from '@/lib/admin'
 import { rateLimit } from '@/lib/ratelimit'
-import { deleteStop, reorderStop, replaceStop, swapStops, type StopEditError, type StopEditResult } from './reorder'
+import { deleteStop, reorderStop, replaceStop, stripToPlainText, swapStops, type StopEditError, type StopEditResult } from './reorder'
+
+/**
+ * A bounded, flattened, still-non-empty string.
+ *
+ * ⚠️ THE ORDER MATTERS AND I GOT IT WRONG THE FIRST TIME. `.min(1).max(180).transform(strip)`
+ * checks the length of the RAW value and then strips it, so `"**"` passes `.min(1)` and is written
+ * as an empty name — a blank row in the traveller's day. The non-empty check has to run on what
+ * will actually be stored, which is what the trailing `.refine` does.
+ */
+const flat = (max: number) =>
+  z.string().trim().max(max).transform(stripToPlainText).refine((v) => v.length > 0)
+
+/** The same, but a field that is allowed to be absent — empty after stripping means "not set". */
+const flatOptional = (max: number) =>
+  z.string().trim().max(max).transform((v) => stripToPlainText(v) || null).nullable().default(null)
 
 /**
  * Deterministic edits to a saved itinerary's stops.
@@ -33,15 +48,19 @@ const bodySchema = z.discriminatedUnion('action', [
     dayId: z.string().min(1).max(64),
     stopId: z.string().min(1).max(64),
   }).strict(),
-  // ⚠️ THE VALIDATION BOUNDARY FOR MODEL OUTPUT. A replacement's fields originate from a suggestion
-  // the AI route produced, which the client hands back here — so by the time it arrives it has been
-  // through a browser and is ordinary untrusted request input, exactly like any other body. It is
-  // bounded and stripped HERE and nowhere else: `replaceStop` writes what it is given verbatim, on
-  // purpose, because two validation boundaries mean neither one is authoritative.
+  // ⚠️ THE WRITE BOUNDARY FOR MODEL OUTPUT, AND IT IS THE AUTHORITATIVE ONE. A replacement's fields
+  // originate from a suggestion the AI route produced, which the client hands back here — so by the
+  // time it arrives it has been through a browser and is ordinary untrusted request input, exactly
+  // like any other body. `replaceStop` writes what it is given verbatim, on purpose: bounding it in
+  // two places would mean neither place was in charge.
+  //
+  // The suggest route strips the same way before it DISPLAYS a candidate (shared `stripToPlainText`,
+  // one definition), but this route never assumes that happened — a caller can post a `replace`
+  // without ever having asked for a suggestion.
   //
   // ⚠️ Bounding the LENGTH is not what makes this safe (agy refuted that framing on the task) — what
   // makes it safe is that these are DATA fields rendered as text, never instructions, and that
-  // `strip` removes the markup and URLs that would let a suggestion smuggle a link into a
+  // stripping removes the markup and URLs that would let a suggestion smuggle a link into a
   // traveller's own itinerary. Blast radius is the traveller's own trip either way: this is
   // abuse-of-service, not cross-tenant.
   z.object({
@@ -49,37 +68,20 @@ const bodySchema = z.discriminatedUnion('action', [
     dayId: z.string().min(1).max(64),
     stopId: z.string().min(1).max(64),
     replacement: z.object({
-      name: z.string().trim().min(1).max(180).transform(strip),
-      place: z.string().trim().min(1).max(180).transform(strip),
-      time: z.string().trim().max(40).transform(strip).nullable().default(null),
-      details: z.string().trim().max(900).transform(strip).nullable().default(null),
+      name: flat(180),
+      place: flat(180),
+      time: flatOptional(40),
+      details: flatOptional(900),
       // Vietnam bbox, the same gate every AI coordinate in this app passes. `(0,0)` in production is
       // recorded history — see the itinerary generate route.
       lat: z.number().min(8).max(24).nullable().default(null),
       lng: z.number().min(102).max(110).nullable().default(null),
       travelMinutes: z.number().int().min(0).max(720).nullable().default(null),
       estimatedCostVnd: z.number().int().min(0).max(1_000_000_000).nullable().default(null),
-      bookingAdvice: z.string().trim().max(400).transform(strip).nullable().default(null),
+      bookingAdvice: flatOptional(400),
     }).strict(),
   }).strict(),
 ])
-
-/**
- * Flatten anything that could render as more than plain text.
- *
- * Markup, link syntax and bare URLs come out; the words stay. A suggestion is displayed inside the
- * traveller's own itinerary and later exported to Word, so a smuggled anchor is a real (if
- * self-inflicted) phishing surface, and stripping is cheaper than trusting every renderer downstream
- * to escape it forever.
- */
-function strip(value: string): string {
-  return value
-    .replace(/<[^>]*>/g, ' ')                       // tags
-    .replace(/\]\(|\[|\]|[`*_~|]/g, ' ')            // markdown link/emphasis syntax
-    .replace(/\b(?:https?:\/\/|www\.)\S+/gi, ' ')   // URLs
-    .replace(/\s+/g, ' ')
-    .trim()
-}
 
 const STATUS: Record<StopEditError, number> = {
   // Also the answer for a day that is not the caller's — see the note above.
