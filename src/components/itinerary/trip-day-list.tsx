@@ -237,7 +237,7 @@ function StopRow({ stop, dayNumber, pinIndex, selected, onSelect, lang, tr }: {
       {/* A row with no pin still occupies the glyph's width, so every title starts on the same
           x — a ragged left edge reads as broken rather than as "this one isn't mapped". */}
       {pinIndex === null
-        ? <MapPinOff className="mt-1 h-4 w-[1.15rem] shrink-0 text-ink-5" aria-hidden="true" />
+        ? <MapPinOff className="mt-1 h-4 w-[1.15rem] shrink-0 text-ink-4" aria-hidden="true" />
         : <StopGlyph index={pinIndex} dayNumber={dayNumber} active={selected} className="mt-0.5" />}
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-semibold text-foreground">{stop.name}</p>
