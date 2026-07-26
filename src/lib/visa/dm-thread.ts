@@ -12,7 +12,7 @@ import {
   type VisaPickerMeta,
   type VisaStepMeta,
 } from '../messages'
-import { getVisaShopProductsForSale, getVisaShopSeller } from '../visa-shop'
+import { getVisaShopListings, getVisaShopProductsForSale, getVisaShopSeller } from '../visa-shop'
 import { visaDmStepPreview, type VisaDmStep } from './dm-steps'
 import { getVisaDb } from './db'
 import { visaPaymentsConfig } from './payments'
@@ -199,11 +199,32 @@ export async function bindVisaThread(input: {
     return { ok: true, conversationId: bound.id, created: false }
   }
 
-  const existing = await db.conversation.findFirst({
-    where: { sellerId: shop.id, buyerProfileId },
-    orderBy: { lastMessageAt: 'desc' },
-    select: { id: true },
-  })
+  // ⚠️ SCOPED TO THE VISA CATALOGUE, not merely to the seller — and it was not, which is how a
+  // visa case ended up living inside a TRIP-PLANNING thread on prod (owner report 2026-07-25,
+  // root-caused 2026-07-26: one thread carrying 18 visa_step + 4 visa_checkout + 3 visa_picker
+  // cards alongside 2 trip_step). The old predicate was `{ sellerId, buyerProfileId }` with no
+  // listing filter, which was correct only while this desk sold nothing but visas.
+  //
+  // It no longer does. `Seller.ownerId` is @unique, so ONE Profile owns at most one storefront,
+  // and the trip-assistance anchor therefore sits on the very same Seller as the visa products.
+  // "The buyer's most recent thread with this seller" then resolves to whatever they last talked
+  // about — and for a traveller who came in through the trip listing, that is the trip thread.
+  // The visa flow bound its case there and started posting government-form cards into a
+  // conversation about an itinerary.
+  //
+  // Restricting the reuse to threads already anchored on a visa listing keeps the intended
+  // behaviour (a repeat applicant reuses their visa thread; the Phase-2 picker still retargets
+  // Conversation.listingId within the catalogue) while refusing to adopt a thread about a
+  // different product. Worst case it CREATES a visa thread instead of reusing one — a separate
+  // thread is the correct outcome for a separate product, and far better than the merge.
+  const visaListingIds = (await getVisaShopListings()).map((l) => l.id)
+  const existing = visaListingIds.length
+    ? await db.conversation.findFirst({
+        where: { sellerId: shop.id, buyerProfileId, listingId: { in: visaListingIds } },
+        orderBy: { lastMessageAt: 'desc' },
+        select: { id: true },
+      })
+    : null
   let conversationId = existing?.id ?? ''
   let created = false
   if (!existing) {
@@ -222,9 +243,14 @@ export async function bindVisaThread(input: {
       created = true
     } catch (e) {
       // Double-tap loser on @@unique([listingId, buyerProfileId]) — reuse the winner's.
+      // ⚠️ SAME CATALOGUE SCOPE as the lookup above. The P2002 proves a conversation now exists
+      // on THIS listing, so the winner is by definition a visa thread — but an unscoped re-read
+      // ordered by lastMessageAt could hand back the buyer's trip thread instead, which is the
+      // very merge this function was just fixed to prevent. Scoping it means the recovery path
+      // cannot reintroduce the bug through the back door.
       if ((e as { code?: string })?.code !== 'P2002') throw e
       const raced = await db.conversation.findFirst({
-        where: { sellerId: shop.id, buyerProfileId },
+        where: { sellerId: shop.id, buyerProfileId, listingId: { in: visaListingIds } },
         orderBy: { lastMessageAt: 'desc' },
         select: { id: true },
       })

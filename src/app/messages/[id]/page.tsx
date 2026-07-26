@@ -1358,17 +1358,20 @@ export default function ThreadPage() {
               owned HERE; VisaAssistChips and VisaResendChip both render in `compact` mode
               (display:contents), so their buttons become items of this flex row while their
               own notes wrap onto a line of their own. */}
-          {/* THE WIZARD'S ENTRY POINT. Rendered for every thread but self-hiding: it asks the
-              server whether this conversation belongs to the trip desk and has no wizard running,
-              and renders nothing otherwise — so it never appears in an ordinary seller thread.
-              Without it the whole in-chat planner is unreachable, because only `start` creates the
-              first card. `load` pulls the new card into the timeline immediately rather than
-              waiting for the 15s backstop poll. */}
+          {/* ⚠️ ONE ROW, and the trip launcher belongs IN it (owner, 2026-07-26: "put them in
+              1 line"). It shipped as its own wrapper directly above the visa row, which on a
+              thread that has both — the desk sells visas AND trip planning from one storefront,
+              so one thread genuinely can — stacked two chip rows above the composer and undid
+              the single-row rule stated immediately above. `empty:hidden` moves onto the shared
+              row so it still collapses when nothing inside renders.
+
+              THE WIZARD'S ENTRY POINT is self-hiding: it asks the server whether this thread is
+              the trip desk's and has no wizard running, and renders nothing otherwise. Without
+              it the in-chat planner is unreachable, because only `start` creates the first card.
+              `load` pulls the new card in immediately rather than waiting for the 15s poll. */}
           <div className="flex flex-wrap items-center gap-2 px-4 pt-1.5 empty:hidden">
             <TripWizardLauncher conversationId={id} onStarted={() => void load()} />
-          </div>
-          {visaInfo && (
-            <div className="flex flex-wrap items-center gap-2 px-4 pt-1.5">
+            {visaInfo && (<>
               {iAmApplicant && (conciergeAvailable ? (
                 <VisaAssistChips
                   armed={conciergeArmed}
@@ -1392,8 +1395,8 @@ export default function ThreadPage() {
                 onSwitchCase={iAmApplicant ? switchVisaCase : undefined}
                 compact
               />
-            </div>
-          )}
+            </>)}
+          </div>
 
           {/* Quick replies — seller: the 3 endless questions answered in one tap;
               buyer: "still available?" that self-answers from a fresh seller

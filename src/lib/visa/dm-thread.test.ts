@@ -29,6 +29,10 @@ const h = vi.hoisted(() => ({
   state: {
     shop: null as null | { id: string; name: string; ownerId: string | null },
     products: [] as Array<{ id: string }>,
+    // The FULL visa catalogue (getVisaShopListings), which includes hidden anchors that
+    // getVisaShopProductsForSale excludes. Thread reuse is scoped to this, so a listing missing
+    // here is a listing the visa flow will not adopt a thread on. Defaults to `products`.
+    catalogue: null as Array<{ id: string }> | null,
     /** visa_applications, by id. Absent = no row. conversation_id is the immutable link. */
     applications: {} as Record<string, { user_id: string | null; paid_at: string | null; conversation_id?: string | null }>,
     applicationError: null as unknown,
@@ -155,6 +159,7 @@ vi.mock('../db', () => {
 vi.mock('../visa-shop', () => ({
   getVisaShopSeller: async () => h.state.shop,
   getVisaShopProductsForSale: async () => h.state.products,
+  getVisaShopListings: async () => h.state.catalogue ?? h.state.products,
 }))
 
 vi.mock('../messages', async () => {
@@ -289,7 +294,7 @@ const whereOf = (model: string, op: string) =>
 beforeEach(() => {
   vi.clearAllMocks()
   Object.assign(h.state, {
-    shop: SHOP, products: [{ id: 'listing-1' }],
+    shop: SHOP, products: [{ id: 'listing-1' }], catalogue: null,
     applications: {
       [APP_ID]: { user_id: BUYER, paid_at: null, conversation_id: null },
       [OTHER_APP_ID]: { user_id: BUYER, paid_at: null, conversation_id: null },
@@ -333,8 +338,39 @@ describe('bindVisaThread', () => {
     expect(result).toEqual({ ok: true, conversationId: 'convo-created', created: true })
     // The stranger's thread is untouched: no binding, no card surface into their inbox.
     expect(convoById('convo-foreign')?.visaApplicationId).toBeNull()
-    // …and the query that could have found it was scoped to BOTH the shop and the buyer.
-    expect(whereOf('conversation', 'findFirst')[0]).toEqual({ sellerId: SHOP.id, buyerProfileId: BUYER })
+    // …and the query that could have found it was scoped to the shop, the buyer, AND the visa
+    // catalogue. The listing scope is the 2026-07-26 fix: see the next test for what it prevents.
+    expect(whereOf('conversation', 'findFirst')[0]).toEqual({
+      sellerId: SHOP.id, buyerProfileId: BUYER, listingId: { in: ['listing-1'] },
+    })
+  })
+
+  // ⚠️ REGRESSION FENCE. A visa case was found living inside a TRIP-PLANNING thread on prod
+  // (owner report 2026-07-25, root-caused 2026-07-26): one conversation carrying 18 visa_step,
+  // 4 visa_checkout and 3 visa_picker cards next to 2 trip_step. Cause: this reuse lookup was
+  // `{ sellerId, buyerProfileId }` with no listing filter, which is only correct while the desk
+  // sells nothing but visas. `Seller.ownerId` is @unique — one Profile owns at most one
+  // storefront — so the trip-assistance anchor lives on the SAME seller, and "the buyer's most
+  // recent thread with this seller" resolved to whatever they last talked about.
+  it('never adopts a thread about a NON-visa product from the same storefront', async () => {
+    // The buyer's newest thread with this desk is about the trip listing, which is NOT in the
+    // visa catalogue. Reusing it would post government-form cards into a trip conversation.
+    h.state.conversations = [convoRow({ id: 'convo-trip', listingId: 'trip-anchor' })]
+    h.state.catalogue = [{ id: 'listing-1' }] // visa products only — no 'trip-anchor'
+    const result = await bindVisaThread({ applicationId: APP_ID, buyerProfileId: BUYER })
+    // A NEW visa thread, not an adoption. A separate thread is the right outcome for a
+    // separate product.
+    expect(result).toEqual({ ok: true, conversationId: 'convo-created', created: true })
+    expect(convoById('convo-trip')?.visaApplicationId).toBeNull()
+  })
+
+  it('still reuses the buyer’s own thread when it IS on a visa listing', async () => {
+    // The other half of the fix: scoping must not stop a repeat applicant reusing their real
+    // visa thread, which is the documented one-thread-per-buyer behaviour.
+    h.state.conversations = [convoRow({ id: 'convo-1', listingId: 'listing-1' })]
+    h.state.catalogue = [{ id: 'listing-1' }]
+    const result = await bindVisaThread({ applicationId: APP_ID, buyerProfileId: BUYER })
+    expect(result).toEqual({ ok: true, conversationId: 'convo-1', created: false })
   })
 
   it('UNBINDS the previous case in the same transaction before claiming (rebind)', async () => {
