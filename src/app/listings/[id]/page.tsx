@@ -5,7 +5,6 @@ import { serializeListing, safeParse } from '@/lib/serialize'
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { Button } from '@/components/ui/button'
 import { Header } from '@/components/marketplace/header'
 import { ListingGallery } from '@/components/marketplace/listing-gallery'
 import { PdpShopLink } from '@/components/marketplace/pdp-shop-link'
@@ -525,29 +524,22 @@ export default async function ListingPage({ params }: Props) {
                     silently falling back to an empty chat. */}
                 {isVisaProduct
                   ? <VisaStart listingId={listing.id} className="w-full" />
-                  : <>
-                      {/* ⚠️ The trip desk's listing is contacted, never bought — and the thing a
-                          visitor actually wants here is the PLAN, which is free and needs no
-                          conversation. So lead with the builder. ContactComposer stays BELOW it
-                          rather than being replaced: this same listing is the anchor every
-                          assistance thread binds to (Conversation.listingId is NOT NULL,
-                          @@unique([listingId, buyerProfileId])), so removing the contact path
-                          would take away the only way to reach the desk from its own storefront. */}
-                      {isTripProduct && (
-                        <div className="mb-3 rounded-2xl border border-border/70 bg-card p-4">
-                          <p className="text-sm font-semibold text-foreground">
-                            <Tr text="Start with a free plan" />
-                          </p>
-                          <p className="mt-1 text-sm leading-relaxed text-body">
-                            <Tr text="Build a day-by-day itinerary in a couple of minutes — free, no account needed to look. Ask us to arrange it only if you want to." />
-                          </p>
-                          <Button asChild variant="cta" size="lg" className="mt-3 w-full">
-                            <Link href="/dashboard/trips/plan"><Tr text="Plan my trip — free" /></Link>
-                          </Button>
-                        </div>
-                      )}
-                      <ContactComposer listingId={listing.id} listingTitle={displayTitle} listingImage={listing.images[0] ?? null} sellerName={listing.seller.name} price={listing.price} currency={listing.currency} negotiable={listing.negotiable} />
-                    </>}
+                  : <ContactComposer
+                      listingId={listing.id}
+                      listingTitle={displayTitle}
+                      listingImage={listing.images[0] ?? null}
+                      sellerName={listing.seller.name}
+                      price={listing.price}
+                      currency={listing.currency}
+                      negotiable={listing.negotiable}
+                      /* ⚠️ ONE button, and it goes to CHAT (owner, 2026-07-26). This block briefly
+                         held two CTAs: a "Plan my trip — free" link to the dashboard builder, above
+                         "Chat now". Both are wrong now — planning is a chat experience, and the
+                         builder page it pointed at is being retired. The single remaining CTA opens
+                         the thread on THIS listing, which is the anchor the wizard is gated to, so
+                         the traveller lands exactly where the planner runs. */
+                      intent={isTripProduct ? 'plan' : 'buy'}
+                    />}
               </div>
 
               {/* 7 — Buyer protections */}

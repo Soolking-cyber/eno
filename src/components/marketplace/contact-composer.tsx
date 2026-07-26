@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Tag, Send, MessageCircle } from 'lucide-react'
+import { Tag, Send, MessageCircle, Route } from 'lucide-react'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import { formatMoneyFull, moneyLocale } from '@/lib/vnd'
@@ -25,6 +25,7 @@ export { COMPOSE_KEY } from '@/lib/quick-contact' // re-export: the key + writer
  */
 export function ContactComposer({
   listingId, listingTitle, listingImage, sellerName, price, currency, negotiable = true,
+  intent = 'buy',
 }: {
   listingId: string
   listingTitle?: string
@@ -33,6 +34,21 @@ export function ContactComposer({
   price?: number
   currency: string // raw listing currency, e.g. '₫'
   negotiable?: boolean // false = fixed price → no offer control (ask directly)
+  /**
+   * What the traveller is starting, which decides the button, the canned opener and the
+   * reassurance line beneath.
+   *
+   * ⚠️ 'plan' exists because the trip desk is not a stranger selling an object. The default
+   * opener ("Is this still available?") is nonsense addressed to a planning service, and the
+   * default footnote tells the buyer to ask for a phone number — advice about dealing with
+   * strangers, aimed at eno's OWN desk.
+   *
+   * It lives HERE rather than as a bespoke block on the PDP because the owner asked for ONE
+   * button (2026-07-26) and the call site had grown a second CTA beside this one. When a call
+   * site starts building its own version of a primitive, the primitive is what needs the
+   * variant.
+   */
+  intent?: 'buy' | 'plan'
 }) {
   const { user, loading, openSignIn } = useAuth()
   const { lang, tr } = useLanguage()
@@ -51,7 +67,11 @@ export function ContactComposer({
   const canOffer = hasPrice && negotiable
   const offerPrice = hasPrice ? Math.round(price! * (1 - discount / 100)) : 0
 
-  const opener = () => tr('Hi! Is this still available?', 'Chào bạn! Món này còn không?')
+  const planning = intent === 'plan'
+  const opener = () => planning
+    // Doubles as the wizard's cue: this lands in the thread where the in-chat planner runs.
+    ? tr('Hi! I’d like to plan a trip to Vietnam.', 'Chào bạn! Mình muốn lên lịch trình đi Việt Nam.')
+    : tr('Hi! Is this still available?', 'Chào bạn! Món này còn không?')
 
   // Stash the first message + optional STRUCTURED offer (offerAmount — never a baked
   // text line, so it lands as a proper offer card kind='offer'), then redirect
@@ -132,7 +152,12 @@ export function ContactComposer({
   // answers the eno:chat-now event (the mobile action bar).
   const safetyLine = (
     <p className="text-center text-xs text-muted-foreground">
-      {tr('Request their number once they reply — one number works for both Zalo and WhatsApp.', 'Yêu cầu số điện thoại sau khi họ trả lời — một số dùng được cho cả Zalo và WhatsApp.')}
+      {planning
+        // The desk is eno's own, so stranger-safety advice is both irrelevant and slightly
+        // alarming here. Say what the tap actually does instead, including that it is free —
+        // that reassurance was the one thing worth keeping from the block this replaced.
+        ? tr('Free — you answer a few questions in the chat and get a day-by-day plan.', 'Miễn phí — bạn trả lời vài câu hỏi trong khung chat và nhận lịch trình theo từng ngày.')
+        : tr('Request their number once they reply — one number works for both Zalo and WhatsApp.', 'Yêu cầu số điện thoại sau khi họ trả lời — một số dùng được cho cả Zalo và WhatsApp.')}
     </p>
   )
   const chatButton = (
@@ -148,7 +173,9 @@ export function ContactComposer({
       // and actually DELIVER it, silently killing the tactile press on the PDP's main CTA.
       className="press flex w-full items-center justify-center gap-1.5 py-2.5 cursor-pointer"
     >
-      <MessageCircle className="h-4 w-4" /> {tr('Chat now', 'Chat ngay')}
+      {planning
+        ? <><Route className="h-4 w-4" /> {tr('Plan my trip in chat', 'Lên lịch trình trong chat')}</>
+        : <><MessageCircle className="h-4 w-4" /> {tr('Chat now', 'Chat ngay')}</>}
     </Button>
   )
 
