@@ -450,3 +450,57 @@ function findInCity(key: string, cityId: CityId): ItineraryPlace | undefined {
   // is a pin in the wrong part of town.
   return partial.length === 1 ? partial[0] : undefined
 }
+
+// ── COMPOUND NAMES ────────────────────────────────────────────────────────────────────────
+//
+// The generator does not emit catalogue keys, it emits what a person would write: "Independence
+// Palace & Tao Dan Park", "The Deck Saigon or Binh An Village". Measured against the 6 stops that
+// exist in production, findPlace resolved 0 of them whole — while "Independence Palace" and
+// "Saigon Zoo" both resolve perfectly on their own.
+
+/**
+ * ⚠️ TWO KINDS OF COMPOUND, AND THEY ARE NOT THE SAME PROBLEM.
+ *
+ *   · `&`, `+`, `,` join places the traveller is visiting BOTH of. Plotting the first one that
+ *     resolves is right: it is somewhere they are actually going, and the day's other stop is
+ *     usually metres away ("Saigon Zoo & Botanical Gardens" is one site).
+ *   · `or` offers ALTERNATIVES — a choice the traveller has not made yet. Picking one plots a
+ *     place they may never visit, and the map states it as fact. There is no "probably fine" here,
+ *     so this REFUSES rather than guesses, and the stop stays unmapped until a human decides.
+ *
+ * Both external reviewers insisted on that distinction before this was written.
+ */
+const ALTERNATIVES_RE = /\s+(?:or|hoặc)\s+/i
+/** Joiners meaning BOTH. Kept to the three the production data actually contains — adding " and "
+ *  would split legitimate single names ("Fish and Chips") for no measured gain. */
+const BOTH_SEPARATORS_RE = /\s*[&+,]\s*/
+
+/** Does this name offer a choice rather than name a place? */
+export const isAlternativesName = (name: string): boolean => ALTERNATIVES_RE.test(name ?? '')
+
+/**
+ * Resolve a place name the generator actually produced, splitting compounds where that is safe.
+ *
+ * Returns null on anything uncertain — a miss must leave the stop unmapped, never approximate it.
+ */
+export function resolvePlaceName(name: string, cityId?: CityId): ItineraryPlace | null {
+  const raw = (name ?? '').trim()
+  if (!raw) return null
+
+  // FIRST, before any lookup. A whole-name hit on an alternatives string would be luck, and luck
+  // is not a reason to plot a place the traveller did not choose.
+  if (isAlternativesName(raw)) return null
+
+  // Whole name first: a catalogued place may legitimately contain a separator, and splitting it
+  // would turn an exact hit into a partial one.
+  const whole = findPlace(raw, cityId)
+  if (whole) return whole
+
+  const parts = raw.split(BOTH_SEPARATORS_RE).map((part) => part.trim()).filter(Boolean)
+  if (parts.length < 2) return null
+  for (const part of parts) {
+    const hit = findPlace(part, cityId)
+    if (hit) return hit
+  }
+  return null
+}
