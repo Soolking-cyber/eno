@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, CalendarDays, MapPin, Loader2, Sparkles, MessageSquare } from 'lucide-react'
@@ -57,6 +57,18 @@ export function TripDetailClient({ id }: { id: string }) {
   // is the readable view; "All days" stays one tap away.
   const [activeDay, setActiveDay] = useState<number | null>(1)
   const [selectedStopId, setSelectedStopId] = useState<string | null>(null)
+  /**
+   * Bumped after a successful stop edit to re-run the loader below.
+   *
+   * ⚠️ A COUNTER, not a second fetch. The loader already handles abort, a 15s timeout, the
+   * signed-out gap and the resolve-after-unmount race; a bespoke refetch beside it would be a
+   * second, worse copy of all four. Re-reading also means the MAP follows the edit for free —
+   * `days` is derived from `trip`, and the map is derived from `days`.
+   */
+  const [refresh, setRefresh] = useState(0)
+  /** Stops with a write in flight, so their own row disables without freezing the others. */
+  const [busyStopIds, setBusyStopIds] = useState<ReadonlySet<string>>(new Set())
+  const [editError, setEditError] = useState<'stale' | 'failed' | null>(null)
 
   // Sibling dashboard sections' auth gate — signed-out users go to sign-in and back.
   useEffect(() => {
@@ -93,7 +105,43 @@ export function TripDetailClient({ id }: { id: string }) {
         if (timedOut || !req.signal.aborted) setLoading(false)
       })
     return () => { clearTimeout(timer); req.abort() }
-  }, [user, id])
+  }, [user, id, refresh])
+
+  /**
+   * Every stop edit, through the ONE endpoint that already implements them.
+   *
+   * ⚠️ NO OPTIMISTIC REORDER. The server owns the permutation because @@unique([dayId, position])
+   * makes a swap a transaction rather than two writes, and it answers `stale` when a concurrent
+   * edit moved anything. Guessing the new order locally would show an order the database refused.
+   *
+   * ⚠️ 409 IS "RELOAD", NOT "RETRY" — the route says so explicitly. A second tab moved this day, so
+   * the fix is to re-read, which is exactly what the refresh counter does; retrying the same body
+   * would interleave two reorders into an order neither person asked for.
+   */
+  const editStop = useCallback(async (body: Record<string, unknown>, stopId: string) => {
+    setBusyStopIds((prev) => new Set(prev).add(stopId))
+    setEditError(null)
+    try {
+      const res = await fetch(`/api/itineraries/${encodeURIComponent(id)}/stops`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify(body),
+      })
+      if (res.status === 409) { setEditError('stale'); setRefresh((n) => n + 1); return }
+      if (!res.ok) { setEditError('failed'); return }
+      setRefresh((n) => n + 1)
+    } catch {
+      setEditError('failed')
+    } finally {
+      setBusyStopIds((prev) => { const next = new Set(prev); next.delete(stopId); return next })
+    }
+  }, [id])
+
+  const moveStop = useCallback((dayId: string, stopId: string, toIndex: number) =>
+    editStop({ action: 'reorder', dayId, stopId, toIndex }, stopId), [editStop])
+  const deleteStop = useCallback((dayId: string, stopId: string) =>
+    editStop({ action: 'delete', dayId, stopId }, stopId), [editStop])
 
   const days: TripDay[] = useMemo(() => {
     if (!trip) return []
@@ -101,6 +149,7 @@ export function TripDetailClient({ id }: { id: string }) {
       .slice()
       .sort((a, b) => a.dayNumber - b.dayNumber)
       .map((day) => ({
+        id: day.id,
         dayNumber: day.dayNumber,
         area: (lang === 'vi' ? day.areaVi : null) ?? day.area,
         title: (lang === 'vi' ? day.titleVi : null) ?? day.title,
@@ -217,12 +266,22 @@ export function TripDetailClient({ id }: { id: string }) {
                 onSelectStop={setSelectedStopId}
               />
             </div>
+            {editError && (
+              <p role="alert" className="rounded-xl bg-warning/10 px-3 py-2 text-xs text-warning">
+                {editError === 'stale'
+                  ? tr('This day changed somewhere else, so it has been reloaded. Try again.', 'Ngày này đã thay đổi ở nơi khác nên đã được tải lại. Vui lòng thử lại.')
+                  : tr('That change could not be saved. Please try again.', 'Không thể lưu thay đổi. Vui lòng thử lại.')}
+              </p>
+            )}
             <TripDayList
               days={days}
               activeDay={activeDay}
               onSelectDay={setActiveDay}
               selectedStopId={selectedStopId}
               onSelectStop={setSelectedStopId}
+              onMoveStop={moveStop}
+              onDeleteStop={deleteStop}
+              busyStopIds={busyStopIds}
             />
             <AssistancePanel itineraryId={trip.id} />
           </div>

@@ -53,6 +53,15 @@ const authedProjects: Project[] = AUTHED_BASE
         name: 'visa', dependencies: ['setup'], testMatch: /visa-authed\.spec\.ts/,
         use: { ...devices['Desktop Chrome'], baseURL: AUTHED_BASE, ...(existsSync(`${AUTH_DIR}/buyer.json`) ? { storageState: `${AUTH_DIR}/buyer.json` } : {}) },
       },
+      // Stop editing on a saved trip. ⚠️ THIS PROJECT EXISTS BECAUSE A UNIT TEST CANNOT CATCH THE
+      // BUG IT GUARDS: T316 shipped reorder/swap/delete with 13 passing tests and NOTHING in the UI
+      // called any of it, so the feature was complete and unreachable. The assertion that matters
+      // here is that a traveller can get from /dashboard/trips to a changed order by clicking.
+      // The traveller is the BUYER role.
+      {
+        name: 'trips', dependencies: ['setup'], testMatch: /trips-authed\.spec\.ts/,
+        use: { ...devices['Desktop Chrome'], baseURL: AUTHED_BASE, ...(existsSync(`${AUTH_DIR}/buyer.json`) ? { storageState: `${AUTH_DIR}/buyer.json` } : {}) },
+      },
       // Live chat translation needs THREE actors at once (buyer, seller, and a non-participant
       // to be refused), so like `smoke` it opens its own contexts and takes no project-level
       // storageState.

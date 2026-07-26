@@ -41,6 +41,9 @@ export type TripStop = {
 }
 
 export type TripDay = {
+  /** The ItineraryDay row id. Needed because every stop edit is scoped to a day server-side
+   *  (@@unique([dayId, position])), so the client cannot ask for a reorder without it. */
+  id: string
   dayNumber: number
   area: string
   title: string

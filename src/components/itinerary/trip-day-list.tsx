@@ -1,9 +1,10 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Clock, Footprints, MapPinOff, Navigation, Route, Search, Wallet, Info } from 'lucide-react'
+import { ArrowDown, ArrowUp, Clock, Footprints, Loader2, MapPinOff, Navigation, Route, Search, Trash2, Wallet, Info } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
 import { Button } from '@/components/ui/button'
+import { IconButton } from '@/components/ui/icon-button'
 import { cn } from '@/lib/utils'
 import { formatMoneyFull, moneyLocale } from '@/lib/vnd'
 import { formatTravel } from '@/lib/travel'
@@ -85,9 +86,21 @@ type Props = {
   selectedStopId?: string | null
   /** Called only when the map is beside the list — see useListIsBesideMap. */
   onSelectStop?: (stopId: string) => void
+  /**
+   * Stop editing. BOTH optional and passed together — the controls render only when the surface
+   * can actually perform them, so the read-only embeds (the landing page, a shared plan) get the
+   * list they have today with no edit chrome.
+   *
+   * `toIndex` is the target position WITHIN the day; the server owns the permutation, because
+   * @@unique([dayId, position]) makes "swap two rows" a transaction, not two writes.
+   */
+  onMoveStop?: (dayId: string, stopId: string, toIndex: number) => void | Promise<void>
+  onDeleteStop?: (dayId: string, stopId: string) => void | Promise<void>
+  /** Ids currently being written, so a row can disable itself without the parent re-rendering all. */
+  busyStopIds?: ReadonlySet<string>
 }
 
-export function TripDayList({ days, activeDay, onSelectDay, selectedStopId = null, onSelectStop }: Props) {
+export function TripDayList({ days, activeDay, onSelectDay, selectedStopId = null, onSelectStop, onMoveStop, onDeleteStop, busyStopIds }: Props) {
   const { tr, lang } = useLanguage()
   const listIsBeside = useListIsBesideMap()
   const shown = activeDay === null ? days : days.filter((d) => d.dayNumber === activeDay)
@@ -141,6 +154,8 @@ export function TripDayList({ days, activeDay, onSelectDay, selectedStopId = nul
         // stop still gets a row — it is a real part of the itinerary — but no number, because a
         // number that matches no pin is worse than none.
         let pin = 0
+        // Sorted ONCE per day: the rows need it, and so does each row's "can I move down?" test.
+        const ordered = [...day.stops].sort((a, b) => a.position - b.position)
         return (
           <section key={day.dayNumber} aria-labelledby={`trip-day-${day.dayNumber}`} className="space-y-2">
             <header className="flex items-baseline gap-2">
@@ -152,7 +167,7 @@ export function TripDayList({ days, activeDay, onSelectDay, selectedStopId = nul
             </header>
 
             <ol className="divide-y divide-border/70 overflow-hidden rounded-2xl border border-border/70 bg-card">
-              {[...day.stops].sort((a, b) => a.position - b.position).map((stop) => {
+              {ordered.map((stop, index) => {
                 const mapped = typeof stop.lat === 'number' && typeof stop.lng === 'number'
                 if (mapped) pin += 1
                 return (
@@ -161,6 +176,15 @@ export function TripDayList({ days, activeDay, onSelectDay, selectedStopId = nul
                     key={stop.id}
                     stop={stop}
                     dayNumber={day.dayNumber}
+                    // Edit wiring. `index` is the row's position among the day's SORTED stops,
+                    // which is what the server's toIndex means — not stop.position, which can be
+                    // sparse after a delete.
+                    canMoveUp={index > 0}
+                    canMoveDown={index < ordered.length - 1}
+                    busy={busyStopIds?.has(stop.id) ?? false}
+                    onMoveUp={onMoveStop ? () => onMoveStop(day.id, stop.id, index - 1) : undefined}
+                    onMoveDown={onMoveStop ? () => onMoveStop(day.id, stop.id, index + 1) : undefined}
+                    onDelete={onDeleteStop ? () => onDeleteStop(day.id, stop.id) : undefined}
                     pinIndex={mapped ? pin : null}
                     selected={selectedStopId === stop.id}
                     // Only wired when the map is actually beside the list: on a phone the map
@@ -213,7 +237,10 @@ function DayTab({ active, onClick, children }: { active: boolean; onClick: () =>
   )
 }
 
-function StopRow({ stop, cityName, dayNumber, pinIndex, selected, onSelect, lang, tr }: {
+function StopRow({
+  stop, cityName, dayNumber, pinIndex, selected, onSelect, lang, tr,
+  canMoveUp, canMoveDown, busy, onMoveUp, onMoveDown, onDelete,
+}: {
   stop: TripStop
   cityName: string
   dayNumber: number
@@ -222,7 +249,15 @@ function StopRow({ stop, cityName, dayNumber, pinIndex, selected, onSelect, lang
   onSelect?: () => void
   lang: string
   tr: (en: string, vi: string) => string
+  canMoveUp?: boolean
+  canMoveDown?: boolean
+  busy?: boolean
+  onMoveUp?: () => void | Promise<void>
+  onMoveDown?: () => void | Promise<void>
+  onDelete?: () => void | Promise<void>
 }) {
+  // Editing is offered only when the surface passed handlers for it.
+  const editable = Boolean(onMoveUp || onMoveDown || onDelete)
   const meta = (
     <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink-4">
       {stop.time && (
@@ -270,6 +305,45 @@ function StopRow({ stop, cityName, dayNumber, pinIndex, selected, onSelect, lang
             <Info className="mt-0.5 h-3 w-3 shrink-0" />
             <span>{stop.bookingAdvice}</span>
           </p>
+        )}
+        {/* ⚠️ EDIT CONTROLS, and they are the reason this whole task exists: the server has had
+            reorder/swap/delete with tests since T316 and NOTHING called it (owner, 2026-07-26:
+            "how do we edit here activities we want to swap").
+
+            ⚠️ `stopPropagation` on every one. When the map sits beside the list the row itself is a
+            button that selects the stop, so a bare click here would both reorder AND pan the map —
+            two outcomes from one tap, one of them unasked for.
+
+            ⚠️ Move is expressed as up/down rather than drag: a drag needs pointer capture inside a
+            row that is already a button and already scroll-sensitive, and the server's contract is
+            an INDEX, which up/down expresses exactly. Delete is destructive and last, separated. */}
+        {editable && (
+          <div className="mt-2 -ml-1 flex items-center gap-0.5">
+            <IconButton
+              aria-label={tr('Move earlier in the day', 'Chuyển lên sớm hơn')}
+              disabled={busy || !canMoveUp}
+              onClick={(e) => { e.stopPropagation(); void onMoveUp?.() }}
+              className="tap-44 h-7 w-7 text-ink-4"
+            >
+              <ArrowUp className="h-3.5 w-3.5" aria-hidden />
+            </IconButton>
+            <IconButton
+              aria-label={tr('Move later in the day', 'Chuyển xuống muộn hơn')}
+              disabled={busy || !canMoveDown}
+              onClick={(e) => { e.stopPropagation(); void onMoveDown?.() }}
+              className="tap-44 h-7 w-7 text-ink-4"
+            >
+              <ArrowDown className="h-3.5 w-3.5" aria-hidden />
+            </IconButton>
+            <IconButton
+              aria-label={tr('Remove this activity', 'Xóa hoạt động này')}
+              disabled={busy}
+              onClick={(e) => { e.stopPropagation(); void onDelete?.() }}
+              className="tap-44 ml-1 h-7 w-7 text-ink-4 hover:text-destructive"
+            >
+              {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : <Trash2 className="h-3.5 w-3.5" aria-hidden />}
+            </IconButton>
+          </div>
         )}
       </div>
     </>

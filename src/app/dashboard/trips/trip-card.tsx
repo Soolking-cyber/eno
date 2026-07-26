@@ -1,7 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { CalendarDays, ChevronDown, Download, Loader2 } from 'lucide-react'
+import Link from 'next/link'
+import { CalendarDays, ChevronDown, Download, Loader2, Pencil } from 'lucide-react'
 import { Collapsible } from '@base-ui/react/collapsible'
 import { toast } from 'sonner'
 import { useLanguage } from '@/context/language-context'
@@ -242,7 +243,22 @@ export function TripCard({ trip }: { trip: SavedItinerary }) {
           </div>
         )}
 
-        <div className="mt-5 flex justify-end border-t border-border pt-4">
+        {/* ⚠️ THE ONLY DOOR TO THE PER-TRIP PAGE, and until now there was none. Owner, 2026-07-26:
+            "how do we edit here activities we want to swap" — the answer was that you could not.
+            /dashboard/trips/[id] holds the map and the stop editing, and it was reachable ONLY from
+            the chat wizard's "Open the plan" card. Anyone who saved a plan from the builder, or came
+            back a week later, expanded this row and hit a dead end.
+
+            It sits in the PANEL beside the download, not in the row header: the header is a
+            Collapsible.Trigger (a Button), and a link nested inside a button is invalid and would
+            fight it for the tap. */}
+        <div className="mt-5 flex flex-wrap justify-end gap-2 border-t border-border pt-4">
+          <Button asChild variant="cta">
+            <Link href={`/dashboard/trips/${trip.id}`}>
+              <Pencil className="h-4 w-4" />
+              {tr('Open & edit', 'Mở & chỉnh sửa')}
+            </Link>
+          </Button>
           <Button type="button" variant="outline" onClick={downloadWord} disabled={downloading}>
             {downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
             {downloading ? tr('Creating Word file…', 'Đang tạo tệp Word…') : tr('Download Word file', 'Tải tệp Word')}
