@@ -79,7 +79,7 @@ function pinHtml(index: number, color: string, active: boolean): string {
   const scale = active ? 1.14 : 1
   const stroke = active ? '#ffffff' : 'rgba(255,255,255,.9)' // design-lint-allow: raw hex — pin outline on the light basemap
   return (
-    `<div style="transform:translate(-50%,-100%) scale(${scale});transform-origin:bottom center;` +
+    `<div style="transform:scale(${scale});transform-origin:bottom center;` +
     `filter:drop-shadow(0 2px 4px rgba(0,0,0,.35));transition:transform .12s ease;">` +
     `<svg width="${PIN_W}" height="${PIN_H}" viewBox="${PIN_VIEWBOX}" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">` +
     `<path d="${PIN_PATH}" fill="${color}" stroke="${stroke}" stroke-width="2"/>` +
@@ -87,6 +87,86 @@ function pinHtml(index: number, color: string, active: boolean): string {
     `font-family="ui-sans-serif,system-ui,sans-serif">${label}</text>` +
     `</svg></div>`
   )
+}
+
+/**
+ * The pin's icon, declared with a REAL size and anchor.
+ *
+ * ⚠️ IT USED TO BE `iconSize: [0, 0]` with the pin shifted into place by
+ * `transform: translate(-50%, -100%)`. That draws correctly and is broken underneath: Leaflet
+ * gives the marker element a 0×0 box, so the pin has no measurable hit area of its own, and only
+ * the overflowing child happens to catch a click. Anything that reasons about geometry rather than
+ * pixels — a hit test, an assistive technology, `elementsFromPoint`, Playwright's visibility check,
+ * which is how this surfaced — sees nothing there at all. Declaring the size and putting
+ * `iconAnchor` at the pin's TIP lets Leaflet do the positioning it exists to do, and makes the
+ * clickable area exactly the shape the reader can see.
+ *
+ * The tap target is therefore 26×34, not the 44px the design language asks of buttons. That is
+ * deliberate: a padded box would overlap its neighbours on a dense day, and a pin that swallows
+ * the click meant for the pin next to it is worse than a small one. The LIST row beside the map is
+ * the large, accessible way to select the same stop.
+ */
+function pinIcon(L: any, index: number, color: string, active: boolean) {
+  return L.divIcon({
+    html: pinHtml(index, color, active),
+    className: 'eno-trip-pin',
+    iconSize: [PIN_W, PIN_H],
+    iconAnchor: [PIN_W / 2, PIN_H],
+    popupAnchor: [0, -PIN_H + 4],
+    tooltipAnchor: [0, -PIN_H + 4],
+  })
+}
+
+/**
+ * What a pin IS: number · time · place · activity, as a DOM NODE.
+ *
+ * ⚠️ BUILT WITH createElement + textContent, NEVER an HTML string. Every field here is
+ * MODEL-GENERATED text that was stored in Postgres and is being handed to Leaflet, which inserts
+ * popup and tooltip content as innerHTML. A template literal would make `stop.name` an injection
+ * point reachable by anyone who can influence a generated itinerary. Escaping by hand would also
+ * work and is one forgotten interpolation away from not working; a DOM node cannot be got wrong.
+ * (pinHtml above is a string because its only variable is a number it re-derives digit by digit.)
+ */
+function stopCard(stop: MappableStop, index: number, color: string, compact: boolean): HTMLElement {
+  const root = document.createElement('div')
+  root.className = compact ? 'max-w-[13rem]' : 'max-w-[15rem]'
+
+  const head = document.createElement('div')
+  head.className = 'flex items-start gap-1.5'
+
+  const badge = document.createElement('span')
+  badge.className = 'mt-px flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-3xs font-bold leading-none text-white'
+  badge.style.background = color
+  badge.textContent = String(index)
+  head.appendChild(badge)
+
+  const name = document.createElement('span')
+  name.className = 'text-xs font-bold leading-snug text-neutral-900'
+  name.textContent = stop.name
+  head.appendChild(name)
+  root.appendChild(head)
+
+  const place = document.createElement('p')
+  place.className = 'mt-0.5 pl-[1.375rem] text-2xs leading-snug text-neutral-600'
+  place.textContent = stop.place
+  root.appendChild(place)
+
+  if (stop.time) {
+    const time = document.createElement('p')
+    time.className = 'mt-0.5 pl-[1.375rem] text-2xs font-semibold leading-snug text-neutral-500'
+    time.textContent = stop.time
+    root.appendChild(time)
+  }
+
+  // The long description is popup-only. In a hover tooltip it would cover the pins around it,
+  // which is the opposite of what a tooltip is for.
+  if (!compact && stop.details) {
+    const details = document.createElement('p')
+    details.className = 'mt-1.5 pl-[1.375rem] text-2xs leading-relaxed text-neutral-600'
+    details.textContent = stop.details
+    root.appendChild(details)
+  }
+  return root
 }
 
 const LEAFLET_JS = '/vendor/leaflet/leaflet.js'
@@ -153,6 +233,19 @@ export function TripMap({ days, activeDay = null, selectedStopId = null, onSelec
   useEffect(() => { onSelectRef.current = onSelectStop }, [onSelectStop])
   const selectedRef = useRef(selectedStopId)
   useEffect(() => { selectedRef.current = selectedStopId }, [selectedStopId])
+  /**
+   * The id of a selection this map just made itself.
+   *
+   * ⚠️ WITHOUT THIS, SYNC FIGHTS THE USER. Selection is shared state, so a pin click comes back
+   * down as a changed `selectedStopId` and is indistinguishable from a click on the list — and
+   * "recentre on the selected stop" would then yank the map on every pin tap, undoing the pan the
+   * user just made to reach that pin. Panning is for selections that arrived from ELSEWHERE.
+   */
+  const selfSelectRef = useRef<string | null>(null)
+  // Same reason as the others: the marker handlers are bound once per redraw and would otherwise
+  // hold the translator from that render.
+  const trRef = useRef(tr)
+  useEffect(() => { trRef.current = tr }, [tr])
 
   // (1) `cancelled` — a stale script 'load' must not setState after unmount.
   useEffect(() => {
@@ -197,7 +290,20 @@ export function TripMap({ days, activeDay = null, selectedStopId = null, onSelec
     // handler bound below still references this render's closure. Dropping it explicitly is the
     // same discipline the init cleanup applies to the map itself, and it means a day switch
     // cannot leave a live handler on a detached marker.
-    for (const layer of layersRef.current) { layer.off?.(); map.removeLayer(layer) }
+    //
+    // ⚠️ BUT THE OVERLAYS MUST COME OFF FIRST, and this is a trap this loop only acquired when
+    // tooltips and popups were added to it. `bindPopup`/`bindTooltip` register Leaflet's OWN
+    // `remove` handler on the marker — that is what closes an open card when the marker leaves the
+    // map. `off()` strips those handlers too, so the subsequent `removeLayer` fires `remove` with
+    // nothing listening and an open popup is orphaned: still in the map pane, no longer owned by
+    // any layer, and it survives the day switch. Unbinding explicitly (which closes first) means
+    // the teardown does not depend on handlers we are about to delete. (Found by codex.)
+    for (const layer of layersRef.current) {
+      layer.closeTooltip?.(); layer.unbindTooltip?.()
+      layer.closePopup?.(); layer.unbindPopup?.()
+      layer.off?.()
+      map.removeLayer(layer)
+    }
     layersRef.current = []
     markersRef.current.clear()
 
@@ -216,13 +322,44 @@ export function TripMap({ days, activeDay = null, selectedStopId = null, onSelec
         layersRef.current.push(line)
       }
       stops.forEach((stop, i) => {
-        const icon = L.divIcon({
-          html: pinHtml(i + 1, color, selectedRef.current === stop.id),
-          className: 'eno-trip-pin',
-          iconSize: [0, 0],
-        })
+        const icon = pinIcon(L, i + 1, color, selectedRef.current === stop.id)
         const marker = L.marker([stop.lat, stop.lng], { icon, riseOnHover: true, alt: stop.place }).addTo(map)
-        marker.on('click', () => onSelectRef.current?.(stop.id))
+
+        // Hover/focus: the compact card. Tap/click: the full one, with the description.
+        // ⚠️ Tooltips are given as a FUNCTION so Leaflet rebuilds the node per open — one shared
+        // element cannot be attached to two places at once, and Leaflet moves it into its own
+        // container on open.
+        // Offsets come from the icon's tooltipAnchor/popupAnchor, not from here — specifying both
+        // double-counts and floats the card off the pin.
+        marker.bindTooltip(() => stopCard(stop, i + 1, color, true), { direction: 'top', opacity: 1 })
+        marker.bindPopup(() => stopCard(stop, i + 1, color, false), { closeButton: true, autoPan: true, maxWidth: 260 })
+        // ⚠️ Both bindings answer a click, and opening a popup does NOT close a tooltip — so on a
+        // pointer device the hover card stayed up behind the popup, showing the same stop twice.
+        // Keyed on `popupopen` rather than on the click, so a popup opened by a LIST selection
+        // clears the tooltip too. (Found by codex.)
+        // ⚠️ TWO handlers, because one is not enough: closing the tooltip when the popup opens is
+        // undone the moment Leaflet re-opens it (a click over a marker still produces mouseover),
+        // and a count of `.leaflet-tooltip` after clicking proved it was still there. This second
+        // handler makes "popup open" mean "no tooltip", however the tooltip got opened.
+        marker.on('tooltipopen', () => { if (marker.isPopupOpen()) marker.closeTooltip() })
+        marker.on('popupopen', () => {
+          marker.closeTooltip()
+          // Leaflet's own close button ships an English `aria-label`, in an app that renders in 11
+          // languages. It is created per open, so relabel it here rather than once at bind time.
+          const close = marker.getPopup()?.getElement()?.querySelector('.leaflet-popup-close-button')
+          if (close) close.setAttribute('aria-label', trRef.current('Close', 'Đóng'))
+        })
+        // ⚠️ The SELECTION is what the click reports; the popup opens on its own. Reporting it
+        // lets the list highlight and scroll to the matching row, which is the half of "sync"
+        // that a popup alone does not give you.
+        marker.on('click', () => {
+          // ⚠️ ARM THE SENTINEL ONLY IF THE SELECTION WILL ACTUALLY CHANGE. Re-tapping the
+          // already-selected pin sets state to the value it already holds, React bails out, and the
+          // effect that would have consumed the sentinel never runs — leaving it armed for whatever
+          // came next. Not arming it in that case makes going stale impossible. (Found by agy.)
+          if (selectedRef.current !== stop.id) selfSelectRef.current = stop.id
+          onSelectRef.current?.(stop.id)
+        })
         markersRef.current.set(stop.id, marker)
         layersRef.current.push(marker)
         bounds.push([stop.lat, stop.lng])
@@ -242,21 +379,73 @@ export function TripMap({ days, activeDay = null, selectedStopId = null, onSelec
   useEffect(() => {
     if (!ready || !mapInstanceRef.current) return
     const L = (window as any).L
+    const map = mapInstanceRef.current
     const shown = activeDay === null ? days : days.filter((d) => d.dayNumber === activeDay)
     for (const day of shown) {
       mappableStops(day).forEach((stop, i) => {
         const marker = markersRef.current.get(stop.id)
         if (!marker) return
-        marker.setIcon(L.divIcon({
-          html: pinHtml(i + 1, dayColor(day.dayNumber), selectedStopId === stop.id),
-          className: 'eno-trip-pin',
-          iconSize: [0, 0],
-        }))
+        marker.setIcon(pinIcon(L, i + 1, dayColor(day.dayNumber), selectedStopId === stop.id))
       })
     }
+
+    // The other half of two-way sync: a stop chosen in the LIST reveals itself here.
+    const cameFromThisMap = selfSelectRef.current === selectedStopId
+    selfSelectRef.current = null
+    if (!selectedStopId || cameFromThisMap) return
+    const marker = markersRef.current.get(selectedStopId)
+    if (!marker) return
+
+    const reveal = () => {
+      // ⚠️ Only pan when the pin is actually off screen. Recentring a pin the reader can already
+      // see is motion for its own sake, and it throws away a pan they may have made deliberately.
+      //
+      // ⚠️ `animate: false` because the popup's own `autoPan` will pan too, and two pans racing
+      // land the viewport somewhere neither intended — Leaflet's auto-pan can stop or replace an
+      // in-flight animation. Jumping and then opening is predictable; a fight is not. (codex.)
+      if (!map.getBounds().contains(marker.getLatLng())) {
+        map.panTo(marker.getLatLng(), { animate: false })
+      }
+      marker.openPopup()
+    }
+    const measurable = () => map.getSize().x > 0 && map.getSize().y > 0
+    if (measurable()) { reveal(); return }
+
+    // ⚠️ A ZERO-SIZE MAP IS A REAL CASE, NOT A DEFENSIVE FLOURISH — and it is TWO cases that must
+    // not be collapsed:
+    //
+    //   · PERMANENTLY hidden. The trip page renders the desktop map inside
+    //     `<aside className="hidden lg:block">`, and `display:none` hides it WITHOUT unmounting
+    //     it, so every phone carries a second invisible TripMap holding the same `selectedStopId`.
+    //     Tapping a pin in the drawer made that map pan and open a popup too — two
+    //     `.leaflet-popup` nodes in the DOM, which is how this was found. Revealing something on a
+    //     map with no pixels is waste, and animating one is how the crashes at the top of this
+    //     file began.
+    //   · NOT MEASURED YET. A container whose layout settles after mount reports 0 for a frame or
+    //     two, and returning outright would drop that reveal permanently — the effect is keyed on
+    //     `selectedStopId`, which will not change again just because the map finally has a size.
+    //     A reviewer raised exactly this, and it is the difference between a guard and a bug.
+    //
+    // One deferred retry separates them: the hidden instance is still 0 and no-ops, the late one
+    // succeeds. Guarded on map IDENTITY and on the marker still being the live one, like guard (3).
+    const retry = setTimeout(() => {
+      if (mapInstanceRef.current !== map || !measurable()) return
+      if (markersRef.current.get(selectedStopId) !== marker) return
+      reveal()
+    }, 140)
+    return () => clearTimeout(retry)
   }, [ready, selectedStopId, days, activeDay])
 
-  const total = days.reduce((n, d) => n + mappableStops(d).length, 0)
+  const shownDays = activeDay === null ? days : days.filter((d) => d.dayNumber === activeDay)
+  const total = shownDays.reduce((n, d) => n + mappableStops(d).length, 0)
+  // ⚠️ COUNTED OVER THE SHOWN DAYS, and that was a deliberate change of mind. Counting the whole
+  // trip felt more honest — coverage should not appear to improve because a filter is on — but it
+  // made the sentence FALSE: with Day 1 selected and all of Day 1 mapped, the map still announced
+  // "2 stops are not on the map yet — they are still in the day list", while the day list beside it
+  // showed only Day 1 and none were missing. A true statement about what the reader can see beats a
+  // true statement about something they cannot. (Found by codex.)
+  const unmapped = shownDays.reduce((n, d) => n + d.stops.length, 0) - total
+  const legendDays = shownDays.filter((d) => mappableStops(d).length > 0)
 
   return (
     <div className={className ?? 'relative h-full w-full overflow-hidden rounded-2xl'}>
@@ -283,11 +472,42 @@ export function TripMap({ days, activeDay = null, selectedStopId = null, onSelec
         </div>
       )}
 
+      {/* The day-colour key. Top-RIGHT: Leaflet puts its zoom control top-left, the coverage
+          notice sits along the bottom, and the popup opens upward from a pin. */}
+      {ready && !loadError && legendDays.length > 0 && (
+        <ul
+          aria-label={tr('Day colours', 'Màu theo ngày')}
+          // ⚠️ NOT `pointer-events-none`. A 30-day trip overflows the cap, and a scroll container
+          // that ignores the pointer cannot be scrolled — the days past the fold would be
+          // unreachable. It therefore takes a small bite out of the draggable surface, exactly as
+          // Leaflet's own zoom control does in the opposite corner. (Found by codex.)
+          className="absolute right-2 top-2 z-[500] max-h-[min(50%,12rem)] space-y-1 overflow-y-auto overscroll-contain rounded-xl bg-card/95 px-2.5 py-2 shadow-overlay"
+        >
+          {legendDays.map((day) => (
+            <li key={day.dayNumber} className="flex items-center gap-1.5 text-3xs font-bold text-ink-3">
+              <span className="h-2 w-2 shrink-0 rounded-full" style={{ background: dayColor(day.dayNumber) }} aria-hidden="true" />
+              {tr(`Day ${day.dayNumber}`, `Ngày ${day.dayNumber}`)}
+            </li>
+          ))}
+        </ul>
+      )}
+
       {/* Honest about coverage rather than silently showing fewer pins than the list has rows:
-          a stop with no resolved coordinate is still a real stop in the itinerary. */}
-      {ready && !loadError && total === 0 && (
-        <div className="absolute inset-x-3 bottom-3 rounded-xl bg-card/95 px-3 py-2 text-center text-xs text-ink-4 shadow-overlay">
-          {tr('No mapped locations for this trip yet.', 'Chưa có địa điểm nào được định vị cho chuyến đi này.')}
+          a stop with no resolved coordinate is still a real stop in the itinerary. Saying HOW MANY
+          is the difference between "the map is broken" and "these three could not be located" —
+          the first is what a silently shorter map reads as. */}
+      {ready && !loadError && (total === 0 || unmapped > 0) && (
+        <div className="absolute inset-x-3 bottom-3 z-[500] rounded-xl bg-card/95 px-3 py-2 text-center text-xs text-ink-4 shadow-overlay">
+          {total === 0
+            ? tr('No stops on this trip could be placed on the map yet.', 'Chưa có điểm dừng nào của chuyến đi được định vị trên bản đồ.')
+            : tr(
+              // Both halves have to agree: "1 stop is … they are still" read as a typo, because it
+              // was one. Vietnamese needs no number agreement, so only the English branch forks.
+              unmapped === 1
+                ? '1 stop is not on the map yet — it is still in the day list.'
+                : `${unmapped} stops are not on the map yet — they are still in the day list.`,
+              `${unmapped} điểm dừng chưa có trên bản đồ — vẫn hiển thị trong danh sách ngày.`,
+            )}
         </div>
       )}
     </div>

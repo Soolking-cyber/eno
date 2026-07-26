@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { Clock, Footprints, Wallet, Info } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { Clock, Footprints, MapPinOff, Wallet, Info } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -90,8 +90,27 @@ export function TripDayList({ days, activeDay, onSelectDay, selectedStopId = nul
   const listIsBeside = useListIsBesideMap()
   const shown = activeDay === null ? days : days.filter((d) => d.dayNumber === activeDay)
 
+  const rootRef = useRef<HTMLDivElement>(null)
+  // Mirrors the map's guard, for the same reason: selection is shared state, so a row click comes
+  // back down as a changed `selectedStopId`. Scrolling on that would yank the list under the
+  // finger that just tapped it.
+  const selfSelectRef = useRef<string | null>(null)
+
+  // A pin tapped on the map reveals its row here. `block: 'nearest'` scrolls the minimum needed,
+  // so a row already on screen does not move at all.
+  useEffect(() => {
+    const cameFromThisList = selfSelectRef.current === selectedStopId
+    selfSelectRef.current = null
+    if (!selectedStopId || cameFromThisList || !rootRef.current) return
+    const row = rootRef.current.querySelector(`[data-stop-id="${CSS.escape(selectedStopId)}"]`)
+    // ⚠️ Honour reduced-motion. A programmatic smooth scroll is exactly the involuntary movement
+    // that setting exists to suppress, and `behavior: 'smooth'` overrides it unless asked. (codex.)
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    row?.scrollIntoView({ block: 'nearest', behavior: reduced ? 'auto' : 'smooth' })
+  }, [selectedStopId])
+
   return (
-    <div className="space-y-4">
+    <div ref={rootRef} className="space-y-4">
       {/* Day navigation. "All days" first so the default view is the whole trip. */}
       {/* A GROUP of toggles, not a tablist. `role="tab"` promises a `tabpanel` with
           `aria-controls`, and there is none — "All days" renders several sections at once, so no
@@ -143,7 +162,22 @@ export function TripDayList({ days, activeDay, onSelectDay, selectedStopId = nul
                     // Only wired when the map is actually beside the list: on a phone the map
                     // is behind a toggle, so "select" would pan something nobody can see while
                     // stealing the tap from the row itself.
-                    onSelect={listIsBeside && mapped && onSelectStop ? () => onSelectStop(stop.id) : undefined}
+                    // ⚠️ Sentinel armed ONLY when the selection will change — re-tapping the row
+                    // that is already selected sets state to the value it already holds, React
+                    // bails out, and the effect that clears the sentinel never runs. See the map's
+                    // matching note. (Found by agy.)
+                    //
+                    // ⚠️ KNOWN, and it needs the PARENT: because that re-tap is a no-op all the way
+                    // through, tapping an already-selected row does not re-centre a map the reader
+                    // has since panned away. Fixing it means the parent holding something that
+                    // changes on every pick (an {id, nonce}) instead of a bare id —
+                    // trip-detail-client.tsx, which is not this task's file.
+                    onSelect={listIsBeside && mapped && onSelectStop
+                      ? () => {
+                        if (selectedStopId !== stop.id) selfSelectRef.current = stop.id
+                        onSelectStop(stop.id)
+                      }
+                      : undefined}
                     lang={lang}
                     tr={tr}
                   />
@@ -200,14 +234,24 @@ function StopRow({ stop, dayNumber, pinIndex, selected, onSelect, lang, tr }: {
 
   const body = (
     <>
-      {/* A row with no pin still reserves the glyph's width, so every title starts on the same
+      {/* A row with no pin still occupies the glyph's width, so every title starts on the same
           x — a ragged left edge reads as broken rather than as "this one isn't mapped". */}
       {pinIndex === null
-        ? <span className="h-6 w-[1.15rem] shrink-0" aria-hidden="true" />
+        ? <MapPinOff className="mt-1 h-4 w-[1.15rem] shrink-0 text-ink-5" aria-hidden="true" />
         : <StopGlyph index={pinIndex} dayNumber={dayNumber} active={selected} className="mt-0.5" />}
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-semibold text-foreground">{stop.name}</p>
         <p className="truncate text-xs text-body">{stop.place}</p>
+        {/* ⚠️ SAY IT, do not just draw fewer pins. An unmapped stop used to differ from a mapped
+            one by a blank space, so a trip whose coordinates had not been resolved looked like a
+            map that had lost half the itinerary. It is a real stop; what is missing is a location
+            we could resolve, and that is a sentence, not an absence. */}
+        {pinIndex === null && (
+          <p className="mt-1 inline-flex items-center gap-1 rounded-full bg-tint px-1.5 py-0.5 text-3xs font-bold text-ink-4">
+            <MapPinOff className="h-2.5 w-2.5 shrink-0" aria-hidden="true" />
+            {tr('Not on the map yet', 'Chưa có trên bản đồ')}
+          </p>
+        )}
         {meta}
         {stop.bookingAdvice && (
           <p className="mt-1.5 inline-flex items-start gap-1 text-xs text-ink-4">
@@ -221,11 +265,13 @@ function StopRow({ stop, dayNumber, pinIndex, selected, onSelect, lang, tr }: {
 
   // A row is only a BUTTON when selecting it does something. A button that does nothing is a
   // promise to a screen reader that this repo's own audit notes get broken more often than kept.
+  // ⚠️ `data-stop-id` is on the <li> in BOTH branches — the map→list scroll must find the row for
+  // a stop the map can show, and that is unrelated to whether this row happens to be clickable.
   if (!onSelect) {
-    return <li className={cn('flex gap-2.5 px-3 py-3', selected && 'bg-brand/5')}>{body}</li>
+    return <li data-stop-id={stop.id} className={cn('flex gap-2.5 px-3 py-3', selected && 'bg-brand/5')}>{body}</li>
   }
   return (
-    <li className={cn(selected && 'bg-brand/5')}>
+    <li data-stop-id={stop.id} className={cn(selected && 'bg-brand/5')}>
       <Button
         type="button"
         variant="bare"
