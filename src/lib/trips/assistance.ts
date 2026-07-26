@@ -174,7 +174,26 @@ export async function viewAssistance(input: { requestId: string }): Promise<{ ok
   }
 }
 
-/** An operator picks the case up: requested → reviewing. */
+/**
+ * Move a case as an operator — the GENERIC admin transition.
+ *
+ * ⚠️ EXISTS TO DELETE A SECOND COPY OF THE ANNOUNCE RULE. The admin queue route (T320) had to
+ * compose transition-then-announce itself, including the "only announce a REAL move" rule, because
+ * this file's transitionAsAdmin was private and assistance.ts was not in that task's owned paths. I
+ * flagged the duplication in the commit and on the board; this is it removed. Two copies of "when
+ * does a card get posted" is how a double click starts posting duplicates on one surface and not
+ * the other.
+ *
+ * Resolves its OWN admin, like everything else here — an operator identity is never an argument.
+ */
+export async function moveAssistanceAsAdmin(input: { requestId: string; next: string }): Promise<AssistanceResult> {
+  const admin = await getAdmin()
+  if (!admin) return { ok: false, error: 'forbidden' }
+  return transitionAsAdmin(input.requestId, input.next, admin)
+}
+
+/** An operator picks the case up: requested → reviewing. A named shorthand for the common first
+ *  move; moveAssistanceAsAdmin covers the rest of the machine. */
 export async function startReview(input: { requestId: string }): Promise<AssistanceResult> {
   const admin = await getAdmin()
   if (!admin) return { ok: false, error: 'forbidden' }
