@@ -65,6 +65,58 @@ export function openStatuses(): string[] {
 export type TripStatus = keyof typeof TRIP_TRANSITIONS
 export type TripActorType = 'traveller' | 'admin' | 'system'
 
+/**
+ * ⚠️ EDGES THAT ARE LEGAL BUT ARE NOT THE OPERATOR'S TO TAKE.
+ *
+ * TRIP_TRANSITIONS says which moves are POSSIBLE. It never said who may make them, and that gap
+ * shipped a real defect: the admin queue derives its buttons from the map, so it rendered a button
+ * for every legal edge — including the two classes of edge that belong to somebody else.
+ *
+ *   reviewing -> quoted   is the MONEY path. quoteAssistance is the only writer of
+ *                         supplierTotalVnd/feeVnd, and it is the only thing that should ever put a
+ *                         case in `quoted`. Reached through the generic mover instead, the case
+ *                         lands in `quoted` with both amounts NULL, a "Quote ready" card goes to
+ *                         the traveller for a quote that does not exist — and because `quoted` has
+ *                         no self-edge and only `requested` leads back to `reviewing`,
+ *                         quoteAssistance's own canTransition gate then refuses FOREVER. One click
+ *                         and the case can never be quoted. (I did exactly this by hand while
+ *                         screenshotting the queue for T320, and did not recognise it.)
+ *   quoted -> accepted    is the TRAVELLER's decision, and so is quoted -> declined. An operator
+ *   quoted -> declined    who wants out of a quoted case uses `cancelled`, which stays available
+ *                         from every open status.
+ *
+ * ⚠️ AN EXCEPTIONS LIST, NOT A SECOND TABLE. Restating the operator's moves as their own map is
+ * what the visa queue does (VISA_ADMIN_ACTIONS), and the two drift the moment somebody adds an
+ * edge to one and not the other — avoiding that is the whole reason the queue derives its buttons.
+ * Naming only the exceptions keeps ONE authority on legality, and the exhaustiveness test in
+ * status.admin-edges.test.ts makes a new edge a BUILD FAILURE until somebody says whose it is.
+ *
+ * A Set of "from->to", not an object: an object lookup would answer for inherited keys, which is
+ * the same trap `nextTripStatuses` had to close with Object.hasOwn.
+ */
+const NON_ADMIN_EDGES = new Set(['reviewing->quoted', 'quoted->accepted', 'quoted->declined'])
+
+/** Who owns an edge, for the test and for anything that needs to explain a refusal. */
+export function edgeOwner(from: string, to: string): TripActorType | null {
+  if (!canTransition(from, to)) return null
+  if (from === 'reviewing' && to === 'quoted') return 'system'
+  return NON_ADMIN_EDGES.has(`${from}->${to}`) ? 'traveller' : 'admin'
+}
+
+/** May an OPERATOR take this edge directly? Legality first, then ownership. */
+export function adminCanTake(from: string, to: string): boolean {
+  return canTransition(from, to) && !NON_ADMIN_EDGES.has(`${from}->${to}`)
+}
+
+/**
+ * The moves to offer an operator — still DERIVED from the one map, minus the edges that are not
+ * theirs. This is what the queue must render; `nextTripStatuses` answers the different question
+ * "what is legal from here" and is not an authorisation answer.
+ */
+export function adminNextStatuses(from: string): string[] {
+  return nextTripStatuses(from).filter((to) => adminCanTake(from, to))
+}
+
 export type TripTransitionResult =
   | { ok: true; status: string }
   | { ok: false; error: 'invalid_status_transition' | 'not_found' | 'case_changed_reload' | 'update_failed' }
@@ -105,9 +157,18 @@ export function nextTripStatuses(from: string): string[] {
   return Object.hasOwn(TRIP_TRANSITIONS, from) ? [...TRIP_TRANSITIONS[from]] : []
 }
 
-/** Is `next` reachable from `from`? Unknown statuses have no exits. */
+/**
+ * Is `next` reachable from `from`? Unknown statuses have no exits.
+ *
+ * ⚠️ Object.hasOwn, not `?? []`. This THREW on an inherited key: `TRIP_TRANSITIONS['toString']`
+ * resolves to Object.prototype.toString, which is not null or undefined, so `??` passes it through
+ * and `.includes` is not a function. The same trap was closed in nextTripStatuses (above) and this
+ * sibling was missed — half a fix reads exactly like a whole one. Reaching it needs a `from` that
+ * did not come from the status column (the DDL CHECK constrains that), which is why it survived;
+ * adminCanTake/edgeOwner now call this with arbitrary strings, so it is reachable for real.
+ */
 export function canTransition(from: string, next: string): boolean {
-  return (TRIP_TRANSITIONS[from] ?? []).includes(next)
+  return Object.hasOwn(TRIP_TRANSITIONS, from) && TRIP_TRANSITIONS[from].includes(next)
 }
 
 /**

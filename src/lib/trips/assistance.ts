@@ -1,7 +1,7 @@
 import 'server-only'
 import { db } from '../db'
 import { getAdmin, getCurrentProfile } from '../admin'
-import { applyTripTransition, canTransition, openStatuses, type TripActorType } from './status'
+import { adminCanTake, applyTripTransition, canTransition, openStatuses, type TripActorType } from './status'
 // The DM layer. Imported for its two card senders only; it never calls back into this file, so
 // the dependency is one-way (assistance -> dm-flow -> dm-thread/messages).
 import { announceTripStatus, sendTripQuoteCard } from './dm-flow'
@@ -324,6 +324,22 @@ async function transitionAsAdmin(requestId: string, next: string, admin: string)
     select: { status: true },
   })
   if (!request) return { ok: false, error: 'request_not_found' }
+  // ⚠️ LEGAL IS NOT THE SAME AS THEIRS TO TAKE, and this gate is the load-bearing half of that fix.
+  // Every admin path runs through here — the generic mover and startReview today, anything added
+  // later by construction — so an operator cannot reach the money edge (reviewing -> quoted, which
+  // belongs to quoteAssistance and would otherwise announce a quote that does not exist and leave
+  // the case permanently unquotable) or take the traveller's accept/decline decision for them.
+  // Hiding the buttons in the queue is the cosmetic half; this is the half that actually holds,
+  // because the route accepts `next` from a request body.
+  //
+  // ⚠️ A REPEAT IS EXEMPT, and an existing test is what taught me that. The map has no self-edges,
+  // so a bare ownership check turned a double-clicked button into a 409 — applyTripTransition
+  // deliberately treats "already in that status" as success (it is not a failed move, and it
+  // announces nothing), and gating ownership ahead of it silently removed that. A repeat cannot be
+  // a privilege escalation: it writes the status the case is already in.
+  if (next !== request.status && !adminCanTake(request.status, next)) {
+    return { ok: false, error: 'invalid_status_transition' }
+  }
   const result = await applyTripTransition({
     id: requestId, expectedPrior: request.status, next,
     actorType: 'admin', actorRef: admin,

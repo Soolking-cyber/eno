@@ -3,7 +3,7 @@ import { Map } from 'lucide-react'
 import { getAdmin } from '@/lib/admin'
 import { AdminDenied } from '@/components/admin/admin-denied'
 import { db } from '@/lib/db'
-import { isTerminalStatus, nextTripStatuses } from '@/lib/trips/status'
+import { adminNextStatuses, isTerminalStatus } from '@/lib/trips/status'
 import { TripsQueueClient, type QueueRow } from './trips-queue-client'
 
 export const dynamic = 'force-dynamic'
@@ -42,7 +42,10 @@ export default async function AdminTripsPage() {
     status: item.status,
     // Derived HERE, on the server, because status.ts imports the Prisma client — see the note on
     // QueueRow.moves. The transition map is still the only thing that decides.
-    moves: nextTripStatuses(item.status),
+    // ⚠️ adminNextStatuses, NOT nextTripStatuses — the latter answers "what is legal from
+    // here", which is not an authorisation answer. Rendering every legal edge is what let an
+    // operator click "Quoted" and brick the money path; the server refuses these now too.
+    moves: adminNextStatuses(item.status),
     itineraryTitle: item.itinerary?.title ?? 'Untitled trip',
     // Admin chrome shows who the case belongs to; name first, email as the fallback identity.
     travellerName: item.profile?.displayName || item.profile?.email || 'Unknown traveller',
