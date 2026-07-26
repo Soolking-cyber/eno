@@ -8,7 +8,7 @@ const h = vi.hoisted(() => ({
   state: {
     // dayId -> ordered stops, as the table holds them.
     days: {} as Record<string, Array<{ id: string; position: number }>>,
-    ownerOf: {} as Record<string, string>,
+    dayMeta: {} as Record<string, { profileId: string; itineraryId: string }>,
     statements: [] as string[],
     // Fires once, between the ownership read and the staging write: the concurrent editor.
     mutateBeforeWrite: null as null | (() => void),
@@ -31,8 +31,12 @@ vi.mock('@/lib/db', () => {
   const tx = {
     itineraryDay: {
       findFirst: async ({ where }: any) => {
-        const owner = h.state.ownerOf[where.id]
-        return owner && owner === where.itinerary.profileId ? { id: where.id } : null
+        const day = h.state.dayMeta[where.id]
+        if (!day) return null
+        // Honour BOTH halves of the predicate — the profile AND the itinerary in the path.
+        if (day.profileId !== where.itinerary.profileId) return null
+        if (where.itineraryId !== undefined && day.itineraryId !== where.itineraryId) return null
+        return { id: where.id }
       },
     },
     itineraryStop: {
@@ -89,6 +93,7 @@ vi.mock('@/lib/db', () => {
 import { deleteStop, reorderStop, swapStops } from './reorder'
 
 const DAY = 'day-1'
+const ITIN = 'itin-1'
 const ME = 'traveller'
 const order = () => [...h.state.days[DAY]].sort((a, b) => a.position - b.position).map((s) => s.id)
 const positions = () => [...h.state.days[DAY]].sort((a, b) => a.position - b.position).map((s) => s.position)
@@ -97,14 +102,14 @@ beforeEach(() => {
   h.state.days = { [DAY]: [
     { id: 's0', position: 0 }, { id: 's1', position: 1 }, { id: 's2', position: 2 }, { id: 's3', position: 3 },
   ] }
-  h.state.ownerOf = { [DAY]: ME }
+  h.state.dayMeta = { [DAY]: { profileId: ME, itineraryId: ITIN } }
   h.state.statements = []
   h.state.mutateBeforeWrite = null
 })
 
 describe('a reorder can never duplicate a position', () => {
   it('moves a stop and leaves positions 0..n-1 exactly once each', async () => {
-    const result = await reorderStop({ dayId: DAY, stopId: 's0', toIndex: 3, profileId: ME })
+    const result = await reorderStop({ dayId: DAY, itineraryId: ITIN, stopId: 's0', toIndex: 3, profileId: ME })
     expect(result.ok).toBe(true)
     expect(order()).toEqual(['s1', 's2', 's3', 's0'])
     expect(positions()).toEqual([0, 1, 2, 3])
@@ -117,7 +122,7 @@ describe('a reorder can never duplicate a position', () => {
     ['middle backward', 's2', 0, ['s2', 's0', 's1', 's3']],
     ['no-op index', 's1', 1, ['s0', 's1', 's2', 's3']],
   ])('%s keeps a gap-free ordering', async (_label, stopId, toIndex, expected) => {
-    const result = await reorderStop({ dayId: DAY, stopId, toIndex, profileId: ME })
+    const result = await reorderStop({ dayId: DAY, itineraryId: ITIN, stopId, toIndex, profileId: ME })
     expect(result.ok).toBe(true)
     expect(order()).toEqual(expected)
     expect(positions()).toEqual([0, 1, 2, 3])
@@ -128,21 +133,21 @@ describe('a reorder can never duplicate a position', () => {
     // 23505 because Postgres checks the unique index per row as the statement runs. The staging
     // pass is not an optimisation, it is the only thing that works without a deferrable
     // constraint — and there is no constraint to defer, only a Prisma-created unique index.
-    await reorderStop({ dayId: DAY, stopId: 's0', toIndex: 2, profileId: ME })
+    await reorderStop({ dayId: DAY, itineraryId: ITIN, stopId: 's0', toIndex: 2, profileId: ME })
     expect(h.state.statements).toHaveLength(2)
     expect(h.state.statements[0]).toContain('unnest')
     expect(h.state.statements[1]).toContain('position < 0')
   })
 
   it('a swap is the same primitive, not a third write path', async () => {
-    const result = await swapStops({ dayId: DAY, stopIdA: 's0', stopIdB: 's2', profileId: ME })
+    const result = await swapStops({ dayId: DAY, itineraryId: ITIN, stopIdA: 's0', stopIdB: 's2', profileId: ME })
     expect(result.ok).toBe(true)
     expect(order()).toEqual(['s2', 's1', 's0', 's3'])
     expect(positions()).toEqual([0, 1, 2, 3])
   })
 
   it('a delete closes the gap rather than leaving a hole', async () => {
-    const result = await deleteStop({ dayId: DAY, stopId: 's1', profileId: ME })
+    const result = await deleteStop({ dayId: DAY, itineraryId: ITIN, stopId: 's1', profileId: ME })
     expect(result.ok).toBe(true)
     expect(order()).toEqual(['s0', 's2', 's3'])
     expect(positions()).toEqual([0, 1, 2])
@@ -150,7 +155,7 @@ describe('a reorder can never duplicate a position', () => {
 
   it('deleting the last stop leaves an empty, still-consistent day', async () => {
     for (const id of ['s0', 's1', 's2', 's3']) {
-      expect((await deleteStop({ dayId: DAY, stopId: id, profileId: ME })).ok).toBe(true)
+      expect((await deleteStop({ dayId: DAY, itineraryId: ITIN, stopId: id, profileId: ME })).ok).toBe(true)
     }
     expect(order()).toEqual([])
   })
@@ -164,7 +169,7 @@ describe('a concurrent edit loses cleanly', () => {
         { id: 's3', position: 0 }, { id: 's0', position: 1 }, { id: 's1', position: 2 }, { id: 's2', position: 3 },
       ]
     }
-    const result = await reorderStop({ dayId: DAY, stopId: 's0', toIndex: 3, profileId: ME })
+    const result = await reorderStop({ dayId: DAY, itineraryId: ITIN, stopId: 's0', toIndex: 3, profileId: ME })
     expect(result).toEqual({ ok: false, error: 'stale' })
   })
 
@@ -173,7 +178,7 @@ describe('a concurrent edit loses cleanly', () => {
       { id: 's3', position: 0 }, { id: 's0', position: 1 }, { id: 's1', position: 2 }, { id: 's2', position: 3 },
     ]
     h.state.mutateBeforeWrite = () => { h.state.days[DAY] = theirOrder.map((s) => ({ ...s })) }
-    await reorderStop({ dayId: DAY, stopId: 's0', toIndex: 3, profileId: ME })
+    await reorderStop({ dayId: DAY, itineraryId: ITIN, stopId: 's0', toIndex: 3, profileId: ME })
     // Nothing half-applied: the loser wrote nothing, so the winner's order stands.
     expect(order()).toEqual(['s3', 's0', 's1', 's2'])
     expect(positions()).toEqual([0, 1, 2, 3])
@@ -181,17 +186,25 @@ describe('a concurrent edit loses cleanly', () => {
 
   it('REFUSES a delete of a stop another editor already removed', async () => {
     h.state.mutateBeforeWrite = () => { h.state.days[DAY] = h.state.days[DAY].filter((s) => s.id !== 's1') }
-    const result = await deleteStop({ dayId: DAY, stopId: 's1', profileId: ME })
+    const result = await deleteStop({ dayId: DAY, itineraryId: ITIN, stopId: 's1', profileId: ME })
     expect(result.ok).toBe(false)
   })
 })
 
 describe('ownership and legality', () => {
   it('refuses a day that is not the callers — and answers the same for one that does not exist', async () => {
-    const theirs = await reorderStop({ dayId: DAY, stopId: 's0', toIndex: 1, profileId: 'someone-else' })
-    const missing = await reorderStop({ dayId: 'no-such-day', stopId: 's0', toIndex: 1, profileId: ME })
+    const theirs = await reorderStop({ dayId: DAY, itineraryId: ITIN, stopId: 's0', toIndex: 1, profileId: 'someone-else' })
+    const missing = await reorderStop({ dayId: 'no-such-day', itineraryId: ITIN, stopId: 's0', toIndex: 1, profileId: ME })
     expect(theirs).toEqual({ ok: false, error: 'not_found' })
     expect(theirs).toEqual(missing)
+    expect(order()).toEqual(['s0', 's1', 's2', 's3'])
+  })
+
+  it('refuses a day that belongs to a DIFFERENT itinerary than the path names', async () => {
+    // Without the itineraryId predicate a caller could edit any day they own through any itinerary
+    // id, and the route's own URL would be a lie.
+    const result = await reorderStop({ dayId: DAY, itineraryId: 'another-itinerary', stopId: 's0', toIndex: 1, profileId: ME })
+    expect(result).toEqual({ ok: false, error: 'not_found' })
     expect(order()).toEqual(['s0', 's1', 's2', 's3'])
   })
 
@@ -201,18 +214,18 @@ describe('ownership and legality', () => {
     ['an index past the end', 's0', 4],
     ['a fractional index', 's0', 1.5],
   ])('rejects %s without writing', async (_label, stopId, toIndex) => {
-    const result = await reorderStop({ dayId: DAY, stopId, toIndex, profileId: ME })
+    const result = await reorderStop({ dayId: DAY, itineraryId: ITIN, stopId, toIndex, profileId: ME })
     expect(result).toEqual({ ok: false, error: 'invalid_order' })
     expect(h.state.statements).toHaveLength(0)
   })
 
   it('rejects swapping a stop with itself', async () => {
-    expect(await swapStops({ dayId: DAY, stopIdA: 's1', stopIdB: 's1', profileId: ME }))
+    expect(await swapStops({ dayId: DAY, itineraryId: ITIN, stopIdA: 's1', stopIdB: 's1', profileId: ME }))
       .toEqual({ ok: false, error: 'invalid_order' })
   })
 
   it('rejects deleting a stop that is not in this day', async () => {
-    expect(await deleteStop({ dayId: DAY, stopId: 's-nope', profileId: ME }))
+    expect(await deleteStop({ dayId: DAY, itineraryId: ITIN, stopId: 's-nope', profileId: ME }))
       .toEqual({ ok: false, error: 'invalid_order' })
   })
 })

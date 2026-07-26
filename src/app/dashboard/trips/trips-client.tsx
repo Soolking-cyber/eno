@@ -2,16 +2,16 @@
 
 import { useCallback, useEffect, useState, useRef, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { RefreshCw, Route } from 'lucide-react'
+import { RefreshCw, Route, Sparkles } from 'lucide-react'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import { Button } from '@/components/ui/button'
+import Link from 'next/link'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Rows, Row } from '@/components/ui/rows'
 import { useLatestRequest } from '@/hooks/use-latest-request'
 import { SectionHeader } from '@/components/marketplace/section-header'
-import { ItineraryBuilder } from './plan/itinerary-builder'
 import { TripCard, type SavedItinerary } from './trip-card'
 
 /** /dashboard/trips — the Itineraries section opens straight into the planner (owner
@@ -19,7 +19,7 @@ import { TripCard, type SavedItinerary } from './trip-card'
  *  HISTORY as a feed beneath the builder. Each saved item can be re-downloaded as a
  *  styled Word file. Data is eno.vn's own (Itinerary tables via /api/itineraries); a new
  *  build auto-saves and the feed refreshes in place via the builder's onSaved callback. */
-export function TripsClient() {
+export function TripsClient({ planListingId }: { planListingId: string | null }) {
   const { user, loading } = useAuth()
   const { tr } = useLanguage()
   const router = useRouter()
@@ -80,17 +80,17 @@ export function TripsClient() {
     )
   }
 
-  // The saved feed stays out of the way on first run (the builder's own empty state
-  // already invites the first plan); it appears while loading, on error, or once there
-  // is at least one saved itinerary.
-  const showFeed = trips === null || failed || trips.length > 0
+  // ⚠️ PLANNING HAS LEFT THIS PAGE (owner, 2026-07-26: "this should be in chat experience only to
+  // plan a trip, and my trips page we have to have saved trips where they can manage"). So the
+  // saved feed is no longer conditional on there being something to show — it IS the page, and its
+  // empty state has to invite the first plan itself, because the builder that used to do that is
+  // gone from here.
+  const showFeed = true
 
   return (
     <>
       {/* Native stack-nav title bar (mobile only) — same established title string. */}
       <SectionHeader title={tr('Itineraries', 'Lịch trình')} />
-      {/* The planner opens directly (onSaved refreshes the history feed below). */}
-      <ItineraryBuilder onSaved={load} />
 
       {showFeed && (
         <section aria-labelledby="saved-itineraries-title" className="mt-4 border-t border-border pt-8">
@@ -126,11 +126,34 @@ export function TripsClient() {
             ) : (
               // Flat divided list of expandable itineraries (§3b) — hairlines between rows, no
               // per-item box. TripCard renders each <li>.
-              <Rows>
-                {trips.map((trip) => (
-                  <TripCard key={trip.id} trip={trip} />
-                ))}
-              </Rows>
+              trips.length === 0 ? (
+                // ⚠️ THIS REPLACES SOMETHING THAT WAS TAKEN AWAY. The builder used to sit above this
+                // list and its own empty state invited the first plan; with planning moved to chat,
+                // removing it without this would have left a signed-in traveller staring at a blank
+                // page with no way forward.
+                <EmptyState
+                  icon={Route}
+                  title={tr('No saved trips yet', 'Chưa có chuyến đi nào')}
+                  subtitle={tr(
+                    'Plan a trip in chat with our team, and it will be saved here to manage.',
+                    'Lên kế hoạch chuyến đi qua chat với đội ngũ của chúng tôi, và nó sẽ được lưu tại đây để quản lý.',
+                  )}
+                  action={planListingId ? (
+                    <Button variant="cta" asChild>
+                      <Link href={`/listings/${planListingId}`}>
+                        <Sparkles className="h-4 w-4" />
+                        {tr('Plan a trip in chat', 'Lên kế hoạch qua chat')}
+                      </Link>
+                    </Button>
+                  ) : undefined}
+                />
+              ) : (
+                <Rows>
+                  {trips.map((trip) => (
+                    <TripCard key={trip.id} trip={trip} />
+                  ))}
+                </Rows>
+              )
             )}
           </div>
         </section>

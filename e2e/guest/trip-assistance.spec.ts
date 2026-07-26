@@ -105,3 +105,32 @@ test.describe('Guest · trip wizard eligibility', () => {
     expect([401, 403]).toContain(res.status())
   })
 })
+
+test.describe('Guest · itinerary stop edits', () => {
+  // Structural edits to somebody's saved trip. A guest reaching these could rearrange or DELETE
+  // stops from a stranger's itinerary, so the refusal matters more than the feature.
+  const ITIN = 'ckguestitin0000000000001'
+
+  for (const body of [
+    { action: 'reorder', dayId: 'ckguestday00000000000001', stopId: 'ckgueststop0000000000001', toIndex: 0 },
+    { action: 'swap', dayId: 'ckguestday00000000000001', stopIdA: 'ckgueststop0000000000001', stopIdB: 'ckgueststop0000000000002' },
+    { action: 'delete', dayId: 'ckguestday00000000000001', stopId: 'ckgueststop0000000000001' },
+  ]) {
+    test(`"${body.action}" is closed to guests`, async ({ request }) => {
+      const res = await request.post(`/api/itineraries/${ITIN}/stops`, { data: body })
+      expect([401, 403]).toContain(res.status())
+    })
+  }
+
+  test('a real and a fake itinerary id answer alike — no existence oracle', async ({ request }) => {
+    const a = await request.post(`/api/itineraries/${ITIN}/stops`, { data: { action: 'delete', dayId: 'd', stopId: 's' } })
+    const b = await request.post('/api/itineraries/nope/stops', { data: { action: 'delete', dayId: 'd', stopId: 's' } })
+    expect(a.status()).toBe(b.status())
+    expect([401, 403]).toContain(a.status())
+  })
+
+  test('a malformed body is still refused, not 400 — identity is checked first', async ({ request }) => {
+    const res = await request.post(`/api/itineraries/${ITIN}/stops`, { data: { action: 'nonsense' } })
+    expect([401, 403]).toContain(res.status())
+  })
+})

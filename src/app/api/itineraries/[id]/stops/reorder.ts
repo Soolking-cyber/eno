@@ -48,10 +48,13 @@ type StopRow = { id: string; position: number }
 async function loadOwnedDay(
   tx: Prisma.TransactionClient,
   dayId: string,
+  itineraryId: string,
   profileId: string,
 ): Promise<StopRow[] | null> {
   const day = await tx.itineraryDay.findFirst({
-    where: { id: dayId, itinerary: { profileId } },
+    // The itinerary in the PATH is part of the predicate, not decoration: without it a caller could
+    // edit any day they own through any itinerary id, and the route's own URL would be a lie.
+    where: { id: dayId, itineraryId, itinerary: { profileId } },
     select: { id: true },
   })
   if (!day) return null
@@ -100,11 +103,12 @@ class StaleError extends Error {}
 /** Move one stop to a new index within its day. Everything else closes up around it. */
 export async function reorderStop(input: {
   dayId: string
+  itineraryId: string
   stopId: string
   toIndex: number
   profileId: string
 }): Promise<StopEditResult> {
-  return runEdit(input.dayId, input.profileId, (stops) => {
+  return runEdit(input.dayId, input.itineraryId, input.profileId, (stops) => {
     const from = stops.findIndex((s) => s.id === input.stopId)
     if (from < 0) return null
     if (!Number.isInteger(input.toIndex) || input.toIndex < 0 || input.toIndex >= stops.length) return null
@@ -122,11 +126,12 @@ export async function reorderStop(input: {
  */
 export async function swapStops(input: {
   dayId: string
+  itineraryId: string
   stopIdA: string
   stopIdB: string
   profileId: string
 }): Promise<StopEditResult> {
-  return runEdit(input.dayId, input.profileId, (stops) => {
+  return runEdit(input.dayId, input.itineraryId, input.profileId, (stops) => {
     const a = stops.findIndex((s) => s.id === input.stopIdA)
     const b = stops.findIndex((s) => s.id === input.stopIdB)
     if (a < 0 || b < 0 || a === b) return null
@@ -144,10 +149,11 @@ export async function swapStops(input: {
  */
 export async function deleteStop(input: {
   dayId: string
+  itineraryId: string
   stopId: string
   profileId: string
 }): Promise<StopEditResult> {
-  return runEdit(input.dayId, input.profileId, (stops) => {
+  return runEdit(input.dayId, input.itineraryId, input.profileId, (stops) => {
     if (!stops.some((s) => s.id === input.stopId)) return null
     return stops.filter((s) => s.id !== input.stopId).map((s) => s.id)
   }, input.stopId)
@@ -161,13 +167,14 @@ export async function deleteStop(input: {
  */
 async function runEdit(
   dayId: string,
+  itineraryId: string,
   profileId: string,
   plan: (stops: StopRow[]) => string[] | null,
   deleteStopId?: string,
 ): Promise<StopEditResult> {
   try {
     return await db.$transaction(async (tx) => {
-      const stops = await loadOwnedDay(tx, dayId, profileId)
+      const stops = await loadOwnedDay(tx, dayId, itineraryId, profileId)
       if (!stops) return { ok: false, error: 'not_found' as const }
       const desiredIds = plan(stops)
       if (!desiredIds) return { ok: false, error: 'invalid_order' as const }
