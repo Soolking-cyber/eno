@@ -92,8 +92,51 @@ await db.query(
   [MSG_ID, CONV_ID, buyerPid, 'Would you take 5,000,000?', 4_500_000],
 )
 
+// ── Itinerary fixture: a saved trip the buyer owns, with ONE day and THREE ordered stops, so the
+// authed trips spec has something to reorder.
+//
+// ⚠️ e2e/trips-authed.spec.ts ALREADY DEPENDS ON THIS and it did not exist. The spec's own docstring
+// names it ("an itinerary titled 'E2E Editable Plan' owned by the buyer, one day, three stops named
+// FIRST/SECOND/THIRD STOP in that order"), and without the rows its first `expect(row).toBeVisible`
+// simply times out. That is the same shape as the defect the spec was written to catch — a thing that
+// is complete and unreachable — one level up, in the test harness. Fixed values, not random ones, so
+// a failure names the stop it saw.
+//
+// ⚠️ Stop ORDER is re-asserted on every re-run. A previous run leaves the stops reordered or one of
+// them deleted, so `ON CONFLICT DO UPDATE` has to restore position AND name, or the second run of the
+// suite asserts against a day the first run rearranged. Positions are 0-based, matching the route.
+const ITIN_ID = 'e2e-itinerary-1'
+const ITIN_DAY_ID = 'e2e-itinerary-day-1'
+await db.query(
+  `INSERT INTO "Itinerary" (id, "profileId", title, "destinationId", days, "budgetId", interests, status, "estimatedBudget", currency, "updatedAt")
+   VALUES ($1,$2,$3,'hanoi',1,'comfort','["food"]','ready',3000000,'VND', now())
+   ON CONFLICT (id) DO UPDATE SET "profileId"=$2, title=$3, status='ready', "updatedAt"=now()`,
+  [ITIN_ID, buyerPid, 'E2E Editable Plan'],
+)
+await db.query(
+  `INSERT INTO "ItineraryDay" (id, "itineraryId", "dayNumber", area, title, morning, afternoon, evening)
+   VALUES ($1,$2,1,'Hanoi','Old Quarter on foot','Walk the lake','Museum','Street food')
+   ON CONFLICT (id) DO UPDATE SET "itineraryId"=$2, "dayNumber"=1, area='Hanoi', title='Old Quarter on foot'`,
+  [ITIN_DAY_ID, ITIN_ID],
+)
+// Delete-then-insert rather than upsert-by-id: the spec's `delete` action can remove a row outright,
+// and @@unique([dayId, position]) means a partial restore could collide with a survivor's position.
+await db.query(`DELETE FROM "ItineraryStop" WHERE "dayId" = $1`, [ITIN_DAY_ID])
+const STOPS = [
+  ['e2e-stop-1', 0, 'FIRST STOP', 'Hoan Kiem Lake', 21.0287, 105.8524],
+  ['e2e-stop-2', 1, 'SECOND STOP', 'Dong Xuan Market', 21.0382, 105.8497],
+  ['e2e-stop-3', 2, 'THIRD STOP', 'Thang Long Theatre', 21.0312, 105.8555],
+]
+for (const [id, position, name, place, lat, lng] of STOPS) {
+  await db.query(
+    `INSERT INTO "ItineraryStop" (id, "dayId", position, place, name, time, lat, lng, "travelMinutes", "estimatedCostVnd")
+     VALUES ($1,$2,$3,$4,$5,'09:00',$6,$7,10,150000)`,
+    [id, ITIN_DAY_ID, position, place, name, lat, lng],
+  )
+}
+
 mkdirSync('e2e/.auth', { recursive: true })
-writeFileSync('e2e/.auth/seed-fixtures.json', JSON.stringify({ conversationId: CONV_ID, listingId: LISTING_ID, offerAmount: 4_500_000 }, null, 2))
+writeFileSync('e2e/.auth/seed-fixtures.json', JSON.stringify({ conversationId: CONV_ID, listingId: LISTING_ID, offerAmount: 4_500_000, itineraryId: ITIN_ID, itineraryDayId: ITIN_DAY_ID }, null, 2))
 
 await db.end()
-console.log('Seeded e2e users:\n' + Object.entries(ids).map(([e, id]) => `  ${e} = ${id}`).join('\n') + `\n  + offer fixture: conversation ${CONV_ID} (pending 4,500,000 from buyer)`)
+console.log('Seeded e2e users:\n' + Object.entries(ids).map(([e, id]) => `  ${e} = ${id}`).join('\n') + `\n  + offer fixture: conversation ${CONV_ID} (pending 4,500,000 from buyer)\n  + trip fixture: itinerary ${ITIN_ID} ("E2E Editable Plan", 1 day, 3 ordered stops)`)
