@@ -458,25 +458,12 @@ function findInCity(key: string, cityId: CityId): ItineraryPlace | undefined {
 // exist in production, findPlace resolved 0 of them whole — while "Independence Palace" and
 // "Saigon Zoo" both resolve perfectly on their own.
 
-/**
- * ⚠️ TWO KINDS OF COMPOUND, AND THEY ARE NOT THE SAME PROBLEM.
- *
- *   · `&`, `+`, `,` join places the traveller is visiting BOTH of. Plotting the first one that
- *     resolves is right: it is somewhere they are actually going, and the day's other stop is
- *     usually metres away ("Saigon Zoo & Botanical Gardens" is one site).
- *   · `or` offers ALTERNATIVES — a choice the traveller has not made yet. Picking one plots a
- *     place they may never visit, and the map states it as fact. There is no "probably fine" here,
- *     so this REFUSES rather than guesses, and the stop stays unmapped until a human decides.
- *
- * Both external reviewers insisted on that distinction before this was written.
- */
-const ALTERNATIVES_RE = /\s+(?:or|hoặc)\s+/i
-/** Joiners meaning BOTH. Kept to the three the production data actually contains — adding " and "
- *  would split legitimate single names ("Fish and Chips") for no measured gain. */
-const BOTH_SEPARATORS_RE = /\s*[&+,]\s*/
-
-/** Does this name offer a choice rather than name a place? */
-export const isAlternativesName = (name: string): boolean => ALTERNATIVES_RE.test(name ?? '')
+// The compound-name GRAMMAR now lives in ./itinerary-place-names — a module with no side effects,
+// so a client component can import one rule without pulling this catalogue into the browser (it was
+// costing a 72,399-byte client chunk; see that file). Re-exported here so every existing importer,
+// and the reader looking for the rule beside the resolver, is unaffected.
+export { isAlternativesName, BOTH_SEPARATORS_RE } from './itinerary-place-names'
+import { isAlternativesName, BOTH_SEPARATORS_RE } from './itinerary-place-names'
 
 /**
  * Resolve a place name the generator actually produced, splitting compounds where that is safe.

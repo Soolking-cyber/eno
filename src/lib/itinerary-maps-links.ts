@@ -1,19 +1,4 @@
-import { isAlternativesName } from './itinerary-places'
-
-// ⚠️ MEASURED BUNDLE COST — FLAGGED FOR ALEX, NOT WORKED AROUND (69 KB).
-//
-// This module is imported by trip-day-list.tsx, a CLIENT component, and it imports
-// isAlternativesName from itinerary-places.ts — which builds Maps over all 322 catalogued places in
-// module-scope IIFEs. Those are side effects, so the module is not tree-shakeable, and after this
-// change a client chunk carries the whole catalogue: verified by building and grepping the output
-// (69 KB chunk containing "Bến Thành"). Before this change nothing client-side imported it — every
-// other importer is server-only — so the cost is new, and it buys the use of ONE regex.
-//
-// The task says import it rather than restate it, and that is right: a second copy of the `or` rule
-// is exactly the drift that produced the bug it guards against. The fix that satisfies both is to
-// move isAlternativesName (and its regex) into a side-effect-free module and re-export it from
-// itinerary-places — a few lines, in a file that is NOT in this task's owned paths. Raised rather
-// than reached for; nothing here is blocked by it.
+import { isAlternativesName } from './itinerary-place-names'
 
 /**
  * "Directions" without a Maps API: Google Maps URLs, which need no key, no quota and no billing.
@@ -75,9 +60,26 @@ const hasCoords = (stop: MapsStop): boolean =>
  *  noise and make the URL harder to read in a share sheet. */
 const asPoint = (stop: MapsStop): string => `${Number(stop.lat).toFixed(5)},${Number(stop.lng).toFixed(5)}`
 
-/** A name, qualified so Google's resolver has something to narrow on. */
+/**
+ * A name, qualified so Google's resolver has something to narrow on.
+ *
+ * ⚠️ `|` IS STRIPPED, because it is Google's own waypoints separator. Found by agy: `dayRouteLink`
+ * joins waypoints with `|`, so a place name containing one injects an extra waypoint BOUNDARY and
+ * silently restructures the route. URLSearchParams does not save us — it percent-encodes the
+ * joining `|` and an embedded `|` identically, so Google cannot tell them apart either.
+ *
+ * Stripped rather than escaped: there is no escape for this separator in Google's URL schema, and
+ * `|` is not part of any real place name. Done HERE, at the one place a name becomes a URL segment,
+ * so no caller can forget it. Stop names come from the generator, which bounds only length
+ * (`place: z.string().min(1).max(180)`), so nothing upstream rules the character out.
+ */
 const asQuery = (stop: MapsStop, cityName: string): string =>
-  [stop.place, cityName, 'Vietnam'].filter(Boolean).join(', ')
+  [stop.place, cityName, 'Vietnam']
+    .filter(Boolean)
+    .join(', ')
+    .replace(/\|/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
 
 /**
  * The link for ONE stop.

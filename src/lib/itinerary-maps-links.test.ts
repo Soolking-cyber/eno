@@ -158,3 +158,31 @@ function many2(): MapsStop[] {
     { place: 'B', lat: 10.71, lng: 106.71 },
   ]
 }
+
+// ⚠️ Found by agy at the ship gate: `|` is Google's waypoints separator, so a place name containing
+// one injects an extra waypoint boundary and silently restructures the route. URLSearchParams
+// percent-encodes the joining `|` and an embedded one identically, so Google cannot distinguish
+// them either — the only fix is to strip it before it becomes a URL segment.
+describe('a place name cannot inject a waypoint boundary', () => {
+  it('strips | from a stop name in a per-stop link', () => {
+    const link = stopMapsLink({ place: 'Cafe | Bar' }, 'Hồ Chí Minh')
+    expect(link?.url).not.toContain('%7C')
+    expect(link?.url).not.toContain('|')
+  })
+
+  it('strips | from every waypoint, so the route keeps its intended shape', () => {
+    const stops = [
+      { place: 'Start' }, { place: 'Mid|Injected' }, { place: 'End' },
+    ]
+    const route = dayRouteLink(stops, 'Hồ Chí Minh')
+    expect(route).not.toBeNull()
+    const waypoints = new URL(route!.url).searchParams.get('waypoints')
+    // Exactly ONE waypoint, not two — the `|` inside the name must not have split it.
+    expect(waypoints?.split('|')).toHaveLength(1)
+  })
+
+  it('leaves an ordinary name intact apart from the separator', () => {
+    const link = stopMapsLink({ place: 'Bến Thành Market' }, 'Hồ Chí Minh')
+    expect(decodeURIComponent(link!.url)).toContain('Bến Thành Market, Hồ Chí Minh, Vietnam')
+  })
+})
