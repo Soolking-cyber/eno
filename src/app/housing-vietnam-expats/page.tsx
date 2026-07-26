@@ -20,7 +20,14 @@ const CONTENT: SeoContent = {
   h1: 'Housing & Apartment Rentals for Expats in Vietnam',
   intro:
     'Find apartments, houses and serviced rentals for expats and internationals across Ho Chi Minh City and beyond. From studios to family villas — furnished, monthly or yearly — every eno.vn seller has a public trust score and bad listings get reported, so you steer clear of fake photos, bait prices and wasted viewings.',
-  categorySlug: 'house-rentals',
+  // ⚠️ `rentals`, not `house-rentals` — that slug does not exist and never did on this taxonomy.
+  // Both CTAs on this page fed `/c/house-rentals`, which renders the not-found boundary, and the
+  // listing strip queried a category slug matching nothing so it was permanently empty. A rename
+  // orphaned it silently because nothing type-checks a slug string. `seo-landing.test.ts` now
+  // asserts every landing's categorySlug resolves, which is the class of bug rather than this one.
+  // Rentals (not `property`) is right per the taxonomy split: rentals owns ALL rent intent,
+  // property is buy-sell only, and an expat looking for somewhere to live is renting.
+  categorySlug: 'rentals',
   cta: 'Browse housing',
   sections: [
     {

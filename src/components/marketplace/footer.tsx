@@ -67,7 +67,13 @@ export function Footer() {
         // e-Visa lives on eno.vn now (ownership row, 2026-07-21): the desk's storefront is
         // where a visitor applies (in-chat flow) — the forum wizard is legacy awaiting
         // retirement. Plain SAME-ORIGIN link: no forumPath, no goToForum interception.
-        { label: tr('Vietnam e-Visa help', 'Hỗ trợ e-Visa Việt Nam'), href: '/eno_vietnam' },
+        // ⚠️ THE HANDLE IS `eno_visa`, AND `/eno_vietnam` 404s. It had done so sitewide — this is
+        // the footer, so every page carried a dead link to the one product that takes money, and
+        // both homepage links pointed at it too. Found 2026-07-27 auditing why the site does not
+        // rank; the storefront holds 14 of the 34 live listings and nothing reachable pointed at it.
+        // `/eno_vietnam` is 301'd in next.config.ts rather than simply dropped, because Bing has it
+        // indexed under the title "Eno Visa" — deleting it would strip a real inbound path.
+        { label: tr('Vietnam e-Visa help', 'Hỗ trợ e-Visa Việt Nam'), href: '/eno_visa' },
       ],
     },
   ]

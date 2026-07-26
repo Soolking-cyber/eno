@@ -20,7 +20,11 @@ const CONTENT: SeoContent = {
   h1: 'Motorbikes for Sale & Rent in Vietnam',
   intro:
     'Get on the road fast. Buy or rent motorbikes in Vietnam — automatic scooters and manual bikes from Honda, Yamaha and more, with monthly rentals and used bikes for sale across Ho Chi Minh City. Every eno.vn seller has a public trust score and bad listings get reported, so the price and condition are real.',
-  categorySlug: 'motorbike-rentals',
+  // ⚠️ `vehicles`, not `motorbike-rentals` — that slug does not exist, so both CTAs landed on the
+  // not-found boundary and the listing strip was permanently empty. It was also the wrong INTENT
+  // even had it resolved: this page is "motorbikes FOR SALE", and the taxonomy puts all rent
+  // intent under `rentals` while vehicles is buy-sell only. See seo-landing.test.ts.
+  categorySlug: 'vehicles',
   cta: 'Browse motorbikes',
   sections: [
     {

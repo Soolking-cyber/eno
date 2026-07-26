@@ -1,3 +1,4 @@
+import { cache } from 'react'
 import { db } from '@/lib/db'
 import { serializeListingCard, LISTING_CARD_SELECT } from '@/lib/serialize'
 import { localizeListingTitles } from '@/lib/translate'
@@ -24,11 +25,33 @@ export async function generateStaticParams() {
   return []
 }
 
+/**
+ * The category and how many live listings it actually has.
+ *
+ * `cache()` dedupes this between generateMetadata and the page render within one request — the
+ * same idiom the sibling district page uses and for the same reason. Without it, adding the count
+ * to the metadata would mean a second COUNT per render purely to decide a robots tag.
+ */
+const loadCategory = cache(async (slug: string) => {
+  const cat = await db.category.findUnique({ where: { slug } })
+  if (!cat) return null
+  const live = await db.listing.count({ where: { categoryId: cat.id, verified: true, status: 'active' } })
+  return { cat, live }
+})
+
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { category } = await params
-  const cat = await db.category.findUnique({ where: { slug: category } })
-  // Real 404 (not soft-404) for an unknown category — notFound() before streaming.
-  if (!cat) notFound()
+  const loaded = await loadCategory(category)
+  // ⚠️ NOT A "REAL 404", and the old comment here said it was. Next 15.2+ streams metadata, so by
+  // the time notFound() runs the response has already committed 200 — the page renders the
+  // not-found boundary (which does inject its own noindex) but the STATUS is 200. Left as-is
+  // deliberately: it was measured, the boundary's noindex is what actually keeps these out of the
+  // index, and every alternative fix regressed something real (deleting loading.tsx trades a
+  // verified CLS of 0 for a status byte; force-dynamic reimposes a Singapore DB hit on every view).
+  // The comment is corrected rather than the code, so the next reader is not misled into "fixing"
+  // an invariant that has not held since the Next upgrade.
+  if (!loaded) notFound()
+  const { cat, live } = loaded
   const hostUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://eno.vn'
   const title = `${cat.name} in Vietnam — Trusted listings | eno.vn`
   const description = `Browse ${cat.name.toLowerCase()} for expats in Vietnam. Every seller has a public trust score and bad listings get reported — fewer fakes, fewer bait prices.`
@@ -36,6 +59,14 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     title,
     description,
     alternates: { canonical: `${hostUrl}/c/${cat.slug}` },
+    // ⚠️ AN EMPTY CATEGORY DE-INDEXES ITSELF. Eight of the fifteen categories currently hold zero
+    // live listings, and such a page is ~40 unique words wrapped around "No listings here yet" —
+    // thin content, repeated eight times, on a domain with nothing else to show. `follow: true` is
+    // deliberate: the page still carries real internal links to sibling categories, and we want
+    // those crawled. It lifts ITSELF the moment somebody posts, with no list to maintain, which is
+    // why this is computed rather than hard-coded — a hard-coded list would go stale silently and
+    // keep suppressing a category that had filled up.
+    ...(live === 0 ? { robots: { index: false, follow: true } } : {}),
     // Mirror the page's own title/description/canonical into OG — without this the
     // page inherits the generic homepage OG tags in link unfurls.
     openGraph: { title, description, url: `${hostUrl}/c/${cat.slug}` },
@@ -44,17 +75,20 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function CategoryPage({ params }: Props) {
   const { category } = await params
-  const cat = await db.category.findUnique({ where: { slug: category } })
-  if (!cat) notFound()
+  // Same cached loader generateMetadata used, so within this request the category lookup and the
+  // live count are each done once — `total` below IS the number the robots decision was made on,
+  // which is what stops the page claiming a count its own indexing directive disagrees with.
+  const loaded = await loadCategory(category)
+  if (!loaded) notFound()
+  const { cat, live: total } = loaded
 
   // Cap the landing to a page of listings (was unbounded — fetched the entire
-  // category each ISR render). Independent queries run in parallel; the total
-  // count + distinct districts come from light separate queries so the displayed
-  // count and the "by area" chips still reflect the whole category.
+  // category each ISR render). Independent queries run in parallel; the
+  // distinct districts come from a light separate query so the "by area" chips
+  // still reflect the whole category.
   const PAGE_SIZE = 48
   const where = { categoryId: cat.id, verified: true, status: 'active' as const }
-  const [total, raw, otherCats, districtRows] = await Promise.all([
-    db.listing.count({ where }),
+  const [raw, otherCats, districtRows] = await Promise.all([
     db.listing.findMany({
       where,
       // Card projection: this page only renders <ListingCard> slots — the full row

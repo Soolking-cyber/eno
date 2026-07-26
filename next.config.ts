@@ -108,6 +108,11 @@ const nextConfig: NextConfig = {
       // nothing a member did there became unreachable. 308 so bookmarks and any indexed
       // URL move instead of 404ing.
       { source: '/dashboard/forum', destination: '/dashboard/help', permanent: true },
+      // `/eno_vietnam` never existed as a storefront handle — the visa desk is `/eno_visa` — but
+      // the footer linked to it on every page and Bing indexed it under the title "Eno Visa". A
+      // 301 rather than nothing, so that indexed URL and any bookmark land on the real storefront
+      // instead of a 404. Keep it: removing it later re-breaks an external link we know exists.
+      { source: '/eno_vietnam', destination: '/eno_visa', permanent: true },
     ];
   },
   async rewrites() {
@@ -183,6 +188,27 @@ const nextConfig: NextConfig = {
           // same day).
         ],
       },
+      // ⚠️ THESE FOUR ROUTES WERE INDEXABLE, AND robots.txt SAYS THEY ARE NOT.
+      //
+      // robots.txt deliberately does NOT Disallow /messages or /saved, and states the reason in
+      // its own comment: they "carry meta noindex", and a Disallow would stop crawlers from ever
+      // SEEING that noindex. Measured on production 2026-07-27, that premise was false —
+      // /messages, /messages/ai, /messages/pending and /saved each returned 200 with ZERO
+      // `name="robots"` meta, wearing the homepage's title and description and no canonical.
+      // They are CLIENT components, so they cannot export Next `metadata` at all; the intended
+      // noindex had nowhere to come from.
+      //
+      // A header rather than page metadata for two reasons: it works regardless of whether the
+      // route can export metadata, and it does not require editing messages/layout.tsx, which
+      // carries load-bearing virtual-keyboard invariants that are not worth disturbing for an
+      // SEO fix. `follow` is deliberately NOT granted — there is nothing on a private inbox
+      // worth crawling onward to.
+      {
+        source: "/messages/:path*",
+        headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow" }],
+      },
+      { source: "/messages", headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow" }] },
+      { source: "/saved", headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow" }] },
     ];
   },
 };

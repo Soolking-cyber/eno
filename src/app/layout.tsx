@@ -72,13 +72,32 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // ⚠️ THE SERVER RENDERED lang="en" FOR EVERY VISITOR, INCLUDING VIETNAMESE ONES.
+  //
+  // The language context already mirrors the active language into a `lang` cookie precisely so the
+  // server can read it, and the pre-paint script below already corrects `document.documentElement
+  // .lang` from localStorage — so the value was right for anyone running JS and wrong for everyone
+  // and everything else. That is an ACCESSIBILITY defect first: a screen reader picks its voice and
+  // pronunciation rules from this attribute at parse time, so Vietnamese copy was being read aloud
+  // with English phonetics.
+  //
+  // ⚠️ IT IS NOT AN SEO FIX, and should not be sold as one — Google determines page language from
+  // the visible text and ignores this attribute. The SEO answer to serving two languages is
+  // separate URLs per language with hreflang, which is deliberately NOT being done here: with 31
+  // of 32 listing titles written in English, a Vietnamese URL tree today would be Vietnamese
+  // chrome wrapped around English bodies, i.e. near-duplicate thin pages.
+  //
+  // Safe against hydration because <html> already carries suppressHydrationWarning (the theme
+  // script mutates this element pre-paint for the same reason).
+  const { cookies } = await import('next/headers')
+  const lang = (await cookies()).get('lang')?.value === 'vi' ? 'vi' : 'en'
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang={lang} suppressHydrationWarning>
       <head>
         {/* Set the theme class BEFORE paint to avoid a flash of the wrong scheme —
             reads the persisted System/Light/Dark choice + the OS preference. Kept
