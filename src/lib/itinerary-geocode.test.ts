@@ -216,3 +216,31 @@ describe('the daily spend ceiling', () => {
     expect(h.state.budgetCalls).toBe(1)
   })
 })
+
+// ⚠️ Caught on REAL data, not in review: the backfill resolved "The Deck Saigon or Binh An Village"
+// through Google, which returned The Deck Saigon and silently dropped the alternative. The
+// catalogue path had always refused such names; this path handed the raw string to a gazetteer,
+// and a gazetteer does not refuse. The map would have asserted one venue while the itinerary text
+// still offered two.
+describe('a name offering a CHOICE is refused here too, not handed to a gazetteer', () => {
+  it('never geocodes an "or" name, even when the provider would answer', async () => {
+    h.state.google = { lat: 10.80721, lng: 106.74439 } // the real answer Google gave
+    expect(await geocodePlace('The Deck Saigon or Binh An Village', 'hochiminh')).toBeNull()
+    // Refused BEFORE any spend: no provider call, no budget unit.
+    expect(h.state.googleCalls).toBe(0)
+    expect(h.state.budgetCalls).toBe(0)
+  })
+
+  it('the Vietnamese "hoặc" is refused on the same rule', async () => {
+    h.state.google = { lat: 10.8, lng: 106.7 }
+    expect(await geocodePlace('Chợ Bến Thành hoặc Chợ Tân Định', 'hochiminh')).toBeNull()
+  })
+
+  it('an ordinary name is still geocoded — the guard is narrow', async () => {
+    // No GOOGLE_MAPS_API_KEY in the test env, so this exercises the free provider — which is the
+    // point: the guard must not block an ordinary name on EITHER path.
+    h.state.nominatim = { lat: 10.77626, lng: 106.69254 }
+    expect(await geocodePlace('Golden Dragon Water Puppet Theatre', 'hochiminh')).toMatchObject({ source: 'nominatim' })
+    expect(h.state.budgetCalls).toBe(1)
+  })
+})

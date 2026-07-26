@@ -3,6 +3,7 @@ import { db } from './db'
 import { fold } from './fold'
 import { CITY_MAP, type CityId } from './itinerary-data'
 import { isInVietnam, isNearCity } from './itinerary-geo'
+import { isAlternativesName } from './itinerary-places'
 import { rateLimit } from './ratelimit'
 
 /**
@@ -74,6 +75,22 @@ export async function geocodePlace(name: string, cityId: CityId): Promise<Geocod
   if (!key) return null
   const city = CITY_MAP.get(cityId)
   if (!city) return null
+
+  // ⚠️ THE ALTERNATIVES RULE APPLIES HERE TOO, and it did not until this was caught on real data.
+  //
+  // resolvePlaceName refuses a name that offers a CHOICE ("The Deck Saigon or Binh An Village")
+  // rather than guessing which one the traveller meant. This path bypassed that rule completely,
+  // because it hands the raw string to a gazetteer — and a gazetteer does not refuse. Google
+  // cheerfully returned The Deck Saigon's coordinates for that whole string, silently discarding
+  // the second option and plotting a pin for a place the traveller has not chosen.
+  //
+  // That is worse than the catalogue miss it replaced. This module's own contract says an
+  // approximate pin beats nothing only when the traveller can tell what they are looking at, and
+  // here they cannot: the itinerary text still offers two venues while the map asserts one.
+  //
+  // The predicate is IMPORTED from the splitter, not restated, so the two paths cannot drift into
+  // different ideas of what counts as a choice.
+  if (isAlternativesName(name)) return null
 
   const cached = await readCache(key, cityId)
   if (cached) return cached

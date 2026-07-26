@@ -17,15 +17,19 @@
 
 import pg from 'pg'
 import { CITY_MAP, type CityId } from '../src/lib/itinerary-data'
+import { isAlternativesName, resolvePlaceName } from '../src/lib/itinerary-places'
 import { isInVietnam, isNearCity } from '../src/lib/itinerary-geo'
-import { resolvePlaceName } from '../src/lib/itinerary-places'
+import { fold } from '../src/lib/fold'
 
 const APPLY = process.argv.includes('--apply')
 const url = process.env.DIRECT_URL || process.env.DATABASE_URL
 if (!url) { console.error('Set DIRECT_URL / DATABASE_URL'); process.exit(1) }
 
+// Read only to LABEL the run. The provider choice, the throttle and the ceiling all belong to
+// src/lib/itinerary-geocode.ts now; this must never grow back into a second implementation.
 const GOOGLE_KEY = process.env.GOOGLE_MAPS_API_KEY
-const NOMINATIM_SPACING_MS = 1100
+/** Mirrors src/lib/itinerary-geocode.ts. Same bucket, same window, so the two share one budget. */
+const GEOCODE_DAILY_LIMIT = Number(process.env.GEOCODE_DAILY_LIMIT) > 0 ? Number(process.env.GEOCODE_DAILY_LIMIT) : 500
 
 type StopRow = { id: string; place: string; lat: number | null; area: string; destinationId: string }
 
@@ -38,12 +42,62 @@ const SQL = `
   join "Itinerary" i on i.id = d."itineraryId"
   order by i."createdAt", d."dayNumber", s.position`
 
-async function geocode(name: string, cityId: CityId): Promise<{ lat: number; lng: number; source: string } | null> {
+/**
+ * ⚠️ WHY THIS STILL HAS ITS OWN fetch, AND WHAT IT MUST NOT DUPLICATE.
+ *
+ * The obvious fix — import geocodePlace from src/lib/itinerary-geocode.ts — is impossible: that
+ * module is `server-only`, as is ratelimit.ts and db.ts beneath it, and `server-only` cannot be
+ * resolved outside Next's bundler (no top-level install; outside the `react-server` condition its
+ * entry point throws by design). Splitting the guard off was tried and abandoned — the chain goes
+ * all the way down, and stripping guards from three modules to suit a maintenance script is the
+ * tail wagging the dog.
+ *
+ * So the HTTP call is local. Everything that could DISAGREE with the app is not:
+ *   · the `or`-name refusal and compound splitting — imported (isAlternativesName, resolvePlaceName)
+ *   · the coordinate gates — imported (isInVietnam, isNearCity)
+ *   · the daily spend ceiling — the SAME rl_check SQL function the app's rateLimit calls
+ *   · the remembered answers — the SAME PlaceGeocode table, read before and written after
+ *
+ * Measured why this matters: before the refusal was shared, this script resolved
+ * "The Deck Saigon or Binh An Village" to The Deck Saigon and would have plotted a pin for a venue
+ * the traveller never chose.
+ */
+
+
+/** fold(), imported, so a cache key written here matches one the app writes. */
+const placeKey = (name: string) => fold(name ?? '')
+
+/**
+ * Cache-first, budget-gated lookup. The pieces that must agree with the app are all shared:
+ * rl_check for the ceiling, PlaceGeocode for memory, isInVietnam/isNearCity for validity.
+ */
+async function geocodeVia(
+  client: pg.Client, name: string, cityId: CityId,
+): Promise<{ lat: number; lng: number; source: string } | null> {
   const city = CITY_MAP.get(cityId)
   if (!city) return null
+  const key = placeKey(name)
+
+  // Remembered? Then it is free and no budget is spent — same order the app uses.
+  const cached = await client.query<{ lat: number; lng: number }>(
+    `select lat, lng from "PlaceGeocode" where "placeKey" = $1 and "cityId" = $2 limit 1`, [key, cityId])
+  if (cached.rows[0]) return { ...cached.rows[0], source: 'cache' }
+
+  // THE SAME CEILING THE APP OBEYS — rl_check, the identical SQL function src/lib/ratelimit.ts
+  // calls, under the identical bucket name. A backfill must not be a way to outspend the budget.
+  // Fails CLOSED: a limiter error stops the run rather than un-capping it.
+  try {
+    const rl = await client.query<{ success: boolean }>(
+      `select success from rl_check($1, $2, $3::int, $4::int)`,
+      ['geocode-global', 'global', GEOCODE_DAILY_LIMIT, 86400])
+    if (!rl.rows[0]?.success) { console.log('      → daily geocode ceiling reached — stopping'); return null }
+  } catch (e) {
+    console.log(`      → limiter unavailable, refusing to spend un-capped (${(e as Error).message.slice(0, 60)})`)
+    return null
+  }
+
   const q = encodeURIComponent(`${name}, ${city.name}, Vietnam`)
   let hit: { lat: number; lng: number; source: string } | null = null
-
   if (GOOGLE_KEY) {
     try {
       const res = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${q}&region=vn&key=${GOOGLE_KEY}`, { signal: AbortSignal.timeout(6000) })
@@ -53,6 +107,8 @@ async function geocode(name: string, cityId: CityId): Promise<{ lat: number; lng
     } catch { /* fall through to the free provider */ }
   }
   if (!hit) {
+    // Nominatim's 1-req/sec policy. Unconditional here: this loop is the only caller.
+    await new Promise((r) => setTimeout(r, 1100))
     try {
       const res = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=vn&q=${q}`, {
         headers: { 'User-Agent': 'eno.vn Marketplace/1.0 (https://eno.vn)' },
@@ -66,12 +122,18 @@ async function geocode(name: string, cityId: CityId): Promise<{ lat: number; lng
   }
   if (!hit) return null
 
-  // ⚠️ THE SAME GATES THE APP APPLIES, and applied here too rather than trusted from there. A
-  // backfill that skipped them would be the one path that can write an unvalidated coordinate.
+  // The app's gates, imported. A backfill must never be the one path that writes an unvalidated pin.
   if (!isInVietnam(hit.lat, hit.lng)) { console.log(`      rejected: outside Vietnam (${hit.lat}, ${hit.lng})`); return null }
   if (!isNearCity({ lat: hit.lat, lng: hit.lng }, { lat: city.lat, lng: city.lng }, cityId)) {
     console.log(`      rejected: not near ${city.name} (${hit.lat}, ${hit.lng})`)
     return null
+  }
+
+  // Remember it, so the app never pays for this answer again.
+  if (APPLY) {
+    await client.query(
+      `insert into "PlaceGeocode" ("placeKey","cityId",lat,lng,source) values ($1,$2,$3,$4,$5)
+       on conflict ("placeKey","cityId") do nothing`, [key, cityId, hit.lat, hit.lng, hit.source])
   }
   return hit
 }
@@ -100,6 +162,13 @@ async function main() {
 
     // FREE FIRST: the curated catalogue, including compound splitting. Only what it cannot answer
     // costs a network call.
+    // A name offering a CHOICE is refused outright — the app's rule, imported, not restated.
+    if (isAlternativesName(row.place)) {
+      console.log(`      → UNMAPPED (offers a choice — refused, not guessed)`)
+      refused += 1
+      continue
+    }
+
     const catalogued = resolvePlaceName(row.place, cityId)
     let hit: { lat: number; lng: number; source: string } | null =
       catalogued ? { lat: catalogued.lat, lng: catalogued.lng, source: 'catalogue' } : null
@@ -107,10 +176,9 @@ async function main() {
     if (hit) {
       viaCatalogue += 1
     } else {
-      hit = await geocode(row.place, cityId)
+      hit = await geocodeVia(client, row.place, cityId)
       if (hit) viaGeocoder += 1
       else refused += 1
-      if (!GOOGLE_KEY) await new Promise((r) => setTimeout(r, NOMINATIM_SPACING_MS))
     }
 
     if (!hit) { console.log(`      → UNMAPPED (left alone)`); continue }
