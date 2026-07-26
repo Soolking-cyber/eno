@@ -16,9 +16,18 @@ const h = vi.hoisted(() => ({
     googleCalls: 0,
     nominatimCalls: 0,
     googleThrows: false,
+    // The daily spend ceiling. Default allow; tests flip it to prove the cap bites.
+    budgetAllows: true,
+    budgetCalls: 0,
   },
 }))
 
+vi.mock('./ratelimit', () => ({
+  rateLimit: async () => {
+    h.state.budgetCalls += 1
+    return { success: h.state.budgetAllows, remaining: h.state.budgetAllows ? 1 : 0 }
+  },
+}))
 vi.mock('./db', () => ({
   db: {
     $queryRaw: async (_s: TemplateStringsArray, key: string, cityId: string) => {
@@ -54,6 +63,8 @@ beforeEach(() => {
   h.state.googleCalls = 0
   h.state.nominatimCalls = 0
   h.state.googleThrows = false
+  h.state.budgetAllows = true
+  h.state.budgetCalls = 0
 
   vi.stubGlobal('fetch', async (url: string) => {
     const isGoogle = String(url).includes('maps.googleapis.com')
@@ -175,5 +186,33 @@ describe('the fold is the catalogue’s', () => {
     expect(foldPlaceKey('Bến Thành Market')).toBe('ben thanh market')
     expect(foldPlaceKey('  Đầm   Sen  ')).toBe('dam sen')
     expect(foldPlaceKey('')).toBe('')
+  })
+})
+
+// ⚠️ THE COST CEILING. No GCP quota can cover this — the working Maps key belongs to a different
+// project, so its spend bills that project and is invisible to this one's budgets. The only limit
+// that holds whichever key is configured is the one in this module, so it gets tests.
+describe('the daily spend ceiling', () => {
+  it('does not geocode once the ceiling is reached — the stop stays unmapped', async () => {
+    h.state.budgetAllows = false
+    h.state.google = { lat: 10.7769, lng: 106.7009 }
+    expect(await geocodePlace('Cuc Gach Quan', 'hochiminh')).toBeNull()
+    // The whole point: no provider was called, so nothing was billed.
+    expect(h.state.googleCalls).toBe(0)
+    expect(h.state.nominatimCalls).toBe(0)
+  })
+
+  it('spends NOTHING on a remembered answer — the budget is only for new places', async () => {
+    h.state.cache.set('cuc gach quan|hochiminh', { lat: 10.79284, lng: 106.68901 })
+    h.state.budgetAllows = false // would refuse, but must never be consulted
+    const hit = await geocodePlace('Cuc Gach Quan', 'hochiminh')
+    expect(hit).toMatchObject({ source: 'cache' })
+    expect(h.state.budgetCalls).toBe(0)
+  })
+
+  it('counts one budget unit per genuinely new place', async () => {
+    h.state.google = { lat: 10.7769, lng: 106.7009 }
+    await geocodePlace('Somewhere New', 'hochiminh')
+    expect(h.state.budgetCalls).toBe(1)
   })
 })

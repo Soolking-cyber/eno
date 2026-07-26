@@ -3,6 +3,7 @@ import { db } from './db'
 import { fold } from './fold'
 import { CITY_MAP, type CityId } from './itinerary-data'
 import { isInVietnam, isNearCity } from './itinerary-geo'
+import { rateLimit } from './ratelimit'
 
 /**
  * GEOCODE ONCE, REMEMBER FOREVER.
@@ -37,6 +38,19 @@ const GOOGLE_KEY = process.env.GOOGLE_MAPS_API_KEY
 /** Bound every upstream. A hung provider must never hold a generation open. */
 const PROVIDER_TIMEOUT_MS = 4000
 
+/**
+ * Outbound lookups per DAY, across all users — the hard cost ceiling (see geocodePlace).
+ *
+ * 500/day ≈ $2.50/day at Google's ~$5/1000, so ~$75/month if it were saturated every single day.
+ * It will not be: every answer is remembered, so the steady state trends towards zero as the
+ * catalogue self-grows, and 500 novel places a day is far above launch traffic. Env-overridable so
+ * a real spike can be widened without a deploy — but it is a LIMIT, so the fallback is the
+ * constant, never "unset means unlimited".
+ */
+const GEOCODE_DAILY_LIMIT = Number(process.env.GEOCODE_DAILY_LIMIT) > 0
+  ? Number(process.env.GEOCODE_DAILY_LIMIT)
+  : 500
+
 export type GeocodeHit = { lat: number; lng: number; source: 'cache' | 'google' | 'nominatim' }
 
 /**
@@ -63,6 +77,30 @@ export async function geocodePlace(name: string, cityId: CityId): Promise<Geocod
 
   const cached = await readCache(key, cityId)
   if (cached) return cached
+
+  // ⚠️ THE SPEND CEILING, and it has to live HERE because no GCP-side control can cover it.
+  //
+  // Google Geocoding bills ~$5/1000. The volume ceiling above this is
+  // MAX_GEOCODES_PER_PASS (8) × the global AI day cap (AI_GLOBAL_DAILY_LIMIT = 2000) = 16,000
+  // lookups/day ≈ $80/day ≈ $2,400/month in the worst case. The cache makes that wildly
+  // pessimistic in practice — places repeat — but "unlikely" is not a limit.
+  //
+  // A project quota override cannot help: the working key belongs to a DIFFERENT GCP project, so
+  // its usage bills that project's account and is invisible to this one's budgets and quotas.
+  // The only control that holds whichever key is configured is this one, in our own code.
+  //
+  // Counted AFTER the cache read, so a remembered answer is free and the budget is only ever
+  // spent on a genuinely new place. Covers both providers: Nominatim is free but rate-policed,
+  // and one ceiling for "outbound lookups" is easier to reason about than two.
+  //
+  // strict: true — fails CLOSED. src/lib/ratelimit.ts names geocode as exactly this case: if the
+  // limiter errors, an outage must not silently un-cap a billing drain. A skipped lookup leaves
+  // the stop unmapped, which is a known state the whole module is already built around.
+  const budget = await rateLimit('geocode-global', 'global', GEOCODE_DAILY_LIMIT, '1 d', { strict: true })
+  if (!budget.success) {
+    console.warn('[itinerary-geocode] daily lookup ceiling reached — leaving stop unmapped')
+    return null
+  }
 
   const fetched = (await geocodeGoogle(name, cityId).catch(() => null))
     ?? (await geocodeNominatim(name, cityId).catch(() => null))
