@@ -465,3 +465,57 @@ export function TripWizardCard({ conversationId, meta }: { conversationId: strin
     </div>
   )
 }
+
+/**
+ * The wizard's ENTRY POINT — the chip a traveller taps to start planning in the thread.
+ *
+ * Without this the whole feature is unreachable: the card only renders once a card row exists, and
+ * only `start` creates one. It renders nothing at all unless the server says this thread is a trip
+ * desk thread with no wizard already running, so it never appears in an ordinary seller
+ * conversation.
+ */
+export function TripWizardLauncher({ conversationId, onStarted }: { conversationId: string; onStarted: () => void }) {
+  const { tr } = useLanguage()
+  const [eligible, setEligible] = useState(false)
+  const [busy, setBusy] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      try {
+        const res = await fetch(`/api/trips/wizard?conversationId=${encodeURIComponent(conversationId)}`, { cache: 'no-store' })
+        if (!res.ok || cancelled) return
+        const data = (await res.json()) as { eligible: boolean; step: number | null }
+        // Offer the chip only when there is nothing to resume — a running wizard renders its own
+        // card, and two entry points to one flow is how a traveller ends up restarting it.
+        if (!cancelled) setEligible(data.eligible && data.step === null)
+      } catch {
+        // A thread that cannot answer simply shows no chip.
+      }
+    })()
+    return () => { cancelled = true }
+  }, [conversationId])
+
+  if (!eligible) return null
+
+  const start = async () => {
+    if (busy) return
+    setBusy(true)
+    try {
+      const res = await fetch('/api/trips/wizard', {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ action: 'start', conversationId }),
+      })
+      if (res.ok) { setEligible(false); onStarted() }
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Button variant="outline" size="sm" disabled={busy} onClick={() => void start()}>
+      {busy ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <Sparkles className="size-4" aria-hidden />}
+      {tr('Plan a trip', 'Lên kế hoạch chuyến đi')}
+    </Button>
+  )
+}

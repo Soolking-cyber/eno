@@ -1163,6 +1163,7 @@ export const UI_STRINGS: string[] = [
   "Pick the right category so buyers find you.",
   "Pick your cities, the number of days, a budget level and the things you actually care about — food, history, beaches, nightlife.",
   "Pickup",
+  "Plan a trip",
   "Plan my trip — free",
   "Plan your trip",
   "Planning assumptions",

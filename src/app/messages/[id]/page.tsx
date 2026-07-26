@@ -35,7 +35,7 @@ import {
   prepareVisaImage, useVisaCase, visaErrorCopy, visaTypeWords, EDITABLE_VISA_STATUSES,
   type VisaQuoteWire,
 } from '@/components/marketplace/visa-cards'
-import { TripQuoteCard, TripStatusCard, TripWizardCard } from '@/components/marketplace/trip-cards'
+import { TripQuoteCard, TripStatusCard, TripWizardCard, TripWizardLauncher } from '@/components/marketplace/trip-cards'
 import { Avatar } from '@/components/ui/avatar'
 import { Checkbox } from '@/components/ui/checkbox'
 import { LANGUAGES } from '@/lib/i18n/langs'
@@ -1358,6 +1358,15 @@ export default function ThreadPage() {
               owned HERE; VisaAssistChips and VisaResendChip both render in `compact` mode
               (display:contents), so their buttons become items of this flex row while their
               own notes wrap onto a line of their own. */}
+          {/* THE WIZARD'S ENTRY POINT. Rendered for every thread but self-hiding: it asks the
+              server whether this conversation belongs to the trip desk and has no wizard running,
+              and renders nothing otherwise — so it never appears in an ordinary seller thread.
+              Without it the whole in-chat planner is unreachable, because only `start` creates the
+              first card. `load` pulls the new card into the timeline immediately rather than
+              waiting for the 15s backstop poll. */}
+          <div className="flex flex-wrap items-center gap-2 px-4 pt-1.5 empty:hidden">
+            <TripWizardLauncher conversationId={id} onStarted={() => void load()} />
+          </div>
           {visaInfo && (
             <div className="flex flex-wrap items-center gap-2 px-4 pt-1.5">
               {iAmApplicant && (conciergeAvailable ? (

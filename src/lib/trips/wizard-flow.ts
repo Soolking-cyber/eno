@@ -201,6 +201,26 @@ export async function completeTripWizard(input: { conversationId: string; itiner
   return writeCardMeta(card.id, card.raw, { v: 1, step: card.meta.step, state: 'done', itineraryId: itinerary.id }, null)
 }
 
+/**
+ * Can this thread run a wizard, and is one already running?
+ *
+ * Exists because the messages page has no other way to know a thread belongs to the trip desk —
+ * the conversation payload carries no trip flag, and that route is not this task's to change. So
+ * the page asks here, and the answer is scoped to the caller: a stranger learns nothing, because
+ * this returns the same "not eligible" for a thread that is not theirs as for one that does not
+ * exist.
+ */
+export async function tripWizardEligibility(input: { conversationId: string }): Promise<{ eligible: boolean; step: TripWizardStep | null }> {
+  const context = await requireTraveller(input.conversationId)
+  if (typeof context === 'string') return { eligible: false, step: null }
+  const desk = await getTripDesk()
+  // Eligible means: the desk answers this thread, so a card authored by it would be accepted.
+  const eligible = Boolean(desk && context.convo.sellerProfileId === desk.ownerId)
+  if (!eligible) return { eligible: false, step: null }
+  const card = await activeWizardCard(input.conversationId)
+  return { eligible: true, step: card && card.meta.state === 'active' ? card.meta.step : null }
+}
+
 // ── internals ───────────────────────────────────────────────────────────────────────────
 
 /**

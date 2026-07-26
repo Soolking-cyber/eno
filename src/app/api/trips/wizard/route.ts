@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { getCurrentProfile } from '@/lib/admin'
 import { rateLimit } from '@/lib/ratelimit'
 import {
-  advanceTripWizard, completeTripWizard, startTripWizard,
+  advanceTripWizard, completeTripWizard, startTripWizard, tripWizardEligibility,
   type WizardError, type WizardResult,
 } from '@/lib/trips/wizard-flow'
 
@@ -99,4 +99,20 @@ export async function POST(req: Request) {
 
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: STATUS[result.error] ?? 500 })
   return NextResponse.json({ step: result.step, messageId: result.messageId })
+}
+
+/**
+ * Whether this thread can run a wizard. The messages page asks once per thread so it knows whether
+ * to offer the entry point at all — without it the whole feature is unreachable, because nothing
+ * else tells the client that a thread belongs to the trip desk.
+ *
+ * Deliberately NOT an existence oracle: a thread that is not the caller's answers exactly as one
+ * that does not exist, and a signed-out caller gets 401 before anything is looked up.
+ */
+export async function GET(req: Request) {
+  const profile = await getCurrentProfile()
+  if (!profile) return NextResponse.json({ error: 'not_signed_in' }, { status: 401 })
+  const conversationId = new URL(req.url).searchParams.get('conversationId')
+  if (!conversationId) return NextResponse.json({ error: 'invalid_body' }, { status: 400 })
+  return NextResponse.json(await tripWizardEligibility({ conversationId }))
 }

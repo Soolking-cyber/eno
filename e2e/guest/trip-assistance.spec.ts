@@ -97,3 +97,11 @@ test.describe('Guest · trip wizard', () => {
     expect(res.status()).not.toBe(200)
   })
 })
+
+test.describe('Guest · trip wizard eligibility', () => {
+  test('the eligibility read is closed to guests', async ({ request }) => {
+    // It answers "does this thread belong to the trip desk" — a guest must not be able to ask.
+    const res = await request.get('/api/trips/wizard?conversationId=ckguestthread000000000001')
+    expect([401, 403]).toContain(res.status())
+  })
+})

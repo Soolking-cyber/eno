@@ -51,7 +51,7 @@ vi.mock('../db', () => ({
   },
 }))
 
-import { advanceTripWizard, completeTripWizard, startTripWizard } from './wizard-flow'
+import { advanceTripWizard, completeTripWizard, startTripWizard, tripWizardEligibility } from './wizard-flow'
 
 const CONVO = 'convo-1'
 const cardAt = (step: number, state: 'active' | 'done' = 'active', extra: Record<string, unknown> = {}) =>
@@ -291,5 +291,40 @@ describe('the card update is a COMPARE-AND-SET', () => {
     expect(await completeTripWizard({ conversationId: CONVO, itineraryId: 'itin-1' }))
       .toEqual({ ok: false, error: 'no_active_wizard' })
     expect(h.state.updates).toHaveLength(0)
+  })
+})
+
+describe('eligibility — the entry point the feature would be unreachable without', () => {
+  it('is eligible with no wizard running, so the chip is offered', async () => {
+    expect(await tripWizardEligibility({ conversationId: CONVO })).toEqual({ eligible: true, step: null })
+  })
+
+  it('reports the running step, so the chip hides rather than offering a restart', async () => {
+    h.state.card = cardAt(3)
+    expect(await tripWizardEligibility({ conversationId: CONVO })).toEqual({ eligible: true, step: 3 })
+  })
+
+  it('treats a FINISHED wizard as startable again', async () => {
+    h.state.card = cardAt(5, 'done', { itineraryId: 'itin-1' })
+    expect(await tripWizardEligibility({ conversationId: CONVO })).toEqual({ eligible: true, step: null })
+  })
+
+  it('is NOT eligible in an ordinary seller thread — the chip never appears there', async () => {
+    h.state.convo = { ...h.state.convo, sellerProfileId: 'some-other-seller' }
+    expect(await tripWizardEligibility({ conversationId: CONVO })).toEqual({ eligible: false, step: null })
+  })
+
+  it('leaks nothing: someone else’s thread and a missing one answer identically', async () => {
+    h.state.convo = { ...h.state.convo, buyerProfileId: 'another-traveller' }
+    const theirs = await tripWizardEligibility({ conversationId: CONVO })
+    h.state.convo = null
+    const missing = await tripWizardEligibility({ conversationId: 'nope' })
+    expect(theirs).toEqual({ eligible: false, step: null })
+    expect(theirs).toEqual(missing)
+  })
+
+  it('is not eligible when the desk is unavailable', async () => {
+    h.state.desk = null
+    expect(await tripWizardEligibility({ conversationId: CONVO })).toEqual({ eligible: false, step: null })
   })
 })
