@@ -90,6 +90,21 @@ function sanitiseMeta(meta?: Record<string, string | number | boolean | null>): 
   return out
 }
 
+/**
+ * The statuses a case may legally move to — the ONE place an operator surface should ask.
+ *
+ * ⚠️ EXISTS SO A UI NEVER INDEXES THE MAP DIRECTLY, for two reasons. A hardcoded button list is how
+ * an admin UI and its state machine drift (the visa queue keeps a separate VISA_ADMIN_ACTIONS table
+ * bound to its map by nothing but a comment). And a bare `TRIP_TRANSITIONS[status]` would answer
+ * with Object.prototype members for a status like 'toString' or 'constructor' — the same
+ * inherited-key trap the trip_status card schema already had to close with Object.hasOwn.
+ *
+ * A copy is returned, so a caller cannot mutate the machine by editing what it was handed.
+ */
+export function nextTripStatuses(from: string): string[] {
+  return Object.hasOwn(TRIP_TRANSITIONS, from) ? [...TRIP_TRANSITIONS[from]] : []
+}
+
 /** Is `next` reachable from `from`? Unknown statuses have no exits. */
 export function canTransition(from: string, next: string): boolean {
   return (TRIP_TRANSITIONS[from] ?? []).includes(next)

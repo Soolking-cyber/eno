@@ -1794,6 +1794,7 @@ export const UI_STRINGS: string[] = [
   "View conversation",
   "View listing",
   "View listings",
+  "View on map",
   "View property",
   "View saved items",
   "View shop",
