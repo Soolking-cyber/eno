@@ -60,3 +60,48 @@ test.describe('Guest · trip assistance', () => {
     expect(res.status()).not.toBe(200)
   })
 })
+
+// ── The in-chat itinerary wizard ────────────────────────────────────────────────────────────
+// The wizard itself never generates — the client posts to /api/itineraries/generate, which has its
+// own guards. What must be shut here is the wizard's own surface, because a guest who could drive
+// it would be writing cards into somebody else's thread.
+
+test.describe('Guest · trip wizard', () => {
+  const THREAD = 'ckguestthread000000000001'
+
+  for (const body of [
+    { action: 'start', conversationId: THREAD },
+    { action: 'advance', conversationId: THREAD, step: 1, answers: { cityIds: ['hanoi'], cityDays: [], days: 7 } },
+    { action: 'complete', conversationId: THREAD, itineraryId: 'ckguestitin0000000000001' },
+  ]) {
+    test(`the "${body.action}" action is closed to guests`, async ({ request }) => {
+      const res = await request.post('/api/trips/wizard', { data: body })
+      expect([401, 403]).toContain(res.status())
+    })
+  }
+
+  test('refusal comes before the thread is looked up — a real and a fake id answer alike', async ({ request }) => {
+    const real = await request.post('/api/trips/wizard', { data: { action: 'start', conversationId: THREAD } })
+    const fake = await request.post('/api/trips/wizard', { data: { action: 'start', conversationId: 'nope' } })
+    expect(real.status()).toBe(fake.status())
+    expect([401, 403]).toContain(real.status())
+  })
+
+  test('a malformed body is still refused, not 400 — identity is checked first', async ({ request }) => {
+    const res = await request.post('/api/trips/wizard', { data: { action: 'not-a-thing' } })
+    expect([401, 403]).toContain(res.status())
+  })
+
+  test('GET is not a way in', async ({ request }) => {
+    const res = await request.get('/api/trips/wizard')
+    expect(res.status()).not.toBe(200)
+  })
+})
+
+test.describe('Guest · trip wizard eligibility', () => {
+  test('the eligibility read is closed to guests', async ({ request }) => {
+    // It answers "does this thread belong to the trip desk" — a guest must not be able to ask.
+    const res = await request.get('/api/trips/wizard?conversationId=ckguestthread000000000001')
+    expect([401, 403]).toContain(res.status())
+  })
+})

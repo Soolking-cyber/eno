@@ -21,6 +21,8 @@ const h = vi.hoisted(() => ({
     created: [] as Array<{ conversationId: string; kind: string; metaJson: string | null; body: string }>,
     requestGuardWhere: null as unknown,
     conversationExists: true,
+    // Proof that a THREAD-bound card never consults a case row.
+    requestReads: 0,
   },
 }))
 
@@ -57,7 +59,7 @@ vi.mock('./db', () => {
       message: { create, findFirst: async () => null, updateMany: async () => ({ count: 0 }) },
       conversation: { updateMany: conversationUpdateMany, update: async () => ({}) },
       tripAssistanceRequest: {
-        findUnique: async (args: any) => h.state.requests[args.where.id] ?? null,
+        findUnique: async (args: any) => { h.state.requestReads += 1; return h.state.requests[args.where.id] ?? null },
         updateMany: requestUpdateMany,
       },
       $transaction: async (fn: (tx: unknown) => unknown) =>
@@ -71,6 +73,7 @@ vi.mock('./db', () => {
 })
 
 import { insertMessage, parseMessageMeta } from './messages'
+import { TRIP_WIZARD_STEPS } from './trips/itinerary-wizard'
 
 const REQ = 'ckrequest0000000000000001'
 const convo = { id: 'convo-1', buyerProfileId: 'traveller', sellerProfileId: 'desk', listingId: 'L', visaApplicationId: null }
@@ -83,6 +86,7 @@ beforeEach(() => {
   h.state.created = []
   h.state.requestGuardWhere = null
   h.state.conversationExists = true
+  h.state.requestReads = 0
 })
 
 describe('trip card authorship', () => {
@@ -252,6 +256,7 @@ describe('the registry maps each kind to ITS OWN schema', () => {
     visa_picker: { v: 1, applicationId: APP, state: 'active' },
     trip_quote: { v: 1, requestId: REQ },
     trip_status: { v: 1, requestId: REQ, status: 'quoted' },
+    trip_step: { v: 1, step: 2, state: 'active' },
   } as const
   const kinds = Object.keys(payloads) as Array<keyof typeof payloads>
 
@@ -269,5 +274,86 @@ describe('the registry maps each kind to ITS OWN schema', () => {
     }
     // Named rather than counted, so a regression says WHICH pair collapsed.
     expect(accepted).toEqual([])
+  })
+})
+
+// ── trip_step: the wizard card, bound to the THREAD rather than to a case ──────────────────
+const stepCard = (over: Record<string, unknown> = {}) => ({
+  kind: 'trip_step' as const,
+  meta: { v: 1 as const, step: 2, state: 'active', ...over } as never,
+  preview: 'x',
+})
+
+describe('trip_step is thread-bound', () => {
+  it('ACCEPTS a step card from the desk and consults NO case row', async () => {
+    // The whole reason this kind exists: the traveller has no itinerary yet, so there is no case
+    // to bind to — a case cannot exist before an itinerary does (required FK). Its proof is that
+    // the desk is speaking in a thread whose buyer is the traveller.
+    await insertMessage(convo, 'desk', '', stepCard())
+    expect(h.state.created).toHaveLength(1)
+    expect(h.state.created[0].kind).toBe('trip_step')
+    expect(h.state.requestReads).toBe(0)
+    // And no compare-and-set against a case row was attempted.
+    expect(h.state.requestGuardWhere).toBeNull()
+  })
+
+  it('works in a thread with NO assistance case at all', async () => {
+    h.state.requests = {}
+    await insertMessage(convo, 'desk', '', stepCard())
+    expect(h.state.created).toHaveLength(1)
+  })
+
+  it('REFUSES the traveller as author — gate (1) is the whole proof, so it must hold', async () => {
+    await expect(insertMessage(convo, 'traveller', '', stepCard())).rejects.toThrow('trip_card_author_forbidden')
+    expect(h.state.created).toHaveLength(0)
+  })
+
+  it('still REFUSES when the conversation vanished under the transaction', async () => {
+    h.state.conversationExists = false
+    await expect(insertMessage(convo, 'desk', '', stepCard())).rejects.toThrow('trip_card_conversation_gone')
+  })
+})
+
+describe('trip_step meta carries a step, not answers', () => {
+  it('persists EXACTLY the step and state', async () => {
+    await insertMessage(convo, 'desk', '', stepCard())
+    expect(JSON.parse(h.state.created[0].metaJson!)).toEqual({ v: 1, step: 2, state: 'active' })
+  })
+
+  it.each([
+    ['a city list', { cityIds: ['hanoi'] }],
+    ['a start date', { startDate: '2030-01-01' }],
+    ['a traveller count', { travelers: 2 }],
+    ['the notes field', { notes: 'honeymoon, wheelchair access' }],
+    ['an origin', { origin: 'Da Nang' }],
+    ['a case reference', { requestId: REQ }],
+    ['money', { feeVnd: 1 }],
+  ])('REFUSES %s — .strict() means answers have nowhere to go', async (_label, extra) => {
+    await expect(insertMessage(convo, 'desk', '', stepCard(extra))).rejects.toThrow('trip_card_meta_invalid')
+    expect(h.state.created).toHaveLength(0)
+  })
+
+  it('REFUSES a step the wizard does not have', async () => {
+    for (const step of [0, 6, 2.5, -1]) {
+      await expect(insertMessage(convo, 'desk', '', stepCard({ step }))).rejects.toThrow('trip_card_meta_invalid')
+    }
+  })
+
+  it('accepts every real wizard step', async () => {
+    for (const step of TRIP_WIZARD_STEPS) {
+      h.state.created = []
+      await insertMessage(convo, 'desk', '', stepCard({ step }))
+      expect(JSON.parse(h.state.created[0].metaJson!).step).toBe(step)
+    }
+  })
+
+  it('accepts an itineraryId ONLY in id shape, and only as an extra', async () => {
+    await insertMessage(convo, 'desk', '', stepCard({ state: 'done', itineraryId: 'ckitin000000000000000001' }))
+    expect(JSON.parse(h.state.created[0].metaJson!)).toEqual({ v: 1, step: 2, state: 'done', itineraryId: 'ckitin000000000000000001' })
+    await expect(insertMessage(convo, 'desk', '', stepCard({ itineraryId: 'not an id!' }))).rejects.toThrow('trip_card_meta_invalid')
+  })
+
+  it('REFUSES a state the card does not define', async () => {
+    await expect(insertMessage(convo, 'desk', '', stepCard({ state: 'skipped' }))).rejects.toThrow('trip_card_meta_invalid')
   })
 })

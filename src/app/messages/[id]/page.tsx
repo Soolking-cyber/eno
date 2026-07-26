@@ -35,7 +35,7 @@ import {
   prepareVisaImage, useVisaCase, visaErrorCopy, visaTypeWords, EDITABLE_VISA_STATUSES,
   type VisaQuoteWire,
 } from '@/components/marketplace/visa-cards'
-import { TripQuoteCard, TripStatusCard } from '@/components/marketplace/trip-cards'
+import { TripQuoteCard, TripStatusCard, TripWizardCard, TripWizardLauncher } from '@/components/marketplace/trip-cards'
 import { Avatar } from '@/components/ui/avatar'
 import { Checkbox } from '@/components/ui/checkbox'
 import { LANGUAGES } from '@/lib/i18n/langs'
@@ -174,7 +174,13 @@ function VisaAssistChips({
  * parseMessageMeta, so this is the last mile — enough to hand a typed prop to the card, and it
  * degrades to the "could not be shown" bubble instead of rendering a card with undefined in it.
  */
-function tripField(meta: unknown, key: 'requestId' | 'status'): string | null {
+function tripStepNumber(meta: unknown): number | null {
+  if (!meta || typeof meta !== 'object') return null
+  const value = (meta as Record<string, unknown>).step
+  return typeof value === 'number' ? value : null
+}
+
+function tripField(meta: unknown, key: 'requestId' | 'status' | 'state' | 'itineraryId'): string | null {
   if (!meta || typeof meta !== 'object') return null
   const value = (meta as Record<string, unknown>)[key]
   return typeof value === 'string' && value ? value : null
@@ -1230,7 +1236,18 @@ export default function ThreadPage() {
                 ) : m.kind === 'trip_status' && tripField(m.meta, 'status') ? (
                   // HISTORICAL: rendered from meta, never re-read — see trip-cards.tsx.
                   <TripStatusCard status={tripField(m.meta, 'status')!} />
-                ) : m.kind === 'trip_quote' || m.kind === 'trip_status' ? (
+                ) : m.kind === 'trip_step' && tripField(m.meta, 'state') ? (
+                  // The wizard. One row that MOVES: the server updates this card's step in place,
+                  // so the component renders whatever step the row currently names.
+                  <TripWizardCard
+                    conversationId={id}
+                    meta={{
+                      step: Number(tripStepNumber(m.meta) ?? 1),
+                      state: tripField(m.meta, 'state')!,
+                      itineraryId: tripField(m.meta, 'itineraryId') ?? undefined,
+                    }}
+                  />
+                ) : m.kind === 'trip_quote' || m.kind === 'trip_status' || m.kind === 'trip_step' ? (
                   // A trip card whose meta this build cannot read. Its body is empty by design, so
                   // it must NOT fall through to an empty bubble.
                   <MessageBubble mine={m.mine} className="max-w-[78%] text-ink-4">
@@ -1341,6 +1358,15 @@ export default function ThreadPage() {
               owned HERE; VisaAssistChips and VisaResendChip both render in `compact` mode
               (display:contents), so their buttons become items of this flex row while their
               own notes wrap onto a line of their own. */}
+          {/* THE WIZARD'S ENTRY POINT. Rendered for every thread but self-hiding: it asks the
+              server whether this conversation belongs to the trip desk and has no wizard running,
+              and renders nothing otherwise — so it never appears in an ordinary seller thread.
+              Without it the whole in-chat planner is unreachable, because only `start` creates the
+              first card. `load` pulls the new card into the timeline immediately rather than
+              waiting for the 15s backstop poll. */}
+          <div className="flex flex-wrap items-center gap-2 px-4 pt-1.5 empty:hidden">
+            <TripWizardLauncher conversationId={id} onStarted={() => void load()} />
+          </div>
           {visaInfo && (
             <div className="flex flex-wrap items-center gap-2 px-4 pt-1.5">
               {iAmApplicant && (conciergeAvailable ? (
