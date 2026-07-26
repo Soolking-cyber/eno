@@ -22,6 +22,7 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
+import { ChatCard, ChatCardSteps, type ChatCardTone } from '@/components/marketplace/chat-card-shell'
 import { useMinuteTick, useVisaCatalogue, VisaProductRow } from '@/components/marketplace/visa-start'
 import { formatMoneyFull, formatUsdCents, moneyLocale } from '@/lib/vnd'
 import { EVISA_CHECKPOINT_GROUPS } from '@/lib/visa/checkpoints'
@@ -1098,57 +1099,41 @@ function fieldValue(kase: VisaCase | null, field: string): string {
 
 // ── Shared chrome ─────────────────────────────────────────────────────────────────
 
-/** The card shell every visa card shares: the shop's side of the thread, a step counter. */
+/**
+ * The card shell every visa card shares: the shop's side of the thread, a step counter.
+ *
+ * ⚠️ NOW A THIN ADAPTER over the shared `ChatCard` (chat-card-shell.tsx), which the trip cards also
+ * render through — the owner asked for the two families to feel like one thing. The SIGNATURE is
+ * deliberately unchanged, so all seven call sites in this money-path file are untouched: what a
+ * card says, how its actions are wired, and the live/settled semantics are exactly as before. The
+ * only difference a reader will see is chrome — the shadow is gone, per design-language §3b.
+ */
 function CardShell({
   step, title, tone = 'live', children, className,
 }: {
   step: VisaDmStep | null
   title: string
-  tone?: 'live' | 'settled'
+  tone?: ChatCardTone
   children: React.ReactNode
   className?: string
 }) {
   const { tr } = useLanguage()
   return (
-    <div
-      className={cn(
-        'allow-select w-[92%] max-w-md rounded-2xl border px-3.5 py-3',
-        tone === 'live' ? 'border-brand/30 bg-card shadow-pop' : 'border-border bg-card/70',
-        className,
-      )}
+    <ChatCard
+      eyebrow={tr('e-Visa', 'E-Visa')}
+      icon={Sparkles}
+      title={title}
+      step={step === null ? null : { current: step, total: STEP_COUNT }}
+      tone={tone}
+      className={className}
     >
-      <div className="flex items-center gap-2">
-        <Sparkles className={cn('h-3.5 w-3.5 shrink-0', tone === 'live' ? 'text-accent-foreground' : 'text-ink-4')} aria-hidden />
-        <span className={cn('text-2xs font-bold uppercase tracking-wide', tone === 'live' ? 'text-accent-foreground' : 'text-ink-4')}>
-          {tr('e-Visa', 'E-Visa')}
-        </span>
-        {step !== null && (
-          <Badge variant="neutral" size="sm" className="ml-auto shrink-0">
-            {tr(`Step ${step} of ${STEP_COUNT}`, `Bước ${step}/${STEP_COUNT}`)}
-          </Badge>
-        )}
-      </div>
-      <h3 className={cn('mt-1.5 text-sm font-bold', tone === 'live' ? 'text-foreground' : 'text-body')}>{title}</h3>
       {children}
-    </div>
+    </ChatCard>
   )
 }
 
-/** The 5-dot progress rail — "not more than 5 pages", made visible. */
-function StepDots({ step }: { step: VisaDmStep }) {
-  const { tr } = useLanguage()
-  return (
-    <div className="mt-2 flex items-center gap-1" role="img" aria-label={tr(`Step ${step} of ${STEP_COUNT}`, `Bước ${step}/${STEP_COUNT}`)}>
-      {[1, 2, 3, 4, 5].map((n) => (
-        <span
-          key={n}
-          className={cn('h-1 flex-1 rounded-full', n < step ? 'bg-brand/40' : n === step ? 'bg-brand' : 'bg-tint')}
-          aria-hidden
-        />
-      ))}
-    </div>
-  )
-}
+/** The 5-dot progress rail. Now shared with the trip wizard, which is also a five-step card. */
+const StepDots = ({ step }: { step: VisaDmStep }) => <ChatCardSteps current={step} total={STEP_COUNT} />
 
 // ── The document step (step 1) ────────────────────────────────────────────────────
 

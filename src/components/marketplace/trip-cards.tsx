@@ -17,6 +17,7 @@ import {
   ACCOMMODATION_LABELS, BUDGETS, CITIES, INTEREST_LABELS, PACE_LABELS,
 } from '@/lib/itinerary-data'
 import { LAST_TRIP_WIZARD_STEP } from '@/lib/trips/itinerary-wizard'
+import { ChatCard, ChatCardSteps } from '@/components/marketplace/chat-card-shell'
 
 // ── TRIP ASSISTANCE CARDS, RENDERED INSIDE THE CHAT THREAD ─────────────────────────
 //
@@ -49,6 +50,14 @@ type AssistanceView = {
 
 /** Statuses the traveller can still act on from the card. */
 const ACTIONABLE = 'quoted'
+
+/**
+ * The family eyebrow, spelled ONCE — the trip counterpart of the visa cards' "e-Visa".
+ *
+ * ⚠️ Not translated. "Trip" is the product name on this surface in both languages, the way "e-Visa"
+ * is; a two-word Vietnamese phrase in a 10px uppercase eyebrow wraps the header row on a phone.
+ */
+const TRIP = 'Trip'
 
 export function TripQuoteCard({ requestId }: { requestId: string }) {
   const { tr, lang } = useLanguage()
@@ -93,19 +102,22 @@ export function TripQuoteCard({ requestId }: { requestId: string }) {
 
   if (loading) {
     return (
-      <div className="w-full max-w-[22rem] rounded-2xl border border-line bg-surface-1 p-4">
-        <Skeleton className="h-4 w-24" />
-        <Skeleton className="mt-3 h-6 w-40" />
-        <Skeleton className="mt-2 h-4 w-32" />
-      </div>
+      // ⚠️ `settled` while loading, so the tone can only ever brighten. Actionability is unknown
+      // until the fetch lands, so SOME flip is unavoidable; dull→bright reads as "something you can
+      // act on just arrived", where bright→dull is a promise withdrawn. (Raised by codex.)
+      <ChatCard eyebrow={TRIP} icon={MapPinned} tone="settled">
+        <Skeleton className="mt-1.5 h-4 w-40" />
+        <Skeleton className="mt-3 h-6 w-32" />
+        <Skeleton className="mt-2 h-4 w-24" />
+      </ChatCard>
     )
   }
 
   if (!view || view.supplierTotalVnd === null || view.feeVnd === null) {
     return (
-      <div className="w-full max-w-[22rem] rounded-2xl border border-line bg-surface-1 p-4 text-sm text-ink-4">
-        {tr('This quote is no longer available.', 'Báo giá này không còn khả dụng.')}
-      </div>
+      <ChatCard eyebrow={TRIP} icon={MapPinned} tone="settled">
+        <p className="mt-1.5 text-sm text-ink-4">{tr('This quote is no longer available.', 'Báo giá này không còn khả dụng.')}</p>
+      </ChatCard>
     )
   }
 
@@ -113,12 +125,9 @@ export function TripQuoteCard({ requestId }: { requestId: string }) {
   const live = view.mine && view.status === ACTIONABLE
 
   return (
-    <div className="w-full max-w-[22rem] rounded-2xl border border-line bg-surface-1 p-4">
-      <div className="flex items-center gap-2">
-        <MapPinned className="size-4 text-accent-foreground" aria-hidden />
-        <span className="text-sm font-semibold text-ink-1">{tr('Trip quote', 'Báo giá chuyến đi')}</span>
-      </div>
-
+    // ⚠️ `live` already meant "the traveller can still act on this" for the buttons below; it is
+    // the same distinction the shell's tone draws, so it drives both rather than being re-derived.
+    <ChatCard eyebrow={TRIP} icon={MapPinned} title={tr('Trip quote', 'Báo giá chuyến đi')} tone={live ? 'live' : 'settled'}>
       <dl className="mt-3 space-y-1.5">
         <div className="flex items-baseline justify-between gap-3">
           <dt className="text-sm text-ink-3">{tr('Suppliers', 'Nhà cung cấp')}</dt>
@@ -130,8 +139,8 @@ export function TripQuoteCard({ requestId }: { requestId: string }) {
         </div>
         <Separator className="my-2" />
         <div className="flex items-baseline justify-between gap-3">
-          <dt className="text-sm font-semibold text-ink-1">{tr('Total', 'Tổng cộng')}</dt>
-          <dd className="text-base font-bold tabular-nums text-ink-1">{formatMoneyFull(total, '₫', locale)}</dd>
+          <dt className="text-sm font-semibold text-foreground">{tr('Total', 'Tổng cộng')}</dt>
+          <dd className="text-base font-bold tabular-nums text-foreground">{formatMoneyFull(total, '₫', locale)}</dd>
         </div>
       </dl>
 
@@ -161,7 +170,7 @@ export function TripQuoteCard({ requestId }: { requestId: string }) {
           <TripStatusBadge status={view.status} />
         </div>
       )}
-    </div>
+    </ChatCard>
   )
 }
 
@@ -169,11 +178,16 @@ export function TripQuoteCard({ requestId }: { requestId: string }) {
 export function TripStatusCard({ status }: { status: string }) {
   const { tr } = useLanguage()
   return (
-    <div className="flex w-full max-w-[22rem] items-center gap-2 rounded-2xl border border-line bg-surface-1 px-4 py-3">
-      <CalendarCheck className="size-4 shrink-0 text-accent-foreground" aria-hidden />
-      <span className="text-sm text-ink-2">{tr('Trip assistance', 'Hỗ trợ chuyến đi')}</span>
-      <span className="ml-auto"><TripStatusBadge status={status} /></span>
-    </div>
+    // Settled by nature: this card states a fact that was true when it was written (see the note at
+    // the top of the file), and the status badge is what it has to say — so it takes the slot the
+    // visa cards give their step counter.
+    <ChatCard
+      eyebrow={TRIP}
+      icon={CalendarCheck}
+      tone="settled"
+      title={tr('Trip assistance', 'Hỗ trợ chuyến đi')}
+      right={<TripStatusBadge status={status} />}
+    />
   )
 }
 
@@ -327,11 +341,9 @@ export function TripWizardCard({ conversationId, meta }: { conversationId: strin
 
   if (done) {
     return (
-      <div className="w-full max-w-[22rem] rounded-2xl border border-line bg-surface-1 p-4">
-        <div className="flex items-center gap-2">
-          <Sparkles className="size-4 text-accent-foreground" aria-hidden />
-          <span className="text-sm font-semibold text-ink-1">{tr('Your trip plan is ready', 'Lịch trình của bạn đã sẵn sàng')}</span>
-        </div>
+      // LIVE, not settled: the plan is finished but this card is the freshest thing in the thread
+      // and carries the action that opens it — the visa result card makes the same call.
+      <ChatCard eyebrow={TRIP} icon={MapPinned} title={tr('Your trip plan is ready', 'Lịch trình của bạn đã sẵn sàng')}>
         {/* ui/button is the documented asChild exception in this codebase — it bridges asChild to
             Base UI's render prop, so a link-button composes here and nowhere else. */}
         {itineraryId ? (
@@ -339,17 +351,23 @@ export function TripWizardCard({ conversationId, meta }: { conversationId: strin
             <Link href={`/dashboard/trips/${itineraryId}`}>{tr('Open the plan', 'Mở lịch trình')}</Link>
           </Button>
         ) : null}
-      </div>
+      </ChatCard>
     )
   }
 
   return (
-    <div className="w-full max-w-[22rem] rounded-2xl border border-line bg-surface-1 p-4">
-      <div className="flex items-center gap-2">
-        <Sparkles className="size-4 text-accent-foreground" aria-hidden />
-        <span className="text-sm font-semibold text-ink-1">{tr('Plan your trip', 'Lên kế hoạch chuyến đi')}</span>
-        <span className="ml-auto text-xs text-ink-4">{tr('Step', 'Bước')} {step}/{LAST_TRIP_WIZARD_STEP}</span>
-      </div>
+    <ChatCard
+      eyebrow={TRIP}
+      // ⚠️ MapPinned, not Sparkles. Sparkles is the visa family's mark on all seven of its cards,
+      // and now that the two shells are identical the icon is half of what says which family a card
+      // belongs to — a trip card wearing the visa icon reads as a visa card at a glance.
+      icon={MapPinned}
+      title={tr('Plan your trip', 'Lên kế hoạch chuyến đi')}
+      // The badge replaces a bespoke "Step 3/5" caption, and the rail is the signal the visa
+      // wizard had and this one did not — both are five-step cards in the same thread.
+      step={{ current: step, total: LAST_TRIP_WIZARD_STEP }}
+    >
+      <ChatCardSteps current={step} total={LAST_TRIP_WIZARD_STEP} />
 
       <div className="mt-3 space-y-3">
         {step === 1 ? (
@@ -467,7 +485,7 @@ export function TripWizardCard({ conversationId, meta }: { conversationId: strin
         {busy ? <Loader2 className="size-4 animate-spin" aria-hidden /> : null}
         {step === LAST_TRIP_WIZARD_STEP ? tr('Build my plan', 'Tạo lịch trình') : tr('Next', 'Tiếp tục')}
       </Button>
-    </div>
+    </ChatCard>
   )
 }
 

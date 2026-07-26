@@ -1493,7 +1493,6 @@ export const UI_STRINGS: string[] = [
   "Stay shortlist",
   "Stay style",
   "Stays",
-  "Step",
   "Still available?",
   "Still need help?",
   "Still needed",
