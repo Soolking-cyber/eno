@@ -78,10 +78,23 @@ Expect **10/10** (setup + seller + admin). The projects only register when `E2E_
 
 ```bash
 set -a; . ./.env; set +a
-npx tsx .claude/skills/authed-e2e/seed-users.ts --cleanup
+node scripts/e2e-cleanup.mjs
 ```
 
-Removes the Seller row, the Profiles, and the auth users. Also stop the server on 3100. Leaving the users behind is not dangerous (they own no public listings), but the suite is designed to be hermetic — leave it that way.
+Removes the fixtures, the Seller row, the Profiles, and the auth users. Also stop the server on 3100. Leaving the users behind is not dangerous (they own no public listings), but the suite is designed to be hermetic — leave it that way.
+
+> ⚠️ **NOT `seed-users.ts --cleanup`** — that is this skill's own older script and it now **fails**,
+> which cost a detour on 2026-07-27. It knows about the listing and the conversation but not the
+> trip fixture added later, so deleting the buyer Profile while it still owns `e2e-itinerary-1`
+> throws a bare `P2003` / `ForeignKeyConstraintViolation` with no hint about which row is holding it.
+> `scripts/e2e-cleanup.mjs` is the counterpart to `scripts/e2e-seed.mjs` and clears all of it —
+> the pairing is stated at the top of the seed script. The rule generalises: **the cleanup lives
+> beside the seeder that created the fixtures**, so a new fixture means updating that pair, not this
+> skill's legacy copy.
+>
+> (Node 25 note: `npx tsx` chokes on `seed-users.ts`' top-level await, and copying it to `.mts`
+> outside the repo then breaks its relative Prisma import — two dead ends before the real problem is
+> even visible. Reach for `e2e-cleanup.mjs` and neither happens.)
 
 ## Report
 
