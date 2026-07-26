@@ -82,6 +82,10 @@ import {
   BUDGETS,
   CITIES,
   CITY_MAP,
+  ACCOMMODATION_LABELS,
+  INTEREST_LABELS,
+  PACE_LABELS,
+  type OptionLabel,
   type AccommodationId,
   type BudgetId,
   type CabinId,
@@ -94,31 +98,45 @@ import {
 } from '@/lib/itinerary-data'
 import { displayDate, PlannerLoading, PlanResults } from './plan-results'
 
-const INTERESTS: Array<{ id: InterestId; label: string; labelVi: string; Icon: typeof Landmark }> = [
-  { id: 'food', label: 'Food', labelVi: 'Ẩm thực', Icon: UtensilsCrossed },
-  { id: 'culture', label: 'Culture', labelVi: 'Văn hóa', Icon: Landmark },
-  { id: 'nature', label: 'Nature', labelVi: 'Thiên nhiên', Icon: CloudSun },
-  { id: 'beaches', label: 'Beaches', labelVi: 'Biển', Icon: Sun },
-  { id: 'adventure', label: 'Adventure', labelVi: 'Phiêu lưu', Icon: Footprints },
-  { id: 'nightlife', label: 'Nightlife', labelVi: 'Về đêm', Icon: MoonStar },
-  { id: 'wellness', label: 'Wellness', labelVi: 'Nghỉ dưỡng', Icon: Sparkles },
-  { id: 'family', label: 'Family', labelVi: 'Gia đình', Icon: Users },
-]
+/**
+ * ⚠️ ONLY WHAT THE SHARED TABLE CANNOT CARRY. The labels themselves live in
+ * src/lib/itinerary-data.ts (INTEREST_LABELS / ACCOMMODATION_LABELS / PACE_LABELS) and are read
+ * from there — this file used to hold a full second copy of all three, which murat flagged as
+ * "relocated, not removed" after moving them: the tables became shared and this surface kept
+ * duplicating them, so the two could still disagree about what an interest is called.
+ *
+ * They already did, in a THIRD copy: trip-card.tsx had `wellness` as "Thư giãn" while this file and
+ * the shared table both said "Nghỉ dưỡng", so the saved-trip list and the builder disagreed in
+ * Vietnamese for the same interest. That is the drift, realised rather than hypothetical.
+ *
+ * Keyed as Record<Id, …> deliberately, exactly like the shared tables: a new interest is then a
+ * COMPILE ERROR here, whereas the arrays these replace would have silently rendered one fewer chip.
+ */
+const INTEREST_ICONS: Record<InterestId, typeof Landmark> = {
+  food: UtensilsCrossed,
+  culture: Landmark,
+  nature: CloudSun,
+  beaches: Sun,
+  adventure: Footprints,
+  nightlife: MoonStar,
+  wellness: Sparkles,
+  family: Users,
+}
 
-const ACCOMMODATIONS: Array<{ id: AccommodationId; label: string; labelVi: string }> = [
-  { id: 'hotel', label: 'Reliable hotels', labelVi: 'Khách sạn uy tín' },
-  { id: 'boutique', label: 'Boutique stays', labelVi: 'Khách sạn boutique' },
-  { id: 'resort', label: 'Resorts', labelVi: 'Khu nghỉ dưỡng' },
-  { id: 'apartment', label: 'Serviced apartments', labelVi: 'Căn hộ dịch vụ' },
-  { id: 'homestay', label: 'Local homestays', labelVi: 'Homestay địa phương' },
-  { id: 'hostel', label: 'Social hostels', labelVi: 'Hostel giao lưu' },
-]
+/** The pace one-liner. Not in PACE_LABELS because it is builder chrome — the chat card has no room
+ *  for it — but Record-keyed so a new pace cannot silently lose its explanation. */
+const PACE_DETAILS: Record<PaceId, { detail: string; detailVi: string }> = {
+  slow: { detail: 'One main anchor each day', detailVi: 'Một hoạt động chính mỗi ngày' },
+  balanced: { detail: 'Highlights with breathing room', detailVi: 'Điểm nổi bật với thời gian nghỉ' },
+  full: { detail: 'More activity, still geographically sensible', detailVi: 'Nhiều hoạt động nhưng vẫn hợp lý' },
+}
 
-const PACES: Array<{ id: PaceId; label: string; labelVi: string; detail: string; detailVi: string }> = [
-  { id: 'slow', label: 'Slow', labelVi: 'Thong thả', detail: 'One main anchor each day', detailVi: 'Một hoạt động chính mỗi ngày' },
-  { id: 'balanced', label: 'Balanced', labelVi: 'Cân bằng', detail: 'Highlights with breathing room', detailVi: 'Điểm nổi bật với thời gian nghỉ' },
-  { id: 'full', label: 'Full', labelVi: 'Nhiều trải nghiệm', detail: 'More activity, still geographically sensible', detailVi: 'Nhiều hoạt động nhưng vẫn hợp lý' },
-]
+const INTERESTS = (Object.entries(INTEREST_LABELS) as Array<[InterestId, OptionLabel]>)
+  .map(([id, l]) => ({ id, label: l.label, labelVi: l.labelVi, Icon: INTEREST_ICONS[id] }))
+const ACCOMMODATIONS = (Object.entries(ACCOMMODATION_LABELS) as Array<[AccommodationId, OptionLabel]>)
+  .map(([id, l]) => ({ id, label: l.label, labelVi: l.labelVi }))
+const PACES = (Object.entries(PACE_LABELS) as Array<[PaceId, OptionLabel]>)
+  .map(([id, l]) => ({ id, label: l.label, labelVi: l.labelVi, ...PACE_DETAILS[id] }))
 
 const MIN_TRIP_DAYS = 1
 const MAX_TRIP_DAYS = 30

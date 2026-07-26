@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { BUDGETS } from './itinerary-data'
+import {
+  ACCOMMODATION_IDS, ACCOMMODATION_LABELS, BUDGETS, INTEREST_IDS, INTEREST_LABELS,
+  PACE_IDS, PACE_LABELS,
+} from './itinerary-data'
 
 /**
  * ⚠️ THE PRICE SHOWN MUST BE THE PRICE PLANNED TO.
@@ -33,5 +36,43 @@ describe('budget tiers: the label states the number the generator is given', () 
   it('tiers ascend, so the chips read as a range rather than a list', () => {
     const dailies = BUDGETS.map((t) => t.daily)
     expect([...dailies].sort((a, b) => a - b)).toEqual(dailies)
+  })
+})
+
+/**
+ * ⚠️ ONE TABLE PER OPTION SET, ENFORCED.
+ *
+ * These labels were duplicated in three files. Moving them here did not remove the duplication —
+ * murat's words, "it got relocated" — because `itinerary-builder.tsx` kept its own arrays and
+ * `trip-card.tsx` kept its own map. And they HAD diverged: trip-card said `wellness` = "Thư giãn"
+ * while this table and the builder said "Nghỉ dưỡng", so the saved-trip list and the builder
+ * disagreed in Vietnamese about the same interest.
+ *
+ * A grep test rather than a type test on purpose: the failure mode is a NEW literal table appearing
+ * somewhere, which no type can see. Every id must also be present in every table, so a new interest
+ * is a compile error here and cannot be a silently missing chip anywhere else.
+ */
+describe('the option labels have exactly one home', () => {
+  it('every id in the union has a label, so a new one is a compile error not a blank chip', () => {
+    expect(Object.keys(INTEREST_LABELS).sort()).toEqual([...INTEREST_IDS].sort())
+    expect(Object.keys(ACCOMMODATION_LABELS).sort()).toEqual([...ACCOMMODATION_IDS].sort())
+    expect(Object.keys(PACE_LABELS).sort()).toEqual([...PACE_IDS].sort())
+  })
+
+  it('no other file declares a competing label table', async () => {
+    const { readdirSync, readFileSync, statSync } = await import('node:fs')
+    const { join } = await import('node:path')
+    const walk = (dir: string): string[] => readdirSync(dir).flatMap((e) => {
+      const p = join(dir, e)
+      return statSync(p).isDirectory() ? walk(p) : p.endsWith('.tsx') || p.endsWith('.ts') ? [p] : []
+    })
+    // A literal table is a declaration whose body pairs an interest id with a Vietnamese label.
+    const offenders = walk('src')
+      .filter((f) => !f.endsWith('itinerary-data.ts') && !f.includes('.test.'))
+      .filter((f) => {
+        const src = readFileSync(f, 'utf8')
+        return /(const|let)\s+(INTEREST_LABELS|ACCOMMODATION_LABELS|PACE_LABELS)\s*[:=]/.test(src)
+      })
+    expect(offenders, `these files re-declare a shared label table: ${offenders.join(', ')}`).toEqual([])
   })
 })

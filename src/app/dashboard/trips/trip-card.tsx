@@ -9,6 +9,7 @@ import { useLanguage } from '@/context/language-context'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { formatMoneyFull, moneyLocale } from '@/lib/vnd'
+import { INTEREST_LABELS, type OptionLabel } from '@/lib/itinerary-data'
 
 // Row shapes = the /api/itineraries GET serializer (Prisma rows, dates as ISO strings,
 // interests pre-parsed to string[]).
@@ -82,15 +83,17 @@ const CITY_NAMES: Record<string, [string, string]> = {
   condao: ['Con Dao', 'Côn Đảo'],
 }
 
-const INTEREST_LABELS: Record<string, [string, string]> = {
-  food: ['Food', 'Ẩm thực'],
-  culture: ['Culture', 'Văn hóa'],
-  nature: ['Nature', 'Thiên nhiên'],
-  beaches: ['Beaches', 'Biển'],
-  adventure: ['Adventure', 'Phiêu lưu'],
-  nightlife: ['Nightlife', 'Về đêm'],
-  wellness: ['Wellness', 'Thư giãn'],
-  family: ['Family', 'Gia đình'],
+// ⚠️ THE SHARED TABLE, not a copy. This file held its own INTEREST_LABELS and it had DRIFTED: it
+// said `wellness` = "Thư giãn" while src/lib/itinerary-data.ts and the builder both said
+// "Nghỉ dưỡng", so the saved-trip list and the builder disagreed in Vietnamese about the same
+// interest. Third copy of a table that was already shared — murat flagged the pattern; this is the
+// instance where it had already gone wrong.
+//
+// Kept as a lookup on `string` because `trip.interests` comes off a JSON column and may legitimately
+// hold an id this build does not know; the caller falls back to the raw id for that case.
+const interestLabel = (id: string): [string, string] | undefined => {
+  const entry = (INTEREST_LABELS as Record<string, OptionLabel | undefined>)[id]
+  return entry ? [entry.label, entry.labelVi] : undefined
 }
 
 // Itinerary currency column stores ISO 'VND'; formatMoneyFull's VND branch keys on '₫'.
@@ -188,7 +191,7 @@ export function TripCard({ trip }: { trip: SavedItinerary }) {
         {Array.isArray(trip.interests) && trip.interests.length > 0 && (
           <div className="mb-4 flex flex-wrap gap-1.5">
             {trip.interests.map((interest) => {
-              const label = INTEREST_LABELS[interest]
+              const label = interestLabel(interest)
               return (
                 <Badge key={interest} variant="neutral">
                   {label ? (vi ? label[1] : label[0]) : interest}
