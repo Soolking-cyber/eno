@@ -51,6 +51,9 @@ const STATUS: Record<WizardError, number> = {
   desk_unavailable: 503,
   no_active_wizard: 409,
   step_mismatch: 409,
+  // The card moved under the write. Same family as step_mismatch: the client reloads, it does not
+  // edit the payload and retry.
+  case_changed_reload: 409,
   invalid_answers: 400,
   update_failed: 500,
 }

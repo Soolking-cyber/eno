@@ -195,3 +195,56 @@ export function pickStepFields(draft: TripWizardDraft, step: TripWizardStep): Re
 export function answeredTripWizardFields(draft: TripWizardDraft): string[] {
   return Object.keys(draft).filter((key) => isTripWizardFieldName(key) && (draft as Record<string, unknown>)[key] !== undefined)
 }
+
+// ── Labels for the chat card ──────────────────────────────────────────────────────────────
+//
+// ⚠️ A SECOND COPY, DELIBERATELY AND VISIBLY. The dashboard builder declares its own INTERESTS /
+// ACCOMMODATIONS / PACES arrays inside the component file
+// (src/app/dashboard/trips/plan/itinerary-builder.tsx:97-121). That file is a client component in
+// the dashboard tree and is not an owned path for this task; importing from it would also drag a
+// whole page component into the chat bundle for the sake of six strings.
+//
+// So the wizard keeps its own table — but typed as Record<Id, …>, which the builder's arrays are
+// NOT. A new interest or pace is a COMPILE ERROR here until it is labelled, where the builder
+// would simply render one fewer chip. Flagged for Alex: these belong in itinerary-data.ts beside
+// BUDGETS, and then both surfaces read one table. Until that move, this is the stricter copy.
+
+export type WizardOption = { label: string; labelVi: string }
+
+export const TRIP_INTEREST_LABELS: Record<InterestId, WizardOption> = {
+  food: { label: 'Food', labelVi: 'Ẩm thực' },
+  culture: { label: 'Culture', labelVi: 'Văn hóa' },
+  nature: { label: 'Nature', labelVi: 'Thiên nhiên' },
+  beaches: { label: 'Beaches', labelVi: 'Biển' },
+  adventure: { label: 'Adventure', labelVi: 'Phiêu lưu' },
+  nightlife: { label: 'Nightlife', labelVi: 'Về đêm' },
+  wellness: { label: 'Wellness', labelVi: 'Nghỉ dưỡng' },
+  family: { label: 'Family', labelVi: 'Gia đình' },
+}
+
+export const TRIP_ACCOMMODATION_LABELS: Record<AccommodationId, WizardOption> = {
+  hotel: { label: 'Reliable hotels', labelVi: 'Khách sạn uy tín' },
+  boutique: { label: 'Boutique stays', labelVi: 'Khách sạn boutique' },
+  resort: { label: 'Resorts', labelVi: 'Khu nghỉ dưỡng' },
+  apartment: { label: 'Serviced apartments', labelVi: 'Căn hộ dịch vụ' },
+  homestay: { label: 'Local homestays', labelVi: 'Homestay địa phương' },
+  hostel: { label: 'Social hostels', labelVi: 'Hostel giao lưu' },
+}
+
+export const TRIP_PACE_LABELS: Record<PaceId, WizardOption> = {
+  slow: { label: 'Slow', labelVi: 'Thong thả' },
+  balanced: { label: 'Balanced', labelVi: 'Cân bằng' },
+  full: { label: 'Full', labelVi: 'Nhiều trải nghiệm' },
+}
+
+export const TRIP_CABIN_LABELS: Record<CabinId, WizardOption> = {
+  economy: { label: 'Economy', labelVi: 'Phổ thông' },
+  premium_economy: { label: 'Premium economy', labelVi: 'Phổ thông đặc biệt' },
+  business: { label: 'Business', labelVi: 'Thương gia' },
+}
+
+export const TRIP_STOPS_LABELS: Record<StopsId, WizardOption> = {
+  direct: { label: 'Direct only', labelVi: 'Bay thẳng' },
+  one_stop: { label: 'Up to one stop', labelVi: 'Tối đa một điểm dừng' },
+  any: { label: 'Any', labelVi: 'Bất kỳ' },
+}

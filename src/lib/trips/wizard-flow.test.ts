@@ -16,6 +16,8 @@ const h = vi.hoisted(() => ({
     inserted: [] as Array<{ kind: string; meta: unknown; preview: string; senderId: string }>,
     updates: [] as Array<{ where: Record<string, unknown>; data: Record<string, unknown> }>,
     insertThrows: false,
+    // Fires between activeWizardCard's read and writeCardMeta's update: the real race window.
+    mutateBeforeWrite: null as (() => void) | null,
   },
 }))
 
@@ -36,9 +38,12 @@ vi.mock('../db', () => ({
     message: {
       findFirst: async (args: any) => { h.state.cardWhere = args.where; return h.state.card },
       updateMany: async (args: any) => {
+        if (h.state.mutateBeforeWrite) { h.state.mutateBeforeWrite(); h.state.mutateBeforeWrite = null }
         h.state.updates.push({ where: args.where, data: args.data })
         if (!h.state.card || args.where.id !== h.state.card.id) return { count: 0 }
         if (args.where.kind && args.where.kind !== 'trip_step') return { count: 0 }
+        // Honour the compare-and-set predicate the way Postgres would.
+        if (args.where.metaJson !== undefined && args.where.metaJson !== h.state.card.metaJson) return { count: 0 }
         h.state.card = { ...h.state.card, metaJson: args.data.metaJson }
         return { count: 1 }
       },
@@ -46,7 +51,7 @@ vi.mock('../db', () => ({
   },
 }))
 
-import { advanceTripWizard, completeTripWizard, currentTripWizardStep, startTripWizard } from './wizard-flow'
+import { advanceTripWizard, completeTripWizard, startTripWizard } from './wizard-flow'
 
 const CONVO = 'convo-1'
 const cardAt = (step: number, state: 'active' | 'done' = 'active', extra: Record<string, unknown> = {}) =>
@@ -70,6 +75,7 @@ beforeEach(() => {
   h.state.inserted = []
   h.state.updates = []
   h.state.insertThrows = false
+  h.state.mutateBeforeWrite = null
 })
 
 describe('who may drive the wizard', () => {
@@ -172,10 +178,19 @@ describe('advancing', () => {
     expect(written).not.toContain('Da Nang')
   })
 
-  it('REFUSES a step that does not match the live card — a replay is a no-op', async () => {
+  it('REFUSES a step two or more behind the live card', async () => {
     h.state.card = cardAt(3)
     expect(await advanceTripWizard({ conversationId: CONVO, step: 1, answers: answers[1] }))
       .toEqual({ ok: false, error: 'step_mismatch' })
+    expect(h.state.updates).toHaveLength(0)
+  })
+
+  it('is IDEMPOTENT for a retry of the advance that already landed', async () => {
+    // A flaky network or a double tap re-sends the previous step. Answering 409 there made the
+    // client recover by hand for something that had actually succeeded (Gemini).
+    h.state.card = cardAt(3)
+    const result = await advanceTripWizard({ conversationId: CONVO, step: 2, answers: answers[2] })
+    expect(result).toEqual({ ok: true, step: 3, messageId: 'card-1' })
     expect(h.state.updates).toHaveLength(0)
   })
 
@@ -240,27 +255,41 @@ describe('completing', () => {
   it('scopes the write by kind, so a mistargeted id cannot blank an ordinary message', async () => {
     h.state.card = cardAt(5)
     await completeTripWizard({ conversationId: CONVO, itineraryId: 'itin-1' })
-    expect(h.state.updates[0].where).toEqual({ id: 'card-1', kind: 'trip_step' })
+    expect(h.state.updates[0].where).toMatchObject({ id: 'card-1', kind: 'trip_step' })
   })
 })
 
-describe('reading the current step', () => {
-  it('is null with no wizard', async () => {
-    expect(await currentTripWizardStep(CONVO)).toBeNull()
+describe('the card update is a COMPARE-AND-SET', () => {
+  // codex refuted the claim that updating in place was safe: matching on id alone let a STALE
+  // advance overwrite a card that had since been completed, resetting state:'done' to 'active' and
+  // dropping the itineraryId — the traveller's finished plan losing the link to itself.
+
+  it('carries the exact prior blob in the WHERE', async () => {
+    h.state.card = cardAt(2)
+    const before = h.state.card.metaJson
+    await advanceTripWizard({ conversationId: CONVO, step: 2, answers: answers[2] })
+    expect(h.state.updates[0].where).toEqual({ id: 'card-1', kind: 'trip_step', metaJson: before })
   })
 
-  it('returns the parsed meta', async () => {
+  it('REFUSES a write whose card was completed IN THE RACE WINDOW', async () => {
+    // The window the active-state check cannot close: an advance reads the card as active, a
+    // concurrent complete commits, and only THEN does the advance write. Without the
+    // compare-and-set that write lands and resets state:'done' to 'active', dropping the
+    // itineraryId — the traveller's finished plan losing the link to itself.
     h.state.card = cardAt(4)
-    expect(await currentTripWizardStep(CONVO)).toEqual({ v: 1, step: 4, state: 'active' })
+    h.state.mutateBeforeWrite = () => {
+      h.state.card = cardAt(5, 'done', { itineraryId: 'itin-1' })
+    }
+    const result = await advanceTripWizard({ conversationId: CONVO, step: 4, answers: answers[4] })
+    expect(result).toEqual({ ok: false, error: 'case_changed_reload' })
+    // The completion survived intact.
+    expect(JSON.parse(h.state.card!.metaJson!)).toMatchObject({ state: 'done', itineraryId: 'itin-1' })
   })
 
-  it('is null for a card this build cannot parse — never a half-read card', async () => {
-    h.state.card = { id: 'card-1', metaJson: JSON.stringify({ v: 2, step: 4, state: 'active' }) }
-    expect(await currentTripWizardStep(CONVO)).toBeNull()
-  })
-
-  it('is null for a card carrying answers, because that shape is not valid', async () => {
-    h.state.card = { id: 'card-1', metaJson: JSON.stringify({ v: 1, step: 4, state: 'active', notes: 'x' }) }
-    expect(await currentTripWizardStep(CONVO)).toBeNull()
+  it('REFUSES completing a card that is already done', async () => {
+    h.state.card = cardAt(5, 'done', { itineraryId: 'itin-1' })
+    expect(await completeTripWizard({ conversationId: CONVO, itineraryId: 'itin-1' }))
+      .toEqual({ ok: false, error: 'no_active_wizard' })
+    expect(h.state.updates).toHaveLength(0)
   })
 })
