@@ -51,9 +51,25 @@ ADMIN_EMAILS=e2e-admin@eno.vn \
 node --env-file=.env node_modules/.bin/playwright test --project=setup --project=seller --project=admin
 ```
 
+> ### ⛔ NEVER mint a magic link for a REAL `ADMIN_EMAILS` address
+>
+> `ADMIN_EMAILS` is overridden **to the seeded user** on line 4 of that command for a reason.
+> `admin.auth.admin.generateLink()` **CREATES the account if it does not exist** — it is not a read.
+>
+> On 2026-07-26 a worker needed an admin session, did not spot this override, and generated a link
+> for `ADMIN_EMAILS[0]` (`support@eno.vn`), which had no account. That **created a production auth
+> user + Profile for a live admin identity** and signed into it four times. They reported it and
+> correctly refused to reverse it unauthorised. Resolved non-destructively: the four refresh tokens
+> were revoked (a pure `UPDATE`) and the account, Profile and identity were all kept.
+>
+> The seeded admin exists precisely so no real identity is ever needed. If you only want an admin
+> session for a screenshot, run the local server with `ADMIN_EMAILS="…,e2e-admin@eno.vn"` — the
+> allowlist is plain env, so this needs no code change and touches nothing real.
+
 Three things that are easy to get wrong:
 - **Playwright does not read `.env` on its own** — hence `node --env-file=.env`. Without it, `auth.setup.ts` sees no `SUPABASE_SECRET_KEY` and every authed spec silently *skips* (a green run that tested nothing).
-- **`ADMIN_EMAILS` must include the admin user**, or `/admin` 403s and the moderation specs fail.
+- **`ADMIN_EMAILS` must include the admin user**, or `/admin` 403s and the moderation specs fail. Include the **seeded** one; see the warning above for why never a real one.
+- **`existsSync` on the storageState files runs at CONFIG LOAD**, so a first run cannot use a session it writes mid-run. Run `--project=setup` **first**, then the authed projects as a second invocation.
 - Sign-in goes `admin.auth.admin.generateLink('magiclink')` → `verifyOtp(token_hash)`, serialized through `@supabase/ssr` into a Playwright storageState. Turnstile guards OTP *sends* and password grants — never `/verify` — so this path is captcha-proof. Don't "fix" a failure by reaching for `E2E_TEST_PASSWORD`; that grant is blocked while the captcha is on.
 
 Expect **10/10** (setup + seller + admin). The projects only register when `E2E_AUTHED_BASE` is set, so a missing env means they vanish rather than fail — check the project list in the output if the count looks light.
