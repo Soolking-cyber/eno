@@ -57,6 +57,7 @@ export const UI_STRINGS: string[] = [
   "A list of place names does not tell you that two stops are an hour apart. Each day gets its own colour, each stop a numbered pin, and the day's route is drawn in the order you would travel it — so a day that zig-zags across the city is obvious in advance.",
   "A person has been asked for — Eno concierge stays quiet until they reply.",
   "A person has been asked to look at this. You can keep filling the form while you wait.",
+  "A plan is already being built for you. Give it a moment.",
   "A quick reply from you helps us resolve it fairly.",
   "A report about your account was reviewed and confirmed.",
   "A report concerns you — share your side below.",

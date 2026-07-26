@@ -1,27 +1,50 @@
-import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
-  TRIP_WIZARD_STEPS, TRIP_WIZARD_STEP_FIELDS, MAX_ROUTE_CITIES,
+  ITINERARY_REQUEST_FIELDS, TRIP_WIZARD_STEPS, TRIP_WIZARD_STEP_FIELDS, MAX_ROUTE_CITIES,
   answeredTripWizardFields, firstIncompleteTripWizardStep, isTripWizardFieldName,
-  pickStepFields, tripWizardStepSchema, type TripWizardDraft,
+  itineraryRequestSchema, pickStepFields, tripWizardStepSchema, type TripWizardDraft,
 } from './itinerary-wizard'
 import { CITIES } from '../itinerary-data'
 
-// The wizard is a PARTITION of the generate route's request body, not a second contract. These
-// tests exist to keep that true: the partition must cover the body exactly, and every bound the
-// wizard pre-validates with must still match the authority it is standing in for.
+// The wizard is a PARTITION of the generate route's request body, not a second contract.
+//
+// ⚠️ THIS FILE USED TO REGEX-SCRAPE THE ROUTE'S SOURCE. The schema was declared twice — once in
+// the route, once here — and a set of `expect(source).toMatch(/days: z.number\(\).int\(\)…/)`
+// assertions tried to keep the copies aligned. That guard could only ever catch the authority
+// moving; it could not catch both copies being wrong together, and it broke whenever the file it
+// was reading got reformatted. There is now ONE schema (itineraryRequestSchema, in the module
+// under test) which the route imports, so drift is unrepresentable rather than merely detectable.
+//
+// What replaced the scraping, on the reviewers' insistence that "derived from one object" is not
+// by itself proof:
+//   · structural — the five steps must cover the request's fields exactly, read from the shape;
+//   · behavioural — every shared bound is asserted on BOTH views, so a step that stopped agreeing
+//     with the authority fails here;
+//   · route-level — src/app/api/itineraries/generate/route.test.ts proves the route actually
+//     validates with this schema, refinements attached, before it spends any quota.
 
-const ROUTE_SOURCE = readFileSync(
-  join(process.cwd(), 'src/app/api/itineraries/generate/route.ts'),
-  'utf8',
-)
-// Just the request schema — matching against the whole file would let a bound from the RESPONSE
-// schema satisfy a check about the request.
-const REQUEST_SCHEMA_SOURCE = ROUTE_SOURCE.slice(
-  ROUTE_SOURCE.indexOf('const requestSchema'),
-  ROUTE_SOURCE.indexOf('const activitySchema'),
-)
+/** A start date that is always inside the authority's "future, within two years" window. */
+function soonISO(daysAhead = 30): string {
+  const date = new Date()
+  date.setUTCDate(date.getUTCDate() + daysAhead)
+  return date.toISOString().slice(0, 10)
+}
+
+const validRequest = {
+  locale: 'en' as const,
+  cityIds: ['hanoi', 'hoian'],
+  cityDays: [{ cityId: 'hanoi', days: 3 }],
+  days: 7,
+  startDate: soonISO(),
+  travelers: 2,
+  budgetId: 'comfort',
+  pace: 'balanced',
+  accommodation: 'hotel',
+  interests: ['food', 'culture'],
+  flight: { include: false, cabin: 'economy', maxStops: 'any', checkedBags: false },
+  origin: '',
+  notes: '',
+}
 
 const valid: Required<TripWizardDraft> = {
   cityIds: ['hanoi', 'hoian'],
@@ -40,11 +63,14 @@ const valid: Required<TripWizardDraft> = {
 
 describe('the partition covers the authority exactly', () => {
   it('assigns every request field to exactly one step, and locale to none', () => {
-    // locale is filled from the language context at submit, like the dashboard builder does.
-    const fromRoute = [...REQUEST_SCHEMA_SOURCE.matchAll(/^\s{2}(\w+):/gm)].map((m) => m[1])
+    // locale is filled from the language context at submit, like the dashboard builder does — so
+    // it is the ONE field the authority has and no step collects. Read from the schema's own
+    // field list, not from source text.
     const collected = Object.values(TRIP_WIZARD_STEP_FIELDS).flat()
     expect(new Set(collected).size).toBe(collected.length) // no field in two steps
-    expect([...collected].sort()).toEqual(fromRoute.filter((f) => f !== 'locale').sort())
+    expect([...collected].sort()).toEqual([...ITINERARY_REQUEST_FIELDS].sort())
+    expect(ITINERARY_REQUEST_FIELDS).not.toContain('locale')
+    expect(itineraryRequestSchema.safeParse({ ...validRequest, locale: undefined }).success).toBe(true)
   })
 
   it('has a schema for every step and no step without fields', () => {
@@ -53,71 +79,94 @@ describe('the partition covers the authority exactly', () => {
       expect(tripWizardStepSchema(step)).toBeTruthy()
     }
   })
+
+  it('the authority accepts a complete, valid request', () => {
+    // The floor for every rejection test below: if this ever fails, the negatives prove nothing.
+    expect(itineraryRequestSchema.safeParse(validRequest).success).toBe(true)
+  })
 })
 
-describe('drift guard — every bound still matches the route', () => {
-  // Reading the authority's SOURCE rather than importing it, because requestSchema is
-  // module-private and a route module cannot export extra symbols. If any of these fail, the
-  // wizard has started pre-validating against a contract the server no longer enforces.
+describe('every shared bound holds on BOTH views', () => {
+  // One object, two views — so a bound must bite identically whether it arrives a step at a time
+  // or as a whole request. Each case asserts the step schema AND the authority, which is what the
+  // old source-scraping was reaching for and could not actually check.
   it.each([
-    ['days', /days: z\.number\(\)\.int\(\)\.min\(1\)\.max\(30\)/],
-    ['travelers', /travelers: z\.number\(\)\.int\(\)\.min\(1\)\.max\(100\)/],
-    ['cityIds', /cityIds: z\.array\(z\.enum\(cityIds\)\)\.min\(1\)\.max\(MAX_ROUTE_CITIES\)/],
-    ['interests min/max', /interests: z\.array\([^)]*\)*\)\.min\(1\)\.max\(8\)/],
-    ['origin', /origin: z\.string\(\)\.trim\(\)\.max\(120\)/],
-    ['notes', /notes: z\.string\(\)\.trim\(\)\.max\(600\)/],
-    ['startDate shape', /startDate: z\.string\(\)\.regex\(\/\^\\d\{4\}-\\d\{2\}-\\d\{2\}\$\/\)/],
-  ])('%s', (_label, pattern) => {
-    expect(REQUEST_SCHEMA_SOURCE).toMatch(pattern)
+    ['days max 30', 1, { cityIds: ['hanoi'], cityDays: [], days: 30 }, { cityIds: ['hanoi'], cityDays: [], days: 31 }],
+    ['days min 1', 1, { cityIds: ['hanoi'], cityDays: [], days: 1 }, { cityIds: ['hanoi'], cityDays: [], days: 0 }],
+    ['travelers max 100', 2, { startDate: soonISO(), travelers: 100 }, { startDate: soonISO(), travelers: 101 }],
+    ['travelers min 1', 2, { startDate: soonISO(), travelers: 1 }, { startDate: soonISO(), travelers: 0 }],
+    ['interests at least one', 4, { accommodation: 'hotel', interests: ['food'] }, { accommodation: 'hotel', interests: [] }],
+    ['origin max 120', 5, { flight: validRequest.flight, origin: 'x'.repeat(120), notes: '' }, { flight: validRequest.flight, origin: 'x'.repeat(121), notes: '' }],
+    ['notes max 600', 5, { flight: validRequest.flight, origin: '', notes: 'x'.repeat(600) }, { flight: validRequest.flight, origin: '', notes: 'x'.repeat(601) }],
+  ])('%s', (_label, step, ok, bad) => {
+    const schema = tripWizardStepSchema(step as 1 | 2 | 4 | 5)
+    expect({ view: 'step', ok: schema.safeParse(ok).success, bad: schema.safeParse(bad).success })
+      .toEqual({ view: 'step', ok: true, bad: false })
+    expect({
+      view: 'request',
+      ok: itineraryRequestSchema.safeParse({ ...validRequest, ...ok }).success,
+      bad: itineraryRequestSchema.safeParse({ ...validRequest, ...bad }).success,
+    }).toEqual({ view: 'request', ok: true, bad: false })
   })
 
-  // ⚠️ THE ABOVE IS ONLY HALF A GUARD. Those assertions read the ROUTE's source, so they catch the
-  // authority moving — but not MY copy being wrong in the first place. A mistyped bound here would
-  // pass every one of them. So each bound is ALSO pinned behaviourally against the wizard's own
-  // schema, on both sides of the boundary.
-  it.each([
-    ['days max 30', 1, (v: number) => ({ cityIds: ['hanoi'], cityDays: [], days: v }), 30, 31],
-    ['days min 1', 1, (v: number) => ({ cityIds: ['hanoi'], cityDays: [], days: v }), 1, 0],
-    ['travelers max 100', 2, (v: number) => ({ startDate: '2030-01-01', travelers: v }), 100, 101],
-    ['travelers min 1', 2, (v: number) => ({ startDate: '2030-01-01', travelers: v }), 1, 0],
-  ])('the wizard itself enforces %s', (_l, step, make, ok, bad) => {
-    const schema = tripWizardStepSchema(step as 1 | 2)
-    expect(schema.safeParse(make(ok)).success).toBe(true)
-    expect(schema.safeParse(make(bad)).success).toBe(false)
-  })
-
-  it('the wizard itself enforces the text ceilings', () => {
-    const base = { flight: valid.flight, origin: '', notes: '' }
-    const s5 = tripWizardStepSchema(5)
-    expect(s5.safeParse({ ...base, origin: 'x'.repeat(120) }).success).toBe(true)
-    expect(s5.safeParse({ ...base, origin: 'x'.repeat(121) }).success).toBe(false)
-    expect(s5.safeParse({ ...base, notes: 'x'.repeat(600) }).success).toBe(true)
-    expect(s5.safeParse({ ...base, notes: 'x'.repeat(601) }).success).toBe(false)
-  })
-
-  it('the wizard itself enforces the interest count', () => {
-    const s4 = tripWizardStepSchema(4)
-    expect(s4.safeParse({ accommodation: 'hotel', interests: ['food'] }).success).toBe(true)
-    expect(s4.safeParse({ accommodation: 'hotel', interests: [] }).success).toBe(false)
-  })
-
-  it('the wizard itself enforces the route ceiling', () => {
-    const s1 = tripWizardStepSchema(1)
-    const cities = CITIES.slice(0, MAX_ROUTE_CITIES).map((c) => c.id)
-    expect(s1.safeParse({ cityIds: cities, cityDays: [], days: 30 }).success).toBe(true)
-    expect(s1.safeParse({ cityIds: [...cities, CITIES[15].id], cityDays: [], days: 30 }).success).toBe(false)
-  })
-
-  it('MAX_ROUTE_CITIES is still 15 on both sides', () => {
+  it('the route ceiling is 15 cities, on both views', () => {
     expect(MAX_ROUTE_CITIES).toBe(15)
-    expect(ROUTE_SOURCE).toMatch(/const MAX_ROUTE_CITIES = 15/)
+    const cities = CITIES.slice(0, MAX_ROUTE_CITIES).map((c) => c.id)
+    const tooMany = [...cities, CITIES[15].id]
+    const s1 = tripWizardStepSchema(1)
+    expect(s1.safeParse({ cityIds: cities, cityDays: [], days: 30 }).success).toBe(true)
+    expect(s1.safeParse({ cityIds: tooMany, cityDays: [], days: 30 }).success).toBe(false)
+    expect(itineraryRequestSchema.safeParse({ ...validRequest, cityIds: tooMany, cityDays: [], days: 30 }).success).toBe(false)
   })
 
-  it('the cross-field rule the wizard duplicates still exists in the route', () => {
-    // Step 1 enforces this early so a traveller is told on the step that asked. If the route ever
-    // drops it, the wizard would be the STRICTER one — also drift, and also worth knowing.
-    expect(REQUEST_SCHEMA_SOURCE).toMatch(/City day allocations exceed the total trip length/)
-    expect(REQUEST_SCHEMA_SOURCE).toMatch(/Origin is required for flight research/)
+  it('the cross-field day-allocation rule bites on step 1 AND on the whole request', () => {
+    // 5 allocated + 1 unallocated city > 3 days. Enforced on the step that asked, so the traveller
+    // is told there — a body rejected at submit still costs a rate-limit token.
+    const bad = { cityIds: ['hanoi', 'hoian'], cityDays: [{ cityId: 'hanoi', days: 5 }], days: 3 }
+    expect(tripWizardStepSchema(1).safeParse(bad).success).toBe(false)
+    expect(itineraryRequestSchema.safeParse({ ...validRequest, ...bad }).success).toBe(false)
+  })
+
+  it('flights require an origin, on step 5 AND on the whole request', () => {
+    const withFlights = { flight: { include: true, cabin: 'economy', maxStops: 'any', checkedBags: false } }
+    const s5 = tripWizardStepSchema(5)
+    expect(s5.safeParse({ ...withFlights, origin: 'a', notes: '' }).success).toBe(false)
+    expect(s5.safeParse({ ...withFlights, origin: 'Seoul', notes: '' }).success).toBe(true)
+    expect(itineraryRequestSchema.safeParse({ ...validRequest, ...withFlights, origin: 'a' }).success).toBe(false)
+    expect(itineraryRequestSchema.safeParse({ ...validRequest, ...withFlights, origin: 'Seoul' }).success).toBe(true)
+  })
+})
+
+describe('the start-date rule is on the authority only, and that is deliberate', () => {
+  // ⚠️ TIME-RELATIVE. A step schema carrying this would give a rendered wizard card a different
+  // verdict tonight than it gave this morning, and would rot every fixture with a fixed date. It
+  // is evaluated once, at submit, where the answer is acted on immediately.
+  it.each([
+    ['yesterday', soonISO(-1), false],
+    ['today', soonISO(0), true],
+    ['in a month', soonISO(30), true],
+    ['just inside two years', soonISO(720), true],
+    ['beyond two years', soonISO(760), false],
+  ])('%s → %s', (_label, startDate, accepted) => {
+    expect(itineraryRequestSchema.safeParse({ ...validRequest, startDate }).success).toBe(accepted)
+  })
+
+  it('a nonexistent calendar date is refused even though it matches the pattern', () => {
+    expect(itineraryRequestSchema.safeParse({ ...validRequest, startDate: '2027-02-31' }).success).toBe(false)
+  })
+
+  it('step 2 does NOT carry it — a past date is a step-2 answer the authority rejects at submit', () => {
+    expect(tripWizardStepSchema(2).safeParse({ startDate: soonISO(-1), travelers: 2 }).success).toBe(true)
+    expect(itineraryRequestSchema.safeParse({ ...validRequest, startDate: soonISO(-1) }).success).toBe(false)
+  })
+})
+
+describe('the locale enum', () => {
+  it('defaults to en and refuses a language the generator cannot write', () => {
+    const parsed = itineraryRequestSchema.safeParse({ ...validRequest, locale: undefined })
+    expect(parsed.success && parsed.data.locale).toBe('en')
+    expect(itineraryRequestSchema.safeParse({ ...validRequest, locale: 'klingon' }).success).toBe(false)
+    expect(itineraryRequestSchema.safeParse({ ...validRequest, locale: 'vi' }).success).toBe(true)
   })
 })
 

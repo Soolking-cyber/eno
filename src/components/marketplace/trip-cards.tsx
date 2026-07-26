@@ -13,10 +13,10 @@ import { Input } from '@/components/ui/input'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { formatMoneyFull, moneyLocale } from '@/lib/vnd'
-import { BUDGETS, CITIES } from '@/lib/itinerary-data'
 import {
-  LAST_TRIP_WIZARD_STEP, TRIP_ACCOMMODATION_LABELS, TRIP_INTEREST_LABELS, TRIP_PACE_LABELS,
-} from '@/lib/trips/itinerary-wizard'
+  ACCOMMODATION_LABELS, BUDGETS, CITIES, INTEREST_LABELS, PACE_LABELS,
+} from '@/lib/itinerary-data'
+import { LAST_TRIP_WIZARD_STEP } from '@/lib/trips/itinerary-wizard'
 
 // ── TRIP ASSISTANCE CARDS, RENDERED INSIDE THE CHAT THREAD ─────────────────────────
 //
@@ -297,7 +297,10 @@ export function TripWizardCard({ conversationId, meta }: { conversationId: strin
       })
       if (!res.ok) {
         // 429 is the cost guard doing its job — say so plainly rather than "something went wrong".
-        setError(res.status === 429 ? 'rate_limited' : 'generate_failed')
+        // 429 is the cost guard doing its job; 409 means a plan is ALREADY being built for this
+        // account (another tab, or a submit that is still running). Neither is "something went
+        // wrong", and telling a traveller to retry a 409 would be advice to wait, not to act.
+        setError(res.status === 429 ? 'rate_limited' : res.status === 409 ? 'already_generating' : 'generate_failed')
         return
       }
       // ⚠️ THE FIELD IS `savedItineraryId`. I first read `itineraryId ?? id` from assumption; the
@@ -397,7 +400,7 @@ export function TripWizardCard({ conversationId, meta }: { conversationId: strin
             </div>
             <p className="text-sm text-ink-3">{tr('Pace', 'Nhịp độ')}</p>
             <div className="flex flex-wrap gap-1.5">
-              {Object.entries(TRIP_PACE_LABELS).map(([id, option]) => (
+              {Object.entries(PACE_LABELS).map(([id, option]) => (
                 <Button key={id} size="sm" variant={draft.pace === id ? 'default' : 'outline'} onClick={() => patch({ pace: id })}>
                   {lang === 'vi' ? option.labelVi : option.label}
                 </Button>
@@ -408,7 +411,7 @@ export function TripWizardCard({ conversationId, meta }: { conversationId: strin
           <>
             <p className="text-sm text-ink-3">{tr('What do you enjoy?', 'Bạn thích điều gì?')}</p>
             <div className="flex flex-wrap gap-1.5">
-              {Object.entries(TRIP_INTEREST_LABELS).map(([id, option]) => {
+              {Object.entries(INTEREST_LABELS).map(([id, option]) => {
                 const on = draft.interests.includes(id)
                 return (
                   <Button key={id} size="sm" variant={on ? 'default' : 'outline'} onClick={() => patch({ interests: on ? draft.interests.filter((i) => i !== id) : [...draft.interests, id] })}>
@@ -419,7 +422,7 @@ export function TripWizardCard({ conversationId, meta }: { conversationId: strin
             </div>
             <p className="text-sm text-ink-3">{tr('Where would you like to stay?', 'Bạn muốn ở đâu?')}</p>
             <div className="flex flex-wrap gap-1.5">
-              {Object.entries(TRIP_ACCOMMODATION_LABELS).map(([id, option]) => (
+              {Object.entries(ACCOMMODATION_LABELS).map(([id, option]) => (
                 <Button key={id} size="sm" variant={draft.accommodation === id ? 'default' : 'outline'} onClick={() => patch({ accommodation: id })}>
                   {lang === 'vi' ? option.labelVi : option.label}
                 </Button>
@@ -450,7 +453,9 @@ export function TripWizardCard({ conversationId, meta }: { conversationId: strin
         <p role="alert" className="mt-3 text-xs text-destructive">
           {error === 'rate_limited'
             ? tr('You have reached today’s planning limit. Try again later.', 'Bạn đã đạt giới hạn lập kế hoạch hôm nay. Hãy thử lại sau.')
-            : error === 'invalid_answers'
+            : error === 'already_generating'
+              ? tr('A plan is already being built for you. Give it a moment.', 'Một lịch trình đang được tạo cho bạn. Vui lòng đợi một chút.')
+              : error === 'invalid_answers'
               ? tr('Please check the answers on this step.', 'Vui lòng kiểm tra lại các câu trả lời ở bước này.')
               : error === 'not_saved'
                 ? tr('We built your plan but could not save it. Open the trip planner to try again.', 'Chúng tôi đã tạo lịch trình nhưng chưa lưu được. Hãy mở trình lập kế hoạch để thử lại.')

@@ -1,7 +1,9 @@
 import 'server-only'
+import { randomUUID } from 'node:crypto'
 import { db } from '../db'
 import { getCurrentProfile } from '../admin'
 import { insertMessage, parseMessageMeta, type TripStepMeta } from '../messages'
+import { kv } from '../ratelimit'
 import { getTripAssistanceListingId, getTripDesk } from './dm-thread'
 
 import {
@@ -103,22 +105,84 @@ async function activeWizardCard(conversationId: string): Promise<{ id: string; m
   return meta && row.metaJson ? { id: row.id, meta, raw: row.metaJson } : null
 }
 
-/** Open the wizard in a thread, or hand back the one already running. */
+/**
+ * How long one thread's start may hold the section. Generous next to the SELECT+INSERT it covers
+ * (single-digit milliseconds), small enough that a process dying mid-start cannot keep a traveller
+ * from opening the wizard for long.
+ */
+const START_SLOT_TTL_SECONDS = 20
+
+/** Re-read the card a few times, for the loser of the start race. */
+async function awaitWizardCard(conversationId: string) {
+  for (let attempt = 0; attempt < 4; attempt++) {
+    await new Promise((resolve) => setTimeout(resolve, 120))
+    const card = await activeWizardCard(conversationId)
+    if (card && card.meta.state === 'active') return card
+  }
+  return null
+}
+
+/**
+ * Open the wizard in a thread, or hand back the one already running.
+ *
+ * ⚠️ THE CHECK AND THE INSERT ARE ONE SECTION, because on their own they are read-then-write. The
+ * function was already idempotent against a DOUBLE TAP — the second tap re-reads and resumes — but
+ * two genuinely concurrent starts (a second tab, a retried request) both read "no card" and both
+ * insert, and the thread ends up with two live wizard cards. `activeWizardCard` then picks the
+ * newest deterministically, so the state does not split; what the traveller gets is a duplicate
+ * bubble and a step counter that appears to jump backwards in the older one.
+ *
+ * ⚠️ A KV SLOT, NOT AN ADVISORY LOCK, and that is not the first instinct. `pg_advisory_xact_lock`
+ * is the pattern this repo already uses (assistance.ts:100) — but it only serialises statements
+ * that run on the LOCKING transaction's connection, and the insert here goes through
+ * `insertMessage`, which owns its own writes on the global client and takes no transaction. Wrapping
+ * this in `db.$transaction` would produce a lock that looks right and guards nothing. Reviewers
+ * caught that; the honest fix at this layer is a slot both racers can see.
+ *
+ * Fails OPEN: if the KV backend is unreachable the start proceeds unserialised, which is exactly
+ * today's behaviour. A traveller cannot be told "you may not start planning" because a cache is down.
+ */
 export async function startTripWizard(input: { conversationId: string }): Promise<WizardResult> {
   const context = await requireTraveller(input.conversationId)
   if (typeof context === 'string') return { ok: false, error: context }
 
-  const existing = await activeWizardCard(input.conversationId)
   // Idempotent by design: a double tap, or a reopened thread, resumes rather than restarting —
-  // and restarting would silently discard the steps already answered.
-  if (existing && existing.meta.state === 'active') {
-    return { ok: true, step: existing.meta.step, messageId: existing.id }
+  // and restarting would silently discard the steps already answered. Kept OUTSIDE the section so
+  // the overwhelmingly common case (the wizard is already open) costs one read and no slot.
+  const running = await activeWizardCard(input.conversationId)
+  if (running && running.meta.state === 'active') {
+    return { ok: true, step: running.meta.step, messageId: running.id }
   }
 
   const desk = await threadHostsWizard(context.convo)
   if (!desk) return { ok: false, error: 'desk_unavailable' }
 
+  const key = `trip-wizard-start:${input.conversationId}`
+  const token = randomUUID()
+  let held: 'OK' | null = 'OK'
   try {
+    held = await kv.set(key, token, { nx: true, ex: START_SLOT_TTL_SECONDS })
+  } catch (e) {
+    console.error('[trips-wizard] start slot unavailable', { error: (e as Error)?.message })
+  }
+
+  if (!held) {
+    // Another start for this thread is inside the section right now. Its insert is one row write,
+    // so waiting briefly and re-reading yields ITS card — which is the same answer a double tap
+    // gets, and the reason this is idempotency rather than a refusal.
+    const settled = await awaitWizardCard(input.conversationId)
+    if (settled) return { ok: true, step: settled.meta.step, messageId: settled.id }
+    return { ok: false, error: 'update_failed' }
+  }
+
+  try {
+    // ⚠️ RE-READ INSIDE THE SECTION. The check above ran before the slot was held, so it proves
+    // nothing about the moment of insert — without this, the loser of the race would insert a
+    // second card as soon as the winner released.
+    const existing = await activeWizardCard(input.conversationId)
+    if (existing && existing.meta.state === 'active') {
+      return { ok: true, step: existing.meta.step, messageId: existing.id }
+    }
     const message = await insertMessage(context.convo, desk.ownerId, '', {
       kind: 'trip_step',
       meta: { v: 1, step: TRIP_WIZARD_STEPS[0], state: 'active' },
@@ -128,6 +192,14 @@ export async function startTripWizard(input: { conversationId: string }): Promis
   } catch (e) {
     console.error('[trips-wizard] start refused', { error: (e as Error)?.message })
     return { ok: false, error: 'update_failed' }
+  } finally {
+    // ⚠️ COMPARE BEFORE DELETING. If this start ever outlived its own TTL, another one would hold
+    // the slot by now and an unconditional delete would release SOMEONE ELSE'S section.
+    try {
+      if ((await kv.get<string>(key)) === token) await kv.del(key)
+    } catch {
+      // The TTL is the backstop. Throwing here would turn a started wizard into a failed one.
+    }
   }
 }
 

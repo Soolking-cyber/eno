@@ -21,6 +21,18 @@ const h = vi.hoisted(() => ({
     insertThrows: false,
     // Fires between activeWizardCard's read and writeCardMeta's update: the real race window.
     mutateBeforeWrite: null as (() => void) | null,
+    // The KV slot that serialises `start`. Modelled rather than stubbed, because the property
+    // under test IS its NX semantics.
+    kv: new Map<string, unknown>(),
+    kvThrows: false,
+    // Awaited INSIDE insertMessage, i.e. inside the start section, so a second start can be fired
+    // against a first one that is provably still holding the slot.
+    onInsert: null as null | (() => Promise<void>),
+    // Resolved the first time a start claims the slot.
+    onClaim: null as null | (() => void),
+    // Resolved when a start LOSES the slot — the only sync point that proves a second racer has
+    // reached the mutex and been turned away.
+    onSlotLost: null as null | (() => void),
   },
 }))
 
@@ -32,9 +44,30 @@ vi.mock('./dm-thread', () => ({
 vi.mock('../messages', async (orig) => ({
   ...(await orig<typeof import('../messages')>()),
   insertMessage: async (_convo: unknown, senderId: string, _text: string, opts: any) => {
+    if (h.state.onInsert) await h.state.onInsert()
     if (h.state.insertThrows) throw new Error('trip_card_author_forbidden')
     h.state.inserted.push({ kind: opts.kind, meta: opts.meta, preview: opts.preview, senderId })
-    return { id: 'card-new' }
+    // A real insert makes the row VISIBLE to the next reader — which is the whole reason the
+    // loser of a start race can resolve to the winner's card instead of inserting a second one.
+    const row = { id: 'card-new', metaJson: JSON.stringify(opts.meta) }
+    h.state.card = row
+    return row
+  },
+}))
+vi.mock('../ratelimit', () => ({
+  kv: {
+    set: async (key: string, value: unknown, opts?: { nx?: boolean; ex?: number }) => {
+      if (h.state.kvThrows) throw new Error('kv unreachable')
+      if (opts?.nx && h.state.kv.has(key)) { h.state.onSlotLost?.(); return null }
+      h.state.kv.set(key, value)
+      h.state.onClaim?.()
+      return 'OK'
+    },
+    get: async (key: string) => {
+      if (h.state.kvThrows) throw new Error('kv unreachable')
+      return h.state.kv.get(key) ?? null
+    },
+    del: async (key: string) => { h.state.kv.delete(key) },
   },
 }))
 vi.mock('../db', () => ({
@@ -83,6 +116,11 @@ beforeEach(() => {
   h.state.updates = []
   h.state.insertThrows = false
   h.state.mutateBeforeWrite = null
+  h.state.kv = new Map()
+  h.state.kvThrows = false
+  h.state.onInsert = null
+  h.state.onClaim = null
+  h.state.onSlotLost = null
 })
 
 describe('who may drive the wizard', () => {
@@ -114,6 +152,86 @@ describe('who may drive the wizard', () => {
   it('refuses a thread the CURRENT desk does not answer', async () => {
     h.state.convo = { ...h.state.convo, sellerProfileId: 'former-desk-owner' }
     expect(await startTripWizard({ conversationId: CONVO })).toEqual({ ok: false, error: 'desk_unavailable' })
+  })
+})
+
+describe('starting is idempotent under CONCURRENCY, not only under a double tap', () => {
+  // `start` was read-then-insert: check for a live card, then insert one. A second tap re-reads
+  // and resumes, so it always looked idempotent — but two genuinely concurrent starts (a second
+  // tab, a retried request) both read "no card" and both insert, and the thread ends up with two
+  // live wizard cards. The reader picks the newest, so the state does not split; what the
+  // traveller sees is a duplicate bubble whose step counter appears to run backwards.
+
+  /**
+   * Hold a start inside its section, fire a second one against it, then let the first finish.
+   *
+   * ⚠️ THE PARK POINT IS THE INSERT, NOT THE CLAIM. An earlier version of this helper waited for
+   * the slot to be claimed and then cleared the hook — but there is an `await` between the claim
+   * and the insert, so the first start sailed past an already-cleared hook, inserted, and the
+   * second start simply resumed its card. The test passed against the UNFIXED code, which a
+   * mutation run caught. Parking the first call inside insertMessage is what makes the overlap
+   * real: while it is parked the slot is provably held and no card exists yet.
+   */
+  async function twoConcurrentStarts() {
+    let release: () => void = () => {}
+    let parked: () => void = () => {}
+    let contested: () => void = () => {}
+    const inserting = new Promise<void>((resolve) => { release = resolve })
+    const firstParked = new Promise<void>((resolve) => { parked = resolve })
+    const slotContested = new Promise<void>((resolve) => { contested = resolve })
+    let inserts = 0
+    h.state.onInsert = () => {
+      inserts += 1
+      if (inserts > 1) return Promise.resolve()   // a second insert must never be blocked FOR us
+      parked()
+      return inserting
+    }
+    h.state.onSlotLost = contested
+
+    const first = startTripWizard({ conversationId: CONVO })
+    await firstParked            // first is inside insertMessage: slot held, no card yet
+    const second = startTripWizard({ conversationId: CONVO })
+    await slotContested          // second has REACHED the mutex and been turned away
+    release()                    // only now may the winner finish
+    return Promise.all([first, second])
+  }
+
+  it('⚠️ TWO CONCURRENT STARTS INSERT EXACTLY ONE CARD', async () => {
+    const [first, second] = await twoConcurrentStarts()
+    expect({ inserts: h.state.inserted.length, first, second }).toEqual({
+      inserts: 1,
+      first: { ok: true, step: 1, messageId: 'card-new' },
+      // The loser resolves to the WINNER's card — the same answer a double tap gets. Refusing
+      // would be correct-but-useless: the traveller tapped a button and deserves a wizard.
+      second: { ok: true, step: 1, messageId: 'card-new' },
+    })
+  })
+
+  it('releases the slot, so the next start is not locked out', async () => {
+    await startTripWizard({ conversationId: CONVO })
+    expect(h.state.kv.size).toBe(0)
+  })
+
+  it('⚠️ RELEASE IS OWNERSHIP-CHECKED — a late finisher cannot free somebody else s slot', async () => {
+    // Both external reviewers raised this independently: if a start ever outlived its TTL, the
+    // next one would hold the key, and an unconditional delete would release ITS section.
+    h.state.onInsert = async () => { h.state.kv.set(`trip-wizard-start:${CONVO}`, 'a-newer-token') }
+    await startTripWizard({ conversationId: CONVO })
+    expect(h.state.kv.get(`trip-wizard-start:${CONVO}`)).toBe('a-newer-token')
+  })
+
+  it('FAILS OPEN when the KV backend is down — a traveller can still open the wizard', async () => {
+    h.state.kvThrows = true
+    expect(await startTripWizard({ conversationId: CONVO })).toEqual({ ok: true, step: 1, messageId: 'card-new' })
+    expect(h.state.inserted).toHaveLength(1)
+  })
+
+  it('does not claim a slot at all when a wizard is already running', async () => {
+    // The common case by far. It must stay a single read: no slot, no contention, no waiting.
+    h.state.card = cardAt(3, 'active')
+    const result = await startTripWizard({ conversationId: CONVO })
+    expect({ result, slots: h.state.kv.size, inserts: h.state.inserted.length })
+      .toEqual({ result: { ok: true, step: 3, messageId: 'card-1' }, slots: 0, inserts: 0 })
   })
 })
 

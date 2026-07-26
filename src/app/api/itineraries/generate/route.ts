@@ -1,15 +1,18 @@
+import { randomUUID } from 'node:crypto'
 import { ThinkingLevel, Type } from '@google/genai'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 import { aiGuard } from '@/lib/ai-guard'
+import { getCurrentProfileId } from '@/lib/admin'
 import { fold } from '@/lib/fold'
 import { findPlace } from '@/lib/itinerary-places'
 import { aiErrorStatus, withAiRetry } from '@/lib/ai-retry'
 import { db } from '@/lib/db'
 import { GEMINI_MODEL, GEMINI_MODEL_FALLBACK, getGemini } from '@/lib/gemini'
 import { buildItinerarySavePayload } from '@/lib/itinerary-save'
+import { MAX_ROUTE_CITIES, itineraryRequestSchema, type ItineraryRequest } from '@/lib/trips/itinerary-wizard'
 import { languageName } from '@/lib/languages'
-import { rateLimit } from '@/lib/ratelimit'
+import { kv, rateLimit } from '@/lib/ratelimit'
 
 // The dashboard itinerary planner's research call (ported from the forum planner,
 // 2026-07-18 — the planner is now NATIVE to eno.vn at /dashboard/trips/plan).
@@ -45,65 +48,16 @@ const CITY_CATALOG = {
 } as const
 
 type CityId = keyof typeof CITY_CATALOG
-const cityIds = Object.keys(CITY_CATALOG) as [CityId, ...CityId[]]
-const MAX_ROUTE_CITIES = 15
 
-const requestSchema = z.object({
-  locale: z.enum(['en', 'vi', 'zh-Hans', 'ko', 'ja', 'ru', 'km', 'ms', 'th', 'fr', 'hi']).default('en'),
-  origin: z.string().trim().max(120).default(''),
-  startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  days: z.number().int().min(1).max(30),
-  travelers: z.number().int().min(1).max(100),
-  cityIds: z.array(z.enum(cityIds)).min(1).max(MAX_ROUTE_CITIES),
-  cityDays: z.array(z.object({
-    cityId: z.enum(cityIds),
-    days: z.number().int().min(1).max(30),
-  })).max(MAX_ROUTE_CITIES).default([]),
-  budgetId: z.enum(['smart', 'comfort', 'premium']),
-  pace: z.enum(['slow', 'balanced', 'full']),
-  interests: z.array(z.enum(['food', 'culture', 'nature', 'beaches', 'adventure', 'nightlife', 'wellness', 'family'])).min(1).max(8),
-  accommodation: z.enum(['hotel', 'boutique', 'resort', 'apartment', 'homestay', 'hostel']),
-  flight: z.object({
-    include: z.boolean(),
-    cabin: z.enum(['economy', 'premium_economy', 'business']),
-    maxStops: z.enum(['direct', 'one_stop', 'any']),
-    checkedBags: z.boolean(),
-  }),
-  notes: z.string().trim().max(600).default(''),
-}).superRefine((value, context) => {
-  const start = new Date(`${value.startDate}T00:00:00.000Z`)
-  const today = new Date()
-  today.setUTCHours(0, 0, 0, 0)
-  const latestStart = new Date(today)
-  latestStart.setUTCFullYear(latestStart.getUTCFullYear() + 2)
-  if (Number.isNaN(start.getTime()) || start.toISOString().slice(0, 10) !== value.startDate) {
-    context.addIssue({ code: 'custom', path: ['startDate'], message: 'Invalid date' })
-  } else if (start < today) {
-    context.addIssue({ code: 'custom', path: ['startDate'], message: 'Start date cannot be in the past' })
-  } else if (start > latestStart) {
-    context.addIssue({ code: 'custom', path: ['startDate'], message: 'Start date must be within two years' })
-  }
-  if (new Set(value.cityIds).size !== value.cityIds.length) {
-    context.addIssue({ code: 'custom', path: ['cityIds'], message: 'Cities must be unique' })
-  }
-  const allocatedCityIds = value.cityDays.map(({ cityId }) => cityId)
-  if (new Set(allocatedCityIds).size !== allocatedCityIds.length) {
-    context.addIssue({ code: 'custom', path: ['cityDays'], message: 'City day allocations must be unique' })
-  }
-  for (const [index, allocation] of value.cityDays.entries()) {
-    if (!value.cityIds.includes(allocation.cityId)) {
-      context.addIssue({ code: 'custom', path: ['cityDays', index, 'cityId'], message: 'Allocated city must be in the selected route' })
-    }
-  }
-  const allocatedDays = value.cityDays.reduce((sum, allocation) => sum + allocation.days, 0)
-  const flexibleCities = value.cityIds.filter((cityId) => !allocatedCityIds.includes(cityId)).length
-  if (allocatedDays + flexibleCities > value.days) {
-    context.addIssue({ code: 'custom', path: ['cityDays'], message: 'City day allocations exceed the total trip length' })
-  }
-  if (value.flight.include && value.origin.length < 2) {
-    context.addIssue({ code: 'custom', path: ['origin'], message: 'Origin is required for flight research' })
-  }
-})
+// ⚠️ THE REQUEST CONTRACT IS NOT DECLARED HERE. It lives in src/lib/trips/itinerary-wizard.ts as
+// `itineraryRequestSchema`, and this route is one of its two consumers — the other is the chat
+// wizard, which partitions the SAME field objects into five questions.
+//
+// It used to be declared here and mirrored there, kept in step by a test that regex-scraped this
+// file's source. Sharing one object makes the drift unrepresentable rather than merely detectable,
+// which is why that test is gone. CITY_CATALOG below stays private to this route: it is the
+// PROMPT-side catalogue (display names, regions, airports), not the validator, and
+// itinerary-city-catalog.test.ts keeps its ids aligned with the CITIES the schema validates.
 
 const activitySchema = z.object({
   time: z.string().max(40),
@@ -424,7 +378,119 @@ function cleanModelJson(value: string): string {
   return trimmed.startsWith('```') ? trimmed.replace(/^```(?:json)?/i, '').replace(/```$/, '').trim() : trimmed
 }
 
+/**
+ * ONE generation in flight per account.
+ *
+ * Both clients guard their submit button, but a button is not a guard: a second tab, a retried
+ * request, or a crafted one fires two generations that the caps happily allow — spending two
+ * tokens of an 8/hour budget on the most expensive path in the app for one traveller's plan.
+ *
+ * ⚠️ COMPARE-AND-DELETE, NOT DELETE. Both reviewers landed on the same failure independently: if
+ * request A's slot ever expires while A is still running, B claims the key, and A's `finally` then
+ * deletes B's slot. Releasing only when the stored token is still MINE closes the common case.
+ *
+ * ⚠️ IT DOES NOT CLOSE IT COMPLETELY, and the residual is written down rather than papered over.
+ * The read and the delete are two statements, so this interleaving survives:
+ *     A: get → token A · A stalls · A's lease expires · B: set nx → token B · A: del → frees B
+ * It needs A to stall between two round trips for longer than its remaining lease, and it degrades
+ * to the pre-existing behaviour (one unguarded generation) rather than to anything worse. The real
+ * fix is a single conditional statement — `delete … where key = $1 and value = $2` — which belongs
+ * in the kv primitive beside kv_set/kv_del, not open-coded here. Flagged for that change.
+ *
+ * ⚠️ Likewise, a lease is a lease, not a mutex: Cloud Run returning 504 at 300s does not stop the
+ * handler, so a request that outlives its own lease can be joined by a second one. The guard makes
+ * the double-spend rare, not impossible; the 8/hour and 400/day caps are what make it bounded.
+ *
+ * ⚠️ TTL 300s IS DELIBERATE and is NOT "how long a generation takes". `maxDuration = 90` above is
+ * a Vercel directive and this app is on Cloud Run, where the enforced ceiling is the load
+ * balancer's 300s. The slot has to outlive the longest request the platform will actually permit,
+ * or it expires under a live request and re-opens the exact double-spend this closes. Because a
+ * normal completion releases immediately, the TTL is only ever reached when the process died.
+ */
+const MAX_REQUEST_BYTES = 16 * 1024
+
+/**
+ * The request body, or null if it is oversized or unreadable.
+ *
+ * Checks the declared length first (free) and the delivered length second, because a chunked
+ * request need not declare one — the header is a hint, not a guarantee.
+ */
+async function readBoundedBody(request: Request): Promise<unknown> {
+  if (Number(request.headers.get('content-length') ?? 0) > MAX_REQUEST_BYTES) return null
+  const text = await request.text().catch(() => null)
+  if (text === null || text.length > MAX_REQUEST_BYTES) return null
+  try {
+    return JSON.parse(text)
+  } catch {
+    // Indistinguishable from a well-formed body that fails validation: both are a 400 below.
+    return {}
+  }
+}
+
+const GENERATION_SLOT_TTL_SECONDS = 300
+
+async function claimGenerationSlot(profileId: string): Promise<{ release: () => Promise<void> } | null> {
+  const key = `itinerary-inflight:${profileId}`
+  const token = randomUUID()
+  const noop = { release: async () => {} }
+  let won: 'OK' | null
+  try {
+    won = await kv.set(key, token, { nx: true, ex: GENERATION_SLOT_TTL_SECONDS })
+  } catch (e) {
+    // FAILS OPEN. This is a spend-efficiency guard, not a security control — the 8/hour and
+    // 400/day caps are the ones that must hold, and they are untouched here. Refusing to plan a
+    // trip because a cache write failed would trade a rare double-charge for a dead feature.
+    console.error('[itinerary] generation slot unavailable', { error: (e as Error)?.message })
+    return noop
+  }
+  if (!won) return null
+  return {
+    release: async () => {
+      try {
+        const held = await kv.get<string>(key)
+        if (held === token) await kv.del(key)
+      } catch {
+        // Nothing useful to do — the TTL is the backstop, and throwing out of a `finally` would
+        // turn a successful 200 with a finished itinerary into a 500.
+      }
+    },
+  }
+}
+
 export async function POST(request: Request) {
+  // ⚠️ ORDER IS LOAD-BEARING: identify → validate → claim the slot → SPEND. Nothing above the
+  // claim costs quota, so a malformed body is now a free 400 instead of the two rate-limit tokens
+  // it used to burn before anyone looked at it, and a rejected request cannot lock out a valid one.
+  //
+  // getCurrentProfileId runs here and again inside aiGuard. That is a second cookie-session read
+  // per generation, accepted deliberately: the alternative is spending the quota BEFORE knowing
+  // whether this is a duplicate, which is the whole defect.
+  const profileId = await getCurrentProfileId()
+  if (!profileId) return NextResponse.json({ error: 'auth_required' }, { status: 401 })
+
+  // ⚠️ THE CEILING EXISTS BECAUSE VALIDATION MOVED AHEAD OF THE METER. While aiGuard ran first,
+  // an enormous body cost a rate-limit token before anything parsed it, so the 8/hour cap bounded
+  // the damage. Parsing first is the right order — it makes a doomed request free — but it would
+  // otherwise hand an authenticated caller an unmetered way to spend server CPU on JSON.parse and
+  // a deep Zod traversal. App-Router handlers have no default body limit, so this is the limit.
+  // A full request is well under 2 kB (15 cities, a 120-char origin, 600 chars of notes).
+  const raw = await readBoundedBody(request)
+  if (raw === null) return NextResponse.json({ error: 'body_too_large' }, { status: 413 })
+  const parsed = itineraryRequestSchema.safeParse(raw)
+  if (!parsed.success) {
+    return NextResponse.json({ error: 'invalid_trip', issues: parsed.error.issues }, { status: 400 })
+  }
+
+  const slot = await claimGenerationSlot(profileId)
+  if (!slot) return NextResponse.json({ error: 'already_generating' }, { status: 409 })
+  try {
+    return await runGeneration(parsed.data)
+  } finally {
+    await slot.release()
+  }
+}
+
+async function runGeneration(input: ItineraryRequest) {
   // Cost breakers, the app's standard shape (see classify/rephrase): aiGuard =
   // login-only + per-account hourly cap (8/h, the planner's forum-tuned limit) +
   // the shared global daily AI ceiling — all strict (fail-closed). On top, the
@@ -437,15 +503,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'rate_limited' }, { status: 429 })
   }
 
-  const parsed = requestSchema.safeParse(await request.json().catch(() => null))
-  if (!parsed.success) {
-    return NextResponse.json({ error: 'invalid_trip', issues: parsed.error.issues }, { status: 400 })
-  }
-
   const ai = getGemini()
   if (!ai) return NextResponse.json({ error: 'ai_unavailable' }, { status: 503 })
 
-  const input = parsed.data
   const requestedDays = new Map(input.cityDays.map(({ cityId, days }) => [cityId, days]))
   const cities = input.cityIds.map((id) => ({
     id,

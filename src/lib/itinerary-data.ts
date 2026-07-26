@@ -60,6 +60,75 @@ export const BUDGETS = [
   { id: 'premium' as const, label: 'Premium', labelVi: 'Cao cấp', daily: 5_000_000, detail: 'From ₫5m/day', detailVi: 'Từ 5 triệu/ngày' },
 ]
 
+// ── Bilingual labels for the enum ids above ───────────────────────────────────────────────
+//
+// These live HERE, next to the unions they name, so a surface that offers one of these choices
+// does not have to invent its own copy. They were previously declared inside the chat wizard
+// (src/lib/trips/itinerary-wizard.ts), which was the stricter of the two copies in the codebase
+// and is the one kept.
+//
+// ⚠️ `Record<Id, …>` IS THE POINT, not a style preference. An array of `{ id, label }` compiles
+// happily when a new member is added to a union and never labelled — the surface silently renders
+// one fewer chip, and nothing fails. As a Record, the same omission is a COMPILE ERROR here.
+//
+// ⚠️ Plain data, no zod, no icons. This module is imported by several dashboard client
+// components that pull neither, and keeping it that way is why the request schema lives in
+// itinerary-wizard.ts instead. The dashboard builder additionally attaches a lucide icon and a
+// longer blurb to each interest/pace; that presentation stays in the component, and only the
+// NAMES are shared.
+
+export type OptionLabel = { label: string; labelVi: string }
+
+export const INTEREST_LABELS: Record<InterestId, OptionLabel> = {
+  food: { label: 'Food', labelVi: 'Ẩm thực' },
+  culture: { label: 'Culture', labelVi: 'Văn hóa' },
+  nature: { label: 'Nature', labelVi: 'Thiên nhiên' },
+  beaches: { label: 'Beaches', labelVi: 'Biển' },
+  adventure: { label: 'Adventure', labelVi: 'Phiêu lưu' },
+  nightlife: { label: 'Nightlife', labelVi: 'Về đêm' },
+  wellness: { label: 'Wellness', labelVi: 'Nghỉ dưỡng' },
+  family: { label: 'Family', labelVi: 'Gia đình' },
+}
+
+export const ACCOMMODATION_LABELS: Record<AccommodationId, OptionLabel> = {
+  hotel: { label: 'Reliable hotels', labelVi: 'Khách sạn uy tín' },
+  boutique: { label: 'Boutique stays', labelVi: 'Khách sạn boutique' },
+  resort: { label: 'Resorts', labelVi: 'Khu nghỉ dưỡng' },
+  apartment: { label: 'Serviced apartments', labelVi: 'Căn hộ dịch vụ' },
+  homestay: { label: 'Local homestays', labelVi: 'Homestay địa phương' },
+  hostel: { label: 'Social hostels', labelVi: 'Hostel giao lưu' },
+}
+
+export const PACE_LABELS: Record<PaceId, OptionLabel> = {
+  slow: { label: 'Slow', labelVi: 'Thong thả' },
+  balanced: { label: 'Balanced', labelVi: 'Cân bằng' },
+  full: { label: 'Full', labelVi: 'Nhiều trải nghiệm' },
+}
+
+export const CABIN_LABELS: Record<CabinId, OptionLabel> = {
+  economy: { label: 'Economy', labelVi: 'Phổ thông' },
+  premium_economy: { label: 'Premium economy', labelVi: 'Phổ thông đặc biệt' },
+  business: { label: 'Business', labelVi: 'Thương gia' },
+}
+
+export const STOPS_LABELS: Record<StopsId, OptionLabel> = {
+  direct: { label: 'Direct only', labelVi: 'Bay thẳng' },
+  one_stop: { label: 'Up to one stop', labelVi: 'Tối đa một điểm dừng' },
+  any: { label: 'Any', labelVi: 'Bất kỳ' },
+}
+
+// The enum ids, derived from the catalogues above so the accepted values and the things we can
+// actually name can never disagree. Every schema that validates one of these choices reads from
+// here — see itinerary-wizard.ts. Typed as a non-empty tuple of the literal union, which is both
+// what z.enum() requires and what keeps `input.cityIds` narrow at every consumer.
+export const CITY_IDS = CITIES.map((city) => city.id) as [CityId, ...CityId[]]
+export const BUDGET_IDS = BUDGETS.map((budget) => budget.id) as [BudgetId, ...BudgetId[]]
+export const INTEREST_IDS = Object.keys(INTEREST_LABELS) as [InterestId, ...InterestId[]]
+export const ACCOMMODATION_IDS = Object.keys(ACCOMMODATION_LABELS) as [AccommodationId, ...AccommodationId[]]
+export const PACE_IDS = Object.keys(PACE_LABELS) as [PaceId, ...PaceId[]]
+export const CABIN_IDS = Object.keys(CABIN_LABELS) as [CabinId, ...CabinId[]]
+export const STOPS_IDS = Object.keys(STOPS_LABELS) as [StopsId, ...StopsId[]]
+
 export type ActivityPlan = {
   time: string
   title: string
