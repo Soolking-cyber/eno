@@ -141,7 +141,40 @@ export function TripsQueueClient({ rows }: { rows: QueueRow[] }) {
                 )}
               </div>
 
-              <div className="flex shrink-0 flex-wrap items-center gap-2">
+              {/* ⚠️ NO shrink-0 HERE, and a screenshot is the only thing that could have caught it.
+                  The cluster's width is unconstrained, so with flex-shrink:0 it sat at max-content
+                  forever: the `flex-wrap` beside it never had a narrower line box to wrap into, and
+                  four controls simply ran off the card. It needs FOUR to break, which is why the
+                  surface looked fine when it shipped — a `requested` case shows three (Thread ·
+                  Reviewing · Cancelled) and fits, while `reviewing` and `quoted` show four and do
+                  not. The arithmetic, measured rather than reasoned: four controls have a
+                  max-content width of 377px, and a card's content box is `viewport - 56` (24px page
+                  gutter + 32px card padding). Four controls therefore need a 433px viewport, and
+                  BELOW THAT THEY DO NOT FIT ON ONE LINE AT ALL. shrink-0 spilled instead of
+                  admitting it — overflow past the card's content box, short title + four controls:
+
+                      320px +97   360px +57   375px +42   390px +27   414px +19   440px+ fits
+
+                  The Card primitive is `overflow-hidden` and document.scrollWidth stayed pinned to
+                  the viewport, so that was CLIPPED, not scrollable: on a 360px Android an operator
+                  could not press Cancelled at all.
+
+                  ⚠️ THE TRADE, because there is one and it should not have to be rediscovered.
+                  Between ~415px and 432px the old layout looked fine — it fitted by eating up to
+                  3px of its own right padding, which nobody would notice. Wrapping there costs 40px
+                  of card height at exactly the large-iPhone widths (430pt). That is the price of
+                  every smaller phone getting a button it can actually press, and there is no
+                  breakpoint-free way to have both. From 440px up this renders identically to before.
+
+                  ⚠️ `min-w-0` was in this list and has been REMOVED as dead weight — agy claimed it
+                  was unnecessary and a variant sweep agreed at every width from 320 to 1920. A
+                  wrapping flex container's automatic minimum size is its widest single ITEM, not
+                  the sum of the line, and one button always fits.
+
+                  `justify-end` only aligns the wrapped final line under the others; it is inert at
+                  every width where nothing wraps. It cannot push content off the left: that needs a
+                  card narrower than a single button, i.e. a viewport under ~150px. */}
+              <div className="flex flex-wrap items-center justify-end gap-2">
                 {row.conversationId ? (
                   <Button variant="outline" size="sm" asChild>
                     <Link href={`/messages/${row.conversationId}`}>
