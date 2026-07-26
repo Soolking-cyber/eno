@@ -126,16 +126,40 @@ its env secret). Attempt deadline 320s for warm-translations, 180s otherwise.
 
 ## CI/CD (GitHub → Cloud Build → Cloud Run)
 
-Both cloudbuild.yaml configs now build → push → **deploy**. The Cloud Build
-GitHub connection `eno-github` (region asia-southeast1) is created and
-**PENDING_USER_OAUTH** — the owner must open the authorization link (logged in
-to Google as support@eno.forum and to GitHub as the account that owns
-`Soolking-cyber/eno`) that was surfaced in chat / can be re-fetched with
-`gcloud builds connections describe eno-github --region=asia-southeast1`.
-After authorization: link the repo and create two push-to-main triggers
-(root config `cloudbuild.yaml`; forum config `apps/forum/cloudbuild.yaml`,
-which is repo-root-relative via `dir:`). Until then, deploys are manual
-`gcloud builds submit` from the repo root.
+Both cloudbuild.yaml configs build → push → **deploy**, and this has been LIVE since the
+2026-07-19 cutover. Push to `main` and prod deploys itself; no manual
+`gcloud builds submit` is needed.
+
+**The real wiring** (corrected 2026-07-26 — the previous text sent readers chasing a
+resource that does not exist, which is exactly the error it produced):
+
+| | Actual |
+|---|---|
+| Triggers | `eno-vn-deploy` (`cloudbuild.yaml`) · `eno-forum-deploy` (`apps/forum/cloudbuild.yaml`) |
+| Trigger region | **`europe-west1`** — Cloud Run stays `asia-southeast1` |
+| Connection | `connection-bvfxwmv`, repo link `Soolking-cyber-eno`, type GITHUB |
+| Branch | `^main$` |
+
+⚠️ **There is no connection called `eno-github`, and there never was one in
+`asia-southeast1`.** The earlier text described an intended setup that was superseded during
+the cutover. Anyone following it gets
+`NOT_FOUND: Resource 'eno-github' ... does not exist`, which reads like a broken pipeline
+and is not one.
+
+⚠️ **`gcloud builds connections describe` returns NOT_FOUND even for the connection that
+demonstrably WORKS.** Verified 2026-07-26: `connection-bvfxwmv` answers NOT_FOUND under
+`support@eno.forum` while four consecutive builds succeed through it. This API masks a
+missing read permission as absence, so **NOT_FOUND from it is not evidence the connection is
+gone**. To check whether CI is healthy, look at build results instead — and remember the
+region:
+
+```
+gcloud builds list --region=europe-west1 --limit=5
+```
+
+⚠️ **`gcloud builds list` WITHOUT `--region=europe-west1` silently reports a different
+region's history.** It will happily show nothing newer than days ago while a build is running,
+which reads exactly like a dead trigger.
 
 ## Env recovery status
 
