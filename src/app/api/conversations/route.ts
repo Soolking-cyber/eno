@@ -8,6 +8,7 @@ import { rateLimit } from '@/lib/ratelimit'
 import { conversationGate } from '@/lib/enforcement'
 import { maskEmailHandle } from '@/lib/utils'
 import { recordFixedPriceOfferAttempt } from '@/lib/offer-guard'
+import { threadKind } from '@/lib/thread-kind'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -94,10 +95,76 @@ export async function POST(req: Request) {
     return message
   }
 
+  /**
+   * Point a reused thread at the listing the buyer just asked about, and answer with the thread
+   * the message must ACTUALLY go into, plus that thread's effective listing.
+   *
+   * ⚠️ THE RETURN CARRIES THE LISTING FOR A REASON. `insertMessage` writes `convo.listingId` onto
+   * the notification it raises, so telling it the target listing while the row still points
+   * somewhere else would file the seller's notification against a listing that thread is not
+   * about. The effective listing is whatever is true after this function, not what the caller
+   * asked for.
+   *
+   * ⚠️ THE `update` IS GUARDED, AND ITS BEING UNGUARDED WAS A LIVE HTTP 500 (owner's iPhone,
+   * production, 2026-07-27). Retargeting writes (listingId, buyerProfileId), which is a UNIQUE
+   * index — so it throws P2002 whenever the buyer ALREADY has a thread on the target listing. The
+   * visa path learned this first and works around it in `retargetVisaThreadListing`; this route,
+   * which is where the pattern was copied FROM, never did.
+   */
+  const retargetForListing = async (
+    candidate: { id: string; listingId: string },
+  ): Promise<{ id: string; listingId: string }> => {
+    if (candidate.listingId === listingId) return candidate
+    try {
+      await db.conversation.update({ where: { id: candidate.id }, data: { listingId } })
+      return { id: candidate.id, listingId }
+    } catch (e) {
+      if ((e as { code?: string })?.code !== 'P2002') throw e
+      // Somebody else holds (listingId, buyer) — that row IS the canonical thread for this
+      // listing, so deliver there instead of retargeting.
+      const winner = await db.conversation.findUnique({
+        where: { listingId_buyerProfileId: { listingId, buyerProfileId: profile.id } },
+        select: { id: true },
+      })
+      if (winner) return { id: winner.id, listingId }
+      // It collided and then vanished (a concurrent delete between the two statements). Deliver
+      // into the candidate un-retargeted: a stale header line beats a 500, and the candidate is
+      // guaranteed to be the same KIND of thread by the reuse rule below, so this is the thread
+      // that rule would have chosen anyway.
+      console.error('[conversations] retarget collided but the winning thread was gone', { candidate: candidate.id, listingId })
+      return candidate
+    }
+  }
+
+  // ⚠️ THE BUYER'S EXISTING THREAD ON THIS LISTING WINS, AND ASKING FIRST IS THE 500 FIX. The rule
+  // below reuses a thread with the same SELLER and retargets its listing — which is a write to the
+  // unique (listingId, buyerProfileId) index, and therefore throws the moment the buyer already
+  // holds a thread on the listing being retargeted TO. Resolving the exact thread first means the
+  // common shape of that collision never reaches a write at all. Indexed unique read; cheap.
+  const canonical = await db.conversation.findUnique({
+    where: { listingId_buyerProfileId: { listingId, buyerProfileId: profile.id } },
+    select: { id: true },
+  })
+  if (canonical) {
+    const message = await deliverFirstMessage({ id: canonical.id, buyerProfileId: profile.id, sellerProfileId, listingId })
+    return NextResponse.json({ id: canonical.id, created: false, message })
+  }
+
   // One thread per buyer↔seller (user decision 2026-07-14): inquiring about a
   // DIFFERENT listing from the same seller reuses the existing thread and
   // retargets its listing context (header card + offer math follow), instead of
   // opening a parallel chat per product.
+  //
+  // ⚠️ …EXCEPT ACROSS THREAD KINDS, because "one thread per seller" is the wrong rule for the eno
+  // desk. `Seller.ownerId` is @unique, so the e-visa catalogue and the trip-planning anchor are
+  // sold from ONE Seller row — a buyer's visa thread and their trip thread have the same sellerId
+  // and are not interchangeable. Retargeting one onto the other's listing does not merely collide
+  // (that is the 500 above); when it SUCCEEDS it silently converts a conversation full of visa
+  // cards into an itinerary thread, and `threadKind` — which every surface now agrees on — starts
+  // answering 'itinerary' for it. Reusing only a thread of the SAME kind keeps them apart.
+  //
+  // For an ordinary storefront this changes nothing: every thread and every target is kind
+  // 'listing', so the newest still wins on the first comparison, exactly as before.
   //
   // ⚠️ This seller-level rule is find-then-create with NO DB constraint behind it —
   // the only unique index is (listingId, buyerProfileId). Two concurrent first
@@ -106,17 +173,28 @@ export async function POST(req: Request) {
   // same seller can, in a narrow race, each create a thread. That's rare and
   // benign (both threads work; the inbox shows the newest), and we accept it
   // rather than serialize creates here.
-  const existingWithSeller = await db.conversation.findFirst({
+  const sellerThreads = await db.conversation.findMany({
     where: { sellerId: listing.sellerId, buyerProfileId: profile.id },
     orderBy: { lastMessageAt: 'desc' },
+    // A buyer has one thread per listing of a seller, so this is newest-few, not a page. Ordinary
+    // sellers match on the first row; only the desk ever has more than one kind to look past.
+    take: 20,
     select: { id: true, listingId: true },
   })
-  if (existingWithSeller) {
-    if (existingWithSeller.listingId !== listingId) {
-      await db.conversation.update({ where: { id: existingWithSeller.id }, data: { listingId } })
+  let existingWithSeller: { id: string; listingId: string } | null = null
+  if (sellerThreads.length > 0) {
+    // Resolved once and only when a reuse is actually in question — `threadKind` costs two desk
+    // lookups, and an ordinary first contact (no candidate rows at all) must not pay for them.
+    // Both resolvers are React-cache()d, so scanning every candidate costs no further queries.
+    const targetKind = await threadKind({ listingId })
+    for (const thread of sellerThreads) {
+      if ((await threadKind(thread)) === targetKind) { existingWithSeller = thread; break }
     }
-    const message = await deliverFirstMessage({ id: existingWithSeller.id, buyerProfileId: profile.id, sellerProfileId, listingId })
-    return NextResponse.json({ id: existingWithSeller.id, created: false, message })
+  }
+  if (existingWithSeller) {
+    const thread = await retargetForListing(existingWithSeller)
+    const message = await deliverFirstMessage({ id: thread.id, buyerProfileId: profile.id, sellerProfileId, listingId: thread.listingId })
+    return NextResponse.json({ id: thread.id, created: false, message })
   }
 
   try {
@@ -172,13 +250,28 @@ export async function POST(req: Request) {
           select: { id: true, listingId: true },
         }))
       if (existing) {
-        // Thread already exists → still deliver the offer/message (reuse it).
-        if (existing.listingId !== listingId) {
-          await db.conversation.update({ where: { id: existing.id }, data: { listingId } })
-        }
-        const message = await deliverFirstMessage({ id: existing.id, buyerProfileId: profile.id, sellerProfileId, listingId })
-        return NextResponse.json({ id: existing.id, created: false, message })
+        // Thread already exists → still deliver the offer/message (reuse it). Through the SAME
+        // guarded helper as the reuse path above: this retarget writes the same unique index and
+        // was equally capable of turning a lost race into a 500.
+        const thread = await retargetForListing(existing)
+        const message = await deliverFirstMessage({ id: thread.id, buyerProfileId: profile.id, sellerProfileId, listingId: thread.listingId })
+        return NextResponse.json({ id: thread.id, created: false, message })
       }
+      // ⚠️ THE CONSTRAINT FIRED AND THEN THE ROW VANISHED — both lookups missed, so the thread we
+      // lost the race to was deleted between our failed create and this refetch. The old code
+      // rethrew here, which is a 500 describing a conflict that no longer exists. One retry: the
+      // slot is free now, so this is the create that should have succeeded.
+      //
+      // Deliberately NOT looped. A second collision means the row was recreated in the same
+      // instant by yet a third writer, and at that point rethrowing is the honest answer rather
+      // than spinning. The first-lead milestone is skipped on this path — it is a best-effort
+      // celebration, and this branch is already the rarest thing that happens here.
+      const retried = await db.conversation.create({
+        data: { listingId, buyerProfileId: profile.id, sellerId: listing.sellerId, sellerProfileId },
+        select: { id: true },
+      })
+      const message = await deliverFirstMessage({ id: retried.id, buyerProfileId: profile.id, sellerProfileId, listingId })
+      return NextResponse.json({ id: retried.id, created: true, message })
     }
     throw e
   }
