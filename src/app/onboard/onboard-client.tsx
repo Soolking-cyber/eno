@@ -25,7 +25,7 @@ export function OnboardClient() {
   const t = (en: string, vi: string) => tr(en, vi)
   const router = useRouter()
   const params = useSearchParams()
-  const { user, loading, accountType, markOnboarded } = useAuth()
+  const { user, loading, accountType, identityLoaded, markOnboarded } = useAuth()
 
   const [choice, setChoice] = useState<Choice | null>(null)
   const [businessName, setBusinessName] = useState('')
@@ -54,11 +54,16 @@ export function OnboardClient() {
   const computeNext = () => safeNextPath(rawNext, window.location.origin)
 
   // Not signed in → nothing to onboard. Already chose → skip straight through.
+  //
+  // ⚠️ WAITS FOR `identityLoaded`, NOT JUST `loading`. `loading` is the SESSION's flag; it goes
+  // false as soon as Supabase resolves, while `/api/me` — the only thing that knows accountType —
+  // is still in flight. In that window `accountType` is null for an ONBOARDED user, so bouncing on
+  // `loading` alone both failed to redirect them and (below) rendered the chooser at them.
   useEffect(() => {
-    if (loading) return
+    if (loading || !identityLoaded) return
     if (!user) { router.replace('/'); return }
     if (accountType) router.replace(computeNext())
-  }, [loading, user, accountType, rawNext, router])
+  }, [loading, identityLoaded, user, accountType, rawNext, router])
 
   const nameOk = name.trim().length >= 2
   const phoneOk = phone.replace(/\D/g, '').length >= 9
@@ -112,7 +117,15 @@ export function OnboardClient() {
 
   // Until we know the user is signed in AND still needs to choose, show a neutral
   // loader — never flash the choice card to an already-onboarded user mid-bounce.
-  if (loading || !user || accountType) {
+  //
+  // ⚠️ `!identityLoaded` IS THE HALF THAT WAS MISSING, and its absence is what the owner saw on
+  // 2026-07-27: signed in, `accountType: 'business'`, a live storefront — and the "How will you use
+  // eno.vn?" chooser on screen. The comment above already promised this behaviour; the condition
+  // could not deliver it, because between the session resolving and /api/me answering,
+  // `accountType` is null and every term here was false. Worse than cosmetic: choosing in that
+  // window POSTs a fresh account type over an existing one, so a business could be silently
+  // downgraded to an individual. Fail CLOSED — show the loader until identity is actually known.
+  if (loading || !identityLoaded || !user || accountType) {
     return (
       <main id="main" tabIndex={-1} className="flex min-h-screen items-center justify-center bg-background">
         <Loader2 className="h-6 w-6 animate-spin text-accent-foreground" />

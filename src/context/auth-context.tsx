@@ -45,6 +45,18 @@ type AuthCtx = {
   user: User | null
   loading: boolean
   accountType: string | null
+  /**
+   * Has `/api/me` answered yet? EXPOSED BECAUSE `accountType === null` IS AMBIGUOUS: it means both
+   * "this user has not onboarded" and "we have not asked yet", and those need opposite handling.
+   *
+   * ⚠️ Without this, /onboard showed its account-type chooser to an ALREADY-ONBOARDED user for the
+   * window between Supabase resolving the session (`loading` false) and `/api/me` returning
+   * (owner hit this 2026-07-27 with `accountType: 'business'` and a live storefront). `loading` is
+   * the SESSION's flag and says nothing about the identity fetch, so a consumer gating on it alone
+   * renders the card too early — and a click in that window POSTs a fresh account type over a real
+   * one. Any consumer branching on `accountType` must gate on this too.
+   */
+  identityLoaded: boolean
   signOut: () => Promise<void>
   openSignIn: (ctx?: SignInContext) => void
   markOnboarded: (type: string) => void
@@ -221,7 +233,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const openSignIn = useCallback((ctx?: SignInContext | null) => { setSignInCtx(ctx ?? null); setSignInOpen(true) }, [])
   // Memoized: opening/closing the sign-in dialog is signInOpen state on THIS
   // provider — without useMemo every useAuth consumer re-rendered on each toggle.
-  const value = useMemo(() => ({ user, loading, accountType, signOut, openSignIn, markOnboarded }), [user, loading, accountType, signOut, openSignIn, markOnboarded])
+  const value = useMemo(() => ({ user, loading, accountType, identityLoaded, signOut, openSignIn, markOnboarded }), [user, loading, accountType, identityLoaded, signOut, openSignIn, markOnboarded])
 
   return (
     <AuthContext.Provider value={value}>
