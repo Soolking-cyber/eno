@@ -12,6 +12,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const h = vi.hoisted(() => ({
   rows: [] as { id: string; title: string; destinationId: string; days: number; updatedAt: Date }[],
   countCalls: [] as unknown[],
+  findManyCalls: [] as unknown[],
 }))
 
 vi.mock('./db', () => ({
@@ -21,7 +22,10 @@ vi.mock('./db', () => ({
         h.countCalls.push(args)
         return h.rows.length
       },
-      findMany: async (args: { take?: number }) => h.rows.slice(0, args.take ?? h.rows.length),
+      findMany: async (args: { take?: number }) => {
+        h.findManyCalls.push(args)
+        return h.rows.slice(0, args.take ?? h.rows.length)
+      },
     },
   },
 }))
@@ -39,6 +43,7 @@ const row = (id: string, days = 5) => ({
 beforeEach(() => {
   h.rows = []
   h.countCalls = []
+  h.findManyCalls = []
 })
 
 describe('the cap is three, and it is reached rather than exceeded', () => {
@@ -69,16 +74,42 @@ describe('the cap is three, and it is reached rather than exceeded', () => {
     expect(quota.full).toBe(true)
   })
 
-  it('counts THIS profile only', async () => {
+  it('counts THIS profile only, and EXCLUDES archived rows', async () => {
     await itineraryQuota('profile-abc')
-    expect(h.countCalls).toEqual([{ where: { profileId: 'profile-abc' } }])
+    expect(h.countCalls).toEqual([{ where: { profileId: 'profile-abc', status: { not: 'archived' } } }])
   })
 })
 
-describe('deleting frees a slot, because the count is a count', () => {
-  it('goes from full back to room when a row disappears', async () => {
+/**
+ * ⚠️ DELETE IS A SOFT DELETE, AND THE ORIGINAL VERSION OF THIS FILE DID NOT KNOW THAT.
+ *
+ * `DELETE /api/itineraries/[id]` sets `status = 'archived'` (route.ts:33); it removes nothing. Every
+ * other read in the feature filters `status: { not: 'archived' }` — the list, the single GET, the
+ * docx export — and the quota was the ONE query that did not, so an archived trip went on occupying
+ * a slot forever. With a cap of 3, a traveller who deleted three trips could never save another and
+ * nothing on screen would explain why.
+ *
+ * ⚠️ THE TEST THAT USED TO LIVE HERE PASSED THROUGHOUT, and that is the lesson. It asserted that the
+ * quota falls when a row "disappears" — by mutating the mock's array. Rows never disappear under a
+ * soft delete, so it exercised a path production cannot reach while the real one stayed broken. A
+ * test that models the wrong world is worse than no test: it reports safety. These assert the QUERY,
+ * which is the thing that was actually wrong.
+ */
+describe('deleting frees a slot — but only because archived rows are excluded', () => {
+  it('asks the database to exclude archived rows when counting', async () => {
+    await itineraryQuota('p1')
+    expect(h.countCalls[0]).toMatchObject({ where: { status: { not: 'archived' } } })
+  })
+
+  it('excludes archived rows from the picker too, so a deleted trip cannot be reopened', async () => {
+    await listItineraryDrafts('p1')
+    expect(h.findManyCalls[0]).toMatchObject({ where: { status: { not: 'archived' } } })
+  })
+
+  it('still frees the slot arithmetically once the row stops being counted', async () => {
     h.rows = [row('a'), row('b'), row('c')]
     expect((await itineraryQuota('p1')).full).toBe(true)
+    // The archived row is gone from the COUNT (the query excludes it), which is what the filter buys.
     h.rows = [row('a'), row('b')]
     const after = await itineraryQuota('p1')
     expect(after.full).toBe(false)

@@ -7,6 +7,23 @@ Updated 2026-07-27.
 
 ---
 
+## ⚠️ Corrected — B1 was over-framed
+
+I first wrote B1 as a product decision with three options. Measuring it collapsed the question, and
+the correction is recorded rather than quietly edited away:
+
+- The affected buyer is **the owner's own account** (`shanazar15071994@gmail.com`) — **1 of 5** desk
+  buyers. No customer is affected.
+- It **cannot recur**: `getOrCreateVisaThread` reuses any visa-anchored thread for a buyer
+  (`findFirst`, newest first), and the hijack that created the second thread is fixed (T337). The
+  duplicate thread was created `2026-07-26T14:00` — exactly when the hijack happened.
+
+So this is **test-data cleanup, not design**. The only real argument for doing it: the owner tests on
+this account, and an account that behaves unlike production keeps generating false bug reports —
+which it already did once. Details kept below for context.
+
+---
+
 ## 🔴 Needs an owner decision
 
 ### B1 · A buyer with two visa threads jumps windows on "send the form again"
@@ -45,6 +62,22 @@ choosing which of two message-bearing threads survives is a human decision. That
 ---
 
 ## P1
+
+### B0 · ✅ FIXED 2026-07-27 — the saved-trip cap counted deleted trips
+Found while mapping B2; it was **my own defect**, shipped in T334 this morning.
+
+`DELETE /api/itineraries/[id]` is a **soft** delete (`status = 'archived'`, route.ts:33). Every other
+read filtered archived out — the list, the single GET, the docx export — but `itineraryQuota()` did
+not. With a cap of 3, a traveller who deleted three trips could never save another, and nothing on
+screen would say why. `listItineraryDrafts()` had the visible half: a deleted trip stayed in the chat
+picker and led to a page whose own GET 404s it.
+
+⚠️ The T334 comment asserting *"DELETING FREES A SLOT for free"* was **false**, and the test that
+should have caught it was a **tautology** — it simulated rows vanishing from a mock array, which a
+soft delete never does. It passed throughout. Replaced with tests that assert the QUERY.
+
+Caught before impact: **0 archived rows in prod**, because the delete control was never wired.
+Fixing this was a prerequisite for shipping it.
 
 ### B2 · Consolidate "Itineraries" and "My Trips" into one place
 **Owner, 2026-07-27:** *"make 1 root management place, itineraries should become my trip, and if user

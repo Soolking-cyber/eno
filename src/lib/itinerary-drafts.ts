@@ -27,9 +27,15 @@ export const MAX_SAVED_ITINERARIES = 3
  * drift into enforcing two different limits — which is exactly how the visa side would have gone
  * wrong if its ceiling had been written out at each call site.
  *
- * DELETING FREES A SLOT for free: this counts rows, so a removed itinerary stops occupying one with
- * no extra bookkeeping. That is a property of counting rather than of a stored counter, and it is
- * the reason not to cache a count anywhere.
+ * ⚠️ DELETING FREES A SLOT ONLY BECAUSE OF THE `archived` FILTER — the original version of this
+ * function omitted it and was WRONG. `DELETE /api/itineraries/[id]` is a SOFT delete: it sets
+ * `status = 'archived'` (route.ts:33) and removes nothing. Every other read in the feature already
+ * excluded archived rows (the list, the single GET, the docx export); this count was the one that
+ * did not, so a deleted trip went on occupying a slot forever. At a cap of 3 that meant a traveller
+ * who deleted three trips could never save another, with nothing on screen to explain it.
+ *
+ * Caught before it could bite: measured 0 archived rows in production, because the delete control
+ * had never been wired to any UI. Fixing the count is a PREREQUISITE for shipping that control.
  */
 export async function itineraryQuota(profileId: string): Promise<{
   used: number
@@ -37,7 +43,7 @@ export async function itineraryQuota(profileId: string): Promise<{
   remaining: number
   full: boolean
 }> {
-  const used = await db.itinerary.count({ where: { profileId } })
+  const used = await db.itinerary.count({ where: { profileId, status: { not: 'archived' } } })
   const remaining = Math.max(0, MAX_SAVED_ITINERARIES - used)
   return { used, limit: MAX_SAVED_ITINERARIES, remaining, full: used >= MAX_SAVED_ITINERARIES }
 }
@@ -58,7 +64,10 @@ export async function listItineraryDrafts(profileId: string): Promise<{
 }> {
   const [rows, quota] = await Promise.all([
     db.itinerary.findMany({
-      where: { profileId },
+      // Archived excluded for the same reason as the count above, and it is the more visible half:
+      // without it a trip the traveller deleted stays in the chat picker, and choosing it opens a
+      // page whose own GET filters archived out — so the row leads to a 404 it advertised as a trip.
+      where: { profileId, status: { not: 'archived' } },
       // Newest first: the picker's first row should be the one just worked on.
       orderBy: { updatedAt: 'desc' },
       // Bounded by the cap itself — a traveller cannot have more, and asking for more than the
