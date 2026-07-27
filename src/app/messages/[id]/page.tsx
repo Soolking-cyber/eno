@@ -1425,7 +1425,7 @@ export default function ThreadPage() {
               that can sell out — and the cards are the affordance in both. Visa was already gated on
               `visaInfo`; trips needed the server's `threadKind`, because the desk sells both from one
               Seller row and nothing on the client could tell them apart. */}
-          {thread && !visaInfo && thread.kind !== 'itinerary' && (
+          {thread && !visaInfo && thread.kind === 'listing' && (
             <QuickReplyChips
               isSeller={!!thread.iAmSeller}
               hasPendingBuyerOffer={hasPendingBuyerOffer}
