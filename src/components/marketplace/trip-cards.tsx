@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
-import { CalendarCheck, Check, Loader2, MapPinned, Sparkles, X } from 'lucide-react'
+import { CalendarCheck, Check, ChevronDown, FolderOpen, Loader2, MapPinned, Sparkles, X } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -18,6 +18,10 @@ import {
 } from '@/lib/itinerary-data'
 import { LAST_TRIP_WIZARD_STEP } from '@/lib/trips/itinerary-wizard'
 import { ChatCard, ChatCardSteps } from '@/components/marketplace/chat-card-shell'
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 
 // ── TRIP ASSISTANCE CARDS, RENDERED INSIDE THE CHAT THREAD ─────────────────────────
 //
@@ -518,9 +522,119 @@ export function TripWizardCard({ conversationId, meta }: { conversationId: strin
  * desk thread with no wizard already running, so it never appears in an ordinary seller
  * conversation.
  */
+type ItineraryDraft = { id: string; title: string; days: number; summary: string }
+
+/**
+ * "Choose from drafts" — the traveller's saved trips, reachable from the thread they plan in.
+ *
+ * ⚠️ IT NAVIGATES; IT DOES NOT AUTHOR A CARD. Picking a trip opens it at /dashboard/trips/<id>,
+ * where the stop editing lives. It deliberately does NOT put a card back into the conversation:
+ * cards are authored through ONE server chokepoint against the MESSAGE_KINDS whitelist, the wizard
+ * route accepts only `start`, and a launcher that wrote its own card would become a second
+ * authoring path — the exact thing the task forbids. Reopening a saved trip where it lives is the
+ * honest reading of "reopen it"; if the owner wants the card back IN the thread, that needs a
+ * server action (a `resume`), not a client-side write.
+ *
+ * ⚠️ FETCHES ON OPEN, not on mount. Every itinerary thread would otherwise spend a request on a
+ * menu most travellers never open, and the list must be fresh — a trip saved or deleted in another
+ * tab has to be reflected the moment the menu is opened, not as of page load.
+ */
+function TripDraftsChip() {
+  const { tr } = useLanguage()
+  const [state, setState] = useState<
+    { phase: 'idle' | 'loading' | 'error' } | { phase: 'ready'; drafts: ItineraryDraft[]; used: number; limit: number }
+  >({ phase: 'idle' })
+
+  const load = useCallback(async () => {
+    setState({ phase: 'loading' })
+    try {
+      const res = await fetch('/api/trips/drafts', { cache: 'no-store' })
+      const data = (await res.json().catch(() => null)) as
+        | { drafts?: ItineraryDraft[]; used?: number; limit?: number }
+        | null
+      // A 503 still carries the degraded shape, but it means "we could not read your trips" — an
+      // empty list would be a lie, so it is surfaced as an error instead.
+      if (!res.ok || !data) { setState({ phase: 'error' }); return }
+      setState({ phase: 'ready', drafts: data.drafts ?? [], used: data.used ?? 0, limit: data.limit ?? 0 })
+    } catch {
+      setState({ phase: 'error' })
+    }
+  }, [])
+
+  return (
+    <DropdownMenu onOpenChange={(open) => { if (open) void load() }}>
+      {/* ⚠️ Icon and label INSIDE the rendered Button — Base UI's `render` REPLACES the trigger, so
+          sibling children are dropped and the menu never opens (visa-cards records shipping that). */}
+      <DropdownMenuTrigger
+        render={
+          <Button
+            type="button"
+            variant="soft"
+            size="none"
+            aria-label={tr('Open one of your saved trips', 'Mở một chuyến đi đã lưu')}
+            /* ⚠️ `relative` IS LOAD-BEARING — see the note above VisaAssistChips. `tap-44` grows an
+               absolutely-positioned ::before sized to the nearest POSITIONED ancestor, and inside a
+               thread `html.chat-locked` makes <body> position:relative, so without this the hit
+               target covers the whole viewport and swallows every tap and swipe. */
+            className="relative tap-44 shrink-0 gap-1.5 rounded-full border border-line-strong px-3 py-1.5 text-2xs font-bold text-foreground active:scale-100"
+          >
+            <FolderOpen className="size-3.5 shrink-0" aria-hidden />
+            {tr('Saved trips', 'Chuyến đã lưu')}
+            <ChevronDown className="size-3 shrink-0 opacity-60" aria-hidden />
+          </Button>
+        }
+      />
+      {/* Upward: the row sits directly above the composer. */}
+      <DropdownMenuContent side="top" align="start" sideOffset={6} className="max-w-[17rem]">
+        {state.phase === 'loading' && (
+          <DropdownMenuItem disabled>
+            <Loader2 className="animate-spin" /> {tr('Loading…', 'Đang tải…')}
+          </DropdownMenuItem>
+        )}
+        {state.phase === 'error' && (
+          <DropdownMenuItem disabled>{tr("Couldn't load your trips.", 'Chưa tải được chuyến đi của bạn.')}</DropdownMenuItem>
+        )}
+        {state.phase === 'ready' && state.drafts.length === 0 && (
+          <DropdownMenuItem disabled>{tr('No saved trips yet.', 'Chưa có chuyến đi nào được lưu.')}</DropdownMenuItem>
+        )}
+        {/* ⚠️ DropdownMenuLabel throws "MenuGroupContext is missing" outside a Group, and the throw
+            happens on popup mount — the menu would simply never open. Keep the label in the group. */}
+        {state.phase === 'ready' && state.drafts.length > 0 && (
+          <DropdownMenuGroup>
+            <DropdownMenuLabel>
+              {tr('{used} of {limit} saved', 'Đã lưu {used}/{limit}')
+                .replace('{used}', String(state.used))
+                .replace('{limit}', String(state.limit))}
+            </DropdownMenuLabel>
+            {state.drafts.map((d) => (
+              // `render` with a Link keeps client-side navigation; the whole row is the target.
+              <DropdownMenuItem key={d.id} render={<Link href={`/dashboard/trips/${d.id}`} />}>
+                <span className="min-w-0 flex-1 truncate">{d.title}</span>
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuGroup>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
 export function TripWizardLauncher({ conversationId, onStarted }: { conversationId: string; onStarted: () => void }) {
   const { tr } = useLanguage()
-  const [eligible, setEligible] = useState(false)
+  /**
+   * TWO SEPARATE FACTS, from ONE server answer.
+   *
+   * `eligible` alone means "this is the trip desk's thread and you are the traveller on it" — it is
+   * `threadHostsWizard`, which since T334 IS `threadKind(convo) === 'itinerary'`. `step === null`
+   * additionally means no wizard is running.
+   *
+   * They gate different chips, and conflating them is what would go wrong: "Plan a trip" must hide
+   * while a wizard is live (two entry points is how a traveller restarts the flow by accident), but
+   * "Saved trips" must stay — reopening an earlier trip is exactly what someone does while a new one
+   * is half-answered. The old code stored only the conjunction, so the whole row vanished mid-wizard.
+   */
+  const [isTripThread, setIsTripThread] = useState(false)
+  const [canStart, setCanStart] = useState(false)
   const [busy, setBusy] = useState(false)
 
   useEffect(() => {
@@ -530,9 +644,11 @@ export function TripWizardLauncher({ conversationId, onStarted }: { conversation
         const res = await fetch(`/api/trips/wizard?conversationId=${encodeURIComponent(conversationId)}`, { cache: 'no-store' })
         if (!res.ok || cancelled) return
         const data = (await res.json()) as { eligible: boolean; step: number | null }
-        // Offer the chip only when there is nothing to resume — a running wizard renders its own
-        // card, and two entry points to one flow is how a traveller ends up restarting it.
-        if (!cancelled) setEligible(data.eligible && data.step === null)
+        if (cancelled) return
+        setIsTripThread(data.eligible)
+        // Offer the START chip only when there is nothing to resume — a running wizard renders its
+        // own card, and two entry points to one flow is how a traveller ends up restarting it.
+        setCanStart(data.eligible && data.step === null)
       } catch {
         // A thread that cannot answer simply shows no chip.
       }
@@ -540,7 +656,8 @@ export function TripWizardLauncher({ conversationId, onStarted }: { conversation
     return () => { cancelled = true }
   }, [conversationId])
 
-  if (!eligible) return null
+  // Not this thread's business at all → render nothing, so `empty:hidden` collapses the shared row.
+  if (!isTripThread) return null
 
   const start = async () => {
     if (busy) return
@@ -550,16 +667,31 @@ export function TripWizardLauncher({ conversationId, onStarted }: { conversation
         method: 'POST', headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ action: 'start', conversationId }),
       })
-      if (res.ok) { setEligible(false); onStarted() }
+      if (res.ok) { setCanStart(false); onStarted() }
     } finally {
       setBusy(false)
     }
   }
 
+  // ⚠️ A FRAGMENT, NOT A WRAPPER. The caller owns ONE flex row above the composer (owner: "put them
+  // in 1 line"), so these must be direct items of it; a wrapping <div> would make the pair a single
+  // item and reintroduce the stacked-rows layout that rule exists to prevent.
   return (
-    <Button variant="outline" size="sm" disabled={busy} onClick={() => void start()}>
-      {busy ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <Sparkles className="size-4" aria-hidden />}
-      {tr('Plan a trip', 'Lên kế hoạch chuyến đi')}
-    </Button>
+    <>
+      {canStart && (
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={busy}
+          onClick={() => void start()}
+          /* `relative` for the same tap-44 reason as the drafts chip — see the note there. */
+          className="relative"
+        >
+          {busy ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <Sparkles className="size-4" aria-hidden />}
+          {tr('Plan a trip', 'Lên kế hoạch chuyến đi')}
+        </Button>
+      )}
+      <TripDraftsChip />
+    </>
   )
 }

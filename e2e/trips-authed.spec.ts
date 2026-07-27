@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { test, expect } from '@playwright/test'
 
 /**
@@ -171,4 +172,50 @@ test('the edit controls are absent for a stop nobody owns', async ({ page }) => 
   await page.goto('/dashboard/trips/00000000-0000-0000-0000-000000000000')
   await expect(page.getByRole('button', { name: /move later in the day|chuyển xuống muộn hơn/i }))
     .toHaveCount(0)
+})
+
+test('an itinerary thread offers its OWN chips, and an ordinary listing thread does not', async ({ page, request }) => {
+  // ⚠️ THE THREAD IS CREATED THROUGH THE REAL PATH, not seeded. These chips are gated server-side by
+  // `tripWizardEligibility` → `threadHostsWizard` → `threadKind(convo) === 'itinerary'`, and that
+  // predicate keys on the thread's ANCHOR LISTING. A hand-inserted fixture row could satisfy this
+  // assertion while the real create path anchored the thread somewhere else, which is exactly the
+  // class of bug the gate exists for: the trip wizard once leaked into e-Visa threads because the
+  // discriminator was the SELLER, and visa and trips share one storefront.
+  //
+  // ⚠️ NO test.skip ANYWHERE IN HERE. The anchor is read from the app's own /dashboard/trips payload
+  // (the same value the "Plan a trip in chat" button uses), and if it is missing this test FAILS.
+  // A skip would be the fail-open pattern: a desk with no anchor means the in-chat planner is
+  // unreachable in that environment, which is a result worth going red over, not stepping around.
+  const trips = await (await request.get('/dashboard/trips')).text()
+  const anchor = trips.match(/planListingId\\?":\\?"([0-9a-f-]{36})/)?.[1]
+  expect(anchor, 'the trip desk must expose an anchor listing on /dashboard/trips').toBeTruthy()
+
+  const created = await request.post('/api/conversations', { data: { listingId: anchor } })
+  expect(created.ok(), `opening the trip desk thread must not error (got ${created.status()})`).toBeTruthy()
+  const { id: threadId } = (await created.json()) as { id: string }
+
+  // ── the ITINERARY thread shows its own pair
+  await page.goto(`/messages/${threadId}`)
+  const savedTrips = page.getByRole('button', { name: /saved trips|chuyến đã lưu/i })
+  await expect(savedTrips, 'an itinerary thread must offer the drafts picker').toBeVisible({ timeout: 20_000 })
+
+  // ⚠️ AND NOT THE OTHER DESK'S — the assertion that would have caught the wizard leak.
+  await expect(page.getByRole('button', { name: /send the form again|gửi lại biểu mẫu/i })).toHaveCount(0)
+
+  // ── the picker lists the traveller's saved trips and opens one where it lives
+  await savedTrips.click()
+  const item = page.getByRole('menuitem', { name: new RegExp(PLAN, 'i') })
+  await expect(item, 'the seeded plan must appear in the picker').toBeVisible({ timeout: 15_000 })
+  await item.click()
+  await expect(page).toHaveURL(/\/dashboard\/trips\/[^/]+$/)
+  await expect(page.locator('[data-stop-id]').first()).toBeVisible({ timeout: 20_000 })
+
+  // ── an ORDINARY listing thread gets neither
+  const fixtures = JSON.parse(readFileSync('e2e/.auth/seed-fixtures.json', 'utf8')) as { conversationId: string }
+  await page.goto(`/messages/${fixtures.conversationId}`)
+  await expect(page.locator('.chat-composer')).toBeVisible({ timeout: 20_000 })
+  await expect(
+    page.getByRole('button', { name: /saved trips|chuyến đã lưu/i }),
+    'a plain listing thread must not show the trip desk chips',
+  ).toHaveCount(0)
 })
