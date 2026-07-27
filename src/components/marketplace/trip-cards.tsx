@@ -256,10 +256,54 @@ const EMPTY_DRAFT: Draft = {
   origin: '', notes: '',
 }
 
-export function TripWizardCard({ conversationId, meta }: { conversationId: string; meta: WizardStepMeta }) {
+/**
+ * Where a half-finished draft survives a reload.
+ *
+ * ⚠️ THE SERVER DELIBERATELY KEEPS NOTHING. `advanceTripWizard` validates each step and then
+ * discards the values — "keeping them would put a traveller's plan in a column nothing here
+ * governs" (wizard-flow.ts) — which is a privacy decision, not an oversight, and it is why the
+ * answers can only live on the client. Before this, they lived ONLY in React state: reloading the
+ * page restored `step` from the server row while `draft` reset to EMPTY_DRAFT, so the traveller
+ * came back to step 5 with nothing filled in, "Build my plan" posted an empty request and 400'd
+ * forever, and there was no Back and no restart. sessionStorage (not local) keeps that recovery on
+ * the same device and clears itself with the tab.
+ */
+/** Rail labels — what each step ASKED, so a traveller scanning back knows which one to tap. */
+const STEP_LABELS = [
+  { en: 'Destination', vi: 'Điểm đến' },
+  { en: 'Dates', vi: 'Ngày đi' },
+  { en: 'Budget', vi: 'Ngân sách' },
+  { en: 'Interests', vi: 'Sở thích' },
+  { en: 'Flights', vi: 'Chuyến bay' },
+] as const
+
+const draftKey = (messageId: string) => `trip-wizard:${messageId}`
+
+function loadDraft(messageId: string): Draft {
+  try {
+    const raw = sessionStorage.getItem(draftKey(messageId))
+    if (!raw) return EMPTY_DRAFT
+    // Spread over EMPTY_DRAFT so a stored shape written by an older build cannot leave a field
+    // undefined that the inputs assume is present.
+    return { ...EMPTY_DRAFT, ...(JSON.parse(raw) as Partial<Draft>) }
+  } catch { return EMPTY_DRAFT }
+}
+
+export function TripWizardCard({ conversationId, messageId, meta }: { conversationId: string; messageId: string; meta: WizardStepMeta }) {
   const { tr, lang } = useLanguage()
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT)
   const [step, setStep] = useState(meta.step)
+  /**
+   * The step being REVIEWED, when the traveller has tapped back into an earlier one. Null = follow
+   * the server's step.
+   *
+   * ⚠️ SEPARATE FROM `step` ON PURPOSE. `step` is the server's, and the poll below re-syncs it; if
+   * going back wrote to `step`, the next poll would yank the traveller out of the answer they were
+   * mid-way through editing. This shadows it for rendering only, and nothing here posts.
+   */
+  const [editingStep, setEditingStep] = useState<number | null>(null)
+  /** What the body renders: the step being reviewed if there is one, else the server's step. */
+  const view = editingStep ?? step
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [itineraryId, setItineraryId] = useState<string | null>(meta.itineraryId ?? null)
@@ -269,7 +313,19 @@ export function TripWizardCard({ conversationId, meta }: { conversationId: strin
   // keeping a local number that would let the traveller answer a question nobody asked.
   useEffect(() => { setStep(meta.step) }, [meta.step])
 
-  const patch = (next: Partial<Draft>) => setDraft((current) => ({ ...current, ...next }))
+  // Hydrate once per card. Keyed by the CARD's message id, so two wizards in different threads
+  // cannot read each other's answers.
+  useEffect(() => { setDraft(loadDraft(messageId)) }, [messageId])
+
+  const patch = (next: Partial<Draft>) => setDraft((current) => {
+    const merged = { ...current, ...next }
+    try { sessionStorage.setItem(draftKey(messageId), JSON.stringify(merged)) } catch {}
+    return merged
+  })
+
+  // Finished: the answers have become an itinerary, so the draft is dead weight and keeping it
+  // would repopulate a fresh wizard with a previous trip's answers.
+  useEffect(() => { if (done) { try { sessionStorage.removeItem(draftKey(messageId)) } catch {} } }, [done, messageId])
 
   const post = async (body: Record<string, unknown>) => {
     const res = await fetch('/api/trips/wizard', {
@@ -371,10 +427,33 @@ export function TripWizardCard({ conversationId, meta }: { conversationId: strin
       // wizard had and this one did not — both are five-step cards in the same thread.
       step={{ current: step, total: LAST_TRIP_WIZARD_STEP }}
     >
-      <ChatCardSteps current={step} total={LAST_TRIP_WIZARD_STEP} />
+      {/* ⚠️ THE RAIL IS THE "GO BACK" CONTROL (owner 2026-07-27: "click and go to card"). Only steps
+          already ANSWERED are reachable — jumping forward past a question nobody answered would
+          submit an empty step, which the server rejects as invalid_answers anyway. Reviewing is
+          purely local: nothing is posted until the traveller taps through with Next, so tapping
+          back cannot desync the server's step. */}
+      <ChatCardSteps
+        current={view}
+        total={LAST_TRIP_WIZARD_STEP}
+        labels={STEP_LABELS.map((l) => tr(l.en, l.vi))}
+        reachable={Array.from({ length: Math.max(step, view) }, (_, i) => i + 1)}
+        onSelect={(n) => { setError(null); setEditingStep(n === step ? null : n) }}
+      />
+
+      {editingStep !== null && editingStep !== step ? (
+        <div className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-xl bg-tint px-3 py-2">
+          <p className="text-2xs text-ink-3">
+            {tr('Reviewing an earlier answer — nothing is sent until you continue.',
+                'Đang xem lại câu trả lời trước — chưa gửi gì cho đến khi bạn tiếp tục.')}
+          </p>
+          <Button variant="soft" size="none" className="relative tap-44 rounded-full px-3 py-1 text-2xs font-bold" onClick={() => setEditingStep(null)}>
+            {tr('Back to step', 'Về bước hiện tại')} {step}
+          </Button>
+        </div>
+      ) : null}
 
       <div className="mt-3 space-y-3">
-        {step === 1 ? (
+        {view === 1 ? (
           <>
             <p className="text-sm text-ink-3">{tr('Where would you like to go?', 'Bạn muốn đi đâu?')}</p>
             <div className="flex flex-wrap gap-1.5">
@@ -399,7 +478,7 @@ export function TripWizardCard({ conversationId, meta }: { conversationId: strin
               />
             </Field>
           </>
-        ) : step === 2 ? (
+        ) : view === 2 ? (
           <>
             <Field>
               <FieldLabel htmlFor="tw-start">{tr('When do you start?', 'Bạn khởi hành khi nào?')}</FieldLabel>
@@ -410,7 +489,7 @@ export function TripWizardCard({ conversationId, meta }: { conversationId: strin
               <FieldControl render={<Input id="tw-travelers" type="number" min={1} max={100} inputMode="numeric" value={draft.travelers} onChange={(e) => patch({ travelers: Number(e.target.value) })} />} />
             </Field>
           </>
-        ) : step === 3 ? (
+        ) : view === 3 ? (
           <>
             <p className="text-sm text-ink-3">{tr('Budget', 'Ngân sách')}</p>
             {/* ⚠️ THE PER-DAY RANGE IS SHOWN, NOT JUST THE TIER NAME (owner, 2026-07-26: "add price
@@ -450,7 +529,7 @@ export function TripWizardCard({ conversationId, meta }: { conversationId: strin
               ))}
             </div>
           </>
-        ) : step === 4 ? (
+        ) : view === 4 ? (
           <>
             <p className="text-sm text-ink-3">{tr('What do you enjoy?', 'Bạn thích điều gì?')}</p>
             <div className="flex flex-wrap gap-1.5">
@@ -506,9 +585,23 @@ export function TripWizardCard({ conversationId, meta }: { conversationId: strin
         </p>
       ) : null}
 
-      <Button variant="cta" className="mt-4 w-full" disabled={busy} onClick={() => void (step === LAST_TRIP_WIZARD_STEP ? build() : next())}>
+      {/* ⚠️ THE ACTION ALWAYS BELONGS TO THE SERVER'S STEP, never to the one being reviewed. Posting
+          `next()` while the traveller is looking at step 2 would answer step 2 again and the server
+          would refuse it as a step_mismatch — so from a review the button simply returns them to
+          where the wizard actually is, with their edit already kept in the local draft. */}
+      <Button
+        variant="cta"
+        className="mt-4 w-full"
+        disabled={busy}
+        onClick={() => {
+          if (editingStep !== null && editingStep !== step) { setEditingStep(null); return }
+          void (step === LAST_TRIP_WIZARD_STEP ? build() : next())
+        }}
+      >
         {busy ? <Loader2 className="size-4 animate-spin" aria-hidden /> : null}
-        {step === LAST_TRIP_WIZARD_STEP ? tr('Build my plan', 'Tạo lịch trình') : tr('Next', 'Tiếp tục')}
+        {editingStep !== null && editingStep !== step
+          ? tr('Keep this and continue', 'Giữ lại và tiếp tục')
+          : step === LAST_TRIP_WIZARD_STEP ? tr('Build my plan', 'Tạo lịch trình') : tr('Next', 'Tiếp tục')}
       </Button>
     </ChatCard>
   )

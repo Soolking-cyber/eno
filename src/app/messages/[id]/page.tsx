@@ -1252,6 +1252,7 @@ export default function ThreadPage() {
                   // so the component renders whatever step the row currently names.
                   <TripWizardCard
                     conversationId={id}
+                    messageId={m.id}
                     meta={{
                       step: Number(tripStepNumber(m.meta) ?? 1),
                       state: tripField(m.meta, 'state')!,

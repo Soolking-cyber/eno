@@ -119,16 +119,59 @@ export function ChatCard({
  * accessible statement; the rail is the picture of it. A future card that wants the rail WITHOUT a
  * badge has to label it.
  */
-export function ChatCardSteps({ current, total }: { current: number; total: number }) {
+export function ChatCardSteps({ current, total, labels, reachable, onSelect }: {
+  current: number
+  total: number
+  /** Step names, index 0 = step 1. Only used when the rail is interactive. */
+  labels?: readonly string[]
+  /** Steps the user may jump to — everything already answered. Absent ⇒ nothing is selectable. */
+  reachable?: readonly number[]
+  /**
+   * Makes the rail a CONTROL rather than a picture (owner 2026-07-27: "so user can go back and
+   * check or edit previously given answers in cards ... click and go to card").
+   *
+   * ⚠️ OMITTING THIS KEEPS THE OLD BEHAVIOUR EXACTLY — an aria-hidden decoration. Every existing
+   * call site passes only {current,total}, so none of them changes, and the duplicate screen-reader
+   * announcement the decoration was created to avoid stays avoided.
+   */
+  onSelect?: (step: number) => void
+}) {
+  const interactive = typeof onSelect === 'function'
+  const canGo = (n: number) => interactive && (reachable?.includes(n) ?? false)
   return (
-    <div className="mt-2 flex items-center gap-1" aria-hidden>
-      {Array.from({ length: total }, (_, i) => i + 1).map((n) => (
-        <span
-          key={n}
-          className={cn('h-1 flex-1 rounded-full', n < current ? 'bg-brand/40' : n === current ? 'bg-brand' : 'bg-tint')}
-          aria-hidden
-        />
-      ))}
+    <div
+      className="mt-2 flex items-center gap-1"
+      // ⚠️ THE RAIL IS ONLY aria-hidden WHILE IT IS DECORATION. Both call sites pair it with a
+      // "Step N of 5" badge, which is the accessible statement — but once these are buttons they
+      // are the only way to reach an earlier step, and hiding controls from a screen reader would
+      // make the feature unusable for exactly the people who most need a way back. The badge is
+      // hidden instead (by the caller) so the step is still announced once, not twice.
+      aria-hidden={interactive ? undefined : true}
+      role={interactive ? 'group' : undefined}
+    >
+      {Array.from({ length: total }, (_, i) => i + 1).map((n) => {
+        const tone = n < current ? 'bg-brand/40' : n === current ? 'bg-brand' : 'bg-tint'
+        if (!canGo(n)) {
+          return <span key={n} className={cn('h-1 flex-1 rounded-full', tone)} aria-hidden />
+        }
+        const label = labels?.[n - 1]
+        return (
+          <button
+            key={n}
+            type="button"
+            onClick={() => onSelect?.(n)}
+            aria-current={n === current ? 'step' : undefined}
+            aria-label={label ? `${label} — step ${n} of ${total}` : `Step ${n} of ${total}`}
+            /* ⚠️ `relative` IS LOAD-BEARING, not styling. `tap-44` grows an ABSOLUTELY positioned
+               ::before to reach the 44px minimum, and an absolute box is sized to the nearest
+               POSITIONED ancestor — inside a thread `html.chat-locked` makes <body> positioned, so
+               without this the hit target becomes the whole viewport and swallows every tap and
+               swipe on the screen. That exact bug has shipped here before; it is invisible in the
+               DOM, in bounding rects and in screenshots, and only `elementsFromPoint` reveals it. */
+            className={cn('relative tap-44 h-1 flex-1 rounded-full transition-colors', tone, 'hover:bg-brand/70')}
+          />
+        )
+      })}
     </div>
   )
 }
