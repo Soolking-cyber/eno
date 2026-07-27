@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 
 // Cloudflare Turnstile — invisible bot check that gates Supabase Auth's SMS/email OTP
 // send (signInWithOtp). The token is single-use, so we run the widget in `execute` mode
@@ -58,6 +58,20 @@ function loadScript(): Promise<void> {
 }
 
 /**
+ * `onSolved` fires whenever the widget produces a token, WHETHER OR NOT a getToken() call is
+ * waiting for one — and that "whether or not" is the whole reason it exists.
+ *
+ * ⚠️ THE STATE IT FIXES IS NOT A STALE-STATE BUG, it is an unconsumed token. In `execute` mode a
+ * visitor who has to solve a visible challenge can finish AFTER the in-flight getToken() has already
+ * timed out and resolved undefined. The send then went out tokenless, the server answered 403, and
+ * the form put "the security check didn't complete" on screen — and only THEN does the widget's own
+ * `callback` arrive with a good token and flip itself to a green "Success!". Nothing was listening,
+ * so the red text sat above the green tick until the next submit. The owner read that as still
+ * broken and said "same" twice while the challenge was in fact passing (screenshot, 2026-07-27).
+ *
+ * So the signal has to be the callback ITSELF, not the promise: by the time a token exists, the
+ * promise that asked for it may be long gone.
+ *
  * useTurnstile — render <Widget/> once inside the form, then `await getToken()` right
  * before each OTP send. Resolves with a fresh single-use token, or `undefined` if the
  * script is blocked / errors / times out (in which case the auth call proceeds without
@@ -65,8 +79,13 @@ function loadScript(): Promise<void> {
  * it's enabled). The widget container must stay in the DOM (not display:none) so a
  * visible challenge can render on the rare occasions one is required.
  */
-export function useTurnstile() {
+export function useTurnstile(opts?: { onSolved?: () => void }) {
   const widgetIdRef = useRef<string | null>(null)
+  /** Held in a ref, and updated in an effect rather than during render, so a changing callback never
+   *  re-runs `attach` — re-attaching would tear down and re-render the live widget, losing an
+   *  in-progress challenge. */
+  const onSolvedRef = useRef(opts?.onSolved)
+  useEffect(() => { onSolvedRef.current = opts?.onSolved }, [opts?.onSolved])
   const resolverRef = useRef<((t: string | undefined) => void) | null>(null)
   /** Set by the in-flight getToken() call; the widget invokes it when a challenge is about to be
    *  shown, so the timeout can be re-based to human time. See the note in getToken. */
@@ -100,6 +119,14 @@ export function useTurnstile() {
           execution: 'execute',
           appearance: 'interaction-only',
           callback: (token: string) => {
+            // BEFORE resolving, so a listener sees "solved" even when nothing is waiting — see the
+            // note on onSolved in the hook's doc comment. Guarded because a throw from a consumer's
+            // callback here would run inside Turnstile's own callback and lose the token.
+            try {
+              onSolvedRef.current?.()
+            } catch (e) {
+              console.warn('[turnstile] onSolved threw', (e as Error)?.message)
+            }
             resolverRef.current?.(token)
             resolverRef.current = null
           },

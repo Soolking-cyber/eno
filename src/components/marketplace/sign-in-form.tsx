@@ -25,6 +25,94 @@ const EMAIL_RESEND_STEPS = [30, 60, 300, 900]
 const EMAIL_CODE_LEN = 8
 const fmtCountdown = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
 
+/**
+ * ⚠️ AN ERROR CODE, NOT A SENTENCE — and that refactor IS the fix, not scaffolding around it.
+ *
+ * This state used to hold a pre-translated string. That made every error indistinguishable from
+ * every other error, so "clear the captcha message when the widget succeeds" was not expressible:
+ * the only available move was to wipe `error` wholesale, which would also erase a rate-limit or
+ * cooldown message the visitor still needs to read. A code can be asked what it is.
+ *
+ * `raw` is the escape hatch for provider text we have no mapping for (GoTrue messages, a thrown
+ * Error). It is shown verbatim, exactly as before, and is deliberately NOT clearable by the widget.
+ */
+export type SignInErrorCode =
+  | 'captcha'
+  | 'network'
+  | 'email_unreachable'
+  | 'invalid_email'
+  | 'cooldown'
+  | 'rate_limited'
+  | 'send_failed'
+  | 'bad_code'
+  | 'unknown'
+
+export type SignInError =
+  | { code: SignInErrorCode; retryAfterSec?: number }
+  | { code: 'raw'; message: string }
+  | null
+
+/**
+ * What the error becomes once Turnstile hands us a token.
+ *
+ * ⚠️ ONLY the captcha message clears, and the asymmetry is the point of the task rather than an
+ * optimisation. A widget event says nothing about whether the account is rate-limited, whether a
+ * resend is still on cooldown, or whether the last typed code was wrong — wiping those because a
+ * checkbox got ticked would delete the one instruction the visitor needs.
+ *
+ * Exported and pure so the behaviour is testable without a DOM; this repo has no component-render
+ * harness (vitest runs `environment: 'node'`, and there is no @testing-library).
+ */
+export function errorAfterCaptchaSolved(current: SignInError): SignInError {
+  return current?.code === 'captcha' ? null : current
+}
+
+/** The visitor-facing sentence for an error, resolved at RENDER time in their language. */
+export function signInErrorText(e: SignInError, t: (en: string, vi: string) => string): string {
+  if (!e) return ''
+  switch (e.code) {
+    case 'raw':
+      return e.message
+    case 'captcha':
+      return t("The security check didn't complete — try again, and tick the verification box if one appears.", 'Kiểm tra bảo mật chưa hoàn tất — thử lại và đánh dấu ô xác minh nếu nó hiện ra nhé.')
+    case 'network':
+      return t('Connection problem — check your network and try again.', 'Sự cố kết nối — kiểm tra mạng và thử lại.')
+    case 'email_unreachable':
+      return t('Could not reach eno.vn — check your connection and try again.', 'Không kết nối được tới eno.vn — kiểm tra kết nối và thử lại nhé.')
+    case 'invalid_email':
+      return t('That email address doesn’t look right.', 'Địa chỉ email này có vẻ không đúng.')
+    case 'cooldown': {
+      const n = Math.max(1, Number(e.retryAfterSec) || 30)
+      // Placeholder + .replace, never a template literal: gen-ui-strings.mjs harvests string
+      // LITERALS only, so an interpolated t() silently ships untranslated.
+      return t('Just sent one — try again in {n} seconds.', 'Vừa gửi rồi — thử lại sau {n} giây nhé.').replace('{n}', String(n))
+    }
+    case 'rate_limited':
+      return t('Too many sign-in attempts. Try again in an hour.', 'Quá nhiều lần thử đăng nhập. Vui lòng thử lại sau một giờ.')
+    case 'send_failed':
+      return t("We couldn't send the email just now. Try again in a moment, or sign in with your phone.", 'Chúng tôi chưa gửi được email lúc này. Thử lại sau giây lát, hoặc đăng nhập bằng số điện thoại nhé.')
+    case 'bad_code':
+      return t('That code is wrong or has expired. Send a new one and try again.', 'Mã không đúng hoặc đã hết hạn. Hãy gửi mã mới rồi thử lại nhé.')
+    case 'unknown':
+      return t('Something went wrong. Please try again.', 'Đã có lỗi xảy ra. Vui lòng thử lại.')
+  }
+}
+
+/** Cryptic GoTrue captcha errors → our captcha code; anything else stays verbatim. */
+export function authErrorToCode(message: string): SignInError {
+  return /captcha/i.test(message) ? { code: 'captcha' } : { code: 'raw', message }
+}
+
+/** OUR server's email-send codes → ours. Unlike the provider path these are a closed set. */
+export function emailSendErrorToCode(code: unknown, retryAfterSec?: number): SignInError {
+  if (code === 'captcha_failed') return { code: 'captcha' }
+  if (code === 'invalid_email') return { code: 'invalid_email' }
+  if (code === 'cooldown') return { code: 'cooldown', retryAfterSec }
+  if (code === 'rate_limited') return { code: 'rate_limited' }
+  if (code === 'send_failed') return { code: 'send_failed' }
+  return { code: 'unknown' }
+}
+
 /** All sign-in logic + UI, with NO outer chrome — rendered by both the modal
  *  (SignInDialog) and the dedicated /signin page so they share identical
  *  handlers (Google OAuth, email magic-link, phone OTP). */
@@ -38,7 +126,7 @@ export function SignInForm({ className }: { className?: string }) {
   const [code, setCode] = useState('')
   const [stage, setStage] = useState<'input' | 'code' | 'sent'>('input')
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
+  const [error, setError] = useState<SignInError>(null)
   const [countdown, setCountdown] = useState(0)
   // Which channel the code actually landed on (telegram/whatsapp/zalo/sms) —
   // written by the delivery hook, read back so we can point at ONE inbox.
@@ -86,8 +174,7 @@ export function SignInForm({ className }: { className?: string }) {
     try {
       return (await import('@/lib/supabase/browser')).createSupabaseBrowser()
     } catch {
-      setError(t('Connection problem — check your network and try again.',
-                 'Sự cố kết nối — kiểm tra mạng và thử lại.'))
+      setError({ code: 'network' })
       setLoading(false)
       // Unlock the OTP auto-submit latch. The verify handlers bail on `!sb` BEFORE their own
       // `lastSubmitted.current = ''` reset, so without this a failed chunk load leaves the
@@ -101,7 +188,13 @@ export function SignInForm({ className }: { className?: string }) {
   // Cloudflare Turnstile — mints a fresh single-use token for each OTP send so Supabase
   // Auth CAPTCHA can gate SMS/email OTP against spam + SMS-pumping toll fraud. Only the
   // send steps (signInWithOtp) are gated; verifyOtp and OAuth are not (per Supabase).
-  const { getToken: getCaptchaToken, Widget: Turnstile } = useTurnstile()
+  // ⚠️ `onSolved` IS THE FIX. The widget produces a token whether or not a send is waiting for one,
+  // so this is what retracts a captcha message the moment it stops being true — see the hook.
+  // A function updater, so it reads the error that is actually on screen rather than one captured
+  // when this callback was created.
+  const { getToken: getCaptchaToken, Widget: Turnstile } = useTurnstile({
+    onSolved: () => setError(errorAfterCaptchaSolved),
+  })
   // Return the user to the page they triggered sign-in from (continuum of their
   // action) — not always home. Phone OTP stays in place (no redirect; the modal
   // just closes); OAuth + magic-link round-trip through /auth/callback, which
@@ -163,7 +256,7 @@ export function SignInForm({ className }: { className?: string }) {
     // in-app browser tab and finish via the deep-link handler in native-bootstrap. `googleOauthBlocked`
     // does NOT catch the Capacitor WebView (it's not a known in-app browser UA), so gate on isNativeApp.
     if (isNativeApp()) {
-      setError('')
+      setError(null)
       setLoading(true)
       const { pathname, search } = window.location
       let next = pathname + search
@@ -172,7 +265,7 @@ export function SignInForm({ className }: { className?: string }) {
       const sb = await getSupabase()
       if (!sb) return // getSupabase already cleared loading and set the error
       try { await nativeGoogleSignIn(sb, next) }
-      catch (e) { setError(e instanceof Error ? e.message : 'Google sign-in failed') }
+      catch (e) { setError({ code: 'raw', message: e instanceof Error ? e.message : 'Google sign-in failed' }) }
       finally { setLoading(false) }
       return
     }
@@ -180,28 +273,22 @@ export function SignInForm({ className }: { className?: string }) {
     // out to the real browser instead of letting Google show its block page. Stays BEFORE any
     // await on purpose: openInSystemBrowser needs the live user gesture.
     if (oauthBlocked) { openGoogleInBrowser(); return }
-    setError('')
+    setError(null)
     setLoading(true)
     const sb = await getSupabase()
     if (!sb) return
     const { error } = await sb.auth.signInWithOAuth({ provider, options: { redirectTo } })
     // On success supabase-js calls location.assign and this document is going away — leave
     // `loading` set so the button cannot be tapped again during the navigation.
-    if (error) { setError(error.message); setLoading(false) }
+    if (error) { setError({ code: 'raw', message: error.message }); setLoading(false) }
   }
-
-  const captchaCopy = () =>
-    t("The security check didn't complete — try again, and tick the verification box if one appears.", 'Kiểm tra bảo mật chưa hoàn tất — thử lại và đánh dấu ô xác minh nếu nó hiện ra nhé.')
-
-  // Cryptic GoTrue captcha errors → human copy; anything else shows as-is.
-  const friendlyAuthError = (message: string) => (/captcha/i.test(message) ? captchaCopy() : message)
 
   // Magic link goes through OUR endpoint, not supabase.auth.signInWithOtp — see the
   // header of api/auth/email-link for why (Supabase's SMTP credentials silently expired
   // and took email sign-in down for three days). The captcha token and the redirect are
   // the same values signInWithOtp received; only the sender changed.
   const sendEmail = async () => {
-    setLoading(true); setError('')
+    setLoading(true); setError(null)
     const captchaToken = await getCaptchaToken()
     try {
       const res = await fetch('/api/auth/email-link', {
@@ -210,33 +297,18 @@ export function SignInForm({ className }: { className?: string }) {
         body: JSON.stringify({ email: email.trim(), captchaToken, next: nextPath, lang, deliver: emailCode ? 'code' : 'link' }),
       })
       const data = await res.json().catch(() => ({}))
-      if (!res.ok) { setError(emailSendError(data?.error, data?.retryAfterSec)); return }
+      if (!res.ok) { setError(emailSendErrorToCode(data?.error, data?.retryAfterSec)); return }
       // Native gets the code-entry screen; web keeps the "check your inbox" screen.
       if (emailCode) { setCode(''); lastSubmitted.current = ''; setStage('code') } else setStage('sent')
       setCountdown(EMAIL_RESEND_STEPS[Math.min(emailSends.current, EMAIL_RESEND_STEPS.length - 1)])
       emailSends.current += 1
     } catch {
-      setError(t('Could not reach eno.vn — check your connection and try again.', 'Không kết nối được tới eno.vn — kiểm tra kết nối và thử lại nhé.'))
+      setError({ code: 'email_unreachable' })
     } finally {
       setLoading(false)
     }
   }
 
-  // Server error codes → human copy. Unlike the old path these are OUR codes, so they
-  // can be specific: "it didn't send" is a different instruction from "wait 30 seconds".
-  const emailSendError = (code: unknown, retryAfterSec?: number) => {
-    if (code === 'captcha_failed') return captchaCopy()
-    if (code === 'invalid_email') return t('That email address doesn’t look right.', 'Địa chỉ email này có vẻ không đúng.')
-    if (code === 'cooldown') {
-      const s = Math.max(1, Number(retryAfterSec) || 30)
-      // Placeholder + .replace, never a template literal: gen-ui-strings.mjs harvests
-      // string LITERALS only, so an interpolated t() silently ships untranslated.
-      return t('Just sent one — try again in {n} seconds.', 'Vừa gửi rồi — thử lại sau {n} giây nhé.').replace('{n}', String(s))
-    }
-    if (code === 'rate_limited') return t('Too many sign-in attempts. Try again in an hour.', 'Quá nhiều lần thử đăng nhập. Vui lòng thử lại sau một giờ.')
-    if (code === 'send_failed') return t("We couldn't send the email just now. Try again in a moment, or sign in with your phone.", 'Chúng tôi chưa gửi được email lúc này. Thử lại sau giây lát, hoặc đăng nhập bằng số điện thoại nhé.')
-    return t('Something went wrong. Please try again.', 'Đã có lỗi xảy ra. Vui lòng thử lại.')
-  }
 
   // The hook finishes before signInWithOtp resolves, so one read usually hits;
   // the retry covers replication lag. Fire-and-forget — unknown just means the
@@ -254,7 +326,7 @@ export function SignInForm({ className }: { className?: string }) {
   }
 
   const sendPhone = async () => {
-    setLoading(true); setError('')
+    setLoading(true); setError(null)
     const d = phone.replace(/\D/g, '')
     const intl = d.startsWith('0') ? `+84${d.slice(1)}` : d.startsWith('84') ? `+${d}` : `+${d}`
     const captchaToken = await getCaptchaToken()
@@ -262,7 +334,7 @@ export function SignInForm({ className }: { className?: string }) {
     if (!sb) return
     const { error } = await sb.auth.signInWithOtp({ phone: intl, options: { captchaToken } })
     setLoading(false)
-    if (error) { setError(friendlyAuthError(error.message)); return }
+    if (error) { setError(authErrorToCode(error.message)); return }
     setPhone(intl); setCode(''); lastSubmitted.current = ''
     setStage('code')
     setCountdown(SMS_RESEND_STEPS[Math.min(smsSends.current, SMS_RESEND_STEPS.length - 1)])
@@ -271,12 +343,12 @@ export function SignInForm({ className }: { className?: string }) {
   }
 
   const verifyPhone = async (c = code) => {
-    setLoading(true); setError('')
+    setLoading(true); setError(null)
     const sb = await getSupabase()
     if (!sb) return
     const { error } = await sb.auth.verifyOtp({ phone, token: c.trim(), type: 'sms' })
     setLoading(false)
-    if (error) { setError(error.message); lastSubmitted.current = '' }
+    if (error) { setError({ code: 'raw', message: error.message }); lastSubmitted.current = '' }
     // success → auth-context onAuthStateChange closes the modal / the page redirects
   }
 
@@ -291,7 +363,7 @@ export function SignInForm({ className }: { className?: string }) {
   // so a visitor who typed an alias (support@eno.vn → support@eno.forum) holds a token
   // issued to a different string; verifying the typed one fails every time.
   const verifyEmailCode = async (c = code) => {
-    setLoading(true); setError('')
+    setLoading(true); setError(null)
     const sb = await getSupabase()
     if (!sb) return
     const { error } = await sb.auth.verifyOtp({
@@ -301,9 +373,7 @@ export function SignInForm({ className }: { className?: string }) {
     })
     setLoading(false)
     if (error) {
-      setError(/expired|invalid/i.test(error.message)
-        ? t('That code is wrong or has expired. Send a new one and try again.', 'Mã không đúng hoặc đã hết hạn. Hãy gửi mã mới rồi thử lại nhé.')
-        : friendlyAuthError(error.message))
+      setError(/expired|invalid/i.test(error.message) ? { code: 'bad_code' } : authErrorToCode(error.message))
       lastSubmitted.current = '' // unlock retry, same as verifyPhone
     }
     // success → auth-context's onAuthStateChange closes the modal / redirects / hands the
@@ -343,7 +413,7 @@ export function SignInForm({ className }: { className?: string }) {
   // different number legitimately starts back at 60s.
   // Both ladders reset: the server keys its cooldowns per channel, so leaving an armed
   // phone countdown behind would disable the email tab's resend for no reason.
-  const reset = () => { setStage('input'); setCode(''); setError(''); lastSubmitted.current = ''; smsSends.current = 0; emailSends.current = 0; setCountdown(0) }
+  const reset = () => { setStage('input'); setCode(''); setError(null); lastSubmitted.current = ''; smsSends.current = 0; emailSends.current = 0; setCountdown(0) }
 
   if (stage === 'sent') {
     return (
@@ -365,7 +435,7 @@ export function SignInForm({ className }: { className?: string }) {
             {countdown > 0 ? `${t('resend in', 'gửi lại sau')} ${fmtCountdown(countdown)}` : t('resend', 'gửi lại')}
           </Button>
         </p>
-        {error && <p role="alert" className="mt-2 text-xs font-semibold text-destructive">{error}</p>}
+        {error && <p role="alert" className="mt-2 text-xs font-semibold text-destructive">{signInErrorText(error, t)}</p>}
         <Button variant="bare" size="none" onClick={reset} className="mt-3 text-sm font-semibold text-accent-foreground hover:underline cursor-pointer">
           {t('Use another method', 'Dùng cách khác')}
         </Button>
@@ -568,7 +638,7 @@ export function SignInForm({ className }: { className?: string }) {
         </TabsContent>
       </Tabs>
 
-      {error && <p role="alert" className="text-center text-xs font-semibold text-destructive">{error}</p>}
+      {error && <p role="alert" className="text-center text-xs font-semibold text-destructive">{signInErrorText(error, t)}</p>}
       {/* Invisible Turnstile — renders a visible challenge only if one is required. */}
       <Turnstile />
       <p className="pt-1 text-center text-2xs text-ink-4">
