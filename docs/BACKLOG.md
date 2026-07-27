@@ -7,6 +7,35 @@ Updated 2026-07-27.
 
 ---
 
+## 🔴 Open — needs a decision or a migration
+
+### B7 · An admin `unpublish` still republishes when the seller edits the listing
+**The last piece of the moderation bypass.** Two of three paths are closed (`5b8d5094`): the guard
+now consults `enforcementState` instead of the vacuous `trustTier` check, and the partner API's
+single-create finally runs `postingGate`. What remains: `api/admin/moderate/route.ts:168` writes
+`{ verified: false }` and **nothing else**, so on a good-standing seller an admin takedown is
+indistinguishable from a photo-hold — and `updateListingCore` republishes it on edit.
+
+**Needs one additive column** on `Listing` recording *why* it is unverified
+(`heldReason: 'photos' | 'admin'`), set by the takedown paths and checked by the republish branch.
+Small migration via the documented schema flow.
+
+⚠️ **Two plausible fixes were tried and rejected with evidence — do not re-propose them:**
+- *Reuse the dormant `verifiedBy` column.* agy: conflates "who approved" with "who removed", and
+  enforcement's bulk reinstates (`enforcement.ts:158,245`) never clear it, so a reinstated listing
+  would carry a permanent takedown marker.
+- *Treat "zero photos" as the photo-hold signature.* Refuted by measurement: the one held listing
+  in production carries **1 image** while goods require 3, so real photo-holds do have photos.
+
+The gap is pinned in `src/lib/core/listings.republish.test.ts` so it cannot be quietly forgotten.
+
+### B8 · Reloading the in-chat trip wizard bricks it permanently
+Found by the bug hunt, not yet verified by me. `trip-cards.tsx:261` seeds `step` from the server row
+but `draft` from `EMPTY_DRAFT`, so after a reload the traveller returns to step 5 with empty answers;
+"Build my plan" posts empty `cityIds`/`interests` and 400s forever, with no Back and no restart.
+
+---
+
 ## ⚠️ Corrected — B1 was over-framed
 
 I first wrote B1 as a product decision with three options. Measuring it collapsed the question, and
@@ -125,18 +154,38 @@ The live trip-planning listing's only image is a red **"VIETNAM SINGLE ENTRY E-V
 advert — misleading on an active, indexed listing, and it breaks the no-visa-wording-on-trip-surfaces
 rule. **Blocked on the owner supplying a trip photo.**
 
-### B5 · Visa and Itinerary threads are unlabelled in the inbox
+### B5 · ✅ SHIPPED 2026-07-27 (`056e76a4`, CI green) — Visa/Itinerary labels in the inbox
+Both surfaces read the server's `threadKind` — one label source, never a second rule client-side.
+Measured: 7 of 24 live threads (4 Visa, 3 Trip) became distinguishable; they all showed the identical
+"eno Vietnam" before, because the two desks are one Seller row. `'listing'` gets no badge (nothing to
+disambiguate) and `kind` is optional on the type, since the inbox hydrates from a localStorage cache
+written before the field existed — absent means no label, not a default.
+
+<details><summary>original</summary>
+
 `threadKind` shipped (T334) but nothing renders it. 6 of 23 live conversations share the identical
 "eno Vietnam" counterpart name with no way to tell them apart. Needs `kind` on the
 `/api/conversations` GET payload + a badge in `conversation-list.tsx` and the admin thread view.
 
 ---
 
+</details>
+
 ## P3
 
-### B6 · Itinerary geocoding stops at 8 stops per pass
-Residual from the geocoding work: one production itinerary is stuck at 10/18 stops pinned. Long trips
-stay permanently half-mapped.
+### B6 · ⚠️ MISDIAGNOSED — the stops are unmappable, not un-geocoded
+Rewritten 2026-07-27 after measuring. The premise ("the 8-per-pass cap starves long trips") is
+**false**. Dry-running `scripts/backfill-stop-coords.ts`: of 9 unmapped stops, exactly **1** could be
+geocoded — it has been, so prod is now 19/27. The other 8 are AI-invented names no gazetteer will
+ever contain: *"The Summer Experiment"*, *"Thao Dien Wellness Studio"*, *"Xuan Huong & Dong Khoi
+Boutiques"*. More passes would fill none of them.
+
+⚠️ A cron would make this WORSE, not better: `writeCache` stores hits only, so every pass re-queries
+the same unmappable names forever, burning the shared `GEOCODE_DAILY_LIMIT` that genuinely new
+places need. (Bounded — the limit is strict and fails closed — but wasted.)
+
+**The real fix is upstream**: either constrain the generator to real, findable places, or record a
+negative result so a name that cannot be found is not asked about again. Neither is a cron.
 
 ---
 
