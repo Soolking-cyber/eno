@@ -24,9 +24,14 @@ class MainViewController: CAPBridgeViewController {
     /// The origins this shell renders (mirrors `server.allowNavigation` in capacitor.config.ts).
     private static let firstPartyHosts: Set<String> = ["eno.vn", "www.eno.vn", "eno.forum", "www.eno.forum"]
 
+    /// Forwards every WKNavigationDelegate message to Capacitor's own handler EXCEPT the two
+    /// failure callbacks, which it filters first. See `BenignNavigationError` below for why.
+    private var navigationFilter: NavigationFailureFilter?
+
     override func viewDidLoad() {
         super.viewDidLoad()
         configureNativeFeel()
+        installNavigationFailureFilter()
         scheduleWatchdog(after: 3.0)
         // UIKit does NOT call viewDidAppear on background→foreground, so the blank-page re-check
         // must hang off the app lifecycle.
@@ -195,6 +200,34 @@ class MainViewController: CAPBridgeViewController {
         }
     }
 
+    /// ⚠️ "YOU'RE OFFLINE" WAS SHOWING TO PEOPLE WHO WERE ONLINE (owner, 2026-07-27, with full
+    /// signal and Wi-Fi in the screenshot: "often see this in mobile version").
+    ///
+    /// Capacitor's WebViewDelegationHandler navigates to `errorPath` on ANY navigation failure, with
+    /// no inspection of the error at all — both callbacks are literally
+    /// `if let errorURL = bridge?.config.errorPathURL { webView.load(URLRequest(url: errorURL)) }`.
+    /// But `NSURLErrorCancelled (-999)` is not a failure in the sense a user would recognise: WebKit
+    /// raises it whenever a load is SUPERSEDED — tapping a second link while the first is still in
+    /// flight, a client-side route change interrupting a pending navigation, a redirect racing a tap.
+    /// On a phone that is ordinary behaviour, several times a session, and each one threw up the
+    /// offline screen for about a second and a half before error.html's own probe recovered.
+    ///
+    /// So the page was telling the truth about a network error that had not happened. This filter
+    /// swallows exactly the two benign codes and forwards everything else untouched, so a REAL
+    /// outage still shows the offline page and still self-heals.
+    ///
+    /// ⚠️ IT IS A FORWARDING PROXY, not a replacement. The file's own note that "Capacitor owns the
+    /// navigationDelegate" is why: the bridge's handler implements a dozen callbacks this shell must
+    /// not reimplement (the JS bridge's own load state among them). NSObject message forwarding
+    /// (`forwardingTarget(for:)`) hands every selector we do NOT define straight to the original, so
+    /// adding a Capacitor callback later needs no change here.
+    private func installNavigationFailureFilter() {
+        guard let webView = self.webView, let inner = webView.navigationDelegate else { return }
+        let filter = NavigationFailureFilter(inner: inner)
+        navigationFilter = filter // the WebView holds its delegate WEAKLY; this owns it
+        webView.navigationDelegate = filter
+    }
+
     private func reloadFromServer() {
         guard let wv = webView, reloadAttempts < 6 else { return }
         reloadAttempts += 1
@@ -235,5 +268,51 @@ private final class WeakScriptMessageHandler: NSObject, WKScriptMessageHandler {
     init(_ target: WKScriptMessageHandler) { self.target = target }
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
         target?.userContentController(userContentController, didReceive: message)
+    }
+}
+
+
+// MARK: - Benign navigation failures
+
+/// A WKNavigationDelegate that forwards everything to Capacitor's handler except failures that are
+/// not failures. See `installNavigationFailureFilter` for the full reasoning.
+private final class NavigationFailureFilter: NSObject, WKNavigationDelegate {
+    private let inner: WKNavigationDelegate
+
+    init(inner: WKNavigationDelegate) {
+        self.inner = inner
+        super.init()
+    }
+
+    /// Every selector this class does not implement goes straight to Capacitor's handler.
+    override func forwardingTarget(for aSelector: Selector!) -> Any? {
+        inner.responds(to: aSelector) ? inner : super.forwardingTarget(for: aSelector)
+    }
+
+    override func responds(to aSelector: Selector!) -> Bool {
+        super.responds(to: aSelector) || inner.responds(to: aSelector)
+    }
+
+    /// ⚠️ ONLY these two, and deliberately not `-1005` (connection lost) or `-1009` (not connected):
+    /// those ARE network failures and the offline page — which probes and returns on its own — is the
+    /// right answer for them. Widening this list would hide real outages behind a blank screen.
+    ///   · NSURLErrorCancelled (-999): the load was superseded or deliberately stopped.
+    ///   · WebKitErrorFrameLoadInterruptedByPolicyChange (102): a navigation the policy delegate
+    ///     turned into something else (a download, an external scheme). Nothing broke.
+    private func isBenign(_ error: Error) -> Bool {
+        let e = error as NSError
+        if e.domain == NSURLErrorDomain && e.code == NSURLErrorCancelled { return true }
+        if e.domain == "WebKitErrorDomain" && e.code == 102 { return true }
+        return false
+    }
+
+    func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
+        if isBenign(error) { return }
+        inner.webView?(webView, didFail: navigation, withError: error)
+    }
+
+    func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+        if isBenign(error) { return }
+        inner.webView?(webView, didFailProvisionalNavigation: navigation, withError: error)
     }
 }
