@@ -2109,10 +2109,24 @@ export function VisaResendChip({ info, isDesk, busy, error, onResend, otherCases
                   unless it sits inside a Menu.Group — the throw happens on popup mount, so the menu
                   would never open. Keep the label inside the group. */}
               <DropdownMenuGroup>
-                <DropdownMenuLabel>{tr('Bring another application', 'Đưa hồ sơ khác xuống')}</DropdownMenuLabel>
+                {/* ⚠️ THE LABEL USED TO PROMISE THE OPPOSITE OF WHAT HAPPENS. It read "Bring another
+                    application" / "Đưa hồ sơ khác xuống" — bring it DOWN HERE — and the owner
+                    reported the resulting behaviour as a bug three times, most recently "send form
+                    again still creates new chat". Nothing is created: each case is welded to its
+                    own conversation (`Conversation.visaApplicationId` is @unique, and the
+                    application's `conversation_id` is immutable), so its form is re-posted THERE
+                    and we follow it. Saying "open" is the truthful verb for that, and the arrow
+                    says a move is coming before the tap rather than after it.
+
+                    Bringing a case here for real would mean moving its binding AND its history
+                    between threads; the honest fix for a traveller with several visa threads is to
+                    consolidate them, which is a data decision on the backlog, not a label. */}
+                <DropdownMenuLabel>{tr('Open another application', 'Mở hồ sơ khác')}</DropdownMenuLabel>
                 {otherCases.map((c) => (
                   <DropdownMenuItem key={c.id} disabled={busy} onClick={() => void onSwitchCase(c.id)}>
+                    <ArrowRight />
                     {c.label}
+                    <span className="ml-auto text-2xs text-ink-4">{tr('in its own chat', 'trong chat riêng')}</span>
                   </DropdownMenuItem>
                 ))}
               </DropdownMenuGroup>
