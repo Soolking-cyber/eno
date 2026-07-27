@@ -1,5 +1,6 @@
 import { AdminDenied } from '@/components/admin/admin-denied'
 import { Badge } from '@/components/ui/badge'
+import { threadKind } from '@/lib/thread-kind'
 import { EmptyState } from '@/components/ui/empty-state'
 import { db } from '@/lib/db'
 import { getAdmin } from '@/lib/admin'
@@ -45,6 +46,12 @@ export default async function AdminConversationPage({ params }: Props) {
     },
   })
 
+  // ⚠️ SAME PREDICATE AS THE CUSTOMER INBOX, deliberately. The operator and the traveller must never
+  // disagree about what a thread is — and they cannot tell from the seller, because the visa desk and
+  // the trip desk are ONE Seller row. Resolved from the anchor listing via threadKind, the single
+  // source both surfaces read. Fails closed to 'listing', which renders no badge.
+  const kind = convo ? await threadKind({ listingId: convo.listing?.id ?? null }) : 'listing'
+
   const buyerName = convo?.buyer?.displayName || convo?.buyer?.email || 'Buyer'
   const sellerName = convo?.seller?.name || 'Seller'
 
@@ -69,7 +76,12 @@ export default async function AdminConversationPage({ params }: Props) {
                   <span className="text-accent-foreground">{sellerName}</span>
                 )}
               </h1>
-              <Badge className="font-semibold">read-only</Badge>
+              <div className="flex items-center gap-2">
+                {(kind === 'visa' || kind === 'itinerary') && (
+                  <Badge className="font-semibold bg-tint text-body">{kind === 'visa' ? 'Visa' : 'Itinerary'}</Badge>
+                )}
+                <Badge className="font-semibold">read-only</Badge>
+              </div>
             </div>
             {convo.listing && (
               <a href={`/listings/${convo.listing.id}`} target="_blank" rel="noreferrer" className="text-xs text-accent-foreground hover:underline">

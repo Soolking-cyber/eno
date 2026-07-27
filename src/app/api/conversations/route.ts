@@ -300,12 +300,22 @@ export async function GET() {
     },
   })
 
-  const conversations = rows.filter((c) => {
+  const visible = rows.filter((c) => {
     // Hide conversations this user "deleted" — until a newer message arrives
     // (lastMessageAt > the delete time), at which point it reappears.
     const myDeletedAt = c.buyerProfileId === meId ? c.buyerDeletedAt : c.sellerDeletedAt
     return !(myDeletedAt && c.lastMessageAt <= myDeletedAt)
-  }).map((c) => {
+  })
+  // ⚠️ ONE LABEL SOURCE. The kind comes from `threadKind` — the same predicate the thread page and
+  // the admin queue use — never from a second rule restated here. Visa and trips are sold from ONE
+  // Seller row, so "which seller is this?" cannot tell them apart; the anchor listing can, and
+  // threadKind is where that knowledge lives.
+  //
+  // Cheap despite the loop: both resolvers inside threadKind are React-cache()d, so the whole page
+  // of conversations costs ONE desk lookup and one catalogue lookup, then in-memory comparisons.
+  const kinds = await Promise.all(visible.map((c) => threadKind({ listingId: c.listing.id })))
+
+  const conversations = visible.map((c, i) => {
     const iAmBuyer = c.buyerProfileId === meId
     const img = (() => { try { return (JSON.parse(c.listing.images || '[]')[0] as string) ?? null } catch { return null } })()
     const lastMsg = c.messages[0]
@@ -321,6 +331,8 @@ export async function GET() {
       lastMessageText: c.lastMessageText,
       lastOffer,
       unread: iAmBuyer ? c.buyerUnread : c.sellerUnread,
+      // 'visa' | 'itinerary' | 'listing' — what this thread is ABOUT, for the inbox label.
+      kind: kinds[i],
       // The OTHER party's display identity.
       counterpart: iAmBuyer
         ? { name: c.seller.name, avatarColor: c.seller.avatarColor, avatarUrl: c.seller.avatarUrl }

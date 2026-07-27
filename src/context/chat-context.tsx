@@ -12,6 +12,14 @@ export type InboxConvo = {
   lastMessageAt: string; lastMessageText: string | null; unread: number
   lastOffer?: { mine: boolean; amount: number | null; status: string | null } | null
   counterpart: { name: string; avatarColor: string; avatarUrl: string | null }
+  /**
+   * What this thread is ABOUT, from the server's `threadKind` — never derived on the client.
+   *
+   * ⚠️ OPTIONAL ON PURPOSE: this list is also read from a localStorage cache written before the
+   * field existed, so an older cached row legitimately has no `kind`. Treat absent as "no label"
+   * rather than defaulting to one — a wrong badge on a visa thread is worse than none.
+   */
+  kind?: 'visa' | 'itinerary' | 'listing'
 }
 
 const CONVOS_KEY = 'eno-convos'  // localStorage cache: { userId, list }

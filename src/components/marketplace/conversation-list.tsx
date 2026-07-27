@@ -115,7 +115,21 @@ export function ConversationList() {
                       <span className="truncate text-sm font-bold text-foreground">{c.counterpart.name}</span>
                       {c.unread > 0 && <Badge variant="counter-brand" size="count" className="h-5 min-w-5 px-1.5">{c.unread}</Badge>}
                     </div>
-                    <p className="truncate text-xs text-ink-4">{c.listingTitle}</p>
+                    {/* ⚠️ THE LABEL EXISTS BECAUSE THE COUNTERPART NAME CANNOT DISTINGUISH THESE.
+                        The visa desk and the trip desk are ONE Seller row, so both threads show the
+                        identical "eno Vietnam" and the same avatar — measured: 6 of 23 live
+                        conversations. Without this a traveller has no way to tell their passport
+                        application from their holiday plan in the list. The kind comes from the
+                        server's threadKind; 'listing' (an ordinary marketplace chat) gets no badge,
+                        because there is nothing to disambiguate. */}
+                    <div className="flex min-w-0 items-center gap-1.5">
+                      {(c.kind === 'visa' || c.kind === 'itinerary') && (
+                        <Badge size="sm" className="shrink-0 bg-tint text-body">
+                          {c.kind === 'visa' ? tr('Visa', 'Thị thực') : tr('Trip', 'Chuyến đi')}
+                        </Badge>
+                      )}
+                      <p className="truncate text-xs text-ink-4">{c.listingTitle}</p>
+                    </div>
                     {(() => {
                       const o = c.lastOffer
                       // Make offer direction + status legible at a glance: an incoming

@@ -79,7 +79,14 @@ soft delete never does. It passed throughout. Replaced with tests that assert th
 Caught before impact: **0 archived rows in prod**, because the delete control was never wired.
 Fixing this was a prerequisite for shipping it.
 
-### B2 · Consolidate "Itineraries" and "My Trips" into one place
+### B2 · ✅ SHIPPED 2026-07-27 (`7042f372`, CI green) — Consolidate "Itineraries" and "My Trips"
+The naming was the small half. **6 of 9 prod trips had zero stops and a complete written plan the page
+refused to render**, telling the traveller to "generate it again" via a button that redirected back to
+the list. Now the plan renders, the assistance panel (the page's only revenue path) is no longer hidden
+on two-thirds of trips, and one name is used everywhere in both languages.
+
+<details><summary>original</summary>
+
 **Owner, 2026-07-27:** *"make 1 root management place, itineraries should become my trip, and if user
 selects saved trip in chat it should direct to my trips where user can see trips and edit."*
 
@@ -93,7 +100,15 @@ VI must land on **Chuyến đi** (trip), not **Lịch trình** (itinerary), cons
 
 Also in scope: the chat drafts picker must land the traveller somewhere they can **edit**, not just read.
 
-### B3 · A returning traveller has no way into the planner
+</details>
+
+### B3 · ✅ SHIPPED 2026-07-27 (same commit) — A returning traveller has no way into the planner
+"Plan a trip in chat" lived only in the `trips.length === 0` empty state, so the door shut the moment a
+traveller saved their first trip. Hoisted beside the heading; `/itinerary`'s two CTAs re-aimed off the
+dead redirect at the trip listing.
+
+<details><summary>original</summary>
+
 Found by audit, **overturning a "shipped" verdict.** `/dashboard/trips/plan` redirects to the trips
 *list*, and the "Plan a trip in chat" link exists **only** in the `trips.length === 0` empty state — so
 anyone who already saved a trip has zero path in, while `/itinerary`'s primary CTA still points at
@@ -101,7 +116,9 @@ that redirect. Same root cause as B4; fix together.
 
 ---
 
-## P2
+</details>
+
+## P2 — next up
 
 ### B4 · The trip listing advertises a visa
 The live trip-planning listing's only image is a red **"VIETNAM SINGLE ENTRY E-VISA / 1 HOUR EXPRESS"**
