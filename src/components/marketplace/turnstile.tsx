@@ -68,6 +68,9 @@ function loadScript(): Promise<void> {
 export function useTurnstile() {
   const widgetIdRef = useRef<string | null>(null)
   const resolverRef = useRef<((t: string | undefined) => void) | null>(null)
+  /** Set by the in-flight getToken() call; the widget invokes it when a challenge is about to be
+   *  shown, so the timeout can be re-based to human time. See the note in getToken. */
+  const interactiveRef = useRef<(() => void) | null>(null)
 
   // Callback ref so the widget re-attaches wherever <Widget/> mounts — the sign-in form
   // has separate branches (input / code / email-sent) and the widget must survive stage
@@ -109,6 +112,11 @@ export function useTurnstile() {
           // failures — and those demand completely different fixes, one of them not in this repo.
           // It stays a console.warn rather than surfacing to the visitor: the code is diagnostic,
           // not something a person signing in can act on.
+          // Fires the moment the widget decides this visitor must solve something visible. The
+          // in-flight getToken() uses it to stop counting in machine time — see the note there.
+          'before-interactive-callback': () => {
+            interactiveRef.current?.()
+          },
           'error-callback': (code?: string) => {
             console.warn('[turnstile] widget error', code ?? '(no code)')
             resolverRef.current?.(undefined)
@@ -130,14 +138,38 @@ export function useTurnstile() {
         return
       }
       let settled = false
-      const timer = setTimeout(() => finish(undefined), 15000)
+      let timer = setTimeout(() => finish(undefined), 15000)
       function finish(token: string | undefined) {
         if (settled) return
         settled = true
         clearTimeout(timer)
+        if (interactiveRef.current === extend) interactiveRef.current = null
         if (resolverRef.current === finish) resolverRef.current = null
         resolve(token)
       }
+      /**
+       * ⚠️ A HUMAN CANNOT TICK A CHECKBOX IN 15 SECONDS THEY HAVE NOT SEEN YET.
+       *
+       * 15s is the right budget for the SILENT path — the widget is `interaction-only`, so a
+       * trusted visitor gets a token in well under a second and a hung network should not stall
+       * sign-in. But when Cloudflare decides this visitor must solve something, that same 15s
+       * starts running against a person who has to notice a checkbox appear low in the form, move
+       * to it and click. Miss the window and getToken() resolves undefined, the send goes out with
+       * no token, and the server answers 403 — surfaced as "the security check didn't complete,
+       * tick the verification box if one appears". The copy was describing a box the timeout was
+       * pulling out from under them.
+       *
+       * `before-interactive-callback` fires exactly when the widget is about to demand interaction,
+       * so that is the moment to stop counting like a machine and start counting like a person.
+       * The clock is not removed — an abandoned challenge must still settle rather than leaving the
+       * button spinning forever — it is re-based to two minutes from the moment the challenge
+       * appears.
+       */
+      const extend = () => {
+        clearTimeout(timer)
+        timer = setTimeout(() => finish(undefined), 120000)
+      }
+      interactiveRef.current = extend
       // Settle any superseded caller immediately (instead of leaving it to its 15s timeout).
       resolverRef.current?.(undefined)
       resolverRef.current = finish

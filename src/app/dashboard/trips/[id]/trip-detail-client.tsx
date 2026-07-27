@@ -148,25 +148,14 @@ export function TripDetailClient({ id }: { id: string }) {
     }
   }, [id])
 
-  const moveStop = useCallback((dayId: string, stopId: string, toIndex: number) =>
-    editStop({ action: 'reorder', dayId, stopId, toIndex }, stopId), [editStop])
   const deleteStop = useCallback((dayId: string, stopId: string) =>
     editStop({ action: 'delete', dayId, stopId }, stopId), [editStop])
-  /**
-   * Exchange two stops — the last of the route's three actions to get a caller.
-   *
-   * ⚠️ THROUGH THE SAME `editStop`, deliberately. It already owns the 409-reload, the busy set and
-   * the refresh that makes the map follow; a second write path beside it would be a worse copy of
-   * all three, and the reason this task exists is that one action had no caller — not that it needed
-   * its own plumbing.
-   *
-   * ⚠️ NOT the same as a reorder. Moving A to C's index shifts everything between them; swapping A
-   * and C leaves the rest alone. The server does it in one transaction because
-   * @@unique([dayId, position]) makes two writes impossible, which is why the client must not try
-   * to express it as two moves.
-   */
-  const swapStops = useCallback((dayId: string, stopIdA: string, stopIdB: string) =>
-    editStop({ action: 'swap', dayId, stopIdA, stopIdB }, stopIdA), [editStop])
+  // ⚠️ `reorder` and `swap` HAVE NO CALLER HERE ANY MORE, on purpose. The owner removed the
+  // move-earlier/move-later and swap controls on 2026-07-27 ("buttons up down swap we dont need"),
+  // so the wrappers that fed them were deleted with the buttons rather than left as orphans — a
+  // callback nothing calls is the same dead weight as a route nothing reaches, which this feature
+  // has already been bitten by twice. The server still ACCEPTS both actions; if a surface ever
+  // needs them again, `editStop` takes the body verbatim and re-adding a wrapper is two lines.
   /**
    * Apply a suggested replacement — the last of the four stop actions, and the one the whole refine
    * flow exists to reach.
@@ -315,9 +304,9 @@ export function TripDetailClient({ id }: { id: string }) {
               onSelectDay={setActiveDay}
               selectedStopId={selectedStopId}
               onSelectStop={setSelectedStopId}
-              onMoveStop={moveStop}
-              onRemoveStop={(dayId, stop) => setRefineTarget({ dayId, stopId: stop.id, name: stop.name, place: stop.place })}
-              onSwapStops={swapStops}
+              // Two actions, by owner decision (2026-07-27) — see the note on TripDayList's props.
+              onSuggestStop={(dayId, stop) => setRefineTarget({ dayId, stopId: stop.id, name: stop.name, place: stop.place })}
+              onDeleteStop={deleteStop}
               busyStopIds={busyStopIds}
             />
             <AssistancePanel itineraryId={trip.id} />

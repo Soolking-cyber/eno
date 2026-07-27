@@ -1,11 +1,10 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { ArrowDown, ArrowUp, Clock, Footprints, Loader2, MapPinOff, Navigation, Repeat, Route, Search, Trash2, Wallet, Info } from 'lucide-react'
+import { Clock, Footprints, Loader2, MapPinOff, Navigation, Route, Search, Sparkles, Trash2, Wallet, Info } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { cn } from '@/lib/utils'
 import { formatMoneyFull, moneyLocale } from '@/lib/vnd'
 import { formatTravel } from '@/lib/travel'
@@ -88,33 +87,29 @@ type Props = {
   /** Called only when the map is beside the list — see useListIsBesideMap. */
   onSelectStop?: (stopId: string) => void
   /**
-   * Stop editing. BOTH optional and passed together — the controls render only when the surface
-   * can actually perform them, so the read-only embeds (the landing page, a shared plan) get the
-   * list they have today with no edit chrome.
+   * Stop editing — EXACTLY TWO ACTIONS, by owner decision (2026-07-27): suggest a replacement, or
+   * delete. Reordering (move earlier / move later) and swapping a pair were built and reachable,
+   * and were deliberately removed: "buttons up down swap we dont need".
    *
-   * `toIndex` is the target position WITHIN the day; the server owns the permutation, because
-   * @@unique([dayId, position]) makes "swap two rows" a transaction, not two writes.
-   */
-  onMoveStop?: (dayId: string, stopId: string, toIndex: number) => void | Promise<void>
-  /**
-   * Open the removal flow for a stop. NOT "delete it" — the surface decides what removing means.
+   * ⚠️ The server still accepts `reorder` and `swap` on the stops endpoint. That is NOT a standing
+   * invitation to put the buttons back — the endpoint keeping an action it no longer needs to serve
+   * is a smaller cost than a row of five controls the owner asked to be rid of.
    *
-   * ⚠️ IT HANDS BACK THE WHOLE STOP, not an id, because the owner of this callback has to NAME the
-   * activity in its dialog ("Replace Walk the old town?"). Passing an id would make every caller
-   * look the row back up in a list this component already has in its hand.
+   * Both optional and passed together, so read-only embeds (the landing page, a shared plan) get
+   * the list they have today with no edit chrome.
+   *
+   * ⚠️ `onSuggestStop` HANDS BACK THE WHOLE STOP, not an id, because its owner has to NAME the
+   * activity in the dialog ("…instead of Walk the old town?"). Passing an id would make every
+   * caller look the row back up in a list this component already has in its hand.
    */
-  onRemoveStop?: (dayId: string, stop: TripStop) => void
-  /**
-   * Exchange two stops in a day. ⚠️ ARBITRARY pairs, not adjacent ones — up/down already covers
-   * adjacent, and the owner's words were literal: "activities we want to swap". Swapping A with C
-   * is not the same permutation as moving A to C's index, which shifts everything between them.
-   */
-  onSwapStops?: (dayId: string, stopIdA: string, stopIdB: string) => void | Promise<void>
+  onSuggestStop?: (dayId: string, stop: TripStop) => void
+  /** Delete outright. Immediate, unlike suggest — the two are different in kind on purpose. */
+  onDeleteStop?: (dayId: string, stopId: string) => void | Promise<void>
   /** Ids currently being written, so a row can disable itself without the parent re-rendering all. */
   busyStopIds?: ReadonlySet<string>
 }
 
-export function TripDayList({ days, activeDay, onSelectDay, selectedStopId = null, onSelectStop, onMoveStop, onRemoveStop, onSwapStops, busyStopIds }: Props) {
+export function TripDayList({ days, activeDay, onSelectDay, selectedStopId = null, onSelectStop, onSuggestStop, onDeleteStop, busyStopIds }: Props) {
   const { tr, lang } = useLanguage()
   const listIsBeside = useListIsBesideMap()
   const shown = activeDay === null ? days : days.filter((d) => d.dayNumber === activeDay)
@@ -190,21 +185,10 @@ export function TripDayList({ days, activeDay, onSelectDay, selectedStopId = nul
                     key={stop.id}
                     stop={stop}
                     dayNumber={day.dayNumber}
-                    // Edit wiring. `index` is the row's position among the day's SORTED stops,
-                    // which is what the server's toIndex means — not stop.position, which can be
-                    // sparse after a delete.
-                    canMoveUp={index > 0}
-                    canMoveDown={index < ordered.length - 1}
+                    // Edit wiring — two actions only (see the props block for why).
                     busy={busyStopIds?.has(stop.id) ?? false}
-                    onMoveUp={onMoveStop ? () => onMoveStop(day.id, stop.id, index - 1) : undefined}
-                    onMoveDown={onMoveStop ? () => onMoveStop(day.id, stop.id, index + 1) : undefined}
-                    onRemove={onRemoveStop ? () => onRemoveStop(day.id, stop) : undefined}
-                    // The partner list is the day's other stops, in the order shown, so the reader
-                    // picks by the name they are looking at rather than by an index.
-                    swapTargets={onSwapStops && ordered.length > 1
-                      ? ordered.filter((other) => other.id !== stop.id).map((other) => ({ id: other.id, name: other.name }))
-                      : undefined}
-                    onSwap={onSwapStops ? (otherId: string) => onSwapStops(day.id, stop.id, otherId) : undefined}
+                    onSuggest={onSuggestStop ? () => onSuggestStop(day.id, stop) : undefined}
+                    onDelete={onDeleteStop ? () => onDeleteStop(day.id, stop.id) : undefined}
                     pinIndex={mapped ? pin : null}
                     selected={selectedStopId === stop.id}
                     // Only wired when the map is actually beside the list: on a phone the map
@@ -259,7 +243,7 @@ function DayTab({ active, onClick, children }: { active: boolean; onClick: () =>
 
 function StopRow({
   stop, cityName, dayNumber, pinIndex, selected, onSelect, lang, tr,
-  canMoveUp, canMoveDown, busy, onMoveUp, onMoveDown, onRemove, swapTargets, onSwap,
+  busy, onSuggest, onDelete,
 }: {
   stop: TripStop
   cityName: string
@@ -269,17 +253,12 @@ function StopRow({
   onSelect?: () => void
   lang: string
   tr: (en: string, vi: string) => string
-  canMoveUp?: boolean
-  canMoveDown?: boolean
   busy?: boolean
-  onMoveUp?: () => void | Promise<void>
-  onMoveDown?: () => void | Promise<void>
-  onRemove?: () => void
-  swapTargets?: Array<{ id: string; name: string }>
-  onSwap?: (otherId: string) => void | Promise<void>
+  onSuggest?: () => void
+  onDelete?: () => void | Promise<void>
 }) {
   // Editing is offered only when the surface passed handlers for it.
-  const editable = Boolean(onMoveUp || onMoveDown || onRemove || onSwap)
+  const editable = Boolean(onSuggest || onDelete)
   const meta = (
     <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink-4">
       {stop.time && (
@@ -328,80 +307,45 @@ function StopRow({
             <span>{stop.bookingAdvice}</span>
           </p>
         )}
-        {/* ⚠️ EDIT CONTROLS, and they are the reason this whole task exists: the server has had
-            reorder/swap/delete with tests since T316 and NOTHING called it (owner, 2026-07-26:
-            "how do we edit here activities we want to swap").
+        {/* ⚠️ EXACTLY TWO CONTROLS, BY OWNER DECISION (2026-07-27): "make sure there are only 2
+            buttons suggest new activity and delete — buttons up down swap we dont need".
+            Move-earlier, move-later and the swap Select were all built, shipped and reachable, and
+            were then removed here on purpose. ⚠️ DO NOT RE-ADD THEM because the server still
+            accepts `reorder` and `swap`: the endpoint keeping an action is not a request for a
+            button, and five controls on a row this size was the actual complaint.
 
-            ⚠️ `stopPropagation` on every one. When the map sits beside the list the row itself is a
-            button that selects the stop, so a bare click here would both reorder AND pan the map —
-            two outcomes from one tap, one of them unasked for.
+            ⚠️ THE TWO ARE DELIBERATELY DIFFERENT IN KIND. Suggest opens a dialog (it announces that
+            with aria-haspopup) and writes nothing until a replacement is chosen; delete acts
+            immediately. Splitting them is the point of this change — the trash used to open the
+            same dialog, which meant the plain "get rid of it" case had to read three AI suggestions
+            first.
 
-            ⚠️ Move is expressed as up/down rather than drag: a drag needs pointer capture inside a
-            row that is already a button and already scroll-sensitive, and the server's contract is
-            an INDEX, which up/down expresses exactly. Delete is destructive and last, separated. */}
+            ⚠️ `stopPropagation` on both. When the map sits beside the list the row itself is a
+            button that selects the stop, so a bare click would both act AND pan the map — two
+            outcomes from one tap, one of them unasked for. */}
         {editable && (
           <div className="mt-2 -ml-1 flex items-center gap-0.5">
-            <IconButton
-              aria-label={tr('Move earlier in the day', 'Chuyển lên sớm hơn')}
-              disabled={busy || !canMoveUp}
-              onClick={(e) => { e.stopPropagation(); void onMoveUp?.() }}
-              className="tap-44 h-7 w-7 text-ink-4"
-            >
-              <ArrowUp className="h-3.5 w-3.5" aria-hidden />
-            </IconButton>
-            <IconButton
-              aria-label={tr('Move later in the day', 'Chuyển xuống muộn hơn')}
-              disabled={busy || !canMoveDown}
-              onClick={(e) => { e.stopPropagation(); void onMoveDown?.() }}
-              className="tap-44 h-7 w-7 text-ink-4"
-            >
-              <ArrowDown className="h-3.5 w-3.5" aria-hidden />
-            </IconButton>
-            {/* ⚠️ A SELECT, not another arrow. Swap's whole point is reaching a NON-adjacent stop, so
-                the affordance has to name the partner; a pair of arrows would just be move-up/down
-                again. `swap` was the last of the three server actions with no caller.
-
-                ⚠️ stopPropagation on the trigger for the same reason as the buttons — the row is
-                itself a button when the map is beside the list. The Select's own popup closes on an
-                outside press, so the wrapper must not swallow that. */}
-            {swapTargets && swapTargets.length > 0 && onSwap && (
-              <Select
-                value=""
-                onValueChange={(value) => { if (typeof value === 'string' && value) void onSwap(value) }}
+            {onSuggest && (
+              <IconButton
+                aria-label={tr('Suggest a new activity', 'Gợi ý hoạt động mới')}
+                aria-haspopup="dialog"
                 disabled={busy}
-                >
-                <SelectTrigger
-                  aria-label={tr('Swap this activity with another', 'Đổi chỗ hoạt động này với hoạt động khác')}
-                  // On the TRIGGER, not a wrapper span: the row is itself a button when the map is
-                  // beside the list, and design-lint is right to refuse a click handler on a
-                  // generic element. The popup is portalled, so its own clicks never bubble here.
-                  onClick={(e) => e.stopPropagation()}
-                  className="ml-1 h-7 w-auto gap-1 border-line-strong bg-card px-2 text-3xs text-ink-4"
-                >
-                  <Repeat className="h-3.5 w-3.5" aria-hidden />
-                  <SelectValue>{tr('Swap', 'Đổi chỗ')}</SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {swapTargets.map((target) => (
-                    <SelectItem key={target.id} value={target.id}>{target.name}</SelectItem>
-                  ))}
-                </SelectContent>
-                </Select>
+                onClick={(e) => { e.stopPropagation(); onSuggest() }}
+                className="tap-44 h-7 w-7 text-ink-4 hover:text-brand"
+              >
+                <Sparkles className="h-3.5 w-3.5" aria-hidden />
+              </IconButton>
             )}
-            {/* ⚠️ IT OPENS A FLOW, IT DOES NOT DELETE — so it announces a dialog rather than
-                promising an immediate removal. The owner's complaint was that removing an activity
-                left a hole ("it deletes but doesn't suggest something else instead"), and the answer
-                is a step in between; `aria-haspopup` is what stops that step being a surprise to
-                anyone who cannot see it appear. Removing outright is still one tap once inside. */}
-            <IconButton
-              aria-label={tr('Remove or replace this activity', 'Xóa hoặc thay hoạt động này')}
-              aria-haspopup="dialog"
-              disabled={busy}
-              onClick={(e) => { e.stopPropagation(); onRemove?.() }}
-              className="tap-44 ml-1 h-7 w-7 text-ink-4 hover:text-destructive"
-            >
-              {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : <Trash2 className="h-3.5 w-3.5" aria-hidden />}
-            </IconButton>
+            {onDelete && (
+              <IconButton
+                aria-label={tr('Delete this activity', 'Xóa hoạt động này')}
+                disabled={busy}
+                onClick={(e) => { e.stopPropagation(); void onDelete() }}
+                className="tap-44 h-7 w-7 text-ink-4 hover:text-destructive"
+              >
+                {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : <Trash2 className="h-3.5 w-3.5" aria-hidden />}
+              </IconButton>
+            )}
           </div>
         )}
       </div>
