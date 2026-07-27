@@ -190,6 +190,12 @@ type Msg ={ id: string; mine: boolean; body: string; createdAt: string; pending?
 type Thread = {
   id: string
   me: string // current user's profile id — to tell my messages from incoming
+  /**
+   * What this thread is ABOUT, from the server's `threadKind` — 'visa' | 'itinerary' | 'listing'.
+   * Optional because a cached thread written by an older build has none; treat absent as 'listing'
+   * (the fallback threadKind itself fails closed to), never as a desk thread.
+   */
+  kind?: 'visa' | 'itinerary' | 'listing'
   iAmSeller?: boolean // true = I'm the listing's seller → hide "request contact" (I'm the contact)
   hasReviewed?: boolean // buyer side: this conversation already produced a review → no prompt
   // The e-Visa case this thread is bound to + the desk state its cards render against
@@ -1413,9 +1419,13 @@ export default function ThreadPage() {
           {/* Quick replies — seller: the 3 endless questions answered in one tap;
               buyer: "still available?" that self-answers from a fresh seller
               confirmation. Chips insert into the composer, never auto-send.
-              Suppressed on a visa thread: "is this still available?" is nonsense at a
-              government-form desk, and the cards are the affordance there. */}
-          {thread && !visaInfo && (
+              ⚠️ Suppressed on BOTH desk threads (owner 2026-07-27: "remove is this still available
+              chips from trips and visa chats"). "Is this still available?" is nonsense at a
+              government-form desk and at a trip planner — neither sells a single second-hand item
+              that can sell out — and the cards are the affordance in both. Visa was already gated on
+              `visaInfo`; trips needed the server's `threadKind`, because the desk sells both from one
+              Seller row and nothing on the client could tell them apart. */}
+          {thread && !visaInfo && thread.kind !== 'itinerary' && (
             <QuickReplyChips
               isSeller={!!thread.iAmSeller}
               hasPendingBuyerOffer={hasPendingBuyerOffer}

@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { getCurrentProfileId } from '@/lib/admin'
 import { MESSAGE_ROW_SELECT, parseMessageMeta } from '@/lib/messages'
 import { maskEmailHandle } from '@/lib/utils'
+import { threadKind } from '@/lib/thread-kind'
 import { syncBadgeToProfile } from '@/lib/native-push'
 import { dayCoarse } from '@/lib/last-seen'
 
@@ -200,9 +201,17 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     }
   }
 
+  // ⚠️ THE SAME PREDICATE THE INBOX AND THE ADMIN QUEUE USE, never a second rule. The desk sells
+  // visas AND trip planning from ONE Seller row, so the thread's seller cannot say which it is; the
+  // anchor listing can, and threadKind is where that lives. The thread page needs it to suppress
+  // affordances that make no sense at a form desk — "is this still available?" being the obvious one.
+  const kind = await threadKind({ listingId: convo.listing.id })
+
   return NextResponse.json({
     id: convo.id,
     me: meId,
+    /** 'visa' | 'itinerary' | 'listing' — what this thread is ABOUT. */
+    kind,
     // The seller of the listing reveals nothing here (they ARE the contact) — the client
     // uses this to hide the "Request number / Zalo" action for the seller side.
     iAmSeller,

@@ -2,11 +2,10 @@
 
 import { useCallback, useEffect, useState, useRef, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { RefreshCw, Route, Sparkles } from 'lucide-react'
+import { Loader2, RefreshCw, Route, Sparkles } from 'lucide-react'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import { Button } from '@/components/ui/button'
-import Link from 'next/link'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Rows, Row } from '@/components/ui/rows'
@@ -37,6 +36,48 @@ export function TripsClient({ planListingId }: { planListingId: string | null })
 
   const [trips, setTrips] = useState<SavedItinerary[] | null>(null)
   const [failed, setFailed] = useState(false)
+  const [opening, setOpening] = useState(false)
+
+  /**
+   * "Plan a trip in chat" — go to the CHAT, not to the product page.
+   *
+   * ⚠️ THIS USED TO LINK TO /listings/<anchor>, WHICH IS THE WRONG DESTINATION and the owner said so
+   * (2026-07-27: "clicking plan a trip leads to product page instead of chat"). The button promises
+   * a conversation; a listing page is a shop window with its own contact step in the way. This page
+   * is auth-gated, so the traveller is definitely signed in and the thread can simply be opened.
+   *
+   * ⚠️ THROUGH POST /api/conversations, the canonical chokepoint — NOT a bespoke route. It already
+   * resolves-or-creates, and since today's fix it reuses only a thread of the SAME kind, so a
+   * traveller who also has a visa thread with this desk (visa and trips share one Seller row) lands
+   * in their TRIP thread rather than having a visa conversation retargeted underneath them.
+   *
+   * `message` is deliberately omitted: opening the planner should not post anything on the
+   * traveller's behalf. The wizard's own launcher chip is what starts the form.
+   */
+  const openTripChat = useCallback(async () => {
+    if (!planListingId || opening) return
+    setOpening(true)
+    try {
+      const res = await fetch('/api/conversations', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ listingId: planListingId }),
+      })
+      const data = (await res.json().catch(() => null)) as { id?: string } | null
+      if (!res.ok || !data?.id) {
+        // Falling back to the listing is honest rather than silent: it is where the desk can still
+        // be reached, and it is exactly where this button used to go.
+        router.push(`/listings/${planListingId}`)
+        return
+      }
+      router.push(`/messages/${data.id}`)
+    } catch {
+      router.push(`/listings/${planListingId}`)
+    } finally {
+      setOpening(false)
+    }
+  }, [planListingId, opening, router])
 
   useEffect(() => {
     if (!loading && !user) router.replace('/signin?next=/dashboard/trips')
@@ -110,11 +151,9 @@ export function TripsClient({ planListingId }: { planListingId: string | null })
                 page, and nothing else here links out. Someone with three saved trips could not start
                 a fourth. It belongs beside the heading, where it is reachable in both states. */}
             {planListingId && (
-              <Button variant="cta" asChild>
-                <Link href={`/listings/${planListingId}`}>
-                  <Sparkles className="h-4 w-4" />
-                  {tr('Plan a trip in chat', 'Lên kế hoạch qua chat')}
-                </Link>
+              <Button variant="cta" type="button" disabled={opening} onClick={() => void openTripChat()}>
+                {opening ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                {tr('Plan a trip in chat', 'Lên kế hoạch qua chat')}
               </Button>
             )}
           </div>
@@ -153,11 +192,9 @@ export function TripsClient({ planListingId }: { planListingId: string | null })
                     'Lên kế hoạch chuyến đi qua chat với đội ngũ của chúng tôi, và nó sẽ được lưu tại đây để quản lý.',
                   )}
                   action={planListingId ? (
-                    <Button variant="cta" asChild>
-                      <Link href={`/listings/${planListingId}`}>
-                        <Sparkles className="h-4 w-4" />
-                        {tr('Plan a trip in chat', 'Lên kế hoạch qua chat')}
-                      </Link>
+                    <Button variant="cta" type="button" disabled={opening} onClick={() => void openTripChat()}>
+                      {opening ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                      {tr('Plan a trip in chat', 'Lên kế hoạch qua chat')}
                     </Button>
                   ) : undefined}
                 />
