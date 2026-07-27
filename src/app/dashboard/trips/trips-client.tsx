@@ -70,7 +70,7 @@ export function TripsClient({ planListingId }: { planListingId: string | null })
     // Content-shaped first paint: the stack title bar + a builder-shaped block, not a spinner.
     return (
       <div role="status" aria-label={tr('Loading…', 'Đang tải…')}>
-        <SectionHeader title={tr('Itineraries', 'Lịch trình')} />
+        <SectionHeader title={tr('My Trips', 'Chuyến đi của tôi')} />
         <Skeleton className="h-56 w-full rounded-2xl" />
         <div className="mt-8 space-y-2.5 border-t border-border pt-8">
           <Skeleton className="h-6 w-56 rounded-lg" />
@@ -90,26 +90,40 @@ export function TripsClient({ planListingId }: { planListingId: string | null })
   return (
     <>
       {/* Native stack-nav title bar (mobile only) — same established title string. */}
-      <SectionHeader title={tr('Itineraries', 'Lịch trình')} />
+      <SectionHeader title={tr('My Trips', 'Chuyến đi của tôi')} />
 
       {showFeed && (
         <section aria-labelledby="saved-itineraries-title" className="mt-4 border-t border-border pt-8">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 id="saved-itineraries-title" className="text-xl font-bold text-foreground">
-                {tr('Your saved itineraries', 'Lịch trình đã lưu')}
+                {tr('Your saved trips', 'Chuyến đi đã lưu')}
               </h2>
               <p className="mt-1 text-sm text-muted-foreground">
                 {tr('Every plan you build is saved here — expand one to review it or download the Word file.', 'Mỗi kế hoạch bạn tạo được lưu tại đây — mở rộng để xem lại hoặc tải tệp Word.')}
               </p>
             </div>
+            {/* ⚠️ THIS LIVED ONLY IN THE EMPTY STATE, WHICH STRANDED EVERY RETURNING TRAVELLER. Once
+                planning moved into chat, the empty state's invitation became the ONLY way to reach
+                the planner — so the moment a traveller saved their first trip, the door closed
+                behind them: the list has no builder, /dashboard/trips/plan redirects back to this
+                page, and nothing else here links out. Someone with three saved trips could not start
+                a fourth. It belongs beside the heading, where it is reachable in both states. */}
+            {planListingId && (
+              <Button variant="cta" asChild>
+                <Link href={`/listings/${planListingId}`}>
+                  <Sparkles className="h-4 w-4" />
+                  {tr('Plan a trip in chat', 'Lên kế hoạch qua chat')}
+                </Link>
+              </Button>
+            )}
           </div>
 
           <div className="mt-5">
             {failed ? (
               <EmptyState
                 icon={Route}
-                title={tr('Itineraries could not be loaded.', 'Không thể tải lịch trình.')}
+                title={tr('Trips could not be loaded.', 'Không thể tải chuyến đi.')}
                 action={
                   <Button variant="outline" onClick={load}>
                     <RefreshCw className="h-4 w-4" />

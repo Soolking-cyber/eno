@@ -112,7 +112,7 @@ export const DASHBOARD_NAV: NavGroup[] = [
       // c8090df0, then accidentally reverted 2 minutes later by 0ef45423 committing a stale
       // working-tree copy of this file. So the rule stands for the future — if this row
       // changes state and no owner decision says so, that is the accident, not a decision.)
-      { href: '/dashboard/trips', ...tr('Itineraries', 'Lịch trình'), icon: Route },
+      { href: '/dashboard/trips', ...tr('My Trips', 'Chuyến đi của tôi'), icon: Route },
       // KEPT, RELABELLED (owner 2026-07-22: "only 1 way should exist through the chat").
       // The section is no longer a place to APPLY — the wizard behind this row is deleted
       // and the application is filled in the chat thread — so the row names what it still

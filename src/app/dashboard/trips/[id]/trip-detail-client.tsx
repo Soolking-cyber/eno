@@ -48,6 +48,10 @@ type ApiTrip = Omit<SavedItinerary, 'dayPlans'> & { dayPlans: ApiDay[] }
 
 export function TripDetailClient({ id, openCase }: { id: string; openCase?: { requestId: string; status: string } | null }) {
   const { tr, lang } = useLanguage()
+  // Per-row Vietnamese, mirroring trip-card.tsx: these strings are CONTENT translated at write time
+  // (the generator writes both columns), not UI copy, so `tr()` cannot serve them and a missing
+  // translation must fall back to the English the row does have rather than render blank.
+  const loc = (en: string, viText: string | null | undefined) => (lang === 'vi' && viText ? viText : en)
   const { user, loading: authLoading } = useAuth()
   const router = useRouter()
   const [trip, setTrip] = useState<ApiTrip | null>(null)
@@ -226,7 +230,7 @@ export function TripDetailClient({ id, openCase }: { id: string; openCase?: { re
                  'Có thể tin đã bị xóa, hoặc thuộc về tài khoản khác.')}
         </p>
         <Button asChild variant="secondary" className="mt-5">
-          <Link href="/dashboard/trips">{tr('Back to my trips', 'Về chuyến đi của tôi')}</Link>
+          <Link href="/dashboard/trips">{tr('Back to My Trips', 'Về Chuyến đi của tôi')}</Link>
         </Button>
       </div>
     )
@@ -244,7 +248,7 @@ export function TripDetailClient({ id, openCase }: { id: string; openCase?: { re
       <Button asChild variant="bare" size="none" className="mb-3 inline-flex items-center gap-1.5 text-sm font-semibold text-body hover:text-accent-foreground">
         <Link href="/dashboard/trips">
           <ArrowLeft className="h-4 w-4" />
-          {tr('My trips', 'Chuyến đi của tôi')}
+          {tr('My Trips', 'Chuyến đi của tôi')}
         </Link>
       </Button>
 
@@ -266,17 +270,39 @@ export function TripDetailClient({ id, openCase }: { id: string; openCase?: { re
       </header>
 
       {!hasStops ? (
-        <div className="rounded-2xl border border-border/70 bg-card p-5">
-          <p className="text-sm font-semibold text-foreground">
-            {tr('This trip has no mapped stops yet.', 'Chuyến đi này chưa có điểm dừng trên bản đồ.')}
+        /* ⚠️ THIS BRANCH USED TO BE A DEAD END ON A FINISHED TRIP, and it is the common case, not
+           the edge: measured on production 2026-07-27, 6 of 9 saved trips have ZERO stops and a
+           COMPLETE written plan — up to ten days of morning/afternoon/evening prose sitting in
+           `trip.dayPlans`, already loaded by this component. It rendered none of it. Instead it said
+           "no mapped stops yet … generate it again" and offered a button to /dashboard/trips/plan,
+           which redirects straight back to the list this page was opened from. So the owner's most
+           substantial trips looked empty and broken, and the only way out was a loop.
+
+           Stops are the MAP's data, not the trip's content. Their absence should cost the map and
+           nothing else, so the plan is rendered here exactly as `trip-card.tsx` already renders it
+           (same fields, same Vietnamese fallback), and the note about the map is demoted to a line
+           of explanation rather than being the whole page. */
+        <div className="space-y-4">
+          <ol className="space-y-4">
+            {trip.dayPlans.map((day) => (
+              <li key={day.id} className="rounded-2xl border border-border/70 bg-card p-4">
+                <p className="text-2xs font-bold uppercase tracking-wide text-muted-foreground">
+                  {tr('Day', 'Ngày')} {day.dayNumber} · {loc(day.area, day.areaVi)}
+                </p>
+                <p className="mt-1 text-sm font-bold text-foreground">{loc(day.title, day.titleVi)}</p>
+                <div className="mt-2 space-y-1 text-sm leading-relaxed text-body">
+                  <p><strong className="font-semibold text-foreground">{tr('Morning', 'Sáng')}:</strong> {loc(day.morning, day.morningVi)}</p>
+                  <p><strong className="font-semibold text-foreground">{tr('Afternoon', 'Chiều')}:</strong> {loc(day.afternoon, day.afternoonVi)}</p>
+                  <p><strong className="font-semibold text-foreground">{tr('Evening', 'Tối')}:</strong> {loc(day.evening, day.eveningVi)}</p>
+                </div>
+              </li>
+            ))}
+          </ol>
+          <p className="text-xs text-muted-foreground">
+            {tr('This trip was saved before we mapped stops individually, so it has no map yet.',
+                'Chuyến đi này được lưu trước khi chúng tôi ghim từng điểm, nên chưa có bản đồ.')}
           </p>
-          <p className="mt-1.5 text-sm text-body">
-            {tr('It was saved before we started keeping each stop separately. Generate it again to get the map and the day-by-day list.',
-                'Lịch trình được lưu trước khi chúng tôi tách riêng từng điểm dừng. Hãy tạo lại để có bản đồ và danh sách theo ngày.')}
-          </p>
-          <Button asChild variant="secondary" className="mt-4">
-            <Link href="/dashboard/trips/plan">{tr('Open the planner', 'Mở trình lập kế hoạch')}</Link>
-          </Button>
+          <AssistancePanel itineraryId={trip.id} openCase={openCase ?? null} />
         </div>
       ) : (
         // List-led, ~55/45 against a sticky full-height map (T302's intended composition).

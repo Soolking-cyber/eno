@@ -347,12 +347,12 @@ export function TripWizardCard({ conversationId, meta }: { conversationId: strin
     return (
       // LIVE, not settled: the plan is finished but this card is the freshest thing in the thread
       // and carries the action that opens it — the visa result card makes the same call.
-      <ChatCard eyebrow={TRIP} icon={MapPinned} title={tr('Your trip plan is ready', 'Lịch trình của bạn đã sẵn sàng')}>
+      <ChatCard eyebrow={TRIP} icon={MapPinned} title={tr('Your trip plan is ready', 'Chuyến đi của bạn đã sẵn sàng')}>
         {/* ui/button is the documented asChild exception in this codebase — it bridges asChild to
             Base UI's render prop, so a link-button composes here and nowhere else. */}
         {itineraryId ? (
           <Button variant="cta" className="mt-3 w-full" asChild>
-            <Link href={`/dashboard/trips/${itineraryId}`}>{tr('Open the plan', 'Mở lịch trình')}</Link>
+            <Link href={`/dashboard/trips/${itineraryId}`}>{tr('Open in My Trips', 'Mở trong Chuyến đi của tôi')}</Link>
           </Button>
         ) : null}
       </ChatCard>
@@ -501,7 +501,7 @@ export function TripWizardCard({ conversationId, meta }: { conversationId: strin
               : error === 'invalid_answers'
               ? tr('Please check the answers on this step.', 'Vui lòng kiểm tra lại các câu trả lời ở bước này.')
               : error === 'not_saved'
-                ? tr('We built your plan but could not save it. Open the trip planner to try again.', 'Chúng tôi đã tạo lịch trình nhưng chưa lưu được. Hãy mở trình lập kế hoạch để thử lại.')
+                ? tr('We built your plan but could not save it. Ask the desk in this chat to try again.', 'Chúng tôi đã tạo kế hoạch nhưng chưa lưu được. Hãy nhắn cho bàn hỗ trợ trong cuộc trò chuyện này để thử lại.')
                 : tr('That did not go through. Please try again.', 'Chưa gửi được. Vui lòng thử lại.')}
         </p>
       ) : null}
@@ -579,7 +579,7 @@ function TripDraftsChip() {
             className="relative tap-44 shrink-0 gap-1.5 rounded-full border border-line-strong px-3 py-1.5 text-2xs font-bold text-foreground active:scale-100"
           >
             <FolderOpen className="size-3.5 shrink-0" aria-hidden />
-            {tr('Saved trips', 'Chuyến đã lưu')}
+            {tr('Saved trips', 'Chuyến đi đã lưu')}
             <ChevronDown className="size-3 shrink-0 opacity-60" aria-hidden />
           </Button>
         }

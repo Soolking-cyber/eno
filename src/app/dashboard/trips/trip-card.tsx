@@ -133,7 +133,7 @@ export function TripCard({ trip }: { trip: SavedItinerary }) {
       anchor.click()
       anchor.remove()
       window.setTimeout(() => URL.revokeObjectURL(url), 1_000)
-      toast.message(tr('Your Word itinerary is ready.', 'Lịch trình Word đã sẵn sàng.'))
+      toast.message(tr('Your Word file is ready.', 'Tệp Word đã sẵn sàng.'))
     } catch (error) {
       console.error('[trip-card/docx]', error)
       toast.error(tr('The Word file could not be created. Please try again.', 'Không thể tạo tệp Word. Vui lòng thử lại.'))

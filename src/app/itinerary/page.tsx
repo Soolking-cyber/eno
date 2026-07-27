@@ -4,6 +4,7 @@ import { CalendarDays, Map as MapIcon, MessageSquare, Wallet } from 'lucide-reac
 import { Tr } from '@/context/language-context'
 import { ContentPage, ContentSection } from '@/components/marketplace/content-page'
 import { Button } from '@/components/ui/button'
+import { getTripAssistanceListingId } from '@/lib/trips/dm-thread'
 
 // The Trip service's public face. This route used to be a 6-line permanentRedirect to
 // eno.forum's builder; the itinerary service moved to eno.vn (owner, 2026-07-25), so a
@@ -105,7 +106,20 @@ function SampleStop({ n, place, what, first = false }: {
   )
 }
 
-export default function ItineraryLandingPage() {
+// ⚠️ ASYNC, because both CTAs below need the trip desk's anchor listing. They used to point at
+// /dashboard/trips/plan, which redirects to the saved-trip LIST — so the page's primary call to
+// action dropped visitors on a list of trips they had not made yet, with no planner in sight.
+// Planning happens in chat now, so the honest destination is the trip listing itself, resolved the
+// same way /dashboard/trips resolves it.
+// ISR, matching /brands: the page is still prerendered (it stays ○ Static in the build), but the
+// trip anchor's listing id is resolved at BUILD time, so without this a reseed of the desk would
+// leave both CTAs pointing at a listing that no longer exists until the next deploy. Six hours is
+// the same cadence the brand directory uses for the same reason.
+export const revalidate = 21600
+
+export default async function ItineraryLandingPage() {
+  const planListingId = await getTripAssistanceListingId()
+  const planHref = planListingId ? `/listings/${planListingId}` : '/dashboard/trips'
   return (
     <ContentPage
       eyebrow="Trip planner"
@@ -125,7 +139,7 @@ export default function ItineraryLandingPage() {
           have to scroll past an explanation to reach the thing being explained. */}
       <div className="mb-8 rounded-2xl border border-border/70 bg-card p-5">
         <Button asChild variant="cta" size="lg" className="w-full sm:w-auto">
-          <Link href="/dashboard/trips/plan">
+          <Link href={planHref}>
             <CalendarDays className="h-4 w-4" />
             <Tr text="Plan my trip — free" />
           </Link>
@@ -200,7 +214,7 @@ export default function ItineraryLandingPage() {
         </p>
         <div className="pt-1">
           <Button asChild variant="secondary">
-            <Link href="/dashboard/trips/plan"><Tr text="Build my itinerary" /></Link>
+            <Link href={planHref}><Tr text="Plan my trip" /></Link>
           </Button>
         </div>
       </ContentSection>

@@ -8,7 +8,7 @@ import { TripsClient } from './trips-client'
 export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
-  title: 'Itineraries | eno.vn',
+  title: 'My Trips | eno.vn',
   robots: { index: false, follow: false },
 }
 
