@@ -394,6 +394,16 @@ export function VisaCasesClient({ threads }: {
   const [loading, setLoading] = useState(true)
   const [notConfigured, setNotConfigured] = useState(false)
   const [busy, setBusy] = useState(false)
+  /**
+   * WHICH case is mid-action, so only ITS control shows the pending state.
+   *
+   * ⚠️ `busy` alone gated all seven controls on this page, so acting on ONE case greyed out the
+   * chat, download and delete buttons of EVERY row at once — the owner read that as "when press
+   * chat all buttons press even though visa type is different" (2026-07-27). The concurrency guard
+   * was right; painting it across unrelated rows was not. `busy` still prevents two mutations
+   * overlapping (the handlers check it), and this says whose spinner it is.
+   */
+  const [busyCaseId, setBusyCaseId] = useState<string | null>(null)
   const [declaration, setDeclaration] = useState(false)
   const [authorization, setAuthorization] = useState(false)
   /** The case a delete was asked for — per case now, not "the active one". */
@@ -544,7 +554,10 @@ export function VisaCasesClient({ threads }: {
    * button — they just may need the "Send the form again" chip once there.
    */
   const resumeInChat = async (item: VisaApplication, fallbackThreadId: string | undefined) => {
+    // The guard that `busy` was really providing — kept, but it no longer paints every other row.
+    if (busy) return
     setBusy(true)
+    setBusyCaseId(item.id)
     try {
       const res = await visaApi<{ conversationId: string; cardPosted?: boolean; superseded?: boolean }>(
         `/api/visa/applications/${item.id}/resume`, { method: 'POST' },
@@ -574,7 +587,7 @@ export function VisaCasesClient({ threads }: {
         ))
         router.push(`/messages/${fallbackThreadId}`)
       } else toast.error(code)
-    } finally { setBusy(false) }
+    } finally { setBusy(false); setBusyCaseId(null) }
   }
 
   /**
@@ -760,7 +773,7 @@ export function VisaCasesClient({ threads }: {
                       <div className="flex items-center justify-end gap-0.5">
                         {editable ? (
                           // Resume THIS case (rebind + bring its form down), never "the chat".
-                          <Button variant="ghost" size="icon" disabled={busy} aria-label={chatLabel} title={chatLabel} onClick={() => void resumeInChat(item, threadId)}>
+                          <Button variant="ghost" size="icon" disabled={busyCaseId === item.id} aria-label={chatLabel} title={chatLabel} onClick={() => void resumeInChat(item, threadId)}>
                             <Pencil className="h-4 w-4" />
                           </Button>
                         ) : threadId ? (
@@ -772,12 +785,12 @@ export function VisaCasesClient({ threads }: {
                           </Button>
                         ) : null}
                         {hasResult && (
-                          <Button variant="ghost" size="icon" disabled={busy} onClick={() => void downloadResult(item)} aria-label={tr('Download e-Visa PDF', 'Tải PDF E-Visa')} title={tr('Download', 'Tải xuống')}>
+                          <Button variant="ghost" size="icon" disabled={busyCaseId === item.id} onClick={() => void downloadResult(item)} aria-label={tr('Download e-Visa PDF', 'Tải PDF E-Visa')} title={tr('Download', 'Tải xuống')}>
                             <Download className="h-4 w-4" />
                           </Button>
                         )}
                         {deletable && (
-                          <Button variant="ghost" size="icon" disabled={busy} className="text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => setDeleteTarget(item)} aria-label={tr('Delete application', 'Xóa hồ sơ')} title={tr('Delete', 'Xóa')}>
+                          <Button variant="ghost" size="icon" disabled={busyCaseId === item.id} className="text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={() => setDeleteTarget(item)} aria-label={tr('Delete application', 'Xóa hồ sơ')} title={tr('Delete', 'Xóa')}>
                             <Trash2 className="h-4 w-4" />
                           </Button>
                         )}
@@ -800,7 +813,12 @@ export function VisaCasesClient({ threads }: {
               conversationId={threads[item.id]}
               deskThreadId={Object.values(threads)[0]}
               isDetail={!!application && item.id === application.id && (item.status === 'applicant_approval' || !!adminMessage)}
-              busy={busy}
+              // ⚠️ THIS ROW's pending state, not the page's. Passing the shared `busy` here is what
+              // the owner saw on a phone (2026-07-27: "when press chat all buttons press even though
+              // visa type is different"): this list is the MOBILE rendering of every case, so one
+              // resume greyed the chat, download and delete buttons on every card at once. The
+              // handlers still refuse to overlap; only the acting card says so.
+              busy={busyCaseId === item.id}
               now={now}
               lang={lang}
               tr={tr}
