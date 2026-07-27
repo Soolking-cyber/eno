@@ -1,0 +1,10 @@
+task=T302
+owner=kai
+pid=50406
+started=2026-07-25T09:05:09Z
+status=READY
+branch=work/kai
+commit=6a415304
+gates=lint:0err design-lint:clean tsc:0 build:ok a11y:3/3 tap-target:8/8-both-viewports agy:CONFIRMED codex:NO-VERDICT(503-x2) | screenshots in scratchpad | ⚠️ not wired to a page until T303
+heartbeat=1784971967
+shipped=2026-07-25T09:53:54Z

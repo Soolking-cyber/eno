@@ -1,0 +1,11 @@
+task=T334
+owner=murat
+pid=35557
+started=2026-07-27T04:00:00Z
+heartbeat=1785125798
+status=READY
+branch=work/murat
+commit=d131fb52
+gates=tsc0 design-lint-clean lint-0-errors vitest-1361 build-0; gh run list is Alex-side (workers do not push)
+note=agy 6 confirmed 1 refuted; the refutation (TOCTOU on the generate save) is fixed. One fake test written and DELETED.
+shipped=2026-07-27T05:25:52Z

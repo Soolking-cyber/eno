@@ -1,0 +1,10 @@
+task=T309
+owner=kai
+pid=77849
+started=2026-07-25T10:28:26Z
+status=READY
+branch=work/kai
+commit=b4e7d7f6
+gates=REBASED onto main (was 5ea4ef17) | new-test:6/6 tsc:0 lint:0err npm-test:923pass/54files drift-proof:6-mutations-all-exit-1 codex+agy:REFUTED-regex->TS-AST | re-verified on main incl T306/T308
+heartbeat=1784977023
+shipped=2026-07-25T12:35:56Z

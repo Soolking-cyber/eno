@@ -1,0 +1,10 @@
+task=T204
+owner=kai
+pid=79943
+started=2026-07-25T03:18:21Z
+status=READY
+branch=work/kai
+commit=e4d27a16
+gates=cap-copy:ok shipped==source nativePromise:4 bare-Plugins-derefs:0 script-parses:ok behaviour-harness:6/6 codex:REFUTED-x2-then-fixed agy:CONFIRMED(faulty-reasoning;1st-run-empty) | NOT device-tested
+heartbeat=1784949957
+shipped=2026-07-25T05:01:37Z

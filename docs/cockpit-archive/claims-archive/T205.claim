@@ -1,0 +1,10 @@
+task=T205
+owner=kai
+pid=83917
+started=2026-07-25T03:27:54Z
+status=READY
+branch=work/kai
+commit=df79b005
+gates=tsc:0 lint:0err design-lint:clean build:ok android-stub-verify:tile-android-only+capture=environment+accept=video/* e2e:37pass/1skip codex+agy:REFUTED-then-fixed | NOT device-tested | +followup bf6adffe fixes a T203 a11y regression
+heartbeat=1784950986
+shipped=2026-07-25T05:01:37Z

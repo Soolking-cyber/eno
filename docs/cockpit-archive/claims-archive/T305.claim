@@ -1,0 +1,10 @@
+task=T305
+owner=murat
+started=2026-07-25T08:45:00Z
+status=READY
+branch=work/murat
+commit=da5490b6
+gates=tsc:ok lint:0err npm test:886; 322 places/21 cities, 484 candidates gated down (122 not-confident, 31 dup, 9 disagree); codex REFUTED→2 real defects fixed (scoped resolver bypassed radius gate; nameVi partials) + my own test caught a 3rd (stored mean was ungated); gemini CONFIRMED; ⚠️ apps/forum NOT needed — drift guard compares ids only, verified
+heartbeat=1784971060
+pid=11288
+shipped=2026-07-25T09:36:32Z

@@ -1,0 +1,9 @@
+task=T323
+owner=kai
+pid=79319
+started=2026-07-26T15:22:45Z
+status=READY
+branch=work/kai
+commit=c5f4d89f
+gates=tsc 0 | design-lint clean | lint 0 errors | 1304 unit | build ok | trips e2e 5/5 (local :3101) | agy reviewed both halves, SINGLE-SOURCED (codex paused)
+heartbeat=1785085693

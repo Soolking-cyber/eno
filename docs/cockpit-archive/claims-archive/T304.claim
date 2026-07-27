@@ -1,0 +1,10 @@
+task=T304
+owner=kai
+pid=65903
+started=2026-07-25T09:56:13Z
+status=READY
+branch=work/kai
+commit=6fd19533
+gates=REBASED onto main (sha was 28c845e8) | lint:0err design-lint:clean tsc:0 build:ok seo:check:18/18-vs-localhost e2e:77pass/1skip/2flaky codex:REFUTED-seo(forum-canonical) agy:CONFIRMED | ⚠️ FOLLOW-UP: eno.forum/itinerary needs 301/cross-canonical
+heartbeat=1784975546
+shipped=2026-07-25T10:35:40Z

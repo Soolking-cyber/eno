@@ -1,0 +1,13 @@
+task=T101
+owner=kai
+pid=18734
+started=2026-07-24T18:50:23Z
+status=READY
+branch=work/kai
+commit=6fa4a26a
+gates=xcodegen:ok xcodebuild:SUCCEEDED lint:0-new debt:79->68 codex+agy:reviewed
+heartbeat=1784919326
+outcome=SHELVED-NOT-SHIPPED
+reason=owner rolled back all native work 2026-07-25; Capacitor only, native later
+preserved_on=shelved/native-T101-*
+archived=2026-07-25T01:59:45Z

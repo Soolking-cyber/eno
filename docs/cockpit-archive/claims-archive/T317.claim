@@ -1,0 +1,9 @@
+task=T317
+owner=kai
+pid=82176
+started=2026-07-26T05:52:00Z
+status=READY
+branch=work/kai
+commit=7a1fe9cb
+gates=tsc 0 · design-lint clean · lint 0 errors · 1153 unit tests · build ok · guest e2e 110 pass/1 skip/1 flaky (help center, unrelated) · screenshots 390x844 light+dark before+after · codex+agy
+heartbeat=1785047532

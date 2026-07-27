@@ -1,0 +1,9 @@
+task=T322
+owner=kai
+pid=75863
+started=2026-07-26T15:08:08Z
+status=READY
+branch=work/kai
+commit=b6e1236f
+gates=tsc 0 · design-lint clean · lint 0 errors · 1258 unit tests · build ok · authed trips e2e 4/4 run TWICE (swap case added; serialised — the suite was racing itself on one fixture day)
+heartbeat=1785079065

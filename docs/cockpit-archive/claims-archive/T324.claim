@@ -1,0 +1,10 @@
+task=T324
+owner=murat
+pid=99830
+status=READY
+started=2026-07-27T00:15:00Z
+heartbeat=1785087000
+branch=work/murat
+commit=c7333fa2
+gates=tsc0 design-lint-clean lint-0-errors vitest-1266 build-0
+note=Rebased onto origin/main 31a31dee and re-verified there: tsc 0, design-lint clean, 1306 tests. One className. Reviewed by agy ALONE (codex paused) across two passes; 2 of its 13 refutations survived testing and changed the diff.

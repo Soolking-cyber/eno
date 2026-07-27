@@ -1,0 +1,10 @@
+task=T207
+owner=murat
+started=2026-07-25T02:53:58Z
+status=READY
+branch=work/murat
+commit=36a9d4d8
+gates=tsc:ok design-lint:clean eslint:0err; rebased→36a9d4d8
+heartbeat=1784950100
+pid=11288
+shipped=2026-07-25T05:01:37Z

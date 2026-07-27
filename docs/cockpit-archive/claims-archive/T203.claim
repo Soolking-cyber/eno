@@ -1,0 +1,10 @@
+task=T203
+owner=kai
+pid=71500
+started=2026-07-25T03:05:09Z
+status=READY
+branch=work/kai
+commit=bc5f13cd
+gates=tsc:0 lint:0err build:ok net-verify:0-before/12-after@iPhone13 e2e:35pass/1skip/1flaky codex:CONFIRMED agy:CONFIRMED
+heartbeat=1784949245
+shipped=2026-07-25T05:01:37Z

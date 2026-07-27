@@ -1,0 +1,10 @@
+task=T331
+owner=kai
+pid=9599
+started=2026-07-27T03:20:29Z
+status=READY
+branch=work/kai
+commit=a2a06f69
+gates=tsc 0 | design-lint clean | lint 0 errors | 1348 unit | build ok | ui-strings no drift | bug reproduced on origin/main and fixed here, verified in a real browser with a stubbed widget | 4 mutation runs | agy reviewed, SINGLE-SOURCED, no actionable finding
+heartbeat=1785123436
+shipped=2026-07-27T05:25:51Z

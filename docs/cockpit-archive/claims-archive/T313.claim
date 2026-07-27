@@ -1,0 +1,9 @@
+task=T313
+owner=kai
+pid=133
+started=2026-07-26T04:09:11Z
+status=READY
+branch=work/kai
+commit=640b1573
+gates=tsc 0 · design-lint clean · lint 0 errors · 1151 unit tests · build ok · ui-strings fresh · codex+agy at plan AND diff
+heartbeat=1785041831

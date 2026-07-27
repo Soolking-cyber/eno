@@ -1,0 +1,13 @@
+task=T105
+owner=murat
+started=2026-07-24T18:56:12Z
+status=READY
+branch=work/murat
+commit=909a152a
+gates=assembleDebug:BUILD SUCCESSFUL; codex+gemini both ends (3 refutations applied); scope: 2 files only
+heartbeat=1784921546
+pid=1556
+outcome=SHELVED-NOT-SHIPPED
+reason=owner rolled back all native work 2026-07-25; Capacitor only, native later
+preserved_on=shelved/native-T105-*
+archived=2026-07-25T01:59:45Z

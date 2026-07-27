@@ -1,0 +1,8 @@
+task=T328
+owner=murat
+pid=48634
+started=2026-07-27T01:05:00Z
+heartbeat=1785094011
+status=READY
+branch=work/murat
+note=Audit complete. 26 findings, 4 verified, 3 survived. The HIGH one is fixed in T329 (01ac5a45). 22 unverified leads listed on the board for triage.

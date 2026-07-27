@@ -1,0 +1,10 @@
+task=T211
+owner=murat
+started=2026-07-25T03:51:10Z
+status=READY
+branch=work/murat
+commit=fe967980
+gates=tsc:ok lint:0err vitest:858 e2e guest-mobile 39pass/1skip/0fail; home JS 2042.7→1924.3 KB = -118.4 KB (browser-measured; Next 16 dropped the First Load JS table so the gate as written is unsatisfiable); codex+gemini BOTH CONFIRMED; ⚠️ FINDING: ExplorerFiltersDrawer is UNREACHABLE — nothing dispatches 'open-mobile-filters' — product call for Alex
+heartbeat=1784952461
+pid=11288
+shipped=2026-07-25T05:01:37Z

@@ -1,0 +1,10 @@
+task=T208
+owner=murat
+started=2026-07-25T03:02:09Z
+status=READY
+branch=work/murat
+commit=a4c39187
+gates=lint:0err tsc:ok design-lint:clean build:ok; dialog surface verified rgb(42,42,42)=--popover dark / rgb(250,250,250) light on Pixel 5 + screenshot; codex+gemini both CONFIRMED; discount sheets NOT rendered (seller-auth) — primitive-level proof only; rebased→a4c39187
+heartbeat=1784950100
+pid=11288
+shipped=2026-07-25T05:01:37Z

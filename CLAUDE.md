@@ -107,48 +107,35 @@ These carry invariants recorded in their own comments. Read the comments before 
 
 `messages/[id]/page.tsx` deserves its own line, because the invariant here is easy to state backwards. **Text mode DOES have a tap-Send button** (the Zalo/FB pattern). The real rule is *why* it's safe: `ChatSendButton` fires on **`onMouseDown` + `preventDefault`, never `onPointerDown`** — that holds the composer's focus, so the tap can't blur the field, dismiss the keyboard, and shift the button out from under the finger. That focus-hold is the invariant; "no tap-Send" was an earlier workaround and is **obsolete** — don't let anyone "restore" it. Enter still sends (`enterKeyHint="send"`), and the Counter button must stay gated by `negotiable !== false` (a counter sends an offer; on a fixed-price listing the server 409s and docks the buyer's trust).
 
-## Parallel sessions — Cockpit v2 (owner, 2026-07-25)
+## One session at a time (owner, 2026-07-27) — the cockpit is CLOSED
 
-**This supersedes the shared-worktree protocol of 2026-07-19.** Sessions no longer
-share a working tree, and only one role pushes. Five seats, converged by
-`~/eno-cockpit.sh ensure` (SessionStart hook in `.claude/settings.json`):
+**The multi-agent cockpit was retired on 2026-07-27. Owner's verdict: _"this experimental
+work didnt prove itself i will work with 1 agent at a time"_.** Do not recreate it, do not
+spawn worker seats, and do not reintroduce a claim/board protocol unless the owner asks.
 
-| Role | Worktree | Branch | Job |
-|---|---|---|---|
-| **Alex** | `~/eno.vn` | `main` | plan · write tasks · gate · review · merge · **push** |
-| **Kai** (ex-Kyle) | `~/eno-kai` | `work/kai` | implement |
-| **Murat** | `~/eno-murat` | `work/murat` | implement |
-| **Codex** / **Agy** | `~/eno.vn` | — | second opinions, read-only |
+What was removed: the `work/kai` and `work/murat` branches and their worktrees
+(`~/eno-kai`, `~/eno-murat`), the out-of-repo board and claim mutex at `~/eno-cockpit`,
+and the `SessionStart` hook that ran `eno-cockpit.sh ensure`. All worker output was merged
+to `main` first — nothing was discarded. The board, the claim archive and kai's T336
+verdict are preserved read-only in `docs/cockpit-archive/`.
 
-Run `echo $ENO_SESSION` to learn your seat. **If it comes back empty, ask the owner
-— do not guess from memory** (guessing once had two sessions signing the same name
-and misattributed a feature).
+**How work happens now:** one session, working directly in `~/eno.vn` on `main`, planning
+and implementing and shipping in the same place. There is no worker to delegate to and no
+seat to claim, so `$ENO_SESSION` is meaningless — ignore it if you see it set.
 
-**Why worktrees:** codex and Gemini independently refuted the shared tree. Pathspec
-discipline does nothing about two workers clobbering each other's `.next`,
-DerivedData, or Gradle output; and with everyone on one local `main`, the shipper's
-push carries every worker commit whether it was gated or not. Separate trees also
-turn a two-tasks-one-file overlap into a visible **merge conflict** instead of a
-silent lost update.
+**What survives the closure, because it was never about parallelism:**
+- **`git add -A` and `commit -a` stay BANNED.** They scooped mid-flight work into broken
+  commits twice (5550b99b, 72aea9b6). Commit by literal pathspec:
+  `git commit -m "…" -- ':(literal)path'`, after reading back `git diff HEAD -- <paths>`.
+  A dirty file you did not create is still someone else's — on 2026-07-27 `main` held
+  unattributed iOS edits including a corrupted bundle id; the right move was to park them,
+  not commit them.
+- **Subagents are still the right tool** for search fan-out and second opinions (see Model
+  routing above). Retiring the cockpit retired long-lived *worker personas with their own
+  branches* — not delegation itself.
+- **Second opinions at BOTH plan and diff** remain mandatory on substantive work, and
+  saying "single-sourced" out loud when only one family answered.
 
-**The board is `/Users/mk1e3/eno-cockpit/TASKS.md`** — outside the repo, because
-workers on different branches would otherwise conflict on it every merge.
-`.claude/COORDINATION.md` is now **history and incident log only**, not a live queue.
-The real coordination state is `~/eno-cockpit/claims/<ID>.claim`, taken atomically
-via `~/eno-cockpit/claim.sh take <ID> $ENO_SESSION` (non-zero exit = you lost the
-race). Alex sweeps claims whose pid died or whose heartbeat is >30 min stale.
-
-Rules that still bind everyone:
-- **Workers never push, never touch `main`, never merge.** Commit to your own branch.
-- **`git add -A` and `commit -a` are BANNED** — they scooped another session's
-  mid-flight work into broken commits twice (5550b99b, 72aea9b6). Commit by literal
-  pathspec: `git commit -m "…" -- ':(literal)path'`, after reading back
-  `git diff HEAD -- <paths>`. Plain globs and directory pathspecs over-match.
-- **Stay inside your task's declared Owned paths.** Anything dirty outside them is
-  someone else's — leave it. If a task can't be done without widening scope, mark it
-  BLOCKED and say why.
-- Workers run `/loop /work` (`.claude/skills/work/SKILL.md`) and drain the board
-  unprompted. A wrong task reported BLOCKED beats a wrong task silently "completed".
 
 ## Shipping
 

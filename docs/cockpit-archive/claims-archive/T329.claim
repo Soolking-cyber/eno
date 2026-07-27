@@ -1,0 +1,10 @@
+task=T329
+owner=murat
+pid=48634
+started=2026-07-27T02:05:00Z
+heartbeat=1785094011
+status=READY
+branch=work/murat
+commit=01ac5a45
+gates=tsc0 design-lint-clean lint-0-errors vitest-1329 build-0
+note=agy at BOTH ends; its plan-stage catch (the exhaustiveness test was a tautology) changed the implementation before it was written.

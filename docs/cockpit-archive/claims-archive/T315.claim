@@ -1,0 +1,9 @@
+task=T315
+owner=kai
+pid=62800
+started=2026-07-26T05:00:00Z
+status=READY
+branch=work/kai
+commit=6fbcfd15
+gates=tsc 0 · design-lint clean · lint 0 errors · 1151 unit tests · build ok · 111 guest e2e on :3100 · screenshots both viewports · codex+agy; +6fbcfd15 fixes a dead text-ink-5 class found during T317
+heartbeat=1785045594

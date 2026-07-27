@@ -1,0 +1,9 @@
+task=T325
+owner=kai
+pid=6516
+started=2026-07-26T17:58:28Z
+status=READY
+branch=work/kai
+commit=d2ef0ed2
+gates=tsc 0 | lint 0 errors | seller 15/15 TWICE back to back, no reseed | old test verified red at origin/main | 5 mutation runs
+heartbeat=1785090163

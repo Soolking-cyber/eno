@@ -1,0 +1,10 @@
+task=T303
+owner=kai
+pid=58711
+started=2026-07-25T09:38:44Z
+status=READY
+branch=work/kai
+commit=e9a95d95
+gates=build:ok lint:0err design-lint:clean tsc:0 e2e-guest-mobile:39pass/1skip guest-probe:0-payload-keys+noindex+signin-redirect codex+agy:CONFIRMED-security, codex-REFUTED-loading-states-then-fixed | assistance button DISABLED until T307
+heartbeat=1784973004
+shipped=2026-07-25T09:53:54Z

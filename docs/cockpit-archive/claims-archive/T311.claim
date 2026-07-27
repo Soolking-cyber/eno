@@ -1,0 +1,9 @@
+task=T311
+owner=kai
+pid=31094
+started=2026-07-25T17:09:45Z
+status=READY
+branch=work/kai
+commit=52ca16be
+gates=lint:0err design-lint:clean tsc:0 build:ok seo:18/18-localhost e2e:97pass/1skip/0flaky i18n-harvest:verified codex+agy:CONFIRMED | screenshots before+after in scratchpad | ⚠️ DATA BUG: trip listing's seeded image is an E-VISA advert
+heartbeat=1785000318

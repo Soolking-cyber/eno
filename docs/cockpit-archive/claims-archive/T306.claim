@@ -1,0 +1,10 @@
+task=T306
+owner=murat
+started=2026-07-25T09:56:09Z
+status=READY
+branch=work/murat
+commit=55876cd1
+gates=tsc, lint:0err, 917 tests, next build ok; 145 insertions/0 deletions so aiGuard+400/day+safeUrl provably untouched; apps/forum NOT needed (drift guard compares CITY_CATALOG ids — verified); codex REFUTED + gemini found a 3rd defect → all 3 fixed (cross-city MISPIN, empty slots inflating the ratio, retry usage undercounted); ⚠️ NOT DONE: real generation — no dev key exists (GEMINI_API_KEY absent; only shared PROD Vertex creds), so live usageMetadata unverified — Alex to run
+pid=11288
+heartbeat=1784975477
+shipped=2026-07-25T10:32:34Z

@@ -1,0 +1,9 @@
+task=T327
+owner=kai
+pid=29006
+started=2026-07-26T18:48:08Z
+status=READY
+branch=work/kai
+commit=feeb4b73
+gates=tsc 0 | design-lint clean | lint 0 errors | 1306 unit | build ok | header+noindex+sitemap all verified on a prod build. ⚠️ DEPLOY GATE NEEDS A CLOUDFLARE PURGE of /messages*,/saved — they answer s-maxage=31536000 and CF caches headers with the body. agy reviewed, SINGLE-SOURCED, first run returned no verdict
+heartbeat=1785093314

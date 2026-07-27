@@ -1,0 +1,8 @@
+task=T310
+owner=murat
+pid=11288
+status=READY
+started=2026-07-25T17:09:16Z
+commit=1ae87e7d
+note=ALL 5 increments; 1126 unit + 32 guest e2e; dual-reviewed each increment
+heartbeat=1785032092

@@ -1,0 +1,10 @@
+task=T301
+owner=kai
+pid=46097
+started=2026-07-25T08:43:52Z
+status=READY
+branch=work/kai
+commit=f9b18ce6
+gates=prisma-validate:ok prisma-generate:ok new-tests:13 tsc:0 lint:0err npm-test:871pass/51files codex+agy:REFUTED-then-hardened | ⚠️ REQUIRES 'prisma db push' BEFORE deploy | ⚠️ T306 blocked until this SHIPS
+heartbeat=1784970107
+shipped=2026-07-25T09:36:32Z

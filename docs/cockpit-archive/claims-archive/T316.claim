@@ -1,0 +1,8 @@
+task=T316
+owner=murat
+pid=11288
+status=READY
+started=2026-07-26T05:07:55Z
+heartbeat=1785042475
+commit=d44706b9
+note=ALL parts done: stop reorder/swap/delete + route + dashboard moved to chat-only planning

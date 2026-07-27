@@ -1,0 +1,9 @@
+task=T318
+owner=kai
+pid=15055
+started=2026-07-26T08:00:00Z
+status=READY
+branch=work/kai
+commit=f5428c48
+gates=tsc 0 · design-lint clean · lint 0 errors · 1217 unit tests · build ok · 121 guest e2e on :3100 · 8 screenshots (both maps x 390x844+1440x900 x light+dark) + PDP + drawer · agy + 5-lens workflow (37 findings, 1 survived, fixed); codex UNAVAILABLE (usage limit to Aug 2)
+heartbeat=1785056547

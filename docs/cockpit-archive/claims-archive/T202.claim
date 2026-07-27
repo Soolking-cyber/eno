@@ -1,0 +1,10 @@
+task=T202
+owner=kai
+pid=61183
+started=2026-07-25T02:53:34Z
+status=READY
+branch=work/kai
+commit=5cec235f
+gates=tsc:0 lint:0err design-lint:clean build:ok e2e-guest-mobile:37pass/1skip@3100 codex:REFUTED->fixed agy:CONFIRMED | NOT hand-checked on a device viewport
+heartbeat=1784948567
+shipped=2026-07-25T05:01:37Z

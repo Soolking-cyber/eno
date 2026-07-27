@@ -1,0 +1,10 @@
+task=T308
+owner=murat
+started=2026-07-25T09:39:16Z
+status=READY
+branch=work/murat
+commit=f0b6fff7
+gates=prisma validate+generate ok, tsc, lint:0err, 917 tests, 18 CAS tests incl the required race; NO db push run — apply scripts/trip-assistance-ddl.sql; codex REFUTED→6 real fixes (no-op CAS bypass, meta enforcement, status CHECK, quote both-or-neither, conrelid scoping, idempotency claim), gemini CONFIRMED (missed the no-op); ⚠️ FLAGGED not changed: INTEGER caps money at ~2.1bn VND — domain-wide, matches Itinerary.estimatedBudget
+heartbeat=1784973384
+pid=11288
+shipped=2026-07-25T10:06:59Z

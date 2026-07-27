@@ -1,0 +1,8 @@
+task=T320
+owner=murat
+pid=11288
+status=BLOCKED
+started=2026-07-26T12:26:14Z
+heartbeat=1785068774
+commit=5f3b16e1
+note=CODE COMPLETE + all gates green, but BLOCKED on the required screenshot: the only local admin-session route created a PROD auth user (reported, awaiting owner decision). Not retrying it.

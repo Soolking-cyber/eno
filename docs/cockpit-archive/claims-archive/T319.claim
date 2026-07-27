@@ -1,0 +1,8 @@
+task=T319
+owner=murat
+pid=11288
+status=READY
+started=2026-07-26T07:58:14Z
+commit=277e389e
+note=done; waypoint cap 3 verified from Google docs; 69KB client-bundle regression FLAGGED for Alex
+heartbeat=1785055242

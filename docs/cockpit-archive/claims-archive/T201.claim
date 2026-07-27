@@ -1,0 +1,10 @@
+task=T201
+owner=kai
+pid=53699
+started=2026-07-25T02:32:24Z
+status=READY
+branch=work/kai
+commit=7d27a5d4
+gates=tsc:0 lint:0err design-lint:clean build:ok chunk-refs:all-5-routes-1or2->0 codex+agy:refuted-then-fixed | GATE CAVEAT: 'First Load JS' table does not exist in Next16+Turbopack
+heartbeat=1784947843
+shipped=2026-07-25T05:01:37Z

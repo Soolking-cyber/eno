@@ -1,0 +1,10 @@
+task=T206
+owner=murat
+started=2026-07-25T02:32:20Z
+status=READY
+branch=work/murat
+commit=56606295
+gates=tsc:ok design-lint:clean eslint:ok build:ok e2e:4/4; rebased→56606295
+heartbeat=1784950099
+pid=11288
+shipped=2026-07-25T05:01:37Z

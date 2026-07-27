@@ -1,0 +1,9 @@
+task=T321
+owner=kai
+pid=66164
+started=2026-07-26T13:38:46Z
+status=READY
+branch=work/kai
+commit=ed60c670
+gates=tsc 0 · design-lint clean · lint 0 errors · 1258 unit tests · AUTHED trips e2e 3/3 (the gate) · screenshots 390x844 + 1440x900 of list/detail/reordered
+heartbeat=1785073698

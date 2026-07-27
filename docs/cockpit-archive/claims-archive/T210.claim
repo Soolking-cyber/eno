@@ -1,0 +1,10 @@
+task=T210
+owner=murat
+started=2026-07-25T03:27:59Z
+status=READY
+branch=work/murat
+commit=eaa4f406
+gates=tsc:ok lint:0err vitest:858 (20 new, mutation-verified); TWO commits (b0c9b736 + eaa4f406 escapes); codex refuted x3 all folded in; agy RECOVERED and reviewed retroactively — its one finding (th regex broken) was a FALSE POSITIVE from prompt mangling, verified against the file; POLICY CALL for Alex: dominance tests reduce but don't eliminate mixed-language false skips
+heartbeat=1784952263
+pid=11288
+shipped=2026-07-25T05:01:37Z

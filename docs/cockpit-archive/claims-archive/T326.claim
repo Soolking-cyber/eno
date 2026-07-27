@@ -1,0 +1,10 @@
+task=T326
+owner=murat
+pid=44370
+started=2026-07-27T01:12:00Z
+heartbeat=1785093423
+status=READY
+branch=work/murat
+commit=f372527d
+gates=tsc0 design-lint-clean lint-0-errors vitest-1314 build-0 + every changed URL curled locally AND on prod
+note=3 of agy 7 refutations survived testing and changed the commit. One file outside declared paths (handle-format.ts) - the hazard is created by this commit.

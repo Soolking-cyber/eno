@@ -1,0 +1,10 @@
+task=T209
+owner=murat
+started=2026-07-25T03:11:30Z
+status=READY
+branch=work/murat
+commit=c3f02aa6
+gates=tsc:ok lint:0err design-lint:clean build:ok; knob verified on Pixel 5 BOTH themes (white thumb 15.1:1 dark / ring ink-3 4.35:1 light) + screenshots; codex REFUTED v1 then both CONFIRMED; globals.css untouched; rebased→c3f02aa6
+heartbeat=1784950100
+pid=11288
+shipped=2026-07-25T05:01:37Z

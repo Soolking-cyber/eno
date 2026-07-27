@@ -1,0 +1,11 @@
+task=T333
+owner=murat
+pid=28325
+started=2026-07-27T03:00:00Z
+heartbeat=1785124109
+status=READY
+branch=work/murat
+commit=8728ca31
+gates=tsc0 design-lint-clean lint-0-errors vitest-1335 build-0; every new test verified RED first
+note=Both leads PROVEN. agy at plan AND diff; its floor-vs-round counter-example changed the implementation. Single-sourced (codex paused).
+shipped=2026-07-27T05:25:51Z

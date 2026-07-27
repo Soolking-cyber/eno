@@ -1,0 +1,9 @@
+task=T307
+owner=murat
+status=READY
+started=2026-07-25T10:14:25Z
+pid=11288
+commit=107d43d7
+note=ALL 5 increments committed; 1035 unit + 18 e2e; ships DORMANT (needs anchor listing seeded)
+heartbeat=1784994512
+shipped=2026-07-25T15:56:58Z
