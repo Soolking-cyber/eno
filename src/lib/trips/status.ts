@@ -96,16 +96,40 @@ export type TripActorType = 'traveller' | 'admin' | 'system'
  */
 const NON_ADMIN_EDGES = new Set(['reviewing->quoted', 'quoted->accepted', 'quoted->declined'])
 
-/** Who owns an edge, for the test and for anything that needs to explain a refusal. */
-export function edgeOwner(from: string, to: string): TripActorType | null {
-  if (!canTransition(from, to)) return null
-  if (from === 'reviewing' && to === 'quoted') return 'system'
-  return NON_ADMIN_EDGES.has(`${from}->${to}`) ? 'traveller' : 'admin'
+/**
+ * WHICH ACTORS may take an edge — a SET, not a single owner.
+ *
+ * ⚠️ THIS REPLACED A SINGLE-OWNER `edgeOwner`, and the correction matters. Ownership here is not
+ * exclusive: **cancel belongs to BOTH sides**. An operator can end a case that is going nowhere,
+ * and a traveller must be able to withdraw one they no longer want. The single-owner version
+ * answered 'admin' for `quoted->cancelled` — harmless today only because the traveller helper has
+ * no ownership gate, and a trap the moment anyone adds the symmetric gate that admin already has:
+ * it would silently forbid a traveller from withdrawing, which is the exact defect this pass was
+ * opened to fix. A model that is right by accident is not right.
+ *
+ * `[]` for an edge that is not legal at all, so ownership can never contradict legality.
+ */
+export function edgeActors(from: string, to: string): TripActorType[] {
+  if (!canTransition(from, to)) return []
+  // The money edge. quoteAssistance writes the amounts and the status in ONE statement; reaching
+  // `quoted` any other way means a quote card with no quote behind it.
+  if (from === 'reviewing' && to === 'quoted') return ['system']
+  // Accepting or declining a QUOTE is the traveller's decision and nobody else's.
+  if (NON_ADMIN_EDGES.has(`${from}->${to}`)) return ['traveller']
+  // Ending an open case: either side. See the note above — this is the edge the single-owner
+  // model got wrong.
+  if (to === 'cancelled') return ['admin', 'traveller']
+  return ['admin']
 }
 
-/** May an OPERATOR take this edge directly? Legality first, then ownership. */
+/** May an OPERATOR take this edge directly? Legality first, then who it belongs to. */
 export function adminCanTake(from: string, to: string): boolean {
-  return canTransition(from, to) && !NON_ADMIN_EDGES.has(`${from}->${to}`)
+  return edgeActors(from, to).includes('admin')
+}
+
+/** May the TRAVELLER whose case it is take this edge? */
+export function travellerCanTake(from: string, to: string): boolean {
+  return edgeActors(from, to).includes('traveller')
 }
 
 /**

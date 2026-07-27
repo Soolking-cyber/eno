@@ -240,7 +240,7 @@ describe('quoteAssistance — the ONLY writer of money', () => {
     // The money gate. A traveller (or an unauthenticated caller) cannot reach a monetary column.
     h.state.admin = null
     seedCase({ status: 'reviewing' })
-    expect(await quoteAssistance({ requestId: 'case-1', supplierTotalVnd: 1, feeVnd: 1 }))
+    expect(await quoteAssistance({ requestId: 'case-1', supplierTotalVnd: 1_000, feeVnd: 100 }))
       .toEqual({ ok: false, error: 'forbidden' })
     expect(h.state.updates).toHaveLength(0)
   })
@@ -257,6 +257,41 @@ describe('quoteAssistance — the ONLY writer of money', () => {
     expect(await quoteAssistance({ requestId: 'case-1', supplierTotalVnd: amount, feeVnd: 1 }))
       .toEqual({ ok: false, error: 'invalid_amount' })
     expect(h.state.updates).toHaveLength(0)
+  })
+
+  // ── the advertised 10% (T333) ─────────────────────────────────────────────────────────────
+  // Three surfaces promise the traveller "the fee is 10% of the bookings we arrange". Until this
+  // pass nothing connected the two columns, so a mistyped fee was quoted as if it were that rate.
+
+  it('REFUSES a fee ABOVE the advertised 10%', async () => {
+    h.state.admin = 'ops@eno.vn'
+    seedCase({ status: 'reviewing' })
+    expect(await quoteAssistance({ requestId: 'case-1', supplierTotalVnd: 12_000_000, feeVnd: 1_200_001 }))
+      .toEqual({ ok: false, error: 'invalid_amount' })
+    // Nothing written at all — the money columns are untouched by a rejected quote.
+    expect(h.state.updates).toHaveLength(0)
+  })
+
+  it('ACCEPTS exactly 10%, and anything below it', async () => {
+    h.state.admin = 'ops@eno.vn'
+    for (const fee of [1_200_000, 900_000, 0]) {
+      h.state.updates.length = 0
+      seedCase({ status: 'reviewing' })
+      expect(await quoteAssistance({ requestId: 'case-1', supplierTotalVnd: 12_000_000, feeVnd: fee }).then((r) => r.ok))
+        .toBe(true)
+    }
+  })
+
+  it('uses FLOOR, not round — a rounded bound lets the fee exceed the thing it bounds', async () => {
+    // agy's counter-example at the plan stage: Math.round(15 * 0.10) is 2, and 2/15 is 13.3%.
+    // floor(15 / 10) is 1. If this ever regresses to round(), a fee of 2 here starts passing.
+    h.state.admin = 'ops@eno.vn'
+    seedCase({ status: 'reviewing' })
+    expect(await quoteAssistance({ requestId: 'case-1', supplierTotalVnd: 15, feeVnd: 2 }))
+      .toEqual({ ok: false, error: 'invalid_amount' })
+    h.state.updates.length = 0
+    seedCase({ status: 'reviewing' })
+    expect(await quoteAssistance({ requestId: 'case-1', supplierTotalVnd: 15, feeVnd: 1 }).then((r) => r.ok)).toBe(true)
   })
 
   it('writes both amounts, the status, quotedAt and the admin in ONE statement', async () => {
@@ -277,7 +312,7 @@ describe('quoteAssistance — the ONLY writer of money', () => {
   it('REFUSES a status the map does not allow to reach quoted', async () => {
     h.state.admin = 'ops@eno.vn'
     seedCase({ status: 'requested' })
-    expect(await quoteAssistance({ requestId: 'case-1', supplierTotalVnd: 1, feeVnd: 1 }))
+    expect(await quoteAssistance({ requestId: 'case-1', supplierTotalVnd: 1_000, feeVnd: 100 }))
       .toEqual({ ok: false, error: 'invalid_status_transition' })
     expect(h.state.updates).toHaveLength(0)
   })
@@ -286,7 +321,7 @@ describe('quoteAssistance — the ONLY writer of money', () => {
     h.state.admin = 'ops@eno.vn'
     seedCase({ status: 'reviewing' })
     h.state.statusMovesTo = 'cancelled'
-    expect(await quoteAssistance({ requestId: 'case-1', supplierTotalVnd: 5, feeVnd: 1 }))
+    expect(await quoteAssistance({ requestId: 'case-1', supplierTotalVnd: 1_000, feeVnd: 100 }))
       .toEqual({ ok: false, error: 'case_changed_reload' })
     expect(h.state.requests['case-1'].supplierTotalVnd).toBeNull()
     expect(h.state.requests['case-1'].feeVnd).toBeNull()
@@ -308,7 +343,7 @@ describe('quoteAssistance — the ONLY writer of money', () => {
 
   it('reports an unknown case', async () => {
     h.state.admin = 'ops@eno.vn'
-    expect(await quoteAssistance({ requestId: 'nope', supplierTotalVnd: 1, feeVnd: 1 }))
+    expect(await quoteAssistance({ requestId: 'nope', supplierTotalVnd: 1_000, feeVnd: 100 }))
       .toEqual({ ok: false, error: 'request_not_found' })
   })
 
@@ -322,7 +357,7 @@ describe('quoteAssistance — the ONLY writer of money', () => {
   it('posts NO card when the quote was refused', async () => {
     h.state.admin = 'ops@eno.vn'
     seedCase({ status: 'requested' })
-    await quoteAssistance({ requestId: 'case-1', supplierTotalVnd: 1, feeVnd: 1 })
+    await quoteAssistance({ requestId: 'case-1', supplierTotalVnd: 1_000, feeVnd: 100 })
     expect(h.state.cards).toHaveLength(0)
   })
 
@@ -330,7 +365,7 @@ describe('quoteAssistance — the ONLY writer of money', () => {
     h.state.admin = 'ops@eno.vn'
     seedCase({ status: 'reviewing' })
     h.state.statusMovesTo = 'cancelled'
-    await quoteAssistance({ requestId: 'case-1', supplierTotalVnd: 1, feeVnd: 1 })
+    await quoteAssistance({ requestId: 'case-1', supplierTotalVnd: 1_000, feeVnd: 100 })
     expect(h.state.cards).toHaveLength(0)
   })
 })
