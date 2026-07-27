@@ -20,6 +20,13 @@ const RESERVED = new Set([
   'team', 'security', 'verify', 'verified', 'system', 'notifications', 'billing',
   'payment', 'payments', 'root', 'www', 'mail', 'info', 'contact', 'login', 'logout',
   'settings', 'user', 'null', 'undefined', 'anonymous',
+  // ⚠️ RETIRED HANDLE THAT IS NOW A PERMANENT REDIRECT. The e-Visa desk was @eno_vietnam until it
+  // was renamed to @eno_visa (2026-07-23); next.config.ts now 308s the old path to the new one so
+  // the indexed URL moves instead of 404ing. That redirect runs BEFORE routing, so if anyone were
+  // allowed to register `eno_vietnam` their storefront would be permanently unreachable — and
+  // because a 308 is cached by the browser, removing the rule later would not repair it for anyone
+  // who had already followed it. Reserving the name is the only way to make the redirect safe.
+  'eno_vietnam',
 ])
 
 export function isReservedHandle(h: string): boolean {
