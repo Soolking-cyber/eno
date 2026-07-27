@@ -1,0 +1,116 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+/**
+ * The saved-trip cap, and the read the picker renders.
+ *
+ * ⚠️ THE PROPERTY THAT MATTERS is that ONE number and ONE query serve BOTH create paths. A cap
+ * enforced at POST /api/itineraries but not at POST /api/itineraries/generate is not a cap — the
+ * second path just writes the fourth row. These tests pin the arithmetic; the routes are what call
+ * it, and each carries a comment saying so.
+ */
+
+const h = vi.hoisted(() => ({
+  rows: [] as { id: string; title: string; destinationId: string; days: number; updatedAt: Date }[],
+  countCalls: [] as unknown[],
+}))
+
+vi.mock('./db', () => ({
+  db: {
+    itinerary: {
+      count: async (args: unknown) => {
+        h.countCalls.push(args)
+        return h.rows.length
+      },
+      findMany: async (args: { take?: number }) => h.rows.slice(0, args.take ?? h.rows.length),
+    },
+  },
+}))
+
+const { MAX_SAVED_ITINERARIES, itineraryQuota, listItineraryDrafts } = await import('./itinerary-drafts')
+
+const row = (id: string, days = 5) => ({
+  id,
+  title: `Trip ${id}`,
+  destinationId: 'hcmc',
+  days,
+  updatedAt: new Date('2026-07-27T00:00:00Z'),
+})
+
+beforeEach(() => {
+  h.rows = []
+  h.countCalls = []
+})
+
+describe('the cap is three, and it is reached rather than exceeded', () => {
+  it('is 3 — the number the product promises', () => {
+    expect(MAX_SAVED_ITINERARIES).toBe(3)
+  })
+
+  it.each([
+    [0, 3, false],
+    [1, 2, false],
+    [2, 1, false],
+    [3, 0, true],
+  ])('with %i saved: %i remaining, full=%s', async (saved, remaining, full) => {
+    h.rows = Array.from({ length: saved }, (_, i) => row(`i${i}`))
+    const quota = await itineraryQuota('p1')
+    expect(quota.used).toBe(saved)
+    expect(quota.remaining).toBe(remaining)
+    expect(quota.full).toBe(full)
+  })
+
+  it('never reports NEGATIVE remaining, even if a row slipped past the cap', async () => {
+    // Both create paths check before writing, and neither holds a lock, so two simultaneous saves
+    // can overshoot by one — the same accepted soft race the visa ceiling documents. The arithmetic
+    // must not then produce "-1 remaining" in the picker.
+    h.rows = Array.from({ length: 5 }, (_, i) => row(`i${i}`))
+    const quota = await itineraryQuota('p1')
+    expect(quota.remaining).toBe(0)
+    expect(quota.full).toBe(true)
+  })
+
+  it('counts THIS profile only', async () => {
+    await itineraryQuota('profile-abc')
+    expect(h.countCalls).toEqual([{ where: { profileId: 'profile-abc' } }])
+  })
+})
+
+describe('deleting frees a slot, because the count is a count', () => {
+  it('goes from full back to room when a row disappears', async () => {
+    h.rows = [row('a'), row('b'), row('c')]
+    expect((await itineraryQuota('p1')).full).toBe(true)
+    h.rows = [row('a'), row('b')]
+    const after = await itineraryQuota('p1')
+    expect(after.full).toBe(false)
+    expect(after.remaining).toBe(1)
+  })
+})
+
+describe('the drafts read', () => {
+  it('returns the counts alongside the list, so the picker does not derive them', async () => {
+    h.rows = [row('a'), row('b')]
+    const out = await listItineraryDrafts('p1')
+    expect(out.used).toBe(2)
+    expect(out.limit).toBe(3)
+    expect(out.remaining).toBe(1)
+    expect(out.drafts.map((d) => d.id)).toEqual(['a', 'b'])
+  })
+
+  it('summarises without leaking trip CONTENT — destination and length only', async () => {
+    h.rows = [row('a', 5)]
+    const [draft] = (await listItineraryDrafts('p1')).drafts
+    expect(draft.summary).toBe('hcmc · 5 days')
+    expect(draft.updatedAt).toBe('2026-07-27T00:00:00.000Z')
+  })
+
+  it('says "1 day", not "1 days"', async () => {
+    h.rows = [row('a', 1)]
+    const [draft] = (await listItineraryDrafts('p1')).drafts
+    expect(draft.summary).toBe('hcmc · 1 day')
+  })
+
+  it('never returns more rows than the cap allows', async () => {
+    h.rows = Array.from({ length: 9 }, (_, i) => row(`i${i}`))
+    expect((await listItineraryDrafts('p1')).drafts).toHaveLength(MAX_SAVED_ITINERARIES)
+  })
+})

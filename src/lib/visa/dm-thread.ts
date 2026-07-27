@@ -13,6 +13,7 @@ import {
   type VisaStepMeta,
 } from '../messages'
 import { getVisaShopListings, getVisaShopProductsForSale, getVisaShopSeller } from '../visa-shop'
+import { threadKind } from '../thread-kind'
 import { visaDmStepPreview, type VisaDmStep } from './dm-steps'
 import { getVisaDb } from './db'
 import { visaPaymentsConfig } from './payments'
@@ -217,14 +218,19 @@ export async function bindVisaThread(input: {
   // Conversation.listingId within the catalogue) while refusing to adopt a thread about a
   // different product. Worst case it CREATES a visa thread instead of reusing one — a separate
   // thread is the correct outcome for a separate product, and far better than the merge.
+  // ⚠️ THE CANDIDATE THREADS ARE STILL FOUND BY ANCHOR, and the winner is then confirmed through
+  // threadKind — the SAME predicate the trip side uses. The query narrows by catalogue id (an `in`
+  // clause is the only way to ask the database this); threadKind is what decides that the thread it
+  // found is genuinely a visa thread, so the two surfaces can never disagree about a thread's kind.
   const visaListingIds = (await getVisaShopListings()).map((l) => l.id)
-  const existing = visaListingIds.length
+  const candidate = visaListingIds.length
     ? await db.conversation.findFirst({
         where: { sellerId: shop.id, buyerProfileId, listingId: { in: visaListingIds } },
         orderBy: { lastMessageAt: 'desc' },
-        select: { id: true },
+        select: { id: true, listingId: true },
       })
     : null
+  const existing = candidate && (await threadKind(candidate)) === 'visa' ? candidate : null
   let conversationId = existing?.id ?? ''
   let created = false
   if (!existing) {

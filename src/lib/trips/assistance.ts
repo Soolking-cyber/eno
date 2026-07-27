@@ -1,7 +1,7 @@
 import 'server-only'
 import { db } from '../db'
 import { getAdmin, getCurrentProfile } from '../admin'
-import { adminCanTake, applyTripTransition, canTransition, openStatuses, type TripActorType } from './status'
+import { adminCanTake, applyTripTransition, canTransition, openStatuses, travellerCanTake, type TripActorType } from './status'
 // The DM layer. Imported for its two card senders only; it never calls back into this file, so
 // the dependency is one-way (assistance -> dm-flow -> dm-thread/messages).
 import { announceTripStatus, sendTripQuoteCard } from './dm-flow'
@@ -226,6 +226,24 @@ export async function quoteAssistance(input: { requestId: string; supplierTotalV
   // the same invariant at the column level; this is the honest error message for the operator.
   if (!isVnd(supplierTotalVnd) || !isVnd(feeVnd)) return { ok: false, error: 'invalid_amount' }
 
+  // ⚠️ THE ADVERTISED 10% IS NOW BINDING. Three surfaces promise the traveller "the fee is 10% of
+  // the bookings we arrange" (itinerary-resources.ts, plan-results.tsx, trip-detail-client.tsx),
+  // and until now nothing connected the two columns at all: each was checked only for being a VND
+  // integer, so a mistyped fee — or an extra zero — was quoted to the traveller as if it were the
+  // advertised rate.
+  //
+  // ⚠️ floor(total / 10), NOT round(total * 0.10). agy refuted the rounding version at the plan
+  // stage with a concrete counter-example: supplierTotalVnd = 15 gives Math.round(1.5) = 2, which
+  // is 13.3% — a bound that lets a fee EXCEED the thing it is bounding. Integer floor cannot.
+  //
+  // ⚠️ AN UPPER BOUND, NOT AN EQUALITY, so a goodwill discount stays quotable. What it deliberately
+  // does NOT allow is rounding UP to a friendly number (123,400 -> 125,000) or a flat minimum fee
+  // on a small booking — agy is right that both are normal practice, and both would break a promise
+  // the product makes without qualification. If the business wants either, the COPY has to change
+  // first and this bound follows it; that is an owner decision, not one to pre-empt by weakening
+  // the check. FLAGGED on the board.
+  if (feeVnd > Math.floor(supplierTotalVnd / 10)) return { ok: false, error: 'invalid_amount' }
+
   const current = await db.tripAssistanceRequest.findUnique({
     where: { id: requestId },
     select: { status: true },
@@ -278,6 +296,38 @@ export async function cancelAssistance(input: { requestId: string }): Promise<As
   return transitionAsTraveller(input.requestId, 'cancelled')
 }
 
+/**
+ * The caller's OWN open case on an itinerary, if there is one — the read that makes withdrawing
+ * possible at all.
+ *
+ * ⚠️ WHY THIS EXISTS. `cancelAssistance` shipped with the route wired up and NOTHING calling it:
+ * the only surface that posts case actions is the chat card, whose handler is typed
+ * `'accept' | 'decline'`. So a traveller could open a case and never leave it — they had to wait
+ * for an operator to notice and cancel it for them. (An operator CAN, which agy correctly pointed
+ * out when I first called the case inescapable; the defect is that the person who opened it has no
+ * way out of their own request, not that the case can never end.)
+ *
+ * A read rather than a new endpoint: the trip page is a server component, so it can hand the
+ * client what it needs. The API route this file's cancel path already sits behind is unchanged.
+ *
+ * Resolves its own actor like everything else here, and returns null rather than throwing for a
+ * signed-out caller — the panel simply offers nothing.
+ */
+export async function openCaseForItinerary(
+  input: { itineraryId: string },
+): Promise<{ requestId: string; status: string } | null> {
+  const profile = await getCurrentProfile()
+  if (!profile) return null
+  const found = await db.tripAssistanceRequest.findFirst({
+    // profileId as well as itineraryId: this is a traveller-scoped read, and scoping it to the
+    // session here means the page cannot leak somebody else's case even if it asked for one.
+    where: { itineraryId: input.itineraryId, profileId: profile.id, status: { in: openStatuses() } },
+    orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+    select: { id: true, status: true },
+  })
+  return found ? { requestId: found.id, status: found.status } : null
+}
+
 // ── internals ───────────────────────────────────────────────────────────────────────────
 
 /**
@@ -305,6 +355,15 @@ async function transitionAsTraveller(requestId: string, next: string): Promise<A
   // not-yours collapse to ONE answer for the same reason as viewAssistance: otherwise the action
   // routes are an existence oracle for any signed-in user (codex).
   if (!request || request.profileId !== profile.id) return { ok: false, error: 'forbidden' }
+  // ⚠️ THE MIRROR OF THE ADMIN GATE, and deliberately symmetric. It is a no-op today — the only
+  // callers pass 'accepted' | 'declined' | 'cancelled', all of which are the traveller's — but its
+  // absence is what made the admin-side gate look like the whole answer. A traveller must never be
+  // able to reach an operator's edge or the money edge, and the guarantee should not depend on
+  // this file's three callers never growing a fourth. Repeat exempt for the same reason as the
+  // admin path: it writes the status the case is already in.
+  if (next !== request.status && !travellerCanTake(request.status, next)) {
+    return { ok: false, error: 'invalid_status_transition' }
+  }
   const result = await applyTripTransition({
     id: requestId, expectedPrior: request.status, next,
     actorType: 'traveller', actorRef: profile.id,

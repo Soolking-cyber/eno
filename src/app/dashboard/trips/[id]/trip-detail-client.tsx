@@ -46,7 +46,7 @@ type ApiStop = {
 type ApiDay = SavedItineraryDay & { stops?: ApiStop[] }
 type ApiTrip = Omit<SavedItinerary, 'dayPlans'> & { dayPlans: ApiDay[] }
 
-export function TripDetailClient({ id }: { id: string }) {
+export function TripDetailClient({ id, openCase }: { id: string; openCase?: { requestId: string; status: string } | null }) {
   const { tr, lang } = useLanguage()
   const { user, loading: authLoading } = useAuth()
   const router = useRouter()
@@ -309,7 +309,7 @@ export function TripDetailClient({ id }: { id: string }) {
               onDeleteStop={deleteStop}
               busyStopIds={busyStopIds}
             />
-            <AssistancePanel itineraryId={trip.id} />
+            <AssistancePanel itineraryId={trip.id} openCase={openCase ?? null} />
             <StopRefineDialog
               itineraryId={trip.id}
               target={refineTarget}
@@ -347,7 +347,13 @@ export function TripDetailClient({ id }: { id: string }) {
  * the one that is already open", guarded by an advisory lock), so a second tap re-enters the same
  * thread rather than creating a second case. That is why the button is not disabled after success.
  */
-function AssistancePanel({ itineraryId }: { itineraryId: string }) {
+function AssistancePanel({
+  itineraryId,
+  openCase,
+}: {
+  itineraryId: string
+  openCase: { requestId: string; status: string } | null
+}) {
   const { tr } = useLanguage()
   const router = useRouter()
   const [busy, setBusy] = useState(false)
@@ -356,6 +362,41 @@ function AssistancePanel({ itineraryId }: { itineraryId: string }) {
   // the case exists, so inviting a retry would ask the traveller to re-request something already
   // on the desk's queue.
   const [recorded, setRecorded] = useState(false)
+
+  const [withdrawn, setWithdrawn] = useState(false)
+
+  const withdraw = async () => {
+    if (busy || !openCase) return
+    setBusy(true); setError(null)
+    try {
+      const res = await fetch(`/api/trips/assistance/${encodeURIComponent(openCase.requestId)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ action: 'cancel' }),
+      })
+      if (!res.ok) {
+        // ⚠️ 409 does NOT mean "an operator touched this while the page was open" — I wrote that
+        // first and agy refuted it against the server. transitionAsTraveller re-reads the status
+        // and uses THAT as expectedPrior, so an operator moving the case to another open status
+        // mid-session still cancels cleanly with a 200; the page's stale view is not what the
+        // compare-and-set is protecting. A 409 means the case is in a state that refuses
+        // withdrawal — already closed — or the far rarer CAS race between that read and the write.
+        // Either way retrying cannot help, which is why the copy says reload rather than try again.
+        setError(res.status === 409
+          ? tr('That request has already moved on — reload to see where it is.',
+               'Yêu cầu đã được xử lý — tải lại để xem trạng thái mới.')
+          : tr("We couldn't withdraw that request. Try again.", 'Không rút được yêu cầu. Thử lại.'))
+        return
+      }
+      setWithdrawn(true)
+      router.refresh()
+    } catch {
+      setError(tr('Check your connection and try again.', 'Kiểm tra kết nối và thử lại.'))
+    } finally {
+      setBusy(false)
+    }
+  }
 
   const request = async () => {
     if (busy) return
@@ -409,7 +450,32 @@ function AssistancePanel({ itineraryId }: { itineraryId: string }) {
             'bạn trả trực tiếp cho từng khách sạn, tài xế và hướng dẫn viên theo giá của họ. Chúng tôi báo phí 10% trong phần trò chuyện trước khi đặt bất cứ thứ gì, và không thu tiền ở đây.')}
       </p>
 
-      {recorded ? (
+      {/* ⚠️ THE WAY OUT. `cancelAssistance` and its route shipped with NOTHING calling them — the
+          only surface that posts case actions is the chat card, and its handler is typed
+          'accept' | 'decline'. So a traveller could open a request and never withdraw it; they had
+          to wait for an operator to notice. Offered here because this is where the request was
+          made, and because the card lives in a file this task does not own.
+          ⚠️ Known seam, flagged rather than hidden: Accept/Decline still live on the chat card, so
+          the two controls sit on different surfaces. Withdrawing here leaves a stale-looking Accept
+          on the card until it re-reads — clicking it then fails and the card corrects itself, which
+          is that component's documented behaviour, not a new hazard. */}
+      {withdrawn ? (
+        <p className="mt-4 rounded-xl bg-tint p-3 text-sm text-body" role="status">
+          {tr('Request withdrawn. You can ask again any time.',
+              'Đã rút yêu cầu. Bạn có thể yêu cầu lại bất cứ lúc nào.')}
+        </p>
+      ) : openCase ? (
+        <div className="mt-4">
+          <p className="rounded-xl bg-tint p-3 text-sm text-body" role="status">
+            {tr("Your request is with our trip desk — we'll message you in the chat.",
+                'Yêu cầu của bạn đã đến bộ phận chuyến đi — chúng tôi sẽ nhắn cho bạn trong phần trò chuyện.')}
+          </p>
+          <Button variant="outline" onClick={withdraw} disabled={busy} className="mt-3 w-full gap-2 sm:w-auto">
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+            {tr('Withdraw request', 'Rút yêu cầu')}
+          </Button>
+        </div>
+      ) : recorded ? (
         <p className="mt-4 rounded-xl bg-tint p-3 text-sm text-body" role="status">
           {tr("Your request is with our trip desk — we'll message you here shortly.",
               'Yêu cầu của bạn đã đến bộ phận chuyến đi — chúng tôi sẽ nhắn cho bạn sớm.')}

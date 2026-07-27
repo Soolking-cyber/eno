@@ -15,6 +15,7 @@ import { MAX_ROUTE_CITIES, itineraryRequestSchema, type ItineraryRequest } from 
 import { BUDGETS } from '@/lib/itinerary-data'
 import { languageName } from '@/lib/languages'
 import { kv, rateLimit } from '@/lib/ratelimit'
+import { itineraryQuota } from '@/lib/itinerary-drafts'
 
 // The dashboard itinerary planner's research call (ported from the forum planner,
 // 2026-07-18 — the planner is now NATIVE to eno.vn at /dashboard/trips/plan).
@@ -505,6 +506,23 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'invalid_trip', issues: parsed.error.issues }, { status: 400 })
   }
 
+  // ⚠️ THE CAP IS CHECKED BEFORE THE GENERATION, NOT AT THE SAVE. Both create paths enforce the
+  // same MAX_SAVED_ITINERARIES (the other is POST /api/itineraries), but WHERE matters here: this
+  // route generates first and saves second, so a cap applied at the write would let a full
+  // traveller spend an AI generation — real money and one of their 8 hourly tokens — and then be
+  // told the result cannot be kept. The route's existing fallback for a failed save is to hand back
+  // `savedItineraryId: null` and let the client retry through POST, which for a full account would
+  // fail too: a plan the traveller can see and cannot keep. Refusing up front is the honest answer,
+  // and it is free. Same class of trap as generating before checking a quota, which this feature
+  // has already been bitten by once.
+  const quota = await itineraryQuota(profileId)
+  if (quota.full) {
+    return NextResponse.json(
+      { error: 'itinerary_limit_reached', limit: quota.limit, used: quota.used },
+      { status: 409 },
+    )
+  }
+
   const slot = await claimGenerationSlot(profileId)
   if (!slot) return NextResponse.json({ error: 'already_generating' }, { status: 409 })
   try {
@@ -656,6 +674,23 @@ Planning rules:
     // client's Save button retry through POST /api/itineraries.
     let savedItineraryId: string | null = null
     try {
+      // ⚠️ THE CAP IS CHECKED TWICE, AND BOTH CHECKS EARN THEIR KEEP. agy refuted the single
+      // pre-generation check with a real time-of-check/time-of-use hole: generation takes 10-30s,
+      // and in that window the traveller can fill the last slot through the OTHER create path
+      // (POST /api/itineraries), after which this save would have written one row over the cap
+      // because it never looked again.
+      //
+      // The early check is still there and is not redundant — it is what stops a FULL account
+      // spending an AI generation, real money, and one of its 8 hourly tokens on a plan it could
+      // never keep. This one is what makes the ceiling actually hold. Neither alone is enough:
+      // early-only is racy, late-only is expensive.
+      //
+      // Failing here behaves exactly like any other save failure, which the route already handles
+      // deliberately: the traveller gets the researched plan back with savedItineraryId null,
+      // rather than losing it. Their Save button then hits POST /api/itineraries, which reports
+      // the limit properly.
+      const atSave = await itineraryQuota(gate.profileId)
+      if (atSave.full) throw new Error('itinerary_limit_reached_at_save')
       const payload = buildItinerarySavePayload({
         result,
         cityIds: input.cityIds,

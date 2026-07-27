@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { db } from '@/lib/db'
+import { itineraryQuota } from '@/lib/itinerary-drafts'
 import { getForumAuth } from '@/lib/forum/auth'
 import { forumJson, forumPreflight, isAllowedForumOrigin } from '@/lib/forum/cors'
 import { rateLimit } from '@/lib/ratelimit'
@@ -135,6 +136,22 @@ export async function POST(request: Request) {
   // particular: `Itinerary` is already live in prod while `ItineraryStop` is not until
   // `prisma db push` runs, so there is a real window where the parent exists and the child
   // does not. Reuses GET's error contract rather than inventing a second one.
+  // ⚠️ THE CAP, AND THE OTHER CREATE PATH ENFORCES THE SAME ONE. A traveller may keep
+  // MAX_SAVED_ITINERARIES trips; generate/route.ts calls the identical guard, because a ceiling on
+  // one of two create paths is not a ceiling. Checked before the write rather than caught after:
+  // there is no unique constraint expressing "at most N rows", so the row would simply be created.
+  // 409, not 400: the request is well-formed and the ACCOUNT is in a state that refuses it — the
+  // same reading of 409 the assistance routes use.
+  const quota = await itineraryQuota(auth.profile.id)
+  if (quota.full) {
+    return forumJson(
+      request,
+      { error: 'itinerary_limit_reached', limit: quota.limit, used: quota.used },
+      { status: 409 },
+      'GET, POST, OPTIONS',
+    )
+  }
+
   try {
     const itinerary = await db.itinerary.create({
       data: {
