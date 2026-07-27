@@ -199,4 +199,18 @@ reported the relevant forum gates green, include those files in the same commit;
 their readiness is unclear, rerun the forum gates or stop and report the exact files.
 Never push while silently leaving validated Codex work under `apps/forum/**` unstaged.
 
-`/ship` runs the ritual: `tsc --noEmit` → design-lint → `npm run build` → local guest e2e (44 tests, server on **port 3100** — 3000 has been squatted by another project) → commit → push → poll `npx vercel ls` until Ready → prod guest suite. Stop at the first red gate. If a push breaks prod, revert to the last known-good commit and pause — don't stack fix-on-fix.
+`/ship` runs the ritual: `tsc --noEmit` → design-lint → `npm run build` → local guest e2e (44 tests, server on **port 3100** — 3000 has been squatted by another project) → commit → push → poll the deploy until Ready → prod guest suite. Stop at the first red gate. If a push breaks prod, revert to the last known-good commit and pause — don't stack fix-on-fix.
+
+⚠️ **A GREEN DEPLOY IS NOT A GREEN PIPELINE — read `gh run list --limit 3` after every push.**
+GitHub Actions is a **separate gate** from Cloud Build: Cloud Build only builds and deploys, while
+the Actions `CI` workflow runs checks the deploy does not. On 2026-07-27 it was found red on **8
+consecutive commits** (07-26T17:43 → 07-27T02:44) because the ritual polled Cloud Build, saw
+SUCCESS + a new Cloud Run revision, and reported each push as shipped. Prod was fine and the repo
+was failing, simultaneously. A red Actions run pages nobody and blocks nothing, so it rots silently.
+
+The check that was failing is the **`src/generated/ui-strings.ts` drift guard**, and its trap is
+worth knowing: a PostToolUse hook regenerates that file on `.tsx` edits, so it is normally
+invisible — but **worker commits arrive from their own worktrees**, so merging a branch brings new
+`tr()` copy WITHOUT the regenerated strings file. The drift therefore appears at MERGE time, in a
+file nobody edited. **After merging any branch that adds copy, run `node scripts/gen-ui-strings.mjs`
+and commit it.**
