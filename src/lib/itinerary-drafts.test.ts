@@ -140,8 +140,37 @@ describe('the drafts read', () => {
     expect(draft.summary).toBe('hcmc · 1 day')
   })
 
-  it('never returns more rows than the cap allows', async () => {
+  it('stays bounded — cap + 1, never the whole table', async () => {
+    // ⚠️ THIS ASSERTION USED TO SAY `MAX_SAVED_ITINERARIES`, and that was the bug: capping the
+    // picker at exactly the limit hid the very row an over-cap traveller had to delete to recover.
+    // The bound still matters (this is a picker, not a paginated list) — it is just one higher, so
+    // an overshoot is visible instead of invisible.
     h.rows = Array.from({ length: 9 }, (_, i) => row(`i${i}`))
-    expect((await listItineraryDrafts('p1')).drafts).toHaveLength(MAX_SAVED_ITINERARIES)
+    expect((await listItineraryDrafts('p1')).drafts).toHaveLength(MAX_SAVED_ITINERARIES + 1)
+  })
+})
+
+/**
+ * ⚠️ FOUND BY EXTERNAL REVIEW (agy, 2026-07-27) AFTER THE ARCHIVED-FILTER FIX HAD ALREADY SHIPPED.
+ *
+ * The picker used to `take: MAX_SAVED_ITINERARIES`, justified as "a traveller cannot have more".
+ * They can: this file's own quota notes record that neither create path holds a lock, so two
+ * simultaneous saves overshoot by one. At 4 trips the quota reports full — correctly — and the
+ * traveller is locked out of creating; but a picker capped at 3 hid the fourth row, so the ONE trip
+ * they had to delete in order to recover was the one they could not see. A permanent lockout with
+ * nothing on screen to explain it.
+ */
+describe('an over-cap trip stays VISIBLE, or the lockout it causes cannot be undone', () => {
+  it('asks for one MORE row than the cap', async () => {
+    await listItineraryDrafts('p1')
+    expect(h.findManyCalls[0]).toMatchObject({ take: MAX_SAVED_ITINERARIES + 1 })
+  })
+
+  it('returns the 4th trip when a race overshot the cap, so it can be deleted', async () => {
+    h.rows = Array.from({ length: 4 }, (_, i) => row(`i${i}`))
+    const res = await listItineraryDrafts('p1')
+    expect(res.drafts).toHaveLength(4)
+    expect(res.used).toBe(4)
+    expect(res.remaining).toBe(0)
   })
 })

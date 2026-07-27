@@ -173,6 +173,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // which has no server callback to gate on.
   useEffect(() => {
     if (!user) { setAccountType(null); setIdentityLoaded(false); return }
+    // ⚠️ RESET BEFORE EVERY FETCH, NOT ONLY ON SIGN-OUT. This effect re-runs whenever `user`
+    // changes — including a switch to a DIFFERENT account and a token/metadata refresh, neither of
+    // which passes through a falsy `user`. Without this line `identityLoaded` stayed true across
+    // that gap while `accountType` still held the PREVIOUS user's answer, so a consumer gating on
+    // `identityLoaded` (which is the whole point of exposing it) would read a confidently stale
+    // value. If the stale value was null and the incoming user is onboarded, /onboard renders its
+    // chooser and a click overwrites a real account type — the exact bug this flag was added to
+    // prevent, one identity removed. Caught by external review after the first fix shipped.
+    setIdentityLoaded(false)
     let cancelled = false
     fetch('/api/me')
       .then((r) => r.json())

@@ -90,3 +90,40 @@ describe('the chooser appears only when identity is known AND absent', () => {
     expect(shouldShowAccountTypeChooser({ ...ownerMidFetch, identityLoaded: false })).toBe(false)
   })
 })
+
+/**
+ * ⚠️ THE SECOND HALF, FOUND BY EXTERNAL REVIEW (agy) AFTER THE FIRST FIX SHIPPED.
+ *
+ * Gating on `identityLoaded` is only sound if that flag is reset whenever the identity being
+ * loaded CHANGES. The effect that loads it re-runs on every `user` change — an account switch, a
+ * token or metadata refresh — and none of those pass through a falsy `user`, so the original code
+ * (which reset only on sign-out) left `identityLoaded` TRUE across the gap while `accountType`
+ * still held the PREVIOUS user's answer. A consumer then reads a confidently stale value, which is
+ * strictly worse than reading an obviously unloaded one: if the stale answer was null and the
+ * incoming user is onboarded, the chooser renders and a click overwrites a real account type.
+ *
+ * The fix is `setIdentityLoaded(false)` at the START of each load. These pin the property that
+ * makes it correct: identity is "known" only for the user it was actually fetched for.
+ */
+describe('identity is known only for the user it was fetched for', () => {
+  /** What the provider holds while a NEW user's /api/me is still in flight. */
+  const midSwitch = (previousAnswer: string | null) => ({
+    loading: false,
+    identityLoaded: false, // ← reset at the start of the load; without it this stayed true
+    user: { id: 'the-new-user' },
+    accountType: previousAnswer, // still the OLD user's answer until the fetch resolves
+  })
+
+  it('shows nothing mid-switch even when the previous answer was null', () => {
+    expect(shouldShowAccountTypeChooser(midSwitch(null))).toBe(false)
+  })
+
+  it('shows nothing mid-switch when the previous answer was a real type', () => {
+    expect(shouldShowAccountTypeChooser(midSwitch('business'))).toBe(false)
+  })
+
+  it('would have rendered the chooser had the flag NOT been reset — the defect, pinned', () => {
+    const notReset = { ...midSwitch(null), identityLoaded: true }
+    expect(shouldShowAccountTypeChooser(notReset)).toBe(true)
+  })
+})

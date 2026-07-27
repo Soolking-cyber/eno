@@ -70,9 +70,15 @@ export async function listItineraryDrafts(profileId: string): Promise<{
       where: { profileId, status: { not: 'archived' } },
       // Newest first: the picker's first row should be the one just worked on.
       orderBy: { updatedAt: 'desc' },
-      // Bounded by the cap itself — a traveller cannot have more, and asking for more than the
-      // ceiling would quietly hide a bug in the cap rather than surface it.
-      take: MAX_SAVED_ITINERARIES,
+      // ⚠️ CAP + 1, AND THE OFF-BY-ONE IS THE POINT. This used to `take: MAX_SAVED_ITINERARIES` on
+      // the reasoning that "a traveller cannot have more" — but this file's own quota comments
+      // record that they CAN: neither create path holds a lock, so two simultaneous saves overshoot
+      // by one, an accepted soft race. At 4 saved trips the quota correctly reports full and locks
+      // the traveller out of creating, while a picker capped at 3 HID the fourth row — so the one
+      // trip they would have to delete to recover was invisible, and the lockout was permanent with
+      // no explanation. Showing cap+1 makes the overshoot visible and deletable; it is also the
+      // cheapest possible alarm that the cap has been breached.
+      take: MAX_SAVED_ITINERARIES + 1,
       select: { id: true, title: true, destinationId: true, days: true, updatedAt: true },
     }),
     itineraryQuota(profileId),
