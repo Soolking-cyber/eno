@@ -70,6 +70,13 @@ export async function POST(req: Request) {
   // 1) Captcha. Fails CLOSED once configured (see turnstile-verify for why an
   //    unconfigured secret deliberately allows).
   if (!(await verifyTurnstile(body.captchaToken, ip))) {
+    // ⚠️ SAY WHETHER A TOKEN EVEN ARRIVED. The two causes look identical from the outside and need
+    // opposite fixes: NO token means the WIDGET failed (its own error code is logged client-side —
+    // 110200 = hostname not on the widget's Cloudflare allow-list, which is a dashboard fix, not a
+    // code one), whereas a token that was sent and rejected means the SECRET does not match the
+    // site key. On 2026-07-27 email sign-in was down for every visitor and this line logged
+    // nothing at all, so the server could not tell anyone which of the two it was.
+    console.warn('[auth/email-link] captcha rejected —', body.captchaToken ? 'token present but INVALID (secret/sitekey mismatch?)' : 'NO token from the widget (widget failed to mint one)')
     return NextResponse.json({ error: 'captcha_failed' }, { status: 403 })
   }
 

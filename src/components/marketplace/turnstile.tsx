@@ -100,7 +100,17 @@ export function useTurnstile() {
             resolverRef.current?.(token)
             resolverRef.current = null
           },
-          'error-callback': () => {
+          // ⚠️ LOG THE CODE. This used to swallow it, and that is why a total email sign-in
+          // outage took a dozen browser probes to pin down on 2026-07-27 instead of one glance at
+          // a console: the widget failed, getToken() resolved undefined, the server answered 403
+          // captcha_failed, and the only thing anyone could see was "the security check didn't
+          // complete". Cloudflare's code says WHICH failure it is — 110200 is "this hostname is
+          // not on the widget's allow-list", 400020 is a bad sitekey, 300xxx/600xxx are challenge
+          // failures — and those demand completely different fixes, one of them not in this repo.
+          // It stays a console.warn rather than surfacing to the visitor: the code is diagnostic,
+          // not something a person signing in can act on.
+          'error-callback': (code?: string) => {
+            console.warn('[turnstile] widget error', code ?? '(no code)')
             resolverRef.current?.(undefined)
             resolverRef.current = null
           },
