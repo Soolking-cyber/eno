@@ -164,7 +164,13 @@ export function TripsClient({ planListingId }: { planListingId: string | null })
               ) : (
                 <Rows>
                   {trips.map((trip) => (
-                    <TripCard key={trip.id} trip={trip} />
+                    <TripCard
+                      key={trip.id}
+                      trip={trip}
+                      // Drop the row locally rather than refetching: the server has already
+                      // archived it, and a reload here would flash the whole list for one removal.
+                      onDeleted={(id) => setTrips((current) => (current ?? []).filter((t) => t.id !== id))}
+                    />
                   ))}
                 </Rows>
               )

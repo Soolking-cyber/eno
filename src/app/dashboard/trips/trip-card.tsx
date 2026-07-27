@@ -2,12 +2,16 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { CalendarDays, ChevronDown, Download, Loader2, Pencil } from 'lucide-react'
+import { CalendarDays, ChevronDown, Download, Loader2, Pencil, Trash2, TriangleAlert } from 'lucide-react'
 import { Collapsible } from '@base-ui/react/collapsible'
 import { toast } from 'sonner'
 import { useLanguage } from '@/context/language-context'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
+  AlertDialogFooter, AlertDialogHeader, AlertDialogMedia, AlertDialogTitle, AlertDialogTrigger,
+} from '@/components/ui/alert-dialog'
 import { formatMoneyFull, moneyLocale } from '@/lib/vnd'
 import { INTEREST_LABELS, type OptionLabel } from '@/lib/itinerary-data'
 
@@ -105,10 +109,45 @@ function money(amount: number, currency: string, locale: 'en' | 'vi'): string {
  *  that expands in place to the full day-by-day plan + stay shortlist. Disclosure is
  *  Base UI Collapsible used directly — no ui/ collapsible primitive exists yet and this
  *  is its only call site (same direct-import precedent as availability-client). */
-export function TripCard({ trip }: { trip: SavedItinerary }) {
+export function TripCard({ trip, onDeleted }: { trip: SavedItinerary; onDeleted?: (id: string) => void }) {
   const { lang, tr } = useLanguage()
   const vi = lang === 'vi'
   const [downloading, setDownloading] = useState(false)
+
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+
+  /**
+   * Delete a saved trip (owner 2026-07-27: "add option do delte next to open edit").
+   *
+   * ⚠️ A SOFT DELETE, and the distinction is load-bearing: DELETE /api/itineraries/[id] sets
+   * `status = 'archived'` rather than removing the row, and every read in the feature filters
+   * archived out. That only frees a slot against the 3-trip cap because `itineraryQuota` was fixed
+   * this morning to exclude archived rows — before that, deleting a trip consumed its slot forever
+   * and the traveller could be locked out with nothing on screen to explain it.
+   *
+   * The row is dropped from the list optimistically ONLY after the server confirms, because the
+   * list is also what the chat drafts picker reads: a row that vanished here but survived there
+   * would offer a trip whose page 404s.
+   */
+  const deleteTrip = async () => {
+    if (deleting) return
+    setDeleting(true)
+    try {
+      const res = await fetch(`/api/itineraries/${trip.id}`, { method: 'DELETE', credentials: 'same-origin' })
+      if (!res.ok) {
+        toast.error(tr('That trip could not be deleted. Please try again.', 'Không xóa được chuyến đi. Vui lòng thử lại.'))
+        return
+      }
+      setConfirmingDelete(false)
+      toast.message(tr('Trip deleted.', 'Đã xóa chuyến đi.'))
+      onDeleted?.(trip.id)
+    } catch {
+      toast.error(tr('That trip could not be deleted. Please try again.', 'Không xóa được chuyến đi. Vui lòng thử lại.'))
+    } finally {
+      setDeleting(false)
+    }
+  }
 
   // Word export of the saved plan — server-side assembly from the persisted day plans
   // and stay shortlist (POST /api/itineraries/[id]/docx). Same blob-download pattern as
@@ -266,6 +305,42 @@ export function TripCard({ trip }: { trip: SavedItinerary }) {
             {downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
             {downloading ? tr('Creating Word file…', 'Đang tạo tệp Word…') : tr('Download Word file', 'Tải tệp Word')}
           </Button>
+          {/* Destructive, so it is the LAST control in the row and wears the quiet variant — it must
+              not compete with "Open & edit" for the thumb. A confirm step because a trip is minutes
+              of the traveller's answers plus an AI generation, and nothing here can bring it back. */}
+          <AlertDialog open={confirmingDelete} onOpenChange={setConfirmingDelete}>
+            <AlertDialogTrigger
+              render={
+                <Button type="button" variant="ghost" className="text-destructive hover:bg-destructive/10">
+                  <Trash2 className="h-4 w-4" />
+                  {tr('Delete', 'Xóa')}
+                </Button>
+              }
+            />
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogMedia className="bg-destructive/10 text-destructive">
+                  <TriangleAlert />
+                </AlertDialogMedia>
+                <AlertDialogTitle>{tr('Delete this trip?', 'Xóa chuyến đi này?')}</AlertDialogTitle>
+                <AlertDialogDescription>
+                  {tr('This removes the plan from My Trips and from the drafts you can reopen in chat. It frees one of your three saved-trip slots. The Word file you already downloaded is unaffected.',
+                      'Kế hoạch sẽ bị xóa khỏi Chuyến đi của tôi và khỏi danh sách bản nháp mở lại trong chat. Bạn sẽ được trả lại một trong ba lượt lưu. Tệp Word đã tải về không bị ảnh hưởng.')}
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel render={<Button type="button" variant="outline">{tr('Keep it', 'Giữ lại')}</Button>} />
+                <AlertDialogAction
+                  render={
+                    <Button type="button" variant="cta" className="bg-destructive hover:bg-destructive" disabled={deleting} onClick={(e) => { e.preventDefault(); void deleteTrip() }}>
+                      {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                      {tr('Delete trip', 'Xóa chuyến đi')}
+                    </Button>
+                  }
+                />
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       </Collapsible.Panel>
     </Collapsible.Root>
