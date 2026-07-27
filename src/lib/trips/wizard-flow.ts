@@ -3,8 +3,9 @@ import { randomUUID } from 'node:crypto'
 import { db } from '../db'
 import { getCurrentProfile } from '../admin'
 import { insertMessage, parseMessageMeta, type TripStepMeta } from '../messages'
+import { threadKind } from '../thread-kind'
 import { kv } from '../ratelimit'
-import { getTripAssistanceListingId, getTripDesk } from './dm-thread'
+import { getTripDesk } from './dm-thread'
 
 import {
   LAST_TRIP_WIZARD_STEP, TRIP_WIZARD_STEPS, tripWizardStepSchema,
@@ -323,10 +324,17 @@ const WIZARD_PREVIEW = 'Lên kế hoạch chuyến đi · Planning your trip'
  * it would let a signed-in stranger tell a desk thread from a non-desk one.
  */
 async function threadHostsWizard(convo: ThreadContext['convo']): Promise<TripDesk | null> {
-  const [desk, anchorListingId] = await Promise.all([getTripDesk(), getTripAssistanceListingId()])
-  if (!desk || !anchorListingId) return null
+  // ⚠️ THE ANCHOR TEST NOW COMES FROM threadKind, which is the ONE answer to "what kind of thread
+  // is this" and is shared with the visa side, the customer thread list and the admin queue. This
+  // function used to compare convo.listingId to the trip anchor itself — a second copy of the
+  // discriminator, and the surfaces that render the label had a third. They cannot disagree now.
+  if ((await threadKind(convo)) !== 'itinerary') return null
+  // Still resolved here, and still checked against the thread's seller: `start` needs THIS desk as
+  // the card's author, so the gate must approve the same desk that signs the card. threadKind
+  // answers what the thread is about; it deliberately says nothing about who may write to it.
+  const desk = await getTripDesk()
+  if (!desk) return null
   if (!convo.sellerProfileId || convo.sellerProfileId !== desk.ownerId) return null
-  if (convo.listingId !== anchorListingId) return null
   // Returned rather than re-fetched: `start` needs this exact desk as the card's author, and a
   // second lookup could resolve a DIFFERENT one — the gate would then have approved a desk that
   // is not the one that signs the card.

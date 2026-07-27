@@ -13,6 +13,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 type Row = Record<string, any>
 
 const h = vi.hoisted(() => ({
+  /** Saved itineraries the account already holds — drives the pre-generation cap. */
+  savedItineraries: 0,
   state: {
     profileId: 'p-1' as string | null,
     kv: new Map<string, unknown>(),
@@ -67,7 +69,10 @@ vi.mock('@/lib/gemini', () => ({
   getGemini: () => { void h.state.onGenerate?.(); return null },
 }))
 
-vi.mock('@/lib/db', () => ({ db: {} }))
+// `itinerary.count` is here because the route now checks the saved-trip cap BEFORE generating —
+// see the comment at that call site. Zero saved means every test below has room, so the cap is
+// transparent to them and they keep testing what they were written to test.
+vi.mock('@/lib/db', () => ({ db: { itinerary: { count: async () => h.savedItineraries } } }))
 
 import { POST } from './route'
 
@@ -192,6 +197,35 @@ describe('nothing is spent before the request is known to be worth running', () 
     expect(h.state.aiGuardCalls).toBe(0)
   })
 })
+
+describe('the saved-trip cap is enforced BEFORE anything is spent', () => {
+  it('refuses with 409 when the account is full, and never claims a slot or a token', async () => {
+    // ⚠️ THE SECOND CREATE PATH. POST /api/itineraries enforces the same ceiling; this test exists
+    // because a cap on one of two create paths is not a cap — this route would otherwise write the
+    // fourth itinerary happily.
+    h.savedItineraries = 3
+    const res = await post(validBody())
+    expect(res.status).toBe(409)
+    expect(res.json).toMatchObject({ error: 'itinerary_limit_reached', limit: 3, used: 3 })
+  })
+
+  it('lets a traveller with room through to the normal path', async () => {
+    h.savedItineraries = 2
+    const res = await post(validBody())
+    // Not asserting success — the generation itself is mocked elsewhere in this file. The point is
+    // only that the cap did not intercept it with itinerary_limit_reached.
+    expect(res.json?.error).not.toBe('itinerary_limit_reached')
+  })
+})
+
+// ⚠️ THE SAVE-TIME CAP RE-CHECK IS DELIBERATELY NOT TESTED HERE, and that is a statement about
+// this file rather than about the guard. Every mock above stops the request at the cost boundary —
+// `getGemini` returns null on purpose, and the header says 503 is the SUCCESS signal — so the save
+// block is unreachable from any test in this file. I wrote a TOCTOU test anyway, it passed, and it
+// passed with the guard REMOVED: the route was 503-ing long before the save, so the assertion on
+// savedItineraryId was reading `undefined` and calling it null. Deleted rather than kept green.
+// The re-check itself is exercised by src/lib/itinerary-drafts.test.ts at the arithmetic level and
+// reasoned at the call site; covering it end-to-end needs a test that actually drives a generation.
 
 describe('one generation in flight per account', () => {
   it('a valid request claims the slot, spends once, and RELEASES', async () => {
