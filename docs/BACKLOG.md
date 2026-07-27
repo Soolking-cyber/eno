@@ -149,11 +149,6 @@ that redirect. Same root cause as B4; fix together.
 
 ## P2 — next up
 
-### B4 · The trip listing advertises a visa
-The live trip-planning listing's only image is a red **"VIETNAM SINGLE ENTRY E-VISA / 1 HOUR EXPRESS"**
-advert — misleading on an active, indexed listing, and it breaks the no-visa-wording-on-trip-surfaces
-rule. **Blocked on the owner supplying a trip photo.**
-
 ### B5 · ✅ SHIPPED 2026-07-27 (`056e76a4`, CI green) — Visa/Itinerary labels in the inbox
 Both surfaces read the server's `threadKind` — one label source, never a second rule client-side.
 Measured: 7 of 24 live threads (4 Visa, 3 Trip) became distinguishable; they all showed the identical
