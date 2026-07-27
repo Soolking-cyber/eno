@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { serializeListing } from '@/lib/serialize'
 import { containsPhoneNumber } from '@/lib/phone'
 import { createListingCore } from '@/lib/core/listings'
+import { postingGate } from '@/lib/enforcement'
 import { PublishBlockedError } from '@/lib/publish-guard'
 import { resolveApiKey } from '@/lib/api/auth'
 import { apiOk, apiAuthError } from '@/lib/api/respond'
@@ -55,8 +56,24 @@ export async function POST(req: NextRequest) {
     }
     const category = await db.category.findUnique({ where: { slug: categorySlug }, select: { id: true, slug: true, name: true, nameVi: true } })
     if (!category) return { status: 422, body: { error: { code: 'unknown_category', message: `Unknown category "${categorySlug}".` } } }
-    const seller = await db.seller.findUnique({ where: { id: r.auth.sellerId }, select: { id: true, trustTier: true, trustScore: true, phone: true } })
+    const seller = await db.seller.findUnique({ where: { id: r.auth.sellerId }, select: { id: true, ownerId: true, trustTier: true, trustScore: true, phone: true } })
     if (!seller) return { status: 404, body: { error: { code: 'not_found', message: 'Shop not found.' } } }
+
+    // ⚠️ THE ENFORCEMENT LADDER, AND ITS ABSENCE HERE WAS A HOLE IN THE FENCE. Both siblings in
+    // this very directory run this gate and say so — bulk/route.ts:51 and sync/route.ts:37, each
+    // citing "audit P0 #3: a held seller's pulled catalog must not be restorable through the API".
+    // bulk's comment even calls it "the same gate single-listing POST runs", which was true of the
+    // SESSION post path (api/listings/route.ts) and false of this one: the partner single-create
+    // reached createListingCore with no gate at all. So a seller who was held or suspended — or a
+    // probation account past its listing cap — was blocked on every surface except an API key.
+    //
+    // ⚠️ Not covered by the checks below it either: createListingCore's own refusals key on
+    // `trustTier`, which is the TRUST axis. Enforcement writes `Profile.enforcementState`, a
+    // different one; nothing here consulted it.
+    if (seller.ownerId) {
+      const gate = await postingGate(seller.ownerId, seller.id)
+      if (gate) return { status: 403, body: { error: { code: gate.error, message: 'Posting is blocked for this account right now.' } } }
+    }
 
     try {
       const created = await createListingCore({ seller, category, title, price, body, headers: req.headers })

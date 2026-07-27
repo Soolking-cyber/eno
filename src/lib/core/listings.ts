@@ -29,7 +29,7 @@ import { syndicateListing } from '@/lib/syndicate'
 import { sendMetaCapiEvent, metaUserDataFromHeaders } from '@/lib/meta-capi'
 import { dispatchListingEvent } from '@/lib/webhooks'
 import { browseRankScore, recomputeRankScoreForListing } from '@/lib/ranking'
-import { assertPublishable, assertCleanTexts, assertCleanContactName, assertEnoughAngles, PublishBlockedError } from '@/lib/publish-guard'
+import { assertPublishable, assertCleanTexts, assertCleanContactName, assertEnoughAngles, PublishBlockedError, minPhotosFor } from '@/lib/publish-guard'
 import { findDuplicateListing } from '@/lib/duplicate-guard'
 import { moderateListingById } from '@/lib/ai-moderation'
 import { indexAndCheckProvenance } from '@/lib/image-provenance'
@@ -257,7 +257,9 @@ export async function updateListingCore(
       title: true, description: true, district: true, location: true, brandSlug: true, model: true, subcategorySlug: true, verified: true, images: true, video: true,
       // Price-drop pipeline + urgent gate inputs
       price: true, createdAt: true, sellerId: true, previousPrice: true, priceDropAt: true, lowestNotifiedPrice: true, priceDropNotifiedAt: true, urgentUntil: true,
-      seller: { select: { trustTier: true } }, category: { select: { slug: true, name: true, nameVi: true } },
+      // owner.enforcementState: the ladder's OWN axis. trustTier alone cannot answer "is this
+      // account allowed to publish?" — see the republish branch below.
+      seller: { select: { trustTier: true, owner: { select: { enforcementState: true } } } }, category: { select: { slug: true, name: true, nameVi: true } },
     },
   })
   if (!current) return { ok: false, code: 404, error: 'not_found' }
@@ -461,10 +463,33 @@ export async function updateListingCore(
   // payload that includes `images` already passed that same gate above — so this check
   // only floors the images-not-in-payload case (stored photos) at ≥1, plus requires a
   // non-restricted seller, before flipping verified back on.
-  if (current.verified === false && current.seller?.trustTier !== 'restricted') {
+  //
+  // ⚠️ THE GUARD USED TO ASK THE WRONG QUESTION, AND THE ANSWER WAS ALWAYS "GO AHEAD". It tested
+  // `seller.trustTier !== 'restricted'`, but the suspension ladder does not write trustTier — it
+  // writes `Profile.enforcementState` (good_standing | warned | throttled | held | suspended).
+  // Measured on production 2026-07-27: ALL sellers are trustTier 'standard' and NONE are
+  // 'restricted', so the condition was vacuously true for every account on the platform. A seller
+  // whose catalogue had been pulled could restore any listing by opening the edit screen and
+  // saving. Now it asks the ladder's own axis, the same one postingGate consults.
+  //
+  // ⚠️ minPhotosFor(category), not `>= 1`. The floor is per-category (services 1, goods 3, unknown
+  // strict) and this branch is a PUBLISH decision, so it must use the same bar the publish guard
+  // uses — a hard-coded 1 quietly published goods that create would have refused.
+  //
+  // ⚠️ STILL OPEN, DELIBERATELY NOT FAKED HERE: this cannot yet distinguish "held because the
+  // photos were below the bar" from "unpublished by an admin". Both are `verified === false` and
+  // nothing else is written — the bare `unpublish` action (api/admin/moderate/route.ts:168) leaves
+  // no trace at all, and the one held listing in production carries 1 image, so "a photo-hold has
+  // zero photos" is measurably false and cannot be used as the discriminator either. Closing that
+  // needs a column recording WHY a listing is unverified; it is on the backlog rather than guessed
+  // at. What this change does close is the enforcement half: a held or suspended seller can no
+  // longer republish anything by editing it.
+  const enforcement = current.seller?.owner?.enforcementState
+  const blockedByLadder = enforcement === 'held' || enforcement === 'suspended'
+  if (current.verified === false && current.seller?.trustTier !== 'restricted' && !blockedByLadder) {
     let imgs: string[] = []
     try { imgs = data.images !== undefined ? JSON.parse(data.images as string) : JSON.parse(current.images || '[]') } catch { imgs = [] }
-    if (imgs.length >= 1) data.verified = true
+    if (imgs.length >= minPhotosFor(current.category?.slug)) data.verified = true
   }
 
   // Price-drop pipeline — runs LAST, once every validation above has passed, so a
