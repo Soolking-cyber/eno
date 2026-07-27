@@ -29,7 +29,7 @@ import { syndicateListing } from '@/lib/syndicate'
 import { sendMetaCapiEvent, metaUserDataFromHeaders } from '@/lib/meta-capi'
 import { dispatchListingEvent } from '@/lib/webhooks'
 import { browseRankScore, recomputeRankScoreForListing } from '@/lib/ranking'
-import { assertPublishable, assertCleanTexts, assertCleanContactName, assertEnoughAngles, PublishBlockedError, minPhotosFor } from '@/lib/publish-guard'
+import { assertPublishable, assertCleanTexts, assertCleanContactName, assertEnoughAngles, PublishBlockedError } from '@/lib/publish-guard'
 import { findDuplicateListing } from '@/lib/duplicate-guard'
 import { moderateListingById } from '@/lib/ai-moderation'
 import { indexAndCheckProvenance } from '@/lib/image-provenance'
@@ -257,9 +257,7 @@ export async function updateListingCore(
       title: true, description: true, district: true, location: true, brandSlug: true, model: true, subcategorySlug: true, verified: true, images: true, video: true,
       // Price-drop pipeline + urgent gate inputs
       price: true, createdAt: true, sellerId: true, previousPrice: true, priceDropAt: true, lowestNotifiedPrice: true, priceDropNotifiedAt: true, urgentUntil: true,
-      // owner.enforcementState: the ladder's OWN axis. trustTier alone cannot answer "is this
-      // account allowed to publish?" — see the republish branch below.
-      seller: { select: { trustTier: true, owner: { select: { enforcementState: true } } } }, category: { select: { slug: true, name: true, nameVi: true } },
+      seller: { select: { trustTier: true } }, category: { select: { slug: true, name: true, nameVi: true } },
     },
   })
   if (!current) return { ok: false, code: 404, error: 'not_found' }
@@ -456,41 +454,31 @@ export async function updateListingCore(
   const newModel = (data.model as string | null | undefined) ?? current.model
   data.searchText = buildSearchText([newTitle, newDesc, newDistrict, current.category.name, current.category.nameVi, newBrand, newModel])
 
-  // Republish a HELD listing (verified=false — it was photoless or the seller was
-  // Restricted) the moment it becomes eligible again: adding a photo to a held listing
-  // must make it public, not leave it dead inventory (manual moderation was removed).
-  // Create's photo bar is now ≥3 distinct angles (assertEnoughAngles), and an edit
-  // payload that includes `images` already passed that same gate above — so this check
-  // only floors the images-not-in-payload case (stored photos) at ≥1, plus requires a
-  // non-restricted seller, before flipping verified back on.
+  // ⚠️ THERE IS NO AUTO-REPUBLISH ANY MORE, AND REMOVING IT IS THE FIX — not a regression.
   //
-  // ⚠️ THE GUARD USED TO ASK THE WRONG QUESTION, AND THE ANSWER WAS ALWAYS "GO AHEAD". It tested
-  // `seller.trustTier !== 'restricted'`, but the suspension ladder does not write trustTier — it
-  // writes `Profile.enforcementState` (good_standing | warned | throttled | held | suspended).
-  // Measured on production 2026-07-27: ALL sellers are trustTier 'standard' and NONE are
-  // 'restricted', so the condition was vacuously true for every account on the platform. A seller
-  // whose catalogue had been pulled could restore any listing by opening the edit screen and
-  // saving. Now it asks the ladder's own axis, the same one postingGate consults.
+  // This branch used to flip `verified` back to true when a seller edited a held listing, on the
+  // premise that verified=false meant "created below the photo bar, let them fix it". That premise
+  // is dead: EVERY create path now writes `verified: true` (createListingCore's own insert, and
+  // bulk.ts:168; sync writes no verified at all) and a publish violation THROWS PublishBlockedError
+  // instead of saving a held row. So nothing produces a photo-held listing.
   //
-  // ⚠️ minPhotosFor(category), not `>= 1`. The floor is per-category (services 1, goods 3, unknown
-  // strict) and this branch is a PUBLISH decision, so it must use the same bar the publish guard
-  // uses — a hard-coded 1 quietly published goods that create would have refused.
+  // What DOES produce verified=false is, exhaustively: an admin unverify
+  // (api/admin/listings/route.ts:87), the moderation queue (api/admin/moderate/route.ts:133,168,205),
+  // the duplicate/provenance auto-hold (lib/image-provenance.ts:85), the AI moderation auto-hold
+  // (lib/ai-moderation.ts:156), and the enforcement ladder pulling a seller's catalogue
+  // (lib/enforcement.ts:283). Every one of those is a TAKEDOWN. Auto-republishing any of them
+  // because the seller edited the row is exactly the bypass this removal closes — and the old guard
+  // could not tell them apart, because all six write the same single boolean and nothing else.
   //
-  // ⚠️ STILL OPEN, DELIBERATELY NOT FAKED HERE: this cannot yet distinguish "held because the
-  // photos were below the bar" from "unpublished by an admin". Both are `verified === false` and
-  // nothing else is written — the bare `unpublish` action (api/admin/moderate/route.ts:168) leaves
-  // no trace at all, and the one held listing in production carries 1 image, so "a photo-hold has
-  // zero photos" is measurably false and cannot be used as the discriminator either. Closing that
-  // needs a column recording WHY a listing is unverified; it is on the backlog rather than guessed
-  // at. What this change does close is the enforcement half: a held or suspended seller can no
-  // longer republish anything by editing it.
-  const enforcement = current.seller?.owner?.enforcementState
-  const blockedByLadder = enforcement === 'held' || enforcement === 'suspended'
-  if (current.verified === false && current.seller?.trustTier !== 'restricted' && !blockedByLadder) {
-    let imgs: string[] = []
-    try { imgs = data.images !== undefined ? JSON.parse(data.images as string) : JSON.parse(current.images || '[]') } catch { imgs = [] }
-    if (imgs.length >= minPhotosFor(current.category?.slug)) data.verified = true
-  }
+  // ⚠️ Two "smarter" fixes were tried and rejected with evidence before landing on deletion: a
+  // `heldReason` column (fails closed only if every one of those six paths is updated AND legacy
+  // NULLs are treated as admin holds — otherwise it grandfathers in every existing takedown), and
+  // inferring the photo-hold from "the listing had zero photos" (refuted by measurement: the last
+  // held listing in production carried 1 image while its category required 3).
+  //
+  // The escape hatch is real and already built: an operator re-publishes with the admin `verify`
+  // action (api/admin/listings/route.ts:86). Restoring a listing a human or a moderation system
+  // pulled should take a human, which is the whole point.
 
   // Price-drop pipeline — runs LAST, once every validation above has passed, so a
   // rejected edit never writes an audit row. Reads history, computes the 30-day-min

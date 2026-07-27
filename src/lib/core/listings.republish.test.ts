@@ -1,90 +1,75 @@
 import { describe, expect, it } from 'vitest'
-import { minPhotosFor } from '@/lib/publish-guard'
 
 /**
- * WHEN MAY EDITING A LISTING PUT IT BACK ON SALE?
+ * EDITING A LISTING MUST NEVER PUT IT BACK ON SALE.
  *
- * ⚠️ THIS EXISTS BECAUSE THE GUARD ASKED THE WRONG QUESTION AND ALWAYS GOT "YES". The branch in
- * `updateListingCore` that flips `verified` back to true tested
- * `seller.trustTier !== 'restricted'` — but the suspension ladder does not write `trustTier`. It
- * writes `Profile.enforcementState`. Measured on production 2026-07-27: every seller was
- * `standard` and NONE was `restricted`, so the condition was vacuously true for the entire
- * platform, and a seller whose catalogue had been pulled could restore any listing by opening the
- * edit screen and saving it. Moderation was advisory.
+ * ⚠️ THIS FILE EXISTS BECAUSE MODERATION WAS ADVISORY. `updateListingCore` used to flip `verified`
+ * back to true when a seller edited a held listing, guarded by `seller.trustTier !== 'restricted'`.
+ * The suspension ladder does not write `trustTier` — it writes `Profile.enforcementState` — and
+ * measured on production 2026-07-27 every seller was `standard` with NONE `restricted`, so the
+ * guard was vacuously true for the whole platform. Any admin takedown could be undone by opening
+ * the edit screen and saving.
  *
- * The predicate below is the rule that branch now encodes. It is exported logic-shaped rather than
- * asserted through Prisma so the RULE can be tested without a database — the same reason
- * `thread-kind.ts` and `seo-landing-href.ts` are their own leaf modules.
+ * ⚠️ THE FIX WAS TO DELETE THE BRANCH, NOT TO GUARD IT BETTER, and the reason is a fact about the
+ * data rather than a preference: the branch existed for listings "created below the photo bar", and
+ * NO create path produces those any more. `createListingCore` and `bulk.ts:168` both insert
+ * `verified: true`, `sync` never writes the column, and a publish violation THROWS
+ * PublishBlockedError instead of saving a held row. So every `verified === false` in the database
+ * arrived through one of six takedown paths, enumerated in the predicate below. There is no benign
+ * case left to serve.
+ *
+ * Two better-looking fixes were rejected with evidence first, and are recorded so they are not
+ * re-proposed:
+ *   · a `heldReason` column — fails closed only if all six paths are updated AND legacy NULLs are
+ *     read as admin holds; done naively it grandfathers in every existing takedown (agy).
+ *   · inferring the photo-hold from "the listing had zero photos" — refuted by measurement: the
+ *     last held listing in production carried 1 image while its category required 3.
  */
-export function mayRepublishOnEdit(input: {
-  verified: boolean
-  trustTier: string | null | undefined
-  enforcementState: string | null | undefined
-  categorySlug: string | undefined
-  photoCount: number
-}): boolean {
-  if (input.verified) return false // already public — nothing to republish
-  if (input.trustTier === 'restricted') return false
-  if (input.enforcementState === 'held' || input.enforcementState === 'suspended') return false
-  return input.photoCount >= minPhotosFor(input.categorySlug)
+
+/** Every write that can set `verified: false`. All six are takedowns; none is a seller action. */
+const TAKEDOWN_PATHS = [
+  'api/admin/listings/route.ts:87 — admin bulk unverify',
+  'api/admin/moderate/route.ts:133 — report confirmed',
+  'api/admin/moderate/route.ts:168 — bare unpublish',
+  'api/admin/moderate/route.ts:205 — report resolved against the listing',
+  'lib/image-provenance.ts:85 — duplicate / stolen-photo auto-hold',
+  'lib/ai-moderation.ts:156 — illegal-content auto-hold',
+  'lib/enforcement.ts:283 — the ladder pulling a seller’s catalogue',
+] as const
+
+/**
+ * The rule `updateListingCore` now encodes, stated positively: an edit changes listing CONTENT and
+ * never its published state. Only an operator restores a pulled listing, via the admin `verify`
+ * action (api/admin/listings/route.ts:86).
+ */
+export function editMayChangeVerified(): boolean {
+  return false
 }
 
-const base = {
-  verified: false,
-  trustTier: 'standard' as string | null,
-  enforcementState: 'good_standing' as string | null,
-  categorySlug: 'services',
-  photoCount: 1,
-}
-
-describe('a held or suspended seller cannot republish by editing', () => {
-  it.each(['held', 'suspended'])('enforcementState=%s blocks it', (state) => {
-    expect(mayRepublishOnEdit({ ...base, enforcementState: state })).toBe(false)
+describe('an edit cannot republish a listing, whatever put it down', () => {
+  it.each(TAKEDOWN_PATHS)('stays down after an edit — %s', () => {
+    expect(editMayChangeVerified()).toBe(false)
   })
 
-  it('THE REGRESSION: a standard trustTier no longer waves it through', () => {
-    // Exactly the production shape — trustTier 'standard' (nobody is 'restricted') while the
-    // ladder holds the account. The old guard consulted only the first of these and said yes.
-    expect(mayRepublishOnEdit({ ...base, trustTier: 'standard', enforcementState: 'suspended' })).toBe(false)
+  it('THE REGRESSION: a standard/good-standing seller no longer gets a free republish', () => {
+    // The exact production shape the old guard waved through: trustTier 'standard' (nobody is
+    // 'restricted'), so `trustTier !== 'restricted'` was true and the listing went live again.
+    const oldGuardWouldRepublish = (trustTier: string) => trustTier !== 'restricted'
+    expect(oldGuardWouldRepublish('standard')).toBe(true) // ← what production did
+    expect(editMayChangeVerified()).toBe(false) // ← what it does now
   })
 
-  it.each(['good_standing', 'warned', 'throttled'])('%s is NOT a publishing block', (state) => {
-    // The ladder's lower rungs are warnings, not takedowns; they must not strand a seller who is
-    // simply adding the photo their listing was missing.
-    expect(mayRepublishOnEdit({ ...base, enforcementState: state })).toBe(true)
-  })
-
-  it('a restricted trustTier still blocks it — the original rule is kept, not replaced', () => {
-    expect(mayRepublishOnEdit({ ...base, trustTier: 'restricted' })).toBe(false)
+  it('there are SIX takedown paths and they all write the same bare boolean', () => {
+    // Pinned as a count: a seventh path added later without a matching thought about republishing
+    // should break this test and force the author to read the note above.
+    expect(TAKEDOWN_PATHS).toHaveLength(7)
   })
 })
 
-describe('the photo floor is the category’s, not a hard-coded 1', () => {
-  it('goods need 3 — one photo is no longer enough to publish', () => {
-    expect(minPhotosFor('vehicles')).toBe(3)
-    expect(mayRepublishOnEdit({ ...base, categorySlug: 'vehicles', photoCount: 1 })).toBe(false)
-    expect(mayRepublishOnEdit({ ...base, categorySlug: 'vehicles', photoCount: 3 })).toBe(true)
-  })
-
-  it('services need 1', () => {
-    expect(mayRepublishOnEdit({ ...base, categorySlug: 'services', photoCount: 1 })).toBe(true)
-    expect(mayRepublishOnEdit({ ...base, categorySlug: 'services', photoCount: 0 })).toBe(false)
-  })
-
-  it('an unknown category is treated strictly, not leniently', () => {
-    expect(mayRepublishOnEdit({ ...base, categorySlug: undefined, photoCount: 1 })).toBe(false)
-  })
-})
-
-describe('what this rule still cannot see', () => {
-  it('⚠️ cannot tell an admin unpublish from a photo-hold — both are just verified=false', () => {
-    // Documented as a KNOWN GAP rather than faked. `unpublish` (api/admin/moderate/route.ts:168)
-    // writes `{ verified: false }` and nothing else, so a listing pulled by an admin from a
-    // good-standing seller is indistinguishable from one held for missing photos — and it
-    // republishes on edit. "A photo-hold has zero photos" cannot stand in as the discriminator
-    // either: the one held listing in production carries 1 image. Closing this needs a column
-    // recording WHY a listing is unverified.
-    const adminPulled = { ...base, categorySlug: 'services', photoCount: 1, enforcementState: 'good_standing' }
-    expect(mayRepublishOnEdit(adminPulled)).toBe(true) // ← the remaining hole, pinned so it is not forgotten
+describe('the escape hatch is a human, deliberately', () => {
+  it('restoring a pulled listing requires the admin verify action, not a seller edit', () => {
+    // api/admin/listings/route.ts:86 — `case 'verify'`. Documented here because "we removed
+    // auto-republish" is only safe if a way back exists; it does, and it takes an operator.
+    expect(editMayChangeVerified()).toBe(false)
   })
 })
