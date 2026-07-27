@@ -1,4 +1,5 @@
 import { db } from '@/lib/db'
+import { VIETNAM_EVISA_PATHS } from '@/app/vietnam-evisa/links'
 import { HELP_TOPIC_SLUGS } from '@/lib/help-center'
 import { slugify } from '@/lib/slug'
 import { NextResponse } from 'next/server'
@@ -113,6 +114,17 @@ export async function GET() {
       'services-for-expats-vietnam',
     ]) {
       xml += `  <url><loc>${hostUrl}/${p}</loc>${lm(siteLastmod)}</url>\n`
+    }
+
+    // The e-visa cluster: the /vietnam-evisa hub and its long-tail children.
+    //
+    // ⚠️ IMPORTED, NOT RETYPED. The list above is hard-coded, which is exactly how a landing page
+    // ships and is then never submitted — the route exists, the sitemap does not know, and nothing
+    // fails. `VIETNAM_EVISA_PATHS` is derived from the same EVISA_CHILDREN array the hub renders
+    // its links from, so adding a child adds it here too. The paths carry `siteLastmod` for the
+    // same reason the block above does: their listing rails track the site's freshest content.
+    for (const path of VIETNAM_EVISA_PATHS) {
+      xml += `  <url><loc>${hostUrl}${path}</loc>${lm(siteLastmod)}</url>\n`
     }
 
     // Indexing decoupled from PRELAUNCH (owner, 2026-07-18): the full data-driven
