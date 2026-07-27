@@ -3,9 +3,23 @@
 # single group closes a leak where named bots (Googlebot/Bingbot) previously had
 # no Disallow and could crawl /admin.
 # Auth-gated app pages (/signin /onboard /post /account /saved /dashboard
-# /messages) are deliberately NOT disallowed: they carry meta noindex, and a
-# Disallow would block crawlers from ever SEEING that noindex — the URLs could
-# then linger in the index as "indexed, though blocked by robots.txt".
+# /messages) are deliberately NOT disallowed: they each carry a noindex directive,
+# and a Disallow would block crawlers from ever SEEING it — the URLs could then
+# linger in the index as "indexed, though blocked by robots.txt".
+#
+# ⚠️ TWO MECHANISMS, NOT ONE, AND THIS COMMENT USED TO CLAIM OTHERWISE. It said all of
+# them "carry meta noindex". Measured on production 2026-07-27, /messages,
+# /messages/ai, /messages/pending and /saved carried NO robots meta at all — they are
+# client components and cannot export metadata, so they were returning 200, indexable,
+# wearing the homepage's title. They now carry an `X-Robots-Tag: noindex, nofollow`
+# RESPONSE HEADER instead, set in next.config.ts. So, precisely:
+#   · meta noindex  — /signin, /onboard, /post, and every /dashboard/* section page
+#   · X-Robots-Tag  — /messages/:path*, /messages, /saved  (next.config.ts headers())
+#   · redirects     — /account and /dashboard, which only 30x into the pages above
+# The premise this file's Disallow policy rests on holds either way: a header is as
+# invisible to a crawler that was never allowed to fetch the URL as a meta tag is.
+# Verify a claim here against next.config.ts before repeating it — the whole reason the
+# gap survived is that the comment sounded authoritative.
 # Sensitive trust/ops surfaces (/disputes /appeal /reports /unsubscribe) get the
 # opposite call: keeping crawlers out entirely outweighs that trade-off there.
 User-agent: *
