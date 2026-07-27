@@ -3,7 +3,7 @@
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState, useCallback } from 'react'
 import Link from 'next/link'
 
-import { useParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import { useAuth } from '@/context/auth-context'
 import { cn } from '@/lib/utils'
 import { contactLinksFor, extractPhoneNumber } from '@/lib/phone'
@@ -214,6 +214,7 @@ type Thread = {
 
 export default function ThreadPage() {
   const { id } = useParams<{ id: string }>()
+  const router = useRouter()
   const { user, loading } = useAuth()
   const { lang, tr } = useLanguage()
   const locale = moneyLocale(lang) // offer amounts follow the viewer's language
@@ -867,6 +868,16 @@ export default function ThreadPage() {
       const res = await visaPost(`/api/visa/applications/${applicationId}/resume`)
       if (!res.ok) { setVisaResendError(res.error ?? 'internal_error'); return }
       haptic()
+      // ⚠️ THE CARD DOES NOT ALWAYS LAND IN THIS THREAD, AND PRETENDING OTHERWISE WAS THE BUG.
+      // `Conversation.visaApplicationId` is @unique, so a case lives in exactly ONE thread;
+      // `bindVisaThread` returns the thread that already owns it rather than moving it here, and
+      // `resendVisaDmCard` then posts the form THERE. This used to call `load()` on the current
+      // thread regardless — so an applicant standing in their 1-Hour chat picked another case,
+      // saw absolutely nothing happen, and the form appeared in a different conversation they were
+      // never taken to (owner, 2026-07-27: "it opens new chat for standard visa and sends form
+      // there"). Follow the card: the route tells us where it went, so go there.
+      const target = typeof res.data?.conversationId === 'string' ? res.data.conversationId : null
+      if (target && target !== id) { router.push(`/messages/${target}`); return }
       await load()
       requestAnimationFrame(() => { scrollBottom(true); setNewBelow(false) })
       refreshUnread(); refreshConvos()
