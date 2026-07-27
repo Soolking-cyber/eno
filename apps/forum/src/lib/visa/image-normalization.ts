@@ -1,4 +1,8 @@
-import sharp from 'sharp'
+// ⚠️ `import type { Metadata }`, not `Metadata`. sharp 0.35 (taken for the libvips CVEs
+// CVE-2026-33327/33328/35590/35591) stopped exposing its types as a NAMESPACE on the default
+// export, so the old `Metadata` stopped resolving and the production build failed with
+// "Cannot find namespace 'sharp'" — tsc caught it, vitest did not, because no test imports this.
+import sharp, { type Metadata } from 'sharp'
 
 export const VISA_IMAGE_RULES_VERSION = 'evisa-images-2026-07-16'
 export type VisaImageKind = 'portrait' | 'passport' | 'supporting'
@@ -6,7 +10,7 @@ export type VisaImageKind = 'portrait' | 'passport' | 'supporting'
 const OFFICIAL_MAX_BYTES = 1_900_000
 const MAX_INTAKE_BYTES = 15 * 1024 * 1024
 
-function orientedDimensions(metadata: sharp.Metadata) {
+function orientedDimensions(metadata: Metadata) {
   const rotated = metadata.orientation && metadata.orientation >= 5 && metadata.orientation <= 8
   return {
     width: rotated ? metadata.height : metadata.width,
@@ -16,7 +20,7 @@ function orientedDimensions(metadata: sharp.Metadata) {
 
 export async function normalizeVisaImage(input: Buffer, kind: VisaImageKind) {
   if (!input.length || input.length > MAX_INTAKE_BYTES) throw new Error('image_size_invalid')
-  let metadata: sharp.Metadata
+  let metadata: Metadata
   try {
     metadata = await sharp(input, { limitInputPixels: 40_000_000, failOn: 'error' }).metadata()
   } catch {
