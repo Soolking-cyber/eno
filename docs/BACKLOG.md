@@ -314,13 +314,25 @@ against ~77s/build**, and Cloud Build is already ~62% of the GCP bill, so the sa
 and the split-chunk config and `inlineCss: false` are load-bearing for the measured LCP. Not worth
 risking for a build that is not blocking anyone.
 
-### B10 · The go-back rail for the VISA wizard
-The trip wizard got it on 2026-07-27 (owner: *"in chat for visa and trip planner make so user can go
-back and check or edit previously given answers in cards"*). Visa was deliberately held back and is
-still owed. It is not the same job: visa answers are **PII**, they are persisted server-side rather
-than living in a client draft, and editing one re-takes the consent tick — so the rail has to drive
-the existing edit endpoint instead of mutating a local object. `EDITABLE_VISA_STATUSES` already names
-which cases may be touched at all.
+### B10 · ✅ SHIPPED 2026-07-28 (`886c833a`) — the visa wizard's go-back rail
+The 5-dot rail is now the control: steps already reached are tappable, the card re-renders that
+step's questions pre-filled from the applicant's own case, and saving goes through the same endpoint
+the live step uses.
+
+**Server**: the act route stopped hardcoding `step: meta.step` and accepts an optional step clamped
+to `1 <= step <= meta.step` (the CARD's step). No new capability — the writable set becomes the union
+of steps already reached, which is exactly what the applicant could write while passing through them.
+Ownership, `EDITABLE_STATUSES`, whole-payload zod revalidation, the CAS on `updated_at` and the audit
+event are all untouched.
+
+⚠️ **What makes it safe after a purchase is the STATUS gate, not the bound.** `entryType` (single vs
+multiple entry) is in step 4 and must match the product paid for — but payment takes the case out of
+`EDITABLE_STATUSES`, so no step can be rewritten underneath a purchase. Pinned by a test that flips
+the status to `submitted` and asserts `application_locked`.
+
+⚠️ **Advancing verbs belong to the live step only.** Acknowledge/Skip vanish while an earlier step is
+on screen, and `submitEdit`'s "nothing changed → acknowledge" path just closes instead — otherwise
+"let me check what I put" silently becomes "confirm and continue".
 
 ---
 
