@@ -220,6 +220,17 @@ export async function advanceTripWizard(input: {
   const context = await requireTraveller(input.conversationId)
   if (typeof context === 'string') return { ok: false, error: context }
 
+  // ⚠️ A WIZARD MAY NOT BE DRIVEN INSIDE AN e-VISA THREAD, even one that is already running. Cards
+  // authored before the anchor fix are still out there (the owner's thread cmrvk2xnl holds an
+  // active one), and `advance` used to check only "is there a card and are you its traveller".
+  //
+  // ⚠️ THE TEST IS `=== 'visa'`, NOT `!== 'itinerary'`, and that is what keeps this from adding a
+  // new way to strand somebody. threadKind fails CLOSED to 'listing' on a desk-lookup outage, so an
+  // allow-list would turn a transient outage into a wizard nobody can finish — while `start`, which
+  // does use the allow-list, only refuses to BEGIN. Denying the one kind we can positively identify
+  // closes the crossover without inventing a mid-flow failure.
+  if ((await threadKind(context.convo)) === 'visa') return { ok: false, error: 'no_active_wizard' }
+
   const card = await activeWizardCard(input.conversationId)
   if (!card || card.meta.state !== 'active') return { ok: false, error: 'no_active_wizard' }
   // The claim in the body must match the card — a jump forward cannot skip a step's validation.

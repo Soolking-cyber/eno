@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { CalendarCheck, Check, ChevronDown, FolderOpen, Loader2, MapPinned, Sparkles, X } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
@@ -16,7 +16,7 @@ import { formatMoneyFull, moneyLocale } from '@/lib/vnd'
 import {
   ACCOMMODATION_LABELS, BUDGETS, CITIES, INTEREST_LABELS, PACE_LABELS,
 } from '@/lib/itinerary-data'
-import { LAST_TRIP_WIZARD_STEP } from '@/lib/trips/itinerary-wizard'
+import { LAST_TRIP_WIZARD_STEP, tripWizardChip } from '@/lib/trips/itinerary-wizard'
 import { ChatCard, ChatCardSteps } from '@/components/marketplace/chat-card-shell'
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel,
@@ -712,36 +712,62 @@ function TripDraftsChip() {
   )
 }
 
-export function TripWizardLauncher({ conversationId, onStarted }: { conversationId: string; onStarted: () => void }) {
+export function TripWizardLauncher({
+  conversationId, liveWizardMessageId, autoStart, onStarted, onReveal,
+}: {
+  conversationId: string
+  /** The live wizard card's message id, derived by the page from the SAME list it renders. */
+  liveWizardMessageId: string | null
+  /** Arrived from a "Plan my trip" CTA: open the wizard without a second tap. One-shot. */
+  autoStart?: boolean
+  onStarted: () => void
+  /** Bring a card into view. The page owns the scroll container, so it owns the scrolling. */
+  onReveal: (messageId: string) => void
+}) {
   const { tr } = useLanguage()
   /**
-   * TWO SEPARATE FACTS, from ONE server answer.
+   * ONE FACT FROM THE SERVER: is this the trip desk's thread, and am I the traveller on it? That is
+   * `threadHostsWizard`, which since T334 IS `threadKind(convo) === 'itinerary'`. Nothing else tells
+   * the client a thread belongs to the trip desk, so this fetch cannot be dropped.
    *
-   * `eligible` alone means "this is the trip desk's thread and you are the traveller on it" — it is
-   * `threadHostsWizard`, which since T334 IS `threadKind(convo) === 'itinerary'`. `step === null`
-   * additionally means no wizard is running.
+   * ⚠️ WHETHER A WIZARD IS RUNNING IS NOT ASKED FOR ANY MORE, and that is the fix for the bug the
+   * owner reported on 2026-07-28 ("when i click plan my trip it just sends message instead of giving
+   * me the form"). This used to hold a second, independently-fetched `step`, and hid the chip
+   * entirely while `step !== null`. Measured on production: the traveller's trip thread carried an
+   * ACTIVE step-1 card from 09:01Z, so the chip was hidden — and because a wizard card is updated in
+   * place it stayed pinned as the FIRST item in a thirteen-message thread, scrolled far above the
+   * fold. The wizard was live and unreachable, and the only visible way to "plan a trip" was the
+   * product page's CTA, which just posted another line of chat. Ten identical messages later, the
+   * form had still never appeared.
    *
-   * They gate different chips, and conflating them is what would go wrong: "Plan a trip" must hide
-   * while a wizard is live (two entry points is how a traveller restarts the flow by accident), but
-   * "Saved trips" must stay — reopening an earlier trip is exactly what someone does while a new one
-   * is half-answered. The old code stored only the conjunction, so the whole row vanished mid-wizard.
+   * So the live card now comes from the page, which derives it from the very array it renders. The
+   * chip and the card cannot disagree about whether a wizard exists, and the second fetch that could
+   * go stale (it ran once on mount and was never refreshed) is gone.
    */
   const [isTripThread, setIsTripThread] = useState(false)
-  const [canStart, setCanStart] = useState(false)
   const [busy, setBusy] = useState(false)
+  /**
+   * WHICH thread was auto-started, not WHETHER one was.
+   *
+   * ⚠️ A BARE BOOLEAN LEAKS ACROSS THREADS IN BOTH DIRECTIONS, which is why this holds an id. The
+   * messages route does not remount when the traveller walks from one conversation to another — the
+   * same component just receives a new `conversationId` — so a `true` here would refuse to open the
+   * planner on the SECOND thread arrived at with ?plan=1, and the equivalent slip on the page's side
+   * would open one on a thread that never asked. Keying on the id makes both impossible.
+   */
+  const startedFor = useRef<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
+    // Reset first: eligibility belongs to a conversation, and holding the previous thread's answer
+    // while this one is in flight would flash a trip chip onto somebody else's listing chat.
+    setIsTripThread(false)
     void (async () => {
       try {
         const res = await fetch(`/api/trips/wizard?conversationId=${encodeURIComponent(conversationId)}`, { cache: 'no-store' })
         if (!res.ok || cancelled) return
-        const data = (await res.json()) as { eligible: boolean; step: number | null }
-        if (cancelled) return
-        setIsTripThread(data.eligible)
-        // Offer the START chip only when there is nothing to resume — a running wizard renders its
-        // own card, and two entry points to one flow is how a traveller ends up restarting it.
-        setCanStart(data.eligible && data.step === null)
+        const data = (await res.json()) as { eligible: boolean }
+        if (!cancelled) setIsTripThread(data.eligible)
       } catch {
         // A thread that cannot answer simply shows no chip.
       }
@@ -749,41 +775,74 @@ export function TripWizardLauncher({ conversationId, onStarted }: { conversation
     return () => { cancelled = true }
   }, [conversationId])
 
-  // Not this thread's business at all → render nothing, so `empty:hidden` collapses the shared row.
-  if (!isTripThread) return null
-
-  const start = async () => {
+  /**
+   * Ensure a wizard exists, then show it.
+   *
+   * ⚠️ ONE HANDLER FOR BOTH CHIPS, because `start` is idempotent — it returns the RUNNING card
+   * rather than inserting a second one. That is what makes this correct even when the page has
+   * painted from its localStorage cache and does not yet know a card exists: the chip says "Plan a
+   * trip", the server answers with the card already there, and we scroll to it. A client that
+   * guessed wrong gets the right outcome instead of a duplicate.
+   */
+  const open = async () => {
     if (busy) return
+    if (liveWizardMessageId) { onReveal(liveWizardMessageId); return }
     setBusy(true)
     try {
       const res = await fetch('/api/trips/wizard', {
         method: 'POST', headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ action: 'start', conversationId }),
       })
-      if (res.ok) { setCanStart(false); onStarted() }
+      if (!res.ok) return
+      const data = (await res.json().catch(() => null)) as { messageId?: string } | null
+      onStarted()
+      if (data?.messageId) onReveal(data.messageId)
     } finally {
       setBusy(false)
     }
   }
+
+  /**
+   * The "Plan my trip" CTA promised a form, so opening the thread must produce one — a traveller who
+   * has just tapped it should not have to find and tap a chip as well.
+   *
+   * One-shot per mount, and it only fires once eligibility has come back, so it can never post a
+   * desk card into a thread the wizard does not belong to. Re-entering the URL is harmless for the
+   * same reason `open` is: `start` resumes rather than restarting.
+   */
+  useEffect(() => {
+    if (!autoStart || !isTripThread || startedFor.current === conversationId) return
+    startedFor.current = conversationId
+    void open()
+    // Deps are the three facts that decide WHETHER to fire; `startedFor` is what makes it once per
+    // thread. `open` is deliberately absent — it is recreated every render, and depending on it
+    // would re-run this whenever anything else in the thread re-renders.
+  }, [autoStart, isTripThread, conversationId])
+
+  // Not this thread's business at all → render nothing, so `empty:hidden` collapses the shared row.
+  const chip = tripWizardChip({ eligible: isTripThread, liveWizardMessageId })
+  if (chip === 'none') return null
 
   // ⚠️ A FRAGMENT, NOT A WRAPPER. The caller owns ONE flex row above the composer (owner: "put them
   // in 1 line"), so these must be direct items of it; a wrapping <div> would make the pair a single
   // item and reintroduce the stacked-rows layout that rule exists to prevent.
   return (
     <>
-      {canStart && (
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={busy}
-          onClick={() => void start()}
-          /* `relative` for the same tap-44 reason as the drafts chip — see the note there. */
-          className="relative"
-        >
-          {busy ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <Sparkles className="size-4" aria-hidden />}
-          {tr('Plan a trip', 'Lên kế hoạch chuyến đi')}
-        </Button>
-      )}
+      <Button
+        variant="outline"
+        size="sm"
+        disabled={busy}
+        onClick={() => void open()}
+        /* `relative` for the same tap-44 reason as the drafts chip — see the note there. */
+        className="relative"
+      >
+        {busy ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <Sparkles className="size-4" aria-hidden />}
+        {/* The label is the honest one for each case: a half-answered wizard is not a new trip, and
+            calling it "Plan a trip" is what made a returning traveller think nothing had happened. */}
+        {chip === 'resume'
+          ? tr('Continue planning', 'Tiếp tục lên kế hoạch')
+          : tr('Plan a trip', 'Lên kế hoạch chuyến đi')}
+      </Button>
       <TripDraftsChip />
     </>
   )

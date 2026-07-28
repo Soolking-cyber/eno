@@ -36,6 +36,30 @@ export const LAST_TRIP_WIZARD_STEP: TripWizardStep = 5
 /** The ceiling on route length. The generate route imports this rather than restating it. */
 export const MAX_ROUTE_CITIES = 15
 
+/** What the chip above the composer offers. */
+export type TripWizardChip = 'none' | 'start' | 'resume'
+
+/**
+ * WHICH ENTRY POINT A TRIP THREAD OFFERS.
+ *
+ * ⚠️ A RUNNING WIZARD MUST NEVER HIDE THE CHIP. It did, and the whole feature became unreachable:
+ * the launcher offered "Plan a trip" only while no wizard was running, on the reasoning that "a
+ * running wizard renders its own card, and two entry points is how a traveller restarts the flow by
+ * accident". But a wizard card is UPDATED IN PLACE — it keeps the timeline position it was created
+ * at — so once a few messages land on top of it, the card is above the fold and the chip that could
+ * bring it back has hidden itself precisely because the card exists. Measured on production
+ * 2026-07-28: an active step-1 card from 09:01Z sat first in a thirteen-message thread while the
+ * owner tapped the product page's CTA ten times and got ten lines of chat and no form.
+ *
+ * So the answer is never 'none' for a traveller on a trip thread. A live wizard changes the chip's
+ * MEANING — resume, not start — never its existence. Extracted here, out of the component, because
+ * the bug was in this one boolean and a component is where it stopped being reviewable.
+ */
+export function tripWizardChip(input: { eligible: boolean; liveWizardMessageId: string | null }): TripWizardChip {
+  if (!input.eligible) return 'none'
+  return input.liveWizardMessageId ? 'resume' : 'start'
+}
+
 /**
  * WHICH STEP OWNS WHICH FIELD. A partition — every key of the generate body appears exactly once,
  * except `locale`, which no step collects because it is read from the language context at submit

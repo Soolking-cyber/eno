@@ -37,6 +37,15 @@ export function stashCompose(payload: {
   listingImage?: string | null
   price?: number | null
   currency: string
+  /**
+   * "Open the trip planner", not "send this text".
+   *
+   * ⚠️ THE ONE PAYLOAD THAT CARRIES NO MESSAGE. Every other compose is a thing to say; this one is
+   * an intent to start a form, so /messages/pending accepts it with an empty body and lands on
+   * `/messages/<id>?plan=1` instead of posting anything. It exists because the trip desk's CTA
+   * promised a form and delivered a line of chat — see the note on it in contact-composer.
+   */
+  plan?: boolean
 }): boolean {
   const offerAmount = payload.offerAmount ?? null
   try {
@@ -48,6 +57,7 @@ export function stashCompose(payload: {
       listingImage: payload.listingImage ?? null,
       trackPrice: offerAmount ?? (payload.price ?? null),
       currency: payload.currency,
+      plan: payload.plan === true,
     }))
     return true
   } catch {

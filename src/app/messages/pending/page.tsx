@@ -10,7 +10,7 @@ import { COMPOSE_KEY } from '@/components/marketplace/contact-composer'
 import { Skeleton } from '@/components/ui/skeleton'
 import { toast } from 'sonner'
 
-type Compose = { listingId: string; body: string; offerAmount?: number | null; listingTitle: string; listingImage: string | null; trackPrice: number | null; currency: string }
+type Compose = { listingId: string; body: string; offerAmount?: number | null; listingTitle: string; listingImage: string | null; trackPrice: number | null; currency: string; plan?: boolean }
 
 // Instant-redirect resolver: the composer pushes here immediately, then this page
 // creates the conversation + sends the first message in the background and
@@ -29,13 +29,21 @@ export default function PendingComposePage() {
 
     let data: Compose | null = null
     try { data = JSON.parse(sessionStorage.getItem(COMPOSE_KEY) || 'null') } catch { /* ignore */ }
-    // Valid if there's a note OR a structured offer.
-    if (!data || !data.listingId || (!data.body && !data.offerAmount)) { router.replace('/messages'); return }
+    // Valid if there's a note OR a structured offer OR it is the trip planner's "just open the
+    // thread" handoff, which deliberately carries neither.
+    if (!data || !data.listingId || (!data.body && !data.offerAmount && !data.plan)) { router.replace('/messages'); return }
     const d = data
     try { sessionStorage.removeItem(COMPOSE_KEY) } catch { /* ignore */ }
 
     fetch('/api/conversations', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ listingId: d.listingId, message: d.body, offerAmount: d.offerAmount ?? undefined }),
+      // ⚠️ THE PLAN HANDOFF POSTS NOTHING. `message: ''` would still be a message on some paths, so
+      // the field is omitted entirely rather than emptied — the whole point is that opening the
+      // planner stops adding a line of chat every time it is tapped.
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(
+        d.plan
+          ? { listingId: d.listingId }
+          : { listingId: d.listingId, message: d.body, offerAmount: d.offerAmount ?? undefined },
+      ),
     })
       .then(async (res) => {
         if (res.status === 401) { router.replace(`/listings/${d.listingId}`); return }
@@ -63,7 +71,9 @@ export default function PendingComposePage() {
           messages: message ? [{ id: message.id, mine: true, body: message.body, createdAt: message.createdAt, kind: message.kind, offerAmount: message.offerAmount, offerStatus: message.offerStatus }] : [],
         })
         if (created) trackContactSeller({ id: d.listingId, title: d.listingTitle, price: d.trackPrice ?? undefined, currency: currencyCode(d.currency) })
-        router.replace(`/messages/${id}`)
+        // `?plan=1` tells the thread to open the itinerary wizard on arrival. The thread strips it
+        // from the URL as soon as it has read it, so it never survives a share or a reload.
+        router.replace(d.plan ? `/messages/${id}?plan=1` : `/messages/${id}`)
       })
       .catch(() => {
         try { sessionStorage.setItem(COMPOSE_KEY, JSON.stringify(d)) } catch { /* ignore */ }

@@ -447,6 +447,94 @@ export default function ThreadPage() {
   useEffect(() => { setNewBelow(false) }, [id])
   useEffect(() => { meRef.current = thread?.me ?? null }, [thread?.me])
 
+  /**
+   * Bring one message back into view and mark it, for a card that has scrolled out of reach.
+   *
+   * ⚠️ THE PANE MOVES, NOT `scrollIntoView`. The rule stated above this block is load-bearing:
+   * scrollIntoView walks every scrollable ancestor and used to yank the whole page to the top when a
+   * thread opened. So the offset is measured with rects — `offsetTop` would be wrong here anyway,
+   * since the pane is not a positioned ancestor — and written to the pane's own scrollTop.
+   *
+   * The ring clears itself. A permanent highlight would still be sitting on the card the next time
+   * the traveller opened the thread, marking something that is no longer new to them.
+   */
+  const [revealedId, setRevealedId] = useState<string | null>(null)
+  const revealTimer = useRef<number | null>(null)
+  /**
+   * ⚠️ THE TARGET IS OFTEN NOT ON SCREEN YET, and forgetting that would reintroduce the bug in a
+   * quieter form. The chip asks to reveal a card the moment `start` answers, but that answer can
+   * name a card the client has never rendered — the page painted from its localStorage cache, and
+   * the refresh carrying the card is still in flight. A one-shot querySelector would find nothing,
+   * return silently, and leave the traveller at the bottom of the thread with no form: exactly what
+   * they tapped the button to avoid. So the request is REMEMBERED and retried on the next render
+   * that changes the message list.
+   */
+  const pendingReveal = useRef<string | null>(null)
+  const tryReveal = useCallback(() => {
+    const target = pendingReveal.current
+    if (!target) return
+    const pane = listRef.current
+    const node = pane?.querySelector<HTMLElement>(`[data-mid="${CSS.escape(target)}"]`)
+    if (!pane || !node) return // not rendered yet — the effect below tries again when the list grows
+    pendingReveal.current = null
+    const top = node.getBoundingClientRect().top - pane.getBoundingClientRect().top + pane.scrollTop
+    pane.scrollTo({ top: Math.max(0, top - 12), behavior: 'smooth' })
+    setRevealedId(target)
+    if (revealTimer.current) window.clearTimeout(revealTimer.current)
+    // The ring clears itself. A permanent highlight would still be sitting on the card the next time
+    // the traveller opened the thread, marking something that is no longer new to them.
+    revealTimer.current = window.setTimeout(() => setRevealedId(null), 2200)
+  }, [])
+  /**
+   * Bring one message back into view and mark it, for a card that has scrolled out of reach.
+   *
+   * ⚠️ THE PANE MOVES, NOT `scrollIntoView`. The rule stated above this block is load-bearing:
+   * scrollIntoView walks every scrollable ancestor and used to yank the whole page to the top when a
+   * thread opened. So the offset is measured with rects — `offsetTop` would be wrong here anyway,
+   * since the pane is not a positioned ancestor — and written to the pane's own scrollTop.
+   *
+   * The request EXPIRES. Left armed, a card that never arrives would make some unrelated incoming
+   * message minutes later yank the traveller up the thread.
+   */
+  const revealMessage = useCallback((messageId: string) => {
+    pendingReveal.current = messageId
+    window.setTimeout(() => { if (pendingReveal.current === messageId) pendingReveal.current = null }, 8000)
+    tryReveal()
+  }, [tryReveal])
+  // Retried here rather than on a timer: the only thing that can make the target appear is a render
+  // with more messages in it, and that is precisely what this depends on.
+  useEffect(() => { tryReveal() }, [thread?.messages.length, tryReveal])
+  useEffect(() => { pendingReveal.current = null }, [id])
+  useEffect(() => () => { if (revealTimer.current) window.clearTimeout(revealTimer.current) }, [])
+
+  /**
+   * `?plan=1` — "the traveller arrived here by tapping a Plan-my-trip button", so open the wizard
+   * rather than making them find a chip and tap again.
+   *
+   * ⚠️ READ FROM `window`, NOT `useSearchParams`. That hook opts the whole route into a Suspense
+   * boundary at build time; this is a client thread page that already reads its id from useParams,
+   * and one boolean does not justify changing how the route renders.
+   *
+   * ⚠️ STRIPPED IMMEDIATELY, so a reload or a shared link does not re-fire it. Re-firing would in
+   * fact be harmless — `start` resumes rather than restarting, and only the thread's own traveller
+   * can call it — but a URL that keeps re-opening a form is a URL nobody can use to just read the
+   * conversation.
+   */
+  const [autoPlan, setAutoPlan] = useState(false)
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const url = new URL(window.location.href)
+    const wanted = url.searchParams.get('plan') === '1'
+    // ⚠️ ASSIGNED UNCONDITIONALLY, NOT SET-ON-MATCH. This route does not remount between threads —
+    // the same component receives a new `id`, which is why openedRef exists a few blocks up. An
+    // early `return` when the param is absent would leave `autoPlan` true from the PREVIOUS thread,
+    // so walking from a planner link into another conversation would open a wizard nobody asked for.
+    setAutoPlan(wanted)
+    if (!wanted) return
+    url.searchParams.delete('plan')
+    window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`)
+  }, [id])
+
   // Publish the composer footer's live height into --footer-h so the message list can
   // reserve exactly that much bottom padding once the footer lifts to position:fixed
   // (keyboard up) — the last message then always clears it, for a 1-line or grown composer.
@@ -983,6 +1071,27 @@ export default function ThreadPage() {
     return null
   }, [thread, visaInfo])
 
+  /**
+   * The running trip wizard's card, read off the SAME array the timeline renders.
+   *
+   * ⚠️ DERIVED HERE RATHER THAN FETCHED BY THE CHIP, and that is the fix for the owner's 2026-07-28
+   * report. The launcher used to ask the server separately whether a wizard was running and hide
+   * itself when one was — so a card that had scrolled out of view took the only way back to it with
+   * it. Reading the rendered list means the chip is never out of step with what is on screen, and
+   * "is there a wizard" stops being two answers that can disagree.
+   *
+   * Newest-first, matching the server's `activeWizardCard`: one thread has one live card, and if an
+   * older build ever left two, both agree on which one is live.
+   */
+  const liveWizardMessageId = useMemo(() => {
+    if (!thread) return null
+    for (let i = thread.messages.length - 1; i >= 0; i--) {
+      const m = thread.messages[i]
+      if (m.kind === 'trip_step' && tripField(m.meta, 'state') === 'active') return m.id
+    }
+    return null
+  }, [thread])
+
   const askingPrice = thread?.listing.price && thread.listing.price > 0 ? thread.listing.price : null
   const sliderOffer = askingPrice ? Math.round(askingPrice * (1 - offerPct / 100)) : null
   const submitOffer = () => {
@@ -1142,6 +1251,24 @@ export default function ThreadPage() {
           <div ref={listRef} onScroll={() => { if (newBelow && distanceFromBottom() < 40) setNewBelow(false) }} role="log" aria-live="polite" aria-relevant="additions" className="chat-scroll flex-1 min-h-0 space-y-2 overflow-y-auto overscroll-contain px-4 py-4 scroll-thin">
             {showFirstContactNote && <FirstContactNote />}
             {thread?.messages.map((m, i, arr) => {
+              /**
+               * ⚠️ A TRIP CARD HAS NO BUSINESS IN AN e-VISA THREAD, and there are live ones. The
+               * visa desk and the trip desk are the SAME Seller row (`Seller.ownerId` is @unique),
+               * and before the anchor fix a trip wizard could be authored into a visa conversation:
+               * the owner's own thread cmrvk2xnl still carries an ACTIVE trip_step card from
+               * 2026-07-26, so an e-Visa chat renders a "Plan your trip" form in the middle of a
+               * passport application.
+               *
+               * ⚠️ A DENY-LIST ('is this a visa thread?'), NOT an allow-list ('is this an itinerary
+               * thread?'), and the direction is deliberate. This page paints from its localStorage
+               * cache before the server answers, and a cached thread written by an older build has
+               * no `kind` at all — so requiring kind === 'itinerary' would hide the live wizard card
+               * in the legitimate trip thread on every open, which is the exact failure being fixed
+               * here. The visa side is the one that is positively identified, so that is what is
+               * tested. (The chips above the composer use the opposite gate for the opposite
+               * reason: there, showing something wrongly is the harm.)
+               */
+              if (thread.kind === 'visa' && (m.kind === 'trip_step' || m.kind === 'trip_quote' || m.kind === 'trip_status')) return null
               const prev = arr[i - 1]
               const showDay = !prev || dayKey(prev.createdAt) !== dayKey(m.createdAt)
               const dk = dayKey(m.createdAt)
@@ -1164,8 +1291,16 @@ export default function ThreadPage() {
                   </div>
                 )}
                 {/* Only the NEWEST bubble animates in (each new send/receive), so the
-                    history never mass-animates on thread open. */}
-                <div className={`flex flex-col ${m.mine ? 'items-end' : 'items-start'} ${i === arr.length - 1 ? 'bubble-in' : ''}`}>
+                    history never mass-animates on thread open.
+
+                    ⚠️ `data-mid` IS AN ANCHOR, not decoration: `revealMessage` finds a row by it so
+                    a chip can bring an old card back into view. It has to live on the row WRAPPER
+                    rather than on each card, because every kind renders a different element and the
+                    scroll maths needs one predictable box per message. */}
+                <div
+                  data-mid={m.id}
+                  className={`flex flex-col ${m.mine ? 'items-end' : 'items-start'} ${i === arr.length - 1 ? 'bubble-in' : ''} ${m.id === revealedId ? 'rounded-2xl ring-2 ring-brand/60 transition-shadow' : ''}`}
+                >
                 {m.kind === 'offer' ? (
                   <div className={`allow-select max-w-[80%] rounded-2xl border px-3 py-2.5 ${m.mine ? 'border-brand/30 bg-primary/5' : 'border-border bg-tint'}`}>
                     {/* Offer line is DERIVED from the structured offerAmount (tr'd + money
@@ -1388,7 +1523,13 @@ export default function ThreadPage() {
               it the in-chat planner is unreachable, because only `start` creates the first card.
               `load` pulls the new card in immediately rather than waiting for the 15s poll. */}
           <div className="flex flex-wrap items-center gap-2 px-4 pt-1.5 empty:hidden">
-            <TripWizardLauncher conversationId={id} onStarted={() => void load()} />
+            <TripWizardLauncher
+              conversationId={id}
+              liveWizardMessageId={liveWizardMessageId}
+              autoStart={autoPlan}
+              onStarted={() => void load()}
+              onReveal={revealMessage}
+            />
             {visaInfo && (<>
               {iAmApplicant && (conciergeAvailable ? (
                 <VisaAssistChips

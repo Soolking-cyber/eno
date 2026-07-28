@@ -41,7 +41,8 @@ export function ContactComposer({
    * ⚠️ 'plan' exists because the trip desk is not a stranger selling an object. The default
    * opener ("Is this still available?") is nonsense addressed to a planning service, and the
    * default footnote tells the buyer to ask for a phone number — advice about dealing with
-   * strangers, aimed at eno's OWN desk.
+   * strangers, aimed at eno's OWN desk. Since 2026-07-28 it sends NO opener at all: it opens the
+   * thread and the itinerary wizard with it (see `chatNow`).
    *
    * It lives HERE rather than as a bespoke block on the PDP because the owner asked for ONE
    * button (2026-07-26) and the call site had grown a second CTA beside this one. When a call
@@ -68,10 +69,7 @@ export function ContactComposer({
   const offerPrice = hasPrice ? Math.round(price! * (1 - discount / 100)) : 0
 
   const planning = intent === 'plan'
-  const opener = () => planning
-    // Doubles as the wizard's cue: this lands in the thread where the in-chat planner runs.
-    ? tr('Hi! I’d like to plan a trip to Vietnam.', 'Chào bạn! Mình muốn lên lịch trình đi Việt Nam.')
-    : tr('Hi! Is this still available?', 'Chào bạn! Món này còn không?')
+  const opener = () => tr('Hi! Is this still available?', 'Chào bạn! Món này còn không?')
 
   // Stash the first message + optional STRUCTURED offer (offerAmount — never a baked
   // text line, so it lands as a proper offer card kind='offer'), then redirect
@@ -79,8 +77,8 @@ export function ContactComposer({
   // A tap that lands while auth is still resolving is BUFFERED here (not dropped)
   // and drained by the effect below once `loading` settles — an early "Chat now"
   // click used to silently no-op, which e2e papered over with retries.
-  const pendingRef = useRef<{ body?: string; offerAmount?: number | null } | null>(null)
-  const send = (opts: { body?: string; offerAmount?: number | null }) => {
+  const pendingRef = useRef<{ body?: string; offerAmount?: number | null; plan?: boolean } | null>(null)
+  const send = (opts: { body?: string; offerAmount?: number | null; plan?: boolean }) => {
     // Until auth resolves, treat as not-ready: don't push to /messages/pending
     // (which would 401-bounce). Prompt only once we know they're truly logged out.
     if (!user) {
@@ -91,7 +89,7 @@ export function ContactComposer({
     const offerAmount = opts.offerAmount ?? null
     // Shared single writer (src/lib/quick-contact) — a stash failure is deliberately
     // ignored here: the pending page falls back to /messages.
-    stashCompose({ listingId, body: opts.body, offerAmount, listingTitle, listingImage, price, currency })
+    stashCompose({ listingId, body: opts.body, offerAmount, listingTitle, listingImage, price, currency, plan: opts.plan })
     router.push('/messages/pending')
   }
 
@@ -111,7 +109,19 @@ export function ContactComposer({
   //  · Send offer = the success texture, but ONLY when the offer will actually go out.
   //    A signed-out tap just opens sign-in — a normal gate, neither a success (lying) nor
   //    an error (punishing a guest for being a guest) — so it gets the same light tap.
-  const chatNow = () => { hapticTap(); send({ body: opener() }) }
+  /**
+   * ⚠️ THE PLANNER OPENS THE FORM; IT DOES NOT SAY HELLO. This button used to post
+   * "Hi! I'd like to plan a trip to Vietnam." and stop there, on the theory that the line "doubles
+   * as the wizard's cue". Nothing read it as a cue — the wizard is started by its own chip — so the
+   * owner tapped it ten times on 2026-07-27/28 and got ten identical messages and no form
+   * ("when i click plan my trip it just sends message instead of giving me the form"). A CTA that
+   * names a form has to produce one.
+   *
+   * The canned opener stays for ORDINARY listings, where it is doing real work: it is a stranger's
+   * first line to a seller, and typing it is the friction the one-tap flow exists to remove. There
+   * is no equivalent for the desk's own planning service.
+   */
+  const chatNow = () => { hapticTap(); send(planning ? { plan: true } : { body: opener() }) }
   const sendOffer = () => {
     if (!canOffer) return
     if (user) hapticConfirm()
