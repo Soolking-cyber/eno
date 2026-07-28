@@ -5,6 +5,7 @@ import dynamic from 'next/dynamic'
 import { usePathname, useRouter } from 'next/navigation'
 import type { User } from '@supabase/supabase-js'
 import { trackSignUp } from '@/lib/analytics'
+import { mayGateOnboarding } from '@/lib/onboarding-gate'
 
 // Fire the sign_up / CompleteRegistration conversion exactly once for a genuinely
 // NEW account. Supabase's auth events don't flag new-vs-returning, so we treat a
@@ -199,9 +200,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // intercept the onboarding or auth-callback routes themselves.
   useEffect(() => {
     if (!user || !identityLoaded || accountType) return
-    // Skip /signin too — it owns its own post-auth redirect; gating it would double
-    // -redirect and capture next=/signin, dropping the user's original intent.
-    if (!pathname || pathname.startsWith('/onboard') || pathname.startsWith('/auth') || pathname.startsWith('/signin')) return
+    // ⚠️ THE EXEMPTION LIST LIVES IN src/lib/onboarding-gate.ts, WITH ITS REASONS AND ITS TESTS.
+    // It is not inlined here because each entry is a defect that already happened — /signin
+    // double-redirecting, and /post silently deleting people's first listing by unmounting the
+    // draft-first wizard (and its in-memory photos) the instant in-dialog sign-in landed.
+    // onboarding-gate.test.ts pins all of them, including that /post's exemption stays EXACT
+    // and never widens to a look-alike route.
+    if (!mayGateOnboarding(pathname)) return
     // Preserve the query string so the page we bounce from is restored intact.
     const here = pathname + (typeof window !== 'undefined' ? window.location.search : '')
     router.replace(`/onboard?next=${encodeURIComponent(here)}`)
