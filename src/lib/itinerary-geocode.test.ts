@@ -52,7 +52,36 @@ const HCMC = CITY_MAP.get('hochiminh')!
 // A point inside Ho Chi Minh City — Ben Thanh Market.
 const IN_CITY = { lat: 10.7721, lng: 106.6980 }
 
+/**
+ * ⚠️ THE CLOCK IS FAKED SO THE NOMINATIM THROTTLE COSTS NOTHING HERE — this file was **14.3s of a
+ * 23.4s suite**, 61% of the whole run, and every second of it was `setTimeout` doing nothing.
+ * `throttleNominatim()` spaces real requests 1100ms apart (their usage policy requires it, and the
+ * gap is safety-critical — see the note on it in itinerary-geocode.ts). It computes
+ * `lastNominatimAt + 1100 - Date.now()`, so a clock that MOVES makes the wait negative and no timer
+ * is ever scheduled.
+ *
+ * ⚠️ `toFake: ['Date']` ONLY — setTimeout stays real. Faking timers wholesale would strand every
+ * `await` on a timer nobody advances, and would have meant rewriting all twenty-odd call sites to
+ * interleave `advanceTimersByTimeAsync`. Faking the clock alone is invisible to the tests.
+ *
+ * ⚠️ NOTHING IN PRODUCTION CHANGED. Making the spacing env-tunable was the obvious alternative and
+ * was rejected: it turns a safety-critical rate limit into a footgun one `.env` line away from an
+ * IP ban. The throttle is exercised exactly as written; only this file's clock is synthetic.
+ */
+/**
+ * ⚠️ MONOTONIC ACROSS TESTS, and the first attempt at this was WRONG in a way worth recording.
+ * `lastNominatimAt` lives at MODULE scope in itinerary-geocode.ts, so it survives from one test to
+ * the next — while `vi.useFakeTimers()` resets the clock back to the real "now" on every
+ * `beforeEach`. Advancing the clock only inside a test therefore left `lastNominatimAt` in the
+ * FUTURE relative to the next test's clock, and the throttle dutifully slept the difference: the
+ * file went 14.3s → 8.6s instead of to ~0. One clock that only ever moves forward fixes it.
+ */
+let clock = Date.now()
+
 beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'] })
+  clock += 60_000
+  vi.setSystemTime(clock)
   h.state.cache.clear()
   h.state.cacheReadThrows = false
   h.state.cacheWriteThrows = false
@@ -67,6 +96,10 @@ beforeEach(() => {
   h.state.budgetCalls = 0
 
   vi.stubGlobal('fetch', async (url: string) => {
+    // Every provider call advances the fake clock past the throttle window, so the NEXT call's
+    // computed wait is already negative. This is what removes the sleeps.
+    clock += 2000
+    vi.setSystemTime(clock)
     const isGoogle = String(url).includes('maps.googleapis.com')
     if (isGoogle) {
       h.state.googleCalls += 1
@@ -80,7 +113,7 @@ beforeEach(() => {
   })
 })
 
-afterEach(() => { vi.unstubAllGlobals() })
+afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers() })
 
 describe('the gates — a wrong coordinate must never be remembered', () => {
   it('REFUSES a point outside Vietnam and caches nothing', async () => {

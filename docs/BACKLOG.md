@@ -266,6 +266,54 @@ real ES module: the type is the NAMESPACE, the callable is its `default`. Wrong 
 
 ## Open — asked for, not yet built
 
+### B14 · Move to TypeScript 7 — BLOCKED on typescript-eslint, not on us
+TypeScript 7 (the native Go port) is GA and `latest` on npm. **Measured on this repo 2026-07-28 with
+`typescript@7.0.2` actually installed, then reverted:**
+
+| | TS 5.9.3 | TS 7.0.2 |
+|---|---|---|
+| `tsc --noEmit` | 6.3s | **3.5s** (~1.8x, not 10x — this typecheck is small) |
+| `npm run lint` | passes | **CRASHES** |
+| `tsc` errors | 0 | 14, all in one file |
+
+The crash is structural, not a bug to wait out: TS 7's `package.json#exports["."]` is
+`./lib/version.cjs` — the compiler API moved to `./unstable/*`. So
+`@typescript-eslint/typescript-estree` dies with *"Cannot read properties of undefined (reading
+'Cjs')"*, and our own `src/lib/visa-transition-drift.test.ts` (which parses two source files with the
+AST **on purpose** — regex was refuted by both external reviewers, because it silently skips syntax
+it does not understand) loses every API it uses.
+
+⚠️ **THE TRADE TODAY IS BAD**: spend the lint gate — design-lint, the i18n contract, the Base UI
+policy, the `createPortal` rule — to save under three seconds, against a ~120s `next build`. tsc is
+not the bottleneck.
+
+**The trigger is typescript-eslint admitting 7.x, not a TypeScript release.** Both blockers clear at
+the same moment, so there is no point porting the drift test to an API TypeScript itself labels
+unstable before then. Checkable in one command:
+
+```
+node scripts/check-ts7-readiness.mjs
+```
+
+⚠️ That script answers with real **semver**, not by pattern-matching the range string — the first cut
+reported `>=5.0.0 <7.3.0` and `>=4.8.4 <8.0.0` as blocked when both admit 7.x. A detector that can
+only ever say "no" would have parked this forever.
+
+### B15 · Build time — `npm ci` is 77s of every Cloud Build, and it is cacheable
+Measured on build `0d5925bf` (313s total): **`next build` 120s · `npm ci` 77s** · base image 10s ·
+`COPY node_modules` 9.5s. There is no `--cache-from`, so `npm ci` runs from scratch on every build
+even when `package-lock.json` is untouched — which is most builds.
+
+⚠️ **The obvious fix is the one already banned**: `--cache-from` pointed at the
+`asia-southeast1` registry while builds run in `europe-west1` costs ~$38/mo in cross-continent
+egress ([[eno-gcp-cost]]). A same-region cache repo in `europe-west1` avoids that, at the cost of a
+second Artifact Registry repo to create and garbage-collect. **Owner decision — it is infra spend
+against ~77s/build**, and Cloud Build is already ~62% of the GCP bill, so the saving is real.
+
+`next build` at 120s could in principle move to Turbopack, but that changes the production bundler,
+and the split-chunk config and `inlineCss: false` are load-bearing for the measured LCP. Not worth
+risking for a build that is not blocking anyone.
+
 ### B10 · The go-back rail for the VISA wizard
 The trip wizard got it on 2026-07-27 (owner: *"in chat for visa and trip planner make so user can go
 back and check or edit previously given answers in cards"*). Visa was deliberately held back and is
