@@ -26,37 +26,7 @@ steps:
         set -euo pipefail
         printf '%s' "$$BUILDENV" > /workspace/buildenv.env
         export DOCKER_BUILDKIT=1
-
-        # ── LAYER CACHE FOR `npm ci` ───────────────────────────────────────────────────────
-        # Measured on build 0d5925bf (313s total): `npm ci` alone is 76.9s of every build, run
-        # from scratch because each Cloud Build gets a fresh worker with no layer cache.
-        #
-        # ⚠️ THE CACHE IMAGE IS THE `deps` STAGE, NOT THE FINAL IMAGE, and that is the whole
-        # reason this is two builds instead of one. BUILDKIT_INLINE_CACHE only records metadata
-        # for layers present in the EXPORTED image — and the runner stage copies just
-        # `.next/standalone`, `.next/static` and `public`, so node_modules is nowhere in it.
-        # Inline cache on the final image therefore could not restore `npm ci` no matter how it
-        # was referenced; a reviewer proposed exactly that as a simplification and it would have
-        # produced a cache that silently never hits. Building `--target deps` makes those layers
-        # the exported image, which is what inline cache can actually describe.
-        #
-        # ⚠️ europe-west1, THE BUILD'S OWN REGION. Pointing --cache-from at the asia-southeast1
-        # registry would pull 1.2 GB across continents on every build — ~$38/mo in egress, which
-        # is more than the build minutes it saves.
-        #
-        # ⚠️ EVERY LINE HERE IS `|| true`. A cold cache, a missing repo or a registry blip must
-        # only make the build SLOW, never fail it — this step sits in front of production deploys.
-        CACHE=europe-west1-docker.pkg.dev/$PROJECT_ID/eno-build-cache/deps:latest
-        docker pull "$$CACHE" || true
-        docker build --target deps \
-          --cache-from "$$CACHE" \
-          --build-arg BUILDKIT_INLINE_CACHE=1 \
-          -t "$$CACHE" . || true
-        docker push "$$CACHE" || true
-
         docker build \
-          --cache-from "$$CACHE" \
-          --build-arg BUILDKIT_INLINE_CACHE=1 \
           --secret id=buildenv,src=/workspace/buildenv.env \
           -t asia-southeast1-docker.pkg.dev/$PROJECT_ID/eno/eno-vn:${_TAG} \
           -t asia-southeast1-docker.pkg.dev/$PROJECT_ID/eno/eno-vn:latest \
