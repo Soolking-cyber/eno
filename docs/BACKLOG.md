@@ -36,6 +36,7 @@ prioritisation is not a guess → (3) fill the empty categories demand is alread
 | **C3** | 8 of 15 categories empty; top search is `honda`, `vehicles` has 0 | ✅ shipped `e751a346` |
 | **C4** | Nav entry points for the two monetized products | ✅ shipped `a350b63f` |
 | **C5** | Visa desk: the three verified bugs only | ✅ shipped `992e07cf` |
+| **C6** | Count the Publish taps that never reach the server | ✅ shipped `90fa15e3` |
 | — | Everything below (B6/B8/B14/P1.x) | unchanged, and now BELOW C3–C5 |
 
 ### C3 · ✅ SHIPPED `e751a346` — an empty category no longer advertises stock
@@ -143,6 +144,40 @@ unavailable the applicant's only affordance is re-uploading, which burns another
 another analysis slot and cannot help. It needs a new prop threaded from `messages/[id]/page.tsx`;
 no production case has hit it yet (0 `unavailable` rows measured), so it waits for evidence.
 Also still open: the compliant reference photo the risk review asked for.
+
+### C6 · ✅ SHIPPED `90fa15e3` — the funnel's biggest branch was invisible
+C2 reads outcomes off `/api/listings`' RESPONSE, so it can only count attempts that reached the
+server. `submit()` has **five early returns before any fetch** — missing fields, contact info in
+the seller name, contact info in the listing text, a banned word, and not signed in. A form
+bounces people far more often than a server does, so the page read "1 published, 0 refused" by
+construction. Five `client_*` codes now close that.
+
+**Read `client_signin_required` first.** It fires only when the listing was complete and VALID and
+the account was the last thing missing — so it separates "could not fill the form" from "would not
+make an account". It is also the only way to tell whether C1 worked.
+
+⚠️ **TAPS, NOT PEOPLE.** Nothing auto-resubmits after sign-in, so one seller can emit FOUR counts
+for ONE listing. The page says so, and also warns that the two halves started on different days so
+the success rate steps down at that boundary.
+
+⚠️ **THE EDIT FLOW WAS THE REAL BUG, found independently by TWO reviewers.** `submit()` is SHARED
+with editing, which PATCHes `/api/listings/<id>`. A bounced edit filed a REFUSAL while a successful
+edit is a PATCH the POST-side counter never sees — so edits contributed only failures. `if (edit)
+return`, pinned by a source-level test.
+
+⚠️ **`publish-funnel.ts` IS `server-only`, WHICH IS WHY `publish-funnel-codes.ts` EXISTS.** A
+server-only import is a build error in a `'use client'` file, so the wizard had duplicated the five
+codes as bare literals — where a typo compiles, ships, and silently drops a whole branch, leaving a
+zero indistinguishable from "nobody hit this". Do not merge the two modules back together.
+
+⚠️ **A PUBLIC UNAUTHENTICATED COUNTER-INCREMENT.** Guests can post, so a session gate would blind
+the funnel to the exact population it measures. Allowlist + same-origin + bounded body + 30/h per
+IP fail-closed + 204 on every path. Accepted and documented, not fixed: the IP key is
+per-connection, not per-person, and has no IPv6 /64 truncation — true of every IP-keyed limit in
+the repo. These numbers are a SIGNAL, never an audit trail.
+
+**Still open here:** the scroll after a failed tap lands on a still-shimmering Contact section with
+no error text (pre-existing, not caused by C6).
 
 ---
 
