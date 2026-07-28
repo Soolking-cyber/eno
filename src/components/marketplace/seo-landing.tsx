@@ -10,6 +10,7 @@ import { Header } from './header'
 import { Footer } from './footer'
 import { Price } from './price'
 import { seoBrowseHref } from './seo-landing-href'
+import { hasNoInventory } from './seo-landing-inventory'
 
 export type SeoContent = {
   eyebrow: string
@@ -55,6 +56,12 @@ export type SeoContent = {
  *  browse view. Plain English — these target English expat search queries. */
 export async function SeoLanding({ content }: { content: SeoContent }) {
   let listings: ReturnType<typeof serializeListing>[] = []
+  // ⚠️ NOT `listings.length === 0` — the catch below ALSO leaves the array empty when the
+  // database is unreachable at build time, and those two states must not share a UI. Treating a
+  // transient build failure as "nobody has listed one" would put "Be the first to list one" on a
+  // page with a hundred listings until the next ISR regen, a week later. This flag is set only
+  // after the query genuinely returns, so an outage falls back to today's behaviour.
+  let inventoryKnown = false
   const browseHref = seoBrowseHref(content)
   try {
     const rows = await db.listing.findMany({
@@ -78,9 +85,14 @@ export async function SeoLanding({ content }: { content: SeoContent }) {
       include: { category: true, seller: true },
     })
     listings = await localizeListingTitles(rows.map(serializeListing))
+    inventoryKnown = true
   } catch {
     /* DB unreachable at build → render the content shell; ISR fills listings later */
   }
+
+  // Nothing to browse, and we know it rather than merely failing to look. The predicate lives in
+  // its own module so it can be unit-tested — this file imports Prisma, so a test cannot.
+  const noInventory = hasNoInventory(inventoryKnown, listings.length)
 
   // FAQPage structured data for rich results.
   const faqLd = {
@@ -110,14 +122,76 @@ export async function SeoLanding({ content }: { content: SeoContent }) {
         {/* gap/weight on the BUTTON — see header.tsx: asChild concatenates the child's
             className instead of twMerging it, so overrides there are settled by
             stylesheet order rather than by intent. */}
-        <Button asChild variant="cta" size="none" className="gap-1.5 font-semibold">
-          <Link
-            href={browseHref}
-            className="mt-6 px-5 py-2.5 text-sm"
-          >
-            {content.cta} <ArrowRight className="h-4 w-4" />
-          </Link>
-        </Button>
+        {/* ⚠️ AN EMPTY CATEGORY MUST NOT ADVERTISE STOCK. Measured 2026-07-28: `vehicles` had
+            ZERO live listings while `honda` was the single most-searched term on the site, and
+            this page still led with "Browse motorbikes" over prose promising "You'll find both
+            here". A visitor arriving from Google got a confident promise, tapped the CTA, and
+            landed on an empty grid — the worst possible first impression on a marketplace whose
+            entire pitch is that its listings are real.
+
+            The prose stays (it is about the category, and it is what ranks — these pages are
+            substantial original content, not thin doorways, so they keep their index). What
+            changes is the promise: the primary action becomes supplying the thing, and browse
+            drops to a secondary link. Browse still WORKS, and lands on the explorer's
+            zero-results recovery — remove-filters / create an alert / post a Wanted / jump to
+            another category — which is already built and good, so this deliberately does not
+            duplicate it here. */}
+        {noInventory ? (
+          <>
+            {/* ⚠️ DELIBERATELY NOT INTERPOLATED FROM THE EYEBROW. The obvious version —
+                `No {eyebrow.split('·')[0].toLowerCase()} are listed yet` — reads correctly for
+                Motorbikes/Jobs/Services and ungrammatically for the other half of the pages
+                that use this component: "No housing ARE listed yet", "No e-visa are listed yet".
+                A neutral sentence is right on all six; the keyword is already in the h1 directly
+                above it. Add an optional per-page override the day one is actually wanted.
+
+                ⚠️ AND IT MUST STAY TRUE WHEN IT GOES STALE, which is why this says "just getting
+                started" rather than "nothing is listed here". These pages are ISR at
+                `revalidate = 604800` and NOTHING invalidates them on publish — revalidatePath is
+                only ever called for `/listings/<id>` — so the first seller in a category would
+                otherwise be greeted by a page insisting the category is empty, for up to a WEEK.
+                A hard assertion about inventory is exactly the wrong shape of sentence to cache
+                for seven days; this one survives a listing appearing an hour later.
+
+                The stronger fix is on-demand revalidation of the landing paths on publish, which
+                needs a categorySlug→path registry. Not built: seo-landing-slugs.test.ts scans the
+                directory rather than importing a list precisely BECAUSE a registry is the thing
+                people forget to update, and these pages have near-zero traffic today. If they ever
+                start ranking, build it — and extend that scan to assert the registry is complete,
+                so the forgetting is caught by CI. */}
+            <p className="mt-6 max-w-3xl text-sm font-semibold text-body">
+              This part of the marketplace is just getting started, so there is not much to browse
+              here yet.
+            </p>
+            <div className="mt-4 flex flex-wrap items-center gap-3">
+              <Button asChild variant="cta" size="none" className="gap-1.5 font-semibold">
+                <Link href="/post" className="px-5 py-2.5 text-sm">
+                  Be the first to list one <ArrowRight className="h-4 w-4" />
+                </Link>
+              </Button>
+              {/* ⚠️ THE ANCHOR DESCRIBES WHAT THE LINK DOES, NOT WHAT HAPPENS TWO TAPS LATER.
+                  An earlier draft read "Or set an alert for when one appears" while pointing at
+                  the browse URL — the alert button lives in the explorer's zero-results state, so
+                  the link promised an action its destination does not perform. Naming both steps
+                  is honest and still routes to the recovery UI that is already built. */}
+              <Link
+                href={browseHref}
+                className="text-sm font-semibold text-accent-foreground hover:underline"
+              >
+                Or browse the category — you can set an alert there
+              </Link>
+            </div>
+          </>
+        ) : (
+          <Button asChild variant="cta" size="none" className="gap-1.5 font-semibold">
+            <Link
+              href={browseHref}
+              className="mt-6 px-5 py-2.5 text-sm"
+            >
+              {content.cta} <ArrowRight className="h-4 w-4" />
+            </Link>
+          </Button>
+        )}
 
         {/* Real verified listings (crawlable internal links) */}
         {listings.length > 0 && (
