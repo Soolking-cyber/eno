@@ -48,6 +48,19 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 
+# ⚠️ sharp's NATIVE BINARIES COME FROM `npm ci`, NOT FROM THE FILE TRACER. This is the fix for the
+# 2026-07-27 outage, and it is one line because the tracer was the whole problem: Next decides what
+# lands in `.next/standalone/node_modules` by tracing from the BUILD HOST, and on 0.35.3 it stopped
+# emitting the linux-x64 `@img/*` packages — so the image shipped a sharp with nothing to load.
+# The deps stage already ran `npm ci` on this exact platform, so it holds precisely the right
+# platform packages (npm filters optional deps by os/cpu). Copying them makes the runtime depend on
+# what was INSTALLED rather than on what was guessed.
+#
+# Additive and idempotent: when the tracer does the right thing these files are identical, and when
+# it does not they are the difference between a working image and a nine-hour outage. It must come
+# AFTER the standalone COPY so it wins on overlap.
+COPY --from=deps --chown=nextjs:nodejs /app/node_modules/@img ./node_modules/@img
+
 # ⚠️ THE GUARD THAT WOULD HAVE PREVENTED THE 2026-07-27 OUTAGE. sharp@0.35.3 shipped an image whose
 # standalone bundle carried NO loadable native backend for linux-x64: `next build` was green, every
 # local gate was green, and production returned 500 on /api/listings for nine hours — because
@@ -70,7 +83,12 @@ COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 # the version. It also EXERCISES libvips rather than just resolving the module, so a binary that
 # loads but cannot decode still fails here.
 USER nextjs
-RUN node -e "const s=require('sharp'); s({create:{width:1,height:1,channels:3,background:'#000'}}).png().toBuffer().then(()=>console.log('sharp OK',require('sharp/package.json').version),e=>{console.error('SHARP BROKEN IN IMAGE:',e.message);process.exit(1)})"
+# ⚠️ NO `require('sharp/package.json')` HERE. The guard used to print the version that way and it
+# broke the moment sharp 0.35 landed — 0.35's `exports` map does not expose ./package.json, so the
+# CHECK ITSELF would have failed the build (ERR_PACKAGE_PATH_NOT_EXPORTED). A guard that fails for
+# its own reasons is worse than no guard: it cries wolf on a healthy image. It reports the format of
+# the bytes it produced instead, which is evidence libvips actually ran.
+RUN node -e "const m=require('sharp'); const s=m.default??m; s({create:{width:1,height:1,channels:3,background:'#000'}}).png().toBuffer().then(b=>console.log('sharp OK — encoded',b.length,'bytes, PNG magic',b.subarray(1,4).toString()),e=>{console.error('SHARP BROKEN IN IMAGE:',e.message);process.exit(1)})"
 EXPOSE 8080
 # Runtime env arrives as a Secret Manager volume mounted at /secrets/env (one
 # dotenv file per service — see gcloud run deploy --set-secrets). Sourcing it

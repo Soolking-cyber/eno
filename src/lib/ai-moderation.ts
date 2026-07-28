@@ -1,5 +1,7 @@
 import 'server-only'
-import sharp from 'sharp'
+// ⚠️ NOT a top-level `import sharp` — see lib/sharp-lazy.ts. This module is reached from
+// /api/listings via lib/core/listings, so a module-scope native import here is a browse outage.
+import { getSharp } from '@/lib/sharp-lazy'
 import { Type } from '@google/genai'
 import { Prisma } from '@/generated/prisma/client'
 import { getGemini, GEMINI_MODEL } from '@/lib/gemini'
@@ -56,6 +58,7 @@ export async function moderateListing(input: { title: string; description: strin
     try {
       const res = await safeFetch(url, { timeoutMs: 8000 })
       if (!res.ok) continue
+      const sharp = await getSharp()
       const buf = await sharp(Buffer.from(await res.arrayBuffer()), { limitInputPixels: 50_000_000 })
         .rotate()
         .resize({ width: 512, height: 512, fit: 'inside', withoutEnlargement: true })

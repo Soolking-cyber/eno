@@ -1,5 +1,8 @@
 import 'server-only'
-import sharp from 'sharp'
+// ⚠️ NOT a top-level `import sharp` — see lib/sharp-lazy.ts. lib/core/listings imports this module
+// for its pure VIDEO helpers (isCanonicalVideoUrl, removeListingVideoByUrl), so a module-scope
+// native import here reached /api/listings for code paths that only run on upload.
+import { getSharp } from '@/lib/sharp-lazy'
 import { getSupabaseAdmin, LISTINGS_BUCKET, EVIDENCE_BUCKET, LISTING_VIDEOS_BUCKET } from '@/lib/supabase-admin'
 import { dHash } from '@/lib/image-hash'
 import { isListingVideoUrl } from '@/lib/listing-image'
@@ -70,6 +73,7 @@ export function watermarkSvg(w: number, ink: { fill: string; opacity: number }):
 async function pickInk(png: Buffer, region: { left: number; top: number; width: number; height: number }): Promise<{ fill: string; opacity: number }> {
   const WHITE = { fill: '#ffffff', opacity: 0.85 }
   try {
+    const sharp = await getSharp()
     const { channels } = await sharp(png).extract(region).greyscale().stats()
     const mean = (channels[0]?.mean ?? 0) / 255
     return mean > 0.62 ? { fill: '#0a0a0a', opacity: 0.42 } : WHITE
@@ -95,6 +99,7 @@ export async function storeListingImage(buf: Buffer, opts: { pathPrefix?: string
   // in the filename so it rides in the stored URL (no DB column). Best-effort; null on failure.
   let hash: string | null = null
   try {
+    const sharp = await getSharp()
     // Pass 1 — normalize to a lossless intermediate so the watermark composite
     // doesn't double-lossy-encode (PNG → final WebP = single quality loss).
     const { data, info } = await sharp(buf, { limitInputPixels: 50_000_000 })
@@ -236,6 +241,7 @@ const EVIDENCE_WEBP_QUALITY = 85
 export async function storeEvidenceImage(buf: Buffer, reportId: string): Promise<string | null> {
   let out: Buffer
   try {
+    const sharp = await getSharp()
     out = await sharp(buf, { limitInputPixels: 50_000_000 })
       .rotate()
       .resize({ width: EVIDENCE_MAX_EDGE, height: EVIDENCE_MAX_EDGE, fit: 'inside', withoutEnlargement: true })

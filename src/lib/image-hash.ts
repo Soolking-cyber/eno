@@ -1,5 +1,7 @@
 import 'server-only'
-import sharp from 'sharp'
+// ⚠️ NOT a top-level `import sharp` — see lib/sharp-lazy.ts. lib/image-provenance imports this and
+// lib/core/listings imports that, so /api/listings inherits whatever happens at this module's scope.
+import { getSharp } from '@/lib/sharp-lazy'
 import { hashFromUrl, hammingHex } from '@/lib/image-hash-url'
 
 // Re-export the isomorphic URL/hash helpers so existing server importers of this module keep
@@ -19,6 +21,7 @@ export { hashFromUrl, hammingHex, hexToBits, countDistinctAngles, SAME_ANGLE_THR
 export async function dHash(buf: Buffer): Promise<string | null> {
   try {
     // One extra column (9 wide) so each of the 8 usable columns has a right-neighbour.
+    const sharp = await getSharp()
     const px = await sharp(buf, { limitInputPixels: 50_000_000 })
       .greyscale()
       .resize(9, 8, { fit: 'fill' })
