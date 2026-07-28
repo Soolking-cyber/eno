@@ -197,6 +197,36 @@ negative result so a name that cannot be found is not asked about again. Neither
 
 ---
 
+## 🔴 Open — the sharp outage's real fixes
+
+Both exist because `sharp@0.35.3` shipped a container with no loadable native backend and took
+`/api/listings` down for nine hours (`c86dc1f9` reverted it). **Neither goes near prod until it has
+been verified against a real built image**, not just a green `npm run build` — a green build is
+exactly what shipped the outage.
+
+### B11 · The runtime must not depend on what the file tracer guesses
+`.next/standalone/node_modules/@img` is populated by Next's tracer from the **build host**, and under
+0.35.3 it stopped emitting the linux binaries. One `COPY --from=deps /app/node_modules/@img
+./node_modules/@img` in the runner stage makes the image correct regardless — the deps stage already
+ran `npm ci` on linux, so it has exactly the right platform packages, and a missing directory fails
+the *build* instead of the *deploy*.
+**Verify by**: `docker build` the image, then `docker run` it and hit `/api/listings`. Do not infer
+from the local `.next/standalone` tree — on a Mac it traces darwin either way, so it cannot
+distinguish a working config from a broken one.
+
+### B12 · A media dependency must not be able to kill browse
+`/api/listings` → `lib/core/listings` → `lib/ai-moderation` → **top-level `import sharp`**. Nothing
+about browsing needs an image library; sharp is there for the create path. A native module that fails
+at module scope takes down every route that transitively imports it, GET included. Make the import
+lazy (`await import('sharp')` inside the moderation call) so the blast radius is the feature that
+needs it. `lib/image-hash.ts` and `lib/core/media.ts` have the same shape — check what imports them.
+
+### B13 · Re-land the libvips CVEs
+`sharp 0.35.3` closes CVE-2026-33327/33328/35590/35591 on user-uploaded photos, and the revert
+reopened them. Blocked on B11 (and worth doing with B12 in place, so a repeat is survivable).
+
+---
+
 ## Open — asked for, not yet built
 
 ### B10 · The go-back rail for the VISA wizard
