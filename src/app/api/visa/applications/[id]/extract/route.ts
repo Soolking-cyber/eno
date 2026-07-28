@@ -11,6 +11,7 @@ import { getVisaDb } from '@/lib/visa/db'
 import { evaluatePassportImageQuality, evaluatePortraitImageQuality, PASSPORT_IMAGE_CODES } from '@/lib/visa/image-quality'
 import { parsePassportMrz } from '@/lib/visa/mrz'
 import { recordVisaEvent } from '@/lib/visa/records'
+import { nextDocumentStatus } from '@/lib/visa/document-status'
 import { visaPayloadSchema } from '@/lib/visa/schema'
 import { VISA_BUCKET, VISA_IMAGE_RULES_VERSION } from '@/lib/visa/storage'
 
@@ -129,7 +130,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const { id } = await params
   if (!UUID_RE.test(id)) return NextResponse.json({ error: 'not_found' }, { status: 404 })
   const db = getVisaDb()
-  let documentQuery = db.from('visa_documents').select('id,storage_path,kind,validation_report').eq('application_id', id).eq('kind', parsed.data.kind)
+  // validation_status is selected for the no-downgrade rule at the write below — without it we
+  // cannot tell whether this document has already been certified.
+  let documentQuery = db.from('visa_documents').select('id,storage_path,kind,validation_report,validation_status').eq('application_id', id).eq('kind', parsed.data.kind)
   if (parsed.data.documentId) documentQuery = documentQuery.eq('id', parsed.data.documentId)
   const [{ data: application }, { data: document }] = await Promise.all([
     db.from('visa_applications').select('*').eq('id', id).eq('user_id', userId).maybeSingle(),
@@ -229,14 +232,51 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       Object.assign(validationReport, { mrzChecks })
     }
 
-    const finalStatus = validationReport.status as 'passed' | 'failed'
+    const analysedStatus = validationReport.status as 'passed' | 'failed'
+
+    // ⚠️ A DOCUMENT THAT ALREADY PASSED IS NEVER DOWNGRADED. Both failure paths below already
+    // guard their writes with `.neq('validation_status','passed')`; this success path did not,
+    // and that asymmetry was a live bug rather than a style inconsistency.
+    //
+    // How it bites: the document query takes the NEWEST row of this kind, so calling /extract
+    // again without a documentId re-analyses the SAME row. The stored bytes cannot have changed
+    // (storage.ts uploads with `upsert: false`, and every upload inserts a new row), so a
+    // different verdict on the second run is MODEL NOISE, not new information — this is a
+    // temperature-0 flash model, but the 2026-07-28 production data shows it returning different
+    // issue sets for the same subject minutes apart. A stray retry, a double-tap or a flaky
+    // network re-issuing the POST could therefore revoke a passed portrait, and because
+    // `portrait_image_not_verified` is owned by DM step 1, the applicant would be thrown from
+    // wherever they had reached back to Documents, with no way to understand why.
+    //
+    // ⚠️ IT IS ONE VALUE, USED THREE TIMES. Guarding only the UPDATE would leave the response and
+    // the audit event asserting a status the database does not hold, so the client would render a
+    // failure the server disagrees with. The event still records what the analysis actually said
+    // (`analysedStatus`), so a suppressed downgrade is visible to the desk rather than erased.
+    //
+    // The rule lives in lib/visa/document-status.ts with its tests — deliberately NOT in
+    // image-quality.ts, which is a sync-pair with the forum copy.
+    const finalStatus = nextDocumentStatus(document.validation_status, analysedStatus)
+    const downgradeSuppressed = finalStatus !== analysedStatus
     const now = new Date().toISOString()
-    const documentUpdate = await db.from('visa_documents').update({ validation_status: finalStatus, validation_report: validationReport }).eq('id', document.id)
+
+    // ⚠️ WHEN A DOWNGRADE IS SUPPRESSED, THE REPORT IS LEFT ALONE TOO — column and report must
+    // never disagree. Writing the new report while forcing the column to 'passed' would store a
+    // FAILING report under a PASSED status, and both surfaces read the report: the admin case
+    // page renders `validation_report.issues`, and the applicant's card renders them as red
+    // bullets — which would appear underneath a green "Verified" badge. The passing report that
+    // certified this document stands; the disagreement is recorded on the event instead.
+    const documentUpdate = downgradeSuppressed
+      ? await db.from('visa_documents').update({ validation_status: finalStatus }).eq('id', document.id)
+      : await db.from('visa_documents').update({ validation_status: finalStatus, validation_report: validationReport }).eq('id', document.id)
     if (documentUpdate.error) throw documentUpdate.error
     if (passport) {
       const previousChecklist = Array.isArray(application.checklist) ? application.checklist : []
       const imageIssueCodes = new Set(PASSPORT_IMAGE_CODES)
-      const checklist = [...new Set([...previousChecklist.filter((item: string) => !imageIssueCodes.has(item)), 'ai_extraction_needs_review', ...issues])]
+      // ⚠️ A SUPPRESSED DOWNGRADE MUST NOT LEAK INTO THE CHECKLIST EITHER. The filter strips the
+      // old image codes; adding the new ones back would re-open image issues on a document whose
+      // stored verdict is still `passed`, which is the same column-vs-report contradiction the
+      // write above avoids, one layer up.
+      const checklist = [...new Set([...previousChecklist.filter((item: string) => !imageIssueCodes.has(item)), 'ai_extraction_needs_review', ...(downgradeSuppressed ? [] : issues)])]
       const applicationUpdate = await db.from('visa_applications').update({ encrypted_payload: encryptVisaPayload(payload), checklist, updated_at: now, last_applicant_action_at: now }).eq('id', id).eq('user_id', userId).eq('updated_at', application.updated_at).select('id').maybeSingle()
       if (applicationUpdate.error) throw applicationUpdate.error
       // 0-row CAS miss is NOT success (audit P2 #10): a concurrent save raced this
@@ -244,11 +284,26 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       // was never persisted, and the wizard showed fields the server doesn't have.
       if (!applicationUpdate.data) return NextResponse.json({ error: 'application_changed_retry' }, { status: 409 })
     }
-    await recordVisaEvent(id, 'system', passport ? 'passport_analyzed_and_extracted' : 'portrait_analyzed', undefined, { documentId: document.id, status: finalStatus, issues, fieldsSuggested: Object.keys(suggestions).length, model: analysis.model, attempts: analysis.attempts })
+    // ⚠️ THE EVENT IS THE ONE PLACE THAT RECORDS WHAT THE ANALYSIS ACTUALLY SAID. Everything else
+    // above deliberately keeps the certified verdict, so without this the disagreement would be
+    // erased rather than suppressed, and nobody could tell a stable pass from a contested one.
+    await recordVisaEvent(id, 'system', passport ? 'passport_analyzed_and_extracted' : 'portrait_analyzed', undefined, {
+      documentId: document.id, status: finalStatus, issues: downgradeSuppressed ? [] : issues,
+      ...(downgradeSuppressed ? { suppressedDowngradeFrom: analysedStatus, suppressedIssues: issues } : {}),
+      fieldsSuggested: Object.keys(suggestions).length, model: analysis.model, attempts: analysis.attempts,
+    })
+    // The client is told what the SERVER now holds, never what the discarded run said — otherwise
+    // the card would paint red issue bullets under a green "Verified" badge.
     return NextResponse.json({
-      document: { id: document.id, validationStatus: finalStatus, validationReport },
+      document: {
+        id: document.id,
+        validationStatus: finalStatus,
+        validationReport: downgradeSuppressed ? existingReport : validationReport,
+      },
       payload: passport ? payload : undefined,
-      suggestions: Object.keys(suggestions), issues, warnings,
+      suggestions: Object.keys(suggestions),
+      issues: downgradeSuppressed ? [] : issues,
+      warnings,
     })
   } catch (error) {
     const failure = error as { name?: string; status?: number; code?: number | string }

@@ -832,6 +832,22 @@ const IMAGE_ISSUE_COPY: Record<string, [string, string]> = {
 }
 
 /**
+ * The issue codes that describe OUR checker failing, as opposed to something about the applicant's
+ * photo. Exactly the three the extract route can write alongside `validation_status: 'unavailable'`.
+ *
+ * ⚠️ USED TO DECIDE WHETHER THE GENERIC OUTAGE LINE IS STILL NEEDED. An `unavailable` document can
+ * carry a STALE report from an earlier failed run — the `getGemini()`-is-null path updates the
+ * status column without touching the report — so "are there issues?" is the wrong question and
+ * "is an outage already explained?" is the right one. Getting that backwards tells an applicant to
+ * fix a photo when the check never ran.
+ */
+const OUTAGE_ISSUE_CODES = new Set([
+  'automatic_image_check_busy',
+  'automatic_image_check_rate_limited',
+  'automatic_image_check_failed',
+])
+
+/**
  * Every refusal these cards can surface, in the applicant's words. The generic tail is a
  * humanised code — the same fallback the dashboard wizard uses, and better than a blank
  * toast when a new server code lands before its copy does.
@@ -1192,10 +1208,45 @@ function DocumentRow({
           <p className="text-xs font-bold text-foreground">{tr(DOC_TITLE[kind][0], DOC_TITLE[kind][1])}</p>
           <p className="mt-0.5 text-2xs leading-relaxed text-body">{tr(DOC_HINT[kind][0], DOC_HINT[kind][1])}</p>
           {status === 'pending' && <p className="mt-1 text-2xs font-semibold text-warning">{tr('Checking…', 'Đang kiểm tra…')}</p>}
-          {status === 'unavailable' && <p className="mt-1 text-2xs font-semibold text-warning">{tr('The automatic check could not finish — send the photo again.', 'Kiểm tra tự động chưa hoàn tất — hãy gửi lại ảnh.')}</p>}
+          {/* ⚠️ THIS LINE USED TO BLAME THE APPLICANT'S PHOTO FOR OUR OUTAGE. It read "send the
+              photo again", which is both wrong and expensive: `unavailable` means the CHECK did
+              not run — Gemini unreachable, the 10/h or 30/day per-user limit, or the shared
+              ai-global daily budget — so re-uploading the same bytes burns another upload and
+              another analysis slot and cannot change the outcome.
+
+              It also CONTRADICTED the per-issue copy directly beneath it, which is accurate and
+              distinguishes the three causes ("Your image is saved. The checker is busy — try
+              again in about a minute", rate-limited, failed). Now that every issue renders rather
+              than the first three, that copy always reaches the applicant, so this line steps
+              aside whenever there is a specific reason to show.
+
+              It cannot be deleted outright: the `getGemini()`-is-null path writes
+              `validation_status: 'unavailable'` WITHOUT a validation_report, so the report keeps
+              whatever it held before — either nothing at all, or the QUALITY issues from an
+              earlier failed run. `issues.length === 0` was not enough for that second case: the
+              stale quality bullets would render, this line would stay hidden, and the applicant
+              would be told to fix a photo when in truth the check never ran. So the condition asks
+              the precise question — is an outage already being explained? — rather than the
+              convenient one. Caught by a reviewer. */}
+          {status === 'unavailable' && !issues.some((i) => OUTAGE_ISSUE_CODES.has(i)) && (
+            <p className="mt-1 text-2xs font-semibold text-warning">
+              {tr('Your photo is saved. Our automatic check could not run just now — this is on us, not your photo. Please try again shortly.', 'Ảnh của bạn đã được lưu. Hệ thống kiểm tra tự động của chúng tôi chưa chạy được — đây là lỗi của chúng tôi, không phải ảnh của bạn. Vui lòng thử lại sau ít phút.')}
+            </p>
+          )}
+          {/* ⚠️ EVERY ISSUE, NOT THE FIRST THREE. This used to `.slice(0, 3)`, which turned a
+              strict gate into a re-upload treadmill: an applicant with four problems fixed the
+              three they were shown, sent a new photo, and was told about a fourth they had never
+              been given the chance to fix. Measured in production on 2026-07-28 — the only
+              applicant who reached this step had FOUR issues on each of two attempts, saw three
+              both times, and abandoned the application.
+
+              The portrait gate can emit eleven codes, so a long list is possible in principle;
+              in practice the model returns a handful. A list that is honestly long is still
+              strictly better than one that hides the reason the next attempt will also fail.
+              ⚠️ Do NOT re-add a cap here to tidy the layout — the cap IS the bug. */}
           {issues.length > 0 && (
             <ul className="mt-1 space-y-0.5 text-2xs leading-relaxed text-destructive">
-              {issues.slice(0, 3).map((issue) => <li key={issue}>• {imageIssueCopy(issue, tr)}</li>)}
+              {issues.map((issue) => <li key={issue}>• {imageIssueCopy(issue, tr)}</li>)}
             </ul>
           )}
         </div>
