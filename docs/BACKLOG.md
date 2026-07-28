@@ -3,22 +3,29 @@
 The live task list. Replaces the retired cockpit board (history in `docs/cockpit-archive/`).
 One agent works this top-down. **Status is only ever set from a MEASUREMENT, never from a diff.**
 
-Updated 2026-07-27.
+Updated 2026-07-28.
 
 ---
 
 ## 🔴 Open — needs a decision or a migration
 
-### B7 · An admin `unpublish` still republishes when the seller edits the listing
-**The last piece of the moderation bypass.** Two of three paths are closed (`5b8d5094`): the guard
-now consults `enforcementState` instead of the vacuous `trustTier` check, and the partner API's
-single-create finally runs `postingGate`. What remains: `api/admin/moderate/route.ts:168` writes
-`{ verified: false }` and **nothing else**, so on a good-standing seller an admin takedown is
-indistinguishable from a photo-hold — and `updateListingCore` republishes it on edit.
+### B7 · ✅ CLOSED WITHOUT THE MIGRATION — the republish branch was deleted instead
+The `heldReason` column below was the plan; measuring made it unnecessary. **No create path produces
+a below-the-bar listing any more** — `createListingCore` and `bulk.ts:168` both insert
+`verified: true`, `sync` never writes the column, and a publish violation THROWS rather than saving a
+held row. So every `verified === false` in the database arrived through one of six *takedown* paths,
+and the branch had no benign case left to serve. It is gone, and
+`src/lib/core/listings.republish.test.ts` pins all six paths as a counted list. An operator restores
+a pulled listing with the admin `verify` action, which is the only escape hatch and is meant to be a
+human.
+
+<details><summary>the migration that is no longer needed</summary>
 
 **Needs one additive column** on `Listing` recording *why* it is unverified
 (`heldReason: 'photos' | 'admin'`), set by the takedown paths and checked by the republish branch.
 Small migration via the documented schema flow.
+
+</details>
 
 ⚠️ **Two plausible fixes were tried and rejected with evidence — do not re-propose them:**
 - *Reuse the dormant `verifiedBy` column.* agy: conflates "who approved" with "who removed", and
@@ -29,10 +36,16 @@ Small migration via the documented schema flow.
 
 The gap is pinned in `src/lib/core/listings.republish.test.ts` so it cannot be quietly forgotten.
 
-### B8 · Reloading the in-chat trip wizard bricks it permanently
-Found by the bug hunt, not yet verified by me. `trip-cards.tsx:261` seeds `step` from the server row
-but `draft` from `EMPTY_DRAFT`, so after a reload the traveller returns to step 5 with empty answers;
-"Build my plan" posts empty `cityIds`/`interests` and 400s forever, with no Back and no restart.
+### B8 · ⚠️ MOSTLY CLOSED — a reloaded trip wizard is recoverable, not bricked
+Original: `trip-cards.tsx` seeded `step` from the server row but `draft` from `EMPTY_DRAFT`, so a
+reload returned the traveller to step 5 with empty answers and "Build my plan" 400d forever, *"with
+no Back and no restart"*. Both halves of that are now false: the draft persists in `sessionStorage`
+keyed by the card's message id, and the step rail is a **go-back control** — any answered step can be
+tapped and re-answered locally without posting.
+
+**What is left is narrow**: `sessionStorage` does not survive a new tab or another device, so a
+traveller resuming elsewhere lands on step 5 with an empty draft. They can now walk back to step 1
+and re-answer, so it is friction rather than a dead end. Promote it only if someone hits it.
 
 ---
 
@@ -184,7 +197,37 @@ negative result so a name that cannot be found is not asked about again. Neither
 
 ---
 
-## Done today (2026-07-27) — verified in prod, not just merged
+## Open — asked for, not yet built
+
+### B10 · The go-back rail for the VISA wizard
+The trip wizard got it on 2026-07-27 (owner: *"in chat for visa and trip planner make so user can go
+back and check or edit previously given answers in cards"*). Visa was deliberately held back and is
+still owed. It is not the same job: visa answers are **PII**, they are persisted server-side rather
+than living in a client draft, and editing one re-takes the consent tick — so the rail has to drive
+the existing edit endpoint instead of mutating a local object. `EDITABLE_VISA_STATUSES` already names
+which cases may be touched at all.
+
+---
+
+## Done 2026-07-28 — verified in prod, not just merged
+
+- **The trip planner's button now produces the planner** (`e36e5334`, CI green, revision
+  `eno-vn-00586-bkk`, verified by grepping the live PDP bundle). Owner: *"when i click plan my trip it
+  just sends message instead of giving me the form"* — measured: an ACTIVE step-1 wizard card had sat
+  first in a thirteen-message thread since 09:01Z, and the launcher chip hid itself precisely because
+  a wizard was running, so the card was live, off screen, and unreachable. The chip no longer hides
+  (it becomes "Continue planning" and scrolls the card back into view); "is a wizard running" is read
+  off the rendered message list instead of a separate fetch that could go stale; and the plan CTA
+  posts nothing at all, opening the thread with `?plan=1` so the wizard opens with it. Trip cards also
+  stopped rendering inside e-Visa threads, where pre-anchor-fix residue still puts one.
+- **Dependency/security patch** (`d861fab4`, CI green) — `next 16.2.10 → 16.2.11` (nine advisories,
+  incl. cache confusion of response bodies on an ISR-heavy app) and `sharp 0.34.5 → 0.35.3` (four
+  libvips CVEs). ⚠️ The sharp bump broke the **build** while all 1434 tests passed — nothing imports
+  `visa/image-normalization.ts`. A green suite does not validate a dependency bump.
+
+---
+
+## Done 2026-07-27 — verified in prod, not just merged
 
 - **Visa/trip thread collision (T337)** — one desk, two thread kinds. Was a live 500 (12×/24h, mostly
   from the iOS app) *and* the duplicate-chat bug. Zero 500s since deploy.
