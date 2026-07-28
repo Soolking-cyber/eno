@@ -72,6 +72,28 @@ const statements = [
   )`,
   `alter table search_trend_seen enable row level security`,
 
+  // ── Publish funnel ────────────────────────────────────────────────────────────
+  // One row per (UTC day, outcome). `outcome` is 'published' or the exact reason the
+  // server refused: a PublishBlockCode, 'rate_limited', 'invalid_input', etc.
+  //
+  // ⚠️ WHY THIS EXISTS. On 2026-07-28 the only way to learn anything about this app's
+  // funnels was hand-written SQL against prod. The post wizard emits an analytics event
+  // ONLY on success (trackPostListing), so every refusal — and every abandonment — was
+  // invisible, and "the marketplace's problem is supply, not code" was unfalsifiable
+  // because the data to falsify it was never collected. With 7 real third-party sellers,
+  // one silently-refused first listing is ~14% of supply.
+  //
+  // ⚠️ AGGREGATE ONLY, DELIBERATELY — same shape as search_trend above. No user id, no
+  // listing id, no free text, so it can answer "how often does photos_min fire" without
+  // becoming a second copy of who-posted-what. A counter cannot leak what it never held.
+  `create table if not exists publish_funnel (
+    day     date not null,
+    outcome text not null,
+    count   integer not null,
+    primary key (day, outcome)
+  )`,
+  `alter table publish_funnel enable row level security`,
+
   // ISR/data cache for the Next cacheHandler (cache-handler.cjs) — entries carry
   // the same JSON envelope the Redis version stored; tombstones are build-agnostic
   // revalidateTag timestamps compared against entry.lastModified.
@@ -91,7 +113,7 @@ const statements = [
 
   // Supabase default privileges grant table access to anon/authenticated — revoke.
   `revoke all on kv_store, rl_window, rl_cooldown, zalo_oauth_token, search_trend, search_trend_seen,
-   next_cache, next_cache_tag
+   publish_funnel, next_cache, next_cache_tag
    from anon, authenticated`,
 
   // Upstash-compatible weighted two-window sliding limit. Increments FIRST,
@@ -257,9 +279,37 @@ const statements = [
     delete from rl_cooldown where until < now() and reset_at < now();
     delete from search_trend where day < (now() at time zone 'utc')::date - 3;
     delete from search_trend_seen where day < (now() at time zone 'utc')::date - 1;
+    -- ⚠️ 180 days, not 3 like search_trend above. Trending answers "what is hot right now"
+    -- and a stale term is noise; the funnel answers "is the refusal rate moving", which is
+    -- a question you can only ask of history. At one row per (day, outcome) that is a few
+    -- thousand rows at most — the retention is here for hygiene, not for size.
+    delete from publish_funnel where day < (now() at time zone 'utc')::date - 180;
     delete from next_cache where expires_at < now();
     delete from next_cache_tag where expires_at < now();
   $$`,
+
+  // Bump today's counter for one publish outcome. Insert-or-increment, nothing else —
+  // it takes no id and stores no free text, so the worst a mis-authorized call can do is
+  // inflate a number. `p_outcome` is clamped to 40 chars here as well as in the caller,
+  // because a counter table must never become an unbounded string sink.
+  //
+  // ⚠️ YES, EVERY PUBLISH TOUCHES THE SAME ROW, and that is an accepted property rather than
+  // an oversight — a reviewer raised it as a ship-blocker, so here are the numbers. The row
+  // lock is held for the microseconds of one upsert, and this app has produced 35 listings in
+  // its entire history; search_trend has used the identical pattern on a hotter path since the
+  // Redis migration without contention. If publish volume ever reaches the hundreds per second
+  // where a hot row actually matters, the fix is to shard the key (day, outcome, hashed bucket)
+  // and sum on read — do that then, on evidence, not now on a hypothetical.
+  `create or replace function publish_log(p_outcome text)
+  returns void
+  language plpgsql security definer set search_path = public, pg_temp as $$
+  declare
+    v_day date := (now() at time zone 'utc')::date;
+  begin
+    insert into publish_funnel as f (day, outcome, count)
+    values (v_day, left(p_outcome, 40), 1)
+    on conflict (day, outcome) do update set count = f.count + 1;
+  end $$`,
 
   // Server-side callers only: postgres (Prisma) needs no grant; the forum uses
   // the service key. PostgREST roles must not reach these.
@@ -267,13 +317,13 @@ const statements = [
     rl_check(text, text, int, int),
     rl_cooldown_claim(text, text, int[]),
     kv_get(text), kv_set(text, jsonb, int, boolean), kv_del(text), kv_incrby(text, bigint, int),
-    trend_log(text, text), trend_top(int, int, int), rl_sweep()
+    trend_log(text, text), trend_top(int, int, int), publish_log(text), rl_sweep()
   from public, anon, authenticated`,
   `grant execute on function
     rl_check(text, text, int, int),
     rl_cooldown_claim(text, text, int[]),
     kv_get(text), kv_set(text, jsonb, int, boolean), kv_del(text), kv_incrby(text, bigint, int),
-    trend_log(text, text), trend_top(int, int, int)
+    trend_log(text, text), trend_top(int, int, int), publish_log(text)
   to service_role`,
 ]
 

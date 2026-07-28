@@ -13,6 +13,7 @@ import { createListingCore } from '@/lib/core/listings'
 import { idsFastPath, buildFeedFilters, buildFeedOrderBy, getSubcategoryCounts } from './feed-query'
 import { semanticRank } from './semantic-rank'
 import { resolveSellerForPost } from './resolve-seller'
+import { publishOutcome, recordPublishOutcome } from '@/lib/publish-funnel'
 
 export const dynamic = 'force-dynamic'
 
@@ -142,7 +143,46 @@ export async function GET(req: NextRequest) {
 // joins on the exact same canonical form. Image URLs validated via the shared,
 // host-pinned isListingImageUrl() (our project's bucket only).
 
+/**
+ * ⚠️ THE FUNNEL COUNTER WRAPS THE HANDLER, it is not sprinkled through it.
+ *
+ * createListing below has eight exit points (rate limit, invalid input, contact-in-text,
+ * banned words, unknown category, the seller resolver, the enforcement gate,
+ * PublishBlockedError) plus success. Recording at each one guarantees that the day someone
+ * adds a ninth and forgets, the funnel silently under-reports — and a missing branch reads
+ * as zero, which is worse than no funnel at all. Reading the outcome off the response the
+ * handler already produced makes new branches self-instrumenting.
+ *
+ * The body is re-read from a CLONE: Response bodies are one-shot streams, and consuming the
+ * real one here would send an empty body to the client. The clone is cheap (these payloads
+ * are small JSON) and the whole thing is wrapped so instrumentation can never break a
+ * publish — on any failure to classify, we simply do not count.
+ */
 export async function POST(req: NextRequest) {
+  let res: NextResponse
+  try {
+    res = await createListing(req)
+  } catch (e) {
+    // ⚠️ A THROW MUST STILL COUNT. createListing's own try/catch does not cover everything —
+    // the rate-limit call and getCurrentProfileId() run BEFORE it opens — so an exception can
+    // escape, and an uncounted branch reads as zero on the funnel page, which is worse than no
+    // page at all. Count it, then rethrow untouched so Next's error handling is unchanged.
+    void recordPublishOutcome('exception')
+    throw e
+  }
+  try {
+    // res.clone() is an independent handle: the original body is untouched and reaches the
+    // client whole. Only read on a failure — a 201's body carries the created listing and no
+    // error code, so parsing it would be work for nothing.
+    const body = res.status >= 200 && res.status < 300 ? null : await res.clone().json().catch(() => null)
+    void recordPublishOutcome(publishOutcome(res.status, (body as { error?: unknown } | null)?.error))
+  } catch {
+    /* never let counting a publish affect the publish */
+  }
+  return res
+}
+
+async function createListing(req: NextRequest) {
   // Guest posting is allowed (resolve-by-phone), and each create can fan out paid
   // translation + social syndication → throttle to cap floods. Same posture as the upload
   // routes: signed-in sellers fail OPEN (accountable account — don't block posting on a

@@ -15,7 +15,7 @@ import type { LucideIcon } from 'lucide-react'
 import {
   Store, ExternalLink, MessageSquareText, Heart, Scale, Upload, Code2,
   CircleHelp, FileCheck2, Route,
-  Flag, ShieldAlert, ClipboardList, Tags, Star, Stamp, BadgeCheck,
+  Flag, ShieldAlert, ClipboardList, Tags, Star, Stamp, BadgeCheck, Filter,
 } from 'lucide-react'
 
 export type NavRole = 'all' | 'business' | 'seller' | 'admin'
@@ -127,6 +127,7 @@ export const DASHBOARD_NAV: NavGroup[] = [
     role: 'admin',
     items: [
       { href: '/admin', en: 'Reports', icon: Flag, exact: true },
+      { href: '/admin/funnel', en: 'Publish funnel', icon: Filter },
       { href: '/admin/disputes', en: 'Disputes', icon: Scale },
       { href: '/admin/enforcement', en: 'Enforcement', icon: ShieldAlert },
       { href: '/admin/listings', en: 'Listings', icon: ClipboardList },
