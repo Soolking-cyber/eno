@@ -47,6 +47,12 @@ export function Footer() {
         { label: tr('Motorbikes for sale in Vietnam', 'Mua bán xe máy tại Việt Nam'), href: '/motorbikes-for-sale-vietnam' },
         { label: tr('Moving sales in Vietnam', 'Thanh lý chuyển nhà tại Việt Nam'), href: '/moving-sales-vietnam' },
         { label: tr('Services for expats in Vietnam', 'Dịch vụ cho người nước ngoài'), href: '/services-for-expats-vietnam' },
+        // ⚠️ THE WHOLE SEO HALF OF THE FIX, IN ONE LINE. `grep -rn "vietnam-evisa" src` returned
+        // exactly ONE inbound internal link — from /services-for-expats-vietnam, which is itself
+        // only reachable from this same column. So the 6-page e-Visa cluster sat TWO footer hops
+        // from anywhere, on a site Googlebot visited 15 times in two days. This puts it one hop
+        // from every page. A real <a href>, unlike the home tiles, which are Buttons.
+        { label: tr('Vietnam e-Visa online', 'e-Visa Việt Nam trực tuyến'), href: '/vietnam-evisa' },
       ],
     },
     {

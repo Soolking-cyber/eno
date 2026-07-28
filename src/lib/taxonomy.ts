@@ -157,6 +157,48 @@ export function isVisaProductSlot(categorySlug: string, subcategorySlug?: string
   return categorySlug === VISA_CATEGORY_SLUG && subcategorySlug === VISA_SUBCATEGORY_SLUG
 }
 
+/**
+ * The two things eno.vn SELLS, pinned to the head of the home category grid.
+ *
+ * ⚠️ WHY THESE NEED NAMING AT ALL. Measured 2026-07-28: `/` took 570 page views in seven days
+ * and `/vietnam-evisa` took ZERO. The products were never actually unreachable — the grid is
+ * ordered by real demand and `services` already sat SECOND (electronics 303, services 106), and
+ * the business rail already carried the desk. What was missing was a NAME: nobody scanning
+ * category tiles reads "Services" as "Vietnam e-Visa", and the trip planner had no tile at all.
+ *
+ * ⚠️ NO BESPOKE CHROME, DELIBERATELY. A previous attempt built a visa pricing table plus an admin
+ * grid and threw it away, because a visa service is an ORDINARY LISTING whose type and speed are
+ * taxonomy facets. So the e-Visa entry is a FILTER, not a route: it applies
+ * ?category=services&subcategory=visa-legal and the ordinary explorer renders all 14 SKUs with
+ * the visaEntryType/visaSpeed chips and vnd.ts prices that already exist. Verified against the
+ * live API: that filter returns exactly 14. The trip planner is the one that is genuinely not a
+ * listing — it is a tool — so it routes.
+ *
+ * ⚠️ THE HREF IS DERIVED FROM THE SLUG CONSTANTS ABOVE, never typed out, so it cannot drift from
+ * the taxonomy the way the SEO landing pages did (two of them shipped pointing at `house-rentals`
+ * and `motorbike-rentals`, neither of which is a real Category slug, and nothing caught it because
+ * a wrong slug does not throw — it just renders an empty rail that looks like "no inventory yet").
+ *
+ * ⚠️ CalendarDays FOR THE TRIP TILE, NOT Map. `Map` is ALREADY on this screen: it is the area
+ * selector inside the hero search pill (listings-explorer.tsx:1572), a few pixels above this grid.
+ * Reusing the glyph would put one icon on one screen meaning two different things. Caught by a
+ * reviewer; both icons are registered in category-icons.tsx.
+ *
+ * Shape mirrors INTENT_SHORTCUTS above, plus the kind/href pair the tile needs.
+ */
+export const DESK_SHORTCUTS: {
+  key: string; name: string; nameVi: string; icon: string; kind: 'filter' | 'route'; href: string
+}[] = [
+  {
+    key: 'evisa', name: 'Vietnam e-Visa', nameVi: 'e-Visa Việt Nam', icon: 'Stamp',
+    kind: 'filter', href: `/?category=${VISA_CATEGORY_SLUG}&subcategory=${VISA_SUBCATEGORY_SLUG}`,
+  },
+  {
+    key: 'trip', name: 'Trip planner', nameVi: 'Lên lịch trình', icon: 'CalendarDays',
+    kind: 'route', href: '/itinerary',
+  },
+]
+
 // Entry-type copy. The VALUES and their order come from VISA_ENTRY_TYPES (the engine's
 // own union), so a new entry type is a TYPE ERROR here instead of a chip that silently
 // never appears. Only two exist: src/lib/visa/schema.ts models entryType alone, over one

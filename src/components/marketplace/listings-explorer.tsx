@@ -39,7 +39,7 @@ import { Button } from '@/components/ui/button'
 import { useLanguage, Tr } from '@/context/language-context'
 import { useAuth } from '@/context/auth-context'
 import { SUBCATEGORIES } from '@/lib/subcategories'
-import { LISTING_TYPES, INTENT_SHORTCUTS, categoryHasBrand, rangeFacetsFor, facetsFor } from '@/lib/taxonomy'
+import { LISTING_TYPES, INTENT_SHORTCUTS, DESK_SHORTCUTS, categoryHasBrand, rangeFacetsFor, facetsFor } from '@/lib/taxonomy'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
@@ -655,18 +655,26 @@ export function ListingsExplorer({
   // we're ALREADY on the home route that's a soft <Link> nav the reader above can't see
   // (no popstate, no remount), so the bell also fires `eno:apply-url` with the target —
   // apply those filters here and switch to the results view.
+  // ⚠️ EXTRACTED VERBATIM from the listener below so the pinned e-Visa tile can reuse it. This is
+  // a PURE MOVE — the `eno:apply-url` listener still calls it and behaves identically. Two live
+  // flows depend on that path (the notification bell's deep link and the header's brand pick), so
+  // any change in behaviour here breaks them rather than this tile.
+  const applyUrl = useCallback((url: string) => {
+    const qs = url.includes('?') ? url.slice(url.indexOf('?') + 1) : ''
+    applyParams(new URLSearchParams(qs))
+    setShowExplorer(true)
+    requestAnimationFrame(() => document.getElementById('listings')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+  }, [applyParams])
+
   useEffect(() => {
     const onApply = (e: Event) => {
       const url = (e as CustomEvent<{ url?: string }>).detail?.url
       if (!url) return
-      const qs = url.includes('?') ? url.slice(url.indexOf('?') + 1) : ''
-      applyParams(new URLSearchParams(qs))
-      setShowExplorer(true)
-      requestAnimationFrame(() => document.getElementById('listings')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+      applyUrl(url)
     }
     window.addEventListener('eno:apply-url', onApply)
     return () => window.removeEventListener('eno:apply-url', onApply)
-  }, [applyParams])
+  }, [applyUrl])
 
   // NOTE: a plain `?q=` arrival stays a RAW text search on purpose (same convention
   // as Enter in every search bar) — brand facets only open via an explicit pick from
@@ -1694,6 +1702,48 @@ export function ListingsExplorer({
                 desktop ← / → arrows (only appear once the row overflows). */}
             <div className="relative">
             <div ref={catScrollerRef} className="mx-auto grid w-fit max-w-full grid-rows-2 grid-flow-col auto-cols-[7rem] sm:auto-cols-[9rem] gap-x-4 gap-y-6 sm:gap-x-6 sm:gap-y-8 overflow-x-auto scrollbar-none snap-x px-3">
+              {/* ⚠️ eno's OWN TWO PRODUCTS, PINNED AHEAD OF THE DEMAND ORDER. Measured 2026-07-28:
+                  `/` took 570 page views in a week and `/vietnam-evisa` took ZERO. They were never
+                  unreachable — this grid is demand-ordered and `services` already sat SECOND — they
+                  were just unnamed, because nobody scanning tiles reads "Services" as "Vietnam
+                  e-Visa", and the trip planner had no tile at all.
+
+                  ⚠️ THIS IS A MERCHANDISING BET AND IT IS ONE ARRAY MOVE TO UNDO. Two of roughly six
+                  above-the-fold tile slots now belong to eno rather than to third-party supply, which
+                  pushes Electronics (the largest real category, 8 of 32 listings) to column 2. To
+                  reverse: move this block AFTER {categories.map(...)} and the tiles fall to the end
+                  of the scroller; delete it and the grid is exactly today's order.
+
+                  Byte-identical to the INTENT_SHORTCUTS tile below on purpose — same Button, same
+                  CategoryIcon sizing, same label span. Only the onClick differs. It is a <Button>
+                  rather than <Button asChild><Link>, like every other tile here: asChild
+                  CONCATENATES the child's className without tailwind-merge, so the Button base
+                  `inline-flex` would beat a child `flex flex-col` and the base
+                  `[&_svg:not([class*='size-'])]:size-4` would shrink the 44px icon. Crawlability for
+                  these two destinations is bought in the footer instead, where they are real
+                  anchors. */}
+              {DESK_SHORTCUTS.map((s) => (
+                <Button
+                  variant="bare"
+                  size="none"
+                  key={s.key}
+                  onClick={() => { if (s.kind === 'filter') applyUrl(s.href); else router.push(s.href) }}
+                  // ⚠️ snap-start, unlike the INTENT_SHORTCUTS tile this is otherwise copied from.
+                  // That one sits at the TAIL of the scroller where it is never the snap target;
+                  // these are the FIRST two columns, so without it `snap-x` has nothing to catch at
+                  // the very start of the scroll and the pinned tiles drift under a swipe. The
+                  // category tiles below carry it for the same reason. Caught by a reviewer.
+                  className="group flex snap-start flex-col items-center justify-center gap-2 whitespace-normal p-2 text-center cursor-pointer"
+                >
+                  <CategoryIcon
+                    name={s.icon}
+                    className="h-11 w-11 sm:h-12 sm:w-12 text-body transition-all duration-200 group-hover:scale-110 group-hover:text-brand"
+                  />
+                  <span className="text-sm sm:text-base font-bold text-foreground leading-tight transition-colors group-hover:text-brand">
+                    <Tr text={lang === 'vi' ? s.nameVi : s.name} />
+                  </span>
+                </Button>
+              ))}
               {categories.map((cat) => {
                 const cc = CATEGORY_COLOR_CLASSES[cat.color] ?? CATEGORY_COLOR_CLASSES.brand
                 const hex = cc.text.match(/#[0-9a-fA-F]{6}/)?.[0] ?? 'var(--brand)'
