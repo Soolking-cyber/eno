@@ -3,15 +3,65 @@
 The live task list. Replaces the retired cockpit board (history in `docs/cockpit-archive/`).
 One agent works this top-down. **Status is only ever set from a MEASUREMENT, never from a diff.**
 
-Updated 2026-07-28.
+Updated 2026-07-28 (evening) — **RE-PRIORITISED against measurement. Read C0 first.**
 
-**Where things stand: 11 of 15 items shipped. Four remain, and only two are mine to do.**
+## C0 · ⚠️ THE BOARD BELOW WAS AIMED AT THE WRONG END OF THE FUNNEL
 
-| Phase | What it is | Items | Blocked on |
-|---|---|---|---|
-| **Phase 1** | Mine to do now | P1.1 orphan trip cards · P1.2 rolling bug hunt · B6 geocoder · B8 residual | nothing |
-| **Phase 2** | Needs an owner decision | B15 build cache · P2.2 trip photo | you |
-| **Phase 3** | Blocked upstream — do not start | B14 TypeScript 7 | typescript-eslint |
+An audit on 2026-07-28 measured the app end to end and the ordering did not survive it. The
+correction matters more than any single item, so it is recorded rather than quietly applied.
+
+**What was believed:** the e-Visa document gate is the app's biggest problem, because an
+applicant was blocked at step 1 and quit.
+
+**What is true:** that applicant is a population of **one**. The person who got FURTHEST in the
+visa funnel passed both document checks, reached checkout, and abandoned at **$55.10** against a
+$25 government fee (`visa_payments`, PayPal order created 2026-07-27, never captured). And
+`/vietnam-evisa` had **0 page views in 7 days** against 570 on `/`. The gate is real but it is
+not where the money stops.
+
+⚠️ **Two things this board asserted were also just WRONG**, both corrected by measuring:
+- *"Visa payments are dormant."* They are not — see the PayPal order above.
+- *"The homepage does not link the visa product."* It does, twice, in the footer. The grep that
+  "proved" otherwise excluded underscores and missed `/eno_visa`.
+
+**The order now, by evidence:** (1) stop losing first listings → (2) instrument, so the next
+prioritisation is not a guess → (3) fill the empty categories demand is already asking for →
+(4) nav entry points → (5) the visa desk's verified bugs, which is a short list, not a project.
+
+| # | What it is | State |
+|---|---|---|
+| **C1** | `/post` was destroying first listings | ✅ shipped `1298c088` |
+| **C1b** | e2e cleanup silently left test data in prod | ✅ shipped `1298c088` |
+| **C2** | Publish funnel instrumentation + `/admin/funnel` | ✅ shipped `a6e3e59d` |
+| **C3** | 8 of 15 categories empty; top search is `honda`, `vehicles` has 0 | open — next |
+| **C4** | Nav entry points for the two monetized products | open, owner wants the design first |
+| **C5** | Visa desk: the three verified bugs only | open |
+| — | Everything below (B6/B8/B14/P1.x) | unchanged, and now BELOW C3–C5 |
+
+### C3 · Demand is pointing at empty shelves
+`search_trend`: `honda` ×6, `iphone` ×6 — and `vehicles` has **0 live listings**. Empty
+categories: vehicles, rentals, jobs, moving-sale, pets, food-drink, tickets-travel,
+community-events. Four of them have purpose-built SEO landing pages pointing at nothing.
+Real third-party supply is **18 listings**; the other 15 are the desk's own visa SKUs.
+
+### C4 · The two monetized products are footer-only
+Header links `/` and `/signin`. Mobile nav is `/dashboard`, `/messages`, `/post`, `/saved`,
+`/signin`, `/dashboard/account`. Not one product destination in either. `/vietnam-evisa` has a
+single internal inbound link in the whole app. ⚠️ Owner asked to see the design before it ships.
+
+### C5 · The visa desk's verified bugs — NOT the gate redesign
+The gate relaxation was proposed and **REFUTED**, correctly: `/vietnam-evisa/rejected` publishes
+"The portrait is checked against the same rules the department applies" and lists the exact
+checks as refusal causes, the AI gate sits UPSTREAM of the charge (checkout refuses to bill an
+incomplete case), and `warnings` is rendered nowhere — so "advisory" in this codebase means
+deleted. Do not re-propose it. What is left is three real bugs:
+1. `extract/route.ts:234` writes the final status WITHOUT the `.neq('validation_status','passed')`
+   guard every failure path uses — a re-analysis can downgrade a passed portrait and throw an
+   applicant from step 4 back to step 1.
+2. `visa-cards.tsx:1198` shows `issues.slice(0, 3)`. The 2026-07-28 applicant had **4 issues and
+   saw 3**, twice — a re-upload treadmill with zero compliance benefit.
+3. `pending` and `unavailable` both block via `schema.ts:128`, so a Gemini outage or an exhausted
+   AI budget tells a perfect photo "send it again", with no manual path.
 
 ---
 
