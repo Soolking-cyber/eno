@@ -33,16 +33,41 @@ prioritisation is not a guess → (3) fill the empty categories demand is alread
 | **C1** | `/post` was destroying first listings | ✅ shipped `1298c088` |
 | **C1b** | e2e cleanup silently left test data in prod | ✅ shipped `1298c088` |
 | **C2** | Publish funnel instrumentation + `/admin/funnel` | ✅ shipped `a6e3e59d` |
-| **C3** | 8 of 15 categories empty; top search is `honda`, `vehicles` has 0 | open — next |
+| **C3** | 8 of 15 categories empty; top search is `honda`, `vehicles` has 0 | ✅ shipped `e751a346` |
 | **C4** | Nav entry points for the two monetized products | open, owner wants the design first |
 | **C5** | Visa desk: the three verified bugs only | open |
 | — | Everything below (B6/B8/B14/P1.x) | unchanged, and now BELOW C3–C5 |
 
-### C3 · Demand is pointing at empty shelves
+### C3 · ✅ SHIPPED `e751a346` — an empty category no longer advertises stock
 `search_trend`: `honda` ×6, `iphone` ×6 — and `vehicles` has **0 live listings**. Empty
 categories: vehicles, rentals, jobs, moving-sale, pets, food-drink, tickets-travel,
-community-events. Four of them have purpose-built SEO landing pages pointing at nothing.
-Real third-party supply is **18 listings**; the other 15 are the desk's own visa SKUs.
+community-events. Four of them have purpose-built SEO landing pages that led with
+"Browse motorbikes" over prose promising "You'll find both here". Real third-party supply is
+**18 listings**; the other 15 are the desk's own visa SKUs.
+
+Empty categories now lead with "Be the first to list one" and demote browse. Verified in the
+build output page by page: motorbikes / jobs / moving-sales / housing show the new state,
+services / e-visa keep the browse CTA.
+
+⚠️ **`hasNoInventory(queryReturned, count)` — "empty" and "the query failed" MUST stay
+distinct.** SeoLanding catches a build-time DB outage and renders the shell with `listings = []`,
+so `length === 0` is true when nothing was ever looked up. At `revalidate = 604800` collapsing
+them would advertise "be the first" on a stocked page for a WEEK.
+
+⚠️ **NOTHING INVALIDATES THESE PAGES ON PUBLISH** — `revalidatePath` is only ever called for
+`/listings/<id>`. That is why the empty copy is written to stay true when stale ("just getting
+started") rather than asserting inventory. The real fix is a categorySlug→path registry +
+on-demand revalidation; not built because `seo-landing-slugs.test.ts` scans the directory
+precisely BECAUSE a registry is what people forget, and these pages have near-zero traffic. If
+they start ranking, build it AND extend that scan to assert the registry is complete.
+
+⛔ **"Unlock the bulk importer, it is business-only so it is off for everyone" was WRONG** — 4 of
+14 accounts are `business`, including the owner (`shanazar15071994@gmail.com`) and the desk. The
+CSV importer is already available to you. No gate was weakened; do not re-propose it.
+
+**What is left here is not engineering.** No amount of code creates a Honda listing. The lever is
+seeding supply into `vehicles` — the importer you already have — against demand that is already
+measurable in `search_trend`.
 
 ### C4 · The two monetized products are footer-only
 Header links `/` and `/signin`. Mobile nav is `/dashboard`, `/messages`, `/post`, `/saved`,
