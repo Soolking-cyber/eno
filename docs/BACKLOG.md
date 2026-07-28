@@ -34,7 +34,7 @@ prioritisation is not a guess → (3) fill the empty categories demand is alread
 | **C1b** | e2e cleanup silently left test data in prod | ✅ shipped `1298c088` |
 | **C2** | Publish funnel instrumentation + `/admin/funnel` | ✅ shipped `a6e3e59d` |
 | **C3** | 8 of 15 categories empty; top search is `honda`, `vehicles` has 0 | ✅ shipped `e751a346` |
-| **C4** | Nav entry points for the two monetized products | open, owner wants the design first |
+| **C4** | Nav entry points for the two monetized products | ✅ shipped `a350b63f` |
 | **C5** | Visa desk: the three verified bugs only | open |
 | — | Everything below (B6/B8/B14/P1.x) | unchanged, and now BELOW C3–C5 |
 
@@ -69,10 +69,43 @@ CSV importer is already available to you. No gate was weakened; do not re-propos
 seeding supply into `vehicles` — the importer you already have — against demand that is already
 measurable in `search_trend`.
 
-### C4 · The two monetized products are footer-only
+### C4 · ✅ SHIPPED `a350b63f` — the two products are named in the grid that already existed
 Header links `/` and `/signin`. Mobile nav is `/dashboard`, `/messages`, `/post`, `/saved`,
-`/signin`, `/dashboard/account`. Not one product destination in either. `/vietnam-evisa` has a
-single internal inbound link in the whole app. ⚠️ Owner asked to see the design before it ships.
+`/signin`, `/dashboard/account`. Not one product destination in either.
+
+⚠️ **BUT "UNREACHABLE" WAS WRONG, TWICE, AND THE CORRECTION IS THE USEFUL PART.** The homepage
+DOES link both products (footer). And the category grid is ordered by real demand with `services`
+ALREADY second (electronics 303, services 106), while the business rail already carried the desk.
+The gap was never placement — it was that **nobody scanning tiles reads "Services" as "Vietnam
+e-Visa"**, and the trip planner had no tile at all.
+
+Shipped: two tiles pinned to the head of the existing scroller. e-Visa APPLIES
+`?category=services&subcategory=visa-legal` (verified live: returns exactly 14); trip planner
+routes to `/itinerary`. Plus one footer line — which is the whole SEO half, since
+`grep -rn vietnam-evisa src` returned ONE inbound link, from a page only reachable via the same
+footer column. Bottom bar and header untouched.
+
+Chosen by a judged panel of four designs (25 / 23.5 / 21 / 14.5 on invariants, efficacy,
+restraint). Three corrections, each verified rather than accepted:
+- **CalendarDays, not Map** — `Map` is already the area selector in the hero pill a few pixels
+  above. One glyph, two meanings, one viewport.
+- **`snap-start`** — the INTENT_SHORTCUTS tile omits it because it sits at the TAIL; these are the
+  first two columns, so `snap-x` had nothing to catch.
+- ⛔ **Crawlable `<Link>` tiles were proposed and REJECTED.** The reviewer was right that
+  `ui/button`'s `asChild` does `cn()` on both sides and that the icon rule is now zero-specificity
+  `[:where(&)_svg]` — so the two CLAUDE.md `asChild` traps are obsolete for THIS component. It is
+  still wrong here: **the explorer syncs URL→state on mount and `popstate` ONLY** (no
+  `useSearchParams`), so a `<Link>` to the same route fires neither and would change the URL while
+  filtering nothing. That is why every tile in this grid is a `<Button>`. Do not "improve" them
+  into links without first giving the explorer a searchParams subscription.
+
+⚠️ **A MERCHANDISING BET, one array move to undo.** Two of ~six above-the-fold tile slots now
+belong to eno, pushing Electronics to column 2.
+
+⚠️ **IT DOES NOT FIX THE COLD START.** Services listings average **4.5 views vs 20.7** for goods
+(rankScore 0.26 vs 0.37–0.57), so the first services card sits at index 13 while the homepage
+seeds 12. A visitor who ignores the tiles still meets twelve unrelated cards. Fixing that means
+`rankScore` or the SSR page size — money/trust-adjacent, deliberately out of scope.
 
 ### C5 · The visa desk's verified bugs — NOT the gate redesign
 The gate relaxation was proposed and **REFUTED**, correctly: `/vietnam-evisa/rejected` publishes
