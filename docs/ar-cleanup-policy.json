@@ -5,13 +5,13 @@
     "mostRecentVersions": {"keepCount": 100}
   },
   {
-    "name": "delete-old-untagged",
+    "name": "delete-untagged",
     "action": {"type": "Delete"},
-    "condition": {"tagState": "UNTAGGED", "olderThan": "7d"}
+    "condition": {"tagState": "UNTAGGED", "olderThan": "1d"}
   },
   {
     "name": "delete-stale",
     "action": {"type": "Delete"},
-    "condition": {"tagState": "ANY", "olderThan": "30d"}
+    "condition": {"tagState": "ANY", "olderThan": "7d"}
   }
 ]

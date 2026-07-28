@@ -110,30 +110,32 @@ so that cache could never hit. It would have looked simpler and silently done no
 What survives: the constraint that a cache in `asia-southeast1` would ALSO have cost ~$38/mo in
 cross-continent egress, on top of losing.
 
-### B15b · 🔴 THE REAL COST LEVER — Artifact Registry is 37.6 GB and unbounded
-Found while doing B15. The `eno` repo holds **618 image versions / 37.6 GB** and had **no cleanup
-policy at all** — it grew ~2 GB during this session alone, and 31 → 37.6 GB in three days. That is a
-bigger and simpler saving than any build-minute tuning.
+### B15b · ✅ ENABLED 2026-07-28 — Artifact Registry cleanup, sized from measurement
+The `eno` repo held **621 versions / 37.6 GB with no cleanup policy at all**, growing ~4 GB/day.
+Live policy: **Keep the 100 newest · delete untagged >1d · delete anything >7d.**
 
-A policy is now **set in DRY-RUN** (`cleanupPolicyDryRun: true`, so it deletes nothing yet):
-keep the 100 most recent versions, delete untagged older than 7d, delete anything older than 30d.
-Sized from the real build rate — 50 builds in 7 days ≈ **7.1/day**, so 100 versions ≈ **14 days of
-rollback depth** (an earlier draft used 40, which is only 5.6 days).
+Measured before enabling — deletes **259 of 621 versions (~15.3 GB)**, leaves 362, and caps
+steady-state at roughly seven days of images instead of unbounded growth. Cleanup runs
+asynchronously, so the reported size drops within about a day.
 
-⚠️ **NEEDS AN OWNER DECISION TO ENABLE, because it deletes ~518 images irreversibly.** Cloud Run
-revisions reference images by DIGEST: deleting one a revision still needs means that revision can no
-longer scale up. The `Keep` rule protects the 100 newest, which covers any realistic rollback, but
-the dry-run output should be read first — AR writes it to Cloud Logging within a day.
+⚠️ **MY FIRST POLICY WOULD HAVE DELETED NOTHING, and I nearly enabled it.** It used
+`olderThan: 30d` with `keepCount: 100`, sized from an assumed 7.1 builds/day. Both numbers were
+wrong: the repo produces ~70 versions/day (a build emits several), and **the whole repo is only 9
+days old** — the GCP cutover was 2026-07-19. Nothing is older than 30 days, so the rule matched zero
+objects. Enabling it and reporting "~31 GB freed" would have been confidently false. The lesson is
+the shape of the mistake: a retention rule must be sized against the age DISTRIBUTION of what is
+actually there, never against an assumed rate.
 
-To enable once the dry run looks right:
-```
-gcloud artifacts repositories set-cleanup-policies eno --location=asia-southeast1 \
-  --policy=<policy.json> --no-dry-run
-```
+⚠️ **VERIFIED IT CANNOT BREAK A DEPLOY.** Cloud Run references images by DIGEST, so deleting one a
+revision needs means that revision can never scale up again. Cross-checked all 208 revisions across
+both services against the deletion set before enabling:
+- the **serving** revision — untouched (explicitly asserted, not assumed)
+- newest thing deleted: **5.1 days** old · oldest thing kept: **7.0 days** → 7 days of rollback depth
+- 8 deleted images are still referenced by revisions **older than the rollback horizon**; those
+  revisions become non-scalable, which is the intended cost of retention.
 
-### P2.2 · A photo for the trip-assistance listing
-Owner, 2026-07-27: *"soon will be added"*. The trip anchor listing carries no image, so it renders
-without one wherever listing cards appear. Nothing to build — it needs the picture.
+Policy committed at `docs/ar-cleanup-policy.json`. To widen rollback depth, raise `delete-stale`'s
+`olderThan` — at ~70 versions/day each extra day is roughly 4 GB.
 
 ---
 
