@@ -35,7 +35,7 @@ prioritisation is not a guess → (3) fill the empty categories demand is alread
 | **C2** | Publish funnel instrumentation + `/admin/funnel` | ✅ shipped `a6e3e59d` |
 | **C3** | 8 of 15 categories empty; top search is `honda`, `vehicles` has 0 | ✅ shipped `e751a346` |
 | **C4** | Nav entry points for the two monetized products | ✅ shipped `a350b63f` |
-| **C5** | Visa desk: the three verified bugs only | open |
+| **C5** | Visa desk: the three verified bugs only | ✅ shipped `992e07cf` |
 | — | Everything below (B6/B8/B14/P1.x) | unchanged, and now BELOW C3–C5 |
 
 ### C3 · ✅ SHIPPED `e751a346` — an empty category no longer advertises stock
@@ -107,7 +107,7 @@ belong to eno, pushing Electronics to column 2.
 seeds 12. A visitor who ignores the tiles still meets twelve unrelated cards. Fixing that means
 `rankScore` or the SSR page size — money/trust-adjacent, deliberately out of scope.
 
-### C5 · The visa desk's verified bugs — NOT the gate redesign
+### C5 · ✅ SHIPPED `992e07cf` — the three verified bugs, and NOT the gate redesign
 The gate relaxation was proposed and **REFUTED**, correctly: `/vietnam-evisa/rejected` publishes
 "The portrait is checked against the same rules the department applies" and lists the exact
 checks as refusal causes, the AI gate sits UPSTREAM of the charge (checkout refuses to bill an
@@ -120,6 +120,29 @@ deleted. Do not re-propose it. What is left is three real bugs:
    saw 3**, twice — a re-upload treadmill with zero compliance benefit.
 3. `pending` and `unavailable` both block via `schema.ts:128`, so a Gemini outage or an exhausted
    AI budget tells a perfect photo "send it again", with no manual path.
+
+**All three fixed. Every blocking check is untouched — `schema.ts` and `image-quality.ts` were
+never opened, and `npm run sync:visa` still reports 7/7 pairs in sync.**
+
+⚠️ **SUPPRESSING A DOWNGRADE HAS TO BE TOTAL.** Four surfaces read that outcome — the
+`validation_status` column, the stored `validation_report` (rendered by BOTH the admin case page
+and the applicant's card), the passport checklist, and the response body. Guarding only the UPDATE
+stores a FAILING report under a PASSED status: red issue bullets under a green "Verified" badge.
+The disagreement is recorded on the audit event (`suppressedDowngradeFrom`, `suppressedIssues`) so
+it is visible rather than erased. Rule + 16 tests in `src/lib/visa/document-status.ts` — NOT in
+image-quality.ts, which is byte-locked to the forum.
+
+⚠️ **`unavailable` DOES NOT IMPLY "NO ISSUES".** The `getGemini()`-is-null path updates the status
+column without touching the report, so a document can be `unavailable` while still carrying stale
+QUALITY issues from an earlier failed run. Gating the honest outage line on `issues.length === 0`
+therefore hid it exactly when it was needed. The condition asks whether an outage is already
+explained (`OUTAGE_ISSUE_CODES`), not whether any issue exists.
+
+**Still open here, and deliberately not built:** a "run the check again" action. When the AI is
+unavailable the applicant's only affordance is re-uploading, which burns another upload and
+another analysis slot and cannot help. It needs a new prop threaded from `messages/[id]/page.tsx`;
+no production case has hit it yet (0 `unavailable` rows measured), so it waits for evidence.
+Also still open: the compliant reference photo the risk review asked for.
 
 ---
 
