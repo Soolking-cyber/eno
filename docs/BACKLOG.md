@@ -49,7 +49,7 @@ and re-answer, so it is friction rather than a dead end. Promote it only if some
 
 ---
 
-## ⚠️ Corrected — B1 was over-framed
+## ⚠️ Corrected — B1 was over-framed (kept: the correction, not the open question)
 
 I first wrote B1 as a product decision with three options. Measuring it collapsed the question, and
 the correction is recorded rather than quietly edited away:
@@ -66,9 +66,13 @@ which it already did once. Details kept below for context.
 
 ---
 
-## 🔴 Needs an owner decision
+## ✅ Decided and done
 
-### B1 · A buyer with two visa threads jumps windows on "send the form again"
+### B1 · ✅ DONE 2026-07-27 — option (a), consolidated. Owner approved ("yeah do suggested") and `scripts/merge-visa-threads.ts` ran; the DB confirms it (the loser thread holds 0 messages and is hidden). ⚠️ The merge also nearly hid the buyer's ONLY visa thread — the survivor was chosen on message count without checking `buyerDeletedAt`; the script now clears it. Original framing below.
+
+<details><summary>original</summary>
+
+#### A buyer with two visa threads jumps windows on "send the form again"
 **Owner, 2026-07-27 (on device):** *"inside chat, send the form again opens in new conversation window outside of the current chat window."*
 
 **Measured, not inferred.** Buyer `562fa1d5` holds **3** desk threads:
@@ -100,6 +104,8 @@ choosing which of two message-bearing threads survives is a human decision. That
 - **(c) Data-only.** Merge just this buyer's two threads; change no code. Fixes today, not tomorrow.
 
 ⚠️ Money/trust-adjacent and irreversible → external refutation at plan **and** diff before any write.
+
+</details>
 
 ---
 
@@ -204,7 +210,18 @@ Both exist because `sharp@0.35.3` shipped a container with no loadable native ba
 been verified against a real built image**, not just a green `npm run build` — a green build is
 exactly what shipped the outage.
 
-### B11 · The runtime must not depend on what the file tracer guesses
+### B11a · ✅ SHIPPED 2026-07-28 (`d7e1c166`) — the image now PROVES sharp works before it ships
+A guard in the Dockerfile's runner stage encodes a 1×1 PNG and fails the build if it cannot. It runs
+**after `USER nextjs`** (as root it would pass on files the server may not be able to read — the
+exact false green it exists to stop), and it exercises libvips rather than just resolving the module.
+Confirmed firing in Cloud Build: `sharp OK 0.34.5`. Both branches were tested first — sharp absent →
+exit 1, present → exit 0.
+
+⚠️ **This is why a local `docker run` was NOT the acceptance test**: an arm64 laptop resolves the
+darwin binaries and passes while the deployed linux-x64 image is broken. The check has to run on the
+build platform, inside the image.
+
+### B11b · The runtime must not depend on what the file tracer guesses
 `.next/standalone/node_modules/@img` is populated by Next's tracer from the **build host**, and under
 0.35.3 it stopped emitting the linux binaries. One `COPY --from=deps /app/node_modules/@img
 ./node_modules/@img` in the runner stage makes the image correct regardless — the deps stage already
@@ -241,6 +258,11 @@ which cases may be touched at all.
 
 ## Done 2026-07-28 — verified in prod, not just merged
 
+- **Dependency patch + a build-time guard** (`d7e1c166`, CI green, revision `eno-vn-00588-f49`).
+  `npm audit fix` took production advisories **9 → 3**; the three left are `next`+`postcss` (npm's
+  only remedy is a downgrade to next@14) and `sharp` (B13). ⚠️ It moved **125 packages**, not 5 —
+  everything inside its existing range, incl. next 16.2.11→16.2.12 and prisma 7.8.0→7.9.1. The
+  Dockerfile now proves sharp works inside the real image before it ships (B11a).
 - **The trip planner's button now produces the planner** (`e36e5334`, CI green, revision
   `eno-vn-00586-bkk`, verified by grepping the live PDP bundle). Owner: *"when i click plan my trip it
   just sends message instead of giving me the form"* — measured: an ACTIVE step-1 wizard card had sat
