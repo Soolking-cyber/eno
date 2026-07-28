@@ -704,6 +704,39 @@ describe('entitlement refusals', () => {
     expect(h.state.tables.visa_applications[0].updated_at).toBe('2026-07-02T00:00:00.000Z')
   })
 
+  /**
+   * THE GO-BACK RAIL'S SERVER HALF (owner, 2026-07-27: "make so user can go back and check or edit
+   * previously given answers in cards").
+   *
+   * ⚠️ THE CEILING IS THE CARD, AND IT LIVES IN THE ROUTE, NOT HERE. `applyVisaDmFieldEdit` takes a
+   * step and trusts it — it always did, because the route was the only caller and passed the card's
+   * own `meta.step`. Now the route accepts a client-supplied step and clamps it to `<= meta.step`
+   * before calling. These tests pin the property that makes that clamp SUFFICIENT: each step can
+   * only ever write its own fields, so widening to "any step already reached" widens the writable
+   * set to exactly the union of what the applicant could already write on the way through.
+   */
+  it('each step writes ONLY its own fields, whichever step is named', async () => {
+    seedCase()
+    // A step-2 field offered against step 3 is refused, and vice versa — so naming an earlier step
+    // cannot be used to reach a field that step does not own.
+    const wrongWay = await applyVisaDmFieldEdit({ applicationId: APPLICATION, userId: BUYER, step: 2, fields: { occupation: 'Engineer' } })
+    expect(wrongWay).toMatchObject({ ok: false, error: 'field_not_in_step', status: 400 })
+    const rightWay = await applyVisaDmFieldEdit({ applicationId: APPLICATION, userId: BUYER, step: 3, fields: { occupation: 'Engineer' } })
+    expect(rightWay).toEqual({ ok: true })
+  })
+
+  it('an EARLIER step is editable, and still refuses a locked case', async () => {
+    seedCase()
+    // Going back to step 2 from later in the flow is the whole feature.
+    const back = await applyVisaDmFieldEdit({ applicationId: APPLICATION, userId: BUYER, step: 2, fields: { givenNames: 'Jane' } })
+    expect(back).toEqual({ ok: true })
+    // ⚠️ AND THE STATUS GATE IS WHAT KEEPS IT SAFE AFTER PAYMENT. A paid or submitted case leaves
+    // EDITABLE_STATUSES, so no step — early or current — can be rewritten underneath a purchase.
+    h.state.tables.visa_applications[0].status = 'submitted'
+    const locked = await applyVisaDmFieldEdit({ applicationId: APPLICATION, userId: BUYER, step: 2, fields: { givenNames: 'Mallory' } })
+    expect(locked).toMatchObject({ ok: false, error: 'application_locked', status: 409 })
+  })
+
   it('writes an allowed field through the ENCRYPTED payload and nowhere else', async () => {
     seedCase()
     const result = await applyVisaDmFieldEdit({ applicationId: APPLICATION, userId: BUYER, step: 3, fields: { occupation: 'Engineer', phone: '+441234567890' } })

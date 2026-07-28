@@ -1132,8 +1132,26 @@ function CardShell({
   )
 }
 
-/** The 5-dot progress rail. Now shared with the trip wizard, which is also a five-step card. */
-const StepDots = ({ step }: { step: VisaDmStep }) => <ChatCardSteps current={step} total={STEP_COUNT} />
+/**
+ * The 5-step progress rail — and, since 2026-07-28, the GO-BACK control (owner: "make so user can
+ * go back and check or edit previously given answers in cards"). Shared with the trip wizard.
+ *
+ * ⚠️ ONLY STEPS ALREADY REACHED ARE REACHABLE. Jumping forward would open a form for a stage the
+ * server has not asked about, and the route refuses a step above the card's own anyway — offering
+ * a tap that provably 400s is worse than not offering it.
+ */
+const StepDots = ({ step, current, onSelect }: { step: VisaDmStep; current: VisaDmStep; onSelect?: (n: number) => void }) => {
+  const { tr } = useLanguage()
+  return (
+    <ChatCardSteps
+      current={step}
+      total={STEP_COUNT}
+      labels={([1, 2, 3, 4, 5] as VisaDmStep[]).map((n) => tr(STEP_TITLE[n][0], STEP_TITLE[n][1]))}
+      reachable={onSelect ? Array.from({ length: current }, (_, i) => i + 1) : undefined}
+      onSelect={onSelect}
+    />
+  )
+}
 
 // ── The document step (step 1) ────────────────────────────────────────────────────
 
@@ -1229,7 +1247,8 @@ export type VisaStepCardProps = {
   live: boolean
   busy: boolean
   /** Resolves TRUE when the server accepted the action — the editor only closes on true. */
-  onAct: (action: 'acknowledge' | 'skip' | 'edit', fields?: Record<string, string>) => boolean | Promise<boolean>
+  /** `step` names WHICH step's answers an edit is for — absent means this card's own step. */
+  onAct: (action: 'acknowledge' | 'skip' | 'edit', fields?: Record<string, string>, step?: number) => boolean | Promise<boolean>
   onUpload: (kind: DocKind, file: File) => void | Promise<void>
 }
 
@@ -1245,18 +1264,44 @@ export function VisaStepCard({ meta, info, kase, caseError, live, busy, onAct, o
   const { tr } = useLanguage()
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState<Record<string, string>>({})
+  /**
+   * The EARLIER step being reviewed, or null to follow the server.
+   *
+   * ⚠️ SEPARATE FROM meta.step ON PURPOSE, and for a different reason than the trip wizard's. There
+   * the answers live in a client draft; here they live in the applicant's encrypted case, and
+   * meta.step is recomputed server-side from completeness on every advance. Shadowing it for
+   * RENDERING only means a poll that moves the real step cannot yank somebody out of an answer they
+   * are part-way through re-reading.
+   */
+  const [reviewStep, setReviewStep] = useState<VisaDmStep | null>(null)
+  /** What this card renders: the step under review if there is one, else the server's. */
+  const view: VisaDmStep = reviewStep ?? meta.step
+  const reviewing = reviewStep !== null && reviewStep !== meta.step
 
-  const issues = useMemo(() => (live ? stepIssues(kase, meta.step) : []), [live, kase, meta.step])
+  /**
+   * End the detour when the card stops being about the same thing.
+   *
+   * ⚠️ THIS CANNOT WIPE A HALF-TYPED EDIT, and I checked rather than assumed, because closing the
+   * editor on a background poll would be a nasty way to lose passport data. A visa_step card's
+   * metaJson is never rewritten in place — `advanceVisaDmFlow` INSERTS the next step's card rather
+   * than mutating this one — so `meta.step` is immutable for the life of this component, and the
+   * 15s poll cannot move it underneath someone mid-form. The dep that actually fires is
+   * `meta.applicationId`: switching to another case must not leave the previous case's step under
+   * review.
+   */
+  useEffect(() => { setReviewStep(null); setEditing(false) }, [meta.step, meta.applicationId])
+
+  const issues = useMemo(() => (live ? stepIssues(kase, view) : []), [live, kase, view])
   // Step 2 is the "confirm what we read off your passport" page: the card lists every field
   // the extraction filled in (meta.needsReview — names only) above the form.
   const confirmFields = useMemo(() => {
-    if (meta.step !== 2) return []
+    if (view !== 2) return []
     const allowed = new Set<string>(VISA_DM_STEP_FIELDS[2] ?? [])
     return meta.needsReview.filter((name) => allowed.has(name))
-  }, [meta.step, meta.needsReview])
+  }, [view, meta.needsReview])
 
   /** Issue hints by field, so a field can still say WHY its answer is outstanding. */
-  const issueHints = useMemo(() => issueHintsFor(meta.step, issues, tr), [meta.step, issues, tr])
+  const issueHints = useMemo(() => issueHintsFor(view, issues, tr), [view, issues, tr])
 
   // ⚠️ THE WHOLE STEP, NOT THE GAPS. Every field the step owns is rendered and pre-filled from
   // the applicant's own case, so a schema default is an answer they can see and change rather
@@ -1264,7 +1309,7 @@ export function VisaStepCard({ meta, info, kase, caseError, live, busy, onAct, o
   // the DRAFT, so a "yes" reveals its detail field immediately instead of after a save, a
   // server revalidation and a fresh card.
   const editFields = useMemo((): FormSpec[] => (
-    visaStepFormFields(meta.step, draft).map((entry): FormSpec => ({
+    visaStepFormFields(view, draft).map((entry): FormSpec => ({
       field: entry.field,
       control: entry.control,
       section: entry.section,
@@ -1279,10 +1324,10 @@ export function VisaStepCard({ meta, info, kase, caseError, live, busy, onAct, o
         ...(issueHints.get(entry.field) ?? []),
       ])],
     }))
-  ), [meta.step, draft, issueHints, tr])
+  ), [view, draft, issueHints, tr])
 
   /** Does this step hold answers the SCHEMA wrote rather than the applicant? Then say so. */
-  const hasPrefilled = useMemo(() => (VISA_STEP_FORM[meta.step] ?? []).some((entry) => entry.note === 'prefilled'), [meta.step])
+  const hasPrefilled = useMemo(() => (VISA_STEP_FORM[view] ?? []).some((entry) => entry.note === 'prefilled'), [view])
 
   /** The step's own sections, as runs of consecutive fields — a long form you can navigate. */
   const editSections = useMemo(() => {
@@ -1301,14 +1346,14 @@ export function VisaStepCard({ meta, info, kase, caseError, live, busy, onAct, o
     // the ones with no outstanding issue. The date cascade rewrites its siblings, and the
     // back-fill asks whether the start date is empty; a draft holding only the MISSING
     // fields would read a saved answer as blank and overwrite it.
-    for (const entry of VISA_STEP_FORM[meta.step] ?? []) next[entry.field] = fieldValue(kase, entry.field)
+    for (const entry of VISA_STEP_FORM[view] ?? []) next[entry.field] = fieldValue(kase, entry.field)
     setDraft(next)
     setEditing(true)
   }
 
   // Only ever send fields this step OWNS — the same allowlist the server enforces.
   const submitEdit = () => {
-    const allowed = new Set<string>(VISA_DM_STEP_FIELDS[meta.step] ?? [])
+    const allowed = new Set<string>(VISA_DM_STEP_FIELDS[view] ?? [])
     const fields: Record<string, string> = {}
     for (const spec of editFields) {
       if (!allowed.has(spec.field)) continue
@@ -1320,16 +1365,21 @@ export function VisaStepCard({ meta, info, kase, caseError, live, busy, onAct, o
       fields[spec.field] = value
     }
     if (!Object.keys(fields).length) {
-      // Nothing to write, but the editor must still close. "I looked and it is right" is
-      // exactly the acknowledge verb — the same one the button above this form sends.
+      // ⚠️ REVIEWING AN EARLIER STEP MUST NOT ADVANCE THE FLOW. On the live step, "nothing changed"
+      // is exactly the acknowledge verb. On an earlier one it means "I looked at step 2 and it is
+      // fine" — sending acknowledge there would push the wizard forward from a card the applicant
+      // opened to LOOK at, which is the opposite of what they asked for.
+      if (reviewing) { setEditing(false); setReviewStep(null); return }
       void Promise.resolve(onAct('acknowledge')).then((ok) => { if (ok) setEditing(false) })
       return
     }
-    // Only close on success — a refused save must not throw away what was typed.
-    void Promise.resolve(onAct('edit', fields)).then((ok) => { if (ok) setEditing(false) })
+    // Only close on success — a refused save must not throw away what was typed. `view` tells the
+    // server WHICH step these fields belong to; it validates it against the card and refuses
+    // anything ahead of it.
+    void Promise.resolve(onAct('edit', fields, view)).then((ok) => { if (ok) { setEditing(false); setReviewStep(null) } })
   }
 
-  const title = tr(STEP_TITLE[meta.step][0], STEP_TITLE[meta.step][1])
+  const title = tr(STEP_TITLE[view][0], STEP_TITLE[view][1])
 
   if (!live) {
     // A card can be inert for four different reasons and they do not read the same:
@@ -1354,13 +1404,24 @@ export function VisaStepCard({ meta, info, kase, caseError, live, busy, onAct, o
   }
 
   return (
-    <CardShell step={meta.step} title={title}>
-      <StepDots step={meta.step} />
-      <p className="mt-2 text-xs leading-relaxed text-body">{tr(STEP_HINT[meta.step][0], STEP_HINT[meta.step][1])}</p>
+    <CardShell step={view} title={title}>
+      <StepDots step={view} current={meta.step} onSelect={(n) => { setEditing(false); setReviewStep(n === meta.step ? null : (n as VisaDmStep)) }} />
+      {reviewing && (
+        <div className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-xl bg-tint px-3 py-2">
+          <p className="text-2xs text-ink-3">
+            {tr('Looking back at an earlier step — nothing is sent unless you save.',
+                'Đang xem lại bước trước — sẽ không gửi gì trừ khi bạn lưu.')}
+          </p>
+          <Button variant="soft" size="none" className="relative tap-44 rounded-full px-3 py-1 text-2xs font-bold" onClick={() => { setEditing(false); setReviewStep(null) }}>
+            {tr('Back to step', 'Về bước hiện tại')} {meta.step}
+          </Button>
+        </div>
+      )}
+      <p className="mt-2 text-xs leading-relaxed text-body">{tr(STEP_HINT[view][0], STEP_HINT[view][1])}</p>
 
       {/* Step 1 — the uploads happen HERE, in the thread, through the same document +
           extract endpoints the dashboard wizard uses. */}
-      {meta.step === 1 && kase && (
+      {view === 1 && kase && (
         <div className="mt-3 space-y-2">
           {DOC_KINDS.map((kind) => (
             <DocumentRow
@@ -1388,7 +1449,7 @@ export function VisaStepCard({ meta, info, kase, caseError, live, busy, onAct, o
 
       {/* Step 2 — the AI-filled fields, named and shown for a yes/no confirmation. The card
           itself never carried these values: they come from the applicant's own case. */}
-      {meta.step === 2 && kase && confirmFields.length > 0 && !editing && (
+      {view === 2 && kase && confirmFields.length > 0 && !editing && (
         <dl className="mt-3 space-y-1.5 rounded-xl bg-tint p-2.5">
           {confirmFields.map((field) => (
             <div key={field} className="flex items-baseline justify-between gap-3">
@@ -1472,10 +1533,13 @@ export function VisaStepCard({ meta, info, kase, caseError, live, busy, onAct, o
           {/* ACKNOWLEDGE only exists when there is genuinely nothing outstanding — the server
               keeps the same card active otherwise, and a button that cannot move the flow on
               is a lie. Same reason SKIP disappears: a required answer is not skippable. */}
-          {issues.length === 0 && meta.step !== 1 && (
+          {/* ⚠️ ADVANCING VERBS BELONG TO THE LIVE STEP ONLY. Acknowledge and Skip move the flow
+              on; offering them while the applicant is looking BACK at step 2 would turn "let me
+              check what I put" into "confirm and go forward". Reviewing leaves only the editor. */}
+          {!reviewing && issues.length === 0 && view !== 1 && (
             <Button variant="cta" size="none" disabled={busy} onClick={() => void onAct('acknowledge')} className="rounded-xl px-3 py-2 text-xs">
               {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : <Check className="h-3.5 w-3.5" aria-hidden />}
-              {meta.step === 2 ? tr('Yes, that is correct', 'Đúng, chính xác') : tr('Looks right — continue', 'Đúng rồi — tiếp tục')}
+              {view === 2 ? tr('Yes, that is correct', 'Đúng, chính xác') : tr('Looks right — continue', 'Đúng rồi — tiếp tục')}
             </Button>
           )}
           {editFields.length > 0 && (
@@ -1493,7 +1557,7 @@ export function VisaStepCard({ meta, info, kase, caseError, live, busy, onAct, o
               {issues.length ? tr('Fill these in', 'Điền các mục này') : tr('Check every answer', 'Kiểm tra mọi câu trả lời')}
             </Button>
           )}
-          {issues.length === 0 && meta.step !== 1 && (
+          {!reviewing && issues.length === 0 && view !== 1 && (
             <Button variant="soft" size="none" disabled={busy} onClick={() => void onAct('skip')} className="rounded-xl px-3 py-2 text-xs font-bold text-body">
               {tr('Skip', 'Bỏ qua')}
             </Button>
@@ -1735,7 +1799,9 @@ export function VisaCheckoutCard({ meta, info, kase, live, busy, onPay }: VisaCh
 
   return (
     <CardShell step={5} title={title} tone={live ? 'live' : 'settled'}>
-      <StepDots step={5} />
+      {/* Decorative here — no onSelect. The pay card is not a form to go back into, and once the
+          case is paid the server refuses every field edit anyway (EDITABLE_STATUSES). */}
+      <StepDots step={5} current={5} />
 
       <div className="mt-3 rounded-xl border border-line-strong bg-tint p-3">
         <p className="text-xs font-bold text-foreground">{product?.title || tr('e-Visa service', 'Dịch vụ E-Visa')}</p>

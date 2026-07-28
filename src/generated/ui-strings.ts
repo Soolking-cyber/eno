@@ -909,6 +909,7 @@ export const UI_STRINGS: string[] = [
   "Log in",
   "Logo upload failed.",
   "Long term",
+  "Looking back at an earlier step — nothing is sent unless you save.",
   "Looking for something specific?",
   "Looks right — continue",
   "Lost & Found",

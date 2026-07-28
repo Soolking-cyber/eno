@@ -231,12 +231,39 @@ describe('THE GATE — the card renders that field list and nothing else', () =>
   // Static, like dm-steps.test.ts reading schema.ts: the reachability proof above is only
   // worth anything if the COMPONENT is wired to the same function. These three pins are what
   // stop a future edit from quietly re-introducing a second, issue-driven field source.
+  /**
+   * ⚠️ THESE PIN `view`, NOT `meta.step`, SINCE 2026-07-28 — and the distinction is the whole
+   * reason the next assertion exists. The go-back rail (owner: "make so user can go back and check
+   * or edit previously given answers in cards") lets the applicant open an EARLIER step, so the
+   * card renders `view = reviewStep ?? meta.step`. The invariant these two guard is unchanged: the
+   * form is built by visaStepFormFields and seeded from the WHOLE step form, for whichever step is
+   * on screen. Only the name of that step moved.
+   */
   it('builds its edit form from visaStepFormFields', () => {
-    expect(source).toMatch(/const editFields = useMemo\(\(\): FormSpec\[\] => \(\s*\n\s*visaStepFormFields\(meta\.step, draft\)/)
+    expect(source).toMatch(/const editFields = useMemo\(\(\): FormSpec\[\] => \(\s*\n\s*visaStepFormFields\(view, draft\)/)
   })
 
   it('seeds the draft from the WHOLE step form, hidden follow-ups included', () => {
-    expect(source).toContain('for (const entry of VISA_STEP_FORM[meta.step] ?? []) next[entry.field] = fieldValue(kase, entry.field)')
+    expect(source).toContain('for (const entry of VISA_STEP_FORM[view] ?? []) next[entry.field] = fieldValue(kase, entry.field)')
+  })
+
+  it('`view` is the server step unless an EARLIER one is being reviewed', () => {
+    // Without this, the two pins above could be satisfied by a `view` that had drifted to mean
+    // something else entirely — they only assert that the form follows `view`, not what `view` is.
+    expect(source).toContain('const view: VisaDmStep = reviewStep ?? meta.step')
+  })
+
+  it('an edit tells the server WHICH step it is for', () => {
+    // The server bounds this against the card's own step and refuses anything ahead of it, so
+    // omitting it would silently write earlier-step answers against the CURRENT step's allowlist
+    // and be refused as field_not_in_step.
+    expect(source).toContain("onAct('edit', fields, view)")
+  })
+
+  it('reviewing an earlier step never sends an advancing verb', () => {
+    // acknowledge/skip move the flow on. Offering them while looking BACK would turn "let me check
+    // what I put" into "confirm and continue" — see the note at the call site.
+    expect(source).toContain('if (reviewing) { setEditing(false); setReviewStep(null); return }')
   })
 
   it('has exactly one field-control call site', () => {

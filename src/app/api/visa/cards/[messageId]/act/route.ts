@@ -42,6 +42,21 @@ const bodySchema = z.object({
   // count, and validated for real by visaPayloadSchema inside applyVisaDmFieldEdit against
   // the CARD'S OWN STEP allowlist. This shape is a size gate, not the authorization.
   fields: z.record(z.string().max(64), z.string().max(1200)).optional(),
+  /**
+   * WHICH step's answers this edit is for — the "go back and check" rail (owner, 2026-07-27:
+   * "make so user can go back and check or edit previously given answers in cards").
+   *
+   * ⚠️ A CLIENT-SUPPLIED STEP IS A CLAIM, AND IT IS BOUNDED BELOW AGAINST THE CARD, never trusted
+   * as given: it must be an integer in 1..meta.step, where meta.step comes from the card's own
+   * metaJson. That makes the writable set the union of steps the applicant has ALREADY reached,
+   * which is exactly the subset of their own payload they could already write while passing
+   * through them — no field becomes reachable that was not.
+   *
+   * Everything that actually authorises the write is unchanged and still downstream:
+   * loadVisaDmCase proves ownership, EDITABLE_STATUSES refuses a paid/submitted/cancelled case,
+   * visaPayloadSchema revalidates the WHOLE merged payload, and writeVisaPayload keeps its CAS.
+   */
+  step: z.number().int().min(1).max(5).optional(),
 }).strict()
 
 export async function POST(request: Request, { params }: { params: Promise<{ messageId: string }> }) {
@@ -89,8 +104,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ mes
     const applicationId = meta.applicationId
 
     if (parsed.data.action === 'edit') {
+      // ⚠️ THE CARD IS THE CEILING. A step ahead of this card would let a client write fields for
+      // a stage the applicant has not reached; anything at or below it they have already been
+      // through. Absent = this card's own step, which is exactly the previous behaviour.
+      const requested = parsed.data.step
+      if (requested !== undefined && requested > meta.step) {
+        return NextResponse.json({ error: 'invalid_request' }, { status: 400 })
+      }
       const edited = await applyVisaDmFieldEdit({
-        applicationId, userId, step: meta.step, fields: parsed.data.fields || {},
+        applicationId, userId, step: (requested ?? meta.step) as typeof meta.step, fields: parsed.data.fields || {},
       })
       // KEYS only — `fields` here is the list of payload field NAMES that were refused.
       if (!edited.ok) {

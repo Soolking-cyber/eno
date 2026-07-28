@@ -746,11 +746,14 @@ export default function ThreadPage() {
   // Acknowledge / skip / edit. The server recomputes the step FIRST and only then closes the
   // card, so a "skip" that cannot actually be skipped just keeps asking — we simply refetch
   // and let the same card render again.
-  const actOnVisaCard = async (messageId: string, action: 'acknowledge' | 'skip' | 'edit', fields?: Record<string, string>): Promise<boolean> => {
+  // `step` names WHICH step an edit belongs to, for the go-back rail. Omitted = the card's own
+  // step, which is what every caller sent before the rail existed. The server bounds it against
+  // the card and refuses anything ahead of it, so this is a hint, never an authorisation.
+  const actOnVisaCard = async (messageId: string, action: 'acknowledge' | 'skip' | 'edit', fields?: Record<string, string>, step?: number): Promise<boolean> => {
     if (visaBusy) return false
     setVisaBusy(true)
     try {
-      const res = await visaPost(`/api/visa/cards/${messageId}/act`, { action, ...(fields ? { fields } : {}) })
+      const res = await visaPost(`/api/visa/cards/${messageId}/act`, { action, ...(fields ? { fields } : {}), ...(step ? { step } : {}) })
       if (!res.ok) toast.error(visaErrorCopy(res.error, tr))
       await Promise.all([load(), reloadVisaCase()])
       if (res.ok) { refreshUnread(); refreshConvos() }
@@ -1357,7 +1360,7 @@ export default function ThreadPage() {
                     // bound case, and never while a human has taken the thread over.
                     live={iAmApplicant && m.id === liveVisaStepId}
                     busy={visaBusy}
-                    onAct={(action, fields) => actOnVisaCard(m.id, action, fields)}
+                    onAct={(action, fields, step) => actOnVisaCard(m.id, action, fields, step)}
                     onUpload={uploadVisaDocument}
                   />
                 ) : visaCheckoutMeta ? (
