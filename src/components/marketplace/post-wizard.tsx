@@ -19,6 +19,7 @@ import { useLanguage } from '@/context/language-context'
 import { useAuth } from '@/context/auth-context'
 import { containsPhoneNumber } from '@/lib/phone'
 import { containsContactInfo, findBannedWord, minPhotosFor, publicSafeName } from '@/lib/publish-guard'
+import type { ClientPublishOutcome } from '@/lib/publish-funnel-codes'
 import { trackPostListing } from '@/lib/analytics'
 import { AreaFilter, findUnit, type Geo, type Nearby } from './area-filter'
 import { subcategoriesFor, typesFor, askableFacetsFor, rangeFacetsFor, categoryHasBrand, isRequiredFacet, LISTING_TYPES } from '@/lib/taxonomy'
@@ -527,11 +528,55 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
     if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) el.focus({ preventScroll: true })
   }
 
+  // ⚠️ EVERY EARLY RETURN BELOW IS A PUBLISH THAT NEVER REACHES THE SERVER, so /api/listings'
+  // own counter cannot see it and the funnel would read "0 refused" no matter how many sellers
+  // gave up here. Fire-and-forget, never awaited, errors swallowed: counting an abandonment must
+  // not be able to delay or break the publish it is counting.
+  const countAttempt = (outcome: ClientPublishOutcome) => {
+    // ⚠️ NEW LISTINGS ONLY. This same submit() also serves the EDIT flow — it PATCHes
+    // /api/listings/<id> when `edit` is set — and that asymmetry would have quietly corrupted
+    // every number on the funnel page: an edit bounced by client validation would file a REFUSAL,
+    // while an edit that succeeds is a PATCH that /api/listings' POST wrapper never sees, so it
+    // could never file the matching success. Edits would have contributed only failures, dragging
+    // the success rate down by an amount nobody could account for. Two reviewers found this
+    // independently, which is a fair signal it was not obvious.
+    if (edit) return
+    try {
+      void fetch('/api/listings/publish-attempt', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ outcome }),
+        // keepalive so the count survives a navigation started moments later. ⚠️ openSignIn()
+        // itself only opens a DIALOG — a reviewer was right that the old comment overstated this —
+        // but choosing Google inside that dialog IS a full-page redirect, which is exactly the
+        // branch client_signin_required marks.
+        keepalive: true,
+      }).catch(() => {})
+    } catch { /* a counter must never break a publish */ }
+  }
+
   const submit = async () => {
     if (submittingRef.current || submitting) return
     // Missing required fields → don't silently no-op: flag them all in red and jump
     // to the first so the user sees exactly what's left.
-    if (missing.length > 0) { setAttempted(true); scrollToMissing(); return }
+    if (missing.length > 0) {
+      // ⚠️ DO NOT COUNT THE /api/me LOADING RACE. Right after in-dialog sign-in `isGuest` flips
+      // false, which swaps the checklist's `signin` row for a `contact` row — but contactName and
+      // contactPhone are still '' until the /api/me effect lands. A tap in that window is a real
+      // bounce, yet it is OUR round trip, not a seller who forgot something, and counting it would
+      // inflate client_missing_fields at exactly the moment we most want the sign-in numbers to be
+      // trustworthy. Only the narrow case is excluded: contact is the SOLE missing item and the
+      // profile has not arrived.
+      //
+      // ⚠️ THE CHECK ITSELF IS DELIBERATELY LEFT ALONE. Gating `ok` on meLoaded would let submit()
+      // proceed with an empty phone and be rejected by the server for invalid_input — a round trip
+      // and a worse message, in exchange for nothing. Blocking here is correct; only the counting
+      // was wrong. (The pre-existing wart that the scroll lands on a still-shimmering Contact
+      // section with no error text is untouched by this diff and worth fixing separately.)
+      const contactStillLoading = !meLoaded && missing.length === 1 && missing[0].key === 'contact'
+      if (!contactStillLoading) countAttempt('client_missing_fields')
+      setAttempted(true); scrollToMissing(); return
+    }
     // Catch fixable issues client-side so they're noted BEFORE submitting (the server
     // enforces the same rules). Contact info / addresses stay off the public listing —
     // buyers reach sellers in-app.
@@ -540,16 +585,19 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
     // "remove it from your listing" on a listing that was already clean — an unfixable
     // dead end, because the name isn't editable from this screen.
     if (containsPhoneNumber(contactName) || containsContactInfo(contactName)) {
+      countAttempt('client_contact_in_name')
       setError(t('Tên liên hệ của bạn không được là email hay số điện thoại. Hãy đổi tên hiển thị trong Cài đặt rồi đăng lại.', "Your contact name can't be an email address or phone number. Change your display name in Settings, then post again."))
       return
     }
     const listingText = `${title} ${description}`
     if (containsPhoneNumber(title) || containsPhoneNumber(description) || containsContactInfo(listingText)) {
+      countAttempt('client_contact_in_text')
       setError(t('Không ghi số điện thoại, email, link hay địa chỉ nhà trong tin — người mua sẽ nhắn tin cho bạn trong ứng dụng. Hãy bỏ ra để đăng.', "Don't put a phone number, email, link or street address in your listing — buyers message you in the app. Remove it to post."))
       return
     }
     const blob = `${title} ${description} ${contactName}`
     if (findBannedWord(blob)) {
+      countAttempt('client_banned_words')
       setError(t('Tin của bạn có từ ngữ không được phép. Vui lòng chỉnh sửa rồi đăng lại.', "Your listing contains a word that isn't allowed. Please edit it and try again."))
       return
     }
@@ -557,6 +605,12 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
     // is already in localStorage (survives an OAuth redirect); in-dialog OTP/email
     // keeps photos too. After sign-in the /api/me effect fills contact info.
     if (!user) {
+      // ⚠️ THE MOST VALUABLE ONE. The form was complete and VALID and we asked for an
+      // account — so this separates "could not fill the form" from "would not make an
+      // account", opposite problems with opposite fixes. It is also the exact point where the
+      // onboarding bounce used to destroy photos (1298c088), and nothing else can tell us
+      // whether that fix helped.
+      countAttempt('client_signin_required')
       openSignIn()
       return
     }

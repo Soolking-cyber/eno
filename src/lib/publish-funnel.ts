@@ -25,6 +25,10 @@ import { db } from '@/lib/db'
 /** Bounded — the same 40 chars publish_log() clamps to. Keeps the counter from becoming a string sink. */
 const MAX_OUTCOME_LEN = 40
 
+// ⚠️ THE CLIENT-REPORTED CODES MOVED to lib/publish-funnel-codes.ts, and re-exporting them from
+// here would defeat the point: this module is `import 'server-only'`, so anything routed through
+// it is unreachable from post-wizard.tsx. Import them from publish-funnel-codes directly.
+
 /**
  * The outcome label for a finished publish attempt, derived from the response the route is
  * about to return. PURE, so the mapping is testable without a database or a request.

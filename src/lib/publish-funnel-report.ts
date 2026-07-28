@@ -75,4 +75,17 @@ export const PUBLISH_OUTCOME_COPY: Record<string, string> = {
   probation_listing_cap: 'New account hit its active-listing cap',
   exception: 'Server threw before it could answer',
   'Failed to create listing': 'Unhandled server error',
+
+  // ⚠️ THE CLIENT HALF — a Publish tap that never reached the server. These are the five early
+  // returns in post-wizard.tsx's submit(), and they are almost certainly the BIGGEST branch of
+  // this funnel, because a form bounces people long before a request does. Labelled "Tapped
+  // Publish…" so an operator can tell at a glance which side of the network a refusal happened on.
+  client_missing_fields: 'Tapped Publish with required fields still empty',
+  client_contact_in_name: 'Tapped Publish — contact info in their seller name',
+  client_contact_in_text: 'Tapped Publish — contact info in the title or description',
+  client_banned_words: 'Tapped Publish — banned word in the listing',
+  // ⚠️ READ THIS ONE FIRST. The form was complete and VALID and we asked for an account. A high
+  // number here means the listing flow works and account creation is the wall; a low one means
+  // people never get that far. Opposite problems, opposite fixes.
+  client_signin_required: 'Reached Publish with a valid listing, then hit the sign-in wall',
 }
