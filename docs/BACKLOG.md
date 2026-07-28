@@ -88,20 +88,48 @@ which it already did once. Details kept below for context.
 
 # PHASE 2 — needs an owner decision
 
-### B15 · Build time — `npm ci` is 77s of every Cloud Build, and it is cacheable
-Measured on build `0d5925bf` (313s total): **`next build` 120s · `npm ci` 77s** · base image 10s ·
-`COPY node_modules` 9.5s. There is no `--cache-from`, so `npm ci` runs from scratch on every build
-even when `package-lock.json` is untouched — which is most builds.
+### B15 · ⛔ TRIED AND REVERTED 2026-07-28 — the npm ci cache works and does not pay
+**Measured, three builds.** Baseline **313s** · cold cache-populate **414s** · warm **324s** —
+eleven seconds SLOWER than no cache. Reverted in `d9d5d5b3`; the `eno-build-cache` repo is deleted.
 
-⚠️ **The obvious fix is the one already banned**: `--cache-from` pointed at the
-`asia-southeast1` registry while builds run in `europe-west1` costs ~$38/mo in cross-continent
-egress ([[eno-gcp-cost]]). A same-region cache repo in `europe-west1` avoids that, at the cost of a
-second Artifact Registry repo to create and garbage-collect. **Owner decision — it is infra spend
-against ~77s/build**, and Cloud Build is already ~62% of the GCP bill, so the saving is real.
+The mechanism was fine: the warm build log shows `#13 [deps 6/6] RUN npm ci` → `CACHED`, so the
+76.9s really was eliminated. It bought nothing, because **node_modules is 1.2 GB and it is the layer
+being reused** — the builder stage COPYs it, so those bytes must land on the worker either way, and
+pulling 1.2 GB from Artifact Registry costs about what `npm ci` cost to fetch and unpack from npm.
+The work was moved, not removed. (`next build` also drifted 120.5s → 146.3s on the warm run.)
 
-`next build` at 120s could in principle move to Turbopack, but that changes the production bundler,
-and the split-chunk config and `inlineCss: false` are load-bearing for the measured LCP. Not worth
-risking for a build that is not blocking anyone.
+⚠️ **THE CEILING IS THE SIZE OF node_modules, so no tuning of the cache plumbing changes the
+verdict** — dropping the explicit pull, or merging the two docker builds, still requires the same
+1.2 GB to arrive. Recorded so the next person who costs `npm ci` at 77s does not re-derive it.
+
+⚠️ One reviewer claim was WRONG and would have hidden this: that a single build tagging the FINAL
+image with `BUILDKIT_INLINE_CACHE=1` caches all intermediate stages. It does not — inline cache
+only describes layers present in the exported image, and the runner stage contains no node_modules,
+so that cache could never hit. It would have looked simpler and silently done nothing.
+
+What survives: the constraint that a cache in `asia-southeast1` would ALSO have cost ~$38/mo in
+cross-continent egress, on top of losing.
+
+### B15b · 🔴 THE REAL COST LEVER — Artifact Registry is 37.6 GB and unbounded
+Found while doing B15. The `eno` repo holds **618 image versions / 37.6 GB** and had **no cleanup
+policy at all** — it grew ~2 GB during this session alone, and 31 → 37.6 GB in three days. That is a
+bigger and simpler saving than any build-minute tuning.
+
+A policy is now **set in DRY-RUN** (`cleanupPolicyDryRun: true`, so it deletes nothing yet):
+keep the 100 most recent versions, delete untagged older than 7d, delete anything older than 30d.
+Sized from the real build rate — 50 builds in 7 days ≈ **7.1/day**, so 100 versions ≈ **14 days of
+rollback depth** (an earlier draft used 40, which is only 5.6 days).
+
+⚠️ **NEEDS AN OWNER DECISION TO ENABLE, because it deletes ~518 images irreversibly.** Cloud Run
+revisions reference images by DIGEST: deleting one a revision still needs means that revision can no
+longer scale up. The `Keep` rule protects the 100 newest, which covers any realistic rollback, but
+the dry-run output should be read first — AR writes it to Cloud Logging within a day.
+
+To enable once the dry run looks right:
+```
+gcloud artifacts repositories set-cleanup-policies eno --location=asia-southeast1 \
+  --policy=<policy.json> --no-dry-run
+```
 
 ### P2.2 · A photo for the trip-assistance listing
 Owner, 2026-07-27: *"soon will be added"*. The trip anchor listing carries no image, so it renders
