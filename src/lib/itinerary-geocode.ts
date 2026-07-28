@@ -2,6 +2,7 @@ import 'server-only'
 import { db } from './db'
 import { fold } from './fold'
 import { CITY_MAP, type CityId } from './itinerary-data'
+import { placeSearchName } from './itinerary-place-query'
 import { isInVietnam, isNearCity } from './itinerary-geo'
 import { isAlternativesName } from './itinerary-places'
 import { rateLimit } from './ratelimit'
@@ -92,6 +93,13 @@ export async function geocodePlace(name: string, cityId: CityId): Promise<Geocod
   // different ideas of what counts as a choice.
   if (isAlternativesName(name)) return null
 
+  // ⚠️ BEFORE THE CACHE AND BEFORE THE BUDGET. A transit leg ("Hanoi Airport to Da Nang") has no
+  // coordinate to find, so asking spends a metered lookup from a strict, fail-closed daily ceiling
+  // and can only return something wrong. Decoration ("(SGN)") and "both" compounds are narrowed
+  // here too — see itinerary-place-query for why `or` is deliberately NOT among them.
+  const searchName = placeSearchName(name)
+  if (!searchName) return null
+
   const cached = await readCache(key, cityId)
   if (cached) return cached
 
@@ -119,8 +127,11 @@ export async function geocodePlace(name: string, cityId: CityId): Promise<Geocod
     return null
   }
 
-  const fetched = (await geocodeGoogle(name, cityId).catch(() => null))
-    ?? (await geocodeNominatim(name, cityId).catch(() => null))
+  // ⚠️ THE NARROWED NAME GOES TO THE PROVIDERS; the CACHE KEY stays the original (`key` above), so
+  // a stop is remembered under the name it actually carries and two different originals that narrow
+  // to the same query keep their own rows.
+  const fetched = (await geocodeGoogle(searchName, cityId).catch(() => null))
+    ?? (await geocodeNominatim(searchName, cityId).catch(() => null))
   if (!fetched) return null
 
   // THE GATES. Applied to the provider's answer, not to our own cache write, so a bad coordinate

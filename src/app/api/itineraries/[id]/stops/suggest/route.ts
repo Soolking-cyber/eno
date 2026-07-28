@@ -6,6 +6,7 @@ import { aiGuard } from '@/lib/ai-guard'
 import { aiErrorStatus, withAiRetry } from '@/lib/ai-retry'
 import { db } from '@/lib/db'
 import { fold } from '@/lib/fold'
+import { cityForDay } from '@/lib/itinerary-day-city'
 import { GEMINI_MODEL, GEMINI_MODEL_FALLBACK, getGemini } from '@/lib/gemini'
 import { BUDGETS, CITIES, CITY_MAP, type CityId } from '@/lib/itinerary-data'
 import { geocodePlace } from '@/lib/itinerary-geocode'
@@ -120,54 +121,6 @@ const responseSchema = {
     },
   },
   required: ['suggestions'],
-}
-
-/**
- * Which catalogue city is this day in?
- *
- * The day's `area` is the generator's own free text ("Hoi An", "Hội An", "Hoi An (Quang Nam)"), and
- * a saved itinerary records only ONE structured city (`destinationId`), so both are tried.
- *
- * ⚠️ A UNIQUE MATCH OR NOTHING, the same rule the generator's resolver follows. Falling back to a
- * first-wins guess is how a place uncatalogued in Hoi An resolves to a same-named entry in Hue and
- * gets a confident pin 100km away. Returning null is a fine outcome: the candidate is still offered,
- * just unmapped.
- *
- * ⚠️ CONTAINMENT NEEDS BOTH SIDES TO BE AT LEAST `MIN_CONTAINMENT` LONG, and that guard is not
- * cosmetic — agy refuted the "cannot produce a confidently wrong city" claim and measuring it made
- * the case worse than the one described. Without the length floor, three characters resolve
- * UNIQUELY: `Mui` → mui ne, `Cao` → cao bang, `Phu` → phu quoc, `Con` → con dao, `Can` → can tho.
- * Most of those happen to be right prefixes, which is exactly what makes the pattern dangerous: `Mui`
- * for Mũi Cà Mau (500km away, and not a catalogue city at all) is indistinguishable to this function
- * from `Mui` for Mui Ne, and would put a confident pin in the wrong province.
- *
- * The floor is 5 because containment exists for two real shapes and both clear it: a qualified area
- * ("Hoi An (Quang Nam)" ⊃ "hoi an") and a shortened one ("Ben Tre" ⊂ "ben tre & mekong delta").
- * The shortest folded catalogue name that needs containment at all is "hoi an" (6).
- */
-const MIN_CONTAINMENT = 5
-
-function cityForDay(area: string, destinationId: string): CityId | null {
-  const key = fold(area ?? '')
-  if (key) {
-    const names = new Map<string, CityId>()
-    for (const city of CITIES) {
-      names.set(fold(city.name), city.id)
-      names.set(fold(city.nameVi), city.id)
-      names.set(fold(city.id), city.id)
-    }
-    const exact = names.get(key)
-    if (exact) return exact
-    const hits = key.length < MIN_CONTAINMENT
-      ? []
-      : [...names.entries()].filter(([name]) =>
-        name.length >= MIN_CONTAINMENT && (key.includes(name) || name.includes(key)))
-    const unique = [...new Set(hits.map(([, id]) => id))]
-    if (unique.length === 1) return unique[0]
-  }
-  // The trip's own single destination. Equivalent to fillMissingStopCoordinates' one-city fallback:
-  // with nothing else to go on, the itinerary's own city beats no city at all.
-  return CITY_MAP.has(destinationId as CityId) ? (destinationId as CityId) : null
 }
 
 function cleanModelJson(value: string): string {

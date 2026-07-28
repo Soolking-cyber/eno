@@ -19,6 +19,8 @@ import pg from 'pg'
 import { CITY_MAP, type CityId } from '../src/lib/itinerary-data'
 import { isAlternativesName, resolvePlaceName } from '../src/lib/itinerary-places'
 import { isInVietnam, isNearCity } from '../src/lib/itinerary-geo'
+import { placeSearchName } from '../src/lib/itinerary-place-query'
+import { cityForDay } from '../src/lib/itinerary-day-city'
 import { fold } from '../src/lib/fold'
 
 const APPLY = process.argv.includes('--apply')
@@ -33,8 +35,15 @@ const GEOCODE_DAILY_LIMIT = Number(process.env.GEOCODE_DAILY_LIMIT) > 0 ? Number
 
 type StopRow = { id: string; place: string; lat: number | null; area: string; destinationId: string }
 
-/** Same query shape the app uses: a stop has no cityId of its own — the city comes from the
- *  itinerary's destination, and the day's free-text area is only a label. */
+/**
+ * ⚠️ THE DAY'S `area` DECIDES THE CITY — the previous comment here said the opposite ("the day's
+ * free-text area is only a label") and that was the bug. An Itinerary stores ONE destinationId; a
+ * multi-city trip's days each carry their own area. Scoping every stop to the itinerary's single
+ * destination asked for a Hoi An restaurant near Hanoi, and `isNearCity` correctly refused the
+ * right coordinate. Before this fix the dry run printed `[Hoi An → hanoi]`, `[Phu Quoc → hanoi]`
+ * and `[Ho Chi Minh City → hanoi]` for every stop. `cityForDay` is imported, not restated — the
+ * app's own pass has always resolved per day.
+ */
 const SQL = `
   select s.id, s.place, s.lat, d.area, i."destinationId"
   from "ItineraryStop" s
@@ -54,6 +63,7 @@ const SQL = `
  *
  * So the HTTP call is local. Everything that could DISAGREE with the app is not:
  *   · the `or`-name refusal and compound splitting — imported (isAlternativesName, resolvePlaceName)
+ *   · the gazetteer query narrowing — imported (placeSearchName)
  *   · the coordinate gates — imported (isInVietnam, isNearCity)
  *   · the daily spend ceiling — the SAME rl_check SQL function the app's rateLimit calls
  *   · the remembered answers — the SAME PlaceGeocode table, read before and written after
@@ -96,7 +106,13 @@ async function geocodeVia(
     return null
   }
 
-  const q = encodeURIComponent(`${name}, ${city.name}, Vietnam`)
+  // ⚠️ THE SAME NARROWING THE APP APPLIES — imported, not restated, for the reason this file's own
+  // header gives: a second hand-written copy of the query rule is how the script and the app end up
+  // disagreeing about what they asked. It strips bracketed annotations, splits a "both" compound,
+  // and returns null for a transit leg ("Hanoi Airport to Da Nang"), which has no coordinate to find.
+  const searchName = placeSearchName(name)
+  if (!searchName) { console.log('      → not a place (a leg of travel) — refused, no lookup spent'); return null }
+  const q = encodeURIComponent(`${searchName}, ${city.name}, Vietnam`)
   let hit: { lat: number; lng: number; source: string } | null = null
   if (GOOGLE_KEY) {
     try {
@@ -157,7 +173,7 @@ async function main() {
 
   for (const row of rows) {
     if (row.lat !== null) continue
-    const cityId = row.destinationId as CityId
+    const cityId = cityForDay(String(row.area ?? ''), String(row.destinationId ?? ''))
     console.log(`  ${JSON.stringify(row.place)}  [${row.area} → ${cityId}]`)
 
     // FREE FIRST: the curated catalogue, including compound splitting. Only what it cannot answer
@@ -165,6 +181,16 @@ async function main() {
     // A name offering a CHOICE is refused outright — the app's rule, imported, not restated.
     if (isAlternativesName(row.place)) {
       console.log(`      → UNMAPPED (offers a choice — refused, not guessed)`)
+      refused += 1
+      continue
+    }
+
+    // ⚠️ NO CITY MEANS NO LOOKUP, and it must fail closed. A day whose area matches nothing in the
+    // catalogue (and whose itinerary destination is unusable) has no anchor to check a coordinate
+    // against — and an unanchored gazetteer answer is exactly the ~1000km pin isNearCity exists to
+    // stop. Leaving the stop unmapped is the known, safe state.
+    if (!cityId) {
+      console.log('      → no catalogue city for this day — refused, no lookup spent')
       refused += 1
       continue
     }
