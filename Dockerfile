@@ -47,7 +47,30 @@ RUN groupadd -g 1001 nodejs && useradd -u 1001 -g nodejs -m nextjs
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/public ./public
+
+# ⚠️ THE GUARD THAT WOULD HAVE PREVENTED THE 2026-07-27 OUTAGE. sharp@0.35.3 shipped an image whose
+# standalone bundle carried NO loadable native backend for linux-x64: `next build` was green, every
+# local gate was green, and production returned 500 on /api/listings for nine hours — because
+# lib/ai-moderation imports sharp at MODULE SCOPE, so a failed native load takes down every route
+# that transitively imports it, GET included.
+#
+# ⚠️ IT HAS TO RUN HERE, IN THE RUNNER STAGE, NOT LOCALLY. Next traces the standalone bundle's
+# node_modules from the BUILD HOST, so the only place the question "can this image load sharp?" has
+# a meaningful answer is inside this image, on this platform. A `docker run` on an arm64 laptop
+# would resolve the darwin/arm64 binaries and pass while the deployed linux-x64 image was broken —
+# that verification is theatre. This line is the real one, and it converts a silent runtime outage
+# into a failed build, which blocks the deploy and leaves the previous revision serving.
+#
+# ⚠️ AFTER `USER nextjs`, DELIBERATELY. As root the check passes on files the SERVER may not be able
+# to read, since everything above arrives via COPY --chown=nextjs:nodejs — so a root-run guard would
+# be exactly the false green this exists to prevent. It runs as the account that runs server.js.
+#
+# Both branches were verified before shipping: with sharp absent the one-liner exits 1 (require
+# throws synchronously, and the rejection path exits 1 too); with it present it exits 0 and prints
+# the version. It also EXERCISES libvips rather than just resolving the module, so a binary that
+# loads but cannot decode still fails here.
 USER nextjs
+RUN node -e "const s=require('sharp'); s({create:{width:1,height:1,channels:3,background:'#000'}}).png().toBuffer().then(()=>console.log('sharp OK',require('sharp/package.json').version),e=>{console.error('SHARP BROKEN IN IMAGE:',e.message);process.exit(1)})"
 EXPOSE 8080
 # Runtime env arrives as a Secret Manager volume mounted at /secrets/env (one
 # dotenv file per service — see gcloud run deploy --set-secrets). Sourcing it
