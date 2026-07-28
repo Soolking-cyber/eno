@@ -221,26 +221,46 @@ exit 1, present → exit 0.
 darwin binaries and passes while the deployed linux-x64 image is broken. The check has to run on the
 build platform, inside the image.
 
-### B11b · The runtime must not depend on what the file tracer guesses
-`.next/standalone/node_modules/@img` is populated by Next's tracer from the **build host**, and under
-0.35.3 it stopped emitting the linux binaries. One `COPY --from=deps /app/node_modules/@img
-./node_modules/@img` in the runner stage makes the image correct regardless — the deps stage already
-ran `npm ci` on linux, so it has exactly the right platform packages, and a missing directory fails
-the *build* instead of the *deploy*.
-**Verify by**: `docker build` the image, then `docker run` it and hit `/api/listings`. Do not infer
-from the local `.next/standalone` tree — on a Mac it traces darwin either way, so it cannot
-distinguish a working config from a broken one.
+### B11b · ✅ SHIPPED 2026-07-28 (`0ae38ee0`) — the runtime takes its binaries from `npm ci`
+`COPY --from=deps /app/node_modules/@img ./node_modules/@img` in the runner stage. Additive and
+idempotent: identical to the traced set when the tracer is right, load-bearing when it is not.
 
-### B12 · A media dependency must not be able to kill browse
-`/api/listings` → `lib/core/listings` → `lib/ai-moderation` → **top-level `import sharp`**. Nothing
-about browsing needs an image library; sharp is there for the create path. A native module that fails
-at module scope takes down every route that transitively imports it, GET included. Make the import
-lazy (`await import('sharp')` inside the moderation call) so the blast radius is the feature that
-needs it. `lib/image-hash.ts` and `lib/core/media.ts` have the same shape — check what imports them.
+### B12 · ✅ SHIPPED 2026-07-28 (`0ae38ee0`) — a media dependency can no longer kill browse
+`lib/sharp-lazy.ts` is now the only way this app loads sharp. `ai-moderation`, `image-hash` and
+`core/media` all went lazy; route files that genuinely need sharp still import it directly, which is
+the point — the blast radius becomes that one route.
 
-### B13 · Re-land the libvips CVEs
-`sharp 0.35.3` closes CVE-2026-33327/33328/35590/35591 on user-uploaded photos, and the revert
-reopened them. Blocked on B11 (and worth doing with B12 in place, so a repeat is survivable).
+**Proven by reproducing the outage**, not by argument. Standalone bundle copied OUTSIDE the repo
+(⚠️ Node walks UP for `node_modules`, so the first attempt resolved sharp from the repo root and
+passed meaninglessly), `@img` deleted so sharp genuinely throws:
+
+| | before (2026-07-27, prod) | after |
+|---|---|---|
+| `/api/listings` | **500** × 320 | **200** |
+| `/` | 500 | **200** |
+| `/api/brands/[slug]/logo` | 500 | 500 — correctly scoped |
+
+Pinned by `src/lib/sharp-lazy.test.ts`.
+
+### B13 · ✅ SHIPPED 2026-07-28 (`0ae38ee0`) — libvips CVEs closed, guard confirmed on linux
+sharp back to **0.35.3**; CVE-2026-33327/33328/35590/35591 closed. The build guard printed
+`sharp OK — encoded 90 bytes, PNG magic PNG` on linux/amd64 before the image was allowed to deploy.
+
+⚠️ **The guard would itself have broken on this upgrade** and that is worth remembering: it printed
+`require('sharp/package.json').version`, which 0.35 does not expose through `exports`
+(ERR_PACKAGE_PATH_NOT_EXPORTED) — so the CHECK would have failed a healthy image. A guard that cries
+wolf is worse than no guard. It reports the bytes it encoded now.
+
+⚠️ **`npm audit` still lists sharp, and it is NOT ours.** The remaining node is
+`node_modules/next/node_modules/sharp@0.34.5` — Next's own vendored copy for `/_next/image`, whose
+only offered fix is downgrading to next@14. Our direct dependency is 0.35.3. Mitigating: uploads are
+re-encoded by our patched sharp before anything reaches the optimizer, and `remotePatterns` admits
+only our own bucket. Nothing to do until upstream ships.
+
+⚠️ **THE INTEROP SHAPE DIFFERS BETWEEN 0.34 AND 0.35** and both spellings were written wrong here
+hours apart. 0.34 is CommonJS (`export = sharp`): the TYPE is the callable, no `.default`. 0.35 is a
+real ES module: the type is the NAMESPACE, the callable is its `default`. Wrong way round gives
+"This expression is not callable" at seven call sites, or "Property 'default' does not exist".
 
 ---
 
