@@ -1,0 +1,44 @@
+name: TypeScript 7 readiness
+
+# ⚠️ ITS OWN WORKFLOW, NOT A JOB IN ci.yml, and that is deliberate: `ci.yml` has no `schedule:`
+# trigger, so adding one there would have started running the merge gate and the forum E2E suite
+# weekly for no reason. Nothing about the existing gate changes because of this file.
+#
+# WHY IT EXISTS. TypeScript 7 (the native Go port) is GA and `latest` on npm, and this repo cannot
+# take it: TS 7's main entry no longer exports the compiler API, so `typescript-eslint` crashes
+# ("Cannot read properties of undefined (reading 'Cjs')") and `npm run lint` — the gate enforcing
+# design-lint, the i18n contract and the Base UI policy — stops working entirely. Measured
+# 2026-07-28 with 7.0.2 actually installed: tsc 6.3s → 3.5s, lint dead, 14 errors. Spending the
+# lint gate to save under three seconds is a bad trade, so the migration waits.
+#
+# The blocker is typescript-eslint, not TypeScript. Nobody is going to remember to keep checking,
+# and "we'll revisit it" is how a parked migration stays parked — the owner asked to "make sure we
+# move on to latest typescript", so this is the mechanism that makes sure.
+on:
+  schedule:
+    # Mondays 06:00 UTC. Weekly is plenty: this changes on an upstream release cadence.
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+jobs:
+  check:
+    name: Is TypeScript 7 viable yet?
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+
+      # Only dependency the script has. A full `npm ci` would cost ~77s to answer a question that
+      # needs one small package and two registry reads.
+      - name: Install semver
+        run: npm install semver --no-save --no-audit --no-fund
+
+      # ⚠️ RED MEANS GOOD NEWS. The script exits 0 while BLOCKED and non-zero once TypeScript 7
+      # becomes viable, because a green scheduled job nobody opens is not a notification — a failed
+      # one emails the repo owner. If this job is red, read its summary and go do B14.
+      - name: Check
+        run: node scripts/check-ts7-readiness.mjs

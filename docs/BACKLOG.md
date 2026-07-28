@@ -168,6 +168,21 @@ unstable before then. Checkable in one command:
 node scripts/check-ts7-readiness.mjs
 ```
 
+**It now checks itself.** `.github/workflows/ts7-readiness.yml` runs it every Monday 06:00 UTC (its
+own workflow — `ci.yml` has no `schedule:`, so putting it there would have run the merge gate and
+the forum E2E suite weekly for nothing).
+
+⚠️ **RED MEANS GOOD NEWS.** The script exits 0 while BLOCKED and non-zero once TypeScript 7 becomes
+viable, because a green scheduled job nobody opens is not a notification — a failed one emails the
+repo owner. Re-verified 2026-07-28: even that morning's `typescript-eslint@8.65.1-alpha.9` still
+declares `>=4.8.4 <6.1.0`, so support is not imminent.
+
+⚠️ **A SIDE-BY-SIDE FAST TYPECHECKER WAS CONSIDERED AND REJECTED.** TS 7 could be installed under an
+npm alias for `tsc` alone while `typescript@5` stays for eslint/Next/Prisma. It works, and it buys
+**2.8 seconds** (6.3s → 3.5s) in exchange for a second TypeScript toolchain to keep in step. That
+fails the same test B15 just failed — complexity that does not pay — and `tsc` was never the
+bottleneck anyway next to a ~120s `next build`.
+
 ⚠️ That script answers with real **semver**, not by pattern-matching the range string — the first cut
 reported `>=5.0.0 <7.3.0` and `>=4.8.4 <8.0.0` as blocked when both admit 7.x. A detector that can
 only ever say "no" would have parked this forever.

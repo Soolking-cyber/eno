@@ -27,7 +27,10 @@
  *
  *   node scripts/check-ts7-readiness.mjs
  *
- * Exits 0 when still blocked (this is a status report, not a gate), 0 when ready — read the output.
+ * ⚠️ EXIT CODE IS INVERTED ON PURPOSE, because this runs unattended on a weekly schedule and a
+ * green job nobody opens is not a notification. It exits 0 while BLOCKED (nothing to do, stay
+ * quiet) and NON-ZERO once TypeScript 7 becomes viable — a red scheduled run is what actually
+ * reaches a human. Red here is GOOD NEWS: it means go and do the migration.
  */
 
 import semver from 'semver'
@@ -78,6 +81,7 @@ for (const pkg of PKGS) {
 }
 
 console.log()
+const summary = process.env.GITHUB_STEP_SUMMARY
 if (ready) {
   console.log('READY. typescript-eslint now admits TypeScript 7. The migration is:')
   console.log('  1. npm i -D typescript@7 && npm i -D typescript-eslint@latest (via eslint-config-next)')
@@ -87,3 +91,14 @@ if (ready) {
 } else {
   console.log('STILL BLOCKED — stay on typescript@5. Re-run this when convenient; nothing else to do.')
 }
+
+// Written for the scheduled job's summary panel, so the answer is visible without opening logs.
+if (summary) {
+  const { appendFileSync } = await import('node:fs')
+  appendFileSync(summary, ready
+    ? `## ✅ TypeScript 7 is now viable\n\ntypescript-eslint admits \`${tsLatest}\`. See B14 in docs/BACKLOG.md — this job is red on purpose.\n`
+    : `## ⏳ Still on TypeScript 5\n\ntypescript@latest is \`${tsLatest}\`; typescript-eslint still caps below 7. Nothing to do.\n`)
+}
+
+// Non-zero ONLY when there is something to act on. See the note at the top of this file.
+process.exit(ready ? 1 : 0)
