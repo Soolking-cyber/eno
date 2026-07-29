@@ -83,3 +83,48 @@ export function useCurrency() {
   if (!ctx) throw new Error('useCurrency must be used within a CurrencyProvider')
   return ctx
 }
+
+/**
+ * A đồng amount rendered in the viewer's display currency PLUS a quiet approximation in the other
+ * one — "12.000.000 đ ≈ $456", or "$456 ≈ 12.000.000 đ" when the display already is USD.
+ *
+ * ⚠️ ONE IMPLEMENTATION OF THIS RULE, ON PURPOSE. It existed in <Price> and was copied twice more
+ * while making itinerary prices dual (owner, 2026-07-29) — three places that all had to agree on
+ * which side gets the "≈", what happens with no rate, and whether a zero is money. The moment they
+ * disagree, the same trip shows two different approximations on two screens. <Price> keeps its own
+ * copy for now because it also handles non-VND stored listings, free prices and unit suffixes;
+ * anything simpler than that should use this.
+ *
+ * Returns the plain figure when no rate has loaded — never "≈ NaN" and never a dangling "≈".
+ */
+export function useDualMoney() {
+  const { currency, rates, format } = useCurrency()
+  return useCallback((amountVnd: number, locale?: MoneyLocale) => {
+    const main = format(amountVnd, locale)
+    if (!amountVnd) return main
+    const approx = currency === 'USD'
+      ? formatMoney(amountVnd, 'VND', rates, locale)
+      : vndPerUsd(rates) ? formatMoney(amountVnd, 'USD', rates, locale) : null
+    return approx ? `${main} ≈ ${approx}` : main
+  }, [currency, rates, format])
+}
+
+/**
+ * ĐỒNG PER ONE DOLLAR (≈ 26 000) from the /api/fx table, or null when the rate is unusable.
+ *
+ * ⚠️ THE BAND IS THE POINT, and it is the same reasoning visa/fx.ts spells out at length: the
+ * upstream publishes "currency per 1 VND", so `rates.USD` ≈ 0.0000383 and the figure we want is the
+ * RECIPROCAL. Every way of getting that wrong lands far outside the tens of thousands — an
+ * un-inverted rate gives 0.0000383, a rate quoted in thousands gives 26.1, a broken payload gives 0
+ * or NaN — so asserting the magnitude catches all of them, while a bare `> 0` check catches none.
+ *
+ * Callers that merely DISPLAY an approximation degrade to showing one currency. The builder's
+ * custom-budget field additionally refuses to submit, because there the number becomes the model's
+ * spending target rather than a hint. Both were flagged in review as accepting an absurd rate.
+ */
+export function vndPerUsd(rates: Record<string, number>): number | null {
+  const perVnd = rates.USD
+  if (!perVnd || !Number.isFinite(perVnd) || perVnd <= 0) return null
+  const rate = 1 / perVnd
+  return rate >= 5_000 && rate <= 100_000 ? rate : null
+}

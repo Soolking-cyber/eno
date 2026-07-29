@@ -1,7 +1,7 @@
 'use client'
 
 import { useLanguage, useTr } from '@/context/language-context'
-import { useCurrency } from '@/context/currency-context'
+import { useCurrency, vndPerUsd } from '@/context/currency-context'
 import { formatMoneyFull, moneyLocale } from '@/lib/vnd'
 import { formatMoney } from '@/lib/currencies'
 import { cn } from '@/lib/utils'
@@ -56,10 +56,17 @@ export function Price({ price, currency, priceUnit, compact = false, dual = true
 
   // Approximation: USD unless the display already IS USD (then VND). Rendered only
   // once rates exist (prefetched + cached 12h by the provider) and for real prices.
+  //
+  // ⚠️ THE RATE IS PLAUSIBILITY-BANDED VIA vndPerUsd, not merely truthy. `rates.USD` arrives from
+  // an upstream that publishes "currency per 1 VND"; a negative, infinite or wrongly-scaled value
+  // is positive-but-absurd and would print a confidently wrong dollar figure beside a real price.
+  // Shared with useDualMoney so the marketplace and the trip planner cannot disagree about when an
+  // approximation is safe to show — a reviewer correctly pointed out that two copies of this rule
+  // are only equal until one of them changes.
   let approx: string | null = null
   if (dual !== false && currency === '₫' && price > 0) {
     if (displayCur === 'USD') approx = formatMoneyFull(price, '₫', locale)
-    else if (rates.USD) approx = formatMoney(price, 'USD', rates, locale)
+    else if (vndPerUsd(rates)) approx = formatMoney(price, 'USD', rates, locale)
   }
 
   return (

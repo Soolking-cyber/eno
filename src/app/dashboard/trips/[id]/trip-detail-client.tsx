@@ -9,7 +9,8 @@ import { useLanguage } from '@/context/language-context'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { CITY_MAP, BUDGETS, type CityId } from '@/lib/itinerary-data'
-import { formatMoneyFull, moneyLocale } from '@/lib/vnd'
+import { moneyLocale } from '@/lib/vnd'
+import { useDualMoney } from '@/context/currency-context'
 import { TripMap, TripMapDrawer, type TripDay } from '@/components/itinerary/trip-map'
 import { TripDayList } from '@/components/itinerary/trip-day-list'
 import { StopRefineDialog, type RefineTarget, type StopReplacement } from './stop-refine-dialog'
@@ -48,6 +49,7 @@ type ApiTrip = Omit<SavedItinerary, 'dayPlans'> & { dayPlans: ApiDay[] }
 
 export function TripDetailClient({ id, openCase }: { id: string; openCase?: { requestId: string; status: string } | null }) {
   const { tr, lang } = useLanguage()
+  const dualMoney = useDualMoney()
   // Per-row Vietnamese, mirroring trip-card.tsx: these strings are CONTENT translated at write time
   // (the generator writes both columns), not UI copy, so `tr()` cannot serve them and a missing
   // translation must fall back to the English the row does have rather than render blank.
@@ -263,7 +265,10 @@ export function TripDetailClient({ id, openCase }: { id: string; openCase?: { re
           {budget && <Badge size="md" className="bg-tint text-body">{lang === 'vi' ? budget.labelVi : budget.label}</Badge>}
           {typeof trip.estimatedBudget === 'number' && trip.estimatedBudget > 0 && (
             <span className="font-semibold text-foreground">
-              ≈ {formatMoneyFull(trip.estimatedBudget, '₫', moneyLocale(lang))}
+              {/* The "≈" is already the estimate's own hedge; useDualMoney adds the second
+                  currency's. Both belong: "≈ 12.000.000 đ ≈ $456" reads oddly, so the leading one
+                  is dropped and the shared formatter's stays. */}
+              {dualMoney(trip.estimatedBudget, moneyLocale(lang))}
             </span>
           )}
         </div>

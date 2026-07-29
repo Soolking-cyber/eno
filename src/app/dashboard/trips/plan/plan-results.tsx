@@ -52,6 +52,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { localeForLanguage } from '@/lib/languages'
 import { itineraryDocxTranslationSources } from '@/lib/itinerary-docx-copy'
 import { formatMoneyFull, moneyLocale } from '@/lib/vnd'
+import { useDualMoney } from '@/context/currency-context'
 import {
   type ActivityPlan,
   type GeneratedItineraryResponse,
@@ -85,9 +86,16 @@ const RESOURCE_ICONS: Record<ItineraryResourceKind, typeof Landmark> = {
 // must never reach the DOM, whatever produced it.
 const isHttpUrl = (url?: string | null): boolean => !!url && /^https?:\/\//i.test(url.trim())
 
+/**
+ * Every money figure in a generated plan, in BOTH currencies (owner, 2026-07-29: "all itinerary
+ * prices they should see in both currencies approximate values") — the shared useDualMoney rule,
+ * so a plan, a saved trip and a listing never show three different approximations of one amount.
+ */
 function useVnd() {
   const { lang } = useLanguage()
-  return (amount: number) => (amount ? formatMoneyFull(amount, '₫', moneyLocale(lang)) : '—')
+  const dual = useDualMoney()
+  // '—' rather than "0 đ": a plan that did not price something has no figure, not a free one.
+  return (amount: number) => (amount ? dual(amount, moneyLocale(lang)) : '—')
 }
 
 export function displayDate(date: string, locale: Language) {

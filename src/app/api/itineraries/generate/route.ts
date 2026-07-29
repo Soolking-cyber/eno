@@ -562,7 +562,14 @@ async function runGeneration(input: ItineraryRequest) {
   // "Up to ₫1.2m/day". A price edited in itinerary-data.ts would have moved what the traveller
   // is PROMISED while the model kept planning to the old number, and nothing would have failed.
   // The `?? ` falls back to the comfort tier for a value the enum somehow let through.
-  const dailyBudget = BUDGETS.find((tier) => tier.id === input.budgetId)?.daily
+  //
+  // ⚠️ A TRAVELLER'S OWN NUMBER WINS OVER THE TIER (owner, 2026-07-29). `budgetDailyVnd` is only
+  // present when they typed one, and it is already bounded and integer-checked by the schema — so
+  // this is the exact figure the model plans to, not a tier approximating it. `budgetId` still
+  // arrives alongside (the nearest tier) and is what gets STORED, so nothing downstream that reads
+  // a tier had to change.
+  const dailyBudget = input.budgetDailyVnd
+    ?? BUDGETS.find((tier) => tier.id === input.budgetId)?.daily
     ?? BUDGETS.find((tier) => tier.id === 'comfort')!.daily
   const language = languageName(input.locale)
   const generatedAt = new Date().toISOString()
@@ -581,7 +588,13 @@ ${JSON.stringify({
     tripDates: { start: input.startDate, end: end.toISOString().slice(0, 10), days: input.days },
     travelers: input.travelers,
     cities,
-    budget: { tier: input.budgetId, targetDailyVndPerTravelerExcludingLongHaulFlights: dailyBudget },
+    // `custom: true` matters to the model: a tier is a band it may interpret, a number the
+    // traveller typed is a target it should actually hit.
+    budget: {
+      tier: input.budgetId,
+      ...(input.budgetDailyVnd ? { custom: true } : {}),
+      targetDailyVndPerTravelerExcludingLongHaulFlights: dailyBudget,
+    },
     pace: input.pace,
     interests: input.interests,
     accommodation: input.accommodation,

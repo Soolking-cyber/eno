@@ -13,6 +13,7 @@ import {
   AlertDialogFooter, AlertDialogHeader, AlertDialogMedia, AlertDialogTitle, AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
 import { formatMoneyFull, moneyLocale } from '@/lib/vnd'
+import { useDualMoney } from '@/context/currency-context'
 import { INTEREST_LABELS, type OptionLabel } from '@/lib/itinerary-data'
 
 // Row shapes = the /api/itineraries GET serializer (Prisma rows, dates as ISO strings,
@@ -105,6 +106,23 @@ function money(amount: number, currency: string, locale: 'en' | 'vi'): string {
   return formatMoneyFull(amount, currency === 'VND' ? '₫' : currency, locale)
 }
 
+/**
+ * A saved trip's money, in both currencies (owner, 2026-07-29) — same rule as <Price> and
+ * plan-results' useVnd: the approximation is USD unless the display already IS USD, then đồng.
+ *
+ * ⚠️ ONLY A VND-STORED TRIP IS CONVERTED. `Itinerary.currency` is an ISO column, so a plan stored
+ * in something else is shown as-is with no approximation — the same call <Price> makes for a
+ * non-VND listing, because there is no reliable rate between two foreign currencies here.
+ */
+function useTripMoney() {
+  const { lang } = useLanguage()
+  const dual = useDualMoney()
+  return (amount: number, currency: string) =>
+    (currency === 'VND' || currency === '\u20ab')
+      ? dual(amount, moneyLocale(lang))
+      : money(amount, currency, moneyLocale(lang))
+}
+
 /** One saved itinerary: summary row (title / destination / day count / updated date)
  *  that expands in place to the full day-by-day plan + stay shortlist. Disclosure is
  *  Base UI Collapsible used directly — no ui/ collapsible primitive exists yet and this
@@ -191,7 +209,8 @@ export function TripCard({ trip, onDeleted }: { trip: SavedItinerary; onDeleted?
     month: 'short',
     year: 'numeric',
   })
-  const budget = trip.estimatedBudget ? money(trip.estimatedBudget, trip.currency, moneyLocale(lang)) : null
+  const tripMoney = useTripMoney()
+  const budget = trip.estimatedBudget ? tripMoney(trip.estimatedBudget, trip.currency) : null
 
   return (
     // Flat design language (§3b): a saved itinerary is a ROW in a divided list, not a bordered
@@ -276,7 +295,7 @@ export function TripCard({ trip, onDeleted }: { trip: SavedItinerary; onDeleted?
                   <strong className="font-semibold text-foreground">{loc(stay.name, stay.nameVi)}</strong> ·{' '}
                   {loc(stay.area, stay.areaVi)}
                   {stay.estimatedNightly
-                    ? ` · ${money(stay.estimatedNightly, stay.currency, moneyLocale(lang))}/${tr('night', 'đêm')}`
+                    ? ` · ${tripMoney(stay.estimatedNightly, stay.currency)}/${tr('night', 'đêm')}`
                     : ''}
                   {stay.note && <span className="block text-muted-foreground">{loc(stay.note, stay.noteVi)}</span>}
                 </li>

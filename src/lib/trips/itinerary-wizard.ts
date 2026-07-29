@@ -78,7 +78,7 @@ export function tripWizardChip(input: { eligible: boolean; liveWizardMessageId: 
 export const TRIP_WIZARD_STEP_FIELDS: Record<TripWizardStep, readonly string[]> = {
   1: ['cityIds', 'cityDays', 'days'],
   2: ['startDate', 'travelers'],
-  3: ['budgetId', 'pace'],
+  3: ['budgetId', 'budgetDailyVnd', 'pace'],
   4: ['accommodation', 'interests'],
   5: ['flight', 'origin', 'notes'],
 }
@@ -115,6 +115,21 @@ const FIELD_SHAPE = {
     days: z.number().int().min(1).max(30),
   })).max(MAX_ROUTE_CITIES).default([]),
   budgetId: z.enum(BUDGET_IDS),
+  /**
+   * An exact daily spend per traveller, in VND, when the traveller named their own number instead
+   * of taking a tier (owner, 2026-07-29). Optional: the three tiers remain the default, and
+   * `budgetId` is still sent alongside — set to the nearest tier — so everything that displays or
+   * stores a budget keeps working without a migration.
+   *
+   * ⚠️ STORED AND VALIDATED IN VND even though the builder asks for USD. The rate is a live,
+   * client-side approximation; persisting dollars would mean the plan silently re-priced itself
+   * every time the rate moved. The conversion happens once, at the moment they type it.
+   *
+   * Bounds are per traveller per day: 100k ≈ $4 (below any real trip) and 100m ≈ $3.8k (above any
+   * plausible one) — wide enough never to argue with a real traveller, narrow enough that a
+   * mistyped figure cannot become the model's target.
+   */
+  budgetDailyVnd: z.number().int().min(100_000).max(100_000_000).optional(),
   pace: z.enum(PACE_IDS),
   interests: z.array(z.enum(INTEREST_IDS)).min(1).max(INTEREST_IDS.length),
   accommodation: z.enum(ACCOMMODATION_IDS),

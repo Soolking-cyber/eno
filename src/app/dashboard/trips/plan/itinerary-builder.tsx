@@ -10,7 +10,7 @@
 //     the Save button is the retry path when that save failed;
 //   · no forum page chrome: the dashboard layout provides <main>, the plan page
 //     provides the mobile SectionHeader.
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   ArrowDown,
   ArrowUp,
@@ -44,6 +44,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useLanguage } from '@/context/language-context'
+import { useCurrency, vndPerUsd } from '@/context/currency-context'
 import { useAuth } from '@/context/auth-context'
 import { Badge } from '@/components/ui/badge'
 import { Button, buttonVariants } from '@/components/ui/button'
@@ -76,6 +77,7 @@ import {
 import { Slider } from '@/components/ui/slider'
 import { Textarea } from '@/components/ui/textarea'
 import { buildItinerarySavePayload } from '@/lib/itinerary-save'
+import { formatMoneyFull, moneyLocale } from '@/lib/vnd'
 import { cn } from '@/lib/utils'
 import {
   addDays,
@@ -142,6 +144,32 @@ const MIN_TRIP_DAYS = 1
 const MAX_TRIP_DAYS = 30
 /** Trip length the planner opens on, before any destination is chosen (owner, 2026-07-29). */
 const DEFAULT_TRIP_DAYS = 3
+
+/**
+ * The budget RADIO's value: a real tier, or the traveller naming their own number.
+ *
+ * ⚠️ NOT a BudgetId, and deliberately so. BudgetId is a stored enum with Record<BudgetId,…> label
+ * maps and a test binding each tier's label to its daily figure; 'custom' has no fixed amount to
+ * label, so it lives only in this component's state and never reaches the database.
+ */
+type BudgetChoice = BudgetId | 'custom'
+
+/** Schema bounds from FIELD_SHAPE.budgetDailyVnd — restated so the field can refuse before POSTing. */
+const MIN_CUSTOM_DAILY_VND = 100_000
+const MAX_CUSTOM_DAILY_VND = 100_000_000
+
+/**
+ * The tier a custom amount is closest to, so `budgetId` stays truthful for everything that stores
+ * or renders one (the saved-trip card, the Word export). Falls back to 'comfort' when there is no
+ * usable amount yet — the same default the form opens on, so an empty custom field behaves exactly
+ * like never having touched the control.
+ */
+function nearestTier(dailyVnd: number | null): BudgetId {
+  if (!dailyVnd) return 'comfort'
+  return BUDGETS.reduce((best, tier) =>
+    Math.abs(tier.daily - dailyVnd) < Math.abs(best.daily - dailyVnd) ? tier : best,
+  BUDGETS[0]).id
+}
 const MAX_ROUTE_CITIES = 15
 const MAX_TRAVELER_SLIDER = 10
 const MAX_TRAVELERS = 100
@@ -295,6 +323,11 @@ export function ItineraryBuilder({ onSaved }: { onSaved?: () => void } = {}) {
   const [days, setDays] = useState(DEFAULT_TRIP_DAYS)
   const [travelers, setTravelers] = useState(2)
   const [budgetId, setBudgetId] = useState<BudgetId>('comfort')
+  // The RADIO's value — one of the three tiers, or 'custom'. Separate from `budgetId`, which stays
+  // a real stored tier in every state (see the note on the RadioGroup).
+  const [budgetChoice, setBudgetChoice] = useState<BudgetChoice>('comfort')
+  /** Raw text, in whichever unit the field is currently asking for. Parsed on use, never on type. */
+  const [customBudget, setCustomBudget] = useState('')
   const [pace, setPace] = useState<PaceId>('balanced')
   const [interests, setInterests] = useState<Set<InterestId>>(() => new Set(['food', 'culture', 'nature']))
   const [accommodation, setAccommodation] = useState<AccommodationId>('hotel')
@@ -321,6 +354,47 @@ export function ItineraryBuilder({ onSaved }: { onSaved?: () => void } = {}) {
   })).filter((group) => group.items.length > 0), [cityIds])
   const endDate = addDays(startDate, days - 1)
   const minDate = useMemo(() => dateInputValueFromToday(0), [])
+
+  // ⚠️ /api/fx PUBLISHES "currency per 1 VND" (rates.USD ≈ 0.0000383), so đồng-per-dollar is the
+  // RECIPROCAL. Getting this backwards is not a subtle bug — it would price a trip at 26 000× or
+  // 1/26 000 of the intended figure — which is why visa/fx.ts asserts a plausibility band on the
+  // same number. Null when the rate is missing or nonsensical; every caller degrades to đồng.
+  const { rates } = useCurrency()
+  // Plausibility-banded, not merely non-zero — see vndPerUsd. An absurd-but-positive rate would
+  // otherwise convert a sensible $120 into a figure that still lands inside the schema's bounds and
+  // becomes the model's spending target. Flagged in review.
+  const usdRate = vndPerUsd(rates)
+  /** A tier's daily VND as an approximate dollar figure, or '' when no usable rate is available. */
+  const usdPerDay = (vnd: number) => (usdRate ? `$${Math.round(vnd / usdRate).toLocaleString('en-US')}` : '')
+  /**
+   * ⚠️ THE FIELD'S UNIT FOLLOWS THE RATE, so the raw text is cleared whenever that flips. Without
+   * this, a "3000000" typed as đồng while FX was down would be re-read as three million DOLLARS the
+   * moment rates arrived — the same characters meaning two wildly different budgets. Review caught
+   * it; clearing is the honest option, because there is no way to know which unit they meant.
+   */
+  const unitIsUsd = !!usdRate
+  const lastUnitIsUsd = useRef(unitIsUsd)
+  useEffect(() => {
+    if (lastUnitIsUsd.current !== unitIsUsd) {
+      lastUnitIsUsd.current = unitIsUsd
+      setCustomBudget('')
+    }
+  }, [unitIsUsd])
+  /**
+   * The typed amount as đồng, or null while it is empty, unparseable or outside the schema's band.
+   *
+   * ⚠️ Recomputed when the RATE moves, not only when they type — so the đồng figure submitted is
+   * always converted at the rate in force at submit, never a stale one captured minutes earlier.
+   * Null is also what stops a half-typed "1" from becoming a one-dollar-a-day trip.
+   */
+  const customBudgetVnd = useMemo(() => {
+    const typed = Number(customBudget.replace(/[^\d.]/g, ''))
+    if (!Number.isFinite(typed) || typed <= 0) return null
+    const vnd = Math.round(usdRate ? typed * usdRate : typed)
+    return vnd >= MIN_CUSTOM_DAILY_VND && vnd <= MAX_CUSTOM_DAILY_VND ? vnd : null
+  }, [customBudget, usdRate])
+  /** Typed something, but it cannot be used — the field must say so rather than silently fall back. */
+  const customBudgetInvalid = budgetChoice === 'custom' && customBudget.trim() !== '' && customBudgetVnd === null
 
   // Sync the trip total from per-city allocations. Called directly from the two
   // handlers that change allocations (updateCityDays, removeCity) — not an effect —
@@ -457,7 +531,11 @@ export function ItineraryBuilder({ onSaved }: { onSaved?: () => void } = {}) {
         cityDays: cityIds.flatMap((cityId) => cityDays[cityId] == null
           ? []
           : [{ cityId, days: cityDays[cityId] as number }]),
-        budgetId,
+        // budgetId is ALWAYS sent — on 'custom' it is the nearest tier, so everything that stores
+        // or renders a tier keeps working. budgetDailyVnd is sent only when they named a usable
+        // number, and the route prefers it over the tier's figure.
+        budgetId: budgetChoice === 'custom' ? nearestTier(customBudgetVnd) : budgetId,
+        ...(budgetChoice === 'custom' && customBudgetVnd ? { budgetDailyVnd: customBudgetVnd } : {}),
         pace,
         interests: Array.from(interests),
         accommodation,
@@ -731,9 +809,86 @@ export function ItineraryBuilder({ onSaved }: { onSaved?: () => void } = {}) {
             </FormSection>
 
             <FormSection icon={WalletCards} title={tr('Comfort and budget', 'Tiện nghi và ngân sách')}>
-              <RadioGroup value={budgetId} onValueChange={(value) => setBudgetId(value as BudgetId)} aria-label={tr('Budget per traveler', 'Ngân sách mỗi khách')} className="grid gap-2">
-                {BUDGETS.map((item) => <Radio key={item.id} value={item.id} className={cn('w-full justify-start rounded-xl border px-3 py-3 text-left', budgetId === item.id ? 'border-brand bg-accent' : 'border-border bg-card hover:bg-tint')}><RadioDot /><span className="min-w-0 flex-1"><span className="block text-sm font-bold text-foreground">{tr(item.label, item.labelVi)}</span><span className="block text-xs text-body">{tr(item.detail, item.detailVi)}</span></span></Radio>)}
+              {/* ⚠️ THE RADIO VALUE IS NOT ALWAYS A BudgetId. 'custom' is a fourth CHOICE, not a
+                  fourth tier: BUDGETS stays exactly three, because BudgetId is a stored enum with
+                  Record<BudgetId,…> label maps and a test pinning each tier's label to its daily
+                  figure. Adding a member there would have meant a migration and four new label
+                  entries to describe something that has no fixed amount by definition. */}
+              <RadioGroup
+                value={budgetChoice}
+                onValueChange={(value) => {
+                  const next = String(value)
+                  setBudgetChoice(next as BudgetChoice)
+                  // Keep budgetId meaningful in every state: it is what gets STORED and what the
+                  // saved-trip card renders, so on 'custom' it tracks the nearest tier.
+                  if (next !== 'custom') setBudgetId(next as BudgetId)
+                }}
+                aria-label={tr('Budget per traveler', 'Ngân sách mỗi khách')}
+                className="grid gap-2"
+              >
+                {BUDGETS.map((item) => <Radio key={item.id} value={item.id} className={cn('w-full justify-start rounded-xl border px-3 py-3 text-left', budgetChoice === item.id ? 'border-brand bg-accent' : 'border-border bg-card hover:bg-tint')}><RadioDot /><span className="min-w-0 flex-1"><span className="block text-sm font-bold text-foreground">{tr(item.label, item.labelVi)}</span><span className="block text-xs text-body">{tr(item.detail, item.detailVi)}{usdPerDay(item.daily) && <span className="ml-1.5 text-muted-foreground">≈ {usdPerDay(item.daily)}/{tr('day', 'ngày')}</span>}</span></span></Radio>)}
+                <Radio value="custom" className={cn('w-full justify-start rounded-xl border px-3 py-3 text-left', budgetChoice === 'custom' ? 'border-brand bg-accent' : 'border-border bg-card hover:bg-tint')}>
+                  <RadioDot />
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-sm font-bold text-foreground">{tr('My own budget', 'Ngân sách của tôi')}</span>
+                    <span className="block text-xs text-body">{tr('Name a daily amount per traveler', 'Nhập số tiền mỗi ngày cho mỗi khách')}</span>
+                  </span>
+                </Radio>
               </RadioGroup>
+
+              {/* ⚠️ ASKED IN USD, PLANNED IN VND (owner: "preferably they input in usd and reflect
+                  in vnd"). The conversion happens HERE, once, and only the đồng figure is sent —
+                  persisting dollars would silently re-price the trip every time the rate moved.
+                  The live đồng equivalent is shown as they type so the number they are committing
+                  to is never hidden behind a rate they cannot see.
+
+                  Without a USD rate the input falls back to đồng rather than disappearing: a
+                  traveller must still be able to name their own budget when our FX upstream is
+                  down, and this is a planning target, not a charge. */}
+              {budgetChoice === 'custom' && (
+                <Field className="mt-2">
+                  <FieldLabel htmlFor="custom-budget">
+                    {usdRate
+                      ? tr('Daily budget per traveler (USD)', 'Ngân sách mỗi ngày mỗi khách (USD)')
+                      : tr('Daily budget per traveler (₫)', 'Ngân sách mỗi ngày mỗi khách (₫)')}
+                  </FieldLabel>
+                  <Input
+                    id="custom-budget"
+                    type="number"
+                    variant="outline"
+                    inputMode="decimal"
+                    /* Bounds DERIVED from the schema's đồng band rather than typed as round
+                       dollar figures, so the field can never accept a number the server refuses. */
+                    min={usdRate ? Math.ceil(MIN_CUSTOM_DAILY_VND / usdRate) : MIN_CUSTOM_DAILY_VND}
+                    max={usdRate ? Math.floor(MAX_CUSTOM_DAILY_VND / usdRate) : MAX_CUSTOM_DAILY_VND}
+                    step={usdRate ? 5 : 100_000}
+                    value={customBudget}
+                    onChange={(e) => setCustomBudget(e.currentTarget.value)}
+                    placeholder={usdRate ? '120' : '3000000'}
+                    aria-invalid={customBudgetInvalid || undefined}
+                    className="w-full"
+                  />
+                  {/* ⚠️ SAYS SO WHEN IT CANNOT BE USED. An unusable figure silently omits
+                      budgetDailyVnd and plans to the nearest tier instead — which, without this
+                      line, is a trip quietly planned to a budget the traveller never chose.
+                      role=alert per the repo's field-error convention. */}
+                  <p className={cn('mt-1 text-xs', customBudgetInvalid ? 'text-destructive' : 'text-body')} role={customBudgetInvalid ? 'alert' : undefined}>
+                    {customBudgetInvalid
+                      ? (usdRate
+                          ? tr(
+                              `Enter an amount between $${Math.ceil(MIN_CUSTOM_DAILY_VND / usdRate)} and $${Math.floor(MAX_CUSTOM_DAILY_VND / usdRate).toLocaleString('en-US')} per traveler, per day.`,
+                              `Nhập số tiền từ $${Math.ceil(MIN_CUSTOM_DAILY_VND / usdRate)} đến $${Math.floor(MAX_CUSTOM_DAILY_VND / usdRate).toLocaleString('en-US')} mỗi khách, mỗi ngày.`,
+                            )
+                          : tr('Enter a realistic daily amount per traveler.', 'Nhập số tiền hợp lý mỗi khách, mỗi ngày.'))
+                      : customBudgetVnd
+                        ? tr(
+                            `≈ ${formatMoneyFull(customBudgetVnd, '₫', moneyLocale(lang))} per traveler, per day`,
+                            `≈ ${formatMoneyFull(customBudgetVnd, '₫', moneyLocale(lang))} mỗi khách, mỗi ngày`,
+                          )
+                        : tr('Excludes long-haul flights, like the tiers above.', 'Chưa gồm vé bay đường dài, giống các mức ở trên.')}
+                  </p>
+                </Field>
+              )}
               <Field className="mt-4"><FieldLabel id="stay-style-label">{tr('Stay style', 'Kiểu lưu trú')}</FieldLabel><Select value={accommodation} onValueChange={(value) => { if (typeof value === 'string') setAccommodation(value as AccommodationId) }}><SelectTrigger aria-labelledby="stay-style-label" className="w-full cursor-pointer border-line-strong bg-card"><Building2 className="h-4 w-4" /><SelectValue>{tr(ACCOMMODATIONS.find((item) => item.id === accommodation)?.label || '', ACCOMMODATIONS.find((item) => item.id === accommodation)?.labelVi || '')}</SelectValue></SelectTrigger><SelectContent>{ACCOMMODATIONS.map((item) => <SelectItem key={item.id} value={item.id}>{tr(item.label, item.labelVi)}</SelectItem>)}</SelectContent></Select></Field>
             </FormSection>
 

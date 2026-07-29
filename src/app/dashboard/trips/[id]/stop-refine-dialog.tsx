@@ -8,7 +8,8 @@ import { Field, FieldLabel, FieldControl } from '@/components/ui/field'
 import { Textarea } from '@/components/ui/textarea'
 import { useLanguage } from '@/context/language-context'
 import { cn } from '@/lib/utils'
-import { formatMoneyFull, moneyLocale } from '@/lib/vnd'
+import { moneyLocale } from '@/lib/vnd'
+import { useDualMoney } from '@/context/currency-context'
 import { formatTravel } from '@/lib/travel'
 
 /**
@@ -73,6 +74,7 @@ export function StopRefineDialog({ itineraryId, target, onClose, onRemove, onApp
   onApply: (dayId: string, stopId: string, replacement: StopReplacement) => void | Promise<void>
 }) {
   const { tr, lang } = useLanguage()
+  const dualMoney = useDualMoney()
   const [reasons, setReasons] = useState<string[]>([])
   const [preference, setPreference] = useState('')
   /**
@@ -310,7 +312,7 @@ export function StopRefineDialog({ itineraryId, target, onClose, onRemove, onApp
                     {suggestion.estimatedCostVnd > 0 && (
                       <span className="inline-flex items-center gap-1">
                         <Wallet className="h-3 w-3" aria-hidden />
-                        {formatMoneyFull(suggestion.estimatedCostVnd, '₫', moneyLocale(lang))}
+                        {dualMoney(suggestion.estimatedCostVnd, moneyLocale(lang))}
                       </span>
                     )}
                   </div>
