@@ -83,10 +83,24 @@ export default async function AdminVisaCasePage({ params }: { params: Promise<{ 
     await Promise.all(documents.map(async (d) => [d.id, await signVisaDocumentUrl(d.storage_path)] as const)),
   )
 
-  const issuesOf = (d: VisaDocumentRow): string[] => {
-    const issues = d.validation_report?.issues
-    return Array.isArray(issues) ? issues.filter((i): i is string => typeof i === 'string') : []
+  const codesOf = (d: VisaDocumentRow, field: 'issues' | 'warnings'): string[] => {
+    const codes = d.validation_report?.[field]
+    return Array.isArray(codes) ? codes.filter((i): i is string => typeof i === 'string') : []
   }
+  const issuesOf = (d: VisaDocumentRow): string[] => codesOf(d, 'issues')
+  // ⚠️ THE DESK IS THE SAFETY NET FOR THE DEMOTED CHECKS, SO IT HAS TO SEE THEM.
+  //
+  // On 2026-07-29 four portrait checks — background, clothing, centering, lighting — stopped
+  // blocking the applicant, on the explicit basis that a human looks at the photo between payment
+  // and submission. This page read only `issues`, so those four would have been invisible here:
+  // the applicant would be waved through with an amber note, and the only person who could catch a
+  // genuinely bad background would never have been shown it. That would make the promise on
+  // /vietnam-evisa/rejected ("a person looks at the portrait again") false. Found in review.
+  //
+  // Passports have carried four advisory codes (glare, cropping, missing corners, unreadable MRZ)
+  // since long before this, and they had never been rendered to anyone either — this fixes that
+  // too, which is why the helper is by field rather than portrait-specific.
+  const warningsOf = (d: VisaDocumentRow): string[] => codesOf(d, 'warnings')
 
   return (
     <div className="flex flex-1 flex-col bg-background">
@@ -167,6 +181,7 @@ export default async function AdminVisaCasePage({ params }: { params: Promise<{ 
                   {imageDocuments.map((d) => {
                     const url = signedUrls.get(d.id)
                     const issues = issuesOf(d)
+                    const warnings = warningsOf(d)
                     return (
                       <article key={d.id} className="overflow-hidden rounded-2xl border border-line-strong bg-tint/40">
                         <div className="flex items-start justify-between gap-3 border-b border-border px-4 py-3">
@@ -186,6 +201,17 @@ export default async function AdminVisaCasePage({ params }: { params: Promise<{ 
                           <ul className="list-disc space-y-1 border-t border-border px-8 py-3 text-xs text-destructive">
                             {issues.map((issue) => <li key={issue}>{issue.replaceAll('_', ' ')}</li>)}
                           </ul>
+                        )}
+                        {/* The advisory codes the applicant was NOT blocked on — this is the
+                            operator's whole job on a demoted check. Amber, and labelled, so it
+                            cannot be mistaken for the red list above: these did not stop anyone. */}
+                        {warnings.length > 0 && (
+                          <div className="border-t border-border px-8 py-3">
+                            <p className="text-2xs font-bold uppercase tracking-wide text-body">Accepted with warnings — check these before submitting</p>
+                            <ul className="mt-1 list-disc space-y-1 text-xs text-warning">
+                              {warnings.map((warning) => <li key={warning}>{warning.replaceAll('_', ' ')}</li>)}
+                            </ul>
+                          </div>
                         )}
                       </article>
                     )

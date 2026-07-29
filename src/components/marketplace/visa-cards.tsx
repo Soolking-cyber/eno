@@ -815,17 +815,26 @@ const IMAGE_ISSUE_COPY: Record<string, [string, string]> = {
   passport_text_unreadable: ['Move closer so every printed field is readable.', 'Chụp gần hơn để đọc được mọi trường.'],
   passport_mrz_unreadable: ['Make both machine-readable lines at the bottom sharp.', 'Làm rõ hai dòng mã máy đọc ở cuối trang.'],
   passport_mrz_check_failed: ['Retake the page so passport numbers can be verified.', 'Chụp lại để có thể xác minh số hộ chiếu.'],
-  not_compliant_portrait: ['Use a recent 4×6-style portrait.', 'Dùng ảnh chân dung 4×6 mới chụp.'],
+  // ⚠️ THE OLD TEXT ASKED FOR TWO THINGS WE CANNOT USE. "Recent" is unjudgeable — the extract
+  // prompt explicitly forbids the model claiming a photo is recent — and "4×6" is already done for
+  // the applicant, since normalizeVisaImage pads every portrait to 800×1200. So the one message
+  // shown for the broadest blocking check named neither of the things that actually trip it. This
+  // is the code that fired on BOTH attempts of the only real applicant, who then abandoned.
+  not_compliant_portrait: ['This needs to be a photo of your face — not a screenshot, a document, or a full-length shot.', 'Cần là ảnh chụp khuôn mặt của bạn — không phải ảnh chụp màn hình, giấy tờ hay ảnh toàn thân.'],
   portrait_must_show_one_person: ['The portrait must show one person only.', 'Ảnh chỉ được có một người.'],
   portrait_image_blurry: ['Use a sharper portrait.', 'Dùng ảnh chân dung rõ nét hơn.'],
   face_must_look_straight: ['Look straight at the camera.', 'Nhìn thẳng vào máy ảnh.'],
   remove_hat: ['Remove the hat or head covering.', 'Bỏ mũ hoặc vật che đầu.'],
   remove_glasses: ['Remove glasses.', 'Bỏ kính.'],
-  wear_formal_clothes: ['Wear neat, formal clothing.', 'Mặc trang phục lịch sự.'],
-  use_plain_white_background: ['Use a plain white background.', 'Dùng nền trắng trơn.'],
-  center_face_in_photo: ['Center the face in the portrait.', 'Đặt khuôn mặt ở giữa ảnh.'],
+  // ⚠️ THESE FOUR ARE WARNINGS NOW, NOT REFUSALS (image-quality.ts, owner 2026-07-29), so they are
+  // phrased as advice rather than orders. They render in amber under the red blocking list and the
+  // applicant can continue past them — the copy must not imply the upload was rejected, or the
+  // amber list reads as a second wall and undoes the demotion.
+  wear_formal_clothes: ['Neat clothing is preferred — avoid a uniform or camouflage.', 'Nên mặc trang phục gọn gàng — tránh đồng phục hoặc quần áo rằn ri.'],
+  use_plain_white_background: ['A plainer, lighter background would be safer.', 'Nền trơn và sáng hơn sẽ an toàn hơn.'],
+  center_face_in_photo: ['Your face sits off-centre — usually fine, but centred is safer.', 'Khuôn mặt hơi lệch — thường không sao, nhưng ở giữa thì an toàn hơn.'],
   show_head_and_shoulders: ['Show the full head and shoulders.', 'Hiển thị đầy đủ đầu và vai.'],
-  portrait_lighting_uneven: ['Use even light without strong shadows.', 'Dùng ánh sáng đều, không có bóng mạnh.'],
+  portrait_lighting_uneven: ['The light is uneven — softer, flatter light is safer.', 'Ánh sáng chưa đều — ánh sáng dịu và đều hơn sẽ an toàn hơn.'],
   automatic_image_check_busy: ['Your image is saved. The checker is busy — try again in about a minute.', 'Ảnh đã được lưu. Hệ thống kiểm tra đang bận — thử lại sau khoảng một phút.'],
   automatic_image_check_rate_limited: ['Checking paused after too many attempts. Your image is saved.', 'Kiểm tra tạm dừng do quá nhiều lần thử. Ảnh của bạn đã được lưu.'],
   automatic_image_check_failed: ['Automatic checking failed. Try this image again.', 'Kiểm tra tự động thất bại. Hãy thử lại ảnh này.'],
@@ -1180,7 +1189,12 @@ const DOC_TITLE: Record<DocKind, [string, string]> = {
 }
 const DOC_HINT: Record<DocKind, [string, string]> = {
   passport: ['The page with your photo and the two machine-readable lines.', 'Trang có ảnh của bạn và hai dòng mã máy đọc.'],
-  portrait: ['4×6 style, plain white background, no hat or glasses.', 'Kiểu 4×6, nền trắng trơn, không đội mũ hay đeo kính.'],
+  // ⚠️ THIS IS THE ONLY PRE-UPLOAD PORTRAIT INSTRUCTION IN THE PRODUCT — /dashboard/visa/apply is
+  // a bare redirect, so there is no second surface. It has to lead with what will actually STOP
+  // the upload (image-quality.ts's seven blocking checks) and mention the plain background as the
+  // preference it now is. It used to say "plain white background" flatly, which would have sat in
+  // the app demanding a wall on the same day the public page said a background is a warning.
+  portrait: ['Your face, straight to camera, head and shoulders in frame — no hat, no glasses. A plain light background is best.', 'Khuôn mặt nhìn thẳng vào máy ảnh, thấy rõ đầu và vai — không đội mũ, không đeo kính. Nền sáng, trơn là tốt nhất.'],
 }
 
 function DocumentRow({
@@ -1196,6 +1210,10 @@ function DocumentRow({
   const ready = status === 'passed'
   const failed = status === 'failed'
   const issues = document?.validationReport?.issues ?? []
+  // Read from the STORED report, never from the extract response — the route returns the discarded
+  // run's warnings as [] when a downgrade is suppressed, and the stored report is what the desk and
+  // the admin page see. One source, so the two surfaces cannot disagree.
+  const warnings = document?.validationReport?.warnings ?? []
   const inputId = `visa-doc-${kind}`
 
   return (
@@ -1249,8 +1267,29 @@ function DocumentRow({
               {issues.map((issue) => <li key={issue}>• {imageIssueCopy(issue, tr)}</li>)}
             </ul>
           )}
+          {/* ⚠️ THE WHOLE POINT OF THE DEMOTION. Four portrait checks stopped blocking on
+              2026-07-29 (image-quality.ts), and `warnings` was a field this component DECLARED and
+              never read — so demoting into it would have deleted those checks outright rather than
+              softening them. The applicant is told, in amber, and can carry on.
+
+              Rendered even when `ready`, and deliberately so: a passed portrait with a warning is
+              now the NORMAL state, and it is the only case where this list carries real
+              information — "we accepted this, and here is what a human should look at again". */}
+          {warnings.length > 0 && (
+            <ul className="mt-1 space-y-0.5 text-2xs leading-relaxed text-warning">
+              {warnings.map((warning) => <li key={warning}>• {imageIssueCopy(warning, tr)}</li>)}
+            </ul>
+          )}
         </div>
-        {ready && <Badge variant="success" size="sm" className="shrink-0">{tr('Verified', 'Đã xác minh')}</Badge>}
+        {/* ⚠️ "Verified" IS DOWNGRADED WHEN THERE ARE WARNINGS. A green Verified badge stacked on
+            top of amber "this would be safer" lines asserts a certainty we no longer have — the
+            document passed OUR seven blocking checks, not the department's whole portrait rule.
+            Flagged in review as the badge that would quietly contradict the new copy. */}
+        {ready && (
+          warnings.length > 0
+            ? <Badge variant="warning" size="sm" className="shrink-0">{tr('Accepted', 'Đã nhận')}</Badge>
+            : <Badge variant="success" size="sm" className="shrink-0">{tr('Verified', 'Đã xác minh')}</Badge>
+        )}
       </div>
       {/*
         The <label> IS the control (the repo's documented file-picker idiom — see

@@ -131,7 +131,29 @@ export function validateVisaForReview(payload: VisaPayload, documents: Array<str
   ] as const) {
     const document = normalizedDocuments.find((item) => item.kind === kind)
     if (!document) issues.push(missingCode)
-    else if (document.validation_status !== 'passed') issues.push(qualityCode)
+    // ⚠️ `unavailable` MUST NOT BLOCK — IT IS OUR OUTAGE, NOT THEIR PHOTO (owner, 2026-07-29).
+    //
+    // This line used to read `!== 'passed'`, which swept `unavailable` in with `failed` and made
+    // the two indistinguishable to the applicant. They are opposites: `failed` means the check ran
+    // and refused the photo, `unavailable` means THE CHECK NEVER RAN. The extract route writes it
+    // on three paths that say nothing about the image — the per-user 10/h and 30/day limiters, the
+    // marketplace-wide `ai-global` daily budget shared with classify/rephrase/visual-search,
+    // `getGemini()` returning null, and any thrown error including a Vertex timeout. All three
+    // limiters are `{ strict: true }`, so ratelimit.ts fails CLOSED on a transient Postgres blip
+    // and persists `unavailable` into a row.
+    //
+    // ⚠️ AND NOTHING COULD CLEAR IT. The two extract routes are the ONLY writers of
+    // `validation_status` in either app — there is no admin override anywhere — so an applicant
+    // whose portrait caught an outage was stuck behind `portrait_image_not_verified` with no
+    // action that could help: re-uploading burns another analysis slot and can hit the same
+    // limiter, and `needs_changes` only re-opens the upload that re-runs the same gate. The desk
+    // had no button. That is a dead end built out of our own infrastructure failing.
+    //
+    // The document is still stored, the report still says `unavailable`, and the admin case page
+    // still renders it — so a human sees that the automatic check did not run before anything is
+    // submitted. `pending` (uploaded, analysis in flight) deliberately still blocks: that one
+    // resolves itself in seconds and letting it through would race the analysis.
+    else if (document.validation_status !== 'passed' && document.validation_status !== 'unavailable') issues.push(qualityCode)
   }
   return [...new Set(issues)]
 }

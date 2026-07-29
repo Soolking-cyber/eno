@@ -303,7 +303,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       payload: passport ? payload : undefined,
       suggestions: Object.keys(suggestions),
       issues: downgradeSuppressed ? [] : issues,
-      warnings,
+      // ⚠️ WARNINGS ARE GATED LIKE ISSUES. This field used to be returned raw while `issues` and
+      // `validationReport` beside it were gated, which broke the rule stated 15 lines above — the
+      // client is told what the SERVER holds, never what a discarded run said. It was inert only
+      // because portraits hardcoded `warnings: []`; now that they emit real advisory codes, an
+      // ungated field would paint fresh amber bullets from a run whose verdict we threw away,
+      // beneath a green Verified badge earned by the stored report. Found in review.
+      warnings: downgradeSuppressed ? [] : warnings,
     })
   } catch (error) {
     const failure = error as { name?: string; status?: number; code?: number | string }

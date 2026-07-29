@@ -16,6 +16,21 @@ export const revalidate = 86400
 // portrait. "We catch the mistakes that cause refusals" would be a bigger claim than the code
 // supports: a refusal can rest on grounds no upload check can see. The copy below is deliberately
 // scoped to the document problems, because that is the part we can stand behind.
+//
+// ⚠️ THE PORTRAIT PARAGRAPH TRACKS PORTRAIT_BLOCKING_CHECKS AND MUST BE RE-READ WHEN IT MOVES.
+// It used to say the portrait "is checked against the same rules the department applies", which
+// stopped being true on 2026-07-29 when four checks became advisory — background, lighting,
+// centering and clothing now warn instead of blocking. The paragraph names the seven that block
+// and the four that warn, so promoting or demoting a check silently makes this page false. The
+// "a person looks at the portrait again" clause is load-bearing too: it is what makes the demotion
+// honest, and it is only true while checkout continues to hand off to review (ready_for_review /
+// under_review) BEFORE submission rather than submitting directly.
+//
+// Note the section above it — "A portrait that is not a plain-background, head-and-shoulders,
+// hat-and-glasses-free photo" — is deliberately left alone. That sentence describes what the
+// DEPARTMENT refuses on, and per apps/forum/docs/VISA_ASSISTANCE.md (checked at evisa.gov.vn on
+// 2026-07-16) a white background really is on the official form. Our demotion is a statement about
+// what our AI can reliably judge, NOT a claim that the department does not care.
 const CONTENT: SeoContent = {
   eyebrow: 'e-Visa · Refusals',
   h1: 'Vietnam e-visa rejected — what to do next',
@@ -39,7 +54,7 @@ const CONTENT: SeoContent = {
     },
     {
       title: 'How eno.vn tries to catch this before submission',
-      body: 'The application is completed in chat, step by step, and your uploads are checked as you go: the passport page has to be the right page, in one piece, sharp enough to read, and its machine-readable strip is verified against the passport number, date of birth and expiry date you entered — a mismatch shows up as a mismatch rather than as a refusal three days later. The portrait is checked against the same rules the department applies. It cannot catch grounds nobody can see from a document, but it removes the causes that are visible in one.',
+      body: 'The application is completed in chat, step by step, and your uploads are checked as you go: the passport page has to be the right page, in one piece, sharp enough to read, and its machine-readable strip is verified against the passport number, date of birth and expiry date you entered — a mismatch shows up as a mismatch rather than as a refusal three days later. The portrait is checked too, and what stops it there is deliberately narrow: it has to be a photograph of one person, sharp enough to identify, face to the camera, head and shoulders in frame, no hat and no glasses. Anything else the check notices — a background that is not plain, uneven light, off-centre framing, everyday clothing — is shown to you as a warning rather than a wall, because an automatic check is not reliable enough at those to be worth refusing your photo over. A person looks at the portrait again before the application is submitted. It cannot catch grounds nobody can see from a document, but it removes the causes that are visible in one.',
     },
   ],
   related: [
