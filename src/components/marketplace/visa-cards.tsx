@@ -1310,7 +1310,24 @@ function DocumentRow({
         <input
           id={inputId}
           type="file"
-          accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif"
+          /* ⚠️ `image/*` FIRST, AND ON iOS IT IS THE DIFFERENCE BETWEEN A CAMERA AND A DEAD BUTTON.
+             This was an explicit MIME list with no `image/*`, and a WKWebView narrows the picker to
+             match: the "Take Photo" option disappears, and some iOS versions offer an empty
+             library. For a passport page and a portrait, taking the photo right then IS the primary
+             action — the applicant has the passport in their hand. The repo already knew this and
+             wrote it down on the search camera button ("`accept="image/*"` (no `capture`) lets the
+             OS picker offer camera OR library on mobile"); the visa card just never got the memo,
+             and the post wizard uses `image/*,.heic,.heif` for the same reason.
+
+             The explicit types stay AFTER it as a hint for desktop pickers, and the extensions
+             because iOS reports HEIC inconsistently by MIME. ⚠️ NEVER `capture="camera"` — that
+             forces the camera and removes the library, which would block anyone whose passport
+             scan is already in their photos.
+
+             This is only a picker hint and never a check: the server re-validates MIME AND
+             extension in the documents route and sharp has to decode the bytes, so widening it
+             here grants nothing. */
+          accept="image/*,image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif"
           className="sr-only"
           disabled={busy}
           onChange={(event) => {

@@ -9,6 +9,9 @@ import { conversationGate } from '@/lib/enforcement'
 import { maskEmailHandle } from '@/lib/utils'
 import { recordFixedPriceOfferAttempt } from '@/lib/offer-guard'
 import { threadKind } from '@/lib/thread-kind'
+import { getVisaShopSeller, isVisaShopListing } from '@/lib/visa-shop'
+import { VISA_SUBCATEGORY_SLUG } from '@/lib/taxonomy'
+import { startVisaDmFlow } from '@/lib/visa/dm-flow'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -39,7 +42,9 @@ export async function POST(req: Request) {
 
   const listing = await db.listing.findUnique({
     where: { id: listingId },
-    select: { id: true, title: true, verified: true, negotiable: true, sellerId: true, seller: { select: { ownerId: true } } },
+    // subcategorySlug is the local "is this a visa product?" second opinion the uncertainty check
+    // below needs — see the note there; it costs nothing on a row we already fetch.
+    select: { id: true, title: true, verified: true, negotiable: true, sellerId: true, subcategorySlug: true, seller: { select: { ownerId: true } } },
   })
   if (!listing || !listing.verified) return NextResponse.json({ error: 'not_found' }, { status: 404 })
 
@@ -48,16 +53,16 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'own_listing' }, { status: 400 })
   }
 
-  // Fixed-price listing → no opening offer (UI hides it; this is the bypass/stale-tab
-  // path). Reject and dock trust past a grace. Plain first messages are unaffected.
-  if (isOffer && !listing.negotiable) {
-    await recordFixedPriceOfferAttempt(profile.id)
-    return NextResponse.json({ error: 'not_negotiable' }, { status: 409 })
-  }
-
-  // Enforcement + probation (trust Phase 2): suspended blocks all conversation
-  // activity; a probation account is capped on NEW threads per day — an existing
-  // thread is exempt (the cap is on new outreach, not on continuing one).
+  // ⚠️ ENFORCEMENT RUNS BEFORE THE VISA BRANCH, AND THE ORDER IS THE SECURITY PROPERTY.
+  //
+  // My first cut put the visa branch above this, which handed suspended and probation accounts a
+  // clean bypass: every other route into a thread passes through conversationGate, and a visa
+  // listing would have been the one door that did not. Found independently by BOTH reviewers.
+  // Nothing below this line may be reordered above it.
+  //
+  // Suspension blocks outright; probation caps NEW outreach but exempts a seller this buyer
+  // already has a thread with — which is why the visa branch is safe underneath it, since
+  // startVisaDmFlow reuses an existing case rather than opening fresh outreach.
   const gate = await conversationGate(profile.id)
   if (gate) {
     const existing = gate.error === 'account_suspended'
@@ -67,6 +72,103 @@ export async function POST(req: Request) {
           select: { id: true },
         })
     if (!existing) return NextResponse.json(gate, { status: 403 })
+  }
+
+  // ⚠️ CONTACTING A VISA PRODUCT STARTS THE APPLICATION — IT DOES NOT OPEN A CHAT.
+  //
+  // The PDP already knew this: it renders <VisaStart> instead of <ContactComposer>, because the
+  // whole application happens inside the thread and only the server emits step 1. But the PDP is
+  // not the only way to contact a listing — listing-card.tsx, compact-listing-row.tsx and
+  // listings-video-feed.tsx all stash a quick-compose and push to /messages/pending, which lands
+  // HERE. None of them knew about visa, so tapping Message on a visa product anywhere except the
+  // PDP opened a blank conversation with "Hi! Is this still available?" in it, and no wizard ever
+  // began. Reported by the owner as "message button on visa related posts all should start
+  // application process and not chat" — and it is the same reason the iOS app could not apply,
+  // since the native shell is this web app in a WebView and its users reach products through the
+  // feed rather than by URL.
+  //
+  // The fix belongs at THIS chokepoint rather than in three cards: every entry point already
+  // funnels through here, so one predicate fixes all of them at once and any FUTURE contact
+  // surface inherits it. The same "one predicate everywhere" rule the shared visa/trip desk
+  // taught us — see isVisaShopListing, which is deliberately wider than resolveVisaProduct so a
+  // half-built product still gets the application flow rather than silently falling back to chat.
+  //
+  // ⚠️ ANY TYPED MESSAGE OR OFFER IS DELIBERATELY DROPPED. Posting "Is this still available?" into
+  // a government-form thread is nonsense, and an offer on a fixed-fee service is worse. The card
+  // buttons attach that opener without asking, so it is discarded here rather than trusted — the
+  // same call the trip planner made when its CTA stopped posting a canned line nobody read.
+  const isVisaProduct = await isVisaShopListing(listing.id)
+
+  // ⚠️ "COULD NOT TELL" MUST NOT MEAN "NOT A VISA PRODUCT". isVisaShopListing answers from the
+  // desk storefront read, which swallows its own errors and returns [] — so a transient blip would
+  // classify a real visa product as an ordinary listing and open exactly the blank chat this whole
+  // branch exists to prevent, permanently, with a push notification to the desk. Both reviewers
+  // called the fail-open wrong and they were right.
+  //
+  // The listing's OWN subcategory is the local second opinion: it needs no desk lookup and cannot
+  // blip. When it says visa but the storefront read disagreed, we are uncertain rather than
+  // informed, so the honest answer is a retryable 503 — never a chat we cannot undo.
+  //
+  // Deliberately NOT "fail closed whenever the desk is unreachable": that would 503 every ordinary
+  // listing's Message button on a deployment where the visa desk simply is not seeded.
+  // ⚠️ THE PREDICATE MIRRORS getVisaShopListings' OWN `where`, and that is the point. That query is
+  // EXCLUDE-shaped — a desk row counts as visa unless it DECLARES a different subcategory — so
+  // testing only for an explicit `visa-legal` slug left the null case open: a visa product whose
+  // subcategory was never set would still have fallen through to a permanent blank chat. codex
+  // caught that my first fail-closed guard was incomplete. Measured 2026-07-29: 0 of 35 listings
+  // have a null subcategory and all 14 visa products carry `visa-legal`, so the hole is currently
+  // empty — which is a reason to close it cheaply, not a reason to leave it.
+  //
+  // The trip-assistance anchor lives on the SAME storefront and declares `service-other`, so it is
+  // correctly excluded here rather than 503-ing the trip desk. And when the desk seller itself
+  // cannot be resolved, the slug test still stands on its own.
+  // ⚠️ SCOPED TO THE DESK SELLER, BOTH BRANCHES. `visa-legal` is a PUBLIC subcategory — a law firm
+  // or agency can post under it — so testing the slug alone would have handed every such seller a
+  // permanent 503 on their Message button, since isVisaShopListing correctly says false for a row
+  // that is not the desk's. Only the desk's own rows can be visa PRODUCTS. codex caught this;
+  // measured 2026-07-29, all 14 `visa-legal` rows are the desk's today, which makes it a latent
+  // trap rather than a live outage — and exactly the kind that ships unnoticed.
+  const visaDesk = await getVisaShopSeller()
+  const mightBeVisa = visaDesk
+    ? listing.sellerId === visaDesk.id
+      && (listing.subcategorySlug === VISA_SUBCATEGORY_SLUG || listing.subcategorySlug === null)
+    // The desk itself is unresolvable, so sellers cannot be compared at all. In that state
+    // isVisaShopListing is false for EVERY row, so the explicit slug is the only signal left — and
+    // a transient 503 beats a permanent blank chat on a real visa product. An ordinary seller's
+    // visa-legal listing is only affected while the desk lookup is down.
+    : listing.subcategorySlug === VISA_SUBCATEGORY_SLUG
+  if (!isVisaProduct && mightBeVisa) {
+    return NextResponse.json({ error: 'shop_unavailable' }, { status: 503 })
+  }
+
+  if (isVisaProduct) {
+    const started = await startVisaDmFlow({
+      userId: profile.id,
+      email: profile.email || '',
+      listingId: listing.id,
+      // The SAME 'visa-create' quota the dashboard and /api/visa/applications/start charge, so
+      // this entry point cannot be used to mint government forms around that budget.
+      allowCreate: async () => (await rateLimit('visa-create', profile.id, 5, '24 h', { strict: true })).success,
+    })
+    if (!started.ok) return NextResponse.json({ error: started.error }, { status: started.status })
+    // `id` so every existing caller works unchanged — /messages/pending reads it and routes to the
+    // thread, where step 1 is already waiting. `created: false` keeps the contact-seller analytics
+    // event off a government form; `visa: true` lets a caller that cares tell the difference.
+    // `discardedInput` is not decoration: the caller asked us to send something and we did not, so
+    // a 200 that stayed silent about it would be a small lie. Reviewers asked for the signal.
+    return NextResponse.json({
+      id: started.conversationId,
+      created: false,
+      visa: true,
+      ...(initialMessage || isOffer ? { discardedInput: true } : {}),
+    })
+  }
+
+  // Fixed-price listing → no opening offer (UI hides it; this is the bypass/stale-tab
+  // path). Reject and dock trust past a grace. Plain first messages are unaffected.
+  if (isOffer && !listing.negotiable) {
+    await recordFixedPriceOfferAttempt(profile.id)
+    return NextResponse.json({ error: 'not_negotiable' }, { status: 409 })
   }
 
   // Create the conversation, letting the unique (listingId, buyerProfileId)
