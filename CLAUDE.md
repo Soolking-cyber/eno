@@ -1,6 +1,6 @@
 # eno.vn — working agreement
 
-Vietnamese expat marketplace. Next.js 16 (App Router) · Tailwind v4 · Prisma 7 → Supabase · Vercel. `PRELAUNCH=true` until the owner flips it.
+Vietnamese expat marketplace. `PRELAUNCH=true` until the owner flips it.
 
 ## Model routing — top tier everywhere; delegate for isolation, not for savings
 
@@ -46,46 +46,9 @@ Three habits that follow:
   is an acceptable fallback; pretending it was reviewed is not.
 - **Ask it to REFUTE, not to "review".** The highest-signal second opinion adjudicates a specific claim ("confirm or refute this, with evidence") rather than requesting a fresh opinion. That framing caught a ship-blocker on 2026-07-21 that an open-ended review would have missed.
 
-**How to invoke the two external reviewers (both read-only, non-interactive):**
-- **codex** — pipe the prompt via STDIN, never as an argument (the arg form hangs waiting on stdin).
-  ⚠️ **CODEX WASTES ITS RUN EXPLORING UNLESS YOU FORBID IT.** Seen repeatedly (2026-07-21..23):
-  given a read-only sandbox it greps node_modules and web-searches for the whole run and never
-  reaches a verdict. Two fixes, use BOTH:
-  · **Constrain the run**: add `-c web_search=disabled --skip-git-repo-check` and keep
-    `--sandbox read-only`, so it cannot burn the budget searching the web or walking the tree.
-    Full line, verified 2026-07-23 to return a VERDICT in seconds:
-    `codex exec -m gpt-5.6-sol -c model_reasoning_effort=high -c web_search=disabled --skip-git-repo-check --sandbox read-only < prompt.txt`
-  · **Constrain the PROMPT** — open with this preamble verbatim:
-    *"Answer ONLY from the code pasted below. Do NOT read files, do NOT search the web, do NOT
-    explore the repo — everything you need is inline. Your FIRST line MUST be `VERDICT: CONFIRMED`
-    or `VERDICT: REFUTED`, then one paragraph of why, then each numbered question in ≤3 sentences.
-    Whole answer ≤400 words. If the pasted code is insufficient, reply `INSUFFICIENT: <what is
-    missing>` — do not go looking for it."*
-  A verdict-first, word-capped, no-exploration prompt is the difference between codex answering and
-  codex timing out. On 2026-07-23 codex STILL produced no verdict on the scroll-rail bug (63KB of
-  node_modules reading) while Gemini answered — but Gemini's proposed fix, tested on the finished
-  job, FAILED (a MutationObserver fires before layout, so it read a stale scrollWidth); the
-  `watch`-in-deps fix passed. That is the whole rule in one episode: get a verdict from at least one
-  family, then TEST what it tells you rather than trusting it.
-- **Strong-debugger escalation.** When a bug survives one plausible fix, do not guess again at the
-  same altitude — hand it to `deep-debugger` (Opus, xhigh) or the `codex:codex-rescue` subagent with
-  the full repro and what was already ruled out. The scroll-rail root cause fell out in minutes once
-  framed as "arrows work on the server-seeded rail, not the async-fetched one — why?" instead of
-  another blind edit.
-  **Owner-set invocation (2026-07-21) — use exactly this:**
-  `echo "<review prompt>" | codex exec -m gpt-5.6-sol -c model_reasoning_effort=high --sandbox read-only`
-  (or heredoc into stdin). Verify the banner echoes `model: gpt-5.6-sol` / `reasoning effort: high`.
-- **antigravity** — `agy -p "<prompt>" --model "Gemini 3.1 Pro (High)"`. ⚠️ If it returns
-  *"a tool required the command permission that headless mode cannot prompt for"*, it produced NOTHING —
-  that is not a review. Re-run with `--dangerously-skip-permissions` (it is read-only anyway) or add an
-  allow-rule. Seen 2026-07-22. Feed the file CONTENT inline in the
-  prompt (its agentic file-reading mode times out on `--print-timeout`); use `--print-timeout 240s`.
-- Dispatch them **directly and in PARALLEL** as background jobs — never sequenced, never wrapped in an Opus
-  subagent that shells out on their behalf.
-
-In a `Workflow`, pass `model` and `effort` per `agent()` call for the Opus/Fable fan-out, and shell out to
-`codex exec` / `agy -p` from inside agents (or the main thread) for the two external families. Cross-family
-verification is the highest-value use: find with one family, have the others try to refute.
+**How to invoke them** — exact CLI flags, the anti-exploration preamble, and the silent-failure
+modes are in the `second-opinion` skill. Load it before dispatching; do not reconstruct the flags
+from memory.
 
 ## Non-negotiables
 
@@ -98,7 +61,7 @@ verification is the highest-value use: find with one family, have the others try
 - **i18n** — every user-facing string via `tr(en, vi)` / `<Tr>`; regenerate `src/generated/ui-strings.ts` after adding copy (a hook does it); curated Vietnamese goes in `src/generated/vi-overrides.ts`. Admin chrome is EN-only by convention. English is a translation **target**, not just the source.
 - **Money** — always through `src/lib/vnd.ts`; Vietnamese uses dots as thousands separators (`12.000.000 đ`).
 - **Schema changes** — drop the `profile_auth_fk` over `DIRECT_URL` → `prisma db push` → `node scripts/profile-auth-fk.mjs` → `prisma generate` → restart. `prisma db push` alone fails on that FK.
-- **Never commit `.env`.** I cannot write Vercel env values (they land empty) — surface the value for the owner to paste.
+- **Never commit `.env`.** I cannot write the deployed env values (GCP Secret Manager, `eno-root-env`) — surface the value for the owner to paste.
 
 ## Landmine files
 
@@ -113,11 +76,8 @@ These carry invariants recorded in their own comments. Read the comments before 
 work didnt prove itself i will work with 1 agent at a time"_.** Do not recreate it, do not
 spawn worker seats, and do not reintroduce a claim/board protocol unless the owner asks.
 
-What was removed: the `work/kai` and `work/murat` branches and their worktrees
-(`~/eno-kai`, `~/eno-murat`), the out-of-repo board and claim mutex at `~/eno-cockpit`,
-and the `SessionStart` hook that ran `eno-cockpit.sh ensure`. All worker output was merged
-to `main` first — nothing was discarded. The board, the claim archive and kai's T336
-verdict are preserved read-only in `docs/cockpit-archive/`.
+The branches, worktrees, board, claim mutex and `SessionStart` hook were all removed; nothing
+was discarded, and the record is read-only in `docs/cockpit-archive/`.
 
 **How work happens now:** one session, working directly in `~/eno.vn` on `main`, planning
 and implementing and shipping in the same place. There is no worker to delegate to and no
@@ -157,15 +117,32 @@ retired migration history: never edit, push, or deploy from them. The `eno.forum
 deployment stays a separate service (it owns the forum domains and environment
 variables) but builds from `Soolking-cyber/eno` with root directory `apps/forum`.
 
-**Visa ownership — eno.vn owns the WHOLE feature (owner, 2026-07-21):** the Vietnam
-e-Visa service belongs to **eno.vn (repo root)** end to end — applicant flow, AI
-passport extraction, payments, the in-DM experience, and the admin/operator queue.
-Build every visa change under `src/**`; **`apps/forum` must not gain new visa
-surfaces.** The visa code still under `apps/forum/**` is legacy awaiting an
-owner-approved retirement plan — **do not delete any of it yet**: two capabilities
-still exist ONLY there (the PII retention cron `/api/cron/visa-retention`, and the
-Browserbase hosted-prefill operator flow), and so do the visa table/bucket migrations.
-Per-file inventory and the migration order live in `apps/forum/docs/VISA_ASSISTANCE.md`.
+**⛔ THE FORUM HAS NOTHING ABOUT VISA OR ITINERARY — ONLY eno.vn (owner, 2026-07-29,
+verbatim).** This supersedes the softer 2026-07-21 wording. Both features belong to
+**eno.vn (repo root)** end to end — applicant flow, AI passport extraction, payments,
+the in-DM experience, the admin/operator queue, and the trip builder. Do not add,
+restore, or "fix forward" a visa or itinerary surface under `apps/forum/**` for any
+reason; if a forum file needs a visa behaviour, that is a signal to retire the file,
+not to edit it.
+
+- **Itinerary: DONE.** Zero files remain under `apps/forum/**` (verified 2026-07-29).
+  The `/itinerary*` → `https://eno.vn/itinerary` 308 in `apps/forum/next.config.ts`
+  must outlive the deletion.
+- **Visa: 29 files still there, and retirement is now owner-approved in DIRECTION —
+  but it is still a plan, not a licence to `rm`.** Retiring a live route is
+  irreversible for anyone mid-application, so the inventory in
+  `apps/forum/docs/VISA_ASSISTANCE.md` gets read first.
+- ✅ **The PII retention cron is NO LONGER a blocker — it was ported.**
+  `src/app/api/cron/visa-retention` exists, is materially better than the forum's
+  (fail-closed object removal, terminal-status gate, drains the backlog), and runs as
+  the `eno-visa-retention` Cloud Scheduler job at 19:30 daily in asia-southeast1.
+  `eno-forum-visa-retention` still runs at 19:00; a concurrent double-sweep is
+  idempotent, so that one can simply be disabled with the forum surface.
+- ⛔ **The one real blocker left: the Browserbase hosted-prefill operator flow**
+  (`apps/forum/src/lib/visa/hosted-prefill.ts`, `api/visa/admin/applications/[id]/prefill-session`,
+  `api/visa/prefill/[token]`). It exists ONLY in the forum — eno.vn has no Browserbase
+  code at all — so deleting it removes a capability rather than a duplicate. Port it or
+  have the owner confirm it is abandoned BEFORE deleting the forum visa tree.
 The visa admin identity is **`support@eno.vn`** (`apps/forum/src/lib/visa/auth.ts:5`) —
 `support@eno.forum` in any doc or env is stale.
 ⚠️ `src/lib/sync-pairs.test.ts` byte-couples six `src/lib/visa/*` files
@@ -176,8 +153,9 @@ before touching `src/lib/visa/**`, and prefer putting new visa logic in files th
 not sync-paired.
 
 **Codex handoff boundary (owner, 2026-07-18):** Codex only edits and validates
-`apps/forum/**`; it must not commit, push, trigger Vercel, or run the shipping workflow.
-Claude owns the whole-monorepo commit and push, after which Vercel builds automatically.
+`apps/forum/**`; it must not commit, push, trigger a deploy, or run the shipping workflow.
+Claude owns the whole-monorepo commit and push, after which Cloud Build builds and deploys
+to Cloud Run.
 
 **Mandatory Codex pickup (owner, 2026-07-18):** At the start of every shipping pass
 and immediately before staging, Claude must run `git status --short -- apps/forum` and
@@ -186,7 +164,7 @@ reported the relevant forum gates green, include those files in the same commit;
 their readiness is unclear, rerun the forum gates or stop and report the exact files.
 Never push while silently leaving validated Codex work under `apps/forum/**` unstaged.
 
-`/ship` runs the ritual: `tsc --noEmit` → design-lint → `npm run build` → local guest e2e (44 tests, server on **port 3100** — 3000 has been squatted by another project) → commit → push → poll the deploy until Ready → prod guest suite. Stop at the first red gate. If a push breaks prod, revert to the last known-good commit and pause — don't stack fix-on-fix.
+`/ship` runs the shipping ritual — the gates, their order and the port-3100 trap are in the `ship` skill; load it rather than reconstructing them. Stop at the first red gate. If a push breaks prod, revert to the last known-good commit and pause — don't stack fix-on-fix.
 
 ⚠️ **A GREEN DEPLOY IS NOT A GREEN PIPELINE — read `gh run list --limit 3` after every push.**
 GitHub Actions is a **separate gate** from Cloud Build: Cloud Build only builds and deploys, while
@@ -197,7 +175,7 @@ was failing, simultaneously. A red Actions run pages nobody and blocks nothing, 
 
 The check that was failing is the **`src/generated/ui-strings.ts` drift guard**, and its trap is
 worth knowing: a PostToolUse hook regenerates that file on `.tsx` edits, so it is normally
-invisible — but **worker commits arrive from their own worktrees**, so merging a branch brings new
-`tr()` copy WITHOUT the regenerated strings file. The drift therefore appears at MERGE time, in a
-file nobody edited. **After merging any branch that adds copy, run `node scripts/gen-ui-strings.mjs`
-and commit it.**
+invisible — but **a commit made outside this checkout never ran the hook**, so merging such a branch
+brings new `tr()` copy WITHOUT the regenerated strings file. The drift therefore appears at MERGE
+time, in a file nobody edited. **After merging any branch that adds copy, run
+`node scripts/gen-ui-strings.mjs` and commit it.**

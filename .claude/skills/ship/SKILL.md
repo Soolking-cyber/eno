@@ -1,6 +1,6 @@
 ---
 name: ship
-description: Ship the current work to production — typecheck, design-lint, build, local guest e2e, commit, push, wait for the deploys (Cloud Build→Cloud Run; Vercel until DNS cutover), then re-run the guest suite against prod. Aborts on the first failure.
+description: Ship the current work to production — typecheck, design-lint, build, local guest e2e, commit, push, wait for the deploys (Cloud Build→Cloud Run), then re-run the guest suite against prod. Aborts on the first failure.
 disable-model-invocation: true
 model: opus
 effort: medium
@@ -42,7 +42,7 @@ node scripts/design-lint.mjs
 npm run build
 ```
 
-This re-runs design-lint, `prisma generate`, and `next build`. A build failure that mentions a missing table is almost never a code bug — check `DATABASE_URL` in the Vercel env (it has been clobbered by another project before; see `scripts/db-identity.mjs`).
+This re-runs design-lint, `prisma generate`, and `next build`. A build failure that mentions a missing table is almost never a code bug — check `DATABASE_URL` in the deployed env (it has been clobbered by another project before; see `scripts/db-identity.mjs`).
 
 ## 3. Local guest e2e against the built app
 

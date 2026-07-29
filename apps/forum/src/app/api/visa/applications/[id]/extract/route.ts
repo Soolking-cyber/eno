@@ -211,7 +211,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
     const finalStatus = validationReport.status as 'passed' | 'failed'
     const now = new Date().toISOString()
-    const documentUpdate = await db.from('visa_documents').update({ validation_status: finalStatus, validation_report: validationReport }).eq('id', document.id)
+    // ⚠️ A DOCUMENT THAT ALREADY PASSED IS NEVER DOWNGRADED — this copy was missing the guard.
+    // The other three writes in this file already carry `.neq('validation_status','passed')`; this
+    // success path did not, and both apps write the SAME visa_documents rows. So a re-analysis
+    // through the forum could revoke a portrait eno.vn had already passed, throwing the applicant
+    // back to Documents with no way to understand why. The stored bytes cannot change between runs
+    // (uploads are `upsert: false` and every upload inserts a new row), so a different verdict on a
+    // second run is model noise, not new information.
+    const documentUpdate = await db.from('visa_documents').update({ validation_status: finalStatus, validation_report: validationReport }).eq('id', document.id).neq('validation_status', 'passed')
     if (documentUpdate.error) throw documentUpdate.error
     if (passport) {
       const previousChecklist = Array.isArray(application.checklist) ? application.checklist : []
