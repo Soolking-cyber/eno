@@ -38,6 +38,14 @@ export const MESSAGE_KINDS = [
   'text', 'offer',
   'visa_step', 'visa_checkout', 'visa_result', 'visa_picker',
   'trip_quote', 'trip_status', 'trip_step',
+  // ⚠️ `trip_help` IS DELIBERATELY NOT A CARD — it is absent from TRIP_CARD_KINDS below, so it
+  // carries no metaJson and renders as ordinary text. It exists so "the traveller asked for a
+  // person" is a FACT IN THE TIMELINE rather than a column: the trip concierge refuses to speak
+  // after one (the visa rule, "ife person requested ai doesnt answer"), and both the desk and the
+  // chip derive that from the same array the thread already renders. A mode column would be a
+  // second source of truth that drifts the moment one write lands and the other doesn't — the
+  // reasoning tripDeskMode already spells out for takeovers.
+  'trip_help',
 ] as const
 export type MessageKind = (typeof MESSAGE_KINDS)[number]
 export type VisaCardKind = 'visa_step' | 'visa_checkout' | 'visa_result' | 'visa_picker'

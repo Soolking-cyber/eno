@@ -140,6 +140,8 @@ const PACES = (Object.entries(PACE_LABELS) as Array<[PaceId, OptionLabel]>)
 
 const MIN_TRIP_DAYS = 1
 const MAX_TRIP_DAYS = 30
+/** Trip length the planner opens on, before any destination is chosen (owner, 2026-07-29). */
+const DEFAULT_TRIP_DAYS = 3
 const MAX_ROUTE_CITIES = 15
 const MAX_TRAVELER_SLIDER = 10
 const MAX_TRAVELERS = 100
@@ -211,7 +213,11 @@ function recommendedDayRange(city: City) {
 
 function suggestedDaysForRoute(cityIds: CityId[]) {
   const cities = cityIds.map((id) => CITY_MAP.get(id)).filter((city): city is City => Boolean(city))
-  if (cities.length === 0) return 4
+  // ⚠️ THE SAME DEFAULT AS THE INITIAL STATE, AND IT HAS TO STAY THAT WAY. This branch runs when
+  // the traveller clears every destination, so a different value here would quietly override the
+  // default the moment they changed their mind. Only the no-city case is the "default" — one or
+  // more cities returns the curated recommendation for that route, which is data, not a default.
+  if (cities.length === 0) return DEFAULT_TRIP_DAYS
   if (cities.length === 1) return recommendedDayRange(cities[0]).max
   return clampWholeNumber(cities.reduce((total, city) => {
     const range = recommendedDayRange(city)
@@ -283,7 +289,10 @@ export function ItineraryBuilder({ onSaved }: { onSaved?: () => void } = {}) {
   const [citySearch, setCitySearch] = useState('')
   const [origin, setOrigin] = useState('')
   const [startDate, setStartDate] = useState('')
-  const [days, setDays] = useState(4)
+  // Owner 2026-07-29: "when planning trip make default day 3". ⚠️ Changing this alone is not
+  // enough — suggestedDaysForRoute's no-cities branch must match, or clearing every destination
+  // snaps the box back to the old value.
+  const [days, setDays] = useState(DEFAULT_TRIP_DAYS)
   const [travelers, setTravelers] = useState(2)
   const [budgetId, setBudgetId] = useState<BudgetId>('comfort')
   const [pace, setPace] = useState<PaceId>('balanced')

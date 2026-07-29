@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
-import { CalendarCheck, Check, ChevronDown, FolderOpen, Loader2, MapPinned, Sparkles, X } from 'lucide-react'
+import { CalendarCheck, Check, ChevronDown, FolderOpen, Loader2, MapPinned, Sparkles, UserRound, X } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -707,6 +707,74 @@ function TripDraftsChip() {
             ))}
           </DropdownMenuGroup>
         )}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+
+/**
+ * The trip thread's help control — the twin of VisaAssistChips in messages/[id]/page.tsx, and
+ * deliberately the same shape: ONE chip whose menu opens upward to arm Eno concierge or ask for a
+ * person, rather than two chips eating a phone's vertical space (owner, 2026-07-24: "eno concierge
+ * and request a person similar, tap once, choose ai or human").
+ *
+ * ⚠️ `relative` ON THE TRIGGER IS LOAD-BEARING — see the note on TripDraftsChip. `tap-44` grows an
+ * absolutely-positioned ::before sized to the nearest POSITIONED ancestor, and inside a thread
+ * `html.chat-locked` makes <body> position:relative, so without it the hit target covers the whole
+ * viewport and swallows every tap and swipe in the message list.
+ *
+ * ⚠️ THE CHIP NEVER HIDES ITSELF. Not when a person has already been asked for, not when there is
+ * no trip yet. `humanRequested` changes what it OFFERS (the concierge item goes away, because the
+ * bot must not answer over a human) and never whether it exists — the rule the trip launcher had
+ * to learn the hard way when it hid behind a live wizard card that was scrolled off screen.
+ */
+export function TripAssistChips({
+  armed, thinking, busy, humanRequested, onToggleConcierge, onAskHuman,
+}: {
+  armed: boolean
+  thinking: boolean
+  busy: boolean
+  /** A person has already been asked for on this thread — derived from the rendered timeline. */
+  humanRequested: boolean
+  onToggleConcierge: () => void
+  onAskHuman: () => void | Promise<void>
+}) {
+  const { tr } = useLanguage()
+  return (
+    <DropdownMenu>
+      {/* ⚠️ Icon and label INSIDE the rendered Button — Base UI's `render` REPLACES the trigger, so
+          sibling children are dropped and the menu never opens. */}
+      <DropdownMenuTrigger
+        render={
+          <Button
+            type="button"
+            variant="soft"
+            size="none"
+            aria-label={tr('Get help with this trip', 'Nhận trợ giúp cho chuyến đi này')}
+            className={`relative tap-44 shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-2xs font-bold ${armed ? 'border-brand bg-primary/10 text-accent-foreground' : 'border-line-strong text-foreground'}`}
+          >
+            {thinking
+              ? <Loader2 className="size-3.5 shrink-0 animate-spin" aria-hidden />
+              : <Sparkles className="size-3.5 shrink-0" aria-hidden />}
+            {armed ? tr('Eno concierge', 'Eno concierge') : tr('Get help', 'Trợ giúp')}
+            <ChevronDown className="size-3 shrink-0 opacity-60" aria-hidden />
+          </Button>
+        }
+      />
+      {/* Upward: the row sits directly above the composer. */}
+      <DropdownMenuContent side="top" align="start" sideOffset={6} className="min-w-52">
+        {/* "name is Eno concierge" (owner) — the same string in both languages, not translated. */}
+        {!humanRequested && (
+          <DropdownMenuItem disabled={thinking} onClick={onToggleConcierge}>
+            <Sparkles /> {tr('Eno concierge', 'Eno concierge')}
+            {armed && <Check className="ml-auto size-4 text-accent-foreground" aria-label={tr('on', 'đang bật')} />}
+          </DropdownMenuItem>
+        )}
+        <DropdownMenuItem disabled={busy || humanRequested} onClick={() => void onAskHuman()}>
+          <UserRound /> {humanRequested
+            ? tr('A person was asked for', 'Đã yêu cầu nhân viên')
+            : tr('Request a person', 'Yêu cầu nhân viên')}
+        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   )

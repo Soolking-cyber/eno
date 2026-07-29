@@ -35,7 +35,7 @@ import {
   prepareVisaImage, useVisaCase, visaErrorCopy, visaTypeWords, EDITABLE_VISA_STATUSES,
   type VisaQuoteWire,
 } from '@/components/marketplace/visa-cards'
-import { TripQuoteCard, TripStatusCard, TripWizardCard, TripWizardLauncher } from '@/components/marketplace/trip-cards'
+import { TripAssistChips, TripQuoteCard, TripStatusCard, TripWizardCard, TripWizardLauncher } from '@/components/marketplace/trip-cards'
 import { Avatar } from '@/components/ui/avatar'
 import { Checkbox } from '@/components/ui/checkbox'
 import { LANGUAGES } from '@/lib/i18n/langs'
@@ -854,6 +854,90 @@ export default function ThreadPage() {
   const conciergeAvailable = !!visaInfo && iAmApplicant && visaInfo.mode === 'ai'
   useEffect(() => { if (!conciergeAvailable) setConciergeArmed(false) }, [conciergeAvailable])
 
+  // ── THE TRIP DESK'S OWN CONCIERGE ────────────────────────────────────────────────
+  // The same two affordances the visa thread has, on the other desk the shared storefront runs
+  // (owner, 2026-07-29). Kept as SEPARATE state from the visa pair rather than one generalised
+  // "concierge": the two speak to different endpoints, ground on different rows and gate on
+  // different facts, and a single armed flag on a thread that is somehow both would point the
+  // composer at whichever desk happened to answer last.
+  //
+  // ⚠️ "A PERSON WAS ASKED FOR" IS DERIVED FROM THE RENDERED ARRAY, not a fetch. A `trip_help`
+  // message in the timeline IS that state (src/lib/trips/concierge.ts reads the same fact server
+  // side), so the chip and the thread cannot disagree, and there is no second request to go stale
+  // — the mistake the trip launcher shipped when it fetched its eligibility once on mount.
+  const [tripConciergeArmed, setTripConciergeArmed] = useState(false)
+  const [tripBusy, setTripBusy] = useState(false)
+  const tripHumanRequested = useMemo(() => (thread?.messages ?? []).some((m) => m.kind === 'trip_help'), [thread])
+  // Trip chips belong to the traveller on a trip thread, never to the desk seat.
+  const tripAssistAvailable = thread?.kind === 'itinerary' && !thread?.iAmSeller
+  useEffect(() => {
+    if (!tripAssistAvailable || tripHumanRequested) setTripConciergeArmed(false)
+  }, [tripAssistAvailable, tripHumanRequested])
+
+  const askTripHuman = async () => {
+    if (tripBusy) return
+    setTripBusy(true)
+    // Disarmed the instant a person is asked for, without waiting for the reload: the composer
+    // must not still be pointed at the bot they just declined.
+    setTripConciergeArmed(false)
+    try {
+      const res = await fetch('/api/trips/help', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ conversationId: id }),
+      })
+      if (!res.ok) { toast.error(tr('Could not reach the desk. Please try again.', 'Chưa liên hệ được bộ phận hỗ trợ. Vui lòng thử lại.')); return }
+      toast.success(tr('Asked for a person — we will reply here.', 'Đã yêu cầu nhân viên — chúng tôi sẽ trả lời tại đây.'))
+      await load()
+      refreshUnread(); refreshConvos()
+    } catch {
+      // A rejected fetch (offline, DNS, aborted) never reaches the !res.ok branch, so without this
+      // the tap looked like it had worked and said nothing. Flagged in review.
+      toast.error(tr('Could not reach the desk. Please try again.', 'Chưa liên hệ được bộ phận hỗ trợ. Vui lòng thử lại.'))
+    } finally {
+      setTripBusy(false)
+    }
+  }
+
+  const askTripConcierge = async (raw: string) => {
+    const question = raw.trim()
+    if (!question || tripBusy) return
+    setTripBusy(true)
+    // Clear the field immediately (the send() idiom) — the question comes back from the server as
+    // a real message, so there is nothing to keep locally.
+    setText('')
+    composerRef.current?.clear()
+    haptic()
+    try {
+      const res = await fetch('/api/trips/concierge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ conversationId: id, question, lang: lang === 'vi' ? 'vi' : 'en' }),
+      })
+      const data = (await res.json().catch(() => null)) as { error?: string; questionPosted?: boolean } | null
+      if (!res.ok) {
+        // The question may already be in the thread even on failure — reload either way so the
+        // traveller never sees their own message vanish.
+        if (data?.questionPosted) await load()
+        toast.error(
+          data?.error === 'human_help_pending'
+            ? tr('A person was already asked for — they will reply here.', 'Bạn đã yêu cầu nhân viên — họ sẽ trả lời tại đây.')
+            : tr('Eno concierge could not answer just now.', 'Eno concierge chưa trả lời được lúc này.'),
+        )
+        return
+      }
+      await load()
+      refreshUnread(); refreshConvos()
+    } catch {
+      // Same reason as askTripHuman: a network-level rejection skips the !res.ok path entirely,
+      // and the traveller's question is already posted, so silence is the wrong answer.
+      toast.error(tr('Eno concierge could not answer just now.', 'Eno concierge chưa trả lời được lúc này.'))
+      await load().catch(() => {})
+    } finally {
+      setTripBusy(false)
+    }
+  }
+
   const askConcierge = async (raw: string) => {
     const applicationId = visaInfo?.applicationId
     const question = raw.trim()
@@ -1533,6 +1617,19 @@ export default function ThreadPage() {
               onStarted={() => void load()}
               onReveal={revealMessage}
             />
+            {/* The trip desk's help control, alongside "Plan a trip" and "Saved trips" in the SAME
+                single row (owner: "put them in 1 line"). Gated on the traveller side of a trip
+                thread — showing a desk operator a "request a person" chip would be nonsense. */}
+            {tripAssistAvailable && (
+              <TripAssistChips
+                armed={tripConciergeArmed}
+                thinking={tripBusy && tripConciergeArmed}
+                busy={tripBusy}
+                humanRequested={tripHumanRequested}
+                onToggleConcierge={() => setTripConciergeArmed((on) => !on)}
+                onAskHuman={askTripHuman}
+              />
+            )}
             {visaInfo && (<>
               {iAmApplicant && (conciergeAvailable ? (
                 <VisaAssistChips
@@ -1651,10 +1748,18 @@ export default function ThreadPage() {
                 value={text}
                 onChange={setText}
                 /* Armed → the same field, the same Return key, a different destination:
-                   /concierge instead of the ordinary message POST. */
-                onSend={() => (conciergeArmed ? void askConcierge(text) : send())}
-                placeholder={conciergeArmed ? tr('Ask Eno concierge…', 'Hỏi Eno concierge…') : tr('Write a message…', 'Nhập tin nhắn…')}
-                ariaLabel={conciergeArmed ? tr('Ask Eno concierge', 'Hỏi Eno concierge') : tr('Write a message', 'Nhập tin nhắn')}
+                   /concierge instead of the ordinary message POST.
+                   ⚠️ TWO DESKS, ONE COMPOSER. The visa and trip flags are checked in a fixed
+                   order and can never both be true (a thread is one kind), but the order is
+                   written out rather than left to a || chain so a future third desk has an
+                   obvious place to go and cannot silently steal the other's questions. */
+                onSend={() => {
+                  if (conciergeArmed) return void askConcierge(text)
+                  if (tripConciergeArmed) return void askTripConcierge(text)
+                  return send()
+                }}
+                placeholder={conciergeArmed || tripConciergeArmed ? tr('Ask Eno concierge…', 'Hỏi Eno concierge…') : tr('Write a message…', 'Nhập tin nhắn…')}
+                ariaLabel={conciergeArmed || tripConciergeArmed ? tr('Ask Eno concierge', 'Hỏi Eno concierge') : tr('Write a message', 'Nhập tin nhắn')}
               />
             )}
 
