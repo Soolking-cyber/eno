@@ -1,18 +1,21 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { CalendarCheck, Check, ChevronDown, FolderOpen, Loader2, MapPinned, Sparkles, UserRound, X } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
+import { useCurrency, vndPerUsd } from '@/context/currency-context'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Separator } from '@/components/ui/separator'
 import { Field, FieldControl, FieldLabel } from '@/components/ui/field'
-import { Input } from '@/components/ui/input'
+
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { formatMoneyFull, moneyLocale } from '@/lib/vnd'
+import { cn } from '@/lib/utils'
 import {
   ACCOMMODATION_LABELS, BUDGETS, CITIES, DEFAULT_TRIP_DAYS, INTEREST_LABELS, PACE_LABELS,
 } from '@/lib/itinerary-data'
@@ -249,6 +252,17 @@ type Draft = {
   notes: string
 }
 
+/** Schema bounds from FIELD_SHAPE.budgetDailyVnd — restated so the field refuses before POSTing. */
+const MIN_CUSTOM_DAILY_VND = 100_000
+const MAX_CUSTOM_DAILY_VND = 100_000_000
+
+/** The tier a custom amount is closest to, so `budgetId` stays truthful for what stores one. */
+function nearestBudgetTier(dailyVnd: number | null): string {
+  if (!dailyVnd) return 'comfort'
+  return BUDGETS.reduce((best, tier) =>
+    Math.abs(tier.daily - dailyVnd) < Math.abs(best.daily - dailyVnd) ? tier : best, BUDGETS[0]).id
+}
+
 const EMPTY_DRAFT: Draft = {
   cityIds: [], days: DEFAULT_TRIP_DAYS, startDate: '', travelers: 2,
   budgetId: 'comfort', pace: 'balanced', accommodation: 'hotel', interests: [],
@@ -292,6 +306,29 @@ function loadDraft(messageId: string): Draft {
 export function TripWizardCard({ conversationId, messageId, meta }: { conversationId: string; messageId: string; meta: WizardStepMeta }) {
   const { tr, lang } = useLanguage()
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT)
+  // "My own budget" — a fourth CHOICE, not a fourth BudgetId (that enum is stored and label-mapped).
+  const [customBudgetOn, setCustomBudgetOn] = useState(false)
+  /** Raw text in whichever unit the field is asking for. Parsed on use, never on keystroke. */
+  const [customBudgetText, setCustomBudgetText] = useState('')
+  // Plausibility-banded đồng-per-dollar — a bare `> 0` check would let an absurd-but-positive rate
+  // convert a sensible $120 into a figure that still passes the schema and becomes the AI's target.
+  const usdRate = vndPerUsd(useCurrency().rates)
+  const usdPerDay = (vnd: number) => (usdRate ? `$${Math.round(vnd / usdRate).toLocaleString('en-US')}` : '')
+  // ⚠️ The field's UNIT follows the rate, so the text is cleared when that flips — otherwise
+  // "3000000" typed as đồng becomes three million DOLLARS the moment rates arrive.
+  const unitIsUsd = !!usdRate
+  const lastUnitIsUsd = useRef(unitIsUsd)
+  useEffect(() => {
+    if (lastUnitIsUsd.current !== unitIsUsd) { lastUnitIsUsd.current = unitIsUsd; setCustomBudgetText('') }
+  }, [unitIsUsd])
+  const customBudgetVnd = useMemo(() => {
+    const typed = Number(customBudgetText.replace(/[^\d.]/g, ''))
+    if (!Number.isFinite(typed) || typed <= 0) return null
+    const vnd = Math.round(usdRate ? typed * usdRate : typed)
+    return vnd >= MIN_CUSTOM_DAILY_VND && vnd <= MAX_CUSTOM_DAILY_VND ? vnd : null
+  }, [customBudgetText, usdRate])
+  /** Typed something unusable — say so rather than silently planning to a tier they never chose. */
+  const customBudgetInvalid = customBudgetOn && customBudgetText.trim() !== '' && customBudgetVnd === null
   const [step, setStep] = useState(meta.step)
   /**
    * The step being REVIEWED, when the traveller has tapped back into an earlier one. Null = follow
@@ -339,7 +376,14 @@ export function TripWizardCard({ conversationId, messageId, meta }: { conversati
     switch (which) {
       case 1: return { cityIds: draft.cityIds, cityDays: [], days: draft.days }
       case 2: return { startDate: draft.startDate, travelers: draft.travelers }
-      case 3: return { budgetId: draft.budgetId, pace: draft.pace }
+      // budgetId is ALWAYS sent — on a custom amount it is the nearest tier, so everything that
+      // stores or renders a tier keeps working. budgetDailyVnd rides alongside only when they
+      // named a usable number, and the generator prefers it over the tier's figure.
+      case 3: return {
+        budgetId: customBudgetOn ? nearestBudgetTier(customBudgetVnd) : draft.budgetId,
+        ...(customBudgetOn && customBudgetVnd ? { budgetDailyVnd: customBudgetVnd } : {}),
+        pace: draft.pace,
+      }
       case 4: return { accommodation: draft.accommodation, interests: draft.interests }
       default: return { flight: draft.flight, origin: draft.origin, notes: draft.notes }
     }
@@ -506,20 +550,73 @@ export function TripWizardCard({ conversationId, messageId, meta }: { conversati
                 chip against "Tối đa 1,2 triệu/ngày"), and shrinking the range to fit would defeat
                 the purpose. Rows also match the builder's own budget control, so the two surfaces
                 read the same. Pace stays a chip row — its options carry no number. */}
+            {/* ⚠️ The custom amount is NOT in the draft — it lives in this component's own state and
+                is composed into answersFor(3) at submit, so picking a tier only has to switch the
+                mode off. Keeping it out of Draft also keeps it out of the PERSISTED half-finished
+                draft, where a stale đồng figure could outlive the rate it was converted at. */}
             <div className="flex flex-col gap-1.5">
-              {BUDGETS.map((budget) => (
-                <Button
-                  key={budget.id}
-                  size="none"
-                  variant={draft.budgetId === budget.id ? 'default' : 'outline'}
-                  onClick={() => patch({ budgetId: budget.id })}
-                  className="w-full flex-col items-start gap-0 rounded-xl px-3 py-2 text-left"
-                >
-                  <span className="text-sm font-bold">{lang === 'vi' ? budget.labelVi : budget.label}</span>
-                  <span className="text-2xs font-medium opacity-80">{lang === 'vi' ? budget.detailVi : budget.detail}</span>
-                </Button>
-              ))}
+              {BUDGETS.map((budget) => {
+                // Composed OUTSIDE the markup: design-lint refuses bare strings AND template
+                // literals in JSX, and the dollar hint is only meaningful when a rate loaded.
+                const usd = usdPerDay(budget.daily)
+                const detail = (lang === 'vi' ? budget.detailVi : budget.detail)
+                  + (usd ? ` · ≈ ${usd}/${tr('day', 'ngày')}` : '')
+                return (
+                  <Button
+                    key={budget.id}
+                    size="none"
+                    variant={!customBudgetOn && draft.budgetId === budget.id ? 'default' : 'outline'}
+                    onClick={() => { setCustomBudgetOn(false); patch({ budgetId: budget.id }) }}
+                    className="w-full flex-col items-start gap-0 rounded-xl px-3 py-2 text-left"
+                  >
+                    <span className="text-sm font-bold">{lang === 'vi' ? budget.labelVi : budget.label}</span>
+                    <span className="text-2xs font-medium opacity-80">{detail}</span>
+                  </Button>
+                )
+              })}
+              {/* ⚠️ THE CUSTOM BUDGET LIVES HERE, NOT IN THE DASHBOARD BUILDER (owner, 2026-07-29:
+                  "there shouldnt be dashboard builder only in chat"). It was first built into
+                  itinerary-builder.tsx, which had already been reduced to dead code behind a
+                  redirect — a working feature nobody could reach. This is the only planner. */}
+              <Button
+                size="none"
+                variant={customBudgetOn ? 'default' : 'outline'}
+                onClick={() => setCustomBudgetOn(true)}
+                className="w-full flex-col items-start gap-0 rounded-xl px-3 py-2 text-left"
+              >
+                <span className="text-sm font-bold">{tr('My own budget', 'Ngân sách của tôi')}</span>
+                <span className="text-2xs font-medium opacity-80">{tr('Name a daily amount per traveler', 'Nhập số tiền mỗi ngày cho mỗi khách')}</span>
+              </Button>
             </div>
+            {/* Asked in USD, planned in đồng — the conversion is shown live so the number being
+                committed to is never hidden behind a rate the traveller cannot see. Falls back to
+                đồng when no usable rate has loaded; the field never simply disappears. */}
+            {customBudgetOn && (
+              <div>
+                <Input
+                  type="number"
+                  inputMode="decimal"
+                  variant="outline"
+                  aria-label={usdRate
+                    ? tr('Daily budget per traveler in US dollars', 'Ngân sách mỗi ngày mỗi khách, tính bằng đô la Mỹ')
+                    : tr('Daily budget per traveler in dong', 'Ngân sách mỗi ngày mỗi khách, tính bằng đồng')}
+                  min={usdRate ? Math.ceil(MIN_CUSTOM_DAILY_VND / usdRate) : MIN_CUSTOM_DAILY_VND}
+                  max={usdRate ? Math.floor(MAX_CUSTOM_DAILY_VND / usdRate) : MAX_CUSTOM_DAILY_VND}
+                  value={customBudgetText}
+                  onChange={(e) => setCustomBudgetText(e.currentTarget.value)}
+                  placeholder={usdRate ? '$120' : '3000000'}
+                  aria-invalid={customBudgetInvalid || undefined}
+                  className="w-full"
+                />
+                <p className={cn('mt-1 text-2xs', customBudgetInvalid ? 'text-destructive' : 'text-ink-4')} role={customBudgetInvalid ? 'alert' : undefined}>
+                  {customBudgetInvalid
+                    ? tr('Enter a realistic daily amount per traveler.', 'Nhập số tiền hợp lý mỗi khách, mỗi ngày.')
+                    : customBudgetVnd
+                      ? `≈ ${formatMoneyFull(customBudgetVnd, '₫', moneyLocale(lang))} / ${tr('traveler / day', 'khách / ngày')}`
+                      : tr('Excludes long-haul flights, like the tiers above.', 'Chưa gồm vé bay đường dài, giống các mức ở trên.')}
+                </p>
+              </div>
+            )}
             <p className="text-sm text-ink-3">{tr('Pace', 'Nhịp độ')}</p>
             <div className="flex flex-wrap gap-1.5">
               {Object.entries(PACE_LABELS).map(([id, option]) => (

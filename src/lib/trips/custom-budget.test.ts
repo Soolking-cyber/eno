@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { BUDGETS, DEFAULT_TRIP_DAYS } from '@/lib/itinerary-data'
@@ -96,16 +96,21 @@ describe('⚠️ DEFAULT_TRIP_DAYS — one number, both planners', () => {
     expect(DEFAULT_TRIP_DAYS).toBe(3)
   })
 
-  it.each([
-    ['the in-chat wizard', 'components/marketplace/trip-cards.tsx'],
-    ['the dashboard builder', 'app/dashboard/trips/plan/itinerary-builder.tsx'],
-  ])('%s takes its default from the shared constant', (_label, rel) => {
-    // ⚠️ THIS DRIFTED ONCE ALREADY. "make default day 3" was applied to the builder only, and the
-    // chat wizard kept opening on 7 — the owner hit it the same day. Two planners, one number:
-    // asserting the IMPORT is what stops a third copy being typed.
-    const src = read(rel)
+  it('the in-chat wizard takes its default from the shared constant', () => {
+    // ⚠️ THIS DRIFTED ONCE ALREADY, back when there were TWO planners: "make default day 3" was
+    // applied to the dashboard builder only, and the chat wizard kept opening on 7 — the owner hit
+    // it the same day. The builder is gone now (owner, 2026-07-29: "there shouldnt be dashboard
+    // builder only in chat"), so there is one planner again; the import is still asserted because
+    // the cheapest way to reintroduce the bug is to re-type the number.
+    const src = read('components/marketplace/trip-cards.tsx')
     expect(src).toContain('DEFAULT_TRIP_DAYS')
     expect(src).toMatch(/from '@\/lib\/itinerary-data'/)
+  })
+
+  it('⚠️ there is exactly ONE planner — the dashboard builder must not come back', () => {
+    // It was already dead code behind a redirect when it was deleted: nothing imported it, and a
+    // custom-budget UI got built into it by mistake, shipping a feature nobody could reach.
+    expect(existsSync(join(__dirname, '..', '..', 'app/dashboard/trips/plan/itinerary-builder.tsx'))).toBe(false)
   })
 
   it('leaves no hard-coded day default behind in either planner', () => {

@@ -2,8 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { CalendarDays, ChevronDown, Download, Loader2, Pencil, Trash2, TriangleAlert } from 'lucide-react'
-import { Collapsible } from '@base-ui/react/collapsible'
+import { CalendarDays, Download, Loader2, Trash2, TriangleAlert } from 'lucide-react'
 import { toast } from 'sonner'
 import { useLanguage } from '@/context/language-context'
 import { Badge } from '@/components/ui/badge'
@@ -14,7 +13,6 @@ import {
 } from '@/components/ui/alert-dialog'
 import { formatMoneyFull, moneyLocale } from '@/lib/vnd'
 import { useDualMoney } from '@/context/currency-context'
-import { INTEREST_LABELS, type OptionLabel } from '@/lib/itinerary-data'
 
 // Row shapes = the /api/itineraries GET serializer (Prisma rows, dates as ISO strings,
 // interests pre-parsed to string[]).
@@ -88,18 +86,6 @@ const CITY_NAMES: Record<string, [string, string]> = {
   condao: ['Con Dao', 'Côn Đảo'],
 }
 
-// ⚠️ THE SHARED TABLE, not a copy. This file held its own INTEREST_LABELS and it had DRIFTED: it
-// said `wellness` = "Thư giãn" while src/lib/itinerary-data.ts and the builder both said
-// "Nghỉ dưỡng", so the saved-trip list and the builder disagreed in Vietnamese about the same
-// interest. Third copy of a table that was already shared — murat flagged the pattern; this is the
-// instance where it had already gone wrong.
-//
-// Kept as a lookup on `string` because `trip.interests` comes off a JSON column and may legitimately
-// hold an id this build does not know; the caller falls back to the raw id for that case.
-const interestLabel = (id: string): [string, string] | undefined => {
-  const entry = (INTEREST_LABELS as Record<string, OptionLabel | undefined>)[id]
-  return entry ? [entry.label, entry.labelVi] : undefined
-}
 
 // Itinerary currency column stores ISO 'VND'; formatMoneyFull's VND branch keys on '₫'.
 function money(amount: number, currency: string, locale: 'en' | 'vi'): string {
@@ -200,7 +186,6 @@ export function TripCard({ trip, onDeleted }: { trip: SavedItinerary; onDeleted?
   }
   // Day/stay copy is bilingual DATA (columns), not UI strings: vi column when the UI is
   // Vietnamese and the column is filled; English text otherwise (also the MT-language case).
-  const loc = (en: string, viText: string | null | undefined) => (vi && viText ? viText : en)
 
   const city = trip.destinationId ? CITY_NAMES[trip.destinationId] : undefined
   const destination = city ? (vi ? city[1] : city[0]) : (trip.destinationId ?? '').replace(/[-_]/g, ' ')
@@ -217,17 +202,19 @@ export function TripCard({ trip, onDeleted }: { trip: SavedItinerary; onDeleted?
     // box — the parent <Rows> (trips-client) draws the hairline between siblings. `overflow-hidden`
     // stays for the height collapse animation; the panel keeps its own border-t between header and
     // detail. Renders <li> because <Rows> is a <ul>.
-    <Collapsible.Root render={<li className="overflow-hidden" />}>
-      <Collapsible.Trigger
-        render={
-          // Overrides live on the Button (cn-merged); a className on a render CHILD would
-          // only concatenate. bare/none: the row owns its box; the base keeps focus ring.
-          <Button
-            variant="bare"
-            size="none"
-            className="group w-full items-start justify-start gap-3 whitespace-normal py-4 text-left font-normal active:scale-100"
-          />
-        }
+    // ⚠️ A FLAT ROW, NOT A DISCLOSURE (owner, 2026-07-29: "my trip is similar to my evisa see draft
+    // trips and edit delete on click nothing more remove else"). This used to be a Collapsible that
+    // expanded the entire day-by-day plan and stay shortlist in place — a second, read-only copy of
+    // the trip detail page, sitting inside a LIST. Everything it showed is one tap away on the page
+    // the row now links to, which is also where the map and stop editing live.
+    //
+    // ⚠️ THE LINK AND THE ACTIONS ARE SIBLINGS, never nested. A <button> inside an <a> is invalid
+    // HTML and the two fight for the same tap; the visa case list solves it the same way, which is
+    // the shape this row is deliberately copying.
+    <li className="flex items-start gap-3 py-4">
+      <Link
+        href={`/dashboard/trips/${trip.id}`}
+        className="flex min-w-0 flex-1 items-start gap-3 rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
       >
         <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent text-accent-foreground">
           <CalendarDays className="h-5 w-5" />
@@ -242,100 +229,37 @@ export function TripCard({ trip, onDeleted }: { trip: SavedItinerary; onDeleted?
             {budget ? ` · ${budget}` : ''} · {tr('Updated', 'Cập nhật')} {updated}
           </span>
         </span>
-        <ChevronDown className="mt-2 h-4 w-4 shrink-0 text-ink-4 transition-transform group-data-[panel-open]:rotate-180" />
-      </Collapsible.Trigger>
+      </Link>
 
-      <Collapsible.Panel className="border-t border-border py-4">
-        {Array.isArray(trip.interests) && trip.interests.length > 0 && (
-          <div className="mb-4 flex flex-wrap gap-1.5">
-            {trip.interests.map((interest) => {
-              const label = interestLabel(interest)
-              return (
-                <Badge key={interest} variant="neutral">
-                  {label ? (vi ? label[1] : label[0]) : interest}
-                </Badge>
-              )
-            })}
-          </div>
-        )}
-
-        <ol className="space-y-4">
-          {trip.dayPlans.map((day) => (
-            <li key={day.id} className="border-l-2 border-primary/30 pl-3">
-              <p className="text-2xs font-bold uppercase tracking-wide text-muted-foreground">
-                {tr('Day', 'Ngày')} {day.dayNumber} · {loc(day.area, day.areaVi)}
-              </p>
-              <p className="mt-1 text-sm font-bold text-foreground">{loc(day.title, day.titleVi)}</p>
-              <div className="mt-2 space-y-1 text-xs leading-relaxed text-body">
-                <p>
-                  <strong className="font-semibold text-foreground">{tr('Morning', 'Sáng')}:</strong>{' '}
-                  {loc(day.morning, day.morningVi)}
-                </p>
-                <p>
-                  <strong className="font-semibold text-foreground">{tr('Afternoon', 'Chiều')}:</strong>{' '}
-                  {loc(day.afternoon, day.afternoonVi)}
-                </p>
-                <p>
-                  <strong className="font-semibold text-foreground">{tr('Evening', 'Tối')}:</strong>{' '}
-                  {loc(day.evening, day.eveningVi)}
-                </p>
-              </div>
-            </li>
-          ))}
-        </ol>
-
-        {trip.stays.length > 0 && (
-          <div className="mt-5 rounded-xl bg-tint p-4">
-            <p className="text-2xs font-bold uppercase tracking-wide text-foreground">
-              {tr('Stay shortlist', 'Danh sách chỗ ở')}
-            </p>
-            <ul className="mt-2 space-y-2 text-xs text-body">
-              {trip.stays.map((stay) => (
-                <li key={stay.id}>
-                  <strong className="font-semibold text-foreground">{loc(stay.name, stay.nameVi)}</strong> ·{' '}
-                  {loc(stay.area, stay.areaVi)}
-                  {stay.estimatedNightly
-                    ? ` · ${tripMoney(stay.estimatedNightly, stay.currency)}/${tr('night', 'đêm')}`
-                    : ''}
-                  {stay.note && <span className="block text-muted-foreground">{loc(stay.note, stay.noteVi)}</span>}
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-
-        {/* ⚠️ THE ONLY DOOR TO THE PER-TRIP PAGE, and until now there was none. Owner, 2026-07-26:
-            "how do we edit here activities we want to swap" — the answer was that you could not.
-            /dashboard/trips/[id] holds the map and the stop editing, and it was reachable ONLY from
-            the chat wizard's "Open the plan" card. Anyone who saved a plan from the builder, or came
-            back a week later, expanded this row and hit a dead end.
-
-            It sits in the PANEL beside the download, not in the row header: the header is a
-            Collapsible.Trigger (a Button), and a link nested inside a button is invalid and would
-            fight it for the tap. */}
-        <div className="mt-5 flex flex-wrap justify-end gap-2 border-t border-border pt-4">
-          <Button asChild variant="cta">
-            <Link href={`/dashboard/trips/${trip.id}`}>
-              <Pencil className="h-4 w-4" />
-              {tr('Open & edit', 'Mở & chỉnh sửa')}
-            </Link>
-          </Button>
-          <Button type="button" variant="outline" onClick={downloadWord} disabled={downloading}>
-            {downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-            {downloading ? tr('Creating Word file…', 'Đang tạo tệp Word…') : tr('Download Word file', 'Tải tệp Word')}
-          </Button>
-          {/* Destructive, so it is the LAST control in the row and wears the quiet variant — it must
-              not compete with "Open & edit" for the thumb. A confirm step because a trip is minutes
-              of the traveller's answers plus an AI generation, and nothing here can bring it back. */}
-          <AlertDialog open={confirmingDelete} onOpenChange={setConfirmingDelete}>
-            <AlertDialogTrigger
-              render={
-                <Button type="button" variant="ghost" className="text-destructive hover:bg-destructive/10">
-                  <Trash2 className="h-4 w-4" />
-                  {tr('Delete', 'Xóa')}
-                </Button>
-              }
-            />
+      {/* Icon-only, like the visa case row: on a phone two labelled buttons per row wrap and turn
+          the list into a wall of controls. Titles + aria-labels carry the meaning. */}
+      <div className="flex shrink-0 items-center gap-1">
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          onClick={downloadWord}
+          disabled={downloading}
+          aria-label={tr('Download Word file', 'Tải tệp Word')}
+          title={tr('Download Word file', 'Tải tệp Word')}
+        >
+          {downloading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+        </Button>
+        <AlertDialog open={confirmingDelete} onOpenChange={setConfirmingDelete}>
+          <AlertDialogTrigger
+            render={
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                aria-label={tr('Delete trip', 'Xóa chuyến đi')}
+                title={tr('Delete', 'Xóa')}
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            }
+          />
             <AlertDialogContent>
               <AlertDialogHeader>
                 <AlertDialogMedia className="bg-destructive/10 text-destructive">
@@ -360,8 +284,7 @@ export function TripCard({ trip, onDeleted }: { trip: SavedItinerary; onDeleted?
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
-        </div>
-      </Collapsible.Panel>
-    </Collapsible.Root>
+      </div>
+    </li>
   )
 }
