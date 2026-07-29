@@ -54,6 +54,22 @@ export const CITIES: City[] = [
 
 export const CITY_MAP = new Map(CITIES.map((city) => [city.id, city]))
 
+/**
+ * Trip length every planner opens on, before any destination is chosen (owner, 2026-07-29:
+ * "when planning trip make default day 3", restated as "itinerary default day not 7 but 3").
+ *
+ * ⚠️ SHARED BECAUSE IT ALREADY DRIFTED. There are TWO planners — the dashboard builder
+ * (`dashboard/trips/plan/itinerary-builder.tsx`) and the in-chat wizard (`trip-cards.tsx`
+ * EMPTY_DRAFT) — and the first fix changed only the builder, leaving the chat wizard opening on 7.
+ * The owner hit it immediately. Same failure the BUDGETS daily figures and INTEREST_LABELS both
+ * had: a number worth agreeing on, typed in two files. Import it; do not re-type it.
+ *
+ * ⚠️ This is the NO-DESTINATION default only. Once cities are chosen, the builder replaces it with
+ * that route's curated recommendation (`suggestedDaysForRoute`), which is data rather than a
+ * default and is not affected by this value.
+ */
+export const DEFAULT_TRIP_DAYS = 3
+
 export const BUDGETS = [
   { id: 'smart' as const, label: 'Smart', labelVi: 'Tiết kiệm', daily: 1_200_000, detail: 'Up to ₫1.2m/day', detailVi: 'Tối đa 1,2 triệu/ngày' },
   { id: 'comfort' as const, label: 'Comfort', labelVi: 'Thoải mái', daily: 2_500_000, detail: 'Around ₫2.5m/day', detailVi: 'Khoảng 2,5 triệu/ngày' },

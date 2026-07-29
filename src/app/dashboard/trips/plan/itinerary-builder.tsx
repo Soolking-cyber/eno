@@ -84,6 +84,7 @@ import {
   BUDGETS,
   CITIES,
   CITY_MAP,
+  DEFAULT_TRIP_DAYS,
   ACCOMMODATION_LABELS,
   INTEREST_LABELS,
   PACE_LABELS,
@@ -142,8 +143,6 @@ const PACES = (Object.entries(PACE_LABELS) as Array<[PaceId, OptionLabel]>)
 
 const MIN_TRIP_DAYS = 1
 const MAX_TRIP_DAYS = 30
-/** Trip length the planner opens on, before any destination is chosen (owner, 2026-07-29). */
-const DEFAULT_TRIP_DAYS = 3
 
 /**
  * The budget RADIO's value: a real tier, or the traveller naming their own number.

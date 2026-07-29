@@ -1,5 +1,7 @@
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { BUDGETS } from '@/lib/itinerary-data'
+import { BUDGETS, DEFAULT_TRIP_DAYS } from '@/lib/itinerary-data'
 import { ITINERARY_REQUEST_FIELDS, TRIP_WIZARD_STEP_FIELDS, itineraryRequestSchema } from '@/lib/trips/itinerary-wizard'
 import { vndPerUsd } from '@/context/currency-context'
 
@@ -84,5 +86,29 @@ describe('⚠️ vndPerUsd — the plausibility band', () => {
     ['absurdly high đồng-per-dollar', { USD: 1 / 5_000_000 }],
   ])('refuses a rate that is %s', (_label, rates) => {
     expect(vndPerUsd(rates as Record<string, number>)).toBeNull()
+  })
+})
+
+describe('⚠️ DEFAULT_TRIP_DAYS — one number, both planners', () => {
+  const read = (rel: string) => readFileSync(join(__dirname, '..', '..', rel), 'utf8')
+
+  it('is 3', () => {
+    expect(DEFAULT_TRIP_DAYS).toBe(3)
+  })
+
+  it.each([
+    ['the in-chat wizard', 'components/marketplace/trip-cards.tsx'],
+    ['the dashboard builder', 'app/dashboard/trips/plan/itinerary-builder.tsx'],
+  ])('%s takes its default from the shared constant', (_label, rel) => {
+    // ⚠️ THIS DRIFTED ONCE ALREADY. "make default day 3" was applied to the builder only, and the
+    // chat wizard kept opening on 7 — the owner hit it the same day. Two planners, one number:
+    // asserting the IMPORT is what stops a third copy being typed.
+    const src = read(rel)
+    expect(src).toContain('DEFAULT_TRIP_DAYS')
+    expect(src).toMatch(/from '@\/lib\/itinerary-data'/)
+  })
+
+  it('leaves no hard-coded day default behind in either planner', () => {
+    expect(read('components/marketplace/trip-cards.tsx')).not.toMatch(/days:\s*\d+,\s*startDate/)
   })
 })

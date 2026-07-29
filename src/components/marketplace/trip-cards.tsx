@@ -14,7 +14,7 @@ import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
 import { formatMoneyFull, moneyLocale } from '@/lib/vnd'
 import {
-  ACCOMMODATION_LABELS, BUDGETS, CITIES, INTEREST_LABELS, PACE_LABELS,
+  ACCOMMODATION_LABELS, BUDGETS, CITIES, DEFAULT_TRIP_DAYS, INTEREST_LABELS, PACE_LABELS,
 } from '@/lib/itinerary-data'
 import { LAST_TRIP_WIZARD_STEP, tripWizardChip } from '@/lib/trips/itinerary-wizard'
 import { ChatCard, ChatCardSteps } from '@/components/marketplace/chat-card-shell'
@@ -250,7 +250,7 @@ type Draft = {
 }
 
 const EMPTY_DRAFT: Draft = {
-  cityIds: [], days: 7, startDate: '', travelers: 2,
+  cityIds: [], days: DEFAULT_TRIP_DAYS, startDate: '', travelers: 2,
   budgetId: 'comfort', pace: 'balanced', accommodation: 'hotel', interests: [],
   flight: { include: false, cabin: 'economy', maxStops: 'any', checkedBags: false },
   origin: '', notes: '',
