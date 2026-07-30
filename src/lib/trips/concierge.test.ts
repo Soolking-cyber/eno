@@ -156,3 +156,28 @@ describe('⚠️ the person/AI toggle must work in BOTH directions', () => {
     expect(page).toMatch(/if \(!conciergeAvailable \|\| visaHumanRequested\) setConciergeArmed\(false\)/)
   })
 })
+
+describe('⚠️ the wizard must never generate from an incomplete draft', () => {
+  const readSrc = (rel: string) => readFileSync(join(__dirname, '..', '..', rel), 'utf8')
+
+  it('checks firstIncompleteTripWizardStep BEFORE calling the paid endpoint', () => {
+    // The dead end this closes: the STEP lives on the server, the ANSWERS live in sessionStorage.
+    // A new tab restores "step 5" over a reset draft, so Build my plan posted cityIds:[] and
+    // interests:[] — both min-1 — and "please try again" could never succeed. The helper existed
+    // for exactly this and had no caller.
+    const src = readSrc('components/marketplace/trip-cards.tsx')
+    const build = src.slice(src.indexOf('const build = async ()'), src.indexOf("await fetch('/api/itineraries/generate'"))
+    expect(build).toContain('firstIncompleteTripWizardStep(draft)')
+    expect(build).toMatch(/setStep\(missing\)/)
+  })
+
+  it('lands on the first unanswered step rather than trusting the server blindly', () => {
+    const src = readSrc('components/marketplace/trip-cards.tsx')
+    expect(src).toMatch(/Math\.min\(firstIncompleteTripWizardStep\(draft\) \?\? meta\.step, meta\.step\)/)
+  })
+
+  it('does not tell the traveller to retry something retrying cannot fix', () => {
+    const src = readSrc('components/marketplace/trip-cards.tsx')
+    expect(src).toMatch(/error === 'incomplete'/)
+  })
+})

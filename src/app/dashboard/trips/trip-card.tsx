@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { CalendarDays, ChevronRight, Download, Loader2, Pencil, Trash2, TriangleAlert } from 'lucide-react'
+import { CalendarDays, Download, Loader2, Pencil, Trash2, TriangleAlert } from 'lucide-react'
 import { toast } from 'sonner'
 import { useLanguage } from '@/context/language-context'
 import { Badge } from '@/components/ui/badge'
@@ -238,20 +238,34 @@ export function TripCard({ trip, onDeleted }: { trip: SavedItinerary; onDeleted?
             {destination} · {trip.days} {tr('days', 'ngày')}
             {budget ? ` · ${budget}` : ''} · {tr('Updated', 'Cập nhật')} {updated}
           </span>
-          {/* Says where the row GOES. "Open & edit" was a labelled button in the old expanded panel;
-              losing it left nothing naming the destination, and the trip page is where the map and
-              the stop editing live — the part of this feature worth reaching. */}
-          <span className="mt-1.5 flex items-center gap-1 text-2xs font-bold text-accent-foreground">
-            <Pencil className="h-3 w-3" aria-hidden />
-            {tr('Open map & edit', 'Mở bản đồ & chỉnh sửa')}
-          </span>
         </span>
-        <ChevronRight className="mt-2.5 h-4 w-4 shrink-0 text-ink-4 transition-transform group-hover:translate-x-0.5" aria-hidden />
       </Link>
 
       {/* Icon-only, like the visa case row: on a phone two labelled buttons per row wrap and turn
           the list into a wall of controls. Titles + aria-labels carry the meaning. */}
       <div className="flex shrink-0 items-center gap-1">
+        {/* ⚠️ THE PENCIL IS THE THIRD ICON, NOT A LABEL INSIDE THE ROW (owner, 2026-07-30: "put this
+            button next to icons as another"). It first shipped as an "Open map & edit" line stacked
+            under the destination, which read as body copy rather than an action and made the row
+            three lines tall on a phone.
+            It also replaced the chevron: an arrow and a pencil pointing at the same page are two
+            signals for one destination, and the pencil is the one that says WHAT is there. The row
+            itself stays a link, so the whole thing is still a tap target — the icon is for people
+            who look for controls on the right, which is where the other two already are. */}
+        {/* asChild, not `render` — ui/button is the documented exception that bridges Base UI's
+            render prop to asChild (CLAUDE.md), and it is the idiom every other Link-button in this
+            file already uses. */}
+        <Button
+          asChild
+          variant="ghost"
+          size="icon"
+          aria-label={tr('Open map & edit', 'Mở bản đồ & chỉnh sửa')}
+          title={tr('Open map & edit', 'Mở bản đồ & chỉnh sửa')}
+        >
+          <Link href={`/dashboard/trips/${trip.id}`}>
+            <Pencil className="h-4 w-4" />
+          </Link>
+        </Button>
         <Button
           type="button"
           variant="ghost"

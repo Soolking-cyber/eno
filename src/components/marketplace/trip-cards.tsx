@@ -19,7 +19,7 @@ import { cn } from '@/lib/utils'
 import {
   ACCOMMODATION_LABELS, BUDGETS, CITIES, DEFAULT_TRIP_DAYS, INTEREST_LABELS, PACE_LABELS,
 } from '@/lib/itinerary-data'
-import { LAST_TRIP_WIZARD_STEP, tripWizardChip } from '@/lib/trips/itinerary-wizard'
+import { firstIncompleteTripWizardStep, LAST_TRIP_WIZARD_STEP, tripWizardChip } from '@/lib/trips/itinerary-wizard'
 import { ChatCard, ChatCardSteps } from '@/components/marketplace/chat-card-shell'
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel,
@@ -348,7 +348,29 @@ export function TripWizardCard({ conversationId, messageId, meta }: { conversati
 
   // The server owns the step. If the row moved (another tab, a resume), follow it rather than
   // keeping a local number that would let the traveller answer a question nobody asked.
-  useEffect(() => { setStep(meta.step) }, [meta.step])
+  /**
+   * ⚠️ THE SERVER'S STEP IS A CEILING, NOT A TRUTH — the answers may not have survived with it.
+   *
+   * The STEP lives on the server (the card row); the ANSWERS live in sessionStorage keyed on the
+   * message. Those two have different lifetimes, so opening the thread in a new tab — or coming
+   * back the next day — restores "step 5" over a draft that has reset to EMPTY_DRAFT. The card then
+   * showed the last question with nothing behind it, and "Build my plan" posted `cityIds: []` and
+   * `interests: []` to a schema that refuses both, so the traveller hit
+   * "That did not go through. Please try again." and retrying could never work. Reported from
+   * production as a 400 on /api/itineraries/generate.
+   *
+   * Landing on the first UNANSWERED step instead is the honest reading of that state: the server
+   * knows how far they got, the draft knows what is still known, and where those disagree the draft
+   * wins — it is the thing that has to be posted. A complete draft yields null and the server's step
+   * stands, so nothing changes for the normal path.
+   */
+  useEffect(() => {
+    setStep(Math.min(firstIncompleteTripWizardStep(draft) ?? meta.step, meta.step))
+    // draft is deliberately NOT a dependency: this resolves where to LAND when the card (re)mounts
+    // or the server moves the step. Re-running it on every keystroke would yank a traveller
+    // mid-answer back to whatever is still incomplete.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [meta.step])
 
   // Hydrate once per card. Keyed by the CARD's message id, so two wizards in different threads
   // cannot read each other's answers.
@@ -406,6 +428,28 @@ export function TripWizardCard({ conversationId, messageId, meta }: { conversati
     if (busy) return
     setBusy(true); setError(null)
     try {
+      // ⚠️ NEVER GENERATE FROM AN INCOMPLETE DRAFT — THIS WAS AN UNWINNABLE DEAD END.
+      //
+      // The STEP lives on the server (the card row) but the ANSWERS live in sessionStorage keyed on
+      // the message. Open the thread in a new tab, or come back tomorrow, and the server still says
+      // "step 5" while the draft has reset to EMPTY_DRAFT — so "Build my plan" posted
+      // `cityIds: []` and `interests: []`, which the request schema refuses (both are min-1).
+      // The traveller got "That did not go through. Please try again." and retrying could NEVER
+      // work, because nothing about the empty draft changes on a retry. Reported from production
+      // with a 400 on /api/itineraries/generate. The recovery comment above sessionStorage says
+      // this was already known to be the failure shape; the submit path just never checked.
+      //
+      // firstIncompleteTripWizardStep has existed for exactly this and had no caller. It validates
+      // each step's own fields and returns the FIRST unanswered one, so the fix is to send the
+      // traveller back there instead of spending a generation token on a body we can already see
+      // is invalid — the route's own note is that a rejected generate still costs quota on the most
+      // expensive path in the app.
+      const missing = firstIncompleteTripWizardStep(draft)
+      if (missing) {
+        setError('incomplete')
+        setStep(missing)
+        return
+      }
       // Record the last step's answers first, so a generate failure does not lose them silently.
       await post({ action: 'advance', conversationId, step: LAST_TRIP_WIZARD_STEP, answers: answersFor(5) })
       // ⚠️ THE SAME ENDPOINT THE DASHBOARD BUILDER USES. One entrance, one set of cost guards.
@@ -676,6 +720,11 @@ export function TripWizardCard({ conversationId, messageId, meta }: { conversati
               ? tr('A plan is already being built for you. Give it a moment.', 'Một lịch trình đang được tạo cho bạn. Vui lòng đợi một chút.')
               : error === 'invalid_answers'
               ? tr('Please check the answers on this step.', 'Vui lòng kiểm tra lại các câu trả lời ở bước này.')
+              // ⚠️ NOT "try again" — retrying an empty draft can never work, which is exactly what
+              // the old catch-all told people to do. The card has already moved them back to the
+              // step that is missing, so the copy says what happened and what to do.
+              : error === 'incomplete'
+              ? tr('Some answers were not saved — the form has moved back to the first one we still need.', 'Một số câu trả lời chưa được lưu — biểu mẫu đã quay lại câu đầu tiên chúng tôi còn thiếu.')
               : error === 'not_saved'
                 ? tr('We built your plan but could not save it. Ask the desk in this chat to try again.', 'Chúng tôi đã tạo kế hoạch nhưng chưa lưu được. Hãy nhắn cho bàn hỗ trợ trong cuộc trò chuyện này để thử lại.')
                 : tr('That did not go through. Please try again.', 'Chưa gửi được. Vui lòng thử lại.')}

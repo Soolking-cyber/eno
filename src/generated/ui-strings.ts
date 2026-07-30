@@ -1417,6 +1417,7 @@ export const UI_STRINGS: string[] = [
   "Sofa",
   "Sold",
   "Some answers are already filled in with the most common ones. They are suggestions, not assumptions about you — change anything that is not right.",
+  "Some answers were not saved — the form has moved back to the first one we still need.",
   "Something went wrong",
   "Something went wrong — please try again.",
   "Something went wrong — try again.",
