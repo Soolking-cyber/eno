@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { z } from 'zod'
 import { getCurrentProfileId } from '@/lib/admin'
 import { rateLimit } from '@/lib/ratelimit'
 import { resendVisaDmCard, visaDmFailureFor } from '@/lib/visa/dm-flow'
@@ -28,14 +29,18 @@ import { resendVisaDmCard, visaDmFailureFor } from '@/lib/visa/dm-flow'
 // card the desk does); narrowing this to the desk alone is a one-line change in dm-flow.ts.
 // The card is authored as the visa shop either way — sendVisaStepCard has no sender argument.
 //
-// The body is ignored on purpose: there is nothing a client could usefully say. Which card is
-// current is a function of the encrypted payload and the uploaded documents, both server-side.
+// The body carries ONE optional field. Which card is current is otherwise a function of the
+// encrypted payload and the uploaded documents, both server-side — but "I want to go back and edit"
+// is a genuine intent the server cannot infer, because from its side a finished application looks
+// exactly like one waiting to be paid for (owner, 2026-07-30). `mode: 'review'` says it, and
+// resendVisaDmCard keeps every gate it already had: a paid or locked case is still refused.
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const bodySchema = z.object({ mode: z.literal('review').optional() }).strict()
 
-export async function POST(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const userId = await getCurrentProfileId()
   if (!userId) return NextResponse.json({ error: 'auth_required' }, { status: 401 })
   const { id } = await params
@@ -50,8 +55,12 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
   const limit = await rateLimit('visa-dm-resend', `${userId}:${id}`, 5, '10 m', { strict: true })
   if (!limit.success) return NextResponse.json({ error: 'too_many' }, { status: 429 })
 
+  // Unparseable or absent body → the original behaviour, so every existing caller is untouched.
+  const parsed = bodySchema.safeParse(await request.json().catch(() => ({})))
+  if (!parsed.success) return NextResponse.json({ error: 'invalid_request' }, { status: 400 })
+
   try {
-    const resent = await resendVisaDmCard({ applicationId: id, actorId: userId })
+    const resent = await resendVisaDmCard({ applicationId: id, actorId: userId, ...(parsed.data.mode ? { mode: parsed.data.mode } : {}) })
     // FAIL CLOSED, LOUDLY — every refusal is a named code the chip renders as a sentence
     // (visaErrorCopy), never a 200 that looks like a card was posted when none was.
     if (!resent.ok) {

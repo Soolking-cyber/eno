@@ -1117,13 +1117,17 @@ export default function ThreadPage() {
     } catch { setVisaResendError('internal_error') } finally { setVisaBusy(false) }
   }
 
-  const resendVisaCard = async () => {
+  /**
+   * Re-post a card. `mode: 'review'` asks for the last FORM step instead of whatever the state
+   * calls for — the way back from checkout, which otherwise re-posts the pay card forever.
+   */
+  const resendVisaCard = async (mode?: 'review') => {
     const applicationId = visaInfo?.applicationId
     if (!applicationId || visaBusy) return
     setVisaBusy(true)
     setVisaResendError(null)
     try {
-      const res = await visaPost(`/api/visa/applications/${applicationId}/resend`)
+      const res = await visaPost(`/api/visa/applications/${applicationId}/resend`, mode ? { mode } : {})
       if (!res.ok) { setVisaResendError(res.error ?? 'internal_error'); return }
       haptic()
       await load()
@@ -1507,6 +1511,9 @@ export default function ThreadPage() {
                     live={iAmApplicant && m.id === liveVisaCheckoutId}
                     busy={visaBusy}
                     onPay={payVisa}
+                    // Applicant only: the desk reads this card, it does not need an escape hatch
+                    // out of somebody else's checkout.
+                    onReview={iAmApplicant ? () => resendVisaCard('review') : undefined}
                   />
                 ) : visaResultMeta ? (
                   // The finished visa. No `live` flag: it is never a prompt and never

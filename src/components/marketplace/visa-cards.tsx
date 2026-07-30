@@ -1843,6 +1843,9 @@ export type VisaCheckoutCardProps = {
   live: boolean
   busy: boolean
   onPay: (provider: 'stripe' | 'paypal', quote: VisaQuoteWire) => void | Promise<void>
+  /** Re-post the last form step so the applicant can correct something before paying. Optional so
+   *  the desk's read-only render of this card carries no escape hatch it should not offer. */
+  onReview?: () => void | Promise<void>
 }
 
 /**
@@ -1854,7 +1857,7 @@ export type VisaCheckoutCardProps = {
  * server could not issue a quote (FX down), the card SAYS SO and pays nothing — there is no
  * fallback rate on this surface and there must never be one.
  */
-export function VisaCheckoutCard({ meta, info, kase, live, busy, onPay }: VisaCheckoutCardProps) {
+export function VisaCheckoutCard({ meta, info, kase, live, busy, onPay, onReview }: VisaCheckoutCardProps) {
   const { tr, lang } = useLanguage()
   const locale = moneyLocale(lang)
   // ONE consent tick covering both legal acts (see the label below); the server still
@@ -2029,6 +2032,25 @@ export function VisaCheckoutCard({ meta, info, kase, live, busy, onPay }: VisaCh
             <LockKeyhole className="mt-px h-3 w-3 shrink-0" aria-hidden />
             {tr('You finish paying on the provider’s own secure page, then come back here.', 'Bạn hoàn tất thanh toán trên trang bảo mật của nhà cung cấp rồi quay lại đây.')}
           </p>
+          {/* ⚠️ THE WAY BACK, AND IT DID NOT EXIST (owner, 2026-07-30: "when you go to checkout in
+              thread for visa you cant go back and edit"). This card offered consent and pay, and
+              the resend chip re-posts THIS card — so an applicant who spotted a wrong passport name
+              at the last moment had no move at all, on the screen immediately before a
+              non-refundable government fee. It re-posts the last form step, which already knows how
+              to review and edit every earlier one.
+              Quiet on purpose: paying is still the primary action, this is the escape hatch. */}
+          {onReview && (
+            <Button
+              variant="bare"
+              size="none"
+              disabled={busy}
+              onClick={() => void onReview()}
+              className="mt-0.5 h-auto justify-start p-0 text-2xs font-bold text-accent-foreground underline-offset-2 hover:underline"
+            >
+              <PencilLine className="h-3 w-3 shrink-0" aria-hidden />
+              {tr('Check or change my answers first', 'Kiểm tra hoặc sửa thông tin trước')}
+            </Button>
+          )}
         </div>
       )}
 

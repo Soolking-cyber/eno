@@ -815,7 +815,13 @@ async function priceVisaCheckout(applicationId: string): Promise<{ quote: VisaQu
  * and the ROUTE proves the session; what is proved here is membership of the bound thread.
  * The card is authored as the visa shop either way — sendVisaStepCard takes no sender.
  */
-export async function resendVisaDmCard(input: { applicationId: string; actorId: string }): Promise<VisaDmResend> {
+export async function resendVisaDmCard(input: {
+  applicationId: string
+  actorId: string
+  /** 'review' re-posts the last FORM step instead of the pay card, so a finished application can
+   *  still be corrected. Every gate above is unchanged — see the note at the branch. */
+  mode?: 'review'
+}): Promise<VisaDmResend> {
   if (!visaCryptoReady()) return fail('visa_encryption_not_configured', 503)
   if (!input.actorId) return fail('not_a_participant', 403)
 
@@ -862,7 +868,31 @@ export async function resendVisaDmCard(input: { applicationId: string; actorId: 
     return { ok: true, messageId: picker.messageId, step: 1, kind: 'visa_picker' }
   }
 
-  const step = firstIncompleteVisaDmStep(kase.payload, kase.documents)
+  const rawStep = firstIncompleteVisaDmStep(kase.payload, kase.documents)
+
+  // ── "REVIEW & EDIT" FROM THE PAY CARD ───────────────────────────────────────────────
+  // ⚠️ ONCE YOU REACHED CHECKOUT THERE WAS NO WAY BACK (owner, 2026-07-30: "when you go to
+  // checkout in thread for visa you cant go back and edit"). The pay card offers consent and pay,
+  // and the resend chip re-posts the SAME pay card — because with nothing incomplete,
+  // firstIncompleteVisaDmStep returns null and the branch below is the only one reachable. An
+  // applicant who spotted a typo in their passport name at the last moment had no move.
+  //
+  // Asking for review simply re-posts the LAST step card. Nothing else is needed: that card
+  // already knows how to review and edit any EARLIER step, and the act route already caps the
+  // writable set to `1..meta.step` — the steps they have already passed through — so this opens
+  // no field that was not already theirs to change.
+  //
+  // ⚠️ IT CHANGES WHICH CARD IS LIVE, NOT WHAT IS PERMITTED. Cards supersede by order, so the step
+  // card becomes live and the pay card stops being; after the edit, advanceVisaDmFlow re-quotes and
+  // issues a fresh pay card. Every existing gate above still applies — a PAID case was already
+  // refused with `already_paid`, a locked one with `application_locked` — and the edit itself is
+  // re-checked server-side against EDITABLE_STATUSES when it is submitted, so a payment that lands
+  // while this card is on screen cannot be edited around. Plan confirmed by codex before writing.
+  // ⚠️ STEP 4, NOT 5. VISA_STEP_FORM has EMPTY field lists for 1 (the product picker) and 5, so
+  // re-posting step 5 would render a card with nothing on it. Four is the last step that actually
+  // carries fields, and from there the review UI reaches 1..4 — which is also exactly the writable
+  // set the act route allows (`1..meta.step`).
+  const step = input.mode === 'review' && rawStep === null ? (4 as VisaDmStep) : rawStep
 
   if (step === null) {
     // ── THE PAY CARD ───────────────────────────────────────────────────────────────

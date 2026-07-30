@@ -221,3 +221,31 @@ describe('⚠️ the arrival repair must never rewind a wizard whose answers are
     expect(flow).toMatch(/where: \{ id: messageId, kind: 'trip_step', metaJson: expected \}/)
   })
 })
+
+describe('⚠️ a visa applicant can still get back to edit from checkout', () => {
+  const readSrc = (rel: string) => readFileSync(join(__dirname, '..', '..', rel), 'utf8')
+
+  it('review mode re-posts the last FORM step, not the empty one', () => {
+    // VISA_STEP_FORM has empty field lists for 1 (the product picker) and 5, so re-posting 5 would
+    // render a card with nothing on it. Four is the last step that carries fields, and the act
+    // route's writable set is `1..meta.step`, so from there every earlier answer is reachable.
+    const flow = readSrc('lib/visa/dm-flow.ts')
+    expect(flow).toMatch(/input\.mode === 'review' && rawStep === null \? \(4 as VisaDmStep\) : rawStep/)
+  })
+
+  it('⚠️ review does not weaken any existing gate', () => {
+    // The paid / cancelled / locked refusals all run BEFORE the branch that chooses a card, so
+    // asking to review a finished-and-paid application is still already_paid.
+    const flow = readSrc('lib/visa/dm-flow.ts')
+    const paidAt = flow.indexOf("if (kase.application.paid_at) return fail('already_paid'")
+    const branch = flow.indexOf("input.mode === 'review'")
+    expect(paidAt).toBeGreaterThan(-1)
+    expect(paidAt).toBeLessThan(branch)
+    expect(flow.indexOf('EDITABLE_STATUSES.has(kase.application.status)')).toBeLessThan(branch)
+  })
+
+  it('only the applicant is offered it', () => {
+    // The desk reads this card; it has no business escaping somebody else's checkout.
+    expect(readSrc('app/messages/[id]/page.tsx')).toMatch(/onReview=\{iAmApplicant \? \(\) => resendVisaCard\('review'\) : undefined\}/)
+  })
+})

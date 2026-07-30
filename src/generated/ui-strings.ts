@@ -294,6 +294,7 @@ export const UI_STRINGS: string[] = [
   "Chat with seller",
   "Chat with sellers instantly",
   "Check every answer",
+  "Check or change my answers first",
   "Check spam if it is not there in a minute.",
   "Check the papers match the chassis before paying — and never pay a deposit through a link.",
   "Check this flight option",
