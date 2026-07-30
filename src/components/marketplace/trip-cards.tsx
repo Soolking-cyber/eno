@@ -306,6 +306,8 @@ function loadDraft(messageId: string): Draft {
 export function TripWizardCard({ conversationId, messageId, meta }: { conversationId: string; messageId: string; meta: WizardStepMeta }) {
   const { tr, lang } = useLanguage()
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT)
+  /** WHICH card's answers are loaded — not merely 'some card's'. See the repair effect. */
+  const [hydratedCard, setHydratedCard] = useState<string | null>(null)
   // "My own budget" — a fourth CHOICE, not a fourth BudgetId (that enum is stored and label-mapped).
   const [customBudgetOn, setCustomBudgetOn] = useState(false)
   /** Raw text in whichever unit the field is asking for. Parsed on use, never on keystroke. */
@@ -364,17 +366,70 @@ export function TripWizardCard({ conversationId, messageId, meta }: { conversati
    * wins — it is the thing that has to be posted. A complete draft yields null and the server's step
    * stands, so nothing changes for the normal path.
    */
+  /**
+   * ⚠️ THE VIEW FOLLOWS THE CARD, FULL STOP.
+   *
+   * An earlier cut derived the rendered step from the DRAFT (land on the first unanswered step) and
+   * that was wrong in a way worth remembering: the card is what `advance` validates against, so a
+   * view that disagrees with it produces a 409 on the very next tap. Recovering from a draft that
+   * outlived its answers is a WRITE — see the `goto` call in build() — not a render-time opinion.
+   */
+  useEffect(() => { setStep(meta.step) }, [meta.step])
+
+  /**
+   * ⚠️ REPAIR A CARD THAT HAS OUTLIVED ITS ANSWERS, ON ARRIVAL — not when they reach for Build.
+   *
+   * Without this the traveller lands on step 5 of a draft that no longer has any answers, taps
+   * "Build my plan", and only THEN gets moved back to step 1. Correct, but it makes them discover
+   * the breakage. Detecting it on mount and moving the card immediately means the wizard simply
+   * opens at the first question it still needs.
+   *
+   * ⚠️ ONCE PER CARD, and only BACKWARDS. `sentRepair` stops a re-render (or the 15s poll swapping
+   * `meta`) from firing a second write, and goto itself refuses any forward jump — so the worst a
+   * bug here can do is ask the card to stay where it is, which is a no-op server-side.
+   * A complete draft yields null and nothing is written at all, which is the normal path.
+   */
+  /** The card this component has already repaired, so a re-render or the poll cannot repeat it. */
+  const repairedCard = useRef<string | null>(null)
   useEffect(() => {
-    setStep(Math.min(firstIncompleteTripWizardStep(draft) ?? meta.step, meta.step))
-    // draft is deliberately NOT a dependency: this resolves where to LAND when the card (re)mounts
-    // or the server moves the step. Re-running it on every keystroke would yank a traveller
-    // mid-answer back to whatever is still incomplete.
+    // Gated on `hydrated`: see the note on the hydration effect — without it this reads the empty
+    // default and rewinds a perfectly good wizard.
+    // ⚠️ HYDRATION IS TRACKED PER CARD, NOT AS A BOOLEAN. A plain `hydrated` flag stays true when
+    // `messageId` changes, and because this effect is declared BEFORE the hydration effect it would
+    // then run for the NEW card while `draft` still held the PREVIOUS one's answers — rewinding a
+    // wizard whose stored answers are complete. Comparing the id means "the draft in hand belongs
+    // to this card", which is the thing actually being relied on. Caught by codex.
+    if (hydratedCard !== messageId || meta.state !== 'active' || repairedCard.current === messageId) return
+    const missing = firstIncompleteTripWizardStep(draft)
+    if (missing === null || missing >= meta.step) return
+    repairedCard.current = messageId
+    void (async () => {
+      try {
+        // ⚠️ THE VIEW MOVES ONLY AFTER THE CARD DOES. Setting local step regardless of the response
+        // is what produced the 409 loop in the first place — a client that believes a step the
+        // server never accepted. `expectedStep` also makes this a compare-and-set, so a second tab
+        // advancing underneath us loses the race cleanly instead of silently rewinding their work.
+        const res = await post({ action: 'goto', conversationId, step: missing, expectedStep: meta.step })
+        if (typeof res.step === 'number') setStep(res.step)
+      } catch {
+        // The card stays where it is and so does the view — they remain in agreement, which is the
+        // property that matters. build() still refuses to generate from an incomplete draft.
+      }
+    })()
+    // `draft` is intentionally absent: this is an arrival-time repair keyed on hydration, not a
+    // live rule. Re-running it as they type would drag them backwards mid-answer.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [meta.step])
+  }, [hydratedCard, meta.step, meta.state, messageId, conversationId])
 
   // Hydrate once per card. Keyed by the CARD's message id, so two wizards in different threads
   // cannot read each other's answers.
-  useEffect(() => { setDraft(loadDraft(messageId)) }, [messageId])
+  //
+  // ⚠️ `hydrated` EXISTS SO THE REPAIR BELOW CANNOT RUN ON A DRAFT THAT IS ONLY EMPTY BECAUSE THIS
+  // HAS NOT RUN YET. `draft` initialises to EMPTY_DRAFT and is filled HERE, in an effect — reading
+  // sessionStorage during render would break SSR hydration. My first arrival-repair had no such
+  // gate and would therefore have inspected the empty default on every mount and rewound EVERY
+  // valid step-5 card to step 1: strictly worse than the bug it was fixing. Caught by codex.
+  useEffect(() => { setDraft(loadDraft(messageId)); setHydratedCard(messageId) }, [messageId])
 
   const patch = (next: Partial<Draft>) => setDraft((current) => {
     const merged = { ...current, ...next }
@@ -447,7 +502,11 @@ export function TripWizardCard({ conversationId, messageId, meta }: { conversati
       const missing = firstIncompleteTripWizardStep(draft)
       if (missing) {
         setError('incomplete')
-        setStep(missing)
+        // ⚠️ MOVE THE CARD, NOT JUST THE VIEW. Setting local step alone swapped one dead end for
+        // another: `Next` then answered step 1 while the card still said 5, and advance correctly
+        // refused it as a step_mismatch (409 in production). The card is the authority on the step.
+        const moved = await post({ action: 'goto', conversationId, step: missing, expectedStep: step })
+        if (typeof moved.step === 'number') setStep(moved.step)
         return
       }
       // Record the last step's answers first, so a generate failure does not lose them silently.

@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { getCurrentProfile } from '@/lib/admin'
 import { rateLimit } from '@/lib/ratelimit'
 import {
-  advanceTripWizard, completeTripWizard, startTripWizard, tripWizardEligibility,
+  advanceTripWizard, completeTripWizard, gotoTripWizardStep, startTripWizard, tripWizardEligibility,
   type WizardError, type WizardResult,
 } from '@/lib/trips/wizard-flow'
 
@@ -31,6 +31,15 @@ const bodySchema = z.discriminatedUnion('action', [
     // Shape-checked per step by tripWizardStepSchema inside the flow, against the SAME partition
     // the card was written from. Left loose here so there is one validator, not two.
     answers: z.record(z.string(), z.unknown()),
+  }).strict(),
+  // Recovery only — moving BACK to an earlier step when the client's draft has outlived its
+  // answers. gotoTripWizardStep refuses any forward jump, so this cannot be used to skip a step.
+  z.object({
+    action: z.literal('goto'),
+    conversationId: z.string().min(1).max(64),
+    step: z.number().int().min(1).max(5),
+    // Optional CAS: the step the client believes the card is on. A changed card refuses the move.
+    expectedStep: z.number().int().min(1).max(5).optional(),
   }).strict(),
   z.object({
     action: z.literal('complete'),
@@ -87,6 +96,13 @@ export async function POST(req: Request) {
         conversationId: parsed.data.conversationId,
         step: parsed.data.step,
         answers: parsed.data.answers,
+      })
+      break
+    case 'goto':
+      result = await gotoTripWizardStep({
+        conversationId: parsed.data.conversationId,
+        step: parsed.data.step,
+        expectedStep: parsed.data.expectedStep,
       })
       break
     case 'complete':

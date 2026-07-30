@@ -260,6 +260,49 @@ export async function advanceTripWizard(input: {
 }
 
 /**
+ * Move a running wizard BACK to an earlier step.
+ *
+ * ⚠️ WHY THIS HAS TO EXIST SERVER-SIDE. The step lives on the card row; the answers live in the
+ * client's sessionStorage. Those have different lifetimes, so a new tab restores "step 5" over an
+ * empty draft — and generate then rejects `cityIds: []`. My first fix moved only the CLIENT back to
+ * the first unanswered step, which swapped one dead end for another: `Next` then answered step 1
+ * while the card still said 5, and advance correctly refused it as a step_mismatch (409, seen in
+ * production). The card is the authority on the step, so recovering means telling the card.
+ *
+ * ⚠️ BACKWARDS ONLY. Moving forward here would skip a step's validation entirely — the one thing
+ * advance's step check exists to prevent — so a forward jump is refused rather than clamped, and
+ * asking for the step it is already on is a no-op rather than an error (a double tap must not
+ * become a failure the traveller has to understand).
+ */
+export async function gotoTripWizardStep(input: {
+  conversationId: string
+  step: number
+  /** The step the caller believes the card is on. Makes this a compare-and-set — see below. */
+  expectedStep?: number
+}): Promise<WizardResult> {
+  const context = await requireTraveller(input.conversationId)
+  if (typeof context === 'string') return { ok: false, error: context }
+  // Same crossover guard as advance, and the same deny-list reasoning: a wizard may not be driven
+  // inside an e-Visa thread, but a desk-lookup outage must not strand a live one.
+  if ((await threadKind(context.convo)) === 'visa') return { ok: false, error: 'no_active_wizard' }
+
+  const card = await activeWizardCard(input.conversationId)
+  if (!card || card.meta.state !== 'active') return { ok: false, error: 'no_active_wizard' }
+  // ⚠️ COMPARE-AND-SET. Two tabs on one wizard: one is repairing a stale draft backwards while the
+  // other answers a question forwards. Without this the rewind lands on a card that has already
+  // moved and silently discards the other tab's progress. Refusing on a changed card makes the
+  // loser a no-op the client already handles (it leaves the view where the card is), rather than a
+  // write nobody asked for. Raised by codex.
+  if (typeof input.expectedStep === 'number' && input.expectedStep !== card.meta.step) {
+    return { ok: false, error: 'step_mismatch' }
+  }
+  if (input.step === card.meta.step) return { ok: true, step: card.meta.step, messageId: card.id }
+  if (input.step > card.meta.step) return { ok: false, error: 'step_mismatch' }
+
+  return writeCardMeta(card.id, card.raw, { v: 1, step: input.step as TripWizardStep, state: 'active' }, input.step as TripWizardStep)
+}
+
+/**
  * Close the wizard against the itinerary it produced.
  *
  * ⚠️ THE ITINERARY IS PROVEN TO BE THE CALLER'S. Without this check the body could name any

@@ -168,16 +168,56 @@ describe('⚠️ the wizard must never generate from an incomplete draft', () =>
     const src = readSrc('components/marketplace/trip-cards.tsx')
     const build = src.slice(src.indexOf('const build = async ()'), src.indexOf("await fetch('/api/itineraries/generate'"))
     expect(build).toContain('firstIncompleteTripWizardStep(draft)')
-    expect(build).toMatch(/setStep\(missing\)/)
+    // ⚠️ The view moves only on a SUCCESSFUL goto, using the step the server reports. Setting it
+    // unconditionally is what produced the 409 loop: a client believing a step the card never took.
+    expect(build).toMatch(/action: 'goto', conversationId, step: missing, expectedStep: step/)
+    expect(build).toMatch(/if \(typeof moved\.step === 'number'\) setStep\(moved\.step\)/)
   })
 
-  it('lands on the first unanswered step rather than trusting the server blindly', () => {
+  it('⚠️ recovers by MOVING THE CARD, not by disagreeing with it', () => {
+    // Deriving the rendered step from the draft swapped one dead end for another: Next then
+    // answered step 1 while the card said 5, and advance refused it as step_mismatch (409 in
+    // production). The card is what advance validates against, so the view must follow it and the
+    // recovery must be a write.
     const src = readSrc('components/marketplace/trip-cards.tsx')
-    expect(src).toMatch(/Math\.min\(firstIncompleteTripWizardStep\(draft\) \?\? meta\.step, meta\.step\)/)
+    expect(src).toMatch(/action: 'goto', conversationId, step: missing/)
+    expect(src).toMatch(/useEffect\(\(\) => \{ setStep\(meta\.step\) \}, \[meta\.step\]\)/)
+    expect(src).not.toMatch(/Math\.min\(firstIncompleteTripWizardStep/)
+  })
+
+  it('goto refuses a FORWARD jump — it must not be a way to skip validation', () => {
+    const flow = readSrc('lib/trips/wizard-flow.ts')
+    expect(flow).toMatch(/input\.step > card\.meta\.step\) return \{ ok: false, error: 'step_mismatch' \}/)
   })
 
   it('does not tell the traveller to retry something retrying cannot fix', () => {
     const src = readSrc('components/marketplace/trip-cards.tsx')
     expect(src).toMatch(/error === 'incomplete'/)
+  })
+})
+
+describe('⚠️ the arrival repair must never rewind a wizard whose answers are present', () => {
+  const readSrc = (rel: string) => readFileSync(join(__dirname, '..', '..', rel), 'utf8')
+  const card = () => readSrc('components/marketplace/trip-cards.tsx')
+
+  it('is gated on THIS card being hydrated, not on a global boolean', () => {
+    // `draft` initialises to EMPTY_DRAFT and fills in an effect. A plain `hydrated` flag stays true
+    // across a messageId change, and this effect is declared BEFORE the hydration one — so it would
+    // read the previous card's answers and rewind a complete wizard. Both shapes caught by codex.
+    expect(card()).toMatch(/hydratedCard !== messageId/)
+    expect(card()).toMatch(/setHydratedCard\(messageId\)/)
+    expect(card()).not.toMatch(/const \[hydrated, setHydrated\]/)
+  })
+
+  it('sends the CAS and only moves the view on the server’s answer', () => {
+    expect(card()).toMatch(/expectedStep: meta\.step/)
+    expect(card()).toMatch(/if \(typeof res\.step === 'number'\) setStep\(res\.step\)/)
+  })
+
+  it('the card write itself is a compare-and-set', () => {
+    // The expectedStep check is an early refusal; the ATOMIC guarantee is writeCardMeta matching on
+    // the exact stored blob, so a card that moved between read and write yields case_changed_reload.
+    const flow = readSrc('lib/trips/wizard-flow.ts')
+    expect(flow).toMatch(/where: \{ id: messageId, kind: 'trip_step', metaJson: expected \}/)
   })
 })
