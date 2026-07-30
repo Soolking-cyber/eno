@@ -503,6 +503,16 @@ export async function POST(request: Request) {
   if (raw === null) return NextResponse.json({ error: 'body_too_large' }, { status: 413 })
   const parsed = itineraryRequestSchema.safeParse(raw)
   if (!parsed.success) {
+    // ⚠️ LOG WHICH FIELD, NEVER ITS VALUE. This 400 was reported twice from production and both
+    // times the cause had to be GUESSED from a screenshot, because the response body never reaches
+    // a log and the client shows one generic sentence. Both guesses were wrong. Paths and Zod's own
+    // codes are enough to name the field; the values are a traveller's dates, cities and free-text
+    // notes and must not be written to a log line. `issues` still goes to the caller — it is their
+    // own submission — and this only records the shape of the failure for the next report.
+    console.error('[itinerary-generate] rejected', {
+      paths: parsed.error.issues.map((issue) => issue.path.join('.') || '(root)'),
+      codes: parsed.error.issues.map((issue) => issue.code),
+    })
     return NextResponse.json({ error: 'invalid_trip', issues: parsed.error.issues }, { status: 400 })
   }
 

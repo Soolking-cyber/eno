@@ -290,6 +290,23 @@ export function firstIncompleteTripWizardStep(draft: TripWizardDraft): TripWizar
   return null
 }
 
+/**
+ * The step that collects a given request field, or null for one no step asks for (`locale`).
+ *
+ * ⚠️ THIS IS WHAT MAKES A REJECTED GENERATE RECOVERABLE. The route answers 400 with Zod's issues,
+ * and until now the client turned every one of them into "That did not go through. Please try
+ * again." — advice that is wrong whenever the body is invalid rather than the server unhappy,
+ * because retrying an unchanged body cannot work. Twice in production the cause had to be guessed
+ * from a screenshot. Mapping the failing FIELD back to the step that owns it means the traveller is
+ * returned to the question they can actually fix, whatever the field turns out to be.
+ */
+export function tripWizardStepForField(field: string): TripWizardStep | null {
+  for (const step of TRIP_WIZARD_STEPS) {
+    if ((TRIP_WIZARD_STEP_FIELDS[step] as readonly string[]).includes(field)) return step
+  }
+  return null
+}
+
 /** The subset of a draft a given step owns, for validating or for posting an answer. */
 export function pickStepFields(draft: TripWizardDraft, step: TripWizardStep): Record<string, unknown> {
   const out: Record<string, unknown> = {}

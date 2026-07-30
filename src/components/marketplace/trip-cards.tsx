@@ -19,7 +19,10 @@ import { cn } from '@/lib/utils'
 import {
   ACCOMMODATION_LABELS, BUDGETS, CITIES, DEFAULT_TRIP_DAYS, INTEREST_LABELS, PACE_LABELS,
 } from '@/lib/itinerary-data'
-import { firstIncompleteTripWizardStep, LAST_TRIP_WIZARD_STEP, tripWizardChip } from '@/lib/trips/itinerary-wizard'
+import {
+  firstIncompleteTripWizardStep, LAST_TRIP_WIZARD_STEP, tripWizardChip, tripWizardStepForField,
+  type TripWizardStep,
+} from '@/lib/trips/itinerary-wizard'
 import { ChatCard, ChatCardSteps } from '@/components/marketplace/chat-card-shell'
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel,
@@ -516,6 +519,26 @@ export function TripWizardCard({ conversationId, messageId, meta }: { conversati
         method: 'POST', headers: { 'content-type': 'application/json' }, cache: 'no-store',
         body: JSON.stringify({ ...answersFor(1), ...answersFor(2), ...answersFor(3), ...answersFor(4), ...answersFor(5), locale: lang }),
       })
+      if (res.status === 400) {
+        // ⚠️ A 400 IS "THIS BODY IS WRONG", WHICH RETRYING CANNOT FIX — so it must never end at the
+        // generic "try again". The route answers with Zod's issues; the first path names a field,
+        // and the step partition says which question owns it. Send them there.
+        // This is deliberately CAUSE-AGNOSTIC: two production reports of this 400 had two different
+        // causes and both had to be guessed from a screenshot. Whatever the field is, the traveller
+        // now lands on the question that can change it.
+        const data = (await res.json().catch(() => null)) as { issues?: Array<{ path?: unknown[] }> } | null
+        const owning = (data?.issues ?? [])
+          .map((issue) => tripWizardStepForField(String(issue.path?.[0] ?? '')))
+          .find((candidate): candidate is TripWizardStep => candidate !== null)
+        if (owning) {
+          setError('incomplete')
+          const moved = await post({ action: 'goto', conversationId, step: owning, expectedStep: step }).catch(() => null)
+          if (moved && typeof moved.step === 'number') setStep(moved.step)
+          return
+        }
+        setError('generate_failed')
+        return
+      }
       if (!res.ok) {
         // 429 is the cost guard doing its job — say so plainly rather than "something went wrong".
         // 429 is the cost guard doing its job; 409 means a plan is ALREADY being built for this

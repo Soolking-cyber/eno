@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { MESSAGE_KINDS, isTripCardKind } from '@/lib/messages'
+import { tripWizardStepForField } from '@/lib/trips/itinerary-wizard'
 import { scrubTripConciergeQuestion, tripConciergePrompt, TRIP_CONCIERGE_QUESTION_MAX, type TripConciergeGrounding } from './concierge'
 
 /**
@@ -247,5 +248,37 @@ describe('⚠️ a visa applicant can still get back to edit from checkout', () 
   it('only the applicant is offered it', () => {
     // The desk reads this card; it has no business escaping somebody else's checkout.
     expect(readSrc('app/messages/[id]/page.tsx')).toMatch(/onReview=\{iAmApplicant \? \(\) => resendVisaCard\('review'\) : undefined\}/)
+  })
+})
+
+describe('⚠️ a rejected generate must never be a dead end, whatever the cause', () => {
+  const readSrc = (rel: string) => readFileSync(join(__dirname, '..', '..', rel), 'utf8')
+
+  it('maps every request field to the step that owns it', () => {
+    // locale is the one field no step collects — the partition test asserts exactly that.
+    expect(tripWizardStepForField('cityIds')).toBe(1)
+    expect(tripWizardStepForField('days')).toBe(1)
+    expect(tripWizardStepForField('startDate')).toBe(2)
+    expect(tripWizardStepForField('budgetId')).toBe(3)
+    expect(tripWizardStepForField('budgetDailyVnd')).toBe(3)
+    expect(tripWizardStepForField('interests')).toBe(4)
+    expect(tripWizardStepForField('notes')).toBe(5)
+    expect(tripWizardStepForField('locale')).toBeNull()
+  })
+
+  it('the client sends a 400 back to the owning step instead of "try again"', () => {
+    // Two production reports of this 400 had two DIFFERENT causes and both had to be guessed from a
+    // screenshot. Retrying an invalid body can never work, so the recovery is cause-agnostic.
+    const src = readSrc('components/marketplace/trip-cards.tsx')
+    expect(src).toMatch(/if \(res\.status === 400\)/)
+    expect(src).toMatch(/tripWizardStepForField\(String\(issue\.path\?\.\[0\] \?\? ''\)\)/)
+    expect(src).toMatch(/action: 'goto', conversationId, step: owning/)
+  })
+
+  it('the route records WHICH field failed, never its value', () => {
+    const route = readSrc('app/api/itineraries/generate/route.ts')
+    expect(route).toMatch(/paths: parsed\.error\.issues\.map/)
+    // The traveller's cities, dates and free-text notes must not reach a log line.
+    expect(route).not.toMatch(/console\.error\('\[itinerary-generate\] rejected', \{[^}]*issues[,:]/)
   })
 })
