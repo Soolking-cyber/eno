@@ -13,6 +13,7 @@ import { moneyLocale } from '@/lib/vnd'
 import { useDualMoney } from '@/context/currency-context'
 import { TripMap, TripMapDrawer, type TripDay } from '@/components/itinerary/trip-map'
 import { TripDayList } from '@/components/itinerary/trip-day-list'
+import { TripPriceDisclaimer } from '@/components/itinerary/trip-price-disclaimer'
 import { StopRefineDialog, type RefineTarget, type StopReplacement } from './stop-refine-dialog'
 import type { SavedItinerary, SavedItineraryDay } from '../trip-card'
 
@@ -272,6 +273,12 @@ export function TripDetailClient({ id, openCase }: { id: string; openCase?: { re
             </span>
           )}
         </div>
+        {/* Directly under the header, because that is where the estimate it qualifies is shown —
+            and this page carries per-stop costs further down too. Same component as the list, so
+            the two screens cannot end up promising slightly different things. */}
+        {typeof trip.estimatedBudget === 'number' && trip.estimatedBudget > 0 && (
+          <TripPriceDisclaimer className="mt-4" />
+        )}
       </header>
 
       {!hasStops ? (

@@ -12,6 +12,7 @@ import { Rows, Row } from '@/components/ui/rows'
 import { useLatestRequest } from '@/hooks/use-latest-request'
 import { SectionHeader } from '@/components/marketplace/section-header'
 import { TripCard, type SavedItinerary } from './trip-card'
+import { TripPriceDisclaimer } from '@/components/itinerary/trip-price-disclaimer'
 
 /** /dashboard/trips — the Itineraries section opens straight into the planner (owner
  *  2026-07-18: no list-first hop, no /plan sub-page), with the user's saved-itinerary
@@ -141,7 +142,9 @@ export function TripsClient({ planListingId }: { planListingId: string | null })
                 {tr('Your saved trips', 'Chuyến đi đã lưu')}
               </h2>
               <p className="mt-1 text-sm text-muted-foreground">
-                {tr('Every plan you build is saved here — expand one to review it or download the Word file.', 'Mỗi kế hoạch bạn tạo được lưu tại đây — mở rộng để xem lại hoặc tải tệp Word.')}
+                {/* ⚠️ "expand one to review it" stopped being true on 2026-07-29 when the rows
+                    stopped expanding; it told people to do something the page no longer does. */}
+                {tr('Every plan you build is saved here — open one to see it on the map and edit it, or download the Word file.', 'Mỗi kế hoạch bạn tạo được lưu tại đây — mở để xem trên bản đồ và chỉnh sửa, hoặc tải tệp Word.')}
               </p>
             </div>
             {/* ⚠️ THIS LIVED ONLY IN THE EMPTY STATE, WHICH STRANDED EVERY RETURNING TRAVELLER. Once
@@ -199,17 +202,23 @@ export function TripsClient({ planListingId }: { planListingId: string | null })
                   ) : undefined}
                 />
               ) : (
-                <Rows>
-                  {trips.map((trip) => (
-                    <TripCard
-                      key={trip.id}
-                      trip={trip}
-                      // Drop the row locally rather than refetching: the server has already
-                      // archived it, and a reload here would flash the whole list for one removal.
-                      onDeleted={(id) => setTrips((current) => (current ?? []).filter((t) => t.id !== id))}
-                    />
-                  ))}
-                </Rows>
+                <>
+                  <Rows>
+                    {trips.map((trip) => (
+                      <TripCard
+                        key={trip.id}
+                        trip={trip}
+                        // Drop the row locally rather than refetching: the server has already
+                        // archived it, and a reload here would flash the whole list for one removal.
+                        onDeleted={(id) => setTrips((current) => (current ?? []).filter((t) => t.id !== id))}
+                      />
+                    ))}
+                  </Rows>
+                  {/* Under the list, not above it: it qualifies the figures in those rows, and a
+                      disclaimer read before there is anything to qualify is just noise. Deliberately
+                      NOT rendered on the empty state for the same reason. */}
+                  <TripPriceDisclaimer className="mt-4" />
+                </>
               )
             )}
           </div>
