@@ -27,7 +27,12 @@ import { bindTripThread, getTripAssistanceListingId, getTripDesk } from '@/lib/t
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-const bodySchema = z.object({ conversationId: z.string().min(1).max(64) }).strict()
+// `mode` makes this ONE endpoint for both directions of the toggle (owner, 2026-07-30). Defaults to
+// 'human' so the original callers keep working unchanged.
+const bodySchema = z.object({
+  conversationId: z.string().min(1).max(64),
+  mode: z.enum(['human', 'ai']).default('human'),
+}).strict()
 
 export async function POST(request: Request) {
   const userId = await getCurrentProfileId()
@@ -64,15 +69,57 @@ export async function POST(request: Request) {
   if (!anchorListingId) return NextResponse.json({ error: 'shop_unavailable' }, { status: 503 })
   if (convo.listingId !== anchorListingId) return NextResponse.json({ error: 'not_found' }, { status: 404 })
 
-  // ⚠️ IDEMPOTENT ON THE MESSAGE ONLY — NOT AN EARLY RETURN. Tapping twice must not stack two
-  // identical asks in the thread, but returning here also meant that if the message had landed and
-  // the CASE had failed transiently, no later tap would ever retry the case: the traveller would
-  // be permanently marked as having asked for a person, with nothing in the operator queue.
-  // Caught by codex. The message is skipped, the case is still attempted.
-  const alreadyRequested = !!(await db.message.findFirst({
-    where: { conversationId: convo.id, kind: 'trip_help' },
-    select: { id: true },
-  }))
+  // ⚠️ THE CURRENT MODE IS THE NEWEST MARKER, NOT "does a trip_help exist". Once this became a
+  // toggle, presence alone was wrong: a thread that asked for a person and then switched back has
+  // a trip_help AND a trip_ai, and only their ORDER says which is live. Same newest-wins rule
+  // tripHumanRequested applies server-side, kept identical on purpose.
+  const wantsHuman = parsed.data.mode === 'human'
+  // ⚠️ THIS READ-THEN-WRITE IS NOT ATOMIC, AND THE FILE SAYS SO RATHER THAN PRETENDING.
+  //
+  // I first wrapped the read in a transaction holding `pg_advisory_xact_lock`, copying
+  // requestAssistance. It protected nothing: that lock lives for the TRANSACTION, and the
+  // transaction ended at the read — the marker is written afterwards by insertMessage, which uses
+  // the global client and cannot join it (it also sends push notifications, which have no business
+  // inside a transaction). codex caught the empty gesture. A lock that does not cover the write is
+  // worse than none, because the next reader trusts it.
+  //
+  // What actually happens if two taps race: both may see the old mode and both write a marker. The
+  // MODE still resolves deterministically — newest wins, by (createdAt, id) — so the thread never
+  // ends up in an ambiguous state; the cost is one redundant line. The button is disabled while a
+  // request is in flight, and the limiter above caps this at 6/hour. Making it truly atomic means
+  // teaching insertMessage to accept a transaction client, which is a refactor of a hot shared
+  // function for a duplicate chat line. Recorded, not hidden.
+  const newest = await db.message.findFirst({
+    where: { conversationId: convo.id, kind: { in: ['trip_help', 'trip_ai'] } },
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    select: { kind: true },
+  })
+  const humanNow = newest?.kind === 'trip_help'
+  // ⚠️ ONLY A REAL CHANGE WRITES A MARKER. Tapping the side that is already live writes nothing at
+  // all. ALTERNATING does write one line per flip — that is a genuine state change the desk should
+  // see — and it is bounded by the 6/hour limiter above rather than by this check, which is the
+  // honest version of a claim an earlier draft of this comment got wrong.
+  const alreadyRequested = humanNow === wantsHuman
+
+  // Switching BACK to the assistant is a one-line write and nothing else — no case is opened, no
+  // case is closed. An assistance case, once open, stays the desk's to resolve; silencing the bot
+  // is a conversation preference, not a withdrawal of the request for help.
+  if (!wantsHuman) {
+    if (!alreadyRequested) {
+      try {
+        await insertMessage(
+          convo,
+          userId,
+          'Switching back to Eno concierge. / Quay lại dùng Eno concierge.',
+          { kind: 'trip_ai' },
+        )
+      } catch (e) {
+        console.error('[trip-help] ai marker not posted', e)
+        return NextResponse.json({ error: 'internal_error' }, { status: 500 })
+      }
+    }
+    return NextResponse.json({ ok: true, mode: 'ai', alreadyRequested })
+  }
 
   // The newest trip they own — the one they are almost certainly asking about. `requestAssistance`
   // re-proves ownership itself, so passing an id here grants nothing.
@@ -130,5 +177,5 @@ export async function POST(request: Request) {
     }
   }
 
-  return NextResponse.json({ ok: true, caseOpened, alreadyRequested })
+  return NextResponse.json({ ok: true, mode: 'human', caseOpened, alreadyRequested })
 }

@@ -46,6 +46,12 @@ export const MESSAGE_KINDS = [
   // second source of truth that drifts the moment one write lands and the other doesn't — the
   // reasoning tripDeskMode already spells out for takeovers.
   'trip_help',
+  // ⚠️ THE COUNTERPART, so the mode is a TOGGLE rather than a one-way door (owner, 2026-07-30:
+  // "a dropdown toggle"). Mode is the NEWEST of `trip_help` / `trip_ai` — the same newest-wins
+  // shape visa's three mode events use, and for the same reason: derived state cannot drift from
+  // its own audit trail. Written only when the mode actually CHANGES, so flipping back and forth
+  // does not fill the thread with markers.
+  'trip_ai',
 ] as const
 export type MessageKind = (typeof MESSAGE_KINDS)[number]
 export type VisaCardKind = 'visa_step' | 'visa_checkout' | 'visa_result' | 'visa_picker'

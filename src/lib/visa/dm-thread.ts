@@ -83,6 +83,15 @@ const MODE_FOR_EVENT: Record<string, VisaThreadMode> = {
   admin_takeover_ended: 'ai',
   human_help_requested: 'human_requested',
   admin_takeover_started: 'admin',
+  // ⚠️ THE APPLICANT'S OWN WAY BACK (owner, 2026-07-30: "a dropdown toggle"). Before this, asking
+  // for a person was a ONE-WAY DOOR: only `admin_takeover_ended` mapped back to 'ai', and that is
+  // an OPERATOR action. So the applicant could silence the assistant and never restore it, and the
+  // chip that would have done so unmounted itself — which is exactly what the owner saw.
+  //
+  // Deliberately its own event rather than reusing admin_takeover_ended: the audit trail must not
+  // claim an operator ended a takeover that never happened. It maps to the same MODE, which is all
+  // getVisaThreadMode needs, while `visa_events` keeps saying who actually did what.
+  applicant_resumed_ai: 'ai',
 }
 const MODE_EVENT_NAMES = Object.keys(MODE_FOR_EVENT)
 
@@ -717,5 +726,13 @@ export async function readVisaThreadModeStrict(
 export async function setVisaThreadMode(input: {
   applicationId: string; mode: VisaThreadMode; actorType: 'applicant' | 'admin'; actorRef?: string
 }): Promise<void> {
-  await recordVisaEvent(input.applicationId, input.actorType, MODE_EVENT[input.mode], input.actorRef, { mode: input.mode })
+  // ⚠️ THE EVENT FOLLOWS THE ACTOR, not just the mode. Two different parties can put a thread back
+  // into 'ai' — an operator ENDING a takeover, and an applicant switching the assistant back on —
+  // and MODE_EVENT can only name one of them. Writing `admin_takeover_ended` for an applicant's tap
+  // would put a takeover that never happened into the audit trail the admin queue reads.
+  // getVisaThreadMode maps both to 'ai', so the derived mode is identical either way.
+  const event = input.mode === 'ai' && input.actorType === 'applicant'
+    ? 'applicant_resumed_ai'
+    : MODE_EVENT[input.mode]
+  await recordVisaEvent(input.applicationId, input.actorType, event, input.actorRef, { mode: input.mode })
 }

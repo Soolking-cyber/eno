@@ -834,7 +834,8 @@ export function TripAssistChips({
   /** A person has already been asked for on this thread — derived from the rendered timeline. */
   humanRequested: boolean
   onToggleConcierge: () => void
-  onAskHuman: () => void | Promise<void>
+  /** Ask for a person, or switch the assistant back on — the caller passes the direction. */
+  onAskHuman: (mode?: 'human' | 'ai') => void | Promise<void>
 }) {
   const { tr } = useLanguage()
   return (
@@ -859,19 +860,41 @@ export function TripAssistChips({
         }
       />
       {/* Upward: the row sits directly above the composer. */}
-      <DropdownMenuContent side="top" align="start" sideOffset={6} className="min-w-52">
+      {/* ⚠️ BOTH OPTIONS, ALWAYS, EACH WITH ITS OWN COLOUR (owner, 2026-07-30: "when click person ai
+          response disappears … a dropdown toggle person one background color ai another background
+          color with disclaimer"). The concierge item used to VANISH once a person was asked for, so
+          the control silently changed shape and there was no way back — see the note on the route.
+          Now it is a two-state toggle: the live side is tinted and ticked, the other stays tappable. */}
+      <DropdownMenuContent side="top" align="start" sideOffset={6} className="min-w-60">
         {/* "name is Eno concierge" (owner) — the same string in both languages, not translated. */}
-        {!humanRequested && (
-          <DropdownMenuItem disabled={thinking} onClick={onToggleConcierge}>
-            <Sparkles /> {tr('Eno concierge', 'Eno concierge')}
-            {armed && <Check className="ml-auto size-4 text-accent-foreground" aria-label={tr('on', 'đang bật')} />}
-          </DropdownMenuItem>
-        )}
-        <DropdownMenuItem disabled={busy || humanRequested} onClick={() => void onAskHuman()}>
-          <UserRound /> {humanRequested
-            ? tr('A person was asked for', 'Đã yêu cầu nhân viên')
-            : tr('Request a person', 'Yêu cầu nhân viên')}
+        <DropdownMenuItem
+          disabled={thinking}
+          // In human mode this item's job is to SWITCH BACK (a server round trip), not to arm the
+          // composer — arming a bot the server would refuse is the disappearing-chip bug wearing a
+          // different hat.
+          onClick={() => (humanRequested ? void onAskHuman('ai') : onToggleConcierge())}
+          className={cn('rounded-lg', !humanRequested && 'bg-primary/10 text-accent-foreground')}
+        >
+          <Sparkles /> {tr('Eno concierge', 'Eno concierge')}
+          {!humanRequested && <Check className="ml-auto size-4" aria-label={tr('on', 'đang bật')} />}
         </DropdownMenuItem>
+        <DropdownMenuItem
+          disabled={busy}
+          onClick={() => void onAskHuman()}
+          className={cn('rounded-lg', humanRequested && 'bg-warning/15 text-warning')}
+        >
+          <UserRound /> {tr('A person', 'Nhân viên')}
+          {humanRequested && <Check className="ml-auto size-4" aria-label={tr('on', 'đang bật')} />}
+        </DropdownMenuItem>
+        {/* The disclaimer, and it changes with the state — a fixed line would be wrong in one of
+            the two modes. Small and muted: it explains, it does not shout. */}
+        <p className="mt-1 max-w-60 border-t border-border px-2 pb-1 pt-2 text-2xs leading-relaxed text-ink-4">
+          {humanRequested
+            ? tr('A person is answering. Eno concierge stays quiet so it never replies over them — tap it to switch back.',
+                 'Nhân viên đang trả lời. Eno concierge tạm im để không trả lời chồng lên — chạm để chuyển lại.')
+            : tr('Eno concierge is an AI and can be wrong. Ask for a person any time.',
+                 'Eno concierge là AI và có thể sai. Bạn có thể yêu cầu nhân viên bất cứ lúc nào.')}
+        </p>
       </DropdownMenuContent>
     </DropdownMenu>
   )

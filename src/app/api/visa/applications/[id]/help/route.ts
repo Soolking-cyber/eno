@@ -6,7 +6,7 @@ import { insertMessage } from '@/lib/messages'
 import { rateLimit } from '@/lib/ratelimit'
 import { getVisaDb } from '@/lib/visa/db'
 import { visaDmFailureFor } from '@/lib/visa/dm-flow'
-import { setVisaThreadMode } from '@/lib/visa/dm-thread'
+import { getVisaThreadMode, setVisaThreadMode } from '@/lib/visa/dm-thread'
 
 // "THEY CAN REQUEST HUMAN INTERVENTION OR HELP IF NEEDED" — the escape hatch out of the AI
 // wizard, without leaving the thread.
@@ -32,7 +32,12 @@ import { setVisaThreadMode } from '@/lib/visa/dm-thread'
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-const bodySchema = z.object({ note: z.string().trim().max(500).optional() }).strict()
+// `mode` makes this one endpoint both directions of the toggle (owner, 2026-07-30). Defaults to
+// 'human_requested', so every existing caller keeps its exact behaviour.
+const bodySchema = z.object({
+  note: z.string().trim().max(500).optional(),
+  mode: z.enum(['human_requested', 'ai']).default('human_requested'),
+}).strict()
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 // Bilingual composite, the price-drop.ts / messages.ts idiom: this string PERSISTS into
@@ -68,10 +73,31 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (!convo) return NextResponse.json({ error: 'thread_not_bound' }, { status: 409 })
     if (convo.buyerProfileId !== userId) return NextResponse.json({ error: 'thread_conflict' }, { status: 409 })
 
+    const wantsHuman = parsed.data.mode === 'human_requested'
+
+    // ⚠️ AN OPERATOR'S TAKEOVER IS NOT THE APPLICANT'S TO TOUCH — IN EITHER DIRECTION.
+    //
+    // 'admin' means a human is actively on the case. My first cut guarded only the ai direction,
+    // which looked like protection while leaving the other door open: mode is the NEWEST event, so
+    // an applicant POSTing `human_requested` during a takeover writes a newer event and the derived
+    // mode silently stops being 'admin' — ending a takeover nobody ended. codex caught it.
+    // Both applicant transitions are refused while an operator holds the case.
+    //
+    // ⚠️ AND A NO-OP MUST WRITE NOTHING. Without this, tapping the already-selected side again
+    // appended another event, another desk message and another notification each time.
+    const modeNow = await getVisaThreadMode(id)
+    if (modeNow === 'admin') return NextResponse.json({ error: 'admin_takeover' }, { status: 409 })
+    const target: 'human_requested' | 'ai' = wantsHuman ? 'human_requested' : 'ai'
+    if (modeNow === target) return NextResponse.json({ mode: target, unchanged: true })
+
     // LOUD ON PURPOSE (dm-thread.ts): the mode read fails soft, but a help request the
     // applicant believes landed and didn't leaves them waiting on nobody. A failed write
     // throws and this route surfaces it.
-    await setVisaThreadMode({ applicationId: id, mode: 'human_requested', actorType: 'applicant', actorRef: userId })
+    await setVisaThreadMode({ applicationId: id, mode: target, actorType: 'applicant', actorRef: userId })
+
+    // Switching the assistant back on is a mode change and nothing else — no message, because
+    // there is no one to notify and the thread should not collect chatter on every tap.
+    if (!wantsHuman) return NextResponse.json({ mode: 'ai' })
 
     // Best-effort visibility in the desk's inbox. The mode event above is the load-bearing
     // record (the admin queue reads visa_events); a message that failed to post must not

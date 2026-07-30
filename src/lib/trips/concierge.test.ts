@@ -95,3 +95,64 @@ describe('⚠️ trip_help is the "a person was asked for" state', () => {
     expect(isTripCardKind('trip_help')).toBe(false)
   })
 })
+
+describe('⚠️ the person/AI toggle must work in BOTH directions', () => {
+  const read2 = (rel: string) => readFileSync(join(__dirname, '..', '..', rel), 'utf8')
+
+  it('⚠️ does NOT pretend the trips read-then-write is atomic', () => {
+    // An advisory lock was tried and removed: pg_advisory_xact_lock dies with its transaction, and
+    // the marker is written afterwards by insertMessage, which cannot join it. A lock that does not
+    // cover the write is worse than none because the next reader trusts it. The race is documented
+    // instead, and the mode still resolves deterministically by (createdAt, id).
+    // ⚠️ MATCHES CODE, NOT PROSE. The comment explaining the removal names the lock, so a bare
+    // /pg_advisory_xact_lock/ fails on its own documentation — the third time this session a
+    // source-level test tripped over the words it was written to justify.
+    const route = read2('app/api/trips/help/route.ts')
+    expect(route).not.toMatch(/\$executeRaw/)
+    expect(route).not.toMatch(/SELECT pg_advisory/)
+    expect(route).toMatch(/NOT ATOMIC/)
+  })
+
+  it('trip mode is the NEWEST marker, not "does a trip_help exist"', () => {
+    // Presence alone was right only while it was a one-way door. A thread that asked for a person
+    // and switched back holds BOTH markers, and only their order says which is live.
+    const lib = read2('lib/trips/concierge.ts')
+    expect(lib).toMatch(/kind: \{ in: \['trip_help', 'trip_ai'\] \}/)
+    expect(lib).toMatch(/orderBy: \[\{ createdAt: 'desc' \}, \{ id: 'desc' \}\]/)
+    expect(lib).toMatch(/newest\?\.kind === 'trip_help'/)
+  })
+
+  it('trip_ai is a real kind and NOT a card', () => {
+    expect(MESSAGE_KINDS).toContain('trip_ai')
+    expect(isTripCardKind('trip_ai')).toBe(false)
+  })
+
+  it('⚠️ an applicant resuming the AI is NOT recorded as an admin ending a takeover', () => {
+    // Both map to mode 'ai', but writing admin_takeover_ended for an applicant's tap would put a
+    // takeover that never happened into the trail the admin queue reads.
+    const thread = read2('lib/visa/dm-thread.ts')
+    expect(thread).toMatch(/applicant_resumed_ai: 'ai'/)
+    expect(thread).toMatch(/input\.mode === 'ai' && input\.actorType === 'applicant'/)
+  })
+
+  it("⚠️ an applicant cannot undo an OPERATOR's takeover", () => {
+    // 'admin' means a human is mid-conversation; letting the applicant flip it back would drop the
+    // bot into it. Only their own human_requested is reversible from the chip.
+    // ⚠️ BOTH DIRECTIONS. The first cut guarded only the ai direction, which looked like protection
+    // while leaving the other door open: mode is the NEWEST event, so POSTing human_requested
+    // during a takeover writes a newer event and silently ends it. codex caught it.
+    const route = read2('app/api/visa/applications/[id]/help/route.ts')
+    expect(route).toMatch(/modeNow === 'admin'\) return NextResponse\.json\(\{ error: 'admin_takeover' \}/)
+    // …and it must not be re-narrowed to one direction by a later edit.
+    expect(route).not.toMatch(/!wantsHuman && .*=== 'admin'/)
+    // A tap on the already-live side writes nothing — no duplicate event, message or notification.
+    expect(route).toMatch(/modeNow === target\) return NextResponse\.json\(\{ mode: target, unchanged: true \}\)/)
+  })
+
+  it('⚠️ the composer disarms whenever the thread goes human, not only on the tap', () => {
+    // conciergeAvailable now stays TRUE in human mode so the toggle keeps its seat, which silently
+    // disabled the reset this guard exists for.
+    const page = read2('app/messages/[id]/page.tsx')
+    expect(page).toMatch(/if \(!conciergeAvailable \|\| visaHumanRequested\) setConciergeArmed\(false\)/)
+  })
+})

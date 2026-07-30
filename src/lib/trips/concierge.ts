@@ -141,11 +141,14 @@ async function generateTripConciergeAnswer(prompt: string): Promise<string | nul
  * chip again), not something that happens because an operator said "one moment".
  */
 export async function tripHumanRequested(conversationId: string): Promise<boolean> {
-  const help = await db.message.findFirst({
-    where: { conversationId, kind: 'trip_help' },
-    select: { id: true },
+  const newest = await db.message.findFirst({
+    where: { conversationId, kind: { in: ['trip_help', 'trip_ai'] } },
+    // id as the tiebreak: two markers written in the same millisecond must resolve
+    // deterministically, the same rule getVisaThreadMode applies to its events.
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    select: { kind: true },
   })
-  return !!help
+  return newest?.kind === 'trip_help'
 }
 
 export async function askTripConcierge(input: {

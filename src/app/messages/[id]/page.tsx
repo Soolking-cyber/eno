@@ -90,14 +90,17 @@ function conciergeErrorCopy(code: string | undefined, tr: Tr): string {
 // Diagnosed by an external review (GPT-5.6, 2026-07-23) after the symptom was "chips unclickable
 // + broken scroll whenever the visa form card was on screen". Do not drop `relative`.
 function VisaAssistChips({
-  armed, thinking, busy, error, onToggleConcierge, onAskHuman, compact, className,
+  armed, thinking, busy, error, onToggleConcierge, onAskHuman, humanRequested, compact, className,
 }: {
   armed: boolean
   thinking: boolean
   busy: boolean
   error: string | null
   onToggleConcierge: () => void
-  onAskHuman: () => void | Promise<void>
+  /** Ask for a person, or switch the assistant back on — the caller passes the direction. */
+  onAskHuman: (mode?: 'human' | 'ai') => void | Promise<void>
+  /** A person has been asked for: the toggle shows the human side live, not an empty menu. */
+  humanRequested: boolean
   /** Buttons only — the caller owns the row and the single explanatory line under it. */
   compact?: boolean
   className?: string
@@ -119,25 +122,56 @@ function VisaAssistChips({
                 size="none"
                 type="button"
                 aria-label={tr('Get help with this application', 'Nhận trợ giúp cho hồ sơ này')}
-                className={`relative tap-44 shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-2xs font-bold ${armed ? 'border-brand bg-primary/10 text-accent-foreground' : 'border-line-strong text-foreground'}`}
+                className={cn(
+                  'relative tap-44 shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-2xs font-bold',
+                  humanRequested ? 'border-warning/50 bg-warning/15 text-warning'
+                    : armed ? 'border-brand bg-primary/10 text-accent-foreground'
+                    : 'border-line-strong text-foreground',
+                )}
               >
                 {thinking
                   ? <Loader2 className="size-3.5 shrink-0 animate-spin" aria-hidden />
-                  : <Sparkles className="size-3.5 shrink-0" aria-hidden />}
-                {armed ? tr('Eno concierge', 'Eno concierge') : tr('Get help', 'Trợ giúp')}
+                  : humanRequested
+                    ? <UserRound className="size-3.5 shrink-0" aria-hidden />
+                    : <Sparkles className="size-3.5 shrink-0" aria-hidden />}
+                {humanRequested ? tr('A person', 'Nhân viên') : armed ? tr('Eno concierge', 'Eno concierge') : tr('Get help', 'Trợ giúp')}
                 <ChevronDown className="size-3 shrink-0 opacity-60" aria-hidden />
               </Button>
             }
           />
-          <DropdownMenuContent side="top" align="start" sideOffset={6} className="min-w-52">
+          {/* ⚠️ BOTH OPTIONS, ALWAYS, EACH WITH ITS OWN COLOUR (owner, 2026-07-30). Asking for a
+              person used to unmount this whole control — conciergeAvailable went false and a banner
+              replaced it — so the assistant "disappeared" with no way back. It is now a two-state
+              toggle; the live side is tinted and ticked. `admin` mode is the exception and still
+              renders the banner instead: an operator's takeover is not the applicant's to undo. */}
+          <DropdownMenuContent side="top" align="start" sideOffset={6} className="min-w-60">
             {/* "name is Eno concierge" (owner) — same string in both languages, not translated. */}
-            <DropdownMenuItem disabled={thinking} onClick={onToggleConcierge}>
+            <DropdownMenuItem
+              disabled={thinking}
+              // In human mode this switches the assistant back ON (a server round trip); arming the
+              // composer against a gate the server has not moved yet would just earn a refusal.
+              onClick={() => (humanRequested ? void onAskHuman('ai') : onToggleConcierge())}
+              className={cn('rounded-lg', !humanRequested && 'bg-primary/10 text-accent-foreground')}
+            >
               <Sparkles /> {tr('Eno concierge', 'Eno concierge')}
-              {armed && <Check className="ml-auto size-4 text-accent-foreground" aria-label={tr('on', 'đang bật')} />}
+              {!humanRequested && armed && <Check className="ml-auto size-4" aria-label={tr('on', 'đang bật')} />}
             </DropdownMenuItem>
-            <DropdownMenuItem disabled={busy} onClick={() => void onAskHuman()}>
-              <UserRound /> {tr('Request a person', 'Yêu cầu nhân viên')}
+            <DropdownMenuItem
+              disabled={busy}
+              onClick={() => void onAskHuman('human')}
+              className={cn('rounded-lg', humanRequested && 'bg-warning/15 text-warning')}
+            >
+              <UserRound /> {tr('A person', 'Nhân viên')}
+              {humanRequested && <Check className="ml-auto size-4" aria-label={tr('on', 'đang bật')} />}
             </DropdownMenuItem>
+            {/* State-dependent on purpose: a single fixed line would be wrong in one of the two modes. */}
+            <p className="mt-1 max-w-60 border-t border-border px-2 pb-1 pt-2 text-2xs leading-relaxed text-ink-4">
+              {humanRequested
+                ? tr('A person is answering. Eno concierge stays quiet so it never replies over them — tap it to switch back.',
+                     'Nhân viên đang trả lời. Eno concierge tạm im để không trả lời chồng lên — chạm để chuyển lại.')
+                : tr('Eno concierge is an AI and can be wrong about your application. Ask for a person any time.',
+                     'Eno concierge là AI và có thể trả lời sai về hồ sơ của bạn. Bạn có thể yêu cầu nhân viên bất cứ lúc nào.')}
+            </p>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
@@ -851,8 +885,21 @@ export default function ThreadPage() {
   const [conciergeArmed, setConciergeArmed] = useState(false)
   const [conciergeBusy, setConciergeBusy] = useState(false)
   const [conciergeError, setConciergeError] = useState<string | null>(null)
-  const conciergeAvailable = !!visaInfo && iAmApplicant && visaInfo.mode === 'ai'
-  useEffect(() => { if (!conciergeAvailable) setConciergeArmed(false) }, [conciergeAvailable])
+  // ⚠️ THE TOGGLE STAYS MOUNTED IN 'human_requested' TOO (owner, 2026-07-30). This used to be
+  // `mode === 'ai'`, so asking for a person unmounted the whole control and swapped in a banner —
+  // the assistant "disappeared" with no way back. Only `admin` still yields to the banner: an
+  // operator's takeover is theirs to end, not the applicant's.
+  const conciergeAvailable = !!visaInfo && iAmApplicant && (visaInfo.mode === 'ai' || visaInfo.mode === 'human_requested')
+  const visaHumanRequested = visaInfo?.mode === 'human_requested'
+  // ⚠️ ALSO ON humanRequested, not just on availability. `conciergeAvailable` deliberately stays
+  // TRUE in human mode now (the toggle must remain mounted), so this reset stopped firing on the
+  // one transition it exists for: the composer would sit armed at an assistant the server refuses,
+  // and the next Return would post a question into a 409. askVisaHuman disarms on the tap it
+  // handles; this catches every other route into human mode — the desk taking over, a second tab,
+  // a reload.
+  useEffect(() => {
+    if (!conciergeAvailable || visaHumanRequested) setConciergeArmed(false)
+  }, [conciergeAvailable, visaHumanRequested])
 
   // ── THE TRIP DESK'S OWN CONCIERGE ────────────────────────────────────────────────
   // The same two affordances the visa thread has, on the other desk the shared storefront runs
@@ -874,20 +921,23 @@ export default function ThreadPage() {
     if (!tripAssistAvailable || tripHumanRequested) setTripConciergeArmed(false)
   }, [tripAssistAvailable, tripHumanRequested])
 
-  const askTripHuman = async () => {
+  const askTripHuman = async (mode: 'human' | 'ai' = 'human') => {
     if (tripBusy) return
     setTripBusy(true)
-    // Disarmed the instant a person is asked for, without waiting for the reload: the composer
-    // must not still be pointed at the bot they just declined.
+    // Disarmed either way: asking for a person must not leave the composer pointed at the bot, and
+    // switching BACK re-arms only after the server confirms — an armed composer whose server-side
+    // gate has not moved yet would send a question straight into a refusal.
     setTripConciergeArmed(false)
     try {
       const res = await fetch('/api/trips/help', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ conversationId: id }),
+        body: JSON.stringify({ conversationId: id, mode }),
       })
       if (!res.ok) { toast.error(tr('Could not reach the desk. Please try again.', 'Chưa liên hệ được bộ phận hỗ trợ. Vui lòng thử lại.')); return }
-      toast.success(tr('Asked for a person — we will reply here.', 'Đã yêu cầu nhân viên — chúng tôi sẽ trả lời tại đây.'))
+      toast.success(mode === 'human'
+        ? tr('Asked for a person — we will reply here.', 'Đã yêu cầu nhân viên — chúng tôi sẽ trả lời tại đây.')
+        : tr('Eno concierge is back on.', 'Eno concierge đã bật lại.'))
       await load()
       refreshUnread(); refreshConvos()
     } catch {
@@ -977,7 +1027,7 @@ export default function ThreadPage() {
   // "they can request human intervention or help if needed" — flips the thread's mode and
   // puts the request in front of the desk. The wizard deliberately keeps working while they
   // wait; only an admin TAKEOVER stops the cards.
-  const askVisaHuman = async () => {
+  const askVisaHuman = async (mode: 'human' | 'ai' = 'human') => {
     const applicationId = visaInfo?.applicationId
     if (!applicationId || visaBusy) return
     setVisaBusy(true)
@@ -986,9 +1036,11 @@ export default function ThreadPage() {
     setConciergeArmed(false)
     setConciergeError(null)
     try {
-      const res = await visaPost(`/api/visa/applications/${applicationId}/help`, {})
+      const res = await visaPost(`/api/visa/applications/${applicationId}/help`, { mode: mode === 'human' ? 'human_requested' : 'ai' })
       if (!res.ok) { toast.error(visaErrorCopy(res.error, tr)); return }
-      toast.success(tr('Asked for a person — we will reply here.', 'Đã yêu cầu nhân viên — chúng tôi sẽ trả lời tại đây.'))
+      toast.success(mode === 'human'
+        ? tr('Asked for a person — we will reply here.', 'Đã yêu cầu nhân viên — chúng tôi sẽ trả lời tại đây.')
+        : tr('Eno concierge is back on.', 'Eno concierge đã bật lại.'))
       await load()
       refreshUnread(); refreshConvos()
     } finally {
@@ -1639,6 +1691,7 @@ export default function ThreadPage() {
                   error={conciergeError}
                   onToggleConcierge={toggleConcierge}
                   onAskHuman={askVisaHuman}
+                  humanRequested={!!visaHumanRequested}
                   compact
                 />
               ) : (
