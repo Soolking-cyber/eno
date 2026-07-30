@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, CalendarDays, MapPin, Loader2, Sparkles, MessageSquare } from 'lucide-react'
+import { ArrowLeft, CalendarDays, MapPin, Loader2, RefreshCw, Sparkles, MessageSquare } from 'lucide-react'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import { Button } from '@/components/ui/button'
@@ -15,6 +15,7 @@ import { TripMap, TripMapDrawer, type TripDay } from '@/components/itinerary/tri
 import { TripDayList } from '@/components/itinerary/trip-day-list'
 import { TripPriceDisclaimer } from '@/components/itinerary/trip-price-disclaimer'
 import { StopRefineDialog, type RefineTarget, type StopReplacement } from './stop-refine-dialog'
+import { StayRefineDialog, type StayRefineTarget, type StayReplacementInput } from './stay-refine-dialog'
 import type { SavedItinerary, SavedItineraryDay } from '../trip-card'
 
 // "My Trips" — one saved itinerary, reopened in full. Deliberately a sibling of
@@ -86,6 +87,13 @@ export function TripDetailClient({ id, openCase }: { id: string; openCase?: { re
    * the refresh re-rendered the list under it.
    */
   const [refineTarget, setRefineTarget] = useState<RefineTarget | null>(null)
+  /** The hotel whose swap dialog is open, or null — held here for the same reason as `refineTarget`:
+   *  the dialog writes through this component and would unmount mid-request if a row owned it. */
+  const [stayTarget, setStayTarget] = useState<StayRefineTarget | null>(null)
+  /** Stays with a write in flight, so their own row disables without freezing the others. Separate
+   *  from `busyStopIds` because a stay id and a stop id are different namespaces — one set would let
+   *  a coincidence disable an unrelated row. */
+  const [busyStayIds, setBusyStayIds] = useState<ReadonlySet<string>>(new Set())
 
   // Sibling dashboard sections' auth gate — signed-out users go to sign-in and back.
   useEffect(() => {
@@ -145,7 +153,11 @@ export function TripDetailClient({ id, openCase }: { id: string; openCase?: { re
         credentials: 'same-origin',
         body: JSON.stringify(body),
       })
-      if (res.status === 409) { setEditError('stale'); setRefresh((n) => n + 1); return }
+      // ⚠️ 404 RELOADS TOO, not just 409 — a review of the stay path found this and it is the same
+      // defect here. The server answering "not found" means the row on screen is not the row in the
+      // database; leaving the page as it was shows an error beside a stop that no longer exists and
+      // invites the traveller to try the same impossible edit again.
+      if (res.status === 409 || res.status === 404) { setEditError('stale'); setRefresh((n) => n + 1); return }
       if (!res.ok) { setEditError('failed'); return }
       setRefresh((n) => n + 1)
     } catch {
@@ -174,6 +186,38 @@ export function TripDetailClient({ id, openCase }: { id: string; openCase?: { re
    */
   const replaceStop = useCallback((dayId: string, stopId: string, replacement: StopReplacement) =>
     editStop({ action: 'replace', dayId, stopId, replacement }, stopId), [editStop])
+
+  /**
+   * Swap one hotel — the stays endpoint's only action.
+   *
+   * ⚠️ NOT ROUTED THROUGH `editStop`, and the temptation to do it was worth resisting: that helper
+   * posts to the STOPS endpoint and manages `busyStopIds`, so reusing it would mean a second
+   * parameter deciding which URL and which busy set, i.e. two functions wearing one name. It repeats
+   * four lines and shares the two behaviours that matter — 409 means reload, not retry (the server
+   * says so: a second tab moved this row, and retrying would overwrite whatever it just lost to),
+   * and success bumps `refresh` so the page re-reads rather than guessing the new row locally.
+   */
+  const replaceStay = useCallback(async (stayId: string, replacement: StayReplacementInput) => {
+    setBusyStayIds((prev) => new Set(prev).add(stayId))
+    setEditError(null)
+    try {
+      const res = await fetch(`/api/itineraries/${encodeURIComponent(id)}/stays`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ action: 'replace', stayId, replacement }),
+      })
+      // 409 and 404 both mean the screen disagrees with the database — reload rather than retry. A
+      // 429 deliberately does NOT reload: nothing changed, and re-reading would imply it had.
+      if (res.status === 409 || res.status === 404) { setEditError('stale'); setRefresh((n) => n + 1); return }
+      if (!res.ok) { setEditError('failed'); return }
+      setRefresh((n) => n + 1)
+    } catch {
+      setEditError('failed')
+    } finally {
+      setBusyStayIds((prev) => { const next = new Set(prev); next.delete(stayId); return next })
+    }
+  }, [id])
 
   const days: TripDay[] = useMemo(() => {
     if (!trip) return []
@@ -331,8 +375,11 @@ export function TripDetailClient({ id, openCase }: { id: string; openCase?: { re
             </div>
             {editError && (
               <p role="alert" className="rounded-xl bg-warning/10 px-3 py-2 text-xs text-warning">
+                {/* ⚠️ Says "this trip", not "this day": one banner now reports staleness from the day
+                    list AND from the stay shortlist, and a hotel swap that lost a race would have
+                    blamed a day the traveller never touched. */}
                 {editError === 'stale'
-                  ? tr('This day changed somewhere else, so it has been reloaded. Try again.', 'Ngày này đã thay đổi ở nơi khác nên đã được tải lại. Vui lòng thử lại.')
+                  ? tr('This trip changed somewhere else, so it has been reloaded. Try again.', 'Chuyến đi này đã thay đổi ở nơi khác nên đã được tải lại. Vui lòng thử lại.')
                   : tr('That change could not be saved. Please try again.', 'Không thể lưu thay đổi. Vui lòng thử lại.')}
               </p>
             )}
@@ -347,38 +394,61 @@ export function TripDetailClient({ id, openCase }: { id: string; openCase?: { re
               onDeleteStop={deleteStop}
               busyStopIds={busyStopIds}
             />
-            {/* ⚠️ THE STAY SHORTLIST, PUT BACK (owner, 2026-07-30: "doesnt show hotel options").
-                This was rendered by the saved-trip row's collapsible panel, and when that panel was
-                removed on 2026-07-29 the stays went with it — the trip page has never rendered
-                them, so the plan's hotel recommendations became unreachable from anywhere in the
-                product. The day-by-day content survived because this page already had it; the stays
-                simply had no home. Checked against the API, which has always returned them.
+            {/* ⚠️ THE STAY SHORTLIST, PUT BACK (owner, 2026-07-30: "doesnt show hotel options") and
+                then made EDITABLE (same day: "real stay editing do it"). It had been rendered by the
+                saved-trip row's collapsible panel, and when that panel was removed on 2026-07-29 the
+                stays went with it — the plan's hotel recommendations became unreachable from anywhere
+                in the product while the day-by-day content survived, because this page already had
+                that and the stays simply had no home.
 
-                Read-only for now, deliberately: there is no stay-editing path in the codebase (the
-                refine dialog swaps ACTIVITIES, not accommodation), and inventing one silently is
-                not the same job as restoring what was lost. */}
+                ⚠️ SWAP, NEVER REMOVE. `@@unique([itineraryId, position])` makes deletion a choice
+                about renumbering, and a trip with no accommodation is a worse artefact than one with
+                a hotel the traveller has not chosen yet — so the write route has no delete action
+                and this list has no destructive control. See stays/replace.ts. */}
             {trip.stays.length > 0 && (
               <section aria-labelledby="stay-shortlist" className="rounded-2xl border border-border/70 p-4">
                 <h2 id="stay-shortlist" className="text-2xs font-bold uppercase tracking-wide text-foreground">
                   {tr('Where you would stay', 'Chỗ ở gợi ý')}
                 </h2>
-                <ul className="mt-2.5 space-y-2.5 text-xs text-body">
-                  {trip.stays.map((stay) => (
-                    <li key={stay.id}>
-                      <span className="font-semibold text-foreground">{loc(stay.name, stay.nameVi)}</span>
-                      {' · '}{loc(stay.area, stay.areaVi)}
-                      {stay.estimatedNightly
-                        ? ` · ${dualMoney(stay.estimatedNightly, moneyLocale(lang))}/${tr('night', 'đêm')}`
-                        : ''}
-                      {stay.note && <span className="mt-0.5 block text-muted-foreground">{loc(stay.note, stay.noteVi)}</span>}
-                    </li>
-                  ))}
+                <ul className="mt-2.5 space-y-2 text-xs text-body">
+                  {trip.stays.map((stay) => {
+                    const busy = busyStayIds.has(stay.id)
+                    return (
+                      <li key={stay.id} className="flex items-start justify-between gap-3 rounded-xl px-2 py-1.5 -mx-2 hover:bg-tint">
+                        <div className="min-w-0">
+                          <span className="font-semibold text-foreground">{loc(stay.name, stay.nameVi)}</span>
+                          {' · '}{loc(stay.area, stay.areaVi)}
+                          {stay.estimatedNightly
+                            ? ` · ${dualMoney(stay.estimatedNightly, moneyLocale(lang))}/${tr('night', 'đêm')}`
+                            : ''}
+                          {stay.note && <span className="mt-0.5 block text-muted-foreground">{loc(stay.note, stay.noteVi)}</span>}
+                        </div>
+                        {/* A named action, not a bare icon: "Change" says what happens, and the row it
+                            belongs to is named in the aria-label because four identical "Change"
+                            buttons are unusable to a screen reader. */}
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="sm"
+                          disabled={busy}
+                          aria-label={tr(`Change ${loc(stay.name, stay.nameVi)}`, `Đổi ${loc(stay.name, stay.nameVi)}`)}
+                          onClick={() => setStayTarget({ stayId: stay.id, name: loc(stay.name, stay.nameVi), area: loc(stay.area, stay.areaVi) })}
+                          className="shrink-0 gap-1.5"
+                        >
+                          {busy
+                            ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+                            : <RefreshCw className="h-3.5 w-3.5" aria-hidden />}
+                          {tr('Change', 'Đổi')}
+                        </Button>
+                      </li>
+                    )
+                  })}
                 </ul>
-                {/* Says how to change one, because there is no button that does it. Pointing at the
-                    desk is honest; a disabled "Edit" would not be. */}
+                {/* Still points at the desk, because a swap only changes the plan — the booking is a
+                    conversation, and this is where the traveller is standing when they realise that. */}
                 <p className="mt-3 text-2xs leading-relaxed text-ink-4">
-                  {tr('Want a different hotel? Ask in the chat and the desk will swap it for you.',
-                      'Muốn khách sạn khác? Nhắn trong cuộc trò chuyện, bộ phận hỗ trợ sẽ đổi giúp bạn.')}
+                  {tr('Swapping a hotel updates your plan. Ask in the chat when you want it booked.',
+                      'Đổi khách sạn chỉ cập nhật kế hoạch. Nhắn trong cuộc trò chuyện khi bạn muốn đặt phòng.')}
                 </p>
               </section>
             )}
@@ -389,6 +459,12 @@ export function TripDetailClient({ id, openCase }: { id: string; openCase?: { re
               onClose={() => setRefineTarget(null)}
               onRemove={deleteStop}
               onApply={replaceStop}
+            />
+            <StayRefineDialog
+              itineraryId={trip.id}
+              target={stayTarget}
+              onClose={() => setStayTarget(null)}
+              onApply={replaceStay}
             />
           </div>
           <aside className="hidden lg:block">

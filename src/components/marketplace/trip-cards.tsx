@@ -420,8 +420,9 @@ export function TripWizardCard({ conversationId, messageId, meta }: { conversati
       }
     })()
     // `draft` is intentionally absent: this is an arrival-time repair keyed on hydration, not a
-    // live rule. Re-running it as they type would drag them backwards mid-answer.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // live rule. Re-running it as they type would drag them backwards mid-answer. (No
+    // eslint-disable: the rule does not flag it, and a directive nothing suppresses is itself a
+    // lint warning — which is how this line was found.)
   }, [hydratedCard, meta.step, meta.state, messageId, conversationId])
 
   // Hydrate once per card. Keyed by the CARD's message id, so two wizards in different threads

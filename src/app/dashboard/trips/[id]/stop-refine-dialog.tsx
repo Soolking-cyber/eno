@@ -111,9 +111,14 @@ export function StopRefineDialog({ itineraryId, target, onClose, onRemove, onApp
   // the last visit's reasons and suggestions back in, which reads as the dialog having remembered a
   // decision the traveller already abandoned.
   useEffect(() => {
-    if (!target) return
-    // Retires any suggestion request still in flight from a previous open — see askSeq.
+    // ⚠️ THE INCREMENT IS ABOVE THE EARLY RETURN, so an in-flight request is retired on CLOSE as well
+    // as on open — the same defect, and the same fix, as the stay dialog beside this one (found there
+    // by review on 2026-07-30, and this copy had it too). Bumping only on open let a response that
+    // arrived while the dialog was shut pass its own sequence check and land in `suggestions`;
+    // nothing rendered then, but the next open painted the PREVIOUS activity's alternatives under the
+    // new activity's heading for the frame before this effect ran, with live "Use this one" buttons.
     askSeq.current += 1
+    if (!target) return
     setReasons([])
     setPreference('')
     setSuggestions(null)
