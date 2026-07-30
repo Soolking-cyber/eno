@@ -347,6 +347,41 @@ export function TripDetailClient({ id, openCase }: { id: string; openCase?: { re
               onDeleteStop={deleteStop}
               busyStopIds={busyStopIds}
             />
+            {/* ⚠️ THE STAY SHORTLIST, PUT BACK (owner, 2026-07-30: "doesnt show hotel options").
+                This was rendered by the saved-trip row's collapsible panel, and when that panel was
+                removed on 2026-07-29 the stays went with it — the trip page has never rendered
+                them, so the plan's hotel recommendations became unreachable from anywhere in the
+                product. The day-by-day content survived because this page already had it; the stays
+                simply had no home. Checked against the API, which has always returned them.
+
+                Read-only for now, deliberately: there is no stay-editing path in the codebase (the
+                refine dialog swaps ACTIVITIES, not accommodation), and inventing one silently is
+                not the same job as restoring what was lost. */}
+            {trip.stays.length > 0 && (
+              <section aria-labelledby="stay-shortlist" className="rounded-2xl border border-border/70 p-4">
+                <h2 id="stay-shortlist" className="text-2xs font-bold uppercase tracking-wide text-foreground">
+                  {tr('Where you would stay', 'Chỗ ở gợi ý')}
+                </h2>
+                <ul className="mt-2.5 space-y-2.5 text-xs text-body">
+                  {trip.stays.map((stay) => (
+                    <li key={stay.id}>
+                      <span className="font-semibold text-foreground">{loc(stay.name, stay.nameVi)}</span>
+                      {' · '}{loc(stay.area, stay.areaVi)}
+                      {stay.estimatedNightly
+                        ? ` · ${dualMoney(stay.estimatedNightly, moneyLocale(lang))}/${tr('night', 'đêm')}`
+                        : ''}
+                      {stay.note && <span className="mt-0.5 block text-muted-foreground">{loc(stay.note, stay.noteVi)}</span>}
+                    </li>
+                  ))}
+                </ul>
+                {/* Says how to change one, because there is no button that does it. Pointing at the
+                    desk is honest; a disabled "Edit" would not be. */}
+                <p className="mt-3 text-2xs leading-relaxed text-ink-4">
+                  {tr('Want a different hotel? Ask in the chat and the desk will swap it for you.',
+                      'Muốn khách sạn khác? Nhắn trong cuộc trò chuyện, bộ phận hỗ trợ sẽ đổi giúp bạn.')}
+                </p>
+              </section>
+            )}
             <AssistancePanel itineraryId={trip.id} openCase={openCase ?? null} />
             <StopRefineDialog
               itineraryId={trip.id}
