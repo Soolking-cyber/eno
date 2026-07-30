@@ -1060,6 +1060,7 @@ export const UI_STRINGS: string[] = [
   "Open Messages — your e-Visa chat is already there.",
   "Open another application",
   "Open in My Trips",
+  "Open map & edit",
   "Open one of your saved trips",
   "Open the Help center",
   "Open the dispute case to add your side",

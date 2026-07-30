@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { CalendarDays, Download, Loader2, Trash2, TriangleAlert } from 'lucide-react'
+import { CalendarDays, ChevronRight, Download, Loader2, Pencil, Trash2, TriangleAlert } from 'lucide-react'
 import { toast } from 'sonner'
 import { useLanguage } from '@/context/language-context'
 import { Badge } from '@/components/ui/badge'
@@ -109,10 +109,11 @@ function useTripMoney() {
       : money(amount, currency, moneyLocale(lang))
 }
 
-/** One saved itinerary: summary row (title / destination / day count / updated date)
- *  that expands in place to the full day-by-day plan + stay shortlist. Disclosure is
- *  Base UI Collapsible used directly — no ui/ collapsible primitive exists yet and this
- *  is its only call site (same direct-import precedent as availability-client). */
+/** One saved itinerary: a summary row (title / destination / day count / updated date) that LINKS
+ *  to the trip page, where the map and the stop editing live, plus a Word download and a delete.
+ *
+ *  ⚠️ It used to expand in place to the whole plan; that came out on 2026-07-29 by owner request.
+ *  What must NOT come back with it is the deadness — see the affordance note on the <li>. */
 export function TripCard({ trip, onDeleted }: { trip: SavedItinerary; onDeleted?: (id: string) => void }) {
   const { lang, tr } = useLanguage()
   const vi = lang === 'vi'
@@ -211,7 +212,16 @@ export function TripCard({ trip, onDeleted }: { trip: SavedItinerary; onDeleted?
     // ⚠️ THE LINK AND THE ACTIONS ARE SIBLINGS, never nested. A <button> inside an <a> is invalid
     // HTML and the two fight for the same tap; the visa case list solves it the same way, which is
     // the shape this row is deliberately copying.
-    <li className="flex items-start gap-3 py-4">
+    // ⚠️ THE ROW MUST LOOK LIKE IT OPENS SOMETHING, and the first cut did not (owner, 2026-07-30:
+    // "why i cannot see on the map and edit like before … now it looks kinda sad"). Stripping the
+    // Collapsible took the chevron with it and left a bare <Link> with no hover, no affordance and
+    // no arrow — so the list read as inert text and nobody tapped it. The map and the stop editing
+    // were one tap away the whole time, behind a row that did not look tappable.
+    //
+    // I mis-copied the visa list here: that one does NOT rely on row clicks, it gives every row
+    // explicit icon actions. Copying its flatness without its affordances is what produced a list
+    // that looks finished and does nothing.
+    <li className="group -mx-2 flex items-start gap-3 rounded-xl px-2 py-4 transition-colors hover:bg-tint">
       <Link
         href={`/dashboard/trips/${trip.id}`}
         className="flex min-w-0 flex-1 items-start gap-3 rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
@@ -228,7 +238,15 @@ export function TripCard({ trip, onDeleted }: { trip: SavedItinerary; onDeleted?
             {destination} · {trip.days} {tr('days', 'ngày')}
             {budget ? ` · ${budget}` : ''} · {tr('Updated', 'Cập nhật')} {updated}
           </span>
+          {/* Says where the row GOES. "Open & edit" was a labelled button in the old expanded panel;
+              losing it left nothing naming the destination, and the trip page is where the map and
+              the stop editing live — the part of this feature worth reaching. */}
+          <span className="mt-1.5 flex items-center gap-1 text-2xs font-bold text-accent-foreground">
+            <Pencil className="h-3 w-3" aria-hidden />
+            {tr('Open map & edit', 'Mở bản đồ & chỉnh sửa')}
+          </span>
         </span>
+        <ChevronRight className="mt-2.5 h-4 w-4 shrink-0 text-ink-4 transition-transform group-hover:translate-x-0.5" aria-hidden />
       </Link>
 
       {/* Icon-only, like the visa case row: on a phone two labelled buttons per row wrap and turn
