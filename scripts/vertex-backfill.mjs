@@ -68,7 +68,21 @@ const { rows } = await client.query(`
   LEFT JOIN "Category" c ON c.id = l."categoryId"
   LEFT JOIN "Seller"   s ON s.id = l."sellerId"
   WHERE l.verified = true AND l.status = 'active'
-  ORDER BY l.id ASC`)
+    -- ⚠️ THE DESK IS EXCLUDED AT INGEST, BECAUSE NO VERTEX-SIDE FILTER CAN DO IT LATER.
+    -- eno.vn is a licensed sàn TMĐT and may not surface e-visa or itinerary services, but the
+    -- ListingDoc schema below carries neither sellerId nor subcategorySlug — so buildFilter() is
+    -- structurally incapable of expressing the exclusion, and a code fix in the app leaves the
+    -- documents sitting in the index. The only enforcement inside a request is the live-table
+    -- re-validation in /api/ai/concierge; this keeps them out of the index in the first place.
+    --
+    -- Resolved by owner email, matching src/lib/visa-shop.ts and src/lib/trips/dm-thread.ts, rather
+    -- than by a hardcoded seller id that would silently stop matching after a reseed.
+    AND (s.id IS NULL OR s."ownerId" IS NULL OR s."ownerId" NOT IN (
+      SELECT p.id FROM "Profile" p
+      WHERE lower(p.email) = ANY (string_to_array(lower($1), ','))
+    ))
+  ORDER BY l.id ASC`,
+  [process.env.VISA_SHOP_OWNER_EMAIL || 'support@eno.forum'])
 await client.end()
 console.log(`importing ${rows.length} listings…`)
 
