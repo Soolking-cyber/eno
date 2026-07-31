@@ -117,13 +117,48 @@ retired migration history: never edit, push, or deploy from them. The `eno.forum
 deployment stays a separate service (it owns the forum domains and environment
 variables) but builds from `Soolking-cyber/eno` with root directory `apps/forum`.
 
-**⛔ THE FORUM HAS NOTHING ABOUT VISA OR ITINERARY — ONLY eno.vn (owner, 2026-07-29,
-verbatim).** This supersedes the softer 2026-07-21 wording. Both features belong to
-**eno.vn (repo root)** end to end — applicant flow, AI passport extraction, payments,
-the in-DM experience, the admin/operator queue, and the trip builder. Do not add,
-restore, or "fix forward" a visa or itinerary surface under `apps/forum/**` for any
-reason; if a forum file needs a visa behaviour, that is a signal to retire the file,
-not to edit it.
+**⛔⛔ THE 2026-07-29 RULE BELOW IS REVERSED — READ THIS FIRST (owner, 2026-07-31).**
+eno.vn is registering as a licensed Vietnamese company (sàn TMĐT) and **cannot legally
+offer e-visa services, itinerary services, or PayPal checkout**. Those move to
+**eno.forum**. The owner's words: *"we need 2 identical apps 1 legal for vietnam eno.vn
+to get licenses and register company the other one eno.forum to serve the evisa and
+itinerary services since eno.vn cant legally have them … we cant have paypal checkout
+in eno.vn only in eno.forum so visa and itinerary related ui should be visible only in
+forum one"*.
+
+**The architecture is ONE SHARED CODEBASE, not two.** The repo root is deployed **twice**
+as two Cloud Run services; an edition flag decides which surfaces are live. Do not fork,
+do not port files into `apps/forum`, and do not let the two drift — drift is exactly what
+this replaces. `apps/forum` (a separate 102-file app sharing no code with the root) gets
+**retired**, and eno.forum is served by the root codebase.
+
+| | eno.vn | eno.forum |
+|---|---|---|
+| marketplace | ✅ | ✅ (identical) |
+| visa · itinerary · PayPal | ⛔ **not even a mention** | ✅ |
+
+⚠️ **This is a legal boundary, not a feature flag.** The failure mode is a LEAK: any place
+eno.vn still shows, links to, describes, indexes, emails or serves one of those surfaces
+means the licensed company is advertising a service it is not licensed for. ⚠️ **Visa
+products are ordinary `Listing` rows sharing one `Seller` with the trip desk**, so browse,
+search, rails, sitemap, JSON-LD and the Google/Meta feeds leak them unless filtered — that
+is the likeliest thing to be missed, and it has nothing to do with the `/visa` pages.
+
+The two apps **share one database**, which means a eno.vn user's thread can already contain
+visa cards written by eno.forum. Degrade, never crash.
+
+Everything from here to the end of this section is **historical context for how the code got
+into its current shape** — the *direction* of ownership in it is now inverted. The
+Browserbase blocker and the `sync-pairs` warning below are still live and still matter.
+
+---
+
+**⛔ (SUPERSEDED 2026-07-31 — see above) THE FORUM HAS NOTHING ABOUT VISA OR ITINERARY —
+ONLY eno.vn (owner, 2026-07-29, verbatim).** This superseded the softer 2026-07-21 wording.
+Both features belonged to **eno.vn (repo root)** end to end — applicant flow, AI passport
+extraction, payments, the in-DM experience, the admin/operator queue, and the trip builder.
+Under that rule you were not to add, restore, or "fix forward" a visa or itinerary surface
+under `apps/forum/**` for any reason.
 
 - **Itinerary: DONE.** Zero files remain under `apps/forum/**` (verified 2026-07-29).
   The `/itinerary*` → `https://eno.vn/itinerary` 308 in `apps/forum/next.config.ts`
