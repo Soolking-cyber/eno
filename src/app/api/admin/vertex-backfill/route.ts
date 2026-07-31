@@ -1,3 +1,4 @@
+import { scopedListingWhere } from '@/lib/edition-scope'
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getAdmin } from '@/lib/admin'
@@ -23,7 +24,22 @@ export async function POST(req: NextRequest) {
   let done = 0
   for (;;) {
     const batch = await db.listing.findMany({
-      where: { verified: true, status: 'active' },
+      /**
+       * ⚠️ SCOPED, EVEN THOUGH THIS ROUTE IS ADMIN-ONLY — because the gate that matters here is not
+       * who can CALL it, it is where its OUTPUT goes. This writes into the Vertex index, and that
+       * index answers eno.vn's AI concierge. An admin re-running a backfill from eno.forum would
+       * otherwise re-import the desk's 15 listings and silently undo the exclusion for the licensed
+       * marketplace.
+       *
+       * The sibling scripts/vertex-backfill.mjs was fixed first and this was nearly missed: they are
+       * two independent implementations of the same import, and only the script is obvious. The
+       * edition-lint allowlist covers src/app/api/admin/** on reachability grounds, which is correct
+       * for reachability and wrong for data flow — noted there too.
+       *
+       * ListingDoc carries no sellerId, so no Vertex-side filter can express this after the fact.
+       * Ingest is the only place it can be done.
+       */
+      where: await scopedListingWhere({ verified: true, status: 'active' }),
       orderBy: { id: 'asc' },
       take: 100,
       ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
