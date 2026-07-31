@@ -1,3 +1,4 @@
+import { scopedListingWhere } from '@/lib/edition-scope'
 import { cache } from 'react'
 import { db } from '@/lib/db'
 import { serializeListingCard, LISTING_CARD_SELECT } from '@/lib/serialize'
@@ -34,7 +35,9 @@ const load = cache(async (categorySlug: string, districtSlug: string) => {
   const cat = await db.category.findUnique({ where: { slug: categorySlug } })
   if (!cat) return null
   const raw = await db.listing.findMany({
-    where: { categoryId: cat.id, verified: true, status: 'active', NOT: { district: null } },
+    // scopedListingWhere composes through AND, so the existing NOT survives untouched. This fixes
+    // the visible grid and the ItemList JSON-LD together — they read the same rows.
+    where: await scopedListingWhere({ categoryId: cat.id, verified: true, status: 'active', NOT: { district: null } }),
     // Card projection: the page renders <ListingCard> slots only, and the JS-side district
     // slug filter just needs `district` (included in the select). The full row × take 600
     // dragged descriptions/searchText/whole-Seller through Postgres for nothing.

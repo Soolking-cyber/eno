@@ -1,3 +1,4 @@
+import { marketplaceListingScope } from '@/lib/edition-scope'
 import 'server-only'
 import { fold } from '@/lib/fold'
 import { db } from '@/lib/db'
@@ -69,12 +70,19 @@ export async function getTrending(limit = 6): Promise<string[]> {
     // itself on tap (a self-reinforcing dead end). Members are already folded, so mirror
     // the search API's token-AND against the folded searchText blob. Cheap: runs at most
     // once per CACHE_TTL_MS per instance, and the route is CDN-cached ~5 min.
+    /**
+     * ⚠️ RESOLVED ONCE, ABOVE THE Promise.all, BECAUSE OF THE catch BELOW. Each term's callback ends
+     * in `catch { return true }` — a DB blip keeps the term rather than blanking the row. If the
+     * scope were resolved INSIDE that callback, a DeskResolutionError would be swallowed by exactly
+     * that catch and every term would silently survive unfiltered. Out here it propagates.
+     */
+    const editionScope = await marketplaceListingScope()
     const hits = await Promise.all(
       candidates.map(async (term) => {
         try {
           const tokens = term.split(/\s+/).filter((t) => t.length >= 2).slice(0, 6)
           const clauses = (tokens.length ? tokens : [term]).map((t) => ({ searchText: { contains: t } }))
-          const n = await db.listing.count({ where: { AND: [{ verified: true }, { status: 'active' }, ...clauses] } })
+          const n = await db.listing.count({ where: { AND: [{ verified: true }, { status: 'active' }, ...(editionScope.sellerId ? [{ sellerId: editionScope.sellerId }] : []), ...clauses] } })
           return n > 0
         } catch {
           return true // DB blip → keep the term rather than blanking the whole row

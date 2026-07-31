@@ -1,3 +1,4 @@
+import { scopedListingWhere } from '@/lib/edition-scope'
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { serializeListing } from '@/lib/serialize'
@@ -29,7 +30,11 @@ export async function GET(req: NextRequest) {
   const cats = split(sp.get('cats'), 6)
   const brands = split(sp.get('brands'), 6)
   const terms = split(sp.get('terms'), 6)
-  const base: Prisma.ListingWhereInput = { verified: true, status: 'active' }
+  // ⚠️ SAFE TO SCOPE `base` HERE, unlike the AI concierge. Both consumers compose it as an AND
+  // OPERAND (`{ AND: [base, …] }`) rather than spreading it, so the wrapper survives. The concierge
+  // builds `{ ...base, ...cat, AND: and(n) }` and would overwrite it — do not copy this pattern
+  // there without checking how the predicate is consumed.
+  const base: Prisma.ListingWhereInput = await scopedListingWhere({ verified: true, status: 'active' })
 
   // Relevance = listings in a category/brand the user has engaged with, OR matching a
   // recent search term (against the folded searchText blob). Broad OR — this is

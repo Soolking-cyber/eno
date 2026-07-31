@@ -1,3 +1,4 @@
+import { scopedListingWhere } from '@/lib/edition-scope'
 import { db } from '@/lib/db'
 import { serializeListing } from '@/lib/serialize'
 import { NextResponse } from 'next/server'
@@ -37,12 +38,19 @@ export async function GET(req: Request) {
     const listings = await db.listing.findMany({
       // Only items actually FOR SALE, in product categories — everything else isn't
       // catalog-eligible and would flag the feed.
-      where: {
+      // ⚠️ DEFENCE IN DEPTH. This feed is clean TODAY only by accident of taxonomy — FEED_CATEGORIES
+      // omits 'services' and the desk's rows are listingType 'service'. Re-categorise ONE product
+      // and eno's e-Visa service enters the licensed company's live Merchant Center / Meta ad
+      // catalog. The accident becomes a guarantee here.
+      //
+      // No try/catch around this: a DeskResolutionError must 500 rather than emit an unfiltered
+      // feed, because a bad feed is a licensing breach that nobody notices.
+      where: await scopedListingWhere({
         verified: true,
         status: 'active',
         listingType: 'sell',
         category: { slug: { in: FEED_CATEGORIES } },
-      },
+      }),
       include: { category: true, seller: true },
       orderBy: { postedAt: 'desc' },
     })

@@ -1,3 +1,4 @@
+import { scopedListingWhere } from '@/lib/edition-scope'
 import { NextRequest, NextResponse } from 'next/server'
 import { clientIp } from '@/lib/client-ip'
 import { db } from '@/lib/db'
@@ -28,7 +29,7 @@ async function dominantCategory(brandSlug: string): Promise<string | null> {
   const topCategoryId = async (excludeRent: boolean): Promise<string | null> => {
     const grouped = await db.listing.groupBy({
       by: ['categoryId'],
-      where: { verified: true, status: 'active', brandSlug, ...(excludeRent ? { listingType: { not: 'rent' } } : {}) },
+      where: await scopedListingWhere({ verified: true, status: 'active', brandSlug, ...(excludeRent ? { listingType: { not: 'rent' } } : {}) }),
       _count: { _all: true },
       orderBy: { _count: { categoryId: 'desc' } },
       take: 1,
@@ -49,12 +50,13 @@ type ModelHit = { brand: string; model: string; category: string | null }
 async function bestModelMatch(tokens: string[], brand: string | null): Promise<ModelHit | null> {
   if (tokens.length === 0) return null
   const rows = await db.listing.findMany({
-    where: {
+    // scopedListingWhere WRAPS rather than merges, so the existing top-level `AND` survives.
+    where: await scopedListingWhere({
       verified: true,
       status: 'active',
       brandSlug: brand ? brand : { not: null },
       AND: tokens.map((t) => ({ model: { contains: t, mode: 'insensitive' as const } })),
-    },
+    }),
     select: { model: true, brandSlug: true, views: true, contactCount: true, category: { select: { slug: true } } },
     take: 120,
   })

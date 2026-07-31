@@ -1,3 +1,4 @@
+import { scopedListingWhere } from '@/lib/edition-scope'
 import Link from 'next/link'
 import Image from 'next/image'
 import { isMockImageUrl } from '@/lib/listing-image'
@@ -65,7 +66,10 @@ export async function SeoLanding({ content }: { content: SeoContent }) {
   const browseHref = seoBrowseHref(content)
   try {
     const rows = await db.listing.findMany({
-      where: {
+      // ⚠️ ONE INSERTION COVERS TEN LANDING PAGES. This is a COMPONENT, so a route-level audit never
+      // finds it — and the comment below is the tell: these pages were built to surface the live
+      // visa listings by attribute, which is exactly what must not happen on eno.vn.
+      where: await scopedListingWhere({
         verified: true,
         status: 'active',
         category: { slug: content.categorySlug },
@@ -77,7 +81,7 @@ export async function SeoLanding({ content }: { content: SeoContent }) {
         ...(content.attributes
           ? { AND: Object.entries(content.attributes).map(([k, v]) => ({ attributes: { contains: `"${k}":"${v}"` } })) }
           : {}),
-      },
+      }),
       // Narrowed pages sort by price: these are products (one entry type × one speed), and the
       // question a visitor arrives with is what it costs. Category pages keep featured-then-newest.
       orderBy: content.subcategorySlug ? [{ price: 'asc' }] : [{ featured: 'desc' }, { postedAt: 'desc' }],

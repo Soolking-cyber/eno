@@ -1,3 +1,4 @@
+import { scopedListingWhere } from '@/lib/edition-scope'
 import { NextRequest, NextResponse } from 'next/server'
 import { clientIp } from '@/lib/client-ip'
 import { db } from '@/lib/db'
@@ -28,9 +29,12 @@ export async function GET(req: NextRequest) {
   // Brand matching key ("Louis V" → "louisv") so a spaced prefix still hits "louisvuitton".
   const brandKey = normalizeBrand(q)
 
+  // Hoisted above the Promise.all: an await inside an array element would serialise the three
+  // queries that this Promise.all exists to overlap.
+  const suggestWhere = await scopedListingWhere({ verified: true, status: 'active', AND: searchAnd })
   const [listings, allCategories, brands] = await Promise.all([
     db.listing.findMany({
-      where: { verified: true, status: 'active', AND: searchAnd },
+      where: suggestWhere,
       // Same balanced rankScore blend as the browse feed — the typeahead is a placement
       // surface too, so a trusted-and-fresh seller's match surfaces above a weaker one,
       // and the quick suggestions agree with the full results (no jarring re-sort on submit).

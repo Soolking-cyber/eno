@@ -1,3 +1,4 @@
+import { scopedListingWhere } from '@/lib/edition-scope'
 import { cache } from 'react'
 import { db } from '@/lib/db'
 import { serializeListingCard, LISTING_CARD_SELECT } from '@/lib/serialize'
@@ -35,7 +36,7 @@ export async function generateStaticParams() {
 const loadCategory = cache(async (slug: string) => {
   const cat = await db.category.findUnique({ where: { slug } })
   if (!cat) return null
-  const live = await db.listing.count({ where: { categoryId: cat.id, verified: true, status: 'active' } })
+  const live = await db.listing.count({ where: await scopedListingWhere({ categoryId: cat.id, verified: true, status: 'active' }) })
   return { cat, live }
 })
 
@@ -88,9 +89,17 @@ export default async function CategoryPage({ params }: Props) {
   // still reflect the whole category.
   const PAGE_SIZE = 48
   const where = { categoryId: cat.id, verified: true, status: 'active' as const }
+  /**
+   * ⚠️ SCOPED COPIES, NOT A MUTATED `where`. The district query below SPREADS this same const, and
+   * spreading an exclusion fragment beside other keys is exactly the collision trap
+   * edition-scope.ts exists to prevent. Hoisted out of the Promise.all so the grid and the district
+   * facet are built from predicates that cannot disagree.
+   */
+  const scopedWhere = await scopedListingWhere(where)
+  const scopedDistrictWhere = await scopedListingWhere({ ...where, district: { not: null } })
   const [raw, otherCats, districtRows] = await Promise.all([
     db.listing.findMany({
-      where,
+      where: scopedWhere,
       // Card projection: this page only renders <ListingCard> slots — the full row
       // (description, attributes, searchText, whole Seller) tripled the ISR payload.
       select: LISTING_CARD_SELECT,
@@ -98,7 +107,7 @@ export default async function CategoryPage({ params }: Props) {
       take: PAGE_SIZE,
     }),
     db.category.findMany({ where: { NOT: { id: cat.id } }, orderBy: { name: 'asc' } }),
-    db.listing.findMany({ where: { ...where, district: { not: null } }, select: { district: true }, distinct: ['district'], take: 80 }),
+    db.listing.findMany({ where: scopedDistrictWhere, select: { district: true }, distinct: ['district'], take: 80 }),
   ])
   const listings = await localizeListingTitles(raw.map(serializeListingCard))
   const districts = [...new Set(districtRows.map((r) => r.district).filter((d): d is string => !!d))]
