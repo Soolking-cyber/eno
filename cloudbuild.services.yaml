@@ -1,0 +1,119 @@
+# Cloud Build — eno.forum SERVICES edition: build → push → deploy to Cloud Run.
+#
+# ⚠️ THE SAME SOURCE AS cloudbuild.yaml, BUILT A SECOND TIME WITH A DIFFERENT IDENTITY. eno.vn is a
+# licensed Vietnamese company (sàn TMĐT) and cannot offer e-visa, itinerary or PayPal services;
+# eno.forum does. Both are this one repo. What separates them is entirely in the build-time env:
+# NEXT_PUBLIC_ENO_EDITION picks the pageExtensions (so services-only routes exist at all) and
+# NEXT_PUBLIC_APP_URL brands the artifact. next.config.ts refuses to build if those two disagree.
+#
+# ⚠️ WHY A SECOND IMAGE RATHER THAN ONE IMAGE WITH A RUNTIME FLAG — the question everyone asks when
+# they see the bill, so the answer lives here. Three things are decided at BUILD time and cannot be
+# undone at request time: prerendered HTML (/regulations is fully static and names PayPal, and the
+# home page bakes the live "E-Visa - Standard Processing" listing title), the inlined
+# NEXT_PUBLIC_APP_URL that every canonical and OG url derives from, and the client chunks (the string
+# "Pay with PayPal" sits in two of them). A runtime flag would ship all three to eno.vn browsers and
+# merely decline to render them. "The code is not in the artifact" is a statement you can verify with
+# grep; "the code declines to run" is a promise about control flow.
+#
+# Cost, stated plainly: this roughly doubles Cloud Build, already ~62% of this project's GCP spend,
+# because every push to main now builds both editions. The two triggers run in parallel, so
+# time-to-prod is unchanged. The cheap lever was already taken — see the machineType note at the
+# bottom of cloudbuild.yaml, which applies here verbatim.
+steps:
+  # Overlap the deploy-image pull with the docker build; see the note in cloudbuild.yaml.
+  - id: warm-deploy-image
+    name: gcr.io/cloud-builders/docker
+    waitFor: ['-']
+    entrypoint: bash
+    args: ['-c', 'docker pull gcr.io/google.com/cloudsdktool/cloud-sdk:slim || true']
+
+  # ⚠️ A GUARD, NOT A FORMALITY. This config and cloudbuild.yaml are near-identical, so the realistic
+  # mistake is a copy-paste that leaves one field pointing at the other edition — an image tagged
+  # eno-vn deployed to eno-forum, or the marketplace secret feeding a services build. Either would
+  # put the licensed company's identity on the services domain, or the services surfaces on the
+  # licensed one, and both would deploy green. Failing here costs one build; not failing costs a
+  # licence. It checks what this file ASSERTS about itself, before anything is built.
+  - id: assert-edition
+    name: gcr.io/cloud-builders/docker
+    waitFor: ['-']
+    entrypoint: bash
+    args:
+      - -c
+      - |
+        set -euo pipefail
+        test "${_EDITION}" = "services" || { echo "cloudbuild.services.yaml must build the services edition, got '${_EDITION}'"; exit 1; }
+        test "${_SERVICE}" = "eno-forum" || { echo "services edition must deploy to eno-forum, got '${_SERVICE}'"; exit 1; }
+        test "${_IMAGE}" = "eno-services" || { echo "services edition must publish the eno-services image, got '${_IMAGE}'"; exit 1; }
+        echo "edition guard ok: ${_EDITION} → ${_SERVICE} (${_IMAGE})"
+
+  - id: build-push
+    name: gcr.io/cloud-builders/docker
+    waitFor: ['assert-edition']
+    entrypoint: bash
+    secretEnv: ['BUILDENV']
+    args:
+      - -c
+      - |
+        set -euo pipefail
+        printf '%s' "$$BUILDENV" > /workspace/buildenv.env
+        # ⚠️ APPENDED, NOT ASSUMED. The edition is what makes this build different from the
+        # marketplace one, and it is too important to depend on someone having remembered to put it
+        # in the secret. Appending after the secret means this file wins even if the secret carries a
+        # stale or absent value — the Dockerfile sources the whole file with `set -a`, last
+        # assignment winning. next.config.ts still cross-checks it against NEXT_PUBLIC_APP_URL, which
+        # DOES come from the secret, so a secret pointing at the wrong host fails the build rather
+        # than shipping mislabelled.
+        printf '\nNEXT_PUBLIC_ENO_EDITION=%s\n' "${_EDITION}" >> /workspace/buildenv.env
+        export DOCKER_BUILDKIT=1
+        docker build \
+          --secret id=buildenv,src=/workspace/buildenv.env \
+          -t asia-southeast1-docker.pkg.dev/$PROJECT_ID/eno/${_IMAGE}:${_TAG} \
+          -t asia-southeast1-docker.pkg.dev/$PROJECT_ID/eno/${_IMAGE}:latest \
+          .
+        rm -f /workspace/buildenv.env
+        docker push --all-tags asia-southeast1-docker.pkg.dev/$PROJECT_ID/eno/${_IMAGE}
+
+  # ⚠️ THE eno-vn SERVICE PROFILE, NOT THE OLD FORUM ONE. docs/gcp-migration.md provisioned
+  # eno-forum for a JS-only forum with no ISR; it is about to run the same app as eno.vn — ffmpeg
+  # transcode, sharp, and the shared Postgres ISR cache handler. Under-provisioning it would look
+  # like a mysterious visa-flow timeout rather than a config mistake.
+  - id: deploy
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    waitFor: ['build-push', 'warm-deploy-image']
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - ${_SERVICE}
+      - --image=asia-southeast1-docker.pkg.dev/$PROJECT_ID/eno/${_IMAGE}:${_TAG}
+      - --region=asia-southeast1
+      - --project=$PROJECT_ID
+      - --memory=2Gi
+      - --cpu=2
+      - --no-cpu-throttling
+      - --timeout=320s
+      - --min-instances=1
+      - --quiet
+
+availableSecrets:
+  secretManager:
+    # ⚠️ ITS OWN SECRET, and the separation is the point rather than tidiness: this one holds
+    # NEXT_PUBLIC_APP_URL=https://www.eno.forum plus the PAYPAL_*, STRIPE_*, VISA_* and BROWSERBASE_*
+    # keys. Those keys are being REMOVED from eno-root-env, so the marketplace image cannot transact
+    # even if a code path survived — the licensed company holds no payment credentials for a service
+    # it is not licensed to sell. src/lib/visa/payments.ts already treats missing fee/keys as dormant,
+    # so their removal is behaviourally a no-op on eno.vn.
+    - versionName: projects/$PROJECT_ID/secrets/eno-services-env/versions/latest
+      env: BUILDENV
+
+substitutions:
+  _TAG: manual
+  _EDITION: services
+  _SERVICE: eno-forum
+  _IMAGE: eno-services
+
+options:
+  # See cloudbuild.yaml for why no machineType is pinned — the measurement applies to this build too.
+  logging: CLOUD_LOGGING_ONLY
+  dynamicSubstitutions: true
+timeout: 1800s
