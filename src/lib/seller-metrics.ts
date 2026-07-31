@@ -1,3 +1,4 @@
+import { scopedListingWhere } from '@/lib/edition-scope'
 import 'server-only'
 import { cache } from 'react'
 import { db } from '@/lib/db'
@@ -207,7 +208,10 @@ export const topSellerReviews = cache(async (sellerId: string, take = 2, known?:
 export const sameSellerListings = cache(
   async (sellerId: string, excludeListingId: string, take = 10): Promise<SerializedListingCard[]> => {
     const rows = await db.listing.findMany({
-      where: { sellerId, verified: true, status: 'active', id: { not: excludeListingId } },
+      // ⚠️ scopedListingWhere IS MANDATORY HERE, NOT THE RAW FRAGMENT. This predicate already carries
+    // a top-level `sellerId`, so spreading the fragment would either overwrite the exclusion (a leak)
+    // or overwrite the caller's sellerId (the wrong shelf). AND-composition keeps both.
+    where: await scopedListingWhere({ sellerId, verified: true, status: 'active', id: { not: excludeListingId } }),
       orderBy: { postedAt: 'desc' },
       take,
       select: LISTING_CARD_SELECT,

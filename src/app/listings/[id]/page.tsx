@@ -1,3 +1,4 @@
+import { scopedListingWhere } from '@/lib/edition-scope'
 import { cache } from 'react'
 import { db } from '@/lib/db'
 import { formatMoneyFull, dropPercent } from '@/lib/vnd'
@@ -70,9 +71,16 @@ export async function generateStaticParams() {
 
 // Cached per-request so generateMetadata + the page share ONE DB query instead of
 // each running its own findUnique for the same listing.
-const getListing = cache((id: string) =>
-  db.listing.findUnique({
-    where: { id },
+/**
+ * ⚠️ findFirst, NOT findUnique, AND THAT IS FORCED. `scopedListingWhere` returns an
+ * `{ AND: [...] }` wrapper, which `ListingWhereUniqueInput` rejects outright. Both callers —
+ * generateMetadata and the page body — already notFound() on null, so a desk listing simply becomes
+ * a 404 on eno.vn instead of an ISR-cached PDP shipping Product JSON-LD (offers, priceCurrency,
+ * seller) for a government e-Visa service from a licensed sàn TMĐT.
+ */
+const getListing = cache(async (id: string) =>
+  db.listing.findFirst({
+    where: await scopedListingWhere({ id }),
     // owner.lastSeenAt: presence for the seller strip — consumed server-side into a
     // day-coarse bucket input (sellerMetrics), the raw timestamp never serializes.
     include: { category: true, seller: { include: { owner: { select: { accountType: true, lastSeenAt: true } } } } },

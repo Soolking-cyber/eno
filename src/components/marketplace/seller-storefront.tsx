@@ -1,3 +1,4 @@
+import { deskSellerIds, scopedListingWhere } from '@/lib/edition-scope'
 import { cache } from 'react'
 import { notFound } from 'next/navigation'
 import { AlertTriangle, BadgeCheck, Star } from 'lucide-react'
@@ -26,18 +27,32 @@ import { isBusinessVerified } from '@/lib/business-verification'
 
 // Single per-request DB read shared by generateMetadata + the page (React cache
 // dedupes), so an SEO seller page makes ONE round-trip instead of two.
-export const loadSeller = cache((id: string) =>
-  db.seller.findUnique({
+export const loadSeller = cache(async (id: string) => {
+  /**
+   * ⚠️ THE WHOLE STOREFRONT IS REFUSED, NOT JUST ITS GRID. This component backs BOTH public routes —
+   * /sellers/[id] and the vanity /[handle] — so /eno_visa on eno.vn served the desk's name, bio,
+   * trust score, reviews and all 15 listings. The pre-existing `isVisaDesk` check further down only
+   * suppresses the Chat CTA; the grid still rendered. Scoping just the nested `listings` include
+   * would leave the desk's public presence on a licensed sàn TMĐT intact, minus the products.
+   *
+   * Keyed on the SELLER's own `id`, so this is deskSellerIds() and not marketplaceListingScope() —
+   * that fragment keys on `sellerId` and would be a silent no-op here. It returns [] on the services
+   * edition, so eno.forum still serves its own storefront.
+   *
+   * Returning null must reach a real 404: both routes notFound() on a null seller.
+   */
+  if ((await deskSellerIds()).includes(id)) return null
+  return db.seller.findUnique({
     where: { id },
     include: {
-      listings: { where: { verified: true, status: 'active' }, orderBy: { postedAt: 'desc' }, include: { category: true, seller: true } },
+      listings: { where: await scopedListingWhere({ verified: true, status: 'active' }), orderBy: { postedAt: 'desc' }, include: { category: true, seller: true } },
       handle: { select: { handle: true } }, // public shopname → the shareable eno.vn/<name> link
       // accountType → SellerCard's Business chip; lastSeenAt → the presence bucket
       // (consumed server-side by sellerMetrics — only the day-coarse value escapes).
       owner: { select: { accountType: true, lastSeenAt: true } },
     },
-  }),
-)
+  })
+})
 
 // Reviews are fetched with an EXPLICIT select (not include) so we can read the
 // verified-buyer provenance columns — and stay resilient before they exist: the

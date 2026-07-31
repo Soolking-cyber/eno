@@ -1,3 +1,4 @@
+import { scopedListingWhere } from '@/lib/edition-scope'
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { serializeListingCard, LISTING_CARD_SELECT } from '@/lib/serialize'
@@ -18,7 +19,10 @@ export async function GET() {
   // back to listing count where there's no traffic yet.
   const grouped = await db.listing.groupBy({
     by: ['categoryId'],
-    where: { verified: true, status: 'active' },
+    // ⚠️ RANK. Scoped together with the fill below, never alone: this groupBy applies a MIN_LISTINGS
+    // floor and slices to MAX_RAILS, so scoping only the fill leaves a Services rail that ranked in
+    // on the desk's demand and then renders with zero cards.
+    where: await scopedListingWhere({ verified: true, status: 'active' }),
     _count: { _all: true },
     _sum: { views: true, contactCount: true },
   })
@@ -43,7 +47,9 @@ export async function GET() {
       const slug = slugById.get(r.categoryId)
       if (!slug) return null
       const listings = await db.listing.findMany({
-        where: { verified: true, status: 'active', categoryId: r.categoryId },
+        // ⚠️ FILL — the read that actually PRINTS the cards. take: PER_RAIL applies after the
+        // exclusion, so the rail refills from real marketplace supply rather than shrinking.
+        where: await scopedListingWhere({ verified: true, status: 'active', categoryId: r.categoryId }),
         // Balanced rankScore blend, then most-viewed — matches the main feed's order.
         orderBy: [
           { rankScore: 'desc' },

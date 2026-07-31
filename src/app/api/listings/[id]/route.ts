@@ -1,3 +1,4 @@
+import { scopedListingWhere } from '@/lib/edition-scope'
 import { NextRequest, NextResponse } from 'next/server'
 import { checkListingOwner } from '@/lib/listing-owner'
 import { db } from '@/lib/db'
@@ -17,8 +18,10 @@ export const dynamic = 'force-dynamic'
 // serializeListing keeps seller.phone null; contact reveal stays auth-gated.
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const listing = await db.listing.findUnique({
-    where: { id },
+  // findFirst, not findUnique — see the PDP. The existing null/verified/status check below already
+  // turns an excluded row into the same 404 a missing one gets, so nothing downstream changes.
+  const listing = await db.listing.findFirst({
+    where: await scopedListingWhere({ id }),
     include: { category: true, seller: { include: { owner: { select: { accountType: true } } } } },
   })
   if (!listing || !listing.verified || listing.status !== 'active') {

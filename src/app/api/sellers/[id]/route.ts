@@ -1,3 +1,4 @@
+import { deskSellerIds, scopedListingWhere } from '@/lib/edition-scope'
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { serializeListing } from '@/lib/serialize'
@@ -15,13 +16,25 @@ export const dynamic = 'force-dynamic'
 // honesty gate), the seller's active listings as cards, and top reviews.
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
+  /**
+   * ⚠️ GUARDED BEFORE THE QUERY, AND NOT WITH marketplaceListingScope(). That fragment keys on
+   * `sellerId`, a LISTING column; spreading it into a Seller `where: { id }` is a SILENT NO-OP that
+   * looks exactly like protection. This route has no auth at all, sets `s-maxage=60`, and returns
+   * the desk's storefront header, metrics and reviews to anyone who asks — the worst single leak in
+   * its batch. deskSellerIds() resolves to [] on the services edition, so eno.forum is unaffected.
+   */
+  if ((await deskSellerIds()).includes(id)) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  }
   const seller = await db.seller.findUnique({
     where: { id },
     include: {
       owner: { select: { accountType: true, lastSeenAt: true } },
       handle: { select: { handle: true } },
       listings: {
-        where: { verified: true, status: 'active' },
+        // Nested-include reads are invisible to a Prisma client extension and to edition-lint's
+        // regex, so this one only ever gets fixed by hand.
+        where: await scopedListingWhere({ verified: true, status: 'active' }),
         orderBy: { postedAt: 'desc' },
         take: 24,
         include: { category: true, seller: { include: { owner: { select: { accountType: true } } } } },
