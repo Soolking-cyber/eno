@@ -1,4 +1,5 @@
 import type { Metadata } from 'next'
+import { IS_SERVICES } from '@/lib/edition'
 import { Tr } from '@/context/language-context'
 import { ContentPage, ContentSection } from '@/components/marketplace/content-page'
 import { COMPANY } from '@/lib/site-legal'
@@ -68,7 +69,21 @@ export default function RegulationsPage() {
       </ContentSection>
 
       <ContentSection id="fees" title="7. Fees & payment">
-        <p className="text-sm leading-relaxed text-body"><Tr text="Posting and browsing on eno.vn are currently free. eno.vn processes no payments between buyers and sellers and holds no escrow. If paid services for sellers (for example subscriptions or promoted listings) are introduced, they will be announced at least 5 days in advance with clear pricing in VND, and paid placement will always be visibly labeled. Separately, optional assistance services offered by eno itself (for example the assisted e-Visa application service) may carry a clearly displayed service fee, paid to eno in advance through our payment providers (such as Stripe or PayPal); such fees are for eno's own service and are never a payment between buyers and sellers." /></p>
+        {/* ⚠️ FORKED BY EDITION, AND THE MARKETPLACE BRANCH MUST NOT MENTION e-VISA OR A PAYMENT
+            PROVIDER. This is the MoIT sàn-TMĐT disclosure, so the page stays live on both editions —
+            404 is not an option here. But the original sentence had the licensed operator stating,
+            in its own compliance text, that it sells assisted e-Visa applications and takes card
+            payment for them. That is the single most quotable line on the site for a regulator
+            checking whether eno.vn offers a service it is not licensed for.
+
+            ⚠️ TWO STRING LITERALS, NOT ONE STRING BUILT BY CONCATENATION. scripts/gen-ui-strings.mjs
+            harvests `<Tr text="…">` by static analysis, so a composed string would silently drop out
+            of the translation catalogue and the CI drift guard would not notice. */}
+        {IS_SERVICES ? (
+          <p className="text-sm leading-relaxed text-body"><Tr text="Posting and browsing on eno.vn are currently free. eno.vn processes no payments between buyers and sellers and holds no escrow. If paid services for sellers (for example subscriptions or promoted listings) are introduced, they will be announced at least 5 days in advance with clear pricing in VND, and paid placement will always be visibly labeled. Separately, optional assistance services offered by eno itself (for example the assisted e-Visa application service) may carry a clearly displayed service fee, paid to eno in advance through our payment providers (such as Stripe or PayPal); such fees are for eno's own service and are never a payment between buyers and sellers." /></p>
+        ) : (
+          <p className="text-sm leading-relaxed text-body"><Tr text="Posting and browsing on eno.vn are currently free. eno.vn processes no payments between buyers and sellers and holds no escrow. If paid services for sellers (for example subscriptions or promoted listings) are introduced, they will be announced at least 5 days in advance with clear pricing in VND, and paid placement will always be visibly labeled." /></p>
+        )}
       </ContentSection>
 
       <ContentSection id="privacy" title="8. Personal information">

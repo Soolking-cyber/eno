@@ -1,3 +1,4 @@
+import { IS_SERVICES } from '@/lib/edition'
 // ─────────────────────────────────────────────────────────────────────────────
 // CANONICAL TAXONOMY — single source of truth for categories, subcategories,
 // listing types (intent), and per-category facets.
@@ -186,9 +187,23 @@ export function isVisaProductSlot(categorySlug: string, subcategorySlug?: string
  *
  * Shape mirrors INTENT_SHORTCUTS above, plus the kind/href pair the tile needs.
  */
+/**
+ * ⚠️ EMPTY ON THE MARKETPLACE EDITION. These two tiles read "Vietnam e-Visa" and "Trip planner" and
+ * sit ABOVE THE FOLD on the most-crawled page of the site — the single most visible mention of an
+ * unlicensed service on eno.vn, which is a licensed sàn TMĐT.
+ *
+ * ⚠️ GATED IN THE DATA, NOT AT THE RENDER SITE, and that is deliberate. The plan proposed wrapping
+ * the `.map` in listings-explorer.tsx; gating here means the NEXT consumer of this constant is
+ * covered too, without anyone remembering. It is exported, so "there is only one call site today" is
+ * a fact with a short shelf life. It also keeps the change out of listings-explorer.tsx, a landmine
+ * file whose pagination sentinel must never be touched incidentally.
+ *
+ * `IS_SERVICES` is a build-time constant, so on a marketplace build this is a literal `[]` and the
+ * strings never enter the bundle.
+ */
 export const DESK_SHORTCUTS: {
   key: string; name: string; nameVi: string; icon: string; kind: 'filter' | 'route'; href: string
-}[] = [
+}[] = IS_SERVICES ? [
   {
     key: 'evisa', name: 'Vietnam e-Visa', nameVi: 'e-Visa Việt Nam', icon: 'Stamp',
     kind: 'filter', href: `/?category=${VISA_CATEGORY_SLUG}&subcategory=${VISA_SUBCATEGORY_SLUG}`,
@@ -197,7 +212,7 @@ export const DESK_SHORTCUTS: {
     key: 'trip', name: 'Trip planner', nameVi: 'Lên lịch trình', icon: 'CalendarDays',
     kind: 'route', href: '/itinerary',
   },
-]
+] : []
 
 // Entry-type copy. The VALUES and their order come from VISA_ENTRY_TYPES (the engine's
 // own union), so a new entry type is a TYPE ERROR here instead of a chip that silently

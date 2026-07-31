@@ -1,3 +1,4 @@
+import { IS_SERVICES } from '@/lib/edition'
 import { db } from '@/lib/db'
 import { VIETNAM_EVISA_PATHS } from '@/app/vietnam-evisa/links'
 import { HELP_TOPIC_SLUGS } from '@/lib/help-center'
@@ -103,7 +104,8 @@ export async function GET() {
     // not a static info page like /terms, and it does not funnel to a category like the keyword
     // pages. (It used to carry a middling <priority> to say so; that attribute is gone, and this
     // line survives only because grouping it with /terms would misdescribe what the page is.)
-    xml += `  <url><loc>${hostUrl}/itinerary</loc></url>\n`
+    // ⚠️ SERVICES EDITION ONLY — see the note on the e-visa loop below.
+    if (IS_SERVICES) xml += `  <url><loc>${hostUrl}/itinerary</loc></url>\n`
 
     // SEO keyword landing pages (funnel to categories → track the site's freshest content)
     for (const p of [
@@ -111,7 +113,9 @@ export async function GET() {
       'jobs-vietnam-expats',
       'motorbikes-for-sale-vietnam',
       'moving-sales-vietnam',
-      'services-for-expats-vietnam',
+      // ⚠️ SERVICES EDITION ONLY. Two thirds of this page is e-visa and trip-planning copy, so on
+      // the licensed marketplace it must not be submitted to Google — see the note below.
+      ...(IS_SERVICES ? ['services-for-expats-vietnam'] : []),
     ]) {
       xml += `  <url><loc>${hostUrl}/${p}</loc>${lm(siteLastmod)}</url>\n`
     }
@@ -123,8 +127,20 @@ export async function GET() {
     // fails. `VIETNAM_EVISA_PATHS` is derived from the same EVISA_CHILDREN array the hub renders
     // its links from, so adding a child adds it here too. The paths carry `siteLastmod` for the
     // same reason the block above does: their listing rails track the site's freshest content.
-    for (const path of VIETNAM_EVISA_PATHS) {
-      xml += `  <url><loc>${hostUrl}${path}</loc>${lm(siteLastmod)}</url>\n`
+    /**
+     * ⚠️ THREE SEPARATE EMISSIONS HAD TO BE GATED, NOT ONE, AND THIS IS THE ONLY OBVIOUS ONE.
+     * The /itinerary line above and 'services-for-expats-vietnam' in the static array are the other
+     * two; closing only this loop would leave the licensed marketplace still submitting a trip
+     * service and a page that is two-thirds e-visa copy to Google.
+     *
+     * The sitemap is not a passive document — it is eno.vn actively ASKING Google to index these
+     * URLs. On a licensed sàn TMĐT that may not offer visa services, that is the most active form of
+     * advertising one on the whole site.
+     */
+    if (IS_SERVICES) {
+      for (const path of VIETNAM_EVISA_PATHS) {
+        xml += `  <url><loc>${hostUrl}${path}</loc>${lm(siteLastmod)}</url>\n`
+      }
     }
 
     // Indexing decoupled from PRELAUNCH (owner, 2026-07-18): the full data-driven

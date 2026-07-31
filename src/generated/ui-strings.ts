@@ -1164,6 +1164,7 @@ export const UI_STRINGS: string[] = [
   "Post the current e-Visa step again at the bottom of this chat",
   "Post your first one — it only takes a minute.",
   "Posted",
+  "Posting and browsing on eno.vn are currently free. eno.vn processes no payments between buyers and sellers and holds no escrow. If paid services for sellers (for example subscriptions or promoted listings) are introduced, they will be announced at least 5 days in advance with clear pricing in VND, and paid placement will always be visibly labeled.",
   "Posting and messaging are paused — everything else stays exactly as you left it.",
   "Posting as",
   "Posting is paused while a person double-checks your account details — this usually clears quickly. If it takes too long, appeal below.",

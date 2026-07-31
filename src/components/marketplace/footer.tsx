@@ -7,6 +7,7 @@ import { FORUM_URL, goToForum } from '@/lib/forum-nav'
 import { handleExternalClick } from '@/lib/native-browser'
 import { COMPANY } from '@/lib/site-legal'
 import { TAXONOMY } from '@/lib/taxonomy'
+import { IS_SERVICES } from '@/lib/edition'
 
 export function Footer() {
   const { tr } = useLanguage()
@@ -46,13 +47,19 @@ export function Footer() {
         { label: tr('Jobs in Vietnam for expats', 'Việc làm cho người nước ngoài'), href: '/jobs-vietnam-expats' },
         { label: tr('Motorbikes for sale in Vietnam', 'Mua bán xe máy tại Việt Nam'), href: '/motorbikes-for-sale-vietnam' },
         { label: tr('Moving sales in Vietnam', 'Thanh lý chuyển nhà tại Việt Nam'), href: '/moving-sales-vietnam' },
-        { label: tr('Services for expats in Vietnam', 'Dịch vụ cho người nước ngoài'), href: '/services-for-expats-vietnam' },
+        /* ⚠️ SERVICES EDITION ONLY. eno.vn is a licensed sàn TMĐT and may not advertise visa,
+           itinerary or PayPal services. The footer is the highest-frequency leak in the repo:
+           these are real crawlable <a href> anchors on ~250 routes in BOTH languages, baked
+           into every prerendered file down to _not-found.html. `IS_SERVICES` is a build-time
+           constant, so on a marketplace build the minifier deletes the entry outright rather
+           than rendering nothing. */
+        ...(IS_SERVICES ? [{ label: tr('Services for expats in Vietnam', 'Dịch vụ cho người nước ngoài'), href: '/services-for-expats-vietnam' }] : []),
         // ⚠️ THE WHOLE SEO HALF OF THE FIX, IN ONE LINE. `grep -rn "vietnam-evisa" src` returned
         // exactly ONE inbound internal link — from /services-for-expats-vietnam, which is itself
         // only reachable from this same column. So the 6-page e-Visa cluster sat TWO footer hops
         // from anywhere, on a site Googlebot visited 15 times in two days. This puts it one hop
         // from every page. A real <a href>, unlike the home tiles, which are Buttons.
-        { label: tr('Vietnam e-Visa online', 'e-Visa Việt Nam trực tuyến'), href: '/vietnam-evisa' },
+        ...(IS_SERVICES ? [{ label: tr('Vietnam e-Visa online', 'e-Visa Việt Nam trực tuyến'), href: '/vietnam-evisa' }] : []),
       ],
     },
     {
@@ -69,7 +76,7 @@ export function Footer() {
         // eno.vn and /itinerary is a real page here, not a redirect off to the forum. So it
         // must NOT carry forumPath — routing a same-origin link through the SSO handoff would
         // bounce the visitor to eno.forum and back to fetch a session they already have.
-        { label: tr('Trip planner', 'Lập kế hoạch chuyến đi'), href: '/itinerary' },
+        ...(IS_SERVICES ? [{ label: tr('Trip planner', 'Lập kế hoạch chuyến đi'), href: '/itinerary' }] : []),
         // e-Visa lives on eno.vn now (ownership row, 2026-07-21): the desk's storefront is
         // where a visitor applies (in-chat flow) — the forum wizard is legacy awaiting
         // retirement. Plain SAME-ORIGIN link: no forumPath, no goToForum interception.
@@ -79,7 +86,7 @@ export function Footer() {
         // rank; the storefront holds 14 of the 34 live listings and nothing reachable pointed at it.
         // `/eno_vietnam` is 301'd in next.config.ts rather than simply dropped, because Bing has it
         // indexed under the title "Eno Visa" — deleting it would strip a real inbound path.
-        { label: tr('Vietnam e-Visa help', 'Hỗ trợ e-Visa Việt Nam'), href: '/eno_visa' },
+        ...(IS_SERVICES ? [{ label: tr('Vietnam e-Visa help', 'Hỗ trợ e-Visa Việt Nam'), href: '/eno_visa' }] : []),
       ],
     },
   ]
