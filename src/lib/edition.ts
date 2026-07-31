@@ -25,11 +25,30 @@
  * flag is another combination that can disagree in a state nobody tested, and the whole point of one
  * codebase is that the two editions cannot drift.
  *
- * ⚠️ BUILD-TIME, NOT RUNTIME, and the `NEXT_PUBLIC_` prefix is what makes that true: it is the
- * prefix that makes Next inline the literal into client chunks, so the minifier can delete the
- * branch rather than merely skip it at render. The value is not a secret. Three measured facts force
- * build-time over a runtime check — all three verified against this repo's own production build on
- * 2026-07-31:
+ * ⚠️ CORRECTION, MEASURED 2026-07-31 — READ THIS BEFORE RELYING ON DEAD-CODE ELIMINATION.
+ * An earlier version of this comment claimed the `NEXT_PUBLIC_` prefix lets the minifier DELETE
+ * `IS_SERVICES && <VisaChip/>` branches from client chunks. It does not, and the artifact says so:
+ * a marketplace build contains 25 runtime reads of the form `h.IS_SERVICES?[…]:[]` and not one
+ * inlined literal. Turbopack substitutes `process.env.NEXT_PUBLIC_ENO_EDITION` INSIDE this file, so
+ * `EDITION` folds here — but it does not propagate the resulting boolean across module boundaries
+ * to consumers that `import { IS_SERVICES }`.
+ *
+ * What that means, precisely, so nobody over- or under-trusts this flag:
+ *   · BEHAVIOUR is correct. A gated branch does not render on the marketplace edition. Every gate in
+ *     this codebase is doing the job it was added for.
+ *   · ROUTES genuinely do not exist. That guarantee comes from `pageExtensions` + the `.svc.`
+ *     convention in next.config.ts, which is a COMPILE-time exclusion — verified: zero prerendered
+ *     visa routes, no html, no rsc, no manifest entry.
+ *   · STRINGS ARE STILL IN THE BUNDLE. A gate hides them; it does not remove them. The only thing
+ *     that removes a module's vocabulary from a marketplace chunk is the `turbopack.resolveAlias`
+ *     stub — which is why visa-cards and trip-cards are aliased rather than merely gated.
+ *
+ * So: reach for a gate for behaviour, and for an alias when the requirement is that the words are
+ * not in the artifact. The value is not a secret; the prefix is still needed for the flag to be
+ * readable in client components at all.
+ *
+ * ⚠️ NONE OF THAT WEAKENS THE CASE FOR TWO BUILDS. Three measured facts still force build-time over
+ * a single runtime-flagged image, all verified against this repo's own production build:
  *   1. PRERENDERED HTML. `/regulations` exports neither `revalidate` nor `dynamic`, so it is fully
  *      static and never regenerates; its HTML on disk names "the assisted e-Visa application
  *      service" and "PayPal". `.next/server/app/index.html` carries 12 occurrences of "E-Visa",
@@ -40,9 +59,11 @@
  *      have eno.forum serving `<link rel="canonical" href="https://eno.vn/vietnam-evisa">` — the
  *      licensed company claiming authorship of the visa pages. This alone forces two builds even if
  *      the visa feature did not exist.
- *   3. CLIENT BUNDLE. "Pay with PayPal" is present in two client chunks today. A runtime flag ships
- *      that vocabulary to every eno.vn browser and merely declines to render it, which is a weaker
- *      statement than "the string is not in the artifact".
+ *   3. CLIENT BUNDLE. Aliasing a module away is only possible per-BUILD — `turbopack.resolveAlias`
+ *      is bundler configuration, not something a request can vary. One image serving both domains
+ *      could not stub visa-cards for one of them, so "Pay with PayPal" would be in the artifact
+ *      every eno.vn browser downloads with no mechanism available to remove it. Two builds are what
+ *      make the alias possible at all.
  *
  * The cost is honest and was accepted by the owner: two builds roughly double Cloud Build, already
  * ~62% of this project's GCP spend. The triggers run in parallel, so time-to-prod is unchanged.

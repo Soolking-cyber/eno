@@ -11,6 +11,7 @@
 // Admin labels are EN-only by repo convention (admin chrome is never localized), hence vi
 // is optional — a renderer must fall back to `en` when `vi` is undefined.
 
+import { IS_SERVICES } from '@/lib/edition'
 import type { LucideIcon } from 'lucide-react'
 import {
   Store, ExternalLink, MessageSquareText, Heart, Scale, Upload, Code2,
@@ -20,6 +21,14 @@ import {
 
 export type NavRole = 'all' | 'business' | 'seller' | 'admin'
 
+/**
+ * ⚠️ THE SERVICES ROWS ARE CONDITIONALLY *CONSTRUCTED*, NOT JUST FILTERED. `servicesOnly` still
+ * exists and still gates them at render — that is the correctness guarantee — but a runtime filter
+ * leaves the labels in the bundle as ARRAY DATA, where no minifier can reach them. Measured: eno.vn
+ * was still shipping "My e-Visa" and "E-Visa của tôi" in a client chunk with the row correctly
+ * hidden. `IS_SERVICES` is a build-time constant, so the spread collapses to `[]` and the strings
+ * are never emitted. Belt (the filter) and braces (the construction).
+ */
 export type NavItem = {
   /** Internal route. For `dynamic` items this is only a placeholder — the renderer
    *  substitutes the real per-user URL (see `dynamic`). Every row is core-dashboard
@@ -122,13 +131,13 @@ export const DASHBOARD_NAV: NavGroup[] = [
       // c8090df0, then accidentally reverted 2 minutes later by 0ef45423 committing a stale
       // working-tree copy of this file. So the rule stands for the future — if this row
       // changes state and no owner decision says so, that is the accident, not a decision.)
-      { href: '/dashboard/trips', ...tr('My Trips', 'Chuyến đi của tôi'), icon: Route, servicesOnly: true },
+      ...(IS_SERVICES ? [{ href: '/dashboard/trips', ...tr('My Trips', 'Chuyến đi của tôi'), icon: Route, servicesOnly: true }] : []),
       // KEPT, RELABELLED (owner 2026-07-22: "only 1 way should exist through the chat").
       // The section is no longer a place to APPLY — the wizard behind this row is deleted
       // and the application is filled in the chat thread — so the row names what it still
       // leads to: the applicant's own cases, their status, and the way back into the
       // thread each one lives in. "Vietnam e-Visa" read as "apply here"; this does not.
-      { href: '/dashboard/visa', ...tr('My e-Visa', 'E-Visa của tôi'), icon: FileCheck2, requiresVisa: true, servicesOnly: true },
+      ...(IS_SERVICES ? [{ href: '/dashboard/visa', ...tr('My e-Visa', 'E-Visa của tôi'), icon: FileCheck2, requiresVisa: true, servicesOnly: true }] : []),
     ],
   },
   {
@@ -143,7 +152,7 @@ export const DASHBOARD_NAV: NavGroup[] = [
       { href: '/admin/listings', en: 'Listings', icon: ClipboardList },
       { href: '/admin/brands', en: 'Brands', icon: Tags },
       { href: '/admin/feedback', en: 'Feedback', icon: Star },
-      { href: '/admin/visas', en: 'Visas', icon: Stamp, servicesOnly: true },
+      ...(IS_SERVICES ? [{ href: '/admin/visas', en: 'Visas', icon: Stamp, servicesOnly: true }] : []),
       { href: '/admin/business-verification', en: 'Business verification', icon: BadgeCheck },
     ],
   },

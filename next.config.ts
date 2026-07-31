@@ -149,6 +149,31 @@ const nextConfig: NextConfig = {
   // up the tree (e.g. ~/package-lock.json) as the project root.
   turbopack: {
     root: __dirname,
+    /**
+     * ⚠️ THE VISA AND TRIP CARD MODULES ARE ALIASED AWAY ON A MARKETPLACE BUILD, so their vocabulary
+     * — "Pay with PayPal", "hộ chiếu", the passport wizard — is never emitted into a client chunk
+     * that eno.vn serves. Before this, a marketplace build still shipped e-Visa strings in 21 chunks
+     * and PayPal in 2; nothing rendered them (thread kinds are disarmed and the routes do not
+     * exist), but "the string is not in the artifact" is a statement you can verify with grep, and
+     * "the code declines to run" is a promise about control flow.
+     *
+     * Aliasing the MODULES rather than refactoring src/app/messages/[id]/page.tsx is deliberate:
+     * that file is 1,857 lines, is the most-used surface in the app, and carries the
+     * ChatSendButton onMouseDown+preventDefault invariant. This touches none of it.
+     *
+     * ⚠️ TYPESCRIPT NEVER SEES THE STUBS. An alias is a bundler resolution, so `tsc` checks the chat
+     * page against the REAL modules — a stub whose shape drifts is a runtime crash that no typecheck
+     * catches. src/components/marketplace/edition-stubs.test.ts is what makes that safe: it fails
+     * the build when the chat page imports a symbol the stub does not export.
+     */
+    ...(EDITION_ENV === "marketplace"
+      ? {
+          resolveAlias: {
+            "@/components/marketplace/visa-cards": "./src/components/marketplace/visa-cards.stub.tsx",
+            "@/components/marketplace/trip-cards": "./src/components/marketplace/trip-cards.stub.tsx",
+          },
+        }
+      : {}),
   },
   images: {
     formats: ["image/avif", "image/webp"],
