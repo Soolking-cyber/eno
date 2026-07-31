@@ -57,6 +57,27 @@ const ALLOW_DIRS = [
 ]
 
 /**
+ * The route trees that belong to the SERVICES edition only. Every Next special file inside them must
+ * be named `.svc.` so a marketplace build cannot compile it.
+ *
+ * ⚠️ api/admin/trips IS IN HERE AND SITS OUTSIDE ALL THREE OBVIOUS PREFIXES — the proof that a typed
+ * prefix list is a maintenance hazard, and the reason Rule B reports rather than assumes.
+ */
+const SERVICES_TREES = [
+  'src/app/vietnam-evisa/',
+  'src/app/itinerary/',
+  'src/app/services-for-expats-vietnam/',
+  'src/app/dashboard/visa/',
+  'src/app/dashboard/trips/',
+  'src/app/admin/visas/',
+  'src/app/admin/trips/',
+  'src/app/api/visa/',
+  'src/app/api/trips/',
+  'src/app/api/itineraries/',
+  'src/app/api/admin/trips/',
+]
+
+/**
  * The Prisma reads that can return listings to a user or a crawler.
  *
  * ⚠️ `tx.` AND `client.` ARE IN HERE because a read inside `db.$transaction(async (tx) => …)` is
