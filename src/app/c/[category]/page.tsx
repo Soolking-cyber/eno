@@ -1,3 +1,4 @@
+import { SITE_NAME } from '@/lib/edition'
 import { scopedListingWhere } from '@/lib/edition-scope'
 import { cache } from 'react'
 import { db } from '@/lib/db'
@@ -54,7 +55,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   if (!loaded) notFound()
   const { cat, live } = loaded
   const hostUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://eno.vn'
-  const title = `${cat.name} in Vietnam — Trusted listings | eno.vn`
+  const title = `${cat.name} in Vietnam — Trusted listings | ${SITE_NAME}`
   const description = `Browse ${cat.name.toLowerCase()} for expats in Vietnam. Every seller has a public trust score and bad listings get reported — fewer fakes, fewer bait prices.`
   return {
     title,

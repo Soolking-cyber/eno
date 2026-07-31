@@ -99,3 +99,16 @@ export const IS_SERVICES = EDITION === 'services'
 
 /** True on eno.vn: the licensed marketplace, where none of those may appear. */
 export const IS_MARKETPLACE = EDITION === 'marketplace'
+
+/**
+ * This deployment's own name, for page titles and anywhere else the site names itself.
+ *
+ * ⚠️ IT IS THE DOMAIN, NOT A LEGAL ENTITY. Naming the operating company behind eno.forum is an open
+ * question for counsel, and a page title is the wrong place to guess.
+ *
+ * ⚠️ WHY THIS EXISTS: 58 page titles across src/app/** ended in a hardcoded "| eno.vn", so every
+ * page on eno.forum — including the e-Visa product pages — was titled with the LICENSED company's
+ * name. Found by curling the live domain, not by any gate; it is the same leak class as the
+ * Organization JSON-LD that had eno.forum declaring eno.vn as the publisher of its visa service.
+ */
+export const SITE_NAME = IS_SERVICES ? 'eno.forum' : 'eno.vn'

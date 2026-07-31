@@ -1,9 +1,10 @@
+import { SITE_NAME } from '@/lib/edition'
 import { Suspense } from 'react'
 import type { Metadata } from 'next'
 import { BulkClient } from './bulk-client'
 
 export const metadata: Metadata = {
-  title: 'Bulk upload | eno.vn',
+  title: `Bulk upload | ${SITE_NAME}`,
   robots: { index: false, follow: false },
 }
 

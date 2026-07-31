@@ -1,3 +1,4 @@
+import { SITE_NAME } from '@/lib/edition'
 import type { Metadata } from 'next'
 import { Suspense } from 'react'
 import { TripDetailClient } from './trip-detail-client'
@@ -9,7 +10,7 @@ import { openCaseForItinerary } from '@/lib/trips/assistance'
 export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
-  title: 'Itinerary | eno.vn',
+  title: `Itinerary | ${SITE_NAME}`,
   // noindex, like every other /dashboard page: this is one traveller's private trip.
   robots: { index: false, follow: false },
 }

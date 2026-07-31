@@ -1,3 +1,4 @@
+import { SITE_NAME } from '@/lib/edition'
 import type { Metadata } from 'next'
 import { SeoLanding, type SeoContent } from '@/components/marketplace/seo-landing'
 import { VISA_CATEGORY_SLUG, VISA_SUBCATEGORY_SLUG } from '@/lib/taxonomy'
@@ -82,12 +83,12 @@ const CONTENT: SeoContent = {
 }
 
 export const metadata: Metadata = {
-  title: 'Vietnam e-Visa Rejected — What to Do Next | eno.vn',
+  title: `Vietnam e-Visa Rejected — What to Do Next | ${SITE_NAME}`,
   description:
     'Vietnam e-visa refused? The fixable causes (name mismatches, passport validity, photo quality), the ones reapplying will not solve, and what a second application costs.',
   alternates: { canonical: '/vietnam-evisa/rejected' },
   openGraph: {
-    title: 'Vietnam e-Visa Rejected — What to Do Next | eno.vn',
+    title: `Vietnam e-Visa Rejected — What to Do Next | ${SITE_NAME}`,
     description: 'Which refusal causes you can correct, which you cannot, and what reapplying costs.',
   },
 }

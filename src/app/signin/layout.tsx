@@ -1,3 +1,4 @@
+import { SITE_NAME } from '@/lib/edition'
 import type { Metadata } from 'next'
 import type { ReactNode } from 'react'
 
@@ -5,7 +6,7 @@ import type { ReactNode } from 'react'
 // blocks CRAWLING — without an explicit noindex Google can still list /signin as a
 // URL-only result once the sitewide prelaunch noindex header is gone.
 export const metadata: Metadata = {
-  title: 'Sign in | eno.vn',
+  title: `Sign in | ${SITE_NAME}`,
   robots: { index: false, follow: false },
 }
 

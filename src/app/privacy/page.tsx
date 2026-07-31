@@ -1,3 +1,4 @@
+import { SITE_NAME } from '@/lib/edition'
 import type { Metadata } from 'next'
 import { Tr } from '@/context/language-context'
 import { ContentPage, ContentSection } from '@/components/marketplace/content-page'
@@ -5,7 +6,7 @@ import { CookieSettingsButton } from '@/components/marketplace/cookie-settings-b
 import { COMPANY } from '@/lib/site-legal'
 
 export const metadata: Metadata = {
-  title: 'Privacy Policy | eno.vn',
+  title: `Privacy Policy | ${SITE_NAME}`,
   description: 'How eno.vn collects, uses and protects personal data under Vietnam’s Personal Data Protection Law, including your rights and how to exercise them.',
   alternates: { canonical: '/privacy' },
 }

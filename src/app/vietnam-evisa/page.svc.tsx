@@ -1,3 +1,4 @@
+import { SITE_NAME } from '@/lib/edition'
 import type { Metadata } from 'next'
 import { SeoLanding, type SeoContent } from '@/components/marketplace/seo-landing'
 import { VISA_CATEGORY_SLUG, VISA_SUBCATEGORY_SLUG } from '@/lib/taxonomy'
@@ -71,12 +72,12 @@ const CONTENT: SeoContent = {
 }
 
 export const metadata: Metadata = {
-  title: 'Vietnam e-Visa — Prices, Processing Times & How to Apply | eno.vn',
+  title: `Vietnam e-Visa — Prices, Processing Times & How to Apply | ${SITE_NAME}`,
   description:
     'Vietnam e-visa, 90 days, single or multiple entry, at seven processing speeds from standard to 1-hour express. Every option priced on its own listing — compare before you apply.',
   alternates: { canonical: '/vietnam-evisa' },
   openGraph: {
-    title: 'Vietnam e-Visa — Prices, Processing Times & How to Apply | eno.vn',
+    title: `Vietnam e-Visa — Prices, Processing Times & How to Apply | ${SITE_NAME}`,
     description:
       'Single or multiple entry, standard to 1-hour express. Every combination priced up front on eno.vn.',
   },

@@ -1,3 +1,4 @@
+import { SITE_NAME } from '@/lib/edition'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { Header } from '@/components/marketplace/header'
@@ -5,7 +6,7 @@ import { Footer } from '@/components/marketplace/footer'
 import { Badge } from '@/components/ui/badge'
 
 export const metadata: Metadata = {
-  title: 'API for developers | eno.vn',
+  title: `API for developers | ${SITE_NAME}`,
   description: 'The eno.vn partner API — manage your shop programmatically. REST, API-key auth, read-only v1.',
 }
 

@@ -1,3 +1,4 @@
+import { SITE_NAME } from '@/lib/edition'
 import type { Metadata } from 'next'
 import type { LucideIcon } from 'lucide-react'
 import {
@@ -9,7 +10,7 @@ import { Tr } from '@/context/language-context'
 import { ContentPage, ContentSection } from '@/components/marketplace/content-page'
 
 export const metadata: Metadata = {
-  title: 'Safe trading | eno.vn',
+  title: `Safe trading | ${SITE_NAME}`,
   description:
     'How to trade safely on eno.vn: vet the seller, meet in public, inspect before paying, spot the red flags, and what eno does to protect you — verification, screened listings, on-record chat and a real dispute process.',
   alternates: { canonical: '/safety' },

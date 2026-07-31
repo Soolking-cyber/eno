@@ -1,9 +1,10 @@
+import { SITE_NAME } from '@/lib/edition'
 import type { Metadata } from 'next'
 import { Tr } from '@/context/language-context'
 import { ContentPage, ContentSection } from '@/components/marketplace/content-page'
 
 export const metadata: Metadata = {
-  title: 'Prohibited items & services | Hàng hóa & dịch vụ cấm | eno.vn',
+  title: `Prohibited items & services | Hàng hóa & dịch vụ cấm | ${SITE_NAME}`,
   description: 'Goods and services that must not be listed on eno.vn, per Vietnamese law and platform policy.',
   alternates: { canonical: '/prohibited' },
 }

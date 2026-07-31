@@ -1,15 +1,16 @@
+import { SITE_NAME } from '@/lib/edition'
 import type { Metadata } from 'next'
 import { SeoLanding, type SeoContent } from '@/components/marketplace/seo-landing'
 
 export const revalidate = 604800 // 7d — static SEO copy; weekly regen is plenty (fewer ISR writes)
 
 export const metadata: Metadata = {
-  title: 'Jobs for Expats & Internationals in Vietnam | eno.vn',
+  title: `Jobs for Expats & Internationals in Vietnam | ${SITE_NAME}`,
   description:
     'Find jobs for expats and internationals in Vietnam — teaching, hospitality, marketing, tech and English-required roles in Ho Chi Minh City. Every eno.vn employer has a public trust score and bad listings get reported.',
   alternates: { canonical: '/jobs-vietnam-expats' },
   openGraph: {
-    title: 'Jobs for Expats & Internationals in Vietnam | eno.vn',
+    title: `Jobs for Expats & Internationals in Vietnam | ${SITE_NAME}`,
     description:
       'Teaching, hospitality, marketing, tech and English-required roles for internationals in Vietnam — fewer fake and recycled postings.',
   },

@@ -1,3 +1,4 @@
+import { SITE_NAME } from '@/lib/edition'
 import type { Metadata } from 'next'
 import { SeoLanding, type SeoContent } from '@/components/marketplace/seo-landing'
 import { VISA_CATEGORY_SLUG, VISA_SUBCATEGORY_SLUG } from '@/lib/taxonomy'
@@ -62,12 +63,12 @@ const CONTENT: SeoContent = {
 }
 
 export const metadata: Metadata = {
-  title: 'Vietnam e-Visa vs Visa on Arrival — Which Applies to You | eno.vn',
+  title: `Vietnam e-Visa vs Visa on Arrival — Which Applies to You | ${SITE_NAME}`,
   description:
     'Vietnam e-visa or visa on arrival? What each actually involves, which one works at land borders, why the advertised prices are not comparable, and which to choose.',
   alternates: { canonical: '/vietnam-evisa/vs-visa-on-arrival' },
   openGraph: {
-    title: 'Vietnam e-Visa vs Visa on Arrival — Which Applies to You | eno.vn',
+    title: `Vietnam e-Visa vs Visa on Arrival — Which Applies to You | ${SITE_NAME}`,
     description: 'Two products, similar names, different arrival requirements. The practical difference.',
   },
 }

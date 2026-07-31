@@ -1,3 +1,4 @@
+import { SITE_NAME } from '@/lib/edition'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { CalendarDays, Map as MapIcon, MessageSquare, Wallet } from 'lucide-react'
@@ -19,7 +20,7 @@ import { getTripAssistanceListingId } from '@/lib/trips/dm-thread'
 // it. Both CTAs go to the PLANNER, never to a checkout.
 
 export const metadata: Metadata = {
-  title: 'Vietnam trip planner — free itineraries, and local help if you want it | eno.vn',
+  title: `Vietnam trip planner — free itineraries, and local help if you want it | ${SITE_NAME}`,
   description:
     'Build a day-by-day Vietnam itinerary in minutes, see every stop on a map, and — if you want it — have our team arrange the bookings for a 10% service fee. You pay each hotel and guide directly.',
   alternates: { canonical: '/itinerary' },

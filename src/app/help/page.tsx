@@ -1,3 +1,4 @@
+import { SITE_NAME } from '@/lib/edition'
 import type { Metadata } from 'next'
 import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
@@ -5,7 +6,7 @@ import { HelpCenter } from '@/components/marketplace/help-center'
 import { loadHelpCenter } from '@/lib/help-center-data'
 
 export const metadata: Metadata = {
-  title: 'Help center | eno.vn',
+  title: `Help center | ${SITE_NAME}`,
   description: 'Answers about buying, selling, trust, messaging, offers and safe trading on eno.vn — plus practical guides for travelling in Vietnam.',
   alternates: { canonical: '/help' },
 }

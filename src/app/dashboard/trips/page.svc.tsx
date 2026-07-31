@@ -1,3 +1,4 @@
+import { SITE_NAME } from '@/lib/edition'
 import type { Metadata } from 'next'
 import { Suspense } from 'react'
 import { getTripAssistanceListingId } from '@/lib/trips/dm-thread'
@@ -8,7 +9,7 @@ import { TripsClient } from './trips-client'
 export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
-  title: 'My Trips | eno.vn',
+  title: `My Trips | ${SITE_NAME}`,
   robots: { index: false, follow: false },
 }
 

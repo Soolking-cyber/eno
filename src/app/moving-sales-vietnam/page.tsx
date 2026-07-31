@@ -1,15 +1,16 @@
+import { SITE_NAME } from '@/lib/edition'
 import type { Metadata } from 'next'
 import { SeoLanding, type SeoContent } from '@/components/marketplace/seo-landing'
 
 export const revalidate = 604800 // 7d — static SEO copy; weekly regen is plenty (fewer ISR writes)
 
 export const metadata: Metadata = {
-  title: 'Moving Sales & Secondhand Furniture in Vietnam | eno.vn',
+  title: `Moving Sales & Secondhand Furniture in Vietnam | ${SITE_NAME}`,
   description:
     'Shop expat moving sales in Vietnam — secondhand furniture, appliances and home goods in Ho Chi Minh City. Every eno.vn seller has a public trust score and bad listings get reported.',
   alternates: { canonical: '/moving-sales-vietnam' },
   openGraph: {
-    title: 'Moving Sales & Secondhand Furniture in Vietnam | eno.vn',
+    title: `Moving Sales & Secondhand Furniture in Vietnam | ${SITE_NAME}`,
     description:
       'Expat moving sales — furniture, appliances and home goods at great prices, with fewer fake photos and bait prices.',
   },

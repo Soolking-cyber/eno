@@ -1,3 +1,4 @@
+import { SITE_NAME } from '@/lib/edition'
 import type { Metadata } from 'next'
 import { Suspense } from 'react'
 import { Spinner } from '@/components/ui/spinner'
@@ -5,7 +6,7 @@ import { loadHelpCenter } from '@/lib/help-center-data'
 import { HelpClient } from './help-client'
 
 export const metadata: Metadata = {
-  title: 'Help | eno.vn',
+  title: `Help | ${SITE_NAME}`,
   robots: { index: false, follow: false },
 }
 

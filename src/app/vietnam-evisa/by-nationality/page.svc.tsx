@@ -1,3 +1,4 @@
+import { SITE_NAME } from '@/lib/edition'
 import type { Metadata } from 'next'
 import { SeoLanding, type SeoContent } from '@/components/marketplace/seo-landing'
 import { VISA_CATEGORY_SLUG, VISA_SUBCATEGORY_SLUG } from '@/lib/taxonomy'
@@ -76,12 +77,12 @@ const CONTENT: SeoContent = {
 }
 
 export const metadata: Metadata = {
-  title: 'Who Needs a Vietnam e-Visa? Eligibility by Nationality | eno.vn',
+  title: `Who Needs a Vietnam e-Visa? Eligibility by Nationality | ${SITE_NAME}`,
   description:
     'Every nationality can apply for a Vietnam e-visa — but some can enter visa-free. How to tell which case you are in, and when an exempt traveller should apply anyway.',
   alternates: { canonical: '/vietnam-evisa/by-nationality' },
   openGraph: {
-    title: 'Who Needs a Vietnam e-Visa? Eligibility by Nationality | eno.vn',
+    title: `Who Needs a Vietnam e-Visa? Eligibility by Nationality | ${SITE_NAME}`,
     description: 'All nationalities are eligible. The question is whether you need a visa at all.',
   },
 }

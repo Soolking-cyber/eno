@@ -1,3 +1,4 @@
+import { SITE_NAME } from '@/lib/edition'
 import { db } from '@/lib/db'
 import type { Metadata } from 'next'
 import type { SerializedCategory } from '@/lib/types'
@@ -6,7 +7,7 @@ import { Footer } from '@/components/marketplace/footer'
 import { PostWizard } from '@/components/marketplace/post-wizard'
 import { serializeCategoryBasic } from '@/lib/serialize'
 
-export const metadata: Metadata = { title: 'Post a listing | eno.vn', robots: { index: false, follow: false } }
+export const metadata: Metadata = { title: `Post a listing | ${SITE_NAME}`, robots: { index: false, follow: false } }
 
 // Draft-first posting: ANYONE can fill the wizard (photos, AI-ready fields, price);
 // sign-in is asked at Publish, after the sunk cost — the proven marketplace pattern.

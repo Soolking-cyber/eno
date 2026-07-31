@@ -1,3 +1,4 @@
+import { SITE_NAME } from '@/lib/edition'
 import type { Metadata } from 'next'
 import { SeoLanding, type SeoContent } from '@/components/marketplace/seo-landing'
 import { VISA_CATEGORY_SLUG, VISA_SUBCATEGORY_SLUG } from '@/lib/taxonomy'
@@ -72,12 +73,12 @@ const CONTENT: SeoContent = {
 }
 
 export const metadata: Metadata = {
-  title: 'Urgent Vietnam Visa — e-Visa in 1 Hour | eno.vn',
+  title: `Urgent Vietnam Visa — e-Visa in 1 Hour | ${SITE_NAME}`,
   description:
     'Vietnam e-visa in 1 hour: what the express tier actually promises, the daily intake cutoffs it depends on, and when a cheaper tier gets you there in time anyway.',
   alternates: { canonical: '/vietnam-evisa/1-hour-urgent' },
   openGraph: {
-    title: 'Urgent Vietnam Visa — e-Visa in 1 Hour | eno.vn',
+    title: `Urgent Vietnam Visa — e-Visa in 1 Hour | ${SITE_NAME}`,
     description: 'The express tier, its daily cutoffs, and when it is not worth paying for.',
   },
 }

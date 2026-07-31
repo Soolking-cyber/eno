@@ -1,10 +1,11 @@
+import { SITE_NAME } from '@/lib/edition'
 import type { Metadata } from 'next'
 import { TrustScore } from '@/components/marketplace/trust-score'
 import { Tr } from '@/context/language-context'
 import { ContentPage, ContentSection } from '@/components/marketplace/content-page'
 
 export const metadata: Metadata = {
-  title: 'How trust works — eno.vn',
+  title: `How trust works — ${SITE_NAME}`,
   description: 'eno.vn uses a single Trust Score, shown in color, instead of stars. Learn how accounts earn and lose trust.',
   alternates: { canonical: '/trust' },
 }

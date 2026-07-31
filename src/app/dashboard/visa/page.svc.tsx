@@ -1,3 +1,4 @@
+import { SITE_NAME } from '@/lib/edition'
 import type { Metadata } from 'next'
 import { Suspense } from 'react'
 import { getCurrentProfile } from '@/lib/admin'
@@ -14,7 +15,7 @@ import { VisaCasesClient } from './cases-client'
 export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
-  title: 'Vietnam e-Visa | eno.vn',
+  title: `Vietnam e-Visa | ${SITE_NAME}`,
   robots: { index: false, follow: false },
 }
 

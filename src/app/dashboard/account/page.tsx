@@ -1,3 +1,4 @@
+import { SITE_NAME } from '@/lib/edition'
 import type { Metadata } from 'next'
 import { AccountClient } from './account-client'
 
@@ -8,7 +9,7 @@ import { AccountClient } from './account-client'
 export const dynamic = 'force-dynamic'
 
 export const metadata: Metadata = {
-  title: 'Account | eno.vn',
+  title: `Account | ${SITE_NAME}`,
   // A signed-in hub: never indexable, and nothing here should follow out.
   robots: { index: false, follow: false },
 }

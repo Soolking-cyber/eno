@@ -1,15 +1,16 @@
+import { SITE_NAME } from '@/lib/edition'
 import type { Metadata } from 'next'
 import { SeoLanding, type SeoContent } from '@/components/marketplace/seo-landing'
 
 export const revalidate = 604800 // 7d — static SEO copy; weekly regen is plenty (fewer ISR writes)
 
 export const metadata: Metadata = {
-  title: 'Housing & Apartment Rentals for Expats in Vietnam | eno.vn',
+  title: `Housing & Apartment Rentals for Expats in Vietnam | ${SITE_NAME}`,
   description:
     'Find apartments, houses and serviced rentals for expats in Vietnam — Thao Dien, District 2, Phu My Hung, District 7 and more. Every eno.vn seller has a public trust score and bad listings get reported.',
   alternates: { canonical: '/housing-vietnam-expats' },
   openGraph: {
-    title: 'Housing & Apartment Rentals for Expats in Vietnam | eno.vn',
+    title: `Housing & Apartment Rentals for Expats in Vietnam | ${SITE_NAME}`,
     description:
       'Apartments, houses and serviced rentals for expats across Ho Chi Minh City — fewer fake photos, fewer bait prices.',
   },

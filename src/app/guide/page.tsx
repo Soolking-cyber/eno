@@ -1,3 +1,4 @@
+import { SITE_NAME } from '@/lib/edition'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { Tr } from '@/context/language-context'
@@ -6,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Search, MessageCircle, Tag, MapPin, Plus, BadgeCheck, Bell, Heart, Globe, ShieldCheck, ChevronRight } from 'lucide-react'
 
 export const metadata: Metadata = {
-  title: 'How eno.vn works — Guide | eno.vn',
+  title: `How ${SITE_NAME} works — Guide | ${SITE_NAME}`,
   description: 'A quick guide to eno.vn: how to buy, sell, build trust, message, make offers and trade safely on Vietnam’s marketplace for the international community.',
   alternates: { canonical: '/guide' },
 }

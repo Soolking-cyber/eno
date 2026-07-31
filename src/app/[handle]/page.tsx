@@ -1,3 +1,4 @@
+import { SITE_NAME } from '@/lib/edition'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { cache } from 'react'
@@ -75,21 +76,21 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     ].filter(Boolean)
     const description = bits.length ? `${seller.name} — ${bits.join(' · ')} on eno.vn` : `${seller.name} on eno.vn`
     return {
-      title: `${seller.name} | eno.vn`,
+      title: `${seller.name} | ${SITE_NAME}`,
       description,
       alternates: { canonical: `${hostUrl}/${row.handle}` },
       openGraph: {
-        title: `${seller.name} | eno.vn`,
+        title: `${seller.name} | ${SITE_NAME}`,
         description,
         url: `${hostUrl}/${row.handle}`,
       },
     }
   }
   return {
-    title: `@${row.handle} | eno.vn`,
+    title: `@${row.handle} | ${SITE_NAME}`,
     description: `${row.profile?.displayName || `@${row.handle}`} on eno.vn`,
     openGraph: {
-      title: `@${row.handle} | eno.vn`,
+      title: `@${row.handle} | ${SITE_NAME}`,
       description: `${row.profile?.displayName || `@${row.handle}`} on eno.vn`,
       url: `${hostUrl}/${row.handle}`,
     },

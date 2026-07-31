@@ -1,3 +1,4 @@
+import { SITE_NAME } from '@/lib/edition'
 import type { Metadata } from 'next'
 import { IS_SERVICES } from '@/lib/edition'
 import { Tr } from '@/context/language-context'
@@ -5,7 +6,7 @@ import { ContentPage, ContentSection } from '@/components/marketplace/content-pa
 import { COMPANY } from '@/lib/site-legal'
 
 export const metadata: Metadata = {
-  title: 'Quy chế hoạt động | Operating Regulations | eno.vn',
+  title: `Quy chế hoạt động | Operating Regulations | ${SITE_NAME}`,
   description: 'Operating regulations of the eno.vn e-commerce platform (Quy chế hoạt động sàn giao dịch thương mại điện tử eno.vn).',
   alternates: { canonical: '/regulations' },
 }

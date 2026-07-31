@@ -1,3 +1,4 @@
+import { SITE_NAME } from '@/lib/edition'
 import type { Metadata } from 'next'
 import { Home, MapPin, Bike, Armchair, Tag, Building2, Briefcase, ShoppingBag, KeyRound, Search } from 'lucide-react'
 import { Header } from '@/components/marketplace/header'
@@ -5,7 +6,7 @@ import { Footer } from '@/components/marketplace/footer'
 import { Mascot } from '@/components/marketplace/mascot'
 import { Tr } from '@/context/language-context'
 
-export const metadata: Metadata = { title: 'Page not found | eno.vn' }
+export const metadata: Metadata = { title: `Page not found | ${SITE_NAME}` }
 
 // Faint, on-brand marketplace icons scattered as a lightweight background motif —
 // inline SVG (lucide), so ZERO extra network weight (no raster images). Positions

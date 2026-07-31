@@ -1,3 +1,4 @@
+import { SITE_NAME } from '@/lib/edition'
 import { scopedListingWhere } from '@/lib/edition-scope'
 import { cache } from 'react'
 import { db } from '@/lib/db'
@@ -56,7 +57,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   // Real 404 (not soft-404) for an unknown category/district — before streaming.
   if (!data) notFound()
   const hostUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://eno.vn'
-  const title = `${data.cat.name} in ${data.districtName} — Trusted | eno.vn`
+  const title = `${data.cat.name} in ${data.districtName} — Trusted | ${SITE_NAME}`
   const description = `${data.cat.name} in ${data.districtName}. Every seller has a public trust score and bad listings get reported — fewer fakes, fewer bait prices.`
   return {
     title,

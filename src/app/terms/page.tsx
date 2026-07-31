@@ -1,10 +1,11 @@
+import { SITE_NAME } from '@/lib/edition'
 import type { Metadata } from 'next'
 import { Tr } from '@/context/language-context'
 import { ContentPage, ContentSection } from '@/components/marketplace/content-page'
 import { COMPANY } from '@/lib/site-legal'
 
 export const metadata: Metadata = {
-  title: 'Terms of Service | eno.vn',
+  title: `Terms of Service | ${SITE_NAME}`,
   description: 'The Terms of Service for using eno.vn: accounts, listings, acceptable use, liability and how the marketplace rules apply to buyers and sellers.',
   alternates: { canonical: '/terms' },
 }

@@ -1,3 +1,4 @@
+import { SITE_NAME } from '@/lib/edition'
 import type { Metadata } from 'next'
 import { SeoLanding, type SeoContent } from '@/components/marketplace/seo-landing'
 
@@ -15,12 +16,12 @@ export const revalidate = 604800 // 7d — static SEO copy; weekly regen is plen
 // sale. When somebody finally posts a cleaner this copy stops being COMPLETE rather than becoming
 // FALSE, which is the failure direction to prefer.
 export const metadata: Metadata = {
-  title: 'Services for Expats in Vietnam — e-Visas & Trip Planning | eno.vn',
+  title: `Services for Expats in Vietnam — e-Visas & Trip Planning | ${SITE_NAME}`,
   description:
     'Services for expats in Vietnam: Vietnam e-visa applications (single and multiple entry, 1 hour to standard) and free trip planning. Every eno.vn provider has a public trust score and bad listings get reported.',
   alternates: { canonical: '/services-for-expats-vietnam' },
   openGraph: {
-    title: 'Services for Expats in Vietnam — e-Visas & Trip Planning | eno.vn',
+    title: `Services for Expats in Vietnam — e-Visas & Trip Planning | ${SITE_NAME}`,
     description:
       'Vietnam e-visas priced up front, and free trip planning — with a public trust score behind every provider.',
   },

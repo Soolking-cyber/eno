@@ -1,3 +1,4 @@
+import { SITE_NAME } from '@/lib/edition'
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { Header } from '@/components/marketplace/header'
@@ -10,9 +11,9 @@ export const dynamic = 'force-dynamic'
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params
   const thread = await loadHelpThread(id)
-  if (!thread) return { title: 'Help center | eno.vn' }
+  if (!thread) return { title: `Help center | ${SITE_NAME}` }
   return {
-    title: `${thread.post.title} | eno.vn`,
+    title: `${thread.post.title} | ${SITE_NAME}`,
     // The body is plain text, so a slice is a safe description — no markup to strip.
     description: thread.post.body.replace(/\s+/g, ' ').slice(0, 200),
     alternates: { canonical: `/help/${id}` },

@@ -1,15 +1,16 @@
+import { SITE_NAME } from '@/lib/edition'
 import type { Metadata } from 'next'
 import { SeoLanding, type SeoContent } from '@/components/marketplace/seo-landing'
 
 export const revalidate = 604800 // 7d — static SEO copy; weekly regen is plenty (fewer ISR writes)
 
 export const metadata: Metadata = {
-  title: 'Motorbikes for Sale & Rent in Vietnam | eno.vn',
+  title: `Motorbikes for Sale & Rent in Vietnam | ${SITE_NAME}`,
   description:
     'Buy or rent motorbikes in Vietnam — Honda, Yamaha, automatic and manual, monthly rentals and used bikes for sale in Ho Chi Minh City. Every eno.vn seller has a public trust score and bad listings get reported.',
   alternates: { canonical: '/motorbikes-for-sale-vietnam' },
   openGraph: {
-    title: 'Motorbikes for Sale & Rent in Vietnam | eno.vn',
+    title: `Motorbikes for Sale & Rent in Vietnam | ${SITE_NAME}`,
     description:
       'Motorbikes to buy or rent in Vietnam — Honda, Yamaha, automatic & manual. Fewer bait prices, fewer fake photos.',
   },

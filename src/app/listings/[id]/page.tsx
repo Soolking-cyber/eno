@@ -1,3 +1,4 @@
+import { SITE_NAME } from '@/lib/edition'
 import { scopedListingWhere } from '@/lib/edition-scope'
 import { cache } from 'react'
 import { db } from '@/lib/db'
@@ -100,7 +101,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   // sold URL shouldn't stay in search, but it's still a real, on-brand page.
   if (!listing || !listing.verified || (listing.status !== 'active' && listing.status !== 'sold')) notFound()
   if (listing.status === 'sold') {
-    return { title: `${listing.title} — Sold | eno.vn`, robots: { index: false, follow: true } }
+    return { title: `${listing.title} — Sold | ${SITE_NAME}`, robots: { index: false, follow: true } }
   }
 
   // Use the listing's SOURCE title (as posted) for all BAKED, shared output — the
@@ -130,7 +131,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const ogDesc = priceLabel && bodyDesc ? `${priceLabel} · ${desc}` : desc
 
   return {
-    title: priceLabel ? `${displayTitle} — ${priceLabel} | eno.vn` : `${displayTitle} | eno.vn`,
+    title: priceLabel ? `${displayTitle} — ${priceLabel} | ${SITE_NAME}` : `${displayTitle} | ${SITE_NAME}`,
     description: desc,
     // Only publicly-live listings (verified + active) are indexable; sold/hidden/held are not.
     robots: listing.verified && listing.status === 'active' ? undefined : { index: false, follow: true },

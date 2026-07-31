@@ -1,3 +1,4 @@
+import { SITE_NAME } from '@/lib/edition'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { Header } from '@/components/marketplace/header'
@@ -10,7 +11,7 @@ import { db } from '@/lib/db'
 import { brandIconPath } from '@/lib/brand-icons'
 
 export const metadata: Metadata = {
-  title: 'Brands | eno.vn',
+  title: `Brands | ${SITE_NAME}`,
   description: 'Browse listings by brand on eno.vn — phones, laptops, motorbikes, fashion and more from the brands buyers in Vietnam search for.',
   alternates: { canonical: '/brands' },
 }

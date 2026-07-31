@@ -1,3 +1,4 @@
+import { SITE_NAME } from '@/lib/edition'
 import type { Metadata } from 'next'
 import { SeoLanding, type SeoContent } from '@/components/marketplace/seo-landing'
 import { VISA_CATEGORY_SLUG, VISA_SUBCATEGORY_SLUG } from '@/lib/taxonomy'
@@ -68,12 +69,12 @@ const CONTENT: SeoContent = {
 }
 
 export const metadata: Metadata = {
-  title: 'Vietnam Multiple Entry e-Visa — Cost & When It Pays Off | eno.vn',
+  title: `Vietnam Multiple Entry e-Visa — Cost & When It Pays Off | ${SITE_NAME}`,
   description:
     'Vietnam multiple entry e-visa: what it costs against single entry at each processing speed, when the difference is worth paying, and when it is not.',
   alternates: { canonical: '/vietnam-evisa/multiple-entry-cost' },
   openGraph: {
-    title: 'Vietnam Multiple Entry e-Visa — Cost & When It Pays Off | eno.vn',
+    title: `Vietnam Multiple Entry e-Visa — Cost & When It Pays Off | ${SITE_NAME}`,
     description: '90 days either way — the extra buys crossings, not time. When that is worth it.',
   },
 }

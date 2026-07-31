@@ -4,7 +4,7 @@ import "./globals.css";
 import { AnalyticsTags } from "@/components/marketplace/analytics-tags";
 import { AttributionCapture } from "@/components/marketplace/attribution-capture";
 import { Providers } from "./providers";
-import { IS_SERVICES } from "@/lib/edition";
+import { IS_SERVICES, SITE_NAME } from "@/lib/edition";
 
 /**
  * This deployment's own identity, used by everything below that describes the site to a machine.
@@ -15,9 +15,6 @@ import { IS_SERVICES } from "@/lib/edition";
  * transitional single-deployment build, where no edition is declared.
  */
 const SITE_ORIGIN = process.env.NEXT_PUBLIC_APP_URL || "https://eno.vn";
-/** The site's own name. Deliberately the DOMAIN, not a legal entity — naming the operating company
- *  of eno.forum is an open question for counsel, and structured data is the wrong place to guess. */
-const SITE_NAME = IS_SERVICES ? "eno.forum" : "eno.vn";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -50,11 +47,11 @@ export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "https://eno.vn"),
   // Google Search Console / Merchant Center domain verification.
   verification: { google: "alQ9GmeeCLxBtPVZM8CEvEDmieP7JuS4wGTrYHW5hCY" },
-  title: "eno.vn - Trusted Expat Marketplace in Vietnam",
+  title: `${SITE_NAME} - Trusted Expat Marketplace in Vietnam`,
   description:
     "eno.vn is a trusted marketplace for expats and internationals in Vietnam. Find housing, jobs, motorbikes, services, moving sales, and more — sellers build public trust scores and the community keeps listings honest.",
-  applicationName: "eno.vn",
-  appleWebApp: { capable: true, title: "eno.vn", statusBarStyle: "default" },
+  applicationName: SITE_NAME,
+  appleWebApp: { capable: true, title: SITE_NAME, statusBarStyle: "default" },
   keywords: [
     "eno.vn",
     "eno.vn",
@@ -71,16 +68,16 @@ export const metadata: Metadata = {
   ],
   authors: [{ name: "eno.vn" }],
   openGraph: {
-    title: "eno.vn - Trusted Expat Marketplace in Vietnam",
+    title: `${SITE_NAME} - Trusted Expat Marketplace in Vietnam`,
     description:
       "A trusted marketplace for expats and internationals in Vietnam. Housing, jobs, motorbikes, services and moving sales — sellers build trust scores and the community keeps listings honest.",
-    siteName: "eno.vn",
+    siteName: SITE_NAME,
     type: "website",
     images: [OG_IMAGE],
   },
   twitter: {
     card: "summary_large_image",
-    title: "eno.vn - Trusted Expat Marketplace in Vietnam",
+    title: `${SITE_NAME} - Trusted Expat Marketplace in Vietnam`,
     description: "Trusted marketplace for expats in Vietnam — housing, jobs, motorbikes, services, moving sales.",
     images: [OG_IMAGE.url],
   },
