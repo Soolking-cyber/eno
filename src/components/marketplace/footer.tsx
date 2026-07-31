@@ -7,7 +7,7 @@ import { FORUM_URL, goToForum } from '@/lib/forum-nav'
 import { handleExternalClick } from '@/lib/native-browser'
 import { COMPANY } from '@/lib/site-legal'
 import { TAXONOMY } from '@/lib/taxonomy'
-import { IS_SERVICES } from '@/lib/edition'
+import { SERVICES_FOOTER_LINKS } from '@/lib/edition-services-copy'
 
 export function Footer() {
   const { tr } = useLanguage()
@@ -53,13 +53,13 @@ export function Footer() {
            into every prerendered file down to _not-found.html. `IS_SERVICES` is a build-time
            constant, so on a marketplace build the minifier deletes the entry outright rather
            than rendering nothing. */
-        ...(IS_SERVICES ? [{ label: tr('Services for expats in Vietnam', 'Dịch vụ cho người nước ngoài'), href: '/services-for-expats-vietnam' }] : []),
+        ...SERVICES_FOOTER_LINKS.popular.slice(0, 1).map((l) => ({ label: tr(l.labelEn, l.labelVi), href: l.href })),
         // ⚠️ THE WHOLE SEO HALF OF THE FIX, IN ONE LINE. `grep -rn "vietnam-evisa" src` returned
         // exactly ONE inbound internal link — from /services-for-expats-vietnam, which is itself
         // only reachable from this same column. So the 6-page e-Visa cluster sat TWO footer hops
         // from anywhere, on a site Googlebot visited 15 times in two days. This puts it one hop
         // from every page. A real <a href>, unlike the home tiles, which are Buttons.
-        ...(IS_SERVICES ? [{ label: tr('Vietnam e-Visa online', 'e-Visa Việt Nam trực tuyến'), href: '/vietnam-evisa' }] : []),
+        ...SERVICES_FOOTER_LINKS.popular.slice(1).map((l) => ({ label: tr(l.labelEn, l.labelVi), href: l.href })),
       ],
     },
     {
@@ -76,7 +76,7 @@ export function Footer() {
         // eno.vn and /itinerary is a real page here, not a redirect off to the forum. So it
         // must NOT carry forumPath — routing a same-origin link through the SSO handoff would
         // bounce the visitor to eno.forum and back to fetch a session they already have.
-        ...(IS_SERVICES ? [{ label: tr('Trip planner', 'Lập kế hoạch chuyến đi'), href: '/itinerary' }] : []),
+        ...SERVICES_FOOTER_LINKS.explore.map((l) => ({ label: tr(l.labelEn, l.labelVi), href: l.href })),
         // e-Visa lives on eno.vn now (ownership row, 2026-07-21): the desk's storefront is
         // where a visitor applies (in-chat flow) — the forum wizard is legacy awaiting
         // retirement. Plain SAME-ORIGIN link: no forumPath, no goToForum interception.
@@ -86,7 +86,7 @@ export function Footer() {
         // rank; the storefront holds 14 of the 34 live listings and nothing reachable pointed at it.
         // `/eno_vietnam` is 301'd in next.config.ts rather than simply dropped, because Bing has it
         // indexed under the title "Eno Visa" — deleting it would strip a real inbound path.
-        ...(IS_SERVICES ? [{ label: tr('Vietnam e-Visa help', 'Hỗ trợ e-Visa Việt Nam'), href: '/eno_visa' }] : []),
+        ...SERVICES_FOOTER_LINKS.help.map((l) => ({ label: tr(l.labelEn, l.labelVi), href: l.href })),
       ],
     },
   ]

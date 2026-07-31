@@ -1,4 +1,4 @@
-import { IS_SERVICES } from '@/lib/edition'
+import { SERVICES_DESK_TILES } from '@/lib/edition-services-copy'
 // ─────────────────────────────────────────────────────────────────────────────
 // CANONICAL TAXONOMY — single source of truth for categories, subcategories,
 // listing types (intent), and per-category facets.
@@ -203,16 +203,7 @@ export function isVisaProductSlot(categorySlug: string, subcategorySlug?: string
  */
 export const DESK_SHORTCUTS: {
   key: string; name: string; nameVi: string; icon: string; kind: 'filter' | 'route'; href: string
-}[] = IS_SERVICES ? [
-  {
-    key: 'evisa', name: 'Vietnam e-Visa', nameVi: 'e-Visa Việt Nam', icon: 'Stamp',
-    kind: 'filter', href: `/?category=${VISA_CATEGORY_SLUG}&subcategory=${VISA_SUBCATEGORY_SLUG}`,
-  },
-  {
-    key: 'trip', name: 'Trip planner', nameVi: 'Lên lịch trình', icon: 'CalendarDays',
-    kind: 'route', href: '/itinerary',
-  },
-] : []
+}[] = SERVICES_DESK_TILES
 
 // Entry-type copy. The VALUES and their order come from VISA_ENTRY_TYPES (the engine's
 // own union), so a new entry type is a TYPE ERROR here instead of a chip that silently

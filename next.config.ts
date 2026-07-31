@@ -171,6 +171,13 @@ const nextConfig: NextConfig = {
           resolveAlias: {
             "@/components/marketplace/visa-cards": "./src/components/marketplace/visa-cards.stub.tsx",
             "@/components/marketplace/trip-cards": "./src/components/marketplace/trip-cards.stub.tsx",
+            // The services translation catalogue — ~337 strings, including the e-Visa and passport
+            // vocabulary, lazily loaded for third-language visitors. Aliased to an empty array so
+            // eno.vn never ships the words at all.
+            "@/generated/ui-strings.services": "./src/generated/ui-strings.services.stub.ts",
+            // Footer links and home tiles. Already gated at their call sites — this removes the
+            // LABELS from the artifact, which the gate cannot do.
+            "@/lib/edition-services-copy": "./src/lib/edition-services-copy.stub.ts",
           },
         }
       : {}),

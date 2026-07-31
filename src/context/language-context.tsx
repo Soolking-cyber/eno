@@ -167,7 +167,24 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     let cancelled = false
     // Lazy-load the big UI string list ONLY for a third language (en/vi already
     // returned above), so it never ships in the en/vi first-load bundle.
-    import('@/generated/ui-strings').then(({ UI_STRINGS }) => {
+    /**
+     * ⚠️ TWO CATALOGUES, MERGED HERE, AND THE SERVICES ONE IS ALIASED AWAY ON eno.vn.
+     *
+     * The combined list used to carry 26 e-Visa strings into every marketplace client. Splitting it
+     * is not enough on its own — a runtime `IS_SERVICES ?` around the import would NOT keep the
+     * services file out of the bundle, because the flag is not dead-code-eliminated across module
+     * boundaries (measured; see src/lib/edition.ts). next.config.ts therefore aliases
+     * `@/generated/ui-strings.services` to an empty stub on a marketplace build, so this import
+     * resolves to `[]` and the words are not in the artifact at all.
+     *
+     * Both stay lazy: neither ships in the en/vi first-load bundle, which is what the early return
+     * above is for.
+     */
+    Promise.all([
+      import('@/generated/ui-strings'),
+      import('@/generated/ui-strings.services'),
+    ]).then(([core, services]) => {
+      const UI_STRINGS = [...core.UI_STRINGS, ...services.UI_STRINGS_SERVICES]
       if (cancelled) return
       // Key the cache by a hash of the CURRENT string set, so adding/changing any
       // UI copy auto-invalidates stale caches (otherwise new strings stay English).
