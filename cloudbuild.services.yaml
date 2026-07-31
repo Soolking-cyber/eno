@@ -42,8 +42,15 @@ steps:
       - |
         set -euo pipefail
         test "${_EDITION}" = "services" || { echo "cloudbuild.services.yaml must build the services edition, got '${_EDITION}'"; exit 1; }
-        test "${_SERVICE}" = "eno-forum" || { echo "services edition must deploy to eno-forum, got '${_SERVICE}'"; exit 1; }
         test "${_IMAGE}" = "eno-services" || { echo "services edition must publish the eno-services image, got '${_IMAGE}'"; exit 1; }
+        # A PREFIX match, not equality: it must permit eno-forum-preview / -canary, because verifying
+        # a services image on a no-traffic revision before a cutover is the safe habit and a guard
+        # that forbids it would just get bypassed. The case it exists to stop is unchanged — the
+        # services edition must never land on eno-vn, the licensed marketplace service.
+        case "${_SERVICE}" in
+          eno-forum|eno-forum-*) : ;;
+          *) echo "services edition may only deploy to eno-forum or an eno-forum-* preview, got '${_SERVICE}'"; exit 1 ;;
+        esac
         echo "edition guard ok: ${_EDITION} → ${_SERVICE} (${_IMAGE})"
 
   - id: build-push
