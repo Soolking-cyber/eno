@@ -1,3 +1,4 @@
+import { scopedListingWhere } from '@/lib/edition-scope'
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { normalizeBrand } from '@/lib/brand-normalize'
@@ -30,13 +31,16 @@ export async function GET(req: NextRequest) {
     // must not offer Toyota just because both live under Vehicles.
     const grouped = await db.listing.groupBy({
       by: ['brandSlug'],
-      where: {
+      // ⚠️ A LATENT LEAK, not a live one — held shut today only by the seeded desk rows having a
+      // null brandSlug. createListingCore sets brandSlug from the resolver, so one desk product
+      // with a brand opens it. Closed rather than left to luck.
+      where: await scopedListingWhere({
         verified: true,
         status: 'active',
         brandSlug: { not: null },
         category: { slug: category },
         ...(subcategory && subcategory !== 'all' ? { subcategorySlug: subcategory } : {}),
-      },
+      }),
       _count: { _all: true },
       _sum: { views: true, contactCount: true },
     })

@@ -1,6 +1,7 @@
 // GET /api/listings semantic-search machinery: the Vertex ranked-ID cache, the global
 // daily budget, and the semantic ranking + pagination path. Extracted verbatim from
 // route.ts — the rankCache singleton lives here (exactly one module instance).
+import { scopedListingWhere } from '@/lib/edition-scope'
 import { Prisma } from '@/generated/prisma/client'
 import { db } from '@/lib/db'
 import { LISTING_CARD_SELECT } from '@/lib/serialize'
@@ -112,7 +113,7 @@ export async function semanticRank(args: {
       const [tailTotal, pageRows] = await Promise.all([
         db.listing.count({ where: tailWhere }),
         pageIds.length
-          ? db.listing.findMany({ where: { id: { in: pageIds } }, select: LISTING_CARD_SELECT })
+          ? db.listing.findMany({ where: await scopedListingWhere({ id: { in: pageIds } }), select: LISTING_CARD_SELECT })
           : [],
       ])
       semanticTotal = R + tailTotal

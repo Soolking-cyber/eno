@@ -58,9 +58,21 @@ const matchesConvo = (c: Row, where: Row) =>
   (where.buyerProfileId === undefined || c.buyerProfileId === where.buyerProfileId) &&
   (where.listingId === undefined || c.listingId === where.listingId)
 
+// The edition scope is identity here: these tests are about thread routing, not about which
+// edition is running. scopedListingWhere passes the predicate straight through.
+vi.mock('@/lib/edition-scope', () => ({
+  scopedListingWhere: async (w: unknown) => w,
+  marketplaceListingScope: async () => ({}),
+  deskSellerIds: async () => [],
+}))
 vi.mock('@/lib/db', () => ({
   db: {
     listing: {
+      // ⚠️ findFirst, because the route converted from findUnique when the edition scope landed:
+      // scopedListingWhere returns an { AND: [...] } wrapper, which ListingWhereUniqueInput rejects.
+      // The scope is a no-op in these tests (edition-scope is mocked to pass the predicate through),
+      // so the id still arrives at the top level.
+      findFirst: ({ where }: Row) => Promise.resolve(h.state.listings[where.id] ?? null),
       findUnique: ({ where }: Row) => Promise.resolve(h.state.listings[where.id] ?? null),
     },
     conversation: {

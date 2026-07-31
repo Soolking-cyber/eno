@@ -1,3 +1,4 @@
+import { scopedListingWhere } from '@/lib/edition-scope'
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 
@@ -14,14 +15,17 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ slug
 
   const grouped = await db.listing.groupBy({
     by: ['model'],
-    where: {
+    // ⚠️ A LATENT LEAK, not a live one — held shut today only by the seeded desk rows having a null
+    // brandSlug. createListingCore sets brandSlug from the resolver, so one desk product with a
+    // brand opens it. Closed rather than left to luck. Same fix as the sibling /api/brands.
+    where: await scopedListingWhere({
       verified: true,
       status: 'active',
       brandSlug: slug,
       model: { not: null },
       ...(category && category !== 'all' ? { category: { slug: category } } : {}),
       ...(subcategory && subcategory !== 'all' ? { subcategorySlug: subcategory } : {}),
-    },
+    }),
     _count: { _all: true },
     _sum: { views: true, contactCount: true },
     orderBy: { _count: { model: 'desc' } },

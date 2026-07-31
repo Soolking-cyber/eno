@@ -1,3 +1,4 @@
+import { marketplaceListingScope, scopedListingWhere } from '@/lib/edition-scope'
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { fold } from '@/lib/fold'
@@ -179,10 +180,22 @@ async function fallbackSearch(
   const price: Prisma.FloatFilter = {}
   if (f.minPriceVnd) price.gte = f.minPriceVnd
   if (f.maxPriceVnd) price.lte = f.maxPriceVnd
+  /**
+   * ⚠️ THE EXCLUSION GOES IN AS A PLAIN `sellerId` KEY, NOT VIA scopedListingWhere, AND THIS IS THE
+   * ONE PLACE WHERE THAT MATTERS. Every rung below is built by SPREADING this object —
+   * `{ ...base, ...cat, AND: and(n) }` — so an `{ AND: [...] }` wrapper would be silently
+   * OVERWRITTEN by the rung's own `AND`, and the exclusion would vanish with no error and no test
+   * failure. The sibling recommendations route composes its base as an AND operand and can be
+   * scoped the normal way; do not copy that pattern here.
+   *
+   * `sellerId` is safe as a flat key because no rung sets one of its own.
+   */
+  const editionScope = await marketplaceListingScope()
   const base: Prisma.ListingWhereInput = {
     verified: true, status: 'active',
     ...(price.gte || price.lte ? { price } : {}),
     ...(f.brandSlug ? { brandSlug: f.brandSlug } : {}),
+    ...editionScope,
   }
   const order: Prisma.ListingOrderByWithRelationInput[] = [RANK, { id: 'desc' }]
   // The brand word is carried by the brandSlug filter — drop it from the text tokens
@@ -281,7 +294,15 @@ export async function POST(req: NextRequest) {
   if (source === 'vertex' && listingIds.length) {
     // Re-validate against the LIVE table (freshness: sold/hidden items drop out even
     // if the index lags), preserving relevance order.
-    const found = await db.listing.findMany({ where: { id: { in: listingIds }, verified: true, status: 'active' }, include: INCLUDE })
+    /**
+     * ⚠️ THE ONLY PER-REQUEST ENFORCEMENT POINT FOR VERTEX RESULTS, AND IT IS NOT OPTIONAL. The
+     * Vertex datastore is edition-BLIND: ListingDoc carries neither sellerId nor subcategorySlug, so
+     * no Vertex-side filter can express this exclusion, and the desk's documents were written into
+     * the index by the services build. A code fix alone leaves them there. This re-validation
+     * against the live table is what stops them being returned on eno.vn — the backfill still has
+     * to be re-run to clear the index itself.
+     */
+    const found = await db.listing.findMany({ where: await scopedListingWhere({ id: { in: listingIds }, verified: true, status: 'active' }), include: INCLUDE })
     rows = listingIds.map((id) => found.find((r) => r.id === id)).filter((r): r is NonNullable<typeof r> => !!r)
     // An index miss must not hide a live listing — if validation emptied the set,
     // fall through to the live-DB ladder instead of claiming "no match".

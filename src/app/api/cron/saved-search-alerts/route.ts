@@ -1,3 +1,4 @@
+import { scopedListingWhere } from '@/lib/edition-scope'
 import { NextRequest, NextResponse } from 'next/server'
 import { timingSafeEqual } from 'node:crypto'
 import { db } from '@/lib/db'
@@ -47,7 +48,10 @@ export async function GET(req: NextRequest) {
         try { params = JSON.parse(s.params) } catch { return { notified: 0, pushed: 0 } }
         try {
           const matches = await db.listing.count({
-            where: { AND: [buildListingWhere(params), { createdAt: { gt: s.lastNotifiedAt } }] },
+            // ⚠️ SCOPED HERE, NOT INSIDE buildListingWhere. That helper is shared with the browse
+            // feed, which already carries the scope via andFilters — pushing it in there too would
+            // double-apply it and couple two surfaces that should stay independent.
+            where: await scopedListingWhere({ AND: [buildListingWhere(params), { createdAt: { gt: s.lastNotifiedAt } }] }),
           })
           if (matches === 0) return { notified: 0, pushed: 0 }
           const title = matches === 1 ? '🔔 New match for your saved search' : `🔔 ${matches} new matches for your saved search`

@@ -1,3 +1,4 @@
+import { scopedListingWhere } from '@/lib/edition-scope'
 import { db } from '@/lib/db'
 import { dropPercent } from '@/lib/vnd'
 
@@ -69,10 +70,13 @@ export async function getDigestContent(): Promise<{ top: DigestItem[]; sales: Di
   const dropCutoff = new Date(Date.now() - DROP_WINDOW_MS)
   const now = new Date()
 
+  // Hoisted: both queries below build ONE email, so they must share a predicate. An await inside a
+  // Promise.all element would also serialise the pair.
+  const liveWhere = await scopedListingWhere({ verified: true, status: 'active' })
   const [topRows, saleRows] = await Promise.all([
     // Top products — the bounded trust⊕recency blend (rankScore), same as "Recommended".
     db.listing.findMany({
-      where: { verified: true, status: 'active' },
+      where: liveWhere,
       orderBy: [{ rankScore: 'desc' }, { id: 'desc' }],
       take: 6,
       select: SELECT,
@@ -80,14 +84,16 @@ export async function getDigestContent(): Promise<{ top: DigestItem[]; sales: Di
     // Moving sales — a recent real drop (priceDropAt within the window) OR still urgent.
     // Over-fetch, then post-filter the previousPrice>price compare Prisma can't express.
     db.listing.findMany({
-      where: {
+      // Wrapped whole: the existing OR survives as one operand of the generated AND. Spreading the
+      // raw fragment beside it would be the collision trap.
+      where: await scopedListingWhere({
         verified: true,
         status: 'active',
         OR: [
           { previousPrice: { not: null }, priceDropAt: { gte: dropCutoff } },
           { urgentUntil: { gt: now } },
         ],
-      },
+      }),
       orderBy: [{ priceDropAt: 'desc' }, { rankScore: 'desc' }],
       take: 16,
       select: SELECT,

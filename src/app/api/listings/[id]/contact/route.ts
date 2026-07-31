@@ -1,3 +1,4 @@
+import { scopedListingWhere } from '@/lib/edition-scope'
 import { NextResponse, after } from 'next/server'
 import { clientIp } from '@/lib/client-ip'
 import crypto from 'crypto'
@@ -38,8 +39,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     return NextResponse.json({ error: 'rate_limited' }, { status: 429 })
   }
 
-  const listing = await db.listing.findUnique({
-    where: { id },
+  // findFirst: this reveals a seller's PHONE NUMBER, so a desk listing must not resolve at all on
+  // the licensed marketplace. The existing !verified check below already turns null into the 404.
+  const listing = await db.listing.findFirst({
+    where: await scopedListingWhere({ id }),
     select: { id: true, verified: true, seller: { select: { id: true, phone: true } } },
   })
   // Only verified (public) listings expose contact — never pending/hidden ones.

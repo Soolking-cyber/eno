@@ -1,3 +1,4 @@
+import { scopedListingWhere } from '@/lib/edition-scope'
 import { NextResponse } from 'next/server'
 import { after } from 'next/server'
 import { db } from '@/lib/db'
@@ -40,8 +41,11 @@ export async function POST(req: Request) {
   const isOffer = Number.isFinite(rawAmount) && rawAmount > 0
   const offerAmount = isOffer ? Math.min(Math.round(rawAmount), 1e12) : undefined
 
-  const listing = await db.listing.findUnique({
-    where: { id: listingId },
+  // findFirst — scopedListingWhere returns an { AND: [...] } wrapper with no top-level unique
+  // field, which ListingWhereUniqueInput rejects. On eno.vn a desk listing now resolves to null, so
+  // no conversation can be opened against a service the licensed marketplace does not offer.
+  const listing = await db.listing.findFirst({
+    where: await scopedListingWhere({ id: listingId }),
     // subcategorySlug is the local "is this a visa product?" second opinion the uncertainty check
     // below needs — see the note there; it costs nothing on a row we already fetch.
     select: { id: true, title: true, verified: true, negotiable: true, sellerId: true, subcategorySlug: true, seller: { select: { ownerId: true } } },
