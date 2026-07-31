@@ -28,6 +28,8 @@ import { describe, expect, it } from 'vitest'
 // anything that is not a plain `identifier: ['literal', …]` throws instead of being ignored.
 
 const ROOT_FILE = 'src/lib/visa-admin.ts'
+// ⚠️ NOT `.svc.` — this one points into apps/forum, whose copies were NOT renamed by the edition
+// split. A blanket path rewrite caught it because the string contains `app/api/visa` too.
 const FORUM_FILE = 'apps/forum/src/app/api/visa/admin/applications/[id]/route.ts'
 
 type TransitionMap = Record<string, string[]>

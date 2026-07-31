@@ -17,7 +17,7 @@ vi.mock('./replace', () => ({
   replaceStay: async (input: any) => { h.calls.push(input); return h.result },
 }))
 
-const { POST } = await import('./route')
+const { POST } = await import('./route.svc')
 
 const post = (body: unknown) =>
   POST(

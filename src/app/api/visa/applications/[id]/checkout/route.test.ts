@@ -116,7 +116,7 @@ vi.mock('@/lib/visa/payments', () => ({
 }))
 vi.mock('@/lib/visa/records', () => ({ recordVisaEvent: () => Promise.resolve() }))
 
-import { POST } from './route'
+import { POST } from './route.svc'
 
 const APP_ID = '11111111-1111-4111-8111-111111111111'
 

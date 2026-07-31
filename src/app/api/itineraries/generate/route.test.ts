@@ -74,7 +74,7 @@ vi.mock('@/lib/gemini', () => ({
 // transparent to them and they keep testing what they were written to test.
 vi.mock('@/lib/db', () => ({ db: { itinerary: { count: async () => h.savedItineraries } } }))
 
-import { POST } from './route'
+import { POST } from './route.svc'
 
 const SLOT = 'itinerary-inflight:p-1'
 

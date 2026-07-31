@@ -35,7 +35,7 @@ vi.mock('@/lib/visa/dm-flow', () => ({
   visaDmFailureFor: () => ({ ok: false, error: 'internal_error', status: 500 }),
 }))
 
-import { POST } from './route'
+import { POST } from './route.svc'
 
 const APP_ID = '11111111-1111-4111-8111-111111111111'
 

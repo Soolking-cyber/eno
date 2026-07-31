@@ -100,7 +100,7 @@ vi.mock('@/lib/visa/records', () => ({
 
 import { buildVisaHandoverBundle, visaCaseRef, visaPackReference, VISA_SHEET_SECTIONS, type VisaBundleCase } from './bundle'
 import { visaPayloadSchema, type VisaPayload } from './schema'
-import { GET } from '@/app/api/visa/admin/applications/[id]/bundle/route'
+import { GET } from '@/app/api/visa/admin/applications/[id]/bundle/route.svc'
 
 // Not a real JPEG — the pack stores document bytes verbatim and never decodes them, so a
 // recognizable byte string is more useful here than a valid image.

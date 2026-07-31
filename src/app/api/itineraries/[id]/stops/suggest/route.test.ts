@@ -118,7 +118,7 @@ vi.mock('@/lib/itinerary-geocode', () => ({
   },
 }))
 
-import { POST } from './route'
+import { POST } from './route.svc'
 
 const PARAMS = { params: Promise.resolve({ id: 'itin-1' }) }
 

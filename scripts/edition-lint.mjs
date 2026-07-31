@@ -101,8 +101,15 @@ for (const full of files) {
   const raw = readFileSync(full, 'utf8')
   const src = decomment(raw)
 
-  // RULE B — every Next special file under a (services) route group carries `.svc.`
-  if (rel.includes('/(services)/')) {
+  // RULE B — every Next special file in a services tree carries `.svc.`
+  //
+  // ⚠️ IT CHECKS KNOWN TREES, NOT A (services) ROUTE GROUP, because the group turned out to be the
+  // wrong home. /dashboard/visa and /dashboard/trips inherit src/app/dashboard/layout.tsx, and Next
+  // resolves layouts by FILESYSTEM nesting — relocating them under src/app/(services)/ would have
+  // silently stripped the dashboard chrome from both. The `.svc.` extension is what actually gates
+  // the route (next.config.ts sets pageExtensions per edition); the directory was only ever
+  // organisational. So the files stay where they are and this rule guards the naming instead.
+  if (SERVICES_TREES.some((t) => rel.startsWith(t))) {
     const base = rel.split('/').pop()
     if (/^(page|layout|route|loading|error|template|default|not-found)\.(ts|tsx)$/.test(base)) {
       badExt.push(rel)

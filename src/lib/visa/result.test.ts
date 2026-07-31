@@ -220,8 +220,8 @@ vi.mock('@/lib/visa/db', () => {
   }
 })
 
-const { POST } = await import('@/app/api/visa/admin/applications/[id]/result/route')
-const { GET } = await import('@/app/api/visa/applications/[id]/result/route')
+const { POST } = await import('@/app/api/visa/admin/applications/[id]/result/route.svc')
+const { GET } = await import('@/app/api/visa/applications/[id]/result/route.svc')
 const { checkVisaResultPdf, visaResultFilename, VISA_RESULT_MAX_BYTES } = await import('./result')
 
 const params = (id = APP_ID) => ({ params: Promise.resolve({ id }) })
