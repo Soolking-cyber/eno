@@ -34,6 +34,16 @@ export type NavItem = {
   exact?: boolean
   /** Render as a plain <a> (full navigation), not a Next <Link>. */
   external?: boolean
+  /**
+   * Services edition only (eno.forum). eno.vn is a licensed sàn TMĐT and may not surface visa or
+   * itinerary services at all.
+   *
+   * ⚠️ SEPARATE FROM `requiresVisa`, deliberately. That flag asks "does this viewer hold a case?"
+   * and only ever gated "My e-Visa" — "My Trips" had no gate whatsoever, and the admin "Visas" row
+   * was missed by the first sweep. Reusing requiresVisa would have hidden the row for the right
+   * reason on the wrong axis, and would still have shown it to any eno.vn user who had a case.
+   */
+  servicesOnly?: boolean
   /** Live counter to show on this row — the renderer maps it to its real-time source. */
   badge?: 'unread' | 'saved'
   /** Item-level visibility; defaults to the owning group's role. */
@@ -112,13 +122,13 @@ export const DASHBOARD_NAV: NavGroup[] = [
       // c8090df0, then accidentally reverted 2 minutes later by 0ef45423 committing a stale
       // working-tree copy of this file. So the rule stands for the future — if this row
       // changes state and no owner decision says so, that is the accident, not a decision.)
-      { href: '/dashboard/trips', ...tr('My Trips', 'Chuyến đi của tôi'), icon: Route },
+      { href: '/dashboard/trips', ...tr('My Trips', 'Chuyến đi của tôi'), icon: Route, servicesOnly: true },
       // KEPT, RELABELLED (owner 2026-07-22: "only 1 way should exist through the chat").
       // The section is no longer a place to APPLY — the wizard behind this row is deleted
       // and the application is filled in the chat thread — so the row names what it still
       // leads to: the applicant's own cases, their status, and the way back into the
       // thread each one lives in. "Vietnam e-Visa" read as "apply here"; this does not.
-      { href: '/dashboard/visa', ...tr('My e-Visa', 'E-Visa của tôi'), icon: FileCheck2, requiresVisa: true },
+      { href: '/dashboard/visa', ...tr('My e-Visa', 'E-Visa của tôi'), icon: FileCheck2, requiresVisa: true, servicesOnly: true },
     ],
   },
   {
@@ -133,7 +143,7 @@ export const DASHBOARD_NAV: NavGroup[] = [
       { href: '/admin/listings', en: 'Listings', icon: ClipboardList },
       { href: '/admin/brands', en: 'Brands', icon: Tags },
       { href: '/admin/feedback', en: 'Feedback', icon: Star },
-      { href: '/admin/visas', en: 'Visas', icon: Stamp },
+      { href: '/admin/visas', en: 'Visas', icon: Stamp, servicesOnly: true },
       { href: '/admin/business-verification', en: 'Business verification', icon: BadgeCheck },
     ],
   },

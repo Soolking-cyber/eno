@@ -22,8 +22,14 @@ export type InboxConvo = {
   kind?: 'visa' | 'itinerary' | 'listing'
 }
 
-const CONVOS_KEY = 'eno-convos'  // localStorage cache: { userId, list }
-const THREAD_PREFIX = 'eno-thr:' // per-thread localStorage cache: { userId, data }
+/**
+ * ⚠️ BUMPED WITH THE SERVER-SIDE THREAD FILTER, IN THE SAME RELEASE, AND THAT IS NOT OPTIONAL.
+ * The inbox and every thread paint from this cache BEFORE the server answers. Without a new key the
+ * gate looks perfect in a fresh incognito window and leaks for every real user who has ever used
+ * chat — they keep painting their cached visa threads on eno.vn until the fetch resolves.
+ */
+const CONVOS_KEY = 'eno-convos-v2'  // localStorage cache: { userId, list }
+const THREAD_PREFIX = 'eno-thr2:'   // per-thread localStorage cache: { userId, data }
 
 type ChatCtx = {
   open: boolean

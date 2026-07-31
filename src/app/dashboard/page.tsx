@@ -1,3 +1,4 @@
+import { IS_SERVICES } from '@/lib/edition'
 import { redirect } from 'next/navigation'
 import { getCurrentProfile } from '@/lib/admin'
 
@@ -14,8 +15,10 @@ const TAB_TO_ROUTE: Record<string, string> = {
   // 'Forum activity' was removed 2026-07-21; the Help Center replaced it as the one
   // community surface, so a bookmarked ?tab=forum lands there instead of nowhere.
   forum: '/dashboard/help',
-  trips: '/dashboard/trips',
-  visa: '/dashboard/visa',
+  // ⚠️ ABSENT ON THE MARKETPLACE EDITION, including the signed-out branch that
+  // encodeURIComponent()s the tab into a /signin?next= Location — a redirect target naming a visa
+  // route is still the licensed domain pointing at one.
+  ...(IS_SERVICES ? { trips: '/dashboard/trips', visa: '/dashboard/visa' } : {}),
   dev: '/dashboard/dev',
   help: '/dashboard/help',
   post: '/post',

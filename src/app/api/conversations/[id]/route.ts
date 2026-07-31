@@ -4,6 +4,8 @@ import { getCurrentProfileId } from '@/lib/admin'
 import { MESSAGE_ROW_SELECT, parseMessageMeta } from '@/lib/messages'
 import { maskEmailHandle } from '@/lib/utils'
 import { threadKind } from '@/lib/thread-kind'
+import { IS_MARKETPLACE } from '@/lib/edition'
+import { deskSellerIds } from '@/lib/edition-scope'
 import { syncBadgeToProfile } from '@/lib/native-push'
 import { dayCoarse } from '@/lib/last-seen'
 
@@ -120,6 +122,22 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     },
   })
   if (!convo) return NextResponse.json({ error: 'not_found' }, { status: 404 })
+
+  /**
+   * ⚠️ 404, NOT AN EMPTY THREAD. The two editions share one database, so a user who applied on
+   * eno.forum can hold a direct link to that conversation and open it on eno.vn. Suppressing the
+   * CARDS would not be enough: both concierges write their answers as kind-less plain text, so the
+   * whole exchange stays readable as ordinary messages.
+   *
+   * Deliberately indistinguishable from a thread that does not exist — the same answer a stranger's
+   * conversation id gets, so this cannot be used to confirm that a visa service exists.
+   */
+  if (IS_MARKETPLACE && convo.listing?.id) {
+    const deskIds = await deskSellerIds()
+    if (deskIds.length && convo.seller?.id && deskIds.includes(convo.seller.id)) {
+      return NextResponse.json({ error: 'not_found' }, { status: 404 })
+    }
+  }
 
   const iAmBuyer = convo.buyerProfileId === meId
   const iAmSeller = convo.sellerProfileId === meId

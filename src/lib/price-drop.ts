@@ -1,3 +1,4 @@
+import { scopedListingWhere } from '@/lib/edition-scope'
 import 'server-only'
 import { db } from '@/lib/db'
 import { sendPushToProfile } from '@/lib/push'
@@ -133,8 +134,14 @@ export async function priceChangeEffects(
  */
 async function notifyPriceDrop(listingId: string, fromPrice: number, toPrice: number): Promise<void> {
   try {
-    const listing = await db.listing.findUnique({
-      where: { id: listingId },
+    /**
+     * ⚠️ SUPPRESSED AT THE SOURCE, NOT AT THE URL. A price-drop push carries a RELATIVE link, so it
+     * opens on whichever origin the recipient's app or browser is on — patching the URL would still
+     * leave eno.vn pushing "e-Visa - Standard Processing dropped to …" to a phone. Not sending it is
+     * the only fix that holds.
+     */
+    const listing = await db.listing.findFirst({
+      where: await scopedListingWhere({ id: listingId }),
       select: { title: true, currency: true, status: true, verified: true, seller: { select: { ownerId: true } } },
     })
     if (!listing || listing.status !== 'active' || !listing.verified) return

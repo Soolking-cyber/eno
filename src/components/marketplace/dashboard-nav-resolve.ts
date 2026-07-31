@@ -5,6 +5,7 @@
 // type-only pass-through). account-panel.tsx is the renderer; any future surface (native
 // shell, forum mirror) can call resolveNavGroups() with its own ctx.
 
+import { IS_SERVICES } from '@/lib/edition'
 import type { NavGroup, NavItem, NavRole } from './dashboard-nav'
 
 /** A concrete, renderable rail row (account-panel's RailItem shape). */
@@ -67,7 +68,11 @@ export function resolveNavGroups(nav: NavGroup[], ctx: NavResolveCtx): ResolvedN
       // Caption tolerates vi-less groups (Admin renders its EN caption verbatim).
       caption: g.vi ? ctx.label(g.en, g.vi) : g.en,
       items: g.items
-        .filter((it) => roleOk(ctx, it.role) && (!it.requiresVisa || ctx.hasVisa))
+        // ⚠️ `servicesOnly` IS SEPARATE FROM `requiresVisa`, and that is why all THREE rows go.
+        // requiresVisa only ever gated "My e-Visa" — "My Trips" had NO gate at all, and the admin
+        // "Visas" row was missed by the first sweep entirely. An explicit edition predicate is
+        // checkable by reading the item; inferring it from requiresVisa was not.
+        .filter((it) => roleOk(ctx, it.role) && (!it.requiresVisa || ctx.hasVisa) && (!it.servicesOnly || IS_SERVICES))
         .flatMap((it) => { const r = toRail(it, ctx); return r ? [r] : [] }),
     }))
 }

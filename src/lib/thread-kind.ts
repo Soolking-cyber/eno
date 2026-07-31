@@ -1,3 +1,4 @@
+import { IS_SERVICES } from '@/lib/edition'
 import 'server-only'
 // Relative specifiers, matching the trips/visa DM modules' idiom: `@/…` does not resolve under
 // vitest and this file IS unit-tested. That is also why this lives here rather than in messages.ts,
@@ -30,6 +31,19 @@ export type ThreadKind = 'visa' | 'itinerary' | 'listing'
  * thread list, the thread page, the admin queue — share one pair of lookups between them.
  */
 export async function threadKind(convo: { listingId: string | null }): Promise<ThreadKind> {
+  /**
+   * ⚠️ THE SINGLE HIGHEST-LEVERAGE LINE IN THE EDITION SPLIT'S CHAT WORK. eno.vn is a licensed sàn
+   * TMĐT with no visa or trip service, and the two apps SHARE ONE DATABASE — so a user who applied
+   * on eno.forum genuinely has those threads sitting in the marketplace's tables. Answering
+   * 'listing' unconditionally here disarms the inbox badge, every thread-card branch and the chat
+   * context at once, and it does it in the direction this function already fails in: withholding a
+   * product surface, never painting one onto a conversation that is not one.
+   *
+   * It is NOT sufficient on its own — a kind of 'listing' hides the CARDS while the concierge's
+   * replies remain readable prose, because both concierges insert their answers with no `kind` and
+   * default to 'text'. The threads themselves are excluded in the conversations routes.
+   */
+  if (!IS_SERVICES) return 'listing'
   if (!convo.listingId) return 'listing'
   try {
     const [tripAnchorId, visaListings] = await Promise.all([

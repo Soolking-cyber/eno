@@ -1,4 +1,5 @@
-import { scopedListingWhere } from '@/lib/edition-scope'
+import { deskSellerIds, scopedListingWhere } from '@/lib/edition-scope'
+import { IS_MARKETPLACE } from '@/lib/edition'
 import { NextResponse } from 'next/server'
 import { after } from 'next/server'
 import { db } from '@/lib/db'
@@ -142,6 +143,15 @@ export async function POST(req: Request) {
     // visa-legal listing is only affected while the desk lookup is down.
     : listing.subcategorySlug === VISA_SUBCATEGORY_SLUG
   if (!isVisaProduct && mightBeVisa) {
+    /**
+     * ⚠️ ON THE MARKETPLACE EDITION THIS ANSWERS 404, NOT 503, AND THE DIFFERENCE IS THE WHOLE
+     * POINT. A desk listing never reaches here — the scoped lookup above already 404s it — but a
+     * THIRD-PARTY listing filed under the visa subcategory would, and `shop_unavailable` with a
+     * retry-shaped 503 tells the caller that a visa shop exists and is temporarily down. On a
+     * licensed sàn TMĐT that is an advertisement. eno.forum keeps the honest 503, which is what it
+     * is for: "we could not tell, try again" rather than "no chat for you".
+     */
+    if (IS_MARKETPLACE) return NextResponse.json({ error: 'not_found' }, { status: 404 })
     return NextResponse.json({ error: 'shop_unavailable' }, { status: 503 })
   }
 
@@ -390,8 +400,24 @@ export async function GET() {
   const meId = await getCurrentProfileId()
   if (!meId) return NextResponse.json({ error: 'auth_required' }, { status: 401 })
 
+  /**
+   * ⚠️ HIDE THE THREAD, NOT JUST ITS CARDS, AND EXCLUDE IT IN THE `where` — BEFORE THE take.
+   *
+   * The two apps share one database, so a user who applied on eno.forum really does have visa and
+   * trip threads sitting here. A card-kind denylist cannot hide them: both concierges insert their
+   * ANSWERS with no `kind`, so they default to 'text' and remain readable prose with every card
+   * suppressed, and the inbox preview column carries bilingual e-Visa product copy written by the
+   * other edition. Filtering after the take would also silently shrink the page.
+   *
+   * deskSellerIds() is edition-blind, so the IS_MARKETPLACE test is what keeps eno.forum's own desk
+   * threads visible where they belong.
+   */
+  const hiddenSellerIds = IS_MARKETPLACE ? await deskSellerIds() : []
   const rows = await db.conversation.findMany({
-    where: { OR: [{ buyerProfileId: meId }, { sellerProfileId: meId }] },
+    where: {
+      OR: [{ buyerProfileId: meId }, { sellerProfileId: meId }],
+      ...(hiddenSellerIds.length ? { sellerId: { notIn: hiddenSellerIds } } : {}),
+    },
     orderBy: { lastMessageAt: 'desc' },
     take: 100,
     select: {
