@@ -4,11 +4,10 @@
  * and PayPal surfaces that only eno.forum may serve. See the edition split in CLAUDE.md and the
  * mechanism in src/lib/edition.ts.
  *
- * ⚠️ REPORT-ONLY FOR NOW. It prints and exits 0. This is Phase 0: the first job of this script is to
- * MEASURE the scope of Phase 3 rather than have someone remember it. It becomes a build gate (exit 1,
- * wired into `npm run lint` and the head of `npm run build`, exactly like design-lint.mjs) at the end
- * of Phase 3, once every listed site is fixed — turning it on before then would just block every
- * build with work that has not been done yet.
+ * ⚠️ THIS IS A BUILD GATE. Exit 1 on any violation, wired into `npm run lint` AND the head of
+ * `npm run build`, exactly like design-lint.mjs. It began life report-only so it could MEASURE the
+ * work (87 unguarded reads) instead of blocking every build with work that had not been done; that
+ * work is done, so it now enforces.
  *
  * RULE A — unguarded listing/seller reads.
  *   Visa services are ORDINARY `Listing` rows and the trip desk shares the same `Seller`, so any
@@ -40,9 +39,76 @@ const SRC = join(ROOT, 'src')
  * Keep this list short and specific; a growing allowlist means the rule is wrong or the code is.
  */
 const ALLOW = new Map([
-  ['src/lib/edition-scope.ts', 'defines the predicate itself'],
-  ['src/lib/visa-shop.ts', 'resolves the desk — services-side by definition'],
-  ['src/lib/trips/dm-thread.ts', 'resolves the trip desk — services-side by definition'],
+  // The three that predate the sweep — the desk resolvers themselves and the predicate module.
+  // Regenerating this list from "what the lint still reports" silently dropped them once,
+  // because an allowlisted file is not reported. They go first so that cannot recur.
+  ["src/lib/edition-scope.ts", "defines the predicate itself"],
+  ["src/lib/visa-shop.ts", "resolves the desk BY owner email — it must see the desk to exclude it; services-side by definition"],
+  ["src/lib/trips/dm-thread.ts", "resolves the trip desk — services-side by definition"],
+  // ⚠️ EVERY ENTRY CARRIES THE CONSTRAINT THAT MAKES IT SAFE, not the word "internal". This list
+  // is permanent and nobody re-derives it, so a vague reason here is a future leak. Each was
+  // classified by reading the file and then attacked by three independent passes whose only job
+  // was to prove a "safe" verdict reachable by an outsider; three verdicts were overturned and
+  // are NOT in this list.
+  //
+  // Adding a line here is a decision that shows up in a diff. Deleting a scope call is not.
+  ["src/app/api/account/delete/route.ts", "Seller/listing reads are `where: { ownerId: profile.id }` from getCurrentProfile() (401 guard, no target param); the two counts at 51-52 are storag\u2026"],
+  ["src/app/api/account/export/route.ts", "PDPL self-export: seller is `where: { ownerId: profile.id }` and listings are `where: { sellerId: seller.id }` derived from it; scoping would strip\u2026"],
+  ["src/app/api/account/route.ts", "Dashboard payload keyed to `where: { ownerId: profile.id }` from getCurrentProfile(); listings read is `sellerId: seller.id` from that same session\u2026"],
+  ["src/app/api/cron/daily-reminders/route.ts", "CRON_SECRET bearer + timingSafeEqual (lines 36-39); selects only seller.ownerId and notifies each listing's OWN owner \u2014 no listing field reaches a\u2026"],
+  ["src/app/api/cron/video-gc/route.ts", "Builds a platform-wide DO-NOT-DELETE set; excluding the desk would make its videos look orphaned and the nightly job would delete objects eno.forum\u2026"],
+  ["src/app/api/cron/warm-translations/route.ts", "CRON_SECRET-gated; selects title/description/location into sha1-keyed Translation rows that surface only when the same text is rendered, which a sc\u2026"],
+  ["src/app/api/dashboard/analytics/route.ts", "Seller resolved as `where: { ownerId: profile.id }` (401 guard at 21-22); listing read pinned to `sellerId: seller.id`, response Cache-Control: pri\u2026"],
+  ["src/app/api/disputes/[id]/route.ts", "Gated by loadDisputeForParty(id, meId) \u2192 partyRoleFor, which returns null unless meId is the reporter, the target, or the target seller's ownerId (\u2026"],
+  ["src/app/api/disputes/route.ts", "Seller is `where: { ownerId: meId }` from getCurrentProfileId(); the report list's OR is reporterProfileId/targetProfileId/targetSellerId, all sess\u2026"],
+  ["src/app/api/handle/check/route.ts", "`db.seller.count({ where: { id: row.sellerId, ownerId: meId } }) > 0` \u2014 a boolean 'is this handle mine' guard; the response is only { handle, valid\u2026"],
+  ["src/app/api/handle/route.ts", "Seller is `where: { ownerId: profile.id }` after a 401; no target id is ever accepted from the client (only the handle string)."],
+  ["src/app/api/keys/[id]/route.ts", "Seller is `where: { ownerId: profile.id }` behind a business-tier 403; used only to authorize an ApiKey revoke. No listing reads."],
+  ["src/app/api/keys/route.ts", "callerShop() resolves `where: { ownerId: profile.id }` behind a business-tier null-return; every downstream query filters on that sellerId. No list\u2026"],
+  ["src/app/api/listings/[id]/save/route.ts", "findUnique selects only id/verified/status as a liveness guard; the response is exactly { ok, counted } \u2014 no listing field is serialized."],
+  ["src/app/api/listings/[id]/view/route.ts", "Guard read: verified/status decide whether to count and seller.ownerId only suppresses self-views; response is { ok, counted }."],
+  ["src/app/api/listings/availability/route.ts", "Seller is `where: { ownerId: profile.id }`; the listing read intersects client ids with `sellerId: seller.id`, which exists precisely to stop reval\u2026"],
+  ["src/app/api/listings/bulk/route.ts", "Only read is the caller's own `where: { ownerId: profile.id }` seller behind a business-tier 403; the rest is a write path into that same storefront."],
+  ["src/app/api/listings/resolve-seller.ts", "Owned branch is `where: { ownerId: meId }` from getCurrentProfileId(); the two phone lookups are unowned-storefront claim checks whose rows never r\u2026"],
+  ["src/app/api/listings/route.ts", "Every where clause (histogram, feed, total, facet counts, subcategory groupBy) is derived from `await buildFeedFilters()`, which pushes marketplace\u2026"],
+  ["src/app/api/listings/semantic-rank.ts", "Vertex id resolution is scoped; the sibling read is the structural filter already carried by feed-query andFilters"],
+  ["src/app/api/me/route.ts", "Seller is `where: { ownerId: profile.id }` from getCurrentProfile() (returns { user: null } when unauthenticated)."],
+  ["src/app/api/profile/account-type/route.ts", "All three seller reads are `where: { ownerId: profile.id }` after a 401; the phone lookup is an unowned-storefront claim check gated on `if (byPhon\u2026"],
+  ["src/app/api/report/route.ts", "Attribution lookups for a write behind getCurrentProfile(); success responses are only { ok } / { ok, id } \u2014 scoping would merely make desk listing\u2026"],
+  ["src/app/api/seller/route.ts", "Seller is `where: { ownerId: profile.id }` after a 401, selecting only id for a self-edit via updateSellerCore."],
+  ["src/app/api/seller/verification/documents/route.ts", "Seller is `where: { ownerId: userId }` from getCurrentProfileId() (401 at 22-23); used only as the draft key for the uploader's own case."],
+  ["src/app/api/seller/verification/route.ts", "ownSellerId(userId) is `where: { ownerId: userId }` with userId from getCurrentProfileId() and a 401 in both GET and POST."],
+  ["src/app/api/sellers/[id]/reviews/route.ts", "The id is not free input \u2014 line 53 rejects unless `convo.listing.sellerId === id` and line 51 requires `convo.buyerProfileId === me.id`; the seller\u2026"],
+  ["src/app/api/upload/video/transcode/route.ts", "`db.listing.count({ where: { video: rawUrl } })` is the ownership gate returning 409 already_in_use; scoping it would let a marketplace caller dest\u2026"],
+  ["src/app/api/v1/analytics/summary/route.ts", "All three reads share `where = { sellerId: r.auth.sellerId }`, where sellerId comes from the ApiKey row looked up by sha256 of the Bearer secret (s\u2026"],
+  ["src/app/api/v1/listings/[id]/route.ts", "Line 22 returns 404 with no body unless `listing.sellerId === r.auth.sellerId`; PATCH/DELETE go through listingOwnedBy(id, r.auth.sellerId), a bool\u2026"],
+  ["src/app/api/v1/listings/bulk/route.ts", "Only read is `where: { id: r.auth.sellerId }`, the key's own shop, passed to bulkImportCore as the write target."],
+  ["src/app/api/v1/listings/route.ts", "GET is `where: { sellerId: r.auth.sellerId }`; POST reads only `where: { id: r.auth.sellerId }` \u2014 a key can never read another shop's inventory."],
+  ["src/app/api/v1/listings/sync/route.ts", "Only read is `where: { id: r.auth.sellerId }` after resolveApiKey(req, 'listings:write'); the row is the write target, not a response."],
+  ["src/app/api/v1/shop/route.ts", "`where: { id: r.auth.sellerId }`; the nested listings _count is therefore confined to the key's own shop."],
+  ["src/app/api/webhooks/[id]/route.ts", "ownedHook() resolves `where: { ownerId: profile.id }` from the session; the endpoint lookup is a WebhookEndpoint selected down to sellerId purely a\u2026"],
+  ["src/app/api/webhooks/route.ts", "callerShop() is `where: { ownerId: profile.id }` behind a business-tier check; the endpoint list is WebhookEndpoint keyed on that sellerId, not Lis\u2026"],
+  ["src/app/listings/[id]/edit/page.tsx", "Seller is `where: { ownerId: profile.id }` (redirect to /signin otherwise) and line 44 does `if (!seller || listing.sellerId !== seller.id) notFoun\u2026"],
+  ["src/lib/admin-reports.ts", "Every call site is getAdmin()-gated (admin/page.tsx:29, admin/disputes/page.tsx:28, admin/disputes/[id]/page.tsx:18, api/admin/ai-review/route.ts:9\u2026"],
+  ["src/lib/ai-moderation.ts", "moderateListingById returns Promise<void>: the row feeds Gemini and a hide+Report+Notification write; scoping would silently disable illegal-conten\u2026"],
+  ["src/lib/api/auth.ts", "listingOwnedBy() selects only sellerId and returns a boolean; scoping would turn an ownership check into an edition check and break the desk's own\u2026"],
+  ["src/lib/core/business-verification-service.ts", "Owner paths take a sellerId resolved from `where: { ownerId: getCurrentProfileId() }`; the review/approve paths are getAdmin()-gated in admin/busin\u2026"],
+  ["src/lib/core/dashboard.ts", "`where: { ownerId: profile.id }` with profile from getCurrentProfile() in api/dashboard/route.ts:73-78; included listings and the conversation aggr\u2026"],
+  ["src/lib/core/listings.ts", "Module contract (lines 41-46): every core takes an already-authorized listingId/sellerId checked by the caller (checkListingOwner / resolveApiKey);\u2026"],
+  ["src/lib/core/seller.ts", "updateSellerCore reads `where: { id: sellerId }` for a sellerId already authorized by its two callers (session PATCH /api/seller and key-authed PAT\u2026"],
+  ["src/lib/core/sync.ts", "Both reads pin `sellerId: seller.id` where seller came from `where: { id: r.auth.sellerId }` in the key-authed sync route; rows are ids fed into up\u2026"],
+  ["src/lib/dispute.ts", "partyRoleFor selects only seller.ownerId for an id comparison, and counterpartyName is reachable only after loadDisputeForParty returns a role \u2014 a\u2026"],
+  ["src/lib/enforcement.ts", "Seller/listing reads are `ownerId: profileId` / `sellerId: { in: owned }` for the account being enforced (admin- or cron-supplied per the header at\u2026"],
+  ["src/lib/image-provenance.ts", "Returns Promise<void>; the cross-seller dHash $queryRaw is deliberately platform-wide \u2014 excluding the desk would stop detection of scammers stealin\u2026"],
+  ["src/lib/listing-analytics.ts", "getListingAnalytics's `where: { sellerId }` is passed r.auth.sellerId by both callers (api/v1/analytics/listings and mcp/tools.ts:233), resolved fr\u2026"],
+  ["src/lib/listing-index.ts", "MUST NOT be scoped \u2014 desk documents are WRITTEN by the services build, where the scope is {}, so a guard here never runs for them. The fix is re-ru\u2026"],
+  ["src/lib/listing-owner.ts", "Seller is `where: { ownerId: profile.id }`; the listing read selects only sellerId to return a 403/404 boolean."],
+  ["src/lib/mcp/tools.ts", "Every read keys on auth.sellerId from resolveApiKey(req) in api/mcp/route.ts:80 \u2014 the API key is never a tool argument, so a model-supplied id cann\u2026"],
+  ["src/lib/phone-unique.ts", "Return type is Promise<boolean>; the only disclosure is 'this number is already registered', which callers turn into a 409."],
+  ["src/lib/profile.ts", "Every predicate is the authenticated Supabase user's own id (`where: { ownerId: profile.id }` where profile was upserted from user.id) or their ver\u2026"],
+  ["src/lib/trust.ts", "Seller is `where: { ownerId: profileId }` and all listing reads key on that seller.id; the public caller passes the session profile (api/dashboard/\u2026"],
+  ["src/lib/urgent.ts", "`db.listing.count({ where: { sellerId, ... } })` returns a boolean quota gate for the seller's own post/edit."],
+  ["src/lib/webhooks.ts", "Selects only listing.sellerId to pick which shop's registered endpoints to notify; every caller is an after() hook on that shop's own mutation."],
 ])
 
 /** Directories whose reads are services-only or operator-only and are never public marketplace feeds. */
@@ -172,17 +238,19 @@ if (!unguarded.length && !badExt.length) {
   say('edition-lint: clean')
 } else {
   say('')
-  say('edition-lint (REPORT ONLY — exits 0 until Phase 3 closes these)')
+  say('edition-lint FAILED — eno.vn is a licensed sàn TMĐT and may not surface visa, itinerary or')
+  say('PayPal services. See the edition split in CLAUDE.md and src/lib/edition-scope.ts.')
   if (unguarded.length) {
     say('')
     say(`  Rule A — ${unguarded.length} file(s) with listing/seller reads lacking the marketplace scope:`)
-    say('  eno.vn must exclude the visa/trip desk from every one of these, or the e-Visa SKUs')
-    say('  appear in its feed, its search, its sitemap and its Google/Meta product feeds.')
+    say('  The e-visa SKUs are ORDINARY Listing rows owned by one desk seller, so an unscoped read')
+    say('  puts them in eno.vn\'s feed, search, sitemap and Google/Meta product feeds.')
     say('')
     say('  Fix:  where: await scopedListingWhere({ ...your predicate })')
     say('  ⚠️ NOT by spreading marketplaceListingScope() beside your own sellerId — object spread')
-    say('     overwrites on key collision and the exclusion is silently lost. That is why')
-    say('     scopedListingWhere composes through AND. See src/lib/edition-scope.ts.')
+    say('     overwrites on key collision and the exclusion is silently lost.')
+    say('  If the read is genuinely owner-scoped, add it to ALLOW with the constraint that makes it')
+    say('  safe — not the word "internal".')
     say('')
     for (const f of unguarded) say(`    ${f}`)
   }
@@ -194,4 +262,5 @@ if (!unguarded.length && !badExt.length) {
     for (const f of badExt) say(`    ${f}`)
   }
   say('')
+  process.exitCode = 1
 }
