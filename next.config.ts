@@ -1,6 +1,31 @@
 import { join } from "node:path";
 import type { NextConfig } from "next";
 
+/**
+ * ⚠️ EDITION GUARD — fails the build rather than shipping the wrong app.
+ *
+ * eno.vn (the licensed sàn TMĐT) and eno.forum are built from this one codebase, and
+ * NEXT_PUBLIC_ENO_EDITION decides which. src/lib/edition.ts folds that variable down to a boolean
+ * with a plain ternary, because the ternary is what lets the minifier delete the dead branches — and
+ * a ternary cannot tell a typo from a deliberate value: anything unrecognised falls through to
+ * 'services', which is the DANGEROUS direction once two services exist. A misspelled value on the
+ * eno.vn deployment would make the licensed domain serve visa, itinerary and PayPal.
+ *
+ * So the validation lives here, where it costs nothing at runtime and fails loudly: a value that is
+ * neither literal stops the build. Absent is still allowed and still means 'services' — that is the
+ * transitional default while only one deployment exists, and Phase 1 removes it by setting the
+ * variable explicitly on BOTH services. (Found by an adversarial review of the phase-0 diff, which
+ * pointed out the flag was fail-safe only during the transition.)
+ */
+const EDITION_ENV = process.env.NEXT_PUBLIC_ENO_EDITION;
+if (EDITION_ENV !== undefined && EDITION_ENV !== "marketplace" && EDITION_ENV !== "services") {
+  throw new Error(
+    `NEXT_PUBLIC_ENO_EDITION must be exactly "marketplace" or "services" (got ${JSON.stringify(EDITION_ENV)}). ` +
+      "An unrecognised value silently builds the SERVICES edition, which on eno.vn means the licensed " +
+      "company serves visa, itinerary and PayPal. Refusing to build.",
+  );
+}
+
 const nextConfig: NextConfig = {
   // Standalone server output for local `npm start` / self-hosting. NOT on Vercel:
   // standalone targets a Node server and makes Vercel bundle Edge middleware with

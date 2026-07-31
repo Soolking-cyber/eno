@@ -9,13 +9,17 @@
  * describes, indexes, emails or serves one of those surfaces, the licensed company is advertising a
  * service it is not licensed for. Read that sentence again before relaxing anything in this file.
  *
- * ⚠️ THIS FILE HAS NO IMPORTS, AND THAT IS A REQUIREMENT RATHER THAN A STYLE. It must be importable
- * from a CLIENT component, because `IS_SERVICES && <VisaChip/>` in client code is precisely where the
- * dead-code elimination has to happen. The first draft resolved the desk sellers here too and was
- * therefore server-only by transitivity — `@/lib/visa-shop` and `@/lib/trips/dm-thread` both
- * `import 'server-only'` — which would have made every client use of the flag a build error and
- * quietly defeated the whole mechanism. The server-side predicate lives in `edition-scope.ts`
- * instead. Keep this file free of imports.
+ * ⚠️ NOTHING SERVER-ONLY MAY BE IMPORTED HERE, AND THAT IS A REQUIREMENT RATHER THAN A STYLE. This
+ * file must be importable from a CLIENT component, because `IS_SERVICES && <VisaChip/>` in client
+ * code is precisely where the dead-code elimination has to happen. The first draft resolved the desk
+ * sellers here too and was therefore server-only by transitivity — `@/lib/visa-shop` and
+ * `@/lib/trips/dm-thread` both `import 'server-only'` — which would have made every client use of
+ * the flag a build error and quietly defeated the whole mechanism. The server-side predicate lives
+ * in `edition-scope.ts` instead.
+ *
+ * A type-only or client-safe import would technically be fine; the file has none today because it
+ * needs none, and "no imports at all" is a rule you can check at a glance rather than one that needs
+ * you to know which modules are server-only.
  *
  * ⚠️ ONE FLAG, NOT SEVERAL. No ENO_VISA_ENABLED beside this, no per-feature toggles. Every extra
  * flag is another combination that can disagree in a state nobody tested, and the whole point of one
@@ -53,9 +57,18 @@ export type Edition = 'marketplace' | 'services'
  * Phase 1 stands up the second build and sets the variable explicitly on BOTH services, and only
  * then does the default stop being load-bearing. Do not flip it before that.
  *
- * ⚠️ COMPARE THE LITERAL, do not read the env into a variable first. `process.env.NEXT_PUBLIC_X`
- * has to appear verbatim for Next to substitute it at build time; an indirection through a helper
- * defeats the inlining and with it the dead-code elimination this whole design rests on.
+ * ⚠️ THE PROPERTY ACCESS MUST STAY STATICALLY VISIBLE — `process.env.NEXT_PUBLIC_ENO_EDITION`
+ * written out in full. Next substitutes the literal at build time by matching that expression, so
+ * assigning it to a local first would still inline; what genuinely defeats it is a DYNAMIC lookup
+ * (`process.env[name]`) or reading it through a function at runtime. (An earlier version of this
+ * comment claimed any indirection broke it, which a review correctly called out as false — the rule
+ * is "no dynamic access", not "no variables".)
+ *
+ * ⚠️ AN UNRECOGNISED VALUE FALLS THROUGH TO 'services', WHICH AFTER PHASE 1 IS THE DANGEROUS
+ * DIRECTION: a typo in the eno.vn service's env would make the LICENSED domain serve visa. That is
+ * caught at build time, not here — `next.config.ts` rejects any value that is neither literal, so a
+ * misspelling fails the build instead of shipping. Keeping this expression a plain ternary is what
+ * lets the minifier fold it; validation belongs where it can fail loudly and cost nothing.
  */
 export const EDITION: Edition =
   process.env.NEXT_PUBLIC_ENO_EDITION === 'marketplace' ? 'marketplace' : 'services'

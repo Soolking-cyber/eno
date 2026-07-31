@@ -56,10 +56,27 @@ const ALLOW_DIRS = [
   'src/lib/trips/',
 ]
 
-/** The Prisma reads that can return listings to a user or a crawler. */
-const READ_RE = /\bdb\.(listing|seller)\.(findMany|findFirst|findUnique|count|groupBy|aggregate)\s*\(/g
+/**
+ * The Prisma reads that can return listings to a user or a crawler.
+ *
+ * ⚠️ `tx.` AND `client.` ARE IN HERE because a read inside `db.$transaction(async (tx) => …)` is
+ * every bit as public as one on `db`, and the first version of this pattern only matched `db.` —
+ * caught by review. KNOWN GAP, stated rather than hidden: raw SQL (`$queryRaw`) and a client aliased
+ * to some other local name still evade this. Rule A is a net, not a proof; the proof is the image
+ * grep in the Docker build.
+ */
+const READ_RE = /\b(?:db|tx|client)\.(listing|seller)\.(findMany|findFirst|findUnique|count|groupBy|aggregate)\s*\(/g
 
-const SCOPE_HINTS = ['marketplaceListingScope', 'deskSellerIds', 'edition-lint-allow']
+/**
+ * ⚠️ SEARCHED IN THE DECOMMENTED SOURCE, NOT THE RAW FILE. Searching `raw` meant a file could
+ * silence this rule with a COMMENT that happened to mention the helper — including a comment saying
+ * "this deliberately does not use marketplaceListingScope". Found by review; it made the rule
+ * trivially and accidentally defeatable.
+ */
+const SCOPE_HINTS = ['marketplaceListingScope', 'scopedListingWhere', 'deskSellerIds']
+
+/** The one-off escape hatch, which IS meant to be a comment — same shape as design-lint's. */
+const INLINE_ALLOW = 'edition-lint-allow'
 
 function walk(dir, out = []) {
   for (const name of readdirSync(dir)) {
@@ -94,15 +111,26 @@ for (const full of files) {
 
   if (ALLOW.has(rel) || ALLOW_DIRS.some((d) => rel.startsWith(d))) continue
 
-  // RULE A — a listing/seller read with no sign of the shared scope anywhere in the file.
-  // File-level rather than call-level on purpose: composed predicates (feed-query.ts builds its
-  // `where` far from the call) would defeat a line-local check, and a false positive here costs a
-  // human ten seconds while a false negative costs a licence.
+  /**
+   * RULE A — listing/seller reads that outnumber the guards in the same file.
+   *
+   * File-level rather than line-local on purpose: predicates are composed far from the call
+   * (feed-query.ts assembles its `where` across ~200 lines), so a line-local check would be all
+   * false negatives. But "does the file mention the helper anywhere" was too weak — review pointed
+   * out that ONE guarded query then excuses every other query in the file. Counting closes the
+   * common case: five reads and one guard is now four reported, not zero.
+   *
+   * Still not a proof — two reads and two guard mentions passes even if they are not paired. The
+   * inline `edition-lint-allow` comment is the escape hatch for a read that genuinely needs none.
+   */
   READ_RE.lastIndex = 0
-  if (READ_RE.test(src) && !SCOPE_HINTS.some((h) => raw.includes(h))) {
-    READ_RE.lastIndex = 0
-    const line = src.slice(0, src.search(READ_RE)).split('\n').length
-    unguarded.push(`${rel}:${line}`)
+  const reads = [...src.matchAll(READ_RE)]
+  const guards = SCOPE_HINTS.reduce((n, h) => n + src.split(h).length - 1, 0)
+  const exempt = raw.split('\n').filter((l) => l.includes(INLINE_ALLOW)).length
+  if (reads.length > guards + exempt) {
+    const line = src.slice(0, reads[0].index).split('\n').length
+    const extra = reads.length - guards - exempt
+    unguarded.push(`${rel}:${line}${reads.length > 1 ? `  (${extra} of ${reads.length} reads unguarded)` : ''}`)
   }
 }
 
@@ -119,9 +147,14 @@ if (!unguarded.length && !badExt.length) {
   say('edition-lint (REPORT ONLY — exits 0 until Phase 3 closes these)')
   if (unguarded.length) {
     say('')
-    say(`  Rule A — ${unguarded.length} listing/seller read(s) with no marketplace scope:`)
+    say(`  Rule A — ${unguarded.length} file(s) with listing/seller reads lacking the marketplace scope:`)
     say('  eno.vn must exclude the visa/trip desk from every one of these, or the e-Visa SKUs')
-    say('  appear in its feed. Fix: spread `...(await marketplaceListingScope())` into the where.')
+    say('  appear in its feed, its search, its sitemap and its Google/Meta product feeds.')
+    say('')
+    say('  Fix:  where: await scopedListingWhere({ ...your predicate })')
+    say('  ⚠️ NOT by spreading marketplaceListingScope() beside your own sellerId — object spread')
+    say('     overwrites on key collision and the exclusion is silently lost. That is why')
+    say('     scopedListingWhere composes through AND. See src/lib/edition-scope.ts.')
     say('')
     for (const f of unguarded) say(`    ${f}`)
   }

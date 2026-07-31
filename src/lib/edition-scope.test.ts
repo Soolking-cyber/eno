@@ -1,15 +1,20 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-// The predicate that keeps the visa/trip desk's listings off the licensed marketplace. The property
-// under test is the one the whole edition split rests on: on eno.vn, a desk that cannot be resolved
-// must THROW, never return an empty exclusion. Both underlying resolvers are deliberately fail-soft
-// (they swallow database errors and return null so the visa feature degrades instead of crashing),
-// and inheriting that softness here would silently republish the e-Visa SKUs on the licensed domain.
+// The predicate that keeps the visa/trip desk's listings off the licensed marketplace.
+//
+// ⚠️ THIS FILE WAS REWRITTEN AFTER AN ADVERSARIAL REVIEW, and the reason is worth stating because the
+// first version was actively misleading. It asserted that a PARTIAL desk resolution — visa desk found,
+// trip desk null — should still return `{ sellerId: { notIn: [visaDesk] } }`, and called that
+// "excludes what it found". That is a leak with a test blessing it: the trip desk's listings stay in
+// the licensed marketplace's feed, with no exception and a green suite. The implementation now
+// resolves both desks in ONE query so that a failure cannot masquerade as an absence, and these tests
+// pin THAT.
 
 const h = vi.hoisted(() => ({
   services: true,
-  visaDesk: null as null | { id: string },
-  tripDesk: null as null | { id: string },
+  sellers: [] as Array<{ id: string }>,
+  throwOnQuery: null as null | Error,
+  lastWhere: null as unknown,
 }))
 
 vi.mock('@/lib/edition', () => ({
@@ -17,40 +22,72 @@ vi.mock('@/lib/edition', () => ({
   get IS_MARKETPLACE() { return !h.services },
   get EDITION() { return h.services ? 'services' : 'marketplace' },
 }))
-vi.mock('@/lib/visa-shop', () => ({ getVisaShopSeller: async () => h.visaDesk }))
-vi.mock('@/lib/trips/dm-thread', () => ({ getTripDesk: async () => h.tripDesk }))
+vi.mock('@/lib/visa-shop', () => ({ VISA_SHOP_OWNER_EMAILS: ['visa@eno.vn', 'shared@eno.vn'] }))
+vi.mock('@/lib/trips/dm-thread', () => ({ TRIP_DESK_OWNER_EMAILS: ['trips@eno.vn', 'shared@eno.vn'] }))
+vi.mock('@/lib/db', () => ({
+  db: {
+    seller: {
+      findMany: async ({ where }: { where: unknown }) => {
+        h.lastWhere = where
+        if (h.throwOnQuery) throw h.throwOnQuery
+        return h.sellers
+      },
+    },
+  },
+}))
 // react's cache() memoises per request; outside a request it is identity. Unwrap it so each test
 // sees its own fixture rather than the first one that ran.
 vi.mock('react', async (orig) => ({ ...(await orig<typeof import('react')>()), cache: (f: unknown) => f }))
 
-const { marketplaceListingScope, deskSellerIds, DeskResolutionError } = await import('./edition-scope')
+const { marketplaceListingScope, scopedListingWhere, deskSellerIds, DeskResolutionError } = await import('./edition-scope')
 
 beforeEach(() => {
   h.services = true
-  h.visaDesk = null
-  h.tripDesk = null
+  h.sellers = [{ id: 'desk-1' }]
+  h.throwOnQuery = null
+  h.lastWhere = null
+})
+
+describe('deskSellerIds', () => {
+  it('queries the union of both desks address lists, deduplicated', async () => {
+    await deskSellerIds()
+    expect(h.lastWhere).toEqual({ owner: { email: { in: ['visa@eno.vn', 'shared@eno.vn', 'trips@eno.vn'] } } })
+  })
+
+  it('deduplicates when both desks are the same storefront', async () => {
+    // Seller.ownerId is @unique, so one support account owns exactly one storefront and both
+    // features hang off it. A ONE-row result is the NORMAL case, not a partial failure — which is
+    // why "require two rows" would be the wrong rule and would take the marketplace down.
+    h.sellers = [{ id: 'same' }, { id: 'same' }]
+    expect(await deskSellerIds()).toEqual(['same'])
+  })
+
+  // ⚠️ NO try/catch IN THE IMPLEMENTATION, deliberately. The two desk helpers it replaced are
+  // fail-soft by design (they swallow DB errors and return null so the visa feature degrades rather
+  // than throws). Inheriting that made null ambiguous — "not set up" or "lookup failed" — and those
+  // need opposite handling on a legal boundary.
+  it('propagates a database error instead of reporting an empty desk list', async () => {
+    h.throwOnQuery = new Error('connection reset')
+    await expect(deskSellerIds()).rejects.toThrow('connection reset')
+  })
 })
 
 describe('marketplaceListingScope', () => {
   it('is a no-op on the services edition, even with no desk', async () => {
     // eno.forum sells these listings, so it must not exclude them — and it must not throw when the
     // desk is missing either, or an unrelated env problem would take the whole storefront down.
+    h.sellers = []
     expect(await marketplaceListingScope()).toEqual({})
   })
 
-  it('excludes the desk seller on the marketplace edition', async () => {
-    h.services = false
-    h.visaDesk = { id: 'desk-1' }
-    h.tripDesk = { id: 'desk-1' }
-    expect(await marketplaceListingScope()).toEqual({ sellerId: { notIn: ['desk-1'] } })
+  it('does not even query on the services edition', async () => {
+    await marketplaceListingScope()
+    expect(h.lastWhere).toBeNull()
   })
 
-  it('unions two distinct desks rather than picking one', async () => {
-    // Seller.ownerId is @unique so these are normally the same row, but a second support identity
-    // has appeared in production before and excluding only one would leak the other's listings.
+  it('excludes every desk seller on the marketplace edition', async () => {
     h.services = false
-    h.visaDesk = { id: 'visa-desk' }
-    h.tripDesk = { id: 'trip-desk' }
+    h.sellers = [{ id: 'visa-desk' }, { id: 'trip-desk' }]
     const scope = await marketplaceListingScope()
     expect(scope.sellerId?.notIn.sort()).toEqual(['trip-desk', 'visa-desk'])
   })
@@ -59,44 +96,70 @@ describe('marketplaceListingScope', () => {
   // degraded feature: `{ sellerId: { notIn: [] } }` excludes nothing, so the e-Visa SKUs rejoin the
   // browse feed, search, the sitemap and the Google/Meta product feeds with no error anywhere.
   // A visible 500 on a rail is recoverable in ten minutes; a silently unfiltered feed is not.
-  it.each([
-    ['neither desk resolves', null, null],
-    ['only the visa desk is missing', null, { id: 'trip-desk' }],
-    ['only the trip desk is missing', { id: 'visa-desk' }, null],
-  ])('marketplace edition: %s', async (_label, visa, trip) => {
+  it('throws on the marketplace edition when no desk resolves', async () => {
     h.services = false
-    h.visaDesk = visa
-    h.tripDesk = trip
-    if (!visa && !trip) {
-      await expect(marketplaceListingScope()).rejects.toThrow(DeskResolutionError)
-    } else {
-      // A partial resolution still excludes what it found — it must never silently widen to {}.
-      const scope = await marketplaceListingScope()
-      expect(scope.sellerId?.notIn.length).toBe(1)
-    }
+    h.sellers = []
+    await expect(marketplaceListingScope()).rejects.toThrow(DeskResolutionError)
   })
 
   it('never returns an empty exclusion list on the marketplace edition', async () => {
     // Stated as its own invariant because it is the exact shape of the failure: the danger is not an
     // exception, it is a well-formed predicate that matches everything.
     h.services = false
+    h.sellers = []
     await expect(marketplaceListingScope()).rejects.toThrow(/no desk seller could be resolved/)
   })
 
   it('names the env vars an operator has to check', async () => {
     h.services = false
+    h.sellers = []
     await expect(marketplaceListingScope()).rejects.toThrow(/VISA_SHOP_OWNER_EMAIL/)
+  })
+
+  it('lets a database error surface rather than serving an unfiltered feed', async () => {
+    h.services = false
+    h.throwOnQuery = new Error('connection reset')
+    await expect(marketplaceListingScope()).rejects.toThrow('connection reset')
   })
 })
 
-describe('deskSellerIds', () => {
-  it('deduplicates when both desks are the same storefront', async () => {
-    h.visaDesk = { id: 'same' }
-    h.tripDesk = { id: 'same' }
-    expect(await deskSellerIds()).toEqual(['same'])
+describe('scopedListingWhere', () => {
+  it('returns the caller where untouched on the services edition, with no AND wrapper', async () => {
+    const where = { status: 'active', sellerId: 'someone' }
+    expect(await scopedListingWhere(where)).toBe(where)
   })
 
-  it('is empty when nothing resolves, leaving the throw to the caller', async () => {
-    expect(await deskSellerIds()).toEqual([])
+  /**
+   * ⚠️ THE COMPOSITION TRAP, WHICH BOTH INDEPENDENT REVIEWERS WALKED INTO. The original API returned
+   * a spreadable fragment, so `{ ...scope, sellerId: x }` silently dropped the exclusion (later key
+   * wins) and `{ sellerId: x, ...scope }` silently dropped the caller's filter. The first is a leak
+   * with no error, no failing test and no lint hit — the file mentions the helper, so it looks
+   * guarded. AND-composition makes collision impossible.
+   */
+  it('keeps BOTH the caller sellerId filter and the desk exclusion', async () => {
+    h.services = false
+    h.sellers = [{ id: 'desk-1' }]
+    const result = await scopedListingWhere({ status: 'active', sellerId: 'a-real-seller' })
+    expect(result).toEqual({
+      AND: [
+        { status: 'active', sellerId: 'a-real-seller' },
+        { sellerId: { notIn: ['desk-1'] } },
+      ],
+    })
+  })
+
+  it('cannot be defeated by key collision, whichever way a caller would have spread it', async () => {
+    h.services = false
+    h.sellers = [{ id: 'desk-1' }]
+    const result = await scopedListingWhere({ sellerId: 'desk-1' })
+    // Asking for the desk's own listings on the marketplace edition yields a contradiction that
+    // returns nothing — which is correct. The exclusion survives; it is not overwritten.
+    expect(JSON.stringify(result)).toContain('notIn')
+  })
+
+  it('still fails closed when the desk cannot be resolved', async () => {
+    h.services = false
+    h.sellers = []
+    await expect(scopedListingWhere({ status: 'active' })).rejects.toThrow(DeskResolutionError)
   })
 })
