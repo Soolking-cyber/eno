@@ -77,8 +77,31 @@ const L1_MAX_BYTES = 96 * 1024 * 1024
 let buildId = 'unknown'
 try { buildId = readFileSync(join(process.cwd(), '.next', 'BUILD_ID'), 'utf8').trim() } catch { /* dev server */ }
 
-const K = (key) => `eno:isr:${buildId}:${key}`
-const T = (tag) => `eno:isrtag:${tag}` // tombstones are build-agnostic on purpose
+/**
+ * ⚠️ THE EDITION IS IN THE KEY, AND IT IS A LEAK CONTROL, NOT A TIDINESS ONE.
+ *
+ * eno.vn (the licensed marketplace) and eno.forum (visa + itinerary + PayPal) are two deployments of
+ * this one codebase and they SHARE ONE DATABASE — so they share this table. Without the edition in
+ * the key, a page rendered by the services edition and a page rendered by the marketplace edition
+ * collide on the same row: `/` cached by eno.forum, complete with its e-Visa rail and its
+ * eno.forum canonical, would be served verbatim to a eno.vn visitor. That is the licensing breach
+ * arriving through the cache, underneath every gate in the app, because a cache hit never reaches
+ * the code that would have filtered it.
+ *
+ * ⚠️ DO NOT ARGUE THAT TWO BUILD IDS ALREADY SEPARATE THEM. They usually do, and "usually" is the
+ * whole problem: BUILD_ID is content-derived, so two builds of the SAME commit with only the
+ * edition env differing can produce the same id — which is precisely the pair that must never share
+ * a row. Relying on that is relying on an accident to enforce a legal boundary. Read the edition
+ * from the environment, the same variable the app itself branches on.
+ *
+ * Tombstones at `T` stay build- AND edition-agnostic on purpose: a sold or moderated listing must
+ * vanish from BOTH domains at once. That is a purge crossing the boundary in the safe direction —
+ * it can only ever remove content, never serve one edition's page on the other.
+ */
+const edition = process.env.NEXT_PUBLIC_ENO_EDITION === 'marketplace' ? 'marketplace' : 'services'
+
+const K = (key) => `eno:isr:${edition}:${buildId}:${key}`
+const T = (tag) => `eno:isrtag:${tag}` // tombstones are build- and edition-agnostic on purpose
 
 const B64 = 'base64:'
 function encodeValue(value) {

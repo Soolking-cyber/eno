@@ -26,7 +26,73 @@ if (EDITION_ENV !== undefined && EDITION_ENV !== "marketplace" && EDITION_ENV !=
   );
 }
 
+/**
+ * ⚠️ THE HOST MUST MATCH THE EDITION, AND A MISSING VALUE IS THE DANGEROUS CASE.
+ *
+ * Every consumer of NEXT_PUBLIC_APP_URL falls back to the literal "https://eno.vn" —
+ * src/app/layout.tsx (metadataBase), src/app/sitemap.xml/route.ts, src/lib/visa/payments.ts (the
+ * PayPal return origin). So forgetting the variable on the eno.forum deployment does NOT error. It
+ * silently brands eno.forum as eno.vn: the e-visa pages canonicalise to the licensed company,
+ * eno.vn's name goes on the sitemap that submits them to Google, and eno.vn appears on the PayPal
+ * transaction. An empty env var is a silent success today, and this converts it into a red build.
+ *
+ * Only enforced once the edition is declared, so the transitional single deployment (no edition set,
+ * no APP_URL set) still builds exactly as it does now.
+ */
+if (EDITION_ENV !== undefined) {
+  const expectedHost = EDITION_ENV === "marketplace" ? "eno.vn" : "www.eno.forum";
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL;
+  if (!appUrl) {
+    throw new Error(
+      `NEXT_PUBLIC_APP_URL is required when NEXT_PUBLIC_ENO_EDITION is set (edition "${EDITION_ENV}" expects host ${expectedHost}). ` +
+        'Every consumer silently falls back to "https://eno.vn", which would brand this build as the ' +
+        "licensed marketplace regardless of which domain serves it. Refusing to build.",
+    );
+  }
+  let host: string;
+  try {
+    host = new URL(appUrl).host;
+  } catch {
+    throw new Error(`NEXT_PUBLIC_APP_URL is not a valid absolute URL: ${JSON.stringify(appUrl)}. Refusing to build.`);
+  }
+  // www-insensitive: the LB serves both apex and www for each domain, and failing a build over a
+  // prefix would be a false alarm rather than a caught leak.
+  const norm = (h: string) => h.replace(/^www\./, "");
+  if (norm(host) !== norm(expectedHost)) {
+    throw new Error(
+      `NEXT_PUBLIC_ENO_EDITION="${EDITION_ENV}" expects NEXT_PUBLIC_APP_URL on ${expectedHost}, got ${host}. ` +
+        "A mismatch puts one domain's identity on the other's pages — canonicals, OG urls, sitemap " +
+        "entries and the PayPal return origin all derive from this. Refusing to build.",
+    );
+  }
+}
+
+/**
+ * ⚠️ THIS IS THE DEFAULT-DENY, AND IT IS THE WHOLE REASON THE SPLIT CAN BE TRUSTED OVER TIME.
+ *
+ * Services-only routes live under src/app/(services)/ and every Next special file in there is named
+ * with a `.svc.` infix — page.svc.tsx, route.svc.ts, layout.svc.tsx. Next resolves special files as
+ * `${name}.${ext}`, so on a MARKETPLACE build, where "svc.tsx" is not an extension, those files match
+ * nothing: never compiled, never prerendered into the image, absent from the route manifest, and
+ * given no client chunk. The route does not exist rather than being blocked.
+ *
+ * Why it is worth the odd filenames: the alternative is a hand-maintained list of blocked paths, and
+ * that list WILL rot. Someone adds a visa route next month, puts it beside its siblings because that
+ * is where visa routes live, names it like its neighbours because that is what every file in the
+ * directory looks like — and it is absent from the licensed image without anyone remembering a rule.
+ * The convention enforces itself, and scripts/edition-lint.mjs Rule B enforces the convention.
+ *
+ * ⚠️ ORDER MATTERS: the plain extensions come FIRST. Next matches in array order, so a directory
+ * holding both page.tsx and page.svc.tsx resolves to the plain one on a services build too — which
+ * is what you want if a route is ever deliberately shared.
+ */
+const PAGE_EXTENSIONS =
+  EDITION_ENV === "marketplace"
+    ? ["ts", "tsx", "js", "jsx"]
+    : ["ts", "tsx", "js", "jsx", "svc.ts", "svc.tsx", "svc.js", "svc.jsx"];
+
 const nextConfig: NextConfig = {
+  pageExtensions: PAGE_EXTENSIONS,
   // Standalone server output for local `npm start` / self-hosting. NOT on Vercel:
   // standalone targets a Node server and makes Vercel bundle Edge middleware with
   // Node globals (`__dirname`), crashing it (MIDDLEWARE_INVOCATION_FAILED). Vercel
