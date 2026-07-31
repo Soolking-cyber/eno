@@ -1,3 +1,4 @@
+import { scopedListingWhere } from '@/lib/edition-scope'
 import { IS_SERVICES } from '@/lib/edition'
 import { db } from '@/lib/db'
 import { VIETNAM_EVISA_PATHS } from '@/app/vietnam-evisa/links'
@@ -31,8 +32,19 @@ export const revalidate = 86400
 export async function GET() {
   try {
     const [listings, categories, sellers, helpArticles] = await Promise.all([
+      /**
+       * ⚠️ SCOPED HERE AND NOWHERE ELSE, DELIBERATELY. The category maxima, the category/district
+       * combos and the seller-storefront URLs further down are all DERIVED from exactly these rows,
+       * so this one predicate drops the desk's 15 listings, its /eno_visa storefront entry and the
+       * /c/services/... combos it alone generated. Filtering at the emit loop instead would leave
+       * all three behind.
+       *
+       * A sitemap is not a passive document — it is eno.vn actively asking Google to index these
+       * URLs, which on a licensed sàn TMĐT is the most active way to advertise a service it may not
+       * sell.
+       */
       db.listing.findMany({
-        where: { verified: true, status: 'active' },
+        where: await scopedListingWhere({ verified: true, status: 'active' }),
         select: { id: true, updatedAt: true, district: true, sellerId: true, category: { select: { slug: true } } },
         orderBy: { updatedAt: 'desc' },
         // Sitemap protocol caps a file at 50k URLs — leave headroom for the

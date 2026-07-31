@@ -1,6 +1,7 @@
 // GET /api/listings query machinery: the ids fast-path, filter/where building from
 // search params, the orderBy branches, and the subcategory facet-count cache.
 // Extracted verbatim from route.ts — the route keeps the exported handlers only.
+import { marketplaceListingScope, scopedListingWhere } from '@/lib/edition-scope'
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { serializeListingCard, LISTING_CARD_SELECT } from '@/lib/serialize'
@@ -28,7 +29,7 @@ export async function idsFastPath(searchParams: URLSearchParams): Promise<NextRe
   const ids = idsParam.split(',').map((s) => s.trim()).filter(Boolean).slice(0, 200)
   if (ids.length === 0) return NextResponse.json({ listings: [], total: 0 })
   const rows = await db.listing.findMany({
-    where: { id: { in: ids }, verified: true, status: 'active' },
+    where: await scopedListingWhere({ id: { in: ids }, verified: true, status: 'active' }),
     select: LISTING_CARD_SELECT,
   })
   const byId = new Map(rows.map((r) => [r.id, serializeListingCard(r)]))
@@ -40,7 +41,7 @@ export async function idsFastPath(searchParams: URLSearchParams): Promise<NextRe
 }
 
 /** Parse the feed's search params and build the Prisma where clause + the tracked sub-filters. */
-export function buildFeedFilters(searchParams: URLSearchParams) {
+export async function buildFeedFilters(searchParams: URLSearchParams) {
   const category = searchParams.get('category') || undefined // slug
   const subcategory = searchParams.get('subcategory') || undefined // slug
   const district = searchParams.get('district') || undefined
@@ -70,6 +71,22 @@ export function buildFeedFilters(searchParams: URLSearchParams) {
   // Public feed shows only AVAILABLE listings — sold/hidden stay in the seller's
   // dashboard, out of the browse feed.
   andFilters.push({ status: 'active' })
+  /**
+   * ⚠️ THE SINGLE HIGHEST-LEVERAGE EXCLUSION IN THE APP. eno.vn is a licensed sàn TMĐT and may not
+   * offer e-visa or itinerary services — but those are ORDINARY `Listing` rows owned by one desk
+   * seller, so nothing here greps for "visa" and nothing looks wrong. `andFilters` is what the main
+   * feed, the total count, the price histogram, the facet base, the subcategory groupBy and both
+   * semantic-search paths are all built from, so one push closes browse AND search at once.
+   *
+   * ⚠️ PUSHED AS ITS OWN ARRAY ELEMENT, never spread into a sibling object. This is the documented
+   * "caller composes its own AND array" case: a separate element cannot collide with another
+   * filter's keys, whereas `{ ...scope, sellerId: x }` would silently drop the exclusion.
+   *
+   * No try/catch: `marketplaceListingScope()` throws when the desk cannot be resolved, and a 500 on
+   * the feed is the correct outcome. An unfiltered feed is a licensing breach nobody notices.
+   */
+  const editionScope = await marketplaceListingScope()
+  if (editionScope.sellerId) andFilters.push({ sellerId: editionScope.sellerId })
   if (featuredOnly) {
     andFilters.push({ featured: true })
   }

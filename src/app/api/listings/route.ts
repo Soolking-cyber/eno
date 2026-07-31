@@ -25,7 +25,7 @@ export async function GET(req: NextRequest) {
   if (fastPath) return fastPath
 
   const { category, q, sort, featuredOnly, limit, offset, priceMin, priceMax, histogram, looseMatch, priorityCategory, andFilters, pgTextFilter, subcategoryFilter, where } =
-    buildFeedFilters(searchParams)
+    await buildFeedFilters(searchParams)
 
   // Histogram mode: return just the matching prices (VND) for the active filters.
   // Capped so a huge catalog stays a small payload; the client buckets them.

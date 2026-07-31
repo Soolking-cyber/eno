@@ -1,3 +1,4 @@
+import { scopedListingWhere } from '@/lib/edition-scope'
 import { db } from '@/lib/db'
 import { serializeListing } from '@/lib/serialize'
 import { Prisma } from '@/generated/prisma/client'
@@ -13,7 +14,11 @@ const RANK: Prisma.ListingOrderByWithRelationInput = { rankScore: 'desc' }
  *  guard: under ~2 feed pages the rail would mirror the grid card-for-card, so it
  *  hides (returns []) until supply grows. Public-safe (verified + active only). */
 export async function trendingRailListings() {
-  const base: Prisma.ListingWhereInput = { verified: true, status: 'active' }
+  // ⚠️ SCOPED ONCE AND REUSED, so the pool count and the rows can never disagree. The `pool < 24`
+  // thin-catalog guard below is computed from this same count — removing the desk's rows can push a
+  // small live catalogue under the threshold and make the rail disappear from the home page. That is
+  // correct behaviour, not a regression: check the live active count before assuming otherwise.
+  const base: Prisma.ListingWhereInput = await scopedListingWhere({ verified: true, status: 'active' })
   const pool = await db.listing.count({ where: base })
   if (pool < 24) return []
   const rows = await db.listing.findMany({

@@ -1,3 +1,4 @@
+import { DeskResolutionError, marketplaceListingScope } from '@/lib/edition-scope'
 import 'server-only'
 import { db } from './db'
 import type { SerializedCategory } from './types'
@@ -17,13 +18,26 @@ const W_CONTACT = 5
  */
 export async function getCategoriesByDemand(): Promise<SerializedCategory[]> {
   try {
+    const editionScope = await marketplaceListingScope()
     const [categories, demand] = await Promise.all([
+      /**
+       * ⚠️ THIS NESTED `_count` IS INVISIBLE TO scripts/edition-lint.mjs — its regex matches
+       * `db.listing.*`, and this is `db.category.findMany`. A Prisma client extension would not
+       * cover it either. It only ever gets fixed by hand, which is why it is called out here: it is
+       * the number on every category chip, and without the scope the services category advertises
+       * 15 listings that a marketplace visitor cannot see.
+       *
+       * The RAW fragment, not scopedListingWhere: the value must stay a plain ListingWhereInput
+       * inside `_count.select`, and there is no sibling `sellerId` here to collide with.
+       */
       db.category.findMany({
-        include: { _count: { select: { listings: { where: { verified: true, status: 'active' } } } } },
+        include: { _count: { select: { listings: { where: { verified: true, status: 'active', ...editionScope } } } } },
       }),
+      // Decides the ORDER of the home category rail: desk views and contacts would otherwise float
+      // the services category to the front of the licensed marketplace's grid.
       db.listing.groupBy({
         by: ['categoryId'],
-        where: { verified: true, status: 'active' },
+        where: { verified: true, status: 'active', ...editionScope },
         _sum: { views: true, contactCount: true, savedCount: true },
       }),
     ])
@@ -50,7 +64,10 @@ export async function getCategoriesByDemand(): Promise<SerializedCategory[]> {
       // Most-wanted first; ties broken by supply (active count) then name.
       .sort((a, b) => b.demand - a.demand || b.verifiedCount - a.verifiedCount || a.name.localeCompare(b.name))
       .map(({ demand: _demand, ...c }) => c)
-  } catch {
+  } catch (e) {
+    // A desk-resolution failure must not become a silently empty category rail — see the same
+    // re-throw on the home page.
+    if (e instanceof DeskResolutionError) throw e
     return []
   }
 }

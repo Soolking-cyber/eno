@@ -1,3 +1,4 @@
+import { DeskResolutionError, scopedListingWhere } from '@/lib/edition-scope'
 import type { Metadata } from 'next'
 import { db } from '@/lib/db'
 import { serializeListingCard, LISTING_CARD_SELECT } from '@/lib/serialize'
@@ -25,7 +26,10 @@ async function getData(): Promise<{ categories: SerializedCategory[]; listings: 
       // Categories ordered by live DEMAND — most-wanted lead the rail + home grid.
       getCategoriesByDemand(),
       db.listing.findMany({
-        where: { verified: true, status: 'active' },
+        // ⚠️ EDITION-SCOPED. eno.vn is a licensed sàn TMĐT; the e-visa SKUs are ordinary Listing
+        // rows and they rank into this feed. This is the ISR-baked HTML of the root URL, served
+        // from disk to every anonymous visitor and every crawler — the most-seen leak there was.
+        where: await scopedListingWhere({ verified: true, status: 'active' }),
         // Match /api/listings' default sort EXACTLY (the balanced rankScore blend, id
         // tiebreaker) so this SSR seed doesn't reshuffle on hydration into the client feed.
         orderBy: [{ rankScore: 'desc' }, { id: 'desc' }],
@@ -34,7 +38,10 @@ async function getData(): Promise<{ categories: SerializedCategory[]; listings: 
         take: 12,
         select: LISTING_CARD_SELECT,
       }),
-      db.listing.count({ where: { verified: true, status: 'active' } }),
+      // MUST match the findMany predicate exactly: this seeds the client explorer's `initialTotal`,
+      // which terminates its load-more (`listings.length < total`). A count that disagrees with the
+      // cards either stops the infinite feed 14 items early or never lets it finish.
+      db.listing.count({ where: await scopedListingWhere({ verified: true, status: 'active' }) }),
       // Outstanding-businesses rail, server-known (perf Phase 1): the rail's
       // presence/geometry is decided at first paint — the client fetch's
       // skeleton→empty collapse was the homepage's dominant CLS (0.142).
@@ -47,7 +54,15 @@ async function getData(): Promise<{ categories: SerializedCategory[]; listings: 
     const serializedListings: SerializedListingCard[] = await localizeListingTitles(listings.map(serializeListingCard))
 
     return { categories: serializedCategories, listings: serializedListings, total, businesses, trending }
-  } catch {
+  } catch (e) {
+    /**
+     * ⚠️ A DESK-RESOLUTION FAILURE MUST NOT BE SWALLOWED HERE. This catch exists so a transient
+     * database blip renders an empty home page rather than a 500 — sensible for a marketplace. But
+     * `scopedListingWhere` throws DeskResolutionError precisely when it CANNOT prove which sellers
+     * to exclude, and swallowing that would prerender an empty page into a 6-hour ISR window while
+     * hiding the one error an operator needs to see. Re-thrown so it surfaces.
+     */
+    if (e instanceof DeskResolutionError) throw e
     // DB unreachable at build → prerender empty and let ISR (revalidate) fill it
     // on the first request, so a transient build-time DB error never fails the deploy.
     return { categories: [], listings: [], total: 0, businesses: [], trending: [] }
