@@ -4,6 +4,20 @@ import "./globals.css";
 import { AnalyticsTags } from "@/components/marketplace/analytics-tags";
 import { AttributionCapture } from "@/components/marketplace/attribution-capture";
 import { Providers } from "./providers";
+import { IS_SERVICES } from "@/lib/edition";
+
+/**
+ * This deployment's own identity, used by everything below that describes the site to a machine.
+ *
+ * ⚠️ THE FALLBACK IS A LAST RESORT, NOT A DEFAULT. next.config.ts refuses to build when
+ * NEXT_PUBLIC_ENO_EDITION is set and NEXT_PUBLIC_APP_URL is absent or on the wrong host, so in any
+ * real deployment this env var is present and correct. The literal survives only for the
+ * transitional single-deployment build, where no edition is declared.
+ */
+const SITE_ORIGIN = process.env.NEXT_PUBLIC_APP_URL || "https://eno.vn";
+/** The site's own name. Deliberately the DOMAIN, not a legal entity — naming the operating company
+ *  of eno.forum is an open question for counsel, and structured data is the wrong place to guess. */
+const SITE_NAME = IS_SERVICES ? "eno.forum" : "eno.vn";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -101,44 +115,65 @@ export default function RootLayout({
         {/* NB: the hero-wordmark preload (/logo.svg) lives on the HOME page only —
             it's the landing LCP element there and unused elsewhere (preloading it
             globally warned "preloaded but not used" on every non-home route). */}
-        {/* Organization entity — ties the brand "eno.vn" to its official social
-            profiles (sameAs) so Google can recognise it as a distinct brand and
-            attribute the eno.vn query to this site. */}
+        {/* Organization entity — ties the brand to its official social profiles (sameAs) so Google
+            can recognise it as a distinct brand and attribute the brand query to this site.
+
+            ⚠️ EVERY FIELD HERE WAS HARDCODED TO eno.vn, AND ON eno.forum THAT IS A LEGAL LEAK, NOT A
+            COSMETIC ONE. Caught by curling the first real services-edition build: its
+            /vietnam-evisa page told Google `"@type":"Organization","name":"eno.vn",
+            "url":"https://eno.vn"` — the LICENSED company declaring itself the publisher of the
+            e-visa service it is not licensed to sell, in machine-readable structured data, on the
+            one page where that claim is most damaging. The canonical was already correct; this was
+            not, because it never read the environment at all.
+
+            Everything now derives from SITE_ORIGIN (NEXT_PUBLIC_APP_URL, which next.config.ts
+            asserts matches the edition), so each deployment describes itself and only itself. */}
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{
             __html: JSON.stringify({
               "@context": "https://schema.org",
               "@type": "Organization",
-              name: "eno.vn",
+              name: SITE_NAME,
               alternateName: ["ENO"],
-              url: "https://eno.vn",
-              logo: "https://eno.vn/logo.svg",
-              description:
-                "eno.vn is a trusted marketplace for expats and internationals in Vietnam — housing, jobs, motorbikes, services and moving sales.",
-              sameAs: [
-                "https://www.facebook.com/profile.php?id=61591370031264",
-                "https://www.instagram.com/eno.vn/",
-                "https://www.youtube.com/@enovietnam",
-              ],
+              url: SITE_ORIGIN,
+              logo: `${SITE_ORIGIN}/logo.svg`,
+              description: IS_SERVICES
+                ? "eno.forum provides Vietnam e-visa assistance and trip planning for expats and travellers."
+                : "eno.vn is a trusted marketplace for expats and internationals in Vietnam — housing, jobs, motorbikes, services and moving sales.",
+              /* ⚠️ MARKETPLACE ONLY, and deliberately so pending a decision that is not an
+                 engineer's to make. These accounts are the eno.vn brand's; asserting `sameAs` from
+                 eno.forum would tell Google the two sites are one entity, which is the opposite of
+                 the separation this split exists to create. If eno.forum is a distinct registered
+                 business it needs its own profiles here; if it is the same business trading under
+                 two domains, counsel should say so before we re-link them. Omitting is the
+                 reversible choice. */
+              ...(IS_SERVICES ? {} : {
+                sameAs: [
+                  "https://www.facebook.com/profile.php?id=61591370031264",
+                  "https://www.instagram.com/eno.vn/",
+                  "https://www.youtube.com/@enovietnam",
+                ],
+              }),
             }).replace(/</g, "\\u003c"),
           }}
         />
-        {/* WebSite entity + SearchAction → eligible for Google's sitelinks search box
-            (search eno.vn directly from the results). Target is the real ?q= search. */}
+        {/* WebSite entity + SearchAction → eligible for Google's sitelinks search box. Target is the
+            real ?q= search on THIS origin — pointing it at the other domain would hand the sitelinks
+            box, and the query, to the wrong site. */}
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{
             __html: JSON.stringify({
               "@context": "https://schema.org",
               "@type": "WebSite",
-              name: "eno.vn",
-              url: "https://eno.vn",
+              name: SITE_NAME,
+              url: SITE_ORIGIN,
               potentialAction: {
                 "@type": "SearchAction",
                 target: {
                   "@type": "EntryPoint",
-                  urlTemplate: "https://eno.vn/?q={search_term_string}",
+                  urlTemplate: `${SITE_ORIGIN}/?q={search_term_string}`,
                 },
                 "query-input": "required name=search_term_string",
               },
