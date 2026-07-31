@@ -75,17 +75,30 @@ export function buildItineraryResourceGroups(result: GeneratedItineraryResponse)
       descriptionVi: 'Tìm tour, phương tiện, vé và dịch vụ du lịch từ các nhà cung cấp tại Việt Nam.',
       url: 'https://eno.vn/?category=tickets-travel',
     },
+    /**
+     * ⚠️ THESE TWO POINT AT eno.forum, NOT eno.vn, AND MUST KEEP DOING SO.
+     *
+     * eno.vn is a licensed sàn TMĐT and is not licensed to offer visa services; these entries are
+     * handed to a traveller inside their itinerary, so a `https://eno.vn/?...visa-legal` link and a
+     * `mailto:support@eno.vn` were the licensed company telling a customer, in writing, that it
+     * sells visa help. The visa-legal subcategory itself is services-edition-only (owner,
+     * 2026-07-31: "these listings should reflect on forum only"), so the eno.vn URL did not merely
+     * read wrong — after the split it would 404 as well.
+     *
+     * This file is reached only from the trip service, which is itself services-only, so no edition
+     * flag is needed here: the fix is simply to name the right host. See CLAUDE.md.
+     */
     {
       title: 'eno Visa Services', titleVi: 'Dịch vụ visa eno', kind: 'visa',
       description: 'Browse visa and legal-service listings, or contact eno if you need help choosing the right next step.',
       descriptionVi: 'Xem dịch vụ visa và pháp lý, hoặc liên hệ eno nếu bạn cần hỗ trợ chọn bước tiếp theo.',
-      url: 'https://eno.vn/?category=services&subcategory=visa-legal',
+      url: 'https://www.eno.forum/?category=services&subcategory=visa-legal',
     },
     {
       title: 'Ask eno about visa support', titleVi: 'Hỏi eno về hỗ trợ visa', kind: 'visa',
       description: 'Send your trip details to eno for practical visa-service assistance.',
       descriptionVi: 'Gửi thông tin chuyến đi cho eno để được hỗ trợ dịch vụ visa thực tế.',
-      url: `mailto:support@eno.vn?subject=${visaSubject}&body=${visaBody}`,
+      url: `mailto:support@eno.forum?subject=${visaSubject}&body=${visaBody}`,
     },
     {
       title: 'eno Community Forum', titleVi: 'Diễn đàn cộng đồng eno', kind: 'community',

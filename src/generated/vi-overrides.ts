@@ -265,7 +265,7 @@ export const VI_OVERRIDES: Record<string, string> = {
   "Search in this category...": "Tìm trong danh mục này...",
   "Search keyword (Sofa, Motorbike, Room...)": "Từ khóa tìm kiếm (Sofa, Xe máy, Phòng...)",
   "Search motorbikes, apartments, moving sales...": "Tìm xe máy, căn hộ, thanh lý chuyển nhà...",
-  "Search motorbikes, apartments, sofa sales, visa help in Hanoi, HCM, Da Nang...": "Tìm xe máy, căn hộ, bán sofa, hỗ trợ visa tại Hà Nội, TP.HCM, Đà Nẵng...",
+  "Search motorbikes, apartments, sofa sales, room rentals in Hanoi, HCM, Da Nang...": "Tìm xe máy, căn hộ, bán sofa, thuê phòng tại Hà Nội, TP.HCM, Đà Nẵng...",
   "Select District": "Chọn quận/huyện",
   "Select area": "Chọn khu vực",
   "Seller Info": "Thông tin người bán",

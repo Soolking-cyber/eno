@@ -11,7 +11,12 @@ export const EN: Record<string, string> = {
   'header.toastDesc': 'Your listing is live. We run automated checks on every post.',
   'hero.title': 'eno.vn — Your Trusted Vietnam Network.',
   'hero.desc': 'Search and list furniture sales, motorbike & room rentals, jobs, and services. Guaranteed real prices and real photos.',
-  'hero.searchPlaceholder': 'Search motorbikes, apartments, sofa sales, visa help in Hanoi, HCM, Da Nang...',
+  // ⚠️ NO VISA TERM HERE, IN EITHER LANGUAGE. eno.vn is a licensed sàn TMĐT and is not licensed to
+  // offer visa services; the placeholder is the first sentence a visitor reads, so "visa help" was
+  // the most-read unlicensed-service mention on the site. Removed from BOTH editions on purpose —
+  // eno.forum does not need it either, and one string that differs by edition is one more way for
+  // the two to drift. See the edition split in CLAUDE.md.
+  'hero.searchPlaceholder': 'Search motorbikes, apartments, sofa sales, room rentals in Hanoi, HCM, Da Nang...',
   'hero.searchBtn': 'Search',
   'categories.title': 'Browse by Category',
   'categories.desc': 'Find verified listings across key categories',
@@ -78,7 +83,8 @@ export const VI: Record<string, string> = {
   'header.toastDesc': 'Tin của bạn đã hiển thị. Chúng tôi tự động kiểm tra mọi tin đăng.',
   'hero.title': 'eno.vn — Mạng lưới kết nối tin cậy tại Việt Nam',
   'hero.desc': 'Tìm kiếm và đăng tin thanh lý đồ đạc, thuê phòng, xe máy, việc làm và dịch vụ. Cam kết giá thật, hình ảnh thật.',
-  'hero.searchPlaceholder': 'Tìm xe máy, căn hộ, sofa thanh lý, visa ở Hà Nội, HCM, Đà Nẵng...',
+  // Mirrors the English above — see the note there. "visa ở Hà Nội" removed.
+  'hero.searchPlaceholder': 'Tìm xe máy, căn hộ, sofa thanh lý, thuê phòng ở Hà Nội, HCM, Đà Nẵng...',
   'hero.searchBtn': 'Tìm kiếm',
   'categories.title': 'Duyệt theo danh mục',
   'categories.desc': 'Tìm các tin đăng đã được xác thực theo từng danh mục',
