@@ -1,3 +1,4 @@
+import { IS_MARKETPLACE } from '@/lib/edition'
 import { deskSellerIds, scopedListingWhere } from '@/lib/edition-scope'
 import { cache } from 'react'
 import { notFound } from 'next/navigation'
@@ -41,7 +42,7 @@ export const loadSeller = cache(async (id: string) => {
    *
    * Returning null must reach a real 404: both routes notFound() on a null seller.
    */
-  if ((await deskSellerIds()).includes(id)) return null
+  if (IS_MARKETPLACE && (await deskSellerIds()).includes(id)) return null
   return db.seller.findUnique({
     where: { id },
     include: {

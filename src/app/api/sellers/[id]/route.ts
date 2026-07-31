@@ -1,3 +1,4 @@
+import { IS_MARKETPLACE } from '@/lib/edition'
 import { deskSellerIds, scopedListingWhere } from '@/lib/edition-scope'
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
@@ -17,13 +18,15 @@ export const dynamic = 'force-dynamic'
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   /**
-   * ⚠️ GUARDED BEFORE THE QUERY, AND NOT WITH marketplaceListingScope(). That fragment keys on
+   * ⚠️ MARKETPLACE ONLY — deskSellerIds() is edition-BLIND (it answers "who is the desk", not
+   * "should I hide them"), so the IS_MARKETPLACE test is load-bearing: without it this 404s the
+   * desk's own storefront on eno.forum, which is where it is supposed to live. GUARDED BEFORE THE QUERY, AND NOT WITH marketplaceListingScope(). That fragment keys on
    * `sellerId`, a LISTING column; spreading it into a Seller `where: { id }` is a SILENT NO-OP that
    * looks exactly like protection. This route has no auth at all, sets `s-maxage=60`, and returns
    * the desk's storefront header, metrics and reviews to anyone who asks — the worst single leak in
    * its batch. deskSellerIds() resolves to [] on the services edition, so eno.forum is unaffected.
    */
-  if ((await deskSellerIds()).includes(id)) {
+  if (IS_MARKETPLACE && (await deskSellerIds()).includes(id)) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
   }
   const seller = await db.seller.findUnique({
