@@ -27,10 +27,30 @@ import { readFileSync } from 'node:fs'
  * therefore reachability and sitemap membership, which is what the licence turns on.
  */
 
-/** The article measured live on eno.vn. Hard-coded so the test names the thing that leaked. */
-const LEAKED_ARTICLE = 'help-vietnam-evisa-entry-basics'
+/**
+ * An article in the SERVICES-ONLY topic. Synthetic on purpose.
+ *
+ * ⚠️ IT USED TO BE THE REAL `help-vietnam-evisa-entry-basics`, AND TYING THE TEST TO A REAL ROW WAS
+ * THE MISTAKE. That article was withheld because it sat in `vietnam-travel`, and on 2026-08-01 the
+ * owner ruled truthful, fact-checked visa INFORMATION fine for eno.vn — so the topic went back to
+ * BOTH and four assertions here failed for a reason that had nothing to do with the mechanism they
+ * test. What this file is for is the GATE: that a topic marked services-only is unreachable and
+ * unlisted on the marketplace. Pointing it at a fixture in the services-only topic measures exactly
+ * that and survives the next content decision.
+ */
+const WITHHELD_ARTICLE = 'help-service-fees-and-refunds'
 /** A marketplace-safe neighbour, so "nothing is listed" can never be mistaken for a pass. */
 const MARKETPLACE_ARTICLE = 'help-how-offers-work'
+/**
+ * The real article, in `vietnam-travel` — which is BOTH.
+ *
+ * ⚠️ THIS ASSERTS THE OPPOSITE OF WHAT THE FILE ORIGINALLY DID, DELIBERATELY. It pins the owner's
+ * 2026-08-01 ruling and guards the re-homing: withholding this topic took nine innocuous articles
+ * (airport transfers, ATMs, SIM cards, weather, street food, etiquette, scams, ride-hailing, the
+ * 48-hour checklist — 166 of the topic's 215 views) off the licensed domain to hide one. If someone
+ * flips `vietnam-travel` back to SERVICES_ONLY, this fails and says why.
+ */
+const TRAVEL_ARTICLE = 'help-vietnam-evisa-entry-basics'
 
 const h = vi.hoisted(() => ({ edition: 'services' as 'marketplace' | 'services' }))
 
@@ -76,7 +96,11 @@ function post(id: string, communitySlug: string, official = true) {
   }
 }
 
-const POSTS = [post(MARKETPLACE_ARTICLE, 'help-buying'), post(LEAKED_ARTICLE, 'vietnam-travel')]
+const POSTS = [
+  post(MARKETPLACE_ARTICLE, 'help-buying'),
+  post(WITHHELD_ARTICLE, 'eno-service-help'),
+  post(TRAVEL_ARTICLE, 'vietnam-travel'),
+]
 
 /**
  * ⚠️ THE FAKE DB APPLIES THE PREDICATE INSTEAD OF RECORDING IT. A mock that returned every fixture
@@ -177,7 +201,14 @@ describe('/help/[id] on the licensed marketplace', () => {
    */
   it('does not resolve a services-only article — the route 404s', async () => {
     const { loadHelpThread } = await underEdition('marketplace')
-    expect(await loadHelpThread(LEAKED_ARTICLE)).toBeNull()
+    expect(await loadHelpThread(WITHHELD_ARTICLE)).toBeNull()
+  })
+
+  it('DOES resolve the travel topic — informational content is allowed on eno.vn', async () => {
+    // Owner ruling 2026-08-01: truthful, fact-checked visa information helps tourists and is fine
+    // on the licensed domain. The line is inform vs sell, not subject matter.
+    const { loadHelpThread } = await underEdition('marketplace')
+    expect((await loadHelpThread(TRAVEL_ARTICLE))?.post.id).toBe(TRAVEL_ARTICLE)
   })
 
   it('still resolves the marketplace own answers', async () => {
@@ -187,7 +218,8 @@ describe('/help/[id] on the licensed marketplace', () => {
 
   it('resolves both on the services edition — eno.forum loses nothing', async () => {
     const { loadHelpThread } = await underEdition('services')
-    expect((await loadHelpThread(LEAKED_ARTICLE))?.post.id).toBe(LEAKED_ARTICLE)
+    expect((await loadHelpThread(WITHHELD_ARTICLE))?.post.id).toBe(WITHHELD_ARTICLE)
+    expect((await loadHelpThread(TRAVEL_ARTICLE))?.post.id).toBe(TRAVEL_ARTICLE)
     expect((await loadHelpThread(MARKETPLACE_ARTICLE))?.post.id).toBe(MARKETPLACE_ARTICLE)
   })
 })
@@ -196,8 +228,10 @@ describe('the /help index on the licensed marketplace', () => {
   it('lists no services-only answer and no services-only topic chip', async () => {
     const { loadHelpCenter, HELP_TOPIC_SLUGS } = await underEdition('marketplace')
     const { answers } = await loadHelpCenter()
-    expect(answers.map((a) => a.id)).toEqual([MARKETPLACE_ARTICLE])
-    expect(HELP_TOPIC_SLUGS).not.toContain('vietnam-travel')
+    expect(answers.map((a) => a.id).sort()).toEqual([MARKETPLACE_ARTICLE, TRAVEL_ARTICLE].sort())
+    expect(HELP_TOPIC_SLUGS).not.toContain('eno-service-help')
+    // The re-homing guard: the travel topic must stay on the licensed domain.
+    expect(HELP_TOPIC_SLUGS).toContain('vietnam-travel')
   })
 })
 
@@ -210,7 +244,9 @@ describe('sitemap.xml', () => {
    */
   it('does not submit a services-only help article on the marketplace edition', async () => {
     const { xml } = await underEdition('marketplace')
-    expect(xml).not.toContain(`/help/${LEAKED_ARTICLE}`)
+    expect(xml).not.toContain(`/help/${WITHHELD_ARTICLE}`)
+    // …but the travel article IS submitted — nine indexed URLs came back with it.
+    expect(xml).toContain(`/help/${TRAVEL_ARTICLE}`)
   })
 
   it('still submits the marketplace own help answers', async () => {
@@ -220,7 +256,7 @@ describe('sitemap.xml', () => {
 
   it('submits both on the services edition', async () => {
     const { xml } = await underEdition('services')
-    expect(xml).toContain(`/help/${LEAKED_ARTICLE}`)
+    expect(xml).toContain(`/help/${WITHHELD_ARTICLE}`)
     expect(xml).toContain(`/help/${MARKETPLACE_ARTICLE}`)
   })
 

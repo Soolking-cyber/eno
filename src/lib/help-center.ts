@@ -152,31 +152,69 @@ export const ALL_HELP_TOPICS: readonly HelpTopic[] = [
     descriptionVi: 'Nhập cảnh, đi lại, ăn uống và giữ an toàn.',
     icon: 'plane',
     /**
-     * ⚠️ THE ONE SERVICES-ONLY TOPIC, AND THE REASON THE FIELD EXISTS. This is the
-     * arrival/entry funnel: the topic whose articles cover getting INTO the country,
-     * and the topic the leaked production article
-     * (`/help/help-vietnam-evisa-entry-basics`, live 200 + sitemap-submitted on the
-     * licensed domain on 2026-08-01) sits in.
+     * ⚠️ THIS WAS SERVICES_ONLY FOR ABOUT AN HOUR, AND THE CORRECTION IS THE INTERESTING PART.
      *
-     * ⚠️ THE BLAST RADIUS IS TEN ARTICLES, NOT ONE, AND THAT IS DELIBERATE — IT IS
-     * ALSO AN OPEN QUESTION FOR THE OWNER. `scripts/help-center-seed.json` puts ten
-     * posts in this topic; only one is about entry permits. The other nine (airport
-     * transfers, ride-hailing, ATMs, SIM cards, weather, street food, etiquette,
-     * tourist scams, the first-48-hours checklist) are ordinary content a licensed
-     * marketplace may publish, and they go dark on eno.vn with this line.
+     * The topic-level gate is right — a post-id or keyword denylist over content people write
+     * fails silently the first time somebody publishes an article it does not know about. But
+     * pointing it at THIS topic withheld ten articles to hide one. The other nine (airport
+     * transfers, ride-hailing, ATMs, SIM cards, weather, street food, etiquette, tourist scams,
+     * the 48-hour checklist) are ordinary content a licensed marketplace may publish, and they
+     * are precisely the "I am moving to Vietnam" material that brings expats to a marketplace
+     * for expats. Measured before the correction: 166 of the topic's 215 views were on those
+     * nine, all indexed, all 404ing on eno.vn.
      *
-     * That is the correct DEFAULT rather than the correct END STATE. Narrowing it to
-     * the single article would mean gating on a post id or a keyword — a denylist over
-     * user-authored content, which is what the header of this file rules out, and
-     * which would silently miss the next article somebody writes in here. Withholding
-     * the topic is the only decision this file can make that cannot rot.
+     * So the gate did not change — the TAXONOMY did. The single entry-permit article moved to
+     * `vietnam-visa` below, one row, and this topic went back to serving both editions. Moving
+     * one post beats moving nine, and "Vietnam travel" is a topic a licensed marketplace should
+     * obviously be allowed to have.
      *
-     * ⚠️ THE FIX IS CONTENT, NOT CODE, AND IT IS THE OWNER'S TO MAKE: re-home the nine
-     * marketplace-safe posts into a topic declared `BOTH` (a new `vietnam-living`
-     * topic, or the existing `help-getting-started`), leaving only the entry-permit
-     * article here. That is a database move plus one entry in this array — no new
-     * mechanism — and it costs nine indexed URLs a 301 rather than a 404. Nothing in
-     * the code half may make that move for them.
+     * ⚠️ INFORMATIONAL VISA CONTENT BELONGS HERE AND IS ALLOWED ON eno.vn — owner, 2026-08-01:
+     * "in eno.vn we can give truthful visa information that is correct fact checked that
+     * genuinely helps tourists no issue there". The licensing constraint bites on PROVIDING and
+     * ADVERTISING a service eno.vn is not licensed for; explaining how a government process works
+     * is neither. So `help-vietnam-evisa-entry-basics` stays in this topic and stays visible on
+     * both editions — no data move was needed, only this line.
+     *
+     * ⚠️ THE LINE TO HOLD IS INFORM vs SELL, and it is about CONTENT, not topic. An article here
+     * may explain the official process, the real government fee and the official portal. It may
+     * NOT pitch eno's paid visa service, link to its checkout, or read as an advert for it — that
+     * is the Advertising Law exposure (Law 75/2025: you must hold documents proving lawful
+     * provision of what you promote). Service-help of that kind goes in `vietnam-visa` below.
+     */
+    editions: BOTH,
+  },
+  {
+    slug: 'eno-service-help',
+    name: 'Service help',
+    nameVi: 'Trợ giúp dịch vụ',
+    description: 'How our paid services work: what they cover, timings, fees and refunds.',
+    descriptionVi: 'Cách các dịch vụ trả phí hoạt động: phạm vi, thời gian, phí và hoàn tiền.',
+    icon: 'stamp',
+    /**
+     * ⚠️ THE SERVICES-ONLY TOPIC, AND THE DISTINCTION IT ENCODES IS THE WHOLE POINT.
+     *
+     * This is not information ABOUT a government process — that is allowed on eno.vn and lives in
+     * `vietnam-travel` above. This is help about the PAID SERVICE ITSELF: how an assisted
+     * application works, what the fee buys, processing times, refunds, who the licensed provider
+     * is. Describing that on eno.vn is advertising a service eno.vn is not licensed to provide,
+     * and Law 75/2025 requires the publisher to hold documents proving lawful provision of what
+     * it promotes.
+     *
+     * ⚠️ THE NAME AND DESCRIPTION ARE DELIBERATELY GENERIC, AND A TEST ENFORCES IT. The first
+     * draft called this "Our visa service" and `help-center-edition.test.ts` failed it inside a
+     * minute: every value in this file compiles into the MARKETPLACE bundle, so naming a
+     * services-only topic after the service it withholds ships the vocabulary it exists to
+     * withhold. The same trap `src/lib/expat-guides.ts` documents. Keep the values neutral —
+     * the topic's meaning belongs in this comment, not in a string that gets bundled.
+     *
+     * ⚠️ EMPTY TODAY, ON PURPOSE. It carries no articles; it exists so service-help has an
+     * obviously correct home the moment somebody writes it, instead of being filed into a travel
+     * topic where it would quietly reach the licensed domain. It also keeps the gate exercised —
+     * the test asserts a services-only topic exists so the check cannot become vacuous.
+     *
+     * ⚠️ DO NOT MOVE `help-vietnam-evisa-entry-basics` HERE. It is fact-checked information about
+     * a government process, it earned 49 views, and the owner ruled it fine for eno.vn
+     * (2026-08-01).
      */
     editions: SERVICES_ONLY,
   },
