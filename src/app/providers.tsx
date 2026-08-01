@@ -17,7 +17,6 @@ import { InstallHint } from "@/components/marketplace/install-hint";
 import { SaveSignupSheet } from "@/components/marketplace/save-signup-sheet";
 import { ImageShield } from "@/components/marketplace/image-shield";
 import { PrelaunchNotice } from "@/components/marketplace/prelaunch-notice";
-import { TosChangeNotice } from "@/components/marketplace/tos-change-notice";
 import { AccountPanelShell } from "@/components/marketplace/account-panel";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { NativeBootstrap } from "@/components/native/native-bootstrap";
@@ -34,12 +33,6 @@ export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <>
       <PrelaunchNotice />
-      {/* The Đ.38.3 announcement of a pending Terms change. Sits beside PrelaunchNotice because
-          both are legal notices that must be seen without hunting for them, and above ThemeProvider
-          for the same reason that one is: nothing here depends on theme or language (it renders
-          both languages at once). It hides itself when the new version takes effect — see the
-          component for why it must stay a CLIENT component. */}
-      <TosChangeNotice />
       <ThemeProvider>
         <LanguageProvider>
           {/* Native-shell (Capacitor) bootstrap — a no-op on web; on iOS/Android it hides the

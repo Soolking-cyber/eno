@@ -131,107 +131,26 @@ export const AFFILIATION = {
  * The version stamped onto Profile.tosVersion at acceptance (E-Transactions Law: keep a record of
  * WHAT was accepted and WHEN, not just that something was).
  *
- * ⚠️ BUMPING THIS STARTS A CLOCK, IT DOES NOT END ONE. Decree 52/2013 Đ.38.3 requires material
- * changes to the Terms/Operating Regulations to be ANNOUNCED ON-PLATFORM AT LEAST 5 DAYS BEFORE
- * they take effect. So the order is: publish the notice → wait 5 days → let the new version take
- * effect. Shipping a bumped version the same day it is announced is the violation, and it is
- * invisible in the diff — the constant looks identical either way.
+ * ⚠️ '1' BECAUSE THERE HAS NEVER BEEN ANOTHER ONE. The site is pre-launch with no real users, so
+ * the Terms published today are the first Terms anybody could accept — there is no earlier version
+ * to transition from and nobody to transition. Dated version strings ('2026-07', '2026-08') implied
+ * a history the account table does not contain.
  *
- * Bumped 2026-08 for the materially rewritten Terms, Regulations and Privacy Policy (platform vs.
- * provider-of-record responsibilities, the affiliation disclosure above, and applicant-document
- * handling).
+ * ⚠️ THE FIRST BUMP AFTER REAL USERS EXIST IS NOT A ONE-LINE CHANGE. Decree 52/2013 Đ.38.3 requires
+ * a material change to be ANNOUNCED on-platform at least 5 clear days BEFORE it takes effect, and
+ * `/regulations` promises exactly that in Vietnamese on the document MoIT reads. Publishing new
+ * Terms is not announcing them: an existing user who never visits /terms is told nothing, so
+ * binding them off the back of it is not an announcement in any sense a regulator would accept.
+ *
+ * What that needs, when it is needed: an effective-INSTANT (midnight in Vietnam, compared as a
+ * timestamp — Vietnam is UTC+7 with no DST), acceptance stamping the version IN FORCE rather than
+ * the newest one, and a site-wide notice during the window. All three existed briefly and were
+ * removed here as premature; recover them from git rather than rebuilding from scratch —
+ * `git show cc799c24 -- src/lib/site-legal.ts` and `git show d067d756` (the banner, which must stay
+ * a CLIENT component: its visibility depends on the clock and it renders on statically prerendered
+ * pages).
  */
-export const TOS_VERSION = '2026-08'
-
-/** The version that was in force before {@link TOS_VERSION} takes effect. */
-export const TOS_PREVIOUS_VERSION = '2026-07'
-
-/**
- * The day {@link TOS_VERSION} actually takes effect — the end of the Đ.38.3 clock the bump starts.
- *
- * ⚠️ THIS EXISTS BECAUSE THE REGULATIONS PAGE PROMISES IT, IN VIETNAMESE, ON THE DOCUMENT MoIT
- * READS: "mọi sửa đổi được công bố trên sàn ít nhất 5 ngày trước ngày có hiệu lực". Until this
- * constant existed there was no mechanism behind that sentence — a bumped `TOS_VERSION` was in
- * force the moment it deployed, so the first act of publishing the promise would have broken it.
- * A commitment a reader can check must be a value the code can honour, not a paragraph.
- *
- * ISO date, compared against the request's clock. Set at least 5 CLEAR days after the deploy that
- * publishes the announcement — not 5 days after the constant was edited, which is a different and
- * always-earlier day.
- *
- * WHEN CHANGING THE TERMS AGAIN: move TOS_VERSION → TOS_PREVIOUS_VERSION, set the new TOS_VERSION,
- * set this to publication + ≥5 days. Do not backdate it to "now" to make a diff look tidy; the
- * whole point is that the gap is real.
- */
-export const TOS_EFFECTIVE_FROM = '2026-08-07'
-
-/**
- * The version legally in force right now — the one to stamp on an acceptance, and the one whose
- * text binds a user today.
- *
- * A NEW user accepting during the notice window is accepting the version that is in force at that
- * moment, and the record has to say so: `Profile.tosVersion` is evidence of what a specific person
- * agreed to on a specific day (E-Transactions Law), so stamping a version that has not taken effect
- * would make the record say something untrue and would quietly moot the notice period for everyone
- * who signed up inside it.
- *
- * Reads the clock on every call rather than caching at module load: a long-lived server instance
- * that started before the effective date would otherwise serve the old version forever.
- */
-/**
- * The instant {@link TOS_EFFECTIVE_FROM} begins — MIDNIGHT IN VIETNAM, not in UTC.
- *
- * ⚠️ THE FIRST VERSION COMPARED DATE STRINGS (`now.toISOString().slice(0,10) >= TOS_EFFECTIVE_FROM`)
- * AND AN EXTERNAL REVIEW TOOK IT APART. Three faults, all removed by comparing instants instead:
- *   · TIMEZONE. `toISOString()` is UTC while the audience and the regulator are UTC+7, so the switch
- *     landed at 07:00 Hanoi. Measured: at 00:00 on 2026-08-07 in Vietnam the UTC date was still
- *     2026-08-06, so for the first seven hours of the date the page NAMES as its effective date it
- *     would still have said the old version governed — the document contradicting itself, in front
- *     of the reader it is meant to inform. (The old direction was legally safe, just incoherent.)
- *   · `RangeError`. `new Date('nonsense').toISOString()` throws rather than returning anything.
- *   · Years past 9999 use ISO's expanded form (`+010000-01-01`), so `slice(0,10)` produced a string
- *     that broke the lexicographic comparison entirely. Both unreachable through the callers, and
- *     both free to delete.
- *
- * Vietnam is UTC+7 with NO daylight saving, so a fixed offset is exact — no timezone database, no
- * `Intl` round-trip. Switching at Hanoi midnight still leaves 5 clear days (2–6 August) after a
- * 1 August publication, so this satisfies Đ.38.3 exactly as the UTC version did, while meaning what
- * the page says.
- */
-const EFFECTIVE_AT = Date.parse(`${TOS_EFFECTIVE_FROM}T00:00:00+07:00`)
-
-export function tosVersionInForce(now: Date = new Date()): string {
-  const t = now.getTime()
-  // An unparseable date is NaN, and every comparison against NaN is false. Say so deliberately
-  // rather than leaning on that: fail toward the OLD version, i.e. toward more notice.
-  if (!Number.isFinite(t)) return TOS_PREVIOUS_VERSION
-  return t >= EFFECTIVE_AT ? TOS_VERSION : TOS_PREVIOUS_VERSION
-}
-
-/** True while the new version is published-but-not-yet-binding, so pages can say which is which. */
-export function tosInNoticeWindow(now: Date = new Date()): boolean {
-  return tosVersionInForce(now) !== TOS_VERSION
-}
-
-/**
- * The notice a reader sees during the window, AUTHORED in both languages.
- *
- * ⚠️ NOT `<Tr text={…}/>`, for the same reason as AFFILIATION: that sends the sentence to the
- * machine-translation layer, and this sentence's whole job is to say which version legally binds
- * today. A mistranslation of that is a legal defect, not a typo. Render with
- * `<Bilingual en={TOS_NOTICE.en} vi={TOS_NOTICE.vi} />`.
- *
- * It is a getter rather than a frozen constant because it interpolates the three constants above —
- * writing the dates out by hand is how a notice ends up disagreeing with the version it describes.
- */
-export const TOS_NOTICE = {
-  get en() {
-    return `Version ${TOS_VERSION} was published on 1 August 2026 and takes effect on ${TOS_EFFECTIVE_FROM}. Until then, version ${TOS_PREVIOUS_VERSION} remains in force.`
-  },
-  get vi() {
-    return `Phiên bản ${TOS_VERSION} được công bố ngày 01/08/2026 và có hiệu lực từ ngày ${TOS_EFFECTIVE_FROM}. Trước ngày đó, phiên bản ${TOS_PREVIOUS_VERSION} vẫn là phiên bản đang có hiệu lực.`
-  },
-}
+export const TOS_VERSION = '1'
 
 // True while the site is in pre-launch test operation (before the MoIT sàn TMĐT
 // registration at online.gov.vn is confirmed). Drives the always-visible bilingual

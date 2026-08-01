@@ -1,22 +1,13 @@
 /**
- * ⚠️ THIS PAGE IS TIME-DEPENDENT, SO IT MUST NOT BE FULLY STATIC — and it was.
+ * ⚠️ KEEP `revalidate` EVEN THOUGH THIS PAGE IS STATIC TODAY.
  *
- * `tosVersionInForce()` compares the clock against TOS_EFFECTIVE_FROM. With no `revalidate` and no
- * `dynamic`, Next prerenders this route ONCE at build time and serves that HTML from disk forever,
- * so the comparison is frozen at whenever the image was built. The page was built on 2026-08-01 and
- * would therefore have gone on announcing "version 2026-07 remains in force" straight past
- * 2026-08-07 — while the acceptance writer, which runs per request, had already switched. The
- * notice mechanism would have been invisible on the one page whose job is to display it, and the
- * only cure would have been noticing and redeploying.
- *
- * An hour is well inside the granularity that matters (the boundary is a DATE), and this page is
- * otherwise cheap and rarely read, so the regeneration cost is noise.
- *
- * ⚠️ The repo already learned this once: src/lib/edition.ts records that `/regulations` was fully
- * static and had baked the words "PayPal" and "e-Visa" into HTML that no runtime gate could reach —
- * "a runtime `if` cannot un-bake a file that is served from disk before any of our code runs". Same
- * failure, different constant. If a legal page ever renders anything derived from the clock, from
- * the database, or from an env var that can change without a deploy, it needs this line.
+ * It was added because the page rendered a clock-derived value and, with no revalidate, Next baked
+ * that value into on-disk HTML that would have outlived it. That value is gone (there is one Terms
+ * version now), so nothing here is time-dependent at this moment — but this is a LEGAL page, and
+ * the class of bug is the one src/lib/edition.ts records twice over: /regulations once shipped
+ * "PayPal" and "e-Visa" welded into prerendered HTML that no runtime gate could reach. An hour of
+ * staleness costs nothing; re-adding this line after someone reintroduces a dynamic value costs a
+ * silent wrong page.
  */
 export const revalidate = 3600
 
@@ -24,8 +15,7 @@ import { IS_SERVICES, SITE_NAME } from '@/lib/edition'
 import type { Metadata } from 'next'
 import { Tr } from '@/context/language-context'
 import { ContentPage, ContentSection } from '@/components/marketplace/content-page'
-import { AFFILIATION, COMPANY, OPERATOR_REGISTERED, TOS_NOTICE, tosInNoticeWindow, tosVersionInForce } from '@/lib/site-legal'
-import { Bilingual } from '@/components/marketplace/bilingual'
+import { AFFILIATION, COMPANY, OPERATOR_REGISTERED, TOS_VERSION } from '@/lib/site-legal'
 import { CROSS_SITE_REL, MARKETPLACE_HOME } from '@/lib/cross-site-links'
 import { TERMS_SERVICES_COPY } from '@/lib/terms-services-copy'
 
@@ -208,21 +198,7 @@ export default function TermsPage() {
                 external review flagged it: "a reasonable reader could believe it already governs
                 despite the adjacent notice". The published-but-pending version is named in the
                 notice beside this, where it reads as a future date rather than today's rule. */}
-            <Tr text="Last updated: August 2026" /> · <Tr text="Version" /> {tosVersionInForce()}
-            {tosInNoticeWindow() && (
-              /* Decree 52 Đ.38.3: a material change is announced ≥5 days BEFORE it binds, and
-                 /regulations promises exactly that in Vietnamese. During the window the page must
-                 say which version actually governs today — otherwise "published" reads as "in
-                 force" and the promise is broken by the act of making it.
-                 Authored in both languages, not <Tr>: which version binds a user is not a sentence
-                 to hand to machine translation. */
-              <>
-                {' · '}
-                <span className="text-warning">
-                  <Bilingual en={TOS_NOTICE.en} vi={TOS_NOTICE.vi} />
-                </span>
-              </>
-            )}
+            <Tr text="Last updated: August 2026" /> · <Tr text="Version" /> {TOS_VERSION}
           </p>
           <p className="mt-2 max-w-3xl text-xs text-muted-foreground italic"><Tr text="This translation is provided for your convenience. The English version of these terms is the authoritative one." /></p>
         </>

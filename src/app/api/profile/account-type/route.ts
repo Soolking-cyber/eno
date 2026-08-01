@@ -1,6 +1,6 @@
 import { NextResponse, after } from 'next/server'
 import { db } from '@/lib/db'
-import { tosVersionInForce } from '@/lib/site-legal'
+import { TOS_VERSION } from '@/lib/site-legal'
 import { getCurrentProfile } from '@/lib/admin'
 import { normalizePhone } from '@/lib/phone'
 import { phoneTakenByOther } from '@/lib/phone-unique'
@@ -87,9 +87,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'phone_taken' }, { status: 409 })
   }
 
-  // Read the clock ONCE for this request — see the note at the acceptance stamp below.
-  const accepting = tosVersionInForce()
-
   await db.profile.update({
     where: { id: profile.id },
     data: {
@@ -101,17 +98,10 @@ export async function POST(req: Request) {
       // ToS acceptance record (E-Transactions Law): onboarding is the affirmative
       // "continue = agree" step every account passes through — stamp what was
       // accepted and when. Re-stamps if the user re-onboards under a newer version.
-      // ⚠️ THE VERSION IN FORCE, NOT THE NEWEST ONE. A bumped TOS_VERSION is published-but-not-yet-
-      // binding until TOS_EFFECTIVE_FROM (Decree 52 Đ.38.3's 5-day notice). Stamping the newest
-      // version during that window would record that this person agreed to text that had not taken
-      // effect — false evidence in the one field whose entire job is to be evidence, and it would
-      // moot the notice period for everyone who onboarded inside it.
-      // ⚠️ ONE call, read into `accepting` above — NOT two. Calling tosVersionInForce() in both the
-      // condition and the value reads the clock twice, so a request that straddles the effective
-      // instant could test against the old version and then STORE the new one: an acceptance record
-      // naming a version the user was never shown. Vanishingly unlikely and completely free to
-      // remove, which is the whole argument.
-      ...(profile.tosVersion === accepting ? {} : { tosAcceptedAt: new Date(), tosVersion: accepting }),
+      // ⚠️ THE SCREEN ABOVE THE BUTTON MUST SAY WHAT IS BEING ACCEPTED — see onboard-client.tsx.
+      // These two columns are EVIDENCE of what a person agreed to and when, and until 2026-08-01
+      // this wrote them while the onboarding screen mentioned the Terms nowhere at all.
+      ...(profile.tosVersion === TOS_VERSION ? {} : { tosAcceptedAt: new Date(), tosVersion: TOS_VERSION }),
     },
   })
 
