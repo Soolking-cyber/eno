@@ -1,3 +1,25 @@
+/**
+ * ⚠️ THIS PAGE IS TIME-DEPENDENT, SO IT MUST NOT BE FULLY STATIC — and it was.
+ *
+ * `tosVersionInForce()` compares the clock against TOS_EFFECTIVE_FROM. With no `revalidate` and no
+ * `dynamic`, Next prerenders this route ONCE at build time and serves that HTML from disk forever,
+ * so the comparison is frozen at whenever the image was built. The page was built on 2026-08-01 and
+ * would therefore have gone on announcing "version 2026-07 remains in force" straight past
+ * 2026-08-07 — while the acceptance writer, which runs per request, had already switched. The
+ * notice mechanism would have been invisible on the one page whose job is to display it, and the
+ * only cure would have been noticing and redeploying.
+ *
+ * An hour is well inside the granularity that matters (the boundary is a DATE), and this page is
+ * otherwise cheap and rarely read, so the regeneration cost is noise.
+ *
+ * ⚠️ The repo already learned this once: src/lib/edition.ts records that `/regulations` was fully
+ * static and had baked the words "PayPal" and "e-Visa" into HTML that no runtime gate could reach —
+ * "a runtime `if` cannot un-bake a file that is served from disk before any of our code runs". Same
+ * failure, different constant. If a legal page ever renders anything derived from the clock, from
+ * the database, or from an env var that can change without a deploy, it needs this line.
+ */
+export const revalidate = 3600
+
 import { IS_SERVICES, SITE_NAME } from '@/lib/edition'
 import type { Metadata } from 'next'
 import { Tr } from '@/context/language-context'

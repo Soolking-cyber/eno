@@ -1,3 +1,13 @@
+/**
+ * ⚠️ NOT FULLY STATIC — see the long note in src/app/terms/page.tsx.
+ *
+ * This page renders TOS_VERSION and promises, in Vietnamese, that amendments are announced at least
+ * 5 days before taking effect. A build-time-frozen copy of that promise is the one thing worse than
+ * not making it. It is also the page src/lib/edition.ts cites as having baked "PayPal" and "e-Visa"
+ * into on-disk HTML that no runtime gate could reach.
+ */
+export const revalidate = 3600
+
 import type { Metadata } from 'next'
 import { IS_SERVICES, SITE_NAME } from '@/lib/edition'
 import { ContentPage, ContentSection } from '@/components/marketplace/content-page'
