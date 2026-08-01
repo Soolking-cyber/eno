@@ -44,6 +44,28 @@ steps:
       - --image=asia-southeast1-docker.pkg.dev/$PROJECT_ID/eno/eno-vn:${_TAG}
       - --region=asia-southeast1
       - --project=$PROJECT_ID
+      # ⚠️ DECLARED HERE, NOT LEFT TO WHATEVER THE SERVICE HAPPENS TO HOLD — this flag is load-bearing
+      # and its absence is invisible.
+      #
+      # Next's `after()` runs its callback AFTER the response is flushed, and this app leans on that
+      # in 53 places: Vertex AI Search indexing (src/lib/listing-index.ts), view + contact tracking,
+      # review aggregation, translation caching, notification reads, video transcoding, dispute and
+      # admin follow-ups. Under Cloud Run's DEFAULT cpu-throttling=true the instance's CPU is cut to
+      # ~zero the moment the response completes, so that work is frozen and then discarded when the
+      # instance is reclaimed. It does not fail loudly — it cannot even log, because logging needs
+      # the CPU it just lost — so every one of those features degrades in silence.
+      #
+      # Found 2026-08-01 by diagnosing "the vertex indexer doesn't work": eno-vn was running
+      # cpu-throttling=true while eno-forum ran with it disabled, because cloudbuild.services.yaml
+      # declares --no-cpu-throttling for eno-forum and this file declared nothing for eno-vn. The
+      # sibling deploy carried the setting and this one silently did not — the same
+      # config-applied-to-one-service-and-not-the-other shape as the DATABASE_URL and x-eno-edge
+      # cutover failures.
+      #
+      # NOT --min-instances: eno-forum pins one instance, but that bills continuously and `after()`
+      # only needs CPU for the seconds between the response and the callback finishing, which an
+      # instance that is alive-but-idle already has. Cold starts are a latency question, not this one.
+      - --no-cpu-throttling
       - --quiet
 availableSecrets:
   secretManager:
