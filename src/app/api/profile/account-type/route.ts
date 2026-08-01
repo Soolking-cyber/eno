@@ -87,6 +87,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'phone_taken' }, { status: 409 })
   }
 
+  // Read the clock ONCE for this request — see the note at the acceptance stamp below.
+  const accepting = tosVersionInForce()
+
   await db.profile.update({
     where: { id: profile.id },
     data: {
@@ -103,7 +106,12 @@ export async function POST(req: Request) {
       // version during that window would record that this person agreed to text that had not taken
       // effect — false evidence in the one field whose entire job is to be evidence, and it would
       // moot the notice period for everyone who onboarded inside it.
-      ...(profile.tosVersion === tosVersionInForce() ? {} : { tosAcceptedAt: new Date(), tosVersion: tosVersionInForce() }),
+      // ⚠️ ONE call, read into `accepting` above — NOT two. Calling tosVersionInForce() in both the
+      // condition and the value reads the clock twice, so a request that straddles the effective
+      // instant could test against the old version and then STORE the new one: an acceptance record
+      // naming a version the user was never shown. Vanishingly unlikely and completely free to
+      // remove, which is the whole argument.
+      ...(profile.tosVersion === accepting ? {} : { tosAcceptedAt: new Date(), tosVersion: accepting }),
     },
   })
 

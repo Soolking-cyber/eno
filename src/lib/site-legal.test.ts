@@ -38,31 +38,42 @@ describe('the version in force', () => {
   })
 
   /**
-   * ⚠️ THE TIMEZONE QUESTION, PINNED — and the reason it is pinned rather than reasoned about.
+   * ⚠️ THE BOUNDARY IS MIDNIGHT IN VIETNAM, AND THIS TEST IS WHY IT CHANGED.
    *
-   * The comparison is done on `toISOString()`, which is UTC, while every user and the regulator are
-   * UTC+7. So the switch does NOT happen at midnight in Vietnam; it happens at 07:00 Vietnam time,
-   * when UTC finally reaches the date.
+   * The first implementation compared UTC date strings, so the switch landed at 07:00 Hanoi. That
+   * was legally SAFE (later = more notice) but incoherent: for the first seven hours of the very
+   * date the page names as its effective date, the page still said the previous version governed.
+   * An external review (agy / Gemini 3.1 Pro) called it, and the fix is to compare instants against
+   * Hanoi midnight — which still leaves 5 clear days, so nothing about compliance was traded away.
    *
-   * That is the SAFE direction and the test says so explicitly: the new terms start binding LATER
-   * than the promised date, never earlier. A user in Hanoi at 00:30 on the effective date is still
-   * on the old version — they got more notice than promised, not less. Had the skew gone the other
-   * way (binding at 17:00 the day BEFORE), the site would silently deliver four days and seventeen
-   * hours of a five-day statutory notice, and nothing would have flagged it.
-   *
-   * If this is ever "fixed" to compare in Asia/Ho_Chi_Minh, the direction must stay: round toward
-   * MORE notice.
+   * The rule for anyone changing this: the effective instant must be midnight in the jurisdiction
+   * the terms apply to, and the clear-day count must be re-checked afterwards. The test below does
+   * both, so getting it wrong fails here rather than in front of a regulator.
    */
-  it('switches LATER in Vietnam than the stated date, never earlier', () => {
+  it('switches exactly at midnight in Vietnam, not at UTC midnight', () => {
+    const oneSecondBefore = inVietnam('2026-08-06T23:59:59')
+    expect(tosVersionInForce(oneSecondBefore)).toBe(TOS_PREVIOUS_VERSION)
+
     const midnightHanoi = inVietnam(`${TOS_EFFECTIVE_FROM}T00:00:00`)
-    expect(tosVersionInForce(midnightHanoi)).toBe(TOS_PREVIOUS_VERSION)
+    expect(tosVersionInForce(midnightHanoi)).toBe(TOS_VERSION)
 
-    const sevenAmHanoi = inVietnam(`${TOS_EFFECTIVE_FROM}T07:00:00`)
-    expect(tosVersionInForce(sevenAmHanoi)).toBe(TOS_VERSION)
+    // The old UTC-string implementation returned the PREVIOUS version here — the seven-hour
+    // contradiction, pinned so it cannot come back.
+    const halfPastMidnightHanoi = inVietnam(`${TOS_EFFECTIVE_FROM}T00:30:00`)
+    expect(tosVersionInForce(halfPastMidnightHanoi)).toBe(TOS_VERSION)
+  })
 
-    // The day BEFORE must never bind, at any hour — this is the direction that would be unlawful.
-    const lateEveningBefore = inVietnam('2026-08-06T23:59:59')
-    expect(tosVersionInForce(lateEveningBefore)).toBe(TOS_PREVIOUS_VERSION)
+  /**
+   * Neither is reachable through the app (every caller passes `new Date()` or nothing), but both
+   * crashed or silently misbehaved in the first implementation, and a legal predicate should not
+   * have a shape that CAN throw.
+   */
+  it('survives the inputs that broke the string comparison', () => {
+    // `new Date('nonsense').toISOString()` threw a RangeError and took the route down with it.
+    expect(tosVersionInForce(new Date('nonsense'))).toBe(TOS_PREVIOUS_VERSION)
+
+    // Years past 9999 serialise as `+010000-01-01`, so slice(0,10) broke the ordering outright.
+    expect(tosVersionInForce(new Date('+010000-01-01T00:00:00Z'))).toBe(TOS_VERSION)
   })
 })
 

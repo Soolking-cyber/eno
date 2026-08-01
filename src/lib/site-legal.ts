@@ -178,8 +178,34 @@ export const TOS_EFFECTIVE_FROM = '2026-08-07'
  * Reads the clock on every call rather than caching at module load: a long-lived server instance
  * that started before the effective date would otherwise serve the old version forever.
  */
+/**
+ * The instant {@link TOS_EFFECTIVE_FROM} begins — MIDNIGHT IN VIETNAM, not in UTC.
+ *
+ * ⚠️ THE FIRST VERSION COMPARED DATE STRINGS (`now.toISOString().slice(0,10) >= TOS_EFFECTIVE_FROM`)
+ * AND AN EXTERNAL REVIEW TOOK IT APART. Three faults, all removed by comparing instants instead:
+ *   · TIMEZONE. `toISOString()` is UTC while the audience and the regulator are UTC+7, so the switch
+ *     landed at 07:00 Hanoi. Measured: at 00:00 on 2026-08-07 in Vietnam the UTC date was still
+ *     2026-08-06, so for the first seven hours of the date the page NAMES as its effective date it
+ *     would still have said the old version governed — the document contradicting itself, in front
+ *     of the reader it is meant to inform. (The old direction was legally safe, just incoherent.)
+ *   · `RangeError`. `new Date('nonsense').toISOString()` throws rather than returning anything.
+ *   · Years past 9999 use ISO's expanded form (`+010000-01-01`), so `slice(0,10)` produced a string
+ *     that broke the lexicographic comparison entirely. Both unreachable through the callers, and
+ *     both free to delete.
+ *
+ * Vietnam is UTC+7 with NO daylight saving, so a fixed offset is exact — no timezone database, no
+ * `Intl` round-trip. Switching at Hanoi midnight still leaves 5 clear days (2–6 August) after a
+ * 1 August publication, so this satisfies Đ.38.3 exactly as the UTC version did, while meaning what
+ * the page says.
+ */
+const EFFECTIVE_AT = Date.parse(`${TOS_EFFECTIVE_FROM}T00:00:00+07:00`)
+
 export function tosVersionInForce(now: Date = new Date()): string {
-  return now.toISOString().slice(0, 10) >= TOS_EFFECTIVE_FROM ? TOS_VERSION : TOS_PREVIOUS_VERSION
+  const t = now.getTime()
+  // An unparseable date is NaN, and every comparison against NaN is false. Say so deliberately
+  // rather than leaning on that: fail toward the OLD version, i.e. toward more notice.
+  if (!Number.isFinite(t)) return TOS_PREVIOUS_VERSION
+  return t >= EFFECTIVE_AT ? TOS_VERSION : TOS_PREVIOUS_VERSION
 }
 
 /** True while the new version is published-but-not-yet-binding, so pages can say which is which. */
