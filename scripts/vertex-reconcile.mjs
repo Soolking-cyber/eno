@@ -44,6 +44,16 @@ if (!url || !project || !rawCreds || !dataStore) {
   process.exit(1)
 }
 
+// ⚠️ THE UNION OF BOTH DESK VARS — byte-for-byte the block in scripts/vertex-backfill.mjs, for the
+// reason stated at the query below: if the two predicates disagree, one script deletes what the
+// other just wrote. deskSellerIds() in src/lib/edition-scope.ts resolves the same union in the app.
+const DESK_OWNER_EMAILS = [
+  ...(process.env.VISA_SHOP_OWNER_EMAIL || 'support@eno.forum').split(','),
+  ...(process.env.TRIP_DESK_OWNER_EMAIL || 'support@eno.forum').split(','),
+].map((e) => e.trim().toLowerCase()).filter(Boolean)
+// Trimmed HERE because the SQL only lowercases and splits — it does not trim.
+const DESK_OWNER_EMAIL_LIST = [...new Set(DESK_OWNER_EMAILS)].join(',')
+
 const credsJson = rawCreds.trim().startsWith('{') ? rawCreds : Buffer.from(rawCreds.trim(), 'base64').toString('utf8')
 const auth = new GoogleAuth({ credentials: JSON.parse(credsJson), scopes: ['https://www.googleapis.com/auth/cloud-platform'], projectId: project })
 const token = await auth.getAccessToken()
@@ -76,7 +86,7 @@ const { rows } = await client.query(`
       SELECT p.id FROM "Profile" p
       WHERE lower(p.email) = ANY (string_to_array(lower($1), ','))
     ))`,
-  [process.env.VISA_SHOP_OWNER_EMAIL || 'support@eno.forum'])
+  [DESK_OWNER_EMAIL_LIST])
 await client.end()
 const wanted = new Set(rows.map((r) => r.id))
 console.log(`postgres: ${wanted.size} listings should be indexed`)

@@ -32,7 +32,8 @@ import { FirstContactNote, OffPlatformWarning, findOffPlatformMessageId } from '
 import {
   VisaCheckoutCard, VisaPickerCard, VisaResendChip, VisaResultCard, VisaStepCard, VisaThreadStrip,
   parseVisaCheckoutMeta, parseVisaPickerMeta, parseVisaResultMeta, parseVisaStepMeta, parseVisaThreadInfo,
-  prepareVisaImage, useVisaCase, visaErrorCopy, visaTypeWords, EDITABLE_VISA_STATUSES,
+  prepareVisaImage, useVisaCase, visaCardFallbackCopy, visaDocToastCopy, visaErrorCopy, visaTypeWords,
+  EDITABLE_VISA_STATUSES,
   type VisaQuoteWire,
 } from '@/components/marketplace/visa-cards'
 import { TripAssistChips, TripQuoteCard, TripStatusCard, TripWizardCard, TripWizardLauncher } from '@/components/marketplace/trip-cards'
@@ -821,22 +822,14 @@ export default function ThreadPage() {
       const uploaded = await visaPost(`/api/visa/applications/${applicationId}/documents`, form)
       if (!uploaded.ok) { toast.error(visaErrorCopy(uploaded.error, tr), { id: toastId }); return }
       const documentId = (uploaded.data.document as { id?: string } | undefined)?.id
-      toast.loading(
-        kind === 'passport'
-          ? tr('Reading your passport…', 'Đang đọc hộ chiếu…')
-          : tr('Checking the portrait…', 'Đang kiểm tra ảnh chân dung…'),
-        { id: toastId },
-      )
+      // ⚠️ COPY VIA visa-cards, NOT INLINE. next.config.ts aliases that module away on a
+      // marketplace build; a literal here ships "Đang đọc hộ chiếu…" in eno.vn's chunk (measured).
+      toast.loading(visaDocToastCopy(kind, 'reading', tr), { id: toastId })
       const analyzed = await visaPost(`/api/visa/applications/${applicationId}/extract`, { kind, ...(documentId ? { documentId } : {}) })
       if (!analyzed.ok) {
         toast.error(visaErrorCopy(analyzed.error, tr), { id: toastId })
       } else if ((analyzed.data.document as { validationStatus?: string } | undefined)?.validationStatus === 'passed') {
-        toast.success(
-          kind === 'passport'
-            ? tr('Passport read. Check the details below.', 'Đã đọc hộ chiếu. Hãy kiểm tra thông tin bên dưới.')
-            : tr('Portrait accepted.', 'Đã nhận ảnh chân dung.'),
-          { id: toastId },
-        )
+        toast.success(visaDocToastCopy(kind, 'read', tr), { id: toastId })
       } else {
         // The refusal reason is on the document itself; the card lists it in full.
         toast.error(tr('That photo did not pass the check — see the notes below.', 'Ảnh chưa đạt yêu cầu — xem ghi chú bên dưới.'), { id: toastId })
@@ -1555,8 +1548,12 @@ export default function ThreadPage() {
                 ) : m.kind === 'visa_step' || m.kind === 'visa_checkout' || m.kind === 'visa_result' || m.kind === 'visa_picker' ? (
                   // A card whose meta this build cannot read. Its body is empty by design,
                   // so it must NOT fall through to an empty bubble.
+                  // ⚠️ THE SENTENCE COMES FROM visa-cards, WHICH IS ALIASED PER EDITION. Inline it
+                  // and eno.vn's chunks carry "This e-Visa step could not be shown here…" (measured
+                  // 2026-08-01, 2 chunks); the stub answers with its own neutral wording, so the
+                  // bubble is still never blank.
                   <MessageBubble mine={m.mine} className="max-w-[78%] text-ink-4">
-                    {tr('This e-Visa step could not be shown here — open the full form to continue.', 'Không hiển thị được bước E-Visa này — hãy mở biểu mẫu đầy đủ để tiếp tục.')}
+                    {visaCardFallbackCopy(tr)}
                   </MessageBubble>
                 ) : (() => {
                   // Live translation: show the counterpart's message in MY language when the

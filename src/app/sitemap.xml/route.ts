@@ -74,6 +74,28 @@ export async function GET() {
       // there are listings — and none of them were in the sitemap: only the /help index was. They
       // are ForumPost rows scoped to the help topics, exactly as /help/[id] resolves them, so a
       // post that is unpublished or moved out of a help topic drops out of both together.
+      //
+      /**
+       * ⚠️ `HELP_TOPIC_SLUGS` IS EDITION-SCOPED, AND THIS LINE IS HALF OF A PRODUCTION FIX — do not
+       * "helpfully" swap it for `ALL_HELP_TOPIC_SLUGS`.
+       *
+       * Measured on the live licensed domain 2026-08-01: this file emitted
+       * `<loc>https://eno.vn/help/help-vietnam-evisa-entry-basics</loc>`, and that URL returned 200.
+       * eno.vn was asking Google to index an e-visa help article AND serving it.
+       *
+       * The article is a database row, not a file, so neither `.svc.` nor a `resolveAlias` stub can
+       * touch it; the only thing the repo owns is the TOPIC it belongs to, declared in
+       * src/lib/help-center.ts. Filtering here is deliberately the SAME constant `loadHelpThread`
+       * filters on, so the sitemap physically cannot list a URL the route refuses to serve. A
+       * sitemap-only filter would have been cosmetic — the page would still have resolved for
+       * everyone who already had the link, and Google had already crawled it.
+       *
+       * ⚠️ NO `IS_SERVICES` GATE BESIDE IT, unlike every other block in this file, and that is not
+       * an omission. The other blocks are all-or-nothing route clusters; this one is a per-ROW
+       * decision that only the topic list can make, and the scoped constant already encodes the
+       * edition. A gate here could only turn help articles off wholesale on eno.vn, which is the
+       * opposite of what is wanted — the marketplace's own 30 answers must stay indexed.
+       */
       db.forumPost.findMany({
         where: { status: 'published', communitySlug: { in: HELP_TOPIC_SLUGS } },
         select: { id: true, updatedAt: true },

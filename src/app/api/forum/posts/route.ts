@@ -4,6 +4,7 @@ import { canParticipate, getForumAuth } from '@/lib/forum/auth'
 import { forumJson, forumPreflight, isAllowedForumOrigin } from '@/lib/forum/cors'
 import { forumAuthorSelect, serializeForumPost } from '@/lib/forum/serialize'
 import { rateLimit } from '@/lib/ratelimit'
+import { withheldHelpTopicSlugs } from '@/lib/help-center'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -67,6 +68,12 @@ export async function GET(request: Request) {
       where: {
         status: 'published',
         ...(community ? { communitySlug: community } : {}),
+        // ⚠️ Same withholding as the by-id route beside this one, and needed for the same reason:
+        // `community` is caller-supplied, so asking for a services-only help topic by name would
+        // otherwise list its articles straight out of eno.vn. Applied AFTER the caller's filter so
+        // it cannot be overridden by it — `communitySlug` equality plus `notIn` both apply, and the
+        // deny wins. Empty (and therefore absent) on the services edition.
+        ...(withheldHelpTopicSlugs().length ? { AND: [{ communitySlug: { notIn: withheldHelpTopicSlugs() } }] } : {}),
         ...(location !== 'all' ? { location: { in: ['all', location] } } : {}),
         ...(blockedIds.length ? { authorProfileId: { notIn: blockedIds } } : {}),
         ...(savedOnly && auth ? { bookmarks: { some: { profileId: auth.profile.id } } } : {}),

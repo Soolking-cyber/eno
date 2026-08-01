@@ -39,7 +39,7 @@ vi.mock('@/lib/db', () => ({
 // sees its own fixture rather than the first one that ran.
 vi.mock('react', async (orig) => ({ ...(await orig<typeof import('react')>()), cache: (f: unknown) => f }))
 
-const { marketplaceListingScope, scopedListingWhere, deskSellerIds, DeskResolutionError } = await import('./edition-scope')
+const { marketplaceListingScope, scopedListingWhere, deskSellerIds, DeskResolutionError, isServicesDeskListing, deskExcludedListingWhere } = await import('./edition-scope')
 
 beforeEach(() => {
   h.services = true
@@ -161,5 +161,85 @@ describe('scopedListingWhere', () => {
     h.services = false
     h.sellers = []
     await expect(scopedListingWhere({ status: 'active' })).rejects.toThrow(DeskResolutionError)
+  })
+})
+
+/**
+ * The shared-destination half, where the edition must make NO difference.
+ *
+ * ⚠️ EVERY CASE RUNS ON BOTH EDITIONS, because the bug these replace was an edition test in the
+ * wrong place: the Vertex backfill route guarded itself with `scopedListingWhere`, whose first act
+ * on the services edition is `return {}` — so the one caller it was written to stop (an admin
+ * re-running the backfill from eno.forum) was the one it could not stop. Both builds write into
+ * ONE datastore and eno.vn's concierge reads it, so the exclusion belongs to the DESTINATION, not
+ * to the writer. A future `if (IS_SERVICES)` slipped into either helper fails the services half of
+ * every table below.
+ */
+describe.each([
+  ['services (eno.forum)', true],
+  ['marketplace (eno.vn)', false],
+])('the Vertex ingest exclusion on the %s edition', (_name, isServices) => {
+  beforeEach(() => { h.services = isServices })
+
+  describe('isServicesDeskListing', () => {
+    it('is true for a listing on a desk storefront', async () => {
+      h.sellers = [{ id: 'desk-1' }, { id: 'desk-2' }]
+      expect(await isServicesDeskListing({ sellerId: 'desk-2' })).toBe(true)
+    })
+
+    it('is false for an ordinary seller', async () => {
+      h.sellers = [{ id: 'desk-1' }]
+      expect(await isServicesDeskListing({ sellerId: 'someone-else' })).toBe(false)
+    })
+
+    it('resolves the desk by owner email, so a reseed cannot silently stop matching', async () => {
+      h.sellers = [{ id: 'desk-after-reseed' }]
+      await isServicesDeskListing({ sellerId: 'desk-after-reseed' })
+      expect(h.lastWhere).toEqual({ owner: { email: { in: ['visa@eno.vn', 'shared@eno.vn', 'trips@eno.vn'] } } })
+    })
+
+    // "No desk exists" and "I could not find out" are the same value and opposite decisions. A
+    // caller that cannot throw must catch this and fail CLOSED, not read the error as `false`.
+    it('throws rather than answering false when no desk resolves', async () => {
+      h.sellers = []
+      await expect(isServicesDeskListing({ sellerId: 'anyone' })).rejects.toThrow(DeskResolutionError)
+    })
+
+    it('propagates a database error', async () => {
+      h.throwOnQuery = new Error('connection reset')
+      await expect(isServicesDeskListing({ sellerId: 'anyone' })).rejects.toThrow('connection reset')
+    })
+
+    it('names the shared index in the refusal, so the operator knows which write stopped', async () => {
+      h.sellers = []
+      await expect(isServicesDeskListing({ sellerId: 'anyone' })).rejects.toThrow(/shared Vertex AI Search index/)
+    })
+  })
+
+  describe('deskExcludedListingWhere', () => {
+    it('AND-composes the exclusion onto the caller predicate', async () => {
+      h.sellers = [{ id: 'desk-1' }]
+      expect(await deskExcludedListingWhere({ verified: true, status: 'active' })).toEqual({
+        AND: [{ verified: true, status: 'active' }, { sellerId: { notIn: ['desk-1'] } }],
+      })
+    })
+
+    // The trap `scopedListingWhere` was rewritten to close, restated here so the twin cannot
+    // regress into a spreadable fragment: object spread overwrites on key collision.
+    it('keeps BOTH the caller sellerId filter and the exclusion', async () => {
+      h.sellers = [{ id: 'desk-1' }]
+      const result = await deskExcludedListingWhere({ sellerId: 'a-real-seller' })
+      expect(result).toEqual({ AND: [{ sellerId: 'a-real-seller' }, { sellerId: { notIn: ['desk-1'] } }] })
+    })
+
+    it('never returns an unfiltered predicate when no desk resolves', async () => {
+      h.sellers = []
+      await expect(deskExcludedListingWhere({ verified: true })).rejects.toThrow(DeskResolutionError)
+    })
+
+    it('lets a database error stop the import rather than importing everything', async () => {
+      h.throwOnQuery = new Error('connection reset')
+      await expect(deskExcludedListingWhere({ verified: true })).rejects.toThrow('connection reset')
+    })
   })
 })

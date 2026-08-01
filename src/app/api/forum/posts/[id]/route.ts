@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { db } from '@/lib/db'
 import { canParticipate, getForumAuth } from '@/lib/forum/auth'
+import { withheldHelpTopicSlugs } from '@/lib/help-center'
 import { forumJson, forumPreflight, isAllowedForumOrigin } from '@/lib/forum/cors'
 import {
   forumAuthorSelect,
@@ -40,7 +41,25 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 
   try {
     const post = await db.forumPost.findFirst({
-      where: { id, status: { in: ['published', 'locked'] } },
+      /**
+       * ⚠️ EDITION-SCOPED, BECAUSE 404-ING THE PAGE IS NOT WITHHOLDING THE CONTENT.
+       *
+       * `/help/[id]` refuses services-only help topics on the marketplace edition, and this route
+       * served the identical row to anyone who asked for it by id — same database, no community
+       * filter, no edition test, and it IS compiled into the marketplace build. So eno.vn went on
+       * serving the e-visa help article as JSON while its own page said 404: the licensed
+       * marketplace publishing the content it is not licensed to offer, to exactly the automated
+       * clients that do not render pages. CORS binds browsers; it does nothing to a crawler or a
+       * curl. Found by a verification pass reading this file rather than curling it — line 74
+       * increments viewCount, so probing would have written to production.
+       *
+       * `withheldHelpTopicSlugs()` is empty on the services edition, so eno.forum is unchanged.
+       */
+      where: {
+        id,
+        status: { in: ['published', 'locked'] },
+        ...(withheldHelpTopicSlugs().length ? { communitySlug: { notIn: withheldHelpTopicSlugs() } } : {}),
+      },
       include: {
         author: { select: forumAuthorSelect },
         media: { orderBy: { position: 'asc' } },

@@ -1,4 +1,4 @@
-import { scopedListingWhere } from '@/lib/edition-scope'
+import { deskExcludedListingWhere } from '@/lib/edition-scope'
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getAdmin } from '@/lib/admin'
@@ -31,6 +31,18 @@ export async function POST(req: NextRequest) {
        * otherwise re-import the desk's 15 listings and silently undo the exclusion for the licensed
        * marketplace.
        *
+       * ⚠️ AND `scopedListingWhere` DID NOT DO THAT, WHICH IS WHY THIS LINE CHANGED. It is
+       * edition-CONDITIONAL — `marketplaceListingScope()` opens with `if (IS_SERVICES) return {}`
+       * — so on the services build the exclusion this comment claimed was a literal no-op, and the
+       * eno.forum admin it names as the threat was the one case it could not stop. Measured
+       * 2026-08-01: 34 documents in the branch where 18 belonged, the extra 15 being the desk's.
+       * `deskExcludedListingWhere` is the same AND-composed exclusion with the edition test
+       * removed, because the DESTINATION is shared even when the writer's own surfaces are not.
+       *
+       * It THROWS when the desk cannot be resolved, and a 500 here is the outcome we want: the
+       * import is INCREMENTAL (an upsert), so nothing downstream removes what a run wrote, and an
+       * import that cannot prove which seller is the desk must not run at all.
+       *
        * The sibling scripts/vertex-backfill.mjs was fixed first and this was nearly missed: they are
        * two independent implementations of the same import, and only the script is obvious. The
        * edition-lint allowlist covers src/app/api/admin/** on reachability grounds, which is correct
@@ -39,7 +51,7 @@ export async function POST(req: NextRequest) {
        * ListingDoc carries no sellerId, so no Vertex-side filter can express this after the fact.
        * Ingest is the only place it can be done.
        */
-      where: await scopedListingWhere({ verified: true, status: 'active' }),
+      where: await deskExcludedListingWhere({ verified: true, status: 'active' }),
       orderBy: { id: 'asc' },
       take: 100,
       ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),

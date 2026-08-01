@@ -92,6 +92,47 @@ export const SERVICES_FOOTER_GROUPS: ServicesFooterGroup[] = [
   },
 ]
 
+/**
+ * THE DASHBOARD RAIL ROWS THAT ONLY eno.forum HAS — href and label, never the icon.
+ *
+ * ⚠️ THEY WERE ALREADY CONDITIONALLY CONSTRUCTED AND THE WORDS SHIPPED ANYWAY. dashboard-nav.tsx
+ * builds these rows inside `IS_SERVICES ? [ … ] : []` precisely so the labels would fold away, and
+ * its own comment says the spread "collapses to []". Measured on a clean marketplace build
+ * 2026-08-01, it does not: "My e-Visa" was in 3 client chunks and "E-Visa của tôi" in 2, with the
+ * row correctly hidden. `IS_SERVICES` is substituted inside src/lib/edition.ts and does NOT
+ * propagate across a module boundary to a consumer that imports the flag — so the ternary is a
+ * runtime branch over data the bundler has no reason to drop. Behind this module boundary the alias
+ * removes it, which is the only mechanism that can.
+ *
+ * ⚠️ COPY AND ROUTE ONLY — no `icon`, no `servicesOnly`, no `requiresVisa`. The icon is a component
+ * (this module must stay importable from anywhere, and a lucide import here would drag one in for
+ * eno.vn too), and the two flags are BEHAVIOUR: they belong at the call site beside the
+ * `IS_SERVICES` gate that is the belt to this module's braces. Keep both halves — the gate decides
+ * what renders, the alias decides what is in the artifact.
+ *
+ * ⚠️ THE LABELS ARE NOT HARVESTED FROM HERE. scripts/gen-ui-strings.mjs only sees `tr('…')` /
+ * `<Tr text="…">`, and these are object properties, so moving them off dashboard-nav.tsx's `tr()`
+ * builder is also what reclassifies them: "My e-Visa" is still harvested from
+ * src/app/dashboard/visa/cases-client.tsx, which is a services surface, so it lands in
+ * ui-strings.services.ts (aliased away) instead of the core catalogue eno.vn ships to every browser.
+ * Renaming a label here without changing the services page it also appears on would silently drop it
+ * from the pre-warm batch on eno.forum — check both.
+ */
+export type ServicesNavRow = { href: string; en: string; vi?: string }
+
+/** Community group — the saved-trips section. */
+export const SERVICES_NAV_TRIPS: ServicesNavRow = { href: '/dashboard/trips', en: 'My Trips', vi: 'Chuyến đi của tôi' }
+/**
+ * Community group — the applicant's own cases.
+ *
+ * ⚠️ IT IS NOT AN "APPLY HERE" ROW (owner 2026-07-22: "only 1 way should exist through the chat").
+ * The wizard behind it is deleted and the application is filled in the thread, so the label names
+ * what it still leads to. "Vietnam e-Visa" read as an entry point; this does not.
+ */
+export const SERVICES_NAV_CASES: ServicesNavRow = { href: '/dashboard/visa', en: 'My e-Visa', vi: 'E-Visa của tôi' }
+/** Admin group. EN-only, by the repo convention that admin chrome is never localized. */
+export const SERVICES_NAV_ADMIN_QUEUE: ServicesNavRow = { href: '/admin/visas', en: 'Visas' }
+
 /** The two home-page desk tiles. */
 export const SERVICES_DESK_TILES: ServicesTile[] = [
   { key: 'evisa', name: 'Vietnam e-Visa', nameVi: 'e-Visa Việt Nam', icon: 'Stamp', kind: 'filter', href: '/?category=services&subcategory=visa-legal' },

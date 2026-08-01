@@ -31,6 +31,21 @@ export const SERVICES_FOOTER_GROUPS: ServicesFooterGroup[] = []
 export const SERVICES_DESK_TILES: ServicesTile[] = []
 
 /**
+ * ⚠️ EMPTY HREFS AND EMPTY LABELS, AND BOTH MATTER FOR THE SAME REASON THE MODULE EXISTS. These
+ * three rows are ALSO constructed inside an `IS_SERVICES ?` gate in dashboard-nav.tsx, so nothing
+ * here is ever read on eno.vn — the gate is the belt. This file is the braces: it is what actually
+ * keeps "My e-Visa" / "E-Visa của tôi" out of the client chunks the licensed marketplace serves,
+ * which a runtime gate cannot do (measured — see src/lib/edition.ts).
+ *
+ * ⚠️ NO PLACEHOLDER COPY. A helpful "Visas" or "/dashboard/visa" here would put the vocabulary
+ * straight back into the artifact this stub exists to keep it out of.
+ */
+export type ServicesNavRow = { href: string; en: string; vi?: string }
+export const SERVICES_NAV_TRIPS: ServicesNavRow = { href: '', en: '' }
+export const SERVICES_NAV_CASES: ServicesNavRow = { href: '', en: '' }
+export const SERVICES_NAV_ADMIN_QUEUE: ServicesNavRow = { href: '', en: '' }
+
+/**
  * ⚠️ EMPTY, NOT A MARKETPLACE DESCRIPTION. These are only ever read inside an `IS_SERVICES ? … : …`
  * ternary, so on eno.vn the value is never used — and writing a helpful marketplace sentence here
  * would mean two places own eno.vn's own description, which is how they drift.

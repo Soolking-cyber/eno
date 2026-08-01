@@ -26,11 +26,18 @@ import { TRIP_DESK_OWNER_EMAILS } from '@/lib/trips/dm-thread'
  * three in the morning without reading this file.
  */
 export class DeskResolutionError extends Error {
-  constructor(detail: string) {
-    super(`[edition] refusing to serve a marketplace listing query: ${detail}. ` +
-      'eno.vn must exclude the visa/trip desk from every listing read, and the desk could not be ' +
-      'resolved. Check VISA_SHOP_OWNER_EMAIL and TRIP_DESK_OWNER_EMAIL in the deployed env, and ' +
-      'that the desk Profile rows exist.')
+  /**
+   * `action` names what is being refused, because this error is now thrown from two places whose
+   * operators are different people with different fixes: a marketplace page read (a 500 on a rail)
+   * and a write into the SHARED Vertex index (an ingest that must not run). Defaulted so every
+   * existing call site keeps its exact wording.
+   */
+  constructor(detail: string, action = 'serve a marketplace listing query') {
+    super(`[edition] refusing to ${action}: ${detail}. ` +
+      'The visa/trip desk must be excluded here — eno.vn is a licensed sàn TMĐT and may not ' +
+      'surface e-visa or itinerary services — and the desk could not be resolved. Check ' +
+      'VISA_SHOP_OWNER_EMAIL and TRIP_DESK_OWNER_EMAIL in the deployed env, and that the desk ' +
+      'Profile rows exist.')
     this.name = 'DeskResolutionError'
   }
 }
@@ -93,9 +100,19 @@ export const deskSellerIds = cache(async (): Promise<string[]> => {
  */
 export async function marketplaceListingScope(): Promise<{ sellerId?: { notIn: string[] } }> {
   if (IS_SERVICES) return {}
+  return { sellerId: { notIn: await requiredDeskSellerIds() } }
+}
+
+/**
+ * `deskSellerIds()` or a throw — never an empty array, which is the shape of the leak.
+ *
+ * Shared by the marketplace scope above and the edition-INDEPENDENT ingest helpers below so the
+ * refusal and its operator message cannot drift between them.
+ */
+async function requiredDeskSellerIds(action?: string): Promise<string[]> {
   const ids = await deskSellerIds()
-  if (!ids.length) throw new DeskResolutionError('no desk seller could be resolved')
-  return { sellerId: { notIn: ids } }
+  if (!ids.length) throw new DeskResolutionError('no desk seller could be resolved', action)
+  return ids
 }
 
 /**
@@ -123,4 +140,67 @@ export async function scopedListingWhere<T extends object>(where: T): Promise<T 
   const scope = await marketplaceListingScope()
   if (!scope.sellerId) return where
   return { AND: [where, { sellerId: scope.sellerId }] }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────────────────────
+ * THE SHARED-DESTINATION HALF: an exclusion that is EDITION-INDEPENDENT on purpose.
+ *
+ * Everything above this line is edition-CONDITIONAL and right to be. A page read answers the
+ * reader in front of it, and on eno.forum that reader is allowed to see the desk — hence
+ * `if (IS_SERVICES) return {}` as the first line of `marketplaceListingScope()`.
+ *
+ * ⚠️ THAT NO-OP BECOMES A LEAK THE MOMENT THE DESTINATION IS SHARED, AND IT DID. Both editions
+ * write into ONE Vertex AI Search datastore (`eno-listings`), and the thing that READS that
+ * datastore is eno.vn's AI concierge. So an ingest must not ask "may MY edition show the desk"
+ * — it must ask "may the READER show it", and the reader is the licensed sàn TMĐT whichever
+ * build is doing the writing. Measured 2026-08-01: a reconcile found 34 documents where 18
+ * belonged, the extra 15 being the desk's (14 e-Visa SKUs + the trip anchor). They were put
+ * there by an import whose guard WAS `scopedListingWhere` — a guard that, running on the
+ * services edition, excluded precisely nothing while looking correct in the diff.
+ *
+ * ⚠️ AND NOTHING DOWNSTREAM CAN UNDO IT. `ListingDoc` in src/lib/vertex-search.ts carries
+ * neither `sellerId` nor `subcategorySlug`, so `buildFilter()` is structurally incapable of
+ * expressing this exclusion at query time — there is no Vertex-side filter to fall back on, and
+ * no app-side fix reaches a document already in the index (that takes scripts/vertex-reconcile.mjs).
+ * Ingest is the only place it can be done.
+ *
+ * So: `scopedListingWhere()` for anything that reads listings FOR A PAGE; the two helpers below
+ * for anything that WRITES to the shared index. They are not interchangeable in either direction.
+ * ───────────────────────────────────────────────────────────────────────────────────────────── */
+
+/** What the ingest helpers are refusing to do, for the operator reading the log at 3am. */
+const INGEST_ACTION = 'write a listing into the shared Vertex AI Search index'
+
+/**
+ * Is this listing owned by the visa/trip desk? TRUE on BOTH editions for the same row.
+ *
+ * ⚠️ IT THROWS RATHER THAN ANSWERING `false` WHEN THE DESK CANNOT BE RESOLVED, for the same
+ * reason `marketplaceListingScope()` does: "no desk exists" and "I could not find out" are the
+ * same value and opposite decisions, and the second one silently answers "not the desk" for the
+ * desk's own rows. A caller that must not throw (a background `after()` path) is expected to
+ * catch this and fail CLOSED — treat the row as the desk's — not to let the error mean `false`.
+ * src/lib/listing-index.ts does exactly that, and says so.
+ *
+ * Resolved by owner EMAIL via `deskSellerIds()`, never a hardcoded seller id: ids change on a
+ * reseed and a stale one stops matching without ever failing.
+ */
+export async function isServicesDeskListing(listing: { sellerId?: string | null }): Promise<boolean> {
+  const ids = await requiredDeskSellerIds(INGEST_ACTION)
+  return !!listing?.sellerId && ids.includes(listing.sellerId)
+}
+
+/**
+ * `scopedListingWhere()`'s edition-independent twin, for a bulk ingest into the shared index.
+ *
+ * AND-composed for the same reason — object spread overwrites on key collision, so a caller's own
+ * `sellerId` would silently swallow the exclusion — and unconditional because the destination is
+ * shared. There is deliberately no early return for the services edition: eno.forum sells these
+ * listings and still may not put them in the index eno.vn searches.
+ *
+ * Throws when the desk cannot be resolved. On a foreground admin action that is a visible 500,
+ * which is the outcome we want: an import that cannot prove which seller is the desk must not run
+ * at all, because INCREMENTAL import is an upsert and nothing later removes what it wrote.
+ */
+export async function deskExcludedListingWhere<T extends object>(where: T): Promise<{ AND: [T, { sellerId: { notIn: string[] } }] }> {
+  return { AND: [where, { sellerId: { notIn: await requiredDeskSellerIds(INGEST_ACTION) } }] }
 }

@@ -61,6 +61,24 @@ export const visaErrorCopy = (): string => ''
 export const visaTypeWords = (): string => ''
 export const prepareVisaImage = async (file: File): Promise<File> => file
 
+/** Never called — the in-thread upload needs an application, and the routes that create one do not
+ *  exist on this edition — but it must return a string, because the caller passes it to toast(). */
+export const visaDocToastCopy = (): string => ''
+
+/**
+ * ⚠️ THE ONE STUB THAT IS NOT INERT, AND DELIBERATELY SO. Everything else here answers null/''/
+ * nothing because it is unreachable; this one IS reachable in principle — the two deployments share
+ * ONE database, so a thread on the licensed marketplace can hold a card row written by the other
+ * edition. A card's BODY is empty by design (the payload is its meta), so answering '' would render
+ * a blank bubble, which is the exact fall-through the real module's comment forbids.
+ *
+ * ⚠️ SO IT SAYS THE LEAST IT CAN. A neutral sentence that names no service: the point of the alias
+ * is that the words are absent from eno.vn's artifact, and a stub that helpfully explained which
+ * kind of step could not be shown would put them straight back.
+ */
+export const visaCardFallbackCopy = (tr: (en: string, vi: string) => string): string =>
+  tr('This message could not be shown here.', 'Không hiển thị được tin nhắn này.')
+
 /** A Set, matching the real export: the one call site does `.has(...)` on it. */
 export const EDITABLE_VISA_STATUSES: ReadonlySet<string> = new Set<string>()
 

@@ -171,6 +171,18 @@ const nextConfig: NextConfig = {
           resolveAlias: {
             "@/components/marketplace/visa-cards": "./src/components/marketplace/visa-cards.stub.tsx",
             "@/components/marketplace/trip-cards": "./src/components/marketplace/trip-cards.stub.tsx",
+            // ⚠️ THE ONE THAT WAS MISSING, AND IT SAT ON THE BUSIEST PAGE ON THE SITE.
+            // src/app/listings/[id]/page.tsx — the product detail page — imports VisaStart at module
+            // top level, and both editions compile that page. A clean marketplace build was
+            // measured shipping EIGHT distinct e-Visa sentences in a 61KB chunk that every eno.vn
+            // listing page downloads. The call site's `isVisaProduct` gate was correct and useless:
+            // a gate decides what renders, an alias decides what ships.
+            // It escaped every guard because it is neither a route (so pageExtensions and the
+            // `.svc.` convention miss it) nor inside a services TREE (so edition-lint Rule C, which
+            // matches directories, misses it too). scripts/gen-ui-strings.mjs had ALREADY classified
+            // it as a services source — the rule that follows: anything listed there needs a line
+            // here.
+            "@/components/marketplace/visa-start": "./src/components/marketplace/visa-start.stub.tsx",
             // The services translation catalogue — ~337 strings, including the e-Visa and passport
             // vocabulary, lazily loaded for third-language visitors. Aliased to an empty array so
             // eno.vn never ships the words at all.

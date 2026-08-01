@@ -94,6 +94,17 @@ describe.each([
     'src/components/marketplace/cross-site-promo.tsx',
     'src/components/marketplace/cross-site-promo.stub.tsx',
   ],
+  // ⚠️ THE ONE THIS GUARD ACTUALLY CAUGHT. visa-start is imported at module top level by
+  // src/app/listings/[id]/page.tsx — the product detail page — so a missing or drifted export is a
+  // white screen on every eno.vn listing. It was aliased only after a clean build measured eight
+  // e-Visa sentences shipping in a 61KB chunk the PDP downloads; this row is what stops the stub
+  // rotting away from the real module afterwards. The guard below refused the new alias until it
+  // was here, which is the whole point of it.
+  [
+    'visa-start',
+    'src/components/marketplace/visa-start.tsx',
+    'src/components/marketplace/visa-start.stub.tsx',
+  ],
   // The lazily-loaded services translation catalogue. Generated, so nobody edits it by hand — but
   // it is aliased like the rest, and an alias with no parity check is the gap this list closes.
   ['ui-strings.services', 'src/generated/ui-strings.services.ts', 'src/generated/ui-strings.services.stub.ts'],
@@ -138,6 +149,7 @@ describe('alias coverage', () => {
     'src/lib/prohibited-services-copy.ts',
     'src/lib/cross-site-links.ts',
     'src/components/marketplace/cross-site-promo.tsx',
+    'src/components/marketplace/visa-start.tsx',
     'src/generated/ui-strings.services.ts',
   ])
 

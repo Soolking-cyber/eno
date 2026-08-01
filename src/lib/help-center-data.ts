@@ -138,9 +138,23 @@ export async function loadHelpCenter(): Promise<HelpCenterData> {
   }
 }
 
-/** One help answer + its comment tree, for /help/[id]. Returns null when the id is not a
- *  published post in a help topic — so a normal forum thread id 404s here rather than
- *  rendering inside the Help Center chrome. */
+/**
+ * One help answer + its comment tree, for /help/[id]. Returns null when the id is not a
+ * published post in a help topic — so a normal forum thread id 404s here rather than
+ * rendering inside the Help Center chrome.
+ *
+ * ⚠️ AND `HELP_TOPIC_SLUGS` IS EDITION-SCOPED, WHICH MAKES THIS FUNCTION THE 404 ITSELF.
+ * A topic declared services-only in src/lib/help-center.ts is absent from that list on a
+ * MARKETPLACE build, so its articles do not match, this returns null, and
+ * src/app/help/[id]/page.tsx calls `notFound()`. That is a genuine 404 — no redirect, no
+ * empty shell, no soft-404 that Google keeps in the index.
+ *
+ * This was live in production: `/help/help-vietnam-evisa-entry-basics` returned 200 on
+ * eno.vn (a licensed sàn TMĐT that may not surface e-visa services) and was in its
+ * sitemap, on 2026-08-01. The article is a database ROW, so the `.svc.` route exclusion
+ * and the `resolveAlias` stubs — this repo's two usual instruments — could not reach it.
+ * The topic declaration is the only lever the code owns.
+ */
 export async function loadHelpThread(id: string) {
   const profile = await getCurrentProfile().catch(() => null)
   const viewerId = profile?.id ?? '00000000-0000-0000-0000-000000000000'

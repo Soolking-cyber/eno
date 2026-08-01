@@ -18,6 +18,22 @@ const location = process.env.VERTEX_SEARCH_LOCATION || 'global'
 const dataStore = process.env.VERTEX_SEARCH_DATASTORE_ID
 if (!url || !project || !rawCreds || !dataStore) { console.error('Set DIRECT_URL, GOOGLE_VERTEX_PROJECT, GOOGLE_VERTEX_CREDENTIALS, VERTEX_SEARCH_DATASTORE_ID'); process.exit(1) }
 
+// The desk's owner addresses, as ONE comma-separated string for the query below.
+//
+// ⚠️ THE UNION OF BOTH DESK VARS, matching deskSellerIds() in src/lib/edition-scope.ts. They
+// default to the same address and resolve to the same Seller row today (Seller.ownerId is @unique,
+// so one support account owns one storefront and both features hang off it) — but the two env vars
+// are independent, and reading only the visa one meant that setting TRIP_DESK_OWNER_EMAIL to a
+// separate address would silently re-import the trip desk here while the app excluded it. Same
+// list, same order, in scripts/vertex-reconcile.mjs; the two predicates must stay identical or each
+// run undoes the other.
+const DESK_OWNER_EMAILS = [
+  ...(process.env.VISA_SHOP_OWNER_EMAIL || 'support@eno.forum').split(','),
+  ...(process.env.TRIP_DESK_OWNER_EMAIL || 'support@eno.forum').split(','),
+].map((e) => e.trim().toLowerCase()).filter(Boolean)
+// Trimmed HERE because the SQL only lowercases and splits — it does not trim.
+const DESK_OWNER_EMAIL_LIST = [...new Set(DESK_OWNER_EMAILS)].join(',')
+
 const credsJson = rawCreds.trim().startsWith('{') ? rawCreds : Buffer.from(rawCreds.trim(), 'base64').toString('utf8')
 const auth = new GoogleAuth({ credentials: JSON.parse(credsJson), scopes: ['https://www.googleapis.com/auth/cloud-platform'], projectId: project })
 const token = await auth.getAccessToken()
@@ -82,7 +98,7 @@ const { rows } = await client.query(`
       WHERE lower(p.email) = ANY (string_to_array(lower($1), ','))
     ))
   ORDER BY l.id ASC`,
-  [process.env.VISA_SHOP_OWNER_EMAIL || 'support@eno.forum'])
+  [DESK_OWNER_EMAIL_LIST])
 await client.end()
 console.log(`importing ${rows.length} listings…`)
 

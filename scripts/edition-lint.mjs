@@ -118,7 +118,16 @@ const ALLOW = new Map([
   ["src/lib/enforcement.ts", "Seller/listing reads are `ownerId: profileId` / `sellerId: { in: owned }` for the account being enforced (admin- or cron-supplied per the header at\u2026"],
   ["src/lib/image-provenance.ts", "Returns Promise<void>; the cross-seller dHash $queryRaw is deliberately platform-wide \u2014 excluding the desk would stop detection of scammers stealin\u2026"],
   ["src/lib/listing-analytics.ts", "getListingAnalytics's `where: { sellerId }` is passed r.auth.sellerId by both callers (api/v1/analytics/listings and mcp/tools.ts:233), resolved fr\u2026"],
-  ["src/lib/listing-index.ts", "MUST NOT be scoped \u2014 desk documents are WRITTEN by the services build, where the scope is {}, so a guard here never runs for them. The fix is re-ru\u2026"],
+  // THE REASON THIS LINE USED TO CARRY WAS THE BUG, AND IT ARGUED ITSELF INTO IT. It read "MUST
+  // NOT be scoped - desk documents are WRITTEN by the services build, where the scope is {}, so a
+  // guard here never runs for them", which is a true observation about the marketplace scope and
+  // the wrong conclusion drawn from it: the answer was never "no guard", it was "not THAT guard".
+  // The file now uses isServicesDeskListing() from edition-scope.ts, which is edition-INDEPENDENT
+  // because both builds write into one Vertex datastore that eno.vn's concierge reads. It stays
+  // exempt from Rule A because the correct predicate here is that one, not the scope this rule
+  // counts - the same reason api/admin/vertex-backfill sits under ALLOW_DIRS while carrying a real
+  // exclusion of its own.
+  ["src/lib/listing-index.ts", "Its listing read feeds a Vertex upsert/delete decision, guarded by the edition-INDEPENDENT isServicesDeskListing() \u2014 scopedListingWhere would be a no-op on the build that owns the desk"],
   ["src/lib/listing-owner.ts", "Seller is `where: { ownerId: profile.id }`; the listing read selects only sellerId to return a 403/404 boolean."],
   ["src/lib/mcp/tools.ts", "Every read keys on auth.sellerId from resolveApiKey(req) in api/mcp/route.ts:80 \u2014 the API key is never a tool argument, so a model-supplied id cann\u2026"],
   ["src/lib/phone-unique.ts", "Return type is Promise<boolean>; the only disclosure is 'this number is already registered', which callers turn into a 409."],

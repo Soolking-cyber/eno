@@ -935,6 +935,53 @@ export function visaErrorCopy(code: string | undefined, tr: Tr): string {
   return code.replaceAll('_', ' ')
 }
 
+/**
+ * THE TWO UPLOAD TOASTS THE CHAT THREAD SHOWS WHILE A DOCUMENT IS BEING READ.
+ *
+ * ⚠️ THEY LIVE HERE RATHER THAN AT THE CALL SITE FOR ARTIFACT REASONS, NOT TIDINESS. These were
+ * inline `tr()` literals in src/app/messages/[id]/page.tsx — a file BOTH editions compile, because
+ * the chat page is the marketplace's most-used surface. Measured on a clean marketplace build
+ * 2026-08-01: "Đang đọc hộ chiếu…" and "Đã đọc hộ chiếu…" were in eno.vn's client chunk with the
+ * upload path unreachable (the visa routes do not exist and the desk's threads 404). Nothing
+ * rendered them; they were simply in the bundle, which is the standard the edition split is held to
+ * because it is the one a grep can check. next.config.ts aliases THIS module away on a marketplace
+ * build, so behind the boundary the words are absent.
+ *
+ * ⚠️ THE WHOLE TERNARY MOVED, not just the passport half. Splitting it would have left "Checking the
+ * portrait…" in the shared file for no reason and made the two branches drift apart.
+ */
+export function visaDocToastCopy(kind: 'passport' | 'portrait', phase: 'reading' | 'read', tr: Tr): string {
+  if (phase === 'reading') {
+    return kind === 'passport'
+      ? tr('Reading your passport…', 'Đang đọc hộ chiếu…')
+      : tr('Checking the portrait…', 'Đang kiểm tra ảnh chân dung…')
+  }
+  return kind === 'passport'
+    ? tr('Passport read. Check the details below.', 'Đã đọc hộ chiếu. Hãy kiểm tra thông tin bên dưới.')
+    : tr('Portrait accepted.', 'Đã nhận ảnh chân dung.')
+}
+
+/**
+ * The inert bubble a visa card degrades to when this build cannot read its `meta`.
+ *
+ * ⚠️ IT MUST RETURN A NON-EMPTY SENTENCE ON BOTH EDITIONS. A card message's BODY is empty by design
+ * — the payload is the meta — so a card the renderer cannot parse must not fall through to a blank
+ * bubble. That is why the marketplace stub answers with a neutral sentence rather than `''`: the two
+ * deployments share one database, so a thread can hold a card written by the other edition, and
+ * "degrade, never crash" applies to the empty-looking case too.
+ *
+ * ⚠️ AND THAT IS ALSO WHY THE SENTENCE IS HERE. Inline in the chat page, "This e-Visa step could not
+ * be shown here — open the full form to continue." shipped in 2 of eno.vn's client chunks (measured
+ * 2026-08-01). The alias is what removes it; the stub supplies the edition's own wording, which
+ * names no service the licensed marketplace may not offer.
+ */
+export function visaCardFallbackCopy(tr: Tr): string {
+  return tr(
+    'This e-Visa step could not be shown here — open the full form to continue.',
+    'Không hiển thị được bước E-Visa này — hãy mở biểu mẫu đầy đủ để tiếp tục.',
+  )
+}
+
 /** The rate the quote was issued at, as đồng per one dollar. Evidence, not a computation. */
 const rateLabel = (quote: VisaQuoteWire, locale: ReturnType<typeof moneyLocale>) =>
   formatMoneyFull(Math.round(quote.vndPerUsd), '₫', locale)

@@ -3,7 +3,12 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { PrismaClient } from '../src/generated/prisma/client'
 import { PrismaPg } from '@prisma/adapter-pg'
-import { HELP_TOPICS } from '../src/lib/help-center'
+// ⚠️ `ALL_HELP_TOPICS`, NEVER `HELP_TOPICS`. That name is EDITION-SCOPED now (a topic
+// may be declared services-only so eno.vn 404s its articles), and this script writes to
+// the ONE database both deployments share. Seeding through the scoped list would make
+// the seed depend on whichever env happened to be loaded — and the "retired" sweep below
+// HIDES posts, so a scoped list there would silently stop maintaining a whole topic.
+import { ALL_HELP_TOPICS, ALL_HELP_TOPIC_SLUGS } from '../src/lib/help-center'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SYNC HELP CENTER — non-destructive, idempotent. Upserts:
@@ -71,8 +76,8 @@ async function main() {
   const existingCommunities = new Set(
     (await db.forumCommunity.findMany({ select: { slug: true } })).map((c) => c.slug),
   )
-  console.log(`\nTopics (${HELP_TOPICS.length})`)
-  for (const topic of HELP_TOPICS) {
+  console.log(`\nTopics (${ALL_HELP_TOPICS.length})`)
+  for (const topic of ALL_HELP_TOPICS) {
     if (!dryRun) {
       await db.forumCommunity.upsert({
         where: { slug: topic.slug },
@@ -104,7 +109,7 @@ async function main() {
 
   const knownCommunities = new Set([
     ...existingCommunities,
-    ...HELP_TOPICS.map((t) => t.slug),
+    ...ALL_HELP_TOPIC_SLUGS,
   ])
   const orphans = seeds.filter((s) => !knownCommunities.has(s.community))
   if (orphans.length) {
@@ -197,7 +202,7 @@ async function main() {
     where: {
       official: true,
       status: 'published',
-      communitySlug: { in: HELP_TOPICS.map((t) => t.slug) },
+      communitySlug: { in: ALL_HELP_TOPIC_SLUGS },
       id: { startsWith: 'help-', notIn: ids },
     },
     select: { id: true, title: true },
