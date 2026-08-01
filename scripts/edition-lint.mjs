@@ -24,6 +24,23 @@
  *   default-deny — route 31 is excluded by where it lives and what it is called, not by a list
  *   anyone has to maintain. This rule is what stops the convention rotting.
  *
+ * RULE C — shared files may not import an unaliased module out of a services tree.
+ *   Rule B gates ROUTES, and it does that by checking Next SPECIAL files (page/layout/route/…).
+ *   A services tree also holds ordinary modules — `src/app/vietnam-evisa/links.ts` — and those are
+ *   NOT excluded by `pageExtensions`, because `pageExtensions` only decides what counts as a route.
+ *   So a shared file importing one compiles every literal in it straight into the licensed image.
+ *   Measured 2026-08-01: the sitemap route imported `VIETNAM_EVISA_PATHS` from that module, putting
+ *   "Urgent Vietnam visa in 1 hour" and "evisa.gov.vn" in eno.vn's server bundle. Its `IS_SERVICES`
+ *   gate was correct and irrelevant — a gate stops the URLs being EMITTED, it cannot unbundle a
+ *   string. Fixing that one import is not enough, because the next person writes the same import
+ *   for the same good reason; this rule is what makes the mistake unavailable.
+ *
+ *   The fix is always one of two things, and both are in the tree as worked examples:
+ *     · route the import through a module `next.config.ts` already aliases — what the sitemap now
+ *       does via `SERVICES_SITEMAP_PATHS` in src/lib/edition-services-copy.ts; or
+ *     · keep the shared module's VALUES free of services vocabulary so it is safe to import
+ *       directly — what src/lib/expat-guides.ts does, and says so in its header.
+ *
  * Escape hatch, same shape as design-lint: add an entry to ALLOW with a reason. An exemption then
  * shows up in a diff as a decision somebody made, rather than as an omission nobody noticed.
  */
@@ -133,6 +150,14 @@ const SERVICES_TREES = [
   'src/app/vietnam-evisa/',
   'src/app/itinerary/',
   'src/app/services-for-expats-vietnam/',
+  // ⚠️ THE TWO ARRIVAL GUIDES LOOK HARMLESS AND ARE NOT. "Moving to Vietnam" and "first month in
+  // Vietnam" read like ordinary marketplace content — which is exactly why they belong in this list:
+  // both name the e-visa, evisa.gov.vn and the licensed partner in their prose, so a future edit
+  // that renamed page.svc.tsx to page.tsx would ship that vocabulary in the licensed image while
+  // looking like a tidy-up in the diff. A route tree whose services-ness is not obvious from its
+  // name is the one that most needs the rule.
+  'src/app/moving-to-vietnam/',
+  'src/app/first-month-in-vietnam/',
   'src/app/dashboard/visa/',
   'src/app/dashboard/trips/',
   'src/app/admin/visas/',
@@ -179,9 +204,42 @@ function walk(dir, out = []) {
 /** Strip comments so a rule name mentioned in prose does not count as a guard (or a violation). */
 const decomment = (s) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1')
 
+/**
+ * The module specifiers `next.config.ts` swaps for a stub on a MARKETPLACE build.
+ *
+ * ⚠️ PARSED OUT OF next.config.ts, NEVER RETYPED HERE. A second hand-maintained copy of this list
+ * would drift, and it would drift in the direction that passes: a stale entry here marks an import
+ * "aliased" when the alias has been removed, which is the exact leak Rule C exists to catch.
+ */
+function aliasedSpecifiers() {
+  const cfg = readFileSync(join(ROOT, 'next.config.ts'), 'utf8')
+  const at = cfg.indexOf('resolveAlias: {')
+  if (at === -1) return null // config restructured — Rule C reports that rather than passing silently
+  return new Set([...cfg.slice(at).matchAll(/"(@\/[^"]+)"\s*:/g)].map((m) => m[1]))
+}
+const ALIASED = aliasedSpecifiers()
+
+/**
+ * The REAL files those specifiers resolve to — the modules a marketplace build never compiles,
+ * because the bundler hands it the stub instead.
+ *
+ * ⚠️ THEY MUST BE EXEMPT FROM RULE C, and for the same reason `.svc.` files are: what a module
+ * imports only matters if that module is in the build. src/lib/edition-services-copy.ts imports
+ * @/app/vietnam-evisa/links ON PURPOSE — that indirection is how the shared sitemap stops importing
+ * it directly — and flagging the bridge would leave the rule with no fix available except deleting
+ * the mechanism it is recommending.
+ */
+const ALIASED_REAL_FILES = new Set(
+  [...(ALIASED ?? [])].flatMap((spec) => {
+    const base = spec.replace('@/', 'src/')
+    return [`${base}.ts`, `${base}.tsx`]
+  }),
+)
+
 const files = walk(SRC)
 const unguarded = []
 const badExt = []
+const crossImports = []
 
 for (const full of files) {
   const rel = relative(ROOT, full).split('\\').join('/')
@@ -200,6 +258,24 @@ for (const full of files) {
     const base = rel.split('/').pop()
     if (/^(page|layout|route|loading|error|template|default|not-found)\.(ts|tsx)$/.test(base)) {
       badExt.push(rel)
+    }
+  }
+
+  /**
+   * RULE C — a marketplace-compiled file importing an unaliased module out of a services tree.
+   *
+   * Skipped for files that are themselves services-only: a `.svc.` file is never compiled on a
+   * marketplace build, and a module already inside a services tree importing its own siblings is
+   * the normal case, not a leak.
+   */
+  if (!rel.includes('.svc.') && !SERVICES_TREES.some((t) => rel.startsWith(t)) && !ALIASED_REAL_FILES.has(rel)) {
+    for (const m of src.matchAll(/\bfrom\s+'(@\/[^']+)'/g)) {
+      const spec = m[1]
+      const asPath = spec.replace('@/', 'src/')
+      if (!SERVICES_TREES.some((t) => asPath.startsWith(t))) continue
+      if (ALIASED && ALIASED.has(spec)) continue
+      const line = src.slice(0, m.index).split('\n').length
+      crossImports.push(`${rel}:${line}  imports ${spec}`)
     }
   }
 
@@ -234,7 +310,7 @@ for (const full of files) {
 process.stdout.on('error', (e) => { if (e.code === 'EPIPE') process.exit(0) })
 const say = (s) => process.stdout.write(`${s}\n`)
 
-if (!unguarded.length && !badExt.length) {
+if (!unguarded.length && !badExt.length && !crossImports.length) {
   say('edition-lint: clean')
 } else {
   say('')
@@ -260,6 +336,19 @@ if (!unguarded.length && !badExt.length) {
     say('  A marketplace build compiles these, so the route ships in the licensed image.')
     say('')
     for (const f of badExt) say(`    ${f}`)
+  }
+  if (crossImports.length) {
+    say('')
+    say(`  Rule C — ${crossImports.length} shared file(s) importing an unaliased services-tree module:`)
+    say('  pageExtensions excludes services ROUTES, not ordinary modules beside them, so a marketplace')
+    say('  build compiles every literal in the imported file. An IS_SERVICES gate at the call site')
+    say('  stops it RENDERING; it cannot remove the strings from the artifact.')
+    say('')
+    say('  Fix: either re-export what you need from a module already aliased in next.config.ts')
+    say('       (see SERVICES_SITEMAP_PATHS in src/lib/edition-services-copy.ts), or keep the')
+    say('       imported module\'s VALUES free of services vocabulary (see src/lib/expat-guides.ts).')
+    say('')
+    for (const f of crossImports) say(`    ${f}`)
   }
   say('')
   process.exitCode = 1

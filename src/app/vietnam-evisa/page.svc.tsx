@@ -1,8 +1,11 @@
 import { SITE_NAME } from '@/lib/edition'
 import type { Metadata } from 'next'
+import { CrossSitePromo } from '@/components/marketplace/cross-site-promo'
 import { SeoLanding, type SeoContent } from '@/components/marketplace/seo-landing'
 import { VISA_CATEGORY_SLUG, VISA_SUBCATEGORY_SLUG } from '@/lib/taxonomy'
+import { PROVIDER_OF_RECORD } from '@/lib/visa-provider'
 import { evisaRelated } from './links'
+import { visaServiceLd } from './service-jsonld'
 
 // ⚠️ 24h, NOT the 7d the other landing pages use. Those sell a category; this cluster's whole
 // argument is "compare the prices on the cards below", and those cards render live
@@ -23,8 +26,12 @@ export const revalidate = 86400
 const CONTENT: SeoContent = {
   eyebrow: 'e-Visa · Vietnam',
   h1: 'Vietnam e-Visa: prices, processing times and how to apply',
-  intro:
-    'A Vietnam e-visa is a 90-day visa issued electronically by the Immigration Department — no embassy visit, no stamp collected on arrival. What varies between providers is how fast the paperwork gets handled and what they charge for the handling. On eno.vn each combination is a listing with its own price: single or multiple entry, at seven processing speeds from standard to one hour. Compare them below before you talk to anyone.',
+  // ⚠️ "on eno.vn" WAS HERE, ON THE PAGE THAT SELLS THE SERVICE. eno.vn is the licensed sàn TMĐT
+  // that may not offer e-visa services at all, so the sentence named the one company that legally
+  // cannot be selling this — in the intro, above the price cards. It is a `.svc.` file, so nothing
+  // eno.vn serves ever contained it; the damage was on eno.forum, telling every reader and every
+  // crawler the wrong operator. SITE_NAME is the fix everywhere this pattern appears.
+  intro: `A Vietnam e-visa is a 90-day visa issued electronically by the Immigration Department — no embassy visit, no stamp collected on arrival. What varies between providers is how fast the paperwork gets handled and what they charge for the handling. On ${SITE_NAME} each combination is a listing with its own price: single or multiple entry, at seven processing speeds from standard to one hour. The services listed here are provided by a licensed Vietnamese travel company, not by ${SITE_NAME} — compare them below before you talk to anyone.`,
   categorySlug: VISA_CATEGORY_SLUG,
   subcategorySlug: VISA_SUBCATEGORY_SLUG,
   cta: 'See all e-visa options',
@@ -45,7 +52,17 @@ const CONTENT: SeoContent = {
       title: 'What an agent cannot do',
       body: 'No provider can guarantee approval, override the Immigration Department, or issue a visa faster than the department will process it. What faster tiers buy is priority handling of your paperwork, not a different decision. Anyone promising a guaranteed approval is describing something they do not control.',
     },
+    // ⚠️ THE DISCLOSURE IS A SECTION, NOT A FOOTNOTE, AND IT COMES FROM src/lib/visa-provider.ts.
+    // This is the page that sells the service, so the reader has to be able to see who is selling it
+    // before they open a listing — not in small print under the fold, and never reworded here. The
+    // constant is the single source; retyping it is how two versions of a legal statement start
+    // disagreeing.
+    { title: 'Who provides these services', body: PROVIDER_OF_RECORD.en },
   ],
+  // The machine-readable half of the same statement: `provider` is the partner, `broker` is this
+  // site. Visible copy that disclaims responsibility while the structured data claims the service
+  // would be the worst of both — see src/app/vietnam-evisa/service-jsonld.ts.
+  jsonLd: [visaServiceLd()],
   related: evisaRelated(),
   faqs: [
     {
@@ -79,10 +96,23 @@ export const metadata: Metadata = {
   openGraph: {
     title: `Vietnam e-Visa — Prices, Processing Times & How to Apply | ${SITE_NAME}`,
     description:
-      'Single or multiple entry, standard to 1-hour express. Every combination priced up front on eno.vn.',
+      `Single or multiple entry, standard to 1-hour express. Every combination priced up front on ${SITE_NAME}, provided by a licensed Vietnamese travel partner.`,
   },
 }
 
+/**
+ * ⚠️ THE CROSS-SITE PROMO GOES *BELOW* EVERYTHING, AND ON THIS PAGE SPECIFICALLY.
+ *
+ * This is the surface where introducing eno.vn is honest rather than opportunistic: somebody
+ * reading about a Vietnam e-visa is, by construction, about to be in Vietnam and about to need
+ * somewhere to live and something to ride. `after` renders it at the end of <main>, so nothing a
+ * visitor came here for is displaced by it.
+ *
+ * ⚠️ IT MAY NOT SPREAD, and the rule for where it may go is on the component itself — long-form
+ * services-only pages whose reader is planning a move, never the header, feed, chat or a listing.
+ * This file is `.svc.`, so a marketplace build never compiles it and the import cannot reach eno.vn
+ * even before the alias in next.config.ts is considered.
+ */
 export default function Page() {
-  return <SeoLanding content={CONTENT} />
+  return <SeoLanding content={CONTENT} after={<CrossSitePromo />} />
 }

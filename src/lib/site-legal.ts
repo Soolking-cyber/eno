@@ -1,26 +1,147 @@
-// ── Legal identity of the site operator — single source of truth ────────────────
-// Decree 52/2013 Đ.36/Đ.29 requires the operator's name, address, ERC number
-// (+ date/place of issue) and contact channels displayed on the site. Values are
-// PLACEHOLDERS until the company registration (ERC) is issued — update HERE only
-// and the footer + all legal pages pick it up. Keep keys stable.
-export const COMPANY = {
-  /** Legal (Vietnamese) company name, per the ERC. */
+import { EDITION, type Edition } from '@/lib/edition'
+
+/**
+ * LEGAL IDENTITY OF THIS DEPLOYMENT'S OPERATOR — the single source of truth.
+ *
+ * Decree 52/2013 Đ.29/Đ.36 requires the operator's name, head-office address, ERC number (with the
+ * date and place of issue) and contact channels to be displayed on the site. Everything below is a
+ * PLACEHOLDER: no legal entity exists yet, so nothing here may be worded as if one does — the name
+ * fields say "registration in progress" on purpose and must keep saying so until the ERC is issued.
+ *
+ * ⚠️ NEVER HARDCODE A COMPANY NAME, LICENCE NUMBER OR REGISTRATION NUMBER ANYWHERE ELSE. Change it
+ * HERE and the footer, /signin, /terms, /privacy and /regulations all follow. A number typed into a
+ * page is a legal defect that no lint can see.
+ *
+ * ⚠️ WHY THIS IS PER-EDITION RATHER THAN ONE GLOBAL COMPANY. One codebase is deployed twice (see
+ * src/lib/edition.ts). eno.vn is registering as a licensed sàn TMĐT; eno.forum additionally lists
+ * services sold by licensed third-party partners and is expected to end up as a SEPARATE operating
+ * entity. A single shared COMPANY constant would print whichever entity is named here on the OTHER
+ * site's mandatory operator notice — the same class of leak the edition split exists to prevent,
+ * except that this one misstates who is legally responsible rather than merely advertising the
+ * wrong thing.
+ *
+ * Today both editions resolve to the same pending entity, and that is honest because there is only
+ * one. When the second entity is incorporated, fill in `OPERATORS.services` and nothing else in the
+ * codebase has to change.
+ */
+export type LegalOperator = {
+  /** Legal (Vietnamese) name, exactly as it reads on the ERC once issued. */
+  name: string
+  /** English rendering of the same legal name — never a different entity. */
+  nameEn: string
+  /** Registered head-office address (Đ.29 requires the head office, not a mailing address). */
+  address: string
+  /** ERC = Giấy chứng nhận đăng ký doanh nghiệp — the number. */
+  erc: string
+  /** ERC date + place of issue ("cấp ngày … tại …"). */
+  ercIssued: string
+  phone: string
+  email: string
+  /** Personal-data protection contact (PDPL 91/2025 rights requests). */
+  privacyEmail: string
+  /**
+   * false while the ERC is still pending.
+   *
+   * ⚠️ IT IS NOT DECORATION. Copy that asserts an existing company ("operated by X, registered under
+   * ERC N") is false until this is true. Gate any such wording on it rather than assuming the
+   * placeholder strings read as a disclaimer — "đang cập nhật" in a field labelled "ERC no." does
+   * not tell a reader that no company exists.
+   */
+  registered: boolean
+}
+
+/** The one value every unissued registration field carries, so a grep finds all of them at once. */
+const PENDING = 'đang cập nhật'
+
+/**
+ * The single pending Vietnamese entity behind both domains today.
+ *
+ * ⚠️ Both editions currently point at this. That is a statement of fact, not a shortcut: there is
+ * one company being registered, and claiming two would be the invention this file exists to avoid.
+ */
+const PENDING_VN_ENTITY: LegalOperator = {
   name: 'Công ty TNHH ENO (đang đăng ký thành lập)',
   nameEn: 'ENO Company Limited (registration in progress)',
   address: 'TP. Hồ Chí Minh, Việt Nam (địa chỉ trụ sở đang cập nhật)',
-  /** ERC = Giấy chứng nhận đăng ký doanh nghiệp (số, ngày cấp, nơi cấp). */
-  erc: 'đang cập nhật',
-  ercIssued: 'đang cập nhật',
-  phone: 'đang cập nhật',
+  erc: PENDING,
+  ercIssued: PENDING,
+  phone: PENDING,
   email: 'support@eno.vn',
-  /** Personal-data protection contact (PDPL 91/2025 rights requests). */
   privacyEmail: 'support@eno.vn',
+  registered: false,
 }
 
-// Bump when the Terms/Regulations change materially — new acceptances stamp this
-// onto Profile.tosVersion (E-Transactions Law: keep a record of what was accepted
-// when). Announce changes on-platform ≥5 days before the new version takes effect.
-export const TOS_VERSION = '2026-07'
+/**
+ * Operator identity per edition — THE ONE OBJECT TO EDIT.
+ *
+ * ⚠️ WHEN THE eno.forum ENTITY EXISTS, replace the `services` spread with its real fields and set
+ * `registered: true`. Do not touch `marketplace` while doing it, and do not "simplify" the two
+ * back into one constant afterwards — the duplication is the point once the entities differ.
+ *
+ * ⚠️ AND WHEN THE eno.vn ERC IS ISSUED, `marketplace.registered` flips to true in the same way.
+ * Flipping it is what allows pages to state the company as a fact; leave it false until the
+ * certificate is in hand, not when the application is filed.
+ */
+export const OPERATORS: Record<Edition, LegalOperator> = {
+  marketplace: { ...PENDING_VN_ENTITY },
+  services: { ...PENDING_VN_ENTITY },
+}
+
+/**
+ * The operator of THIS build. Kept under the historical name `COMPANY` because /privacy, /terms,
+ * /regulations, /signin and the footer all import it — the value became edition-aware, the import
+ * did not have to change.
+ */
+export const COMPANY: LegalOperator = OPERATORS[EDITION]
+
+/** Convenience for copy that may only assert an existing company once the ERC is issued. */
+export const OPERATOR_REGISTERED = COMPANY.registered
+
+/**
+ * HOW THE TWO SITES RELATE — the disclosed-affiliation statement, for the disclosure page and both
+ * footers.
+ *
+ * ⚠️ THE ONE THING THIS MAY NOT SAY IS "UNRELATED". eno.vn and eno.forum are built from one
+ * codebase, share a brand and (today) a pending operator, and cross-link. Claiming independence
+ * would be false, and a false disclosure is worse than none. The honest and legally useful framing
+ * is the opposite: disclose the relationship, and be precise about what each site is answerable
+ * for.
+ *
+ * ⚠️ IT ALSO MAY NOT NAME A SERVICE. This constant ships in BOTH bundles, including the licensed
+ * marketplace's, so it stays at the level of "services offered on its own domain". Naming any
+ * specific service here would put that vocabulary into eno.vn's artifact — see
+ * src/lib/edition-services-copy.ts for why a runtime gate would not save you.
+ *
+ * EN is the authored text and VI is a curated legal pass; render with tr(AFFILIATION.en,
+ * AFFILIATION.vi) rather than sending legal copy through the machine translation layer.
+ */
+export const AFFILIATION = {
+  en:
+    'eno.vn and eno.forum are related websites in the same ENO brand family. They are not the same service: each site publishes its own operator details, terms and legal notices, and each is responsible only for the services offered on its own domain. Where a service on either site is provided by a licensed third-party partner, that partner is identified on the page offering it and is the provider of record for that service, with the site acting as an intermediary platform.',
+  vi:
+    'eno.vn và eno.forum là hai website liên kết, cùng thuộc nhóm thương hiệu ENO. Đây không phải là cùng một dịch vụ: mỗi website công bố thông tin đơn vị vận hành, điều khoản và thông báo pháp lý riêng, và chỉ chịu trách nhiệm đối với các dịch vụ được cung cấp trên tên miền của mình. Trường hợp một dịch vụ trên website do đối tác thứ ba có giấy phép cung cấp, đối tác đó được nêu rõ tại trang cung cấp dịch vụ và là bên chịu trách nhiệm cung cấp dịch vụ; website chỉ đóng vai trò nền tảng trung gian.',
+  /** One line, for a footer row where the full paragraph does not fit. */
+  shortEn:
+    'eno.vn and eno.forum are related sites in the same brand family; each is responsible only for the services on its own domain.',
+  shortVi:
+    'eno.vn và eno.forum là hai website liên kết cùng nhóm thương hiệu; mỗi website chỉ chịu trách nhiệm đối với dịch vụ trên tên miền của mình.',
+}
+
+/**
+ * The version stamped onto Profile.tosVersion at acceptance (E-Transactions Law: keep a record of
+ * WHAT was accepted and WHEN, not just that something was).
+ *
+ * ⚠️ BUMPING THIS STARTS A CLOCK, IT DOES NOT END ONE. Decree 52/2013 Đ.38.3 requires material
+ * changes to the Terms/Operating Regulations to be ANNOUNCED ON-PLATFORM AT LEAST 5 DAYS BEFORE
+ * they take effect. So the order is: publish the notice → wait 5 days → let the new version take
+ * effect. Shipping a bumped version the same day it is announced is the violation, and it is
+ * invisible in the diff — the constant looks identical either way.
+ *
+ * Bumped 2026-08 for the materially rewritten Terms, Regulations and Privacy Policy (platform vs.
+ * provider-of-record responsibilities, the affiliation disclosure above, and applicant-document
+ * handling).
+ */
+export const TOS_VERSION = '2026-08'
 
 // True while the site is in pre-launch test operation (before the MoIT sàn TMĐT
 // registration at online.gov.vn is confirmed). Drives the always-visible bilingual

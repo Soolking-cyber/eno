@@ -178,6 +178,61 @@ const nextConfig: NextConfig = {
             // Footer links and home tiles. Already gated at their call sites — this removes the
             // LABELS from the artifact, which the gate cannot do.
             "@/lib/edition-services-copy": "./src/lib/edition-services-copy.stub.ts",
+            // The third-party provider of record for the e-visa service: partner name, licence and
+            // tax placeholders, and the provider-of-record disclosure in vi + en. The LEGAL PAGES
+            // are shared by both editions — one /terms, one /privacy, one disclosure page, each
+            // rendering the partner block only when IS_SERVICES — so this module is imported by
+            // files that a marketplace build DOES compile. The gate stops it rendering; only the
+            // alias stops eno.vn shipping the partner's name in its chunks.
+            "@/lib/visa-provider": "./src/lib/visa-provider.stub.ts",
+            // The cross-site backlink surface: the canonical eno.vn destinations eno.forum links
+            // to, and the promo section that introduces them. Aliased for a reason that reads
+            // backwards until you say it out loud — the copy is about eno.vn, and eno.vn is
+            // precisely where it must not appear. "Already in Vietnam? Find housing, jobs and
+            // motorbikes on eno.vn" is a useful sentence on eno.forum and a nonsense one served to
+            // a reader who is already on eno.vn, where every href would also be a self-link.
+            // ⚠️ BOTH ARE LISTED, AND NEITHER IS REDUNDANT. The lib has two importers — the promo
+            // component and edition-services-copy.ts (which turns it into the footer's eno.vn
+            // group) — and both of THOSE are themselves aliased, so in today's graph the lib is
+            // already unreachable from a marketplace build. Relying on that is relying on a chain:
+            // one future shared module importing @/lib/cross-site-links directly, and the labels
+            // are in eno.vn's chunks with every existing alias still correct and every test still
+            // green. Aliasing each module on its own makes the guarantee local to the module.
+            "@/lib/cross-site-links": "./src/lib/cross-site-links.stub.ts",
+            "@/components/marketplace/cross-site-promo": "./src/components/marketplace/cross-site-promo.stub.tsx",
+            // The services-only paragraphs of /privacy — applicant identity documents, the
+            // sensitive-data consent, the handover to the provider. Same shared-page problem as
+            // visa-provider above: a privacy policy cannot 404 on the licensed marketplace, so a
+            // marketplace build compiles that page and every literal in it.
+            // ⚠️ AND THERE IS A SECOND PATH OUT, which is why the copy lives in a module rather
+            // than in an `IS_SERVICES ?` branch: scripts/gen-ui-strings.mjs harvests
+            // `<Tr text="…">` JSX literals into src/generated/ui-strings.ts, which is SHIPPED TO
+            // THE BROWSER to pre-warm translations. /privacy renders its paragraphs from an array
+            // (`<Tr text={p} />`), which the harvester does NOT see — measured 2026-08-01, none of
+            // that page's paragraphs are in the catalogue — so today only the artifact path is
+            // live. But the next person to add a sentence will write it the obvious way, as a
+            // `<Tr text="…">` literal, and that one lands in the file every eno.vn visitor
+            // downloads on every page. Behind a module boundary neither path exists.
+            "@/lib/privacy-services-copy": "./src/lib/privacy-services-copy.stub.ts",
+            // The services-only sections of /terms — who sells the e-visa service and answers for
+            // it, where the money goes, whose complaint process applies. Identical reasoning to
+            // privacy-services-copy directly above: /terms cannot 404 on the licensed marketplace,
+            // so a marketplace build compiles the page, and a sentence written inline as
+            // `<Tr text="…">` there would be harvested into the browser-shipped core translation
+            // catalogue. Two modules rather than one shared "legal copy" module on purpose — each
+            // page's copy is aliasable, testable and editable without touching the other's.
+            "@/lib/terms-services-copy": "./src/lib/terms-services-copy.stub.ts",
+            // The services-only addendum to /prohibited — the visa & immigration listing rules
+            // (only a licensed business may list them, no guaranteed-approval claims, the
+            // government fee shown separately from the service fee) plus the related-site note.
+            // Same shared-page problem as the two directly above, with one addition worth stating
+            // because it is the reason this page needed a module at all rather than an inline
+            // `IS_SERVICES &&` block: the four prohibited-goods groups are rendered from ARRAY
+            // DATA via `<Tr text={variable}>`, which gen-ui-strings.mjs does not harvest — so an
+            // author adding visa rules to that page naturally reaches for the same array, and the
+            // strings land in eno.vn's SERVER chunks instead of its client ones. Less visible,
+            // same standard: not in the artifact.
+            "@/lib/prohibited-services-copy": "./src/lib/prohibited-services-copy.stub.ts",
           },
         }
       : {}),

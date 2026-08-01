@@ -7,12 +7,30 @@ import { FORUM_URL, goToForum } from '@/lib/forum-nav'
 import { handleExternalClick } from '@/lib/native-browser'
 import { COMPANY } from '@/lib/site-legal'
 import { TAXONOMY } from '@/lib/taxonomy'
-import { SERVICES_FOOTER_LINKS } from '@/lib/edition-services-copy'
+import { SERVICES_FOOTER_GROUPS, SERVICES_FOOTER_LINKS } from '@/lib/edition-services-copy'
+
+/**
+ * One footer entry.
+ *
+ * ⚠️ TYPED EXPLICITLY RATHER THAN INFERRED, because inference across a heterogeneous array is what
+ * broke here: with three shapes of link object in `columns` (plain, +forumPath, +rel), TypeScript
+ * widened the optional properties to `unknown`, so `link.rel` failed to typecheck even behind an
+ * `'rel' in link` guard. One named type makes every optional property readable directly and keeps
+ * the render below free of narrowing tricks.
+ */
+type FooterLink = {
+  label: string
+  href: string
+  /** Cross-site links only — `noopener`, never nofollow. See src/lib/cross-site-links.ts. */
+  rel?: string
+  /** eno.forum links only — routes the click through goToForum()'s single-use SSO handoff. */
+  forumPath?: string
+}
 
 export function Footer() {
   const { tr } = useLanguage()
 
-  const columns = [
+  const columns: { title: string; links: FooterLink[] }[] = [
     {
       title: tr('Customer service', 'Chăm sóc khách hàng'),
       links: [
@@ -89,6 +107,23 @@ export function Footer() {
         ...SERVICES_FOOTER_LINKS.help.map((l) => ({ label: tr(l.labelEn, l.labelVi), href: l.href })),
       ],
     },
+    /**
+     * ⚠️ A WHOLE COLUMN, SERVICES EDITION ONLY, AND IT POINTS OFF-ORIGIN. This is the "On eno.vn"
+     * group: absolute, dofollow links from every page of eno.forum to the marketplace's keyword
+     * landing pages. On a marketplace build SERVICES_FOOTER_GROUPS is `[]` (the stub), so the
+     * column does not exist at all rather than rendering empty — and, more to the point, its labels
+     * are not in the artifact. See src/lib/cross-site-links.ts.
+     *
+     * ⚠️ NO `forumPath`, DELIBERATELY. That property routes a click through goToForum()'s
+     * single-use SSO handoff, which exists so the NATIVE app arrives on eno.forum signed in. These
+     * links go the other way, to eno.vn, which is first-party to the shell (native-browser.ts's
+     * FIRST_PARTY_HOSTS) — the WebView is allowed to navigate there directly. Adding forumPath here
+     * would send a reader who tapped "Housing in Vietnam" to the forum's auth bridge instead.
+     */
+    ...SERVICES_FOOTER_GROUPS.map((g) => ({
+      title: tr(g.titleEn, g.titleVi),
+      links: g.links.map((l) => ({ label: tr(l.labelEn, l.labelVi), href: l.href, rel: l.rel })),
+    })),
   ]
 
   return (
@@ -143,13 +178,18 @@ export function Footer() {
                         href is genuinely third-party AND we're in the native shell — so
                         the internal routes and the mailto: below behave exactly as before,
                         and a future off-site link here can't silently become a hard exit. */}
+                    {/* ⚠️ `rel` IS ONLY EVER `noopener` HERE, NEVER `nofollow`. It is carried on
+                        the link object (undefined for every same-origin row) so that the eno.vn
+                        column's dofollow decision is made once, in src/lib/cross-site-links.ts,
+                        rather than being re-litigated in the footer markup. */}
                     <a
                       href={link.href}
-                      onClick={'forumPath' in link && link.forumPath
+                      rel={link.rel}
+                      onClick={link.forumPath
                         ? (e) => {
                             if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return
                             e.preventDefault()
-                            goToForum(link.forumPath)
+                            goToForum(link.forumPath!)
                           }
                         : handleExternalClick}
                       className="text-xs text-muted-foreground transition-colors hover:text-accent-foreground"

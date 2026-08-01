@@ -1,7 +1,14 @@
 import { scopedListingWhere } from '@/lib/edition-scope'
 import { IS_SERVICES } from '@/lib/edition'
 import { db } from '@/lib/db'
-import { VIETNAM_EVISA_PATHS } from '@/app/vietnam-evisa/links'
+// ⚠️ VIA THE ALIASED MODULE, NOT `@/app/vietnam-evisa/links` DIRECTLY. This route compiles on BOTH
+// editions, and that module is a plain `.ts` — `pageExtensions` excludes its `page.svc.tsx`
+// neighbours but not it — so importing it here put every e-visa label and blurb in eno.vn's server
+// bundle. The IS_SERVICES gate below stopped the URLs being emitted; it could not remove the
+// strings. `@/lib/edition-services-copy` is aliased to an empty stub on a marketplace build, so the
+// import is severed there. See the note on SERVICES_SITEMAP_PATHS in that module.
+import { SERVICES_SITEMAP_PATHS } from '@/lib/edition-services-copy'
+import { EXPAT_GUIDE_PATHS } from '@/lib/expat-guides'
 import { HELP_TOPIC_SLUGS } from '@/lib/help-center'
 import { slugify } from '@/lib/slug'
 import { NextResponse } from 'next/server'
@@ -136,7 +143,7 @@ export async function GET() {
     //
     // ⚠️ IMPORTED, NOT RETYPED. The list above is hard-coded, which is exactly how a landing page
     // ships and is then never submitted — the route exists, the sitemap does not know, and nothing
-    // fails. `VIETNAM_EVISA_PATHS` is derived from the same EVISA_CHILDREN array the hub renders
+    // fails. `SERVICES_SITEMAP_PATHS` re-exports the list derived from the same EVISA_CHILDREN array the hub renders
     // its links from, so adding a child adds it here too. The paths carry `siteLastmod` for the
     // same reason the block above does: their listing rails track the site's freshest content.
     /**
@@ -150,8 +157,26 @@ export async function GET() {
      * advertising one on the whole site.
      */
     if (IS_SERVICES) {
-      for (const path of VIETNAM_EVISA_PATHS) {
+      for (const path of SERVICES_SITEMAP_PATHS) {
         xml += `  <url><loc>${hostUrl}${path}</loc>${lm(siteLastmod)}</url>\n`
+      }
+    }
+
+    // The long-form arrival guides (/moving-to-vietnam, /first-month-in-vietnam).
+    //
+    // ⚠️ IMPORTED FROM A REGISTRY, FOR THE REASON THE BLOCK ABOVE SPELLS OUT — and gated for the
+    // reason the e-visa block is: these are `page.svc.tsx` routes, so on a marketplace build they do
+    // not exist and submitting them would be asking Google to index two 404s. `EXPAT_GUIDE_PATHS` is
+    // deliberately free of services vocabulary so this shared file can import it without an alias;
+    // src/lib/expat-guides.ts explains the constraint that puts on what may be written there.
+    //
+    // ⚠️ NO `siteLastmod` HERE, unlike the e-visa paths. Those carry it because their listing rails
+    // track the site's freshest content; these are static editorial with no data behind them, so
+    // claiming they changed whenever any listing did would be the same fabricated date the note at
+    // the top of this file removed from the static pages.
+    if (IS_SERVICES) {
+      for (const path of EXPAT_GUIDE_PATHS) {
+        xml += `  <url><loc>${hostUrl}${path}</loc></url>\n`
       }
     }
 

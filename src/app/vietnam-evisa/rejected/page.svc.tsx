@@ -54,7 +54,7 @@ const CONTENT: SeoContent = {
       body: 'The government fee for a refused application is not returned; a fresh application means a fresh fee. That makes the second attempt the expensive one to get wrong, and it is the reason to have the passport page and the entered details checked before submitting rather than after.',
     },
     {
-      title: 'How eno.vn tries to catch this before submission',
+      title: `How ${SITE_NAME} tries to catch this before submission`,
       body: 'The application is completed in chat, step by step, and your uploads are checked as you go: the passport page has to be the right page, in one piece, sharp enough to read, and its machine-readable strip is verified against the passport number, date of birth and expiry date you entered — a mismatch shows up as a mismatch rather than as a refusal three days later. The portrait is checked too, and what stops it there is deliberately narrow: it has to be a photograph of one person, sharp enough to identify, face to the camera, head and shoulders in frame, no hat and no glasses. Anything else the check notices — a background that is not plain, uneven light, off-centre framing, everyday clothing — is shown to you as a warning rather than a wall, because an automatic check is not reliable enough at those to be worth refusing your photo over. A person looks at the portrait again before the application is submitted. It cannot catch grounds nobody can see from a document, but it removes the causes that are visible in one.',
     },
   ],

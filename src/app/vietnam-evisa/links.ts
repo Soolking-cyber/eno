@@ -27,6 +27,17 @@ export const EVISA_HUB_PATH = '/vietnam-evisa'
 
 export const EVISA_CHILDREN: readonly EvisaChild[] = [
   {
+    // ⚠️ THIS ONE IS AN ARTICLE, NOT A LANDING PAGE, and the registry does not care — which is the
+    // point of keeping it a list of slugs and link text rather than a list of components. It renders
+    // <SeoArticle> (no listing rail, contextual links inside its prose) while its five siblings
+    // render <SeoLanding>. Being in this array is what puts it in the sitemap and in every sibling's
+    // "Keep reading" block; how the route draws itself is the route's business.
+    slug: 'official-process',
+    label: 'The official process, the official fee, and what a service can add',
+    blurb:
+      'What evisa.gov.vn does, what the government charges, and the honest limits of what any agent can do for you.',
+  },
+  {
     slug: '1-hour-urgent',
     label: 'Urgent Vietnam visa in 1 hour',
     blurb: 'What the express tiers really promise, the daily cutoffs they depend on, and when 1 hour is not possible at any price.',

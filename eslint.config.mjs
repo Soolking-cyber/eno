@@ -86,11 +86,24 @@ const eslintConfig = [...nextCoreWebVitals, ...nextTypescript, {
   // EXEMPT (intentionally English): /developers + developers-panel (API docs incl.
   // literal header names), the EN-SEO landing components (they target English
   // search queries), and /admin (staff-only).
+  //
+  // ⚠️ THE SEO-ARTICLE ENTRIES ARE LISTED ONE BY ONE, NOT AS A GLOB, and that is deliberate.
+  // seo-landing.tsx needs a single exemption because its pages pass prose through PROPS (which
+  // `ignoreProps` already covers) and only the component itself renders JSX text. The long-form
+  // guides are the opposite shape: their prose IS JSX, because the whole point of them is
+  // contextual links inside sentences, so each page needs the exemption too. Naming the files
+  // rather than globbing `src/app/**/page.svc.tsx` keeps the exemption from silently covering
+  // every future services route — the visa application flow, the dashboard, the admin queue — none
+  // of which is English-only SEO copy and all of which must stay behind the i18n gate.
   files: ["src/components/**/*.tsx", "src/app/**/*.tsx"],
   ignores: [
     "src/app/developers/**",
     "src/components/marketplace/developers-panel.tsx",
     "src/components/marketplace/seo-landing.tsx",
+    "src/components/marketplace/seo-article.tsx",
+    "src/app/moving-to-vietnam/page.svc.tsx",
+    "src/app/first-month-in-vietnam/page.svc.tsx",
+    "src/app/vietnam-evisa/official-process/page.svc.tsx",
     "src/app/admin/**",
     "src/components/admin/**",
   ],
@@ -124,7 +137,7 @@ const eslintConfig = [...nextCoreWebVitals, ...nextTypescript, {
   // yet accounted for a large share of the repo's lint warnings — noise from a generated file
   // nobody can act on, in a directory that only exists after an Android build. The nested globs
   // below cover both native projects' build output and their Pods/Gradle caches.
-  ignores: ["node_modules/**", ".next/**", "out/**", "build/**", "**/build/**", "android/**/build/**", "ios/**/Pods/**", "apps/android/**/build/**", "next-env.d.ts", "examples/**", "skills", "apps/forum/**", "src/generated/prisma/**", "public/vendor/**", "cache-handler.cjs", "playwright-report/**", "test-results/**"]
+  ignores: ["node_modules/**", ".next/**", "out/**", "build/**", "**/build/**", "android/**/build/**", "ios/**/Pods/**", "apps/android/**/build/**", "apps/wasp-pilot/.wasp/**", "next-env.d.ts", "examples/**", "skills", "apps/forum/**", "src/generated/prisma/**", "public/vendor/**", "cache-handler.cjs", "playwright-report/**", "test-results/**"]
 }];
 
 export default eslintConfig;

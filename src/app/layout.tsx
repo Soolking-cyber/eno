@@ -5,6 +5,18 @@ import { AnalyticsTags } from "@/components/marketplace/analytics-tags";
 import { AttributionCapture } from "@/components/marketplace/attribution-capture";
 import { Providers } from "./providers";
 import { IS_SERVICES, SITE_NAME } from "@/lib/edition";
+/**
+ * ⚠️ THE SERVICES-EDITION SENTENCES ARE IMPORTED, NOT WRITTEN HERE, AND THAT IS THE WHOLE POINT.
+ * This file compiles on BOTH editions, so a services literal sitting in an `IS_SERVICES ? … : …`
+ * ternary would stay in eno.vn's artifact even though it never renders — measured, and documented
+ * at the head of src/lib/edition-services-copy.ts. next.config.ts aliases that module to a stub of
+ * empty strings on a marketplace build, which is the only mechanism that removes the words.
+ */
+import {
+  SERVICES_SITE_DESCRIPTION,
+  SERVICES_SITE_KEYWORDS,
+  SERVICES_SITE_TAGLINE,
+} from "@/lib/edition-services-copy";
 
 /**
  * This deployment's own identity, used by everything below that describes the site to a machine.
@@ -22,7 +34,25 @@ const inter = Inter({
   display: "swap",
 });
 
-const OG_IMAGE = { url: "/listings/hero-market.png", width: 1344, height: 768, alt: "eno.vn — trusted marketplace" };
+const OG_IMAGE = { url: "/listings/hero-market.png", width: 1344, height: 768, alt: `${SITE_NAME} — trusted marketplace` };
+
+/**
+ * THE SITEWIDE DESCRIPTION, PER EDITION.
+ *
+ * ⚠️ IT USED TO BE ONE HARDCODED SENTENCE STARTING "eno.vn is …", ON BOTH DEPLOYMENTS. That is the
+ * same class of defect as the Organization JSON-LD below, and it reached further: `description`
+ * feeds the <meta name="description"> on EVERY eno.forum page, so the licensed marketplace's name
+ * and self-description were the snippet Google had for every services URL — including the e-visa
+ * ones. Title, applicationName and appleWebApp were already edition-aware; this was not.
+ */
+const SITE_DESCRIPTION = IS_SERVICES
+  ? SERVICES_SITE_DESCRIPTION
+  : "eno.vn is a trusted marketplace for expats and internationals in Vietnam. Find housing, jobs, motorbikes, services, moving sales, and more — sellers build public trust scores and the community keeps listings honest.";
+
+/** The short form, for the OG and Twitter cards. */
+const SITE_TAGLINE = IS_SERVICES
+  ? SERVICES_SITE_TAGLINE
+  : "A trusted marketplace for expats and internationals in Vietnam. Housing, jobs, motorbikes, services and moving sales — sellers build trust scores and the community keeps listings honest.";
 
 // Both schemes are supported now (real dark theme in globals.css `.dark`,
 // toggled System/Light/Dark). theme-color is media-matched so the iOS status-bar
@@ -48,13 +78,15 @@ export const metadata: Metadata = {
   // Google Search Console / Merchant Center domain verification.
   verification: { google: "alQ9GmeeCLxBtPVZM8CEvEDmieP7JuS4wGTrYHW5hCY" },
   title: `${SITE_NAME} - Trusted Expat Marketplace in Vietnam`,
-  description:
-    "eno.vn is a trusted marketplace for expats and internationals in Vietnam. Find housing, jobs, motorbikes, services, moving sales, and more — sellers build public trust scores and the community keeps listings honest.",
+  description: SITE_DESCRIPTION,
   applicationName: SITE_NAME,
   appleWebApp: { capable: true, title: SITE_NAME, statusBarStyle: "default" },
+  // ⚠️ THE BRAND KEYWORD IS SITE_NAME, AND IT USED TO BE "eno.vn" TWICE — a duplicate that was
+  // also the licensed company's name on the services build. Keywords are near-worthless as a
+  // signal; being wrong about who the site IS is not.
   keywords: [
-    "eno.vn",
-    "eno.vn",
+    SITE_NAME,
+    ...SERVICES_SITE_KEYWORDS,
     "expat marketplace Vietnam",
     "Vietnam expats",
     "Viet Kieu",
@@ -66,11 +98,10 @@ export const metadata: Metadata = {
     "jobs Vietnam expats",
     "classifieds Vietnam",
   ],
-  authors: [{ name: "eno.vn" }],
+  authors: [{ name: SITE_NAME }],
   openGraph: {
     title: `${SITE_NAME} - Trusted Expat Marketplace in Vietnam`,
-    description:
-      "A trusted marketplace for expats and internationals in Vietnam. Housing, jobs, motorbikes, services and moving sales — sellers build trust scores and the community keeps listings honest.",
+    description: SITE_TAGLINE,
     siteName: SITE_NAME,
     type: "website",
     images: [OG_IMAGE],
@@ -78,7 +109,7 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     title: `${SITE_NAME} - Trusted Expat Marketplace in Vietnam`,
-    description: "Trusted marketplace for expats in Vietnam — housing, jobs, motorbikes, services, moving sales.",
+    description: SITE_TAGLINE,
     images: [OG_IMAGE.url],
   },
 };
@@ -135,8 +166,18 @@ export default function RootLayout({
               alternateName: ["ENO"],
               url: SITE_ORIGIN,
               logo: `${SITE_ORIGIN}/logo.svg`,
+              /* ⚠️ THE SERVICES BRANCH IS THE ALIASED CONSTANT, NEVER A LITERAL. It used to be an
+                 inline string here, and it was wrong twice over. (1) LEAK: this file is shared, so
+                 the literal compiled into the marketplace build and "Vietnam e-visa assistance"
+                 was measurably present in eno.vn's own artifact — a runtime `IS_SERVICES ?` picks
+                 which branch RENDERS, it does not remove the other one from the bundle. The same
+                 file already imports SERVICES_SITE_DESCRIPTION from the module next.config.ts
+                 aliases to a stub, and the <meta name="description"> above already used it; only
+                 this JSON-LD copy was left behind. (2) STALE: it advertised trip planning, which
+                 the owner dropped on 2026-08-01 — the constant's own header records that. One
+                 source for the sitewide self-description means the next such change lands once. */
               description: IS_SERVICES
-                ? "eno.forum provides Vietnam e-visa assistance and trip planning for expats and travellers."
+                ? SERVICES_SITE_DESCRIPTION
                 : "eno.vn is a trusted marketplace for expats and internationals in Vietnam — housing, jobs, motorbikes, services and moving sales.",
               /* ⚠️ MARKETPLACE ONLY, and deliberately so pending a decision that is not an
                  engineer's to make. These accounts are the eno.vn brand's; asserting `sameAs` from

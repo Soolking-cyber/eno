@@ -67,6 +67,100 @@ describe.each([
   })
 })
 
+/**
+ * The LIB stubs are pinned by EXPORT-SURFACE PARITY rather than by what one page imports.
+ *
+ * The card stubs above can be checked against the chat page because that page is their only
+ * consumer. These two are imported from many places — the footer, the taxonomy, and (for
+ * visa-provider) the shared legal pages that render on BOTH editions — so "what does the caller
+ * need" is the wrong question. "Does the stub export everything the real module does" is the one
+ * that stays true as call sites are added, and it is exactly what tsc cannot ask: the alias is a
+ * bundler resolution, so a shared page adding `import { X } from '@/lib/visa-provider'` typechecks
+ * green and throws on eno.vn.
+ */
+describe.each([
+  ['edition-services-copy', 'src/lib/edition-services-copy.ts', 'src/lib/edition-services-copy.stub.ts'],
+  ['visa-provider', 'src/lib/visa-provider.ts', 'src/lib/visa-provider.stub.ts'],
+  ['privacy-services-copy', 'src/lib/privacy-services-copy.ts', 'src/lib/privacy-services-copy.stub.ts'],
+  ['terms-services-copy', 'src/lib/terms-services-copy.ts', 'src/lib/terms-services-copy.stub.ts'],
+  ['prohibited-services-copy', 'src/lib/prohibited-services-copy.ts', 'src/lib/prohibited-services-copy.stub.ts'],
+  ['cross-site-links', 'src/lib/cross-site-links.ts', 'src/lib/cross-site-links.stub.ts'],
+  // A COMPONENT in a list of libs, deliberately. The card stubs above are pinned against the chat
+  // page because it is their only consumer; this one is imported by two `.svc.` landing pages and
+  // will be imported by more, so "does the stub export what the real module exports" is the check
+  // that keeps holding as placements change.
+  [
+    'cross-site-promo',
+    'src/components/marketplace/cross-site-promo.tsx',
+    'src/components/marketplace/cross-site-promo.stub.tsx',
+  ],
+  // The lazily-loaded services translation catalogue. Generated, so nobody edits it by hand — but
+  // it is aliased like the rest, and an alias with no parity check is the gap this list closes.
+  ['ui-strings.services', 'src/generated/ui-strings.services.ts', 'src/generated/ui-strings.services.stub.ts'],
+])('%s stub', (_label, realPath, stubPath) => {
+  it('exports every name the real module exports', () => {
+    const real = exportedNames(read(realPath))
+    const stub = exportedNames(read(stubPath))
+    expect(real.size, `${realPath} exports nothing — the check would be vacuous`).toBeGreaterThan(0)
+    const missing = [...real].filter((n) => !stub.has(n))
+    expect(missing, `add these to ${stubPath} — a marketplace build would crash on them`).toEqual([])
+  })
+})
+
+/**
+ * EVERY ALIAS IN next.config.ts IS COVERED BY ONE OF THE TWO BLOCKS ABOVE.
+ *
+ * ⚠️ THIS GUARDS THE GUARD, and it exists because both lists above are hand-maintained. Adding a
+ * `turbopack.resolveAlias` entry is how a services module gets kept out of eno.vn's artifact — and
+ * nothing until now made the author also add a parity row. A stub that drifts from its real module
+ * is invisible to `tsc` (the alias is a bundler resolution, so the typechecker only ever sees the
+ * real module) and invisible to every test that does not know the pair exists. It surfaces as a
+ * white screen on the licensed marketplace.
+ *
+ * So the alias map is PARSED, never retyped: a new entry fails here until it is covered, and the
+ * failure names the file to add.
+ */
+describe('alias coverage', () => {
+  const config = read('next.config.ts')
+  const aliasBlock = config.slice(config.indexOf('resolveAlias: {'))
+
+  /** `"@/lib/foo": "./src/lib/foo.stub.ts"` → [specifier, stubPath]. */
+  const aliasPairs = [...aliasBlock.matchAll(/"(@\/[^"]+)":\s*"\.\/([^"]+)"/g)].map((m) => [m[1], m[2]] as const)
+
+  /** Every real-module path the two describe blocks above check. */
+  const covered = new Set([
+    'src/components/marketplace/visa-cards.tsx',
+    'src/components/marketplace/trip-cards.tsx',
+    'src/lib/edition-services-copy.ts',
+    'src/lib/visa-provider.ts',
+    'src/lib/privacy-services-copy.ts',
+    'src/lib/terms-services-copy.ts',
+    'src/lib/prohibited-services-copy.ts',
+    'src/lib/cross-site-links.ts',
+    'src/components/marketplace/cross-site-promo.tsx',
+    'src/generated/ui-strings.services.ts',
+  ])
+
+  it('finds the alias map (so the checks below are not vacuous)', () => {
+    expect(aliasPairs.length).toBeGreaterThan(0)
+  })
+
+  it.each(aliasPairs)('%s — its stub file exists', (_spec, stubPath) => {
+    expect(() => read(stubPath), `next.config.ts aliases to ${stubPath}, which is not on disk`).not.toThrow()
+  })
+
+  it.each(aliasPairs)('%s — is covered by a parity check above', (spec) => {
+    const base = spec.replace('@/', 'src/')
+    const real = [`${base}.ts`, `${base}.tsx`].find((p) => covered.has(p))
+    expect(
+      real,
+      `${spec} is aliased away on a marketplace build but no parity check covers it. Add its ` +
+        `real/stub pair to one of the describe.each lists above and to the 'covered' set here — ` +
+        `an uncovered stub drifts silently and crashes eno.vn at runtime.`,
+    ).toBeDefined()
+  })
+})
+
 describe('the stubs stay inert', () => {
   it('contain no visa or payment vocabulary — the whole reason they exist', () => {
     // The point of aliasing is that these strings never reach a marketplace client chunk. A stub
@@ -74,6 +168,74 @@ describe('the stubs stay inert', () => {
     for (const p of ['src/components/marketplace/visa-cards.stub.tsx', 'src/components/marketplace/trip-cards.stub.tsx']) {
       const body = read(p).replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1')
       expect(body, `${p} leaks vocabulary outside its comments`).not.toMatch(/PayPal|hộ chiếu|passport/i)
+    }
+  })
+
+  it('the provider stub names no partner and describes no service', () => {
+    // The identifiers (VISA_PROVIDER, VisaProvider) MUST match the real module or the alias breaks,
+    // so they are not what this checks. What must never reach eno.vn's artifact is the human-facing
+    // payload: the partner's name and the words describing what it is licensed to do.
+    const p = 'src/lib/visa-provider.stub.ts'
+    const body = read(p).replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1')
+    expect(body, `${p} leaks the provider vocabulary outside its comments`).not.toMatch(
+      /VietKite|thị thực|lữ hành|giấy phép|travel-service|provider of record/i,
+    )
+  })
+
+  it('the privacy stub carries no applicant-document copy', () => {
+    // /privacy is served on BOTH editions, so this stub is the only thing standing between eno.vn
+    // and a policy that describes a service the licensed company may not offer. The export NAMES
+    // must match the real module or the alias breaks — what is checked is the prose.
+    const p = 'src/lib/privacy-services-copy.stub.ts'
+    const body = read(p).replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1')
+    expect(body, `${p} leaks applicant-document vocabulary outside its comments`).not.toMatch(
+      /VietKite|visa|thị thực|passport|hộ chiếu|portrait|immigration/i,
+    )
+  })
+
+  it('the terms stub carries no provider-of-record copy', () => {
+    // Same shape as the privacy stub and for the same reason: /terms renders on BOTH editions, so
+    // this file is what keeps eno.vn's Terms from describing — and its bundle from carrying — a
+    // service the licensed company may not offer. `commission` is in the pattern because the
+    // arrangement itself ("we take a commission from the provider") is a services-only fact even
+    // when the partner is not named.
+    const p = 'src/lib/terms-services-copy.stub.ts'
+    const body = read(p).replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1')
+    expect(body, `${p} leaks provider-of-record vocabulary outside its comments`).not.toMatch(
+      /VietKite|visa|thị thực|passport|hộ chiếu|immigration|provider of record|commission/i,
+    )
+  })
+
+  it('the prohibited stub carries no visa listing rules', () => {
+    // /prohibited is served on BOTH editions — the licensed marketplace publishes the same
+    // banned-goods policy — so this stub is what keeps eno.vn's copy of it from carrying rules
+    // about a service it may not offer. `guaranteed` and `licence` are in the pattern because the
+    // three rules the real module exists for are recognisable from those words alone, even with
+    // the word "visa" removed by a well-meaning edit.
+    const p = 'src/lib/prohibited-services-copy.stub.ts'
+    const body = read(p).replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1')
+    expect(body, `${p} leaks visa listing-rule vocabulary outside its comments`).not.toMatch(
+      /VietKite|visa|thị thực|hộ chiếu|immigration|lữ hành|guaranteed|licen[cs]e|government fee/i,
+    )
+  })
+
+  it('the cross-site stubs carry no eno.vn promo copy or hrefs', () => {
+    // ⚠️ THE INVERSION IS THE WHOLE POINT, so state it: everywhere else on this page the banned
+    // vocabulary is visa/partner words that must not reach the LICENSED marketplace. Here it is
+    // eno.vn's OWN name and URLs, and the site they must not reach is eno.vn — a page promoting
+    // eno.vn to a reader already on eno.vn, with every href a self-link. Easy to read as harmless
+    // and delete; it is the same class of artifact leak, pointing the other way.
+    for (const p of ['src/lib/cross-site-links.stub.ts', 'src/components/marketplace/cross-site-promo.stub.tsx']) {
+      const body = read(p).replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1')
+      expect(body, `${p} leaks a marketplace URL outside its comments`).not.toMatch(/https?:\/\//i)
+      // ⚠️ "marketplace" IS NOT IN THE PATTERN, and leaving it out was forced rather than chosen:
+      // the exported identifiers (MARKETPLACE_HOME, MARKETPLACE_LINKS) must match the real module
+      // byte for byte or the alias resolves to a module missing the names its callers import. Same
+      // rule as the provider stub above — what is checked is the human-facing payload, never the
+      // identifiers the bundler needs.
+      expect(body, `${p} leaks promo copy outside its comments`).not.toMatch(
+        /Already in Vietnam|housing|motorbike|moving sale|jobs in vietnam|nhà ở|xe máy|việc làm/i,
+      )
     }
   })
 })

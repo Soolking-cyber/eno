@@ -1,4 +1,6 @@
 import { scopedListingWhere } from '@/lib/edition-scope'
+import { SITE_NAME } from '@/lib/edition'
+import type { ReactNode } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { isMockImageUrl } from '@/lib/listing-image'
@@ -49,13 +51,36 @@ export type SeoContent = {
    */
   related?: { href: string; label: string; blurb: string }[]
   faqs: { q: string; a: string }[]
+  /**
+   * Additional JSON-LD nodes, emitted verbatim beside the FAQPage block.
+   *
+   * ⚠️ IT EXISTS FOR ONE REASON: the e-visa pages must declare, in machine-readable form, that the
+   * licensed partner is the `provider` of the service and this site only the `broker`. The visible
+   * copy has said so since the provider-of-record model landed; structured data that stayed silent
+   * would leave a search engine free to read the page as the site's own offering. The node itself is
+   * built in src/app/vietnam-evisa/service-jsonld.ts, which never compiles on a marketplace build.
+   *
+   * Optional and unused by the four marketplace landing pages, so nothing about eno.vn changes.
+   */
+  jsonLd?: Record<string, unknown>[]
 }
 
 /** Keyword landing page (server-rendered, ISR). Pulls real verified listings for
  *  the target category (optionally narrowed to a subcategory + attributes) so the page is
  *  substantive + internally links to listings (crawlable <a>), then funnels to the matching
- *  browse view. Plain English — these target English expat search queries. */
-export async function SeoLanding({ content }: { content: SeoContent }) {
+ *  browse view. Plain English — these target English expat search queries.
+ *
+ *  `after` is rendered at the END of <main>, below every section and above the footer.
+ *
+ *  ⚠️ A NODE PROP, NOT A FLAG, AND THAT IS WHAT KEEPS THIS FILE EDITION-NEUTRAL. The services
+ *  edition passes <CrossSitePromo/> here; the marketplace's four landing pages pass nothing. An
+ *  `IS_SERVICES && <CrossSitePromo/>` inside this component would have been the obvious version and
+ *  the wrong one — this file compiles on BOTH editions, so the import alone would pull the promo's
+ *  copy into eno.vn's chunks (the alias would stub it, but only because the alias exists; a node
+ *  prop needs no alias to be correct). It also keeps the placement decision at the call site, where
+ *  "which pages carry the promo" is a question somebody can answer by grepping for the component.
+ */
+export async function SeoLanding({ content, after }: { content: SeoContent; after?: ReactNode }) {
   let listings: ReturnType<typeof serializeListing>[] = []
   // ⚠️ NOT `listings.length === 0` — the catch below ALSO leaves the array empty when the
   // database is unreachable at build time, and those two states must not share a UI. Treating a
@@ -117,6 +142,13 @@ export async function SeoLanding({ content }: { content: SeoContent }) {
           dangerouslySetInnerHTML={{ __html: JSON.stringify(faqLd).replace(/</g, '\\u003c') }}
         />
       )}
+      {content.jsonLd?.map((node, i) => (
+        <script
+          key={i}
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(node).replace(/</g, '\\u003c') }}
+        />
+      ))}
       <Header />
       <main id="main" tabIndex={-1} className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-10 pb-16">
         {/* Hero */}
@@ -275,8 +307,13 @@ export async function SeoLanding({ content }: { content: SeoContent }) {
           <span className="flex h-5 w-5 shrink-0 text-accent-foreground">
             <BadgeCheck className="h-5 w-5" />
           </span>
+          {/* ⚠️ SITE_NAME, NOT "eno.vn". This component renders on BOTH deployments, so the literal
+              had eno.forum's e-visa pages attributing their trust model to the licensed marketplace
+              — the same defect class as the Organization JSON-LD and the sitewide meta description,
+              in visible copy this time. The trust score is a per-deployment claim about the site the
+              reader is on. */}
           <p className="text-sm leading-relaxed text-body">
-            Every eno.vn seller has a public trust score, and buyers can report bad listings — so fakes and bait prices get caught fast.{' '}
+            Every {SITE_NAME} seller has a public trust score, and buyers can report bad listings — so fakes and bait prices get caught fast.{' '}
             <Link href="/trust" className="font-semibold text-accent-foreground hover:underline">See how trust works</Link>.
           </p>
         </div>
@@ -297,11 +334,15 @@ export async function SeoLanding({ content }: { content: SeoContent }) {
           </section>
         )}
 
-        {/* Brand line */}
+        {/* Brand line — the site signing its own page, so it names THIS deployment. */}
         <p className="mt-14 max-w-3xl text-sm leading-relaxed text-muted-foreground">
-          <strong className="font-semibold text-foreground">eno.vn</strong> — the trusted marketplace for Vietnam’s
+          <strong className="font-semibold text-foreground">{SITE_NAME}</strong> — for Vietnam’s
           international community.
         </p>
+
+        {/* Caller-supplied tail block — see the `after` note on the props above. Last inside
+            <main> so it can never push the page's own content below the fold. */}
+        {after}
       </main>
       <Footer />
     </div>

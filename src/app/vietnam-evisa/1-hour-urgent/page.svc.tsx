@@ -24,8 +24,10 @@ const cutoffs = ONE_HOUR.cutoffs.join(' and ')
 const CONTENT: SeoContent = {
   eyebrow: 'e-Visa · Urgent',
   h1: 'Urgent Vietnam visa: e-visa in 1 hour',
-  intro:
-    'Flying tonight and no visa? The fastest tier listed on eno.vn is sold on a one-hour turnaround — a result within an hour of your application reaching the Immigration Department. It is real, it is the most expensive option on the page, and it depends on one thing people are rarely told before they pay: the desk’s daily intake times.',
+  // ⚠️ SITE_NAME, NOT "eno.vn". This is a `.svc.` page — it only ever renders on eno.forum — and the
+  // literal named the LICENSED marketplace as the seller of an express visa tier, which is precisely
+  // the service that company may not offer. Same fix as the hub's intro.
+  intro: `Flying tonight and no visa? The fastest tier listed on ${SITE_NAME} is sold on a one-hour turnaround — a result within an hour of your application reaching the Immigration Department. It is real, it is the most expensive option on the page, and it depends on one thing people are rarely told before they pay: the desk’s daily intake times.`,
   categorySlug: VISA_CATEGORY_SLUG,
   subcategorySlug: VISA_SUBCATEGORY_SLUG,
   attributes: { visaSpeed: '1H' },
@@ -37,7 +39,7 @@ const CONTENT: SeoContent = {
     },
     {
       title: `Intake is at ${cutoffs}, Vietnam time`,
-      body: `The one-hour tier accepts applications at ${cutoffs} on Vietnamese working days, inside desk hours of ${VISA_BUSINESS_HOURS.start}–${VISA_BUSINESS_HOURS.end}. Arrive after the last intake and your application is worked at the next one — the following working day if that lands on a weekend or a public holiday. This is why the honest answer to "can I have it in an hour?" is sometimes no at any price, and eno.vn shows you the next real cutoff instead of taking the order quietly.`,
+      body: `The one-hour tier accepts applications at ${cutoffs} on Vietnamese working days, inside desk hours of ${VISA_BUSINESS_HOURS.start}–${VISA_BUSINESS_HOURS.end}. Arrive after the last intake and your application is worked at the next one — the following working day if that lands on a weekend or a public holiday. This is why the honest answer to "can I have it in an hour?" is sometimes no at any price, and ${SITE_NAME} shows you the next real cutoff instead of taking the order quietly.`,
     },
     {
       title: 'When a slower tier is the better buy',

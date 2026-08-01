@@ -38,6 +38,24 @@ const SERVICES_SOURCES = [
   'src/lib/visa/', 'src/lib/trips/', 'src/lib/itinerary-',
   'src/components/marketplace/visa-cards', 'src/components/marketplace/trip-cards',
   'src/components/itinerary/', 'src/components/marketplace/visa-start',
+  /**
+   * ⚠️ THE CROSS-SITE PROMO IS SERVICES-ONLY EVEN THOUGH ITS PATH LOOKS SHARED, and this line is
+   * the only thing that says so. Every other entry above is recognisably a visa/trip surface;
+   * `src/components/marketplace/cross-site-promo.tsx` sits among the shared components and its
+   * copy — "Already in Vietnam? Find housing, jobs and motorbikes on eno.vn" — contains no
+   * services vocabulary at all, so nothing about it looks like it belongs here.
+   *
+   * It belongs here because of WHERE it renders, not what it says. The component introduces eno.vn
+   * to eno.forum's visitors, is aliased away on a marketplace build (next.config.ts), and would
+   * otherwise put a pitch for eno.vn into `ui-strings.ts` — the catalogue eno.vn itself ships to
+   * every browser. The alias cannot catch that: the leak would be through a GENERATED file the
+   * component never imports and nothing links back to it.
+   *
+   * ⚠️ IT IS A PREFIX, SO IT COVERS `cross-site-promo.stub.tsx` TOO. That is correct and not an
+   * accident — the stub must stay wordless, and a stub that ever gained copy would at least not
+   * also get it harvested into the shared catalogue.
+   */
+  'src/components/marketplace/cross-site-promo',
 ]
 const isServicesFile = (f) => {
   const rel = f.split('\\').join('/')
