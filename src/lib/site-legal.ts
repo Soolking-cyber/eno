@@ -143,6 +143,70 @@ export const AFFILIATION = {
  */
 export const TOS_VERSION = '2026-08'
 
+/** The version that was in force before {@link TOS_VERSION} takes effect. */
+export const TOS_PREVIOUS_VERSION = '2026-07'
+
+/**
+ * The day {@link TOS_VERSION} actually takes effect — the end of the Đ.38.3 clock the bump starts.
+ *
+ * ⚠️ THIS EXISTS BECAUSE THE REGULATIONS PAGE PROMISES IT, IN VIETNAMESE, ON THE DOCUMENT MoIT
+ * READS: "mọi sửa đổi được công bố trên sàn ít nhất 5 ngày trước ngày có hiệu lực". Until this
+ * constant existed there was no mechanism behind that sentence — a bumped `TOS_VERSION` was in
+ * force the moment it deployed, so the first act of publishing the promise would have broken it.
+ * A commitment a reader can check must be a value the code can honour, not a paragraph.
+ *
+ * ISO date, compared against the request's clock. Set at least 5 CLEAR days after the deploy that
+ * publishes the announcement — not 5 days after the constant was edited, which is a different and
+ * always-earlier day.
+ *
+ * WHEN CHANGING THE TERMS AGAIN: move TOS_VERSION → TOS_PREVIOUS_VERSION, set the new TOS_VERSION,
+ * set this to publication + ≥5 days. Do not backdate it to "now" to make a diff look tidy; the
+ * whole point is that the gap is real.
+ */
+export const TOS_EFFECTIVE_FROM = '2026-08-07'
+
+/**
+ * The version legally in force right now — the one to stamp on an acceptance, and the one whose
+ * text binds a user today.
+ *
+ * A NEW user accepting during the notice window is accepting the version that is in force at that
+ * moment, and the record has to say so: `Profile.tosVersion` is evidence of what a specific person
+ * agreed to on a specific day (E-Transactions Law), so stamping a version that has not taken effect
+ * would make the record say something untrue and would quietly moot the notice period for everyone
+ * who signed up inside it.
+ *
+ * Reads the clock on every call rather than caching at module load: a long-lived server instance
+ * that started before the effective date would otherwise serve the old version forever.
+ */
+export function tosVersionInForce(now: Date = new Date()): string {
+  return now.toISOString().slice(0, 10) >= TOS_EFFECTIVE_FROM ? TOS_VERSION : TOS_PREVIOUS_VERSION
+}
+
+/** True while the new version is published-but-not-yet-binding, so pages can say which is which. */
+export function tosInNoticeWindow(now: Date = new Date()): boolean {
+  return tosVersionInForce(now) !== TOS_VERSION
+}
+
+/**
+ * The notice a reader sees during the window, AUTHORED in both languages.
+ *
+ * ⚠️ NOT `<Tr text={…}/>`, for the same reason as AFFILIATION: that sends the sentence to the
+ * machine-translation layer, and this sentence's whole job is to say which version legally binds
+ * today. A mistranslation of that is a legal defect, not a typo. Render with
+ * `<Bilingual en={TOS_NOTICE.en} vi={TOS_NOTICE.vi} />`.
+ *
+ * It is a getter rather than a frozen constant because it interpolates the three constants above —
+ * writing the dates out by hand is how a notice ends up disagreeing with the version it describes.
+ */
+export const TOS_NOTICE = {
+  get en() {
+    return `Version ${TOS_VERSION} was published on 1 August 2026 and takes effect on ${TOS_EFFECTIVE_FROM}. Until then, version ${TOS_PREVIOUS_VERSION} remains in force.`
+  },
+  get vi() {
+    return `Phiên bản ${TOS_VERSION} được công bố ngày 01/08/2026 và có hiệu lực từ ngày ${TOS_EFFECTIVE_FROM}. Trước ngày đó, phiên bản ${TOS_PREVIOUS_VERSION} vẫn là phiên bản đang có hiệu lực.`
+  },
+}
+
 // True while the site is in pre-launch test operation (before the MoIT sàn TMĐT
 // registration at online.gov.vn is confirmed). Drives the always-visible bilingual
 // notice. Flip to false on the day the registration is confirmed — and add the

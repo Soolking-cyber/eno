@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { User, Store, Loader2, Check } from 'lucide-react'
 import { useAuth } from '@/context/auth-context'
@@ -217,6 +218,26 @@ export function OnboardClient() {
           >
             {submitting && <Loader2 className="h-4 w-4 animate-spin" />} {t('Continue', 'Tiếp tục')}
           </Button>
+          {/* ⚠️ THIS LINE IS THE ASSENT ITSELF, NOT DECORATION — DO NOT REMOVE IT.
+              Submitting this form writes `tosAcceptedAt` and `tosVersion` to the profile, and those
+              two columns exist to be EVIDENCE of what a person agreed to and when (E-Transactions
+              Law). Until 2026-08-01 the route recorded that agreement while this screen mentioned
+              the Terms nowhere at all — the record asserted an assent the user was never asked for
+              and never saw. An external review caught it; every gate had passed.
+              So the rule is simple: as long as the route stamps acceptance here, this screen must
+              say what is being accepted and link to it. If the assent ever moves to an explicit
+              checkbox, move the stamp with it. */}
+          <p className="mt-3 text-center text-xs text-muted-foreground">
+            {t('By continuing you agree to our ', 'Bằng việc tiếp tục, bạn đồng ý với ')}
+            <Link href="/terms" className="underline underline-offset-2 hover:text-foreground">
+              {t('Terms of Service', 'Điều khoản dịch vụ')}
+            </Link>
+            {t(' and ', ' và ')}
+            <Link href="/privacy" className="underline underline-offset-2 hover:text-foreground">
+              {t('Privacy Policy', 'Chính sách bảo mật')}
+            </Link>
+            .
+          </p>
           {error && <p role="alert" className="mt-2 text-center text-xs font-semibold text-destructive">{error}</p>}
         </div>
       </div>

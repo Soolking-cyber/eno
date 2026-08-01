@@ -6,7 +6,7 @@ import { Tr } from '@/context/language-context'
 import { ContentPage, ContentSection } from '@/components/marketplace/content-page'
 import { AFFILIATION, COMPANY, OPERATOR_REGISTERED } from '@/lib/site-legal'
 import { PROVIDER_LICENCE_ON_FILE, PROVIDER_OF_RECORD } from '@/lib/visa-provider'
-import { Bilingual } from './bilingual'
+import { Bilingual } from '@/components/marketplace/bilingual'
 
 /**
  * ABOUT — ONE FILE, TWO EDITIONS, AND THE PAGE WHERE THE AFFILIATION IS DISCLOSED.

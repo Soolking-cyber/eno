@@ -2,7 +2,8 @@ import { IS_SERVICES, SITE_NAME } from '@/lib/edition'
 import type { Metadata } from 'next'
 import { Tr } from '@/context/language-context'
 import { ContentPage, ContentSection } from '@/components/marketplace/content-page'
-import { AFFILIATION, COMPANY, OPERATOR_REGISTERED, TOS_VERSION } from '@/lib/site-legal'
+import { AFFILIATION, COMPANY, OPERATOR_REGISTERED, TOS_NOTICE, tosInNoticeWindow, tosVersionInForce } from '@/lib/site-legal'
+import { Bilingual } from '@/components/marketplace/bilingual'
 import { CROSS_SITE_REL, MARKETPLACE_HOME } from '@/lib/cross-site-links'
 import { TERMS_SERVICES_COPY } from '@/lib/terms-services-copy'
 
@@ -179,7 +180,27 @@ export default function TermsPage() {
       meta={
         <>
           <p className="mt-3 text-sm text-ink-4">
-            <Tr text="Last updated: August 2026" /> · <Tr text="Version" /> {TOS_VERSION}
+            {/* ⚠️ THE VERSION IN FORCE IS THE HEADLINE, NOT THE NEWEST ONE. During the notice window
+                these differ, and printing the new number under the word "Version" tells a reader
+                the new terms govern them — which is exactly what the window exists to deny. An
+                external review flagged it: "a reasonable reader could believe it already governs
+                despite the adjacent notice". The published-but-pending version is named in the
+                notice beside this, where it reads as a future date rather than today's rule. */}
+            <Tr text="Last updated: August 2026" /> · <Tr text="Version" /> {tosVersionInForce()}
+            {tosInNoticeWindow() && (
+              /* Decree 52 Đ.38.3: a material change is announced ≥5 days BEFORE it binds, and
+                 /regulations promises exactly that in Vietnamese. During the window the page must
+                 say which version actually governs today — otherwise "published" reads as "in
+                 force" and the promise is broken by the act of making it.
+                 Authored in both languages, not <Tr>: which version binds a user is not a sentence
+                 to hand to machine translation. */
+              <>
+                {' · '}
+                <span className="text-warning">
+                  <Bilingual en={TOS_NOTICE.en} vi={TOS_NOTICE.vi} />
+                </span>
+              </>
+            )}
           </p>
           <p className="mt-2 max-w-3xl text-xs text-muted-foreground italic"><Tr text="This translation is provided for your convenience. The English version of these terms is the authoritative one." /></p>
         </>
