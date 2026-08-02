@@ -97,6 +97,60 @@ seat to claim, so `$ENO_SESSION` is meaningless — ignore it if you see it set.
   saying "single-sourced" out loud when only one family answered.
 
 
+## ⛔ DEPLOY ONLY WHEN THE OWNER SAYS "DEPLOY" (owner, 2026-08-02)
+
+**Owner's words: _"i will tell you when to deploy from now on and all tested locally"_.**
+This REPLACES the previous standing instruction to always push once gates are green.
+
+**Why it changed:** eno.vn is going live. A launched marketplace cannot be the place a
+change is tried out, and 2026-08-02 showed exactly how that goes — the hero heading was
+rewritten five times ON PRODUCTION in one afternoon, each round costing a build, a
+cache purge and an owner screenshot to discover something a local preview would have shown
+in thirty seconds.
+
+**The mechanism, so nobody has to remember discipline:** the Cloud Build triggers fire on
+`push.branch: ^main$` (verified 2026-08-02 on both `eno-vn-deploy` and `eno-forum-deploy`).
+So **a push to main IS a deploy** — there is no separate approval step, and no way to "just
+push and check". Work on a branch; a branch push runs nothing and deploys nothing. Merging
+to main is the deploy.
+
+⚠️ `git commit` is still fine and still expected — commit as you go. It is **push to main**
+that is gated. And note the triggers' `ignoredFiles` (docs/**, .claude/**, *.md, e2e/**,
+playwright/vitest configs) — a docs-only push to main does NOT deploy, so those are safe.
+
+### Local review, before saying anything is ready
+
+```bash
+npm run dev:vn          # marketplace, :3000   — fast iteration
+npm run dev:forum       # services,    :3001   — both editions can run at once
+npm run preview:vn      # marketplace, :3100   — PRODUCTION build, the real artifact
+npm run preview:forum   # services,    :3101
+npm run verify:local    # unit + tsc + smoke + seo + content + sec-probe vs :3100
+E2E_BASE=http://localhost:3100 npm run e2e:guest
+```
+
+**`preview` is a clean production build, not `next dev`, and the difference is the point.**
+Three bug classes are invisible in dev and have each reached prod: prerendered ISR HTML (the
+home page bakes listing data at build time), the inlined `NEXT_PUBLIC_*` values every
+canonical and OG url derives from, and edition exclusion (`.svc.` routes only disappear
+because `next build` resolves `pageExtensions`). `preview` also wipes `.next` first, because
+a stale chunk from the other edition survives an incremental build — the leak class
+`edition-lint` exists to catch.
+
+⚠️ **One edition at a time**: both build into the same `.next`, so the second overwrites the
+first. Run it twice when a change touches both. And `npm run start` alone is NOT a preview —
+`next build` does not copy `.next/static` or `public/` into the standalone bundle (the
+Dockerfile does it in two COPY lines), so every asset 404s. `scripts/preview.mjs` does that
+copy; that is most of why it exists.
+
+### After a deploy the owner DID authorise
+
+⚠️ **Purge Cloudflare with `purge_everything`, not by URL.** Purge-by-file returns
+`success: true` and silently does nothing on the cached HTML routes — the `vary: normalize`
+cache key includes the encoding variant. Measured 2026-08-02: `age: 850` a minute after a
+"successful" purge, which is how eno.forum picked up a commit while eno.vn served pre-deploy
+HTML from the SAME green build. Without it, a deploy is invisible for up to 6h.
+
 ## Shipping
 
 **Forum deployment boundary — cutover complete (owner, 2026-07-18; narrowed 2026-07-21 and
