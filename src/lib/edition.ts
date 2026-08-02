@@ -129,7 +129,9 @@ export const SITE_NAME = IS_SERVICES ? 'eno.forum' : 'eno.vn'
  *
  * ⚠️ eno.vn MUST KEEP THE .vn LOCKUP. It is not styling: Google's OAuth brand review rejected that
  * app repeatedly for showing a name that disagreed with the configured one, and serving the short
- * mark there would reintroduce exactly that. See logo-wordmark.tsx for the whole history.
+ * mark there would reintroduce exactly that. Since the hero heading became sr-only on 2026-08-02,
+ * the HEADER is the only place a human reads eno.vn's name as rendered brand — which makes this
+ * constant the whole of the page's visible identity rather than half of it.
  *
  * Both files ship in both bundles — a public asset path is not a legal leak, unlike the visa/
  * itinerary COPY that edition-services-copy.ts exists to keep out of the marketplace artifact.

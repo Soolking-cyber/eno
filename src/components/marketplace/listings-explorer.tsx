@@ -17,8 +17,7 @@ import {
 import { toast } from 'sonner'
 import type { SerializedListingCard, SerializedCategory } from '@/lib/types'
 import { CATEGORY_COLOR_CLASSES, timeAgo } from '@/lib/types'
-import { IS_MARKETPLACE, SITE_NAME } from '@/lib/edition'
-import { LogoWordmark } from './logo-wordmark'
+import { SITE_NAME } from '@/lib/edition'
 import { CategoryIcon } from './category-icons'
 import { ListingCard } from './listing-card'
 import { CaptureCard } from './capture-card'
@@ -1496,33 +1495,32 @@ export function ListingsExplorer({
                 ⚠️ NAME COMES FROM SITE_NAME, NOT A LITERAL. The old hardcoded string said
                 "eno.vn" on BOTH editions, so eno.forum's own home page announced itself as the
                 licensed marketplace. */}
-            {/* The brand mark IS the heading — the plain-text "eno.vn" + paragraph that sat here
-                read as boilerplate (owner: "remove these ugly ducklings and use eno.vn wordmark").
-                The <h1> keeps its exact SEO string for crawlers and screen readers via sr-only;
-                what a human sees is the wordmark. */}
-            {/* mb-3 only when something is actually rendered: `sr-only` is position:absolute, so on
-                eno.forum this <h1> collapses to zero height and the margin would be 12px of dead
-                space above the search bar — a visible remnant of the element that was removed. */}
-            <h1 className={cn('flex justify-center', IS_MARKETPLACE && 'mb-3')}>
-              <span className="sr-only">{SITE_NAME}</span>
-              {/* ⚠️ MARKETPLACE ONLY — eno.forum's hero shows NO wordmark (owner, 2026-08-02:
-                  "remove eno.vn above searchbar"). LogoWordmark serves /logo-dotvn.svg, which
-                  spells out the LICENSED marketplace's name; rendering it here unconditionally put
-                  "eno.vn" in 40px letters at the top of eno.forum's home page, directly beside an
-                  <h1> whose screen-reader text said "eno.forum". eno.forum still names itself — in
-                  its <title>, in the sr-only text above, and in the header's plain "eno" mark
-                  (SITE_WORDMARK) — it just no longer does it in the other company's name.
+            {/* ⚠️ THE HERO HAS NO VISIBLE HEADING ON EITHER EDITION (owner, 2026-08-02: "also
+                remove this from eno.vn", after the same removal on eno.forum). The <h1> still
+                carries the site name for crawlers and screen readers, but nothing is painted: what
+                a visitor sees at the top of the page is the search bar.
 
-                  ⚠️ DO NOT "SIMPLIFY" THIS BY GIVING BOTH EDITIONS THE SHORT MARK. On eno.vn this
-                  image is the only thing on the page a human reviewer reads as the site's name, and
-                  Google rejects the OAuth consent screen when it disagrees with the configured one.
+                ⚠️ READ THIS BEFORE RESTORING ANYTHING HERE. This is the third time this block has
+                been emptied, and the previous two both ended in a Google OAuth brand-verification
+                rejection — "Your home page does not explain the purpose of your app" and "The app
+                name … does not match the app name on your home page" — because a reviewer reads the
+                RENDERED page, and `sr-only` is position:absolute with clip-path:inset(50%), so no
+                visible-text extractor sees it. Measured 2026-08-02, before this removal: zero
+                painted "eno.vn" text nodes in the first 800px, with JS on and with JS off; the
+                first plain-text occurrence sat at y=3691 of a 4396px page, in the footer.
 
-                  <LogoWordmark> rather than a bare <img>: it carries the high-priority preload and
-                  the unmount cleanup that keep this the LCP element without leaking the preload
-                  onto other routes. It had been dead code since the hero was stripped on
-                  2026-07-16 — this puts it back to work, now serving the .vn lockup. */}
-              {IS_MARKETPLACE ? <LogoWordmark className="h-10 w-auto sm:h-12" /> : null}
-            </h1>
+                What still names the page to a human: the header wordmark (an <img>, on every
+                route). What names it to a machine: <title>, og:site_name, the JSON-LD Organization
+                block, and the manifest — all of which now say exactly SITE_NAME.
+
+                The verification failure being chased when this was removed turned out to be a
+                DIFFERENT problem entirely (the live OAuth client lives in project eno-vn/
+                671626883615 and is still named "eno", while the brand titled "eno.vn" sits in a
+                second project that renders identically in the console picker). So emptying this
+                block is not believed to be what fixes or breaks verification — but if the
+                name-mismatch or purpose complaint returns after the project mix-up is sorted, a
+                painted text heading here is the first thing to try, NOT another image. */}
+            <h1 className="sr-only">{SITE_NAME}</h1>
             {/* ⚠️ THE PURPOSE SENTENCE THAT SAT HERE IS GONE (owner, 2026-08-02) — and it was not
                 decoration, so anyone restoring copy to this hero should know what it was doing.
                 Google's OAuth brand review rejected this page with "Your home page does not explain
