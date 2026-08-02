@@ -85,23 +85,20 @@ steps:
       # was.
       - --memory=2Gi
       - --cpu=1
-      # ⚠️ ONE WARM INSTANCE, ADDED 2026-08-02 BECAUSE COLD STARTS WERE FAILING A REAL AUDIT.
+      # ⚠️ SCALES TO ZERO, DELIBERATELY — COST BEATS COLD STARTS HERE (owner, 2026-08-02:
+      # "leave coldstart i dont need cranked up bills").
       #
-      # Google's OAuth brand review reported "Your home page URL https://eno.vn is unresponsive".
-      # It was not down — measured 200 at 0.2s TTFB from here, on IPv4, IPv6, http→https and www.
-      # What the logs showed is that eno-vn had NO minimum instance, so it scales to zero: 19 cold
-      # starts in 24 hours, and the slowest requests in that window were 10.3–11.2 SECONDS. The
-      # reviewer hit a cold boot and timed out.
+      # The trade-off is measured, not assumed. eno-vn cold-started 19 times in 24 hours and the
+      # slowest requests in that window were 10.3–11.2 SECONDS, which is what made Google's brand
+      # review report "Your home page URL https://eno.vn is unresponsive". A warm instance would
+      # remove that, and it costs a 24/7 CPU+memory charge under --no-cpu-throttling above.
       #
-      # This is not only an audit problem. Those same 11s responses land on real visitors and on
-      # Googlebot, which is a Core Web Vitals and crawl-budget cost on the site perf Phase 1 spent
-      # real effort getting to a 1.57s LCP.
-      #
-      # The cost is one always-on instance — and it is roughly funded by the SAME commit series
-      # that removed --min-instances=1 from eno-forum, which had a warm instance it did not need
-      # while the licensed marketplace, the actual product, had none. The pin now sits on the site
-      # that serves the traffic.
-      - --min-instances=1
+      # The owner's call is that an occasional slow first request is cheaper than an always-on
+      # instance on a pre-launch site, and the audit complaint it caused has since cleared anyway.
+      # ⚠️ EXPLICIT 0, not an omitted flag: `gcloud run deploy` applies only what you pass, so
+      # deleting this line would leave whatever the service currently holds — which is exactly how
+      # the eno-forum pin survived a deploy that was meant to remove it.
+      - --min-instances=0
       - --quiet
 availableSecrets:
   secretManager:
