@@ -281,12 +281,31 @@ export function Header() {
           className="flex shrink-0 items-center transition-transform duration-200 hover:scale-110 active:scale-95"
           aria-label="eno.vn"
         >
-          {/* eno WORDMARK (owner 2026-07-16, was the square logo-mark). The SVG viewBox is now
-              cropped to the glyph ink (was ~20% empty padding each side), so h-8 + w-auto renders
-              a TIGHT ~88px box instead of 128px — the letters are the same size, just no dead
-              padding, which balances the mobile header and gives the search bar back ~40px. The
-              intrinsic 219×80 matches the cropped 823:300 aspect so there's no CLS. */}
-          <img src="/logo.svg" alt="eno.vn" width={219} height={80} className="h-8 w-auto" />
+          {/* ⚠️ THE ".vn" LOCKUP, NOT THE BARE "eno" MARK, AND THAT IS A VERIFICATION REQUIREMENT
+              (owner 2026-08-02) — see logo-wordmark.tsx for the full history. Google's OAuth brand
+              review rejected this app whichever name was configured, because the page carried TWO:
+              every heading, title and meta tag said "eno.vn" while the wordmark said "eno". This is
+              the last place that still showed the short name, and it is on EVERY page, so leaving it
+              would have kept the contradiction alive everywhere except the home hero.
+
+              Same glyphs at the same size: both SVGs are 300 units tall, so h-8 renders the e/n/o
+              identically to before — ".vn" is added width, not smaller letters. intrinsic 1431×300
+              matches the viewBox aspect, so the box is reserved before load and there's no CLS.
+
+              ⚠️ IT COSTS THE HEADER SEARCH ~65px, AND THAT IS THE DELIBERATE TRADE (measured
+              2026-08-02 with Playwright, not estimated). The logo goes 87.6px → 152.6px wide, and
+              the search form is `min-w-0 flex-1` so it absorbs all of it. Nothing overflows at any
+              width — documentElement.scrollWidth === clientWidth at 320/360/390/430/768/1280, and
+              the action group still ends 12–32px inside the bar — but the search TEXT INPUT narrows:
+                320px → form 87.4px, input 16.0px   (was ~152px / ~81px)
+                360px → form 127.4px, input 47.4px
+                390px → form 157.4px, input 77.4px
+                768px+ → 447px+, unaffected
+              The form keeps its 48px height, so the tap target is fine; what suffers is how much
+              typed text is visible on a ≤360px phone. Acceptable because this bar is the SECONDARY
+              search — it only reveals once the hero's full-width search scrolls away. If it ever
+              needs reclaiming, `h-7 w-auto sm:h-8` returns ~19px without dropping the ".vn". */}
+          <img src="/logo-dotvn.svg" alt="eno.vn" width={1431} height={300} className="h-8 w-auto" />
         </Link>
 
         {showSearch ? (

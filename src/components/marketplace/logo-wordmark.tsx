@@ -10,7 +10,10 @@ import { useEffect } from 'react'
 // carried TWO: the wordmark read "eno" while the title, headings and metadata read "eno.vn"
 // (measured 2026-08-02: 8 visible occurrences of "eno.vn", 0 of "eno"). The .vn lockup extends
 // the mark in its own geometry — original e/n/o paths, dot at the measured stroke weight, v built
-// to the same x-height — so the page states one name. The header keeps the compact /logo.svg. Served as a small EXTERNAL file
+// to the same x-height — so the page states one name. The header serves the SAME lockup as of
+// 2026-08-02 (owner). /logo.svg survives only where the short mark is not read as a name: JSON-LD
+// publisher/organization logos, the OG-image generator, and the `.skeleton-photo` loading tint
+// (globals.css, opacity 0.28, replaced the instant a photo loads). Served as a small EXTERNAL file
 // (not a data URI): a data URI put the logo's ~6.6KB inside the HTML, so on Slow-4G
 // it couldn't paint until ~28KB of critical HTML (21KB inline CSS + the data URI)
 // downloaded — a 2.5s self-inflicted render delay. As an external <img> with a

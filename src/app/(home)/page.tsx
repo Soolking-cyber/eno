@@ -74,10 +74,15 @@ export default async function Home() {
 
   return (
     <div className="flex min-h-screen flex-col blob-bg">
-      {/* The hero-wordmark preload (/logo.svg) is co-located inside <LogoWordmark> (a client
+      {/* The hero-wordmark preload (/logo-dotvn.svg) is co-located inside <LogoWordmark> (a client
           component) so it sits in the initial <head> for LCP but is auto-removed on nav away.
           A <link> here (Server Component) was hoisted to <head> and NOT cleaned up on soft
-          nav, so it leaked onto non-home routes and warned "preloaded but not used". */}
+          nav, so it leaked onto non-home routes and warned "preloaded but not used".
+          ⚠️ That warning is no longer reachable — the header renders the same lockup on every
+          route as of 2026-08-02, so the file is never "not used". The unmount cleanup is now
+          tidiness rather than a fix (removing a <link rel=preload> never evicts a fetched image),
+          and the co-location still earns its keep: it is what keeps the preload out of the
+          Server-Component head, where it would be a duplicate request on every non-home route. */}
       <Header />
       <main id="main" tabIndex={-1} className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-4">
         <ListingsExplorer

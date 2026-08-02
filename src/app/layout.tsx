@@ -140,9 +140,16 @@ export default function RootLayout({
             Supabase server-side), auth is lazy and realtime is authed-only — nothing
             hits the origin directly before LCP. Listing VIDEOS do connect directly,
             but only well after LCP when a card's clip mounts. */}
-        {/* NB: the hero-wordmark preload (/logo.svg) lives on the HOME page only —
-            it's the landing LCP element there and unused elsewhere (preloading it
-            globally warned "preloaded but not used" on every non-home route). */}
+        {/* NB: the hero-wordmark preload (/logo-dotvn.svg) lives on the HOME page only.
+            ⚠️ THE ORIGINAL REASON EXPIRED ON 2026-08-02 and the conclusion survives on a new one.
+            It used to be "unused elsewhere", which earned a "preloaded but not used" warning on
+            every non-home route; since the header adopted the same lockup, the file is now used on
+            EVERY page and that warning can no longer fire. It still belongs on home alone because
+            elsewhere it is pointless, not harmful: the header <img> sits at the very top of the
+            initial markup, so the preload scanner finds it immediately and a <link> would only
+            duplicate a request the parser is already about to make. Home is different — there the
+            LCP element is the larger hero lockup further down the document, which is worth
+            announcing early. */}
         {/* Organization entity — ties the brand to its official social profiles (sameAs) so Google
             can recognise it as a distinct brand and attribute the brand query to this site.
 

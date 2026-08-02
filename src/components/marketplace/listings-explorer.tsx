@@ -1508,18 +1508,15 @@ export function ListingsExplorer({
                   2026-07-16 — this puts it back to work, now serving the .vn lockup. */}
               <LogoWordmark className="h-10 w-auto sm:h-12" />
             </h1>
-            {/* ⚠️ ONE LINE, BUT IT MUST STAY. Google's OAuth brand review rejected this page with
-                "Your home page does not explain the purpose of your app" until a purpose statement
-                existed; that complaint cleared the moment one did. The long paragraph was the ugly
-                part, not the fact of saying what the site is — so this is the short form, and
-                deleting it entirely re-opens a rejection that took several rounds to close. */}
-            <p className="mx-auto mb-6 max-w-xl text-sm leading-relaxed text-body sm:text-base">
-              {/* ⚠️ A PLAIN STRING LITERAL, NOT A TEMPLATE LITERAL. scripts/gen-ui-strings.mjs
-                  harvests `text="…"` and does not match a backtick expression, so the template
-                  form compiles and renders but never reaches the catalogue — it would ship
-                  English-only to every other language and drift silently. */}
-              <Tr text="The trusted marketplace for internationals in Vietnam — housing, motorbikes, jobs and local services, from sellers with public trust scores." />
-            </p>
+            {/* ⚠️ THE PURPOSE SENTENCE THAT SAT HERE IS GONE (owner, 2026-08-02) — and it was not
+                decoration, so anyone restoring copy to this hero should know what it was doing.
+                Google's OAuth brand review rejected this page with "Your home page does not explain
+                the purpose of your app", and that complaint cleared only once a visible purpose
+                statement existed. The owner removed the visible sentence; the page still states its
+                purpose in <title>, meta description and og:description (all "…marketplace for
+                expats and internationals in Vietnam…"), which is what remains answering that
+                complaint. If brand review raises "does not explain the purpose" again, THIS is the
+                cause and a one-line visible tagline under the wordmark is the fix. */}
 
             {/* Centered Search Bar (the header reveals its own search once this
                 scrolls out of view — id is the IntersectionObserver target). Wider pill
