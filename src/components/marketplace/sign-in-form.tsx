@@ -10,6 +10,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
 import { googleOauthBlocked, isNativeTabs, openInSystemBrowser } from '@/lib/in-app-browser'
 import { isNativeApp, nativeGoogleSignIn } from '@/lib/native-auth'
+import { googleIdentityEnabled, requestGoogleIdToken } from '@/lib/google-identity'
 import { useTurnstile } from './turnstile'
 import { canonicalEmail } from '@/lib/email-alias'
 
@@ -277,6 +278,60 @@ export function SignInForm({ className }: { className?: string }) {
     setLoading(true)
     const sb = await getSupabase()
     if (!sb) return
+
+    // ── BRANDED PATH (web only, opt-in) ───────────────────────────────────────────────────────
+    // Do the Google half against OUR OWN OAuth client via Google Identity Services, so the
+    // consent screen shows eno's app name and logo instead of "continue to
+    // xihiryllwmjoouipkyhw.supabase.co". Supabase still owns the session: the ID token goes
+    // straight to signInWithIdToken, which verifies it, creates/links the user and issues the
+    // normal session into this same client. See src/lib/google-identity.ts for the full contract.
+    //
+    // ⚠️ INERT UNTIL NEXT_PUBLIC_GOOGLE_CLIENT_ID IS SET. googleIdentityEnabled() is false
+    // without it (and false in the native shell), so an unconfigured build skips this whole
+    // block and runs the signInWithOAuth call below exactly as it always did.
+    //
+    // ⚠️ EVERY FAILURE FALLS THROUGH, NONE SURFACES. No credential, a blocked GIS script, a
+    // rejected token — all of them drop to signInWithOAuth rather than showing an error. An
+    // unbranded consent screen is cosmetic; a visitor who cannot sign in is not. The only thing
+    // logged is a console.warn, because none of it is actionable by the person signing in.
+    if (googleIdentityEnabled()) {
+      const cred = await requestGoogleIdToken()
+      if (cred) {
+        // ⚠️ THE try/catch IS NOT DECORATION — signInWithIdToken RETHROWS. Verified in
+        // @supabase/auth-js GoTrueClient.signInWithIdToken: its catch is
+        // `if (isAuthError(error)) return {…error}; throw error`. A transport failure is an
+        // AuthError and comes back in `error`, but anything else escapes — and two realistic
+        // things live inside that try AFTER the token is accepted: `_saveSession` (a storage
+        // write, which is a DOMException in Safari with cookies blocked, not an AuthError) and
+        // `_notifyAllSubscribers('SIGNED_IN')`, which synchronously runs our own
+        // onAuthStateChange handlers. An escape here becomes an unhandled rejection in this
+        // handler, so `loading` never clears and the sign-in button is dead until a reload —
+        // the exact failure getSupabase() above was hardened against for the same reason.
+        // Catching it keeps the fallback chain intact: worst case we redirect a user who is
+        // already signed in through Google, which returns them signed in.
+        //
+        // `nonce` is the RAW value; google-identity gave Google the SHA-256 hex. Forward it
+        // unchanged — and forward `undefined` when there is none, because Supabase requires the
+        // passed nonce and the id_token claim to both exist or both be absent.
+        const { error } = await sb.auth
+          .signInWithIdToken({ provider, token: cred.token, nonce: cred.nonce })
+          .catch((e: unknown) => ({ error: { message: e instanceof Error ? e.message : String(e) } }))
+        // Success: the session is live in this client. No redirect happens here and none is
+        // needed — auth-context's onAuthStateChange closes the dialog (so `nextPath` is simply
+        // where the visitor already is), and the /signin page runs its own router.replace(next).
+        // `loading` stays set for the same reason the OAuth branch leaves it set: the form is
+        // about to unmount or navigate, and a second tap in that window would start a second
+        // sign-in. If neither happened the visitor is signed in anyway, so a disabled sign-in
+        // button is the correct end state, not a trap.
+        // ⚠️ /auth/callback's server-side finishSignIn() (ensureProfile + the /onboard hop) is
+        // NOT reached on this path — exactly as it is not on the phone-OTP and email-code paths.
+        // Both are covered client-side by auth-context: /api/me lazily provisions the Profile via
+        // getCurrentProfile(), and its gate sends an account with no accountType to /onboard.
+        if (!error) return
+        console.warn('[auth] signInWithIdToken failed, falling back to redirect OAuth:', error.message)
+      }
+    }
+
     const { error } = await sb.auth.signInWithOAuth({ provider, options: { redirectTo } })
     // On success supabase-js calls location.assign and this document is going away — leave
     // `loading` set so the button cannot be tapped again during the navigation.

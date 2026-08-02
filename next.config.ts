@@ -322,6 +322,22 @@ const nextConfig: NextConfig = {
   // bootstrap working. report-to + report-uri stay wired to the /api/csp-report collector
   // so any future violation is still logged, not just blocked.
   async headers() {
+    // Branded Google sign-in (src/lib/google-identity.ts) loads Google Identity Services from
+    // accounts.google.com. WIDENED ONLY WHEN THE FEATURE IS CONFIGURED: with
+    // NEXT_PUBLIC_GOOGLE_CLIENT_ID unset the strings below are empty and this header is
+    // byte-identical to what it was before the feature existed — the CSP is the app's main
+    // post-XSS exfiltration brake, so it must not grow for a feature that is switched off.
+    // ⚠️ Same build-time read as the client bundle: NEXT_PUBLIC_* is inlined by `next build`, so
+    // the var has to be in the Secret Manager build env, not only in the Cloud Run runtime env.
+    // The four path-scoped sources are Google's documented requirements for GIS — script for the
+    // library itself, frame for the One Tap iframe on non-FedCM browsers, connect for its XHRs,
+    // style for the stylesheet it injects (our 'unsafe-inline' does NOT cover an external URL).
+    // FedCM's own dialog is browser UI and is not subject to CSP.
+    const gis = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID?.trim()
+    const gsiScript = gis ? " https://accounts.google.com/gsi/client" : "";
+    const gsiFrame = gis ? " https://accounts.google.com/gsi/" : "";
+    const gsiConnect = gis ? " https://accounts.google.com/gsi/" : "";
+    const gsiStyle = gis ? " https://accounts.google.com/gsi/style" : "";
     const csp = [
       "default-src 'self'",
       "base-uri 'self'",
@@ -332,8 +348,8 @@ const nextConfig: NextConfig = {
       // SELF-HOSTED (public/vendor/leaflet) and the browser Meta Pixel is REMOVED (server-side
       // CAPI only) — so unpkg.com and the facebook.net/stape/run.app hosts are gone from every
       // directive. (va.vercel-scripts.com dropped with the Vercel→Cloud Run migration.)
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com https://static.cloudflareinsights.com https://challenges.cloudflare.com",
-      "style-src 'self' 'unsafe-inline'",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com https://static.cloudflareinsights.com https://challenges.cloudflare.com" + gsiScript,
+      "style-src 'self' 'unsafe-inline'" + gsiStyle,
       // Supabase is PINNED to our exact project host (not *.supabase.co): connect-src is the
       // main post-XSS exfiltration brake, and a wildcard would let stolen data POST to any
       // attacker-owned Supabase project. *.googleusercontent.com = Google account avatars
@@ -348,8 +364,8 @@ const nextConfig: NextConfig = {
       // silently killed every picked photo IN-APP on iOS (Android rides the same-origin
       // /_capacitor_file_/ path, hence 'self' sufficed there). Browsers can't reach the
       // scheme, so the web surface is unchanged.
-      "connect-src 'self' capacitor: https://xihiryllwmjoouipkyhw.supabase.co wss://xihiryllwmjoouipkyhw.supabase.co https://www.google-analytics.com https://region1.google-analytics.com https://www.googletagmanager.com https://cloudflareinsights.com https://static.cloudflareinsights.com",
-      "frame-src 'self' https://td.doubleclick.net https://challenges.cloudflare.com",
+      "connect-src 'self' capacitor: https://xihiryllwmjoouipkyhw.supabase.co wss://xihiryllwmjoouipkyhw.supabase.co https://www.google-analytics.com https://region1.google-analytics.com https://www.googletagmanager.com https://cloudflareinsights.com https://static.cloudflareinsights.com" + gsiConnect,
+      "frame-src 'self' https://td.doubleclick.net https://challenges.cloudflare.com" + gsiFrame,
       "worker-src 'self' blob:",
       "manifest-src 'self'",
       // Where violations are sent: report-to (modern, paired with the Reporting-Endpoints
