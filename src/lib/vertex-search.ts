@@ -13,22 +13,41 @@ import { GoogleAuth } from 'google-auth-library'
 // store isn't configured yet — the concierge then falls back to Postgres search (which
 // does NOT draw the credit) so the UI keeps working during setup.
 //
-// Env (reuses the Vertex SA creds from the Gemini setup):
+// Env:
 //   GOOGLE_VERTEX_PROJECT       — GCP project id (the credit's billing account)
-//   GOOGLE_VERTEX_CREDENTIALS   — SA JSON (raw or base64), needs Discovery Engine access
 //   VERTEX_SEARCH_LOCATION      — data store location: "global" (default), "us", "eu"
 //   VERTEX_SEARCH_DATASTORE_ID  — the data store id
 //   VERTEX_SEARCH_ENGINE_ID     — (optional) search app/engine id; required for the
 //                                 generated summary (set it once the app has LLM features)
-
+// …plus EXACTLY ONE of these two credential modes:
+//   GOOGLE_VERTEX_ADC=1         — use Application Default Credentials (the preferred mode)
+//   GOOGLE_VERTEX_CREDENTIALS   — SA JSON (raw or base64), needs Discovery Engine access
+//
+// ⚠️ ADC IS NOT A CONVENIENCE, IT IS THE ONLY OPTION IN THE PROJECT THAT NOW HOSTS THE DATA STORE.
+// The store used to live in project eno-vn and was reached with a downloaded SA key. It was moved
+// to speedy-victory-500106-h8 (the credit project, and the project Cloud Run already runs in) on
+// 2026-08-02, and that project carries the org policy
+// `constraints/iam.disableServiceAccountKeyCreation` — `gcloud iam service-accounts keys create`
+// fails with FAILED_PRECONDITION there. There is no key to paste even if we wanted one.
+//
+// That constraint turned out to be the better design anyway: with the data store in the SAME
+// project as the service, Cloud Run's own runtime identity
+// (eno-run@speedy-victory-500106-h8, granted roles/discoveryengine.editor) authenticates from the
+// metadata server. No key in Secret Manager, nothing to rotate, nothing to leak.
+//
+// ⚠️ THE FLAG IS EXPLICIT ON PURPOSE — do NOT "simplify" it to `if (!RAW_CREDS) use ADC`. ADC
+// resolves to whatever gcloud identity a developer happens to have locally, so an implicit
+// fallback would silently point a laptop at the production index and start writing documents to
+// it. Opting in by env means only the deployments that set it can reach Vertex at all.
 const PROJECT = process.env.GOOGLE_VERTEX_PROJECT
 const LOCATION = process.env.VERTEX_SEARCH_LOCATION || 'global'
 const DATASTORE = process.env.VERTEX_SEARCH_DATASTORE_ID
 const ENGINE = process.env.VERTEX_SEARCH_ENGINE_ID
 const RAW_CREDS = process.env.GOOGLE_VERTEX_CREDENTIALS
+const USE_ADC = process.env.GOOGLE_VERTEX_ADC === '1'
 
 export function vertexConfigured(): boolean {
-  return !!(PROJECT && RAW_CREDS && (DATASTORE || ENGINE))
+  return !!(PROJECT && (RAW_CREDS || USE_ADC) && (DATASTORE || ENGINE))
 }
 
 const HOST = LOCATION === 'global' ? 'discoveryengine.googleapis.com' : `${LOCATION}-discoveryengine.googleapis.com`
@@ -44,10 +63,21 @@ let token: { value: string; exp: number } | null = null
 function getAuth(): GoogleAuth | null {
   if (auth !== undefined) return auth
   try {
-    if (!RAW_CREDS) { auth = null; return null }
-    const json = RAW_CREDS.trim().startsWith('{') ? RAW_CREDS : Buffer.from(RAW_CREDS.trim(), 'base64').toString('utf8')
-    const credentials = JSON.parse(json)
-    auth = new GoogleAuth({ credentials, scopes: ['https://www.googleapis.com/auth/cloud-platform'], projectId: PROJECT })
+    const scopes = ['https://www.googleapis.com/auth/cloud-platform']
+    if (RAW_CREDS) {
+      const json = RAW_CREDS.trim().startsWith('{') ? RAW_CREDS : Buffer.from(RAW_CREDS.trim(), 'base64').toString('utf8')
+      const credentials = JSON.parse(json)
+      auth = new GoogleAuth({ credentials, scopes, projectId: PROJECT })
+    } else if (USE_ADC) {
+      // No `credentials`: google-auth-library then walks the ADC chain, which on Cloud Run is the
+      // metadata server and resolves to the service's own runtime identity. projectId is still
+      // passed explicitly — ADC's inferred project is the one the CREDENTIAL belongs to, which is
+      // not necessarily where the data store lives.
+      auth = new GoogleAuth({ scopes, projectId: PROJECT })
+    } else {
+      auth = null
+      return null
+    }
   } catch (e) {
     console.error('[vertex-search] bad credentials', e)
     auth = null

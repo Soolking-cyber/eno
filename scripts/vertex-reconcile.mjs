@@ -39,8 +39,12 @@ const project = process.env.GOOGLE_VERTEX_PROJECT
 const rawCreds = process.env.GOOGLE_VERTEX_CREDENTIALS
 const location = process.env.VERTEX_SEARCH_LOCATION || 'global'
 const dataStore = process.env.VERTEX_SEARCH_DATASTORE_ID
-if (!url || !project || !rawCreds || !dataStore) {
-  console.error('Set DIRECT_URL, GOOGLE_VERTEX_PROJECT, GOOGLE_VERTEX_CREDENTIALS, VERTEX_SEARCH_DATASTORE_ID')
+// Same credential story as scripts/vertex-backfill.mjs — the host project forbids SA key creation
+// (constraints/iam.disableServiceAccountKeyCreation), so an operator supplies a short-lived token:
+//   GOOGLE_VERTEX_ACCESS_TOKEN=$(gcloud auth print-access-token --account=support@eno.forum)
+const staticToken = process.env.GOOGLE_VERTEX_ACCESS_TOKEN
+if (!url || !project || (!rawCreds && !staticToken) || !dataStore) {
+  console.error('Set DIRECT_URL, GOOGLE_VERTEX_PROJECT, VERTEX_SEARCH_DATASTORE_ID, and one of GOOGLE_VERTEX_ACCESS_TOKEN / GOOGLE_VERTEX_CREDENTIALS')
   process.exit(1)
 }
 
@@ -54,9 +58,12 @@ const DESK_OWNER_EMAILS = [
 // Trimmed HERE because the SQL only lowercases and splits — it does not trim.
 const DESK_OWNER_EMAIL_LIST = [...new Set(DESK_OWNER_EMAILS)].join(',')
 
-const credsJson = rawCreds.trim().startsWith('{') ? rawCreds : Buffer.from(rawCreds.trim(), 'base64').toString('utf8')
-const auth = new GoogleAuth({ credentials: JSON.parse(credsJson), scopes: ['https://www.googleapis.com/auth/cloud-platform'], projectId: project })
-const token = await auth.getAccessToken()
+let token = staticToken
+if (!token) {
+  const credsJson = rawCreds.trim().startsWith('{') ? rawCreds : Buffer.from(rawCreds.trim(), 'base64').toString('utf8')
+  const auth = new GoogleAuth({ credentials: JSON.parse(credsJson), scopes: ['https://www.googleapis.com/auth/cloud-platform'], projectId: project })
+  token = await auth.getAccessToken()
+}
 const host = location === 'global' ? 'discoveryengine.googleapis.com' : `${location}-discoveryengine.googleapis.com`
 const branch = `projects/${project}/locations/${location}/collections/default_collection/dataStores/${dataStore}/branches/default_branch`
 

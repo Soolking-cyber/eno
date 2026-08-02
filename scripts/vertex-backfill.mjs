@@ -16,7 +16,20 @@ const project = process.env.GOOGLE_VERTEX_PROJECT
 const rawCreds = process.env.GOOGLE_VERTEX_CREDENTIALS
 const location = process.env.VERTEX_SEARCH_LOCATION || 'global'
 const dataStore = process.env.VERTEX_SEARCH_DATASTORE_ID
-if (!url || !project || !rawCreds || !dataStore) { console.error('Set DIRECT_URL, GOOGLE_VERTEX_PROJECT, GOOGLE_VERTEX_CREDENTIALS, VERTEX_SEARCH_DATASTORE_ID'); process.exit(1) }
+// ⚠️ A KEY IS NO LONGER OBTAINABLE, SO THIS ACCEPTS A BEARER TOKEN INSTEAD. The data store moved
+// to project speedy-victory-500106-h8 on 2026-08-02, and that project enforces
+// `constraints/iam.disableServiceAccountKeyCreation` — `gcloud iam service-accounts keys create`
+// fails there with FAILED_PRECONDITION, so GOOGLE_VERTEX_CREDENTIALS cannot be produced at all.
+// An operator runs this with their OWN gcloud identity instead:
+//   GOOGLE_VERTEX_ACCESS_TOKEN=$(gcloud auth print-access-token --account=support@eno.forum)
+// The token is short-lived (~1h) and never written anywhere, which is strictly better than a
+// long-lived key on a laptop. GOOGLE_VERTEX_CREDENTIALS still works for any environment that has
+// one; the app itself uses ADC (see src/lib/vertex-search.ts).
+const staticToken = process.env.GOOGLE_VERTEX_ACCESS_TOKEN
+if (!url || !project || (!rawCreds && !staticToken) || !dataStore) {
+  console.error('Set DIRECT_URL, GOOGLE_VERTEX_PROJECT, VERTEX_SEARCH_DATASTORE_ID, and one of GOOGLE_VERTEX_ACCESS_TOKEN / GOOGLE_VERTEX_CREDENTIALS')
+  process.exit(1)
+}
 
 // The desk's owner addresses, as ONE comma-separated string for the query below.
 //
@@ -34,9 +47,12 @@ const DESK_OWNER_EMAILS = [
 // Trimmed HERE because the SQL only lowercases and splits — it does not trim.
 const DESK_OWNER_EMAIL_LIST = [...new Set(DESK_OWNER_EMAILS)].join(',')
 
-const credsJson = rawCreds.trim().startsWith('{') ? rawCreds : Buffer.from(rawCreds.trim(), 'base64').toString('utf8')
-const auth = new GoogleAuth({ credentials: JSON.parse(credsJson), scopes: ['https://www.googleapis.com/auth/cloud-platform'], projectId: project })
-const token = await auth.getAccessToken()
+let token = staticToken
+if (!token) {
+  const credsJson = rawCreds.trim().startsWith('{') ? rawCreds : Buffer.from(rawCreds.trim(), 'base64').toString('utf8')
+  const auth = new GoogleAuth({ credentials: JSON.parse(credsJson), scopes: ['https://www.googleapis.com/auth/cloud-platform'], projectId: project })
+  token = await auth.getAccessToken()
+}
 const host = location === 'global' ? 'discoveryengine.googleapis.com' : `${location}-discoveryengine.googleapis.com`
 const branch = `projects/${project}/locations/${location}/collections/default_collection/dataStores/${dataStore}/branches/default_branch`
 
