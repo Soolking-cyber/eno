@@ -279,7 +279,9 @@ export function Header() {
           href="/"
           prefetch={false}
           onClick={() => window.dispatchEvent(new CustomEvent('eno:reset-home'))}
-          className="flex shrink-0 items-center transition-transform duration-200 hover:scale-110 active:scale-95"
+          // gap-2 separates the mark from the wordmark text added 2026-08-02 — without it the two
+          // touch, since this flex row previously held a single <img> and needed no gap.
+          className="flex shrink-0 items-center gap-2 transition-transform duration-200 hover:scale-110 active:scale-95"
           aria-label={SITE_NAME}
         >
           {/* The square "e" mark (owner, 2026-08-02), replacing the wide "eno.vn" lockup that lived
