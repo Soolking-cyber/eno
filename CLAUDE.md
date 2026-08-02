@@ -97,6 +97,38 @@ seat to claim, so `$ENO_SESSION` is meaningless — ignore it if you see it set.
   saying "single-sourced" out loud when only one family answered.
 
 
+## ⛔ EVERY FIX SHIPS TO BOTH SITES (owner, 2026-08-02)
+
+**Owner's words: _"make sure all fixes reach forum too unless i specify visa itinerary fix"_.**
+
+The DEFAULT is both. eno.vn and eno.forum are one codebase deployed twice, so a change under
+`src/**` reaches both for free — the burden of proof is on gating, not on sharing. Gate with
+`IS_MARKETPLACE` / `IS_SERVICES` **only** for the legal boundary: visa, itinerary, PayPal, and
+copy that names them. Nothing else. A bug fix, a layout change, an auth fix, a footer field is
+for both sites unless the owner says otherwise.
+
+### ⚠️ THE TRAP IS CONFIG, NOT CODE — it is per-site and silently only ever gets done once
+
+Code is shared automatically. Everything AROUND the code is duplicated per site and has no
+compiler to catch a half-applied change. Both of these were found on 2026-08-02, each shipped
+to eno.vn and quietly skipped on eno.forum:
+
+- **Turnstile hostname allowlist** held only `eno.vn`, while BOTH editions ship the same site
+  key — so the widget threw `110200` on eno.forum, no token was ever minted, and **email
+  sign-in was failing for every real forum user**. Verified by rendering the widget under three
+  origins; fixed to `eno.vn, www.eno.vn, eno.forum, www.eno.forum, localhost`.
+- **The forum's Cache Rule matched `http.host eq "eno.forum"`** — the APEX — while
+  `NEXT_PUBLIC_APP_URL` for the services edition is `https://www.eno.forum`. So every real
+  request was uncached (`DYNAMIC`) while the apex showed `HIT`, which is exactly the shape that
+  makes a spot-check say "working". Both zones now match `http.host in {apex www}`.
+  ⚠️ Its sibling `_next/image` rule tested `starts_with(http.request.full_uri, "/_next/image")`
+  — `full_uri` is the COMPLETE url (`https://host/...`), so that can never be true and the rule
+  had never once matched. Use `http.request.uri.path`.
+
+So when a change touches any of these, do it TWICE and verify TWICE:
+Cloudflare zones (`eno.vn` = `55e558b6…`, `eno.forum` = `cc81e3ff…`) · Secret Manager
+(`eno-root-env`, `eno-services-env`) · Cloud Build triggers · Turnstile · Supabase URL config.
+
 ## ⛔ DEPLOY ONLY WHEN THE OWNER SAYS "DEPLOY" (owner, 2026-08-02)
 
 **Owner's words: _"i will tell you when to deploy from now on and all tested locally"_.**
