@@ -18,6 +18,7 @@ import { toast } from 'sonner'
 import type { SerializedListingCard, SerializedCategory } from '@/lib/types'
 import { CATEGORY_COLOR_CLASSES, timeAgo } from '@/lib/types'
 import { SITE_NAME } from '@/lib/edition'
+import { LogoWordmark } from './logo-wordmark'
 import { CategoryIcon } from './category-icons'
 import { ListingCard } from './listing-card'
 import { CaptureCard } from './capture-card'
@@ -1501,10 +1502,11 @@ export function ListingsExplorer({
                 what a human sees is the wordmark. */}
             <h1 className="mb-3 flex justify-center">
               <span className="sr-only">{SITE_NAME}</span>
-              {/* eslint-disable-next-line @next/next/no-img-element -- an SVG wordmark: next/image
-                  would add a request and a layout wrapper for a file that is already ~2KB and is
-                  preloaded on this route (see the preload note in src/app/layout.tsx). */}
-              <img src="/logo.svg" alt={SITE_NAME} width={219} height={80} className="h-11 w-auto sm:h-14" />
+              {/* <LogoWordmark> rather than a bare <img>: it carries the high-priority preload and
+                  the unmount cleanup that keep this the LCP element without leaking the preload
+                  onto other routes. It had been dead code since the hero was stripped on
+                  2026-07-16 — this puts it back to work, now serving the .vn lockup. */}
+              <LogoWordmark className="h-10 w-auto sm:h-12" />
             </h1>
             {/* ⚠️ ONE LINE, BUT IT MUST STAY. Google's OAuth brand review rejected this page with
                 "Your home page does not explain the purpose of your app" until a purpose statement
