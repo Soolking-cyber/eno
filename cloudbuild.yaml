@@ -66,6 +66,25 @@ steps:
       # only needs CPU for the seconds between the response and the callback finishing, which an
       # instance that is alive-but-idle already has. Cold starts are a latency question, not this one.
       - --no-cpu-throttling
+      # ⚠️ DECLARED 2026-08-02 BECAUSE eno.vn WAS OOM-ING AND NOBODY KNEW.
+      #
+      # This file never declared resources at all, so the service kept whatever an earlier manual
+      # setup left it: 1 vCPU / 1 GiB. Cloud Run logged "Memory limit of 1024 MiB exceeded" twice
+      # in 30 days (1026 and 1043 MiB used) — the container is killed and restarts, which on the
+      # licensed marketplace means dropped in-flight requests and, since `after()` callbacks die
+      # with the instance, silently discarded background work of exactly the kind the
+      # --no-cpu-throttling line above exists to protect.
+      #
+      # 2Gi matches eno-forum, which runs the SAME IMAGE and has logged zero OOMs on it. Memory is
+      # the cheap axis on Cloud Run — roughly a tenth of CPU per unit — so this buys reliability
+      # for very little, and the same commit takes a whole always-on 2-vCPU instance off
+      # eno-forum, which is where the money actually was.
+      #
+      # CPU deliberately stays at 1: eno.vn's cost is bounded by scaling to zero when idle
+      # (no --min-instances here, on purpose), and 1 vCPU has never been the constraint — memory
+      # was.
+      - --memory=2Gi
+      - --cpu=1
       - --quiet
 availableSecrets:
   secretManager:

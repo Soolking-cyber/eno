@@ -95,11 +95,32 @@ steps:
       - --image=asia-southeast1-docker.pkg.dev/$PROJECT_ID/eno/${_IMAGE}:${_TAG}
       - --region=asia-southeast1
       - --project=$PROJECT_ID
+      # ⚠️ SIZED DOWN 2026-08-02 AFTER MEASURING THE BILL, AND THE OLD SHAPE WAS BACKWARDS.
+      #
+      # This profile was 2 vCPU / 2 GiB with --min-instances=1. Combined with --no-cpu-throttling
+      # (which bills CPU for the INSTANCE LIFETIME, not just request time) that pinned one
+      # always-on instance at double resources — on the LOWER-traffic of the two sites. Measured
+      # on the first full day after eno-vn also got --no-cpu-throttling: ₫75,815 of Cloud Run in
+      # 24h, forecast ₫1.94M/month, against ₫72,511 for the whole PREVIOUS month.
+      #
+      # Meanwhile eno.vn — the licensed marketplace and the actual product — ran on 1 vCPU / 1 GiB
+      # and exceeded its memory limit twice in 30 days (1026 and 1043 MiB used). The big instance
+      # was pinned to the site that needed it least.
+      #
+      # --cpu=1 halves the dominant term (CPU costs roughly ten times memory per unit here) and
+      # matches what eno.vn already runs the same image on. MEMORY STAYS AT 2Gi: 1 GiB is measurably
+      # not enough for this app, and memory is the cheap axis — shrinking it would trade a small
+      # saving for real OOM restarts.
       - --memory=2Gi
-      - --cpu=2
+      - --cpu=1
       - --no-cpu-throttling
       - --timeout=320s
-      - --min-instances=1
+      # ⚠️ NO --min-instances. It was 1, which with --no-cpu-throttling is a 24/7 charge whether or
+      # not anybody visits. eno.forum is pre-launch and low traffic, so it was buying a warm cold
+      # start for almost nobody. The cost of removing it is a cold start (a few seconds) for the
+      # first visitor after an idle period — restore it when traffic makes that a real complaint,
+      # not before. `after()` work is unaffected: --no-cpu-throttling is what that depends on, and
+      # it stays.
       # ⚠️ THE RUNTIME SECRET, DECLARED HERE BECAUSE BUILD-TIME AND RUNTIME ENV ARE DIFFERENT THINGS
       # AND CONFLATING THEM BROKE THE CUTOVER. availableSecrets above feeds the BUILD (NEXT_PUBLIC_*
       # inlining, SSG data collection) through a BuildKit mount that never reaches the image. What
