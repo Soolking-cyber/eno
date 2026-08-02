@@ -43,8 +43,16 @@ const PROJECT = process.env.GOOGLE_VERTEX_PROJECT
 const LOCATION = process.env.VERTEX_SEARCH_LOCATION || 'global'
 const DATASTORE = process.env.VERTEX_SEARCH_DATASTORE_ID
 const ENGINE = process.env.VERTEX_SEARCH_ENGINE_ID
-const RAW_CREDS = process.env.GOOGLE_VERTEX_CREDENTIALS
-const USE_ADC = process.env.GOOGLE_VERTEX_ADC === '1'
+const RAW_CREDS = process.env.GOOGLE_VERTEX_CREDENTIALS?.trim()
+// ⚠️ `K_SERVICE` IS NOT DECORATION — it is what stops a LAPTOP reaching the production index, and
+// the risk is higher here than for Gemini because this module WRITES (upsert/purge of documents).
+// Production secrets carry GOOGLE_VERTEX_ADC=1 beside the production project id, and pulling prod
+// env into a local `.env` is routine here; without this guard a developer who synced the env but
+// not a key would authenticate as their own gcloud identity against the live data store. K_SERVICE
+// is set only by the Cloud Run runtime — the same test cache-handler.cjs uses (line 186) — so ADC
+// can only engage where the metadata server exists. Found by codex + Gemini 3.1 Pro reviewing the
+// sibling change in gemini.ts, 2026-08-02, after this file had already shipped with the hole.
+const USE_ADC = process.env.GOOGLE_VERTEX_ADC === '1' && !!process.env.K_SERVICE
 
 export function vertexConfigured(): boolean {
   return !!(PROJECT && (RAW_CREDS || USE_ADC) && (DATASTORE || ENGINE))
