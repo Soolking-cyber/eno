@@ -13,6 +13,7 @@ import { isNativeApp, nativeGoogleSignIn } from '@/lib/native-auth'
 import { googleIdentityEnabled, requestGoogleIdToken } from '@/lib/google-identity'
 import { useTurnstile } from './turnstile'
 import { canonicalEmail } from '@/lib/email-alias'
+import { AUTH_USES_REQUEST_ORIGIN } from '@/lib/auth-origin'
 
 const RESEND_SECONDS = 60
 // SMS resend cooldown escalates per send (mirrors the server schedule in
@@ -204,9 +205,12 @@ export function SignInForm({ className }: { className?: string }) {
   // or a preview host must still land on the eno.vn/auth/callback that's in Supabase's redirect
   // allow-list (and whose session cookies are scoped to eno.vn) — otherwise OAuth returns to a host
   // where the cookie doesn't apply and the login never sticks. Dev keeps the local origin.
+  // AUTH_USES_REQUEST_ORIGIN covers `next dev` AND `npm run preview:*` (a production build that
+  // opted in via NEXT_PUBLIC_LOCAL_AUTH=1) — without the second case, signing in on localhost:3100
+  // bounced to https://eno.vn. src/lib/auth-origin.ts explains why the flag is explicit.
   const authOrigin = (() => {
     if (typeof window === 'undefined') return ''
-    if (process.env.NODE_ENV === 'development') return window.location.origin
+    if (AUTH_USES_REQUEST_ORIGIN) return window.location.origin
     return process.env.NEXT_PUBLIC_APP_URL || window.location.origin
   })()
   // Where to resume after signing in — the page the visitor triggered sign-in from.

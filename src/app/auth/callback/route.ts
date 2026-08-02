@@ -3,6 +3,7 @@ import { createSupabaseServer } from '@/lib/supabase/server'
 import { authRedirect, finishSignIn } from '@/lib/auth-finish'
 import { safeNextPath } from '@/lib/url'
 import { NATIVE_OAUTH_REDIRECT } from '@/lib/native-auth'
+import { serverAuthUsesRequestOrigin, isLoopbackHost, loopbackOrigin } from '@/lib/auth-origin'
 
 // OAuth / magic-link callback — exchanges the code for a session, then redirects.
 export async function GET(request: Request) {
@@ -12,10 +13,17 @@ export async function GET(request: Request) {
   // THAT host does not carry the eno.vn-scoped session cookies `exchangeCodeForSession` just set,
   // so the browser lands logged-OUT and bounces through /signin → /onboard → … (and the /api/* edge
   // pin then 403s /api/me). In dev we keep the request origin so the round-trip stays on localhost.
+  // AUTH_USES_REQUEST_ORIGIN is true in `next dev` and in a preview build that opted in with
+  // NEXT_PUBLIC_LOCAL_AUTH=1 (scripts/preview.mjs sets it; the deploy env never does). The loopback
+  // check is defence in depth: `request.url`'s host is client-influenceable, so even a build that
+  // wrongly carried the flag could not be talked into redirecting a real visitor off-site.
+  // See src/lib/auth-origin.ts.
   const origin =
-    process.env.NODE_ENV === 'development'
-      ? url.origin
-      : new URL(process.env.NEXT_PUBLIC_APP_URL || 'https://eno.vn').origin
+    serverAuthUsesRequestOrigin() && isLoopbackHost(request.headers.get('host'))
+      ? loopbackOrigin(request.headers.get('host')!)
+      : process.env.NODE_ENV === 'development'
+        ? url.origin
+        : new URL(process.env.NEXT_PUBLIC_APP_URL || 'https://eno.vn').origin
   const code = url.searchParams.get('code')
   // Same-origin guard — never redirect to an attacker-supplied external URL.
   const next = safeNextPath(url.searchParams.get('next'), origin)

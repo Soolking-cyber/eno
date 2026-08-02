@@ -2,6 +2,7 @@ import type { EmailOtpType } from '@supabase/supabase-js'
 import { createSupabaseServer } from '@/lib/supabase/server'
 import { authRedirect, finishSignIn } from '@/lib/auth-finish'
 import { safeNextPath } from '@/lib/url'
+import { serverAuthUsesRequestOrigin, isLoopbackHost, loopbackOrigin } from '@/lib/auth-origin'
 
 // Where the emailed magic link lands.
 //
@@ -38,10 +39,14 @@ export async function GET(request: Request) {
   const url = new URL(request.url)
   // Same canonical-origin discipline as /auth/callback: the redirect must land on the
   // host whose cookies we just set, never a preview or www host.
+  // Preview builds opt in via NEXT_PUBLIC_LOCAL_AUTH=1 (scripts/preview.mjs), gated on a loopback
+  // host so the flag can never redirect real traffic. See src/lib/auth-origin.ts.
   const origin =
-    process.env.NODE_ENV === 'development'
-      ? url.origin
-      : new URL(process.env.NEXT_PUBLIC_APP_URL || 'https://eno.vn').origin
+    serverAuthUsesRequestOrigin() && isLoopbackHost(request.headers.get('host'))
+      ? loopbackOrigin(request.headers.get('host')!)
+      : process.env.NODE_ENV === 'development'
+        ? url.origin
+        : new URL(process.env.NEXT_PUBLIC_APP_URL || 'https://eno.vn').origin
 
   const tokenHash = url.searchParams.get('token_hash')
   const type = url.searchParams.get('type')

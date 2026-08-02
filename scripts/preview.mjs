@@ -51,6 +51,17 @@ const env = {
   NEXT_PUBLIC_ENO_EDITION: cfg.edition,
   NEXT_PUBLIC_APP_URL: cfg.url,
   NODE_ENV: 'production',
+  // ⚠️ THE ONE THING THAT MAKES SIGN-IN USABLE LOCALLY, and it is set HERE and nowhere else.
+  // Auth pins its return host to NEXT_PUBLIC_APP_URL (a real security control — see
+  // src/lib/auth-origin.ts), and the only escape hatch used to be NODE_ENV==='development'. This
+  // is a production build on purpose, so without the flag every sign-in on :3100 redirected to
+  // https://eno.vn — and worse, the magic link we MINT pointed there too, so clicking it from a
+  // local sign-in would have completed the login on PRODUCTION.
+  // Cloud Build's env comes from Secret Manager, which does not contain this key, so a deployed
+  // artifact has it absent and the hatch folds shut. The server side additionally requires a
+  // loopback request host.
+  NEXT_PUBLIC_LOCAL_AUTH: '1',
+  LOCAL_AUTH: '1',
 }
 
 if (!serveOnly) {
@@ -71,14 +82,14 @@ if (!existsSync(standalone)) {
   process.exit(1)
 }
 
-// ⚠️ THE COPY THE Dockerfile DOES, REPRODUCED — WITHOUT IT EVERY ASSET 404s AND THE PAGE
-// LOOKS BROKEN FOR A REASON THAT HAS NOTHING TO DO WITH YOUR CHANGE. `next build` emits a
-// self-contained server at .next/standalone/server.js but deliberately does NOT copy
-// .next/static or public/ into it; the Dockerfile does that in two COPY lines (see
-// Dockerfile: `COPY .next/static ./.next/static` and `COPY public ./public`). server.js
-// resolves both relative to ITS OWN directory, so `npm run start` from the repo root serves
-// HTML with no CSS, no JS and no images. That is why `npm run start` alone was never a
-// usable preview.
+// A SAFETY NET, NOT THE MAIN MECHANISM — `npm run build` already appends this same copy
+// (`cp -r .next/static .next/standalone/.next/ && cp -r public .next/standalone/`), and the
+// Dockerfile does the equivalent in two COPY lines. It matters because `next build` emits a
+// self-contained .next/standalone/server.js that deliberately does NOT include either, and
+// server.js resolves both relative to ITS OWN directory — so a standalone server started
+// after a bare `next build` serves HTML with no CSS, no JS and no images, which looks like a
+// broken change rather than a missing copy. Repeating it here costs milliseconds and covers
+// `--serve` against a tree built some other way.
 cpSync(join(ROOT, '.next', 'static'), join(standalone, '.next', 'static'), { recursive: true })
 cpSync(join(ROOT, 'public'), join(standalone, 'public'), { recursive: true })
 

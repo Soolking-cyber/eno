@@ -8,6 +8,7 @@ import { canonicalEmail } from '@/lib/email-alias'
 import { sendMail } from '@/lib/mail'
 import { renderSignInEmail } from '@/lib/emails/sign-in-link'
 import { renderSignInCodeEmail } from '@/lib/emails/sign-in-code'
+import { serverAuthUsesRequestOrigin, isLoopbackHost, loopbackOrigin } from '@/lib/auth-origin'
 
 // Magic-link sender — eno.vn's own, replacing supabase.auth.signInWithOtp({ email }).
 //
@@ -98,7 +99,15 @@ export async function POST(req: Request) {
     )
   }
 
-  const origin = process.env.NEXT_PUBLIC_APP_URL || 'https://eno.vn'
+  // ⚠️ THIS ONE GOES IN AN EMAIL, so it is the origin that matters most for local testing: with the
+  // canonical value the magic link we mint points at https://eno.vn, and clicking it from a
+  // localhost sign-in silently completes the login ON PRODUCTION. A preview build opts in via
+  // NEXT_PUBLIC_LOCAL_AUTH=1 and only for a loopback request host — see src/lib/auth-origin.ts.
+  const reqUrl = new URL(req.url)
+  const origin =
+    serverAuthUsesRequestOrigin() && isLoopbackHost(req.headers.get('host'))
+      ? loopbackOrigin(req.headers.get('host')!)
+      : process.env.NEXT_PUBLIC_APP_URL || 'https://eno.vn'
   // `next` is where the visitor resumes after signing in. It arrives from the client, so
   // it goes through the same same-origin guard /auth/callback uses — an open redirect
   // here would hand the freshly-minted session to whoever crafted the link.

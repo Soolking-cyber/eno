@@ -121,10 +121,10 @@ playwright/vitest configs) — a docs-only push to main does NOT deploy, so thos
 ### Local review, before saying anything is ready
 
 ```bash
-npm run dev:vn          # marketplace, :3000   — fast iteration
-npm run dev:forum       # services,    :3001   — both editions can run at once
+npm run dev:vn          # marketplace, :3000   — fast iteration, hot reload
+npm run dev:forum       # services,    :3001   — ⚠️ NOT at the same time, see below
 npm run preview:vn      # marketplace, :3100   — PRODUCTION build, the real artifact
-npm run preview:forum   # services,    :3101
+npm run preview:forum   # services,    :3101   — CAN run alongside a dev server
 npm run verify:local    # unit + tsc + smoke + seo + content + sec-probe vs :3100
 E2E_BASE=http://localhost:3100 npm run e2e:guest
 ```
