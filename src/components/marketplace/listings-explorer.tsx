@@ -1520,7 +1520,28 @@ export function ListingsExplorer({
                 block is not believed to be what fixes or breaks verification — but if the
                 name-mismatch or purpose complaint returns after the project mix-up is sorted, a
                 painted text heading here is the first thing to try, NOT another image. */}
-            <h1 className="sr-only">{SITE_NAME}</h1>
+            {/* ⚠️ VISIBLE, PAINTED TEXT — AND IT IS THE ONLY STATE OF THIS HEADING THAT GOOGLE HAS
+                NEVER REJECTED. The history, because it has now cost six submissions:
+                  sr-only text        → "does not explain the purpose" + "name does not match"
+                  visible plain text  → the purpose complaint CLEARED
+                  wordmark <img>      → "name does not match" returned
+                  nothing at all      → "name does not match" again (2026-08-02)
+                Measured on the live page in the last state: zero painted "eno.vn" text nodes in
+                the top 800px with JS on AND off — the name existed only as an <img> in the header
+                and as plain text at y=3691, in the footer. An automated checker reading rendered
+                text finds nothing to match the console's "eno.vn" against.
+
+                ⚠️ SO IT MUST STAY TEXT. Not an image, not sr-only, not a background. If the hero
+                is restyled, the literal string SITE_NAME has to remain something a text extractor
+                can see above the fold. One line carries both complaints at once — the name for the
+                match, the trailing clause for "explain the purpose of your app" — which is why it
+                is a single sentence rather than the heading-plus-paragraph the owner twice called
+                "ugly ducklings". */}
+            <h1 className="mb-5 text-center text-sm leading-relaxed text-body sm:text-base">
+              <span className="font-semibold text-foreground">{SITE_NAME}</span>
+              {' — '}
+              <Tr text="the trusted marketplace for internationals in Vietnam" />
+            </h1>
             {/* ⚠️ THE PURPOSE SENTENCE THAT SAT HERE IS GONE (owner, 2026-08-02) — and it was not
                 decoration, so anyone restoring copy to this hero should know what it was doing.
                 Google's OAuth brand review rejected this page with "Your home page does not explain
