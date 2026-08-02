@@ -224,7 +224,14 @@ export function Footer() {
 
         <div className="mt-6 flex flex-col items-center justify-between gap-2 pt-5 text-xs text-body sm:flex-row">
           <p className="flex items-center gap-1.5">
-            <span>© {new Date().getFullYear()} eno.vn — {tr('All rights reserved.', 'Mọi quyền được bảo lưu.')}</span>
+            {/* ⚠️ SITE_NAME, NOT A LITERAL — a copyright line is a claim about WHO OPERATES THIS
+                SITE, so eno.forum asserting "© eno.vn" was the licensed marketplace claiming
+                ownership of a service it is not licensed to run. It survived the 2026-08-02 wordmark
+                sweep because it hid among the eno.vn BACKLINKS the forum carries on purpose ("About
+                eno.vn", "Browse the eno.vn marketplace") — those are wanted; this was not. Grepping
+                the live forum for "eno.vn" returns ~28 hits and almost all of them are correct,
+                which is exactly why this one needed reading rather than counting. */}
+            <span>© {new Date().getFullYear()} {SITE_NAME} — {tr('All rights reserved.', 'Mọi quyền được bảo lưu.')}</span>
             <span aria-hidden="true">·</span>
             <span>{tr('Made in Saigon', 'Làm tại Sài Gòn')} <span aria-hidden="true">❤️</span></span>
           </p>

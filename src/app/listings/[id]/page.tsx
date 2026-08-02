@@ -142,7 +142,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       title: ogTitle,
       description: ogDesc,
       url: `${hostUrl}/listings/${id}`,
-      siteName: 'eno.vn',
+      // SITE_NAME, not a literal: this file already uses it for every <title> above, and the
+      // hardcoded value made eno.forum's listing shares announce eno.vn as the publishing site.
+      siteName: SITE_NAME,
       type: 'website',
       images: images.map((img: string) => ({ url: img })),
     },
