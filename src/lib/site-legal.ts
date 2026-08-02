@@ -156,4 +156,16 @@ export const TOS_VERSION = '1'
 // registration at online.gov.vn is confirmed). Drives the always-visible bilingual
 // notice. Flip to false on the day the registration is confirmed — and add the
 // "Đã đăng ký Bộ Công Thương" badge to the footer at the same time.
-export const PRELAUNCH = true
+//
+// ⚠️ FLIPPED OFF 2026-08-02 ON THE OWNER'S INSTRUCTION ("remove this"), AND THE REGISTRATION IT
+// WAITS ON IS NOT YET CONFIRMED — so this is ahead of the condition written above, deliberately,
+// and it is worth knowing why the line existed. The banner was the visible statement that eno.vn is
+// in test operation rather than trading, which is the mitigation a sàn TMĐT relies on while its
+// MoIT registration is pending. Removing it presents the site as operating normally.
+//
+// Two consequences to carry into the Monday counsel meeting:
+//   · the footer still has no "Đã đăng ký Bộ Công Thương" badge, because there is no registration
+//     number to put in it — so the site now shows neither the notice nor the badge.
+//   · flip this back to `true` with a one-line change if counsel wants the notice restored; nothing
+//     else needs touching, the banner component reads only this constant.
+export const PRELAUNCH = false

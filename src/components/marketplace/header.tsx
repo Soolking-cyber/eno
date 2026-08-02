@@ -297,7 +297,26 @@ export function Header() {
 
               Square: 1024×1024 intrinsic with h-8 w-8, so it reserves a 32×32 box before load (no
               CLS) and hands the header search back the ~65px the .vn lockup was taking on mobile. */}
-          <img src="/logo-mark.svg" alt={SITE_NAME} width={1024} height={1024} className="h-8 w-8" />
+          {/* h-12 = 48px, matching the header search pill's measured height exactly (owner,
+              2026-08-02: "make logo mark as tall as the searchbar next to it"), so the two line up
+              as one row instead of the mark floating small beside it. Square, so it costs 16px of
+              width — the search form is `min-w-0 flex-1` and absorbs it. */}
+          <img src="/logo-mark.svg" alt={SITE_NAME} width={1024} height={1024} className="h-12 w-12" />
+          {/* ⚠️ THE NAME AS PAINTED TEXT, ON EVERY PAGE — this is the icon+wordmark lockup every
+              brand header uses, and it is also the only remaining answer to Google's "the app name
+              … does not match the app name on your home page", which has now been returned SEVEN
+              times against a console field that demonstrably reads "eno.vn".
+              The name lived only in images and metadata: an <img alt> is never painted, and both
+              /logo-mark.svg and /logo-dotvn.svg are <path> geometry with zero <text>, so a text
+              extractor finds no glyph anywhere above the fold. The hero tagline that briefly
+              provided it was removed at the owner's request (twice), so it belongs HERE instead —
+              small, permanent, on every route, and out of the hero the owner wants clean.
+              ⚠️ `sm:` NOT `xs:` — this project defines no `xs` breakpoint (Tailwind v4, theme in
+              globals.css), so `hidden xs:inline` would have hidden the name at EVERY width and
+              silently defeated the whole point of adding it. Verified against the theme, not
+              assumed. At <640px the mark alone carries the brand and the search bar keeps the
+              width; the hero wordmark and the sr-only <h1> still name the page there. */}
+          <span className="hidden text-lg font-bold leading-none tracking-tight text-foreground sm:inline">{SITE_NAME}</span>
         </Link>
 
         {showSearch ? (
