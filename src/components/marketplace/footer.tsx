@@ -8,6 +8,7 @@ import { handleExternalClick } from '@/lib/native-browser'
 import { COMPANY } from '@/lib/site-legal'
 import { TAXONOMY } from '@/lib/taxonomy'
 import { SERVICES_FOOTER_GROUPS, SERVICES_FOOTER_LINKS } from '@/lib/edition-services-copy'
+import { IS_SERVICES, SITE_NAME } from '@/lib/edition'
 
 /**
  * One footer entry.
@@ -134,9 +135,18 @@ export function Footer() {
         <div className="grid grid-cols-2 gap-8 border-t border-border/60 pt-12 md:grid-cols-4">
           {/* Brand column */}
           <div className="col-span-2 md:col-span-1 space-y-3">
-            <img src="/logo-mark.svg" alt="eno.vn" width={36} height={36} className="h-9 w-9" />
+            {/* alt + tagline are PER-EDITION. Both said "eno.vn" unconditionally, so eno.forum's
+                footer introduced itself as the licensed Vietnamese marketplace — the leak class
+                SITE_NAME exists for. The two taglines are spelled out as separate literals rather
+                than interpolated, because scripts/gen-ui-strings.mjs harvests `tr("…", "…")` by
+                matching string literals and silently skips a template expression: interpolating
+                SITE_NAME here would compile, render, and then ship untranslated to every other
+                language. */}
+            <img src="/logo-mark.svg" alt={SITE_NAME} width={36} height={36} className="h-9 w-9" />
             <p className="max-w-[220px] text-xs leading-relaxed text-muted-foreground">
-              {tr("eno.vn — Vietnam's trusted marketplace for the international community.", 'eno.vn — chợ uy tín cho cộng đồng quốc tế tại Việt Nam.')}
+              {IS_SERVICES
+                ? tr("eno.forum — Vietnam's trusted marketplace for the international community.", 'eno.forum — chợ uy tín cho cộng đồng quốc tế tại Việt Nam.')
+                : tr("eno.vn — Vietnam's trusted marketplace for the international community.", 'eno.vn — chợ uy tín cho cộng đồng quốc tế tại Việt Nam.')}
             </p>
             {/* The only genuinely OFF-SITE links on the page. In the native shell a plain
                 cross-origin anchor is a HARD EXIT — Capacitor hands the URL to Safari/Chrome and

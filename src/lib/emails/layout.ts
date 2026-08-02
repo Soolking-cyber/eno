@@ -7,6 +7,13 @@
 // The logo is the raster wordmark public/logo.png (1600×400 → 112×28 here):
 // email clients can't render SVG, and Gmail proxies images, so it must be a
 // plain absolute https URL on the prod origin.
+//
+// ⚠️ THE ALT TEXT IS PER-EDITION (SITE_NAME), NOT A LITERAL. Gmail and Outlook show alt text
+// whenever images are blocked — which is the DEFAULT for a first email from an unknown sender — so
+// a hardcoded "eno.vn" meant every eno.forum email opened with the licensed marketplace's name in
+// the sender's own header block. Same leak class as the 58 page titles SITE_NAME was introduced for.
+
+import { SITE_NAME } from '@/lib/edition'
 
 export const EMAIL = {
   BLUE: '#0A66C2',
@@ -55,7 +62,7 @@ export function renderBrandEmail(opts: {
       <!-- header: the real wordmark, linked home -->
       <tr><td style="padding:22px 24px 6px;">
         <a href="${esc(origin)}" style="text-decoration:none;">
-          <img src="${esc(origin)}/logo.png" width="112" height="28" alt="eno.vn" style="display:block;width:112px;height:28px;border:0;" />
+          <img src="${esc(origin)}/logo.png" width="112" height="28" alt="${esc(SITE_NAME)}" style="display:block;width:112px;height:28px;border:0;" />
         </a>
       </td></tr>
       <!-- body -->

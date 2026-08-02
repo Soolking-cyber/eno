@@ -112,3 +112,28 @@ export const IS_MARKETPLACE = EDITION === 'marketplace'
  * Organization JSON-LD that had eno.forum declaring eno.vn as the publisher of its visa service.
  */
 export const SITE_NAME = IS_SERVICES ? 'eno.forum' : 'eno.vn'
+
+/**
+ * The wordmark this deployment brands itself with — the picture of its own name.
+ *
+ * ⚠️ THE SAME LEAK CLASS AS SITE_NAME ABOVE, AND IT WENT LIVE ON eno.forum FOR SEVEN HOURS
+ * (2026-08-02). /logo-dotvn.svg spells out "eno.vn", and it was rendered unconditionally in both
+ * the header and the home hero, so eno.forum's own home page showed the LICENSED marketplace's
+ * name in 40px letters — while its <h1> screen-reader text said "eno.forum" beside it. That is the
+ * exact confusion the edition split exists to prevent: eno.forum is a separate operator, and a page
+ * that announces two companies at once is worse than one that announces the wrong one.
+ *
+ * eno.forum therefore keeps the plain "eno" mark (owner: "the forum one wordmark leave eno only").
+ * "eno" is common to both brands and claims neither domain, so it is the honest mark for a site
+ * whose corporate identity is still an open question for counsel.
+ *
+ * ⚠️ eno.vn MUST KEEP THE .vn LOCKUP. It is not styling: Google's OAuth brand review rejected that
+ * app repeatedly for showing a name that disagreed with the configured one, and serving the short
+ * mark there would reintroduce exactly that. See logo-wordmark.tsx for the whole history.
+ *
+ * Both files ship in both bundles — a public asset path is not a legal leak, unlike the visa/
+ * itinerary COPY that edition-services-copy.ts exists to keep out of the marketplace artifact.
+ */
+export const SITE_WORDMARK = IS_SERVICES
+  ? { src: '/logo.svg', width: 219, height: 80 }
+  : { src: '/logo-dotvn.svg', width: 1431, height: 300 }

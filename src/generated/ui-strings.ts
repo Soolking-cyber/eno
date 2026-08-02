@@ -1614,6 +1614,7 @@ export const UI_STRINGS: string[] = [
   "eno cần quyền máy ảnh — bật trong Cài đặt để chụp ảnh.",
   "eno doesn't hold your money. Meet in a public place, check the item, and only pay once you're happy — never transfer a deposit to strangers.",
   "eno needs camera access — turn it on in Settings to take photos.",
+  "eno.forum — Vietnam's trusted marketplace for the international community.",
   "eno.vn is the trusted marketplace for Vietnam’s international community. Here’s everything you need in a couple of minutes.",
   "eno.vn — Vietnam's trusted marketplace for the international community.",
   "failed",

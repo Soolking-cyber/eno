@@ -17,7 +17,7 @@ import {
 import { toast } from 'sonner'
 import type { SerializedListingCard, SerializedCategory } from '@/lib/types'
 import { CATEGORY_COLOR_CLASSES, timeAgo } from '@/lib/types'
-import { SITE_NAME } from '@/lib/edition'
+import { IS_MARKETPLACE, SITE_NAME } from '@/lib/edition'
 import { LogoWordmark } from './logo-wordmark'
 import { CategoryIcon } from './category-icons'
 import { ListingCard } from './listing-card'
@@ -1500,13 +1500,28 @@ export function ListingsExplorer({
                 read as boilerplate (owner: "remove these ugly ducklings and use eno.vn wordmark").
                 The <h1> keeps its exact SEO string for crawlers and screen readers via sr-only;
                 what a human sees is the wordmark. */}
-            <h1 className="mb-3 flex justify-center">
+            {/* mb-3 only when something is actually rendered: `sr-only` is position:absolute, so on
+                eno.forum this <h1> collapses to zero height and the margin would be 12px of dead
+                space above the search bar — a visible remnant of the element that was removed. */}
+            <h1 className={cn('flex justify-center', IS_MARKETPLACE && 'mb-3')}>
               <span className="sr-only">{SITE_NAME}</span>
-              {/* <LogoWordmark> rather than a bare <img>: it carries the high-priority preload and
+              {/* ⚠️ MARKETPLACE ONLY — eno.forum's hero shows NO wordmark (owner, 2026-08-02:
+                  "remove eno.vn above searchbar"). LogoWordmark serves /logo-dotvn.svg, which
+                  spells out the LICENSED marketplace's name; rendering it here unconditionally put
+                  "eno.vn" in 40px letters at the top of eno.forum's home page, directly beside an
+                  <h1> whose screen-reader text said "eno.forum". eno.forum still names itself — in
+                  its <title>, in the sr-only text above, and in the header's plain "eno" mark
+                  (SITE_WORDMARK) — it just no longer does it in the other company's name.
+
+                  ⚠️ DO NOT "SIMPLIFY" THIS BY GIVING BOTH EDITIONS THE SHORT MARK. On eno.vn this
+                  image is the only thing on the page a human reviewer reads as the site's name, and
+                  Google rejects the OAuth consent screen when it disagrees with the configured one.
+
+                  <LogoWordmark> rather than a bare <img>: it carries the high-priority preload and
                   the unmount cleanup that keep this the LCP element without leaking the preload
                   onto other routes. It had been dead code since the hero was stripped on
                   2026-07-16 — this puts it back to work, now serving the .vn lockup. */}
-              <LogoWordmark className="h-10 w-auto sm:h-12" />
+              {IS_MARKETPLACE ? <LogoWordmark className="h-10 w-auto sm:h-12" /> : null}
             </h1>
             {/* ⚠️ THE PURPOSE SENTENCE THAT SAT HERE IS GONE (owner, 2026-08-02) — and it was not
                 decoration, so anyone restoring copy to this hero should know what it was doing.
