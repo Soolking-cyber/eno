@@ -115,12 +115,22 @@ steps:
       - --cpu=1
       - --no-cpu-throttling
       - --timeout=320s
-      # ⚠️ NO --min-instances. It was 1, which with --no-cpu-throttling is a 24/7 charge whether or
-      # not anybody visits. eno.forum is pre-launch and low traffic, so it was buying a warm cold
-      # start for almost nobody. The cost of removing it is a cold start (a few seconds) for the
-      # first visitor after an idle period — restore it when traffic makes that a real complaint,
-      # not before. `after()` work is unaffected: --no-cpu-throttling is what that depends on, and
-      # it stays.
+      # ⚠️ EXPLICITLY 0 — DELETING THE FLAG DOES NOT CLEAR IT, WHICH IS HOW THIS WAS MISSED ONCE.
+      #
+      # It was --min-instances=1, which with --no-cpu-throttling is a 24/7 charge whether or not
+      # anybody visits. The first attempt at this simply removed the line, and the next deploy
+      # changed nothing: `gcloud run deploy` only applies flags you PASS and preserves the
+      # service's existing value for everything you omit. Verified after that deploy — cpu and
+      # memory had both moved, and minScale was still 1.
+      #
+      # So an unwanted setting has to be overwritten, never omitted. Same lesson the
+      # --no-cpu-throttling comment in cloudbuild.yaml records from the other direction: what is
+      # not declared here is whatever somebody last left on the service.
+      #
+      # The cost of 0 is a cold start (a few seconds) for the first visitor after an idle period —
+      # restore it when traffic makes that a real complaint, not before. `after()` work is
+      # unaffected: that depends on --no-cpu-throttling, which stays.
+      - --min-instances=0
       # ⚠️ THE RUNTIME SECRET, DECLARED HERE BECAUSE BUILD-TIME AND RUNTIME ENV ARE DIFFERENT THINGS
       # AND CONFLATING THEM BROKE THE CUTOVER. availableSecrets above feeds the BUILD (NEXT_PUBLIC_*
       # inlining, SSG data collection) through a BuildKit mount that never reaches the image. What
