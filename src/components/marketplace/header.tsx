@@ -279,9 +279,7 @@ export function Header() {
           href="/"
           prefetch={false}
           onClick={() => window.dispatchEvent(new CustomEvent('eno:reset-home'))}
-          // gap-2 separates the mark from the wordmark text added 2026-08-02 — without it the two
-          // touch, since this flex row previously held a single <img> and needed no gap.
-          className="flex shrink-0 items-center gap-2 transition-transform duration-200 hover:scale-110 active:scale-95"
+          className="flex shrink-0 items-center transition-transform duration-200 hover:scale-110 active:scale-95"
           aria-label={SITE_NAME}
         >
           {/* The square "e" mark (owner, 2026-08-02), replacing the wide "eno.vn" lockup that lived
@@ -304,21 +302,16 @@ export function Header() {
               as one row instead of the mark floating small beside it. Square, so it costs 16px of
               width — the search form is `min-w-0 flex-1` and absorbs it. */}
           <img src="/logo-mark.svg" alt={SITE_NAME} width={1024} height={1024} className="h-12 w-12" />
-          {/* ⚠️ THE NAME AS PAINTED TEXT, ON EVERY PAGE — this is the icon+wordmark lockup every
-              brand header uses, and it is also the only remaining answer to Google's "the app name
-              … does not match the app name on your home page", which has now been returned SEVEN
-              times against a console field that demonstrably reads "eno.vn".
-              The name lived only in images and metadata: an <img alt> is never painted, and both
-              /logo-mark.svg and /logo-dotvn.svg are <path> geometry with zero <text>, so a text
-              extractor finds no glyph anywhere above the fold. The hero tagline that briefly
-              provided it was removed at the owner's request (twice), so it belongs HERE instead —
-              small, permanent, on every route, and out of the hero the owner wants clean.
-              ⚠️ `sm:` NOT `xs:` — this project defines no `xs` breakpoint (Tailwind v4, theme in
-              globals.css), so `hidden xs:inline` would have hidden the name at EVERY width and
-              silently defeated the whole point of adding it. Verified against the theme, not
-              assumed. At <640px the mark alone carries the brand and the search bar keeps the
-              width; the hero wordmark and the sr-only <h1> still name the page there. */}
-          <span className="hidden text-lg font-bold leading-none tracking-tight text-foreground sm:inline">{SITE_NAME}</span>
+          {/* ⚠️ NO TEXT WORDMARK BESIDE THE MARK — removed 2026-08-02 at the owner's request, one
+              hour after being added. It was added on the theory that Google's "app name does not
+              match" needed the name as PAINTED text somewhere above the fold (an <img alt> is never
+              rendered, and both logo SVGs are <path> geometry with zero <text>). A later review of
+              the live site pointed at a more likely cause — the "under construction / in test
+              operation" banner plus the placeholder business-identity fields in the footer — so the
+              text is not the load-bearing part and the header stays a clean mark.
+              The name still appears on the page: the hero wordmark image, the sr-only <h1>, the
+              <title>, og:site_name and the manifest. If the name complaint outlives the launch-
+              readiness fixes, this span is the thing to restore. */}
         </Link>
 
         {showSearch ? (
