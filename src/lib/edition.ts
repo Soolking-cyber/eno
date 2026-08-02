@@ -114,28 +114,20 @@ export const IS_MARKETPLACE = EDITION === 'marketplace'
 export const SITE_NAME = IS_SERVICES ? 'eno.forum' : 'eno.vn'
 
 /**
- * The wordmark this deployment brands itself with — the picture of its own name.
+ * ⚠️ THERE IS NO PER-EDITION WORDMARK CONSTANT ANY MORE, AND THE REASON IS WORTH KEEPING.
  *
- * ⚠️ THE SAME LEAK CLASS AS SITE_NAME ABOVE, AND IT WENT LIVE ON eno.forum FOR SEVEN HOURS
- * (2026-08-02). /logo-dotvn.svg spells out "eno.vn", and it was rendered unconditionally in both
- * the header and the home hero, so eno.forum's own home page showed the LICENSED marketplace's
- * name in 40px letters — while its <h1> screen-reader text said "eno.forum" beside it. That is the
- * exact confusion the edition split exists to prevent: eno.forum is a separate operator, and a page
- * that announces two companies at once is worse than one that announces the wrong one.
+ * A `SITE_WORDMARK` lived here for one day (2026-08-02) because the header rendered
+ * /logo-dotvn.svg — which spells out "eno.vn" — unconditionally, so eno.forum's own pages showed
+ * the LICENSED marketplace's name while their <h1> screen-reader text said "eno.forum". A page
+ * announcing two companies at once is worse than one announcing the wrong one, and that is exactly
+ * what the edition split exists to prevent.
  *
- * eno.forum therefore keeps the plain "eno" mark (owner: "the forum one wordmark leave eno only").
- * "eno" is common to both brands and claims neither domain, so it is the honest mark for a site
- * whose corporate identity is still an open question for counsel.
+ * It became unnecessary when the header moved to the square "e" mark (/logo-mark.svg): "e" claims
+ * neither domain, so one file is correct on both deployments and there is nothing to branch on.
+ * The footer had always used it that way.
  *
- * ⚠️ eno.vn MUST KEEP THE .vn LOCKUP. It is not styling: Google's OAuth brand review rejected that
- * app repeatedly for showing a name that disagreed with the configured one, and serving the short
- * mark there would reintroduce exactly that. Since the hero heading became sr-only on 2026-08-02,
- * the HEADER is the only place a human reads eno.vn's name as rendered brand — which makes this
- * constant the whole of the page's visible identity rather than half of it.
- *
- * Both files ship in both bundles — a public asset path is not a legal leak, unlike the visa/
- * itinerary COPY that edition-services-copy.ts exists to keep out of the marketplace artifact.
+ * ⚠️ THE RULE THE CONSTANT ENCODED STILL APPLIES: /logo-dotvn.svg and /logo.svg SPELL A DOMAIN, so
+ * any new call site for either must be gated on IS_MARKETPLACE / IS_SERVICES. Today the only one is
+ * the home hero in listings-explorer.tsx, which is marketplace-only. Reach for /logo-mark.svg first
+ * — an unbranded mark needs no gate and cannot leak.
  */
-export const SITE_WORDMARK = IS_SERVICES
-  ? { src: '/logo.svg', width: 219, height: 80 }
-  : { src: '/logo-dotvn.svg', width: 1431, height: 300 }

@@ -24,7 +24,7 @@ import {
   readRecentSearches, readRecentLocations, RECENT_LOCATIONS_KEY, type RecentLocation,
 } from '@/hooks/use-search-box'
 import { RECENT_SEARCHES_KEY } from '@/lib/reco-signals'
-import { SITE_NAME, SITE_WORDMARK } from '@/lib/edition'
+import { SITE_NAME } from '@/lib/edition'
 
 // The typeahead listbox this bar owns. Static (one Header per page), and distinct
 // from the hero bar's so both can be in the DOM at once without id collisions.
@@ -282,33 +282,22 @@ export function Header() {
           className="flex shrink-0 items-center transition-transform duration-200 hover:scale-110 active:scale-95"
           aria-label={SITE_NAME}
         >
-          {/* ⚠️ PER-EDITION, NEVER A LITERAL — SITE_WORDMARK in src/lib/edition.ts owns the choice
-              and records why. eno.vn shows the ".vn" lockup (a Google brand-verification
-              requirement: every heading, title and meta tag says "eno.vn", and a header reading
-              "eno" made the page state two names on every route). eno.forum shows the plain "eno"
-              mark — it must never render the licensed marketplace's name, which is exactly what a
-              hardcoded /logo-dotvn.svg did there for seven hours today.
+          {/* The square "e" mark (owner, 2026-08-02), replacing the wide "eno.vn" lockup that lived
+              here for one day.
 
-              Both marks are 300 units tall, so h-8 renders the e/n/o at the same size either way and
-              only the trailing ".vn" changes the WIDTH; the intrinsic width/height come from the
-              same constant, so the box is reserved correctly before load and there's no CLS.
+              ⚠️ /logo-mark.svg, NOT the eno-e-mark.svg in the brand kit — they are the SAME mark but
+              the brand-kit file is a rough auto-trace: 192 straight-line commands and zero curves,
+              so its edges are visibly lumpy (rendered and compared side by side, 2026-08-02). This
+              is the clean vector of it. The owner rejected the auto-trace once already for exactly
+              this: "its jaggy need version with smooth like before smooth super crisp and sharp".
 
-              ⚠️ ON eno.vn THE LOCKUP COSTS THE HEADER SEARCH ~65px, AND THAT IS THE DELIBERATE
-              TRADE (measured 2026-08-02 with Playwright, not estimated). The logo goes 87.6px →
-              152.6px wide and the search form is `min-w-0 flex-1`, so it absorbs all of it. Nothing
-              overflows at any width — documentElement.scrollWidth === clientWidth at
-              320/360/390/430/768/1280, and the action group still ends 12–32px inside the bar — but
-              the search TEXT INPUT narrows:
-                320px → form 87.4px, input 16.0px   (was ~152px / ~81px)
-                360px → form 127.4px, input 47.4px
-                390px → form 157.4px, input 77.4px
-                768px+ → 447px+, unaffected
-              The form keeps its 48px height, so the tap target is fine; what suffers is how much
-              typed text is visible on a ≤360px phone. Acceptable because this bar is the SECONDARY
-              search — it only reveals once the hero's full-width search scrolls away. If it ever
-              needs reclaiming, `h-7 w-auto sm:h-8` returns ~19px without dropping the ".vn".
-              eno.forum keeps the narrow mark and so pays none of this. */}
-          <img src={SITE_WORDMARK.src} alt={SITE_NAME} width={SITE_WORDMARK.width} height={SITE_WORDMARK.height} className="h-8 w-auto" />
+              ⚠️ NOT per-edition, unlike the lockup it replaced — and that is the point. "e" claims
+              neither domain, so it is safe on eno.forum, which must never display the licensed
+              marketplace's name. The footer has used this same file on both editions all along.
+
+              Square: 1024×1024 intrinsic with h-8 w-8, so it reserves a 32×32 box before load (no
+              CLS) and hands the header search back the ~65px the .vn lockup was taking on mobile. */}
+          <img src="/logo-mark.svg" alt={SITE_NAME} width={1024} height={1024} className="h-8 w-8" />
         </Link>
 
         {showSearch ? (

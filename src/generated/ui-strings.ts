@@ -1657,7 +1657,6 @@ export const UI_STRINGS: string[] = [
   "stop before 60s",
   "the App Store",
   "the seller",
-  "the trusted marketplace for internationals in Vietnam",
   "tin nhắn",
   "tùy chọn · 60 giây",
   "tối đa 60 giây",
