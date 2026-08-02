@@ -17,7 +17,7 @@ import {
 import { toast } from 'sonner'
 import type { SerializedListingCard, SerializedCategory } from '@/lib/types'
 import { CATEGORY_COLOR_CLASSES, timeAgo } from '@/lib/types'
-import { SITE_NAME } from '@/lib/edition'
+import { IS_MARKETPLACE, SITE_NAME } from '@/lib/edition'
 import { CategoryIcon } from './category-icons'
 import { ListingCard } from './listing-card'
 import { CaptureCard } from './capture-card'
@@ -1537,10 +1537,32 @@ export function ListingsExplorer({
                 match, the trailing clause for "explain the purpose of your app" — which is why it
                 is a single sentence rather than the heading-plus-paragraph the owner twice called
                 "ugly ducklings". */}
-            <h1 className="mb-5 text-center text-sm leading-relaxed text-body sm:text-base">
-              <span className="font-semibold text-foreground">{SITE_NAME}</span>
-              {' — '}
-              <Tr text="the trusted marketplace for internationals in Vietnam" />
+            <h1 className="mb-5 flex flex-col items-center gap-2.5">
+              {/* ⚠️ THE MARK AND THE TEXT ARE BOTH REQUIRED, FOR DIFFERENT READERS — do not drop
+                  either one. The image is what a human sees (owner, 2026-08-02: "i see the logo is
+                  not there"); the line beneath is what an automated checker reads, and it is the
+                  ONLY thing that has ever satisfied Google's "app name … does not match the app
+                  name on your home page". An <img alt> does not count: alt text is not painted, and
+                  the wordmark SVG carries 3 <path> elements and 0 <text>, so there is not a single
+                  glyph in it for a text extractor to find.
+                  Marketplace-only: /logo-dotvn.svg spells the LICENSED company's name and must
+                  never render on eno.forum. */}
+              {IS_MARKETPLACE ? (
+                <img
+                  src="/logo-dotvn.svg"
+                  alt={SITE_NAME}
+                  width={1431}
+                  height={300}
+                  fetchPriority="high"
+                  decoding="async"
+                  className="h-10 w-auto sm:h-12"
+                />
+              ) : null}
+              <span className="text-center text-sm leading-relaxed text-body sm:text-base">
+                <span className="font-semibold text-foreground">{SITE_NAME}</span>
+                {' — '}
+                <Tr text="the trusted marketplace for internationals in Vietnam" />
+              </span>
             </h1>
             {/* ⚠️ THE PURPOSE SENTENCE THAT SAT HERE IS GONE (owner, 2026-08-02) — and it was not
                 decoration, so anyone restoring copy to this hero should know what it was doing.
