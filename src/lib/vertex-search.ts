@@ -95,12 +95,49 @@ export type SearchFilters = { categorySlug?: string | null; minPriceVnd?: number
 // helps you shop AND keeps you safe — not a document-QA bot.
 const CONCIERGE_PREAMBLE = `You are eno, the friendly shield mascot of eno.vn, a trusted marketplace in Vietnam. Reply with ONE short, warm sentence in the SAME language the shopper wrote in (any language — mirror theirs exactly). Your sentence only gives a cheerful intro to the results, or kindly says nothing matched and offers to broaden the search. NEVER state any listing's price, location, trust score, dates, IDs, category, condition, or status — the product cards already show all of that, so don't repeat it. Good examples: "Here are some great motorbikes for you!" or "I couldn't find a BMW right now — want me to look at other cars?". eno keeps shoppers safe: higher-trust sellers rank first and fakes get reported. Never invent anything, and never sound robotic or mention "sources", "documents", or "context".`
 
+/**
+ * ⚠️ CATEGORY IS NOT IN HERE, AND THAT IS THE FIX FOR "AI SEARCH CANNOT FIND THINGS THAT EXIST".
+ *
+ * A hard filter is for what the BUYER said. `categorySlug` is not that — it is Gemini's guess, and
+ * the concierge prompt says so in as many words: "the single best match … This is only a HINT — when
+ * unsure use null". `buildFilter` then turned that hint into an `AND` constraint, so a wrong guess
+ * did not rank the right listing lower, it removed it from the result set entirely.
+ *
+ * Measured 2026-08-02 on the live index, which is what proved it rather than the reasoning:
+ *   query "apartment", no filter                    → Căn hộ chung cư cao cấp
+ *   query "apartment", categorySlug ANY("property") → Căn hộ chung cư cao cấp
+ *   query "apartment", categorySlug ANY("rentals")  → NOTHING
+ * The listing is filed under `property`; "apartment" reads like a rental, and BOTH categories exist
+ * (they were deliberately separated). One plausible model guess made a live listing invisible.
+ *
+ * The failure is silent and total: Vertex returns zero ids, the route falls through to the Postgres
+ * keyword ladder, and that cannot bridge languages — an English query never matches a Vietnamese
+ * title. So the buyer is told nothing exists while it sits on the browse page.
+ *
+ * PRICE STAYS A HARD FILTER, and the distinction is the whole point: "under 5 triệu" is the buyer's
+ * own words and a listing above it is genuinely not an answer. Category is inference. Inference
+ * boosts; statements filter.
+ */
 function buildFilter(f: SearchFilters): string | undefined {
   const parts: string[] = []
-  if (f.categorySlug) parts.push(`categorySlug: ANY("${f.categorySlug.replace(/"/g, '')}")`)
   if (f.minPriceVnd) parts.push(`price >= ${Math.round(f.minPriceVnd)}`)
   if (f.maxPriceVnd) parts.push(`price <= ${Math.round(f.maxPriceVnd)}`)
   return parts.length ? parts.join(' AND ') : undefined
+}
+
+/**
+ * Trust bands (always) plus the category HINT expressed the way a hint should be — as a boost that
+ * lifts the guessed category without hiding anything else.
+ *
+ * The boost is deliberately below the top trust band: a good guess should reorder the page, not
+ * outweigh the trust signal this marketplace ranks on.
+ */
+function buildBoostSpec(f: SearchFilters) {
+  const specs = [...BOOST_SPEC.conditionBoostSpecs]
+  if (f.categorySlug) {
+    specs.push({ condition: `categorySlug: ANY("${f.categorySlug.replace(/"/g, '')}")`, boost: 0.5 })
+  }
+  return { conditionBoostSpecs: specs }
 }
 
 // Trust-first ranking (the app's core signal), expressed as Vertex boost conditions
@@ -128,11 +165,38 @@ export async function conciergeSearch(query: string, f: SearchFilters = {}): Pro
     query,
     pageSize: f.take || 8,
     filter: buildFilter(f),
-    boostSpec: BOOST_SPEC,
-    // Drop weak matches so a query like "iphone" returns phones — not the apartments/
-    // TVs Vertex would otherwise pad the page with. MEDIUM is the sweet spot (HIGH
-    // returns nothing on a sparse catalog; the route then falls back to keyword search).
-    relevanceThreshold: 'MEDIUM',
+    boostSpec: buildBoostSpec(f),
+    /**
+     * ⚠️ LOW, NOT MEDIUM — MEDIUM SILENTLY BROKE EVERY CROSS-LANGUAGE SEARCH.
+     *
+     * This is a bilingual marketplace: sellers title listings in Vietnamese OR English, buyers
+     * search in either, and `titleVi` is null on every row today — so a listing carries ONE
+     * language and roughly half of all queries have to cross over. Vertex does make that match
+     * semantically, but it scores it lower than a same-language hit, and MEDIUM cut exactly
+     * there. The old comment's worry (padding a sparse catalogue) was real but it was tuned
+     * against same-language queries only.
+     *
+     * Measured 2026-08-02 against the live index, threshold varied and nothing else:
+     *   query        title language   HIGH  MEDIUM  LOW              LOWEST
+     *   "căn hộ"     Vietnamese        ∅     ✓      ✓                ✓ + noise
+     *   "apartment"  Vietnamese        ∅     ∅      ✓ the apartment  ✓ + noise
+     *   "ba lô"      English           ∅     ∅      ✓ the backpack   ✓ + noise
+     *   "túi xách"   English           ∅     ∅      ✓ the bags       ✓ + noise
+     *   "iphone"     English           ∅     ∅      ✓ the smartphone ✓ + noise
+     *   "laptop"     English           ✓     ✓      ✓                ✓ + noise
+     * Same-language passes MEDIUM; every cross-language match fails it. LOW recovers them and
+     * still returns ONE sensible row for "iphone" rather than the four-item pile LOWEST gives —
+     * so the padding this was raised against is what LOWEST does, not LOW.
+     *
+     * ⚠️ THE FAILURE WAS INVISIBLE FROM INSIDE THE APP. Vertex returned zero ids, the route fell
+     * through to the Postgres keyword ladder, and that cannot bridge languages either — so the
+     * buyer was told nothing exists while the listing sat on the browse page. Nothing errored and
+     * nothing logged.
+     *
+     * If this is ever retuned, vary ONLY the threshold and test at least one query in each
+     * direction across languages. A same-language-only test set will call MEDIUM correct again.
+     */
+    relevanceThreshold: 'LOW',
     // The generated summary needs an engine/app with LLM features enabled; if only a
     // data store is configured this is ignored and we still return ranked results.
     contentSearchSpec: {
@@ -152,7 +216,7 @@ export async function conciergeSearch(query: string, f: SearchFilters = {}): Pro
 // Plain semantic search → ordered listing ids (for a future semantic results page).
 export async function vertexSearchListingIds(query: string, f: SearchFilters = {}): Promise<string[] | null> {
   if (!vertexConfigured() || !query.trim()) return null
-  const data = await call(`${SERVING_CONFIG}:search`, 'POST', { query, pageSize: f.take || 24, filter: buildFilter(f), boostSpec: BOOST_SPEC })
+  const data = await call(`${SERVING_CONFIG}:search`, 'POST', { query, pageSize: f.take || 24, filter: buildFilter(f), boostSpec: buildBoostSpec(f) })
   return data ? idsFrom(data) : null
 }
 
