@@ -40,6 +40,28 @@ export type LegalOperator = {
   /** Personal-data protection contact (PDPL 91/2025 rights requests). */
   privacyEmail: string
   /**
+   * ⚠️ THE THREE FIELDS BELOW ARE MOCKED UNTIL THE ERC EXISTS (owner, 2026-08-02: "place suggested
+   * as mock for now then we fill up"). They were identified by reading what Chợ Tốt and Shopee
+   * actually publish — the two licensed Vietnamese marketplaces closest to this one — and every one
+   * of them is a legal disclosure we currently omit, not a design flourish.
+   *
+   * They carry PENDING like the rest, so `grep 'đang cập nhật'` still finds the whole set at once
+   * and no field silently ships a plausible-looking invention.
+   */
+  /** Legal representative — `Người đại diện theo pháp luật`. Chợ Tốt: "Nguyễn Trọng Tấn". */
+  legalRep: string
+  /**
+   * Who ISSUED the ERC and when — Chợ Tốt prints "do Sở KH & ĐT TP.HCM cấp ngày 11/01/2013".
+   * We already show the number and the date; the issuing authority was the missing third.
+   */
+  ercAuthority: string
+  /**
+   * Person accountable for site content — `Chịu trách nhiệm nội dung` (Chợ Tốt), rendered by Shopee
+   * as "Person in charge of information management". Required where a site carries user-generated
+   * content, which for us is listings, 1:1 chat AND a forum.
+   */
+  contentManager: string
+  /**
    * false while the ERC is still pending.
    *
    * ⚠️ IT IS NOT DECORATION. Copy that asserts an existing company ("operated by X, registered under
@@ -52,6 +74,18 @@ export type LegalOperator = {
 
 /** The one value every unissued registration field carries, so a grep finds all of them at once. */
 const PENDING = 'đang cập nhật'
+
+/**
+ * Store listing URLs for the native shells. EMPTY UNTIL THE APPS ARE PUBLISHED, and the footer
+ * renders a plainly-labelled "coming soon" chip rather than a link while they are.
+ *
+ * ⚠️ A PLACEHOLDER MUST NOT BE CLICKABLE. Both Chợ Tốt and Shopee lead their footer with store
+ * badges, so the slot is worth reserving — but a badge that 404s costs more trust than a missing
+ * badge, and on a marketplace whose whole pitch is trust that trade is a bad one. Filling these two
+ * strings is the entire change when the listings go live; nothing else needs touching.
+ */
+export const APP_STORE_URL = ''
+export const PLAY_STORE_URL = ''
 
 /**
  * The single pending Vietnamese entity behind both domains today.
@@ -68,6 +102,9 @@ const PENDING_VN_ENTITY: LegalOperator = {
   phone: PENDING,
   email: 'support@eno.vn',
   privacyEmail: 'support@eno.vn',
+  legalRep: PENDING,
+  ercAuthority: PENDING,
+  contentManager: PENDING,
   registered: false,
 }
 

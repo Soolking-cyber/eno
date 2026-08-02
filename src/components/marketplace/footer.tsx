@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { useLanguage } from '@/context/language-context'
 import { FORUM_URL, goToForum } from '@/lib/forum-nav'
 import { handleExternalClick } from '@/lib/native-browser'
-import { COMPANY } from '@/lib/site-legal'
+import { APP_STORE_URL, COMPANY, PLAY_STORE_URL } from '@/lib/site-legal'
 import { TAXONOMY } from '@/lib/taxonomy'
 import { SERVICES_FOOTER_GROUPS, SERVICES_FOOTER_LINKS } from '@/lib/edition-services-copy'
 import { IS_SERVICES, SITE_NAME } from '@/lib/edition'
@@ -37,6 +37,11 @@ export function Footer() {
       links: [
         { label: tr('Help center', 'Trung tâm trợ giúp'), href: '/help' },
         { label: tr('Safe trading', 'An toàn giao dịch'), href: '/safety' },
+        // ⚠️ THE PAGE ALREADY EXISTED AND NOTHING IN THE FOOTER POINTED AT IT (added 2026-08-02
+        // after comparing against Chợ Tốt, which lists "Giải quyết tranh chấp" in exactly this
+        // column). It is the disclosure a buyer goes looking for at the worst possible moment, so
+        // burying it was the wrong default; /disputes has been live and returning 200 throughout.
+        { label: tr('Dispute resolution', 'Giải quyết tranh chấp'), href: '/disputes' },
         { label: tr('Contact us', 'Liên hệ'), href: 'mailto:support@eno.vn' },
       ],
     },
@@ -217,9 +222,58 @@ export function Footer() {
         <div className="mt-10 space-y-1 pt-5 text-2xs leading-relaxed text-body">
           <p className="font-semibold text-muted-foreground">{COMPANY.name}</p>
           <p>{tr('Head office', 'Trụ sở')}: {COMPANY.address}</p>
-          <p>{tr('Business registration no.', 'GCN ĐKDN số')}: {COMPANY.erc} · {tr('issued', 'cấp')}: {COMPANY.ercIssued}</p>
+          {/* ⚠️ THE TWO NEW LINES HERE ARE MOCKS AWAITING REAL VALUES (owner, 2026-08-02: "place
+              suggested as mock for now then we fill up"). They were chosen by reading what Chợ Tốt
+              and Shopee actually publish — the licensed Vietnamese marketplaces closest to this one
+              — and each is a disclosure we were simply omitting:
+                · legal representative — Chợ Tốt: "Người đại diện theo pháp luật: Nguyễn Trọng Tấn"
+                · who is accountable for content — required where a site carries user-generated
+                  material, which here is listings, 1:1 chat AND a forum
+              The ERC line also gained the ISSUING AUTHORITY: we showed the number and the date but
+              never the issuer, which both peers print ("do Sở KH & ĐT TP.HCM cấp ngày…").
+              All three render "đang cập nhật" until src/lib/site-legal.ts is filled in — same
+              PENDING constant as the ERC, so one grep still finds the whole set and nothing here
+              invents a plausible-looking value. */}
+          <p>{tr('Legal representative', 'Người đại diện theo pháp luật')}: {COMPANY.legalRep}</p>
+          <p>
+            {tr('Business registration no.', 'GCN ĐKDN số')}: {COMPANY.erc}
+            {' · '}{tr('issued by', 'do')}: {COMPANY.ercAuthority}
+            {' · '}{tr('on', 'cấp ngày')}: {COMPANY.ercIssued}
+          </p>
+          <p>{tr('Responsible for content', 'Chịu trách nhiệm nội dung')}: {COMPANY.contentManager}</p>
           <p>{tr('Email', 'Email')}: <a href={`mailto:${COMPANY.email}`} className="transition-colors hover:text-accent-foreground">{COMPANY.email}</a> · {tr('Phone', 'Điện thoại')}: {COMPANY.phone}</p>
           <p className="text-ink-4">{tr('E-commerce platform registration with the Ministry of Industry and Trade: in progress.', 'Đăng ký sàn giao dịch TMĐT với Bộ Công Thương: đang thực hiện.')}</p>
+          {/* ⚠️ MOCKED SLOT — RESERVED, NOT LINKED (owner, 2026-08-02: "place suggested as mock for
+              now then we fill up"). Both Chợ Tốt and Shopee lead their footer with store badges, so
+              the slot earns its place; but a badge that 404s costs more trust than a missing badge,
+              and on a marketplace whose entire pitch is trust that is a bad trade. So while
+              APP_STORE_URL / PLAY_STORE_URL are empty (src/lib/site-legal.ts) these render as plain
+              labelled chips with no href — visible in review, harmless in production. Filling those
+              two strings turns them into real links; nothing else changes. */}
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <span className="text-ink-4">{tr('Get the app', 'Tải ứng dụng')}:</span>
+            {[
+              { name: 'App Store', href: APP_STORE_URL },
+              { name: 'Google Play', href: PLAY_STORE_URL },
+            ].map((store) =>
+              store.href ? (
+                <a
+                  key={store.name}
+                  href={store.href}
+                  onClick={handleExternalClick}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="rounded-lg border border-border/60 px-2 py-1 transition-colors hover:text-accent-foreground"
+                >
+                  {store.name}
+                </a>
+              ) : (
+                <span key={store.name} className="rounded-lg border border-dashed border-border/60 px-2 py-1 text-ink-4">
+                  {store.name} · {tr('coming soon', 'sắp có')}
+                </span>
+              ),
+            )}
+          </div>
         </div>
 
         <div className="mt-6 flex flex-col items-center justify-between gap-2 pt-5 text-xs text-body sm:flex-row">
