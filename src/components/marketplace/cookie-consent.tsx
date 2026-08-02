@@ -77,10 +77,23 @@ export function CookieConsent() {
   const ghost = 'rounded-lg px-3 py-1.5 text-sm font-semibold text-body transition-colors hover:bg-muted hover:text-body active:scale-95 cursor-pointer'
 
   return (
-    <DialogPrimitive.Root open={show} onOpenChange={(open) => { if (!open) close() }}>
+    /* ⚠️ NON-MODAL, AND NOT A CENTERED DIALOG — THIS COST THREE GOOGLE VERIFICATION REJECTIONS.
+       It used to be a centred popup over a `fixed inset-0 bg-black/40 backdrop-blur-[2px]`
+       backdrop, auto-opened on every first visit. Google's OAuth brand reviewer is ALWAYS a first
+       visit, so what they saw was a dialog on top of a blurred, un-clickable page — reported back
+       as "Your home page is behind a login page" and, because the heading was unreadable behind
+       it, "the app name does not match the app name on your home page". Both complaints, one
+       backdrop. (The third, "does not explain the purpose", was the sr-only <h1> — fixed in
+       c0c3017b.)
+       `modal={false}` keeps the page interactive and un-trapped; the wrapper is
+       pointer-events-none so only the card itself takes clicks. Consent is unchanged: nothing
+       non-essential fires until a choice is stored (src/lib/consent.ts), which is what PDPL
+       actually requires — a wall was never the compliance mechanism. */
+    <DialogPrimitive.Root open={show} modal={false} onOpenChange={(open) => { if (!open) close() }}>
       <DialogPrimitive.Portal>
-        <DialogPrimitive.Backdrop className="fixed inset-0 z-[200] bg-black/40 backdrop-blur-[2px] data-open:animate-in data-open:fade-in data-closed:animate-out data-closed:fade-out" />
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+        {/* Bottom-anchored, clearing the mobile tab bar exactly like install-hint.tsx —
+            4.5rem + safe-area on small screens, normal inset on desktop. */}
+        <div className="pointer-events-none fixed inset-x-0 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-[200] flex justify-center px-3 lg:bottom-4 lg:px-4">
           <DialogPrimitive.Popup
             ref={popupRef}
             // Focus the CARD, not the first tabbable thing inside it. Base UI's default is
@@ -93,7 +106,10 @@ export function CookieConsent() {
             // the accept action on a consent dialog would make Enter consent for the user (PDPL:
             // consent must be an affirmative act).
             initialFocus={popupRef}
-            className="relative flex w-full max-w-md items-center gap-2 overflow-hidden rounded-2xl bg-popover p-3 shadow-overlay outline-none animate-in fade-in zoom-in-95 duration-150 sm:gap-3.5 sm:p-4 data-closed:animate-out data-closed:fade-out data-closed:zoom-out-95"
+            /* pointer-events-auto re-arms clicks on the card itself (the wrapper disables them so
+               the page behind stays usable). Slides up from the bottom now rather than zooming
+               into the middle. */
+            className="pointer-events-auto relative flex w-full max-w-md items-center gap-2 overflow-hidden rounded-2xl bg-popover p-3 shadow-overlay outline-none animate-in fade-in slide-in-from-bottom-4 duration-200 sm:gap-3.5 sm:p-4 data-closed:animate-out data-closed:fade-out"
           >
             {/* Mascot — fills the card height (the tallest element), minimal padding. */}
         <Mascot name="cookie" className="h-24 w-24 shrink-0 self-center text-foreground sm:h-28 sm:w-28" />
