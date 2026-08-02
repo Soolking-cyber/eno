@@ -17,6 +17,7 @@ import {
 import { toast } from 'sonner'
 import type { SerializedListingCard, SerializedCategory } from '@/lib/types'
 import { CATEGORY_COLOR_CLASSES, timeAgo } from '@/lib/types'
+import { SITE_NAME } from '@/lib/edition'
 import { CategoryIcon } from './category-icons'
 import { ListingCard } from './listing-card'
 import { CaptureCard } from './capture-card'
@@ -1473,11 +1474,35 @@ export function ListingsExplorer({
 
           {/* HERO SEARCH AREA */}
           <div className="relative pb-2 text-center">
-            {/* The visible wordmark logo + "e-commerce with no drama" tagline were removed
-                (owner 2026-07-16) — the hero is just the search now. The <h1> stays sr-only so
-                the page keeps its real, exact SEO heading. */}
-            {/* eslint-disable-next-line react/jsx-no-literals -- SEO brand phrase, intentionally EN */}
-            <h1 className="sr-only">eno.vn — Trusted Expat Marketplace in Vietnam</h1>
+            {/* ⚠️ THIS HEADING IS VISIBLE ON PURPOSE, AND IT MUST STAY THAT WAY.
+                It was `sr-only` from 2026-07-16 (when the wordmark + tagline were stripped to
+                leave just the search) until 2026-08-02, when GOOGLE REJECTED OAUTH BRAND
+                VERIFICATION THREE TIMES over it — verbatim: "Your home page does not explain the
+                purpose of your app", "The app name … does not match the app name on your home
+                page", and "Your home page is behind a login page".
+
+                None of that was a login problem: the page is public and server-renders its
+                listings. The problem was that every description of the product lived in <meta>
+                tags and a hidden <h1>, so a human reviewer saw the "eno" wordmark, a search box
+                and a grid of products — no service name in text, no statement of what the site
+                is for. Reviewers read the rendered page, not the head.
+
+                So the hero states the name and the purpose in one compact block: two lines, above
+                the search, at the smallest weight that still reads as the page's title. If it is
+                ever hidden again, brand verification breaks and the consent screen keeps showing
+                the raw Supabase project ref instead of the eno logo.
+
+                ⚠️ NAME COMES FROM SITE_NAME, NOT A LITERAL. The old hardcoded string said
+                "eno.vn" on BOTH editions, so eno.forum's own home page announced itself as the
+                licensed marketplace. */}
+            <h1 className="h-display text-foreground">{SITE_NAME}</h1>
+            <p className="mx-auto mt-2 mb-6 max-w-2xl text-base leading-relaxed text-body">
+              {/* ⚠️ A PLAIN STRING LITERAL, NOT A TEMPLATE LITERAL. scripts/gen-ui-strings.mjs
+                  harvests `text="…"` and does not match a backtick expression, so the template
+                  form compiles and renders but never reaches the catalogue — it would ship
+                  English-only to every other language and drift silently. */}
+              <Tr text="The trusted marketplace for internationals in Vietnam. Browse housing, motorbikes, jobs, furniture and local services — every seller carries a public trust score, and you can look around without an account." />
+            </p>
 
             {/* Centered Search Bar (the header reveals its own search once this
                 scrolls out of view — id is the IntersectionObserver target). Wider pill
