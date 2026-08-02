@@ -1495,13 +1495,28 @@ export function ListingsExplorer({
                 ⚠️ NAME COMES FROM SITE_NAME, NOT A LITERAL. The old hardcoded string said
                 "eno.vn" on BOTH editions, so eno.forum's own home page announced itself as the
                 licensed marketplace. */}
-            <h1 className="h-display text-foreground">{SITE_NAME}</h1>
-            <p className="mx-auto mt-2 mb-6 max-w-2xl text-base leading-relaxed text-body">
+            {/* The brand mark IS the heading — the plain-text "eno.vn" + paragraph that sat here
+                read as boilerplate (owner: "remove these ugly ducklings and use eno.vn wordmark").
+                The <h1> keeps its exact SEO string for crawlers and screen readers via sr-only;
+                what a human sees is the wordmark. */}
+            <h1 className="mb-3 flex justify-center">
+              <span className="sr-only">{SITE_NAME}</span>
+              {/* eslint-disable-next-line @next/next/no-img-element -- an SVG wordmark: next/image
+                  would add a request and a layout wrapper for a file that is already ~2KB and is
+                  preloaded on this route (see the preload note in src/app/layout.tsx). */}
+              <img src="/logo.svg" alt={SITE_NAME} width={219} height={80} className="h-11 w-auto sm:h-14" />
+            </h1>
+            {/* ⚠️ ONE LINE, BUT IT MUST STAY. Google's OAuth brand review rejected this page with
+                "Your home page does not explain the purpose of your app" until a purpose statement
+                existed; that complaint cleared the moment one did. The long paragraph was the ugly
+                part, not the fact of saying what the site is — so this is the short form, and
+                deleting it entirely re-opens a rejection that took several rounds to close. */}
+            <p className="mx-auto mb-6 max-w-xl text-sm leading-relaxed text-body sm:text-base">
               {/* ⚠️ A PLAIN STRING LITERAL, NOT A TEMPLATE LITERAL. scripts/gen-ui-strings.mjs
                   harvests `text="…"` and does not match a backtick expression, so the template
                   form compiles and renders but never reaches the catalogue — it would ship
                   English-only to every other language and drift silently. */}
-              <Tr text="The trusted marketplace for internationals in Vietnam. Browse housing, motorbikes, jobs, furniture and local services — every seller carries a public trust score, and you can look around without an account." />
+              <Tr text="The trusted marketplace for internationals in Vietnam — housing, motorbikes, jobs and local services, from sellers with public trust scores." />
             </p>
 
             {/* Centered Search Bar (the header reveals its own search once this

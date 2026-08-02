@@ -1276,7 +1276,7 @@ export const UI_STRINGS: string[] = [
   "The response window has closed — the case is with the eno.vn team.",
   "The rules for using the site, the operator notice Vietnamese law requires, and how your personal data is handled are set out on three pages:",
   "The score starts at 60 and adds four components, each with a hard ceiling — so no single tactic can be farmed to the top. Everything except verification is windowed: only recent behavior moves it.",
-  "The trusted marketplace for internationals in Vietnam. Browse housing, motorbikes, jobs, furniture and local services — every seller carries a public trust score, and you can look around without an account.",
+  "The trusted marketplace for internationals in Vietnam — housing, motorbikes, jobs and local services, from sellers with public trust scores.",
   "The unsubscribe link is invalid or expired. You can manage email preferences from your account settings.",
   "There is a note on your account.",
   "They return automatically when the review clears — completed sales also work the hold off.",
