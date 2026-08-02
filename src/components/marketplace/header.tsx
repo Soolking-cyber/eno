@@ -273,7 +273,14 @@ export function Header() {
         hidden ? '-translate-y-full opacity-0' : 'translate-y-0 opacity-100',
       )}
     >
-      <div className="mx-auto flex h-16 w-full max-w-7xl items-center gap-2 sm:gap-3 border-b border-border/60 px-3 sm:px-6 lg:px-8">
+      {/* ⚠️ NO HORIZONTAL PADDING, DELIBERATELY — the logo and the action buttons sit flush to the
+          bar's edges (owner, 2026-08-02: "logo and other buttons should have no padding on both
+          sides"). This BREAKS FROM THE CANONICAL PAGE GUTTER on purpose: every other surface uses
+          `max-w-7xl px-3 sm:px-6 lg:px-8` (docs/design-language.md), so the header's contents no
+          longer align with the content column beneath them. That misalignment is the requested
+          look, not an oversight — do not "fix" it by restoring the gutter.
+          The border-b still spans the full max-w-7xl, so the hairline is unchanged. */}
+      <div className="mx-auto flex h-16 w-full max-w-7xl items-center gap-2 border-b border-border/60 sm:gap-3">
         {/* Logo */}
         <Link
           href="/"
