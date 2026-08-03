@@ -60,7 +60,29 @@ from memory.
 - **A JSX `{/* comment */}` is only valid as a child.** In expression position — inside a ternary branch, or right after `return (` — it is a syntax error, not a comment.
 - **i18n** — every user-facing string via `tr(en, vi)` / `<Tr>`; regenerate `src/generated/ui-strings.ts` after adding copy (a hook does it); curated Vietnamese goes in `src/generated/vi-overrides.ts`. Admin chrome is EN-only by convention. English is a translation **target**, not just the source.
 - **Money** — always through `src/lib/vnd.ts`; Vietnamese uses dots as thousands separators (`12.000.000 đ`).
-- **Schema changes** — drop the `profile_auth_fk` over `DIRECT_URL` → `prisma db push` → `node scripts/profile-auth-fk.mjs` → `prisma generate` → restart. `prisma db push` alone fails on that FK.
+- ⛔ **SCHEMA CHANGES — `prisma db push` AND `npm run db:setup` NOW DESTROY DATA. DO NOT RUN THEM.**
+  Measured 2026-08-03: the database holds **67 tables against 52 Prisma models**. `db push`
+  reconciles the DB *to* the schema, so it generates **18 `DROP TABLE`** statements for everything
+  Prisma does not manage — `visa_applications` (live applicant PII), `visa_events`,
+  `visa_documents`, `visa_payments`, `next_cache` (~8k rows), `rl_window`/`rl_cooldown` (the
+  Postgres rate limiter), `zalo_oauth_token` (the rotating OTP chain), `ListingImageHash`,
+  `PlaceGeocode`, `forum_translations`. This flow was safe when written and silently became lethal
+  as tables were added outside Prisma.
+
+  **The safe flow — generate SQL, read it, apply only what is additive:**
+  1. Drop BOTH cross-schema FKs (`profile_auth_fk`, `visa_applications_user_id_fkey`) — Prisma
+     cannot introspect past either, and there are TWO, not one.
+  2. `npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script`
+  3. **Read the output.** Filter to `ADD COLUMN` / `CREATE TABLE` / `CREATE INDEX` / `ADD CONSTRAINT`.
+     ⚠️ A Prisma `ALTER TABLE` is MULTI-CLAUSE: matching how a statement *starts* proves nothing
+     about its tail. One carried `ALTER COLUMN "unsubscribeToken" DROP DEFAULT` behind the
+     `ADD COLUMN`s. Assert on the whole statement, and reject **any** `DROP`, not a list of kinds.
+  4. Apply with `psql -v ON_ERROR_STOP=1` inside `BEGIN/COMMIT`, restore both FKs, then
+     `node scripts/compliance-ddl.mjs` and the other DDL scripts, then `prisma generate`.
+  5. **Migrate the DB BEFORE deploying.** Prisma selects every scalar column, so a new revision
+     against an old schema throws `42703 undefined_column` on any unscoped query
+     (`src/lib/admin.ts:44` is one). New columns are additive, so the old revision is unaffected —
+     DB first is always the safe order.
 - **Never commit `.env`.** I cannot write the deployed env values (GCP Secret Manager, `eno-root-env`) — surface the value for the owner to paste.
 
 ## Landmine files
