@@ -19,6 +19,19 @@
           }
         ]
       }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/second-opinion.sh\"",
+            "timeout": 25,
+            "statusMessage": "Second-opinion guard…"
+          }
+        ]
+      }
     ]
   }
 }

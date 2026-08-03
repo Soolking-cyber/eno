@@ -1,0 +1,317 @@
+#!/usr/bin/env node
+// ── The second-opinion gate ─────────────────────────────────────────────────────────────────────
+//
+// Runs the external reviewers against the STAGED diff and writes a receipt the pre-commit hook
+// checks. Owner, 2026-08-03: "every commit should have a 2nd opinion guard" — because the policy
+// already existed in CLAUDE.md and I still skipped it twice in one day. Discipline was the wrong
+// mechanism; this makes it structural.
+//
+//   node scripts/second-opinion.mjs            # review the staged diff, write a receipt
+//   node scripts/second-opinion.mjs --status   # is the current staged diff already reviewed?
+//
+// ⚠️ THE RECEIPT IS BOUND TO THE DIFF'S CONTENT HASH, not to a timestamp or a branch. Amend a
+// commit, stage one more file, or change a single character and the hash moves and the receipt no
+// longer applies. That is the point: a review of something else is not a review of this.
+//
+// ⚠️ WHAT COUNTS AS A REVIEW. At least two DISTINCT families must return a parseable verdict.
+// One is not enough — the whole reason for the stack is that they fail differently (2026-08-03:
+// codex and agy both caught a false-promise bug, but only agy found a US-number misroute and only
+// codex found dead code). A reviewer that errors, times out or returns empty is NOT a pass; it is
+// recorded as `no-answer` and does not count toward the quorum.
+//
+// ⚠️ A REFUTED VERDICT DOES NOT BLOCK THE COMMIT, and that is deliberate. Reviewers are wrong about
+// a third of the time on this repo (measured), so an automatic block would train the author to
+// bypass the gate. What is enforced is that the review HAPPENED and its verdicts are recorded in
+// the receipt; judging them stays a human act.
+import { execFileSync, spawn } from 'node:child_process'
+import { createHash } from 'node:crypto'
+import { mkdirSync, writeFileSync, existsSync, readFileSync, rmSync } from 'node:fs'
+import { join } from 'node:path'
+
+const ROOT = execFileSync('git', ['rev-parse', '--show-toplevel'], { encoding: 'utf8' }).trim()
+const RECEIPTS = join(ROOT, '.second-opinion')
+// Declared up here because `--status` validates receipts long before REVIEWERS is built below.
+const REVIEWER_NAMES = ['codex', 'agy', 'qwen']
+
+/** The exact content being committed. `--cached` so it matches what the hook will see. */
+export function stagedHash() {
+  const diff = execFileSync('git', ['diff', '--cached'], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })
+  return { diff, hash: createHash('sha256').update(diff).digest('hex').slice(0, 16) }
+}
+
+const { diff, hash } = stagedHash()
+
+// ⚠️ `--status` VALIDATES THE RECEIPT'S CONTENTS, NOT JUST ITS EXISTENCE. codex caught that this
+// used to be a bare `existsSync`: the hook helpfully PRINTS the hash it wants, so `touch
+// .second-opinion/<that-hash>.json` was a complete bypass — an empty file certified anything. The
+// receipt must name the same hash and record a real full-diff quorum, or it is not a receipt.
+// It still is not tamper-PROOF (anyone who can write the file can write plausible JSON); it is
+// tamper-EVIDENT, which is the honest goal for a guard whose adversary is my own future shortcut.
+if (process.argv.includes('--status')) {
+  const path = join(RECEIPTS, `${hash}.json`)
+  let ok = false
+  let why = 'no receipt'
+  if (existsSync(path)) {
+    try {
+      const r = JSON.parse(readFileSync(path, 'utf8'))
+      // ⚠️ DISTINCT, KNOWN FAMILIES — codex noted that counting raw entries let a receipt list the
+      // same reviewer twice, or two invented names, and satisfy "two answered". The whole premise of
+      // the stack is that these families fail DIFFERENTLY; two of the same one is one review.
+      const known = new Set(REVIEWER_NAMES)
+      const counted = [...new Set((r.reviewers || [])
+        .filter((x) => !x.truncated && (x.verdict === 'CONFIRMED' || x.verdict === 'REFUTED'))
+        .map((x) => x.name)
+        .filter((n) => known.has(n)))]
+      if (r.hash !== hash) why = `receipt is for a different diff (${r.hash})`
+      else if (counted.length < 2) why = `receipt records only ${counted.length} distinct full-diff verdict(s)`
+      else ok = true
+    } catch { why = 'receipt is unreadable/corrupt' }
+  }
+  console.log(ok ? `reviewed (${hash})` : `NOT reviewed (${hash}) — ${why}`)
+  process.exit(ok ? 0 : 1)
+}
+
+if (!diff.trim()) {
+  console.error('Nothing staged — stage the change first, then review it.')
+  process.exit(2)
+}
+
+// ⚠️ SCAN FOR SECRETS BEFORE SHIPPING THE DIFF TO THREE THIRD PARTIES. qwen raised this reviewing
+// the gate itself, and it is the sharpest finding against it: this script sends the ENTIRE staged
+// diff to OpenAI (codex), Google (agy) and Alibaba (qwen). Sending our SOURCE to them is already
+// standing policy — CLAUDE.md mandates these reviewers — but a CREDENTIAL is categorically
+// different: it cannot be un-sent, and it would land in three vendors' logs simultaneously.
+// The realistic path is not malice, it is a slip: `.env` is gitignored, but a key pasted into a
+// config file, a test fixture, or a migration is one `git add` from being staged.
+// ⚠️ FAIL CLOSED AND REFUSE TO RUN. Warning and continuing would be worthless — by the time anyone
+// reads the warning the diff is already at three vendors.
+const SECRET_PATTERNS = [
+  [/-----BEGIN (RSA |EC |OPENSSH |PGP )?PRIVATE KEY-----/, 'private key block'],
+  [/\bsk-[A-Za-z0-9_-]{20,}/, 'OpenAI-style secret key'],
+  [/\bAIza[0-9A-Za-z_-]{35}/, 'Google API key'],
+  [/\bgh[pousr]_[A-Za-z0-9]{36,}/, 'GitHub token'],
+  [/\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}/, 'JWT'],
+  [/\bxox[baprs]-[A-Za-z0-9-]{10,}/, 'Slack token'],
+  // Assignment of a long opaque value to an obviously-secret name. Scoped to ADDED lines and to
+  // real assignment syntax, so prose mentioning "secret" does not trip it.
+  [/^\+.*(SECRET|PASSWORD|PRIVATE_KEY|CLIENT_SECRET|API_KEY|ACCESS_TOKEN)\s*[:=]\s*['"]?[A-Za-z0-9/+_@!#$%^&*-]{16,}/m, 'secret-looking assignment'],
+]
+if (process.env.SECOND_OPINION_SKIP_SECRET_SCAN !== '1') {
+  const hits = SECRET_PATTERNS.filter(([re]) => re.test(diff)).map(([, label]) => label)
+  if (hits.length) {
+    console.error(`⛔ REFUSING TO SEND THIS DIFF TO EXTERNAL REVIEWERS — it looks like it contains: ${hits.join(', ')}.`)
+    console.error('   codex, agy and qwen are third-party services; a credential sent to them cannot be recalled.')
+    console.error('   Remove the value from the staged content (git reset the file, move it to Secret Manager via')
+    console.error('   scripts/secret-set.sh), then re-run. If this is a FALSE POSITIVE — a fixture, a public key, a')
+    console.error('   sample in documentation — re-run with SECOND_OPINION_SKIP_SECRET_SCAN=1 and say so out loud.')
+    process.exit(2)
+  }
+}
+
+// ⚠️ THE PROMPT ASKS THEM TO REFUTE, NOT TO "REVIEW". Measured repeatedly on this repo: an
+// open-ended "what do you think" returns architecture opinions, while "here is a claim, break it"
+// returns defects. The verdict-first, word-capped shape is what stops codex burning a whole run
+// exploring without ever reaching an answer.
+const prompt = `Answer ONLY from the diff below. Do NOT read files, search the web, or explore the repo.
+Your FIRST line MUST be \`VERDICT: CONFIRMED\` or \`VERDICT: REFUTED\`. Then one paragraph of why, then
+your findings as a numbered list, most severe first. Whole answer <=450 words.
+
+This is a production Vietnamese marketplace (eno.vn) plus a second edition (eno.forum) built from ONE
+codebase; a leak of visa/itinerary/payment surfaces onto eno.vn is a LICENSING failure, not a bug.
+Auth is passwordless. Trust scores are public and consumer-facing.
+
+THE CLAIM TO REFUTE: "This staged diff is correct, complete, and safe to commit. It introduces no
+regression, no security or licensing hole, no dangling state, and nothing that only breaks for a
+user in a state the author did not test."
+
+Prefer concrete failure modes ("a signed-in user at exactly 1024px sees no logo") over style notes.
+If the diff is insufficient to judge, say INSUFFICIENT and name what is missing.
+
+STAGED DIFF:
+${diff}`
+
+const promptFile = join(RECEIPTS, `.prompt-${hash}.txt`)
+mkdirSync(RECEIPTS, { recursive: true })
+writeFileSync(promptFile, prompt)
+
+// ⚠️ CLEANUP BELONGS ON `exit`, NOT ON THE HAPPY PATH — I got this wrong TWICE and agy caught it
+// both times, which is why it is now structural instead of another well-placed call.
+//   1st: the escalation SIGKILL was `.unref()`ed, so it never fired.
+//   2nd: un-unref'ing fixed the SUCCESS path only. On the quorum-failure path `process.exit(1)` runs
+//        immediately, tearing down the event loop and the pending 3s SIGKILL with it — so exactly
+//        when reviewers had timed out (the case that CREATES orphans) nothing reaped them.
+// A handler on 'exit' runs on every terminating path, including process.exit() and an uncaught
+// throw, and it is synchronous — which is precisely what killing a pid and unlinking a file need.
+// SIGINT/SIGTERM are routed through the same handler so Ctrl-C during a 5-minute review does not
+// strand the full-diff prompt file on disk (agy's fourth finding).
+const CHILDREN = new Set()
+process.on('exit', () => {
+  for (const pid of CHILDREN) { try { process.kill(-pid, 'SIGKILL') } catch { /* already gone */ } }
+  try { rmSync(promptFile, { force: true }) } catch { /* best effort */ }
+})
+process.on('SIGINT', () => process.exit(130))
+process.on('SIGTERM', () => process.exit(143))
+
+// ⚠️ agy TAKES THE PROMPT AS AN ARGV STRING, which the OS caps (ARG_MAX). agy flagged this
+// reviewing its own invocation: a big enough diff makes spawn fail with E2BIG, agy silently becomes
+// 'no-answer', and the quorum quietly drops to two. Truncating keeps it answering on a large diff
+// and says so inside the prompt, rather than failing in a way that looks like silence.
+//
+// ⚠️ BUT A TRUNCATED REVIEW DOES NOT COUNT TOWARD THE QUORUM, and this is the subtler half — agy and
+// qwen independently caught it. The receipt is keyed to the hash of the FULL staged diff, so an agy
+// that only saw the first 180KB would still have its verdict certify bytes it never read. On a
+// codebase where the failure mode is a visa/PayPal surface leaking onto the licensed marketplace,
+// "reviewed" must mean the reviewer saw the licensing-relevant hunk — which, in a big diff, is as
+// likely to be at the end as the start. codex (stdin) and qwen (file) both get the whole thing, so
+// the quorum is still reachable; agy's truncated verdict is recorded but not counted.
+const AGY_LIMIT = 180_000
+const agyTruncated = prompt.length > AGY_LIMIT
+
+const REVIEWERS = [
+  { name: 'codex', cmd: 'codex', args: ['exec', '-m', 'gpt-5.6-sol', '-c', 'model_reasoning_effort=high', '-c', 'web_search=disabled', '--skip-git-repo-check', '--sandbox', 'read-only'], stdin: true },
+  {
+    name: 'agy',
+    cmd: 'agy',
+    truncated: agyTruncated,
+    // ⚠️ `--print-timeout` MUST SIT ABOVE agy's OWN RUNTIME AND BELOW OUR BOUND. It was 240s, and
+    // measured across four runs agy takes 219s, 224s, 245s, 246s — a distribution the deadline cut
+    // straight through. The two runs under 240s answered; the two over it were recorded as
+    // `no-answer` and dropped the quorum, once to 1/3, which REFUSED A CORRECT COMMIT. agy was
+    // working fine each time; the flag killed it.
+    // 400s keeps it under the 420s harness bound ON PURPOSE: agy gets to report its own failure
+    // before we SIGKILL the process group, which is the difference between a diagnosable error and
+    // silence. Whenever TIMEOUT_MS changes, this must stay below it.
+    args: ['-p', agyTruncated ? prompt.slice(0, AGY_LIMIT) + '\n\n[DIFF TRUNCATED at 180KB for argv limits — judge only what is shown]' : prompt, '--model', 'Gemini 3.1 Pro (High)', '--dangerously-skip-permissions', '--print-timeout', '400s'],
+  },
+  { name: 'qwen', cmd: 'node', args: [join(ROOT, 'scripts/qwen-review.mjs'), promptFile] },
+]
+
+// ⚠️ EVERY REVIEWER IS HARD-BOUNDED. Measured 2026-08-03: this script sat for 46 MINUTES on a
+// 485-line diff because codex never reached a verdict, and `Promise.all` printed nothing at all
+// while it hung — agy and qwen had answered in ~90s and their findings were held hostage. That is
+// the exact codex failure mode CLAUDE.md already documents ("burning an entire run without ever
+// reaching a verdict"), and it is fatal HERE specifically: this gate blocks every commit, so a gate
+// that can hang forever is a gate that gets bypassed within a day. An unbounded wait is never
+// correct — the same lesson as the CI-poll trap.
+// ⚠️ 420s, NOT 300s — TUNED FROM MEASUREMENT, NOT TASTE. Observed qwen wall-times across four
+// runs on this repo: 233s, 267s, 278s, >300s. A 300s bound sat inside its normal distribution, so
+// the gate started reporting `no-answer` for a reviewer that was working fine, the quorum dropped
+// to 1, and a correct commit was refused. A bound that fires on healthy runs is as damaging as no
+// bound: one blocks good work, the other lets a 46-minute hang through. This must stay comfortably
+// above the SLOWEST healthy reviewer while still killing a genuine hang.
+const TIMEOUT_MS = Number(process.env.SECOND_OPINION_TIMEOUT_MS || 420_000)
+
+// ⚠️ KILL THE PROCESS GROUP, NOT THE PROCESS. `codex` is a node wrapper that spawns a vendored
+// darwin binary as a SEPARATE pid; killing the wrapper orphans the child, which keeps running,
+// keeps burning quota, and holds the pipe open. Measured during the 46-minute hang: killing the
+// wrapper left the vendor binary alive. `detached: true` puts each reviewer in its own group so
+// `kill(-pid)` reaps the whole tree.
+const run = (r) =>
+  new Promise((resolve) => {
+    const started = Date.now()
+    const p = spawn(r.cmd, r.args, { cwd: ROOT, stdio: ['pipe', 'pipe', 'pipe'], detached: true })
+    if (p.pid) CHILDREN.add(p.pid)
+    let out = ''
+    let err = ''
+    let done = false
+    const finish = (verdict, text) => {
+      if (done) return
+      done = true
+      clearTimeout(timer)
+      // Only drop it from the reap set once it has genuinely exited. A TIMED-OUT reviewer resolves
+      // here while its process may still be alive ignoring SIGTERM — that is the one we must keep
+      // tracking, so removal is done by the 'close' handler below, never by finish().
+      const secs = Math.round((Date.now() - started) / 1000)
+      console.log(`  ${r.name}: ${verdict} (${secs}s)${r.truncated ? ' ⚠️ TRUNCATED — does not count toward quorum' : ''}`)
+      resolve({ name: r.name, verdict, truncated: !!r.truncated, text })
+    }
+    const reap = (sig) => { try { process.kill(-p.pid, sig) } catch { try { p.kill(sig) } catch {} } }
+    const timer = setTimeout(() => {
+      reap('SIGTERM')
+      // SIGTERM is a request; a wedged reviewer can ignore it. Escalate rather than leak the tree.
+      // ⚠️ THIS TIMER MUST STAY REFERENCED. It was `.unref()`ed for one revision and agy caught the
+      // consequence: `finish()` resolves immediately, so once every reviewer has settled the script
+      // runs to completion and exits — destroying an unref'd timer BEFORE it fires. The SIGKILL
+      // would never have been sent, and a reviewer that ignores SIGTERM would outlive the gate as a
+      // detached orphan burning quota. Keeping it referenced holds the loop open the extra 3s,
+      // which is the entire cost of not leaking a process tree.
+      setTimeout(() => reap('SIGKILL'), 3000)
+      finish('no-answer', `timed out after ${Math.round(TIMEOUT_MS / 1000)}s`)
+    }, TIMEOUT_MS)
+    p.stdout.on('data', (d) => (out += d))
+    // ⚠️ KEEP STDERR. This was `() => {}` — discarded — and it made the harness unable to explain
+    // its own failures: when agy came back `no-answer` twice, the logs held nothing but a duration,
+    // and the cause had to be inferred from wall-times. A tool whose job is diagnosing other tools
+    // must not throw away their error output. Bounded to the last 2KB so a chatty reviewer cannot
+    // balloon memory, and surfaced on the no-answer path where it is the only clue there is.
+    p.stderr.on('data', (d) => { err = (err + d).slice(-2000) })
+    p.on('error', (e) => finish('no-answer', `spawn failed: ${e.message}`))
+    p.on('close', () => {
+      if (p.pid) CHILDREN.delete(p.pid) // genuinely exited — nothing left to reap
+      // Take the LAST line-anchored verdict: codex echoes the prompt (which contains the word
+      // VERDICT) before answering, so a naive first-match reads our own instructions back.
+      const m = [...out.matchAll(/^VERDICT: (CONFIRMED|REFUTED)/gm)]
+      if (m.length) return finish(m[m.length - 1][1], out.slice(-4000))
+      // ⚠️ NO VERDICT: SAY WHY, LOUDLY. This is the branch that silently dropped the quorum and
+      // refused a correct commit. Whatever the reviewer wrote to stderr — and the tail of what it
+      // wrote to stdout — is the only evidence of the cause, so both go into the receipt.
+      finish('no-answer', [
+        `exited without a parseable VERDICT after ${Math.round((Date.now() - started) / 1000)}s`,
+        err.trim() && `stderr: ${err.trim()}`,
+        out.trim() && `stdout tail: ${out.trim().slice(-1200)}`,
+      ].filter(Boolean).join('\n'))
+    })
+    if (r.stdin) { p.stdin.write(prompt); p.stdin.end() } else { p.stdin.end() }
+    p.stdin.on('error', () => {}) // a reviewer that dies mid-write must not crash the gate with EPIPE
+  })
+
+console.log(`Reviewing staged diff ${hash} (${diff.split('\n').length} lines) with ${REVIEWERS.length} families…`)
+const results = await Promise.all(REVIEWERS.map(run))
+
+for (const r of results) {
+  const mark = r.verdict === 'no-answer' ? '✗ NO ANSWER' : r.verdict
+  console.log(`\n──────── ${r.name}: ${mark} ────────`)
+  if (r.verdict !== 'no-answer') {
+    const i = r.text.search(/^VERDICT: /m)
+    console.log(r.text.slice(i, i + 2500))
+  } else {
+    // ⚠️ PRINT THE FAILURE. A silent "NO ANSWER" is how a broken reviewer stays broken for four
+    // runs — which is exactly what happened to agy here.
+    console.log(r.text || '(no output captured)')
+  }
+}
+
+// ⚠️ QUORUM COUNTS ONLY REVIEWERS THAT SAW THE WHOLE DIFF — see the AGY_LIMIT note above.
+const answered = results.filter((r) => r.verdict !== 'no-answer')
+const counted = answered.filter((r) => !r.truncated)
+console.log(`\n${answered.length}/${REVIEWERS.length} families answered (${counted.length} on the full diff).`)
+
+// ⚠️ THE RECEIPT IS WRITTEN ONLY AFTER THE QUORUM HOLDS — AND THIS ORDER IS THE GATE.
+// It was the other way round for exactly one run, and qwen caught it reviewing this very file:
+// writing first meant a run where every reviewer errored STILL produced a receipt the hook accepts,
+// so the guard would have rubber-stamped precisely the case it exists to catch. A gate whose
+// failure mode is "pass" is worse than no gate, because it also removes the suspicion.
+if (counted.length < 2) {
+  console.error(`⚠️  Only ${counted.length} family/families reviewed the FULL diff — that is NOT a passed`)
+  console.error('    review, and NO receipt was written. A truncated or errored reviewer does not count.')
+  console.error('    Fix the reviewer (missing binary? no key? rate limited?) and re-run.')
+  try { rmSync(promptFile, { force: true }) } catch {}
+  process.exit(1)
+}
+// ⚠️ THE RECEIPT KEEPS THE FINDINGS, not just the verdicts. codex caught that a REFUTED receipt with
+// no text let a commit proceed while leaving no durable record of what a human was meant to verify —
+// the terminal scrollback is not a record. The findings are what the next person needs when this
+// commit is the suspect six weeks from now.
+writeFileSync(join(RECEIPTS, `${hash}.json`), JSON.stringify({
+  hash, lines: diff.split('\n').length, quorum: counted.length,
+  reviewers: results.map(({ name, verdict, truncated, text }) => ({ name, verdict, truncated, findings: text })),
+}, null, 2))
+// ⚠️ THE PROMPT FILE HOLDS THE ENTIRE STAGED DIFF. qwen caught that these accumulated forever under
+// .second-opinion/ — gitignored, so never committed, but sitting on disk in plain text indefinitely.
+// It exists only to hand the diff to qwen without argv limits; once the run is over it is a liability.
+try { rmSync(promptFile, { force: true }) } catch {}
+if (answered.some((r) => r.verdict === 'REFUTED')) {
+  console.log('⚠️  At least one REFUTED. Read the findings above and VERIFY each by measuring before')
+  console.log('    acting — on this repo roughly a third of reviewer claims do not survive checking.')
+}
+console.log(`Receipt written: .second-opinion/${hash}.json — the commit hook will accept this diff.`)
