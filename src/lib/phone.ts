@@ -151,3 +151,22 @@ export function contactLinksFor(phoneDigits: string): { zalo: string; whatsapp: 
     tel: `tel:+${phoneDigits}`,
   }
 }
+
+/**
+ * Is this a Vietnamese number? Takes a normalized, digits-only form (normalizePhoneNoPlus, or
+ * otp-channels' normalizePhoneVN — both resolve local '0…' and bare 9-digit forms to the 84 code).
+ *
+ * ⚠️ LIVES HERE, NOT IN otp-channels.ts, BECAUSE BOTH SIDES NEED IT. The server routes OTP delivery
+ * on it (Zalo for VN, WhatsApp for foreign) and the sign-in form must name the SAME app before the
+ * send — and otp-channels is `server-only`, so a client import there is a build error. Duplicating
+ * the rule in the form would let the promise and the delivery drift apart, which on a flow with no
+ * SMS fallback means telling someone to check an app that will never receive anything.
+ *
+ * ⚠️ A PREFIX TEST ALONE IS WRONG, so the LENGTH is checked too: Bangladesh (+880…) and any longer
+ * number beginning 84 pass `startsWith('84')`. VN mobiles are 84 + 9 digits (11); 10 is accepted for
+ * stale records from before the 2018 renumbering.
+ */
+export function isVietnamesePhone(normalized: string): boolean {
+  const d = (normalized || '').replace(/\D/g, '')
+  return d.startsWith('84') && (d.length === 11 || d.length === 10)
+}

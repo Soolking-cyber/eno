@@ -13,6 +13,7 @@ import { isNativeApp, nativeGoogleSignIn } from '@/lib/native-auth'
 import { googleIdentityEnabled, requestGoogleIdToken } from '@/lib/google-identity'
 import { useTurnstile } from './turnstile'
 import { canonicalEmail } from '@/lib/email-alias'
+import { isVietnamesePhone, normalizePhoneNoPlus } from '@/lib/phone'
 import { AUTH_USES_REQUEST_ORIGIN } from '@/lib/auth-origin'
 
 const RESEND_SECONDS = 60
@@ -384,6 +385,12 @@ export function SignInForm({ className }: { className?: string }) {
     }
   }
 
+  // ⚠️ MIRRORS THE SERVER'S ROUTING EXACTLY, via the same predicate (lib/phone.ts), because the
+  // form now PROMISES which app the code will arrive in and there is no SMS fallback to cover a
+  // wrong guess. Computed from what is typed so far — normalizePhoneNoPlus resolves '09…' and a
+  // bare 9-digit mobile to the 84 form, so the hint is right from the first few digits.
+  const phoneWantsZalo = isVietnamesePhone(normalizePhoneNoPlus(phone))
+
   const sendPhone = async () => {
     setLoading(true); setError(null)
     const d = phone.replace(/\D/g, '')
@@ -632,6 +639,20 @@ export function SignInForm({ className }: { className?: string }) {
               <Button variant="cta" size="none" onMouseDown={(e) => e.preventDefault()} onClick={sendPhone} disabled={loading || phone.replace(/\D/g, '').length < 9} className="flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm disabled:opacity-40 transition-colors cursor-pointer">
                 {loading && <Loader2 className="h-4 w-4 animate-spin" />} {t('Send code', 'Gửi mã')}
               </Button>
+              {/* ⚠️ SET EXPECTATIONS BEFORE THE SEND — THERE IS NO SMS FALLBACK ANY MORE.
+                  SpeedSMS was removed on 2026-08-02 ("remove speed sms from both"), and it was the
+                  only channel that needed nothing installed. A code can now only land in Zalo,
+                  WhatsApp or Telegram, so someone with none of them gets NOTHING and no error
+                  worth acting on: the hook deliberately answers 200 even when every channel fails,
+                  because a non-200 would abort a login Supabase has already recorded.
+                  A line the user reads BEFORE tapping is therefore the only honest place to say it.
+                  The app named follows the same country rule the server routes on — Zalo for a
+                  Vietnamese number, WhatsApp for a foreign one — so the two cannot disagree. */}
+              <p className="text-2xs leading-snug text-muted-foreground">
+                {phoneWantsZalo
+                  ? t('The code arrives on Zalo or Telegram — you need one of them on this number.', 'Mã sẽ được gửi qua Zalo hoặc Telegram — bạn cần có một trong hai trên số này.')
+                  : t('The code arrives on WhatsApp or Telegram — you need one of them on this number.', 'Mã sẽ được gửi qua WhatsApp hoặc Telegram — bạn cần có một trong hai trên số này.')}
+              </p>
             </div>
           )}
 

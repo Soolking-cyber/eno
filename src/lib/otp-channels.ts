@@ -1,13 +1,18 @@
 import 'server-only'
 
-// OTP delivery channels for the Supabase send-sms hook — ordered by cost
-// (research 2026-07-06, prices per OTP to a VN number):
-//   Telegram Gateway  ~260đ  ($0.01, auto-refunded when undelivered)
-//   WhatsApp auth     ~294đ  (Meta authentication template)
-//   Zalo ZNS           300đ  (lib/zalo-zns.ts — live once the OA is verified)
-//   SpeedSMS "Verify" ~500đ  (shared brandname — reaches every VN number)
-// Every sender is env-gated and times out fast: an unreachable provider must
-// cascade, never hang the hook. NEVER log the OTP.
+// OTP delivery channels for the Supabase send-sms hook.
+//
+// ⚠️ APP-ONLY SINCE 2026-08-02 — THERE IS NO SMS FALLBACK. SpeedSMS was removed on the owner's
+// instruction, and it was the FLOOR: the one channel needing nothing installed, reaching every VN
+// number for ~500đ. So a code can now only arrive somewhere the recipient already has an app:
+//   Zalo ZNS           300đ   VN numbers      (lib/zalo-zns.ts — live once the OA is verified)
+//   WhatsApp auth     ~294đ   foreign numbers (Meta authentication template)
+//   Telegram Gateway  ~260đ   either          (free presence check, undelivered auto-refunds)
+// Someone with none of them CANNOT RECEIVE A CODE. That is the accepted trade, but it means the
+// sign-in form has to say so before the send rather than after a silent failure — see channelHint().
+//
+// Every sender is env-gated and times out fast: an unreachable provider must cascade, never hang
+// the hook. NEVER log the OTP.
 
 export type ChannelResult = { ok: boolean; noApp?: boolean }
 
@@ -29,20 +34,12 @@ export function normalizePhoneVN(raw: string): string {
   return d.length === 9 ? '84' + d : d
 }
 
-/**
- * Is this a Vietnamese number? Takes the output of {@link normalizePhoneVN}, which has already
- * resolved every local form ('0…', bare 9-digit) to the 84 country code.
- *
- * ⚠️ '84' AS A PREFIX IS NOT ENOUGH ON ITS OWN — it is also the start of longer numbers in other
- * countries once the '+' is gone, so the LENGTH is checked too. A VN mobile in E.164 is 84 followed
- * by 9 digits (11 total); the old 10-digit local mobiles were retired in 2018 but a stale contact
- * record can still carry one, so 10 is accepted as well. Anything longer that merely starts with 84
- * is somebody else's country, and must not be routed to a Vietnam-only channel.
- */
-export function isVietnamesePhone(normalized: string): boolean {
-  const d = (normalized || '').replace(/\D/g, '')
-  return d.startsWith('84') && (d.length === 11 || d.length === 10)
-}
+// isVietnamesePhone lives in lib/phone.ts — the client-safe module — because the sign-in form has
+// to name the SAME app this router picks, and this file is `server-only`. Re-exported so existing
+// server importers and the tests keep one import site.
+import { isVietnamesePhone } from './phone'
+export { isVietnamesePhone }
+
 
 /**
  * Which channel to TRY FIRST for this number (owner, 2026-08-02: "zalo otp for local phone numbers
@@ -57,12 +54,15 @@ export function isVietnamesePhone(normalized: string): boolean {
  *
  * The RETURN VALUE IS A PREFERENCE, NOT AN EXCLUSION. The caller still cascades through every other
  * configured channel afterwards, so an unconfigured or failing preference degrades instead of
- * dead-ending — which is what keeps this safe to ship before the keys exist. With no keys at all,
- * every channel is unconfigured and behaviour is identical to today: SpeedSMS, or nothing.
+ * dead-ending — which is what keeps this safe to ship before the keys exist. ⚠️ With no keys at
+ * all NOTHING can be delivered, since the SMS floor is gone; production today has only
+ * TELEGRAM_GATEWAY_TOKEN set.
  *
  * ⚠️ Zalo is Vietnam-only. Never make it the preference for a foreign number: sendZnsOtp would
  * spend a request to learn what the country code already said.
  */
+// 'sms' is retained in the union ONLY so a value cached by a pre-2026-08-02 build (otp-ch:{phone},
+// 10-min TTL) still type-checks when read back. Nothing writes it any more.
 export type OtpChannel = 'telegram' | 'whatsapp' | 'zalo' | 'sms'
 
 export function preferredOtpChannel(normalized: string): OtpChannel {
@@ -157,28 +157,21 @@ export async function sendWhatsAppOtp(phone: string, otp: string): Promise<Chann
   }
 }
 
-// ── SpeedSMS "Verify" shared brandname (works pre-business-license) ─────────
-// sendSpeedSmsOtp already gates on SPEEDSMS_TOKEN internally, so no separate
-// *Configured() guard is needed (unlike the telegram/whatsapp/zns channels).
-const SPEEDSMS_TOKEN = process.env.SPEEDSMS_TOKEN
+// ⚠️ SpeedSMS WAS REMOVED HERE (owner, 2026-08-02: "remove speed sms from both"). It was the
+// cascade's FLOOR — the only channel needing no app on the handset, reaching every VN number for
+// ~500đ. Deleting it is therefore not a cost tweak: OTP delivery now REQUIRES the recipient to have
+// Telegram, Zalo (VN) or WhatsApp (foreign), and a user with none of them cannot receive a code at
+// all. That is the accepted trade; the sign-in form now says so up front rather than letting the
+// send fail silently — see `channelHint` below and its use in sign-in-form.tsx.
+//
+// Do not reinstate it without also removing that copy, or the form will promise an SMS that never
+// comes.
 
-const SMS_BODY = (otp: string) => `Ma OTP ENO cua ban la ${otp}. Hieu luc 5 phut. Khong chia se ma nay voi bat ky ai.`
-
-export async function sendSpeedSmsOtp(phone: string, otp: string): Promise<ChannelResult> {
-  if (!SPEEDSMS_TOKEN) return { ok: false }
-  try {
-    const res = await timedFetch('https://api.speedsms.vn/index.php/sms/send', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: 'Basic ' + Buffer.from(`${SPEEDSMS_TOKEN}:x`).toString('base64'),
-      },
-      body: JSON.stringify({ to: [phone], content: SMS_BODY(otp), sms_type: 5, sender: 'Verify' }),
-    })
-    const json = (await res.json().catch(() => ({}))) as { status?: string }
-    return { ok: res.ok && json?.status === 'success' }
-  } catch (e) {
-    console.error('[otp] speedsms failed:', (e as Error).name)
-    return { ok: false }
-  }
+/**
+ * What the visitor must have installed for a code to reach THIS number, given the routing in
+ * preferredOtpChannel(). Used by the sign-in form to set expectations BEFORE the send, because
+ * without an SMS floor a missing app is now a dead end rather than a slower path.
+ */
+export function channelHint(normalized: string): 'zalo' | 'whatsapp' {
+  return preferredOtpChannel(normalized) === 'zalo' ? 'zalo' : 'whatsapp'
 }
