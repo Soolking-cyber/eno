@@ -125,6 +125,15 @@
      account-panel.tsx), so this value only ever drives the collapsed panel width and the main
      content's left squeeze margin — locked, never resized, so the page never reflows on hover. */
   --account-w: 72px;
+  /* ⚠️ THE EXPANDED RAIL, SIZED TO ITS CONTENT RATHER THAN ROUNDED UP (owner, 2026-08-03: "make
+     sure sidebar opened is as much compact as possible … too much whitespace on the right").
+     It was 280px. Measured at the rail's own type (text-sm/500): the widest EN label is
+     "Vietnam trip planning" at 125px and the widest VI is "Lên kế hoạch chuyến đi Việt Nam" at
+     195px — but labels are capped at max-w-[180px] and already ellipsise past it, so the cap, not
+     the text, sets the floor. 24px icon + 12px gap + 180px label + 2×12px padding = 240px, and the
+     remaining 40px in the old value was pure dead space to the right of every label.
+     ⚠️ Changing the label cap changes this number — keep the arithmetic above true. */
+  --account-w-open: 240px;
 
   /* Surfaces — soft neutral canvas so white surfaces (cards, header, popovers)
      gain subtle Airbnb-style depth without reintroducing borders/boxes. */

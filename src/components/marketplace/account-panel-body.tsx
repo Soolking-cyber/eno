@@ -150,7 +150,12 @@ export function AccountPanel({ open, onClose }: { open: boolean; onClose: () => 
     const inner = (
       <>
         <span className="relative shrink-0">
-          <Icon className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
+          {/* ⚠️ h-6 + strokeWidth 2.25 IS THE PLATFORM WEIGHT, not a bump for its own sake (owner,
+                2026-08-03: "icons sizes to platform ui now it seems too small"). The header bell and
+                the mobile bottom nav both render lucide at 2.25 (STROKE in header.tsx), while this
+                rail was alone at h-5/2 — visibly lighter and smaller than every other nav surface in
+                the app. Matching them makes the rail read as the same control set. */}
+            <Icon className="h-6 w-6 shrink-0" strokeWidth={2.25} aria-hidden />
           {/* Collapsed desktop rail (icon-only): the count overlaps the icon's corner like the bottom
               nav — so Messages/Saved counters stay visible without expanding. Hidden on mobile + when
               expanded, where the inline pill below shows instead. */}
@@ -232,7 +237,7 @@ export function AccountPanel({ open, onClose }: { open: boolean; onClose: () => 
         // colour / transform ease together; position:fixed so the width change never reflows the page.
         'lg:transition-[width,background-color,transform] lg:duration-200',
         expanded
-          ? 'lg:w-[280px] lg:bg-background'
+          ? 'lg:w-[var(--account-w-open)] lg:bg-background'
           : 'lg:w-[var(--account-w)] lg:bg-muted/10',
         // Entrance is SPLIT by breakpoint: MOBILE fades like a page (opacity+visibility,
         // transition-discrete so the fade-out finishes before it leaves the a11y tree; max-lg:starting

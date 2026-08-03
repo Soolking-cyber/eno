@@ -81,7 +81,22 @@ export function AccountPanelShell({ children }: { children: React.ReactNode }) {
           // dashboard on hover"). Reserving 280px on hover reflowed the whole feed every time the
           // pointer grazed the rail, which is exactly why the pin existed; overlaying keeps the
           // page still while the labels slide open on top.
-          open && 'lg:px-[var(--account-w)]',
+          // ⚠️ THE EXPANDED RAIL PUSHES THE CONTENT AGAIN (owner, 2026-08-03: "when opened make
+            // sure it doesnt overlap the marketplace"). This REVERSES the 2026-07-23 decision to
+            // overlay, and the reason that decision existed still stands — so read this before
+            // flipping it back a third time.
+            //
+            // Overlaying was chosen because reserving the expanded width on HOVER reflowed the whole
+            // feed every time the pointer grazed the rail. That objection is now much smaller: the
+            // expanded rail is 240px rather than 280px (--account-w-open), so the push is 168px
+            // instead of 208px, and it animates on the same duration-200 spring as the width itself —
+            // the rail's right edge and the content's left edge move in lockstep rather than one
+            // running ahead of the other.
+            //
+            // The trade is deliberate: a little motion on hover, in exchange for never covering what
+            // the visitor was reading. Covering content is the worse failure on a marketplace, where
+            // the thing behind the rail is a listing someone is part-way through.
+            open && (expanded ? 'lg:pl-[var(--account-w-open)] lg:pr-[var(--account-w)]' : 'lg:px-[var(--account-w)]'),
         )}
         style={{ transitionTimingFunction: 'var(--ease-spring)' }}
       >
