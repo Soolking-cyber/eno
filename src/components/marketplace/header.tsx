@@ -280,7 +280,15 @@ export function Header() {
           longer align with the content column beneath them. That misalignment is the requested
           look, not an oversight — do not "fix" it by restoring the gutter.
           The border-b still spans the full max-w-7xl, so the hairline is unchanged. */}
-      <div className="mx-auto flex h-16 w-full max-w-7xl items-center gap-2 border-b border-border/60 sm:gap-3">
+      {/* ⚠️ PADDED ON MOBILE, FLUSH FROM sm UP — both halves are deliberate and they came from the
+          owner in that order (2026-08-02 "logo and other buttons should have no padding on both
+          sides", then "on mobile and app have some padding"). On a phone the mark and the action
+          icons sat hard against the screen edge, which on iOS is where the swipe-back gesture and
+          the rounded display corners live; from sm up there is room and the flush look is wanted.
+          Still NOT the canonical page gutter (`px-3 sm:px-6 lg:px-8`, docs/design-language.md), so
+          the header deliberately does not align with the content column beneath it — see the note
+          on the logo below. Do not "restore" the gutter. */}
+      <div className="mx-auto flex h-16 w-full max-w-7xl items-center gap-2 border-b border-border/60 px-3 sm:gap-3 sm:px-0">
         {/* Logo */}
         <Link
           href="/"
