@@ -16,29 +16,18 @@ import 'server-only'
 
 export type ChannelResult = { ok: boolean; noApp?: boolean }
 
-// Supabase usually delivers user.phone without a leading '+', but tolerate both
-// shapes. Providers here expect digits-only; VN forms are canonicalized to the
-// 84-prefix. ⚠️ A number that already carries its OWN country code must pass
-// through untouched (audit P2): the old blanket 84-prefix turned every foreign
-// sign-up (+1…, +44… — the expat audience) into a bogus VN number, so the OTP
-// was dispatched to a nonexistent recipient on every channel.
-export function normalizePhoneVN(raw: string): string {
-  const trimmed = (raw || '').trim()
-  const hadPlus = trimmed.startsWith('+')
-  let d = trimmed.replace(/\D/g, '')
-  if (d.startsWith('0')) return '84' + d.slice(1) // local VN form
-  if (d.startsWith('84')) return d                // already canonical VN
-  if (hadPlus) return d                            // explicit E.164 → its own country code
-  // Bare digits: a 9-digit VN mobile typed without the leading 0 gets the prefix;
-  // anything longer is a full international number delivered without '+'.
-  return d.length === 9 ? '84' + d : d
-}
+// ⚠️ BOTH OF THESE NOW LIVE IN lib/phone.ts (client-safe) AND ARE ONLY RE-EXPORTED HERE.
+// This module is `server-only`, but the sign-in form has to name the SAME app the router will pick
+// — and when the two had separate copies they diverged on a bare 9-digit mobile ('912345678' →
+// '912345678' on the client, '84912345678' here), so the form promised WhatsApp while the server
+// routed to Zalo. One implementation, two import sites. `normalizePhoneVN` keeps its old name so
+// existing server callers and tests are untouched.
+export { normalizePhoneForRouting as normalizePhoneVN, isVietnamesePhone } from './phone'
+import { normalizePhoneForRouting, isVietnamesePhone } from './phone'
+// znsConfigured is Zalo's own gate (app id + secret + template); imported so configuredOtpChannels
+// answers for all three channels in one place rather than making the caller assemble it.
+import { znsConfigured } from './zalo-zns'
 
-// isVietnamesePhone lives in lib/phone.ts — the client-safe module — because the sign-in form has
-// to name the SAME app this router picks, and this file is `server-only`. Re-exported so existing
-// server importers and the tests keep one import site.
-import { isVietnamesePhone } from './phone'
-export { isVietnamesePhone }
 
 
 /**
@@ -167,11 +156,23 @@ export async function sendWhatsAppOtp(phone: string, otp: string): Promise<Chann
 // Do not reinstate it without also removing that copy, or the form will promise an SMS that never
 // comes.
 
+// ⚠️ channelHint() WAS REMOVED (2026-08-03, codex: "channelHint() is stale/dead"). It named the
+// PREFERRED app, which is a false promise in production: preference is not capability, and today
+// only TELEGRAM_GATEWAY_TOKEN is set — so a VN user was told "check Zalo" for a code the server
+// could never send there. The form now asks the server which channels are actually CONFIGURED
+// (GET /api/auth/otp-channel) and names only those. See configuredOtpChannels() below.
+
 /**
- * What the visitor must have installed for a code to reach THIS number, given the routing in
- * preferredOtpChannel(). Used by the sign-in form to set expectations BEFORE the send, because
- * without an SMS floor a missing app is now a dead end rather than a slower path.
+ * Which channels this deployment can ACTUALLY send through, for the sign-in form's pre-send copy.
+ *
+ * ⚠️ CAPABILITY, NOT PREFERENCE, and the distinction is the whole point of this function. With the
+ * SMS floor gone a wrong promise is a dead end: the send hook answers 200 even when every channel
+ * fails (a non-200 would abort a login Supabase already recorded), so the user waits forever with
+ * no error. Naming only configured channels is what keeps the copy honest as keys are added one at
+ * a time.
+ *
+ * Booleans only — never a token, never a phone number.
  */
-export function channelHint(normalized: string): 'zalo' | 'whatsapp' {
-  return preferredOtpChannel(normalized) === 'zalo' ? 'zalo' : 'whatsapp'
+export function configuredOtpChannels(): { telegram: boolean; whatsapp: boolean; zalo: boolean } {
+  return { telegram: telegramConfigured(), whatsapp: whatsappConfigured(), zalo: znsConfigured() }
 }

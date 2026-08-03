@@ -65,3 +65,40 @@ describe('preferredOtpChannel', () => {
     expect(preferredOtpChannel('')).toBe('whatsapp')
   })
 })
+
+// ⚠️ REGRESSIONS FROM THE 2026-08-03 REVIEW — each of these was a real misroute that codex or agy
+// produced, and with no SMS fallback a misroute means the code lands in an app the user was never
+// told to open (or is never sent at all).
+describe('isVietnamesePhone — reviewer counterexamples', () => {
+  it('a US number typed without a country code is NOT Vietnamese (agy)', () => {
+    // 843… is South Carolina. Normalized it is 10 digits starting '84', which the earlier
+    // `length === 10` branch accepted — routing an American user to Zalo.
+    expect(normalizePhoneVN('843-123-4567')).toBe('8431234567')
+    expect(isVietnamesePhone('8431234567')).toBe(false)
+    expect(preferredOtpChannel(normalizePhoneVN('843-123-4567'))).toBe('whatsapp')
+  })
+
+  it('a Hanoi landline is not treated as a mobile (codex)', () => {
+    // +84 24 … is 12 digits and cannot receive an app message at all.
+    expect(isVietnamesePhone(normalizePhoneVN('+84 24 3850 5000'))).toBe(false)
+  })
+
+  it('rejects VN prefixes that are not mobile ranges', () => {
+    expect(isVietnamesePhone('84212345678')).toBe(false) // 84 + 2… landline
+    expect(isVietnamesePhone('84412345678')).toBe(false)
+    expect(isVietnamesePhone('84612345678')).toBe(false)
+  })
+
+  it('still accepts every real VN mobile prefix', () => {
+    for (const p of ['3', '5', '7', '8', '9']) {
+      expect(isVietnamesePhone(`84${p}12345678`)).toBe(true)
+    }
+  })
+
+  // ⚠️ THE SPLIT-BRAIN agy FOUND: the form and the hook must normalize identically, or the app
+  // named in the copy is not the app the code is sent to.
+  it('the client and the router agree on a bare 9-digit mobile', () => {
+    expect(normalizePhoneVN('912345678')).toBe('84912345678')
+    expect(isVietnamesePhone(normalizePhoneVN('912345678'))).toBe(true)
+  })
+})

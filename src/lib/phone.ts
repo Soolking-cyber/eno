@@ -153,20 +153,46 @@ export function contactLinksFor(phoneDigits: string): { zalo: string; whatsapp: 
 }
 
 /**
- * Is this a Vietnamese number? Takes a normalized, digits-only form (normalizePhoneNoPlus, or
- * otp-channels' normalizePhoneVN — both resolve local '0…' and bare 9-digit forms to the 84 code).
+ * The routing form: digits only, VN local shapes resolved to the 84 country code.
  *
- * ⚠️ LIVES HERE, NOT IN otp-channels.ts, BECAUSE BOTH SIDES NEED IT. The server routes OTP delivery
- * on it (Zalo for VN, WhatsApp for foreign) and the sign-in form must name the SAME app before the
- * send — and otp-channels is `server-only`, so a client import there is a build error. Duplicating
- * the rule in the form would let the promise and the delivery drift apart, which on a flow with no
- * SMS fallback means telling someone to check an app that will never receive anything.
+ * ⚠️ THE ROUTER'S OWN NORMALIZER, LIVING HERE SO CLIENT AND SERVER CANNOT DISAGREE. It used to sit
+ * in `otp-channels.ts` (server-only) while the sign-in form reached for `normalizePhoneNoPlus`
+ * instead — and the two DIVERGE on a bare 9-digit mobile: '912345678' stays '912345678' under
+ * normalizePhoneNoPlus but becomes '84912345678' here. Measured 2026-08-03 after both external
+ * reviewers flagged the split. With no SMS fallback that mismatch is not cosmetic: the form would
+ * promise WhatsApp while the server routed to Zalo, and the code would land in an app the user was
+ * never told to open.
  *
- * ⚠️ A PREFIX TEST ALONE IS WRONG, so the LENGTH is checked too: Bangladesh (+880…) and any longer
- * number beginning 84 pass `startsWith('84')`. VN mobiles are 84 + 9 digits (11); 10 is accepted for
- * stale records from before the 2018 renumbering.
+ * Distinct from normalizePhone/normalizePhoneNoPlus above, which exist to MATCH a stored Supabase
+ * auth phone; this one exists to CHOOSE a delivery channel. Same input, different jobs.
+ */
+export function normalizePhoneForRouting(raw: string): string {
+  const trimmed = (raw || '').trim()
+  const hadPlus = trimmed.startsWith('+')
+  const d = trimmed.replace(/\D/g, '')
+  if (d.startsWith('0')) return '84' + d.slice(1) // local VN form
+  if (d.startsWith('84')) return d                // already canonical VN
+  if (hadPlus) return d                            // explicit E.164 → its own country code
+  // Bare digits: a 9-digit VN mobile typed without the leading 0 gets the prefix;
+  // anything longer is a full international number delivered without '+'.
+  return d.length === 9 ? '84' + d : d
+}
+
+/**
+ * Is this a Vietnamese MOBILE? Takes the output of {@link normalizePhoneForRouting}.
+ *
+ * ⚠️ EXACTLY 11 DIGITS AND A REAL VN MOBILE PREFIX — both conditions were added 2026-08-03 after
+ * codex and agy independently broke the looser version, and each rejection is a number that would
+ * otherwise be routed to an app that cannot reach it:
+ *   · '8431234567' — a US South Carolina number (843…) typed without a country code. 10 digits
+ *     starting '84', so the old `length === 10` branch called it Vietnamese and sent an American
+ *     user to Zalo. THIS is why 10 is gone: the pre-2018 stale-record case it served is rarer than
+ *     the collision it created, and Supabase stores E.164 anyway.
+ *   · '842438505000' — a Hanoi landline (+84 24 …). Correctly foreign-ish for our purposes: it is
+ *     12 digits and cannot receive an app message at all.
+ * VN mobiles since the 2018 renumbering are 84 + [3|5|7|8|9] + 8 more digits, so the prefix test
+ * also rejects 84 followed by 1/2/4/6 — landline and service ranges.
  */
 export function isVietnamesePhone(normalized: string): boolean {
-  const d = (normalized || '').replace(/\D/g, '')
-  return d.startsWith('84') && (d.length === 11 || d.length === 10)
+  return /^84[35789]\d{8}$/.test((normalized || '').replace(/\D/g, ''))
 }

@@ -13,7 +13,7 @@ import { isNativeApp, nativeGoogleSignIn } from '@/lib/native-auth'
 import { googleIdentityEnabled, requestGoogleIdToken } from '@/lib/google-identity'
 import { useTurnstile } from './turnstile'
 import { canonicalEmail } from '@/lib/email-alias'
-import { isVietnamesePhone, normalizePhoneNoPlus } from '@/lib/phone'
+import { isVietnamesePhone, normalizePhoneForRouting } from '@/lib/phone'
 import { AUTH_USES_REQUEST_ORIGIN } from '@/lib/auth-origin'
 
 const RESEND_SECONDS = 60
@@ -134,6 +134,11 @@ export function SignInForm({ className }: { className?: string }) {
   // Which channel the code actually landed on (telegram/whatsapp/zalo/sms) —
   // written by the delivery hook, read back so we can point at ONE inbox.
   const [sentChannel, setSentChannel] = useState<string | null>(null)
+  // ⚠️ WHICH CHANNELS THE SERVER CAN ACTUALLY SEND THROUGH — capability, not preference.
+  // null = not asked yet. Fetched once on mount so the pre-send warning is honest on FIRST paint:
+  // with SpeedSMS gone a wrong promise is a dead end (the hook answers 200 even when every channel
+  // fails), and today production has only Telegram configured, so naming Zalo would be a lie.
+  const [configured, setConfigured] = useState<{ telegram: boolean; whatsapp: boolean; zalo: boolean } | null>(null)
   const smsSends = useRef(0) // client-side mirror of the server's escalation counter
   const emailSends = useRef(0) // same, for the magic-link ladder
   // In the native shells a magic LINK is a dead end: it opens in the system browser, so the
@@ -373,6 +378,16 @@ export function SignInForm({ className }: { className?: string }) {
   // The hook finishes before signInWithOtp resolves, so one read usually hits;
   // the retry covers replication lag. Fire-and-forget — unknown just means the
   // code screen shows no inbox hint, never a blocked login.
+  // Ask once on mount — no phone needed, the endpoint answers `configured` regardless.
+  useEffect(() => {
+    let off = false
+    fetch('/api/auth/otp-channel?phone=')
+      .then((r) => r.json())
+      .then((d) => { if (!off && d?.configured) setConfigured(d.configured) })
+      .catch(() => { /* leave null → the copy falls back to the generic line */ })
+    return () => { off = true }
+  }, [])
+
   const fetchChannel = async (p: string) => {
     setSentChannel(null)
     for (let i = 0; i < 2; i++) {
@@ -385,11 +400,44 @@ export function SignInForm({ className }: { className?: string }) {
     }
   }
 
-  // ⚠️ MIRRORS THE SERVER'S ROUTING EXACTLY, via the same predicate (lib/phone.ts), because the
-  // form now PROMISES which app the code will arrive in and there is no SMS fallback to cover a
-  // wrong guess. Computed from what is typed so far — normalizePhoneNoPlus resolves '09…' and a
-  // bare 9-digit mobile to the 84 form, so the hint is right from the first few digits.
-  const phoneWantsZalo = isVietnamesePhone(normalizePhoneNoPlus(phone))
+  // ⚠️ THE SAME NORMALIZER *AND* THE SAME PREDICATE THE SERVER ROUTES ON (lib/phone.ts), because
+  // the form PROMISES which app the code arrives in and there is no SMS fallback to cover a wrong
+  // guess. It used normalizePhoneNoPlus until 2026-08-03, which DIVERGES on a bare 9-digit mobile
+  // ('912345678' stays as-is there but becomes '84912345678' for routing) — both external reviewers
+  // caught the split. normalizePhoneForRouting is the one the hook uses.
+  const phoneWantsZalo = isVietnamesePhone(normalizePhoneForRouting(phone))
+
+  /**
+   * ⚠️ NAMES ONLY APPS THAT CAN ACTUALLY RECEIVE THE CODE — capability ∩ preference.
+   *
+   * Both external reviewers refuted the first version of this line for the same reason: it named
+   * the PREFERRED channel, so a Vietnamese user was told "check Zalo" while production has no Zalo
+   * keys and the server would skip it. With SpeedSMS gone that is not a slower path, it is silence
+   * — the hook returns 200 even when nothing was delivered, so the user waits forever with no error.
+   *
+   * So: intersect what this deployment has configured with what this number can use (Zalo is
+   * Vietnam-only; WhatsApp is for everyone else). Three outcomes, all honest:
+   *   · some apps usable       → name exactly those
+   *   · capability unknown yet → the generic line (fetch failed / still in flight)
+   *   · none usable            → say so plainly, and point at email, which always works
+   */
+  const otpAppHint = (() => {
+    if (!configured) {
+      return t('The code arrives in a messaging app — Zalo, WhatsApp or Telegram.', 'Mã sẽ được gửi qua ứng dụng nhắn tin — Zalo, WhatsApp hoặc Telegram.')
+    }
+    const usable: string[] = []
+    if (phoneWantsZalo && configured.zalo) usable.push('Zalo')
+    if (!phoneWantsZalo && configured.whatsapp) usable.push('WhatsApp')
+    if (configured.telegram) usable.push('Telegram')
+    if (usable.length === 0) {
+      // The dead end, said out loud instead of discovered by waiting. Email needs no app at all.
+      return t('Phone codes are unavailable right now — please sign in with email instead.', 'Hiện chưa gửi được mã qua điện thoại — vui lòng đăng nhập bằng email nhé.')
+    }
+    if (usable.length === 1) {
+      return t('The code arrives on {app} — you need it on this number.', 'Mã sẽ được gửi qua {app} — bạn cần có ứng dụng này trên số máy đó.').replace('{app}', usable[0])
+    }
+    return t('The code arrives on {apps} — you need one of them on this number.', 'Mã sẽ được gửi qua {apps} — bạn cần có một trong số đó trên số máy đó.').replace('{apps}', usable.join(' or '))
+  })()
 
   const sendPhone = async () => {
     setLoading(true); setError(null)
@@ -648,11 +696,7 @@ export function SignInForm({ className }: { className?: string }) {
                   A line the user reads BEFORE tapping is therefore the only honest place to say it.
                   The app named follows the same country rule the server routes on — Zalo for a
                   Vietnamese number, WhatsApp for a foreign one — so the two cannot disagree. */}
-              <p className="text-2xs leading-snug text-muted-foreground">
-                {phoneWantsZalo
-                  ? t('The code arrives on Zalo or Telegram — you need one of them on this number.', 'Mã sẽ được gửi qua Zalo hoặc Telegram — bạn cần có một trong hai trên số này.')
-                  : t('The code arrives on WhatsApp or Telegram — you need one of them on this number.', 'Mã sẽ được gửi qua WhatsApp hoặc Telegram — bạn cần có một trong hai trên số này.')}
-              </p>
+              <p className="text-2xs leading-snug text-muted-foreground">{otpAppHint}</p>
             </div>
           )}
 

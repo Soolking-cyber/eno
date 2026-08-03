@@ -4,6 +4,7 @@ import { Suspense } from 'react'
 import type { Metadata } from 'next'
 import { getCurrentProfile } from '@/lib/admin'
 import { safeNextPath } from '@/lib/url'
+import { pendingOnboardingStep } from '@/lib/auth-policy'
 import { OnboardClient } from './onboard-client'
 
 // Noindex — this is a private, post-sign-in interstitial, not a content page.
@@ -46,7 +47,14 @@ export default async function OnboardPage({
   let target: string | null = null
   try {
     const profile = await getCurrentProfile()
-    if (profile?.accountType) {
+    // ⚠️ THE SHARED PREDICATE, NOT `profile.accountType` INLINE — lib/auth-policy.ts is explicit
+    // that its three callers must agree, and this one testing accountType directly was exactly the
+    // drift it warns about: the moment SIGNUP_REQUIRES_PHONE is turned on, a user WITH an account
+    // type but WITHOUT a phone would be redirected here by auth-finish.ts and then immediately
+    // bounced back out by this guard — an infinite loop between the two, or a phone step that can
+    // be skipped by opening /onboard and letting it redirect. Reading the same function keeps the
+    // entry condition and the exit condition inverses of each other by construction.
+    if (profile && !pendingOnboardingStep(profile)) {
       // Same same-origin guard /auth/callback uses: `next` is caller-supplied and must never become
       // an off-site redirect. The origin here is a sentinel — only the PATH is used, and any
       // absolute URL pointing elsewhere fails the origin check and collapses to '/'. safeNextPath
