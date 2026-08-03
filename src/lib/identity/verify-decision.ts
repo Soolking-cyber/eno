@@ -1,5 +1,5 @@
 import 'server-only'
-import type { PassportMrzResult } from './mrz'
+
 
 // ── Tier B decision: what we verified, and what we did NOT ──────────────────────────────────────
 //
@@ -80,8 +80,22 @@ export type ProviderSignals = {
 }
 
 export type TierBInput = {
-  /** ⚠️ SERVER-SIDE MRZ. A client-parsed MRZ is an assertion — see mrz-ocr.ts. */
-  mrz: PassportMrzResult
+  /** 'A' = Vietnamese CCCD/VNeID, 'B' = foreign passport. The DECISION differs even though the
+   *  provider endpoints do not — see the tier note in decideTierB. */
+  tier?: 'A' | 'B'
+  /**
+   * ⚠️ EXPLICIT FIELDS, NOT A FAKED MRZ STRUCT. An earlier version called
+   * `parsePassportMrz('', '')` and then overwrote the result with `valid: true` — which silently
+   * turned the check-digit guard below into a no-op while LOOKING like it still ran. codex and agy
+   * both caught it. Whatever produced these fields (a real MRZ parse, or VNPT's OCR) states its own
+   * validity in `mrzValid`; this module never manufactures it.
+   */
+  surname: string
+  givenNames: string
+  /** ISO YYYY-MM-DD. Absent for a CCCD, which has no expiry in the passport sense. */
+  documentExpiry?: string
+  /** True only when real MRZ check digits passed. FALSE for an OCR-derived Tier A record. */
+  mrzValid: boolean
   accountName: string
   /** Residence permit / long-stay visa expiry, entered or read separately from the passport. */
   residenceExpiresAt?: Date | null
@@ -160,19 +174,33 @@ export function decideTierB(input: TierBInput): TierBDecision {
   const now = input.now ?? new Date()
   const passed: string[] = []
 
-  // 1. The MRZ must be internally consistent. Its check digits are computable, so this proves the
-  //    document was READ correctly — never that it is genuine. See TIER_B_LIMITATIONS.
-  if (!input.mrz.valid) {
+  const isPassport = (input.tier ?? 'B') === 'B'
+
+  // 1. The document must have been READ reliably — by verified MRZ check digits, OR by the
+  //    provider attesting to it. Either is sufficient; NEITHER is not.
+  //    ⚠️ DO NOT REQUIRE `mrzValid` UNCONDITIONALLY FOR A PASSPORT. VNPT's OCR returns parsed
+  //    fields, not MRZ lines, so `mrzValid` is honestly false on that path — and an unconditional
+  //    check would have rejected EVERY provider-verified passport. (Caught immediately after
+  //    de-faking the MRZ struct: removing the lie exposed that the guard was leaning on it.)
+  //    ⚠️ A CCCD HAS NO MRZ AT ALL, so requiring one there rejects every Tier A record — the branch
+  //    that was missing when both tiers shared a passport-shaped decision (codex).
+  const readReliably = input.mrzValid || !!input.provider
+  if (isPassport && !readReliably) {
     return { status: 'rejected', assurance: null, limitations: TIER_B_LIMITATIONS, checksPassed: passed, rejectReason: 'mrz_invalid' }
   }
-  passed.push('mrz_checksums')
+  if (isPassport) passed.push('mrz_checksums')
 
-  // 2. Passport must be unexpired.
-  const expiry = input.mrz.fields.passportExpiryDate ? new Date(`${input.mrz.fields.passportExpiryDate}T00:00:00Z`) : null
-  if (!expiry || expiry <= now) {
+  // 2. Document expiry. ⚠️ REQUIRED for a passport, OPTIONAL for a CCCD — Vietnamese ID cards
+  //    issued before the current series carry no expiry at all, so demanding one rejects a whole
+  //    generation of legitimate holders.
+  const expiry = input.documentExpiry ? new Date(`${input.documentExpiry}T00:00:00Z`) : null
+  if (isPassport && !expiry) {
     return { status: 'rejected', assurance: null, limitations: TIER_B_LIMITATIONS, checksPassed: passed, rejectReason: 'document_expired' }
   }
-  passed.push('passport_unexpired')
+  if (expiry && expiry <= now) {
+    return { status: 'rejected', assurance: null, limitations: TIER_B_LIMITATIONS, checksPassed: passed, rejectReason: 'document_expired' }
+  }
+  if (expiry) passed.push('document_unexpired')
 
   // 3. Residence document, when supplied. ⚠️ An EXPIRED residence permit is a rejection at
   //    submission time — distinct from the `expired` STATE, which is what a previously-verified
@@ -187,7 +215,7 @@ export function decideTierB(input: TierBInput): TierBDecision {
   //    varies by issuer. Auto-rejecting here would fail a large slice of legitimate expats on a
   //    string comparison, and this platform's standing posture is to be lenient and fix false
   //    positives rather than tighten the check.
-  if (!namesCorrespond(input.mrz.fields.surname ?? '', input.mrz.fields.givenNames ?? '', input.accountName)) {
+  if (!namesCorrespond(input.surname, input.givenNames, input.accountName)) {
     return { status: 'pending', assurance: null, limitations: TIER_B_LIMITATIONS, checksPassed: passed }
   }
   passed.push('name_matches_account')

@@ -66,6 +66,25 @@ const STATEMENTS = [
     `ALTER TABLE public.vnpt_access_token ENABLE ROW LEVEL SECURITY`,
   ],
   [
+    'vnpt: quota counter (atomic reservation)',
+    // ⚠️ A ROW PER PERIOD, RESERVED BY A CONDITIONAL UPDATE — never read-then-write. qwen flagged
+    // that checking `used < limit` and then incrementing lets two concurrent verifications both
+    // read limit-1 and both proceed, overrunning a FREE TIER whose overage is a hard stop rather
+    // than a bill. `UPDATE ... WHERE used < limit RETURNING` makes the check and the increment one
+    // atomic statement: no row returned means exhausted, and Postgres arbitrates the race.
+    `CREATE TABLE IF NOT EXISTS public.vnpt_quota (
+       period     date        PRIMARY KEY,
+       used       integer     NOT NULL DEFAULT 0,
+       quota      integer     NOT NULL,
+       updated_at timestamptz NOT NULL DEFAULT now(),
+       CONSTRAINT vnpt_quota_used_bounded CHECK (used >= 0 AND used <= quota)
+     )`,
+  ],
+  [
+    'vnpt: quota is service-role only',
+    `ALTER TABLE public.vnpt_quota ENABLE ROW LEVEL SECURITY`,
+  ],
+  [
     'audit: block UPDATE',
     `CREATE OR REPLACE RULE compliance_audit_no_update AS
        ON UPDATE TO compliance_audit DO INSTEAD NOTHING`,

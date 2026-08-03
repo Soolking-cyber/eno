@@ -29,7 +29,7 @@ import { syndicateListing } from '@/lib/syndicate'
 import { sendMetaCapiEvent, metaUserDataFromHeaders } from '@/lib/meta-capi'
 import { dispatchListingEvent } from '@/lib/webhooks'
 import { browseRankScore, recomputeRankScoreForListing } from '@/lib/ranking'
-import { IDENTITY_VERIFICATION_REQUIRED } from '@/lib/compliance/account-state'
+import { identityGateEnforced } from '@/lib/compliance/account-state'
 import { assertPublishable, assertCleanTexts, assertCleanContactName, assertEnoughAngles, PublishBlockedError } from '@/lib/publish-guard'
 import { findDuplicateListing } from '@/lib/duplicate-guard'
 import { moderateListingById } from '@/lib/ai-moderation'
@@ -613,7 +613,10 @@ export async function createListingCore(input: {
   // binds the licensed Vietnamese platform, and eno.forum has no VNPT channel — so passing a status
   // here on the services build would refuse every forum publish with no way for the seller to ever
   // clear it. `undefined` is the guard's documented "not this caller's job" value.
-  const identityStatus = IDENTITY_VERIFICATION_REQUIRED ? (seller.verificationStatus ?? undefined) : undefined
+  // ⚠️ TWO CONDITIONS, NOT ONE: the right EDITION and the switch actually thrown. Passing a status
+  // while the gate is unenforced would refuse every seller the moment the column starts being
+  // populated — with no way for them to clear it until VNPT works.
+  const identityStatus = identityGateEnforced() ? (seller.verificationStatus ?? undefined) : undefined
   assertPublishable({ trustTier: seller.trustTier, verificationStatus: identityStatus, images, texts: [title, description], categorySlug, lat, lng, district })
 
   // Intent + subcategory from the taxonomy. listingType must be valid for the category

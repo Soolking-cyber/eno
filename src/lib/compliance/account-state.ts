@@ -38,6 +38,27 @@ import { IS_MARKETPLACE } from '@/lib/edition'
 /** Does THIS deployment require verified sellers? Compile-time, so it is inlined per artifact. */
 export const IDENTITY_VERIFICATION_REQUIRED = IS_MARKETPLACE
 
+/**
+ * ⚠️ THE KILL SWITCH, AND IT DEFAULTS TO OFF ON PURPOSE.
+ *
+ * Wiring the publish gate and switching it on are two different decisions, and conflating them is
+ * how a compliance feature takes a marketplace down. The moment a caller passes a real
+ * `verificationStatus`, every seller whose row says `unverified` — which is ALL of them, since the
+ * column defaults that way — is refused. If VNPT is not yet working, there is no route out: they
+ * cannot publish and they cannot verify.
+ *
+ * So the plumbing lands now, exercised end to end, with enforcement behind one env var. Flipping
+ * `IDENTITY_GATE_ENFORCED=1` is a config change, not a deploy of untested code — and, just as
+ * importantly, flipping it BACK is instant if the provider fails on a Monday morning.
+ *
+ * ⚠️ A PLAIN SERVER VAR, NOT NEXT_PUBLIC_*. NEXT_PUBLIC_ values are inlined at BUILD time into the
+ * server bundle too, so the switch would be frozen into the artifact and could only be changed by
+ * rebuilding — which is exactly the property a kill switch must not have.
+ */
+export function identityGateEnforced(): boolean {
+  return IDENTITY_VERIFICATION_REQUIRED && process.env.IDENTITY_GATE_ENFORCED === '1'
+}
+
 export const ACCOUNT_STATE = {
   /** Signed up, no verification submitted. CAN browse, search, save, message. CANNOT publish. */
   unverified: 'PENDING_VERIFICATION',
