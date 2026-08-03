@@ -29,6 +29,7 @@ import { syndicateListing } from '@/lib/syndicate'
 import { sendMetaCapiEvent, metaUserDataFromHeaders } from '@/lib/meta-capi'
 import { dispatchListingEvent } from '@/lib/webhooks'
 import { browseRankScore, recomputeRankScoreForListing } from '@/lib/ranking'
+import { IDENTITY_VERIFICATION_REQUIRED } from '@/lib/compliance/account-state'
 import { assertPublishable, assertCleanTexts, assertCleanContactName, assertEnoughAngles, PublishBlockedError } from '@/lib/publish-guard'
 import { findDuplicateListing } from '@/lib/duplicate-guard'
 import { moderateListingById } from '@/lib/ai-moderation'
@@ -566,7 +567,11 @@ export async function updateListingCore(
  * paths produce IDENTICAL listings. `headers` powers CAPI user-matching + event source.
  */
 export async function createListingCore(input: {
-  seller: { id: string; trustTier: string; trustScore: number; phone: string | null }
+  // ⚠️ `verificationStatus` IS THE OWNER PROFILE'S, NOT THE STOREFRONT'S. Seller is a storefront
+  // and may be owner-less (a claimed guest seller); the legal obligation under NĐ 248/2026 attaches
+  // to the HUMAN behind it. Callers resolve it via Seller.ownerId → Profile.verificationStatus and
+  // pass it here; omitting it leaves the identity gate inert for that path (see assertPublishable).
+  seller: { id: string; trustTier: string; trustScore: number; phone: string | null; verificationStatus?: string | null }
   category: { id: string; slug: string; name: string; nameVi: string }
   title: string
   price: number
@@ -604,7 +609,12 @@ export async function createListingCore(input: {
   // Services sell at the price stated: no offers, no urgency run.
   const fixedPriceOnly = categorySlug === 'services'
 
-  assertPublishable({ trustTier: seller.trustTier, images, texts: [title, description], categorySlug, lat, lng, district })
+  // ⚠️ IDENTITY IS GATED PER EDITION (owner, 2026-08-03: "eno.forum doesnt need it"). The mandate
+  // binds the licensed Vietnamese platform, and eno.forum has no VNPT channel — so passing a status
+  // here on the services build would refuse every forum publish with no way for the seller to ever
+  // clear it. `undefined` is the guard's documented "not this caller's job" value.
+  const identityStatus = IDENTITY_VERIFICATION_REQUIRED ? (seller.verificationStatus ?? undefined) : undefined
+  assertPublishable({ trustTier: seller.trustTier, verificationStatus: identityStatus, images, texts: [title, description], categorySlug, lat, lng, district })
 
   // Intent + subcategory from the taxonomy. listingType must be valid for the category
   // (else its primary type); subcategory falls back to keyword-suggest.

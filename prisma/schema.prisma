@@ -107,9 +107,177 @@ model Profile {
   itineraries             Itinerary[]
   tripAssistance          TripAssistanceRequest[]
 
+  // ── 2026 e-commerce compliance (Luật TMĐT 122/2025/QH15 · NĐ 248/2026) ──────────────────
+  // Full design: docs/compliance-2026.md. Seller identity verification is mandatory from
+  // 2027-01-01; these columns are the DENORMALISED CACHE of the live IdentityVerification row.
+  //
+  // ⚠️ NEVER WRITTEN BY HAND — only by recomputeVerification(), the same discipline as
+  // trustTier/trustScore. Read paths may use these; any decision that MATTERS (publishing,
+  // takedown, an authority answer) re-reads identity_verifications, because a cache that has
+  // drifted is exactly how a lapsed document keeps a verified badge.
+  verificationStatus  String    @default("unverified") // unverified|pending|verified|rejected|expired|revoked
+  verificationTier    String? // 'A' = VNeID (citizens) | 'B' = passport + residence (expats)
+  verificationMethod  String? // vneid | passport_mrz | passport_manual | business_registry
+  verifiedAt          DateTime?
+  /// Passport/TRC expiry for Tier B; null for Tier A (a citizen ID does not gate seller status).
+  /// Indexed because a nightly job walks it to warn at -30d and expire at 0.
+  documentExpiresAt   DateTime?
+
+  /// ⚠️ SEPARATE FROM enforcementState, DELIBERATELY. A trust suspension and a regulatory hold
+  /// are different things with different remedies and different audiences; conflating them means
+  /// lifting a trust penalty silently lifts a legal hold.
+  complianceFlag      String? // authority_hold | identity_fraud | sanctions_review
+  complianceFlaggedAt DateTime?
+
+  // ── Verify-on-action nudge tracking (docs/compliance-2026.md §1; account-state.ts) ───────
+  // ⚠️ NO `role` COLUMN, DELIBERATELY. "buyer vs seller" looks like an obvious flag and is a trap
+  // here: it is not a property a user declares, it is a thing they DO, and it changes the moment
+  // someone who joined to buy a scooter decides to sell their sofa. A stored role would be stale
+  // exactly when it matters — at the publish attempt — and we would gate on the stale copy.
+  // Selling intent is DERIVED instead: `sellingIntentAt` is stamped by the real signals (opening
+  // the post wizard, a blocked publish attempt, a saved draft), and `seller != null` answers
+  // "has actually sold". Both are facts; a role field would be an assertion.
+  /// First observed selling intent. Null = has only ever browsed/bought → nudges stop after day 1.
+  sellingIntentAt          DateTime?
+  /// Nudge ratchet. ⚠️ The COUNT is the schedule position, not a statistic — shouldNudge() indexes
+  /// NUDGE_DAYS with it, so an increment that is not persisted re-sends the same step.
+  verificationPromptCount  Int       @default(0)
+  lastVerificationPromptAt DateTime?
+  /// Independent of weeklyDigestOptIn/dailyReminderOptIn: a user may want product mail and not
+  /// compliance nagging, and CAN-SPAM-style hygiene says each stream opts out separately.
+  verificationNudgeOptOut  Boolean   @default(false)
+
+  identityVerifications IdentityVerification[]
+
   @@index([phone])
   @@index([trustTier])
   @@index([attrSource])
+  @@index([verificationStatus])
+  @@index([documentExpiresAt])
+}
+
+/// One row per verification ATTEMPT. APPEND-ONLY: never UPDATE a decided row, never DELETE one —
+/// supersede it with a new attempt. The 3-year investigative obligation is precisely about being
+/// able to show what we knew and when, and an UPDATE destroys that.
+///
+/// ⚠️ NO RAW IDENTIFIERS. No CCCD, no passport number, no document image, no raw VNeID assertion.
+/// See docs/compliance-2026.md §2.4 — a national ID is low-entropy and structured, so a leaked
+/// plain sha256 column is equivalent to leaking the numbers themselves.
+model IdentityVerification {
+  id String @id @default(cuid())
+  /// ⚠️ NULLABLE, AND onDelete: SetNull — NOT Cascade (codex). Cascade silently defeated the whole
+  /// 3-year retention design: deleting a Profile deleted its verification history, which is exactly
+  /// the record we are obliged to keep. Erasure must remove the PERSON, not the evidence that a
+  /// verification happened — the row survives pseudonymised (subjectHash is already keyed, and the
+  /// name/nationality are cleared by the erasure job), which is what §4.2 describes.
+  profileId String?  @db.Uuid
+  profile   Profile? @relation(fields: [profileId], references: [id], onDelete: SetNull)
+
+  tier         String // 'A' | 'B'
+  method       String
+  status       String // pending | verified | rejected | expired | revoked
+  submittedAt  DateTime  @default(now())
+  decidedAt    DateTime?
+  decidedBy    String? // admin profile id, or 'system' for auto-approval
+  rejectReason String? // mrz_unreadable | checksum_failed | expired | name_mismatch | manual
+
+  /// HMAC-SHA256 of the issuer's subject identifier, keyed by IDENTITY_HASH_PEPPER (Secret
+  /// Manager, both stores). Detects "same human, second account" without holding the identifier.
+  subjectHash String @db.Char(64)
+
+  fullName          String?
+  nationality       String? @db.Char(3) // ISO-3166-1 alpha-3, straight from the MRZ
+  birthYear         Int? // year only — day/month is not needed for an age gate
+  documentType      String? // passport | trc | visa | cccd
+  documentExpiresAt DateTime?
+  assuranceLevel    String?
+
+  /// Provider evidence: assertion id, OCR confidence, reviewer note. NEVER the document itself.
+  evidence Json?
+
+  /// Set once the stored document objects have actually been deleted (§4.3). ⚠️ Written AFTER the
+  /// storage delete succeeds, never before — a purge flag written ahead of the delete is how
+  /// documents survive a retention policy everyone believes is working.
+  documentsPurgedAt DateTime?
+
+  supersedesId String?               @unique
+  supersedes   IdentityVerification? @relation("Supersedes", fields: [supersedesId], references: [id])
+  supersededBy IdentityVerification? @relation("Supersedes")
+
+  @@index([profileId, status])
+  @@index([subjectHash])
+  @@index([status, documentExpiresAt])
+  @@map("identity_verifications")
+}
+
+/// An authority-issued or admin-issued takedown. Retained 3 years; never deleted while an appeal
+/// is open. Separate from the Report/EnforcementAction flow: those are OUR judgement, this is
+/// someone else's order and the distinction is the whole intermediary position.
+model TakedownOrder {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  /// ⚠️ NO `listingId` SCALAR HERE (agy). The relation is driven by Listing.takedownOrderId, so a
+  /// scalar on this side was a dangling column that nothing wrote and nothing read — while LOOKING
+  /// authoritative to the next person who queried it. One order can cover several listings.
+  listings  Listing[] @relation("ListingTakedown")
+  sellerId  String? // whole-storefront orders
+
+  action     String // unpublish | restore | restrict
+  reason     String // visa_scam | illegal_sublet | counterfeit | prohibited_goods | …
+  /// ⚠️ A KEY INTO LEGAL_BASIS, NEVER FREE TEXT. An authority-supplied string would otherwise be
+  /// quoted verbatim in an email we send under our own name.
+  legalBasis String
+  /// The authority's own document number, e.g. "QĐ-1234/2026".
+  orderReference String?
+  issuedBy       String?
+  issuedAt       DateTime?
+
+  /// Which API key acted. Null for an in-app admin action (actor is then in the audit row).
+  actorKeyId String?
+  actorAdminId String?
+
+  appealUntil    DateTime?
+  appealedAt     DateTime?
+  appealOutcome  String? // upheld | overturned | withdrawn
+
+  @@index([sellerId])
+  @@index([createdAt])
+  @@map("takedown_orders")
+}
+
+/// APPEND-ONLY, HASH-CHAINED investigative log (3-year retention).
+///
+/// ⚠️ A PLAIN TABLE PROVES NOTHING — anyone with write access can rewrite history, so it is
+/// worthless as evidence. Each row commits to its predecessor (rowHash = H(prevHash ‖ row)), so a
+/// single edit breaks the chain from that row onward and is detectable. UPDATE/DELETE are also
+/// blocked by RULEs in the DDL script, because "we never update it" is a convention and a rushed
+/// psql session is not bound by conventions.
+model ComplianceAudit {
+  id         BigInt   @id @default(autoincrement())
+  occurredAt DateTime @default(now())
+
+  actorType String // user | admin | authority | system
+  actorId   String?
+  /// ⚠️ cf-connecting-ip ONLY. A client-supplied X-Forwarded-For in an evidence log is worse than
+  /// no IP at all, because it looks authoritative.
+  actorIp   String?
+
+  action      String // identity.verified | listing.taken_down | listing.restored | …
+  subjectType String // profile | listing | seller
+  subjectId   String
+
+  /// Already redacted at write time. NEVER a document image, raw identifier, or full assertion —
+  /// this table is retained for 3 years and must survive a data-protection audit too.
+  detail Json
+
+  legalBasis String?
+  prevHash   String? @db.Char(64)
+  rowHash    String  @db.Char(64)
+
+  @@index([subjectType, subjectId, occurredAt])
+  @@index([action, occurredAt])
+  @@map("compliance_audit")
 }
 
 // Brand catalogue (product categories only). Grows automatically: a brand read by
@@ -151,9 +319,14 @@ model SavedSearch {
 // Web Push subscription (one row per browser/device that opted in). FK within
 // public → Profile, so it goes through the normal drop-FK→push→re-add flow.
 model PushSubscription {
-  id        String   @id @default(cuid())
-  profileId String   @db.Uuid
-  profile   Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  id String @id @default(cuid())
+  /// ⚠️ NULLABLE, AND onDelete: SetNull — NOT Cascade (codex). Cascade silently defeated the whole
+  /// 3-year retention design: deleting a Profile deleted its verification history, which is exactly
+  /// the record we are obliged to keep. Erasure must remove the PERSON, not the evidence that a
+  /// verification happened — the row survives pseudonymised (subjectHash is already keyed, and the
+  /// name/nationality are cleared by the erasure job), which is what §4.2 describes.
+  profileId String?  @db.Uuid
+  profile   Profile? @relation(fields: [profileId], references: [id], onDelete: SetNull)
   endpoint  String   @unique
   p256dh    String
   auth      String
@@ -166,9 +339,14 @@ model PushSubscription {
 // Native (Capacitor) push tokens — FCM (Android) / APNs (iOS) device tokens, separate from the
 // web-push PushSubscription above. One row per device token; sends fan out via src/lib/native-push.
 model NativePushToken {
-  id        String   @id @default(cuid())
-  profileId String   @db.Uuid
-  profile   Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  id String @id @default(cuid())
+  /// ⚠️ NULLABLE, AND onDelete: SetNull — NOT Cascade (codex). Cascade silently defeated the whole
+  /// 3-year retention design: deleting a Profile deleted its verification history, which is exactly
+  /// the record we are obliged to keep. Erasure must remove the PERSON, not the evidence that a
+  /// verification happened — the row survives pseudonymised (subjectHash is already keyed, and the
+  /// name/nationality are cleared by the erasure job), which is what §4.2 describes.
+  profileId String?  @db.Uuid
+  profile   Profile? @relation(fields: [profileId], references: [id], onDelete: SetNull)
   token     String   @unique
   platform  String // 'ios' | 'android'
   createdAt DateTime @default(now())
@@ -443,6 +621,27 @@ model Listing {
   // change, and by the daily cron (recency decay). The default "Recommended" feed sorts by
   // this; search blends it with query relevance. Backfill on migrate or it sorts last.
   rankScore               Float              @default(0)
+  // ── Ranking transparency (Luật TMĐT 122/2025/QH15) ─────────────────────────────────────
+  // ⚠️ THE COMPOSITE ALONE IS NOT AUDITABLE. Disclosing that trust is 60% of browse rank is a
+  // legal statement, and we must be able to SHOW why one listing outranked another — to a
+  // regulator, and to the seller who asks. A bare rankScore cannot answer that, and cannot be
+  // recomputed after the fact because the inputs (trust, demand, age) have all moved since.
+  // So the components are persisted alongside it, with the formula version that produced them.
+  // ⚠️ Bump rankFormulaVersion whenever the RANK constants change, or old rows silently claim
+  // to have been scored by the current formula. See docs/compliance-2026.md §2.3.
+  rankTrustComponent      Float?
+  rankDemandComponent     Float?
+  rankRecencyComponent    Float?
+  rankFormulaVersion      String?
+  rankComputedAt          DateTime?
+  // ── Compliance lifecycle ───────────────────────────────────────────────────────────────
+  // ⚠️ SEPARATE FROM `status`. A listing removed by authority order is NOT "sold" and must not
+  // render the sold page (which deliberately returns 200 + noindex) — that would tell buyers the
+  // item sold, which is false. A takedown is its own terminal state and returns 410 + noindex.
+  complianceStatus        String             @default("clear") // clear | under_review | taken_down | restored
+  takenDownAt             DateTime?
+  takedownOrderId         String?
+  takedownOrder           TakedownOrder?     @relation("ListingTakedown", fields: [takedownOrderId], references: [id])
   // Partner's own id for this listing (Partner API sync/upsert). Unique PER seller so two
   // shops can each use "sku-1". NULL for listings not created via the sync endpoint.
   externalId              String?
@@ -499,6 +698,7 @@ model Listing {
   @@index([verified, postedAt])
   @@index([verified, status, postedAt])
   @@index([verified, categoryId, postedAt])
+  @@index([complianceStatus])
   // Balanced "Recommended" feed: ORDER BY rankScore desc (trust⊕recency blend, src/lib/
   // ranking.ts). A local denormalized column means the ORDER BY is an index scan, not a
   // Seller join + external sort. One for the all-categories feed, one by-category.

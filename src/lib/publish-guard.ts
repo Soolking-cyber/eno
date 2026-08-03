@@ -34,7 +34,10 @@ export function minPhotosFor(categorySlug: string | null | undefined): number {
 // dead end — a seller whose account display name was their raw email got "remove the phone
 // number/email from your LISTING" on a listing whose title and description were clean, with
 // no hint that the offending text was their own name and no way to change it from that screen.
-export type PublishBlockCode = 'account_restricted' | 'photo_required' | 'photos_min' | 'banned_words' | 'contact_in_text' | 'contact_in_name' | 'duplicate_listing' | 'location_required'
+// ⚠️ `identity_unverified` / `identity_expired` are LEGAL blocks, not quality blocks, and they are
+// listed first because they are checked first (see assertPublishable). Verification is required to
+// publish under NĐ 248/2026 — see docs/compliance-2026.md §1 and src/lib/compliance/account-state.ts.
+export type PublishBlockCode = 'identity_unverified' | 'identity_pending' | 'identity_expired' | 'identity_suspended' | 'account_restricted' | 'photo_required' | 'photos_min' | 'banned_words' | 'contact_in_text' | 'contact_in_name' | 'duplicate_listing' | 'location_required'
 
 export class PublishBlockedError extends Error {
   code: PublishBlockCode
@@ -189,15 +192,49 @@ export function containsContactInfo(text: string | null | undefined): boolean {
 
 /**
  * Throw a PublishBlockedError on the FIRST problem, in priority order:
+ *  0. Identity not verified → LEGAL block (NĐ 248/2026); everything else is moot until it clears
  *  1. Restricted account (low trust) → can't post until score recovers (not fixable now)
  *  2. No photo, 3. banned words, 4. phone/contact/address in text → fixable while posting.
  * `trustTier` optional so a pre-seller-resolution caller can run the content checks early.
+ *
+ * ⚠️ THE IDENTITY CHECK LIVES HERE, NOT IN ROUTE MIDDLEWARE, AND THAT IS THE WHOLE POINT.
+ * There is no single "create listing" endpoint to intercept: the web wizard posts to
+ * /api/listings, there is a bulk path, and the partner API syncs listings under /api/v1 with
+ * per-key auth and NO user session at all. A middleware bolted to one of those gates one door in a
+ * three-door building — and the fourth door is the one somebody adds next quarter. Every publish
+ * path already funnels through this function (src/lib/core/listings.ts:607), so putting the gate
+ * here is what makes it exhaustive rather than merely present.
+ *
+ * ⚠️ `verificationStatus` IS OPTIONAL FOR A REASON, AND THE DEFAULT IS TO ALLOW.
+ * Callers that run content checks early (the wizard, previewing) legitimately have no profile
+ * loaded. Making an absent status BLOCK would break those call sites; making it block *silently*
+ * would be worse. The authoritative check happens on the server path that does have the profile —
+ * so `undefined` here means "not this caller's job", never "unverified".
  */
-export function assertPublishable(input: { trustTier?: string; images: unknown[]; texts: (string | null | undefined)[]; categorySlug?: string | null; lat?: number | null; lng?: number | null; district?: string | null }) {
+export function assertPublishable(input: { trustTier?: string; verificationStatus?: string; images: unknown[]; texts: (string | null | undefined)[]; categorySlug?: string | null; lat?: number | null; lng?: number | null; district?: string | null }) {
+  assertIdentityVerified(input.verificationStatus)
   if (input.trustTier === 'restricted') throw new PublishBlockedError('account_restricted')
   assertEnoughAngles(input.images, input.categorySlug)
   assertCleanTexts(input.texts)
   assertHasLocation({ district: input.district, lat: input.lat, lng: input.lng })
+}
+
+/**
+ * Identity gate (NĐ 248/2026). Each state throws a DISTINCT code because each needs different
+ * words and a different call to action — "we couldn't read your photo, try again" and "your
+ * account is suspended" must never reach the same user.
+ */
+export function assertIdentityVerified(status: string | undefined | null) {
+  if (status == null) return // caller has no profile loaded — see the note above
+  switch (status) {
+    case 'verified': return
+    case 'pending': throw new PublishBlockedError('identity_pending')
+    case 'expired': throw new PublishBlockedError('identity_expired')
+    case 'revoked': throw new PublishBlockedError('identity_suspended')
+    // 'unverified' | 'rejected' | anything unrecognised. ⚠️ FAIL CLOSED on an unknown value: a
+    // typo or a future status must not silently become permission to publish.
+    default: throw new PublishBlockedError('identity_unverified')
+  }
 }
 
 /** A listing must say WHERE it is (owner, 2026-07-22: "users shouldnt be able to post

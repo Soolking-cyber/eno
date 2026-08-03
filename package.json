@@ -41,7 +41,7 @@
     "e2e:ui": "playwright test --ui",
     "e2e:report": "playwright show-report",
     "db:push": "prisma db push",
-    "db:setup": "prisma db push && node scripts/messaging-realtime.mjs && node scripts/unique-constraints.mjs && node scripts/image-hash-index.mjs && node scripts/rate-limit-pg.mjs",
+    "db:setup": "prisma db push && node scripts/messaging-realtime.mjs && node scripts/unique-constraints.mjs && node scripts/image-hash-index.mjs && node scripts/rate-limit-pg.mjs && node scripts/compliance-ddl.mjs",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:reset": "prisma migrate reset"
