@@ -195,6 +195,22 @@ model IdentityVerification {
   /// Provider evidence: assertion id, OCR confidence, reviewer note. NEVER the document itself.
   evidence Json?
 
+  // ── The declarant's own attestation (owner, 2026-08-03) ─────────────────────────────────
+  // Before submitting, the user declares the documents are genuine and theirs, the information is
+  // true, and legal responsibility for a false declaration is theirs. src/lib/compliance/declaration.ts
+  //
+  // ⚠️ THE HASH IS WHAT MAKES THIS WORTH ANYTHING. A boolean "accepted terms" proves only that a
+  // box was ticked; it cannot show WHICH WORDS were on screen. Storing the version plus a digest of
+  // the exact published text means the affirmation can be reproduced and checked years later — by
+  // us, by an auditor, or by the user disputing it. Unkeyed on purpose: anyone must be able to
+  // recompute it from the published wording.
+  /// Null on records created before the declaration existed — absent is NOT the same as refused.
+  declarationVersion String?
+  declarationHash    String?   @db.Char(64)
+  declaredAt         DateTime?
+  /// cf-connecting-ip only. A client-supplied X-Forwarded-For in a legal record is worse than none.
+  declarationIp      String?
+
   /// Set once the stored document objects have actually been deleted (§4.3). ⚠️ Written AFTER the
   /// storage delete succeeds, never before — a purge flag written ahead of the delete is how
   /// documents survive a retention policy everyone believes is working.
