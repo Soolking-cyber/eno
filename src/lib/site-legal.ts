@@ -194,15 +194,30 @@ export const TOS_VERSION = '1'
 // notice. Flip to false on the day the registration is confirmed — and add the
 // "Đã đăng ký Bộ Công Thương" badge to the footer at the same time.
 //
-// ⚠️ FLIPPED OFF 2026-08-02 ON THE OWNER'S INSTRUCTION ("remove this"), AND THE REGISTRATION IT
-// WAITS ON IS NOT YET CONFIRMED — so this is ahead of the condition written above, deliberately,
-// and it is worth knowing why the line existed. The banner was the visible statement that eno.vn is
-// in test operation rather than trading, which is the mitigation a sàn TMĐT relies on while its
-// MoIT registration is pending. Removing it presents the site as operating normally.
+// ⚠️ OFF FOR ~4 HOURS ON 2026-08-02 AND BACK ON SINCE — worth recording, because the round trip is
+// the argument for leaving it alone. It was flipped off on the owner's instruction ("remove this")
+// while chasing a Google OAuth brand rejection that blamed the "under construction" wording, then
+// restored the same evening ("put the test mode warning back but bolder more visible").
 //
-// Two consequences to carry into the Monday counsel meeting:
-//   · the footer still has no "Đã đăng ký Bộ Công Thương" badge, because there is no registration
-//     number to put in it — so the site now shows neither the notice nor the badge.
-//   · flip this back to `true` with a one-line change if counsel wants the notice restored; nothing
-//     else needs touching, the banner component reads only this constant.
-export const PRELAUNCH = false
+// Restoring it is also the legally correct state: the MoIT sàn TMĐT registration is still pending,
+// and this banner is the visible statement that eno.vn is in TEST OPERATION rather than trading —
+// the mitigation a sàn relies on while unregistered. With it off, the site presented as operating
+// normally while showing neither the notice nor a "Đã đăng ký Bộ Công Thương" badge (there is no
+// registration number to put in one yet).
+//
+// ⚠️ IF GOOGLE BRAND VERIFICATION IS RESUBMITTED WHILE THIS IS TRUE, expect the same rejection —
+// Google requires an app to be production-ready and reads "not yet officially launched" as the
+// opposite. The two requirements genuinely conflict; the resolution is the ERC, not this flag.
+// Keep the consent screen in Testing mode until then (owner can add test users).
+//
+// ⚠️ MARKETPLACE ONLY (owner, 2026-08-02: "only for eno.vn no forum") — one of the rare cases where
+// gating IS right, and it is not cosmetic. The notice is a claim about a SPECIFIC operator's
+// licensing status: it is eno.vn, the licensed Vietnamese sàn TMĐT, whose MoIT registration is
+// pending. eno.forum is a separate operator not making that filing, so showing it there would
+// assert something untrue about a company this notice does not describe — the same class of error
+// as eno.forum carrying "© eno.vn" or the eno.vn wordmark, both fixed earlier today.
+//
+// This is the exception the standing "every fix ships to both sites" rule allows for explicitly
+// (CLAUDE.md) — the owner specified it. Do not widen it to eno.forum without a reason of the same
+// kind: a filing eno.forum itself has pending.
+export const PRELAUNCH = EDITION === 'marketplace'
