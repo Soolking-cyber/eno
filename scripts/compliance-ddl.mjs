@@ -85,6 +85,43 @@ const STATEMENTS = [
     `ALTER TABLE public.vnpt_quota ENABLE ROW LEVEL SECURITY`,
   ],
   [
+    'identity: leased claim (idempotency + per-profile mutex)',
+    // ⚠️ A LEASE, NOT A FLAG. A permanent `in_flight` marker deadlocks on any crash mid-call and
+    // every replay 409s forever — all three reviewers caught that. `lease_until` is evaluated on
+    // READ, so an abandoned attempt self-heals with no reaper to forget to run.
+    // ⚠️ THE CLAIM ROW IS ALSO THE PER-PROFILE MUTEX, which is why no advisory lock is held across
+    // the VNPT call. Holding one would pin a database connection through a slow external request
+    // and exhaust the pool under load (agy, qwen).
+    // ⚠️ `attempt` IS A FENCING TOKEN. After a lease takeover the ORIGINAL request can still finish
+    // and would otherwise overwrite the newer attempt's outcome (codex). The completion write is
+    // conditional on the attempt number it started with.
+    `CREATE TABLE IF NOT EXISTS public.identity_claim (
+       profile_id   uuid PRIMARY KEY,
+       key          text        NOT NULL,
+       request_hash text        NOT NULL,
+       state        text        NOT NULL,
+       attempt      integer     NOT NULL DEFAULT 1,
+       lease_until  timestamptz NOT NULL,
+       outcome      jsonb,
+       created_at   timestamptz NOT NULL DEFAULT now(),
+       updated_at   timestamptz NOT NULL DEFAULT now()
+     )`,
+  ],
+  [
+    'identity: claim lookups by recency (rate limiting derives from these)',
+    // ⚠️ ATTEMPT LIMITS ARE COUNTED FROM THESE ROWS, NOT FROM A SEPARATE COUNTER. A pre-incremented
+    // counter leaks on every crash — the claim self-heals but the counter does not, so a provider
+    // outage still burns the seller's attempts and locks them out through a different door. That
+    // was the round-1 lockout reappearing, and all three reviewers found it again in round 3.
+    // Deriving the count means an abandoned attempt simply stops counting; there is nothing to
+    // release and therefore nothing to leak.
+    `CREATE INDEX IF NOT EXISTS identity_claim_recent_idx ON public.identity_claim (created_at DESC)`,
+  ],
+  [
+    'identity: claim is service-role only',
+    `ALTER TABLE public.identity_claim ENABLE ROW LEVEL SECURITY`,
+  ],
+  [
     'audit: block UPDATE',
     `CREATE OR REPLACE RULE compliance_audit_no_update AS
        ON UPDATE TO compliance_audit DO INSTEAD NOTHING`,
