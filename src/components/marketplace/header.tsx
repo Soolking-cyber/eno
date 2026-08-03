@@ -294,7 +294,16 @@ export function Header() {
           href="/"
           prefetch={false}
           onClick={() => window.dispatchEvent(new CustomEvent('eno:reset-home'))}
-          className="flex shrink-0 items-center transition-transform duration-200 hover:scale-110 active:scale-95"
+          // ⚠️ HIDDEN ON DESKTOP FOR SIGNED-IN USERS ONLY — the brand moved to the top of the left
+          // rail (owner, 2026-08-03, Alibaba/QwenCloud layout: mark collapsed, mark + wordmark on
+          // hover). It CANNOT be dropped outright: the rail renders only for a signed-in user at
+          // ≥lg (see AccountPanelShell's media query), so a guest or anyone on a phone would be left
+          // with no brand mark and no way home. `user && 'lg:hidden'` mirrors that exact condition —
+          // change one and the other must follow, or the logo vanishes for people who have no rail.
+            className={cn(
+              'flex shrink-0 items-center transition-transform duration-200 hover:scale-110 active:scale-95',
+              user && 'lg:hidden',
+            )}
           aria-label={SITE_NAME}
         >
           {/* The square "e" mark (owner, 2026-08-02), replacing the wide "eno.vn" lockup that lived

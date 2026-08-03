@@ -12,6 +12,7 @@ import { CircleHelp, LogOut } from 'lucide-react'
 import { Tooltip } from '@/components/ui/tooltip'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
+import { IS_MARKETPLACE, SITE_NAME } from '@/lib/edition'
 import { useChat } from '@/context/chat-context'
 import { useFavorites } from '@/context/favorites-context'
 import { PreferencesInline } from './preferences-inline'
@@ -256,6 +257,38 @@ export function AccountPanel({ open, onClose }: { open: boolean; onClose: () => 
           under text zoom. The bottom cluster gets mt-auto — pinned to the bottom when there's room to
           spare, scrolling with the rest when there isn't. pt-3 gives the first nav item top air on the
           desktop rail (whose mobile-only close row above collapses to nothing at lg). */}
+      {/* ⚠️ THE BRAND LIVES AT THE TOP OF THE RAIL NOW (owner, 2026-08-03, referencing the
+          Alibaba/QwenCloud console): "close only logo, open logo and wordmark eno.vn on hover".
+          Collapsed shows the square mark alone; expanding reveals the full lockup beside it on the
+          SAME max-width/opacity transition the nav labels use, so the wordmark slides open in step
+          with them rather than popping in.
+
+          ⚠️ DESKTOP ONLY (`hidden lg:flex`) — the mobile rail is a full-screen launcher with its own
+          chrome, and the phone header keeps its mark. See header.tsx for why the header cannot
+          simply drop the logo at every breakpoint.
+
+          ⚠️ THE WORDMARK IS PER-EDITION: /logo-dotvn.svg spells out "eno.vn" and must never render
+          on eno.forum, which is a separate operator. Same rule the deleted SITE_WORDMARK encoded —
+          see the note in src/lib/edition.ts. */}
+      <Link
+        href="/"
+        prefetch={false}
+        aria-label={SITE_NAME}
+        className="hidden shrink-0 items-center gap-2 px-3 pt-3 pb-1 lg:flex"
+      >
+        <img src="/logo-mark.svg" alt="" aria-hidden width={1024} height={1024} className="h-8 w-8 shrink-0" />
+        <span className={cn('min-w-0 overflow-hidden transition-[max-width,opacity] duration-200', expanded ? 'max-w-[150px] opacity-100' : 'max-w-0 opacity-0')}>
+          <img
+            src={IS_MARKETPLACE ? '/logo-dotvn.svg' : '/logo.svg'}
+            alt=""
+            aria-hidden
+            width={IS_MARKETPLACE ? 1431 : 823}
+            height={300}
+            className="h-6 w-auto max-w-none"
+          />
+        </span>
+      </Link>
+
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden px-3 pt-3 pb-3 lg:pt-2">
         {/* MIDDLE — the core routing */}
         <nav aria-label={tr('Dashboard', 'Bảng điều khiển')} className="space-y-1">
