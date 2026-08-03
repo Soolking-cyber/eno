@@ -117,8 +117,9 @@ export async function uploadImage(
 
   // ⚠️ NO Content-Type HEADER. fetch must set it itself so the multipart BOUNDARY is included;
   // setting 'multipart/form-data' by hand omits the boundary and the upload fails as malformed.
-  const headers = vnptHeaders(c, await accessToken())
-  const r = await post('/file-service/v1/addFile', { headers, body: form })
+  const tk = await tokenOrError()
+  if (!tk.ok) return tk
+  const r = await post('/file-service/v1/addFile', { headers: vnptHeaders(c, tk.token), body: form })
   if (!r.ok) return r
   const hash = typeof r.object.hash === 'string' ? r.object.hash : ''
   if (!hash) return { ok: false, error: { code: 'IDG-NO-HASH', detail: 'upload succeeded without a hash', transient: true } }
@@ -145,9 +146,11 @@ export async function classifyDocument(
   const c = creds ?? vnptCredentials()
   if (!c) return { ok: false, error: { code: 'IDG-NOT-CONFIGURED', transient: true } }
 
+  const tk = await tokenOrError()
+  if (!tk.ok) return tk
   const r = await post('/ai/v1/classify/id', {
     headers: {
-      ...vnptHeaders(c, await accessToken()),
+      ...vnptHeaders(c, tk.token),
       'Content-Type': 'application/json',
       // ⚠️ Required by the AI endpoints (not by addFile). We are a server with no MAC to report;
       // the doc's own example is the literal `TEST1`, so this is an identifier slot, not a real
@@ -190,6 +193,25 @@ async function accessToken(): Promise<string> {
   return getAccessToken()
 }
 
+/**
+ * ⚠️ THE TOKEN LOOKUP MUST DEGRADE, NOT THROW — codex and qwen both caught this.
+ * `await accessToken()` was evaluated in the ARGUMENT LIST, outside post()'s try/catch, so a stale
+ * token produced an unhandled rejection and a 500 instead of a transient failure routed to human
+ * review. With a hand-pasted 8h token that is not an edge case: it is the expected state three
+ * times a day. The whole `unavailable`-vs-`rejected` design in provider.ts is worthless if the
+ * commonest transient failure crashes the route before reaching it.
+ */
+async function tokenOrError(): Promise<{ ok: true; token: string } | { ok: false; error: IdgError }> {
+  try {
+    return { ok: true, token: await accessToken() }
+  } catch (e) {
+    return {
+      ok: false,
+      error: { code: 'IDG-TOKEN-UNAVAILABLE', detail: e instanceof Error ? e.message : 'token unavailable', transient: true },
+    }
+  }
+}
+
 // ── Document authenticity (API 3) ───────────────────────────────────────────────────────────────
 //
 // ⚠️⚠️ THIS IS THE TIER-B TRUST ANCHOR I SAID WAS MISSING, AND IT CHANGES THE DESIGN.
@@ -216,8 +238,10 @@ export async function checkDocumentLiveness(
   const c = creds ?? vnptCredentials()
   if (!c) return { ok: false, error: { code: 'IDG-NOT-CONFIGURED', transient: true } }
 
+  const tk = await tokenOrError()
+  if (!tk.ok) return tk
   const r = await post('/ai/v1/card/liveness', {
-    headers: { ...vnptHeaders(c, await accessToken()), 'Content-Type': 'application/json', 'mac-address': macAddress() },
+    headers: { ...vnptHeaders(c, tk.token), 'Content-Type': 'application/json', 'mac-address': macAddress() },
     body: JSON.stringify({ img: imgHash, client_session: clientSession(requestId, nowMs) }),
   })
   if (!r.ok) return r
@@ -225,9 +249,12 @@ export async function checkDocumentLiveness(
   // enough: the payload separately reports `fake_liveness` (a re-capture — a photo of a screen) and
   // `face_swapping` (the portrait replaced). Reading only the headline field would accept a
   // document that the provider itself flagged as manipulated.
+  // ⚠️ REQUIRE AN EXPLICIT `false`, NOT "not true" (qwen). `!== true` treats an ABSENT field as
+  // clean, so a truncated or partial response — exactly what a degraded provider returns — would
+  // mark a manipulated document as genuine. An anti-forgery check that fails open is not a check.
   const real = String(r.object.liveness) === 'success'
-    && r.object.fake_liveness !== true
-    && r.object.face_swapping !== true
+    && r.object.fake_liveness === false
+    && r.object.face_swapping === false
   return {
     ok: true,
     real,
@@ -302,8 +329,10 @@ export async function ocrDocument(
   }
   if (input.imgBack) body.img_back = input.imgBack
 
+  const tk = await tokenOrError()
+  if (!tk.ok) return tk
   const r = await post(path, {
-    headers: { ...vnptHeaders(c, await accessToken()), 'Content-Type': 'application/json', 'mac-address': macAddress() },
+    headers: { ...vnptHeaders(c, tk.token), 'Content-Type': 'application/json', 'mac-address': macAddress() },
     body: JSON.stringify(body),
   })
   if (!r.ok) return r
@@ -378,8 +407,10 @@ export async function compareFaces(
 ): Promise<FaceMatchResult> {
   const c = creds ?? vnptCredentials()
   if (!c) return { ok: false, error: { code: 'IDG-NOT-CONFIGURED', transient: true } }
+  const tk = await tokenOrError()
+  if (!tk.ok) return tk
   const r = await post('/ai/v1/face/compare', {
-    headers: { ...vnptHeaders(c, await accessToken()), 'Content-Type': 'application/json', 'mac-address': macAddress() },
+    headers: { ...vnptHeaders(c, tk.token), 'Content-Type': 'application/json', 'mac-address': macAddress() },
     body: JSON.stringify({
       img_front: imgFrontHash,
       img_face: imgFaceHash,
@@ -416,8 +447,10 @@ export async function checkFaceLiveness(
 ): Promise<FaceLivenessResult> {
   const c = creds ?? vnptCredentials()
   if (!c) return { ok: false, error: { code: 'IDG-NOT-CONFIGURED', transient: true } }
+  const tk = await tokenOrError()
+  if (!tk.ok) return tk
   const r = await post('/ai/v1/face/liveness', {
-    headers: { ...vnptHeaders(c, await accessToken()), 'Content-Type': 'application/json', 'mac-address': macAddress() },
+    headers: { ...vnptHeaders(c, tk.token), 'Content-Type': 'application/json', 'mac-address': macAddress() },
     body: JSON.stringify({
       img: imgHash,
       client_session: clientSession(requestId, nowMs),
@@ -447,8 +480,10 @@ export async function checkFaceMask(
 ): Promise<FaceMaskResult> {
   const c = creds ?? vnptCredentials()
   if (!c) return { ok: false, error: { code: 'IDG-NOT-CONFIGURED', transient: true } }
+  const tk = await tokenOrError()
+  if (!tk.ok) return tk
   const r = await post('/ai/v1/face/mask', {
-    headers: { ...vnptHeaders(c, await accessToken()), 'Content-Type': 'application/json', 'mac-address': macAddress() },
+    headers: { ...vnptHeaders(c, tk.token), 'Content-Type': 'application/json', 'mac-address': macAddress() },
     body: JSON.stringify({ img: imgHash, client_session: clientSession(requestId, nowMs) }),
   })
   if (!r.ok) return r

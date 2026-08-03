@@ -8,6 +8,7 @@ const mrz = (over: Partial<PassportMrzResult['fields']> = {}, valid = true): Pas
   fields: { surname: 'ERIKSSON', givenNames: 'ANNA MARIA', passportExpiryDate: '2030-04-15', nationalityCode: 'UTO', ...over },
 })
 const NOW = new Date('2026-08-03T00:00:00Z')
+const CLEAN = { documentIsReal: true, legal: true, fakeWarning: false, faceMatches: true, faceIsLive: true }
 
 describe('Tier B decision', () => {
   it('verifies a clean, consistent, unexpired document', () => {
@@ -26,12 +27,41 @@ describe('Tier B decision', () => {
     expect(d.limitations).toContain(LIMITATION.noBiometricBinding)
   })
 
-  it('drops the biometric limitation only when binding actually happened', () => {
-    const d = decideTierB({ mrz: mrz(), accountName: 'Anna Maria Eriksson', biometricallyBound: true, now: NOW })
+  it('drops the biometric limitation only when the provider actually bound the holder', () => {
+    const d = decideTierB({ mrz: mrz(), accountName: 'Anna Maria Eriksson', provider: CLEAN, now: NOW })
+    expect(d.status).toBe('verified')
+    expect(d.assurance).toBe('document_authenticated')
     expect(d.limitations).not.toContain(LIMITATION.noBiometricBinding)
     expect(d.checksPassed).toContain('portrait_matched_holder')
     // The registry limitations can NOT be lifted — no product change makes SLTD available to us.
     expect(d.limitations).toEqual(TIER_B_LIMITATIONS)
+  })
+
+  it('⚠️ absent provider signals mean the checks did NOT RUN — weaker record, not a silent pass', () => {
+    // Treating "we could not ask" as "it answered yes" is the same fail-open shape as the
+    // liveness bug qwen found in vnpt-client.
+    const d = decideTierB({ mrz: mrz(), accountName: 'Anna Maria Eriksson', now: NOW })
+    expect(d.status).toBe('verified')
+    expect(d.assurance).toBe('document_consistent')          // NOT document_authenticated
+    expect(d.limitations).toContain(LIMITATION.noBiometricBinding)
+  })
+
+  it('REJECTS a document the provider says is re-captured, tampered or fake', () => {
+    for (const bad of [{ documentIsReal: false }, { legal: false }, { fakeWarning: true }]) {
+      const d = decideTierB({ mrz: mrz(), accountName: 'Anna Maria Eriksson', provider: { ...CLEAN, ...bad }, now: NOW })
+      expect(d.status, JSON.stringify(bad)).toBe('rejected')
+      expect(d.rejectReason).toBe('document_not_authentic')
+    }
+  })
+
+  it('⚠️ sends a FACE mismatch to a human, not to rejection', () => {
+    // Comparing a live selfie to a passport photo that may be a decade old is the most
+    // error-prone step for a legitimate person: ageing, weight, glasses, beards.
+    for (const soft of [{ faceMatches: false }, { faceIsLive: false }]) {
+      const d = decideTierB({ mrz: mrz(), accountName: 'Anna Maria Eriksson', provider: { ...CLEAN, ...soft }, now: NOW })
+      expect(d.status, JSON.stringify(soft)).toBe('pending')
+      expect(d.rejectReason).toBeUndefined()
+    }
   })
 
   it('rejects an invalid MRZ and an expired passport, expiry reported first', () => {

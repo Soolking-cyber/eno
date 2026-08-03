@@ -51,8 +51,8 @@ export function VerifyClient() {
         </h1>
         <p className="text-body">
           {tr(
-            'Vietnamese law requires sellers to verify their identity before publishing. Your documents are checked and then deleted — we keep only the result.',
-            'Theo quy định của pháp luật Việt Nam, người bán phải xác minh danh tính trước khi đăng tin. Giấy tờ của bạn được kiểm tra rồi xoá — chúng tôi chỉ lưu kết quả.',
+            'Vietnamese law requires sellers to verify their identity before publishing. Your documents are checked by VNPT eKYC, a licensed Vietnamese identity-verification provider.',
+            'Theo quy định của pháp luật Việt Nam, người bán phải xác minh danh tính trước khi đăng tin. Giấy tờ của bạn được kiểm tra bởi VNPT eKYC — đơn vị xác minh danh tính được cấp phép tại Việt Nam.',
           )}
         </p>
         <p className="text-xs text-muted-foreground">
@@ -114,7 +114,13 @@ export function VerifyClient() {
             className="h-auto flex-col items-start gap-1 rounded-2xl p-4 text-left"
           >
             <span className="flex items-center gap-2 font-bold"><IdCard className="h-5 w-5" strokeWidth={2.25} />{tr('Foreign resident', 'Người nước ngoài')}</span>
-            <span className="text-xs font-normal opacity-80">{tr('Passport — read on your device, not uploaded', 'Hộ chiếu — đọc trên thiết bị của bạn, không tải lên')}</span>
+            {/* ⚠️ THIS SENTENCE WAS FALSE AND HAD TO CHANGE. It said "read on your device, not
+                uploaded" — true when the plan was local-only MRZ reading, and untrue the moment
+                VNPT makes the decision, because their API takes an uploaded image hash. On a page
+                asking someone for a passport, an inaccurate privacy claim is the worst possible
+                thing to get wrong. It now names what actually happens, and the selfie, which the
+                face-match step requires. */}
+            <span className="text-xs font-normal opacity-80">{tr('Passport + a selfie — sent to VNPT for checking', 'Hộ chiếu + ảnh chân dung — gửi tới VNPT để kiểm tra')}</span>
           </Button>
         </div>
 
@@ -136,8 +142,8 @@ export function VerifyClient() {
 
       <p className="text-xs text-muted-foreground">
         {tr(
-          'Your document images are deleted once the check completes. We keep the result, the document expiry date, and a one-way fingerprint that lets us detect duplicate accounts — never the document number itself.',
-          'Ảnh giấy tờ của bạn sẽ được xoá sau khi kiểm tra xong. Chúng tôi chỉ lưu kết quả, ngày hết hạn giấy tờ và một dấu vân tay một chiều để phát hiện tài khoản trùng lặp — không bao giờ lưu số giấy tờ.',
+          'Your images are sent to VNPT eKYC to be checked, and are processed under their retention policy as a licensed provider. eno.vn deletes its own copy as soon as the check finishes: we keep only the result, the document expiry date, and a one-way fingerprint that lets us spot duplicate accounts — never the document number itself.',
+          'Ảnh của bạn được gửi tới VNPT eKYC để kiểm tra và được xử lý theo chính sách lưu trữ của đơn vị được cấp phép này. eno.vn xoá bản sao của mình ngay khi kiểm tra xong: chúng tôi chỉ lưu kết quả, ngày hết hạn giấy tờ và một dấu vân tay một chiều để phát hiện tài khoản trùng lặp — không bao giờ lưu số giấy tờ.',
         )}
       </p>
     </div>
