@@ -1,17 +1,25 @@
 import { NextResponse } from 'next/server'
 import { Webhook } from 'standardwebhooks'
 import { sendZnsOtp, znsConfigured } from '@/lib/zalo-zns'
-import { sendTelegramOtp, sendWhatsAppOtp, sendSpeedSmsOtp, telegramConfigured, whatsappConfigured, normalizePhoneVN } from '@/lib/otp-channels'
+import { sendTelegramOtp, sendWhatsAppOtp, sendSpeedSmsOtp, telegramConfigured, whatsappConfigured, normalizePhoneVN, preferredOtpChannel, type OtpChannel } from '@/lib/otp-channels'
 import { rateLimit, escalatingCooldown, kv } from '@/lib/ratelimit'
 
 // Supabase "Send SMS Hook". Supabase generates, rate-limits and verifies the
 // phone OTP natively (signInWithOtp/verifyOtp unchanged); this endpoint only
-// DELIVERS the code, cascading cheapest-first (user decision 2026-07-06):
+// DELIVERS the code.
 //
-//   1. Telegram Gateway (~260đ; free presence check, undelivered auto-refunds)
-//   2. WhatsApp auth template (~294đ; expats)
-//   3. Zalo ZNS (300đ; enables itself once the OA is verified post-registry)
-//   4. SpeedSMS "Verify" shared brandname (~500đ; reaches EVERY VN number)
+// ⚠️ ROUTED BY THE NUMBER'S COUNTRY (owner, 2026-08-02), not cheapest-first as it was from
+// 2026-07-06. The country code picks who goes FIRST; everything else still cascades behind it:
+//
+//   VN number (+84)  → Zalo ZNS · then Telegram · then WhatsApp · then SpeedSMS
+//   foreign number   → WhatsApp · then Telegram · then Zalo      · then SpeedSMS
+//
+// Costs per OTP, unchanged and still the tiebreak among non-preferred channels: Telegram ~260đ
+// (free presence check, undelivered auto-refunds) · WhatsApp ~294đ · Zalo ZNS 300đ · SpeedSMS
+// ~500đ (shared brandname, reaches EVERY VN number, needs no app — hence always last).
+//
+// Every channel is env-gated and DORMANT until its keys exist, so this ordering is inert today and
+// starts working the moment a key is added. See preferredOtpChannel() in lib/otp-channels.ts.
 //
 // ABUSE POSTURE (Vietnam is an SMS-pumping hotspot):
 //  - Cloudflare Turnstile gates the SEND upstream: Supabase auth enforces the
@@ -88,19 +96,49 @@ export async function POST(req: Request) {
     return NextResponse.json({}, { status: 200 })
   }
 
-  // 5) Deliver — cheapest channel that can reach this number wins. `noApp`
-  //    means "this number doesn't have that app": cascade, don't retry.
-  let channel: 'telegram' | 'whatsapp' | 'zalo' | 'sms' | null = null
-  if (telegramConfigured()) {
-    if ((await sendTelegramOtp(phone, otp)).ok) channel = 'telegram'
-  }
-  if (!channel && whatsappConfigured()) {
-    if ((await sendWhatsAppOtp(phone, otp)).ok) channel = 'whatsapp'
-  }
-  if (!channel && znsConfigured()) {
+  // 5) Deliver — the channel the NUMBER'S OWN COUNTRY actually uses goes first, then everything
+  //    else cascades behind it. `noApp` means "this number doesn't have that app": move on, don't
+  //    retry.
+  //
+  // ⚠️ ORDERED BY ORIGIN, NOT BY PRICE (owner, 2026-08-02: "zalo otp for local phone numbers and
+  // whatsapp otp for foreign numbers"). It was a flat cheapest-first list —
+  // Telegram → WhatsApp → Zalo → SMS for every number — so a Vietnamese user got their code on
+  // Telegram or WhatsApp whenever those were configured and reached Zalo only if both failed. Zalo
+  // is where a Vietnamese phone actually lives; for the expat audience WhatsApp is. And Zalo is
+  // Vietnam-only, so trying it on a foreign number spends a request to learn what the country code
+  // already said.
+  //
+  // ⚠️ THE PREFERENCE IS AN ORDERING, NOT A RESTRICTION. Every other configured channel is still
+  // attempted behind it, so an unconfigured or failing preferred channel degrades rather than
+  // dead-ends — which is what makes this safe to ship BEFORE the keys exist. With no keys set every
+  // channel is unconfigured and behaviour is identical to before: SpeedSMS, or nothing.
+  let channel: OtpChannel | null = null
+
+  const tryZalo = async () => {
+    if (channel || !znsConfigured()) return
     const zns = await sendZnsOtp(phone, otp, requestId)
     if (zns.ok) channel = 'zalo'
-    else if (zns.noZalo) console.warn('[send-sms] no Zalo on number — SMS fallback')
+    else if (zns.noZalo) console.warn('[send-sms] no Zalo on number — falling through')
+  }
+  const tryWhatsApp = async () => {
+    if (channel || !whatsappConfigured()) return
+    if ((await sendWhatsAppOtp(phone, otp)).ok) channel = 'whatsapp'
+  }
+  const tryTelegram = async () => {
+    if (channel || !telegramConfigured()) return
+    if ((await sendTelegramOtp(phone, otp)).ok) channel = 'telegram'
+  }
+
+  // Preferred first; the remainder keeps the old cheapest-first order. SpeedSMS stays last on
+  // purpose — it is the only channel needing no app on the handset, so it is the floor, not a peer.
+  if (preferredOtpChannel(phone) === 'zalo') {
+    await tryZalo()
+    await tryTelegram()
+    await tryWhatsApp()
+  } else {
+    await tryWhatsApp()
+    await tryTelegram()
+    await tryZalo()
   }
   if (!channel && (await sendSpeedSmsOtp(phone, otp)).ok) channel = 'sms'
   const delivered = channel !== null

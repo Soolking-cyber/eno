@@ -29,6 +29,46 @@ export function normalizePhoneVN(raw: string): string {
   return d.length === 9 ? '84' + d : d
 }
 
+/**
+ * Is this a Vietnamese number? Takes the output of {@link normalizePhoneVN}, which has already
+ * resolved every local form ('0…', bare 9-digit) to the 84 country code.
+ *
+ * ⚠️ '84' AS A PREFIX IS NOT ENOUGH ON ITS OWN — it is also the start of longer numbers in other
+ * countries once the '+' is gone, so the LENGTH is checked too. A VN mobile in E.164 is 84 followed
+ * by 9 digits (11 total); the old 10-digit local mobiles were retired in 2018 but a stale contact
+ * record can still carry one, so 10 is accepted as well. Anything longer that merely starts with 84
+ * is somebody else's country, and must not be routed to a Vietnam-only channel.
+ */
+export function isVietnamesePhone(normalized: string): boolean {
+  const d = (normalized || '').replace(/\D/g, '')
+  return d.startsWith('84') && (d.length === 11 || d.length === 10)
+}
+
+/**
+ * Which channel to TRY FIRST for this number (owner, 2026-08-02: "zalo otp for local phone numbers
+ * and whatsapp otp for foreign numbers").
+ *
+ * ⚠️ THIS REPLACES A COST-ORDERED CASCADE, AND THE OLD ORDER WAS ACTIVELY WRONG FOR VN NUMBERS.
+ * Delivery used to try Telegram → WhatsApp → Zalo → SMS for EVERY number, cheapest first. So a
+ * Vietnamese user — the majority case, and the one Zalo exists to serve — got their code on
+ * Telegram or WhatsApp whenever those were configured, and reached Zalo only if both failed. Zalo
+ * is where a Vietnamese phone actually lives; WhatsApp barely registers there, while for the expat
+ * audience it is the opposite.
+ *
+ * The RETURN VALUE IS A PREFERENCE, NOT AN EXCLUSION. The caller still cascades through every other
+ * configured channel afterwards, so an unconfigured or failing preference degrades instead of
+ * dead-ending — which is what keeps this safe to ship before the keys exist. With no keys at all,
+ * every channel is unconfigured and behaviour is identical to today: SpeedSMS, or nothing.
+ *
+ * ⚠️ Zalo is Vietnam-only. Never make it the preference for a foreign number: sendZnsOtp would
+ * spend a request to learn what the country code already said.
+ */
+export type OtpChannel = 'telegram' | 'whatsapp' | 'zalo' | 'sms'
+
+export function preferredOtpChannel(normalized: string): OtpChannel {
+  return isVietnamesePhone(normalized) ? 'zalo' : 'whatsapp'
+}
+
 const TIMEOUT_MS = 3000
 
 async function timedFetch(url: string, init: RequestInit): Promise<Response> {
