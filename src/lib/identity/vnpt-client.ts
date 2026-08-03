@@ -174,27 +174,20 @@ export async function classifyDocument(
 }
 
 /**
- * ⚠️ STILL THE BLOCKER, AND THE OFFICIAL DOC CONFIRMS IT.
- * "Step 2. Access Token Management, get the Token Key, Token ID, Access token" — the documented
- * way to obtain an access token is to COPY IT FROM THE CONSOLE BY HAND. There is no minting
- * endpoint in the public API list, and the console states the token expires in 8 hours.
+ * The access token, read from the durable Postgres row (vnpt-token-store.ts).
  *
- * That is not operable: seller verification would break three times a day at unpredictable hours,
- * with a 401 indistinguishable from a bad credential. The "API sinh Access Token" must be requested
- * from VNPT (the console's Liên hệ link) before Tier A or Tier B can go live.
+ * ⚠️ POSTGRES, NOT SECRET MANAGER. Cloud Run reads secrets at REVISION START, so rotating an
+ * 8-hour token there would mean three full deploys a day on a live marketplace. A row is an UPDATE
+ * the running revision picks up within a minute — ./scripts/vnpt-token.sh, no build, no rollout.
  *
- * Until then this reads a manually-set env var so the integration is testable end-to-end, and
- * throws a NAMED error rather than a generic 401 when it is stale — so the failure says what it is.
+ * ⚠️ STILL TEMPORARY. VNPT's published API list has no token-minting endpoint; their doc says to
+ * copy it out of Token Management by hand, and it lasts 8 hours. The generator has been requested.
+ * When it lands, the mint call writes this same row and nothing in this file changes — which is why
+ * the indirection goes in now rather than after.
  */
 async function accessToken(): Promise<string> {
-  const t = process.env.VNPT_EKYC_ACCESS_TOKEN
-  if (!t) {
-    throw new Error(
-      'VNPT_EKYC_ACCESS_TOKEN is not set. VNPT has no documented token-minting endpoint — request ' +
-      'the "API sinh Access Token" from them; a hand-copied 8h token cannot run in production.',
-    )
-  }
-  return t
+  const { getAccessToken } = await import('./vnpt-token-store')
+  return getAccessToken()
 }
 
 // ── Document authenticity (API 3) ───────────────────────────────────────────────────────────────

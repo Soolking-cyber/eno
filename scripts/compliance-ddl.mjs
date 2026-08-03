@@ -46,6 +46,26 @@ const STATEMENTS = [
        WHERE status = 'verified' AND "documentExpiresAt" IS NOT NULL`,
   ],
   [
+    'vnpt: durable access-token store',
+    // ⚠️ LOGGED, NOT kv_store. kv_store is UNLOGGED — Postgres TRUNCATES it after an unclean
+    // shutdown — so a token parked there would vanish and seller verification would break with no
+    // trace of why. Mirrors zalo_oauth_token: single row pinned by a CHECK, durable, RLS on.
+    // ⚠️ POSTGRES, NOT SECRET MANAGER, and that is the whole point. Cloud Run reads secrets at
+    // REVISION START, so rotating an 8-hour token in Secret Manager would need a redeploy three
+    // times a day. A row is an UPDATE the running revision picks up within its cache window.
+    `CREATE TABLE IF NOT EXISTS public.vnpt_access_token (
+       id           smallint PRIMARY KEY CHECK (id = 1),
+       access_token text        NOT NULL,
+       expires_at   timestamptz NOT NULL,
+       updated_at   timestamptz NOT NULL DEFAULT now(),
+       updated_by   text
+     )`,
+  ],
+  [
+    'vnpt: token table is service-role only',
+    `ALTER TABLE public.vnpt_access_token ENABLE ROW LEVEL SECURITY`,
+  ],
+  [
     'audit: block UPDATE',
     `CREATE OR REPLACE RULE compliance_audit_no_update AS
        ON UPDATE TO compliance_audit DO INSTEAD NOTHING`,
