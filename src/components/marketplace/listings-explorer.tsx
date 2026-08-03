@@ -582,6 +582,25 @@ export function ListingsExplorer({
       setShowExplorer(true)
       document.getElementById('listings')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
     }
+    // ⚠️ THE HEADER'S MAP BUTTON LANDS HERE. It was restored to the search bar on 2026-08-03, when
+    // the hero search that owned the old map control was deleted. The header is a SIBLING of this
+    // component, not its parent, so it cannot call setViewMode — it dispatches, exactly like
+    // eno:search above. WITHOUT THIS LISTENER THE BUTTON RENDERS AND DOES NOTHING, which is a
+    // failure both tsc and lint wave straight through.
+    const onViewMap = () => {
+      setViewMode('map')
+      setShowExplorer(true)
+      // ⚠️ SCROLL AFTER THE RE-RENDER, NOT DURING IT. `id="listings"` exists in BOTH branches (the
+      // landing section and the explorer one), so this lookup never returns null — which is why the
+      // bug is easy to miss. In landing mode it finds the node that `setShowExplorer(true)` is about
+      // to REPLACE, and React batches that update, so a smooth scroll starts toward an offset that
+      // stops being correct the moment the landing rails above it unmount. One frame later the
+      // explorer tree is mounted and laid out, and the same query resolves to the real target.
+      requestAnimationFrame(() => {
+        document.getElementById('listings')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      })
+    }
+    window.addEventListener('eno:view-map', onViewMap)
     window.addEventListener('eno:search', onSearch)
     window.addEventListener('eno:set-area', onArea)
     // Consume a pending off-explorer area pick (header stashes it before navigating
@@ -600,6 +619,7 @@ export function ListingsExplorer({
     } catch { /* malformed stash — ignore */ }
     return () => {
       window.removeEventListener('eno:visual-search', onVisual)
+      window.removeEventListener('eno:view-map', onViewMap)
       window.removeEventListener('eno:search', onSearch)
       window.removeEventListener('eno:set-area', onArea)
     }
@@ -1557,20 +1577,18 @@ export function ListingsExplorer({
 
                 Marketplace-only: /logo-dotvn.svg spells the LICENSED company's name and must never
                 render on eno.forum. */}
-            <h1 className="mb-5 flex justify-center">
-              <span className="sr-only">{SITE_NAME}</span>
-              {IS_MARKETPLACE ? (
-                <img
-                  src="/logo-dotvn.svg"
-                  alt={SITE_NAME}
-                  width={1431}
-                  height={300}
-                  fetchPriority="high"
-                  decoding="async"
-                  className="h-10 w-auto sm:h-12"
-                />
-              ) : null}
-            </h1>
+            {/* ⚠️ THE HERO WORDMARK IS GONE (owner, 2026-08-03) — the brand now lives at the top of
+                the left rail and in the header, so repeating it here was a third copy above the
+                fold. The <h1> keeps SITE_NAME as sr-only text for crawlers and screen readers.
+                ⚠️ Google's brand review has rejected this app for "the app name does not match the
+                app name on your home page" whenever the name was NOT painted text above the fold;
+                the header wordmark is what answers that now. If that complaint returns, restore a
+                PAINTED TEXT name here — not an image, and not sr-only.
+                ⚠️ NO LAYOUT CLASSES. This carried `mb-5 flex justify-center` while the wordmark was
+                inside it; with only an sr-only child left, the element has zero height but the
+                margin does not — a 20px dead band right where the owner asked the feed to start
+                with the categories scroller. sr-only content must not carry spacing. */}
+            <h1 className="sr-only">{SITE_NAME}</h1>
             {/* ⚠️ THE PURPOSE SENTENCE THAT SAT HERE IS GONE (owner, 2026-08-02) — and it was not
                 decoration, so anyone restoring copy to this hero should know what it was doing.
                 Google's OAuth brand review rejected this page with "Your home page does not explain

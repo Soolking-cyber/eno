@@ -274,17 +274,50 @@ export function AccountPanel({ open, onClose }: { open: boolean; onClose: () => 
         href="/"
         prefetch={false}
         aria-label={SITE_NAME}
-        className="hidden shrink-0 items-center gap-2 px-3 pt-3 pb-1 lg:flex"
+        // ⚠️ CENTERED WHEN COLLAPSED so the mark sits on the same vertical axis as every icon below
+        // it (owner, 2026-08-03: "center the logo mark"). The nav rows centre their 24px icons in
+        // the 72px rail; a left-aligned 32px mark broke that column and read as misplaced.
+        className={cn(
+          // Centred in BOTH states (owner, 2026-08-03: "center the logo mark", then "also center
+          // eno.vn"). Collapsed, the mark shares the vertical axis of every icon below it;
+          // expanded, the wordmark sits centred in the 240px rail rather than hugging the left edge.
+          'hidden h-12 shrink-0 items-center justify-center px-3 lg:flex',
+        )}
       >
-        <img src="/logo-mark.svg" alt="" aria-hidden width={1024} height={1024} className="h-8 w-8 shrink-0" />
-        <span className={cn('min-w-0 overflow-hidden transition-[max-width,opacity] duration-200', expanded ? 'max-w-[150px] opacity-100' : 'max-w-0 opacity-0')}>
+        {/* ⚠️ THEY SWAP, THEY DO NOT STACK — and that is the whole fix (owner: "remove it when its
+            open looks weird, or try to use logo mark as the beginning letter e in eno.vn").
+            /logo-dotvn.svg ALREADY BEGINS WITH AN "e". Showing the square mark beside it rendered
+            "e" + "eno.vn" — the letter twice, which is what looked wrong.
+
+            The owner's other idea — use the mark AS the leading e — was not taken: it would need a
+            second wordmark asset drawn without its "e", and the mark is a white glyph on a blue
+            rounded square, so butting it against flat blue letterforms gives two different e's
+            pretending to be one. Swapping keeps ONE brand object visible at a time and needs no new
+            artwork.
+
+            Both are always mounted and cross-fade on the same 200ms as the nav labels, so the rail
+            never reflows mid-transition — only opacity and max-width animate. */}
+        <img
+          src="/logo-mark.svg"
+          alt=""
+          aria-hidden
+          width={1024}
+          height={1024}
+          className={cn('h-8 w-8 shrink-0 transition-[max-width,opacity] duration-200', expanded ? 'max-w-0 opacity-0' : 'max-w-8 opacity-100')}
+        />
+        <span
+          className={cn(
+            'min-w-0 overflow-hidden transition-[max-width,opacity] duration-200',
+            expanded ? 'max-w-[160px] opacity-100' : 'max-w-0 opacity-0',
+          )}
+        >
           <img
             src={IS_MARKETPLACE ? '/logo-dotvn.svg' : '/logo.svg'}
             alt=""
             aria-hidden
             width={IS_MARKETPLACE ? 1431 : 823}
             height={300}
-            className="h-6 w-auto max-w-none"
+            className="h-7 w-auto max-w-none"
           />
         </span>
       </Link>

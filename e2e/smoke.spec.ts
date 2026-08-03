@@ -124,7 +124,9 @@ test.describe.serial('Golden path · seller posts → buyer finds & chats → se
 
   test('Phase 2 · buyer discovers it by searching the exact title', async () => {
     await buyer.goto('/')
-    const box = buyer.getByPlaceholder(/Search motorbikes/i)
+    // Header search (the hero bar was removed 2026-08-03) — :visible picks the mobile-vs-desktop
+    // twin that is actually rendered at this viewport; both are in the DOM.
+    const box = buyer.locator('input[placeholder*="Find products"]:visible').first()
     await box.fill(TITLE)
     await box.press('Enter')
 

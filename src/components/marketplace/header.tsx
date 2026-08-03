@@ -4,7 +4,7 @@ import Link from 'next/link'
 import dynamic from 'next/dynamic'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
-import { User, Search, MapPin, Clock, X } from 'lucide-react'
+import { User, Search, MapPin, Map, Clock, X } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
 import { useAuth } from '@/context/auth-context'
 import { useHideOnScroll } from '@/hooks/use-hide-on-scroll'
@@ -25,6 +25,8 @@ import {
 } from '@/hooks/use-search-box'
 import { RECENT_SEARCHES_KEY } from '@/lib/reco-signals'
 import { SITE_NAME } from '@/lib/edition'
+// ⚠️ The rail's REAL open state, not a guess at it — see the logo's className below.
+import { useAccountPanel } from './account-panel'
 
 // The typeahead listbox this bar owns. Static (one Header per page), and distinct
 // from the hero bar's so both can be in the DOM at once without id collisions.
@@ -42,6 +44,13 @@ const STROKE = 2.25
 export function Header() {
   const { t, tr, lang } = useLanguage()
   const { user } = useAuth()
+  // ⚠️ `open` IS THE RAIL'S OWN STATE, and the header logo hides on exactly it. Using `user`
+  // instead left a hole all three reviewers found independently (2026-08-03): `user && lg:hidden`
+  // hides via CSS the instant the session resolves, but the rail only mounts after
+  // AccountPanelShell's matchMedia effect runs — so a signed-in desktop visitor had NO brand mark
+  // at all during hydration, and none server-side either. Reading the same boolean the rail mounts
+  // on makes the handover exact: the logo cannot leave the header before the rail has it.
+  const { open: railOpen } = useAccountPanel()
   const pathname = usePathname()
   const router = useRouter()
   // Roll the bar up on scroll-down, back down on scroll-up (mobile only — desktop
@@ -90,7 +99,14 @@ export function Header() {
   // search pill scrolls out of view (or immediately on any page without a hero).
   // The explorer announces hero presence via the `eno:hero` event; while present we
   // watch it with an IntersectionObserver and reveal the header search on scroll-past.
-  const [showSearch, setShowSearch] = useState(false)
+  // ⚠️ STARTS TRUE, AND THAT IS AN SSR FIX, not a default (2026-08-03, all three reviewers).
+  // It was `false`, and `setShowSearch(true)` only ever runs inside the effect below — so once the
+  // hero search was deleted, the SERVER-RENDERED HTML and the first client paint contained NO
+  // search bar anywhere on the page. That is worse than the old behaviour (the hero bar was in the
+  // SSR markup), it is invisible to a crawler, it is permanent with JS disabled, and it pops the
+  // bar in after hydration. Starting true means the bar is in the HTML; the effect below still
+  // hides it if a page ever reintroduces `#eno-hero-search`.
+  const [showSearch, setShowSearch] = useState(true)
   const [searchVal, setSearchVal] = useState('')
   const [province, setProvince] = useState<Geo | null>(null)
   const [ward, setWard] = useState<Geo | null>(null)
@@ -302,7 +318,7 @@ export function Header() {
           // change one and the other must follow, or the logo vanishes for people who have no rail.
             className={cn(
               'flex shrink-0 items-center transition-transform duration-200 hover:scale-110 active:scale-95',
-              user && 'lg:hidden',
+              railOpen && 'lg:hidden',
             )}
           aria-label={SITE_NAME}
         >
@@ -428,6 +444,35 @@ export function Header() {
                 // relative + tap-48 → a 48px hit area around the 40px visual (invisible ::before).
                 className="relative mr-0.5 h-10 w-10 tap-48"
               />
+              {/* ⚠️ MAP VIEW, BACK IN THE BAR (owner, 2026-08-03: "add mapview back to searchbar in
+                  top navbar, inside to the right of ai search icon"). It lived in the hero search
+                  that was deleted when the bar moved up here, so the entry point vanished with it —
+                  this restores the same action in its new home.
+                  Dispatches `eno:view-map` rather than calling setViewMode: the header is a SIBLING
+                  of the explorer, not its parent, and the explorer already listens for the header's
+                  other search events. Off an explorer page it routes home with ?view=map instead, so
+                  the button never dead-ends. Icon weight matches the magnifier and the ✨ beside it
+                  (STROKE 2.25) — the search-bar icon standard. */}
+              <Button
+                // ⚠️ type="button" IS LOAD-BEARING — this sits inside the search <form> (line ~358)
+                // and ui/button sets no default type, so without it the browser treats it as
+                // type="submit": tapping Map would ALSO submit the search, racing the map action
+                // against a query navigation. codex caught this; the failure is intermittent and
+                // would have read as "the map button sometimes just searches instead".
+                type="button"
+                variant="bare"
+                size="none"
+                onClick={() => {
+                  setShowSuggestions(false)
+                  if (isExplorerPage) window.dispatchEvent(new CustomEvent('eno:view-map'))
+                  else router.push('/?view=map')
+                }}
+                aria-label={tr('Map', 'Bản đồ')}
+                title={tr('Map', 'Bản đồ')}
+                className="relative mr-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-ink-4 tap-48 transition-[color,transform] duration-200 hover:scale-110 hover:text-accent-foreground active:scale-100 cursor-pointer"
+              >
+                <Map className="h-6 w-6" strokeWidth={STROKE} />
+              </Button>
               {/* Photo search folded into the AI assistant (✨ → camera in the chat
                   composer) — one smart entry point, less icon crowding. Pasting an
                   image into this bar still visual-searches (handler above). */}

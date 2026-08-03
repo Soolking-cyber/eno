@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import Link, { useLinkStatus } from 'next/link'
 import { Compass, Heart, Plus, User, MessageSquare } from 'lucide-react'
 import { useFavorites } from '@/context/favorites-context'
@@ -93,7 +93,37 @@ function TabBody({ active, icon, label, stack = STACK }: { active: boolean; icon
  *  meets the SAME card. While auth is still resolving (or signed in) it's a normal
  *  Link, so a logged-in user is never wrongly shown the modal. */
 function GatedTab({ href, active, onHref, icon, label, gate, onClick, prefetch, stack }: { href: string; active: boolean; onHref?: boolean; icon: React.ReactNode; label: string; gate: boolean; onClick: (e: React.MouseEvent<HTMLAnchorElement>) => void; prefetch?: false; stack?: string }) {
-  const { openSignIn } = useAuth()
+  const { openSignIn, user, loading } = useAuth()
+  const router = useRouter()
+  // ⚠️ THE BOOT WINDOW WAS A DOUBLE REDIRECT TO A SECOND LOGIN PAGE (owner, 2026-08-03: "mobile
+  // login issue with 2 redirects … user can log/signup in directly from popup").
+  // `gate` is `!loading && !user`, so while auth is still resolving this tab is a plain <Link>. A
+  // guest who taps in that window — which is most first taps, the bar paints long before Supabase
+  // answers — navigated, and the destination's own guard bounced them onward:
+  //     /  →  /dashboard/account  →  /signin?next=/dashboard/account      (measured on :3100)
+  // They landed on the full sign-in PAGE, never seeing the popup, having burned two navigations.
+  // Simply gating on `loading` too would show a LOGGED-IN user the sign-in modal during boot, which
+  // is the failure the original Link was there to avoid — so instead the tap is DEFERRED: swallow it,
+  // remember it, and once auth resolves either navigate (member) or open the popup in place (guest).
+  // Nobody leaves the page to find out whether they are signed in.
+  // ⚠️ A DEFERRED TAP EXPIRES, AND IT IS BOUND TO WHERE IT WAS MADE. codex, agy and qwen all three
+  // independently flagged the naive boolean, which is about as strong a signal as this stack gives.
+  // The failure: tap Account during boot, immediately tap Explore and navigate away — the bottom nav
+  // never unmounts, so when auth resolves the stale intent fires and YANKS the user back to Account
+  // from wherever they went. A tap is a statement about a moment, so it has to carry that moment:
+  // replay only if they are still on the page where they tapped, and only if it is still recent.
+  // Without the age check a tap could also sit indefinitely if auth never resolves, then fire on a
+  // much later reconnect.
+  const [deferred, setDeferred] = useState<{ at: number; path: string } | null>(null)
+  const pathname = usePathname()
+  useEffect(() => {
+    if (!deferred || loading) return
+    setDeferred(null)
+    if (deferred.path !== pathname) return          // they moved on — the intent is stale
+    if (Date.now() - deferred.at > 10_000) return   // too old to still be what they meant
+    if (user) router.push(href)
+    else openSignIn()
+  }, [deferred, loading, user, href, router, openSignIn, pathname])
   if (gate) {
     return (
       <Button type="button" variant="bare" size="none" onClick={() => openSignIn()} aria-label={label} className={TAB}>
@@ -106,7 +136,18 @@ function GatedTab({ href, active, onHref, icon, label, gate, onClick, prefetch, 
   // The <Link> performs the ACTUAL navigation (see the note on the bar below); onClick only
   // handles the taps that are NOT a navigation, and preventDefault()s those.
   return (
-    <Link href={href} prefetch={onHref ? false : prefetch} aria-label={label} aria-current={active ? 'page' : undefined} className={TAB} onClick={onClick}>
+    <Link
+      href={href}
+      prefetch={onHref ? false : prefetch}
+      aria-label={label}
+      aria-current={active ? 'page' : undefined}
+      className={TAB}
+      onClick={(e) => {
+        // Auth unresolved: swallow this tap and replay it once we know who they are (see above).
+        if (loading) { e.preventDefault(); hapticTap(); setDeferred({ at: Date.now(), path: pathname ?? "" }); return }
+        onClick(e)
+      }}
+    >
       <TabBody active={active} icon={icon} label={label} stack={stack} />
     </Link>
   )

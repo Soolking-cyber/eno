@@ -14,7 +14,9 @@ const RESULTS_HEADING = /Found \d+ listing/i
 test.describe('Guest · search', () => {
   test('a query resolves to a results view with facet params', async ({ page }) => {
     await page.goto('/')
-    const box = page.getByPlaceholder(/Search motorbikes/i)
+    // Header search (the hero bar was removed 2026-08-03) — :visible picks the mobile-vs-desktop
+    // twin that is actually rendered at this viewport; both are in the DOM.
+    const box = page.locator('input[placeholder*="Find products"]:visible').first()
     await box.fill('iphone')
     await box.press('Enter')
     await expect(page).toHaveURL(/[?&](category|brand|model|q|search)=/i)
@@ -25,7 +27,9 @@ test.describe('Guest · search', () => {
 
   test('a second query also returns a results view', async ({ page }) => {
     await page.goto('/')
-    const box = page.getByPlaceholder(/Search motorbikes/i)
+    // Header search (the hero bar was removed 2026-08-03) — :visible picks the mobile-vs-desktop
+    // twin that is actually rendered at this viewport; both are in the DOM.
+    const box = page.locator('input[placeholder*="Find products"]:visible').first()
     await box.fill('honda')
     await box.press('Enter')
     await expect(page.getByRole('heading', { name: RESULTS_HEADING }).first()).toBeVisible()
