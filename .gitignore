@@ -75,3 +75,8 @@ supabase/.temp/
 # xcodebuild derived data from installing the Capacitor shell on a physical device
 # (`-derivedDataPath`). Pure build output — 160MB+ and regenerated on every device build.
 /apps/ios/devicebuild/
+
+# Reviewer credential — never in the repo. scripts/qwen-review.mjs reads DASHSCOPE_API_KEY or
+# ~/.eno-qwen-key; this line only exists so a stray copy in the working tree cannot be committed.
+.eno-qwen-key
+*.qwen-key

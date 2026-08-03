@@ -53,7 +53,15 @@ export function proxy(req: NextRequest) {
     pathname === '/api/auth/send-sms' ||
     pathname.startsWith('/api/feeds/') ||
     pathname.startsWith('/api/v1/') ||
-    pathname === '/api/mcp' // partner MCP server — key-authed like /api/v1, reached by AI clients off-Cloudflare
+    pathname === '/api/mcp' || // partner MCP server — key-authed like /api/v1, reached by AI clients off-Cloudflare
+    // ⚠️ STRIPE CANNOT SEND `x-eno-edge`, so without this the webhook 403s the moment EDGE_SECRET is
+    // set — and the failure is invisible from our side: Stripe retries, gives up, and a PAID visa
+    // case never completes its send_for_review handoff. Dormant today only because EDGE_SECRET is
+    // unset. Its auth is its own and stronger than the pin: an HMAC over the RAW body
+    // (verifyStripeSignature), the same posture as the Supabase send-sms hook above.
+    // Services-only in practice — the route is `route.svc.ts`, so it does not exist in the
+    // marketplace artifact at all; this list is shared, and naming it here is harmless there.
+    pathname === '/api/payments/stripe/webhook'
   ) {
     return withCors(NextResponse.next(), origin)
   }

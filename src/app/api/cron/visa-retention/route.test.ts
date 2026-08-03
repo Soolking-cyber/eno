@@ -93,7 +93,7 @@ vi.mock('@/lib/visa/storage', () => ({
   },
 }))
 
-import { GET } from './route'
+import { GET } from './route.svc'
 
 const req = (auth?: string) =>
   new Request('https://eno.vn/api/cron/visa-retention', { headers: auth ? { authorization: auth } : {} })
