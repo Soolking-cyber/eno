@@ -130,9 +130,13 @@ export function Footer() {
         // must NOT carry forumPath — routing a same-origin link through the SSO handoff would
         // bounce the visitor through /auth/bridge to fetch a session they already have.
         ...SERVICES_FOOTER_LINKS.explore.map((l) => ({ label: tr(l.labelEn, l.labelVi), href: l.href })),
-        // e-Visa lives on eno.vn now (ownership row, 2026-07-21): the desk's storefront is
-        // where a visitor applies (in-chat flow) — the forum wizard is legacy awaiting
-        // retirement. Plain SAME-ORIGIN link: no forumPath, no goToForum interception.
+        // ⚠️ SERVICES EDITION ONLY, AND THIS COMMENT ONCE SAID THE OPPOSITE — two lines below the
+        // block above that exists to warn about exactly this. It read "e-Visa lives on eno.vn now
+        // (ownership row, 2026-07-21): the desk's storefront is where a visitor applies". True when
+        // written, REVERSED 2026-07-31: e-Visa belongs to eno.forum and eno.vn may not mention it.
+        // The entry is safe because it comes from SERVICES_FOOTER_LINKS, which next.config.ts
+        // aliases to the empty stub on a marketplace build — not because of anything on this line.
+        // Same-origin ON eno.forum, so no forumPath and no goToForum interception.
         // ⚠️ THE HANDLE IS `eno_visa`, AND `/eno_vietnam` 404s. It had done so sitewide — this is
         // the footer, so every page carried a dead link to the one product that takes money, and
         // both homepage links pointed at it too. Found 2026-07-27 auditing why the site does not

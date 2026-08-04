@@ -1,11 +1,22 @@
 # Vietnam e-Visa assistance
 
-## Ownership — eno.vn owns the whole feature (owner, 2026-07-21)
+## ⛔ Ownership — SUPERSEDED 2026-07-31: e-Visa is an **eno.forum** service
 
-**The Vietnam e-Visa service belongs to eno.vn (the repository root), end to end:** the
-applicant flow, AI passport extraction, payments, the direct-message experience, and the
-admin/operator queue. Build every visa change under `src/**`. **`apps/forum` must not gain
-new visa surfaces.**
+**Read this before acting on anything below.** The owner reversed the 2026-07-21 rule on
+2026-07-31: eno.vn is registering as a licensed Vietnamese company (sàn TMĐT) and **cannot
+legally offer e-visa, itinerary or PayPal checkout**. Those surfaces belong to **eno.forum**,
+and eno.vn may not so much as mention them.
+
+The mechanism is **one shared codebase deployed twice**, not two codebases. Visa code still
+lives under `src/**` and is built for both, but it only *exists* on the services artifact — via
+the `.svc.` `pageExtensions` infix, the `IS_SERVICES` gate, and the `next.config.ts` aliases to
+`*.stub.ts`. So "build visa changes under `src/**`" is still right; "eno.vn owns the feature" is
+not, and the two are easy to conflate.
+
+~~**Ownership — eno.vn owns the whole feature (owner, 2026-07-21).** The Vietnam e-Visa service
+belongs to eno.vn (the repository root), end to end: the applicant flow, AI passport extraction,
+payments, the direct-message experience, and the admin/operator queue. Build every visa change
+under `src/**`. `apps/forum` must not gain new visa surfaces.~~
 
 This reverses the earlier rule in this file, which said the complete feature lived in
 `apps/forum` and that its server routes must not be placed in the root application. That
@@ -111,10 +122,38 @@ reading this list first.** Retiring a live route is irreversible for anyone mid-
 
 ### Order of operations
 
+⛔ **THE WHOLE LIST BELOW POINTS THE WRONG WAY — READ THIS FIRST.** Cancelling step 4 alone was not
+enough, and three reviewers caught that: steps 2, 3, 5 and 6 still say "port it **to eno.vn**",
+which after 2026-07-31 reads as an instruction to deploy visa retention, the payload-decryption
+key and the operator queue onto the **licensed marketplace**.
+
+**The ambiguity is the whole danger.** When these steps were written, "eno.vn" meant *the
+repository root*, and the root built one site. It now builds **both** sites. So:
+
+- ✅ **Still right:** visa code lives under `src/**`, not `apps/forum/**`.
+- ⛔ **Now wrong:** anything that makes a visa surface, cron, env var or admin panel *live on the
+  eno.vn deployment*. Ported code must be `.svc.`-suffixed, `IS_SERVICES`-gated, or stubbed — and
+  its env belongs in `eno-services-env`, **not** `eno-root-env`.
+
+Concretely, per step: **(2)** ⛔ **this one already broke, silently — measured 2026-08-04.** The
+retention cron was ported and then renamed to `src/app/api/cron/visa-retention/route.svc.ts` in
+`09f1a74d` (2026-08-03), which made it services-edition-only. The Cloud Scheduler job
+`eno-visa-retention` still targets `https://eno.vn/api/cron/visa-retention`, **which now 404s** —
+its last attempt (2026-08-03T19:30Z) returned status code 5, NOT_FOUND. Applicant PII is still
+being deleted only because the *older* `eno-forum-visa-retention` job (19:00, →
+`https://www.eno.forum/api/cron/visa-retention`, 200) was never switched off.
+⚠️ **So do NOT act on the standing note that the forum job "can simply be disabled with the forum
+surface" — it is currently the only working sweep.** Fix order: delete or repoint
+`eno-visa-retention` FIRST, then reconsider the forum job. **(3)** `VISA_DATA_ENCRYPTION_KEY` must **not**
+go into eno.vn's deployed environment — that would give the licensed marketplace the ability to
+decrypt applicant PII it is not licensed to hold. **(5)/(6)** "port it" means into `src/**` behind
+the edition gate, never onto the eno.vn site.
+
 1. **Docs + decree** (this change). No code moves.
 2. **Port the retention cron** to eno.vn, point the scheduled job at the eno.vn domain, and verify one real deletion run. Only after this is the forum deployment non-load-bearing for compliance.
 3. **Confirm `VISA_DATA_ENCRYPTION_KEY` in eno.vn's deployed environment** (it is present in the local root `.env`; several eno.vn source comments still claim it is forum-only and are stale). This lights up the payload panel in eno.vn's admin console.
-4. **Make eno.vn the applicant entry point**: forum `/visa` becomes marketing + CTA, and the eno.vn footer link (`src/components/marketplace/footer.tsx`, "Vietnam e-Visa help" → `${FORUM_URL}/visa`) is repointed at the eno.vn flow.
+4. ~~**Make eno.vn the applicant entry point**: forum `/visa` becomes marketing + CTA, and the eno.vn footer link (`src/components/marketplace/footer.tsx`, "Vietnam e-Visa help" → `${FORUM_URL}/visa`) is repointed at the eno.vn flow.~~
+   ⛔ **CANCELLED — DO NOT DO THIS (owner, 2026-07-31).** eno.vn is registering as a licensed Vietnamese company (sàn TMĐT) and cannot legally offer e-visa, itinerary or PayPal checkout; those belong to **eno.forum**, and eno.vn may not even mention them. Executing this step would put a visa applicant entry point and a visa footer link on the licensed marketplace — the exact leak the edition split exists to prevent. The footer link is now services-edition-only via `SERVICES_FOOTER_LINKS` + the `edition-services-copy.stub.ts` alias, and it is `/eno_visa` (same-origin on eno.forum), not `${FORUM_URL}/visa` — so this step no longer even describes the code.
 5. **Port e2e (#11) and the result route (#6)**, then retire the forum applicant/admin routes (#2, #3, #9, #10) together with their `sync-pairs` entries.
 6. **Decide hosted prefill (#4/#5) last** — keep it forum-side or port it, with the owner.
 

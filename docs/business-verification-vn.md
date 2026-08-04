@@ -18,13 +18,29 @@ through the both-ends second opinion first (this is a trust gate on money-adjace
 > **(3) Law on E-commerce 122/2025/QH15** (effective **2026-07-01**) — an intermediary
 > platform must **electronically authenticate the seller's identity via the national VNeID
 > system BEFORE allowing them to sell** (a real gate, not just collection); foreign sellers
-> verify via lawful documents. **Two things this means for eno.vn specifically:** (a) the
-> tax-*withholding* piece is payment-function-gated — it bites the visa checkout, less so
-> the classifieds contact-reveal side — but the *identity* floor applies regardless; (b)
-> **VNeID covers Vietnamese nationals only, and eno.vn is an EXPAT marketplace** — many
-> sellers are foreigners who verify by passport + documents, so the document-upload channel
-> below is a *primary* path for eno.vn, not just a fallback. Design it swappable for a
-> VNeID call so the domestic half is ready for 2026-07-01.
+> verify via lawful documents. **Two things this means for eno.vn specifically:**
+>
+> (a) ⛔ **CORRECTED 2026-08-04 — this paragraph used to say the withholding duty "bites the visa
+> checkout".** eno.vn has **no visa checkout and no payment function at all**: the owner moved
+> e-visa, itinerary and PayPal to eno.forum on 2026-07-31 precisely so the licensed sàn TMĐT does
+> not operate one. Transactions complete off-platform. So the tax-*withholding* piece — which is
+> payment-function-gated — does **not** currently bite eno.vn, and any design premised on it does
+> not apply to the licensed entity. ⚠️ Reason from that, not from the old sentence: this document
+> is what a lawyer or accountant would be handed. The *identity* floor still applies regardless.
+>
+> (b) ⚠️ **"VNeID covers Vietnamese nationals only" IS FALSE — corrected 2026-08-04.** ND
+> 69/2024 Điều 7 kh.2 grants level-1 and level-2 e-ID accounts to **foreigners** aged 6+ holding a
+> thẻ tạm trú/thường trú, and MPS rolled level-2 out nationwide from 2025-07-01; the ND 69
+> amendment to ND 61/2018 Điều 21a describes verifying an account keyed on a foreigner's
+> **passport number**. What survives of the original point is narrower but still load-bearing:
+> expats **without** a residence card remain ineligible, and Luật 122/2025 Điều 17 kh.1 điểm c
+> assigns foreign sellers document verification anyway — so the document-upload channel below is a
+> *primary* path for an expat marketplace, not a fallback. Design it swappable for a VNeID call,
+> and do **not** assume the adapter is domestic-only.
+>
+> ⚠️ **Two different dates, do not conflate them.** Luật 122/2025 and NĐ 248/2026 took effect
+> **2026-07-01**; the *electronic* seller-authentication duty is deferred to **2027-01-01** (NĐ
+> 248/2026 Điều 52 kh.2). The information duties in Điều 18 are live now.
 
 ## Bottom line
 

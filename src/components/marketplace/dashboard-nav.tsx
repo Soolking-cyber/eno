@@ -135,11 +135,18 @@ export const DASHBOARD_NAV: NavGroup[] = [
     // that calls itself the single source of truth for the rail had no Help entry at all.
     items: [
       { href: '/dashboard/help', ...tr('Help center', 'Trung tâm trợ giúp'), icon: CircleHelp },
-      // ✅ UN-SHELVED (owner, 2026-07-25): the itinerary builder is now a promoted eno.vn
-      // service — a landing page at /itinerary, stops persisted per day, a map, and a
-      // "My Trips" detail page. This row is back BY DECISION, which is exactly what the
-      // note below asked for. It was SHELVED 2026-07-23 ("for now don't delete, later we
-      // will make use of it"); "later" is now.
+      // ⚠️ SERVICES EDITION ONLY — AND THE `IS_SERVICES` GATE BELOW IS THE POINT, NOT AN
+      // AFTERTHOUGHT. This comment used to read "✅ UN-SHELVED (owner, 2026-07-25): the itinerary
+      // builder is now a promoted eno.vn service", which was true when written and REVERSED on
+      // 2026-07-31: itinerary, visa and PayPal moved to eno.forum, and eno.vn — the licensed sàn
+      // TMĐT — may not surface, link or mention them. So this row is promoted on eno.forum and
+      // ABSENT from eno.vn; the gate is what makes that true, and SERVICES_NAV_TRIPS additionally
+      // resolves to an empty stub on a marketplace build so the label never reaches the artifact.
+      // Do not "promote" this row out of the gate.
+      //
+      // (Shelving history, kept because it is why the note below is so emphatic: SHELVED
+      // 2026-07-23 "for now don't delete, later we will make use of it", then un-shelved 07-25,
+      // then edition-gated 07-31.)
       // (History, kept because it is the reason this comment is so emphatic: shelved in
       // c8090df0, then accidentally reverted 2 minutes later by 0ef45423 committing a stale
       // working-tree copy of this file. So the rule stands for the future — if this row

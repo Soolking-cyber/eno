@@ -18,13 +18,24 @@ const nextConfig: NextConfig = {
   turbopack: { root: __dirname },
   async redirects() {
     return [
-      // The trip service moved to eno.vn (owner, 2026-07-25) and the forum's copy of the
-      // builder was deleted with it. This redirect is what stops that from being a 404 for
-      // every existing link, bookmark and search result — it must OUTLIVE the deletion, so do
-      // not tidy it away. It sits FIRST so it wins for both hosts: matching here sends a
-      // visitor straight to eno.vn instead of bouncing them through the apex→www hop below.
-      { source: '/itinerary', destination: 'https://eno.vn/itinerary', permanent: true },
-      { source: '/itinerary/:path*', destination: 'https://eno.vn/itinerary', permanent: true },
+      // ⛔ THE TWO `/itinerary` → `https://eno.vn/itinerary` REDIRECTS THAT SAT HERE ARE DELETED.
+      //
+      // They were written 2026-07-25, when the trip service had moved to eno.vn and this tree's
+      // copy of the builder was deleted with it — correct then, and the note said they "must
+      // OUTLIVE the deletion, so do not tidy it away". The owner REVERSED that on 2026-07-31:
+      // itinerary, visa and PayPal belong to eno.forum, and eno.vn — the licensed sàn TMĐT — may
+      // not offer or even mention them. The rules therefore pointed forum traffic at a page the
+      // marketplace deliberately does not have (measured 2026-08-04: eno.vn/itinerary → 404).
+      //
+      // ⚠️ DELETED RATHER THAN ANNOTATED, because `permanent: true` is a 308 and browsers and CDNs
+      // cache it indefinitely — a comment saying "this is wrong" does not un-cache anything, and a
+      // revived or accidentally-built tree would start handing it out again. This tree is retired
+      // (eno.forum is served from the REPO ROOT via cloudbuild.services.yaml), so nothing is lost:
+      // the root's src/app/itinerary/page.svc.tsx serves /itinerary on eno.forum and returns 200.
+      //
+      // ⚠️ ONE THING THIS CANNOT FIX: any browser that hit eno.forum/itinerary while this tree WAS
+      // live holds a cached 308 to a now-404 URL, and will not re-ask. If trip-planner traffic
+      // looks anomalously low, that is a candidate cause.
       { source: '/forum', destination: '/', permanent: true },
       // Canonical-host redirect: Vercel's domain config used to 308 apex→www;
       // on Cloud Run behind the LB both hosts reach the app, so the app owns it.

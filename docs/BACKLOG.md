@@ -21,8 +21,13 @@ not where the money stops.
 
 ⚠️ **Two things this board asserted were also just WRONG**, both corrected by measuring:
 - *"Visa payments are dormant."* They are not — see the PayPal order above.
-- *"The homepage does not link the visa product."* It does, twice, in the footer. The grep that
+- *"The homepage does not link the visa product."* It did, twice, in the footer — the grep that
   "proved" otherwise excluded underscores and missed `/eno_visa`.
+  ⛔ **NO LONGER TRUE OF eno.vn, AND MUST NOT BECOME TRUE AGAIN (owner, 2026-07-31).** The visa
+  and itinerary footer entries are now services-edition-only, so **eno.vn links them zero times**
+  and eno.forum links them as before (measured 2026-08-04 on a clean marketplace build: 0
+  occurrences of `href="/itinerary"`, `Trip planner`, or any `eno.forum` anchor in the prerendered
+  HTML). Do not "restore" these links on the licensed marketplace — that is the leak, not the fix.
 
 **The order now, by evidence:** (1) stop losing first listings → (2) instrument, so the next
 prioritisation is not a guess → (3) fill the empty categories demand is already asking for →

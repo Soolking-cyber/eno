@@ -7,12 +7,20 @@ import { ContentPage, ContentSection } from '@/components/marketplace/content-pa
 import { Button } from '@/components/ui/button'
 import { getTripAssistanceListingId } from '@/lib/trips/dm-thread'
 
-// The Trip service's public face. This route used to be a 6-line permanentRedirect to
-// eno.forum's builder; the itinerary service moved to eno.vn (owner, 2026-07-25), so a
-// redirect off-origin was sending away the very visitors it should be converting.
+// The Trip service's public face — ON eno.forum ONLY. The `.svc.` infix is what makes that true:
+// `pageExtensions` excludes it from a marketplace build, so eno.vn has no /itinerary route at all
+// (measured 2026-08-04: eno.vn/itinerary → 404, www.eno.forum/itinerary → 200).
 //
-// Deliberately a sibling of /trust and /about: same ContentPage shell, same <Tr> strings, so
-// the service reads as part of eno.vn rather than a landing page bolted on.
+// ⚠️ DO NOT "RESTORE" THIS TO A PLAIN page.tsx. This comment used to say the itinerary service had
+// moved TO eno.vn (owner, 2026-07-25) and that redirecting off-origin was the bug. That was true
+// when written and was REVERSED on 2026-07-31: eno.vn is registering as a licensed sàn TMĐT and may
+// not offer — or even mention — visa, itinerary or PayPal. The gating commit that added the `.svc.`
+// infix was a pure rename (`similarity index 100%`), so this paragraph crossed the boundary
+// unedited and then argued against the very gate protecting it. Dropping the infix is a licensing
+// leak, not a cleanup.
+//
+// Deliberately a sibling of /trust and /about: same ContentPage shell, same <Tr> strings, so the
+// service reads as part of the site rather than a landing page bolted on.
 //
 // ⚠️ NO booking and NO payment on this page, or anywhere in this service. eno advises and
 // arranges; the traveller pays each supplier directly and the 10% is quoted in chat. eno's
