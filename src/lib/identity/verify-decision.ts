@@ -116,7 +116,69 @@ export type TierBDecision = {
   limitations: readonly Limitation[]
   /** Machine-readable list of what actually passed — this is the evidence, not prose. */
   checksPassed: string[]
-  rejectReason?: 'mrz_invalid' | 'document_expired' | 'name_mismatch' | 'residence_expired' | 'document_not_authentic'
+  /**
+   * ⚠️ EVERY REASON HERE NEEDS BILINGUAL COPY AND A CTA BEFORE THE VERIFY ROUTE SHIPS. Nothing
+   * renders these yet — there is no HTTP route — so three reviewers' "the seller sees a blank
+   * reason" finding is not reachable today. It becomes reachable the moment the route lands, and
+   * `document_expires_soon` / `document_expiry_unreadable` are precisely the two whose whole point
+   * is telling the seller something actionable and different from "expired".
+   */
+  rejectReason?: 'mrz_invalid' | 'document_expired' | 'document_expiry_unreadable' | 'document_expires_soon' | 'name_mismatch' | 'residence_expired' | 'document_not_authentic'
+}
+
+// ── The statutory validity floor for a foreign seller's document ────────────────────────────────
+//
+// NĐ 248/2026 Điều 18 khoản 1 điểm b requires, for a foreign individual, a passport or equivalent
+// document "còn hiệu lực ít nhất 06 tháng kể từ ngày xét duyệt" — valid for at least six months
+// from the REVIEW date. Merely-unexpired is not enough, which is what this module checked before.
+//
+// ⚠️ SIX CALENDAR MONTHS, NOT 180 DAYS. They differ by up to three days depending on which months
+// are spanned, and always in the direction of rejecting a document the decree accepts.
+//
+// ⚠️ CLAMPED TO THE LAST DAY OF THE TARGET MONTH. 31 August + 6 months has no 31 February; naive
+// month arithmetic rolls it forward to 3 March, making the threshold LATER and the gate STRICTER
+// than the law. Clamping to 28/29 February matches how Vietnamese civil law reckons a period in
+// months when the end month is short.
+//
+// ⚠️ RECKONED IN ICT, NOT UTC. "Ngày xét duyệt" is a Vietnamese calendar day. Using UTC would shift
+// the review date back one day for any submission between 00:00 and 07:00 local — a one-day
+// leniency on a legal gate, which is the wrong direction to be sloppy in. Vietnam has no DST, so a
+// fixed +07:00 is exact rather than an approximation.
+const ICT_OFFSET_MS = 7 * 60 * 60_000
+export const MIN_DOCUMENT_VALIDITY_MONTHS = 6
+
+/**
+ * Strict `YYYY-MM-DD` → UTC-midnight Date. `null` for anything else, INCLUDING a well-formed string
+ * naming a day that does not exist (`2027-02-31`), which `new Date` would silently roll to 3 March.
+ */
+function parseIsoDate(v: string | undefined): Date | null {
+  if (!v) return null
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v)
+  if (!m) return null
+  const d = new Date(`${v}T00:00:00Z`)
+  if (Number.isNaN(d.getTime())) return null
+  // Reject a rolled-over date: 2027-02-31 parses, but comes back as 3 March.
+  return d.getUTCDate() === Number(m[3]) && d.getUTCMonth() + 1 === Number(m[2]) ? d : null
+}
+
+/**
+ * The Vietnamese calendar day of `now`, as a UTC-midnight Date — the same representation
+ * `parseIsoDate` produces, so the two are directly comparable.
+ */
+export function ictToday(now: Date): Date {
+  const ict = new Date(now.getTime() + ICT_OFFSET_MS)
+  return new Date(Date.UTC(ict.getUTCFullYear(), ict.getUTCMonth(), ict.getUTCDate()))
+}
+
+/** The earliest expiry date a foreign seller's document may carry and still be accepted. */
+export function minimumValidityDate(now: Date): Date {
+  const ict = new Date(now.getTime() + ICT_OFFSET_MS)
+  const y = ict.getUTCFullYear()
+  const m = ict.getUTCMonth()
+  const d = ict.getUTCDate()
+  // Day 0 of month (m + N + 1) is the last day of month (m + N). Date.UTC rolls the year over.
+  const lastDayOfTarget = new Date(Date.UTC(y, m + MIN_DOCUMENT_VALIDITY_MONTHS + 1, 0)).getUTCDate()
+  return new Date(Date.UTC(y, m + MIN_DOCUMENT_VALIDITY_MONTHS, Math.min(d, lastDayOfTarget)))
 }
 
 /** Diacritic- and filler-insensitive fold of ONE token. MRZ is ASCII, so NGUYỄN arrives as NGUYEN. */
@@ -174,7 +236,14 @@ export function decideTierB(input: TierBInput): TierBDecision {
   const now = input.now ?? new Date()
   const passed: string[] = []
 
-  const isPassport = (input.tier ?? 'B') === 'B'
+  // ⚠️ THIS IS THE SELLER'S LEGAL TIER, NOT A SNIFF OF WHICH DOCUMENT THEY UPLOADED — and the name
+  // matters, because the old name — `isPassport` — misled all THREE reviewers into the same two
+  // false findings: that a Tier A holder presenting a Vietnamese passport would be caught by the
+  // foreign-only rules, and that a Tier B holder presenting a non-passport equivalent would escape
+  // them. Neither is possible: the value is derived from `tier` alone, so Tier B is subject to the
+  // foreign rules whatever document arrives, and Tier A never is. Three independent misreadings of
+  // one line is a fact about the name, not about the readers.
+  const isTierB = (input.tier ?? 'B') === 'B'
 
   // 1. The document must have been READ reliably — by verified MRZ check digits, OR by the
   //    provider attesting to it. Either is sufficient; NEITHER is not.
@@ -185,22 +254,79 @@ export function decideTierB(input: TierBInput): TierBDecision {
   //    ⚠️ A CCCD HAS NO MRZ AT ALL, so requiring one there rejects every Tier A record — the branch
   //    that was missing when both tiers shared a passport-shaped decision (codex).
   const readReliably = input.mrzValid || !!input.provider
-  if (isPassport && !readReliably) {
+  if (isTierB && !readReliably) {
     return { status: 'rejected', assurance: null, limitations: TIER_B_LIMITATIONS, checksPassed: passed, rejectReason: 'mrz_invalid' }
   }
-  if (isPassport) passed.push('mrz_checksums')
+  //    ⚠️ RECORD WHICH ONE ACTUALLY HAPPENED. This line used to push `mrz_checksums` for EVERY
+  //    Tier B record that got past the guard — including the provider-attested ones, where no check
+  //    digit was verified at all. Since verify-flow.ts:138 passes `mrzValid: false` on the only
+  //    live path, that meant every single Tier B record in the compliance log claimed a check that
+  //    never ran. `checksPassed` is the evidence we would hand a regulator, so a check named there
+  //    must have executed. Found independently by agy and qwen; confirmed by reading the caller.
+  //    ⚠️ AND TIER A NEEDS THE EVIDENCE TOO (agy). Keying the fallback on `isTierB` left a
+  //    provider-verified CCCD with NEITHER token — the compliance log would carry no machine-
+  //    readable statement of how a domestic document was read, which is the one thing the log
+  //    exists to answer. The question is "what read it", and that has nothing to do with tier.
+  if (input.mrzValid) passed.push('mrz_checksums')
+  else if (input.provider) passed.push('provider_attested_read')
 
   // 2. Document expiry. ⚠️ REQUIRED for a passport, OPTIONAL for a CCCD — Vietnamese ID cards
   //    issued before the current series carry no expiry at all, so demanding one rejects a whole
   //    generation of legitimate holders.
-  const expiry = input.documentExpiry ? new Date(`${input.documentExpiry}T00:00:00Z`) : null
-  if (isPassport && !expiry) {
-    return { status: 'rejected', assurance: null, limitations: TIER_B_LIMITATIONS, checksPassed: passed, rejectReason: 'document_expired' }
+  //    ⚠️ AN UNPARSEABLE DATE MUST NOT SAIL THROUGH — MEASURED, NOT THEORISED. `new Date()` on a
+  //    malformed string yields Invalid Date, and EVERY comparison against it is false, so a value
+  //    like `2027-02-03T10:00:00+07:00` (which produces a nonsense string once `T00:00:00Z` is
+  //    appended) passed both the expiry guard AND the new six-month floor. `documentExpiry` is
+  //    typed as an ISO date and `toIsoDate()` in verify-flow only ever emits one, so this is
+  //    unreachable from today's single caller — but it fails OPEN, and every fail-open defect this
+  //    subsystem has shipped looked exactly this unreachable beforehand. Parse strictly instead.
+  //    ⚠️ AND IT IS REPORTED AS UNREADABLE, NOT AS EXPIRED (codex). Calling an unparseable date
+  //    "expired" is the same false-but-plausible message the six-month reason exists to avoid: the
+  //    seller checks their in-date passport, sees nothing wrong, and resubmits the same scan.
+  const expiry = parseIsoDate(input.documentExpiry)
+  if (input.documentExpiry && !expiry) {
+    return { status: 'rejected', assurance: null, limitations: TIER_B_LIMITATIONS, checksPassed: passed, rejectReason: 'document_expiry_unreadable' }
   }
-  if (expiry && expiry <= now) {
+  //    ⚠️ ABSENT IS "UNREADABLE", NOT "EXPIRED" (codex). A passport with no expiry extracted is
+  //    overwhelmingly a bad scan of a valid document, and the old wording sent that seller to check
+  //    a date that is plainly fine — the same dead end `document_expires_soon` was added to avoid.
+  if (isTierB && !expiry) {
+    return { status: 'rejected', assurance: null, limitations: TIER_B_LIMITATIONS, checksPassed: passed, rejectReason: 'document_expiry_unreadable' }
+  }
+  //    ⚠️ COMPARED AS AN ICT CALENDAR DAY, NOT AS AN INSTANT (agy). `expiry` is UTC midnight while
+  //    `now` is a real timestamp, so `expiry <= now` turned true at 07:00 Hanoi on the expiry date
+  //    itself — rejecting a seller for seventeen hours of a day their document is still valid. It
+  //    was also inconsistent with the six-month floor below, which this diff had already made
+  //    ICT-aware: one function, two different notions of "today". A document is valid THROUGH its
+  //    expiry date, so expired means strictly before today.
+  if (expiry && expiry < ictToday(now)) {
     return { status: 'rejected', assurance: null, limitations: TIER_B_LIMITATIONS, checksPassed: passed, rejectReason: 'document_expired' }
   }
   if (expiry) passed.push('document_unexpired')
+
+  //   ⚠️ AND IT MUST HAVE SIX MONTHS LEFT — NĐ 248/2026 Điều 18 kh.1 đ.b. See minimumValidityDate.
+  //   ⚠️ FOREIGN DOCUMENTS ONLY. Điểm a, which governs a domestic individual, imposes NO validity
+  //   floor — it asks only for họ tên, ngày sinh and số định danh cá nhân. Applying the six-month
+  //   rule to a CCCD would invent a requirement and reject Vietnamese sellers the decree accepts.
+  //   ⚠️ A DISTINCT REJECT REASON, NOT `document_expired`. Telling someone holding a valid passport
+  //   that it has expired is false, and it is unactionable — they would check the date, see months
+  //   remaining, and resubmit the same document. The reason they can act on is "renew it".
+  //   `rejected` (not `pending`) is deliberate: no human reviewer can waive a statutory floor, and
+  //   `canSelfRetry('rejected')` is true, so the seller returns the moment the new passport lands.
+  //   ⚠️ `now` IS THE REVIEW DATE, AND A `pending` RECORD HAS TWO OF THEM (codex). The decree
+  //   measures from "ngày xét duyệt" — the day the application is ADJUDICATED. For an auto-decision
+  //   those are the same instant, so this is exact. But a record routed to a human is adjudicated
+  //   days or weeks later, by which time the floor has moved: a passport with exactly six months
+  //   left at submission no longer qualifies at approval. WHOEVER BUILDS THE ADMIN APPROVAL PATH
+  //   MUST RE-RUN THIS DECISION AT APPROVAL TIME rather than committing the stored one — otherwise
+  //   the manual queue quietly becomes the way to get a non-compliant document approved.
+  if (isTierB && expiry) {
+    const floor = minimumValidityDate(now)
+    if (expiry < floor) {
+      return { status: 'rejected', assurance: null, limitations: TIER_B_LIMITATIONS, checksPassed: passed, rejectReason: 'document_expires_soon' }
+    }
+    passed.push('document_valid_6_months')
+  }
 
   // 3. Residence document, when supplied. ⚠️ An EXPIRED residence permit is a rejection at
   //    submission time — distinct from the `expired` STATE, which is what a previously-verified

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { decideTierB, describeAssurance, foldName, namesCorrespond, LIMITATION, TIER_B_LIMITATIONS } from './verify-decision'
+import { decideTierB, describeAssurance, foldName, minimumValidityDate, namesCorrespond, LIMITATION, TIER_B_LIMITATIONS } from './verify-decision'
 
 /** Explicit fields now — no faked MRZ struct. See the note in verify-decision.ts. */
 const base = (over: Record<string, unknown> = {}) => ({
@@ -68,6 +68,146 @@ describe('Tier B decision', () => {
     const expired = decideTierB({ ...base({ documentExpiry: '2020-01-01' }), accountName: 'nobody', now: NOW })
     // Name also mismatches — but expiry is what the user must fix first.
     expect(expired.rejectReason).toBe('document_expired')
+  })
+
+  // ── NĐ 248/2026 Điều 18 kh.1 đ.b — the six-month validity floor ────────────────────────────
+  describe('six-month validity floor (foreign documents)', () => {
+    it('rejects a passport that is valid but expires inside six months', () => {
+      // NOW is 2026-08-03, so the floor is 2027-02-03. This passport is unexpired — the OLD gate
+      // passed it — and still fails the decree.
+      const d = decideTierB({ ...base({ documentExpiry: '2026-12-01' }), accountName: 'Anna Maria Eriksson', now: NOW })
+      expect(d.status).toBe('rejected')
+      expect(d.rejectReason).toBe('document_expires_soon')
+      // ⚠️ NOT `document_expired`. The passport is valid; saying otherwise is false and leaves the
+      // seller with nothing to act on.
+      expect(d.checksPassed).toContain('document_unexpired')
+      expect(d.checksPassed).not.toContain('document_valid_6_months')
+    })
+
+    it('accepts a passport expiring exactly on the floor — "ít nhất 06 tháng" includes the boundary', () => {
+      const d = decideTierB({ ...base({ documentExpiry: '2027-02-03' }), accountName: 'Anna Maria Eriksson', now: NOW })
+      expect(d.status).toBe('verified')
+      expect(d.checksPassed).toContain('document_valid_6_months')
+    })
+
+    it('rejects one day inside the boundary', () => {
+      const d = decideTierB({ ...base({ documentExpiry: '2027-02-02' }), accountName: 'Anna Maria Eriksson', now: NOW })
+      expect(d.rejectReason).toBe('document_expires_soon')
+    })
+
+    it('⚠️ does NOT apply the floor to a Tier A CCCD — điểm a imposes no validity requirement', () => {
+      // A domestic individual is verified on họ tên + ngày sinh + số định danh cá nhân alone.
+      // Borrowing the foreign rule here would invent a requirement and reject lawful sellers.
+      const d = decideTierB({
+        ...base({ documentExpiry: '2026-10-01', mrzValid: false }),
+        tier: 'A', accountName: 'Anna Maria Eriksson', provider: CLEAN, now: NOW,
+      })
+      expect(d.rejectReason).toBeUndefined()
+      expect(d.checksPassed).not.toContain('document_valid_6_months')
+    })
+
+    it('reports an already-expired passport as expired, not as expiring soon', () => {
+      const d = decideTierB({ ...base({ documentExpiry: '2020-01-01' }), accountName: 'Anna Maria Eriksson', now: NOW })
+      expect(d.rejectReason).toBe('document_expired')
+    })
+  })
+
+  describe('⚠️ a malformed expiry must FAIL CLOSED', () => {
+    // Measured, not theorised: `new Date('…T10:00:00+07:00T00:00:00Z')` is Invalid Date, and every
+    // comparison against Invalid Date is false — so the value passed the expiry guard AND the
+    // six-month floor and reached `verified`.
+    for (const bad of ['2027-02-03T10:00:00+07:00', '03/02/2027', '2027-2-3', 'soon', '2027-02-31']) {
+      it(`rejects ${bad}`, () => {
+        const d = decideTierB({ ...base({ documentExpiry: bad }), accountName: 'Anna Maria Eriksson', now: NOW })
+        expect(d.status).toBe('rejected')
+        // ⚠️ NOT `document_expired` — the document may be perfectly in date; we could not READ it.
+        expect(d.rejectReason).toBe('document_expiry_unreadable')
+      })
+    }
+
+    it('rejects a malformed expiry on Tier A too, where the field is otherwise optional', () => {
+      // Absent is fine for a CCCD; PRESENT-BUT-UNREADABLE is not the same thing, and treating it as
+      // absent would let a garbage value read as "no expiry, nothing to check".
+      const d = decideTierB({
+        ...base({ documentExpiry: 'nonsense', mrzValid: false }),
+        tier: 'A', accountName: 'Anna Maria Eriksson', provider: CLEAN, now: NOW,
+      })
+      expect(d.status).toBe('rejected')
+    })
+  })
+
+  describe('⚠️ expiry is an ICT calendar day, not an instant', () => {
+    it('accepts a Tier A document on its own expiry date, all day', () => {
+      // The old `expiry <= now` flipped to rejected at 07:00 Hanoi (00:00 UTC) on the expiry date
+      // itself, so a seller submitting at 09:00 local on their document's last valid day was told
+      // it had expired. A document is valid THROUGH its expiry date.
+      const morningInHanoi = new Date('2026-08-04T02:00:00Z') // 09:00 ICT
+      const d = decideTierB({
+        ...base({ documentExpiry: '2026-08-04', mrzValid: false }),
+        tier: 'A', accountName: 'Anna Maria Eriksson', provider: CLEAN, now: morningInHanoi,
+      })
+      expect(d.rejectReason).toBeUndefined()
+    })
+
+    it('rejects it the following ICT day', () => {
+      const d = decideTierB({
+        ...base({ documentExpiry: '2026-08-04', mrzValid: false }),
+        tier: 'A', accountName: 'Anna Maria Eriksson', provider: CLEAN,
+        now: new Date('2026-08-05T02:00:00Z'),
+      })
+      expect(d.rejectReason).toBe('document_expired')
+    })
+
+    it('⚠️ 23:30 UTC is already tomorrow in Hanoi', () => {
+      // 2026-08-04T23:30Z is 2026-08-05 06:30 ICT, so a document expiring on the 4th is spent.
+      const d = decideTierB({
+        ...base({ documentExpiry: '2026-08-04', mrzValid: false }),
+        tier: 'A', accountName: 'Anna Maria Eriksson', provider: CLEAN,
+        now: new Date('2026-08-04T23:30:00Z'),
+      })
+      expect(d.rejectReason).toBe('document_expired')
+    })
+  })
+
+  describe('⚠️ checksPassed must name only checks that actually ran', () => {
+    it('does NOT claim mrz_checksums when the provider did the reading', () => {
+      // verify-flow.ts passes mrzValid:false on the only live path, so this WAS every Tier B
+      // record in the compliance log asserting a check digit verification that never happened.
+      const d = decideTierB({ ...base({ mrzValid: false }), accountName: 'Anna Maria Eriksson', provider: CLEAN, now: NOW })
+      expect(d.status).toBe('verified')
+      expect(d.checksPassed).not.toContain('mrz_checksums')
+      expect(d.checksPassed).toContain('provider_attested_read')
+    })
+
+    it('claims mrz_checksums only when real check digits passed', () => {
+      const d = decideTierB({ ...base(), accountName: 'Anna Maria Eriksson', now: NOW })
+      expect(d.checksPassed).toContain('mrz_checksums')
+      expect(d.checksPassed).not.toContain('provider_attested_read')
+    })
+  })
+
+  describe('minimumValidityDate', () => {
+    it('adds six calendar months, not 180 days', () => {
+      expect(minimumValidityDate(new Date('2026-08-03T00:00:00Z')).toISOString().slice(0, 10)).toBe('2027-02-03')
+    })
+
+    it('⚠️ clamps to the last day of a short target month instead of rolling into the next', () => {
+      // 31 August + 6 months has no 31 February. Naive arithmetic yields 3 March, which is a
+      // STRICTER threshold than the decree sets.
+      expect(minimumValidityDate(new Date('2026-08-31T00:00:00Z')).toISOString().slice(0, 10)).toBe('2027-02-28')
+      // …and the leap year it would otherwise get wrong in the other direction.
+      expect(minimumValidityDate(new Date('2027-08-31T00:00:00Z')).toISOString().slice(0, 10)).toBe('2028-02-29')
+    })
+
+    it('⚠️ reckons the review date in ICT, so a 01:00 Hanoi submission is not dated yesterday', () => {
+      // 2026-08-04T01:00+07:00 is 2026-08-03T18:00Z. Reckoned in UTC the review day would be the
+      // 3rd, handing the seller an extra day against a legal gate.
+      expect(minimumValidityDate(new Date('2026-08-03T18:00:00Z')).toISOString().slice(0, 10)).toBe('2027-02-04')
+    })
+
+    it('rolls the year over', () => {
+      expect(minimumValidityDate(new Date('2026-11-15T00:00:00Z')).toISOString().slice(0, 10)).toBe('2027-05-15')
+    })
   })
 
   it('⚠️ sends a name mismatch to a HUMAN, never to rejection', () => {
@@ -162,6 +302,8 @@ describe('tier-aware decision', () => {
   it('a passport still requires an expiry date', () => {
     const d = decideTierB({ ...base({ documentExpiry: undefined }), accountName: 'Anna Maria Eriksson', provider: CLEAN, now: NOW })
     expect(d.status).toBe('rejected')
-    expect(d.rejectReason).toBe('document_expired')
+    // ⚠️ Reported as UNREADABLE, not expired: no expiry was extracted, which is almost always a bad
+    // scan of a perfectly valid passport. "Expired" would send that seller to check a fine date.
+    expect(d.rejectReason).toBe('document_expiry_unreadable')
   })
 })
