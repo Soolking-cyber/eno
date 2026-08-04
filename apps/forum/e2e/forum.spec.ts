@@ -237,16 +237,25 @@ test.describe('eno.forum deployable workspace', () => {
     await expect(page.getByRole('heading', { name: french['One guided application. Every answer stays yours.'] })).toBeVisible()
   })
 
-  test('hands /itinerary to eno.vn instead of serving or 404ing it', async ({ page }) => {
-    // The trip service moved to eno.vn (owner, 2026-07-25) and this app's copy was deleted.
-    // The redirect is the whole reason that deletion is safe — every existing link, bookmark
-    // and search result depends on it — so it is asserted here rather than left to a comment.
-    // Checked WITHOUT following, because what matters is the 308 and its target: a 200 would
-    // mean the page came back, and a 404 would mean we broke every inbound link.
+  test('does NOT serve an itinerary builder, and no longer hands /itinerary to eno.vn', async ({ page }) => {
+    // ⚠️ THIS TEST USED TO ASSERT THE OPPOSITE, AND IT WAS THE LAST PLACE THE PRE-REVERSAL RULE
+    // SURVIVED. It required a 308 to https://eno.vn/itinerary, because on 2026-07-25 the trip
+    // service had moved TO eno.vn. The owner REVERSED that on 2026-07-31: itinerary, visa and
+    // PayPal belong to eno.forum, and eno.vn — the licensed sàn TMĐT — may not serve or mention
+    // them. So the redirect pointed at a page the marketplace now deliberately 404s, and it was
+    // deleted in bd3dbbcf (a `permanent: true` 308 is cached indefinitely, so a comment saying
+    // "this is wrong" would not have un-cached it).
+    //
+    // ⚠️ AND THAT DELETION IS WHY CI WENT RED ON MAIN: the code moved, the test did not. The
+    // comment sweep that fixed six stale files missed this one because the forum e2e suite is
+    // Playwright and does not run under `npx vitest run` — only in CI.
+    //
+    // What still matters, and is what this now pins: this retired workspace must not serve an
+    // itinerary surface of its own. eno.forum's real /itinerary is served from the REPO ROOT
+    // (src/app/itinerary/page.svc.tsx) via cloudbuild.services.yaml; apps/** is not deployed.
     for (const path of ['/itinerary', '/itinerary/anything']) {
       const res = await page.request.get(path, { maxRedirects: 0 })
-      expect(res.status(), `${path} must redirect, not serve or 404`).toBe(308)
-      expect(res.headers()['location']).toBe('https://eno.vn/itinerary')
+      expect(res.status(), `${path} must not serve a builder or redirect to the licensed marketplace`).toBe(404)
     }
     // And the builder's API is genuinely gone, not merely unlinked.
     const api = await page.request.post('/api/itineraries/generate', { data: {}, maxRedirects: 0 })
