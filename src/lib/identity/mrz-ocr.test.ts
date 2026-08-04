@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { readMrz, extractMrzLines, readFailureHint, VARIANTS, MRZ_CHARSET, type OcrEngine } from './mrz-ocr'
 import { outcomeToStatus, isTransient, quotaStatus, shouldAttempt } from './provider'
-import { readTokenClaims, needsRefresh, missingScopes, vnptConfigured } from './vnpt-auth'
+import { readTokenClaims, needsRefresh, effectiveExpiry, vnptConfigured } from './vnpt-auth'
 
 // A real, checksum-valid ICAO 9303 TD3 specimen (the standard's own example).
 const L1 = 'P<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<<<<<<<<<'
@@ -157,11 +157,27 @@ describe('VNPT token lifecycle', () => {
     expect(readTokenClaims('')).toBeNull()
   })
 
-  it('⚠️ flags a read-only token — eKYC verification is a WRITE', () => {
-    // The token issued 2026-08-03 had scope:["read"]. Without this check the failure surfaces as a
-    // confusing 403 that looks like a malformed request.
-    expect(missingScopes({ exp: 1, scope: ['read'] })).toEqual(['write'])
-    expect(missingScopes({ exp: 1, scope: ['read', 'write'] })).toEqual([])
+  it('⚠️ effectiveExpiry takes the EARLIEST of exp and expires_in', () => {
+    const t0 = 1_000_000_000_000
+    // The real shape, measured 2026-08-04: expires_in 7199s, JWT exp 7200s out. expires_in wins.
+    expect(effectiveExpiry({ exp: (t0 + 7_200_000) / 1000 }, 7199, t0)?.getTime()).toBe(t0 + 7_199_000)
+    // …and the other direction: a JWT that dies before expires_in claims.
+    expect(effectiveExpiry({ exp: (t0 + 60_000) / 1000 }, 7199, t0)?.getTime()).toBe(t0 + 60_000)
+    // Either source alone is enough.
+    expect(effectiveExpiry(null, 3600, t0)?.getTime()).toBe(t0 + 3_600_000)
+    expect(effectiveExpiry({ exp: (t0 + 60_000) / 1000 }, undefined, t0)?.getTime()).toBe(t0 + 60_000)
+  })
+
+  it('⚠️ effectiveExpiry rejects junk rather than producing an Invalid Date', () => {
+    // An Invalid Date compares false against everything, so it would never look expired — the same
+    // fail-open shape the decision layer's malformed-expiry guard exists to stop.
+    const t0 = 1_000_000_000_000
+    expect(effectiveExpiry(null, undefined, t0)).toBeNull()
+    expect(effectiveExpiry(null, 0, t0)).toBeNull()
+    expect(effectiveExpiry(null, -5, t0)).toBeNull()
+    expect(effectiveExpiry(null, 'soon', t0)).toBeNull()
+    expect(effectiveExpiry(null, Number.NaN, t0)).toBeNull()
+    expect(effectiveExpiry(null, Number.POSITIVE_INFINITY, t0)).toBeNull()
   })
 
   it('is not configured unless EVERY credential is present', () => {

@@ -69,6 +69,33 @@ async function post(
   try {
     const res = await fetch(`${BASE}${path}`, { method: 'POST', signal: ctl.signal, ...init })
     const text = await res.text()
+
+    // ⚠️ A NON-2xx IS ALWAYS TRANSIENT, WHATEVER THE BODY LOOKS LIKE — and this was a REAL DEFECT,
+    // not a hardening nicety (agy, confirmed by reading assertOk). `assertOk` derives `transient`
+    // from a `statusCode` field INSIDE the JSON body, so a 401, 429 or 502 that happens to carry a
+    // JSON error object produced `transient: false` — which provider.ts maps to `rejected`. That is
+    // a SELLER TOLD THEIR DOCUMENT FAILED because our token expired or VNPT rate-limited us. The
+    // HTTP status is the authority on "could we ask?"; the body only speaks to "what was the
+    // answer?".
+    if (!res.ok) {
+      // ⚠️ 401 means THIS token is dead (VNPT's doc says so explicitly). Drop it so the next call
+      // mints a fresh one — but conditionally, keyed on the exact token that failed, so a slow
+      // request cannot delete a newer token another instance just stored.
+      if (res.status === 401) {
+        // ⚠️ Read the header defensively. Every current caller passes vnptHeaders()'s plain object,
+        // but a `Headers` instance or a lowercased key would make this throw INSIDE the error path —
+        // converting a recoverable 401 into a 500 (qwen).
+        const h = init.headers as Record<string, unknown> | undefined
+        const raw = h && typeof h === 'object' ? (h.Authorization ?? h.authorization) : undefined
+        const bearer = typeof raw === 'string' ? raw.replace(/^Bearer\s+/i, '') : ''
+        if (bearer) {
+          const { invalidateAccessToken } = await import('./vnpt-token-store')
+          await invalidateAccessToken(bearer).catch(() => {})
+        }
+      }
+      return transient(`HTTP ${res.status}`)
+    }
+
     try {
       return assertOk(JSON.parse(text))
     } catch {
@@ -183,10 +210,13 @@ export async function classifyDocument(
  * 8-hour token there would mean three full deploys a day on a live marketplace. A row is an UPDATE
  * the running revision picks up within a minute — ./scripts/vnpt-token.sh, no build, no rollout.
  *
- * ⚠️ STILL TEMPORARY. VNPT's published API list has no token-minting endpoint; their doc says to
- * copy it out of Token Management by hand, and it lasts 8 hours. The generator has been requested.
- * When it lands, the mint call writes this same row and nothing in this file changes — which is why
- * the indirection goes in now rather than after.
+ * ✅ NO LONGER TEMPORARY (2026-08-04). VNPT supplied the Access Token API and it is integrated:
+ * getAccessToken() mints from the client credentials when the stored token is missing or near
+ * expiry. The indirection paid off exactly as intended — the mint writes the same row and NOT ONE
+ * LINE of this file's call sites changed.
+ *
+ * ⚠️ The real lifetime is TWO HOURS, measured, not the 8h the console claims. That is why the
+ * manual paste path could never have been the operating model.
  */
 async function accessToken(): Promise<string> {
   const { getAccessToken } = await import('./vnpt-token-store')
