@@ -95,11 +95,40 @@ export function Footer() {
       // here: every dashboard forum CTA already routed through goToForum, and only
       // the footer still handed users a raw URL.
       links: [
-        { label: tr('Community forum', 'Diễn đàn cộng đồng'), href: `${FORUM_URL}/`, forumPath: '/' },
-        // Trip planner is SAME-ORIGIN now (owner, 2026-07-25): the itinerary service moved to
-        // eno.vn and /itinerary is a real page here, not a redirect off to the forum. So it
+        // ⚠️ SERVICES EDITION ONLY (owner, 2026-08-04: "remove this from eno.vn"). This was the
+        // single highest-frequency outbound link in the marketplace artifact — a crawlable,
+        // dofollow anchor to eno.forum on ~250 routes in both languages, baked into every
+        // prerendered file. eno.forum advertises visa, itinerary and PayPal checkout; eno.vn is
+        // the licensed sàn TMĐT that may not, and a sitewide link from the licensed entity to
+        // the site selling them is the same leak class the `.svc.` split exists to prevent —
+        // it just pointed outward instead of rendering the words.
+        //
+        // ⚠️ THIS IS A RUNTIME GATE, NOT AN ARTIFACT GATE, AND THE DIFFERENCE IS MEASURED. I first
+        // wrote here that the minifier deletes the entry; it does not. `IS_SERVICES` survives
+        // minification as a module property (`u.IS_SERVICES` in the built chunk), so the branch is
+        // evaluated at runtime and BOTH the label and the FORUM_URL template still ship in the
+        // marketplace bundle. What is gone is what the owner asked to remove and what actually
+        // matters: `grep -c 'href="https://www.eno.forum' .next/server/**/*.html` is 0, and the
+        // prerendered home page contains no occurrence of the string at all — no rendered link, no
+        // crawlable anchor, nothing a reader or Googlebot can reach.
+        //
+        // If the STRING must also leave the artifact, the mechanism is the one the neighbouring
+        // services links use: move it into SERVICES_FOOTER_LINKS, which next.config.ts aliases to
+        // edition-services-copy.stub.ts on a marketplace build. That is why those entries need no
+        // gate at all. It was not done here because this label is not visa/itinerary vocabulary and
+        // the move would strand the forumPath/goToForum native-SSO machinery below as dead code.
+        ...(IS_SERVICES ? [{ label: tr('Community forum', 'Diễn đàn cộng đồng'), href: `${FORUM_URL}/`, forumPath: '/' }] : []),
+        // ⚠️ THIS COMMENT WAS STALE AND IT MISLED TWO REVIEWERS INTO REPORTING A LICENSING BREACH
+        // THAT DOES NOT EXIST. It said (2026-07-25) that the itinerary service had moved TO eno.vn
+        // and "/itinerary is a real page here" — true when written, REVERSED by the owner on
+        // 2026-07-31: itinerary, visa and PayPal moved to eno.forum, and eno.vn may not so much as
+        // mention them. The CODE was already correct, because these entries come from
+        // SERVICES_FOOTER_LINKS, which next.config.ts aliases to the empty stub on a marketplace
+        // build — measured: 0 occurrences of "Trip planner" or href="/itinerary" in eno.vn's
+        // prerendered HTML. Only the prose was wrong, which is the more dangerous half: nobody
+        // greps a comment, they trust it. On the SERVICES edition these are same-origin, so they
         // must NOT carry forumPath — routing a same-origin link through the SSO handoff would
-        // bounce the visitor to eno.forum and back to fetch a session they already have.
+        // bounce the visitor through /auth/bridge to fetch a session they already have.
         ...SERVICES_FOOTER_LINKS.explore.map((l) => ({ label: tr(l.labelEn, l.labelVi), href: l.href })),
         // e-Visa lives on eno.vn now (ownership row, 2026-07-21): the desk's storefront is
         // where a visitor applies (in-chat flow) — the forum wizard is legacy awaiting
@@ -130,7 +159,13 @@ export function Footer() {
       title: tr(g.titleEn, g.titleVi),
       links: g.links.map((l) => ({ label: tr(l.labelEn, l.labelVi), href: l.href, rel: l.rel })),
     })),
-  ]
+  // ⚠️ A COLUMN WITH NO LINKS MUST NOT RENDER ITS HEADING. On a marketplace build the Community
+  // column's other two entries are already empty (`SERVICES_FOOTER_LINKS.explore`/`.help` are `[]`
+  // in the stub), so gating the forum link above empties the column entirely — and without this
+  // filter eno.vn would ship a "Community" heading over an empty <ul>, which reads as a broken
+  // footer rather than a removed one. This guards every column, not just that one: the same
+  // stub-empties-a-column shape applies to any future services-only group.
+  ].filter((c) => c.links.length > 0)
 
   return (
     <footer id="app-footer" className="mt-auto pt-8 pb-8 text-muted-foreground">
