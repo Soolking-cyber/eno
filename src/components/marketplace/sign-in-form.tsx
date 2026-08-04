@@ -161,10 +161,20 @@ export function SignInForm({ className }: { className?: string }) {
   useEffect(() => {
     setOauthBlocked(googleOauthBlocked() && !isNativeApp())
     setHideGoogle(isNativeTabs() && !isNativeApp())
-    // Capacitor shell (both platforms) + the SwiftUI/Kotlin embedded tabs. Deliberately NOT
-    // the iOS home-screen PWA: it has the same broken-link problem but already shows a
-    // Safari hand-off hint, and widening this on the first ship widens the blast radius.
-    setEmailCode(isNativeApp() || isNativeTabs())
+    // ⚠️ EVERY CONTEXT WITH A SEPARATE COOKIE JAR NEEDS THE CODE, NOT THE LINK — and the set of
+    // those is exactly `googleOauthBlocked()`, which is why it now drives both.
+    //
+    // A magic LINK opens in the system browser, so the session lands in the BROWSER'S jar and the
+    // in-app browser / PWA the visitor is actually looking at stays signed out. That is the same
+    // wrong-jar failure as the Google one — on the path we offer as the ALTERNATIVE to Google. So a
+    // Facebook or Zalo in-app visitor had Google refused by Google, email silently signing in a
+    // window they had already left, and only phone OTP genuinely working in place — and phone
+    // delivery is Telegram-only in production today. That is close to no way in at all.
+    //
+    // The 8-digit code is typed where the visitor already is, so it cannot care about jars.
+    // The previous comment noted the iOS PWA \"has the same broken-link problem\" and deferred it to
+    // limit blast radius; the blast radius of NOT doing it is a visitor who cannot sign in.
+    setEmailCode(isNativeApp() || isNativeTabs() || googleOauthBlocked())
   }, [])
 
   // supabase-js (~248 KB) is loaded on demand, per handler, instead of at module
