@@ -67,12 +67,16 @@ export async function resolveSellerForPost(meId: string | null, contactPhone: st
               data: { name: contactName || 'eno.vn seller', phone: null, ownerId: meId, verifiedSeller: false, rating: 0, reviewCount: 0, responseRate: 100 },
             })
       } else if (byPhone && !byPhone.ownerId) {
-        // An unowned storefront exists on this number but the caller has NOT verified it. Do not
-        // touch it, and do not fail the post either — they get their own storefront, without the
-        // number (Seller.phone is unique, and it belongs to the row we just refused to hand over).
-        seller = await db.seller.create({
-          data: { name: contactName || 'eno.vn seller', phone: null, ownerId: meId, verifiedSeller: false, rating: 0, reviewCount: 0, responseRate: 100 },
-        })
+        // An unowned storefront exists on this number and the caller has NOT verified it.
+        // ⚠️ ASK THEM TO VERIFY — do NOT quietly give them a second, empty storefront.
+        // That was the first version of this fix and it created an UNRECOVERABLE state:
+        // `Seller.ownerId` is @unique, so the empty row permanently occupies their one storefront
+        // slot, and the verified auto-claim in src/lib/profile.ts:73-77 is an unguarded
+        // `updateMany({ where: { phone, ownerId: null } })` — stamping a SECOND row for the same
+        // owner violates that unique index, the write throws, its `try` swallows it, and their
+        // real listings are stranded on the guest storefront forever. Blocking the post is
+        // recoverable in one OTP; the silent version was not recoverable at all.
+        return NextResponse.json({ error: 'verify_phone_to_claim' }, { status: 409 })
       } else {
         seller = await db.seller.create({
           data: { name: contactName || 'eno.vn seller', phone: contactPhone, ownerId: meId, verifiedSeller: false, rating: 0, reviewCount: 0, responseRate: 100 },

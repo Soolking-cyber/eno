@@ -134,9 +134,14 @@ export async function POST(req: Request) {
             await db.seller.create({ data: { name: businessName!, ownerId: profile.id, ...legalData, responseRate: 100 } })
           }
         } else if (byPhone && !byPhone.ownerId) {
-          // Unowned storefront on this number, but the caller has not verified it. Leave it alone
-          // and give them their own — without the number, which belongs to the row we refused.
-          await db.seller.create({ data: { name: businessName!, ownerId: profile.id, ...legalData, responseRate: 100 } })
+          // Unowned storefront on this number and the caller has not verified it.
+          // ⚠️ ASK THEM TO VERIFY rather than silently creating a SECOND, empty storefront. That
+          // was the first version of this fix and it is unrecoverable: `Seller.ownerId` is @unique,
+          // so the empty row takes their one storefront slot, and the verified auto-claim at
+          // src/lib/profile.ts:73-77 is an unguarded `updateMany({ where: { phone, ownerId: null } })`
+          // — stamping a second row for the same owner breaks that unique index, the write throws,
+          // its `try` swallows it, and the storefront they actually built stays orphaned forever.
+          return NextResponse.json({ error: 'verify_phone_to_claim' }, { status: 409 })
         } else {
           await db.seller.create({ data: { name: businessName!, ownerId: profile.id, ...(phone ? { phone } : {}), ...legalData, responseRate: 100 } })
         }
