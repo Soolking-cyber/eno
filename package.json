@@ -21,7 +21,7 @@
     "start": "NODE_ENV=production node .next/standalone/server.js 2>&1 | tee server.log",
     "preview:vn": "node scripts/preview.mjs vn",
     "preview:forum": "node scripts/preview.mjs forum",
-    "lint": "eslint . && node scripts/design-lint.mjs && node scripts/edition-lint.mjs",
+    "lint": "eslint . && node scripts/design-lint.mjs && node scripts/edition-lint.mjs && node scripts/docs-lint.mjs",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "sync:visa": "node scripts/sync-visa-pairs.mjs --check",
@@ -41,11 +41,12 @@
     "e2e:smoke": "node --env-file=.env node_modules/.bin/playwright test --project=smoke",
     "e2e:ui": "playwright test --ui",
     "e2e:report": "playwright show-report",
-    "db:push": "prisma db push",
-    "db:setup": "prisma db push && node scripts/messaging-realtime.mjs && node scripts/unique-constraints.mjs && node scripts/image-hash-index.mjs && node scripts/rate-limit-pg.mjs && node scripts/compliance-ddl.mjs",
+    "db:push": "node scripts/db-guard.mjs db:push && prisma db push",
+    "db:ddl": "node scripts/messaging-realtime.mjs && node scripts/unique-constraints.mjs && node scripts/image-hash-index.mjs && node scripts/rate-limit-pg.mjs && node scripts/compliance-ddl.mjs",
+    "db:setup": "node scripts/db-guard.mjs db:setup && prisma db push && node scripts/messaging-realtime.mjs && node scripts/unique-constraints.mjs && node scripts/image-hash-index.mjs && node scripts/rate-limit-pg.mjs && node scripts/compliance-ddl.mjs",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
-    "db:reset": "prisma migrate reset"
+    "db:reset": "node scripts/db-guard.mjs db:reset && prisma migrate reset"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",
