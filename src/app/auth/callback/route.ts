@@ -37,6 +37,43 @@ export async function GET(request: Request) {
   // session in the wrong place. Instead 302 to the app's deep link with the (single-use, PKCE-bound)
   // code; the app re-enters this route INSIDE its WebView to do the real exchange. `NextResponse.redirect`
   // rejects non-http schemes, so set Location manually. Not cached (carries the code).
+  // BROWSER-ESCAPE HAND-OFF. We are in the visitor's REAL browser, reached from an in-app browser
+  // or a home-screen PWA because Google refuses OAuth in an embedded webview. Same shape as the
+  // native branch below and for the same reason: the PKCE verifier lives in the ORIGINATING
+  // context, not here, so exchanging in this jar is impossible and creating a session here would
+  // sign in the wrong browser. Park the code; the visitor then confirms and is shown a pairing code
+  // to carry back. See src/lib/auth/handoff.ts for the takeover this shape defeats.
+  //
+  // ⚠️ MUST COME BEFORE ANY exchangeCodeForSession CALL — the Supabase helper will happily attempt
+  // an exchange for any `code` it sees and fail with a PKCE error in this browser.
+  const handoff = url.searchParams.get('handoff')
+  if (handoff) {
+    const { isNonce, parkCode, newBrowserSecret, browserCookieName, HANDOFF_TTL_MS } =
+      await import('@/lib/auth/handoff')
+    // ⚠️⚠️ THIS IS WHERE THE BROWSER IS BOUND, AND IT IS THE FIX FOR THE ACCOUNT TAKEOVER.
+    // We are, right now, in the one context that actually completed Google. Mint a secret, store
+    // only its hash on the row, and hand the secret back as an httpOnly cookie that no other jar can
+    // ever hold. /consent then requires it, so knowing the nonce — which is public, it rides the
+    // escape URL — is no longer enough to mint the pairing code and claim someone else's sign-in.
+    const browserSecret = newBrowserSecret()
+    const ok = isNonce(handoff) && !!code && (await parkCode(handoff, code, browserSecret))
+    // ⚠️ The nonce rides the URL (it already did, to get here) but the CODE never does, and neither
+    // does the browser secret — a secret in a query string lands in history, referrers and logs.
+    const res = redirect(`${origin}/auth/escape/confirm?h=${encodeURIComponent(handoff)}&ok=${ok ? '1' : '0'}`)
+    if (ok) {
+      res.cookies.set(browserCookieName(handoff), browserSecret, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        // Lax: the visitor arrives here by a top-level navigation from Google, and /consent is a
+        // same-origin POST with an Origin check.
+        sameSite: 'lax',
+        path: '/',
+        maxAge: Math.floor(HANDOFF_TTL_MS / 1000),
+      })
+    }
+    return res
+  }
+
   if (url.searchParams.get('native') === '1') {
     const q = new URLSearchParams()
     if (code) q.set('code', code)
