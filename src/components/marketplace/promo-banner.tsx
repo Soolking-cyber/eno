@@ -238,7 +238,12 @@ function SlidePanel({ slide }: { slide: PromoSlide }) {
         // exactly the fragile thing this codebase has been bitten by before.
         // Taller at lg now that the banner spans the full width rather than two thirds of it —
         // a 1400px-wide panel only 248px tall reads as a strip, not a banner.
-        'relative flex min-h-[188px] flex-col justify-center overflow-hidden rounded-2xl px-5 py-6 text-white sm:min-h-[212px] sm:px-7 lg:min-h-[300px] lg:px-14',
+        // Padding halved (owner, 2026-08-05): px-5/py-6/sm:px-7/lg:px-14 -> px-3/py-3/sm:px-4/lg:px-7.
+        // ⚠️ This tightens the INSET, not the height. The panel is sized by min-h + justify-center,
+        // so the vertical padding is slack the min-height already absorbs — halving py alone moves
+        // nothing until the content outgrows the panel. Shortening the banner means lowering the
+        // min-h values below, which is a separate decision and deliberately left alone.
+        'relative flex min-h-[188px] flex-col justify-center overflow-hidden rounded-2xl px-3 py-3 text-white sm:min-h-[212px] sm:px-4 lg:min-h-[300px] lg:px-7',
         slide.surface,
       )}
     >

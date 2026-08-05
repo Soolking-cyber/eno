@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Be_Vietnam_Pro } from "next/font/google";
+import { Be_Vietnam_Pro, Inter } from "next/font/google";
 import "./globals.css";
 import { AnalyticsTags } from "@/components/marketplace/analytics-tags";
 import { AttributionCapture } from "@/components/marketplace/attribution-capture";
@@ -43,15 +43,42 @@ const SITE_ORIGIN = process.env.NEXT_PUBLIC_APP_URL || "https://eno.vn";
  * font-family on html/body/h1 was `-apple-system, …, Roboto, …`. Mac users saw SF, Android Roboto,
  * Windows Segoe: the marketplace had no typographic identity at all, only a wasted preload.
  *
- * Be Vietnam Pro is a STATIC family (no variable axes), so weights are enumerated. 400/500/600/700 cover
- * 98% of call sites; 800 is kept because it carries real display moments (the home promo-banner headline,
- * the trust score). 900 is deliberately omitted — its 3 call sites match down to 800 indistinguishably.
+ * TWO FACES, SPLIT BY UI LANGUAGE (owner, 2026-08-05). Inter is the default; Be Vietnam Pro is used
+ * only when the interface language is Vietnamese, via `html[lang="vi"]` in globals.css. The split is
+ * driven by measurement, not taste — same string, same size, versus the system stack people were
+ * actually seeing while the webfont was dead:
+ *
+ *                     Vietnamese title      English title
+ *   Inter                    +0.2%              +0.9%
+ *   Be Vietnam Pro           +1.5%              +4.9%
+ *
+ * So Be Vietnam Pro is nearly free on the copy it was designed for and expensive on English, where it
+ * cost noticeably more truncation in the feed. Inter is indistinguishable in width from the fallback,
+ * which is why English goes back to it.
+ *
+ * Inter is a VARIABLE font (opsz + wght), so it ships one file per subset and every weight is free.
+ * Be Vietnam Pro is STATIC, so its weights are enumerated: 400/500/600/700 cover 98% of call sites and
+ * 800 carries the real display moments (promo-banner headline, trust score). 900 is omitted — its 3
+ * call sites match down to 800 indistinguishably.
+ */
+const inter = Inter({
+  variable: "--font-inter",
+  subsets: ["latin", "vietnamese"],
+  display: "swap",
+});
+
+/**
+ * ⚠️ `preload: false` IS DELIBERATE AND LOAD-BEARING. This face is used only under `html[lang="vi"]`,
+ * which is a client-set attribute, so preloading it would push ~87KB of woff2 onto the critical path
+ * of every English visitor to fetch a font their page never references. Without preload the browser
+ * fetches it lazily, when a rule actually matches. Do not "fix" this by turning preload on.
  */
 const beVietnamPro = Be_Vietnam_Pro({
   variable: "--font-be-vietnam-pro",
   subsets: ["latin", "vietnamese"],
   weight: ["400", "500", "600", "700", "800"],
   display: "swap",
+  preload: false,
 });
 
 const OG_IMAGE = { url: "/listings/hero-market.png", width: 1344, height: 768, alt: `${SITE_NAME} — trusted marketplace` };
@@ -140,7 +167,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={beVietnamPro.variable} suppressHydrationWarning>
+    <html lang="en" className={`${inter.variable} ${beVietnamPro.variable}`} suppressHydrationWarning>
       <head>
         {/* Set the theme class BEFORE paint to avoid a flash of the wrong scheme —
             reads the persisted System/Light/Dark choice + the OS preference. Kept

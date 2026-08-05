@@ -32,8 +32,6 @@ type Reason = {
   icon: LucideIcon
   titleEn: string
   titleVi: string
-  bodyEn: string
-  bodyVi: string
 }
 
 const REASONS: Reason[] = [
@@ -42,40 +40,32 @@ const REASONS: Reason[] = [
     icon: Megaphone,
     titleEn: 'Free to post',
     titleVi: 'Đăng tin miễn phí',
-    bodyEn: 'No listing fee, no commission, no paying to get seen.',
-    bodyVi: 'Không phí đăng tin, không hoa hồng, không trả tiền để được hiển thị.',
   },
   {
     key: 'trust',
     icon: BadgeCheck,
     titleEn: 'Trust scores you can check',
     titleVi: 'Điểm tin cậy có thể kiểm chứng',
-    bodyEn: 'Earned from real trades and resolved reports — not stars anyone can buy.',
-    bodyVi: 'Dựa trên giao dịch thật và báo cáo đã xử lý — không phải sao ai cũng mua được.',
   },
   {
     key: 'private',
     icon: LockKeyhole,
     titleEn: 'Your number stays private',
     titleVi: 'Số điện thoại được giữ kín',
-    bodyEn: 'Talk in the app first. Share contact details only when you decide to.',
-    bodyVi: 'Nhắn tin trong ứng dụng trước. Chỉ chia sẻ liên hệ khi bạn muốn.',
   },
   {
     key: 'currency',
     icon: Coins,
-    titleEn: 'Prices in VND and $',
+    // 'đ', not 'VND' (owner, 2026-08-05) — matches the Vietnamese line beside it and the symbol
+    // src/lib/vnd.ts renders in prices ("12.000.000 đ"), so the strip agrees with every price on site.
+    titleEn: 'Prices in đ and $',
     titleVi: 'Giá bằng đ và $',
-    bodyEn: 'Every listing shows both, so you always know what you are paying.',
-    bodyVi: 'Mọi tin đăng đều hiện cả hai, để bạn luôn biết mình trả bao nhiêu.',
   },
   {
     key: 'disputes',
     icon: Gavel,
     titleEn: 'Real dispute resolution',
     titleVi: 'Giải quyết tranh chấp thật sự',
-    bodyEn: 'Report a problem and a case room opens with both sides and the evidence.',
-    bodyVi: 'Báo cáo sự cố và một phòng xử lý mở ra với cả hai bên cùng bằng chứng.',
   },
 ]
 
@@ -104,19 +94,12 @@ export function WhyEno() {
               <span className="flex size-14 shrink-0 items-center justify-center rounded-2xl bg-brand-50">
                 <Icon aria-hidden className="size-7 text-brand" />
               </span>
-              {/* ⚠️ TWO-LINE FLOOR, so the blurbs start on the same baseline across a row. Without it
-                  a one-line title ("Đăng tin miễn phí") sits beside a two-line one ("Điểm tin cậy có
-                  thể kiểm chứng") and every blurb in the row starts at a different height — most
-                  visible in Vietnamese, where two lines is the common case rather than the exception.
-                  A floor rather than a fixed height: a three-line title still grows.
-                  ⚠️ DROPPED AT lg (`lg:min-h-0`). With five wide columns every title measured a
-                  single 19px line, so the 38px floor was pure dead space between title and blurb —
-                  the floor only earns its keep at the 2- and 3-column widths where titles wrap. */}
-              <span className="mt-3 flex min-h-[2.4rem] items-start justify-center lg:min-h-0 text-sm font-bold leading-snug text-foreground text-balance">
+              {/* The blurb under each title was removed (owner, 2026-08-05) — icon + title only.
+                  The two-line min-height floor went with it: its entire job was making the BLURBS
+                  start on the same baseline when titles wrapped to different heights. With nothing
+                  below the title, a floor only pads short titles with dead space. */}
+              <span className="mt-3 text-sm font-bold leading-snug text-foreground text-balance">
                 {tr(r.titleEn, r.titleVi)}
-              </span>
-              <span className="mt-1 text-xs leading-relaxed text-body text-balance">
-                {tr(r.bodyEn, r.bodyVi)}
               </span>
             </li>
           )
