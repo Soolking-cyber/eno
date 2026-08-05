@@ -61,8 +61,15 @@ jobs:
       - name: Typecheck
         run: npx tsc --noEmit
 
+      # ⚠️ `npm run lint`, NOT `npx eslint .` — the difference is the legal boundary.
+      # package.json's lint script is `eslint . && design-lint.mjs && edition-lint.mjs`, and until
+      # 2026-08-05 this step ran only the first third. So the design-canon linter and — far worse —
+      # the EDITION linter, the gate that stops visa/itinerary/PayPal vocabulary reaching the
+      # licensed eno.vn image, never ran on a pull request at all. They ran only inside
+      # `npm run build`, which on main is the build that has ALREADY deployed: the guard fired after
+      # the thing it guards against was live. Measured cost of the two extra scripts: 0.64s.
       - name: Lint
-        run: npx eslint .
+        run: npm run lint
 
       # i18n freshness: the pre-warm batch (ui-strings.ts) must include every UI
       # string, or new copy ships English to the 9 machine-translated languages.

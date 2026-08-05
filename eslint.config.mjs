@@ -137,7 +137,7 @@ const eslintConfig = [...nextCoreWebVitals, ...nextTypescript, {
   // yet accounted for a large share of the repo's lint warnings — noise from a generated file
   // nobody can act on, in a directory that only exists after an Android build. The nested globs
   // below cover both native projects' build output and their Pods/Gradle caches.
-  ignores: ["node_modules/**", ".next/**", "out/**", "build/**", "**/build/**", "android/**/build/**", "ios/**/Pods/**", "apps/android/**/build/**", "apps/wasp-pilot/.wasp/**", "next-env.d.ts", "examples/**", "skills", "apps/forum/**", "src/generated/prisma/**", "public/vendor/**", "cache-handler.cjs", "playwright-report/**", "test-results/**"]
+  ignores: ["node_modules/**", ".next/**", "out/**", "build/**", "**/build/**", "android/**/build/**", "ios/**/Pods/**", "apps/android/**/build/**", "apps/wasp-pilot/**", "next-env.d.ts", "examples/**", "skills", "apps/forum/**", "src/generated/prisma/**", "public/vendor/**", "cache-handler.cjs", "playwright-report/**", "test-results/**"]
 }];
 
 export default eslintConfig;
