@@ -56,10 +56,14 @@ const REASONS: Reason[] = [
   {
     key: 'currency',
     icon: Coins,
-    // 'đ', not 'VND' (owner, 2026-08-05) — matches the Vietnamese line beside it and the symbol
-    // src/lib/vnd.ts renders in prices ("12.000.000 đ"), so the strip agrees with every price on site.
-    titleEn: 'Prices in đ and $',
-    titleVi: 'Giá bằng đ và $',
+    // 'Đ', not 'VND' and not 'đ' (owner, 2026-08-05, twice: "use Đ instead of vnd", then "capital D").
+    // ⚠️ This is DELIBERATELY the one place the capital is used, and it does NOT match the prices.
+    // src/lib/vnd.ts renders lowercase ("12.000.000 đ") and canon §7 pins that — do not "fix" the
+    // formatter to agree with this line. Standing alone as a label, the capital reads as the currency;
+    // inside a price, lowercase is the Vietnamese convention. Both titles carry it so the bullet is
+    // the same in either language.
+    titleEn: 'Prices in Đ and $',
+    titleVi: 'Giá bằng Đ và $',
   },
   {
     key: 'disputes',
