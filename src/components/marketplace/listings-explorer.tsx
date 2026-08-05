@@ -1629,6 +1629,14 @@ export function ListingsExplorer({
               filtered or searched view never shows an ad above the results the visitor asked for. */}
           <PromoBanner />
 
+          {/* WHY eno — DIRECTLY UNDER THE BANNER (owner, 2026-08-05: "move this under banner").
+              ⚠️ This reverses the placement both external reviewers recommended, and the reasoning
+              they gave still stands on its own terms: stacking a banner and a value-prop strip above
+              the feed pushes the actual listings further down on a phone, and the reference's
+              equivalent row is navigation rather than a pitch. The owner chose the reference's
+              layout over that argument; recorded so the trade is visible rather than forgotten. */}
+          <WhyEno />
+
           {/* FINN-STYLE CATEGORY GRID */}
           <div className="space-y-4">
             {/* Two fixed rows — big tiles. mx-auto + w-fit + max-w-full centers the row
@@ -1853,14 +1861,6 @@ export function ListingsExplorer({
               )}
             </>
           )}
-
-          {/* WHY eno — the value-prop strip, deliberately BELOW the feed rather than under the
-              banner where the reference puts its icon row. Both external reviewers independently
-              recommended this: the reference's row is NAVIGATION (Vouchers, Telco & Bills), whereas
-              this is a pitch, and stacking a banner plus a six-item pitch above the grid would push
-              the actual listings off the first screen on a phone. A visitor who has scrolled the
-              feed is exactly the one deciding whether to trust the place. */}
-          <WhyEno />
 
         </div>
       </section>

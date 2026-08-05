@@ -1,13 +1,13 @@
 'use client'
 
-import { BadgeCheck, Coins, Gavel, LockKeyhole, MapPin, Megaphone } from 'lucide-react'
+import { BadgeCheck, Coins, Gavel, LockKeyhole, Megaphone } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
 import { SITE_NAME } from '@/lib/edition'
 
 /**
  * "WHY USE eno" — the borderless icon row from the reference the owner sent (Shopee's quick-link
- * strip: an icon tile, a label under it, six across, no boxes and no rules).
+ * strip: an icon tile, a label under it, in one row, no boxes and no rules).
  *
  * ⚠️ EVERY CLAIM HERE WAS CHECKED AGAINST THE CODE BEFORE IT WAS WRITTEN, and that is a standing
  * requirement rather than a one-off diligence note. eno.vn is registering as a licensed sàn TMĐT,
@@ -70,14 +70,6 @@ const REASONS: Reason[] = [
     bodyVi: 'Mọi tin đăng đều hiện cả hai, để bạn luôn biết mình trả bao nhiêu.',
   },
   {
-    key: 'near',
-    icon: MapPin,
-    titleEn: 'Search down to your ward',
-    titleVi: 'Tìm đến tận phường của bạn',
-    bodyEn: 'Filter by province and ward, not just by city.',
-    bodyVi: 'Lọc theo tỉnh và phường, không chỉ theo thành phố.',
-  },
-  {
     key: 'disputes',
     icon: Gavel,
     titleEn: 'Real dispute resolution',
@@ -90,18 +82,19 @@ const REASONS: Reason[] = [
 export function WhyEno() {
   const { tr } = useLanguage()
 
+  // ⚠️ aria-label, NOT aria-labelledby. The visible <h2> was removed (owner, 2026-08-05) and an
+  // aria-labelledby pointing at the deleted id would leave the section silently unnamed — the
+  // failure mode where a landmark exists but announces nothing. The name still has to exist for
+  // anyone navigating by landmark, so it moves onto the section itself.
   return (
-    <section aria-labelledby="why-eno" className="border-t border-border pt-8">
-      {/* A single hairline and vertical rhythm — the canon's section idiom (§3b). No panel, no fill:
-          the strip is content on the page canvas, exactly like the reference's white row. */}
-      <h2 id="why-eno" className="text-center text-lg font-extrabold tracking-tight text-foreground">
-        {tr(`Why sell and buy on ${SITE_NAME}`, `Vì sao nên mua bán trên ${SITE_NAME}`)}
-      </h2>
+    <section aria-label={tr(`Why sell and buy on ${SITE_NAME}`, `Vì sao nên mua bán trên ${SITE_NAME}`)} className="border-t border-border pt-8">
 
-      {/* Two up on a phone, three at sm, all six in one row at lg — the reference's single row is
-          only honest once there is width for it. A horizontal scroller was rejected: it hides
-          reasons behind a gesture, and the whole point of this block is that all of them are read. */}
-      <ul className="mt-6 grid grid-cols-2 gap-x-4 gap-y-7 sm:grid-cols-3 sm:gap-x-6 lg:grid-cols-6">
+      {/* Two up on a phone, three at sm, all five in one row at lg — the reference's single row is
+          only honest once there is width for it. ⚠️ The column count TRACKS REASONS.length: it was
+          6 until the ward bullet was removed (owner, 2026-08-05), and a stale 6 leaves a visible
+          gap at the end of the row. A horizontal scroller was rejected: it hides reasons behind a
+          gesture, and the whole point of this block is that all of them are read. */}
+      <ul className="grid grid-cols-2 gap-x-4 gap-y-7 sm:grid-cols-3 sm:gap-x-6 lg:grid-cols-5">
         {REASONS.map((r) => {
           const Icon = r.icon
           return (
@@ -115,8 +108,11 @@ export function WhyEno() {
                   a one-line title ("Đăng tin miễn phí") sits beside a two-line one ("Điểm tin cậy có
                   thể kiểm chứng") and every blurb in the row starts at a different height — most
                   visible in Vietnamese, where two lines is the common case rather than the exception.
-                  A floor rather than a fixed height: a three-line title still grows. */}
-              <span className="mt-3 flex min-h-[2.4rem] items-start justify-center text-sm font-bold leading-snug text-foreground text-balance">
+                  A floor rather than a fixed height: a three-line title still grows.
+                  ⚠️ DROPPED AT lg (`lg:min-h-0`). With five wide columns every title measured a
+                  single 19px line, so the 38px floor was pure dead space between title and blurb —
+                  the floor only earns its keep at the 2- and 3-column widths where titles wrap. */}
+              <span className="mt-3 flex min-h-[2.4rem] items-start justify-center lg:min-h-0 text-sm font-bold leading-snug text-foreground text-balance">
                 {tr(r.titleEn, r.titleVi)}
               </span>
               <span className="mt-1 text-xs leading-relaxed text-body text-balance">

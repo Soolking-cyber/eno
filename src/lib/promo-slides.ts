@@ -1,5 +1,5 @@
 import type { LucideIcon } from 'lucide-react'
-import { BadgeCheck, Coins, Megaphone, ShieldCheck, Sparkles } from 'lucide-react'
+import { BadgeCheck, Coins, Megaphone } from 'lucide-react'
 
 /**
  * THE HOME BANNER'S CONTENT, AS DATA — so copy can be iterated in one file rather than in JSX.
@@ -40,6 +40,18 @@ export type PromoSlide = {
   href: string
   icon: LucideIcon
   /**
+   * Mock banner artwork, drawn as a CSS background-image over `surface`.
+   *
+   * ⚠️ DECORATIVE ONLY — THE TEXT IS NEVER BAKED INTO IT. The headline, body and CTA stay real DOM
+   * nodes on top, because every string in this app switches EN/VI at runtime and a baked image is
+   * permanently monolingual. That also means real artwork can replace these files later with no
+   * code change at all: swap the file, keep the copy.
+   *
+   * ⚠️ AND `surface` STAYS UNDERNEATH AS THE FLOOR. If the image 404s or is still loading, the panel
+   * is a finished gradient rather than a white hole above the fold.
+   */
+  image: string
+  /**
    * The panel's fill. ⚠️ TOKENS ONLY — design-lint fails the build on a raw hex, and only
    * `brand-deep`/`brand-deeper` are sanctioned by the canon for "fixed dark marketing panels"
    * (docs/design-language.md §3). They are declared once rather than per-theme, so they do NOT flip
@@ -56,6 +68,7 @@ export type PromoSlide = {
 export const PROMO_SLIDES: PromoSlide[] = [
   {
     key: 'post-free',
+    image: '/banners/promo-1.svg',
     eyebrowEn: 'Free to post',
     eyebrowVi: 'Đăng tin miễn phí',
     titleEn: 'Sell it in 60 seconds',
@@ -70,6 +83,7 @@ export const PROMO_SLIDES: PromoSlide[] = [
   },
   {
     key: 'trust',
+    image: '/banners/promo-2.svg',
     eyebrowEn: 'Know who you deal with',
     eyebrowVi: 'Biết rõ người bán',
     titleEn: 'Every seller has a trust score',
@@ -84,6 +98,7 @@ export const PROMO_SLIDES: PromoSlide[] = [
   },
   {
     key: 'dual-currency',
+    image: '/banners/promo-3.svg',
     eyebrowEn: 'Made for expats',
     eyebrowVi: 'Dành cho người nước ngoài',
     titleEn: 'Prices in VND and $, side by side',
@@ -95,47 +110,5 @@ export const PROMO_SLIDES: PromoSlide[] = [
     href: '/?sort=newest',
     icon: Coins,
     surface: 'bg-gradient-to-br from-brand-deeper via-brand-deep to-brand',
-  },
-]
-
-/**
- * The two static tiles beside the carousel on desktop, and the tail slides on a phone.
- *
- * ⚠️ THEY MUST GO SOMEWHERE REAL. A promo tile with nowhere useful to land is worse than no tile —
- * the reviewer question that produced this note was "what do those two actually link to, given
- * there are no campaigns?". Both destinations below are live routes carrying real content, chosen
- * because they answer the two questions a new arrival in Vietnam actually has.
- */
-export type PromoTile = {
-  key: string
-  titleEn: string
-  titleVi: string
-  bodyEn: string
-  bodyVi: string
-  href: string
-  icon: LucideIcon
-  surface: string
-}
-
-export const PROMO_TILES: PromoTile[] = [
-  {
-    key: 'safety',
-    titleEn: 'Trade safely',
-    titleVi: 'Giao dịch an toàn',
-    bodyEn: 'Meet, inspect, then pay. Never send a deposit through a link.',
-    bodyVi: 'Gặp mặt, kiểm tra rồi mới trả tiền. Đừng bao giờ đặt cọc qua đường link.',
-    href: '/safety',
-    icon: ShieldCheck,
-    surface: 'bg-gradient-to-br from-brand-deep to-brand-deeper',
-  },
-  {
-    key: 'motorbikes',
-    titleEn: 'Motorbikes',
-    titleVi: 'Xe máy',
-    bodyEn: 'The first thing most people buy here.',
-    bodyVi: 'Thứ đầu tiên hầu hết mọi người mua ở đây.',
-    href: '/?category=vehicles',
-    icon: Sparkles,
-    surface: 'bg-gradient-to-br from-brand to-brand-deep',
   },
 ]

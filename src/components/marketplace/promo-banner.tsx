@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import {
   Carousel,
@@ -12,7 +12,7 @@ import {
   type CarouselApi,
 } from '@/components/ui/carousel'
 import { useLanguage } from '@/context/language-context'
-import { PROMO_SLIDES, PROMO_TILES, type PromoSlide, type PromoTile } from '@/lib/promo-slides'
+import { PROMO_SLIDES, type PromoSlide } from '@/lib/promo-slides'
 import { cn } from '@/lib/utils'
 
 /**
@@ -34,16 +34,24 @@ import { cn } from '@/lib/utils'
  * oversized watermark glyph below are defending against — if this is ever restyled, keep the
  * contrast HIGH. A timid version of this component is a worse answer than not having it.
  *
- * ⚠️ NO AUTOPLAY, DELIBERATELY, AND IT SHOULD NOT BE "RESTORED". Both external reviewers
- * independently said to drop it: slides past the first get very little engagement, and movement
- * nobody asked for is an accessibility and comprehension problem. Swipe, arrows and dots all work;
- * the carousel simply never moves on its own. This also means there is no interval to pause on
- * hover, on blur or on document.hidden — a whole class of bug that does not exist here.
+ * ⚠️ AUTOPLAY IS ON BY OWNER DECISION (2026-08-05), OVERRIDING BOTH EXTERNAL REVIEWERS. They each
+ * independently said to drop it — slides past the first get little engagement, and movement nobody
+ * asked for is an accessibility problem. The owner asked for it anyway, at "3-5 seconds or industry
+ * standard". That is their call and it is recorded here so nobody silently "fixes" it back.
+ *
+ * ⚠️ WHAT IS NOT NEGOTIABLE IS THE FOUR PAUSE CONDITIONS, because they are what keeps autoplay from
+ * being hostile: it stops on hover, on keyboard focus inside the carousel, when the tab is hidden,
+ * and entirely under prefers-reduced-motion. Dropping any one of them reintroduces exactly the
+ * accessibility objection the reviewers raised — a control that moves out from under the pointer, or
+ * a page that animates forever in a background tab.
  */
 export function PromoBanner() {
   const { tr } = useLanguage()
   const [api, setApi] = useState<CarouselApi>()
   const [selected, setSelected] = useState(0)
+
+  const paused = useRef(false)
+  const hold = useCallback((v: boolean) => { paused.current = v }, [])
 
   useEffect(() => {
     if (!api) return
@@ -57,26 +65,68 @@ export function PromoBanner() {
     }
   }, [api])
 
+  // ── Autoplay ──────────────────────────────────────────────────────────────────────────────────
+  // 5s: the owner asked for "3-5 seconds or industry standard", and 5s is what the large carousels
+  // (Shopee, Amazon, Booking) settle on. Below ~4s a slower reader cannot finish the headline before
+  // it moves, which is the specific way an auto-carousel becomes worse than no carousel.
+  //
+  // ⚠️ A REF, NOT STATE, FOR THE PAUSE FLAG. Pausing must not re-render — a state flip here would
+  // tear down and rebuild the interval on every pointer enter/leave, and the timer would restart
+  // from zero each time, so a visitor sweeping the pointer across the banner would freeze it
+  // indefinitely without ever meaning to.
+  useEffect(() => {
+    if (!api) return
+    // Reduced motion is a hard opt-out, not a slower interval: the whole point is no unrequested
+    // movement. Checked once here rather than per tick — a visitor who changes the OS setting
+    // mid-session gets it on the next mount, which is a fair trade for not re-subscribing.
+    const rm = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    if (rm) return
+
+    const id = setInterval(() => {
+      // ⚠️ document.hidden is checked INSIDE the tick, not via a visibilitychange listener. A
+      // background tab throttles timers but does not stop them, so without this the carousel
+      // silently advances through every slide while nobody is looking and the visitor returns to a
+      // position they never chose.
+      if (paused.current || document.hidden) return
+      api.scrollNext()
+    }, 5000)
+    return () => clearInterval(id)
+  }, [api])
+
   // ⚠️ NO MARGIN OF ITS OWN. The landing wrapper in listings-explorer.tsx owns vertical rhythm via
   // `space-y-8 sm:space-y-12`; an `mb-*` here ADDS to that gap rather than replacing it, and the
   // first draft shipped 56px under the banner where the rest of the page uses 32px.
   return (
     <section aria-label={tr('Highlights', 'Nổi bật')}>
-      {/* Desktop splits 2:1 exactly like the reference. Below lg the tiles drop away entirely
-          rather than becoming extra slides: this block sits ABOVE the category scroller (owner,
-          2026-08-05), so every pixel it spends on a phone pushes the categories and the feed down.
-          Both tile destinations stay reachable from the category grid and the footer. */}
-      <div className="grid gap-3 lg:grid-cols-[2fr_1fr]">
+      {/* ⚠️ ONE FULL-WIDTH UNIT (owner, 2026-08-05: "make this one large banner"). It was a 2:1 grid
+          with two static tiles beside the carousel; those tiles are gone, and with them the /safety
+          and /?category=vehicles entry points they carried — both still reachable from the category
+          grid and the footer, which is why removing them was safe. */}
+      <div>
         {/* ⚠️ NO aria-label HERE. The primitive already sets role="region" +
             aria-roledescription="carousel", so labelling it "Highlights" too — the same words as the
             wrapping <section> — produced two nested landmarks a screen reader announces one after
             the other with nothing to tell them apart. Both external reviewers flagged it
             independently. The <section> owns the name; the carousel owns the role. */}
-        <Carousel opts={{ loop: true }} setApi={setApi} className="group/carousel">
-          {/* ⚠️ -ml-4/pl-4 is the primitive's own gutter contract (CarouselContent adds the negative
-              margin, CarouselItem the padding). Do not "clean it up" — removing one without the
-              other makes every slide a gutter-width too wide and the last one clips. */}
-          <CarouselContent>
+        {/* The pause surface. onFocus/onBlur use the REACT synthetic events, which bubble from any
+            descendant — so tabbing to a dot or the CTA inside a slide stops the rotation, which is
+            the keyboard equivalent of hovering. Plain DOM focus/blur do not bubble; these do. */}
+        <Carousel
+          opts={{ loop: true }}
+          setApi={setApi}
+          className="group/carousel"
+          onMouseEnter={() => hold(true)}
+          onMouseLeave={() => hold(false)}
+          onFocus={() => hold(true)}
+          onBlur={() => hold(false)}
+        >
+          {/* ⚠️ THE PRIMITIVE'S GUTTER IS CANCELLED HERE, ON BOTH HALVES TOGETHER. ui/carousel pairs
+              a -ml-4 on the track with a pl-4 on every item, which is right for a multi-card shelf
+              and wrong for one full-width panel: measured, it left the track starting 16px left of
+              the clip box and the neighbouring slide showed as a dark strip down the banner's left
+              edge. Cancel BOTH or neither — killing only one makes every slide a gutter-width too
+              wide and clips the last one. */}
+          <CarouselContent className="ml-0">
             {PROMO_SLIDES.map((slide, i) => {
               const current = i === selected
               return (
@@ -91,6 +141,7 @@ export function PromoBanner() {
                   // belt-and-braces for engines that do not implement inert yet. Embla translates
                   // real slides rather than cloning them (verified: 3 DOM items for 3 slides), so
                   // `selected` is the whole truth about which one is showing.
+                  className="pl-0"
                   inert={!current}
                   aria-hidden={!current}
                   aria-label={tr(`Slide ${i + 1} of ${PROMO_SLIDES.length}`, `Trang ${i + 1} trên ${PROMO_SLIDES.length}`)}
@@ -149,12 +200,6 @@ export function PromoBanner() {
             ))}
           </div>
         </Carousel>
-
-        <div className="hidden gap-3 lg:grid lg:grid-rows-2">
-          {PROMO_TILES.map((tile) => (
-            <TilePanel key={tile.key} tile={tile} />
-          ))}
-        </div>
       </div>
     </section>
   )
@@ -191,10 +236,25 @@ function SlidePanel({ slide }: { slide: PromoSlide }) {
         // It is `lg:` rather than `pc:` deliberately: `pc:` and `lg:` are different variants that
         // both match on a desktop, and which one wins would come down to stylesheet order, which is
         // exactly the fragile thing this codebase has been bitten by before.
-        'relative flex min-h-[188px] flex-col justify-center overflow-hidden rounded-2xl px-5 py-6 text-white sm:min-h-[212px] sm:px-7 lg:min-h-[248px] lg:px-14',
+        // Taller at lg now that the banner spans the full width rather than two thirds of it —
+        // a 1400px-wide panel only 248px tall reads as a strip, not a banner.
+        'relative flex min-h-[188px] flex-col justify-center overflow-hidden rounded-2xl px-5 py-6 text-white sm:min-h-[212px] sm:px-7 lg:min-h-[300px] lg:px-14',
         slide.surface,
       )}
     >
+      {/* ⚠️ THE ARTWORK IS A BACKGROUND LAYER, NOT AN <img>, AND IT IS DECORATIVE. Three consequences
+          worth keeping: the gradient in `surface` stays visible beneath it, so a slow or failed load
+          shows a finished panel instead of a white hole above the fold; there is no alt text to
+          maintain because the meaning lives in the DOM text on top; and swapping in real artwork
+          later is a one-line data change in promo-slides.ts.
+          It is deliberately NOT next/image: these are SVGs, which next/image refuses without
+          `dangerouslyAllowSVG`, and a config flag that permits arbitrary SVG rendering is a bad
+          trade for three decorative files that are ~1KB each and need no resizing. */}
+      <span
+        aria-hidden
+        className="pointer-events-none absolute inset-0 bg-cover bg-center"
+        style={{ backgroundImage: `url(${slide.image})` }}
+      />
       {/* Depth without a second palette: one blurred highlight and one oversized glyph, both pure
           white at low alpha, so the panel reads as art-directed while every colour still comes from
           the two sanctioned marketing tokens. */}
@@ -222,27 +282,6 @@ function SlidePanel({ slide }: { slide: PromoSlide }) {
         <span className="mt-4 inline-flex items-center rounded-xl bg-white px-4 py-2 text-sm font-bold text-brand shadow-sm">
           {tr(slide.ctaEn, slide.ctaVi)}
         </span>
-      </div>
-    </Link>
-  )
-}
-
-function TilePanel({ tile }: { tile: PromoTile }) {
-  const { tr } = useLanguage()
-  const Icon = tile.icon
-
-  return (
-    <Link
-      href={tile.href}
-      className={cn(
-        'relative flex min-h-[116px] flex-col justify-center overflow-hidden rounded-2xl px-5 py-4 text-white',
-        tile.surface,
-      )}
-    >
-      <Icon aria-hidden className="pointer-events-none absolute -bottom-3 -right-2 size-24 text-white/10" />
-      <div className="relative max-w-[80%]">
-        <p className="text-base font-extrabold leading-tight tracking-tight">{tr(tile.titleEn, tile.titleVi)}</p>
-        <p className="mt-1 text-xs leading-relaxed text-white/80">{tr(tile.bodyEn, tile.bodyVi)}</p>
       </div>
     </Link>
   )
