@@ -216,7 +216,6 @@ function Para({ text }: { text: string }) {
 export default function AboutPage() {
   return (
     <ContentPage
-      eyebrow={IS_SERVICES ? 'About eno.forum' : 'About eno.vn'}
       title={IS_SERVICES ? 'Before you arrive, and after you land.' : 'The trusted marketplace for Vietnam.'}
       intro={<Tr text={IS_SERVICES ? SERVICES_INTRO : MARKETPLACE_INTRO} />}
       sections={RAIL}

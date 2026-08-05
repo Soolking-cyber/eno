@@ -265,9 +265,13 @@ function SlidePanel({ slide }: { slide: PromoSlide }) {
         <p className="text-2xs font-bold uppercase tracking-wider text-white/75 sm:text-xs">
           {tr(slide.eyebrowEn, slide.eyebrowVi)}
         </p>
-        <h3 className="mt-1.5 text-xl font-extrabold leading-tight tracking-tight text-balance sm:text-2xl lg:text-3xl">
+        {/* h2, NOT h3. This panel sits directly under the page's (sr-only) h1, so an h3 here skipped
+            a level and broke the document outline — a screen reader jumped h1 → h3 with nothing
+            between. It also contradicted the outline listings-explorer.tsx documents for this page:
+            h1 → section h2 → card h3s. Keep it h2 so the card titles below stay the h3 tier. */}
+        <h2 className="mt-1.5 text-xl font-extrabold leading-tight tracking-tight text-balance sm:text-2xl lg:text-3xl">
           {tr(slide.titleEn, slide.titleVi)}
-        </h3>
+        </h2>
         {/* Clamped rather than hidden on phones. It was `hidden sm:block` in the first draft, which
             left the panel visibly empty at 390px — and this is the line that actually sells. Two
             lines is the budget: Vietnamese runs longer than English in 42% of this app's strings

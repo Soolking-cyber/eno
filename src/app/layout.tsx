@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Inter } from "next/font/google";
+import { Be_Vietnam_Pro } from "next/font/google";
 import "./globals.css";
 import { AnalyticsTags } from "@/components/marketplace/analytics-tags";
 import { AttributionCapture } from "@/components/marketplace/attribution-capture";
@@ -28,9 +28,29 @@ import {
  */
 const SITE_ORIGIN = process.env.NEXT_PUBLIC_APP_URL || "https://eno.vn";
 
-const inter = Inter({
-  variable: "--font-inter",
+/**
+ * ⚠️ THE VARIABLE CLASS GOES ON <html>, NOT <body>. THIS IS THE WHOLE BUG THAT USED TO BE HERE.
+ *
+ * Tailwind v4's preflight styles `html,:host { font-family: var(--default-font-family, <system stack>) }`,
+ * and our `@theme inline` compiles `--default-font-family` down to `var(--font-be-vietnam-pro), …`.
+ * next/font defines that variable on the class it hands back — so if the class sits on <body>, the
+ * variable does not exist on <html>, `var()` is undefined there, the whole declaration is invalid at
+ * computed-value time, and font-family falls back to the SYSTEM STACK. <body> then inherits that
+ * already-resolved stack, so defining the variable on <body> changes nothing.
+ *
+ * That is exactly what shipped until 2026-08-05: Inter was downloaded and preloaded on every page and
+ * NEVER APPLIED. Measured in headless Chrome — every Inter face reported `unloaded`, and computed
+ * font-family on html/body/h1 was `-apple-system, …, Roboto, …`. Mac users saw SF, Android Roboto,
+ * Windows Segoe: the marketplace had no typographic identity at all, only a wasted preload.
+ *
+ * Be Vietnam Pro is a STATIC family (no variable axes), so weights are enumerated. 400/500/600/700 cover
+ * 98% of call sites; 800 is kept because it carries real display moments (the home promo-banner headline,
+ * the trust score). 900 is deliberately omitted — its 3 call sites match down to 800 indistinguishably.
+ */
+const beVietnamPro = Be_Vietnam_Pro({
+  variable: "--font-be-vietnam-pro",
   subsets: ["latin", "vietnamese"],
+  weight: ["400", "500", "600", "700", "800"],
   display: "swap",
 });
 
@@ -120,7 +140,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" className={beVietnamPro.variable} suppressHydrationWarning>
       <head>
         {/* Set the theme class BEFORE paint to avoid a flash of the wrong scheme —
             reads the persisted System/Light/Dark choice + the OS preference. Kept
@@ -227,7 +247,7 @@ export default function RootLayout({
         />
       </head>
       <body
-        className={`${inter.variable} antialiased bg-background text-foreground`}
+        className="antialiased bg-background text-foreground"
       >
         {/* The provider pyramid + persistent chrome live in ./providers.tsx (audit §E) —
             this file keeps only document concerns (fonts, metadata, viewport, head). */}

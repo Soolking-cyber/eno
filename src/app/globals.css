@@ -20,7 +20,7 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-be-vietnam-pro, ui-sans-serif), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
   --color-ring: var(--ring);
   --color-input: var(--input);
@@ -384,11 +384,20 @@
   }
   body {
     @apply bg-background text-foreground antialiased;
-    /* Inter (next/font, layout.tsx) opt-in features: cv01 serifed-1 · cv11
-       single-storey a · ss01/ss03 contextual alternates · zero slashed-0 —
-       disambiguates 0/O and 1/l in prices, phone numbers and IDs. */
-    font-feature-settings: "cv01", "cv11", "ss01", "ss03", "zero";
-    font-variation-settings: "opsz" 32;
+    /* Stated explicitly rather than left to Tailwind's preflight, so the site's typeface is
+       visible in this file instead of buried in `--default-font-family`. The fallback lives
+       INSIDE the var() on purpose: `var(--x), ui-sans-serif` does NOT survive a missing --x —
+       an undefined var() makes the whole declaration invalid at computed-value time and the
+       later list items never get a turn. That is precisely how Inter went missing for months
+       (see the comment on the font import in layout.tsx). */
+    font-family: var(--font-be-vietnam-pro, ui-sans-serif), ui-sans-serif, system-ui, sans-serif;
+    /* ⚠️ NO global font-feature-settings, deliberately. This rule used to carry
+       cv01/cv11/ss01/ss03/zero + `font-variation-settings: opsz 32`, all of which were
+       Inter-specific — Be Vietnam Pro is a static family with no such axes (verified against
+       next/font's font-data.json: axes: null), so they were silently dead. They are not
+       replaced by a global "tnum" either: 39 call sites already opt into `tabular-nums`
+       exactly where digits must not jitter, and forcing it globally would override that
+       deliberate choice and change every figure in running prose. */
   }
   /* Sub-100ms press feel: drop the browser's ~300ms double-tap-zoom wait on
      interactive elements (pan + pinch-zoom still work; only double-tap zoom is

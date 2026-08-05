@@ -236,7 +236,14 @@ function ListingCardImpl({
                     alt={images.length > 1 ? `${displayTitle} — ${i + 1}/${images.length}` : displayTitle}
                     fill
                     sizes={sizes}
-                    className="object-cover transition-transform duration-200 group-hover:scale-[1.03]"
+                    // ⚠️ THE PHOTO DOES NOT MOVE ON HOVER, DELIBERATELY (owner decision, 2026-08-05).
+                    // This was `group-hover:scale-[1.03]`. Scaling the product photo on hover is one of
+                    // the most recognisable generated-UI signatures, and on a feed it also fights the
+                    // thing the card exists to do: show the item honestly. The hover affordance is kept
+                    // — the MEDIA brightens instead — so the card still answers the pointer without the
+                    // imagery drifting under it. Brightness is a compositor-only filter, so this stays
+                    // as cheap as the transform it replaced and never triggers layout.
+                    className="object-cover transition-[filter] duration-200 group-hover:brightness-105"
                     placeholder="blur"
                     blurDataURL={BLUR}
                     quality={60}
