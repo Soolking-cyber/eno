@@ -39,21 +39,36 @@ import { visaServiceLd } from './service-jsonld'
  * fixes nothing; the only durable fix is a test that states its own environment, which is this.
  */
 function ldFor(appUrl?: string) {
-  // '' rather than a delete: stubEnv treats an empty string as set-but-empty, and the module under
-  // test spreads on truthiness (`process.env.NEXT_PUBLIC_APP_URL ? {url} : {}`), so '' reproduces
-  // the unset case exactly while remaining trivially restorable.
-  vi.stubEnv('NEXT_PUBLIC_APP_URL', appUrl ?? '')
+  // `undefined` DELETES the key rather than setting it empty, so the "no host" case is literally
+  // absent instead of merely falsy. The module under test spreads on truthiness today
+  // (`process.env.NEXT_PUBLIC_APP_URL ? {url} : {}`), so '' would pass too — but a future edit to
+  // an existence check (`'NEXT_PUBLIC_APP_URL' in process.env`) would silently stop testing the
+  // real shape. Both external reviewers flagged the empty-string form for exactly that reason.
+  vi.stubEnv('NEXT_PUBLIC_APP_URL', appUrl as string)
   return visaServiceLd() as Record<string, { name?: string; url?: string } | string>
 }
 
 /**
- * The two configurations `next.config.ts:41` actually permits to build. Every test states which one
- * it is asserting, so none of them can pass or fail for a reason that lives outside this file.
- *   · TRANSITIONAL — no edition declared, no host declared. The only shape allowed to build without
- *     a matching host, and the shape the `broker.url` omission exists for.
- *   · SERVICES — the real eno.forum deployment. `next.config.ts` refuses to build the services
- *     edition against any other host, which is why "edition=services with an eno.vn host" is NOT
- *     tested below: it cannot be produced, and a test for an unreachable state would rot.
+ * The two HOST configurations asserted below. Every test states which one it is using, so none of
+ * them can pass or fail for a reason that lives outside this file.
+ *   · NO HOST — `NEXT_PUBLIC_APP_URL` absent. The shape the `broker.url` omission exists for.
+ *   · SERVICES — the real eno.forum deployment.
+ *
+ * ⚠️ "NO HOST" IS NOT THE SAME THING AS "NO EDITION DECLARED", AND AN EARLIER VERSION OF THIS
+ * COMMENT CONFLATED THEM (caught by an external review of the commit that introduced it).
+ * vitest.config.ts pins NEXT_PUBLIC_ENO_EDITION='services' for the whole suite, so the combination
+ * exercised here is edition=services WITHOUT a host — which `next.config.ts:41` would actually
+ * REFUSE to build, since a declared edition requires a matching host. The assertions still hold and
+ * still mean something (visaServiceLd reads only the URL, at call time), but the case being covered
+ * is "no host", not "the transitional single-deployment configuration".
+ *
+ * Testing the genuine transitional case is not possible from here in any event: `SITE_NAME` is
+ * resolved from the edition at MODULE IMPORT, so un-declaring the edition inside a test would not
+ * change it. That would need a module reset, and it is not worth one — `next.config.ts` permits the
+ * transitional shape only while a single deployment exists, and two now do.
+ *
+ * "edition=services with an eno.vn host" is likewise NOT tested: `next.config.ts` refuses to build
+ * it, and a test for an unreachable state would rot.
  */
 const SERVICES_HOST = 'https://www.eno.forum'
 
@@ -84,11 +99,13 @@ describe('e-visa Service JSON-LD', () => {
 
   it('omits the broker url entirely when no host is configured', () => {
     // ⚠️ THE FIRST DRAFT USED THE REPO'S USUAL `|| 'https://eno.vn'` FALLBACK AND THIS TEST CAUGHT
-    // IT. With no NEXT_PUBLIC_APP_URL — the transitional single-deployment configuration —
-    // SITE_NAME resolves to eno.forum while the fallback resolved to eno.vn, producing
-    // `"broker": {"name":"eno.forum","url":"https://eno.vn"}`: the licensed marketplace published
-    // as the broker of a visa service. `url` is optional; absent beats wrong.
+    // IT. With no NEXT_PUBLIC_APP_URL, SITE_NAME resolves to eno.forum while the fallback resolved
+    // to eno.vn, producing `"broker": {"name":"eno.forum","url":"https://eno.vn"}`: the licensed
+    // marketplace published as the broker of a visa service. `url` is optional; absent beats wrong.
     const broker = ldFor().broker as { url?: string }
+    // The helper must DELETE the key, not blank it — otherwise "absent" is only absent by
+    // truthiness and a future existence check would silently stop being covered.
+    expect('NEXT_PUBLIC_APP_URL' in process.env, 'ldFor() must delete the key, not blank it').toBe(false)
     expect(broker.url).toBeUndefined()
   })
 
