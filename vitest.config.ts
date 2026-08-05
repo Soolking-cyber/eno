@@ -15,8 +15,33 @@ export default defineConfig({
     },
   },
   test: {
-    include: ['src/**/*.test.ts'],
+    /**
+     * ⚠️ `.tsx` IS INCLUDED, AND UNTIL 2026-08-05 IT WAS NOT — WHICH MADE COMPONENT TESTS
+     * IMPOSSIBLE RATHER THAN MERELY ABSENT. The pattern was `src/**\/*.test.ts`, there were zero
+     * `.test.tsx` files, and no jsdom or Testing Library in package.json — against 320 `.tsx` files
+     * and 213 `'use client'` components. Anyone who wrote one would have watched it silently not
+     * run, which is a good way to stop people writing them.
+     */
+    include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
+    /**
+     * ⚠️ NODE STAYS THE DEFAULT AND jsdom IS OPT-IN PER FILE, BECAUSE THE SUITE'S SPEED IS A
+     * FEATURE. 2000+ tests run in ~8s today; booting a DOM for every pure-logic file would spend
+     * that budget on nothing. A component test declares what it needs at the top of the file:
+     *     // @vitest-environment jsdom
+     * That is one line, it is visible where the test is read, and it cannot drift the way a
+     * second projects config can.
+     */
     environment: 'node',
+    coverage: {
+      // ⚠️ REPORTING ONLY, NO THRESHOLDS — deliberately. A number picked before anyone has looked
+      // at the report is either so low it certifies nothing or so high it blocks the next commit,
+      // and either way the first response is to lower it. Measure for a while, then set a floor on
+      // src/lib/** where the money and trust logic lives.
+      provider: 'v8',
+      reporter: ['text-summary', 'html'],
+      include: ['src/lib/**', 'src/app/api/**'],
+      exclude: ['**/*.test.*', 'src/generated/**'],
+    },
     /**
      * ⚠️ THE SUITE'S ANSWER MUST NOT DEPEND ON THE MACHINE RUNNING IT.
      *
