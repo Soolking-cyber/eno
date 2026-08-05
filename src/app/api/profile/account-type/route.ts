@@ -1,7 +1,7 @@
 import { NextResponse, after } from 'next/server'
 import { db } from '@/lib/db'
 import { TOS_VERSION } from '@/lib/site-legal'
-import { getCurrentProfile } from '@/lib/admin'
+import { getCurrentProfile, getVerifiedPhone } from '@/lib/admin'
 import { normalizePhone } from '@/lib/phone'
 import { phoneTakenByOther } from '@/lib/phone-unique'
 import { sendMetaCapiEvent, metaUserDataFromHeaders } from '@/lib/meta-capi'
@@ -110,11 +110,33 @@ export async function POST(req: Request) {
     if (ownedSeller) {
       await db.seller.update({ where: { id: ownedSeller.id }, data: { name: businessName!, ...(phone ? { phone } : {}), ...legalData } })
     } else {
-      // Claim an unowned guest storefront on phone match, else create a new one.
-      const byPhone = phone ? await db.seller.findUnique({ where: { phone }, select: { id: true, ownerId: true } }) : null
+      // Claim an unowned guest storefront on a VERIFIED phone match, else create a new one.
+      // ⚠️ `phone` here comes from the REQUEST BODY (`body.phone` above), so a match alone proves
+      // nothing. Claiming re-parents the storefront and with it every listing, review and rating,
+      // redirects all future buyer threads (conversations resolve the seller from Seller.ownerId),
+      // and is irreversible — the genuine owner's verified auto-claim in profile.ts requires
+      // `ownerId: null`. The `phoneTakenByOther` gate earlier cannot catch it either: it ignores
+      // unowned sellers by design, because they are meant to be claimable by whoever VERIFIES the
+      // number. So the claim is gated on the caller's auth-confirmed phone, matching the correct
+      // implementation at src/lib/profile.ts:71-77 ("Verified phone only, never a self-typed one").
+      const byPhone = phone ? await db.seller.findUnique({ where: { phone }, select: { id: true, ownerId: true, phone: true } }) : null
+      const verifiedPhone = byPhone && !byPhone.ownerId ? await getVerifiedPhone() : null
       try {
-        if (byPhone && !byPhone.ownerId) {
-          await db.seller.update({ where: { id: byPhone.id }, data: { ownerId: profile.id, name: businessName!, ...legalData } })
+        if (byPhone && !byPhone.ownerId && verifiedPhone && verifiedPhone === byPhone.phone) {
+          // Atomic claim-once via the ownerId:null guard, so two racing claims cannot both win.
+          const claimed = await db.seller.updateMany({
+            where: { id: byPhone.id, ownerId: null },
+            data: { ownerId: profile.id, name: businessName!, claimedAt: new Date(), ...legalData },
+          })
+          // ⚠️ On a LOST race, re-read before creating — Seller.ownerId is @unique, so if our own
+          // concurrent request already made one, a blind create throws P2002 and 500s onboarding.
+          if (claimed.count === 0 && !(await db.seller.findUnique({ where: { ownerId: profile.id }, select: { id: true } }))) {
+            await db.seller.create({ data: { name: businessName!, ownerId: profile.id, ...legalData, responseRate: 100 } })
+          }
+        } else if (byPhone && !byPhone.ownerId) {
+          // Unowned storefront on this number, but the caller has not verified it. Leave it alone
+          // and give them their own — without the number, which belongs to the row we refused.
+          await db.seller.create({ data: { name: businessName!, ownerId: profile.id, ...legalData, responseRate: 100 } })
         } else {
           await db.seller.create({ data: { name: businessName!, ownerId: profile.id, ...(phone ? { phone } : {}), ...legalData, responseRate: 100 } })
         }

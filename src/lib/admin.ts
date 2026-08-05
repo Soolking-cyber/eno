@@ -5,6 +5,7 @@ import { db } from '@/lib/db'
 import { ensureProfile } from '@/lib/profile'
 import { recordPhoneVerified, BASE_SCORE, PHONE_VERIFIED_BONUS } from '@/lib/trust'
 import type { Profile } from '@/generated/prisma/client'
+import { normalizePhone } from '@/lib/phone'
 
 /** Comma-separated allowlist from ADMIN_EMAILS (server-only env). */
 function adminEmails(): string[] {
@@ -29,6 +30,41 @@ export async function getAdmin(): Promise<string | null> {
   const { data } = await supabase.auth.getUser()
   const email = data.user?.email ?? null
   return isAdminEmail(email) ? email!.toLowerCase() : null
+}
+
+/**
+ * The caller's AUTH-CONFIRMED phone in canonical +84… form, or null.
+ *
+ * ⚠️ USE THIS — NOT `Profile.phone`, AND NEVER A NUMBER OUT OF A REQUEST BODY — WHENEVER A PHONE
+ * NUMBER IS BEING USED AS PROOF OF IDENTITY.
+ *
+ * Claiming an unowned "guest" storefront is the case that matters: it re-parents the Seller row and
+ * with it every listing, review and rating, it is irreversible (the claim is guarded by
+ * `ownerId: null`, so the real owner can never take it back), and it silently redirects future buyer
+ * conversations, because conversation creation resolves the seller side from `Seller.ownerId`.
+ *
+ * src/lib/profile.ts:71-77 has always done this correctly — "Verified phone only (never a self-typed
+ * number)" — but two other paths reimplemented the same claim from `body.phone` with no verification
+ * at all (the post-wizard's resolve-seller, and POST /api/profile/account-type). `phoneTakenByOther`
+ * does not save them: it deliberately ignores unowned sellers, precisely because they are meant to be
+ * claimable by whoever VERIFIES the number — so the one guard on the path cannot fire on the row
+ * being stolen. Anyone who knew a guest seller's number — which sellers advertise on Facebook and
+ * Zalo — could take the storefront.
+ *
+ * `Profile.phone` is NOT an acceptable substitute: PATCH /api/profile lets a user write that column
+ * without an OTP, so trusting it would just move the same hole one table across.
+ */
+export async function getVerifiedPhone(): Promise<string | null> {
+  try {
+    const supabase = await createSupabaseServer()
+    const { data } = await supabase.auth.getUser(await bearerToken())
+    const u = data.user
+    // Supabase stores a confirmed phone on user.phone (E164, no '+'); phone_confirmed_at is the
+    // proof. Normalized identically to Seller.phone so the comparison is apples-to-apples.
+    return u?.phone && u.phone_confirmed_at ? normalizePhone(u.phone) : null
+  } catch {
+    return null
+  }
 }
 
 /**

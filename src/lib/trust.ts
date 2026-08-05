@@ -480,6 +480,55 @@ export async function recomputeTrust(
 }
 
 /**
+ * A TRUTHFUL, USER-FACING description of one ledger row — for the PDPL data export.
+ *
+ * ⚠️ THE RAW `type` MUST NOT BE HANDED TO THE USER, and that is the whole reason this exists.
+ * `manual_adjust` is an INTERNAL CATCH-ALL, not a description of what happened: it carries the
+ * automated offer-spam penalty (offer-guard.ts), the automatic new_account / phone_verified /
+ * zalo_linked / kyc grants, AND genuine admin action. Exporting that string told a user that a
+ * machine-applied penalty was a "manual adjustment" — i.e. that a person had judged them. The
+ * export is a legal disclosure under the PDPL access right, and /legal/ranking tells users to
+ * contact support if they think their score is wrong, so this is the one place the distinction
+ * actually reaches a human and matters.
+ *
+ * The ledger already knows the truth — `reason` records the precise cause — so this needs no
+ * schema change, no backfill and no change to scoring. It reads (type, reason) and returns what
+ * genuinely happened.
+ *
+ * ⚠️ It must never leak internal metadata: `false_report:<reportId>` is reduced to its shape, and
+ * an unrecognised reason falls back to the neutral wording rather than being echoed verbatim.
+ * Anything added to ONE_TIME_REASONS or to a new applyTrustEvent caller belongs here too — a
+ * missing case degrades to honest-but-vague, never to a wrong claim.
+ */
+export function describeTrustEvent(type: string, reason?: string | null): string {
+  const r = reason ?? ''
+  if (r.startsWith('false_report')) return 'Penalty: a report you filed was found to be false (reviewed by our team)'
+  switch (r) {
+    case 'new_account': return 'Automatic: new account opened'
+    case 'phone_verified': return 'Automatic: phone number verified'
+    case 'zalo_linked': return 'Automatic: Zalo account linked'
+    case 'kyc': return 'Automatic: identity verified'
+    case 'profile_complete': return 'Automatic: profile completed'
+    case 'nonneg_offer_spam': return 'Automatic penalty: repeated offers on listings with a fixed price'
+    case 'conduct_warning': return 'Warning issued about conduct'
+  }
+  switch (type) {
+    case 'report_confirmed': return 'Penalty: a report against you was confirmed'
+    case 'report_dismissed': return 'A report against you was dismissed'
+    case 'positive_review': return 'Automatic: a buyer left a positive review'
+    case 'fast_response': return 'Automatic: fast replies to buyers'
+    case 'engagement': return 'Automatic: activity on the marketplace'
+    case 'transaction': return 'Automatic: a completed transaction'
+    case 'recompute_lift': return 'Automatic: score recalculated from your history'
+    case 'decay_recover': return 'Automatic: recovery over time'
+    // Deliberately does NOT say "manual" — an unrecognised manual_adjust may well be automated,
+    // and claiming a human acted is exactly the inaccuracy this function exists to prevent.
+    case 'manual_adjust': return 'Adjustment to your score'
+    default: return 'Adjustment to your score'
+  }
+}
+
+/**
  * Append a trust event (the AUDIT LEDGER) and recompute the composite. In v2 the
  * delta is informational for most types — the recompute reads source tables — but
  * report_confirmed / manual_adjust events DO feed C/M, and one-time verification

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getCurrentProfile } from '@/lib/admin'
 import { rateLimit } from '@/lib/ratelimit'
+import { describeTrustEvent } from '@/lib/trust'
 
 // Self-service data export (PDPL access right — "copies provided within 10 days";
 // this does it instantly). Returns EVERYTHING we hold about the authenticated
@@ -55,9 +56,16 @@ export async function GET() {
     savedSearches,
     notifications,
     reviewsWritten,
-    // Summarized per the note above: type/points/date only — internal reason
-    // metadata (admin notes etc.) stays out of the export.
-    trustEvents: trustEvents.map((e) => ({ type: e.type, points: e.delta, createdAt: e.createdAt })),
+    // Summarized per the note above: a description, points and date only — internal reason
+    // metadata (admin notes, report ids) stays out of the export.
+    // ⚠️ `event` REPLACES the raw `type`, deliberately. `type` is an internal catch-all: the
+    // automated offer-spam penalty, the automatic new_account / phone_verified / kyc grants and
+    // real admin action ALL wrote `manual_adjust`, so exporting it told users a machine penalty
+    // was a "manual adjustment" — that a person had judged them. This is a PDPL access-right
+    // disclosure and /legal/ranking invites users to dispute their score with support, so it is
+    // the one place that distinction reaches a human. describeTrustEvent() reads the `reason` the
+    // ledger already stores and says what actually happened; see the note on it in src/lib/trust.ts.
+    trustEvents: trustEvents.map((e) => ({ event: describeTrustEvent(e.type, e.reason), points: e.delta, createdAt: e.createdAt })),
     conversations: { asBuyer: buyerConvos, asSeller: sellerConvos },
     messagesSent: messages,
   }
