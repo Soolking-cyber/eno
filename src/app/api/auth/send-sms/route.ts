@@ -158,8 +158,11 @@ export async function POST(req: Request) {
   // it right with the same `phone.slice(0, 6)`. It is also the line that fires most during a
   // provider outage, so the failure mode was: the worse the incident, the more complete the dump of
   // subscriber phone numbers into Cloud Logging, where retention outlives the incident. Six digits
-  // (+84 plus the operator prefix) is what the log is actually for — telling ESMS-vs-Telegram-vs-
-  // WhatsApp breakage apart — and identifying an individual is not.
+  // (+84 plus the operator prefix) is enough to see WHICH carrier prefix is failing, which is the
+  // operational question here; identifying an individual is not. (An external review of this change
+  // rightly flagged an earlier version of this comment for claiming the prefix distinguishes
+  // ESMS/Telegram/WhatsApp — it does not: this line records no channel at all, only that every
+  // channel failed. `channel` above is the one that carries delivery routing.)
   if (!delivered) console.error('[send-sms] all channels failed', { prefix: phone.slice(0, 6) })
   return NextResponse.json({}, { status: 200 })
 }

@@ -16,10 +16,12 @@ export const dynamic = 'force-dynamic'
  *
  * This read used to be `process.env.CONTACT_IP_SALT || 'eno-contact'`. A fallback printed in a
  * public repository is not a secret, and the input space it protects is IPv4 — 2^32 candidates,
- * which is minutes of brute force against a stolen table. Every `ContactReveal.ipHash` written
- * before 2026-08-05 was computed that way (measured: CONTACT_IP_SALT is commented out at .env:40
- * and undefined in the runtime environment), so those rows should be treated as storing the raw
- * client IP of a signed-in buyer, and are worth backfilling to NULL.
+ * which is minutes of brute force against a stolen table. What was MEASURED on 2026-08-05 is that
+ * CONTACT_IP_SALT is commented out at .env:40 and undefined in the runtime environment, so the
+ * fallback is what today's writes use; whether every historical deployment also lacked the variable
+ * was not verified and cannot be from here. Treat pre-2026-08-05 rows as possibly storing the raw
+ * client IP of a signed-in buyer — they are worth backfilling to NULL regardless, since nothing
+ * reads the column.
  *
  * ⚠️ IT DEGRADES TO NULL RATHER THAN THROWING, AND THAT IS A DELIBERATE DIVERGENCE FROM
  * src/lib/compliance/subject-hash.ts, WHICH FAILS CLOSED FOR THIS EXACT PROBLEM. The difference is
