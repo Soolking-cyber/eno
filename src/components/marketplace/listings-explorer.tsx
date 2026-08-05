@@ -28,6 +28,8 @@ import { ForYouRail } from './for-you-rail'
 import { RecentlyViewedRail } from './recently-viewed-rail'
 import { useNearViewport } from '@/hooks/use-near-viewport'
 import { BusinessRail } from './business-rail'
+import { PromoBanner } from './promo-banner'
+import { WhyEno } from './why-eno'
 import { DISTRICTS } from './listings-explorer.constants'
 import { type Nearby, type Geo } from './area-filter'
 import { useSearchShortcuts, useSearchHistory, useSaveSearch } from './use-explorer'
@@ -1493,7 +1495,11 @@ export function ListingsExplorer({
         <div className="relative w-full space-y-8 sm:space-y-12">
 
           {/* HERO SEARCH AREA */}
-          <div className="relative pb-2 text-center">
+          {/* ⚠️ NO PADDING — this element is now EMPTY apart from the sr-only <h1>. sr-only is
+              position:absolute, so the div has zero height while any padding it carries is real: the
+              `pb-2` that used to sit here was a dead band between the header and the promo banner,
+              the same trap already documented for the `mb-5` that preceded it. */}
+          <div className="relative text-center">
             {/* ⚠️ THIS HEADING IS VISIBLE ON PURPOSE, AND IT MUST STAY THAT WAY.
                 It was `sr-only` from 2026-07-16 (when the wordmark + tagline were stripped to
                 leave just the search) until 2026-08-02, when GOOGLE REJECTED OAUTH BRAND
@@ -1613,6 +1619,15 @@ export function ListingsExplorer({
                 header.tsx — that id is the IntersectionObserver target, and its mere presence
                 flips the header bar back to hidden-until-scrolled. */}
           </div>
+
+          {/* PROMO BANNER — the advertising slot, ABOVE the category scroller (owner, 2026-08-05,
+              choosing the Shopee-faithful position over keeping categories first).
+              ⚠️ It costs the categories ~190px of vertical position on a phone, which is the whole
+              trade the owner was shown and accepted. If categories ever need to lead again, move
+              this one line below the category block rather than deleting it.
+              ⚠️ Landing mode only, by construction — it sits inside the isLandingMode branch, so a
+              filtered or searched view never shows an ad above the results the visitor asked for. */}
+          <PromoBanner />
 
           {/* FINN-STYLE CATEGORY GRID */}
           <div className="space-y-4">
@@ -1838,6 +1853,14 @@ export function ListingsExplorer({
               )}
             </>
           )}
+
+          {/* WHY eno — the value-prop strip, deliberately BELOW the feed rather than under the
+              banner where the reference puts its icon row. Both external reviewers independently
+              recommended this: the reference's row is NAVIGATION (Vouchers, Telco & Bills), whereas
+              this is a pitch, and stacking a banner plus a six-item pitch above the grid would push
+              the actual listings off the first screen on a phone. A visitor who has scrolled the
+              feed is exactly the one deciding whether to trust the place. */}
+          <WhyEno />
 
         </div>
       </section>

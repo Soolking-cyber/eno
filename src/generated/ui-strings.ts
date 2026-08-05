@@ -636,6 +636,7 @@ export const UI_STRINGS: string[] = [
   "Hi! Is this still available?",
   "Hidden",
   "Highlighted for 7 days — sell fast, open to offers",
+  "Highlights",
   "Hiện chưa gửi được mã qua điện thoại — vui lòng đăng nhập bằng email nhé.",
   "Hobbies",
   "Home",
