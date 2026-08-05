@@ -45,6 +45,78 @@ cmd=$(jq -r '.tool_input.command // empty' 2>/dev/null || echo '__JQ_FAILED__')
 # ⚠️ `[ =]*` NOT `[ =]+` — `-m"msg"` IS VALID GIT AND WAS BEING MISREAD. agy found it: with `+`, the
 # unspaced form did not match, `tr` then stripped the quotes, and `-m"added feature"` became
 # `-madded feature` — a single-dash cluster containing `a`, refused as if it were `-a`.
+# ⚠️ (3) DROP HEREDOC BODIES — THE LINES, NOT "EVERYTHING AFTER `<<`".
+# The two sed passes below delete a QUOTED `-m`/`-F` value, the only message form they were written
+# for. But `git commit -F - <<'MSG' … MSG` puts the whole message into the command string as ordinary
+# unquoted words, and every detector below then parses the prose. Measured 2026-08-05: a commit
+# message describing its own change ("… covers src/lib/ssrf.ts …") had that path read as a PATHSPEC
+# OPERAND — `git ls-files --error-unmatch` naturally succeeds for a real file a message merely
+# mentions — and the commit was REFUSED. The header of this file already calls a false positive a
+# fatal bug here, because a guard that blocks correct commits gets switched off.
+#
+# ⚠️ THE OBVIOUS FIX (`flags="${flags%%<<*}"`) IS ITSELF A BYPASS, AND ALL THREE REVIEWERS SAID SO.
+# Truncating at the first `<<` discards anything written after it on the SAME line, so
+#     git commit -F - <<'MSG' -- ':(literal)src/app/foo.ts'
+# loses its pathspec, and with an empty index the relocated exit below then permits an unreviewed
+# working-tree commit — re-opening the exact hole this revision closes. Verified before believing it:
+# that command was ALLOWed by the truncating version and is BLOCKed by this one. (Their other two
+# candidates — `-m "Refactor <<" -a` and `--message='a << b' -- path` — were already handled by the
+# sed passes and blocked correctly either way; one claim in three surviving is the usual rate here.)
+#
+# A heredoc BODY is by definition the following LINES, so drop those and keep every line intact.
+# Anything the author wrote on the command line — flags, `--`, pathspecs — is still parsed.
+#
+# ⚠️ IT SKIPS ONLY WHEN A REAL TERMINATOR EXISTS, AND THAT DIRECTION IS THE WHOLE DESIGN. The first
+# version tracked "am I inside a body?" as it streamed, which fails OPEN in two ways both found by
+# review and then reproduced here:
+#   · `<<-MSG` permits a TAB-INDENTED terminator, which an exact `$0 == tag` never matches. awk stayed
+#     in body mode for the rest of the input, so a following `git commit … -- <path>` was invisible.
+#   · A multi-line QUOTED message that merely contains `<<EOF` (`-m "fixed <<EOF\nstill msg"`) looked
+#     like a heredoc start, so the next line — carrying the pathspec — was swallowed.
+# Both were ALLOWed by the streaming version and are BLOCKed by this one; the third candidate
+# (a `\` line continuation) was already handled.
+#
+# Looking the terminator up FIRST inverts the failure direction: if none is found, nothing is
+# skipped, every line is parsed, and the worst case is a REFUSED commit rather than an unreviewed
+# one. Leading whitespace is stripped from the candidate terminator unconditionally — over-eager
+# termination is safe for the same reason (it parses more, never less).
+# ⚠️ THE SAME PASS ALSO STRIPS A MULTI-LINE QUOTED MESSAGE, AND IT HAS TO BE HERE RATHER THAN IN THE
+# sed BELOW. `sed` is line-based, so `git commit -m "fix\nsrc/lib/ssrf.ts"` — an ordinary two-line
+# message — keeps its second line, and that line names a tracked file, so the operand parser reads it
+# as a PATHSPEC and refuses a harmless commit. Reproduced: with an empty index it BLOCKs. It is a
+# pre-existing weakness that only became reachable when the pathspec check moved above the
+# empty-index exit, which makes it this revision's problem to fix rather than to inherit. awk already
+# has every line in hand, so the quoted span is removed across newlines in one place.
+cmd=$(printf '%s' "$cmd" | awk '
+  { lines[NR] = $0 }
+  END {
+    i = 1; out = ""
+    while (i <= NR) {
+      line = lines[i]
+      out = out line "\n"
+      if (match(line, /<<-?[ \t]*("[^"]+"|\047[^\047]+\047|[A-Za-z_][A-Za-z0-9_]*)/)) {
+        t = substr(line, RSTART, RLENGTH)
+        sub(/^<<-?[ \t]*/, "", t)
+        gsub(/["\047]/, "", t)
+        end = 0
+        for (j = i + 1; j <= NR; j++) {
+          s = lines[j]
+          sub(/^[ \t]+/, "", s); sub(/\r$/, "", s)
+          if (s == t) { end = j; break }
+        }
+        if (end > 0) { i = end + 1; continue }   # a genuine body: skip it and its terminator
+      }
+      i++
+    }
+    # A negated character class matches newlines in awk, so these spans cross lines — which is the
+    # entire reason this is not another sed. Only values attached to a MESSAGE option are removed;
+    # a quoted pathspec like \047:(literal)src/x.ts\047 is left alone for the operand parser.
+    gsub(/(-m|-F|--message|--file)[ =]*"[^"]*"/, " ", out)
+    gsub(/(-m|-F|--message|--file)[ =]*\047[^\047]*\047/, " ", out)
+    printf "%s", out
+  }
+')
+
 flags=$(printf '%s' "$cmd" \
   | sed -E "s/(-m|-F|--message|--file)([ =]*)('[^']*'|\"[^\"]*\")//g" \
   | sed -E "s/(^| )-m[^ ]+//g" \
@@ -129,8 +201,24 @@ if ! changed=$(git diff --cached --name-only 2>/dev/null); then
   echo "second-opinion guard: 'git diff --cached' failed — refusing to fail open." >&2
   exit 2
 fi
-[ -z "$changed" ] && exit 0
 
+# ⚠️ THE PATHSPEC CHECK RUNS BEFORE THE "NOTHING STAGED" EXIT, AND THE ORDER IS THE WHOLE POINT.
+# It used to run after, which made it DEAD CODE in the only situation it was written for. A pathspec
+# commit stages nothing — that is what "commits the working tree, not the index" means — so
+# `git diff --cached` is empty, the `[ -z "$changed" ] && exit 0` below fired first, and the guard
+# waved through exactly the form CLAUDE.md mandates:
+#     git commit -m "…" -- ':(literal)src/app/foo.ts'      ← reviewed nothing, wrote no receipt
+# Measured 2026-08-05 by reading the line numbers against the commits this session produced: three
+# commits went in with no receipt and never triggered the gate. The reviews had been run by hand and
+# reported, so the POLICY held — but the mechanism that exists because "discipline was demonstrably
+# the wrong mechanism" was itself doing nothing. A guard whose most important check is unreachable
+# is worse than none, because everyone believes it fired.
+#
+# Ordering it first is sufficient: with a dirty tracked tree the pathspec form is now refused and the
+# author must `git add`, which makes the index the thing that gets committed and the receipt true
+# again. With a CLEAN tracked tree and an empty index there is nothing for the pathspec form to
+# commit, so falling through to the exit below is correct rather than permissive.
+#
 # ⚠️ `git commit -- <path>` COMMITS THE WORKING TREE, NOT THE INDEX. codex found this and it matters
 # more here than anywhere else, because it is the form CLAUDE.md MANDATES
 # (`git commit -m "…" -- ':(literal)path'`). git resolves a pathspec commit from the working tree, so
@@ -183,9 +271,20 @@ second-opinion guard: `git commit -- <path>` commits the WORKING TREE for those 
 and tracked files currently have unstaged changes. The receipt certifies `git diff --cached`, so the
 commit could contain content no reviewer saw. Run `git add -- <paths>` first (then re-run the gate if
 the staged diff changed), or `git stash` the unrelated edits.
+
+(If you were told nothing is staged: that is exactly the case this refuses. A pathspec commit stages
+nothing by design, so "nothing staged" is not "nothing to review" — it is "the review would have
+certified the wrong thing".)
 MSG
   exit 2
 fi
+
+# NOW the "nothing staged" exit is safe to take. Reaching here means either there were no pathspec
+# operands (so the commit really is index-driven and an empty index means an empty commit git will
+# reject anyway), or there were operands and the tracked tree is clean (so the pathspec form has
+# nothing to pick up). Both are genuinely nothing-to-review; neither is the hole above.
+[ -z "$changed" ] && exit 0
+
 # ⚠️ CLAUDE.md AND .claude/ ARE **NOT** EXEMPT. qwen caught that a blanket `*.md` exemption let the
 # project's own operating rules be rewritten with no review — the same self-modification hole as the
 # .claude/ one, one directory over. Only genuinely inert docs are exempt.
