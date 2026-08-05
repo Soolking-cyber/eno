@@ -54,7 +54,7 @@ export function TrustScore({ score, size = 'sm', showLabel = false, variant = 's
   const wrap = (node: React.ReactNode) => href
     // prefetch={false}: a trust badge renders on EVERY card in the feed, so auto-prefetch would
     // warm the same /trust explainer once per visible card. It is a rarely-followed footnote link.
-    ? <Tooltip content={title} side="top"><Link href={href} prefetch={false} aria-label={tr('How trust works', 'Điểm uy tín hoạt động thế nào')} className="inline-flex cursor-pointer transition-transform hover:scale-105 active:scale-95">{node}</Link></Tooltip>
+    ? <Tooltip content={title} side="top"><Link href={href} prefetch={false} aria-label={tr('How trust works', 'Điểm uy tín hoạt động thế nào')} className="inline-flex cursor-pointer transition-transform hover:scale-105 active:scale-[0.96]">{node}</Link></Tooltip>
     : <>{node}</>
 
   if (variant === 'mini') {

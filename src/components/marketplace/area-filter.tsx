@@ -312,7 +312,7 @@ export function AreaFilter({
                         aria-label={tr('Use my current location', 'Dùng vị trí hiện tại')}
                         title={tr('Use my current location', 'Dùng vị trí hiện tại')}
                         className={cn(
-                          'mb-3.5 rounded-xl border transition-colors active:scale-95 disabled:opacity-60',
+                          'mb-3.5 rounded-xl border transition-colors active:scale-[0.96] disabled:opacity-60',
                           loc ? 'border-brand bg-tint text-accent-foreground' : 'border-line-strong text-accent-foreground hover:bg-muted',
                         )}
                       >

@@ -588,6 +588,10 @@ export default function ThreadPage() {
   // flips the bubble to retry — the retry reuses the id and the server replays the
   // original message instead of inserting a duplicate.
   const sendClientIds = useRef(new Map<string, string>())
+  /** Message ids that must NOT play the `.bubble-in` entrance because the reader already
+   *  watched them arrive. Only ever holds the REAL id of a message that replaced one of my
+   *  own optimistic bubbles — see the swap in send(). */
+  const enteredIds = useRef(new Set<string>())
   const send = async (override?: string, reuseClientId?: string) => {
     const body = (override ?? text).trim()
     if (!body) return
@@ -608,6 +612,14 @@ export default function ThreadPage() {
       if (res.ok) {
         const m = (await res.json()) as Msg
         // Swap the temp for the real message — unless a poll already delivered it.
+        // ⚠️ SUPPRESS THE ENTRANCE ON THE REPLACEMENT. The row's React key is `m.id` and the
+        // entrance is bound to the last index, so the temp→real swap is a key change: React
+        // unmounts the optimistic bubble and mounts a different element in the same place,
+        // and `.bubble-in` runs a SECOND time for a message the sender already watched arrive.
+        // One send, two entrances. The message is logically the same one appearing once, so
+        // the real id inherits the temp's "already entered" state. Incoming messages from the
+        // other side are untouched — they still animate, because they genuinely are new.
+        enteredIds.current.add(m.id)
         sendClientIds.current.delete(tempId)
         setThread((t) => {
           if (!t) return t
@@ -1435,7 +1447,7 @@ export default function ThreadPage() {
                     scroll maths needs one predictable box per message. */}
                 <div
                   data-mid={m.id}
-                  className={`flex flex-col ${m.mine ? 'items-end' : 'items-start'} ${i === arr.length - 1 ? 'bubble-in' : ''} ${m.id === revealedId ? 'rounded-2xl ring-2 ring-brand/60 transition-shadow' : ''}`}
+                  className={`flex flex-col ${m.mine ? 'items-end' : 'items-start'} ${i === arr.length - 1 && !enteredIds.current.has(m.id) ? 'bubble-in' : ''} ${m.id === revealedId ? 'rounded-2xl ring-2 ring-brand/60 transition-shadow' : ''}`}
                 >
                 {m.kind === 'offer' ? (
                   <div className={`allow-select max-w-[80%] rounded-2xl border px-3 py-2.5 ${m.mine ? 'border-brand/30 bg-primary/5' : 'border-border bg-tint'}`}>
@@ -1617,7 +1629,7 @@ export default function ThreadPage() {
                   size="none"
                   type="button"
                   onClick={() => { scrollBottom(true); setNewBelow(false) }}
-                  className="flex items-center gap-1 rounded-full px-3.5 py-1.5 text-xs shadow-pop transition-transform active:scale-95 cursor-pointer"
+                  className="flex items-center gap-1 rounded-full px-3.5 py-1.5 text-xs shadow-pop transition-transform active:scale-[0.96] cursor-pointer"
                 >
                   ↓ {tr('New messages', 'Tin nhắn mới')}
                 </Button>

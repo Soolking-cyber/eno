@@ -20,7 +20,7 @@ import { hapticTap } from '@/lib/haptics'
 const STROKE = 2.25
 
 // Spring release (bouncy settle) instead of a linear snap; touch-action kills the tap delay.
-const TAB = 'flex flex-1 cursor-pointer transition-transform duration-[240ms] [transition-timing-function:var(--ease-spring-snappy)] active:scale-90 active:duration-[60ms] [touch-action:manipulation]'
+const TAB = 'flex flex-1 cursor-pointer transition-transform duration-[240ms] [transition-timing-function:var(--ease-spring-snappy)] active:scale-[0.96] active:duration-[60ms] [touch-action:manipulation]'
 
 // PREFETCH (2026-07-21): every tab used to carry `prefetch={false}`, so the five most-travelled
 // destinations in the app were the only ones that paid a full cold round-trip on tap — the

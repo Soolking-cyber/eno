@@ -240,7 +240,7 @@ export function ContactComposer({
             variant="cta"
             size="none"
             onClick={sendOffer}
-            className="flex min-w-0 basis-[70%] items-center justify-center gap-2 rounded-xl py-2.5 text-sm transition-all active:scale-98 cursor-pointer"
+            className="flex min-w-0 basis-[70%] items-center justify-center gap-2 rounded-xl py-2.5 text-sm transition-all active:scale-[0.96] cursor-pointer"
           >
             <Send className="h-4 w-4 shrink-0" />
             <span className="truncate">{tr('Send offer', 'Gửi đề nghị')} · {formatMoneyFull(offerPrice, currency, locale)}</span>

@@ -158,7 +158,7 @@ export function VideoFeed({
           // The baked tap-44 lifts the 40×40 glyph to a 44px hit target; `fixed` MUST stay here in
           // className — it's what beats the primitive's baked `relative` (twMerge, last wins) and
           // positions the ::before hit area correctly.
-          className="fixed left-4 top-[calc(env(safe-area-inset-top)+1rem)] z-[70] bg-black/40 text-white backdrop-blur transition-transform hover:scale-105 active:scale-90"
+          className="fixed left-4 top-[calc(env(safe-area-inset-top)+1rem)] z-[70] bg-black/40 text-white backdrop-blur transition-transform hover:scale-105 active:scale-[0.96]"
         >
           <X className="h-5 w-5" />
         </IconButton>
@@ -179,7 +179,7 @@ export function VideoFeed({
         <p className="max-w-xs text-xs text-white/60">
           {tr('Listings with a short clip stand out — add one to yours.', 'Tin có video ngắn nổi bật hơn hẳn — hãy thêm video vào tin của bạn.')}
         </p>
-        <Link href="/post" className="mt-3 inline-flex items-center rounded-full bg-white px-5 py-2 text-sm font-bold text-black transition-transform active:scale-95">
+        <Link href="/post" className="mt-3 inline-flex items-center rounded-full bg-white px-5 py-2 text-sm font-bold text-black transition-transform active:scale-[0.96]">
           {tr('Post a listing with video', 'Đăng tin kèm video')}
         </Link>
       </div>,
@@ -374,10 +374,10 @@ function VideoFeedItem({
             type="button"
             onClick={() => onOpen(listing)}
             onMouseEnter={() => onPrefetch?.(listing.id)}
-            // font-bold / active:scale-95 / transition-transform sit on the PRIMITIVE (not a
+            // font-bold / active:scale-[0.96] / transition-transform sit on the PRIMITIVE (not a
             // child), so cn() merges them over the base font-medium / active:scale-[0.97] /
             // transition-all instead of concatenating and losing on stylesheet order.
-            className="mt-3 inline-flex items-center rounded-full bg-white px-5 py-2 text-sm font-bold text-black transition-transform active:scale-95"
+            className="mt-3 inline-flex items-center rounded-full bg-white px-5 py-2 text-sm font-bold text-black transition-transform active:scale-[0.96]"
           >
             {tr('View listing', 'Xem tin')}
           </Button>
@@ -416,7 +416,7 @@ function RailButton({ label, onClick, children }: { label: string; onClick: () =
       // four buttons' hit-areas stacked over each other, and every tap landed on the last one
       // (Mute). IconButton BAKES `relative` (and tap-44), so that fix survives this swap — do not
       // pass a positioning class here that would override it.
-      className="flex-col gap-1 transition-transform hover:scale-110 active:scale-90"
+      className="flex-col gap-1 transition-transform hover:scale-110 active:scale-[0.96]"
     >
       {children}
     </IconButton>

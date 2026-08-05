@@ -131,7 +131,7 @@ export default async function HandlePage({ params }: Props) {
           <p className="mt-6 text-sm leading-relaxed text-body">
             <Tr text="This member hasn't opened a shop yet. Browse the marketplace to see what's for sale." />
           </p>
-          <Button asChild variant="cta" size="none" className="active:scale-95">
+          <Button asChild variant="cta" size="none" className="active:scale-[0.96]">
             <Link href="/" className="mt-4 cursor-pointer px-5 py-2.5 text-sm">
               <Tr text="Explore listings" />
             </Link>

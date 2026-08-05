@@ -1091,15 +1091,29 @@ html.native-tabs .bottom-nav-spacer {
 /* Availability-review nudge — a small periodic hop on the My-listings button when the
    seller hasn't confirmed availability for 3+ days. Compositor-only (transform) and
    OFF under reduced motion via the global kill switch. Two quick hops, long rest. */
+/* ⚠️ THE HOPS LEAD THE CYCLE, AND THE COUNT IS FINITE. Both were changed on 2026-08-05.
+   Movement used to sit at 78–94%, i.e. the TAIL of the cycle. That is invisible while the
+   animation is `infinite`, but the moment the count is finite it means the first hop lands
+   2.5s after the page arrives — after the seller has already looked away. Leading the cycle
+   puts hop one on arrival. */
 @keyframes availability-jump {
-  0%, 78%, 100% { transform: translateY(0); }
-  82% { transform: translateY(-4px); }
-  86% { transform: translateY(0); }
-  90% { transform: translateY(-2px); }
-  94% { transform: translateY(0); }
+  0% { transform: translateY(0); }
+  4% { transform: translateY(-4px); }
+  8% { transform: translateY(0); }
+  12% { transform: translateY(-2px); }
+  16%, 100% { transform: translateY(0); }
 }
+/* ⚠️ NOT `--ease-bounce`, AND NOT `infinite`. Two deliberate corrections:
+   · The token contract two hundred lines up reads "--ease-bounce … success moments ONLY".
+     This is a `bg-destructive` red warning button — animating it in the app's success
+     language was the clearest token-contract violation in this stylesheet.
+   · `infinite` is animation debt by definition: a loop that never ends stops being a signal
+     within seconds and becomes a permanent attention tax the seller trains themselves to
+     ignore, which burns the one gesture available when something is genuinely urgent. Three
+     bursts over ~9.6s say it, then the button sits still. `bg-destructive` is the persistent
+     signal and it does not decay. */
 .availability-overdue {
-  animation: availability-jump 3.2s var(--ease-bounce, ease-out) infinite;
+  animation: availability-jump 3.2s var(--ease-spring-snappy) 3;
 }
 
 @keyframes heart-pop {

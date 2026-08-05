@@ -56,10 +56,10 @@ export function NotificationBell() {
           <IconButton
             size="lg"
             aria-label={user && unread > 0 ? tr('Notifications, {n} unread', 'Thông báo, {n} chưa đọc').replace('{n}', String(unread)) : tr('Notifications', 'Thông báo')}
-            // active:scale-90 is safe on this popover anchor: Base UI opens on `click` (fires after
+            // active:scale-[0.96] is safe on this popover anchor: Base UI opens on `click` (fires after
             // pointerup, i.e. after :active releases), so floating-ui measures the rect at scale-100
             // and autoUpdate never re-reads on a transform — the panel is never placed off a pressed rect.
-            className="text-body transition-[background-color,color,transform] duration-100 hover:bg-accent hover:text-accent-foreground active:scale-90"
+            className="text-body transition-[background-color,color,transform] duration-100 hover:bg-accent hover:text-accent-foreground active:scale-[0.96]"
           >
             {/* 28px everywhere — matches the bottom-nav icons on mobile and the
                 Saved/Messages action icons on desktop (one consistent nav scale). */}

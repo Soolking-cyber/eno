@@ -588,7 +588,7 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
                     tapTarget={false}
                     onClick={(e) => { e.stopPropagation(); toggle(card.id) }}
                     aria-label={isFavorite(card.id) ? tr('Saved', 'Đã lưu') : tr('Save', 'Lưu')}
-                    className="transition-transform hover:scale-110 active:scale-90"
+                    className="transition-transform hover:scale-110 active:scale-[0.96]"
                   >
                     <Heart className={cn('h-[22px] w-[22px] transition-colors [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.5))]', isFavorite(card.id) ? 'fill-brand text-white' : 'fill-black/25 text-white')} />
                   </IconButton>

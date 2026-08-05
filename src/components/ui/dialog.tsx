@@ -33,7 +33,7 @@ function DialogOverlay({
     <DialogPrimitive.Backdrop
       data-slot="dialog-overlay"
       className={cn(
-        "fixed inset-0 isolate z-50 bg-black/10 duration-100 supports-backdrop-filter:backdrop-blur-xs data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0",
+        "fixed inset-0 isolate z-50 bg-black/10 duration-100 data-closed:duration-75 supports-backdrop-filter:backdrop-blur-xs data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0",
         className
       )}
       {...props}
@@ -92,7 +92,7 @@ function DialogContent({
           // the page canvas, so a dialog rendered on either is indistinguishable from the page
           // behind it — only the backdrop separated them. --popover is #2a2a2a and lifts the
           // surface off the page. This matches ui/sheet, which is already on bg-popover.
-          "fixed left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-2xl bg-popover p-6 shadow-overlay duration-150 outline-none sm:max-w-lg data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
+          "fixed left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-2xl bg-popover p-6 shadow-overlay duration-150 data-closed:duration-100 data-closed:ease-in outline-none sm:max-w-lg data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
           // Centre on the VISIBLE viewport (see the block above). Both keyboard terms are
           // 0px with no keyboard, so this resolves to a plain 50% and the closed-keyboard
           // rendering is byte-identical to `top-1/2`.
@@ -112,7 +112,7 @@ function DialogContent({
         {showCloseButton && (
           <DialogPrimitive.Close
             data-slot="dialog-close"
-            className="ring-offset-background focus:ring-ring absolute top-3.5 right-3.5 rounded-full bg-card/90 hover:bg-card p-1.5 text-muted-foreground shadow-xs border border-border/30 transition-all hover:scale-105 active:scale-95 z-50 focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 cursor-pointer"
+            className="ring-offset-background focus:ring-ring absolute top-3.5 right-3.5 rounded-full bg-card/90 hover:bg-card p-1.5 text-muted-foreground shadow-xs border border-border/30 transition-all hover:scale-105 active:scale-[0.96] z-50 focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 cursor-pointer"
           >
             <XIcon />
             <span className="sr-only"><Tr text="Close" /></span>

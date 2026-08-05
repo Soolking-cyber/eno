@@ -1702,7 +1702,7 @@ export function ListingsExplorer({
                 >
                   <CategoryIcon
                     name={s.icon}
-                    className="h-11 w-11 sm:h-12 sm:w-12 text-body transition-all duration-200 group-hover:scale-110 group-hover:text-brand"
+                    className="h-11 w-11 sm:h-12 sm:w-12 text-body transition-colors duration-200 group-hover:text-brand"
                   />
                   <span className="text-sm sm:text-base font-bold text-foreground leading-tight transition-colors group-hover:text-brand">
                     <Tr text={lang === 'vi' ? s.nameVi : s.name} />
@@ -1719,11 +1719,11 @@ export function ListingsExplorer({
                     key={cat.id}
                     onClick={() => handleCategorySelect(cat.slug)}
                     style={{ '--cat': hex } as CSSProperties}
-                    className="group flex snap-start flex-col items-center justify-center gap-2 whitespace-normal p-2 text-center cursor-pointer transition-transform duration-100 active:scale-95"
+                    className="group flex snap-start flex-col items-center justify-center gap-2 whitespace-normal p-2 text-center cursor-pointer transition-transform duration-100 active:scale-[0.96]"
                   >
                     <CategoryIcon
                       name={cat.icon}
-                      className="h-11 w-11 sm:h-12 sm:w-12 text-body transition-all duration-200 group-hover:scale-110 group-hover:text-[var(--cat)]"
+                      className="h-11 w-11 sm:h-12 sm:w-12 text-body transition-colors duration-200 group-hover:text-[var(--cat)]"
                     />
                     <span className="text-sm sm:text-base font-bold text-foreground leading-tight transition-colors group-hover:text-[var(--cat)]">
                       <Tr text={lang === 'vi' ? cat.nameVi : cat.name} />
@@ -1749,7 +1749,7 @@ export function ListingsExplorer({
                 >
                   <CategoryIcon
                     name={s.icon}
-                    className="h-11 w-11 sm:h-12 sm:w-12 text-body transition-all duration-200 group-hover:scale-110 group-hover:text-brand"
+                    className="h-11 w-11 sm:h-12 sm:w-12 text-body transition-colors duration-200 group-hover:text-brand"
                   />
                   <span className="text-sm sm:text-base font-bold text-foreground leading-tight transition-colors group-hover:text-brand">
                     <Tr text={lang === 'vi' ? s.nameVi : s.name} />
@@ -1978,7 +1978,7 @@ export function ListingsExplorer({
       return (
         <div className={cn('flex items-center gap-2 rounded-2xl bg-brand-50 px-2.5 py-2', className)}>
           <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">{chipBtns}</div>
-          <Button onClick={saveSearch} variant="cta" size="none" className="shrink-0 gap-1.5 px-3.5 py-1.5 text-xs shadow-sm active:scale-95 cursor-pointer">
+          <Button onClick={saveSearch} variant="cta" size="none" className="shrink-0 gap-1.5 px-3.5 py-1.5 text-xs shadow-sm active:scale-[0.96] cursor-pointer">
             <Bookmark className="size-4" /> {tr('Save search', 'Lưu tìm kiếm')}
           </Button>
         </div>
@@ -2089,8 +2089,16 @@ export function ListingsExplorer({
             (h1 → rail/section h2 → card h3s); visually hidden. */}
         <h1 className="sr-only">{tr('Marketplace listings', 'Tin đăng')}</h1>
 
-        {/* Single-column faceted directory */}
-        <div className="animate-in fade-in slide-in-from-bottom-3 duration-300">
+        {/* Single-column faceted directory.
+            ⚠️ NO ENTRANCE ANIMATION HERE, DELIBERATELY. This carried
+            `animate-in fade-in slide-in-from-bottom-3 duration-300` around the ENTIRE results
+            workspace — category rail, brand rail, facets, toolbar and grid. That is page-load
+            choreography on an Operate surface: every visitor waited 300ms and watched the whole
+            view translate 12px before they could act. It was also the middle of THREE stacked
+            opacity-0 entrances on one home navigation (.route-fade 150ms -> this 300ms -> the grid's
+            own 200ms below), i.e. the "one identical entrance on every section" pattern, twice, on
+            the money path. The feed should simply be there. */}
+        <div>
 
           {/* Listings Main Workspace */}
           <div className="space-y-4">
@@ -2212,12 +2220,34 @@ export function ListingsExplorer({
 
             {viewMode !== 'video' && !isLoading && shownListings.length === 0 && (queryError ? renderErrorState() : renderEmptyState())}
 
+            {/* ⚠️ THE TRANSITION LIVES OUTSIDE THE CONDITIONAL, AND THE PREDICATE IS `queryFetching`.
+                Both were wrong together, and the pair made this the one motion in the app that lied.
+                · `transition-opacity` used to sit INSIDE the `isLoading &&` string, so the utility was
+                  added and removed WITH the opacity: the dim could fade in, but the recovery — the
+                  moment results actually arrive — was a hard snap. The arrival was never animated.
+                · `isLoading` is `queryLoading || (queryFetching && listings.length === 0)`, and
+                  `placeholderData: (previousData) => previousData` keeps the old rows on screen, so
+                  on a facet or sort tap `listings.length` is never 0 and this was false for the WHOLE
+                  refetch. The only "results are loading" affordance on the surface never fired on the
+                  interaction it exists for.
+                `queryFetching` is true for exactly the window between the tap and the new inventory.
+                The dim is gentler than the old `opacity-60`, which read as DISABLED on results that
+                are still valid and still tappable; pointer-events are left alone for the same reason. */}
             {viewMode !== 'video' && shownListings.length > 0 && (
-              <div className={cn(isLoading && 'opacity-60 pointer-events-none transition-opacity')}>
-                <div
-                  key={`${viewMode}|${activeCategory}|${activeSubcategory}|${activeDistrict}|${sort}|${verifiedOnly}|${conditionFilter}`}
-                  className="animate-in fade-in slide-in-from-bottom-1 duration-200"
-                >
+              <div className={cn('transition-opacity duration-200', queryFetching && 'opacity-70')}>
+                {/* ⚠️ NO `key` AND NO ENTRANCE. The key was
+                    `viewMode|activeCategory|activeSubcategory|activeDistrict|sort|verifiedOnly|conditionFilter`,
+                    which forced a full unmount/remount of every card on each filter change: every
+                    <Image placeholder="blur"> re-entered blurred, CardVideo tore down and re-observed,
+                    per-card carousel idx/expanded state reset, the LCP card re-preloaded, and the
+                    memo() on ListingCard was defeated for that commit. All of it paid for a 200ms
+                    `animate-in fade-in slide-in-from-bottom-1` that — because placeholderData holds the
+                    previous rows — animated the OLD results in, then swapped the real ones in silently.
+                    The entrance was literally animating the wrong data. The key was also only a PARTIAL
+                    signature (it omitted priceRange, listingType, brand, model and the query), so it
+                    did not even remount consistently. Cards now update in place, which is what a
+                    continuous surface should do. */}
+                <div>
                 {viewMode === 'grid' && (
                   /* Grid Mode (Standard Cards) */
                   <div className="grid grid-cols-2 gap-2 sm:gap-4 sm:grid-cols-3 lg:grid-cols-4">

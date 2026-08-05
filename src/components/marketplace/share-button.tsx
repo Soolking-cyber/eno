@@ -147,7 +147,7 @@ export function ShareButton({ url, title, price, currency, className, compact = 
               size="md"
               variant="overlay"
               aria-label={tr('Share', 'Chia sẻ')}
-              className={cn('transition-transform active:scale-95', className)}
+              className={cn('transition-transform active:scale-[0.96]', className)}
             >
               <Share2 className="h-5 w-5" />
             </IconButton>
@@ -158,7 +158,7 @@ export function ShareButton({ url, title, price, currency, className, compact = 
               type="button"
               aria-label={tr('Share', 'Chia sẻ')}
               className={cn(
-                'flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-sm font-semibold transition-colors cursor-pointer active:scale-95 tap-44 relative',
+                'flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-sm font-semibold transition-colors cursor-pointer active:scale-[0.96] tap-44 relative',
                 open ? 'bg-accent text-accent-foreground' : 'text-body hover:bg-muted',
                 className,
               )}

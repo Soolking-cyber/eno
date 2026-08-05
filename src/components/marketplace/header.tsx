@@ -317,7 +317,7 @@ export function Header() {
           // with no brand mark and no way home. `user && 'lg:hidden'` mirrors that exact condition —
           // change one and the other must follow, or the logo vanishes for people who have no rail.
             className={cn(
-              'flex shrink-0 items-center transition-transform duration-200 hover:scale-110 active:scale-95',
+              'flex shrink-0 items-center transition-transform duration-200 hover:scale-110 active:scale-[0.96]',
               railOpen && 'lg:hidden',
             )}
           aria-label={SITE_NAME}

@@ -408,7 +408,7 @@ export default function DisputeRoomPage() {
                       onClick={send}
                       disabled={sending || (text.trim().length === 0 && files.length === 0)}
                       className={cn(
-                        'px-5 py-2.5 active:scale-[0.98] cursor-pointer',
+                        'px-5 py-2.5 active:scale-[0.96] cursor-pointer',
                         (sending || (text.trim().length === 0 && files.length === 0)) && 'opacity-40 cursor-default',
                       )}
                     >
