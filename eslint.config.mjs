@@ -23,6 +23,25 @@ const eslintConfig = [...nextCoreWebVitals, ...nextTypescript, {
         selector: "TemplateElement[value.raw=/\\[#(?:0a66c2|004182|e8f1fb)\\]/i]",
         message: "Use a theme token (bg-primary / text-brand / hover:bg-brand-dark / bg-brand-50) instead of a hardcoded brand hex class.",
       },
+
+      // ── PII must not reach the logs ────────────────────────────────────────────────
+      // Passing a bare `phone` or `email` IDENTIFIER straight into console.* dumps a
+      // subscriber's real contact details into Cloud Logging, where retention outlives the
+      // incident that produced them. Found 2026-08-05 at api/auth/send-sms/route.ts:157
+      // ("all channels failed for", phone) — sixty lines after :98 got the same job right with
+      // `phone.slice(0, 6)`. The failure mode was perverse: that line fires most during a
+      // provider outage, so the worse the incident, the more complete the dump.
+      //
+      // ⚠️ DELIBERATELY MATCHES ONLY A BARE IDENTIFIER ARGUMENT. `phone.slice(0, 6)` is a
+      // CallExpression and `{ prefix: phone }` is a Property, so neither trips — which is the
+      // point: the rule bans the raw value, not the topic. It is at ZERO violations as of the
+      // commit that added it, so it costs nothing to keep and exists purely so the fix cannot
+      // silently regress. Log a prefix, a masked handle (src/lib/utils maskEmailHandle), or an
+      // opaque id instead.
+      {
+        selector: "CallExpression[callee.object.name='console'] > Identifier[name=/^(phone|email)$/]",
+        message: "Never log a raw phone/email. Use phone.slice(0, 6), maskEmailHandle(email), or an opaque id — Cloud Logging retention outlives the incident.",
+      },
     ],
 
     // TypeScript rules

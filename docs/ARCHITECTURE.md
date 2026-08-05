@@ -947,7 +947,7 @@ There is no committed secret: `.env` and all `.env*.local` / `.env.production` /
 
 **Rate limiting — Upstash Redis**
 - `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` — primary names. The code *also* accepts `KV_REST_API_URL` / `KV_REST_API_TOKEN` (the names Vercel's KV/Marketplace integration injects) — this dual-name acceptance exists specifically to avoid the "added Upstash but limiting still off" name-mismatch trap (`src/lib/ratelimit.ts:15-16`).
-- `CONTACT_IP_SALT` — salt for SHA-256-hashing reveal IPs before storage (`src/app/api/listings/[id]/contact/route.ts:13,16`); defaults to `'eno-contact'` if unset.
+- `CONTACT_IP_SALT` — salt for SHA-256-hashing reveal IPs before storage (`src/app/api/listings/[id]/contact/route.ts`). **There is no default any more.** It used to fall back to the literal `'eno-contact'`, which is not a secret once it is in a public repo — and the protected input space is IPv4, so a stolen `ContactReveal` table could be reversed to raw IPs by brute force in minutes. Unset, the route now stores `ipHash = NULL` rather than a guessable digest, and logs once per process. Set it (32+ random bytes, `openssl rand -base64 32`) in Secret Manager to restore the abuse signal; rotation is free because no stored hash is ever compared. ⚠️ Rows written before 2026-08-05 were hashed with the old default and should be treated as storing the raw client IP of a signed-in buyer.
 
 **Phone OTP delivery — Supabase Send SMS Hook → eSMS.vn / SpeedSMS.vn**
 - `SEND_SMS_HOOK_SECRET` — Standard-Webhooks HMAC secret (form `v1,whsec_<base64>`); the *only* thing authenticating the public `/api/auth/send-sms` route — every request is verified and the OTP is never logged (`src/app/api/auth/send-sms/route.ts:11-17`).

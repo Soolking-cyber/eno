@@ -154,6 +154,12 @@ export async function POST(req: Request) {
   // 6) Return 200 even on a transient delivery hiccup: Supabase already stored
   //    the code and the user can resend — a non-200 would ABORT their login. We
   //    log (without the OTP) so a silent provider outage is still noticed.
-  if (!delivered) console.error('[send-sms] all channels failed for', phone)
+  // ⚠️ PREFIX ONLY — this line logged the FULL number until 2026-08-05, sixty lines after :98 got
+  // it right with the same `phone.slice(0, 6)`. It is also the line that fires most during a
+  // provider outage, so the failure mode was: the worse the incident, the more complete the dump of
+  // subscriber phone numbers into Cloud Logging, where retention outlives the incident. Six digits
+  // (+84 plus the operator prefix) is what the log is actually for — telling ESMS-vs-Telegram-vs-
+  // WhatsApp breakage apart — and identifying an individual is not.
+  if (!delivered) console.error('[send-sms] all channels failed', { prefix: phone.slice(0, 6) })
   return NextResponse.json({}, { status: 200 })
 }
