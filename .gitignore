@@ -84,3 +84,6 @@ supabase/.temp/
 # Second-opinion receipts — machine-local proof that a given staged diff was reviewed.
 # Content-hashed, so they are meaningless on another checkout and must not be shared.
 .second-opinion/
+
+# Local Claude Code overrides — machine-specific, never shared
+.claude/settings.local.json
