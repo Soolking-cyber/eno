@@ -23,6 +23,46 @@ const BRAND_HEX_RULES = [
 ];
 
 /**
+ * ⚠️ A DATABASE WRITE THAT FAILS SILENTLY IS INDISTINGUISHABLE FROM ONE THAT SUCCEEDED.
+ *
+ * `.catch(() => {})` on a `db.*` call was the idiom for "best-effort, do not block the response",
+ * and the intent is right — a trust heartbeat or a view counter must not 500 a page. What was wrong
+ * is the SILENCE: 17 of these existed on 2026-08-05, six of them on the trust, enforcement, dispute
+ * and moderation paths, including two that write `verified: false` to take a listing down. If that
+ * write failed, the admin saw success, the listing stayed live, and nothing anywhere recorded it.
+ *
+ * The fix is not to stop swallowing — it is to swallow OUT LOUD:
+ *     .catch((e) => logError(e, { op: 'moderate.unverifyListing' }))
+ * Same latency, same non-blocking behaviour, one line in Cloud Logging when it goes wrong.
+ *
+ * Scoped to `src/lib` and `src/app/api` via the block below — MOSTLY server code, where `logError`
+ * reaches Cloud Logging.
+ *
+ * ⚠️ "MOSTLY", NOT "UNAMBIGUOUSLY" — an earlier version of this comment claimed the latter and a
+ * reviewer disproved it in one line: `src/lib/analytics.ts` opens with "Client-side GA4 events" and
+ * touches `window`. A handful of `src/lib` modules are browser code, and for those the rule's
+ * premise is inverted — reporting a failed beacon puts JSON in the visitor's console and nothing in
+ * Cloud Logging. Those sites take a narrow `eslint-disable-next-line` that states the reason,
+ * rather than the rule pretending they do not exist.
+ *
+ * ⚠️ KNOWN GAP, STATED RATHER THAN PAPERED OVER. A reviewer pointed out that Server Components and
+ * Server Actions live in `src/app/**\/*.tsx` and are therefore NOT covered. That is true. Widening
+ * the rule to all of `src/` was measured and produces 52 violations — every one of them in a CLIENT
+ * component (`components/`, `context/`, `hooks/`), where a fire-and-forget failure has no server log
+ * to reach and the rule's premise does not hold. Telling server `.tsx` from client `.tsx` needs the
+ * `'use client'` directive, which an AST selector cannot see, so the honest options were "cover the
+ * server code we can identify" or "fail 52 times for a reason that does not apply". This is the
+ * first. A silent catch in a Server Component is still a real gap; it is just not one this selector
+ * can close.
+ */
+const SILENT_DB_CATCH_RULES = [
+  {
+    selector: "CallExpression[callee.property.name='catch'] > ArrowFunctionExpression[body.type='BlockStatement'][body.body.length=0]",
+    message: "Do not swallow an error silently. Use .catch((e) => logError(e, { op: 'area.action' })) — same non-blocking behaviour, but a failed write stops being invisible.",
+  },
+]
+
+/**
  * ⚠️ APPLIED TO src/** ONLY — see the scoped block further down, and note WHY it is a separate
  * const rather than more entries in the array above. ESLint flat config REPLACES a rule's options
  * wholesale when a later block re-declares it, so a scoped `no-restricted-syntax` for src/** would
@@ -189,6 +229,15 @@ const eslintConfig = [...nextCoreWebVitals, ...nextTypescript, {
   files: ["src/**/*.ts", "src/**/*.tsx"],
   rules: {
     "no-restricted-syntax": ["error", ...BRAND_HEX_RULES, ...PII_LOG_RULES],
+  },
+}, {
+  // ⚠️ ALL THREE LISTS, for the flat-config reason spelled out above: a later block re-declaring
+  // `no-restricted-syntax` REPLACES the earlier options wholesale, so omitting any list here would
+  // silently switch it off for exactly the server code that most needs it.
+  files: ["src/lib/**/*.ts", "src/app/api/**/*.ts"],
+  ignores: ["**/*.test.ts"],
+  rules: {
+    "no-restricted-syntax": ["error", ...BRAND_HEX_RULES, ...PII_LOG_RULES, ...SILENT_DB_CATCH_RULES],
   },
 }, {
   // Playwright fixtures receive a `use(...)` callback that is NOT the React `use` hook;

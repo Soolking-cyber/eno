@@ -4,6 +4,7 @@ import { mkdtemp, readFile, rm, chmod } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import ffmpegPath from 'ffmpeg-static'
+import { logError } from '@/lib/log'
 
 // Self-hosted ffmpeg transcode of an uploaded listing clip → one lean, universally-playable
 // H.264 MP4. Runs inside the Vercel function (ffmpeg-static binary; externalized + traced in
@@ -25,7 +26,7 @@ async function ensureExecutable(p: string): Promise<void> {
   if (chmodDone) return
   chmodDone = true
   // Tracing can drop the executable bit; restore it once (idempotent, best-effort).
-  await chmod(p, 0o755).catch(() => {})
+  await chmod(p, 0o755).catch((e) => logError(e, { op: 'video-transcode.chmod' }))
 }
 
 export async function transcodeToMp4(inputPath: string): Promise<Buffer | null> {
@@ -67,6 +68,6 @@ export async function transcodeToMp4(inputPath: string): Promise<Buffer | null> 
     console.error('[transcode]', e)
     return null
   } finally {
-    if (dir) await rm(dir, { recursive: true, force: true }).catch(() => {})
+    if (dir) await rm(dir, { recursive: true, force: true }).catch((e) => logError(e, { op: 'video-transcode.rm' }))
   }
 }

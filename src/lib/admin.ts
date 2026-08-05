@@ -6,6 +6,7 @@ import { ensureProfile } from '@/lib/profile'
 import { recordPhoneVerified, BASE_SCORE, PHONE_VERIFIED_BONUS } from '@/lib/trust'
 import type { Profile } from '@/generated/prisma/client'
 import { normalizePhone } from '@/lib/phone'
+import { logError } from '@/lib/log'
 
 /** Comma-separated allowlist from ADMIN_EMAILS (server-only env). */
 function adminEmails(): string[] {
@@ -88,7 +89,7 @@ export async function getCurrentProfile(): Promise<Profile | null> {
   // still below the post-credit baseline (so credited accounts don't re-check), and after
   // the response flushes (zero added latency).
   if (data.user.phone_confirmed_at && existing.trustScore < BASE_SCORE + PHONE_VERIFIED_BONUS) {
-    try { after(() => recordPhoneVerified(existing.id).catch(() => {})) } catch { /* no request scope */ }
+    try { after(() => recordPhoneVerified(existing.id).catch((e) => logError(e, { op: 'admin.recordPhoneVerified' }))) } catch { /* no request scope */ }
   }
 
   // Presence heartbeat (powers the coarse "Active today/this week" bucket — see
@@ -109,7 +110,7 @@ export async function getCurrentProfile(): Promise<Profile | null> {
             OR: [{ lastSeenAt: null }, { lastSeenAt: { lt: new Date(Date.now() - HEARTBEAT_MS) } }],
           },
           data: { lastSeenAt: new Date() },
-        }).catch(() => {}),
+        }).catch((e) => logError(e, { op: 'presence.heartbeat' })),
       )
     } catch { /* no request scope */ }
   }

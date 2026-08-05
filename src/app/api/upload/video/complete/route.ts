@@ -3,6 +3,7 @@ import { getCurrentProfileId } from '@/lib/admin'
 import { rateLimit } from '@/lib/ratelimit'
 import { getSupabaseAdmin, LISTING_VIDEOS_BUCKET } from '@/lib/supabase-admin'
 import { looksLikeVideo, VIDEO_PATH_RE } from '@/lib/core/media'
+import { logError } from '@/lib/log'
 
 export const runtime = 'nodejs'
 
@@ -43,12 +44,19 @@ export async function POST(req: NextRequest) {
       got += value.length
       if (got > 64 * 1024) break // Range ignored + giant frames — more than enough to decide
     }
-    reader.cancel().catch(() => {})
+    reader.cancel().catch((e) => logError(e, { op: 'complete.cancel' }))
     const head = Buffer.concat(chunks).subarray(0, 16)
 
     if (!looksLikeVideo(head)) {
       // Not a video container → evict it from the public bucket immediately.
-      await admin.storage.from(LISTING_VIDEOS_BUCKET).remove([path]).catch(() => {})
+      // ⚠️ CHECK THE RETURNED `error`, DO NOT `.catch()` IT. supabase-js does not reject on an API
+      // failure: StorageFileApi.handleOperation catches internally and returns `{ data: null, error }`
+      // unless `shouldThrowOnError` is set (verified in
+      // node_modules/@supabase/storage-js/dist/index.mjs). So a `.catch()` here is DEAD CODE for the
+      // realistic failure — a permissions or bucket error — and an earlier version of this line had
+      // exactly that, which is worse than the bare swallow it replaced because it looks handled.
+      const { error: rmErr } = await admin.storage.from(LISTING_VIDEOS_BUCKET).remove([path])
+      if (rmErr) logError(rmErr, { op: 'upload.evictNonVideo', bucket: LISTING_VIDEOS_BUCKET })
       return NextResponse.json({ error: 'not_a_video' }, { status: 415 })
     }
     return NextResponse.json({ url: publicUrl })

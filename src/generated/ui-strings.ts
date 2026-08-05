@@ -1068,6 +1068,7 @@ export const UI_STRINGS: string[] = [
   "Record video",
   "Recovering",
   "Red",
+  "Reference",
   "Refine in full search",
   "Registered address",
   "Registered legal name",

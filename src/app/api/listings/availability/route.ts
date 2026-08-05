@@ -6,6 +6,7 @@ import { BUMP_COOLDOWN_DAYS } from '@/lib/stale'
 import { removeFromIndex } from '@/lib/listing-index'
 import { recomputeRankScoreForListings } from '@/lib/ranking'
 import { rateLimit } from '@/lib/ratelimit'
+import { logError } from '@/lib/log'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -69,6 +70,6 @@ export async function POST(req: NextRequest) {
   for (const id of sold) revalidatePath(`/listings/${id}`)
   after(() => { for (const id of sold) removeFromIndex(id) }) // pull sold items from AI search
   // The seller engaged with the review → reset the consecutive-skip counter.
-  if (profile.availabilitySkips > 0) after(() => db.profile.update({ where: { id: profile.id }, data: { availabilitySkips: 0 } }).catch(() => {}))
+  if (profile.availabilitySkips > 0) after(() => db.profile.update({ where: { id: profile.id }, data: { availabilitySkips: 0 } }).catch((e) => logError(e, { op: 'availability.resetSkips' })))
   return NextResponse.json({ ok: true, confirmed, markedSold })
 }

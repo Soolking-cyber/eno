@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { getCurrentProfileId } from '@/lib/admin'
 import { translateBatch, LANGS, type Lang } from '@/lib/translate'
 import { rateLimit, kv } from '@/lib/ratelimit'
+import { logError } from '@/lib/log'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -71,7 +72,7 @@ async function cacheFresh(lang: Lang, sources: string[], results: string[]): Pro
     const value = results[i] ?? src
     if (value !== src) fresh.push([cacheKey(lang, src), value])
   })
-  if (fresh.length) await kv.mset(fresh, EPHEMERAL_TTL_SEC).catch(() => {})
+  if (fresh.length) await kv.mset(fresh, EPHEMERAL_TTL_SEC).catch((e) => logError(e, { op: 'translate.mset' }))
 }
 
 export async function POST(req: Request) {

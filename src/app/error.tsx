@@ -12,7 +12,22 @@ import { Button } from '@/components/ui/button'
 export default function Error({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
   const { tr } = useLanguage()
   useEffect(() => {
-    // Surfaces in Vercel runtime logs for triage.
+    /**
+     * ⚠️ THIS REACHES THE USER'S BROWSER CONSOLE AND NOWHERE ELSE — the comment here used to say
+     * "Surfaces in Vercel runtime logs for triage", which was false in two ways: the app has not
+     * run on Vercel since 2026-07, and this is a CLIENT component, so its output was never going to
+     * a server log on any platform. Nobody was being told about these.
+     *
+     * What IS reported: the server-side throw that produced this boundary is captured by
+     * `src/instrumentation.ts`'s `onRequestError` and reaches Cloud Logging with the route and
+     * request context. So a failure during render is visible; what stays invisible is an error
+     * thrown purely in the browser after hydration.
+     *
+     * Closing that half needs an endpoint to POST to — an unauthenticated write surface with its
+     * own rate-limit and payload questions — so it is a deliberate open item rather than an
+     * oversight. `error.digest` is the id that ties this screen to the server log entry, which is
+     * why it is shown to the user below.
+     */
     console.error('Route error:', error)
   }, [error])
 
@@ -39,6 +54,18 @@ export default function Error({ error, reset }: { error: Error & { digest?: stri
             </Link>
           </Button>
         </div>
+        {/* The one string that makes a support message actionable: `digest` is Next's id for the
+            server-side throw, and the SAME id appears on the Cloud Logging entry that
+            src/instrumentation.ts wrote. Without it a report is "a page broke"; with it the exact
+            stack is one query away. Rendered small and muted — it is for the rare person who reads
+            it, not part of the apology. */}
+        {error.digest ? (
+          <p className="mt-5 text-2xs text-body/70">
+            {tr('Reference', 'Mã tham chiếu')}
+            {': '}
+            <code className="font-mono">{error.digest}</code>
+          </p>
+        ) : null}
       </div>
     </div>
   )

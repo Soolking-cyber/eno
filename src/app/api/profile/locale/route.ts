@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getCurrentProfileId } from '@/lib/admin'
 import { LANGS } from '@/lib/i18n/langs'
+import { logError } from '@/lib/log'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -22,6 +23,6 @@ export async function POST(req: Request) {
 
   // Only write when it actually changed (cheap read first to avoid needless updates).
   const cur = await db.profile.findUnique({ where: { id: meId }, select: { locale: true } })
-  if (cur && cur.locale !== locale) await db.profile.update({ where: { id: meId }, data: { locale } }).catch(() => {})
+  if (cur && cur.locale !== locale) await db.profile.update({ where: { id: meId }, data: { locale } }).catch((e) => logError(e, { op: 'profile.saveLocale' }))
   return NextResponse.json({ ok: true })
 }

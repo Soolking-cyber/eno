@@ -60,6 +60,12 @@ function viewContentBeacon(id: string, eventId: string): void {
     if (typeof navigator !== 'undefined' && navigator.sendBeacon) {
       navigator.sendBeacon('/api/track/view', new Blob([payload], { type: 'application/json' }))
     } else {
+      // ⚠️ SILENCE IS CORRECT HERE, UNLIKE EVERYWHERE ELSE THIS PATTERN APPEARS. This whole file is
+      // client-side GA4/beacon plumbing (see the header), so there is no server log for `logError`
+      // to reach — it would print JSON into the visitor's own console and nothing into Cloud
+      // Logging. The file's own rule is "analytics must never break UX", and a dropped view-beacon
+      // is not an incident. The disable is narrow, on one line, and states its reason.
+      // eslint-disable-next-line no-restricted-syntax
       fetch('/api/track/view', { method: 'POST', headers: { 'content-type': 'application/json' }, body: payload, keepalive: true }).catch(() => {})
     }
   } catch { /* analytics must never break UX */ }

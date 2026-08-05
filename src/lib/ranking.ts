@@ -2,6 +2,7 @@ import 'server-only'
 import { Prisma } from '@/generated/prisma/client'
 import { db } from '@/lib/db'
 import { rankScoreExprSql } from '@/lib/ranking-formula'
+import { logError } from '@/lib/log'
 
 // The pure formula (constants, components, browse/search scores) lives in
 // src/lib/ranking-formula.ts so the seed and tsx scripts can consume the SAME source
@@ -23,7 +24,7 @@ const SET_RANK_SCORE = Prisma.sql`"rankScore" = ${Prisma.raw(rankScoreExprSql())
 
 /** Recompute one listing's rankScore at the current time (e.g. after a status change). */
 export async function recomputeRankScoreForListing(id: string): Promise<void> {
-  await db.$executeRaw(Prisma.sql`UPDATE "Listing" SET ${SET_RANK_SCORE} WHERE "id" = ${id}`).catch(() => {})
+  await db.$executeRaw(Prisma.sql`UPDATE "Listing" SET ${SET_RANK_SCORE} WHERE "id" = ${id}`).catch((e) => logError(e, { op: 'ranking.recompute' }))
 }
 
 /** Recompute rankScore for a specific set of active listings (e.g. a batch availability
@@ -33,14 +34,14 @@ export async function recomputeRankScoreForListings(ids: string[], sellerId?: st
   const guard = sellerId ? Prisma.sql`AND "sellerId" = ${sellerId}` : Prisma.empty
   await db
     .$executeRaw(Prisma.sql`UPDATE "Listing" SET ${SET_RANK_SCORE} WHERE "id" IN (${Prisma.join(ids)}) AND "status" = 'active' ${guard}`)
-    .catch(() => {})
+    .catch((e) => logError(e, { op: 'ranking.recomputeForListings' }))
 }
 
 /** Recompute rankScore for all of a seller's active listings (after their trust changes). */
 export async function recomputeRankScoreForSeller(sellerId: string): Promise<void> {
   await db
     .$executeRaw(Prisma.sql`UPDATE "Listing" SET ${SET_RANK_SCORE} WHERE "sellerId" = ${sellerId} AND "status" = 'active'`)
-    .catch(() => {})
+    .catch((e) => logError(e, { op: 'ranking.recomputeForSeller' }))
 }
 
 /** Daily re-decay sweep: refresh rankScore for every live listing. Returns rows touched. */

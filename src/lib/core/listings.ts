@@ -36,6 +36,7 @@ import { moderateListingById } from '@/lib/ai-moderation'
 import { indexAndCheckProvenance } from '@/lib/image-provenance'
 import { priceChangeEffects } from '@/lib/price-drop'
 import { activateUrgentGate, urgentQuotaFree, URGENT } from '@/lib/urgent'
+import { logError } from '@/lib/log'
 
 // ── Listing write-path "cores" (Phase 0 of the Partner API) ──────────────────────
 // These hold the business logic for mutating a listing, decoupled from HOW the caller
@@ -236,7 +237,7 @@ export async function confirmCore(listingId: string, profileId: string): Promise
     after(() => reindexListing(listingId))
     after(() => dispatchListingEvent('listing.status_changed', listingId, undefined, { status: 'active' }))
   }
-  after(() => recordEngagement(profileId).catch(() => {})) // reward keeping listings fresh (daily-capped)
+  after(() => recordEngagement(profileId).catch((e) => logError(e, { op: 'listings.recordEngagement' }))) // reward keeping listings fresh (daily-capped)
   return { ok: true, bumped: bump }
 }
 
@@ -735,7 +736,7 @@ export async function createListingCore(input: {
       verified: true,
     },
   })
-  if (brandSlug) after(() => { bumpBrandCount(brandSlug!); enrichBrandLogoIfMissing(brandSlug!).catch(() => {}) })
+  if (brandSlug) after(() => { bumpBrandCount(brandSlug!); enrichBrandLogoIfMissing(brandSlug!).catch((e) => logError(e, { op: 'listings.enrichBrandLogoIfMissing' })) })
 
   // Tier-2 illegal-content moderation: an AI vision+text pass runs AFTER the response
   // flushes (the listing is already live — instant-publish stays instant). Trust-gated to

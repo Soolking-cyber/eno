@@ -6,6 +6,7 @@ import { applyTrustEvent, penalizeSeller, recomputeTrust, SEVERITY_PENALTY, FALS
 import { syncEnforcement } from '@/lib/enforcement'
 import { APPEAL_NOTICE, pickLocale } from '@/lib/admin-macros'
 import { DISPUTE_BODY_MAX, DISPUTE_WINDOW_MS, addDisputeMessage, notifyDispute, respondentProfileId } from '@/lib/dispute'
+import { logError } from '@/lib/log'
 
 export const dynamic = 'force-dynamic'
 
@@ -19,7 +20,7 @@ async function notifyActioned(targetProfileId: string, reportId: string) {
   const l = pickLocale(p?.locale)
   await db.notification.create({
     data: { recipientId: targetProfileId, type: 'dispute', title: APPEAL_NOTICE.title[l], body: APPEAL_NOTICE.body[l], actorName: 'eno.vn moderation', url: `/disputes/${reportId}` },
-  }).catch(() => {})
+  }).catch((e) => logError(e, { op: 'moderate.appealNotice' }))
 }
 
 // Tell each reporter their case closed with no violation — but ONLY for rows the
@@ -66,7 +67,7 @@ export async function POST(req: NextRequest) {
   switch (action) {
     case 'set-note': {
       // Staff-only note on the case — never shown to users.
-      await db.report.update({ where: { id }, data: { internalNote: String(body.note ?? '').slice(0, 2000) || null } }).catch(() => {})
+      await db.report.update({ where: { id }, data: { internalNote: String(body.note ?? '').slice(0, 2000) || null } }).catch((e) => logError(e, { op: 'moderate.internalNote' }))
       return NextResponse.json({ ok: true })
     }
 
@@ -77,7 +78,7 @@ export async function POST(req: NextRequest) {
       // SQL statement appends server-side; the 2000-char cap is enforced in the SET.
       const line = String(body.note ?? '').slice(0, 500)
       if (line) {
-        await db.$executeRaw`UPDATE "Report" SET "internalNote" = left(coalesce("internalNote" || E'\n', '') || ${line}, 2000) WHERE id = ${id}`.catch(() => {})
+        await db.$executeRaw`UPDATE "Report" SET "internalNote" = left(coalesce("internalNote" || E'\n', '') || ${line}, 2000) WHERE id = ${id}`.catch((e) => logError(e, { op: 'moderate.appendInternalNote' }))
       }
       return NextResponse.json({ ok: true })
     }
@@ -130,7 +131,7 @@ export async function POST(req: NextRequest) {
           // Enforcement ladder: re-derive now that the confirmation landed (fail-quiet inside).
           if (res) await syncEnforcement(report.targetProfileId, res.breakdown, { persistedScore: res.score, triggerReportId: rid })
         } else if (report.targetSellerId) await penalizeSeller(report.targetSellerId, penalty, { reason: `report:${rid}`, reportId: rid })
-        if (report.listingId) { await db.listing.update({ where: { id: report.listingId }, data: { verified: false } }).catch(() => {}); revalidatePath(`/listings/${report.listingId}`) }
+        if (report.listingId) { await db.listing.update({ where: { id: report.listingId }, data: { verified: false } }).catch((e) => logError(e, { op: 'moderate.unverifyListing' })); revalidatePath(`/listings/${report.listingId}`) }
         if (report.targetProfileId) await notifyActioned(report.targetProfileId, rid)
         if (report.reporterProfileId) await notifyDispute(report.reporterProfileId, rid, 'decided_upheld_reporter')
         confirmed++
@@ -202,7 +203,7 @@ export async function POST(req: NextRequest) {
       }
       // Reactive: take the reported listing down immediately.
       if (report.listingId) {
-        await db.listing.update({ where: { id: report.listingId }, data: { verified: false } }).catch(() => {})
+        await db.listing.update({ where: { id: report.listingId }, data: { verified: false } }).catch((e) => logError(e, { op: 'moderate.unverifyListing' }))
         revalidatePath(`/listings/${report.listingId}`)
       }
       // Tell the reported party (if they have an account) + give them an appeal path,
@@ -320,7 +321,7 @@ export async function POST(req: NextRequest) {
       await addDisputeMessage(report, {
         senderProfileId: null, senderRole: 'system',
         body: `Evidence window extended until ${until.toISOString()}`,
-      }, { notify: false }).catch(() => {})
+      }, { notify: false }).catch((e) => logError(e, { op: 'moderate.extendWindowMessage' }))
       if (report.reporterProfileId) await notifyDispute(report.reporterProfileId, id, 'window_extended')
       const extendedRespondent = await respondentProfileId(report)
       if (extendedRespondent) await notifyDispute(extendedRespondent, id, 'window_extended')

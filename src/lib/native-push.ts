@@ -4,6 +4,7 @@ import http2 from 'node:http2'
 import { db } from './db'
 import { badgeCountFor } from './unread'
 import type { PushPayload } from './push'
+import { logError } from '@/lib/log'
 
 /**
  * NATIVE push (Capacitor apps): FCM for Android, APNs for iOS — the counterpart to
@@ -190,7 +191,7 @@ export async function syncBadgeToProfile(profileId: string): Promise<void> {
     const tokens = await db.nativePushToken.findMany({ where: { profileId, platform: 'ios' } })
     if (tokens.length === 0) return
     const jwt = apnsJwt(apns)
-    await Promise.all(tokens.map((t) => sendApnsBadge(apns, jwt, t.token, badge).catch(() => {})))
+    await Promise.all(tokens.map((t) => sendApnsBadge(apns, jwt, t.token, badge).catch((e) => logError(e, { op: 'native-push.sendApnsBadge' }))))
   } catch { /* never let a badge refresh surface to the caller */ }
 }
 

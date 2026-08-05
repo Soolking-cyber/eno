@@ -5,6 +5,7 @@ import { rateLimit, kv } from '@/lib/ratelimit'
 import { insertMessage } from '@/lib/messages'
 import { messagingGate } from '@/lib/enforcement'
 import { recordFixedPriceOfferAttempt } from '@/lib/offer-guard'
+import { logError } from '@/lib/log'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -50,7 +51,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   }
   // A claim must never outlive a FAILED attempt — every error exit below releases it,
   // else a retry of a validation failure would 409 for the whole TTL.
-  const release = async () => { if (idemKey) await kv.del(idemKey).catch(() => {}) }
+  const release = async () => { if (idemKey) await kv.del(idemKey).catch((e) => logError(e, { op: 'messages.del' })) }
 
   // An offer is a structured message: validate the amount. The body carries ONLY
   // the sender's optional note (possibly empty) — the offer line itself is derived
@@ -96,6 +97,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   }
   // Store the committed result for replay (best-effort — a miss just means a rare
   // duplicate on the exact old failure pattern, never a lost message).
-  if (idemKey) await kv.set(idemKey, message, { ex: 86_400 }).catch(() => {})
+  if (idemKey) await kv.set(idemKey, message, { ex: 86_400 }).catch((e) => logError(e, { op: 'messages.set' }))
   return NextResponse.json(message)
 }

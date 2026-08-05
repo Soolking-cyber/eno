@@ -5,6 +5,7 @@ import { getSupabaseAdmin, EVIDENCE_BUCKET } from './supabase-admin'
 import { pickLocale } from './admin-macros'
 import { sendPushToProfile } from './push'
 import { maskEmailHandle } from './utils'
+import { logError } from '@/lib/log'
 
 // ── Dispute center core (Binance-P2P-style case rooms on Report) ─────────────────
 // Every report IS a dispute case: reporter + respondent + admin exchange statements
@@ -321,7 +322,7 @@ export async function addDisputeMessage(
     },
     select: { id: true, createdAt: true },
   })
-  await db.report.update({ where: { id: report.id }, data: { lastMessageAt: row.createdAt } }).catch(() => {})
+  await db.report.update({ where: { id: report.id }, data: { lastMessageAt: row.createdAt } }).catch((e) => logError(e, { op: 'dispute.touchLastMessage' }))
   if (opts.notify !== false) await notifyDisputeCounterparties(report, msg.senderRole, msg.senderProfileId)
   return row
 }
