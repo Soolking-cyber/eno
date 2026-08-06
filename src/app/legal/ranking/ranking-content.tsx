@@ -51,7 +51,6 @@ export function RankingContent() {
   const { tr } = useLanguage()
   return (
     <ContentPage
-      eyebrow={tr('Transparency', 'Minh bạch')}
       title={tr('How we rank results', 'Cách chúng tôi sắp xếp kết quả')}
       meta={tr(
         `Published under ${LEGAL_BASIS.ecommerceLaw.en}`,

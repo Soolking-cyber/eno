@@ -10,7 +10,6 @@ import Link from 'next/link'
 import { Header } from '@/components/marketplace/header'
 import { ListingGallery } from '@/components/marketplace/listing-gallery'
 import { PdpShopLink } from '@/components/marketplace/pdp-shop-link'
-import { Separator } from '@/components/ui/separator'
 import { Badge } from '@/components/ui/badge'
 import { Footer } from '@/components/marketplace/footer'
 import { BrandLogo } from '@/components/marketplace/brand-logo'
@@ -571,11 +570,16 @@ export default async function ListingPage({ params }: Props) {
                 <SafetyStrip categorySlug={rawListing.category.slug} action={<ReportButton listingId={listing.id} />} />
               </div>
 
-              {/* 10 — Reviews */}
-              <div className="order-10">
-                {reviewsPreview.total > 0 && <Separator className="mb-4" />}
-                <ReviewsPreview reviews={reviewsPreview.reviews} total={reviewsPreview.total} avg={reviewsPreview.avg} sellerHref={sellerHref} />
-              </div>
+              {/* 10 — Reviews. Rendered CONDITIONALLY: an always-present wrapper around a
+                  component that returns null left an empty div in this gapped flex column,
+                  which earned a full gap unit and doubled the spacing after the safety strip
+                  whenever the seller had no reviews. The hairline replaces the old <Separator>
+                  (same rule, one idiom: border-t + rhythm, per the flat-surface canon). */}
+              {reviewsPreview.total > 0 && reviewsPreview.reviews.length > 0 && (
+                <div className="order-10 border-t border-border pt-4">
+                  <ReviewsPreview reviews={reviewsPreview.reviews} total={reviewsPreview.total} avg={reviewsPreview.avg} sellerHref={sellerHref} />
+                </div>
+              )}
             </div>
           </div>
 
@@ -601,15 +605,19 @@ export default async function ListingPage({ params }: Props) {
 
             {/* 8 — Description + Details */}
             <div className="order-8 flex flex-col gap-8">
+              {/* Section headers on this page share ONE treatment (text-lg font-semibold, matching
+                  the shelf + reviews headers below) with more space above (section gap) than below. */}
               <div className="space-y-2">
-                <h2 className="h-section text-foreground"><Tr text="Description" /></h2>
-                <ListingDescription text={listing.description} i18n={i18n[listing.description]} className="space-y-3 text-base leading-relaxed text-body" />
+                <h2 className="text-lg font-semibold text-foreground"><Tr text="Description" /></h2>
+                {/* max-w-prose caps the reading measure at ~65ch — the col-7 body otherwise runs wide. */}
+                <ListingDescription text={listing.description} i18n={i18n[listing.description]} className="max-w-prose space-y-3 text-base leading-relaxed text-body" />
               </div>
 
               {(attrs.length > 0 || numericSpecs.length > 0) && (
-                <div className="space-y-1">
-                  <h2 className="h-section mb-2 text-foreground"><Tr text="Details" /></h2>
-                  <dl className="text-sm">
+                <div className="space-y-2">
+                  <h2 className="text-lg font-semibold text-foreground"><Tr text="Details" /></h2>
+                  {/* Spec table: hairline row dividers, muted label / strong value, even row height. */}
+                  <dl className="divide-y divide-border text-sm">
                     {numericSpecs.map((s) => (
                       <div key={s.label} className="flex items-start justify-between gap-4 py-2.5">
                         <dt className="text-muted-foreground"><Tr text={s.label} /></dt>
@@ -630,7 +638,7 @@ export default async function ListingPage({ params }: Props) {
 
             {/* 11 — Map */}
             <div id="location-on-map" className="order-11 space-y-2 scroll-mt-20">
-              <h2 className="h-section text-foreground"><Tr text="Location" /></h2>
+              <h2 className="text-lg font-semibold text-foreground"><Tr text="Location" /></h2>
               <div className="relative h-[260px] overflow-hidden rounded-2xl">
                 <ListingDetailMap listings={[listing]} activeDistrict={listing.district || 'all'} />
               </div>
@@ -652,8 +660,9 @@ export default async function ListingPage({ params }: Props) {
         {/* More like this — same-category listings (client-fetched, ISR-safe) */}
         <RelatedListings listingId={listing.id} categorySlug={rawListing.category.slug} />
 
-        {/* The buyer's own recently-viewed trail (excludes this listing). */}
-        <RecentlyViewedRail excludeId={listing.id} />
+        {/* The buyer's own recently-viewed trail (excludes this listing). mt-12 matches the
+            two shelves above — the three are bare siblings in main, each owning its own top gap. */}
+        <RecentlyViewedRail excludeId={listing.id} sectionClassName="mt-12" />
       </main>
 
       <Footer />

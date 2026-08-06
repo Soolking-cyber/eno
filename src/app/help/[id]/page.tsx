@@ -68,7 +68,7 @@ export default async function HelpThreadPage({ params }: { params: Promise<{ id:
   return (
     <div className="flex min-h-screen flex-col blob-bg">
       <Header />
-      <main id="main" tabIndex={-1} className="mx-auto w-full max-w-3xl flex-1 px-3 sm:px-6 lg:px-8 pt-8 pb-16">
+      <main id="main" tabIndex={-1} className="mx-auto w-full max-w-3xl flex-1 px-3 sm:px-6 lg:px-8 pt-8 sm:pt-12 pb-16">
         {/* key = the thread id. HelpThreadClient seeds useState from these props, and a
             client-side hop between two /help/[id] routes reuses the same component
             instance — without a key the previous thread's replies and half-typed draft

@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { Tr } from '@/context/language-context'
 import { ContentPage, ContentSection } from '@/components/marketplace/content-page'
 import { Button } from '@/components/ui/button'
-import { Search, MessageCircle, Tag, MapPin, Plus, BadgeCheck, Bell, Heart, Globe, ShieldCheck, ChevronRight } from 'lucide-react'
+import { Search, Tag, Plus, BadgeCheck, Bell, Heart, Globe, ShieldCheck, ChevronRight } from 'lucide-react'
 
 export const metadata: Metadata = {
   title: `How ${SITE_NAME} works — Guide | ${SITE_NAME}`,
@@ -12,16 +12,19 @@ export const metadata: Metadata = {
   alternates: { canonical: '/guide' },
 }
 
-const BUYER_STEPS: { Icon: typeof Search; title: string; body: string }[] = [
-  { Icon: Search, title: 'Search & filter', body: 'Browse by category, area and price. Every seller has a public trust score, so you can see who’s reliable at a glance.' },
-  { Icon: MessageCircle, title: 'Message or make an offer', body: 'Tap Message to chat in-app, or Make an offer to send a price. The seller can accept or counter.' },
-  { Icon: MapPin, title: 'Meet & inspect', body: 'Agree a public meeting spot, check the item in person, and only pay once you’re happy.' },
+// Ordered steps carry their sequence in a tint number chip — the same treatment as
+// /safety's "If something goes wrong" list and /about's trust steps, so the whole
+// content family speaks one visual language for "do this, then this".
+const BUYER_STEPS: { title: string; body: string }[] = [
+  { title: 'Search & filter', body: 'Browse by category, area and price. Every seller has a public trust score, so you can see who’s reliable at a glance.' },
+  { title: 'Message or make an offer', body: 'Tap Message to chat in-app, or Make an offer to send a price. The seller can accept or counter.' },
+  { title: 'Meet & inspect', body: 'Agree a public meeting spot, check the item in person, and only pay once you’re happy.' },
 ]
 
-const SELLER_STEPS: { Icon: typeof Search; title: string; body: string }[] = [
-  { Icon: Plus, title: 'Post your listing', body: 'Pick a category, add details, price and photos. The VND price field has quick chips so big numbers are fast to type.' },
-  { Icon: BadgeCheck, title: 'Build trust', body: 'Your listing goes live right away. Build a public trust score with good service to earn a Trusted badge.' },
-  { Icon: MessageCircle, title: 'Reply & sell', body: 'Buyers message you in-app; you get a notification for every reply and offer. Share your number in chat when ready.' },
+const SELLER_STEPS: { title: string; body: string }[] = [
+  { title: 'Post your listing', body: 'Pick a category, add details, price and photos. The VND price field has quick chips so big numbers are fast to type.' },
+  { title: 'Build trust', body: 'Your listing goes live right away. Build a public trust score with good service to earn a Trusted badge.' },
+  { title: 'Reply & sell', body: 'Buyers message you in-app; you get a notification for every reply and offer. Share your number in chat when ready.' },
 ]
 
 const FEATURES: { Icon: typeof Search; id?: string; title: string; body: string }[] = [
@@ -45,37 +48,35 @@ export default function GuidePage() {
       ]}
     >
       <ContentSection id="buyers" title="For buyers" wide>
-          <div className="mt-1 grid gap-x-8 gap-y-4 sm:grid-cols-3">
-            {BUYER_STEPS.map(({ Icon, title, body }, i) => (
-              <div key={title}>
-                <div className="flex items-center gap-2">
-                  <span className="text-base font-bold text-accent-foreground">{i + 1}</span>
-                  <Icon className="h-4 w-4 text-accent-foreground" />
+          <div className="mt-1 grid gap-x-8 gap-y-6 sm:grid-cols-3">
+            {BUYER_STEPS.map(({ title, body }, i) => (
+              <div key={title} className="flex gap-4">
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-tint text-sm font-bold text-accent-foreground tabular-nums">{i + 1}</span>
+                <div className="min-w-0">
+                  <h3 className="text-sm font-bold text-foreground"><Tr text={title} /></h3>
+                  <p className="mt-1 text-sm leading-relaxed text-body"><Tr text={body} /></p>
                 </div>
-                <h3 className="mt-3 text-sm font-bold text-foreground"><Tr text={title} /></h3>
-                <p className="mt-1 text-xs leading-relaxed text-body"><Tr text={body} /></p>
               </div>
             ))}
           </div>
       </ContentSection>
 
       <ContentSection id="sellers" title="For sellers" wide>
-          <div className="mt-1 grid gap-x-8 gap-y-4 sm:grid-cols-3">
-            {SELLER_STEPS.map(({ Icon, title, body }, i) => (
-              <div key={title}>
-                <div className="flex items-center gap-2">
-                  <span className="text-base font-bold text-accent-foreground">{i + 1}</span>
-                  <Icon className="h-4 w-4 text-accent-foreground" />
+          <div className="mt-1 grid gap-x-8 gap-y-6 sm:grid-cols-3">
+            {SELLER_STEPS.map(({ title, body }, i) => (
+              <div key={title} className="flex gap-4">
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-tint text-sm font-bold text-accent-foreground tabular-nums">{i + 1}</span>
+                <div className="min-w-0">
+                  <h3 className="text-sm font-bold text-foreground"><Tr text={title} /></h3>
+                  <p className="mt-1 text-sm leading-relaxed text-body"><Tr text={body} /></p>
                 </div>
-                <h3 className="mt-3 text-sm font-bold text-foreground"><Tr text={title} /></h3>
-                <p className="mt-1 text-xs leading-relaxed text-body"><Tr text={body} /></p>
               </div>
             ))}
           </div>
       </ContentSection>
 
       <ContentSection id="features" title="Features & how they work" wide>
-          <div className="mt-1 grid gap-x-10 gap-y-5 lg:grid-cols-2">
+          <div className="mt-1 grid gap-x-8 gap-y-6 lg:grid-cols-2">
             {FEATURES.map(({ Icon, id, title, body }) => (
               <div key={title} id={id} className="scroll-mt-24 flex gap-3.5">
                 <span className="mt-0.5 shrink-0 text-accent-foreground"><Icon className="h-5 w-5" /></span>

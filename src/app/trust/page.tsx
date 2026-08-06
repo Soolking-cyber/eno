@@ -10,14 +10,15 @@ export const metadata: Metadata = {
   alternates: { canonical: '/trust' },
 }
 
-// Flat, single-canvas content page (matches Guide/About) — no boxes, separation by spacing.
+// Flat, single-canvas content page (matches Guide/About) — no boxes; the tier ladder
+// and the points tables are rows separated by hairlines (divide-y), never panels.
 function Band({ score, name, range, note }: { score: number; name: string; range: string; note: string }) {
   return (
-    <div className="flex items-start gap-3">
+    <div className="flex items-start gap-4 py-4">
       <TrustScore score={score} size="lg" />
       <div className="min-w-0">
-        <div className="text-sm font-bold text-foreground"><Tr text={name} /> <span className="font-normal text-ink-4">· <Tr text={range} /></span></div>
-        <p className="text-sm text-body"><Tr text={note} /></p>
+        <div className="text-base font-bold text-foreground"><Tr text={name} /> <span className="text-sm font-normal text-ink-4">· <Tr text={range} /></span></div>
+        <p className="mt-0.5 text-sm text-body"><Tr text={note} /></p>
       </div>
     </div>
   )
@@ -26,12 +27,12 @@ function Band({ score, name, range, note }: { score: number; name: string; range
 // Clear action → points table. Green for rewards, red for penalties.
 function Points({ rows }: { rows: [string, number, string][] }) {
   return (
-    <div>
+    <div className="divide-y divide-border">
       {rows.map(([action, pts, sub], i) => (
-        <div key={i} className="flex items-start justify-between gap-4 py-2">
+        <div key={i} className="flex items-start justify-between gap-4 py-3">
           <div className="min-w-0">
-            <div className="text-sm text-foreground"><Tr text={action} /></div>
-            {sub && <div className="text-xs text-ink-4"><Tr text={sub} /></div>}
+            <div className="text-sm font-medium text-foreground"><Tr text={action} /></div>
+            {sub && <div className="mt-0.5 text-xs text-ink-4"><Tr text={sub} /></div>}
           </div>
           <span className={`shrink-0 text-sm font-bold tabular-nums ${pts > 0 ? 'text-success' : 'text-destructive'}`}>{pts > 0 ? `+${pts}` : pts}</span>
         </div>
@@ -46,7 +47,6 @@ function Points({ rows }: { rows: [string, number, string][] }) {
 export default function TrustPage() {
   return (
     <ContentPage
-      eyebrow="Trust"
       title="How trust works on eno.vn"
       intro={<Tr text="Every account has one Trust Score — a single number, shown in color — instead of stars and badges. It is recomputed every day from what an account actually does on eno.vn, and recent behavior counts more than the past — so the score always reflects who a seller is now, not who they used to be." />}
       sections={[
@@ -59,7 +59,7 @@ export default function TrustPage() {
     >
       <ContentSection id="colors" title="What the colors mean">
           <p className="text-sm text-body"><Tr text="Every account starts at 60 — a neutral 'Building' state, not a warning. The upper tiers are earned with real volume: a badge certifies a track record, never just a number." /></p>
-          <div className="mt-4 space-y-4">
+          <div className="mt-1 divide-y divide-border">
             <Band score={175} name="Elite" range="160 and up" note="The top tier — a long, high-volume, spotless track record. The most trusted businesses on eno.vn." />
             <Band score={130} name="Exceptional" range="110–159" note="At least 10 completed deals in the last year, reviews from 5 different buyers, a proven fast-reply record, and 6 clean months." />
             <Band score={95} name="Trusted" range="85–109" note="A verified account with at least 3 completed deals and either 60 days on eno or reviews from 3 different buyers — plus a clean last 90 days." />

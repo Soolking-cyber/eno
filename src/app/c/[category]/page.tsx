@@ -14,6 +14,7 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from '@/components/ui/breadcrumb'
 import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
+import { Mascot } from '@/components/marketplace/mascot'
 import { SellerListings } from '@/components/marketplace/seller-listings'
 import { Tr } from '@/context/language-context'
 
@@ -154,14 +155,16 @@ export default async function CategoryPage({ params }: Props) {
         </Breadcrumb>
 
         <h1 className="h-display text-foreground"><Tr text={cat.name} /> <Tr text="in Vietnam" /></h1>
-        <p className="mt-2 max-w-2xl text-base leading-relaxed text-body">
+        {/* Measured lede — max-w-prose (65ch) keeps the reading measure inside the craft floor's
+            65–75ch band; max-w-2xl ran ~80ch at text-base. */}
+        <p className="mt-3 max-w-prose text-base leading-relaxed text-body">
           <Tr text="Every" /> <Tr text={cat.name.toLowerCase()} /> <Tr text="listing on eno.vn comes from a seller with a public trust score, and bad listings get reported — fewer fakes, fewer bait prices." />
           {/* "0 listings available." read broken on empty categories — only count when there ARE listings. */}
           {total > 0 && <> {total} {total === 1 ? <Tr text="listing" /> : <Tr text="listings" />} <Tr text="available." /></>}
         </p>
 
         {districts.length > 0 && (
-          <div className="mt-5 flex flex-wrap gap-2">
+          <div className="mt-6 flex flex-wrap gap-2">
             <span className="self-center text-xs font-semibold text-ink-4"><Tr text="By area:" /></span>
             {districts.map((d) => (
               <Badge key={d} size="md" interactive render={<Link href={`/c/${cat.slug}/${slugify(d)}`} />} className="px-3.5 py-1.5 font-semibold text-body hover:bg-accent hover:text-accent-foreground">
@@ -171,44 +174,80 @@ export default async function CategoryPage({ params }: Props) {
           </div>
         )}
 
-        <div className="mt-8">
-          {listings.length > 0 ? (
-            <SellerListings listings={listings} sortable />
-          ) : (
-            /* Supply-side zero state: the visitor most likely to land on an empty category is
-               someone with that item to SELL — convert them instead of dead-ending. */
-            <EmptyState
-              className="py-12"
-              title={<Tr text="No listings here yet — be the first to post one." />}
-              action={
-                <Button asChild variant="cta" size="none">
-                  <Link href="/post" className="px-5 py-2.5">
-                    <Tr text="Post a listing" />
+        {/* Masthead boundary — full-bleed to the page frame's px-3/6/8 (the same negative-margin
+            coupling the sort strip below uses), so the two hairlines framing the toolbar align. */}
+        <div aria-hidden className="mt-8 -mx-3 border-t border-border sm:-mx-6 lg:-mx-8" />
+
+        {listings.length > 0 ? (
+          <>
+            <div className="mt-6">
+              {/* sr-only h2: the card titles below are h3s, and without this the outline
+                  jumps h1 → h3 (detector-confirmed skip; same fix as the home feed header). */}
+              <h2 className="sr-only"><Tr text="Listings" /></h2>
+              {/* A sort strip over a single card reads absurd — the tablist earns its row
+                  only once there is something to reorder. */}
+              <SellerListings listings={listings} sortable={listings.length > 1} />
+            </div>
+            <div className="mt-8">
+              <Button asChild variant="cta" size="none">
+                <Link href={`/?category=${cat.slug}`} className="px-5 py-2.5">
+                  <Tr text="Refine in full search" /> →
+                </Link>
+              </Button>
+            </div>
+            <section className="mt-12 border-t border-border pt-8">
+              <h2 className="h-section text-foreground"><Tr text="Other categories" /></h2>
+              <div className="mt-4 flex flex-wrap gap-2">
+                {otherCats.map((c) => (
+                  <Badge key={c.slug} size="md" interactive render={<Link href={`/c/${c.slug}`} />} className="px-3.5 py-1.5 font-semibold text-body hover:bg-accent hover:text-accent-foreground">
+                    <Tr text={c.name} />
+                  </Badge>
+                ))}
+              </div>
+            </section>
+          </>
+        ) : (
+          /* Supply-side zero state: the visitor most likely to land on an empty category is
+             someone with that item to SELL — convert them instead of dead-ending. The sibling
+             chips live INSIDE this state (not in a separate tail section) so the empty page has
+             exactly one recovery surface — and they stay real <a> links, which the noindex/
+             follow:true decision in generateMetadata depends on. */
+          <EmptyState
+            tone="bare"
+            size="lg"
+            media={<Mascot name="search" className="h-40 w-40" />}
+            title={<Tr text="No listings here yet — be the first to post one." />}
+            subtitle={<Tr text="Your listing goes live in minutes and reaches buyers across Vietnam." />}
+            action={
+              <div className="flex max-w-2xl flex-col items-center gap-6">
+                <div className="flex flex-col items-center gap-3">
+                  <Button asChild variant="cta" size="none">
+                    <Link href="/post" className="px-5 py-2.5">
+                      <Tr text="Post a listing" />
+                    </Link>
+                  </Button>
+                  {/* The anchor names what the LINK does (browse) and only promises the alert as
+                      a step there — same honest-anchor rule as the SEO landings. */}
+                  <Link href={`/?category=${cat.slug}`} className="text-sm font-semibold text-accent-foreground hover:underline">
+                    <Tr text="Or browse the category — you can set an alert there" />
                   </Link>
-                </Button>
-              }
-            />
-          )}
-        </div>
-
-        <div className="mt-8">
-          <Button asChild variant="cta" size="none">
-            <Link href={`/?category=${cat.slug}`} className="px-5 py-2.5">
-              <Tr text="Refine in full search" /> →
-            </Link>
-          </Button>
-        </div>
-
-        <div className="mt-12 pt-6">
-          <h2 className="h-section text-foreground mb-3"><Tr text="Other categories" /></h2>
-          <div className="flex flex-wrap gap-2">
-            {otherCats.map((c) => (
-              <Badge key={c.slug} size="md" interactive render={<Link href={`/c/${c.slug}`} />} className="px-3.5 py-1.5 font-semibold text-body hover:bg-accent hover:text-accent-foreground">
-                <Tr text={c.name} />
-              </Badge>
-            ))}
-          </div>
-        </div>
+                </div>
+                {otherCats.length > 0 && (
+                  <div className="flex flex-col items-center gap-3">
+                    <span className="text-xs font-semibold text-ink-4"><Tr text="Explore other categories" /></span>
+                    <div className="flex flex-wrap justify-center gap-2">
+                      {otherCats.map((c) => (
+                        <Badge key={c.slug} size="md" interactive render={<Link href={`/c/${c.slug}`} />} className="px-3.5 py-1.5 font-semibold text-body hover:bg-accent hover:text-accent-foreground">
+                          <Tr text={c.name} />
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            }
+          />
+        )}
       </main>
       <Footer />
     </div>

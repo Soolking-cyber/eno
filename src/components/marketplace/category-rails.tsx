@@ -6,11 +6,12 @@ import { ChevronRight } from 'lucide-react'
 import type { SerializedCategory, SerializedListingCard } from '@/lib/types'
 import { ListingCard } from './listing-card'
 import { CategoryIcon } from './category-icons'
-import { RAIL_CARD_W, RAIL_SCROLLER } from './shelf'
+import { RAIL_CARD_W, RAIL_SCROLLER, MIN_RAIL_ITEMS, SECTION_HEADER_ROW, SECTION_TITLE, SECTION_SEE_ALL } from './shelf'
 import { useLanguage, Tr } from '@/context/language-context'
 import { useScrollArrows, ScrollArrows } from '@/hooks/use-scroll-arrows'
 import { ListingCardSkeleton } from './listing-card-skeleton'
 import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
 
 const FILTER_KEYS = ['category', 'q', 'brand', 'subcategory', 'type', 'district', 'province', 'ward', 'condition', 'priceMin', 'priceMax']
 
@@ -40,15 +41,21 @@ function CategoryRail({ cat, listings, onCategory }: { cat: SerializedCategory; 
 
   return (
     <section>
-      <div className="mb-2.5 flex items-center justify-between gap-2">
-        {/* span, NOT h2 — a heading can't be a child of <button> (invalid HTML → React #418). */}
-        <Button variant="bare" size="none" onClick={() => onCategory(cat.slug)} className="group flex items-center gap-2 cursor-pointer">
-          <CategoryIcon name={cat.icon} className="h-4 w-4 text-accent-foreground" />
-          <span className="text-base font-bold text-foreground transition-colors group-hover:text-accent-foreground">
-            <Tr text={lang === 'vi' ? cat.nameVi : cat.name} />
-          </span>
-        </Button>
-        <Button variant="bare" size="none" onClick={() => onCategory(cat.slug)} className="flex shrink-0 items-center gap-0.5 text-sm font-semibold text-accent-foreground hover:underline cursor-pointer">
+      {/* The header is the SHARED treatment (SECTION_* from shelf.tsx) so this rail cannot
+          drift from the <Shelf> rails around it — it hand-rolled the same row before and had
+          already drifted. The h2 WRAPS the button (heading > button is valid phrasing
+          content); the reverse — a heading inside a <button> — is invalid HTML → React #418,
+          which is why the title text itself stays a span. */}
+      <div className={SECTION_HEADER_ROW}>
+        <h2 className="min-w-0">
+          <Button variant="bare" size="none" onClick={() => onCategory(cat.slug)} className="group flex items-center gap-2">
+            <CategoryIcon name={cat.icon} className="h-4 w-4 text-accent-foreground" />
+            <span className={cn(SECTION_TITLE, 'transition-colors group-hover:text-accent-foreground')}>
+              <Tr text={lang === 'vi' ? cat.nameVi : cat.name} />
+            </span>
+          </Button>
+        </h2>
+        <Button variant="bare" size="none" onClick={() => onCategory(cat.slug)} className={SECTION_SEE_ALL}>
           {tr('See all', 'Xem tất cả')}
           <ChevronRight className="h-4 w-4" />
         </Button>
@@ -80,12 +87,16 @@ function CategoryRail({ cat, listings, onCategory }: { cat: SerializedCategory; 
 /** "Browse by category" — one horizontal rail per category, ordered by live demand so
  *  the most-used category leads (mirrors the category-icon hierarchy). Sits below the
  *  For You + Outstanding businesses rails on the home landing view; hides the moment a
- *  filter/search is active. */
-export function CategoryRails({ categories, onCategory }: { categories: SerializedCategory[]; onCategory: (slug: string) => void }) {
+ *  filter/search is active.
+ *  `excludeIds`: listings the rails ABOVE already showed (For You / Outstanding seeds) —
+ *  on a 13-listing catalogue the same card in three adjacent rails reads as padding, not
+ *  supply. Each rail dedups against it and hides below the shared sparse floor. */
+export function CategoryRails({ categories, onCategory, excludeIds }: { categories: SerializedCategory[]; onCategory: (slug: string) => void; excludeIds?: string[] }) {
   const [rails, setRails] = useState<Rail[] | null>(null)
   const [active, setActive] = useState(true) // default (unfiltered) home view?
 
   const bySlug = useMemo(() => new Map(categories.map((c) => [c.slug, c])), [categories])
+  const exclude = useMemo(() => new Set(excludeIds ?? []), [excludeIds])
 
   useEffect(() => {
     let off = false
@@ -110,16 +121,30 @@ export function CategoryRails({ categories, onCategory }: { categories: Serializ
   }, [])
 
   if (!active) return null
-  if (rails !== null && rails.length === 0) return null
   if (rails === null) return null // wait for data; the feed below already fills the page
+
+  // Dedup + sparse floor BEFORE render: drop cards the rails above already showed, then hide
+  // any rail that falls below MIN_RAIL_ITEMS — a category heading over one or two cards is
+  // manufactured density, and every listing still appears in the feed grid below. Computed
+  // first so that when NOTHING survives we return null instead of an empty in-flow div —
+  // inside the landing's space-y container even a zero-height div earns a full 32-48px
+  // spacing unit (the exact phantom-band failure the deferred wrapper above defends against).
+  const visible = rails
+    .map((rail) => {
+      const cat = bySlug.get(rail.slug)
+      if (!cat) return null
+      const items = rail.listings.filter((l) => !exclude.has(l.id))
+      if (items.length < MIN_RAIL_ITEMS) return null
+      return { cat, items, slug: rail.slug }
+    })
+    .filter((r): r is NonNullable<typeof r> => r !== null)
+  if (visible.length === 0) return null
 
   return (
     <div className="space-y-7">
-      {rails.map((rail) => {
-        const cat = bySlug.get(rail.slug)
-        if (!cat || rail.listings.length === 0) return null
-        return <CategoryRail key={rail.slug} cat={cat} listings={rail.listings} onCategory={onCategory} />
-      })}
+      {visible.map(({ cat, items, slug }) => (
+        <CategoryRail key={slug} cat={cat} listings={items} onCategory={onCategory} />
+      ))}
     </div>
   )
 }

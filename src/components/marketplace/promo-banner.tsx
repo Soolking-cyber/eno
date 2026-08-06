@@ -260,35 +260,43 @@ function SlidePanel({ slide }: { slide: PromoSlide }) {
         className="pointer-events-none absolute inset-0 bg-cover bg-center"
         style={{ backgroundImage: `url(${slide.image})` }}
       />
-      {/* Depth without a second palette: one blurred highlight and one oversized glyph, both pure
-          white at low alpha, so the panel reads as art-directed while every colour still comes from
-          the two sanctioned marketing tokens. */}
-      <span aria-hidden className="pointer-events-none absolute -right-8 -top-10 size-44 rounded-full bg-white/10 blur-2xl" />
-      <Icon aria-hidden className="pointer-events-none absolute -bottom-6 -right-4 size-40 text-white/10 sm:size-48" />
+      {/* The motif is composed, not scattered (wow pass, 2026-08-06). On a phone bg-cover crops
+          the SVG's right-anchored geometry out of the 1200×400 frame, so the slide's own icon
+          carries the corner instead: ONE oversized glyph, tucked and tilted with intent, cropped
+          by the panel edge. From sm up the artwork's geometry is back in frame and the glyph
+          BOWS OUT (sm:hidden) — two translucent motifs stacked at the same corner is exactly the
+          muddy, generic read this replaced. The old blurred CSS circle is gone for the same
+          reason: every SVG already paints that radial highlight; the CSS copy doubled it. */}
+      <Icon aria-hidden className="pointer-events-none absolute -bottom-8 -right-4 size-36 -rotate-6 text-white/10 sm:hidden" />
 
       <div className="relative max-w-[86%] sm:max-w-[76%]">
-        <p className="text-2xs font-bold uppercase tracking-wider text-white/75 sm:text-xs">
-          {tr(slide.eyebrowEn, slide.eyebrowVi)}
-        </p>
+        {/* ⚠️ NO EYEBROW. The kicker that sat here ("FREE TO POST", …) is the labelled-heading
+            scaffold the craft canon bans outright — the headline carries the slide on its own,
+            one step larger for it. Don't re-add a label above this h2; promo-slides.ts still
+            holds the eyebrow copy solely so restoring data needs no migration, not as an
+            invitation to render it. */}
         {/* h2, NOT h3. This panel sits directly under the page's (sr-only) h1, so an h3 here skipped
             a level and broke the document outline — a screen reader jumped h1 → h3 with nothing
             between. It also contradicted the outline listings-explorer.tsx documents for this page:
             h1 → section h2 → card h3s. Keep it h2 so the card titles below stay the h3 tier. */}
-        <h2 className="mt-1.5 text-xl font-extrabold leading-tight tracking-tight text-balance sm:text-2xl lg:text-3xl">
+        <h2 className="text-2xl font-extrabold leading-tight tracking-tight text-balance sm:text-3xl">
           {tr(slide.titleEn, slide.titleVi)}
         </h2>
         {/* Clamped rather than hidden on phones. It was `hidden sm:block` in the first draft, which
             left the panel visibly empty at 390px — and this is the line that actually sells. Two
             lines is the budget: Vietnamese runs longer than English in 42% of this app's strings
             (measured over 816 tr() pairs), so the clamp is what stops a long translation from
-            growing the panel and shoving the category scroller down the page. */}
-        <p className="mt-2 line-clamp-2 text-sm leading-relaxed text-white/85 sm:line-clamp-none">
+            growing the panel and shoving the category scroller down the page.
+            max-w-xl keeps the desktop measure near the 65–75ch floor — inside a 1200px panel an
+            unbounded line ran the full 76% and read as a caption, not a subline. */}
+        <p className="mt-2 max-w-xl line-clamp-2 text-sm leading-relaxed text-white/85 sm:line-clamp-none sm:text-base">
           {tr(slide.bodyEn, slide.bodyVi)}
         </p>
         {/* Not a nested <button> — the whole panel is the link, so this is a styled span that only
             LOOKS like the CTA. A real <Button> inside an <a> is invalid HTML and swallows the tap
-            target it sits on. */}
-        <span className="mt-4 inline-flex items-center rounded-xl bg-white px-4 py-2 text-sm font-bold text-brand shadow-sm">
+            target it sits on. `.press` still works on a span: tapping the CTA area puts it in the
+            :active chain, so the one control that looks pressable also feels pressable. */}
+        <span className="press mt-4 inline-flex items-center rounded-xl bg-white px-4 py-2 text-sm font-bold text-brand shadow-sm sm:mt-6">
           {tr(slide.ctaEn, slide.ctaVi)}
         </span>
       </div>

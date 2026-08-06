@@ -8,6 +8,7 @@ import { SUBCATEGORIES } from '@/lib/subcategories'
 import { MoreOverflow } from './more-overflow'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
+import { railEdgeMask } from './shelf'
 import { useScrollArrows, ScrollArrows } from '@/hooks/use-scroll-arrows'
 import { cn } from '@/lib/utils'
 import type { SerializedCategory } from '@/lib/types'
@@ -87,6 +88,8 @@ export function CategoryRail({
       // overscroll-x-contain: a sideways flick that hits either end must not CHAIN out to an
       // ancestor scroller / the iOS WebView's swipe-back. It does not (and cannot) stop a swipe
       // that STARTS in the system edge gutter — see the note on RAIL_SCROLLER in shelf.tsx.
+      // railEdgeMask: fade — never hard-clip — the tile at the cut edge (see shelf.tsx).
+      style={railEdgeMask(canLeft, canRight)}
       className="flex items-center gap-4 overflow-x-auto overscroll-x-contain scrollbar-none snap-x py-1"
     >
       {/* All */}

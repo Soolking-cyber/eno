@@ -11,7 +11,9 @@ import Link from 'next/link'
 import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
 import { SellerListings } from '@/components/marketplace/seller-listings'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from '@/components/ui/breadcrumb'
 import { Tr } from '@/context/language-context'
 
 export const revalidate = 604800 // 7d — long-tail SEO combo (category×district = many pages); client fetches live, so weekly regen is plenty + far fewer ISR writes
@@ -48,7 +50,10 @@ const load = cache(async (categorySlug: string, districtSlug: string) => {
   })
   const matched = raw.filter((r) => r.district && slugify(r.district) === districtSlug)
   if (matched.length === 0) return null
-  return { cat, matched, districtName: matched[0].district as string }
+  // Sibling districts come for free from the same bounded scan — the "By area" chip row costs
+  // no extra query. Deduped on the display name; the current district is excluded at render.
+  const districts = [...new Set(raw.map((r) => r.district).filter((d): d is string => !!d))]
+  return { cat, matched, districtName: matched[0].district as string, districts }
 })
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -73,7 +78,8 @@ export default async function CategoryDistrictPage({ params }: Props) {
   const { category, district } = await params
   const data = await load(category, district)
   if (!data) notFound()
-  const { cat, matched, districtName } = data
+  const { cat, matched, districtName, districts } = data
+  const otherDistricts = districts.filter((d) => slugify(d) !== district)
   const listings = await localizeListingTitles(matched.map(serializeListingCard))
   const hostUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://eno.vn'
 
@@ -102,28 +108,58 @@ export default async function CategoryDistrictPage({ params }: Props) {
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, '\\u003c') }} />
       <Header />
       <main id="main" tabIndex={-1} className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-6 pb-12">
-        <nav className="mb-4 text-sm text-muted-foreground">
-          <Link href="/" className="hover:text-accent-foreground transition-colors"><Tr text="Home" /></Link>
-          <span className="mx-1.5 text-line-strong">/</span>
-          <Link href={`/c/${cat.slug}`} className="hover:text-accent-foreground transition-colors"><Tr text={cat.name} /></Link>
-          <span className="mx-1.5 text-line-strong">/</span>
-          <span className="font-medium text-foreground"><Tr text={districtName} /></span>
-        </nav>
+        {/* Same Breadcrumb primitive as the sibling category page (was a hand-rolled <nav>) —
+            the family's statement header opens identically on every browse surface. */}
+        <Breadcrumb className="mb-4">
+          <BreadcrumbList>
+            <BreadcrumbItem>
+              {/* Base UI render prop (never asChild) — keeps the Next.js client-side nav. */}
+              <BreadcrumbLink render={<Link href="/" />} className="hover:text-accent-foreground"><Tr text="Home" /></BreadcrumbLink>
+            </BreadcrumbItem>
+            <BreadcrumbSeparator className="text-line-strong">/</BreadcrumbSeparator>
+            <BreadcrumbItem>
+              <BreadcrumbLink render={<Link href={`/c/${cat.slug}`} />} className="hover:text-accent-foreground"><Tr text={cat.name} /></BreadcrumbLink>
+            </BreadcrumbItem>
+            <BreadcrumbSeparator className="text-line-strong">/</BreadcrumbSeparator>
+            <BreadcrumbItem>
+              <BreadcrumbPage className="font-medium"><Tr text={districtName} /></BreadcrumbPage>
+            </BreadcrumbItem>
+          </BreadcrumbList>
+        </Breadcrumb>
 
         <h1 className="h-display text-foreground"><Tr text={cat.name} /> <Tr text="in" /> <Tr text={districtName} /></h1>
-        <p className="mt-2 max-w-2xl text-base leading-relaxed text-body">
+        {/* Measured lede — 65ch, same as the category page. */}
+        <p className="mt-3 max-w-prose text-base leading-relaxed text-body">
           {listings.length} <Tr text={cat.name.toLowerCase()} /> {listings.length === 1 ? <Tr text="listing" /> : <Tr text="listings" />} <Tr text="in" /> <Tr text={districtName} />,{' '}
           <Tr text="each from a seller with a public trust score — fewer fakes, fewer bait prices." />
         </p>
 
-        <div className="mt-8">
-          <SellerListings listings={listings} sortable />
+        {otherDistricts.length > 0 && (
+          <div className="mt-6 flex flex-wrap gap-2">
+            <span className="self-center text-xs font-semibold text-ink-4"><Tr text="By area:" /></span>
+            {otherDistricts.map((d) => (
+              <Badge key={d} size="md" interactive render={<Link href={`/c/${cat.slug}/${slugify(d)}`} />} className="px-3.5 py-1.5 font-semibold text-body hover:bg-accent hover:text-accent-foreground">
+                <Tr text={d} />
+              </Badge>
+            ))}
+          </div>
+        )}
+
+        {/* Masthead boundary — full-bleed hairline, aligned with the sort strip's own border. */}
+        <div aria-hidden className="mt-8 -mx-3 border-t border-border sm:-mx-6 lg:-mx-8" />
+
+        <div className="mt-6">
+          {/* sr-only h2 — card titles are h3s; without this the outline jumps h1 → h3. */}
+          <h2 className="sr-only"><Tr text="Listings" /></h2>
+          <SellerListings listings={listings} sortable={listings.length > 1} />
         </div>
 
         <div className="mt-8 flex flex-wrap gap-3">
-          <Link href={`/c/${cat.slug}`} className="inline-block rounded-xl border border-line-strong px-5 py-2.5 text-sm font-bold text-foreground transition-colors hover:bg-muted">
-            ← <Tr text="All" /> <Tr text={cat.name} />
-          </Link>
+          <Button asChild variant="outline" size="none" className="border-line-strong font-bold hover:bg-muted hover:text-foreground">
+            <Link href={`/c/${cat.slug}`} className="px-5 py-2.5 text-sm">
+              ← <Tr text="All" /> <Tr text={cat.name} />
+            </Link>
+          </Button>
           <Button asChild variant="cta" size="none">
             <Link href={`/?category=${cat.slug}`} className="px-5 py-2.5">
               <Tr text="Refine in full search" /> →

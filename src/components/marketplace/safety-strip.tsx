@@ -30,7 +30,7 @@ export function SafetyStrip({ categorySlug, action, className }: { categorySlug:
 
   return (
     <div className={cn('flex items-start gap-2.5 rounded-xl bg-warning/10 px-3 py-2.5 text-xs leading-relaxed', className)}>
-      <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0 text-warning" aria-hidden />
+      <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-warning" aria-hidden />
       <div className="min-w-0 flex-1 space-y-0.5">
         <p className="font-medium text-foreground">{line}</p>
         {/* Guide link left, Report right (user-picked 2026-07-14) — the old

@@ -113,9 +113,8 @@ const sections = [
 export default function ProhibitedPage() {
   return (
     <ContentPage
-      eyebrow="Legal"
       title="Prohibited items & services"
-      meta={<p className="mt-2 text-xs text-ink-4"><Tr text="Part of the Operating Regulations · Last updated: August 2026" /></p>}
+      meta={<p className="mt-3 text-sm text-ink-4"><Tr text="Part of the Operating Regulations · Last updated: August 2026" /></p>}
       intro={<Tr text={`These goods and services must never be listed on ${SITE_NAME} — because Vietnamese law bans trading or advertising them, or because platform policy does. Listings are screened automatically when posted and removed when reported. Posting them leads to removal, trust penalties and, for serious or repeated violations, account bans — and may be reported to authorities where the law requires.`} />}
       sections={sections}
     >

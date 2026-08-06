@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Award } from 'lucide-react'
 import type { SerializedListingCard } from '@/lib/types'
 import { ListingCard } from './listing-card'
-import { Shelf, RAIL_CARD_W } from './shelf'
+import { Shelf, RAIL_CARD_W, MIN_RAIL_ITEMS } from './shelf'
 import { useLanguage } from '@/context/language-context'
 import { ListingCardSkeleton } from './listing-card-skeleton'
 
@@ -29,10 +29,14 @@ export function BusinessRail({ initial }: { initial?: SerializedListingCard[] })
       .catch(() => {})
   }, [initial])
 
-  if (listings !== null && listings.length === 0) return null
+  // Sparse-rail grace (wow pass, 2026-08-06): below the floor this rail was two cards and
+  // a void pretending to be a section. The storefronts stay reachable through their own
+  // listings in the feed; the rail returns the moment supply does. `null` still means
+  // "loading" (skeletons for un-seeded call sites).
+  if (listings !== null && listings.length < MIN_RAIL_ITEMS) return null
 
   return (
-    <Shelf icon={Award} title={tr('Outstanding businesses', 'Doanh nghiệp nổi bật')} sectionClassName="mb-7" watch={listings?.length ?? 0}>
+    <Shelf icon={Award} title={tr('Outstanding businesses', 'Doanh nghiệp nổi bật')} watch={listings?.length ?? 0}>
       {listings === null
         ? Array.from({ length: 6 }).map((_, i) => (
             <ListingCardSkeleton key={i} className={RAIL_CARD_W} />

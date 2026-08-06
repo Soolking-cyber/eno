@@ -4,6 +4,8 @@ import { BadgeCheck, Coins, Gavel, LockKeyhole, Megaphone } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
 import { SITE_NAME } from '@/lib/edition'
+import { railEdgeMask } from './shelf'
+import { useScrollArrows } from '@/hooks/use-scroll-arrows'
 
 /**
  * "WHY USE eno" — the borderless icon row from the reference the owner sent (Shopee's quick-link
@@ -75,6 +77,9 @@ const REASONS: Reason[] = [
 
 export function WhyEno() {
   const { tr } = useLanguage()
+  // Scroll-state for the mobile edge-fade mask only — no arrows here: at sm+ the row never
+  // overflows (five flex-1 tiles), and on touch the swipe is the gesture.
+  const { scrollerRef, canLeft, canRight } = useScrollArrows<HTMLUListElement>()
 
   // ⚠️ aria-label, NOT aria-labelledby. The visible <h2> was removed (owner, 2026-08-05) and an
   // aria-labelledby pointing at the deleted id would leave the section silently unnamed — the
@@ -83,26 +88,50 @@ export function WhyEno() {
   return (
     <section aria-label={tr(`Why sell and buy on ${SITE_NAME}`, `Vì sao nên mua bán trên ${SITE_NAME}`)} className="border-t border-border pt-8">
 
-      {/* Two up on a phone, three at sm, all five in one row at lg — the reference's single row is
-          only honest once there is width for it. ⚠️ The column count TRACKS REASONS.length: it was
-          6 until the ward bullet was removed (owner, 2026-08-05), and a stale 6 leaves a visible
-          gap at the end of the row. A horizontal scroller was rejected: it hides reasons behind a
-          gesture, and the whole point of this block is that all of them are read. */}
-      <ul className="grid grid-cols-2 gap-x-4 gap-y-7 sm:grid-cols-3 sm:gap-x-6 lg:grid-cols-5">
+      {/* ONE symmetric band (wow pass, 2026-08-06). The 2-col phone grid it replaces stacked
+          five tiles into three sparse rows of dead vertical air; a single snap row keeps the
+          band compact, with the edge-fade mask + the peeking sixth-of-a-tile saying "more this
+          way" — which answers the old objection to a scroller (reasons hidden behind a
+          gesture): nothing here LOOKS complete at the cut edge, and all five stay in the DOM
+          in reading order for AT. At sm+ every tile is flex-1, so the reference's single row
+          is exact: five equal columns, one icon-container size, no phantom cells.
+          ⚠️ The column count no longer tracks REASONS.length — flex divides by whatever
+          renders, so adding/removing a reason cannot strand a gap the way the grid could.
+          -mx-3/px-3 is COUPLED to the page frame's px-3 (canon §4), same as the facet bar:
+          the row bleeds to the screen edge on a phone, so the cut tile is cut by the
+          viewport, not by a box floating inside it. reveal-on-scroll: the home page's one
+          authored entrance — this band rises as it enters; pure enhancement, nothing moves
+          under reduced motion or on engines without animation-timeline. */}
+      <ul
+        ref={scrollerRef}
+        style={railEdgeMask(canLeft, canRight)}
+        // tabIndex: the mobile band scrolls horizontally and its tiles hold no focusable
+        // controls, so without a tab stop a keyboard/switch user could never reach the
+        // off-screen reasons (Safari doesn't auto-focus scrollers). Gated on the live
+        // scroll state so it isn't an inert tab stop at sm+ where nothing overflows.
+        tabIndex={canLeft || canRight ? 0 : undefined}
+        // SITE_NAME, not a hardcoded brand: this component ships on BOTH editions, and a
+        // literal "eno.vn" here would have a screen reader asserting the marketplace brand
+        // on eno.forum (guard-review catch, 2026-08-06 — same pattern as the section label).
+        aria-label={tr(`Why ${SITE_NAME}`, `Vì sao chọn ${SITE_NAME}`)}
+        className="reveal-on-scroll -mx-3 flex snap-x gap-3 overflow-x-auto overscroll-x-contain scrollbar-none px-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30 sm:mx-0 sm:gap-4 sm:px-0"
+      >
         {REASONS.map((r) => {
           const Icon = r.icon
           return (
-            <li key={r.key} className="flex flex-col items-center text-center">
+            <li key={r.key} className="flex w-24 shrink-0 snap-start flex-col items-center text-center sm:w-auto sm:flex-1 sm:shrink">
               {/* bg-brand-50 is a real token pair — #e8f1fb in light, #17314d in dark — so the tile
-                  keeps its contrast in both themes. A hardcoded light tile would go blind at night. */}
-              <span className="flex size-14 shrink-0 items-center justify-center rounded-2xl bg-brand-50">
-                <Icon aria-hidden className="size-7 text-brand" />
+                  keeps its contrast in both themes. A hardcoded light tile would go blind at night.
+                  size-12 at EVERY breakpoint — one consistent icon-container size is the band's
+                  rhythm; rounded-xl is the tier for a ~48px control-sized box. */}
+              <span className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-brand-50">
+                <Icon aria-hidden className="size-6 text-brand" />
               </span>
               {/* The blurb under each title was removed (owner, 2026-08-05) — icon + title only.
                   The two-line min-height floor went with it: its entire job was making the BLURBS
                   start on the same baseline when titles wrapped to different heights. With nothing
                   below the title, a floor only pads short titles with dead space. */}
-              <span className="mt-3 text-sm font-bold leading-snug text-foreground text-balance">
+              <span className="mt-2 text-xs font-bold leading-snug text-foreground text-balance sm:text-sm">
                 {tr(r.titleEn, r.titleVi)}
               </span>
             </li>

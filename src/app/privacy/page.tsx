@@ -188,12 +188,11 @@ const baseSections: PrivacySection[] = [
 export default function PrivacyPage() {
   return (
     <ContentPage
-      eyebrow="Legal"
       title="Privacy Policy"
       meta={
         <>
           <p className="mt-3 text-sm text-ink-4"><Tr text="Last updated: August 2026" /></p>
-          <p className="mt-2 max-w-3xl text-xs text-muted-foreground italic"><Tr text="This translation is provided for your convenience. The English version of this policy is the authoritative one." /></p>
+          <p className="mt-2 max-w-[70ch] text-xs text-muted-foreground italic"><Tr text="This translation is provided for your convenience. The English version of this policy is the authoritative one." /></p>
         </>
       }
       sections={baseSections.map(([id, title]) => ({ id, label: title }))}

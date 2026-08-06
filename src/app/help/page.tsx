@@ -21,7 +21,7 @@ export default async function HelpPage() {
   return (
     <div className="flex min-h-screen flex-col blob-bg">
       <Header />
-      <main id="main" tabIndex={-1} className="mx-auto w-full max-w-7xl flex-1 px-3 sm:px-6 lg:px-8 pt-10 pb-16">
+      <main id="main" tabIndex={-1} className="mx-auto w-full max-w-7xl flex-1 px-3 sm:px-6 lg:px-8 pt-8 sm:pt-12 pb-16">
         <HelpCenter data={data} />
       </main>
       <Footer />

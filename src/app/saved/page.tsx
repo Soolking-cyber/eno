@@ -56,23 +56,26 @@ export default function SavedPage() {
             ))}
           </div>
         ) : list.length === 0 ? (
-          <div className="flex flex-col items-center justify-center gap-3 py-20 text-center">
-            <Mascot name="saved" className="h-52 w-52" />
-            <p className="text-base font-semibold text-foreground">
-              {tr('No saved listings yet', 'Chưa có tin nào được lưu')}
-            </p>
-            <p className="max-w-sm text-sm text-muted-foreground">
-              {tr(
-                'Tap the heart on any listing to save it here for later.',
-                'Nhấn vào biểu tượng trái tim trên tin đăng để lưu lại xem sau.',
-              )}
-            </p>
-            <Button asChild variant="cta" size="none">
-              <Link href="/" className="mt-2 px-5 py-2.5">
-                {tr('Browse listings', 'Khám phá tin đăng')}
-              </Link>
-            </Button>
-          </div>
+          // The shared mascot-led empty state (tone="bare") — same treatment as the
+          // messenger's placeholder, so the two quiet surfaces speak with one voice.
+          <EmptyState
+            tone="bare"
+            size="lg"
+            className="py-20"
+            media={<Mascot name="saved" className="h-52 w-52" />}
+            title={tr('No saved listings yet', 'Chưa có tin nào được lưu')}
+            subtitle={tr(
+              'Tap the heart on any listing to save it here for later.',
+              'Nhấn vào biểu tượng trái tim trên tin đăng để lưu lại xem sau.',
+            )}
+            action={
+              <Button asChild variant="cta" size="none">
+                <Link href="/" className="px-5 py-2.5">
+                  {tr('Browse listings', 'Khám phá tin đăng')}
+                </Link>
+              </Button>
+            }
+          />
         ) : (
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
             {list.map((l, i) => (

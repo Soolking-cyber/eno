@@ -154,7 +154,7 @@ export async function SeoLanding({ content, after }: { content: SeoContent; afte
         {/* Hero */}
         <p className="eyebrow text-accent-foreground mb-2">{content.eyebrow}</p>
         <h1 className="h-display text-foreground">{content.h1}</h1>
-        <p className="mt-4 max-w-3xl text-base leading-relaxed text-body">{content.intro}</p>
+        <p className="mt-4 max-w-prose text-base leading-relaxed text-body">{content.intro}</p>
         {/* gap/weight on the BUTTON — see header.tsx: asChild concatenates the child's
             className instead of twMerging it, so overrides there are settled by
             stylesheet order rather than by intent. */}
@@ -229,6 +229,10 @@ export async function SeoLanding({ content, after }: { content: SeoContent; afte
           </Button>
         )}
 
+        {/* Full-bleed masthead hairline — same negative-margin coupling the category pages use,
+            so the SEO-landing family shares their statement-header close. */}
+        <div className="mt-8 -mx-3 border-t border-border sm:-mx-6 lg:-mx-8" aria-hidden />
+
         {/* Real verified listings (crawlable internal links) */}
         {listings.length > 0 && (
           <section className="mt-12">
@@ -272,7 +276,7 @@ export async function SeoLanding({ content, after }: { content: SeoContent; afte
         {/* Editorial / keyword sections — wide container, readable measure.
             web-only: long-form SEO prose for Google, hidden in the native apps
             (html.native .web-only in globals.css); the listings grid stays. */}
-        <div className="web-only mt-14 max-w-3xl space-y-8">
+        <div className="web-only mt-12 max-w-3xl space-y-8">
           {content.sections.map((s, i) => (
             <section key={i}>
               <h2 className="h-section text-foreground mb-2">{s.title}</h2>
@@ -285,7 +289,7 @@ export async function SeoLanding({ content, after }: { content: SeoContent; afte
             above these are navigation, useful in the native shell too, and they are the only thing
             connecting a hub to its long-tail children. */}
         {content.related && content.related.length > 0 && (
-          <section className="mt-14 max-w-3xl">
+          <section className="mt-12 max-w-3xl">
             <h2 className="h-section text-foreground mb-4">Keep reading</h2>
             <ul className="grid gap-3 sm:grid-cols-2">
               {content.related.map((r) => (
@@ -335,7 +339,7 @@ export async function SeoLanding({ content, after }: { content: SeoContent; afte
         )}
 
         {/* Brand line — the site signing its own page, so it names THIS deployment. */}
-        <p className="mt-14 max-w-3xl text-sm leading-relaxed text-muted-foreground">
+        <p className="mt-12 max-w-3xl text-sm leading-relaxed text-muted-foreground">
           <strong className="font-semibold text-foreground">{SITE_NAME}</strong> — for Vietnam’s
           international community.
         </p>

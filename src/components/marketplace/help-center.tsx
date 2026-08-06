@@ -251,13 +251,14 @@ export function HelpCenter({ data }: { data: HelpCenterData }) {
 
   return (
     <div data-help-center data-hydrated={hydrated ? 'true' : 'false'} className="w-full">
-      <h1 className="h-display text-foreground"><Tr text="How can we help?" /></h1>
-      <p className="mt-3 max-w-2xl text-sm leading-relaxed text-body">
+      <h1 className="h-display max-w-4xl text-balance text-foreground"><Tr text="How can we help?" /></h1>
+      <p className="mt-4 max-w-[70ch] text-base leading-relaxed text-body">
         <Tr text="Answers about buying, selling, trust and staying safe on eno.vn — plus practical guides for getting around Vietnam. Upvote what helped you, and ask anything that is missing." />
       </p>
 
-      {/* Search */}
-      <div className="mt-6 flex items-center rounded-2xl bg-tint px-3">
+      {/* Search — the page's primary affordance. The wrapper owns the box, so it also
+          owns the focus ring (the Input inside is `unstyled` by contract — ui/input). */}
+      <div className="mt-6 flex items-center rounded-xl bg-tint px-3 transition-shadow focus-within:ring-2 focus-within:ring-ring/30">
         <Search className="size-5 shrink-0 text-muted-foreground" aria-hidden />
         <Input
           variant="unstyled"
@@ -308,8 +309,9 @@ export function HelpCenter({ data }: { data: HelpCenterData }) {
         })}
       </div>
 
-      {/* Answers */}
-      <section className="mt-8" aria-labelledby="help-answers-title">
+      {/* Answers — the hairline below the search/topic block is the family's article
+          hero rule (title + lede + hairline), applied to the one page with a toolbar. */}
+      <section className="mt-8 border-t border-border pt-8" aria-labelledby="help-answers-title">
         <h2 id="help-answers-title" className="h-section text-foreground">
           <Tr text="Answers" />
         </h2>
@@ -326,7 +328,7 @@ export function HelpCenter({ data }: { data: HelpCenterData }) {
             className="mt-3 bg-transparent ring-0"
           />
         ) : grouped ? (
-          <div className="mt-2 grid items-start gap-x-14 lg:grid-cols-2">
+          <div className="mt-2 grid items-start gap-x-12 lg:grid-cols-2">
             {columns.map((column, index) => (
               <div key={index}>
                 {column.map((group) => (
@@ -352,7 +354,7 @@ export function HelpCenter({ data }: { data: HelpCenterData }) {
       </section>
 
       {/* Community questions */}
-      <section className="mt-12" aria-labelledby="help-community-title">
+      <section className="mt-12 border-t border-border pt-8" aria-labelledby="help-community-title">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 id="help-community-title" className="h-section text-foreground">
             <Tr text="From the community" />
@@ -389,7 +391,7 @@ export function HelpCenter({ data }: { data: HelpCenterData }) {
 
       {/* Business reviews */}
       {data.reviews.length > 0 && (
-        <section className="mt-12" aria-labelledby="help-reviews-title">
+        <section className="mt-12 border-t border-border pt-8" aria-labelledby="help-reviews-title">
           <h2 id="help-reviews-title" className="h-section text-foreground">
             <Tr text="Recent business reviews" />
           </h2>
@@ -432,7 +434,7 @@ export function HelpCenter({ data }: { data: HelpCenterData }) {
 
       {/* Escalation. Kept as the LAST thing on the page on purpose: a reader who got
           here did not find their answer above, and this is the human path out. */}
-      <div className="mt-12 flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="mt-12 flex flex-col items-start gap-3 border-t border-border pt-8 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="text-sm font-bold text-foreground"><Tr text="Still need help?" /></p>
           <p className="text-sm text-body"><Tr text="Our team replies within one business day." /></p>

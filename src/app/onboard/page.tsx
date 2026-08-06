@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { SITE_NAME } from '@/lib/edition'
 import { Suspense } from 'react'
+import { Loader2 } from 'lucide-react'
 import type { Metadata } from 'next'
 import { getCurrentProfile } from '@/lib/admin'
 import { safeNextPath } from '@/lib/url'
@@ -73,9 +74,17 @@ export default async function OnboardPage({
   if (target) redirect(target)
 
   // OnboardClient reads ?next via useSearchParams, which requires a Suspense
-  // boundary in the App Router.
+  // boundary in the App Router. The fallback mirrors OnboardClient's own loader
+  // byte-for-byte (same centering, same spinner) so the page never flashes blank
+  // between the server render and hydration — one continuous quiet loading state.
   return (
-    <Suspense>
+    <Suspense
+      fallback={
+        <main id="main" tabIndex={-1} className="flex min-h-screen items-center justify-center bg-background">
+          <Loader2 className="h-6 w-6 animate-spin text-accent-foreground" />
+        </main>
+      }
+    >
       <OnboardClient />
     </Suspense>
   )

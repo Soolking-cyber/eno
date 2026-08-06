@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { Star, BadgeCheck } from 'lucide-react'
+import { Star, BadgeCheck, ChevronRight } from 'lucide-react'
 import { useLanguage, Tr } from '@/context/language-context'
 import { Badge } from '@/components/ui/badge'
 import { getInitials } from '@/lib/utils'
@@ -28,11 +28,18 @@ export function ReviewsPreview({
   if (total === 0 || reviews.length === 0) return null
 
   return (
-    <section className="mt-6">
-      <h2 className="mb-3 flex items-center gap-1.5 text-base font-bold text-foreground">
+    // No outer margin: the PDP wrapper owns this block's spacing (hairline + pt), so a
+    // margin here double-counted against the buy-box column's gap.
+    <section>
+      {/* Shared PDP section-header treatment (text-lg font-semibold); the count + rating
+          drop to text-sm so the heading word carries the weight, aligned on the baseline. */}
+      <h2 className="mb-3 flex items-baseline gap-1.5 text-lg font-semibold text-foreground">
         {tr('Buyer reviews', 'Đánh giá về người bán')}
-        <span className="text-muted-foreground">({total})</span>
-        <span className="ml-1 inline-flex items-center gap-0.5 text-body">
+        <span className="text-sm font-medium text-muted-foreground">({total})</span>
+        {/* self-center: an inline-flex box's baseline comes from its FIRST item — the star SVG,
+            whose "baseline" is its bottom edge — so baseline-aligning this chip lifts the number
+            off the heading's baseline. Optically centering the icon+number pair is the stable way. */}
+        <span className="ml-1 inline-flex items-center gap-0.5 self-center text-sm font-medium text-body">
           <Star className="h-4 w-4 fill-rating text-rating" aria-hidden />
           <RatingValue value={avg} />
         </span>
@@ -66,11 +73,13 @@ export function ReviewsPreview({
         ))}
       </ul>
 
+      {/* Same See-all shape as the Shelf rails (label + chevron) — one idiom across the PDP. */}
       <Link
         href={sellerHref}
-        className="mt-3 inline-block text-sm font-semibold text-accent-foreground hover:underline"
+        className="mt-3 inline-flex items-center gap-0.5 text-sm font-semibold text-accent-foreground hover:underline"
       >
         {tr('See all', 'Xem tất cả')}
+        <ChevronRight className="h-4 w-4" aria-hidden />
       </Link>
     </section>
   )

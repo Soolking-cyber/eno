@@ -39,7 +39,14 @@ export function RelatedListings({ listingId, categorySlug }: { listingId: string
   if (items.length === 0) return <div ref={ref} aria-hidden="true" className="absolute h-0 w-0" />
 
   return (
-    <Shelf title={tr('More like this', 'Tin tương tự')} sectionClassName="mt-12" watch={items.length}>
+    // Shelf's SECTION_TITLE already carries the app-wide text-lg font-semibold header tier;
+    // the See-all into the category page gives every PDP shelf the same header + See-all shape.
+    <Shelf
+      title={tr('More like this', 'Tin tương tự')}
+      seeAllHref={`/c/${categorySlug}`}
+      sectionClassName="mt-12"
+      watch={items.length}
+    >
       {items.map((l) => (
         <div key={l.id} className={RAIL_CARD_W}>
           <ListingCard listing={l} onOpen={(x) => router.push(`/listings/${x.id}`)} />

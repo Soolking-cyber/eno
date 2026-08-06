@@ -1,6 +1,5 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { ShieldCheck, Eye, BadgeCheck } from 'lucide-react'
 import { IS_SERVICES, SITE_NAME } from '@/lib/edition'
 import { Tr } from '@/context/language-context'
 import { ContentPage, ContentSection } from '@/components/marketplace/content-page'
@@ -164,19 +163,18 @@ const OPERATOR_LINE = OPERATOR_REGISTERED
   ? `${SITE_NAME} is operated by ${COMPANY.name} (${COMPANY.nameEn}), head office ${COMPANY.address}. Business registration no. ${COMPANY.erc}, issued ${COMPANY.ercIssued}.`
   : `${SITE_NAME} is run by a Vietnamese company that is still completing its business registration. Until the certificate is issued there is no registration number to publish: the operator block on our Operating Regulations page shows what is confirmed so far, and is filled in the day the certificate arrives.`
 
+// Ordered steps use the family's one step treatment — a tint number chip beside the
+// heading (see /guide and /safety's recovery list). The sequence is the information.
 const STEPS = [
   {
-    icon: <Eye className="h-5 w-5" />,
     title: 'Listing submitted',
     text: 'A seller posts an item with photos, price and location.',
   },
   {
-    icon: <ShieldCheck className="h-5 w-5" />,
     title: 'Automated checks',
     text: 'Every post runs automated checks — phone verified, no contact details hidden in the text, and enough real photos to show what is being offered.',
   },
   {
-    icon: <BadgeCheck className="h-5 w-5" />,
     title: 'It goes live instantly',
     text: 'Listings publish right away. Sellers build a public trust score and buyers can report problems — so fakes and bait prices do not last.',
   },
@@ -248,14 +246,16 @@ export default function AboutPage() {
       <ContentSection id="trust" title="How trust works" wide>
         <div className="grid gap-x-8 gap-y-6 sm:grid-cols-3">
           {STEPS.map((s, i) => (
-            <div key={i}>
-              <span className="flex h-8 w-8 items-center justify-center text-accent-foreground">{s.icon}</span>
-              <h3 className="mt-3 text-sm font-bold text-foreground">
-                {i + 1}. <Tr text={s.title} />
-              </h3>
-              <p className="mt-1 text-sm leading-relaxed text-body">
-                <Tr text={s.text} />
-              </p>
+            <div key={i} className="flex gap-4">
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-tint text-sm font-bold text-accent-foreground tabular-nums">{i + 1}</span>
+              <div className="min-w-0">
+                <h3 className="text-sm font-bold text-foreground">
+                  <Tr text={s.title} />
+                </h3>
+                <p className="mt-1 text-sm leading-relaxed text-body">
+                  <Tr text={s.text} />
+                </p>
+              </div>
             </div>
           ))}
         </div>

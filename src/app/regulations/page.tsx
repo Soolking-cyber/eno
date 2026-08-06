@@ -427,10 +427,9 @@ export const metadata: Metadata = {
 export default function RegulationsPage() {
   return (
     <ContentPage
-      eyebrow="Legal"
       title="Quy chế hoạt động (Operating Regulations)"
       meta={
-        <div className="mt-3 max-w-3xl space-y-1">
+        <div className="mt-3 max-w-[70ch] space-y-1">
           <p className="text-sm text-ink-4" lang="vi">{META.vi}</p>
           <p className="text-sm text-ink-4" lang="en">{META.en}</p>
         </div>

@@ -5,14 +5,14 @@ import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { useLanguage } from '@/context/language-context'
-import { Mail, Check } from 'lucide-react'
+import { Mail, Check, ArrowLeft } from 'lucide-react'
 
 // Public, token-scoped email-preference page (no login). The visible footer link in the
 // digest lands here; a click POSTs to /api/unsubscribe so a link scanner's GET never
 // unsubscribes anyone. Also offers a one-tap re-subscribe.
 export default function UnsubscribePage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-muted" />}>
+    <Suspense fallback={<div className="min-h-screen bg-background" />}>
       <UnsubscribeInner />
     </Suspense>
   )
@@ -39,8 +39,10 @@ function UnsubscribeInner() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-muted px-4">
-      <div className="w-full max-w-md rounded-2xl border border-border bg-background p-8 text-center">
+    // Flat canon: one canvas, no floating card — the composition centers itself and the
+    // tint circle anchors the state; separation below comes from a hairline, not a box.
+    <div className="flex min-h-screen items-center justify-center bg-background px-4 py-12">
+      <div className="w-full max-w-md text-center">
         <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-tint">
           {state === 'unsubscribed' ? <Check className="h-6 w-6 text-accent-foreground" /> : <Mail className="h-6 w-6 text-accent-foreground" />}
         </div>
@@ -53,7 +55,7 @@ function UnsubscribeInner() {
               variant="outline"
               size="none"
               onClick={() => set(true)}
-              className="mt-5 border-border px-5 py-2.5 font-bold text-accent-foreground hover:bg-tint hover:text-accent-foreground cursor-pointer"
+              className="mt-6 border-border px-5 py-2.5 font-bold text-accent-foreground hover:bg-tint hover:text-accent-foreground cursor-pointer"
             >
               {tr('Re-subscribe', 'Đăng ký lại')}
             </Button>
@@ -77,15 +79,18 @@ function UnsubscribeInner() {
               size="none"
               onClick={() => set(false)}
               disabled={state === 'saving' || !token}
-              className="mt-5 w-full py-2.5 cursor-pointer"
+              className="mt-6 w-full py-2.5 cursor-pointer"
             >
               {state === 'saving' ? tr('Saving…', 'Đang lưu…') : tr('Unsubscribe', 'Hủy đăng ký')}
             </Button>
           </>
         )}
 
-        <div className="mt-6">
-          <Link href="/" className="text-xs font-medium text-muted-foreground hover:text-foreground">{tr('← Back to eno.vn', '← Quay lại eno.vn')}</Link>
+        {/* Same quiet exit as /signin: hairline seam + arrow icon + the shared string. */}
+        <div className="mt-8 border-t border-border/60 pt-4">
+          <Link href="/" className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-accent-foreground">
+            <ArrowLeft className="h-3.5 w-3.5" aria-hidden /> {tr('Back to eno.vn', 'Về trang chủ')}
+          </Link>
         </div>
       </div>
     </div>

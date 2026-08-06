@@ -176,9 +176,12 @@ export function Footer() {
       <div className="mx-auto w-full max-w-7xl px-3 sm:px-6 lg:px-8">
         {/* Blends into the page canvas (no bg-card). The divider is on the GRID, so it spans the
             CONTENT width inset by the gutter — a contained hairline, NOT the full-viewport edge. */}
+        {/* Symmetric rows on md+: row 1 = brand (2 tracks) + Explore (2 tracks); row 2 = the
+            four link columns, one track each. The previous md:col-span-1 brand left row 2 with
+            a dangling empty fourth track — three columns and a hole. */}
         <div className="grid grid-cols-2 gap-8 border-t border-border/60 pt-12 md:grid-cols-4">
           {/* Brand column */}
-          <div className="col-span-2 md:col-span-1 space-y-3">
+          <div className="col-span-2 space-y-3">
             {/* alt + tagline are PER-EDITION. Both said "eno.vn" unconditionally, so eno.forum's
                 footer introduced itself as the licensed Vietnamese marketplace — the leak class
                 SITE_NAME exists for. The two taglines are spelled out as separate literals rather
@@ -197,10 +200,12 @@ export function Footer() {
                 the user has left eno for another app. handleExternalClick keeps them in an in-app
                 browser tab presented over the app instead (no-op on web: href/target/rel below
                 still do all the work there, modifier-clicks included). */}
-            <div className="flex items-center gap-3 pt-1">
-              <a href="https://www.facebook.com/profile.php?id=61591370031264" onClick={handleExternalClick} target="_blank" rel="noopener noreferrer me" aria-label="eno.vn on Facebook" className="text-muted-foreground transition-colors hover:text-accent-foreground"><Facebook className="h-5 w-5" /></a>
-              <a href="https://www.instagram.com/eno.vn/" onClick={handleExternalClick} target="_blank" rel="noopener noreferrer me" aria-label="eno.vn on Instagram" className="text-muted-foreground transition-colors hover:text-accent-foreground"><Instagram className="h-5 w-5" /></a>
-              <a href="https://www.youtube.com/@enovietnam" onClick={handleExternalClick} target="_blank" rel="noopener noreferrer me" aria-label="eno.vn on YouTube" className="text-muted-foreground transition-colors hover:text-accent-foreground"><Youtube className="h-5 w-5" /></a>
+            {/* p-2 per anchor grows each ~20px icon into a ~36px target; the -mx-2 keeps the
+                first icon optically flush with the tagline's left edge. */}
+            <div className="-mx-2 flex items-center gap-1 pt-1">
+              <a href="https://www.facebook.com/profile.php?id=61591370031264" onClick={handleExternalClick} target="_blank" rel="noopener noreferrer me" aria-label={tr('eno.vn on Facebook', 'eno.vn trên Facebook')} className="rounded-full p-2 text-muted-foreground transition-colors hover:text-accent-foreground"><Facebook className="h-5 w-5" /></a>
+              <a href="https://www.instagram.com/eno.vn/" onClick={handleExternalClick} target="_blank" rel="noopener noreferrer me" aria-label={tr('eno.vn on Instagram', 'eno.vn trên Instagram')} className="rounded-full p-2 text-muted-foreground transition-colors hover:text-accent-foreground"><Instagram className="h-5 w-5" /></a>
+              <a href="https://www.youtube.com/@enovietnam" onClick={handleExternalClick} target="_blank" rel="noopener noreferrer me" aria-label={tr('eno.vn on YouTube', 'eno.vn trên YouTube')} className="rounded-full p-2 text-muted-foreground transition-colors hover:text-accent-foreground"><Youtube className="h-5 w-5" /></a>
             </div>
           </div>
 
@@ -213,7 +218,7 @@ export function Footer() {
               src/lib/taxonomy-nav.test.ts asserts the projection still matches, so it cannot
               drift. */}
           <div className="col-span-2 space-y-3">
-            <h3 className="text-sm font-bold text-foreground">{tr('Explore', 'Khám phá')}</h3>
+            <h2 className="text-sm font-bold text-foreground">{tr('Explore', 'Khám phá')}</h2>
             <ul className="grid grid-cols-2 gap-x-6 gap-y-2">
               {NAV_CATEGORIES.map((cat) => (
                 <li key={cat.slug}>
@@ -226,7 +231,7 @@ export function Footer() {
           {/* Link columns */}
           {columns.map((col) => (
             <div key={col.title} className="space-y-3">
-              <h3 className="text-sm font-bold text-foreground">{col.title}</h3>
+              <h2 className="text-sm font-bold text-foreground">{col.title}</h2>
               <ul className="space-y-2">
                 {col.links.map((link) => (
                   <li key={link.label}>
@@ -263,7 +268,7 @@ export function Footer() {
         {/* Legal identity of the operator — Decree 52/2013 Đ.36/Đ.29 requires the
             company name, address, ERC and contacts displayed on the site. Values
             come from src/lib/site-legal.ts (placeholders until the ERC is issued). */}
-        <div className="mt-10 space-y-1 pt-5 text-2xs leading-relaxed text-body">
+        <div className="mt-12 space-y-1 border-t border-border/60 pt-6 text-2xs leading-relaxed text-body">
           <p className="font-semibold text-muted-foreground">{COMPANY.name}</p>
           <p>{tr('Head office', 'Trụ sở')}: {COMPANY.address}</p>
           {/* ⚠️ THE TWO NEW LINES HERE ARE MOCKS AWAITING REAL VALUES (owner, 2026-08-02: "place
@@ -307,12 +312,12 @@ export function Footer() {
                   onClick={handleExternalClick}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="rounded-lg border border-border/60 px-2 py-1 transition-colors hover:text-accent-foreground"
+                  className="rounded-full border border-border/60 px-3 py-1 transition-colors hover:text-accent-foreground"
                 >
                   {store.name}
                 </a>
               ) : (
-                <span key={store.name} className="rounded-lg border border-dashed border-border/60 px-2 py-1 text-ink-4">
+                <span key={store.name} className="rounded-full border border-dashed border-border/60 px-3 py-1 text-ink-4">
                   {store.name} · {tr('coming soon', 'sắp có')}
                 </span>
               ),
@@ -320,7 +325,7 @@ export function Footer() {
           </div>
         </div>
 
-        <div className="mt-6 flex flex-col items-center justify-between gap-2 pt-5 text-xs text-body sm:flex-row">
+        <div className="mt-8 flex flex-col items-center justify-between gap-2 border-t border-border/60 pt-6 text-xs text-body sm:flex-row">
           <p className="flex items-center gap-1.5">
             {/* ⚠️ SITE_NAME, NOT A LITERAL — a copyright line is a claim about WHO OPERATES THIS
                 SITE, so eno.forum asserting "© eno.vn" was the licensed marketplace claiming
@@ -333,7 +338,7 @@ export function Footer() {
             <span aria-hidden="true">·</span>
             <span>{tr('Made in Saigon', 'Làm tại Sài Gòn')} <span aria-hidden="true">❤️</span></span>
           </p>
-          <div className="flex flex-wrap items-center gap-x-5 gap-y-1">
+          <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-1">
             <a href="/terms" className="transition-colors hover:text-accent-foreground">{tr('Terms', 'Điều khoản')}</a>
             <a href="/privacy" className="transition-colors hover:text-accent-foreground">{tr('Privacy', 'Quyền riêng tư')}</a>
             <a href="/regulations" className="transition-colors hover:text-accent-foreground">{tr('Regulations', 'Quy chế')}</a>

@@ -11,14 +11,22 @@ import { useNearViewport } from '@/hooks/use-near-viewport'
 import { personalizationAllowed } from '@/lib/consent'
 import { getViewedListingIds } from '@/lib/reco-signals'
 
+// History floor, deliberately below the promotional rails' MIN_RAIL_ITEMS — see the doc
+// comment on RecentlyViewedRail.
+const MIN_HISTORY_ITEMS = 2
+
 /** "Recently viewed" — the buyer's own trail of opened listings (device-local),
  *  so they can jump back to the exact item without re-searching. Consent-gated
- *  (same bar as the For-You rail); hidden until there are at least two to show.
+ *  (same bar as the For-You rail); hidden below MIN_HISTORY_ITEMS = 2. Deliberately
+ *  NOT the promotional rails' MIN_RAIL_ITEMS=3 floor: this rail is personal recall,
+ *  not manufactured density — a buyer on a PDP with exactly two viewed items still
+ *  needs the way back to them (guard-review catch, 2026-08-06; briefly raised to 3
+ *  with the other rails the same day and reverted for exactly that scenario).
  *  IO-gated: the fetch waits until the shelf is ~a viewport away, so on the PDP
  *  (deep below the fold) it never competes with the gallery LCP image — and on
  *  surfaces where it sits near the top it still fires immediately.
  *  Card size/gaps match the other home rails + feed grid (cols-2 / -3 / -4). */
-export function RecentlyViewedRail({ excludeId }: { excludeId?: string }) {
+export function RecentlyViewedRail({ excludeId, sectionClassName }: { excludeId?: string; sectionClassName?: string }) {
   const router = useRouter()
   const { tr, lang } = useLanguage()
   const [listings, setListings] = useState<SerializedListingCard[]>([])
@@ -29,7 +37,7 @@ export function RecentlyViewedRail({ excludeId }: { excludeId?: string }) {
     let ids = getViewedListingIds()
     if (excludeId) ids = ids.filter((id) => id !== excludeId)
     ids = ids.slice(0, 12)
-    if (ids.length < 2) return
+    if (ids.length < MIN_HISTORY_ITEMS) return
     let off = false
     fetch(`/api/listings?ids=${ids.join(',')}${lang !== 'en' && lang !== 'vi' ? `&lang=${lang}` : ''}`)
       .then((r) => (r.ok ? r.json() : null))
@@ -44,10 +52,10 @@ export function RecentlyViewedRail({ excludeId }: { excludeId?: string }) {
   // the section gap whenever the rail self-hides. Absolute keeps its static position (IO
   // still fires; zero-area targets intersect at threshold 0) with no layout contribution.
   // NOT `hidden`/display:none — those never intersect and would silently kill the rail.
-  if (listings.length < 2) return <div ref={ref} aria-hidden="true" className="absolute h-0 w-0" />
+  if (listings.length < MIN_HISTORY_ITEMS) return <div ref={ref} aria-hidden="true" className="absolute h-0 w-0" />
 
   return (
-    <Shelf icon={History} title={tr('Recently viewed', 'Đã xem gần đây')} sectionClassName="mb-7" watch={listings.length}>
+    <Shelf icon={History} title={tr('Recently viewed', 'Đã xem gần đây')} sectionClassName={sectionClassName} watch={listings.length}>
       {listings.map((l) => (
         <div key={l.id} className={RAIL_CARD_W}>
           <ListingCard

@@ -30,6 +30,7 @@ import { useNearViewport } from '@/hooks/use-near-viewport'
 import { BusinessRail } from './business-rail'
 import { PromoBanner } from './promo-banner'
 import { WhyEno } from './why-eno'
+import { MIN_RAIL_ITEMS, SECTION_HEADER_ROW, SECTION_TITLE, railEdgeMask } from './shelf'
 import { DISTRICTS } from './listings-explorer.constants'
 import { type Nearby, type Geo } from './area-filter'
 import { useSearchShortcuts, useSearchHistory, useSaveSearch } from './use-explorer'
@@ -113,11 +114,15 @@ function DeferredCategoryRails(props: React.ComponentProps<typeof CategoryRails>
     if (typeof requestIdleCallback === 'function') { const id = requestIdleCallback(arm, { timeout: 8000 }); return () => cancelIdleCallback(id) }
     const t = setTimeout(arm, 3500); return () => clearTimeout(t)
   }, [])
-  return (
-    <div ref={ref}>
-      {armed && near ? <CategoryRails {...props} /> : null}
-    </div>
-  )
+  // Pre-arm the sentinel is OUT OF FLOW (absolute, zero-size — the recently-viewed-rail
+  // pattern, and for the same reason): this sits in a space-y container, where even a
+  // zero-height in-flow div earns a full spacing unit — a permanent 32–48px dead band
+  // whenever the rails are absent, PLUS a second one while they loaded. IO still fires on
+  // zero-area targets, `near` latches true, and armed is a one-shot — so once mounted the
+  // rails stay mounted and the wrapper isn't needed at all. NOT `hidden`/display:none —
+  // those never intersect and would silently kill the rails forever.
+  if (!(armed && near)) return <div ref={ref} aria-hidden="true" className="absolute h-0 w-0" />
+  return <CategoryRails {...props} />
 }
 const FacetBar = dynamic(() => import('./facet-bar').then((m) => m.FacetBar), { ssr: false })
 
@@ -379,6 +384,31 @@ export function ListingsExplorer({
   // Below-the-fold curated rows render only AFTER first paint, so the landing
   // hydrates ~12 cards instead of ~84 — the ~70 extra cards were saturating the
   // mobile main thread and delaying the LCP image paint (3.1s render delay).
+
+  // Sparse-catalogue rail dedup (wow pass, 2026-08-06): with ~13 live listings the three
+  // landing rails were showing the SAME cards over and over — density that reads as a
+  // dead shop. The For You seed keeps first claim (it leads), Outstanding businesses is
+  // deduped against it, and the per-category rails exclude both. Rails that fall below
+  // the shared floor hide themselves (MIN_RAIL_ITEMS in shelf.tsx); every listing still
+  // appears in the feed grid, so nothing becomes unreachable. Server seeds only — a
+  // client-side personalization upgrade may reintroduce an overlap, which is acceptable:
+  // this is best-effort de-repetition, not a uniqueness invariant.
+  // Same render-gate rule as railExcludeIds below: a For You seed too small to render its
+  // rail never showed its cards, so it may not claim them out of the businesses rail either.
+  // (If the rail later appears from a >=3-item client fetch, a card can repeat — the accepted
+  // best-effort tradeoff documented above.)
+  const dedupedBusinesses = useMemo(() => {
+    const trendingShown = initialTrending && initialTrending.length >= MIN_RAIL_ITEMS ? initialTrending : []
+    return initialBusinesses?.filter((b) => !trendingShown.some((t) => t.id === b.id))
+  }, [initialBusinesses, initialTrending])
+  // Only rails that will actually RENDER may claim their cards: a rail hidden by the
+  // MIN_RAIL_ITEMS floor never showed anything, so counting its ids here would starve the
+  // category rails below of cards nobody ever saw (external diff-review catch, 2026-08-06).
+  const railExcludeIds = useMemo(() => {
+    const trendingShown = initialTrending && initialTrending.length >= MIN_RAIL_ITEMS ? initialTrending : []
+    const businessesShown = dedupedBusinesses && dedupedBusinesses.length >= MIN_RAIL_ITEMS ? dedupedBusinesses : []
+    return [...trendingShown, ...businessesShown].map((l) => l.id)
+  }, [initialTrending, dedupedBusinesses])
 
   const isLandingMode = useMemo(() => {
     return (
@@ -1666,7 +1696,12 @@ export function ListingsExplorer({
                 Free & Wanted are intent tiles at the end. The relative wrapper hosts the
                 desktop ← / → arrows (only appear once the row overflows). */}
             <div className="relative">
-            <div ref={catScrollerRef} className="mx-auto grid w-fit max-w-full grid-rows-2 grid-flow-col auto-cols-[7rem] sm:auto-cols-[9rem] gap-x-4 gap-y-6 sm:gap-x-6 sm:gap-y-8 overflow-x-auto scrollbar-none snap-x px-3">
+            {/* railEdgeMask: the row used to cut a tile mid-label at the container edge — a
+                stray clipped word that read as a bug. The mask fades only the side(s) with
+                more to scroll (canLeft/canRight), pairing with the ← / → arrows outside the
+                scroller, and vanishes entirely when the row fits. A mask, not a fill — the
+                flat canon stays intact. */}
+            <div ref={catScrollerRef} style={railEdgeMask(catCanLeft, catCanRight)} className="mx-auto grid w-fit max-w-full grid-rows-2 grid-flow-col auto-cols-[7rem] sm:auto-cols-[9rem] gap-x-4 gap-y-6 sm:gap-x-6 sm:gap-y-8 overflow-x-auto scrollbar-none snap-x px-3">
               {/* ⚠️ eno's OWN TWO PRODUCTS, PINNED AHEAD OF THE DEMAND ORDER. Measured 2026-07-28:
                   `/` took 570 page views in a week and `/vietnam-evisa` took ZERO. They were never
                   unreachable — this grid is demand-ordered and `services` already sat SECOND — they
@@ -1719,7 +1754,12 @@ export function ListingsExplorer({
                     key={cat.id}
                     onClick={() => handleCategorySelect(cat.slug)}
                     style={{ '--cat': hex } as CSSProperties}
-                    className="group flex snap-start flex-col items-center justify-center gap-2 whitespace-normal p-2 text-center cursor-pointer transition-transform duration-100 active:scale-[0.96]"
+                    // No hand-rolled active:scale here (removed 2026-08-06): ui/button's base
+                    // already presses every tile at 0.97, and the extra 0.96 + its
+                    // transition-transform (which tailwind-merge let REPLACE the base
+                    // transition-all) made these tiles press differently from the pinned and
+                    // intent tiles beside them. One press feel per row.
+                    className="group flex snap-start flex-col items-center justify-center gap-2 whitespace-normal p-2 text-center cursor-pointer"
                   >
                     <CategoryIcon
                       name={cat.icon}
@@ -1771,16 +1811,27 @@ export function ListingsExplorer({
           <ForYouRail initial={initialTrending} />
 
           {/* Outstanding businesses — second horizontal rail: the highest-trust business
-              storefronts (only on the home landing view). */}
-          <BusinessRail initial={initialBusinesses} />
+              storefronts (only on the home landing view). Seeded with the DEDUPED set (see
+              railExcludeIds above) so it never repeats the For You rail card-for-card. */}
+          <BusinessRail initial={dedupedBusinesses} />
 
           {/* Browse by category — one horizontal rail per category, most-used first.
               Tapping a heading / "See all" opens that category (same as the grid). */}
-          <DeferredCategoryRails categories={categories} onCategory={handleCategorySelect} />
+          <DeferredCategoryRails categories={categories} onCategory={handleCategorySelect} excludeIds={railExcludeIds} />
 
-          {/* Section heading for the feed — keeps the document outline sequential
-              (h1 → h2 → card h3s); visually hidden. */}
-          <h2 className="sr-only">{tr('Latest listings', 'Tin đăng mới nhất')}</h2>
+          {/* THE FEED, headed like every rail above it (wow pass, 2026-08-06): the h2 was
+              sr-only, which kept the outline legal but left the grid as the one section on
+              the page with no name — the header row here is byte-identical to the Shelf
+              treatment (SECTION_* from shelf.tsx), so all home sections read as one family.
+              The wrapper div groups header + grid into a single space-y child, otherwise the
+              container would push them a full section-gap apart. */}
+          <div>
+            <div className={SECTION_HEADER_ROW}>
+              <div className="flex min-w-0 items-center gap-2">
+                <Clock className="h-4 w-4 shrink-0 text-accent-foreground" aria-hidden />
+                <h2 className={SECTION_TITLE}>{tr('Latest listings', 'Tin đăng mới nhất')}</h2>
+              </div>
+            </div>
 
           {/* INFINITE FEED (Facebook-style) — all listings, loads more on scroll. */}
           {shownListings.length === 0 && !isLoading ? (
@@ -1859,14 +1910,19 @@ export function ListingsExplorer({
               {!nearby && (
                 <div ref={loadMoreRef} className="mt-6 select-none">
                   {hasMore && !feedUnlocked && !queryFetching && (
-                    <div className="flex justify-center border-t border-border pt-6">
+                    <div className="border-t border-border pt-6">
+                      {/* The landing's ONE ending (wow pass, 2026-08-06): a full-width
+                          continuation instead of a small centred "Load more" — on a sparse
+                          catalogue the rails above may all hide, so the page needs to end on
+                          an invitation, not trail off. Same handler as before: loads the next
+                          page AND unlocks infinite scroll. */}
                       <Button
                         variant="bare"
                         size="none"
                         onClick={() => { prefetchNextPage(); setPage((p) => p + 1); setFeedUnlocked(true) }}
-                        className="rounded-xl border border-line-strong px-6 py-2.5 text-sm font-bold text-foreground transition-colors hover:bg-muted cursor-pointer"
+                        className="w-full rounded-xl border border-line-strong px-6 py-3 text-sm font-bold text-foreground transition-colors hover:bg-muted"
                       >
-                        {tr('Load more', 'Xem thêm')}
+                        {tr('Browse everything', 'Xem tất cả tin đăng')}
                       </Button>
                     </div>
                   )}
@@ -1883,6 +1939,7 @@ export function ListingsExplorer({
               )}
             </>
           )}
+          </div>
 
         </div>
       </section>

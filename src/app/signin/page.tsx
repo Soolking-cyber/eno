@@ -3,13 +3,14 @@
 import { Suspense, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { ShieldCheck, MessageSquare, BadgeCheck } from 'lucide-react'
+import { ShieldCheck, MessageSquare, BadgeCheck, ArrowLeft } from 'lucide-react'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import { SignInForm } from '@/components/marketplace/sign-in-form'
 import { Mascot } from '@/components/marketplace/mascot'
 import { safeNextPath } from '@/lib/url'
 import { COMPANY } from '@/lib/site-legal'
+import { SITE_NAME } from '@/lib/edition'
 
 // Dedicated split-layout sign-in page (commerce-login pattern, eno.vn blue). Reuses
 // the exact same <SignInForm> as the inline modal. Honors ?next= for post-login
@@ -54,16 +55,21 @@ function SignInPageInner() {
           keeps the navy brand panel and the near-black canvas from colliding. */}
       <div className="flex flex-col items-center justify-center px-6 py-12 md:dark:border-l md:dark:border-border/60">
         <div className="w-full max-w-sm text-center">
-          <Link href="/" className="mb-8 inline-block text-2xl font-black text-accent-foreground md:hidden">eno.vn</Link>
+          {/* The real logo mark, not a blue text wordmark — the wordmark competed with the
+              form's single blue CTA, and the mark is what the header/footer already use. */}
+          <Link href="/" className="mb-8 inline-block md:hidden">
+            <img src="/logo-mark.svg" alt={SITE_NAME} width={48} height={48} className="h-12 w-12" />
+          </Link>
           <h2 className="text-2xl font-bold text-foreground">{tr('Welcome to eno.vn', 'Chào mừng đến eno.vn')}</h2>
           <p className="mt-1 text-sm text-muted-foreground">{tr('Sign in or create your account in seconds.', 'Đăng nhập hoặc tạo tài khoản trong vài giây.')}</p>
           <SignInForm className="mt-8 text-left" />
-          <Link href="/" className="mt-8 inline-block text-sm font-semibold text-muted-foreground hover:text-accent-foreground">
-            ← {tr('Back to eno.vn', 'Về trang chủ')}
+          <Link href="/" className="mt-8 inline-flex items-center gap-1.5 text-sm font-semibold text-muted-foreground transition-colors hover:text-accent-foreground">
+            <ArrowLeft className="h-4 w-4" aria-hidden /> {tr('Back to eno.vn', 'Về trang chủ')}
           </Link>
           {/* Operator identity — the split layout has no Footer, and Đ.36 wants the
-              operator identifiable on every public page. Compact single block. */}
-          <p className="mt-6 text-3xs leading-relaxed text-ink-4">
+              operator identifiable on every public page. Compact single block, seated
+              behind a hairline so it reads as the page's quiet legal footer. */}
+          <p className="mt-8 border-t border-border/60 pt-4 text-3xs leading-relaxed text-ink-4">
             {COMPANY.name} · {COMPANY.address} · {tr('Business reg. no.', 'GCN ĐKDN số')}: {COMPANY.erc} · {COMPANY.email}
           </p>
         </div>

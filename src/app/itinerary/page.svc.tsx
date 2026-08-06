@@ -131,7 +131,6 @@ export default async function ItineraryLandingPage() {
   const planHref = planListingId ? `/listings/${planListingId}` : '/dashboard/trips'
   return (
     <ContentPage
-      eyebrow="Trip planner"
       title="Plan a Vietnam trip, day by day"
       intro={
         <Tr text="Tell us where you're going, how long you have and roughly what you want to spend. You get a day-by-day itinerary with real places, times and rough costs — every stop plotted on a map, so you can see whether a day makes sense before you're standing in it." />

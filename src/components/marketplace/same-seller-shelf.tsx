@@ -26,6 +26,8 @@ export function SameSellerShelf({
   if (listings.length < 2) return null
 
   return (
+    // Shelf's SECTION_TITLE already carries the app-wide text-lg font-semibold header tier,
+    // matching the page's section headers and the "More like this" shelf below it.
     <Shelf
       title={tr('More from this seller', `Tin khác từ ${sellerName}`)}
       seeAllHref={sellerHref}

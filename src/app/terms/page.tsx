@@ -187,7 +187,6 @@ const sections: Section[] = [
 export default function TermsPage() {
   return (
     <ContentPage
-      eyebrow="Legal"
       title="Terms of Service"
       meta={
         <>
@@ -200,7 +199,7 @@ export default function TermsPage() {
                 notice beside this, where it reads as a future date rather than today's rule. */}
             <Tr text="Last updated: August 2026" /> · <Tr text="Version" /> {TOS_VERSION}
           </p>
-          <p className="mt-2 max-w-3xl text-xs text-muted-foreground italic"><Tr text="This translation is provided for your convenience. The English version of these terms is the authoritative one." /></p>
+          <p className="mt-2 max-w-[70ch] text-xs text-muted-foreground italic"><Tr text="This translation is provided for your convenience. The English version of these terms is the authoritative one." /></p>
         </>
       }
       sections={sections.map((s) => ({ id: s.id, label: s.title }))}

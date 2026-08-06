@@ -67,12 +67,16 @@ export function ProtectionsRow() {
 
   return (
     <Dialog>
+      {/* `press`, not `active:scale-100`: a dialog trigger is not a floating-ui anchor (no rect
+          read mid-press), so it gets the standard press feel. `.press`'s transition is unlayered,
+          so the spring survives the `transition-colors` here; the Button base's active:scale-[0.97]
+          supplies the pressed value (utilities outrank the components layer). */}
       <DialogTrigger render={
         <Button
           type="button"
           variant="bare"
           size="none"
-          className="flex w-full items-center justify-start gap-2.5 whitespace-normal rounded-xl border border-border bg-tint px-3.5 py-2.5 text-left font-normal transition-colors hover:bg-accent active:scale-100"
+          className="press flex w-full items-center justify-start gap-2.5 whitespace-normal rounded-xl border border-border bg-tint px-3.5 py-2.5 text-left font-normal transition-colors hover:bg-accent"
         />
       }>
           <ShieldCheck className="h-5 w-5 shrink-0 text-accent-foreground" aria-hidden />

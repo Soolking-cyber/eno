@@ -26,6 +26,7 @@ export function EmptyState({
   subtitle,
   action,
   tone = 'default',
+  size = 'default',
   className,
 }: {
   icon?: LucideIcon
@@ -34,6 +35,10 @@ export function EmptyState({
   subtitle?: React.ReactNode
   action?: React.ReactNode
   tone?: 'default' | 'admin' | 'bare'
+  // 'lg' = statement tier for mascot-led, page-level empty states (guest gates, empty
+  // categories): the title steps up a size so a 160px mascot doesn't dwarf its own caption.
+  // Inline list/table empties stay on the default.
+  size?: 'default' | 'lg'
   className?: string
 }) {
   return (
@@ -48,8 +53,8 @@ export function EmptyState({
     >
       {media ?? (Icon && <Icon className="h-10 w-10 text-muted-foreground" />)}
       <div className="space-y-1">
-        <p className="text-sm font-semibold text-body">{title}</p>
-        {subtitle && <p className="mx-auto max-w-sm text-xs text-muted-foreground">{subtitle}</p>}
+        <p className={size === 'lg' ? 'text-base font-semibold text-foreground' : 'text-sm font-semibold text-body'}>{title}</p>
+        {subtitle && <p className={cn('mx-auto max-w-sm text-muted-foreground', size === 'lg' ? 'text-sm' : 'text-xs')}>{subtitle}</p>}
       </div>
       {action}
     </div>

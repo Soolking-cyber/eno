@@ -125,7 +125,7 @@ const servicesTips: Tip[] = SERVICES_SAFETY.tips.map((t) => [SERVICES_ICONS[t.ic
 
 function TipGrid({ tips, danger = false }: { tips: Tip[]; danger?: boolean }) {
   return (
-    <div className="grid gap-x-8 gap-y-7 sm:grid-cols-2 lg:grid-cols-3">
+    <div className="grid gap-x-8 gap-y-8 sm:grid-cols-2 lg:grid-cols-3">
       {tips.map(([Icon, title, body], i) => (
         <div key={i}>
           <Icon className={danger ? 'h-5 w-5 text-destructive' : 'h-5 w-5 text-accent-foreground'} strokeWidth={2} aria-hidden />
@@ -174,7 +174,6 @@ export default function SafetyPage() {
 
   return (
     <ContentPage
-      eyebrow="Safe trading"
       title="Trade with confidence."
       intro={
         <Tr text="Most trades on eno go smoothly — accounts are verified, listings are screened, and higher-trust sellers rank first. But the deal closes between you and the other person, so the last few metres are up to you. These habits keep every one of them safe." />
@@ -190,7 +189,7 @@ export default function SafetyPage() {
       </ContentSection>
 
       <ContentSection id="red-flags" title="Red flags — stop and walk away" wide>
-        <p className="mb-6 max-w-3xl text-sm leading-relaxed text-body">
+        <p className="mb-6 max-w-[70ch] text-sm leading-relaxed text-body">
           <Tr text="Almost every scam shows one of these signs. If you see even one, don’t pay — pause, and report it." />
         </p>
         <TipGrid tips={redFlags} danger />
@@ -198,13 +197,13 @@ export default function SafetyPage() {
 
       {IS_SERVICES && servicesTips.length > 0 && (
         <ContentSection id={SERVICES_SAFETY.navId} title={SERVICES_SAFETY.sectionTitle} wide>
-          <p className="max-w-3xl text-sm leading-relaxed text-body">
+          <p className="max-w-[70ch] text-sm leading-relaxed text-body">
             <Tr text={SERVICES_SAFETY.intro} />
           </p>
           {/* The provider-of-record disclosure, from the single source that owns it. Who does the
               work, who is answerable for it, and what this site is NOT — stated before the advice,
               because a visitor who reads nothing else must still leave with this. */}
-          <p className="mt-4 max-w-3xl text-sm leading-relaxed text-foreground">
+          <p className="mt-4 max-w-[70ch] text-sm leading-relaxed text-foreground">
             <Tr text={PROVIDER_OF_RECORD.en} />
           </p>
           <div className="mt-8">
@@ -217,7 +216,7 @@ export default function SafetyPage() {
           {/* The contextual cross-link. `rel` comes from cross-site-links.ts — noopener and
               deliberately NOT nofollow; read the constant before changing it. Plain text rather
               than an empty anchor if the href is ever missing. */}
-          <p className="mt-10 max-w-3xl text-sm leading-relaxed text-body">
+          <p className="mt-10 max-w-[70ch] text-sm leading-relaxed text-body">
             <Tr text={SERVICES_SAFETY.crossLink.before} />{' '}
             {SERVICES_SAFETY.crossLink.href ? (
               <a

@@ -54,10 +54,11 @@ export default function HomeLoading() {
             {/* HORIZONTAL RAILS — For You + Outstanding businesses (each SSRs a
                 header + a row of card skeletons; card width == one feed column) */}
             {Array.from({ length: 2 }).map((_, row) => (
-              <section key={row} className="mb-7">
-                <div className="mb-2.5 flex items-center gap-2">
+              <section key={row}>
+                <div className="mb-3 flex items-center gap-2">
                   <Skeleton className="h-4 w-4 rounded-lg" />
-                  <Skeleton className="h-5 w-36" />
+                  {/* h-6 mirrors the rails' text-lg SECTION_TITLE line box */}
+                  <Skeleton className="h-6 w-40" />
                 </div>
                 <div className="flex gap-2 overflow-hidden snap-x sm:gap-4">
                   {Array.from({ length: 6 }).map((_, i) => (
@@ -67,7 +68,13 @@ export default function HomeLoading() {
               </section>
             ))}
 
-            {/* INFINITE FEED GRID — first page is 12 cards */}
+            {/* INFINITE FEED GRID — first page is 12 cards. The real landing renders a
+                visible "Latest listings" header row above the grid (icon + text-lg title,
+                mb-3) — mirror it or the header's ~40px insertion shifts the grid on swap. */}
+            <div className="mb-3 flex items-center gap-2">
+              <Skeleton className="h-4 w-4 rounded-lg" />
+              <Skeleton className="h-6 w-40" />
+            </div>
             <div className="grid grid-cols-2 gap-2 sm:gap-4 sm:grid-cols-3 lg:grid-cols-4">
               {Array.from({ length: 12 }).map((_, i) => (
                 <ListingCardSkeleton key={i} />

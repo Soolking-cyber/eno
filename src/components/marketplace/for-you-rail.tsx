@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Sparkles, TrendingUp } from 'lucide-react'
 import type { SerializedListingCard } from '@/lib/types'
 import { ListingCard } from './listing-card'
-import { Shelf, RAIL_CARD_W } from './shelf'
+import { Shelf, RAIL_CARD_W, MIN_RAIL_ITEMS } from './shelf'
 import { useLanguage } from '@/context/language-context'
 import { personalizationAllowed } from '@/lib/consent'
 import { getRecoSignals, getInboundQuery } from '@/lib/reco-signals'
@@ -54,10 +54,12 @@ export function ForYouRail({ initial }: { initial?: SerializedListingCard[] }) {
       .then((d) => {
         if (!d) return
         const next: SerializedListingCard[] = d.listings || []
-        // Never collapse a rendered rail: an empty personalized answer keeps the
-        // current (seed/previous) content instead of yanking the section away.
-        setListings((prev) => (next.length ? next : seeded ? prev : next))
-        if (next.length) setPersonalized(!!d.personalized)
+        // Never collapse a rendered rail: an empty OR sub-floor personalized answer keeps
+        // the current (seed/previous) content instead of yanking the section away — the
+        // MIN_RAIL_ITEMS render gate below would hide the rail for a 1–2 item answer, so
+        // adopting one would collapse a rail the seed had legitimately filled.
+        setListings((prev) => (next.length >= MIN_RAIL_ITEMS ? next : seeded ? prev : next))
+        if (next.length >= MIN_RAIL_ITEMS) setPersonalized(!!d.personalized)
       })
       .catch(() => {})
   }, [seeded])
@@ -84,7 +86,9 @@ export function ForYouRail({ initial }: { initial?: SerializedListingCard[] }) {
   }, [])
 
   if (!active) return null
-  if (listings !== null && listings.length === 0) return null // nothing to recommend → hide
+  // Sparse-rail grace: below the floor a rail is two cards and a void — hide it and let
+  // the feed grid (which shows everything) carry the page. `null` still means "loading".
+  if (listings !== null && listings.length < MIN_RAIL_ITEMS) return null
 
   return (
     // Cards are PIXEL-IDENTICAL to the feed grid below (RAIL_CARD_W == one grid column) so
@@ -92,7 +96,7 @@ export function ForYouRail({ initial }: { initial?: SerializedListingCard[] }) {
     <Shelf
       icon={personalized ? Sparkles : TrendingUp}
       title={personalized ? tr('For you', 'Dành cho bạn') : tr('Trending now', 'Đang thịnh hành')}
-      sectionClassName="mb-7"
+
       watch={listings?.length ?? 0}
     >
       {listings === null
