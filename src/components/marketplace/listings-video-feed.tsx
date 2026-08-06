@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
 import { Heart, MessageCircle, Share2, Volume2, VolumeX, Play, Film, X, ChevronUp, ChevronDown } from 'lucide-react'
+import { STROKE_NAV, STROKE_FLOAT, STROKE_DISPLAY } from '@/lib/icon-tokens'
 import type { SerializedListingCard } from '@/lib/types'
 import { useLanguage, useTr } from '@/context/language-context'
 import { useFavorites } from '@/context/favorites-context'
@@ -160,7 +161,9 @@ export function VideoFeed({
           // positions the ::before hit area correctly.
           className="fixed left-4 top-[calc(env(safe-area-inset-top)+1rem)] z-[70] bg-black/40 text-white backdrop-blur transition-transform hover:scale-105 active:scale-[0.96]"
         >
-          <X className="h-5 w-5" />
+          {/* Takeover chrome = the platform weight at the header's h-6 step (§2/§4) —
+              this ✕ is the same control as the header/lightbox close, so same tier. */}
+          <X className="h-6 w-6" strokeWidth={STROKE_NAV} />
         </IconButton>
         {children}
       </div>,
@@ -174,7 +177,12 @@ export function VideoFeed({
     // convert the visitor into the first video poster instead.
     return shell(
       <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center text-white/90">
-        <Film className="h-10 w-10 text-white/50" />
+        {/* Echo of the foundation EmptyState: glyph on a quiet coin at the display
+            stroke (a 40px glyph at stroke 2 looks rubber-stamped — §2). The coin is
+            neutral white/10, not brand-50: this canvas is always black, no theme. */}
+        <span className="mb-1 flex h-16 w-16 items-center justify-center rounded-full bg-white/10">
+          <Film className="h-10 w-10 text-white/70" strokeWidth={STROKE_DISPLAY} />
+        </span>
         <p className="text-sm font-semibold">{tr('No videos here yet', 'Chưa có video nào')}</p>
         <p className="max-w-xs text-xs text-white/60">
           {tr('Listings with a short clip stand out — add one to yours.', 'Tin có video ngắn nổi bật hơn hẳn — hãy thêm video vào tin của bạn.')}
@@ -226,7 +234,9 @@ export function VideoFeed({
           // :where() size-4 rule on their own.
           className="flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20 disabled:opacity-30"
         >
-          <ChevronUp className="h-6 w-6" />
+          {/* Floating chevrons over content → the floating tier (§2), same as the
+              card carousel's arrows and back-to-top. */}
+          <ChevronUp className="h-6 w-6" strokeWidth={STROKE_FLOAT} />
         </Button>
         <Button
           variant="bare"
@@ -237,7 +247,7 @@ export function VideoFeed({
           aria-label={tr('Next', 'Sau')}
           className="flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20 disabled:opacity-30"
         >
-          <ChevronDown className="h-6 w-6" />
+          <ChevronDown className="h-6 w-6" strokeWidth={STROKE_FLOAT} />
         </Button>
       </div>
     </>,
@@ -339,7 +349,8 @@ function VideoFeedItem({
             className="absolute inset-0 z-10 flex items-center justify-center active:scale-100"
           >
             <span className="flex h-16 w-16 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur-[2px]">
-              <Play className="h-8 w-8 fill-current" />
+              {/* Filled play mark, h-7 (the ladder's 28px step — h-8 is off-grid). */}
+              <Play className="h-7 w-7 fill-current" />
             </span>
           </Button>
         )}
@@ -386,17 +397,20 @@ function VideoFeedItem({
         {/* Action rail — overlays the clip's bottom-right on mobile; sits BESIDE the clip (on the
             black) on desktop. */}
         <div className="absolute bottom-[calc(env(safe-area-inset-bottom)+1.5rem)] right-2.5 z-10 flex flex-col items-center gap-5 text-white sm:bottom-10 sm:left-full sm:right-auto sm:ml-5">
+          {/* h-7 @ STROKE_NAV — the bottom-nav tier (§2/§4): this rail IS the takeover's
+              nav chrome, and h-8 sat off the ladder. Saved keeps the §5 user-state pair
+              (fill-brand + brand line). */}
           <RailButton label={favorited ? tr('Saved', 'Đã lưu') : tr('Save', 'Lưu')} onClick={() => toggle(listing.id)}>
-            <Heart className={cn('h-8 w-8 transition-colors [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.6))]', favorited ? 'fill-brand text-brand' : 'text-white')} />
+            <Heart strokeWidth={STROKE_NAV} className={cn('h-7 w-7 transition-colors [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.6))]', favorited ? 'fill-brand text-brand' : 'text-white')} />
           </RailButton>
           <RailButton label={tr('Chat with seller', 'Nhắn tin')} onClick={chat}>
-            <MessageCircle className="h-8 w-8 [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.6))]" />
+            <MessageCircle strokeWidth={STROKE_NAV} className="h-7 w-7 [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.6))]" />
           </RailButton>
           <RailButton label={tr('Share', 'Chia sẻ')} onClick={share}>
-            <Share2 className="h-8 w-8 [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.6))]" />
+            <Share2 strokeWidth={STROKE_NAV} className="h-7 w-7 [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.6))]" />
           </RailButton>
           <RailButton label={muted ? tr('Unmute', 'Bật tiếng') : tr('Mute', 'Tắt tiếng')} onClick={onToggleMute}>
-            {muted ? <VolumeX className="h-8 w-8 [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.6))]" /> : <Volume2 className="h-8 w-8 [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.6))]" />}
+            {muted ? <VolumeX strokeWidth={STROKE_NAV} className="h-7 w-7 [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.6))]" /> : <Volume2 strokeWidth={STROKE_NAV} className="h-7 w-7 [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.6))]" />}
           </RailButton>
         </div>
       </div>

@@ -229,3 +229,10 @@ Reuse the canon's machinery — icons get no animation machinery of their own:
 4. Does it have an active state? Location → wash; user-state → solid (§5).
 5. Icon-only tap target → `<IconButton>`. Popup from an icon → ui/popover family.
 6. Copy near it → `tr(en, vi)`. Colors → tokens. Then run the design-lint hook.
+
+### §0b addendum — earned-tier vividness is law, not drift (lead ruling, 2026-08-07)
+The micro seal chip has two sanctioned states: BUILDING tiers = tinted chief + line + bar;
+EARNED tiers (Trusted/Exceptional/Elite) = vivid tier-gradient chief on the same seal geometry
+(owner decision 2026-07-13, preserved through the foundation restyle). A vivid earned chip beside
+tinted building chips on one card row is correct rendering of real rank data — do not "fix" it,
+and critics should read mixed vividness on one surface as information, not inconsistency.

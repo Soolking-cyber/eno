@@ -3,7 +3,7 @@
 import { memo, useState } from 'react'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
-import { MapPin, MessageCircle, Tag, Zap } from 'lucide-react'
+import { ArrowRight, MapPin, MessageCircle, Tag, Zap } from 'lucide-react'
 import { TrustScore } from './trust-score'
 import { Badge } from './card-badges'
 import { Price } from './price'
@@ -164,9 +164,12 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
               variant="cta"
               size="none"
               onClick={() => quickGo({ offerAmount: Math.round(l.price * (1 - offer / 100)) })}
-              className="shrink-0 rounded-full px-3 py-1 text-2xs cursor-pointer"
+              className="shrink-0 gap-1 rounded-full px-3 py-1 text-2xs cursor-pointer"
             >
-              {formatMoneyFull(Math.round(l.price * (1 - offer / 100)), l.currency, moneyLocale(lang))} →
+              {/* ArrowRight icon, not the '→' text glyph — mirrors the grid card's offer
+                  CTA so both variants speak one arrow language (icon-language §1). */}
+              {formatMoneyFull(Math.round(l.price * (1 - offer / 100)), l.currency, moneyLocale(lang))}
+              <ArrowRight className="h-3 w-3" />
             </Button>
           </div>
         )}
@@ -184,7 +187,10 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
               onClick={(e) => { e.stopPropagation(); setOffer(offer === null ? 10 : null) }}
               className="hidden text-foreground transition-colors hover:bg-accent sm:flex"
             >
-              <Tag className="h-[17px] w-[17px]" />
+              {/* h-5 on ALL FOUR cluster glyphs (Tag/Chat/Pin/Heart) — the old 17/18px
+                  mix is exactly the off-grid drift the icon ladder (§4) exists to kill.
+                  Open offer = user-state solid (§5): fill-brand + brand line. */}
+              <Tag className={cn('h-5 w-5 transition-colors', offer !== null && 'fill-brand text-brand')} />
             </IconButton>
           </Tooltip>
         ) : (
@@ -203,7 +209,7 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
             onClick={(e) => { e.stopPropagation(); quickGo({ body: tr('Hi! Is this still available?', 'Chào bạn! Món này còn không?') }) }}
             className={cn('text-foreground transition-colors hover:bg-accent', offer === null ? 'flex' : 'hidden')}
           >
-            <MessageCircle className="h-[18px] w-[18px]" />
+            <MessageCircle className="h-5 w-5" />
           </IconButton>
         </Tooltip>
         <IconButton
@@ -213,7 +219,7 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
           onClick={(e) => { e.stopPropagation(); onLocate(l.id) }}
           className={cn('text-foreground transition-colors hover:bg-accent', offer === null ? 'flex' : 'hidden')}
         >
-          <MapPin className="h-[18px] w-[18px]" />
+          <MapPin className="h-5 w-5" />
         </IconButton>
         {offer === null && <FavoriteHeart id={l.id} className="-mr-0.5" />}
       </div>

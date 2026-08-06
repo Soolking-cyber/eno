@@ -3,7 +3,8 @@
 import { useEffect, useState, useRef, memo } from 'react'
 import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
-import { Heart, ChevronLeft, ChevronRight, Building2, MapPin, MessageCircle, Tag, Play } from 'lucide-react'
+import { Heart, ChevronLeft, ChevronRight, Building2, MapPin, MessageCircle, Tag, Play, ArrowRight } from 'lucide-react'
+import { STROKE_FLOAT } from '@/lib/icon-tokens'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { IconButton } from '@/components/ui/icon-button'
@@ -227,7 +228,7 @@ function ListingCardImpl({
               <div key={i} className="relative h-full w-full shrink-0 overflow-hidden">
                 {slideDown[i] ? (
                   <div className="flex h-full w-full items-center justify-center bg-tint">
-                    <CategoryIcon name={listing.category.icon} className="h-10 w-10 text-muted-foreground" />
+                    <CategoryIcon name={listing.category.icon} className="h-11 w-11 text-muted-foreground" />
                   </div>
                 ) : (
                   <Image
@@ -266,7 +267,7 @@ function ListingCardImpl({
           </div>
         ) : (
           <div className="flex h-full w-full items-center justify-center bg-tint">
-            <CategoryIcon name={listing.category.icon} className="h-10 w-10 text-muted-foreground" />
+            <CategoryIcon name={listing.category.icon} className="h-11 w-11 text-muted-foreground" />
           </div>
         )}
 
@@ -310,14 +311,16 @@ function ListingCardImpl({
           <span className="pointer-events-none absolute left-2 bottom-2 z-10 flex items-center gap-1.5">
             {listing.video && (
               <span title={tr('Has a video', 'Có video')} className="flex h-5 items-center rounded-full bg-foreground/70 px-1.5 text-background backdrop-blur-[2px]">
-                <Play className="h-2.5 w-2.5 fill-current" />
+                {/* Filled micro-mark (icon-language §2 spirit: a 2-weight line vanishes at
+                    this size inside a filled chip) at the ladder's 12px micro step. */}
+                <Play className="h-3 w-3 fill-current" />
               </span>
             )}
             {/* base savedCount persists server-side (real saves); savedDelta adds this
                 session's own toggle so it moves the moment the heart is tapped. */}
             {savedTotal >= 3 && (
               <span title={tr('people saved this', 'người đã lưu tin này')} className="flex h-5 items-center gap-1 rounded-full bg-foreground/70 px-2 text-3xs font-bold text-background backdrop-blur-[2px]">
-                <Heart className="h-2.5 w-2.5 fill-current" /> {new Intl.NumberFormat(moneyLocale(lang) === 'vi' ? 'vi-VN' : 'en-US').format(savedTotal)}
+                <Heart className="h-3 w-3 fill-current" /> {new Intl.NumberFormat(moneyLocale(lang) === 'vi' ? 'vi-VN' : 'en-US').format(savedTotal)}
               </span>
             )}
           </span>
@@ -344,7 +347,7 @@ function ListingCardImpl({
                 onClick={(e) => { e.stopPropagation(); quickGo({ body: tr('Hi! Is this still available?', 'Chào bạn! Món này còn không?') }) }}
                 className="pointer-events-auto translate-x-3 opacity-0 transition-all duration-200 hover:scale-110 active:scale-[0.96] group-hover:translate-x-0 group-hover:opacity-100 focus-visible:translate-x-0 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
               >
-                <MessageCircle className="h-[20px] w-[20px]" />
+                <MessageCircle className="h-5 w-5" />
               </IconButton>
             </Tooltip>
           )}
@@ -362,10 +365,11 @@ function ListingCardImpl({
                   quickOffer === null && 'delay-75 group-hover:delay-75',
                 )}
               >
-                {/* Pressed = brand fill, mirroring the heart's saved state. The offer
+                {/* Pressed = brand fill, mirroring the heart's saved state (icon-language
+                    §5: an active offer is user-state, the one solid-fill moment). The offer
                     controls open as ONE wide edge-to-edge bar (shared with mobile,
                     below) so the amount never gets cramped on a narrow card. */}
-                <Tag className={cn('h-[20px] w-[20px]', quickOffer !== null && 'fill-brand')} />
+                <Tag className={cn('h-5 w-5', quickOffer !== null && 'fill-brand')} />
               </IconButton>
             </Tooltip>
           )}
@@ -379,7 +383,7 @@ function ListingCardImpl({
                 onClick={(e) => { e.stopPropagation(); locate(listing) }}
                 className="pointer-events-auto translate-x-3 opacity-0 transition-all delay-150 duration-200 hover:scale-110 active:scale-[0.96] group-hover:translate-x-0 group-hover:opacity-100 group-hover:delay-150 focus-visible:translate-x-0 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
               >
-                <MapPin className="h-[20px] w-[20px]" />
+                <MapPin className="h-5 w-5" />
               </IconButton>
             </Tooltip>
           )}
@@ -399,9 +403,12 @@ function ListingCardImpl({
           className="absolute right-2 top-2 z-10 transition-transform hover:scale-110 active:scale-[0.96]"
         >
           {/* Icon-only (no chip): white outline + subtle dark fill + drop-shadow —
-              legible on ANY photo; blue fill when saved; heart-pop on save. */}
+              legible on ANY photo; solid fill-brand when saved (icon-language §5
+              user-state — the line stays white because it sits over media); heart-pop
+              on save. h-5 = the ladder's 20px step, same as the quick-action glyphs,
+              so the whole photo-overlay cluster shares ONE optical size. */}
           <span onAnimationEnd={() => setBurst(false)} className={cn('inline-flex', burst && 'animate-heart-pop')}>
-            <Heart className={cn('h-[22px] w-[22px] transition-colors [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.5))]', favorited ? 'fill-brand text-white' : 'fill-black/25 text-white')} />
+            <Heart className={cn('h-5 w-5 transition-colors [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.5))]', favorited ? 'fill-brand text-white' : 'fill-black/25 text-white')} />
           </span>
         </IconButton>
 
@@ -435,9 +442,13 @@ function ListingCardImpl({
               size="none"
               type="button"
               onClick={() => quickGo({ offerAmount: Math.round(listing.price * (1 - quickOffer / 100)) })}
-              className="w-full whitespace-nowrap rounded-lg px-2 py-1.5 text-2xs tabular-nums cursor-pointer"
+              className="w-full gap-1 whitespace-nowrap rounded-lg px-2 py-1.5 text-2xs tabular-nums cursor-pointer"
             >
-              {formatMoneyFull(Math.round(listing.price * (1 - quickOffer / 100)), listing.currency, moneyLocale(lang))} →
+              {/* Real ArrowRight, not the old '→' text glyph — a literal arrow renders in
+                  the font's weight, not the icon system's (same decision in the compact
+                  row's CTA — keep the two in lockstep). h-3 beats the :where size-4 rule. */}
+              {formatMoneyFull(Math.round(listing.price * (1 - quickOffer / 100)), listing.currency, moneyLocale(lang))}
+              <ArrowRight className="h-3 w-3" />
             </Button>
           </div>
         )}
@@ -453,7 +464,8 @@ function ListingCardImpl({
                 onClick={(e) => { e.stopPropagation(); goTo(idx - 1) }}
                 className="absolute left-1 top-1/2 -translate-y-1/2 z-10 hidden opacity-0 transition-opacity group-hover:flex group-hover:opacity-100 hover:scale-110 [filter:drop-shadow(0_1px_3px_rgba(0,0,0,0.55))]"
               >
-                <ChevronLeft className="h-6 w-6" />
+                {/* Bare chevron floating over imagery → the floating tier (icon-language §2). */}
+                <ChevronLeft className="h-6 w-6" strokeWidth={STROKE_FLOAT} />
               </IconButton>
             )}
             {idx < last && (
@@ -464,7 +476,7 @@ function ListingCardImpl({
                 onClick={(e) => { e.stopPropagation(); goTo(idx + 1) }}
                 className="absolute right-1 top-1/2 -translate-y-1/2 z-10 hidden opacity-0 transition-opacity group-hover:flex group-hover:opacity-100 hover:scale-110 [filter:drop-shadow(0_1px_3px_rgba(0,0,0,0.55))]"
               >
-                <ChevronRight className="h-6 w-6" />
+                <ChevronRight className="h-6 w-6" strokeWidth={STROKE_FLOAT} />
               </IconButton>
             )}
             {/* dots */}

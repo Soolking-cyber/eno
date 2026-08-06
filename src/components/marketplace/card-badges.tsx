@@ -72,7 +72,9 @@ export function CardBadges({
     <span className={cn('flex items-center gap-1', className)}>
       {listing.urgent && (
         <Badge kind="urgent">
-          <Zap className="h-2.5 w-2.5 fill-current" /> {tr('Urgent', 'Bán gấp')}
+          {/* Filled mark inside a small filled chip — a stroked bolt disappears at the
+              micro step; h-3 is the icon ladder's 12px size for 3xs labels (§4). */}
+          <Zap className="h-3 w-3 fill-current" /> {tr('Urgent', 'Bán gấp')}
         </Badge>
       )}
       {drop && <Badge kind="drop">{drop}</Badge>}

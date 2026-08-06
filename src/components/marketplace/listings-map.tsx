@@ -610,7 +610,9 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
                     aria-label={isFavorite(card.id) ? tr('Saved', 'Đã lưu') : tr('Save', 'Lưu')}
                     className="transition-transform hover:scale-110 active:scale-[0.96]"
                   >
-                    <Heart className={cn('h-[22px] w-[22px] transition-colors [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.5))]', isFavorite(card.id) ? 'fill-brand text-white' : 'fill-black/25 text-white')} />
+                    {/* h-5 + the same overlay fill pair as the grid card's heart — one
+                        save affordance, byte-identical across grid / map (icon ladder §4). */}
+                    <Heart className={cn('h-5 w-5 transition-colors [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.5))]', isFavorite(card.id) ? 'fill-brand text-white' : 'fill-black/25 text-white')} />
                   </IconButton>
                 </div>
                 <Button variant="bare" size="none" onClick={() => activateCard(card)} className="block w-full whitespace-normal text-left font-normal cursor-pointer active:scale-100">
