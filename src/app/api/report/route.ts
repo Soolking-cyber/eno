@@ -1,10 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getCurrentProfile } from '@/lib/admin'
 import { severityForReason } from '@/lib/trust'
 import { reporterStanding } from '@/lib/enforcement-machine'
 import { rateLimit } from '@/lib/ratelimit'
 import { DISPUTE_WINDOW_MS, notifyDispute, respondentProfileId } from '@/lib/dispute'
+import { ApiError, route } from '@/lib/api/handler'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -16,26 +16,45 @@ type Reason = (typeof REASONS)[number]
 // /admin queue; an admin-confirmed report moves the target's trust score.
 const MAX_OPEN_PER_LISTING = 50
 
-export async function POST(req: NextRequest) {
+// ⚠️ WS6 MIGRATION — AUTH PREAMBLE ONLY, AND `auth: 'profile'` IS THE CORRECT MODE HERE, not the
+// cheaper `'userId'`. This route reads the Profile ROW: `falseReportStrikes` feeds the standing
+// ladder and `reportCooldownUntil` gates the anti-abuse cooldown, both before anything else runs.
+// Downgrading to `'userId'` would mean fetching that row by hand — the same DB read, minus the
+// wrapper's lazy provisioning. Guest → 401 `auth_required`, unchanged.
+//
+// ⚠️ THE RATE LIMIT DELIBERATELY STAYS IN THE HANDLER. route() runs `rateLimit:` immediately after
+// auth, but here the standing ladder (403 `reporting_blocked`) and the cooldown (429
+// `report_cooldown`) come FIRST. Hoisting the limiter would turn a blocked reporter's 403 into a 429
+// once they exhausted the bucket — a wire change, and a worse message (their block is permanent
+// until appealed, not a cooldown). Same for `body:`, which route() would parse before both gates.
+//
+// ⚠️ SIX ERROR STRINGS HERE ARE NOT IN `src/lib/api/errors.ts` AND ARE LEFT ALONE: 'Invalid body',
+// 'Invalid reason', 'Conversation not found', 'Listing not found', 'Seller not found', 'Missing
+// target'. They contain SPACES, which is why the harvest regex in errors.ts (`[A-Za-z0-9_.-]+`)
+// never saw them. They stay as literal NextResponse.json returns — route() passes a Response through
+// untouched — because normalising them is a client-visible rename, not a migration.
+//
+// ⚠️ FAILURE-PATH WIRE CHANGE, DELIBERATE: the `throw e` re-raise in the P2002 backstop (and any
+// other unguarded DB error) used to reach Next's default 500 and now answers
+// `{"error":"internal_error"}` 500. The P2002-with-a-winner branch is unaffected.
+export const POST = route({ auth: 'profile' }, async ({ req, profile: reporter }) => {
   // Reporting requires an account so reports are ATTRIBUTABLE — that's what makes
   // the anti-abuse rules possible (trust-weighting, false-report penalty, cooldown).
-  const reporter = await getCurrentProfile()
-  if (!reporter) return NextResponse.json({ error: 'auth_required' }, { status: 401 })
-
+  //
   // Repeat-false-reporter ladder (Phase 3, protects good sellers): 1 strike → the
   // existing cooldown below; ≥2 → reports still land but pre-screened (triaged last);
   // ≥3 → reporting is off for this account (calm client copy; appeal via Help).
   const standing = reporterStanding(reporter.falseReportStrikes)
   if (standing === 'blocked') {
-    return NextResponse.json({ error: 'reporting_blocked' }, { status: 403 })
+    throw new ApiError('reporting_blocked', 403)
   }
 
   // Anti-abuse: a reporter with confirmed-false reports is temporarily blocked.
   if (reporter.reportCooldownUntil && reporter.reportCooldownUntil > new Date()) {
-    return NextResponse.json({ error: 'report_cooldown' }, { status: 429 })
+    throw new ApiError('report_cooldown', 429)
   }
   const rl = await rateLimit('report', reporter.id, 10, '1 h', { strict: true })
-  if (!rl.success) return NextResponse.json({ error: 'rate_limited' }, { status: 429 })
+  if (!rl.success) throw new ApiError('rate_limited', 429)
 
   let body: { listingId?: string; sellerId?: string; conversationId?: string; reason?: string; detail?: string }
   try {
@@ -46,6 +65,7 @@ export async function POST(req: NextRequest) {
 
   const reason = String(body.reason || '').trim() as Reason
   const detail = body.detail ? String(body.detail).trim().slice(0, 1000) : null
+  // ⚠️ 'Invalid reason' is NOT an ApiErrorCode (space in the string) — kept verbatim, see the header.
   if (!REASONS.includes(reason)) return NextResponse.json({ error: 'Invalid reason' }, { status: 400 })
 
   const conversationId = body.conversationId ? String(body.conversationId).trim() : null
@@ -72,7 +92,7 @@ export async function POST(req: NextRequest) {
     const iAmBuyer = convo.buyerProfileId === reporter.id
     const iAmSeller = convo.sellerProfileId === reporter.id
     // Never let someone report a thread they aren't part of.
-    if (!iAmBuyer && !iAmSeller) return NextResponse.json({ error: 'not_participant' }, { status: 403 })
+    if (!iAmBuyer && !iAmSeller) throw new ApiError('not_participant', 403)
     // Server-derived from here on: whatever listingId the client sent is discarded. A chat report
     // is about the PERSON, so confirming it must not unpublish a listing — exactly what the
     // comment at the top of this branch says. Deduplication is unaffected: dupeWhere tests
@@ -97,7 +117,7 @@ export async function POST(req: NextRequest) {
     targetProfileId = listing.seller?.ownerId ?? null
     const openCount = await db.report.count({ where: { listingId, status: 'open' } })
     // Already heavily flagged — silently accept (don't reveal the cap).
-    if (openCount >= MAX_OPEN_PER_LISTING) return NextResponse.json({ ok: true })
+    if (openCount >= MAX_OPEN_PER_LISTING) return { ok: true }
   } else if (sellerId) {
     const seller = await db.seller.findUnique({ where: { id: sellerId }, select: { id: true, ownerId: true } })
     if (!seller) return NextResponse.json({ error: 'Seller not found' }, { status: 404 })
@@ -108,7 +128,7 @@ export async function POST(req: NextRequest) {
 
   // Can't report yourself.
   if (targetProfileId && targetProfileId === reporter.id) {
-    return NextResponse.json({ error: 'cannot_report_self' }, { status: 400 })
+    throw new ApiError('cannot_report_self', 400)
   }
 
   // One open report per reporter per SURFACE — keyed on the exact thing reported
@@ -128,7 +148,7 @@ export async function POST(req: NextRequest) {
   })
   // Duplicate → hand back the EXISTING case so the client can still route the
   // reporter into their open dispute room instead of silently swallowing the tap.
-  if (dupe) return NextResponse.json({ ok: true, id: dupe.id })
+  if (dupe) return { ok: true, id: dupe.id }
 
   let created: { id: string; targetProfileId: string | null; targetSellerId: string | null }
   try {
@@ -157,7 +177,7 @@ export async function POST(req: NextRequest) {
         where: { reporterProfileId: reporter.id, status: 'open', ...dupeWhere },
         select: { id: true },
       })
-      if (winner) return NextResponse.json({ ok: true, id: winner.id })
+      if (winner) return { ok: true, id: winner.id }
     }
     throw e
   }
@@ -179,5 +199,6 @@ export async function POST(req: NextRequest) {
   const respondent = await respondentProfileId(created)
   if (respondent && respondent !== reporter.id) await notifyDispute(respondent, created.id, 'opened_respondent')
 
+  // 201 (not the wrapper's default 200) → an explicit Response, which route() returns untouched.
   return NextResponse.json({ ok: true, id: created.id }, { status: 201 })
-}
+})

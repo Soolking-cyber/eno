@@ -1,7 +1,6 @@
-import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getCurrentProfileId } from '@/lib/admin'
 import { counterpartyName, disputeStage, disputeTimeline, loadDisputeForParty, partyCanPost, partyHasSubmitted } from '@/lib/dispute'
+import { ApiError, route } from '@/lib/api/handler'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -15,13 +14,20 @@ const firstImg = (images: string | null): string | null => {
 // the respondent never sees who reported them (role labels only); the reporter
 // sees the respondent's public storefront/display name. Admin identity is never
 // exposed — admin/system rows render as "eno.vn".
-export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const meId = await getCurrentProfileId()
-  if (!meId) return NextResponse.json({ error: 'auth_required' }, { status: 401 })
-  const { id } = await params
+//
+// ⚠️ WS6 MIGRATION — auth preamble only. `auth: 'userId'` mirrors the getCurrentProfileId() this
+// replaced; loadDisputeForParty() takes the id and does the party check itself, so no Profile row is
+// needed. Branches unchanged: guest → 401 `auth_required`; not-a-party AND not-found both → 404
+// `not_found` (the deliberate ambiguity above), now thrown as ApiError rather than returned.
+// `params` arrives already awaited from ctx.
+//
+// ⚠️ FAILURE-PATH WIRE CHANGE, DELIBERATE: no .catch() on any of the loads, so a DB error used to be
+// Next's default 500 and is now `{"error":"internal_error"}` 500.
+export const GET = route({ auth: 'userId' }, async ({ userId: meId, params }) => {
+  const { id } = params
 
   const loaded = await loadDisputeForParty(id, meId)
-  if (!loaded) return NextResponse.json({ error: 'not_found' }, { status: 404 })
+  if (!loaded) throw new ApiError('not_found', 404)
   const { report, role } = loaded
 
   const listing = report.listingId
@@ -33,7 +39,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   // it doesn't count — they still get one evidence submission with photos).
   const submitted = await partyHasSubmitted(report.id, meId)
 
-  return NextResponse.json({
+  return {
     id: report.id,
     role,
     reason: report.reason,
@@ -55,5 +61,5 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     listing: listing ? { id: listing.id, title: listing.title, image: firstImg(listing.images) } : null,
     counterparty: role === 'reporter' ? await counterpartyName(report) : null,
     timeline: await disputeTimeline(report),
-  })
-}
+  }
+})

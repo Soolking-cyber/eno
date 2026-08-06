@@ -9,6 +9,7 @@ import { sendMail } from '@/lib/mail'
 import { renderSignInEmail } from '@/lib/emails/sign-in-link'
 import { renderSignInCodeEmail } from '@/lib/emails/sign-in-code'
 import { serverAuthUsesRequestOrigin, isLoopbackHost, loopbackOrigin } from '@/lib/auth-origin'
+import { route } from '@/lib/api/handler'
 
 // Magic-link sender — eno.vn's own, replacing supabase.auth.signInWithOtp({ email }).
 //
@@ -48,7 +49,25 @@ const RESEND_STEPS_SEC = [30, 60, 300, 900]
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
 
-export async function POST(req: Request) {
+// ⚠️ WS6 — ON `route()` FOR ITS try/catch AND NOTHING ELSE. Every block below stayed exactly where
+// it was, and that is the finding for this route rather than an omission:
+//   · `auth: 'public'` — there is no session here by definition; this endpoint is how you get one.
+//   · rateLimit NOT hoisted. The wrapper runs its limiter before the handler, but here the CAPTCHA
+//     must go first: a rejected captcha spends no budget today, so hoisting would let 12 bad-token
+//     posts turn the next real visitor's 403 into a 429. And the per-address gate is an
+//     `escalatingCooldown` answering `{error:'cooldown',retryAfterSec}` plus a `retry-after` header,
+//     which the wrapper's flat 429 `{error:'rate_limited'}` cannot express at all.
+//   · body NOT given a schema. Malformed JSON answers `{"error":"Bad request"}` — capital B, a
+//     space, and NOT a member of ApiErrorCode, so `invalidBodyCode` cannot say it. (That string is
+//     absent from errors.ts because the harvest regex there matches [A-Za-z0-9_.-]+ and can never
+//     match a code containing a space — reported, not added.)
+// Every branch therefore returns a NextResponse and passes through the wrapper untouched.
+//
+// ⚠️ THE ONE ACCEPTED WIRE CHANGE: a throw that used to fall through to Next's default 500 now
+// answers `{"error":"internal_error"}` 500. It is reachable — `generateLink` and `sendMail` are
+// network calls that REJECT (rather than returning an error object) when the fetch itself fails,
+// and getSupabaseAdmin() throws on missing env.
+export const POST = route({ auth: 'public' }, async ({ req }) => {
   let body: { email?: string; captchaToken?: string; next?: string; lang?: string; deliver?: string }
   try {
     body = await req.json()
@@ -189,7 +208,7 @@ export async function POST(req: Request) {
   }
 
   return NextResponse.json({ ok: true })
-}
+})
 
 /**
  * The key the per-address cooldown counts against.

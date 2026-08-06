@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { after } from 'next/server'
 import { Readable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
@@ -6,8 +6,8 @@ import { createWriteStream } from 'node:fs'
 import { mkdtemp, rm, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { getCurrentProfileId } from '@/lib/admin'
-import { rateLimit, kv } from '@/lib/ratelimit'
+import { kv } from '@/lib/ratelimit'
+import { ApiError, route } from '@/lib/api/handler'
 import { db } from '@/lib/db'
 import { getSupabaseAdmin, LISTING_VIDEOS_BUCKET } from '@/lib/supabase-admin'
 import { VIDEO_PATH_RE, VIDEO_MAX_BYTES } from '@/lib/core/media'
@@ -105,97 +105,120 @@ const respond = (job: JobState) =>
       ? NextResponse.json({ error: 'transcode_failed' }, { status: 422 })
       : NextResponse.json({ url: job.url, ...(job.fallback ? { fallback: true } : {}) })
 
-export async function POST(req: NextRequest) {
-  try {
-    const profileId = await getCurrentProfileId()
-    if (!profileId) return NextResponse.json({ error: 'auth_required' }, { status: 401 })
+// ⚠️ WS6 MIGRATION (POST) — auth AND the rate limit are both wrapper options: the old preamble ran in
+// exactly route()'s order (auth → limit → body), and `profileId` was used for NOTHING but the limiter
+// key, which route() keys identically. `auth: 'userId'` is the same getCurrentProfileId() it called.
+// `strict: true` is carried over verbatim — see the fail-closed reasoning below, which is the whole
+// reason this bucket exists.
+//
+// ⚠️ NO `body:` SCHEMA — `req.json().catch(() => ({}))` means a missing/malformed body succeeds into
+// the `bad_path` 400, and a schema would answer a different code there.
+//
+// ⚠️ THE try/catch STAYS, so every throw still answers `transcode_failed` 500 rather than
+// `internal_error` — this handler is byte-identical on every branch. It also means a thrown ApiError
+// would be rewritten to `transcode_failed`: keep returning responses explicitly here (the GET below
+// has no catch and therefore CAN use ApiError).
+export const POST = route(
+  {
+    auth: 'userId',
     // ⚠️ strict: FAIL CLOSED. This is the most expensive request in the app — up to 50MB of billed
     // egress plus ~210s of full-CPU Cloud Run per call. Video is optional on a listing and the
     // wizard already tolerates a transcode failure, so failing closed costs an optional attachment
     // during a limiter outage rather than an unbounded compute bill.
-    const limit = await rateLimit('upload-video-transcode', profileId, 30, '1 h', { strict: true })
-    if (!limit.success) return NextResponse.json({ error: 'rate_limited' }, { status: 429 })
-
-    const body = (await req.json().catch(() => ({}))) as { path?: unknown; hevc?: unknown }
-    const path = String(body.path || '')
-    const hevc = body.hevc === true
-    if (!VIDEO_PATH_RE.test(path)) return NextResponse.json({ error: 'bad_path' }, { status: 400 })
-
-    const admin = getSupabaseAdmin()
-    const rawUrl = admin.storage.from(LISTING_VIDEOS_BUCKET).getPublicUrl(path).data.publicUrl
-
-    // OWNERSHIP GATE. The client supplies `path`, and the job DELETES it after transcoding.
-    // A listing's video URL is public, so a malicious caller could pass another listing's path
-    // and destroy its clip. Refuse any path already referenced by a listing: a legitimate raw
-    // upload is transcoded BEFORE its listing is created, so it's referenced by nothing (count
-    // 0); a live video is referenced (count > 0) and must never be touched here. Fresh
-    // unreferenced paths aren't discoverable (the URL isn't exposed until a listing exists +
-    // the name carries 6 random chars), so this both blocks the delete and the arbitrary fetch.
-    const referenced = await db.listing.count({ where: { video: rawUrl } })
-    if (referenced > 0) return NextResponse.json({ error: 'already_in_use' }, { status: 409 })
-
-    // Claim the job. NX means a double-submit (retry, double-tap) attaches to the running
-    // job instead of racing a second encode against the same source. The token FENCES the
-    // worker: if the lease somehow expires mid-job and a successor claims, the stale worker
-    // sees a token mismatch and neither writes state nor deletes the raw (external review).
-    const token = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
-    const claim: JobState = { state: 'running', startedAt: Date.now(), token }
-    let won: unknown
+    rateLimit: { bucket: 'upload-video-transcode', limit: 30, window: '1 h', strict: true },
+  },
+  async ({ req }) => {
     try {
-      won = await kv.set(jobKey(path), JSON.stringify(claim), { nx: true, ex: CLAIM_TTL_S })
-    } catch (e) {
-      // A kv outage must not lose the old fail-open behavior — run synchronously instead.
-      console.error('[transcode] claim', e)
-      return respond(await runTranscode(path, hevc))
-    }
-    if (won !== 'OK') {
-      const existing = await kv.get<string | JobState>(jobKey(path))
-      if (existing) return respond(typeof existing === 'string' ? (JSON.parse(existing) as JobState) : existing)
-      // Claim raced its own expiry — extremely narrow; ask the client to retry.
-      return NextResponse.json({ error: 'retry' }, { status: 503 })
-    }
+      const body = (await req.json().catch(() => ({}))) as { path?: unknown; hevc?: unknown }
+      const path = String(body.path || '')
+      const hevc = body.hevc === true
+      if (!VIDEO_PATH_RE.test(path)) return NextResponse.json({ error: 'bad_path' }, { status: 400 })
 
-    after(async () => {
-      const persist = async (s: JobState) => {
-        try {
-          // Fence: only the claim holder may write. (GET→SET is a narrow window, but the
-          // hazard it guards — a lease lost DURING a ≤300s job under a 360s TTL — needs
-          // minutes-scale drift, so best-effort fencing is proportionate here.)
-          const cur = await kv.get<string | JobState>(jobKey(path))
-          const curJob = cur == null ? null : typeof cur === 'string' ? (JSON.parse(cur) as JobState) : cur
-          if (curJob && curJob.state === 'running' && curJob.token !== token) return false
-          await kv.set(jobKey(path), JSON.stringify(s), { ex: DONE_TTL_S })
-          return true
-        } catch (e) { console.error('[transcode] state write', e); return false }
+      const admin = getSupabaseAdmin()
+      const rawUrl = admin.storage.from(LISTING_VIDEOS_BUCKET).getPublicUrl(path).data.publicUrl
+
+      // OWNERSHIP GATE. The client supplies `path`, and the job DELETES it after transcoding.
+      // A listing's video URL is public, so a malicious caller could pass another listing's path
+      // and destroy its clip. Refuse any path already referenced by a listing: a legitimate raw
+      // upload is transcoded BEFORE its listing is created, so it's referenced by nothing (count
+      // 0); a live video is referenced (count > 0) and must never be touched here. Fresh
+      // unreferenced paths aren't discoverable (the URL isn't exposed until a listing exists +
+      // the name carries 6 random chars), so this both blocks the delete and the arbitrary fetch.
+      const referenced = await db.listing.count({ where: { video: rawUrl } })
+      if (referenced > 0) return NextResponse.json({ error: 'already_in_use' }, { status: 409 })
+
+      // Claim the job. NX means a double-submit (retry, double-tap) attaches to the running
+      // job instead of racing a second encode against the same source. The token FENCES the
+      // worker: if the lease somehow expires mid-job and a successor claims, the stale worker
+      // sees a token mismatch and neither writes state nor deletes the raw (external review).
+      const token = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+      const claim: JobState = { state: 'running', startedAt: Date.now(), token }
+      let won: unknown
+      try {
+        won = await kv.set(jobKey(path), JSON.stringify(claim), { nx: true, ex: CLAIM_TTL_S })
+      } catch (e) {
+        // A kv outage must not lose the old fail-open behavior — run synchronously instead.
+        console.error('[transcode] claim', e)
+        return respond(await runTranscode(path, hevc))
       }
-      const final = await runTranscode(path, hevc, persist)
-      // Success already persisted pre-delete (idempotent re-write); this records the
-      // failure/fallback outcomes, which have no destructive step to order against.
-      await persist(final)
-    })
-    return respond(claim)
-  } catch (e) {
-    console.error('[POST /api/upload/video/transcode]', e)
-    return NextResponse.json({ error: 'transcode_failed' }, { status: 500 })
-  }
-}
+      if (won !== 'OK') {
+        const existing = await kv.get<string | JobState>(jobKey(path))
+        if (existing) return respond(typeof existing === 'string' ? (JSON.parse(existing) as JobState) : existing)
+        // Claim raced its own expiry — extremely narrow; ask the client to retry.
+        return NextResponse.json({ error: 'retry' }, { status: 503 })
+      }
+
+      after(async () => {
+        const persist = async (s: JobState) => {
+          try {
+            // Fence: only the claim holder may write. (GET→SET is a narrow window, but the
+            // hazard it guards — a lease lost DURING a ≤300s job under a 360s TTL — needs
+            // minutes-scale drift, so best-effort fencing is proportionate here.)
+            const cur = await kv.get<string | JobState>(jobKey(path))
+            const curJob = cur == null ? null : typeof cur === 'string' ? (JSON.parse(cur) as JobState) : cur
+            if (curJob && curJob.state === 'running' && curJob.token !== token) return false
+            await kv.set(jobKey(path), JSON.stringify(s), { ex: DONE_TTL_S })
+            return true
+          } catch (e) { console.error('[transcode] state write', e); return false }
+        }
+        const final = await runTranscode(path, hevc, persist)
+        // Success already persisted pre-delete (idempotent re-write); this records the
+        // failure/fallback outcomes, which have no destructive step to order against.
+        await persist(final)
+      })
+      return respond(claim)
+    } catch (e) {
+      console.error('[POST /api/upload/video/transcode]', e)
+      return NextResponse.json({ error: 'transcode_failed' }, { status: 500 })
+    }
+  },
+)
 
 // Poll a submitted job. Same auth as POST; 'unknown' (404) covers an expired/never-claimed
 // key — the claim TTL outlives any legitimate poll window, so the client treats it as failed.
-export async function GET(req: NextRequest) {
-  const profileId = await getCurrentProfileId()
-  if (!profileId) return NextResponse.json({ error: 'auth_required' }, { status: 401 })
+//
+// ⚠️ WS6 MIGRATION (GET) — same shape as POST: auth then limit, in the wrapper's order, with the
+// profileId used only as the limiter key. NOT `strict` — polling is cheap and read-only, and the
+// original was fail-open; only the POST above pays for an encode.
+//
+// ⚠️ ONE BRANCH IS NOT BYTE-IDENTICAL, and this GET is the only handler in the file without a
+// try/catch: a malformed stored value makes `JSON.parse` throw, which used to be Next's default 500
+// and is now `{"error":"internal_error"}` 500. Accepted — a structured code, and never the exception
+// text. The kv read itself keeps its own `.catch(() => null)`, so a KV outage still answers 404
+// `unknown` exactly as before.
+export const GET = route(
+  { auth: 'userId', rateLimit: { bucket: 'upload-video-transcode-poll', limit: 600, window: '1 h' } },
   // A full poll window is ≤80 requests (3s × 4min); 600/h covers several clips per hour.
-  const limit = await rateLimit('upload-video-transcode-poll', profileId, 600, '1 h')
-  if (!limit.success) return NextResponse.json({ error: 'rate_limited' }, { status: 429 })
-  const path = new URL(req.url).searchParams.get('path') || ''
-  if (!VIDEO_PATH_RE.test(path)) return NextResponse.json({ error: 'bad_path' }, { status: 400 })
-  const raw = await kv.get<string | JobState>(jobKey(path)).catch(() => null)
-  if (!raw) return NextResponse.json({ error: 'unknown' }, { status: 404 })
-  const job = typeof raw === 'string' ? (JSON.parse(raw) as JobState) : raw
-  return job.state === 'running'
-    ? NextResponse.json({ status: 'running' })
-    : job.state === 'failed'
-      ? NextResponse.json({ status: 'failed' })
-      : NextResponse.json({ status: 'done', url: job.url, ...(job.fallback ? { fallback: true } : {}) })
-}
+  async ({ req }) => {
+    const path = new URL(req.url).searchParams.get('path') || ''
+    if (!VIDEO_PATH_RE.test(path)) throw new ApiError('bad_path', 400)
+    const raw = await kv.get<string | JobState>(jobKey(path)).catch(() => null)
+    if (!raw) throw new ApiError('unknown', 404)
+    const job = typeof raw === 'string' ? (JSON.parse(raw) as JobState) : raw
+    return job.state === 'running'
+      ? { status: 'running' }
+      : job.state === 'failed'
+        ? { status: 'failed' }
+        : { status: 'done', url: job.url, ...(job.fallback ? { fallback: true } : {}) }
+  },
+)

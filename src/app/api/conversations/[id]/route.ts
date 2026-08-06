@@ -1,6 +1,6 @@
 import { NextResponse, after } from 'next/server'
 import { db } from '@/lib/db'
-import { getCurrentProfileId } from '@/lib/admin'
+import { ApiError, route } from '@/lib/api/handler'
 import { MESSAGE_ROW_SELECT, parseMessageMeta } from '@/lib/messages'
 import { maskEmailHandle } from '@/lib/utils'
 import { threadKind } from '@/lib/thread-kind'
@@ -93,11 +93,23 @@ async function visaThreadContext(applicationId: string) {
 // the ones that should carry a badge — were marked read milliseconds after rendering,
 // and merely starting to SCROLL the list marked rows read. Prefetch passes peek=1;
 // only a real open (messages/[id] load()) clears the count.
-export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params
+//
+// WS6 — on route(). `auth: 'userId'`, which is what the old code called (getCurrentProfileId) and
+// what this endpoint actually needs: `meId` is compared against buyerProfileId/sellerProfileId and
+// echoed back as `me`. This is the most-polled endpoint in the app (~1.5s per open tab), so
+// 'profile' would add a Profile read plus lazy provisioning to every poll — the exact hot path
+// src/lib/admin.ts warns about. Branches held: guest → 401 auth_required · unknown thread → 404
+// not_found · a desk thread on the marketplace edition → 404 not_found (deliberately
+// indistinguishable) · non-participant → 403 forbidden · success → the same payload, peek and the
+// unread-clearing write unchanged.
+//
+// ⚠️ ACCEPTED WIRE CHANGE ON THE FAILURE PATH ONLY: the conversation read, the unread update and
+// threadKind were unguarded, so a DB rejection used to be Next's default 500 and is now
+// {"error":"internal_error"} 500. The two blocks that already fail soft — the review lookup and
+// visaThreadContext — keep their own catch and are untouched by this.
+export const GET = route({ auth: 'userId' }, async ({ req, params, userId: meId }) => {
+  const { id } = params
   const peek = new URL(req.url).searchParams.get('peek') === '1'
-  const meId = await getCurrentProfileId()
-  if (!meId) return NextResponse.json({ error: 'auth_required' }, { status: 401 })
 
   const convo = await db.conversation.findUnique({
     where: { id },
@@ -121,7 +133,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       messages: { orderBy: { createdAt: 'desc' }, take: 200, select: MESSAGE_ROW_SELECT },
     },
   })
-  if (!convo) return NextResponse.json({ error: 'not_found' }, { status: 404 })
+  if (!convo) throw new ApiError('not_found', 404)
 
   /**
    * ⚠️ 404, NOT AN EMPTY THREAD. The two editions share one database, so a user who applied on
@@ -135,13 +147,13 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   if (IS_MARKETPLACE && convo.listing?.id) {
     const deskIds = await deskSellerIds()
     if (deskIds.length && convo.seller?.id && deskIds.includes(convo.seller.id)) {
-      return NextResponse.json({ error: 'not_found' }, { status: 404 })
+      throw new ApiError('not_found', 404)
     }
   }
 
   const iAmBuyer = convo.buyerProfileId === meId
   const iAmSeller = convo.sellerProfileId === meId
-  if (!iAmBuyer && !iAmSeller) return NextResponse.json({ error: 'forbidden' }, { status: 403 })
+  if (!iAmBuyer && !iAmSeller) throw new ApiError('forbidden', 403)
 
   // Mark my side read — but only WRITE when there's actually something to clear,
   // so the ~1.5s polling reads stay write-free.
@@ -225,7 +237,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   // affordances that make no sense at a form desk — "is this still available?" being the obvious one.
   const kind = await threadKind({ listingId: convo.listing.id })
 
-  return NextResponse.json({
+  return {
     id: convo.id,
     me: meId,
     /** 'visa' | 'itinerary' | 'listing' — what this thread is ABOUT. */
@@ -261,27 +273,35 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       kind: m.kind, offerAmount: m.offerAmount, offerStatus: m.offerStatus,
       meta: parseMessageMeta(m.kind, m.metaJson),
     })),
-  })
-}
+  }
+})
 
 // DELETE a conversation from MY inbox only (per-user hide, non-destructive).
 // Stamps the caller's *DeletedAt = now(); the inbox query hides it until a newer
 // message arrives, so it reappears if the other party replies. The conversation
 // and its messages stay intact for the other participant.
-export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params
-  const meId = await getCurrentProfileId()
-  if (!meId) return NextResponse.json({ error: 'auth_required' }, { status: 401 })
+//
+// WS6 — on route(), `auth: 'userId'` for the same reason as the GET above: id comparison only.
+// Branches held: guest → 401 auth_required · unknown thread → 404 not_found · non-participant →
+// 403 forbidden · success → 204 with an EMPTY body, returned as a Response so the wrapper does not
+// JSON-wrap it. ⚠️ Same accepted failure-path change: an unguarded DB rejection is now
+// {"error":"internal_error"} 500 rather than Next's default 500.
+//
+// ⚠️ NOTE THE ASYMMETRY WITH THE GET: this handler does NOT hide desk threads on the marketplace
+// edition. That is pre-existing and correct — deleting is per-user and reveals nothing, so a
+// forum-created visa thread can still be removed from an eno.vn inbox. Left exactly as it was.
+export const DELETE = route({ auth: 'userId' }, async ({ params, userId: meId }) => {
+  const { id } = params
 
   const convo = await db.conversation.findUnique({
     where: { id },
     select: { buyerProfileId: true, sellerProfileId: true },
   })
-  if (!convo) return NextResponse.json({ error: 'not_found' }, { status: 404 })
+  if (!convo) throw new ApiError('not_found', 404)
 
   const iAmBuyer = convo.buyerProfileId === meId
   const iAmSeller = convo.sellerProfileId === meId
-  if (!iAmBuyer && !iAmSeller) return NextResponse.json({ error: 'forbidden' }, { status: 403 })
+  if (!iAmBuyer && !iAmSeller) throw new ApiError('forbidden', 403)
 
   await db.conversation.update({
     where: { id },
@@ -290,4 +310,4 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
       : { sellerDeletedAt: new Date(), sellerUnread: 0 },
   })
   return new NextResponse(null, { status: 204 })
-}
+})

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { TAXONOMY, LISTING_TYPES, categoryHasBrand } from '@/lib/taxonomy'
+import { route } from '@/lib/api/handler'
 
 // Lightweight taxonomy read for client surfaces that can't receive categories
 // as server props (the account panel's bulk-upload section, the native iOS
@@ -11,7 +12,17 @@ import { TAXONOMY, LISTING_TYPES, categoryHasBrand } from '@/lib/taxonomy'
 // field is normalised here (no undefined on the wire), which is also what keeps
 // the payload additive. All from the canonical code TAXONOMY (they aren't
 // DB rows); changes only on taxonomy edits, so let the CDN hold it.
-export async function GET() {
+//
+// ⚠️ WS6 MIGRATION. `auth: 'public'` — this is anonymous reference data and always was; there was no
+// auth block to replace. What the wrapper actually buys here is the error boundary: the one DB read
+// (`db.category.findMany`) had no try/catch, so a Prisma failure was an unhandled throw and Next's
+// own default 500. It is now `{"error":"internal_error"}` 500, logged with an `op`. That is the
+// migration's one accepted wire change and it is on the failure path only.
+//
+// ⚠️ THE SUCCESS BODY IS RETURNED AS A `NextResponse`, NOT A PLAIN OBJECT, and it has to be: the
+// Cache-Control header IS the contract for this route (the whole reason it is cheap), and route()'s
+// plain-object path serialises with no headers. Returning the Response escapes to it verbatim.
+export const GET = route({ auth: 'public' }, async () => {
   const categories = await db.category.findMany({
     orderBy: { name: 'asc' },
     select: { slug: true, name: true, nameVi: true },
@@ -66,4 +77,4 @@ export async function GET() {
     },
     { headers: { 'Cache-Control': 'public, max-age=3600, stale-while-revalidate=86400' } },
   )
-}
+})

@@ -1,8 +1,9 @@
 import { scopedListingWhere } from '@/lib/edition-scope'
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { normalizeBrand } from '@/lib/brand-normalize'
 import { brandIconPath } from '@/lib/brand-icons'
+import { route } from '@/lib/api/handler'
 
 export const runtime = 'nodejs'
 
@@ -14,7 +15,22 @@ export const runtime = 'nodejs'
 //  - neither      the most-listed brands overall (directory).
 // Each brand includes `iconPath` (resolved server-side so simple-icons never ships
 // to the client). Public, lightly cached.
-export async function GET(req: NextRequest) {
+//
+// ⚠️ WS6 MIGRATION. `auth: 'public'` — the post wizard's datalist, the brand directory and the
+// search rail all call this signed-out. No rate limit and no body existed, so none were added.
+//
+// ⚠️ `NextRequest` → `Request`. The wrapper hands the handler a plain `Request`; this route only
+// ever did `new URL(req.url).searchParams`, which is identical on both. Nothing reads `nextUrl`.
+//
+// ⚠️ BOTH EARLY RETURNS ARE PRESERVED AS `NextResponse`s, INCLUDING THE EMPTY ONE. The `stat.size
+// === 0` branch answers `{"brands":[]}` WITH the same Cache-Control as the populated branch — an
+// empty category rail is exactly the case worth having the CDN absorb, so returning a plain object
+// there (which would drop the header) would quietly make the miss path the expensive one.
+//
+// ⚠️ ACCEPTED WIRE CHANGE, FAILURE PATH ONLY: the groupBy / findMany calls and
+// `scopedListingWhere()` were unguarded, so a throw was Next's default 500; it is now
+// `{"error":"internal_error"}` 500.
+export const GET = route({ auth: 'public' }, async ({ req }) => {
   const { searchParams } = new URL(req.url)
   const q = normalizeBrand(searchParams.get('q') || '')
   const category = searchParams.get('category')?.trim()
@@ -79,4 +95,4 @@ export async function GET(req: NextRequest) {
     { brands },
     { headers: { 'Cache-Control': 'public, max-age=60, s-maxage=300, stale-while-revalidate=900' } },
   )
-}
+})

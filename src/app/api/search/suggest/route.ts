@@ -1,10 +1,11 @@
 import { scopedListingWhere } from '@/lib/edition-scope'
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { clientIp } from '@/lib/client-ip'
 import { db } from '@/lib/db'
 import { fold } from '@/lib/fold'
 import { normalizeBrand } from '@/lib/brand-normalize'
 import { rateLimit } from '@/lib/ratelimit'
+import { route } from '@/lib/api/handler'
 
 export const runtime = 'nodejs'
 
@@ -13,8 +14,28 @@ export const runtime = 'nodejs'
 // index) for live listings + a few matching categories. Public → verified+active
 // only, same gate as the browse feed. Intentionally lightweight (minimal select,
 // small take) so it's fast enough to hit on every keystroke.
-export async function GET(req: NextRequest) {
-  const q = (req.nextUrl.searchParams.get('q') || '').trim().slice(0, 80)
+//
+// ⚠️ WS6 MIGRATION. `auth: 'public'` — the typeahead runs for logged-out visitors on every page.
+//
+// ⛔ THE RATE LIMIT IS **NOT** HANDED TO THE WRAPPER, AND THAT IS THE WHOLE CARE POINT HERE.
+// `route()`'s `rateLimit:` option answers 429 `{"error":"rate_limited"}`. This route does the
+// opposite on purpose: when the IP limit trips it returns **200** with an empty suggestion set, so a
+// throttled keystroke silently shows no dropdown instead of erroring the search bar. Moving it into
+// the option would turn a 200 into a 429 on a path the client does not handle — a wire change on
+// every fast typist. The `rateLimit('search-suggest', ip, 120, '1 m')` call therefore stays inline,
+// verbatim, including `clientIp(req)` (same helper the wrapper would have used for the key).
+//
+// ⚠️ `NextRequest` → `Request`: `req.nextUrl.searchParams` became `new URL(req.url).searchParams`.
+// Same string in, same `q` out — `nextUrl` is a NextURL over the identical url, and nothing here
+// touched a Next-only field.
+//
+// Branches, all unchanged: q < 2 chars → 200 `{q,listings:[],categories:[],brands:[]}` and NO cache
+// header (as before); rate-limited → the same uncached 200 empty payload; hit → 200 with the
+// max-age=10 header. Accepted wire change on the failure path only: the Promise.all of three
+// unguarded DB reads (and `scopedListingWhere()`) used to throw into Next's default 500 and now
+// answers `{"error":"internal_error"}` 500.
+export const GET = route({ auth: 'public' }, async ({ req }) => {
+  const q = (new URL(req.url).searchParams.get('q') || '').trim().slice(0, 80)
   if (q.length < 2) return NextResponse.json({ q, listings: [], categories: [], brands: [] })
 
   // Public + unindexed-ILIKE per keystroke → IP throttle to bound DB amplification.
@@ -85,4 +106,4 @@ export async function GET(req: NextRequest) {
     // prefixes (hot terms like "ho"/"xe"), matching the /api/listings policy.
     { headers: { 'Cache-Control': 'public, max-age=10, stale-while-revalidate=30' } },
   )
-}
+})

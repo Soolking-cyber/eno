@@ -1,14 +1,27 @@
 import { scopedListingWhere } from '@/lib/edition-scope'
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { route } from '@/lib/api/handler'
 
 export const runtime = 'nodejs'
 
 // Distinct MODELS of a brand that are present in the live catalogue — powers the
 // brand rail's tap-to-expand (e.g. Kia → Carens, Cerato, Sorento…). Optionally
 // scoped to a category (the rail's current context). Ranked by listing count.
-export async function GET(req: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
-  const { slug } = await params
+//
+// ⚠️ WS6 MIGRATION. `auth: 'public'` — the brand rail expands for guests. No rate limit, no body.
+//
+// ⚠️ THE DYNAMIC SEGMENT COMES FROM `ctx.params`, ALREADY AWAITED by the wrapper — the
+// `{ params }: { params: Promise<…> }` second argument and its `await` are gone, not forgotten.
+// `params.slug` is a plain string here; the value reaching the query is byte-for-byte what
+// `await params` produced before.
+//
+// ⚠️ ACCEPTED WIRE CHANGE, FAILURE PATH ONLY: the groupBy and `scopedListingWhere()` were unguarded,
+// so a throw was Next's default 500 and is now `{"error":"internal_error"}` 500. An unknown brand
+// slug is NOT a failure and never was — it groups to nothing and still answers 200 `{"models":[]}`
+// with the cache header, which is what the rail expects.
+export const GET = route({ auth: 'public' }, async ({ req, params }) => {
+  const slug = params.slug
   const sp = new URL(req.url).searchParams
   const category = sp.get('category')?.trim()
   const subcategory = sp.get('subcategory')?.trim()
@@ -45,4 +58,4 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ slug
     { models },
     { headers: { 'Cache-Control': 'public, max-age=60, stale-while-revalidate=300' } },
   )
-}
+})

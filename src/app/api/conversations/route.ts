@@ -3,7 +3,7 @@ import { IS_MARKETPLACE } from '@/lib/edition'
 import { NextResponse } from 'next/server'
 import { after } from 'next/server'
 import { db } from '@/lib/db'
-import { getCurrentProfile, getCurrentProfileId } from '@/lib/admin'
+import { ApiError, route } from '@/lib/api/handler'
 import { insertMessage, type SerializedMessage } from '@/lib/messages'
 import { sendPushToProfile } from '@/lib/push'
 import { rateLimit } from '@/lib/ratelimit'
@@ -20,19 +20,45 @@ export const dynamic = 'force-dynamic'
 
 // POST: ensure a conversation exists for { listingId } with the current user as
 // buyer (idempotent — one thread per buyer per listing). Returns { id }.
-export async function POST(req: Request) {
-  const profile = await getCurrentProfile()
-  if (!profile) return NextResponse.json({ error: 'auth_required' }, { status: 401 })
-
-  // Each new thread fires a seller notification + web-push, so cap contact-initiations per
-  // user — generous for real buyers (dozens/hour), but stops a script mass-spamming sellers.
-  const rl = await rateLimit('conversation-create', profile.id, 30, '1 h')
-  if (!rl.success) return NextResponse.json({ error: 'rate_limited' }, { status: 429 })
-
+//
+// WS6 — on route(). `auth: 'profile'` is the one route in this cluster that genuinely needs the
+// ROW, not the id: startVisaDmFlow is handed `profile.email`, and the GET below stays on 'userId'
+// precisely because it does not. This is also the create path the old comment at the GET calls out
+// as the one that keeps getCurrentProfile "for provisioning" — a first contact may be the moment
+// the Profile is lazily created, so downgrading it would be a behaviour change, not a saving.
+// rateLimit reproduces `rateLimit('conversation-create', profile.id, 30, '1 h')` exactly.
+//
+// ⚠️ NO `body:` SCHEMA. The old parse is `try { await req.json() } catch → 400 bad_request`, and
+// then a MISSING listingId answers `missing_listing`, not `bad_request`. A zod object schema would
+// (a) collapse those two 400s and (b) reject a JSON `null`, an array or a bare string as
+// bad_request where the old code either 400'd missing_listing or threw — three separate wire
+// changes on the paths callers hit when they are already broken. The hand parse stays.
+//
+// Branches held: guest → 401 auth_required · over limit → 429 rate_limited · malformed JSON → 400
+// bad_request · no listingId → 400 missing_listing · unknown/unverified/out-of-edition listing →
+// 404 not_found · own storefront → 400 own_listing · enforcement → 403 with the gate's OWN body ·
+// uncertain visa classification → 404 (marketplace) / 503 shop_unavailable (services) · visa
+// product → 200 {id, created:false, visa:true, …} · offer on a fixed-price listing → 409
+// not_negotiable · all four thread-resolution paths → 200 {id, created, message}.
+//
+// ⚠️ ACCEPTED WIRE CHANGE ON THE FAILURE PATH ONLY: the P2002 handler ends in a bare `throw e` for
+// any other Prisma error, which used to be Next's default 500 and is now
+// {"error":"internal_error"} 500 — logged with an op instead of leaking the exception text.
+//
+// The handler body keeps its original indentation on purpose: re-indenting ~370 lines of
+// thread-resolution and offer logic would bury the branches that actually moved.
+export const POST = route(
+  {
+    auth: 'profile',
+    // Each new thread fires a seller notification + web-push, so cap contact-initiations per
+    // user — generous for real buyers (dozens/hour), but stops a script mass-spamming sellers.
+    rateLimit: { bucket: 'conversation-create', limit: 30, window: '1 h' },
+  },
+  async ({ req, profile }) => {
   let body: { listingId?: string; message?: string; offerAmount?: number }
-  try { body = await req.json() } catch { return NextResponse.json({ error: 'bad_request' }, { status: 400 }) }
+  try { body = await req.json() } catch { throw new ApiError('bad_request', 400) }
   const listingId = String(body.listingId || '').trim()
-  if (!listingId) return NextResponse.json({ error: 'missing_listing' }, { status: 400 })
+  if (!listingId) throw new ApiError('missing_listing', 400)
   // Optional first message — lets the composer create the thread AND send in one
   // round trip (snappier; the message side effects live in insertMessage).
   const initialMessage = String(body.message || '').trim().slice(0, 2000)
@@ -51,11 +77,11 @@ export async function POST(req: Request) {
     // below needs — see the note there; it costs nothing on a row we already fetch.
     select: { id: true, title: true, verified: true, negotiable: true, sellerId: true, subcategorySlug: true, seller: { select: { ownerId: true } } },
   })
-  if (!listing || !listing.verified) return NextResponse.json({ error: 'not_found' }, { status: 404 })
+  if (!listing || !listing.verified) throw new ApiError('not_found', 404)
 
   // Can't message your own storefront.
   if (listing.seller.ownerId && listing.seller.ownerId === profile.id) {
-    return NextResponse.json({ error: 'own_listing' }, { status: 400 })
+    throw new ApiError('own_listing', 400)
   }
 
   // ⚠️ ENFORCEMENT RUNS BEFORE THE VISA BRANCH, AND THE ORDER IS THE SECURITY PROPERTY.
@@ -151,6 +177,10 @@ export async function POST(req: Request) {
      * licensed sàn TMĐT that is an advertisement. eno.forum keeps the honest 503, which is what it
      * is for: "we could not tell, try again" rather than "no chat for you".
      */
+    // ⚠️ THESE TWO STAY LITERAL `NextResponse.json` RETURNS, not `ApiError`. visa-contact.test.ts
+    // asserts this branch at SOURCE level (/shop_unavailable'\s*\},\s*\{\s*status:\s*503/) because
+    // the behaviour needs a seeded visa storefront to exercise end to end. Same bytes either way;
+    // rewriting them would delete the only guard on a legal-boundary branch.
     if (IS_MARKETPLACE) return NextResponse.json({ error: 'not_found' }, { status: 404 })
     return NextResponse.json({ error: 'shop_unavailable' }, { status: 503 })
   }
@@ -170,19 +200,19 @@ export async function POST(req: Request) {
     // event off a government form; `visa: true` lets a caller that cares tell the difference.
     // `discardedInput` is not decoration: the caller asked us to send something and we did not, so
     // a 200 that stayed silent about it would be a small lie. Reviewers asked for the signal.
-    return NextResponse.json({
+    return {
       id: started.conversationId,
       created: false,
       visa: true,
       ...(initialMessage || isOffer ? { discardedInput: true } : {}),
-    })
+    }
   }
 
   // Fixed-price listing → no opening offer (UI hides it; this is the bypass/stale-tab
   // path). Reject and dock trust past a grace. Plain first messages are unaffected.
   if (isOffer && !listing.negotiable) {
     await recordFixedPriceOfferAttempt(profile.id)
-    return NextResponse.json({ error: 'not_negotiable' }, { status: 409 })
+    throw new ApiError('not_negotiable', 409)
   }
 
   // Create the conversation, letting the unique (listingId, buyerProfileId)
@@ -290,7 +320,7 @@ export async function POST(req: Request) {
   })
   if (canonical) {
     const message = await deliverFirstMessage({ id: canonical.id, buyerProfileId: profile.id, sellerProfileId, listingId })
-    return NextResponse.json({ id: canonical.id, created: false, message })
+    return { id: canonical.id, created: false, message }
   }
 
   // One thread per buyer↔seller (user decision 2026-07-14): inquiring about a
@@ -337,7 +367,7 @@ export async function POST(req: Request) {
   if (existingWithSeller) {
     const thread = await retargetForListing(existingWithSeller)
     const message = await deliverFirstMessage({ id: thread.id, buyerProfileId: profile.id, sellerProfileId, listingId: thread.listingId })
-    return NextResponse.json({ id: thread.id, created: false, message })
+    return { id: thread.id, created: false, message }
   }
 
   try {
@@ -373,7 +403,7 @@ export async function POST(req: Request) {
         }
       })
     }
-    return NextResponse.json({ id: convo.id, created: true, message })
+    return { id: convo.id, created: true, message }
   } catch (e) {
     // Double-tap / concurrent-POST loser: the (listingId, buyerProfileId) unique
     // constraint rejected our create → the winner's thread already exists. Refetch
@@ -398,7 +428,7 @@ export async function POST(req: Request) {
         // was equally capable of turning a lost race into a 500.
         const thread = await retargetForListing(existing)
         const message = await deliverFirstMessage({ id: thread.id, buyerProfileId: profile.id, sellerProfileId, listingId: thread.listingId })
-        return NextResponse.json({ id: thread.id, created: false, message })
+        return { id: thread.id, created: false, message }
       }
       // ⚠️ THE CONSTRAINT FIRED AND THEN THE ROW VANISHED — both lookups missed, so the thread we
       // lost the race to was deleted between our failed create and this refetch. The old code
@@ -414,19 +444,24 @@ export async function POST(req: Request) {
         select: { id: true },
       })
       const message = await deliverFirstMessage({ id: retried.id, buyerProfileId: profile.id, sellerProfileId, listingId })
-      return NextResponse.json({ id: retried.id, created: true, message })
+      return { id: retried.id, created: true, message }
     }
     throw e
   }
-}
+})
 
 // GET: the current user's inbox (conversations they're a participant in), newest first.
 // Fast-path auth (getClaims, no network/DB) — read-only, the Profile already exists
-// for any conversation. POST-create below keeps getCurrentProfile for provisioning.
-export async function GET() {
-  const meId = await getCurrentProfileId()
-  if (!meId) return NextResponse.json({ error: 'auth_required' }, { status: 401 })
-
+// for any conversation. POST-create above keeps getCurrentProfile for provisioning.
+//
+// WS6 — on route(). `auth: 'userId'` IS that fast path: the wrapper's 'userId' mode is
+// getCurrentProfileId(), the same call this handler made, so the "no network/DB" property the
+// comment above describes is preserved rather than quietly traded for the wrapper's 'profile' mode.
+// Branches held: guest → 401 auth_required · success → 200 {conversations:[…]}.
+//
+// ⚠️ ACCEPTED WIRE CHANGE ON THE FAILURE PATH ONLY: nothing here was wrapped, so a DB rejection
+// used to be Next's default 500 and is now {"error":"internal_error"} 500.
+export const GET = route({ auth: 'userId' }, async ({ userId: meId }) => {
   /**
    * ⚠️ HIDE THE THREAD, NOT JUST ITS CARDS, AND EXCLUDE IT IN THE `where` — BEFORE THE take.
    *
@@ -498,5 +533,5 @@ export async function GET() {
         : { name: c.buyer.displayName || maskEmailHandle(c.buyer.email) || 'Buyer', avatarColor: c.buyer.avatarColor, avatarUrl: c.buyer.avatarUrl },
     }
   })
-  return NextResponse.json({ conversations })
-}
+  return { conversations }
+})
