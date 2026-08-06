@@ -13,11 +13,29 @@ import { logError } from '@/lib/log'
 // sellerId + owning profileId. Shared by the dashboard PATCH /api/seller and the partner
 // PATCH /api/v1/shop. Sparse: only present fields change. Returns a validation error code
 // or { ok: true }; one-time trust bonus once the profile is fully filled out.
+/**
+ * Every code `updateSellerCore` can put on the wire.
+ *
+ * ⚠️ NAMED RATHER THAN `error: string`, FOR THE REASON RECORDED IN `ListingUpdateErrorCode`.
+ * `PATCH /api/seller` answers `{ error: res.error }`, so this union IS an API union — and while it
+ * was a bare `string` two of its members (`bad_tax_code`, `no_phone_in_profile`) were absent from
+ * `ApiErrorCode`, invisible to both the compiler and the text-scan harvest. `src/lib/api/errors.ts`
+ * now asserts this is a subset of that union at COMPILE time.
+ */
+export type SellerUpdateErrorCode =
+  | 'name_too_short'
+  | 'bad_avatar'
+  | 'bad_phone'
+  | 'phone_taken'
+  | 'bad_id_number'
+  | 'bad_tax_code'
+  | 'no_phone_in_profile'
+
 export async function updateSellerCore(
   sellerId: string,
   profileId: string,
   body: Record<string, unknown>,
-): Promise<{ ok: true } | { ok: false; code: number; error: string }> {
+): Promise<{ ok: true } | { ok: false; code: number; error: SellerUpdateErrorCode }> {
   const data: Record<string, unknown> = {}
   if (body.name !== undefined) {
     const name = String(body.name).trim().slice(0, 120)

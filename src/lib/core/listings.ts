@@ -30,7 +30,7 @@ import { sendMetaCapiEvent, metaUserDataFromHeaders } from '@/lib/meta-capi'
 import { dispatchListingEvent } from '@/lib/webhooks'
 import { browseRankScore, recomputeRankScoreForListing } from '@/lib/ranking'
 import { identityGateEnforced } from '@/lib/compliance/account-state'
-import { assertPublishable, assertCleanTexts, assertCleanContactName, assertEnoughAngles, PublishBlockedError } from '@/lib/publish-guard'
+import { assertPublishable, assertCleanTexts, assertCleanContactName, assertEnoughAngles, PublishBlockedError, type PublishBlockCode } from '@/lib/publish-guard'
 import { findDuplicateListing } from '@/lib/duplicate-guard'
 import { moderateListingById } from '@/lib/ai-moderation'
 import { indexAndCheckProvenance } from '@/lib/image-provenance'
@@ -160,11 +160,14 @@ export function parseVideoField(raw: unknown): { action: 'set'; url: string } | 
  */
 export type SoldMeta = { channel?: string | null; buyerProfileId?: string | null; platform?: string | null }
 
+/** Every code `setStatusCore` can put on the wire. Named for the same reason as the union below. */
+export type ListingStatusErrorCode = 'invalid_status' | 'not_found'
+
 export async function setStatusCore(
   listingId: string,
   status: string,
   soldMeta?: SoldMeta,
-): Promise<{ ok: true; status: string } | { ok: false; code: number; error: string }> {
+): Promise<{ ok: true; status: string } | { ok: false; code: number; error: ListingStatusErrorCode }> {
   if (!LISTING_STATUSES.has(status)) return { ok: false, code: 400, error: 'invalid_status' }
   // Sale attribution: stamp it when a listing is marked sold; CLEAR it on reactivate
   // so a resold-then-relisted item never carries a stale buyer/channel.
@@ -256,10 +259,35 @@ export async function confirmCore(listingId: string, profileId: string): Promise
  * translations + reindexes for AI search. `body` is the raw parsed JSON (sparse: only
  * present keys are touched). Returns a validation error code or { ok: true }.
  */
+/**
+ * Every code `updateListingCore` can put on the wire.
+ *
+ * ⚠️ THIS WAS `error: string`, AND THAT IS WHY FOUR LIVE CODES WENT MISSING FROM THE API CONTRACT.
+ * `PATCH /api/listings/[id]` answers `{ error: r.error }`, so whatever this function returns IS an
+ * API error code — but a bare `string` constrains nothing, so the compiler could not say which, and
+ * `src/lib/api/errors.test.ts` harvests the ROUTES by text scan and never looks in here.
+ * `title_too_short`, `no_phone_in_listing`, `invalid_price` and `urgent_quota` were therefore
+ * returned to real sellers every day while `apiErrorCode()` reported them unknown.
+ *
+ * Naming the union fixes it at the strongest available layer: `src/lib/api/errors.ts` now asserts
+ * `Exclude<ListingUpdateErrorCode, ApiErrorCode> extends never`, so adding a code here without
+ * adding it there fails the BUILD rather than silently widening the wire. Same treatment as
+ * `PublishBlockCode`, and for the same reason — both reach the wire through a variable.
+ */
+export type ListingUpdateErrorCode =
+  | 'not_found'
+  | 'title_too_short'
+  | 'no_phone_in_listing'
+  | 'invalid_price'
+  | 'urgent_quota'
+  // The catch re-emits a blocked publish verbatim (`error: e.code`), so the whole guard union is
+  // reachable from here too.
+  | PublishBlockCode
+
 export async function updateListingCore(
   listingId: string,
   body: Record<string, unknown>,
-): Promise<{ ok: true } | { ok: false; code: number; error: string }> {
+): Promise<{ ok: true } | { ok: false; code: number; error: ListingUpdateErrorCode }> {
   const current = await db.listing.findUnique({
     where: { id: listingId },
     select: {

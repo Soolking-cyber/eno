@@ -163,7 +163,35 @@ export const VISA_ADMIN_TRANSITIONS: Record<string, string[]> = {
   processing: ['approved', 'rejected', 'needs_changes', 'cancelled'], approved: [], rejected: [], cancelled: [],
 }
 
-export type VisaTransitionResult = { ok: true } | { ok: false; error: string }
+/**
+ * Every code an admin visa transition can put on the wire.
+ *
+ * ⚠️ NAMED FOR THE SAME REASON AS `ListingUpdateErrorCode` — BUT DELIBERATELY *NOT* COUPLED TO
+ * `ApiErrorCode`, AND THE DIFFERENCE MATTERS. `transitionVisaCase` has exactly one consumer,
+ * `src/app/admin/visas/[id]/actions.ts`, which is a SERVER ACTION rather than a route: its return
+ * value is an RPC result, not an HTTP response body. So these codes are not on the API wire and
+ * forcing them into that union would make it describe something it does not describe. An earlier
+ * draft of this comment said "the visa-admin routes answer `{ error: result.error }`" — there are
+ * no such routes, and review caught the contradiction between this file and errors.ts.
+ *
+ * Naming the union earned its place anyway: it immediately exposed `admin_required`, returned by
+ * the server-action WRAPPER and never by this function, which a bare `string` had let through.
+ */
+export type VisaTransitionErrorCode =
+  | 'visa_database_not_configured'
+  | 'not_found'
+  | 'invalid_status_transition'
+  | 'result_document_required'
+  | 'update_failed'
+  | 'case_changed_reload'
+  // ⚠️ NOT emitted by `transitionVisaCase` itself — the server action wrapper
+  // `src/app/admin/visas/[id]/actions.ts:14` re-checks getAdmin() and returns this as a
+  // `VisaTransitionResult`. Naming the union surfaced that; while the type was `string` the
+  // wrapper could widen the contract without anyone noticing, which is exactly the drift this
+  // narrowing exists to stop.
+  | 'admin_required'
+
+export type VisaTransitionResult = { ok: true } | { ok: false; error: VisaTransitionErrorCode }
 
 /**
  * Apply one admin status transition, with the same side effects as the forum's

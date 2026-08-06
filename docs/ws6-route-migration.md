@@ -139,12 +139,19 @@ Every one of the 94 refusals is an instance of one of these. All are **wire fact
   `visa_encryption_not_configured`) are already members and predate this work; splitting the
   vocabulary by edition is the fix, and it is a deliberate change rather than a drive-by.
 
-  ⚠️ **Five codes are STILL knowingly outside the union, and that is the honest count.** Four come
-  through `updateListingCore`'s `r.error` on `PATCH /api/listings/[id]` — `title_too_short`,
-  `no_phone_in_listing`, `invalid_price`, `urgent_quota` — which is the same variable-shaped
-  emission, just a different helper; plus `visa_schema_not_ready` above. `apiErrorCode()` returns
-  `null` for all five today. They are the next increment, each needing its own on-wire derivation,
-  and PATCH cannot take a `body:` schema until the four are resolved.
+  ⚠️ **THE SAME SHAPE APPEARS AT 40 ROUTE SITES — `{ error: <helper>.error }` — and measuring it
+  was worth more than fixing the first instance.** A helper whose return type is a bare `string`
+  puts codes on the wire that neither the compiler nor the harvest can name. Narrowing four of them
+  (`ListingUpdateErrorCode`, `SellerUpdateErrorCode`, `ListingStatusErrorCode`,
+  `VisaTransitionErrorCode`) surfaced **eleven** missing codes and one genuine contract drift:
+  `admin_required` is returned by a server-action *wrapper* that the transition function itself
+  never produces — invisible while the type was `string`.
+
+  Each named union is now asserted a subset of `ApiErrorCode` at compile time, and
+  `errors.test.ts` derives its members from source via a small table rather than allowlisting them.
+  ⚠️ `VisaTransitionErrorCode` is deliberately NOT coupled: its only consumer is a **server action**,
+  so its codes are an RPC result, not an HTTP response body. Forcing them into the API vocabulary
+  would have made this type describe something it does not describe.
 
   ⚠️ **The derivation took four attempts and the first three were provably vacuous.** This is the
   more transferable lesson, so the whole sequence is recorded in the test: `.includes()` matched the
@@ -167,18 +174,28 @@ Every one of the 94 refusals is an instance of one of these. All are **wire fact
   `getCurrentProfileId()`, the same function the old handlers called, and `prisma/schema.prisma`
   documents `Profile.id` as `= auth.users.id`.
 
-## What is NOT proven by a test — stated plainly
+## What IS and is NOT proven by a test
 
-The only executable coverage this migration added is `src/lib/api/handler.cron.test.ts`
-(`auth: 'cron'`, both directions, all six routes). Everything else rests on branch-by-branch
-reading plus an adversarial review pass, and on whatever route tests already existed
-(`messages/translate` 25, visa `resume`/`select-product` 16, itineraries 102).
+The three riskiest migrations now have real coverage — **201 tests** written across two rounds and
+mutation-verified both times: `/api/admin/moderate` (79), `/api/visa/applications/[id]` submit +
+DELETE (73), `/api/handle` (49). Plus `handler.cron.test.ts` (11, both directions, all six routes).
 
-Migrated on reasoning alone, with no test: `/api/admin/moderate` (fourteen irreversible actions),
-`/api/visa/applications/[id]/submit` and `DELETE` with their CAS guards, and `/api/handle`'s
-FK-sensitive `'profile'`-vs-`'userId'` choice. The `'reserved'` incident recorded above is proof
-that reasoning without a test already missed a live wire code once in this very work. Treat the
-absence as a known gap, not as confidence.
+⚠️ **The mutation batteries are the load-bearing part, not the test count.** Round one produced
+three green suites; independent verifiers then mutated the routes and found **~30 mutations that
+should have gone red and did not**. Several were destructive shapes the tests were written to
+catch: deleting `.eq('id', id)` from a visa update (an unfiltered whole-table write), dropping
+`.eq('application_id', id)` from the documents read that feeds `removeVisaFiles()` (a bucket-wide
+file wipe), flipping `verified: false → true` on bulk-confirm (publishing every reported listing
+instead of pulling it), and accepting a client-supplied `profileId` so a caller could claim a handle
+onto someone else's account. Round two closed them and re-verified each. **A test suite that has
+never been mutated is an untested test suite** — write the mutation down, watch it go red, restore.
+
+Still uncovered, honestly: `[id]/route.svc.ts`'s `GET` and `PATCH` have no executable coverage
+anywhere, and `PATCH`'s CAS nulls all six consent stamps — the same class of write this exercise was
+about. Several narrower gaps remain in `admin/moderate` (bulk-dismiss notifies nobody in any test;
+the abusive-report purge's `syncEnforcement` tail is unasserted) and one mock-shape gap in the visa
+fake (it ignores `.single()` vs `.maybeSingle()`, so a routine CAS miss answering 500 instead of 409
+would not be caught). None is a known defect; all are unpinned behaviour.
 
 ## Two live oddities preserved on purpose
 
