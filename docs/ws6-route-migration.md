@@ -132,12 +132,18 @@ Every one of the 94 refusals is an instance of one of these. All are **wire fact
   rather than exempting them, and `PublishBlockCode extends ApiErrorCode` is asserted at **compile
   time** in `errors.ts`.
 
-  ⚠️ **`visa_schema_not_ready` is deliberately still absent**, and the reasoning is a licensing one.
-  It is emitted only by `.svc.ts` routes, and `ALL` is a **runtime** array in a module both editions
-  share — adding it would put a visa-named string in eno.vn's bundle the day `lib/api/client.ts`
-  gains its first production importer. Two such codes (`visa_database_unavailable`,
-  `visa_encryption_not_configured`) are already members and predate this work; splitting the
-  vocabulary by edition is the fix, and it is a deliberate change rather than a drive-by.
+  ⚠️ **The runtime vocabulary is edition-split, and the rule is MECHANICAL** (WS8). `ALL` is the
+  marketplace half; `errors-services.ts` holds the 35 codes that only `.svc` source mentions, and
+  `next.config.ts` aliases it to an empty stub on a marketplace build. The type union stays whole —
+  types are erased, so it costs the bundle nothing and keeps one vocabulary for the compile-time
+  subset assertions. Only the runtime array splits, because only the runtime array ships.
+
+  The test enforces the rule rather than a guess: *a code whose literal appears only in `.svc`
+  source is services-only*. An earlier version matched code NAMES against `/visa|itinerar|paypal/`
+  and caught 8 of 35. ⚠️ **`/api/v1` counts as marketplace** — excluding it (reasonable, since it
+  has its own error envelope) reported `invalid_request` as services-only when
+  `api/v1/oauth/token/route.ts` emits it on eno.vn. *Exclusion by envelope is not exclusion by
+  edition.*
 
   ⚠️ **THE SAME SHAPE APPEARS AT 40 ROUTE SITES — `{ error: <helper>.error }` — and measuring it
   was worth more than fixing the first instance.** A helper whose return type is a bare `string`
@@ -147,11 +153,31 @@ Every one of the 94 refusals is an instance of one of these. All are **wire fact
   `admin_required` is returned by a server-action *wrapper* that the transition function itself
   never produces — invisible while the type was `string`.
 
+  ⚠️ **Ten more came from a layer BELOW the routes, and one of them indicts the original harvest.**
+  This file's own header cites `messages/[id]/page.tsx  data?.error === 'human_help_pending'` as
+  its example of a client branching on a code — and `human_help_pending` was not a member of the
+  union that header introduces, because `src/lib/visa/concierge.ts` emits it through an internal
+  `fail(code)`, one library layer below anything a route scan sees. Nine more hid the same way in
+  `visa/dm-flow.ts` and `trips/assistance.ts`. **The wire is not only what routes write; it is what
+  everything routes delegate to writes.**
+
+  As of WS8 there is **no bare `error: string` left on any wire path** in `src/lib`, and the total
+  vocabulary went 213 → 232 (197 marketplace + 35 services).
+
   Each named union is now asserted a subset of `ApiErrorCode` at compile time, and
   `errors.test.ts` derives its members from source via a small table rather than allowlisting them.
+  Five are named: `ListingUpdateErrorCode`, `SellerUpdateErrorCode`, `ListingStatusErrorCode`,
+  `OwnerCheckErrorCode` and `VisaTransitionErrorCode`.
+
   ⚠️ `VisaTransitionErrorCode` is deliberately NOT coupled: its only consumer is a **server action**,
   so its codes are an RPC result, not an HTTP response body. Forcing them into the API vocabulary
   would have made this type describe something it does not describe.
+
+  ⚠️ `OwnerCheckErrorCode` is the one that guards a **privilege** boundary rather than a validation
+  message — six routes answer `{ error: r.error }` straight from `checkListingOwner`, which decides
+  whether a caller may mutate a listing they do not own. Its four codes must stay distinct:
+  `no_storefront` (signed in, no shop) and `forbidden` (signed in, wrong shop) are different
+  sentences to the user.
 
   ⚠️ **The derivation took four attempts and the first three were provably vacuous.** This is the
   more transferable lesson, so the whole sequence is recorded in the test: `.includes()` matched the
