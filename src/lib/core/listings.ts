@@ -286,6 +286,14 @@ export async function updateListingCore(
     const price = Number(body.price)
     if (!Number.isFinite(price) || price < 0 || price > 1e12) return { ok: false, code: 400, error: 'invalid_price' }
     data.price = price
+    // ⚠️ THE "Good price" VERDICT MUST NOT SURVIVE A PRICE CHANGE. `marketPosition` is denormalized
+    // by the nightly price-stats cron and read by serialize.ts as `goodPrice: marketPosition === 'low'`,
+    // which paints the green "Giá tốt" badge on feed and search cards. Nothing else writes the column,
+    // so raising the price left the badge in place until the next cron pass: the grid advertised
+    // "cheaper than comparable listings" beside a price now above P75, while the PDP one click away
+    // computed the band live and said the opposite. Clearing it is the correct fail-safe — no badge
+    // until the cron re-derives one, and the PDP keeps showing the live band meanwhile.
+    data.marketPosition = null
   }
   if (body.district !== undefined) {
     const district = body.district ? String(body.district).trim().slice(0, 80) : null

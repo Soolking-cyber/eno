@@ -56,9 +56,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   // An offer is a structured message: validate the amount. The body carries ONLY
   // the sender's optional note (possibly empty) — the offer line itself is derived
   // client-side from offerAmount, so locale + money format live in the renderer.
+  // ⚠️ ROUND FIRST, THEN VALIDATE. Validating the RAW value and rounding afterwards let any
+  // 0 < x < 0.5 through as a genuine offer that then rounds to ZERO: POST {offerAmount: 0.4}
+  // stored kind='offer', offerAmount=0, offerStatus='pending', and the thread rendered an offer
+  // card for 0 đ that the seller could accept.
   const rawAmount = Number(body.offerAmount)
-  const isOffer = Number.isFinite(rawAmount) && rawAmount > 0
-  const offerAmount = isOffer ? Math.min(Math.round(rawAmount), 1e12) : undefined
+  const rounded = Number.isFinite(rawAmount) ? Math.min(Math.round(rawAmount), 1e12) : NaN
+  const isOffer = Number.isFinite(rounded) && rounded > 0
+  const offerAmount = isOffer ? rounded : undefined
   const text = String(body.body || '').trim().slice(0, MAX_LEN)
   if (!text && !isOffer) { await release(); return NextResponse.json({ error: 'empty' }, { status: 400 }) }
 

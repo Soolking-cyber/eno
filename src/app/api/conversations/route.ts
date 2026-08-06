@@ -231,6 +231,33 @@ export async function POST(req: Request) {
     candidate: { id: string; listingId: string },
   ): Promise<{ id: string; listingId: string }> => {
     if (candidate.listingId === listingId) return candidate
+    // ⚠️ A THREAD CARRYING A LIVE OFFER IS NOT RETARGETABLE, because an offer is bound to the
+    // CONVERSATION and not to a listing — Message has conversationId and no listingId
+    // (schema.prisma:838). Moving the thread's listingId therefore silently re-points a pending
+    // offer at a different item: buyer offers 3.000.000 đ on a phone, messages the same seller
+    // about a laptop, the thread retargets, and the seller's Accept on the still-pending card now
+    // sells the LAPTOP for the phone's price. actOnOffer cannot catch it — its predicate is
+    // { id, conversationId, kind, offerStatus } (messages.ts:901), all of which still match.
+    // Binding the offer to a listing would need a schema change; refusing the move does not, and
+    // it is the stronger invariant anyway: the offer stays on the listing it was made on. The
+    // buyer is delivered to the canonical thread for the new listing instead — exactly what the
+    // P2002 branch below already does, so this reuses a path that is known to work.
+    const pendingOffer = await db.message.findFirst({
+      where: { conversationId: candidate.id, kind: 'offer', offerStatus: 'pending' },
+      select: { id: true },
+    })
+    if (pendingOffer) {
+      const existing = await db.conversation.findUnique({
+        where: { listingId_buyerProfileId: { listingId, buyerProfileId: profile.id } },
+        select: { id: true },
+      })
+      if (existing) return { id: existing.id, listingId }
+      const fresh = await db.conversation.create({
+        data: { listingId, buyerProfileId: profile.id, sellerId: listing.sellerId, sellerProfileId },
+        select: { id: true },
+      })
+      return { id: fresh.id, listingId }
+    }
     try {
       await db.conversation.update({ where: { id: candidate.id }, data: { listingId } })
       return { id: candidate.id, listingId }

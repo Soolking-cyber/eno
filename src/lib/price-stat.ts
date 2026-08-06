@@ -17,7 +17,12 @@ export type PriceBand = { n: number; p25: number; median: number; p75: number }
 /** Segment key — MUST stay identical to the cron's SQL: condition, plus a 2-year band when a
  *  year is present (vehicles). year 2015 → band 2014; null year → condition only. */
 export function listingSegment(condition: string | null | undefined, year: number | null | undefined): string {
-  const c = condition || 'any'
+  // ⚠️ `|| 'any'` maps BOTH null and '' to 'any'; the SQL twin uses COALESCE(condition,'any'),
+  // which substitutes only NULL and leaves '' as ''. A whitespace-only condition from the partner
+  // sync trims to '' and is stored, so the cron filed those rows under ':2018' while every reader
+  // asked for 'any:2018' and missed — the band silently never rendered. Normalising here makes the
+  // two sides agree on emptiness, which is what the note above requires of this pair.
+  const c = (condition || '').trim() || 'any'
   return year != null ? `${c}:${Math.floor(year / 2) * 2}` : c
 }
 
