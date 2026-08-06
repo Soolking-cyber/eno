@@ -85,7 +85,11 @@ export function SavedSearches() {
                 aria-label={s.notify ? tr('Mute alerts', 'Tắt thông báo') : tr('Enable alerts', 'Bật thông báo')}
                 className={cn('transition-colors hover:bg-accent', s.notify ? 'text-accent-foreground' : 'text-ink-4')}
               >
-                {s.notify ? <Bell className="h-4 w-4" /> : <BellOff className="h-4 w-4" />}
+                {/* §5 icon-language: alerts-ON is USER-state ("something is yours/waiting" —
+                    the same family as the unread bell in the header), so it takes the solid
+                    fill-brand + text-brand stroke; OFF stays a quiet ink line. The toggle then
+                    reads at a glance instead of hinging on the tiny slash. */}
+                {s.notify ? <Bell className="h-4 w-4 fill-brand text-brand" /> : <BellOff className="h-4 w-4" />}
               </IconButton>
             </Tooltip>
             <IconButton

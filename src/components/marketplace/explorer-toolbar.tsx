@@ -1,6 +1,6 @@
 'use client'
 
-import { List, Grid, Map, Play, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react'
+import { Rows3, LayoutGrid, Map, Play, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Tooltip } from '@/components/ui/tooltip'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -20,32 +20,45 @@ type SortTab = 'newest' | 'recent' | 'popular' | 'price'
  *  the tab until at least one video listing exists (deep links via ?view=video still work). */
 export function ViewToggles({ viewMode, onViewMode, showVideo = true }: { viewMode: ViewMode; onViewMode: (m: ViewMode) => void; showVideo?: boolean }) {
   const { tr } = useLanguage()
-  // p-2.5 + 18px icon ≈ a 38px tap target (was ~30px: p-2 + 14px icon, below the comfortable
-  // minimum). tap-44 can't be used here — four toggles sit a `gap-1` apart, so 44px hit areas
-  // would overlap and steal each other's taps (same failure the video-feed rail hit).
+  // p-2.5 + 20px icon = a 40px tap target (h-5 is the §4 ladder step for action-row icons —
+  // the old h-[18px] was an off-ladder arbitrary size). tap-44 can't be used here — four
+  // toggles sit a `gap-1` apart, so 44px hit areas would overlap and steal each other's taps
+  // (same failure the video-feed rail hit).
   const tab = (mode: ViewMode) =>
-    cn('rounded-lg p-2.5 transition-colors cursor-pointer', viewMode === mode ? 'text-accent-foreground' : 'text-body hover:bg-muted')
+    cn('rounded-lg p-2.5 transition-colors duration-200 cursor-pointer', viewMode === mode ? 'text-accent-foreground' : 'text-body hover:bg-muted')
+  // §5 icon-language: the active view toggle is LOCATION state ("you are here" among the four
+  // result views), so it takes the soft duotone — the line turns text-accent-foreground (via
+  // tab() above) AND the glyph's ONE closed region gains the brand wash. Same treatment as the
+  // bottom nav's active tab; NEVER solid fill-brand, which is reserved for user-state (§5.2).
+  // Selectors are per-glyph literals (lucide child order varies, and both Tailwind's scanner
+  // and the design-lint hook read the source text — no template concatenation):
+  //   Rows3       body rect        LayoutGrid  first tile rect
+  //   Map         sheet path       Play        the triangle polygon
+  // Glyph choices follow §3 (soft-cornered variants): Rows3/LayoutGrid carry the canon's
+  // rounded-rect feel where the old List (dotted lines) and Grid (hard lattice) could take no
+  // wash at all and read boxy next to the washed family.
+  const wash = (on: boolean, sel: string) => (on ? sel : undefined)
   return (
     <>
       <Tooltip content={tr('List view', 'Danh sách')} side="bottom">
         <Button variant="bare" size="none" onClick={() => onViewMode('compact')} aria-label={tr('List view', 'Danh sách')} aria-pressed={viewMode === 'compact'} className={tab('compact')}>
-          <List className="h-[18px] w-[18px]" />
+          <Rows3 className={cn('h-5 w-5', wash(viewMode === 'compact', '[&>rect]:fill-brand-100'))} />
         </Button>
       </Tooltip>
       <Tooltip content={tr('Grid view', 'Lưới')} side="bottom">
         <Button variant="bare" size="none" onClick={() => onViewMode('grid')} aria-label={tr('Grid view', 'Lưới')} aria-pressed={viewMode === 'grid'} className={tab('grid')}>
-          <Grid className="h-[18px] w-[18px]" />
+          <LayoutGrid className={cn('h-5 w-5', wash(viewMode === 'grid', '[&>rect:first-of-type]:fill-brand-100'))} />
         </Button>
       </Tooltip>
       <Tooltip content={tr('Map view', 'Xem Bản đồ')} side="bottom">
         <Button variant="bare" size="none" onClick={() => onViewMode('map')} aria-label={tr('Map view', 'Bản đồ')} aria-pressed={viewMode === 'map'} className={tab('map')}>
-          <Map className="h-[18px] w-[18px]" />
+          <Map className={cn('h-5 w-5', wash(viewMode === 'map', '[&>path:first-of-type]:fill-brand-100'))} />
         </Button>
       </Tooltip>
       {showVideo && (
         <Tooltip content={tr('Video view', 'Xem Video')} side="bottom">
           <Button variant="bare" size="none" onClick={() => onViewMode('video')} aria-label={tr('Video view', 'Video')} aria-pressed={viewMode === 'video'} className={tab('video')}>
-            <Play className="h-[18px] w-[18px]" />
+            <Play className={cn('h-5 w-5', wash(viewMode === 'video', '[&>polygon]:fill-brand-100'))} />
           </Button>
         </Tooltip>
       )}

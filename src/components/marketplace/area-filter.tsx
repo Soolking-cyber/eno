@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type RefObject } from 'react'
 import { Popover as PopoverPrimitive } from '@base-ui/react/popover'
-import { LocateFixed, Loader2, Check, ChevronDown } from 'lucide-react'
+import { LocateFixed, Loader2, Check, ChevronsUpDown } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
 import { CustomSelect } from './custom-select'
 import { EnoSlider } from './eno-slider'
@@ -54,9 +54,13 @@ function fetchProvinces(): Promise<Unit[]> {
 
 function DisabledField({ label }: { label: string }) {
   return (
+    // The caret mirrors CustomSelect's trigger exactly (ChevronsUpDown h-3.5 text-ink-4) so a
+    // disabled field reads as the same control as its live sibling, just dimmed by the bg-tint/60
+    // box. Was ChevronDown text-slate-300 — a different glyph AND the icon family's one off-token
+    // color (icon-language §1: color via ink tokens only, and slate is not our neutral ramp).
     <div className="flex w-full cursor-not-allowed items-center justify-between rounded-xl bg-tint/60 px-3.5 py-2.5 text-sm text-ink-4">
       <span>{label}</span>
-      <ChevronDown className="h-4 w-4 text-slate-300" />
+      <ChevronsUpDown className="h-3.5 w-3.5 shrink-0 text-ink-4" />
     </div>
   )
 }

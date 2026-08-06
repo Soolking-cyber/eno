@@ -2,7 +2,7 @@
 
 import { useId } from 'react'
 import type { Dispatch, SetStateAction } from 'react'
-import { ChevronRight, X } from 'lucide-react'
+import { Check, X } from 'lucide-react'
 import { CustomSelect } from './custom-select'
 import { RangeFacetControl } from './range-facet-control'
 import { CategoryIcon } from './category-icons'
@@ -169,7 +169,13 @@ export function ExplorerFilters({
                        : 'text-body hover:bg-muted'
                    )}
                 >
-                  <CategoryIcon name={cat.icon} className={cn('h-3.5 w-3.5 shrink-0', isActive ? 'text-accent-foreground' : 'text-body')} />
+                  {/* stroke-2: the foundation's small-size glyph rule for facet/filter chips —
+                      CategoryIcon bakes the display tier (1.5), which at h-3.5 renders ~0.9px
+                      and loses all authority; at chip size the artwork joins the UI tier (2)
+                      like every other 14px glyph on this surface. Wash stays (it's still
+                      category artwork). CSS stroke-width beats the svg attribute, so the
+                      class override is safe without touching the foundation renderer. */}
+                  <CategoryIcon name={cat.icon} className={cn('h-3.5 w-3.5 shrink-0 stroke-2', isActive ? 'text-accent-foreground' : 'text-body')} />
                   <span className="text-3xs truncate"><Tr text={lang === 'vi' ? cat.nameVi : cat.name} /></span>
                 </Button>
               )
@@ -213,7 +219,8 @@ export function ExplorerFilters({
                       : 'text-body hover:bg-muted'
                   )}
                 >
-                  <CategoryIcon name={sub.icon} className="h-3.5 w-3.5 shrink-0" />
+                  {/* stroke-2 — same small-size chip rule as the category chips above. */}
+                  <CategoryIcon name={sub.icon} className="h-3.5 w-3.5 shrink-0 stroke-2" />
                   <Tr text={lang === 'vi' ? sub.nameVi : sub.name} />
                 </Button>
               )
@@ -272,7 +279,10 @@ export function ExplorerFilters({
                   : 'text-body hover:bg-muted',
               )}
             >
-              <ChevronRight className={cn('h-3.5 w-3.5', conditionFilter === cond.slug ? 'text-accent-foreground' : 'text-ink-4')} />
+              {/* Selection is a CHECK, not a chevron — same vocabulary as the CustomSelect menu
+                  rows one field up (a right-chevron promises navigation; these rows select).
+                  opacity-0 (not conditional render) keeps the labels on one left edge. */}
+              <Check className={cn('h-3.5 w-3.5 shrink-0', conditionFilter === cond.slug ? 'text-accent-foreground' : 'opacity-0')} aria-hidden="true" />
               {cond.name}
             </Button>
           ))}
