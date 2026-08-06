@@ -491,7 +491,7 @@ export default async function ListingPage({ params }: Props) {
                       the seal actually stands for. Non-interactive; ProtectionsRow below tells
                       the full safety story. */}
                   <span className="inline-flex w-fit items-center gap-1.5 text-xs font-semibold text-body">
-                    <EnoSeal aria-hidden className="h-3.5 w-3.5 text-accent-foreground" />
+                    <EnoSeal aria-hidden className="h-3.5 w-3.5 shrink-0 text-accent-foreground" />
                     <Tr text="Trust scores you can check" />
                   </span>
                   {/* The market-price gauge travels with the price — it's a benchmark OF this number. */}

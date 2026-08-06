@@ -34,7 +34,6 @@ import {
   Flower2,
   Footprints,
   Gamepad2,
-  Gauge,
   Gift,
   GraduationCap,
   Guitar,
@@ -100,13 +99,60 @@ import {
   HelpCircle,
   type LucideIcon,
 } from 'lucide-react'
+import type { ComponentType, SVGProps } from 'react'
 import { cn } from '@/lib/utils'
 import { STROKE_DISPLAY } from '@/lib/icon-tokens'
+
+/** Bespoke motorbike ("xe máy" — the single most posted item in Vietnam). The
+ *  taxonomy maps the motorbike slugs to the immutable key 'Gauge', whose lucide
+ *  artwork draws a SPEEDOMETER — a recognition failure on the market's #1
+ *  category (blind critic 2026-08-06; artwork swap under the existing key
+ *  authorized by lead ruling 2026-08-07 — §7: "change artwork under existing
+ *  keys"). lucide has no motorbike, so this is authored on the family's rules
+ *  (§1/§3/§7): 24-grid, round caps/joins, currentColor line, wheels identical to
+ *  sibling Bike's circles (cx 5.5/18.5, cy 17.5, r 3.5). Exactly TWO strokes
+ *  besides the wheels — tail → saddle → step-through dip → floorboard, then the
+ *  steering column with its grip hooking back. Earlier drafts added a leg shield
+ *  AND a front fork and the converging lines mushed into a curl at the 14px chip
+ *  step; like lucide's own Bike, the front wheel needs no touching fork. The
+ *  wash lives in WASH_MAP like every other key (both wheel discs — a mirrored
+ *  twin pair counts as ONE wash move, §0 addendum, exactly how Bike washes). */
+function MotorbikeIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width={24}
+      height={24}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+      {...props}
+    >
+      <circle cx="5.5" cy="17.5" r="3.5" />
+      <circle cx="18.5" cy="17.5" r="3.5" />
+      <path d="M5.5 14l-.9-3.3h5.6l1.5 3.3h3.2" />
+      <path d="M18 13l-2-6h-1.8" />
+    </svg>
+  )
+}
+
+// A registry value is a lucide component or a bespoke first-party mark drawn on
+// the same 24-grid contract (§1 permits bespoke category artwork in this file).
+type CategoryGlyph = LucideIcon | ComponentType<SVGProps<SVGSVGElement>>
 
 // Resolves a lucide icon NAME (stored in the taxonomy / Category rows) to its
 // component. Covers every category AND subcategory glyph — keep in sync with
 // src/lib/taxonomy.ts (tsc + the fallback make drift visible, never fatal).
-const ICONS: Record<string, LucideIcon> = {
+const ICONS: Record<string, CategoryGlyph> = {
+  // 'Gauge' is the taxonomy's MOTORBIKE key (immutable, DB-mirrored). The lucide
+  // speedometer it once resolved to failed recognition on Vietnam's #1 category;
+  // the key now owns bespoke artwork (see MotorbikeIcon above). Head of the map
+  // so the one artwork exception stays visible.
+  Gauge: MotorbikeIcon,
   Archive,
   Armchair,
   Baby,
@@ -142,7 +188,6 @@ const ICONS: Record<string, LucideIcon> = {
   Flower2,
   Footprints,
   Gamepad2,
-  Gauge,
   Gift,
   GraduationCap,
   Guitar,
@@ -225,6 +270,9 @@ const WASH_MAP: Record<string, string> = {
   Compass: '[&>path]:fill-brand-100',
   Dumbbell: '[&>path:first-of-type]:fill-brand-100 [&>path:nth-of-type(4)]:fill-brand-100',
   Gamepad2: '[&>path]:fill-brand-100',
+  // Bespoke motorbike: both wheel discs — a mirrored twin pair is ONE wash move
+  // (§0 addendum), exactly how Bike washes its circles.
+  Gauge: '[&>circle]:fill-brand-100',
   Heart: '[&>path]:fill-brand-100',
   House: '[&>path:first-of-type]:fill-brand-100',
   KeyRound: '[&>path]:fill-brand-100',
@@ -233,7 +281,10 @@ const WASH_MAP: Record<string, string> = {
   MessagesSquare: '[&>path:first-of-type]:fill-brand-100',
   PackageOpen: '[&>path:nth-of-type(3)]:fill-brand-100',
   PawPrint: '[&>*]:fill-brand-100',
-  Plane: '[&>path]:fill-brand-100',
+  // Plane: deliberately NO entry. Its single closed path is the whole
+  // silhouette, and §0 forbids whole-silhouette washes — §6's graceful degrade
+  // (pure line) applies. Confirmed as a spec breach by the blind critic
+  // (2026-08-06, pixel-probed); do not re-add without a separable region.
   PlaneTakeoff: '[&>path:nth-of-type(2)]:fill-brand-100',
   Search: '[&>circle]:fill-brand-100',
   Shirt: '[&>path]:fill-brand-100',

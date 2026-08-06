@@ -6,7 +6,10 @@
 // these subtrees). No behaviour change from the in-file versions.
 
 import { useId } from 'react'
+import { Cog, Ellipsis, ImagePlus } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { STROKE_DISPLAY } from '@/lib/icon-tokens'
+import { CHIP_CATEGORY_ICON_STROKE } from './shelf'
 import { Button } from '@/components/ui/button'
 import {
   Field as UiField,
@@ -139,7 +142,44 @@ export function Field({ id, label, counter, hint, error, group, children }: { id
   )
 }
 
-export function Chips({ options, value, onPick }: { options: { value: string; label: string }[]; value: string; onPick: (v: string) => void }) {
+/** R2 semantic fixes for the vehicles subcategory row (blind critic 2026-08-06;
+ *  lead ruling 2026-08-07). 'Xe máy' (was a speedometer) is fixed AT THE REGISTRY —
+ *  bespoke motorbike artwork under the existing 'Gauge' key in category-icons.tsx —
+ *  so the rentals picker and every browse mount heal with it. The two entries here
+ *  CANNOT be fixed there, because their taxonomy strings are SHARED keys whose other
+ *  meanings are correct: 'Wrench' is also the Dịch vụ listing type AND the Services
+ *  category (registry-level cog artwork would re-collide all three on this very
+ *  screen), and 'Truck' is also Chuyển nhà (moving), where a truck is the right
+ *  glyph. Taxonomy icon strings are DB-mirrored and immutable, so the SLUG — the one
+ *  unambiguous coordinate — picks the artwork at this mount only: Phụ tùng = Cog
+ *  ('Phụ tùng' reused the identical wrench as 'Dịch vụ' in the same viewport),
+ *  Khác = Ellipsis ('Khác' drew a truck, which read "Trucks" and invited
+ *  miscategorization). Wash choices follow §6: Cog washes its one gear-disc region
+ *  (first path in lucide 0.525.0); Ellipsis has no closed region → pure line
+ *  degrade. Foundation request filed: mint distinct registry keys + DB migration
+ *  (e.g. parts-gear → 'Cog', vehicle-other → 'Ellipsis') so this map can be
+ *  deleted. */
+const SUB_GLYPH_FIX: Record<string, { Icon: React.ComponentType<React.SVGProps<SVGSVGElement>>; wash?: string }> = {
+  'parts-gear': { Icon: Cog, wash: '[&>path:first-of-type]:fill-brand-100' },
+  'vehicle-other': { Icon: Ellipsis },
+}
+
+/** Resolves a picker option's glyph: the slug-keyed artwork fix above when one exists,
+ *  otherwise the shared registry (same glyph family as the home grid / browse rail). */
+function PickerGlyph({ slug, name, className }: { slug: string; name: string; className?: string }) {
+  const fix = SUB_GLYPH_FIX[slug]
+  if (!fix) return <CategoryIcon name={name} className={className} />
+  const { Icon, wash } = fix
+  // Mirrors CategoryIcon's contract: display-tier stroke baked in (callers re-tier
+  // small mounts via CHIP_CATEGORY_ICON_STROKE in their className), wash via tokens.
+  return <Icon strokeWidth={STROKE_DISPLAY} className={cn(wash, className)} aria-hidden />
+}
+
+/** Single-pick chip row. `icon` (a CategoryIcon registry name — subcategories and
+ *  listing types carry one in the taxonomy) renders the same glyph family the home
+ *  grid and browse rail use, at the §4 chip step (14px) re-tiered to the UI stroke.
+ *  Text-only options (condition, attribute facets) simply pass no icon. */
+export function Chips({ options, value, onPick }: { options: { value: string; label: string; icon?: string }[]; value: string; onPick: (v: string) => void }) {
   return (
     <div className="flex flex-wrap gap-2">
       {options.map((o) => (
@@ -150,8 +190,18 @@ export function Chips({ options, value, onPick }: { options: { value: string; la
           type="button"
           aria-pressed={value === o.value}
           onClick={() => onPick(o.value)}
-          className={cn('rounded-xl px-3.5 py-2 text-sm font-semibold transition-colors cursor-pointer', value === o.value ? 'bg-primary text-white' : 'text-body hover:bg-muted')}
+          className={cn('gap-1.5 rounded-xl px-3.5 py-2 text-sm font-semibold transition-colors cursor-pointer', value === o.value ? 'bg-primary text-white' : 'text-body hover:bg-muted')}
         >
+          {o.icon && (
+            // Selected chip = brand pill → pure line: the wash variable is neutralized
+            // on the svg (same deterministic override as the category picker — the
+            // dark-mode wash tint would otherwise punch a dark hole in the glyph).
+            <PickerGlyph
+              slug={o.value}
+              name={o.icon}
+              className={cn('h-3.5 w-3.5 shrink-0', CHIP_CATEGORY_ICON_STROKE, value === o.value && '[--color-brand-100:transparent]')}
+            />
+          )}
           {o.label}
         </Button>
       ))}
@@ -168,7 +218,21 @@ export function Preview({ cover, title, price, priceUnit, area, categoryIcon, t 
           <img src={cover} alt="" className="h-full w-full object-cover" />
         ) : (
           <div className="flex h-full w-full items-center justify-center">
-            <CategoryIcon name={categoryIcon || ''} className="h-8 w-8 text-ink-4" />
+            {/* Category chosen → its tile glyph at the display tier (h-11, wash baked in),
+                exactly like a no-photo listing card. No category yet → the chrome coin
+                (icon-language §6): this canvas is the largest icon moment on the surface
+                and the first-run state was its only family-less glyph — a dead gray lucide
+                on gray, while the sibling state renders fully branded. The coin mirrors
+                ui/empty-state's badge byte-for-byte (h-16 brand-50 disc, h-8 brand glyph
+                at the display stroke) — same "nothing here yet, still eno" language.
+                Never the registry's HelpCircle fallback, which read as a bug ("?"). */}
+            {categoryIcon ? (
+              <CategoryIcon name={categoryIcon} className="h-11 w-11 text-ink-4" />
+            ) : (
+              <span className="flex h-16 w-16 items-center justify-center rounded-full bg-brand-50">
+                <ImagePlus strokeWidth={STROKE_DISPLAY} className="h-8 w-8 text-brand" />
+              </span>
+            )}
           </div>
         )}
       </div>

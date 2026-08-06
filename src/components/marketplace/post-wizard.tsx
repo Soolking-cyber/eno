@@ -3,11 +3,16 @@
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ChevronLeft, Check, Lock, Sparkles, Loader2 } from 'lucide-react'
+import { ChevronLeft, Check, Sparkles, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import type { SerializedCategory } from '@/lib/types'
 import { hasRealCoords } from '@/lib/geo'
 import { CategoryIcon } from './category-icons'
+import { EnoSeal } from './eno-seal'
+// Small-mount CategoryIcon re-tier (icon-language §2): the registry bakes the
+// display stroke (1.5) for h-11+ tiles; at the picker's h-4/h-3.5 that scales to
+// <1px of ink. Shelf's documented override re-tiers chips to the UI weight.
+import { CHIP_CATEGORY_ICON_STROKE } from './shelf'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -804,7 +809,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
               // Category is fixed when editing (changing it would re-derive subcategory/
               // brand/facets). To switch category, delete + repost.
               <div className="inline-flex items-center gap-1.5 rounded-xl bg-muted px-3.5 py-2 text-sm font-semibold text-body">
-                {cat && <CategoryIcon name={cat.icon} className="h-4 w-4 text-body" />}
+                {cat && <CategoryIcon name={cat.icon} className={cn('h-4 w-4 text-body', CHIP_CATEGORY_ICON_STROKE)} />}
                 {cat ? tr(cat.name, cat.nameVi) : categorySlug}
                 <span className="ml-1 text-xs font-normal text-ink-4">{t('(không đổi khi sửa)', '(fixed when editing)')}</span>
               </div>
@@ -854,7 +859,21 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                       onClick={() => chooseCategory(c.slug)}
                       className={cn('gap-1.5 rounded-xl px-3.5 py-2 text-sm font-semibold transition-colors', categorySlug === c.slug ? 'bg-primary text-white' : 'text-body hover:bg-muted')}
                     >
-                      <CategoryIcon name={c.icon} className={cn('h-4 w-4', categorySlug === c.slug ? 'text-white' : 'text-body')} />
+                      {/* Selected chip is a brand pill: the ink already carries the meaning, so
+                          the glyph goes pure line (the EnoSeal 'line'-on-brand-pill rule, §6).
+                          The baked wash can't be class-overridden (tailwind-merge doesn't dedupe
+                          arbitrary variants — foundation note), but fill-brand-100 resolves
+                          var(--color-brand-100), so redefining the VARIABLE on the svg wins
+                          deterministically — critical in dark mode, where the wash tint renders
+                          as a dark hole inside the bg-primary chip. */}
+                      <CategoryIcon
+                        name={c.icon}
+                        className={cn(
+                          'h-4 w-4',
+                          CHIP_CATEGORY_ICON_STROKE,
+                          categorySlug === c.slug ? 'text-white [--color-brand-100:transparent]' : 'text-body',
+                        )}
+                      />
                       {tr(c.name, c.nameVi)}
                     </Button>
                   ))}
@@ -865,12 +884,12 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
 
             {categorySlug && typeOptions.length > 1 && (
               <Field group label={t('Loại tin', 'Listing type')}>
-                <Chips options={LISTING_TYPES.filter((lt) => typeOptions.includes(lt.value)).map((lt) => ({ value: lt.value, label: tr(lt.label, lt.labelVi) }))} value={listingType} onPick={setListingType} />
+                <Chips options={LISTING_TYPES.filter((lt) => typeOptions.includes(lt.value)).map((lt) => ({ value: lt.value, label: tr(lt.label, lt.labelVi), icon: lt.icon }))} value={listingType} onPick={setListingType} />
               </Field>
             )}
             {categorySlug && subOptions.length > 0 && (
               <Field group label={t('Danh mục con', 'Subcategory')}>
-                <Chips options={subOptions.map((s) => ({ value: s.slug, label: tr(s.name, s.nameVi) }))} value={subcategorySlug} onPick={(v) => setSubcategorySlug(v === subcategorySlug ? '' : v)} />
+                <Chips options={subOptions.map((s) => ({ value: s.slug, label: tr(s.name, s.nameVi), icon: s.icon }))} value={subcategorySlug} onPick={(v) => setSubcategorySlug(v === subcategorySlug ? '' : v)} />
               </Field>
             )}
             {showBrand && (
@@ -1059,8 +1078,11 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                 ))}
               </ul>
             )}
+            {/* First-party protection claim ("your number stays private") → the eno seal,
+                not a generic lucide lock: §0b reserves exactly this moment for the
+                signature, at the inline 14px echo tier. */}
             <p className="flex items-start gap-1.5 pt-1 text-2xs leading-relaxed text-ink-4">
-              <Lock className="mt-0.5 h-3 w-3 shrink-0" />
+              <EnoSeal className="mt-px h-3.5 w-3.5" />
               {t('Tin hiển thị ngay. Số của bạn được giữ kín.', 'Goes live instantly. Your number stays private.')}
             </p>
           </div>

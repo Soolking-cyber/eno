@@ -17,7 +17,7 @@
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { toast } from 'sonner'
-import { ImagePlus, X, ShieldCheck, MapPin, ChevronDown, Check, Sparkles, Loader2, LocateFixed, Zap, Video, Camera, Crop } from 'lucide-react'
+import { ImagePlus, X, MapPin, ChevronDown, Check, Sparkles, Loader2, LocateFixed, Zap, Video, SquarePlay, Camera, Crop } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { captureNativePhoto, nativePhotoCaptureAvailable } from '@/lib/native-photos'
 import { Button } from '@/components/ui/button'
@@ -29,6 +29,7 @@ import { moneyLocale, compactPrice } from '@/lib/vnd'
 import type { PostMedia } from '@/hooks/use-post-media'
 import { Section, Field } from './post-wizard-parts'
 import { VndInput } from './vnd-input'
+import { EnoSeal } from './eno-seal'
 import { Mascot } from './mascot'
 import { ShareButton } from './share-button'
 import { SquareCropDialog } from './square-crop-dialog'
@@ -201,12 +202,18 @@ export function MediaSection({
           >
             {capturing ? <Loader2 className="h-6 w-6 animate-spin" /> : <Camera className="h-6 w-6" />}
             <span className="text-3xs font-semibold">{t('Chụp ảnh', 'Take photo')}</span>
+            <span className="text-3xs leading-tight text-ink-4">{t('tối đa 6 ảnh', 'up to 6 photos')}</span>
           </Button>
         )}
+        {/* ⚠️ Optical pairing (R2, blind critic): every empty tile in this grid keeps the SAME
+            three-row stack (glyph · label · 3xs hint) so the glyphs sit on one shared centerline —
+            the photo tile used to be two rows, which floated its glyph lower than the video
+            tile's. The hint line is real copy, not a spacer. */}
         {photos.length < 6 && (
           <label className="flex aspect-square cursor-pointer flex-col items-center justify-center gap-1 rounded-xl border border-dashed border-line-strong text-ink-4 transition-colors hover:border-brand hover:text-accent-foreground">
             {converting ? <Loader2 className="h-6 w-6 animate-spin" /> : <ImagePlus className="h-6 w-6" />}
             <span className="text-3xs font-semibold">{converting ? t('Đang xử lý…', 'Processing…') : nativeCamera ? t('Thư viện', 'Library') : t('Thêm ảnh', 'Add')}</span>
+            <span className="text-3xs leading-tight text-ink-4">{t('tối đa 6 ảnh', 'up to 6 photos')}</span>
             <input type="file" accept="image/*,.heic,.heif" multiple className="hidden" onChange={(e) => addPhotos(e.target.files)} />
           </label>
         )}
@@ -273,7 +280,15 @@ export function MediaSection({
                 videoBusy ? 'pointer-events-none' : 'cursor-pointer hover:border-brand hover:text-accent-foreground',
               )}
             >
-              {videoBusy ? <Loader2 className="h-6 w-6 animate-spin" /> : <Video className="h-6 w-6" />}
+              {/* SquarePlay, not Video (R2, blind critic): lucide Video's artwork is a 20×12
+                  box that reads a full step smaller than ImagePlus's 18×19 rounded square
+                  beside it. SquarePlay IS ImagePlus's optical twin — the same 18-unit
+                  rounded square (rx2, the canon's soft-corner tier) with the app's
+                  established video mark inside (play triangle = video everywhere: card
+                  badges, view toggles, the feed). The pair now reads at one optical size.
+                  The Android camcorder tile keeps the camera-bodied Video glyph — record
+                  vs pick is a real distinction there. */}
+              {videoBusy ? <Loader2 className="h-6 w-6 animate-spin" /> : <SquarePlay className="h-6 w-6" />}
               {/* Relabelled when the camcorder tile is beside it, so the two tiles read as
                   "record" vs "pick" rather than two identical "Add video"s. */}
               <span className="text-3xs font-semibold">{videoBusy ? t('Đang kiểm tra…', 'Checking…') : androidCamcorder ? t('Thư viện', 'Library') : t('Thêm video', 'Add video')}</span>
@@ -501,7 +516,10 @@ export function LocationSection({
           )}
         >
           <span className={cn('flex min-w-0 items-center gap-2', areaLabel ? 'text-foreground font-medium' : 'text-ink-4')}>
-            <MapPin className="h-4 w-4 shrink-0 text-accent-foreground" />
+            {/* h-5: the §4 input/list-lead step — this trigger is the wizard's one
+                input-shaped control with a lead glyph, and its neighbour (LocateFixed)
+                already sits on the same 20px step. */}
+            <MapPin className="h-5 w-5 shrink-0 text-accent-foreground" />
             <span className="truncate">{areaLabel || t('Chọn khu vực', 'Set area')}</span>
           </span>
           <ChevronDown className="h-4 w-4 shrink-0 text-ink-4" />
@@ -565,7 +583,9 @@ export function ContactSection({
         <div className="space-y-3">
           {postingAs && (
             <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
-              <ShieldCheck className="h-4 w-4 text-accent-foreground" />
+              {/* First-party verification moment ("posting as <registered business>") →
+                  the eno seal replaces lucide ShieldCheck (icon-language §0b law). */}
+              <EnoSeal className="h-4 w-4 shrink-0 text-accent-foreground" />
               {t('Đăng với tư cách', 'Posting as')} <span className="font-semibold text-foreground">{postingAs}</span>
             </p>
           )}
