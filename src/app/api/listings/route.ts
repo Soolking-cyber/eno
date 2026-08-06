@@ -184,13 +184,16 @@ export async function GET(req: NextRequest) {
  *   English sentence, not a code. apiFail() can express neither, and rewording the 500 to
  *   `internal_error` would be exactly the silent wire change this migration forbids.
  *
- * ⚠️ SEPARATE FINDING, DELIBERATELY NOT FIXED HERE (it is a shared-file edit, and other WS6
- * clusters are in flight): PublishBlockedError re-emits `e.code`, and 9 of the 12
- * PublishBlockCodes in src/lib/publish-guard.ts:40 are ABSENT from the ApiErrorCode union —
+ * ✅ SEPARATE FINDING, NOW FIXED (it was deferred here only because it is a shared-file edit and
+ * other WS6 clusters were in flight): PublishBlockedError re-emits `e.code`, and 9 of the 12
+ * PublishBlockCodes in src/lib/publish-guard.ts:40 were ABSENT from the ApiErrorCode union —
  * identity_unverified, identity_pending, identity_expired, identity_suspended, photo_required,
  * photos_min, contact_in_name, duplicate_listing, location_required. The harvest that built
- * src/lib/api/errors.ts greps for string LITERALS, so a code emitted through a variable is
- * invisible to it. All nine are on the wire today and apiErrorCode() returns null for every one.
+ * src/lib/api/errors.ts greps for string LITERALS, so a code emitted through a variable was
+ * invisible to it, and apiErrorCode() answered null for the most common refusal in the product.
+ * All nine are in the union now, `errors.test.ts` derives them from the PublishBlockCode
+ * declaration rather than exempting them, and `PublishBlockCode extends ApiErrorCode` is asserted
+ * at COMPILE time in errors.ts — so a thirteenth publish code cannot repeat this.
  */
 export async function POST(req: NextRequest) {
   let res: NextResponse

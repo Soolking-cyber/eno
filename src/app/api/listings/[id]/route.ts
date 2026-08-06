@@ -38,8 +38,11 @@ export const dynamic = 'force-dynamic'
 // Two further reasons no `body:` schema could be added to PATCH even if auth were solved:
 // malformed JSON answers `{"error":"Invalid body"}` — not an ApiErrorCode, so it cannot be an
 // `invalidBodyCode` — and `updateListingCore` returns free-form codes through `r.error`
-// (`title_too_short`, `no_phone_in_listing`, `invalid_price`, `urgent_quota`, and every
-// `PublishBlockedError.code`) that are absent from the ApiErrorCode union.
+// (`title_too_short`, `no_phone_in_listing`, `invalid_price`, `urgent_quota`) that are absent from
+// the ApiErrorCode union. ⚠️ `PublishBlockedError.code` USED to belong on that list and no longer
+// does: all twelve PublishBlockCodes are now union members, derived rather than exempted in
+// errors.test.ts and asserted at compile time in errors.ts. The other four codes above remain
+// genuinely absent, so PATCH still cannot take a schema.
 
 // GET — public detail payload for the native iOS app (the web PDP is SSR and
 // never calls this). Visibility contract matches the page exactly: only

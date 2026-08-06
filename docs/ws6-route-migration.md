@@ -124,6 +124,36 @@ Every one of the 94 refusals is an instance of one of these. All are **wire fact
   invisible to it — `throw new ApiError(code, 400)` made `'reserved'` land in the union and
   immediately report as stale while the route was emitting it on every request. Spell codes out as
   literals, even when it looks redundant.
+
+  ⚠️ **That blind spot had already cost nine codes.** Every `PublishBlockCode` is re-emitted
+  wholesale as `e.code` when `POST /api/listings` catches a `PublishBlockedError`, and nine of the
+  twelve were absent from the union — so `apiErrorCode()` answered `null` for the most common
+  refusal a seller ever sees. All twelve are now members, the test **derives** them from source
+  rather than exempting them, and `PublishBlockCode extends ApiErrorCode` is asserted at **compile
+  time** in `errors.ts`.
+
+  ⚠️ **`visa_schema_not_ready` is deliberately still absent**, and the reasoning is a licensing one.
+  It is emitted only by `.svc.ts` routes, and `ALL` is a **runtime** array in a module both editions
+  share — adding it would put a visa-named string in eno.vn's bundle the day `lib/api/client.ts`
+  gains its first production importer. Two such codes (`visa_database_unavailable`,
+  `visa_encryption_not_configured`) are already members and predate this work; splitting the
+  vocabulary by edition is the fix, and it is a deliberate change rather than a drive-by.
+
+  ⚠️ **Five codes are STILL knowingly outside the union, and that is the honest count.** Four come
+  through `updateListingCore`'s `r.error` on `PATCH /api/listings/[id]` — `title_too_short`,
+  `no_phone_in_listing`, `invalid_price`, `urgent_quota` — which is the same variable-shaped
+  emission, just a different helper; plus `visa_schema_not_ready` above. `apiErrorCode()` returns
+  `null` for all five today. They are the next increment, each needing its own on-wire derivation,
+  and PATCH cannot take a `body:` schema until the four are resolved.
+
+  ⚠️ **The derivation took four attempts and the first three were provably vacuous.** This is the
+  more transferable lesson, so the whole sequence is recorded in the test: `.includes()` matched the
+  identifier in the file's own *prose* and accepted a renamed symbol; two independent regexes proved
+  only that both strings existed *somewhere*; joining them with a 400-character window was still
+  proximity, not coupling. What works is capturing the identifier the `instanceof` binds and
+  requiring `error: <that same identifier>.code`. **Mutate the source and watch the check go red
+  before believing it** — twice here a "fix" silently re-opened an earlier hole, and only the
+  mutation battery noticed.
 - **Blockers must be stated as wire facts, not as client behaviour.** Reviews caught **six**
   refusals justified by a claim about what some component does, where the component did no such
   thing: `bulk-upload-panel.tsx` was cited for `/api/keys` but calls `/api/listings/bulk`;

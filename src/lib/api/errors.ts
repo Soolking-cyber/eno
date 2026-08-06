@@ -1,3 +1,5 @@
+import type { PublishBlockCode } from '@/lib/publish-guard'
+
 /**
  * THE ERROR VOCABULARY THAT IS ALREADY ON THE WIRE.
  *
@@ -213,6 +215,44 @@ export type NicheApiErrorCode =
    * into `invalid`: the handle editor distinguishes "that name is taken by the platform" from
    * "that name is malformed", and they are different sentences to the user.
    */
+
+  /**
+   * ⚠️ NINE CODES THAT WERE ON THE WIRE WHILE THIS TYPE SAID THEY DID NOT EXIST, AND THE REASON THEY
+   * HID IS THE POINT. The harvest that built this file — and `errors.test.ts`, which re-runs it on
+   * every test run — is a TEXT SCAN for `error: '…'` / `ApiError('…'` / `apiFail('…'`. A code that
+   * reaches the wire through a VARIABLE is invisible to it:
+   *   · nine of the twelve `PublishBlockCode`s (src/lib/publish-guard.ts) are re-emitted wholesale
+   *     as `e.code` when a `PublishBlockedError` is caught in `POST /api/listings` and
+   *     `PATCH /api/listings/[id]`. Every one is what a seller sees when a publish is refused.
+   *   · `visa_schema_not_ready` is computed — `{ error: missing ? 'visa_schema_not_ready' : message }`
+   *     at src/app/api/visa/applications/route.svc.ts:261 — so `error: ` is followed by an
+   *     identifier, not a quote.
+   * `apiErrorCode()` returned null for all ten, meaning a client could not type-check against the
+   * most common refusal in the whole app. Same blind spot that briefly swallowed `'reserved'`.
+   * `PublishBlockCode` is now coupled to this union at compile time (see the bottom of this file),
+   * so the thirteenth publish code cannot repeat this.
+   *
+   * ⚠️ RAISED IN REVIEW AND NOT FIXED HERE, BECAUSE IT PREDATES THIS CHANGE AND IS THE OWNER'S CALL:
+   * `visa_schema_not_ready` joins `visa_database_unavailable` and `visa_encryption_not_configured`,
+   * which were already members. All three are emitted ONLY by `route.svc.ts` files (13 of them),
+   * i.e. the services edition — so on eno.vn they are vocabulary for routes that do not exist, and
+   * `ALL` is a RUNTIME array, not just a type. Today that leaks nothing: `apiErrorCode()` has one
+   * caller (`src/lib/api/client.ts:93`) and `client.ts` has no production importer, so this module
+   * reaches no client bundle. But `client.ts` exists precisely to be adopted by the 176 raw
+   * `fetch('/api/…')` call sites, and the day the first eno.vn component adopts it, three
+   * visa-named strings ship in the licensed marketplace's JS. Per CLAUDE.md that edition must not
+   * even MENTION visa. The fix is an edition split of this vocabulary (or making `ALL` type-only);
+   * either is a deliberate change, not a drive-by inside an error-contract fix.
+   */
+  | 'contact_in_name'
+  | 'duplicate_listing'
+  | 'identity_expired'
+  | 'identity_pending'
+  | 'identity_suspended'
+  | 'identity_unverified'
+  | 'location_required'
+  | 'photo_required'
+  | 'photos_min'
   | 'reserved'
   | 'retry'
   | 'save_failed'
@@ -442,6 +482,15 @@ const ALL = [
   'reply_required',
   'report_cooldown',
   'reporting_blocked',
+  'contact_in_name',
+  'duplicate_listing',
+  'identity_expired',
+  'identity_pending',
+  'identity_suspended',
+  'identity_unverified',
+  'location_required',
+  'photo_required',
+  'photos_min',
   'reserved',
   'retry',
   'save_failed',
@@ -495,3 +544,22 @@ const ALL = [
 type Missing = Exclude<ApiErrorCode, (typeof ALL)[number]>
 const _everyCodeIsListed: Missing extends never ? true : ['missing from ALL:', Missing] = true
 void _everyCodeIsListed
+
+/**
+ * ⚠️ `PublishBlockCode` IS RE-EMITTED WHOLESALE, SO IT IS A SUBSET OF THIS UNION BY CONSTRUCTION —
+ * AND NOTHING ENFORCED THAT UNTIL NOW. `POST /api/listings` and `PATCH /api/listings/[id]` both
+ * catch `PublishBlockedError` and answer `{ error: e.code }`, so every member of that union is an
+ * API error code whether or not anyone remembered to add it here. Nine of the twelve were missing;
+ * see the block above for why the text-scan harvest could not see them.
+ *
+ * A `type` import, so this is erased at build time and adds no runtime coupling — `publish-guard`
+ * is client-safe (pure string/image helpers) and does not import this file, so there is no cycle.
+ *
+ * The failure this prevents is specific: someone adds a thirteenth publish block code, ships it,
+ * and it silently becomes a wire code that `apiErrorCode()` reports as unknown. Now it will not
+ * compile until the code is added here too.
+ */
+type UnlistedPublishCode = Exclude<PublishBlockCode, ApiErrorCode>
+const _everyPublishCodeIsAnApiCode:
+  UnlistedPublishCode extends never ? true : ['PublishBlockCode missing from ApiErrorCode:', UnlistedPublishCode] = true
+void _everyPublishCodeIsAnApiCode
