@@ -91,6 +91,17 @@ export type VisaQuoteWire = {
   priceVnd: number
   amountUsdCents: number
   vndPerUsd: number
+  /**
+   * ⚠️ THE FEE BREAKDOWN IS OPTIONAL ON PURPOSE — quotes issued before the processing-fee change
+   * do not carry it, and rejecting those would make every outstanding quote unpayable on deploy.
+   * When it IS present the card must show it, because `amountUsdCents` then exceeds a plain
+   * priceVnd÷rate conversion and a buyer doing that arithmetic would otherwise find an
+   * unexplained gap. See the gross-up note in src/lib/visa/fx.ts.
+   */
+  serviceUsdCents?: number
+  processingUsdCents?: number
+  feePercent?: number
+  feeFixedCents?: number
   quotedAt: string
   expiresAt: string
 }
@@ -258,7 +269,26 @@ export function parseVisaQuoteWire(value: unknown): VisaQuoteWire | null {
   // The two money fields must be renderable integers, or there is nothing honest to show.
   if (!Number.isSafeInteger(amountUsdCents) || amountUsdCents <= 0) return null
   if (!Number.isSafeInteger(priceVnd) || priceVnd <= 0) return null
-  return { listingId: listingId.trim(), priceVnd, amountUsdCents, vndPerUsd, quotedAt, expiresAt }
+  // ⚠️ The breakdown is carried through, not dropped. This rebuilt the quote as a 6-field literal,
+  // so the four fee fields the server now sends were silently discarded and the card could only
+  // show a total it could not explain. Each is admitted ONLY if it is a sane integer/number —
+  // a malformed one degrades to "no breakdown" (the pre-fee copy), never to a wrong sum.
+  const cents = (v: unknown): number | undefined =>
+    typeof v === 'number' && Number.isSafeInteger(v) && v >= 0 ? v : undefined
+  const service = cents((value as Record<string, unknown>).serviceUsdCents)
+  const processing = cents((value as Record<string, unknown>).processingUsdCents)
+  const feePercentRaw = (value as Record<string, unknown>).feePercent
+  const feeFixedRaw = (value as Record<string, unknown>).feeFixedCents
+  return {
+    listingId: listingId.trim(), priceVnd, amountUsdCents, vndPerUsd, quotedAt, expiresAt,
+    // Only expose a breakdown that actually reconciles — if the parts do not sum to the total the
+    // card must fall back rather than print two numbers that disagree.
+    ...(service !== undefined && processing !== undefined && service + processing === amountUsdCents
+      ? { serviceUsdCents: service, processingUsdCents: processing }
+      : {}),
+    ...(typeof feePercentRaw === 'number' && Number.isFinite(feePercentRaw) ? { feePercent: feePercentRaw } : {}),
+    ...(typeof feeFixedRaw === 'number' && Number.isSafeInteger(feeFixedRaw) ? { feeFixedCents: feeFixedRaw } : {}),
+  }
 }
 
 // ── Copy ──────────────────────────────────────────────────────────────────────────
@@ -1979,12 +2009,23 @@ export function VisaCheckoutCard({ meta, info, kase, live, busy, onPay, onReview
             </p>
           </div>
         </div>
+        {/* ⚠️ IF A PROCESSING FEE IS IN THE TOTAL, THE CARD MUST SAY SO. "You pay" is a gross-up
+            (see src/lib/visa/fx.ts), so it is deliberately MORE than priceVnd ÷ rate — and the old
+            copy explained the total as a pure currency conversion at that rate. A buyer checking
+            the arithmetic found a gap the card could not account for, on the screen where they
+            hand over money. Quotes issued before the fee change carry no breakdown and correctly
+            fall back to the original sentence. */}
         {quote && (
           <p className="mt-1.5 text-2xs leading-relaxed text-ink-4">
-            {tr(
-              `Charged in US dollars at ${rateLabel(quote, locale)} per dollar.`,
-              `Thu bằng đô la Mỹ theo tỷ giá ${rateLabel(quote, locale)} mỗi đô la.`,
-            )}
+            {quote.processingUsdCents != null && quote.serviceUsdCents != null && quote.processingUsdCents > 0
+              ? tr(
+                  `Service ${formatUsdCents(quote.serviceUsdCents, locale)} + payment processing ${formatUsdCents(quote.processingUsdCents, locale)}. Charged in US dollars at ${rateLabel(quote, locale)} per dollar.`,
+                  `Dịch vụ ${formatUsdCents(quote.serviceUsdCents, locale)} + phí xử lý thanh toán ${formatUsdCents(quote.processingUsdCents, locale)}. Thu bằng đô la Mỹ theo tỷ giá ${rateLabel(quote, locale)} mỗi đô la.`,
+                )
+              : tr(
+                  `Charged in US dollars at ${rateLabel(quote, locale)} per dollar.`,
+                  `Thu bằng đô la Mỹ theo tỷ giá ${rateLabel(quote, locale)} mỗi đô la.`,
+                )}
           </p>
         )}
       </div>
