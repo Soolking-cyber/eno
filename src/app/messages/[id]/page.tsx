@@ -10,7 +10,8 @@ import { contactLinksFor, extractPhoneNumber } from '@/lib/phone'
 import { useLanguage } from '@/context/language-context'
 import { useChat } from '@/context/chat-context'
 import { SignInPrompt } from '@/components/marketplace/account-actions'
-import { ChevronLeft, Phone, Loader2, Tag, RotateCcw, Sparkles, UserRound, AlertTriangle, Languages, ChevronDown, Check } from 'lucide-react'
+import { ChevronLeft, Phone, Loader2, Tag, RotateCcw, Sparkles, UserRound, AlertTriangle, Languages, ChevronDown, Check, X, Undo2, ArrowDown } from 'lucide-react'
+import { STROKE_NAV } from '@/lib/icon-tokens'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { ChatSendButton, MessageBubble } from '@/components/marketplace/chat-parts'
 import { toast } from 'sonner'
@@ -134,7 +135,9 @@ function VisaAssistChips({
                   ? <Loader2 className="size-3.5 shrink-0 animate-spin" aria-hidden />
                   : humanRequested
                     ? <UserRound className="size-3.5 shrink-0" aria-hidden />
-                    : <Sparkles className="size-3.5 shrink-0" aria-hidden />}
+                    // Armed = location-active duotone (icon-language §5): same line, plus the
+                    // brand-100 wash on the star's one closed region — never a solid fill.
+                    : <Sparkles className={cn('size-3.5 shrink-0', armed && '[&>path:first-of-type]:fill-brand-100')} aria-hidden />}
                 {humanRequested ? tr('A person', 'Nhân viên') : armed ? tr('Eno concierge', 'Eno concierge') : tr('Get help', 'Trợ giúp')}
                 <ChevronDown className="size-3 shrink-0 opacity-60" aria-hidden />
               </Button>
@@ -1312,7 +1315,9 @@ export default function ThreadPage() {
                 /messages when there's nothing to pop — a push-notification tap, a shared
                 link, a cold native start. Pushing unconditionally used to grow the stack,
                 so the next hardware-back / edge-swipe re-entered the thread just left. */}
-            <Link href="/messages" onClick={onBack} aria-label={tr('Back', 'Quay lại')} className="text-muted-foreground hover:text-accent-foreground lg:hidden relative tap-44"><ChevronLeft className="h-5 w-5" aria-hidden /></Link>
+            {/* Back = nav chrome: h-6 at the platform weight (STROKE_NAV), the same box +
+                stroke as section-header's back chevron so every "go back" is one glyph. */}
+            <Link href="/messages" onClick={onBack} aria-label={tr('Back', 'Quay lại')} className="text-muted-foreground hover:text-accent-foreground lg:hidden relative tap-44"><ChevronLeft className="h-6 w-6" strokeWidth={STROKE_NAV} aria-hidden /></Link>
             <Avatar name={thread?.counterpart.name} url={thread?.counterpart.avatarUrl} color={thread?.counterpart.avatarColor} size="sm" />
             <div className="min-w-0 flex-1 cursor-pointer">
               {thread?.counterpart.sellerId ? (
@@ -1453,8 +1458,14 @@ export default function ThreadPage() {
                   <div className={`allow-select max-w-[80%] rounded-2xl border px-3 py-2.5 ${m.mine ? 'border-brand/30 bg-primary/5' : 'border-border bg-tint'}`}>
                     {/* Offer line is DERIVED from the structured offerAmount (tr'd + money
                         format) — never from the stored body. Legacy messages still carry a
-                        baked "💰 Offered …₫" body: skip it (rendering it too would double up). */}
-                    <div className="text-2xs font-bold uppercase tracking-wide text-accent-foreground">💰 {tr('Offer', 'Đề nghị')}</div>
+                        baked "💰 Offered …₫" body: skip it (rendering it too would double up).
+                        Eyebrow leads with the Tag glyph — the same mark as the composer's offer
+                        toggle, so entry point and card speak one symbol (was a 💰 emoji). */}
+                    {/* §5: a PENDING offer is a live user-state, so its Tag wears the solid
+                        fill-brand + text-brand pair (same law as the saved heart) — blind-critic
+                        catch 2026-08-07: line-only left the spec's loudest law with no pixel
+                        witness on the one card built to show it. Resolved offers return to line. */}
+                    <div className="flex items-center gap-1 text-2xs font-bold uppercase tracking-wide text-accent-foreground"><Tag className={`h-3 w-3 ${m.offerStatus === 'pending' ? 'fill-brand text-brand' : ''}`} aria-hidden /> {tr('Offer', 'Đề nghị')}</div>
                     <div className="mt-0.5 text-base font-bold text-foreground">{tr('Offered', 'Đã trả giá')} {formatMoneyFull(m.offerAmount || 0, '₫', locale)}</div>
                     {askPct != null && (
                       <div className="text-2xs font-medium text-ink-4">{askPct}% {tr('of asking', 'của giá rao')} ({formatMoneyFull(thread!.listing.price!, '₫', locale)})</div>
@@ -1468,7 +1479,10 @@ export default function ThreadPage() {
                       </div>
                     )}
                     {m.offerStatus && m.offerStatus !== 'pending' && (
-                      <div className={`mt-1 text-xs font-semibold ${m.offerStatus === 'accepted' ? 'text-success' : m.offerStatus === 'declined' ? 'text-destructive' : 'text-ink-4'}`}>
+                      // Resolved states carry the shared offer-status glyphs (Check/X/Undo2) —
+                      // the same trio the conversation list's preview labels use, one vocabulary.
+                      <div className={`mt-1 flex items-center gap-1 text-xs font-semibold ${m.offerStatus === 'accepted' ? 'text-success' : m.offerStatus === 'declined' ? 'text-destructive' : 'text-ink-4'}`}>
+                        {m.offerStatus === 'accepted' ? <Check className="h-3.5 w-3.5" aria-hidden /> : m.offerStatus === 'declined' ? <X className="h-3.5 w-3.5" aria-hidden /> : <Undo2 className="h-3.5 w-3.5" aria-hidden />}
                         {m.offerStatus === 'accepted' ? tr('Accepted', 'Đã chấp nhận') : m.offerStatus === 'declined' ? tr('Declined', 'Đã từ chối') : tr('Countered', 'Đã trả giá khác')}
                       </div>
                     )}
@@ -1594,11 +1608,11 @@ export default function ThreadPage() {
                     // role would strip its button semantics and lose the retry affordance.
                     <div role="alert" className="mt-0.5">
                       <Button variant="bare" size="none" onClick={() => retry(m)} className="gap-1 px-1 text-3xs font-semibold text-destructive hover:underline cursor-pointer">
-                        <RotateCcw className="h-2.5 w-2.5" /> {tr('Not sent — tap to retry', 'Chưa gửi — chạm để thử lại')}
+                        <RotateCcw className="h-3 w-3" aria-hidden /> {tr('Not sent — tap to retry', 'Chưa gửi — chạm để thử lại')}
                       </Button>
                     </div>
                   ) : m.mine && m.pending ? (
-                    <span className="mt-0.5 flex items-center gap-1 px-1 text-3xs text-ink-4"><Loader2 className="h-2.5 w-2.5 animate-spin" /> {tr('Sending…', 'Đang gửi…')}</span>
+                    <span className="mt-0.5 flex items-center gap-1 px-1 text-3xs text-ink-4"><Loader2 className="h-3 w-3 animate-spin" aria-hidden /> {tr('Sending…', 'Đang gửi…')}</span>
                   ) : (
                     <span className="mt-0.5 px-1 text-3xs text-ink-4">{fmtTime(m.createdAt)}</span>
                   )}
@@ -1631,7 +1645,7 @@ export default function ThreadPage() {
                   onClick={() => { scrollBottom(true); setNewBelow(false) }}
                   className="flex items-center gap-1 rounded-full px-3.5 py-1.5 text-xs shadow-pop transition-transform active:scale-[0.96] cursor-pointer"
                 >
-                  ↓ {tr('New messages', 'Tin nhắn mới')}
+                  <ArrowDown className="h-3.5 w-3.5" aria-hidden /> {tr('New messages', 'Tin nhắn mới')}
                 </Button>
               </div>
             )}
@@ -1762,7 +1776,9 @@ export default function ThreadPage() {
                 title={tr('Make an offer', 'Gửi đề nghị giá')}
                 className={`transition-colors ${showOffer ? 'bg-primary/10 text-accent-foreground' : 'text-ink-4 hover:bg-muted'}`}
               >
-                <Tag className="h-[18px] w-[18px]" />
+                {/* 20px composer-action step (§4); armed = the location-active duotone (§5):
+                    accent ink + the brand-100 wash on the tag's one closed body region. */}
+                <Tag className={cn('h-5 w-5', showOffer && '[&>path]:fill-brand-100')} aria-hidden />
               </IconButton>
             )}
 

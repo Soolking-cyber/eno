@@ -10,16 +10,21 @@ import { cn } from '@/lib/utils'
 /** The blue paper-plane send FAB (identical across the AI + text + offer composers). Bakes in
  *  the onMouseDown preventDefault "hold composer focus" trick so a tap never blurs the field →
  *  dismisses the keyboard → shifts the button out from under the finger before the click lands
- *  (Return still sends via enterKeyHint). Spread the rest (onClick/disabled/aria-label/title). */
+ *  (Return still sends via enterKeyHint). Spread the rest (onClick/disabled/aria-label/title).
+ *  Glyph rides the 20px composer-action step (icon-language §4: inputs/action rows = h-5), the
+ *  same optical size as the Tag offer toggle and the camera beside it — one rhythm per row. */
 export function ChatSendButton({ className, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) {
   return (
     <IconButton
       size="lg"
       onMouseDown={(e) => e.preventDefault()}
       {...props}
-      className={cn('bg-primary text-white transition-transform active:scale-[0.96] disabled:opacity-40', className)}
+      // Disabled = muted coin + quiet ink (on the §5 ladder), not a brand tint: 40%-opacity
+      // brand read as an ambiguous mid-blue "coin" in the blind A/B — enabled/disabled must be
+      // readable at a glance, and a faded CTA color is neither state.
+      className={cn('bg-primary text-white transition-transform active:scale-[0.96] disabled:bg-muted disabled:text-ink-4', className)}
     >
-      <Send className="h-4 w-4" />
+      <Send className="h-5 w-5" aria-hidden />
     </IconButton>
   )
 }

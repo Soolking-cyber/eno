@@ -7,7 +7,7 @@ import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import { useChat } from '@/context/chat-context'
 import { SignInPrompt } from '@/components/marketplace/account-actions'
-import { Search, Trash2, X, Sparkles } from 'lucide-react'
+import { Search, Trash2, X, Sparkles, Check, Undo2, Tag } from 'lucide-react'
 import { Mascot } from './mascot'
 import { cn } from '@/lib/utils'
 import { Avatar } from '@/components/ui/avatar'
@@ -54,7 +54,8 @@ export function ConversationList() {
         <h1 className="h-title text-foreground px-1 hidden lg:block">{tr('Messages', 'Tin nhắn')}</h1>
         {/* Search — filled, borderless */}
         <div className="relative lg:mt-3">
-          <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-4" />
+          {/* Input lead rides the 20px step (icon-language §4: inputs = h-5). */}
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-ink-4" aria-hidden />
           <Input
             variant="filled"
             value={query}
@@ -74,7 +75,10 @@ export function ConversationList() {
           scroll={false}
           className={cn('mb-1 flex items-center gap-3 rounded-xl p-2.5 transition-colors', aiActive ? 'bg-muted text-accent-foreground' : 'hover:bg-muted')}
         >
-          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary text-white"><Sparkles className="h-5 w-5" /></span>
+          {/* The chrome coin (icon-language §6), not a solid disc: fully-saturated brand is
+              reserved for user-state (§5 — the unread rail/badge in the rows below), so the
+              always-on AI avatar sits on the same flat brand-50 coin as the nav's Post chip. */}
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand-50 text-brand"><Sparkles className="h-5 w-5" aria-hidden /></span>
           <div className="min-w-0 flex-1">
             <span className="block truncate text-sm font-bold text-foreground">{tr('eno AI', 'eno AI')}</span>
             <p className="truncate text-xs text-accent-foreground">{tr('Ask anything — find products by chat', 'Hỏi bất cứ điều gì — tìm đồ bằng chat')}</p>
@@ -135,15 +139,36 @@ export function ConversationList() {
                       // Make offer direction + status legible at a glance: an incoming
                       // pending offer ("New offer") is the actionable one and stands out.
                       const amt = o ? formatMoneyFull(o.amount || 0, '₫', moneyLocale(lang)) : ''
+                      // Offer states lead with a 14px line glyph instead of the old ✅/❌/↩️/💰
+                      // emoji — same signal, but ink that inherits the row's colour and theme
+                      // (icon-language §1; preview LABELS may change, message BODIES may not —
+                      // the /^(💰|✅|❌)/ realtime sniff reads bodies, never this label).
+                      const OfferIcon = o
+                        ? o.status === 'accepted' ? Check
+                          : o.status === 'declined' ? X
+                          : o.status === 'countered' ? Undo2
+                          : o.mine ? null
+                          : Tag
+                        : null
                       const label = o
-                        ? o.status === 'accepted' ? tr('✅ Offer accepted', '✅ Đã chấp nhận đề nghị')
-                          : o.status === 'declined' ? tr('❌ Offer declined', '❌ Đã từ chối đề nghị')
-                          : o.status === 'countered' ? tr('↩️ Counter-offer', '↩️ Đã trả giá khác')
+                        ? o.status === 'accepted' ? tr('Offer accepted', 'Đã chấp nhận đề nghị')
+                          : o.status === 'declined' ? tr('Offer declined', 'Đã từ chối đề nghị')
+                          : o.status === 'countered' ? tr('Counter-offer', 'Đã trả giá khác')
                           : o.mine ? `${tr('You offered', 'Bạn đề nghị')} ${amt}`
-                          : `💰 ${tr('New offer', 'Đề nghị mới')}: ${amt}`
+                          : `${tr('New offer', 'Đề nghị mới')}: ${amt}`
                         : (c.lastMessageText || tr('New conversation', 'Cuộc trò chuyện mới'))
                       const incoming = !!o && o.status === 'pending' && !o.mine
-                      return <p className={cn('truncate text-xs', incoming ? 'font-bold text-accent-foreground' : c.unread > 0 ? 'font-semibold text-foreground' : 'text-muted-foreground')}>{label}</p>
+                      return (
+                        <p className={cn('flex min-w-0 items-center gap-1 text-xs', incoming ? 'font-bold text-accent-foreground' : c.unread > 0 ? 'font-semibold text-foreground' : 'text-muted-foreground')}>
+                          {OfferIcon && (
+                            <OfferIcon
+                              className={cn('h-3.5 w-3.5 shrink-0', o?.status === 'accepted' && 'text-success', o?.status === 'declined' && 'text-destructive')}
+                              aria-hidden
+                            />
+                          )}
+                          <span className="truncate">{label}</span>
+                        </p>
+                      )
                     })()}
                   </div>
                 </Link>

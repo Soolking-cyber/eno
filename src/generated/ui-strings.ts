@@ -388,6 +388,7 @@ export const UI_STRINGS: string[] = [
   "Couldn't send right now — please try again later.",
   "Couldn't send — please try again.",
   "Counter",
+  "Counter-offer",
   "Countered",
   "Coupe",
   "Cover",
@@ -805,7 +806,7 @@ export const UI_STRINGS: string[] = [
   "Mark as sold",
   "Mark listings as sold or accept offers in chat — real deals are the strongest signal.",
   "Mark sold",
-  "Marked as sold — congrats on the deal! 🎉",
+  "Marked as sold — congrats on the deal!",
   "Market price",
   "Marketing",
   "Marketplace listings",
@@ -937,7 +938,9 @@ export const UI_STRINGS: string[] = [
   "Nếu chưa thấy sau một phút, hãy kiểm tra thư rác.",
   "Nổi bật 7 ngày — cần bán nhanh, sẵn sàng nhận trả giá",
   "Offer",
+  "Offer accepted",
   "Offer amount (VND)",
+  "Offer declined",
   "Offer not sent — please try again.",
   "Offered",
   "Office",
@@ -1805,8 +1808,5 @@ export const UI_STRINGS: string[] = [
   "— alerts on new matches",
   "← All disputes",
   "← Tất cả khiếu nại",
-  "↩️ Counter-offer",
-  "✅ Offer accepted",
-  "✓ Matches the tax registry",
-  "❌ Offer declined"
+  "✓ Matches the tax registry"
 ]

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { ChevronLeft, Sparkles, Loader2 } from 'lucide-react'
+import { STROKE_NAV } from '@/lib/icon-tokens'
 import { ChatSendButton, MessageBubble } from '@/components/marketplace/chat-parts'
 import { ImageSearchButton } from '@/components/marketplace/image-search-button'
 import { Button } from '@/components/ui/button'
@@ -133,8 +134,11 @@ export default function AiThreadPage() {
       <div className="flex items-center gap-3 bg-background px-4 py-3">
         {/* Pops rather than pushing /messages (src/lib/safe-back.ts) — same control, same
             rule as the regular thread; the href stays the cold-start fallback. */}
-        <Link href="/messages" onClick={onBack} aria-label={tr('Back', 'Quay lại')} className="text-muted-foreground hover:text-accent-foreground lg:hidden relative tap-44"><ChevronLeft className="h-5 w-5" aria-hidden /></Link>
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary text-white"><Sparkles className="h-5 w-5" /></span>
+        {/* Back = nav chrome: h-6 at the platform weight, matching section-header's chevron. */}
+        <Link href="/messages" onClick={onBack} aria-label={tr('Back', 'Quay lại')} className="text-muted-foreground hover:text-accent-foreground lg:hidden relative tap-44"><ChevronLeft className="h-6 w-6" strokeWidth={STROKE_NAV} aria-hidden /></Link>
+        {/* Chrome coin, not a solid disc (icon-language §5/§6): saturated brand is reserved
+            for user-state, so the AI identity rides the flat brand-50 coin like the Post chip. */}
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-50 text-brand"><Sparkles className="h-5 w-5" aria-hidden /></span>
         <div className="min-w-0 flex-1">
           <div className="truncate text-sm font-bold text-foreground">{tr('eno AI', 'eno AI')}</div>
           <div className="truncate text-xs text-accent-foreground">{tr('AI shopping assistant', 'Trợ lý mua sắm AI')}</div>

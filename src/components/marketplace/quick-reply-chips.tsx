@@ -1,7 +1,7 @@
 'use client'
 
 import { useRef, useState } from 'react'
-import { LoaderCircle, LocateFixed, X } from 'lucide-react'
+import { Check, Loader2, LocateFixed, PartyPopper, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
 import { toast } from 'sonner'
@@ -123,8 +123,10 @@ export function QuickReplyChips({
     <div className={className}>
       {!isSeller && note === 'shown' && availabilityConfirmedAt && (
         <div className="mb-1 flex items-center gap-1.5 duration-200 animate-in fade-in">
-          <p className="min-w-0 flex-1 truncate text-xs font-medium text-success">
-            ✓ {tr('Seller confirmed this is available {timeAgo}', 'Người bán đã xác nhận còn hàng {timeAgo}').replace('{timeAgo}', timeAgo(availabilityConfirmedAt, lang))}
+          <p className="flex min-w-0 flex-1 items-center gap-1 text-xs font-medium text-success">
+            {/* Line glyph, not the '✓' literal — one check mark per icon-language §1. */}
+            <Check className="h-3.5 w-3.5 shrink-0" aria-hidden />
+            <span className="truncate">{tr('Seller confirmed this is available {timeAgo}', 'Người bán đã xác nhận còn hàng {timeAgo}').replace('{timeAgo}', timeAgo(availabilityConfirmedAt, lang))}</span>
           </p>
           <IconButton
             tapTarget={false}
@@ -151,7 +153,7 @@ export function QuickReplyChips({
               {c.text === meetTemplate &&
                 /* size-* class is REQUIRED: ui/button inflates unclassed svgs to size-4. */
                 (locating
-                  ? <LoaderCircle className="ml-1 size-3.5 animate-spin text-accent-foreground" />
+                  ? <Loader2 className="ml-1 size-3.5 animate-spin text-accent-foreground" />
                   : <LocateFixed className="ml-1 size-3.5 text-accent-foreground" />)}
             </Button>
           ))
@@ -195,8 +197,10 @@ export function MarkSoldPrompt({ listingId, listingTitle }: { listingId: string;
 
   if (state === 'done') {
     return (
-      <p className="mt-2 text-xs font-medium text-success duration-200 animate-in fade-in">
-        {tr('Marked as sold — congrats on the deal! 🎉', 'Đã đánh dấu là đã bán — chúc mừng bạn chốt đơn! 🎉')}
+      <p className="flex items-center gap-1.5 mt-2 text-xs font-medium text-success duration-200 animate-in fade-in">
+        {/* Line glyph instead of the 🎉 emoji — celebration stays, raster ink goes (§1). */}
+        <PartyPopper className="h-3.5 w-3.5 shrink-0" aria-hidden />
+        {tr('Marked as sold — congrats on the deal!', 'Đã đánh dấu là đã bán — chúc mừng bạn chốt đơn!')}
       </p>
     )
   }

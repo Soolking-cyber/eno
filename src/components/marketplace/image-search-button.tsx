@@ -17,7 +17,8 @@ export function ImageSearchButton({
   onError,
   onStart,
   className,
-  iconClassName = 'h-[18px] w-[18px]',
+  // 20px — the composer/input action step of the size ladder (icon-language §4).
+  iconClassName = 'h-5 w-5',
 }: {
   onResult: (r: { query: string; category: string | null; brand: string | null }) => void
   onError?: (msg: string) => void
