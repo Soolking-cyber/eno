@@ -12,6 +12,38 @@ import { topSellerReviews, sameSellerListings } from '@/lib/seller-metrics'
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
+// ⚠️ WS6 — NOT MIGRATED (whole file: GET, PATCH and DELETE all stay hand-written).
+//
+// GET: all four wrapper options would be empty — public, no rate limit, no body — so `route()`
+// would buy nothing but a level of indirection. It also returns a Response for its
+// `Cache-Control: public, s-maxage=60, stale-while-revalidate=120` header, and its 404 body is
+// `{"error":"Not found"}` (capital N, a space) which is NOT an ApiErrorCode, so it could not go
+// through ApiError/apiFail without a wire change. Wrapping a public GET in an auth mode would
+// 401 every guest and kill the native PDP outright.
+//
+// PATCH/DELETE: the blocker is `checkListingOwner()`, which RESOLVES THE CALLER ITSELF
+// (`getCurrentProfile()` at src/lib/listing-owner.ts:15) and then answers four different
+// outcomes — 401 auth_required · 403 no_storefront · 404 not_found · 403 forbidden. Only the
+// first is what `auth: 'profile'` emits, and adding that mode would call `getCurrentProfile()`
+// a SECOND time: an extra Supabase `auth.getUser()` network round-trip plus an extra Profile
+// read on every seller edit and delete, for zero change on the wire. That is the wrapper making
+// the codebase slower, which the handler.ts preamble calls out by name. `auth: 'public'` leaves
+// all four options empty, i.e. pure churn.
+//
+// THE UNLOCK, for whoever owns `src/lib/listing-owner.ts` (shared with confirm/ and buyers/,
+// outside this cluster, so not touched here): give `checkListingOwner` an optional
+// already-resolved `profileId` so a `route({ auth: 'profile' })` handler can hand its own
+// caller in. That single parameter migrates six routes at once.
+//
+// Two further reasons no `body:` schema could be added to PATCH even if auth were solved:
+// malformed JSON answers `{"error":"Invalid body"}` — not an ApiErrorCode, so it cannot be an
+// `invalidBodyCode` — and `updateListingCore` returns free-form codes through `r.error`
+// (`title_too_short`, `no_phone_in_listing`, `invalid_price`, `urgent_quota`) that are absent from
+// the ApiErrorCode union. ⚠️ `PublishBlockedError.code` USED to belong on that list and no longer
+// does: all twelve PublishBlockCodes are now union members, derived rather than exempted in
+// errors.test.ts and asserted at compile time in errors.ts. The other four codes above remain
+// genuinely absent, so PATCH still cannot take a schema.
+
 // GET — public detail payload for the native iOS app (the web PDP is SSR and
 // never calls this). Visibility contract matches the page exactly: only
 // verified + active listings exist here — sold/hidden/held/missing all 404.

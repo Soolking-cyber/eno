@@ -14,6 +14,13 @@ import { rateLimit, kv } from '@/lib/ratelimit'
 
 export const dynamic = 'force-dynamic'
 
+// ⚠️ WS6 — NOT MIGRATED: the throttled answer is a DOMAIN payload at 429, not an error envelope. The
+// bytes are `{"channel":null}` with status 429 — deliberately the same shape as the success body
+// (see the comment on that line: the 429 "carries NO capability" and the form falls back to the
+// generic line by reading `channel`). `rateLimit:` can only emit `{"error":"rate_limited"}`, so
+// hoisting the limiter changes both the body and what the sign-in form reads.
+// Once the limiter is pinned in the handler all four options are empty — public, GET, no JSON body —
+// so the wrapper would be pure churn even setting the 429 aside.
 export async function GET(req: Request) {
   const ip = clientIp(req)
   // strict: fail CLOSED — if the limiter backend is down this weak has-app/

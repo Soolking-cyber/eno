@@ -1,7 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { Prisma } from '@/generated/prisma/client'
 import { db } from '@/lib/db'
-import { getAdmin } from '@/lib/admin'
+import { route } from '@/lib/api/handler'
 import {
   ENFORCEMENT_REASON,
   ENFORCEMENT_STATES,
@@ -41,10 +41,44 @@ type QueueAction = {
   profile: { displayName: string | null; email: string | null; trustScore: number; trustTier: string } | null
 }
 
-export async function GET() {
-  const admin = await getAdmin()
-  if (!admin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-
+// ⚠️ WS6 MIGRATION — THE AUTH PREAMBLE ONLY, ON BOTH METHODS.
+// `auth: 'admin'` is the only mode that reproduces this route's guest/non-admin answer: route()
+// emits `{"error":"Forbidden"}` 403 with the capital F, byte-identical to the two hand-written
+// `getAdmin()` blocks it replaces. `'profile'` would 401 a guest and `'userId'` would let any
+// signed-in user in, so neither is admissible here.
+//
+// ⚠️ NO `rateLimit:` AND NO `body:` — NEITHER EXISTED. There was never a limiter on the console,
+// and adding one is a behaviour change, not a migration. The POST body stays hand-parsed because
+// malformed JSON answers `{"error":"Invalid body"}` — a free-text message, NOT an ApiErrorCode, so
+// it cannot be expressed as `invalidBodyCode`, and tidying it to `invalid_body` would be exactly the
+// silent wire change this migration forbids. `Missing id` 400, `Not found` 404 and `Unknown action`
+// 400 are free-text for the same reason and stay verbatim as `NextResponse.json` returns.
+//
+// ⚠️ `'admin'` RESOLVES NO PROFILE. An earlier draft of this header said it follows getAdmin()
+// with getCurrentProfile() and called the extra Profile read an accepted cost. It did, and the
+// cost turned out not to be acceptable anywhere: no admin handler reads ctx.profile or
+// ctx.userId, the call made read-only admin GETs perform a presence-heartbeat WRITE, and on a
+// first-ever call it runs ensureProfile()'s irreversible guest-Seller auto-claim. It was removed
+// from the wrapper in this same commit; getAdmin() is Supabase-auth only and touches no DB.
+//
+// GET branches held: guest / non-admin → 403 `{"error":"Forbidden"}` · queue load failure (the
+// inner try/catch, still here verbatim) → 500 `{"error":"queue_failed"}` · pre-migration `preScreen`
+// column → its own try, empty set, 200 · success → 200 {actions,flags,appeals,buyerWaiting}.
+//
+// POST branches held: guest / non-admin → 403 `{"error":"Forbidden"}` · malformed JSON → 400
+// `{"error":"Invalid body"}` · lift/overturn/uphold_appeal/dismiss_flag with no id → 400
+// `{"error":"Missing id"}` · lift/overturn on a non-active action → 409 `{"error":"not_active"}` ·
+// uphold_appeal with nothing pending → 409 `{"error":"no_pending_appeal"}` · dismiss_flag on a
+// non-flag → 409 `{"error":"not_a_flag"}` · set-state with a bad profileId/state → 400
+// `{"error":"bad_request"}` · unknown profile → 404 `{"error":"Not found"}` · unrecognised action →
+// 400 `{"error":"Unknown action"}` · success → 200 `{"ok":true}` (set-state: `{ok,applied}`).
+//
+// ⚠️ ONE BRANCH IS NOT BYTE-IDENTICAL, ON EACH METHOD. GET's first query (the SLA candidates
+// findMany) sits OUTSIDE the try/catch, and POST has no try/catch at all around liftAction /
+// dismissFlag / applyEnforcement — so a DB rejection in either used to reach Next's default 500
+// HTML. route() now catches it, logs with an `op`, and returns `{"error":"internal_error"}` 500.
+// That is the accepted improvement, and it IS a wire change on those failure paths.
+export const GET = route({ auth: 'admin' }, async () => {
   // Buyer-waiting reports (>72h, unanswered), OLDEST first: the longest-waiting
   // buyer is served first. Phase 3: pre-screened reports (repeat-false reporters)
   // are EXCLUDED — they must not jump the queue on the SLA clock.
@@ -148,12 +182,9 @@ export async function GET() {
     console.error('[admin/enforcement] queue load failed', e)
     return NextResponse.json({ error: 'queue_failed' }, { status: 500 })
   }
-}
+})
 
-export async function POST(req: NextRequest) {
-  const admin = await getAdmin()
-  if (!admin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-
+export const POST = route({ auth: 'admin' }, async ({ req, admin }) => {
   let body: { action?: string; id?: string; profileId?: string; state?: string; reason?: string; note?: string; days?: number; flagId?: string }
   try { body = await req.json() } catch { return NextResponse.json({ error: 'Invalid body' }, { status: 400 }) }
   const action = String(body.action || '')
@@ -225,4 +256,4 @@ export async function POST(req: NextRequest) {
     default:
       return NextResponse.json({ error: 'Unknown action' }, { status: 400 })
   }
-}
+})

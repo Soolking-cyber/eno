@@ -73,6 +73,22 @@ async function purgeStorageObjects(urls: string[]): Promise<void> {
   }
 }
 
+// ⚠️ WS6 — NOT MIGRATED, ON FOUR INDEPENDENT COUNTS. This is the irreversible route in the cluster,
+// so the bar is byte-identity, not "close enough":
+//  1. THE ORIGIN GATE MUST RUN BEFORE AUTH. It answers 403 `{"error":"Forbidden"}` to a cross-site
+//     POST *without* consulting the session. route()'s fixed order is auth → rateLimit → body, so
+//     under the wrapper a signed-out cross-site POST would flip from 403 to 401 — the CSRF gate
+//     would still hold, but its verdict would stop being the one on the wire.
+//  2. A GUEST GETS `{"error":"Unauthorized"}` (capital U), not `auth_required`. The wrapper's auth
+//     code is hardcoded and not configurable.
+//  3. THE 400 AND 429 BODIES ARE HUMAN SENTENCES, NOT CODES — `{"error":"Confirmation required"}`
+//     and `{"error":"Too many attempts — try again later"}`. Neither is an ApiErrorCode, so neither
+//     can be expressed as `invalidBodyCode` or reproduced by `rateLimit:`; the delete dialog renders
+//     `error` straight to the user, so "tidying" them to codes would put `rate_limited` in front of
+//     a person mid-deletion.
+//  4. THE LIMITER MUST STAY AFTER THE CONFIRMATION CHECK. Hoisting it would let an empty drive-by
+//     POST — the case the typed confirmation exists to absorb — burn one of the 3/h strict tokens
+//     and lock a real user out of deleting their own account.
 export async function POST(req: Request) {
   // Same-origin gate (defense-in-depth CSRF)
   const origin = req.headers.get('origin')

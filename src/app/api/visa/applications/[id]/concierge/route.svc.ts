@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { NextResponse } from 'next/server'
-import { getCurrentProfileId } from '@/lib/admin'
+import { route } from '@/lib/api/handler'
 import { rateLimit } from '@/lib/ratelimit'
 import { askVisaConcierge, VISA_CONCIERGE_QUESTION_MAX } from '@/lib/visa/concierge'
 import { visaDmFailureFor } from '@/lib/visa/dm-flow'
@@ -37,10 +37,35 @@ const bodySchema = z.object({
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
-export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const userId = await getCurrentProfileId()
-  if (!userId) return NextResponse.json({ error: 'auth_required' }, { status: 401 })
-  const { id } = await params
+// ⚠️ WS6 MIGRATION (.svc surface), AUTH ONLY — the other three options are blocked, and the
+// blockers are the reason this file does NOT look like its migrated sibling
+// /api/trips/concierge/route.svc.ts even though the two are the same endpoint for two desks.
+//
+// `auth: 'userId'` is byte-identical: the preamble WAS getCurrentProfileId() answering 401
+// `auth_required`, which is exactly what route() emits for that mode.
+//
+// ⚠️ THE LIMITER CANNOT HOIST, FOR TWO INDEPENDENT REASONS, EITHER OF WHICH IS SUFFICIENT.
+//   · Its key is composite — `${userId}:${id}` — and route() keys on `userId ?? clientIp(req)`
+//     with no way to fold the path param in. Hoisting would re-key the bucket per-USER, so an
+//     applicant with two live cases would throttle their own second case at 12/h shared instead
+//     of 12/h each.
+//   · It runs AFTER the uuid early-out below. A non-uuid id answers 404 `not_found` today WITHOUT
+//     spending a token; route()'s fixed order (auth → rateLimit → body) puts the limiter in front,
+//     so the 13th garbage-id request in an hour would answer 429 instead of 404.
+//
+// ⚠️ AND THE BODY FOLLOWS THE LIMITER, so it cannot hoist either. Today a throttled caller with a
+// malformed body gets 429 `rate_limited`; with `body:` set while the limiter stays here, route()
+// would parse first and answer 400 `question_required` on that same request. The trips sibling
+// could hoist its schema precisely because ITS limiter reads `conversationId` out of the body and
+// therefore already ran after parsing — the opposite order to this one.
+//
+// Wire enumerated before editing, all unchanged: guest 401 `auth_required` · non-uuid id 404
+// `not_found` · throttled 429 `rate_limited` · unparseable or schema-failing body 400
+// `question_required` · the concierge's own refusals at their own status (409 `human_help_pending`
+// / `admin_takeover`, plus the optional `questionPosted: true` beside the code) · 200
+// `{messageId, step}` · anything thrown → visaDmFailureFor's class-only code+status.
+export const POST = route({ auth: 'userId' }, async ({ req: request, params, userId }) => {
+  const { id } = params
   // A non-uuid segment would 400 at the uuid column rather than 404 (the visa-admin idiom).
   if (!UUID_RE.test(id)) return NextResponse.json({ error: 'not_found' }, { status: 404 })
 
@@ -76,4 +101,4 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const failure = visaDmFailureFor(error)
     return NextResponse.json({ error: failure.error }, { status: failure.status })
   }
-}
+})

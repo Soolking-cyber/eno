@@ -22,6 +22,26 @@ function escapeCsv(val: string): string {
   return clean
 }
 
+// ⚠️ WS6 — NOT MIGRATED. This is a protocol endpoint for Meta's fetcher, not a first-party JSON
+// API, and nothing about it fits the wrapper (WS6 audit, 2026-08-06):
+//   · THE AUTH IS HTTP BASIC AND IT RESOLVES THE CALLER ITSELF. `feedAuthError()` answers a PROSE
+//     401 — the body is the literal text `Unauthorized`, not JSON — with `WWW-Authenticate: Basic
+//     realm="eno-feeds"`, `Cache-Control: no-store` and `Vary: Authorization`. That challenge
+//     header is what makes a scheduled fetch able to authenticate at all. `auth:` knows only
+//     Supabase sessions and `apiFail()` writes `{"error":"auth_required"}` with no headers, so
+//     `auth` must stay `'public'` and the check must stay where it is, ahead of everything.
+//   · IT IS OFF BY DEFAULT. With FEED_USER/FEED_PASSWORD unset the feed is deliberately OPEN so the
+//     platforms' first import cannot break — a guest gets 200 and a catalog. Any authed mode 401s
+//     that caller.
+//   · THE SUCCESS BODY IS text/csv WITH HEADERS: `Content-Type`, a `Content-Disposition` filename,
+//     and `feedCacheHeaders()` (`no-store` + `Vary: Authorization`) whose whole purpose is stopping
+//     a shared CDN serving an authed copy to an anonymous request. A plain-object return carries
+//     none of them.
+//   · THE 500 IS NOT AN ApiErrorCode. The catch emits `{"error":"Internal Server Error"}` — prose
+//     with spaces and capitals — where the wrapper's unhandled path emits
+//     `{"error":"internal_error"}`.
+// With auth, rate limit and body all necessarily empty, the wrapper would buy nothing here even if
+// the headers could be carried by returning a Response.
 export async function GET(req: Request) {
   // Block anonymous scrapers once FEED_USER/FEED_PASSWORD are set (Meta sends them via
   // the catalog's "login details"). Open until configured, so import never breaks.

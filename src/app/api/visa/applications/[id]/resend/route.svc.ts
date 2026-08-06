@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
-import { getCurrentProfileId } from '@/lib/admin'
+import { route } from '@/lib/api/handler'
 import { rateLimit } from '@/lib/ratelimit'
 import { resendVisaDmCard, visaDmFailureFor } from '@/lib/visa/dm-flow'
 
@@ -40,10 +40,28 @@ export const dynamic = 'force-dynamic'
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 const bodySchema = z.object({ mode: z.literal('review').optional() }).strict()
 
-export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const userId = await getCurrentProfileId()
-  if (!userId) return NextResponse.json({ error: 'auth_required' }, { status: 401 })
-  const { id } = await params
+// ⚠️ WS6 MIGRATION — `auth: 'userId'` only (getCurrentProfileId() + 401 `auth_required`, verbatim).
+// THE OTHER TWO OPTIONS ARE BLOCKED, EACH BY ITS OWN BYTES:
+//
+//   · `rateLimit:` — the throttled answer is `{"error":"too_many"}` 429, and `apiFail()` can only
+//     emit `rate_limited`; the key is also `${userId}:${id}`, which the wrapper cannot build.
+//   · `body:` — THE PARSE IS DELIBERATELY TOLERANT. `request.json().catch(() => ({}))` turns an
+//     absent or unparseable body into `{}`, which SATISFIES this schema (its one field is
+//     optional), so a bodyless POST — every caller before `mode` existed — succeeds today. route()
+//     answers 400 for a body it cannot parse, so hoisting the schema would break exactly the
+//     callers this catch was written to keep working. Note also that a literal `null` body PARSES
+//     as JSON, so `.catch()` never fires for it and `safeParse(null)` is what returns the 400.
+//
+// THE WIRE, ENUMERATED. Guest → 401 `auth_required`; non-uuid `id` → 404 `not_found`; throttled →
+// 429 `too_many`; a body that parses but fails `.strict()` (an unknown key, or `mode` other than
+// `'review'`) → 400 `invalid_request`; a refusal from resendVisaDmCard → `{error[,step]}` at its
+// own status; success → 200 `{messageId,step,kind}`; a throw inside the try → visaDmFailureFor()'s
+// `{error}` at its status.
+//
+// ⚠️ ACCEPTED EXCEPTION: the uuid test, the limiter and the body parse sit outside the try, so any
+// unhandled throw in them moves from Next's default 500 HTML to `{"error":"internal_error"}` 500.
+export const POST = route({ auth: 'userId' }, async ({ req, params, userId }) => {
+  const { id } = params
   // A non-uuid segment would 400 at the uuid column rather than 404 (the visa-admin idiom).
   if (!UUID_RE.test(id)) return NextResponse.json({ error: 'not_found' }, { status: 404 })
 
@@ -56,7 +74,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (!limit.success) return NextResponse.json({ error: 'too_many' }, { status: 429 })
 
   // Unparseable or absent body → the original behaviour, so every existing caller is untouched.
-  const parsed = bodySchema.safeParse(await request.json().catch(() => ({})))
+  const parsed = bodySchema.safeParse(await req.json().catch(() => ({})))
   if (!parsed.success) return NextResponse.json({ error: 'invalid_request' }, { status: 400 })
 
   try {
@@ -74,4 +92,4 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const failure = visaDmFailureFor(error)
     return NextResponse.json({ error: failure.error }, { status: failure.status })
   }
-}
+})

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { getCurrentProfileId } from '@/lib/admin'
+import { route } from '@/lib/api/handler'
 import { rateLimit } from '@/lib/ratelimit'
 import { advanceVisaDmFlow, resendVisaDmCard, visaDmFailureFor } from '@/lib/visa/dm-flow'
 import { bindVisaThread, findVisaThread } from '@/lib/visa/dm-thread'
@@ -43,10 +43,30 @@ const BIND_STATUS: Record<string, number> = {
   listing_unavailable: 503,
 }
 
-export async function POST(_request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const userId = await getCurrentProfileId()
-  if (!userId) return NextResponse.json({ error: 'auth_required' }, { status: 401 })
-  const { id } = await params
+// ⚠️ WS6 MIGRATION — `auth: 'userId'` only (getCurrentProfileId() + 401 `auth_required`, verbatim;
+// bindVisaThread proves ownership from that id and needs no Profile row). THE LIMITER CANNOT MOVE,
+// for TWO independent reasons, either of which alone is decisive:
+//   · its throttled answer is `{"error":"too_many"}` 429, not `{"error":"rate_limited"}` — the
+//     only body `rateLimit:` can produce;
+//   · its key is `${userId}:${id}`, per (actor, application), so hoisting it would collapse a
+//     per-case budget onto the account and let one case throttle another.
+// There is no request body on this method, so `body:` is empty by nature.
+//
+// THE WIRE, ENUMERATED. Guest → 401 `auth_required`; non-uuid `id` → 404 `not_found`; throttled →
+// 429 `too_many`; a bind refusal → `{error}` at BIND_STATUS[error] (403 `not_owner`, 409
+// `thread_conflict`, 503 `shop_unavailable`, 503 `listing_unavailable`, else 409); success → 200
+// `{conversationId,cardPosted[,cardError][,superseded]}` — including when the card could not be
+// re-posted, which stays a 200 on purpose; a throw inside the try → visaDmFailureFor()'s `{error}`
+// at its status.
+//
+// ⚠️ THE BIND'S TRANSACTION IS INSIDE bindVisaThread AND NOTHING HERE MOVES ACROSS IT. route()
+// wraps this handler; the unbind-then-claim, the resend and the `findVisaThread` re-read are the
+// same three awaits in the same order they were.
+//
+// ⚠️ ACCEPTED EXCEPTION: the uuid test and the limiter sit outside the try, so any unhandled throw
+// there moves from Next's default 500 HTML to `{"error":"internal_error"}` 500.
+export const POST = route({ auth: 'userId' }, async ({ params, userId }) => {
+  const { id } = params
   if (!UUID_RE.test(id)) return NextResponse.json({ error: 'not_found' }, { status: 404 })
 
   // Writes a Message on every success (the re-posted card) and moves a binding, so it carries
@@ -101,4 +121,4 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
     const failure = visaDmFailureFor(error)
     return NextResponse.json({ error: failure.error }, { status: failure.status })
   }
-}
+})

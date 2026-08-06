@@ -16,6 +16,19 @@ export const dynamic = 'force-dynamic'
 
 const NO_STORE = { 'Cache-Control': 'no-store, no-cache, must-revalidate', Pragma: 'no-cache' }
 
+// ⚠️ WS6 — NOT MIGRATED: a guard runs before everything, no branch is an error envelope, and the
+// success path sets a cookie.
+//   · THE ORIGIN CHECK IS FIRST AND IS THE CSRF DEFENCE. `{"error":"bad_origin"}` 403, decided before
+//     the cookie is even read. The wrapper's fixed order is auth → rateLimit → body → handler, so
+//     anything it did would run ahead of it.
+//   · A CALLER WITH NO (OR A MALFORMED) HANDOFF COOKIE GETS `{"state":"gone"}` AT 200 — the ordinary
+//     "this flow is over" answer the poller expects, not a 401. There is no signed-in user here at
+//     all; the cookie nonce IS the credential, so no auth mode applies.
+//   · EVERY RESPONSE CARRIES `Cache-Control: no-store, no-cache, must-revalidate` AND
+//     `Pragma: no-cache`, and the live branch additionally re-issues the `HANDOFF_COOKIE` Set-Cookie
+//     ("RE-ISSUE THE COOKIE ON EVERY POLL"). A plain-object return carries neither.
+//   · NO LIMITER AND NO BODY SCHEMA — the request body is never read — so even setting the above
+//     aside all four options would be empty.
 export async function POST(request: Request) {
   const appOrigin = new URL(process.env.NEXT_PUBLIC_APP_URL || 'https://eno.vn').origin
   if (process.env.NODE_ENV === 'production' && request.headers.get('origin') !== appOrigin) {

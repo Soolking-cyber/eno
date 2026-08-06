@@ -1,7 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { revalidatePath } from 'next/cache'
 import { db } from '@/lib/db'
-import { getAdmin } from '@/lib/admin'
+import { route } from '@/lib/api/handler'
 import { applyTrustEvent, penalizeSeller, recomputeTrust, SEVERITY_PENALTY, FALSE_REPORT_PENALTY, REPORT_COOLDOWN_DAYS } from '@/lib/trust'
 import { syncEnforcement } from '@/lib/enforcement'
 import { APPEAL_NOTICE, pickLocale } from '@/lib/admin-macros'
@@ -42,10 +42,55 @@ async function notifyDismissedReporters(match: { resolvedBy: string; resolvedAt:
 // With manual verification removed, listings publish instantly; admin's job is
 // (1) clearing the rare held listing (restricted/low-trust accounts) and
 // (2) RESOLVING reports — which is what moves trust scores.
-export async function POST(req: NextRequest) {
-  const admin = await getAdmin()
-  if (!admin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-
+//
+// ⚠️ WS6 MIGRATION — THE AUTH PREAMBLE AND NOTHING ELSE, DELIBERATELY. This is the most
+// consequential handler in the app: fourteen actions that dock trust, apply the enforcement ladder,
+// pull listings from sale, purge a false reporter's confirmed history and write into dispute rooms.
+// Every one of those is irreversible. So exactly two lines were replaced — `getAdmin()` and its 403
+// — and the 350-line switch below is byte-for-byte what it was, including every `NextResponse.json`
+// return, every `.catch(logError)` and the idempotency guards (`upd.count === 0 → 200 {"ok":true}`)
+// that keep an admin double-click from double-docking a score.
+//
+// `auth: 'admin'` is the only admissible mode: it emits `{"error":"Forbidden"}` 403 with the
+// capital F this route already emitted, and it re-checks the session server-side on every request
+// via getAdmin() exactly as before. Admin powers must NOT be on `auth: 'userId'`, whose locally
+// verified JWT means a revoked admin keeps their powers until the token expires (~1h) — handler.ts
+// says so in as many words.
+//
+// ⚠️ NO `body:` SCHEMA, AND ON THIS ROUTE IT IS NOT A CLOSE CALL. Malformed JSON answers
+// `{"error":"Invalid body"}` and a missing id answers `{"error":"Missing id"}` — both free text,
+// neither an ApiErrorCode, so neither is expressible as `invalidBodyCode`. The fourteen actions
+// read disjoint field sets (`ids` for the bulk pair, `severity` for confirms, `message` for
+// dispute-message, `note` for the note pair), so one schema could only be a permissive union that
+// validates nothing while still 400ing the `String(body.x ?? '')` coercions that today accept a
+// number. The hand parse stays.
+//
+// ⚠️ NO `rateLimit:` — there was none, and adding one to a moderation console would be a behaviour
+// change smuggled in as a migration. It would also be the wrong shape: the wrapper's limiter runs
+// BEFORE the body is read, so it could not distinguish a bulk-confirm over 100 reports from a
+// set-note keystroke.
+//
+// Branches held, all fourteen actions: guest / non-admin → 403 `{"error":"Forbidden"}` · malformed
+// JSON → 400 `{"error":"Invalid body"}` · no id on a non-bulk action → 400 `{"error":"Missing id"}`
+// · empty ids on bulk-dismiss/bulk-confirm → 400 `{"error":"No ids"}` · unknown report or listing →
+// 404 `{"error":"Not found"}` · extend-window on an already-resolved case → 409
+// `{"error":"already_resolved"}` · remediated on a non-confirmed report → 400
+// `{"error":"not_confirmed"}` · dispute-message with empty text → 400 `{"error":"empty"}` ·
+// unrecognised action → 400 `{"error":"Unknown action"}` · a takedown write that failed after the
+// trust dock landed → 500 `{"error":"takedown_failed", …}` with the still-public listing ids (the
+// partial-success contract moderation-client.tsx depends on, preserved exactly) · success → 200,
+// per-action shape unchanged (`{ok:true}` · `{ok,dismissed}` · `{ok,confirmed,skipped}` ·
+// `{ok,evidenceUntil}` · `{ok,id}` · `{ok,remediated}`).
+//
+// ⚠️ ONE BRANCH IS NOT BYTE-IDENTICAL: there is no try/catch around the switch, so a rejection from
+// a Prisma call that is NOT individually caught — applyTrustEvent, penalizeSeller, the approve
+// $transaction, addDisputeMessage, the report reads — used to reach Next's default 500 HTML and now
+// returns `{"error":"internal_error"}` 500, logged with an `op`. That is an improvement (a
+// structured code, and never the exception text, which here could carry a reporter's identity), but
+// it IS a wire change on those failure paths and is stated rather than claimed away. The DELIBERATE
+// 500s are untouched: `takedown_failed` still returns its own body, because its whole point is that
+// the trust dock landed and the listing did not come down.
+export const POST = route({ auth: 'admin' }, async ({ req, admin }) => {
   let body: { action?: string; id?: string; severity?: string; ids?: string[]; note?: string; decisionNote?: string; message?: string }
   try {
     body = await req.json()
@@ -411,4 +456,4 @@ export async function POST(req: NextRequest) {
     default:
       return NextResponse.json({ error: 'Unknown action' }, { status: 400 })
   }
-}
+})

@@ -1,6 +1,5 @@
 import { z } from 'zod'
-import { NextResponse } from 'next/server'
-import { getCurrentProfileId } from '@/lib/admin'
+import { ApiError, route } from '@/lib/api/handler'
 import { db } from '@/lib/db'
 import { insertMessage } from '@/lib/messages'
 import { rateLimit } from '@/lib/ratelimit'
@@ -34,30 +33,38 @@ const bodySchema = z.object({
   mode: z.enum(['human', 'ai']).default('human'),
 }).strict()
 
-export async function POST(request: Request) {
-  const userId = await getCurrentProfileId()
-  if (!userId) return NextResponse.json({ error: 'auth_required' }, { status: 401 })
-
-  const parsed = bodySchema.safeParse(await request.json().catch(() => null))
-  if (!parsed.success) return NextResponse.json({ error: 'invalid_request' }, { status: 400 })
-
+// ⚠️ WS6 MIGRATION. `auth: 'userId'` because the old preamble WAS getCurrentProfileId(), same 401
+// `auth_required`; the schema moves into the wrapper with `invalidBodyCode: 'invalid_request'`,
+// which covers both old 400 branches (unparseable JSON and a failed parse were already one code).
+//
+// ⚠️ THE RATE LIMIT STAYS HERE, like the concierge's: the key is `${userId}:${conversationId}`,
+// which the wrapper cannot build, and it has to run after the body is parsed. Hoisting it would
+// re-key the bucket per-user and make a malformed body cost a token.
+//
+// ⚠️ ONE BRANCH IS NOT BYTE-IDENTICAL, AND IT IS THE ACCEPTED ONE. None of the reads below
+// (conversation, desk, anchor listing, newest marker, itinerary) had a catch, so a DB failure was
+// an unhandled throw and Next answered its own default 500. route() catches it, logs it with an
+// `op`, and answers `{"error":"internal_error"}` 500 — a structured code instead of an error page.
+// Every DELIBERATE failure below is unchanged: 404 not_found, 409 thread_conflict, 503
+// shop_unavailable, 429 rate_limited, and the two explicit 500 internal_errors.
+export const POST = route({ auth: 'userId', body: bodySchema, invalidBodyCode: 'invalid_request' }, async ({ userId, body }) => {
   // Fails OPEN (the requestAssistance precedent): asking for a human is an ordinary write, not a
   // billing or PII vector, so a limiter outage must not stand between a traveller and a person.
-  const limit = await rateLimit('trip-dm-help', `${userId}:${parsed.data.conversationId}`, 6, '1 h')
-  if (!limit.success) return NextResponse.json({ error: 'rate_limited' }, { status: 429 })
+  const limit = await rateLimit('trip-dm-help', `${userId}:${body.conversationId}`, 6, '1 h')
+  if (!limit.success) throw new ApiError('rate_limited', 429)
 
   // OWNERSHIP, exactly as the concierge does it — one query, no branch that could write into
   // somebody else's thread.
   const convo = await db.conversation.findUnique({
-    where: { id: parsed.data.conversationId },
+    where: { id: body.conversationId },
     select: { id: true, buyerProfileId: true, sellerProfileId: true, listingId: true },
   })
-  if (!convo) return NextResponse.json({ error: 'not_found' }, { status: 404 })
-  if (convo.buyerProfileId !== userId) return NextResponse.json({ error: 'thread_conflict' }, { status: 409 })
+  if (!convo) throw new ApiError('not_found', 404)
+  if (convo.buyerProfileId !== userId) throw new ApiError('thread_conflict', 409)
 
   const desk = await getTripDesk()
   if (!desk?.ownerId || desk.ownerId !== convo.sellerProfileId) {
-    return NextResponse.json({ error: 'shop_unavailable' }, { status: 503 })
+    throw new ApiError('shop_unavailable', 503)
   }
 
   // ⚠️ THE ANCHOR LISTING, NOT JUST THE SELLER. `Seller.ownerId` is @unique, so the e-Visa desk and
@@ -66,14 +73,14 @@ export async function POST(request: Request) {
   // government-form thread and silence that desk's own assistant. The listingId is the only thing
   // telling the two desks apart. Caught by codex on review.
   const anchorListingId = await getTripAssistanceListingId()
-  if (!anchorListingId) return NextResponse.json({ error: 'shop_unavailable' }, { status: 503 })
-  if (convo.listingId !== anchorListingId) return NextResponse.json({ error: 'not_found' }, { status: 404 })
+  if (!anchorListingId) throw new ApiError('shop_unavailable', 503)
+  if (convo.listingId !== anchorListingId) throw new ApiError('not_found', 404)
 
   // ⚠️ THE CURRENT MODE IS THE NEWEST MARKER, NOT "does a trip_help exist". Once this became a
   // toggle, presence alone was wrong: a thread that asked for a person and then switched back has
   // a trip_help AND a trip_ai, and only their ORDER says which is live. Same newest-wins rule
   // tripHumanRequested applies server-side, kept identical on purpose.
-  const wantsHuman = parsed.data.mode === 'human'
+  const wantsHuman = body.mode === 'human'
   // ⚠️ THIS READ-THEN-WRITE IS NOT ATOMIC, AND THE FILE SAYS SO RATHER THAN PRETENDING.
   //
   // I first wrapped the read in a transaction holding `pg_advisory_xact_lock`, copying
@@ -115,10 +122,12 @@ export async function POST(request: Request) {
         )
       } catch (e) {
         console.error('[trip-help] ai marker not posted', e)
-        return NextResponse.json({ error: 'internal_error' }, { status: 500 })
+        // Thrown, not returned: route()'s catch turns an ApiError into the SAME
+        // `{"error":"internal_error"}` 500 this used to build by hand.
+        throw new ApiError('internal_error', 500)
       }
     }
-    return NextResponse.json({ ok: true, mode: 'ai', alreadyRequested })
+    return { ok: true, mode: 'ai', alreadyRequested }
   }
 
   // The newest trip they own — the one they are almost certainly asking about. `requestAssistance`
@@ -148,7 +157,7 @@ export async function POST(request: Request) {
       )
     } catch (e) {
       console.error('[trip-help] message not posted', e)
-      return NextResponse.json({ error: 'internal_error' }, { status: 500 })
+      throw new ApiError('internal_error', 500)
     }
   }
 
@@ -177,5 +186,5 @@ export async function POST(request: Request) {
     }
   }
 
-  return NextResponse.json({ ok: true, mode: 'human', caseOpened, alreadyRequested })
-}
+  return { ok: true, mode: 'human', caseOpened, alreadyRequested }
+})

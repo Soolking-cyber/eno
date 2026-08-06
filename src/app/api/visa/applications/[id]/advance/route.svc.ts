@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server'
-import { getCurrentProfileId } from '@/lib/admin'
-import { rateLimit } from '@/lib/ratelimit'
+import { route } from '@/lib/api/handler'
 import { advanceVisaDmFlow, visaDmFailureFor } from '@/lib/visa/dm-flow'
 
 // THE LOOP. Recompute which of the five steps the case is on and make sure the card for it
@@ -23,14 +22,28 @@ export const dynamic = 'force-dynamic'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
-export async function POST(_request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const userId = await getCurrentProfileId()
-  if (!userId) return NextResponse.json({ error: 'auth_required' }, { status: 401 })
-  // Generous: an active applicant advances on every upload and every tap, and the call is
-  // idempotent — the limit is there to stop a runaway client loop, not to pace a human.
-  const limit = await rateLimit('visa-dm-advance', userId, 180, '1 h', { strict: true })
-  if (!limit.success) return NextResponse.json({ error: 'rate_limited' }, { status: 429 })
-  const { id } = await params
+// ⚠️ WS6 MIGRATION — auth AND the limiter both move, and this is the shape where the wrapper
+// actually pays. The preamble was `getCurrentProfileId()` + 401 `auth_required` (= `auth:
+// 'userId'`, and `userId` is right: the flow only needs the caller's id to scope the case) followed
+// immediately by `rateLimit('visa-dm-advance', userId, 180, '1 h', { strict: true })` answering
+// `{"error":"rate_limited"}` 429. route()'s fixed order is auth → limiter → handler, which is this
+// route's order exactly; the key is the caller alone, and there is no env gate or early-out in
+// front of the limiter to be re-ordered past. `strict` is preserved verbatim.
+//
+// ⚠️ Generous BY DESIGN, unchanged: an active applicant advances on every upload and every tap and
+// the call is idempotent — 180/hour stops a runaway client loop, it does not pace a human.
+//
+// THE WIRE, ENUMERATED. Guest → 401 `auth_required`; throttled → 429 `rate_limited`; non-uuid `id`
+// → 404 `not_found`; a refusal from advanceVisaDmFlow → `{error,[step],[complete]}` at its own
+// status (4xx/5xx, never a 200 that looks like progress); success → 200
+// `{step,messageId,complete[,picker]}`; a throw inside the flow → visaDmFailureFor()'s `{error}` at
+// its status. No request body is read — the body is ignored on purpose (see the header above), so
+// there is no schema to hoist and no 400 branch to preserve.
+//
+// ⚠️ ACCEPTED EXCEPTION: the uuid test sits outside the try, so any unhandled throw in this handler
+// before it enters the try moves from Next's default 500 HTML to `{"error":"internal_error"}` 500.
+export const POST = route({ auth: 'userId', rateLimit: { bucket: 'visa-dm-advance', limit: 180, window: '1 h', strict: true } }, async ({ params, userId }) => {
+  const { id } = params
   // A non-uuid segment would 400 at the uuid column rather than 404 (the visa-admin idiom).
   if (!UUID_RE.test(id)) return NextResponse.json({ error: 'not_found' }, { status: 404 })
 
@@ -56,4 +69,4 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
     const failure = visaDmFailureFor(error)
     return NextResponse.json({ error: failure.error }, { status: failure.status })
   }
-}
+})

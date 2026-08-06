@@ -17,6 +17,18 @@ const TAXONOMY_TEXT = TAXONOMY.map((c) => `${c.slug} (${c.name})`).join(', ')
 // then the caller runs the normal keyword search. Reuses the existing Vertex/Gemini
 // setup (no embedding store to build/host) — the cheapest accurate path at scale:
 // one downscaled 512px Flash call per search, login-only + 10/h per account.
+//
+// ⚠️ WS6 — NOT MIGRATED. The three /api/ai blockers, identical in shape to /api/ai/classify
+// (WS6 audit, 2026-08-06):
+//   · `getGemini()` answers `{"error":"ai_unavailable"}` 503 BEFORE aiGuard resolves a caller, so
+//     the wrapper's auth-first order would turn a signed-out call against an unconfigured Gemini
+//     into `{"error":"auth_required"}` 401.
+//   · TWO `strict` limiters must both pass — `ai-visual-search` keyed on the profile (10/h) and the
+//     shared `ai-global` ceiling (2000/d, keyed on the literal 'global'). `rateLimit:` is one
+//     caller-keyed bucket.
+//   · The body is MULTIPART: `req.formData()`, which `body:` (`req.json()`) cannot read, and whose
+//     failures are their own codes (`bad_request` for a truncated multipart, then `no_file` /
+//     `empty_file` / `too_big`).
 export async function POST(req: NextRequest) {
   const ai = getGemini()
   if (!ai) return NextResponse.json({ error: 'ai_unavailable' }, { status: 503 })

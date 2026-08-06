@@ -16,6 +16,24 @@ export const dynamic = 'force-dynamic'
 // NOTE: dedup rides on the rate limiter (Postgres-backed). On a limiter backend error
 // it fails OPEN, so the client localStorage guard is what keeps refreshes from
 // over-counting there.
+//
+// ⚠️ WS6 — NOT MIGRATED: THE LIMITER HERE IS A DEDUP KEY, NOT A RATE LIMIT, and `rateLimit:` cannot
+// express it. Three separate mismatches, any one of which is disqualifying:
+//   · THE KEY. `listing-view` is keyed `${ip}:${id}` — the ROUTE PARAM is part of the key, which is
+//     the entire point (1 count per device per listing per 6h). The wrapper's key is fixed at
+//     `userId ?? clientIp(req)`, so every listing a device viewed would share one 6h window and only
+//     the first view in the app would ever be counted.
+//   · THERE ARE TWO. The per-(ip,listing) dedup and the coarse per-IP cap run in parallel and BOTH
+//     must pass; `rateLimit:` takes one bucket.
+//   · THE ANSWER IS NOT 429. Over-limit returns 200 `{"ok":true,"counted":false}` — a normal, very
+//     common response that the client reads to decide nothing. The wrapper returns
+//     `{"error":"rate_limited"}` 429, so migrating would turn the ordinary second page-view of a
+//     listing into an error for <TrackView>.
+// Auth is likewise not `auth: 'userId'`: this endpoint is PUBLIC and a guest must get a 200 and be
+// counted. `getCurrentProfileId()` is called late and only to EXCLUDE a seller's self-view, so a
+// null caller is the normal case — `auth: 'userId'` would 401 every guest, i.e. every real view.
+// (It is already the cheap local-JWT call, so there is nothing to gain here anyway; never upgrade
+// this hot counter to 'profile'.)
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const ip = clientIp(req)

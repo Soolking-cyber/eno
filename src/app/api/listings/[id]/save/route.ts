@@ -14,6 +14,20 @@ export const dynamic = 'force-dynamic'
 //
 // Best-effort — always returns ok; `counted` says whether it moved the number. Coarse
 // per-IP cap stops a script from inflating; a real user toggles a handful of hearts.
+//
+// ⚠️ WS6 — NOT MIGRATED. Four independent blockers; the first is the interesting one:
+//   · THE LIMITER KEY IS COMPUTED FROM THE PARSED BODY. `listing-save` is keyed
+//     `${ip}:${id}:${saved}` — it mixes the route param AND `body.saved`, so save and unsave get
+//     their own 6h windows and a heart can be toggled back off. `rateLimit:` is static config
+//     applied BEFORE the body is read, so the wrapper cannot see `saved` at the moment it keys.
+//   · THERE ARE TWO LIMITERS, both of which must pass; `rateLimit:` takes one bucket.
+//   · OVER-LIMIT IS A 200, not a 429: `{"ok":true,"counted":false}` is the ordinary answer for the
+//     second toggle of the same heart. The wrapper would answer `{"error":"rate_limited"}` 429.
+//   · THE ERROR ENVELOPE IS DIFFERENT. A bad body answers `{"ok":false,"error":"bad_request"}` —
+//     it carries an `ok` key, so it is not the wrapper's bare `{error}` shape and `body:` /
+//     `invalidBodyCode` cannot reproduce it byte-for-byte.
+// Auth stays 'public' by design: favorites are anonymous and device-local (localStorage), so a
+// guest MUST get a 200 here — any authed mode would 401 the majority of callers.
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const ip = clientIp(req)

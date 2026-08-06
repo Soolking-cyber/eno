@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { NextResponse } from 'next/server'
-import { getCurrentProfileId } from '@/lib/admin'
+import { route } from '@/lib/api/handler'
 import { rateLimit } from '@/lib/ratelimit'
 import { visaCryptoReady } from '@/lib/visa/crypto'
 import { getVisaDb } from '@/lib/visa/db'
@@ -22,16 +22,40 @@ const bodySchema = z.object({
 })
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
-export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const userId = await getCurrentProfileId()
-  if (!userId) return NextResponse.json({ error: 'auth_required' }, { status: 401 })
+// ⚠️ WS6 MIGRATION (.svc surface), AUTH ONLY — same shape and same blockers as the checkout route
+// this one completes.
+//
+// `auth: 'userId'` is byte-identical: the preamble WAS getCurrentProfileId() answering 401
+// `auth_required`. Nothing else moves; the ownership + local-payment-row proof that must precede
+// any provider call (review #5) keeps its exact position.
+//
+// ⚠️ THE LIMITER CANNOT HOIST: two env-only 503 guards run in front of it — visaCryptoReady()
+// (`VISA_DATA_ENCRYPTION_KEY`) and visaPaymentsConfig() — and route()'s order is fixed at
+// auth → rateLimit → body. Both are process-CONSTANT, and payments are DORMANT until the fee and
+// provider keys land, so on today's deployments every call answers 503 `payments_not_configured`
+// without spending a token; with the limiter in front, the 31st call in an hour would answer 429
+// `rate_limited` instead. ⚠️ AND THE BODY FOLLOWS THE LIMITER, so `body:` would likewise turn a
+// throttled malformed request from 429 into 400 `invalid_request`.
+//
+// ⚠️ ONE BRANCH IS NOT BYTE-IDENTICAL, AND IT IS THE ACCEPTED ONE. The ownership + payment-row
+// reads sit OUTSIDE the try/catch (which starts at the provider call), so any unhandled throw in
+// that region used to reach Next's default 500 page; route() now catches it, logs it with an `op`
+// and answers `{"error":"internal_error"}` 500. Stated as a shape, not an inventory.
+//
+// Every deliberate branch is unchanged: 401 `auth_required` · 503 `visa_encryption_not_configured`
+// · 503 `payments_not_configured` · 429 `rate_limited` · 400 `invalid_request` · 404 `not_found`
+// (non-uuid id, or a case that is not the caller's) · 400 `reference_mismatch` (no local checkout
+// row for this provider+ref, or the provider's own applicationId disagreeing) · 402 `not_paid` ·
+// markVisaPaidAndHandoff's own code at 404/400 · 502 `confirm_failed` · 200
+// `{application, handedOff}`.
+export const POST = route({ auth: 'userId' }, async ({ req: request, params, userId }) => {
   if (!visaCryptoReady()) return NextResponse.json({ error: 'visa_encryption_not_configured' }, { status: 503 })
   if (!visaPaymentsConfig()) return NextResponse.json({ error: 'payments_not_configured' }, { status: 503 })
   const limit = await rateLimit('visa-pay-confirm', userId, 30, '1 h', { strict: true })
   if (!limit.success) return NextResponse.json({ error: 'rate_limited' }, { status: 429 })
   const parsed = bodySchema.safeParse(await request.json().catch(() => null))
   if (!parsed.success) return NextResponse.json({ error: 'invalid_request' }, { status: 400 })
-  const { id } = await params
+  const { id } = params
   if (!UUID_RE.test(id)) return NextResponse.json({ error: 'not_found' }, { status: 404 })
 
   // Ownership + local checkout row FIRST — before any provider call (review #5: a
@@ -76,4 +100,4 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     console.error('[visa/payment/confirm]', (error as Error)?.message?.slice(0, 300))
     return NextResponse.json({ error: 'confirm_failed' }, { status: 502 })
   }
-}
+})

@@ -16,6 +16,13 @@ const EMPTY = { n: 0 }
 // normalized key — never resolveBrand() here, which grows the catalogue and would
 // mint a brand row per keystroke. Public aggregated data; { n: 0 } means "no
 // reliable band" and the client shows nothing.
+//
+// ⚠️ WS6 — NOT MIGRATED: like the rest of this route's error handling, being rate-limited is answered
+// with `200 {"n":0}`, not `429 {"error":"rate_limited"}` — guidance is a bonus and every failure hides
+// it rather than surfacing an error in the post wizard. The wrapper's `rateLimit:` option can only
+// emit the 429, and it would additionally run BEFORE the `!model` early-out, spending a typist's
+// budget on requests that never touch the DB. Public and no JSON body, so with the limiter pinned in
+// place all four options are empty.
 export async function GET(req: NextRequest) {
   const p = req.nextUrl.searchParams
   const model = (p.get('model') || '').trim().slice(0, 80)

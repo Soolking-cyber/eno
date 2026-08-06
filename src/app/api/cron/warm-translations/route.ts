@@ -16,6 +16,26 @@ export const maxDuration = 300
 // existing rows (curated glossary values stay). Also logs per-language coverage,
 // making the Vercel cron logs the i18n health record.
 //   Guarded by CRON_SECRET (Vercel attaches it as a Bearer header).
+//
+// ⚠️ WS6 — NOT MIGRATED, AND IT IS THE ONE CRON ROUTE THAT LOOKS LIKE IT SHOULD BE. Its five
+// siblings (daily-reminders, price-stats, saved-search-alerts, video-gc, weekly-digest) carried a
+// byte-identical `bearerOk()` guard and are now on `auth: 'cron'`. This one is NOT a sixth copy —
+// it was written separately and differs in every failure branch:
+//   · UNSET SECRET IS A 503, NOT A 401. `{"error":"not_configured"}` 503 here vs
+//     `{"error":"forbidden"}` 401 there. Two different statuses and two different codes.
+//   · THE 401 CODE IS DIFFERENT: `{"error":"unauthorized"}`, not `{"error":"forbidden"}`.
+//   · IT COMPARES THE FULL `authorization` HEADER against `Bearer <secret>`, where the five
+//     compare only the token. Same accept/reject decision in practice, different code.
+// `auth: 'cron'` reproduces the five exactly, which means it necessarily gets all three of those
+// wrong for this route — three response bodies and one status code. Nothing else is available
+// either: public + no limiter + no JSON body means the wrapper's remaining options are all empty,
+// so wrapping it while pinning the guard inline would be churn.
+//
+// The 503 is a real distinction worth keeping, not an inconsistency to be tidied away: it tells an
+// operator "this deployment has no CRON_SECRET" (a config fault, retry later) rather than "your
+// credentials are wrong" — which is exactly what you want to read in a cron log at 3am. Unifying
+// the three codes is a wire change to a scheduler contract and belongs in the separate
+// error-code-consolidation pass, with the caller changed alongside.
 const sha1 = (s: string) => createHash('sha1').update(s).digest('hex')
 
 export async function GET(req: Request) {

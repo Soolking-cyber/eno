@@ -20,6 +20,17 @@ const split = (v: string | null, n: number) =>
 // localStorage); falls back to Trending (most-viewed) when there's no signal. Always
 // trust-ranked. Public-safe (verified + active only), so it can't leak anything the
 // feed wouldn't.
+//
+// ⚠️ WS6 — NOT MIGRATED: the throttled answer carries a DOMAIN payload, not an error envelope. It is
+// `{"listings":[],"personalized":false}` at 429, and `apiFail()` can only emit `{"error":"<code>"}`,
+// so hoisting the limiter into `rateLimit:` would change those bytes. Public, and a GET with no JSON
+// body, so with the limiter pinned in the handler all four options are empty — churn, not a wrapper.
+//
+// ⚠️ THAT IS THE WHOLE REASON, AND IT IS DELIBERATELY NOT AN ARGUMENT ABOUT THE CLIENT. The first
+// draft justified the skip by saying a throttled caller "decodes a normal empty payload and
+// self-hides"; the review checked and it does not — `for-you-rail.tsx:53` is
+// `.then((r) => (r.ok ? r.json() : null))`, so a 429 is `!r.ok` and the body is discarded unread.
+// The skip stands on the bytes alone. A wire fact survives a client refactor; a client fact does not.
 export async function GET(req: NextRequest) {
   // Public + runs user-controlled substring scans against the DB — cap per IP so it can't
   // be turned into a cheap scraping/DB-load tool. Generous for real page loads.

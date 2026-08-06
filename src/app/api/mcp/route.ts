@@ -76,6 +76,21 @@ async function handleMessage(msg: Rpc, auth: ApiAuth): Promise<object | null> {
   }
 }
 
+// ⚠️ WS6 — NOT MIGRATED, and this is the clearest refusal in the surface: all three exports speak a
+// DIFFERENT PROTOCOL, not a different dialect of `{ error }`.
+//   · THE AUTH IS `resolveApiKey`, THE /api/v1 MECHANISM. `src/lib/api/handler.ts` says in as many
+//     words that it is not for that surface. A rejected key answers a JSON-RPC error object
+//     (`{"jsonrpc":"2.0","id":null,"error":{"code":-32001,"message":…}}`) at r.status with
+//     `WWW-Authenticate: Bearer` — not `{"error":"auth_required"}` 401 from a cookie session.
+//   · EVERY RESPONSE CARRIES HEADERS THE WRAPPER'S PLAIN-OBJECT RETURN CANNOT: `CORS` on all four
+//     exit paths, `X-RateLimit-Limit`/`-Remaining` on success, `Allow: POST, OPTIONS` on GET's 405.
+//   · TWO EXITS HAVE NO BODY AT ALL — the notifications-only 202 and OPTIONS' 204 preflight — and
+//     one is a 405. `route()` always serialises a JSON body (`data ?? {}`).
+//   · A TOOL FAILURE IS A 200. `toolErr()` returns a JSON-RPC *result* with `isError:true`; MCP
+//     clients require that, so an `ApiError` throw mapping to a 4xx would break the transport.
+// Returning a `Response` from a handler could carry the bytes, but then auth, rate limiting, body
+// parsing and error shaping all stay hand-written — the wrapper would be an empty options object
+// around an untouched function.
 export async function POST(req: NextRequest) {
   const r = await resolveApiKey(req)
   if (!r.ok) {

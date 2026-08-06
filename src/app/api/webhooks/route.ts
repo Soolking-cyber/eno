@@ -31,6 +31,20 @@ function normalizeEvents(raw: unknown): string | { error: string } {
   return [...new Set(cleaned)].join(' ')
 }
 
+// ⚠️ WS6 — NOT MIGRATED (2026-08-06). Same shape as /api/keys, verified branch by branch:
+//   · A GUEST GETS A 403 WITH A DOMAIN CODE, NOT 401. `callerShop()` collapses signed-out,
+//     personal-tier and no-storefront into one null, so GET answers
+//     `{"error":"business_only","webhooks":[]}` 403 and POST answers `{"error":"business_only"}`
+//     403. Any authed mode emits `{"error":"auth_required"}` 401 for the signed-out case.
+//   · GET'S 403 CARRIES A DOMAIN FIELD ALONGSIDE `error` (`"webhooks":[]`), as does POST's
+//     `{"error":"too_many_webhooks","max":10}` 400. `apiFail()` emits `{"error":"<code>"}` only.
+//   · POST'S BODY CANNOT BE ONE SCHEMA WITH ONE CODE. It has three distinct 400s —
+//     `url_required`, `unsafe_url` (from the async `assertSafeUrl()` SSRF check, which is I/O and
+//     not expressible in zod) and `invalid_events` — while `invalidBodyCode` is a single code for
+//     the whole schema. `events` is also deliberately polymorphic (absent | `'*'` | a
+//     comma/whitespace string | an array), and `catch { body = {} }` makes a malformed body a
+//     `url_required` 400 rather than a parse error.
+// With auth pinned to 'public' and the body left in the handler, every option is empty.
 // GET — list this shop's webhooks (secrets never returned).
 export async function GET() {
   const who = await callerShop()

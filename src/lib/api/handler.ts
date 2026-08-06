@@ -1,5 +1,6 @@
 import 'server-only'
 import { NextResponse } from 'next/server'
+import { timingSafeEqual } from 'node:crypto'
 import type { z } from 'zod'
 import { getAdmin, getCurrentProfile, getCurrentProfileId } from '@/lib/admin'
 import { rateLimit } from '@/lib/ratelimit'
@@ -61,16 +62,94 @@ export function apiFail(code: ApiErrorCode, status = 400): NextResponse {
  * The trade-off is real and belongs at the call site: `userId` means server-side revocation takes
  * effect at token expiry (~1h) rather than instantly, which is fine for participant checks and NOT
  * fine for admin powers.
+ *
+ * ⚠️ `cron` RESOLVES NO CALLER AT ALL, WHICH IS WHY IT IS A MODE AND NOT A HELPER. A scheduled
+ * invocation has no session and no Profile: it proves itself with `Authorization: Bearer
+ * $CRON_SECRET`. It was added (WS6, 2026-08-06) because the identical eleven-line guard —
+ * a local `bearerOk()` plus the `if (!secret || !bearerOk(...))` block — was COPIED SIX TIMES:
+ *   src/app/api/cron/{daily-reminders,price-stats,saved-search-alerts,video-gc,weekly-digest}/route.ts
+ *   src/app/api/cron/visa-retention/route.svc.ts        (services edition)
+ * All six were verified byte-identical before this mode existed. Six hand-copied
+ * implementations of a timing-safe secret comparison is the exact shape this file's header
+ * describes: a change to any one of them — a `Retry-After`, an allowed second secret during a
+ * rotation, a log line — is six edits, so it never happens, and a drift in one of the six is a
+ * silent authentication hole that nothing in the build would report.
+ *
+ * ⚠️ THREE PROPERTIES OF THE ORIGINAL ARE LOAD-BEARING AND ARE REPRODUCED EXACTLY. Read
+ * `cronAuthorized()` below before changing any of them:
+ *   · The comparison is `timingSafeEqual`, NOT `===`. A `===` on a secret returns early at the
+ *     first differing byte, which leaks the secret one byte at a time to a caller who can time
+ *     the response. Replacing it would be a security REGRESSION dressed as a simplification.
+ *   · It FAILS CLOSED when `CRON_SECRET` is unset. An unset secret must never mean "let everyone
+ *     in" on an endpoint that emails the whole user base or deletes storage objects.
+ *   · The answer is `{"error":"forbidden"}` with status **401** — lowercase `forbidden`, and 401
+ *     rather than the 403 the word implies. That pairing is odd and it is what is already on the
+ *     wire, so it is preserved rather than tidied. (`auth: 'admin'` above emits capital-F
+ *     `Forbidden` at 403; the two are genuinely different responses, which is the argument for
+ *     the shared `ApiErrorCode` union, not an excuse to unify them here.)
+ *
+ * ⚠️ ALL SIX ARE NOW ON THIS MODE, INCLUDING `visa-retention/route.svc.ts`. That one was written
+ * up here as "deliberately not migrated, a safe follow-up" because it sits in the services edition
+ * (`.svc.ts`, excluded from the marketplace build by `pageExtensions`) and fell outside the cluster
+ * that added this mode — and it was then picked up by the next wave the same session. The reason
+ * to record that rather than just delete the sentence: the file was invisible to the migration's
+ * own survey, which globbed `route.ts` and therefore missed 38 `.svc.ts` files and 45 method
+ * exports. A guard copied into a directory your inventory does not glob is the exact way the
+ * seventh copy gets written. There is no copy left; keep it that way.
+ *
+ * ⚠️ `warm-translations` LOOKS LIKE A SIXTH COPY AND IS NOT. It answers 503 `not_configured` when
+ * the secret is unset (not 401), 401 `unauthorized` (not `forbidden`), and it compares the FULL
+ * `authorization` header against `Bearer <secret>` rather than the token. Putting it on this mode
+ * would change three response bodies and one status code, so it keeps its own guard.
  */
-type AuthMode = 'public' | 'userId' | 'profile' | 'admin'
+type AuthMode = 'public' | 'userId' | 'profile' | 'admin' | 'cron'
+
+/**
+ * The shared cron guard, byte-for-byte the `bearerOk()` the five routes each declared locally.
+ * Note the `&&`: `timingSafeEqual` THROWS on unequal-length buffers, so the length check is not an
+ * optimisation, it is what keeps the call legal. Comparing lengths first leaks only the secret's
+ * LENGTH, which is what every existing copy already did and is not the property being protected.
+ */
+function cronAuthorized(req: Request): boolean {
+  const secret = process.env.CRON_SECRET
+  if (!secret) return false
+  const header = req.headers.get('authorization')
+  const token = header?.startsWith('Bearer ') ? header.slice(7) : ''
+  const a = Buffer.from(token)
+  const b = Buffer.from(secret)
+  return a.length === b.length && timingSafeEqual(a, b)
+}
 
 type Ctx<A extends AuthMode, B> = {
   req: Request
   params: Record<string, string>
-  /** The signed-in profile. Typed as present for `auth: 'profile'`, `null` for `'public'`/`'userId'`. */
-  profile: A extends 'profile' ? Profile : A extends 'admin' ? Profile | null : null
-  /** The caller's id. Present for every authed mode; the ONLY thing `auth: 'userId'` resolves. */
-  userId: A extends 'public' ? null : string
+  /**
+   * The signed-in profile. Present ONLY for `auth: 'profile'`.
+   *
+   * ⚠️ `null` FOR `'admin'`, AND THAT IS A FIX, NOT A LIMITATION. The admin branch used to
+   * `await getCurrentProfile()` as well, on the theory that an admin route might want its own row.
+   * Measured across all 11 admin routes: not one destructures `profile` or `userId` — they read
+   * `admin` (the email) or nothing. So the call was pure cost, and it cost three real things:
+   *   · `/api/admin/ai-health` and `/api/admin/brands/ai` touched NO database by design — a
+   *     diagnostics endpoint you curl DURING an outage. `getCurrentProfile()` is unwrapped
+   *     (`src/lib/admin.ts:81`), so with Postgres down they went from 200 + diagnostics to
+   *     `{"error":"internal_error"}` 500. The migration silently removed the one property that
+   *     made them worth having.
+   *   · It fires the presence heartbeat (`db.profile.updateMany` via `after()`), so a read-only
+   *     admin GET became a deferred DB WRITE.
+   *   · On an admin's first-ever call it runs `ensureProfile()`, which includes the IRREVERSIBLE
+   *     guest-Seller auto-claim (`src/lib/profile.ts:71-95`). An admin GET is not a place to
+   *     trigger that.
+   * An admin route that genuinely needs the row can call `getCurrentProfile()` itself, which is
+   * exactly what it would have written before the wrapper existed.
+   */
+  profile: A extends 'profile' ? Profile : null
+  /**
+   * The caller's id, for `'userId'` and `'profile'`. `null` for `'public'` and `'admin'` — see
+   * above — and `null` for `'cron'`, which authenticates a SECRET rather than a person and has no
+   * id to hand over. A cron handler that needs one must resolve it itself, deliberately.
+   */
+  userId: A extends 'userId' | 'profile' ? string : null
   /** The admin's email for `auth: 'admin'`. */
   admin: A extends 'admin' ? string : null
   /** Parsed and validated body, when a schema was given. */
@@ -83,6 +162,14 @@ type Options<A extends AuthMode, S extends z.ZodTypeAny | undefined> = {
    * Sliding window keyed by profile id (or client IP for `auth: 'public'`). `strict: true` fails
    * CLOSED — use it on paid or PII-adjacent routes, matching the existing convention in
    * `src/lib/ratelimit.ts`.
+   *
+   * ⚠️ WITH `auth: 'admin'` OR `auth: 'cron'` THIS KEYS BY **IP**, NOT BY PERSON. Both modes leave
+   * `userId` null (an admin is identified by email, a cron caller by a shared secret), and the key
+   * below is `userId ?? clientIp(req)`. So a limit meant as "20 per admin per hour" becomes "20 per
+   * SOURCE ADDRESS per hour" and the whole moderation desk sitting behind one office NAT — or every
+   * scheduled invocation arriving from one scheduler — shares a single bucket. No route combines
+   * them today (measured 2026-08-06: zero). If you are the first, key it by hand inside the handler
+   * on `admin` (the email) instead, and do not reach for this option because it is nearer.
    */
   rateLimit?: { bucket: string; limit: number; window: `${number} ${'s' | 'm' | 'h' | 'd'}`; strict?: boolean }
   /** A zod schema. Its absence is what makes the 66 unvalidated handlers visible in a grep. */
@@ -112,12 +199,19 @@ export function route<A extends AuthMode = 'public', S extends z.ZodTypeAny | un
       } else if (opts.auth === 'admin') {
         admin = await getAdmin()
         if (!admin) return apiFail('Forbidden', 403) // capital F: 16 admin routes emit exactly this
-        profile = await getCurrentProfile()
-        userId = profile?.id ?? null
+        // ⚠️ NO getCurrentProfile() HERE. See the `profile` field above: it resolved a row no admin
+        // handler reads, and in doing so put an unwrapped DB call in front of two endpoints that
+        // deliberately had none. getAdmin() alone is what the hand-written admin preamble did.
       } else if (opts.auth === 'profile') {
         profile = await getCurrentProfile()
         if (!profile) return apiFail('auth_required', 401)
         userId = profile.id
+      } else if (opts.auth === 'cron') {
+        // ⚠️ 401 WITH LOWERCASE `forbidden` — the wrong-looking pairing the five cron routes are
+        // already on. Do not "fix" it to 403 or capital-F here: that is a wire change to five
+        // scheduled jobs whose only client is a scheduler that branches on the status.
+        // profile/admin/userId all stay null: a secret is not a caller.
+        if (!cronAuthorized(req)) return apiFail('forbidden', 401)
       }
 
       // 2. Rate limit, keyed by caller where there is one.

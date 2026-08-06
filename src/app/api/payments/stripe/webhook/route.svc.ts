@@ -12,6 +12,27 @@ import { markVisaPaidAndHandoff, stripeEventModeOk, verifyStripeSignature } from
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
+// ⚠️ WS6 — NOT MIGRATED. Four independent blockers; the first alone is disqualifying.
+//
+// 1. THE AUTH IS AN HMAC OVER THE RAW BODY BYTES, so the body may never be parsed for it.
+//    verifyStripeSignature (src/lib/visa/payments.ts:382) computes
+//    `createHmac('sha256', secret).update(`${t}.${rawBody}`)` against the exact string
+//    `request.text()` returned. route()'s `body:` option consumes the stream with `req.json()`,
+//    which both leaves the stream unreadable for `text()` and discards the byte sequence the MAC
+//    covers — key order, whitespace and number formatting all of it. There is no schema this
+//    route could hoist.
+// 2. NO CALLER TO RESOLVE, AND A GUARD THAT MUST PRECEDE EVERYTHING. Stripe sends no cookie and
+//    no bearer, so the mode would be 'public'; and the first line is a 503 `not_configured` when
+//    `STRIPE_WEBHOOK_SECRET` is unset, which has to run before the signature check, not after an
+//    auth step.
+// 3. THE LIMITER WOULD BE WRONG HERE ANYWAY. Throttling a payment webhook by client IP would drop
+//    capture notifications during a burst; Stripe's own retry is the backpressure, which is why
+//    this route has no limiter to hoist.
+// 4. THE ANSWERS ARE STRIPE'S PROTOCOL, NOT THIS API'S ERROR ENVELOPE. A handled event, a replay,
+//    an unrelated type and a wrong-mode event all answer 200 `{"received":true}` — a domain
+//    payload `apiFail()` cannot emit — because anything else makes Stripe retry forever; 400 stops
+//    the retries (bad signature/payload) and 500 asks for one.
+// So all four options are empty and the wrapper would be pure churn on a money path. Left alone.
 export async function POST(request: Request) {
   const secret = process.env.STRIPE_WEBHOOK_SECRET
   if (!secret) return NextResponse.json({ error: 'not_configured' }, { status: 503 })

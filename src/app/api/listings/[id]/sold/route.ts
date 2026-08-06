@@ -14,6 +14,27 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 //   - 'external' → platform is free text (the marketplace they sold on).
 //   - neither    → a plain sold with no attribution.
 // Delegates to setStatusCore, so the cache purge / de-index / partner webhooks all fire.
+//
+// ⚠️ WS6 — NOT MIGRATED, for two independent reasons.
+//
+// 1. Authorization is `checkListingOwner()`, which resolves the caller itself
+//    (`getCurrentProfile()`) and answers FOUR outcomes — 401 auth_required · 403 no_storefront ·
+//    404 not_found · 403 forbidden. `auth: 'profile'` emits only the 401 and would resolve the
+//    caller a SECOND time (extra auth-server round-trip + extra Profile read) for no wire change;
+//    `auth: 'public'` leaves every option empty, i.e. churn. The one-parameter unlock in
+//    src/lib/listing-owner.ts is described in ../route.ts; that file is shared with confirm/ and
+//    buyers/, outside this cluster, so it is deliberately untouched.
+//
+// 2. A MISSING, EMPTY, `null` OR UNPARSEABLE BODY IS A SUCCESS HERE, not a 400 — it means "a plain
+//    sold with no attribution", which is what the web dashboard's Mark-sold sends. `body:` would
+//    turn that 200 into a 400 and break marking a listing sold from anywhere but the native confirm
+//    sheet. The `|| {}` on line below exists because `req.json()` RETURNS null for a literal `null`
+//    payload rather than throwing; a zod schema would reject it.
+//
+// Branches held as-is: guest → 401 auth_required · no storefront → 403 no_storefront · unknown id
+// → 404 not_found · not the owner → 403 forbidden · non-UUID buyerProfileId → 400 invalid_buyer ·
+// buyer with no thread on this seller → 400 buyer_not_in_conversations · core refusal → r.code
+// with r.error · success → 200 {"ok":true}.
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const auth = await checkListingOwner(id)

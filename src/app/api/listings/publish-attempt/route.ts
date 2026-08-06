@@ -34,6 +34,16 @@ const MAX_BODY_BYTES = 200
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
+// ⚠️ WS6 — NOT MIGRATED, and this route is the clearest non-fit in the whole sweep: it has NO
+// error envelope. `done()` answers 204 with an EMPTY BODY on every branch, on purpose (see the
+// ⚠️ ALWAYS 204 note below), so route()'s `{"error":"rate_limited"}` 429 would destroy the one
+// property the endpoint is built around — that the status never tells a prober where the limit
+// sits. The order is wrong too: route() runs auth → rateLimit → body, while BOTH guards that
+// matter here must run BEFORE the limiter (the same-origin check, and the content-length +
+// delivered-length cap that exists so an unauthenticated caller cannot choose how much parser
+// work we do). And the body is read as bounded TEXT and JSON.parse'd afterwards, precisely so it
+// is never handed to req.json() unmeasured — which is exactly what `body:` would do.
+// Nothing about this shape fits, and forcing it would trade a deliberate design for tidiness.
 export async function POST(req: NextRequest) {
   // ⚠️ ALWAYS 204, INCLUDING ON REJECTION. This is fire-and-forget from a form the user is
   // actively using — a 4xx would surface in their console for nothing, and distinguishing

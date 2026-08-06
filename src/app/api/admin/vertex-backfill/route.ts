@@ -1,7 +1,7 @@
 import { deskExcludedListingWhere } from '@/lib/edition-scope'
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getAdmin } from '@/lib/admin'
+import { route } from '@/lib/api/handler'
 import { vertexConfigured, importListingDocuments, listingToDoc } from '@/lib/vertex-search'
 
 export const runtime = 'nodejs'
@@ -13,8 +13,34 @@ export const maxDuration = 300
 // after standing up the data store (docs/vertex-search-setup.md), and again after a DB
 // reset. Paginated by cursor; paces upserts so the Discovery Engine import isn't hammered.
 //   curl -X POST https://eno.vn/api/admin/vertex-backfill   (with an admin session)
-export async function POST(req: NextRequest) {
-  if (!(await getAdmin())) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+//
+// ⚠️ WS6 MIGRATION — THE AUTH PREAMBLE ONLY. `auth: 'admin'` emits the same `{"error":"Forbidden"}`
+// 403 (capital F) the `getAdmin()` line emitted, and the admin email is unused so nothing else is
+// destructured.
+//
+// ⚠️ THE 503 AVAILABILITY GUARD STAYS IN THE HANDLER, AND ITS ORDER IS THE INVARIANT.
+// `vertexConfigured()` ran AFTER the admin check and still does — route()'s fixed order is
+// auth → rateLimit → body → handler, so the first line of the handler is the first thing after
+// auth. An unconfigured deployment must answer 503 to an ADMIN and 403 to everyone else; swapping
+// those would leak whether Vertex is provisioned to an unauthenticated caller.
+//
+// ⚠️ NO `body:` SCHEMA — this route never reads a body (`curl -X POST` with none is the documented
+// call), and giving it one would 400 exactly that. The `max` query param stays hand-clamped; route()
+// has no searchParams option. No `rateLimit:` either: there was none, and a re-runnable backfill
+// behind an admin session does not need one.
+//
+// Branches held: guest / non-admin → 403 `{"error":"Forbidden"}` · admin, Vertex env absent → 503
+// `{"error":"vertex_not_configured"}` · admin, configured, nothing to index → 200
+// `{"ok":true,"indexed":0}` · success → 200 `{"ok":true,"indexed":n}`.
+//
+// ⚠️ ONE BRANCH IS NOT BYTE-IDENTICAL, AND IT IS THE ONE THE COMMENT BELOW RELIES ON.
+// `deskExcludedListingWhere()` THROWS when the shared desk seller cannot be resolved, and the
+// block below says a 500 there is the outcome we want. It still is — but it was Next's default 500
+// HTML page and is now `{"error":"internal_error"}` 500, logged with an `op`. Same status, same
+// "the import must not run", a structured body instead of an error page. Same for a rejection from
+// importListingDocuments mid-run: the import is an incremental upsert, so a partial run leaves the
+// index strictly better off and a re-run is safe.
+export const POST = route({ auth: 'admin' }, async ({ req }) => {
   if (!vertexConfigured()) return NextResponse.json({ error: 'vertex_not_configured' }, { status: 503 })
 
   const { searchParams } = new URL(req.url)
@@ -64,4 +90,4 @@ export async function POST(req: NextRequest) {
   }
 
   return NextResponse.json({ ok: true, indexed: done })
-}
+})

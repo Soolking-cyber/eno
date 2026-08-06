@@ -20,6 +20,24 @@ export const dynamic = 'force-dynamic'
 
 const NO_STORE = { 'Cache-Control': 'no-store, no-cache, must-revalidate', Pragma: 'no-cache' }
 
+// ⚠️ WS6 — NOT MIGRATED: different envelope, guard-before-everything, and a limiter that must run
+// LAST. Enumerated, every exit:
+//   · `{"error":"bad_origin"}` 403 — decided FIRST, ahead of any wrapper step.
+//   · `{"ok":false}` 400 on a JSON parse failure, and again on a non-nonce `nonce`.
+//   · `{"ok":false,"reason":"gone"}` 403 when the per-nonce browser cookie is absent or malformed.
+//   · `{"ok":false}` 429 when throttled.
+//   · `{"ok":true,"voided":true}` / `{"ok":false,"reason":"gone"}` / `{"ok":true,"pair":"…"}` at 200.
+// Three independent blockers follow from that list:
+//   · THE ERROR ENVELOPE IS `{"ok":false,…}`, never the wrapper's bare `{error}`. `invalidBodyCode`
+//     cannot produce `{"ok":false}`, and the throttled 429 is the same shape.
+//   · THE LIMITER RUNS AFTER THE BODY AND AFTER THE COOKIE CHECK, deliberately: an attacker with the
+//     nonce but no browser cookie is rejected 403 without ever touching the limiter, so hoisting it
+//     into `rateLimit:` would let that caller consume the honest visitor's per-IP budget. Its key is
+//     also `cf-connecting-ip || 'unknown'`, not `clientIp()`, so off-Cloudflare traffic buckets
+//     differently from what the wrapper would compute.
+//   · EVERY RESPONSE CARRIES `Cache-Control: no-store, no-cache, must-revalidate` + `Pragma:
+//     no-cache` — and this is the one endpoint that returns the pairing code, so losing no-store is
+//     not a cosmetic regression.
 export async function POST(request: Request) {
   const appOrigin = new URL(process.env.NEXT_PUBLIC_APP_URL || 'https://eno.vn').origin
   if (process.env.NODE_ENV === 'production' && request.headers.get('origin') !== appOrigin) {

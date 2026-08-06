@@ -1,10 +1,11 @@
 import { scopedListingWhere } from '@/lib/edition-scope'
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { clientIp } from '@/lib/client-ip'
 import { db } from '@/lib/db'
 import { matchBrand, categoryHasBrand } from '@/lib/brand'
 import { fold } from '@/lib/fold'
 import { rateLimit } from '@/lib/ratelimit'
+import { route } from '@/lib/api/handler'
 
 export const runtime = 'nodejs'
 
@@ -88,7 +89,24 @@ async function bestModelMatch(tokens: string[], brand: string | null): Promise<M
   return { brand: best.brand, model: best.model, category }
 }
 
-export async function GET(req: NextRequest) {
+// ⚠️ WS6 MIGRATION. `auth: 'public'` — resolving a typed query is anonymous by definition.
+//
+// ⛔ THE RATE LIMIT STAYS INLINE, LIKE ITS SIBLING /api/search/suggest, AND FOR THE SAME REASON:
+// tripping it returns `empty` — a **200** `{"brand":null}` — because the caller's documented
+// fallback for "no intent match" is a plain keyword search. `route()`'s `rateLimit:` option answers
+// 429 `rate_limited`, which this route has never emitted and no caller branches on. Handing it over
+// would convert a graceful degradation into an error on the search path.
+//
+// ⚠️ THE SHORT-CIRCUIT ORDER IS LOAD-BEARING AND IS UNCHANGED: the length/word-count guard runs
+// BEFORE the limiter, so a sentence costs no limiter round-trip. A wrapper-level `rateLimit:` would
+// have run first, inverting that.
+//
+// ⚠️ `NextRequest` → `Request`: this handler already read `new URL(req.url)`, so the body is
+// untouched. Accepted wire change on the failure path only — `matchBrand`, the groupBy in
+// `dominantCategory` and the 120-row scan in `bestModelMatch` are unguarded, so a DB throw was
+// Next's default 500 and is now `{"error":"internal_error"}` 500. Note that a throw does NOT degrade
+// to `empty`: this route fails soft on a *rate limit*, never on a broken query.
+export const GET = route({ auth: 'public' }, async ({ req }) => {
   const q = (new URL(req.url).searchParams.get('q') || '').trim()
   // A brand/model is a few words; skip sentences (those want a keyword search).
   if (q.length < 2 || q.length > 40 || q.split(/\s+/).length > 5) return empty
@@ -133,4 +151,4 @@ export async function GET(req: NextRequest) {
   }
 
   return empty
-}
+})

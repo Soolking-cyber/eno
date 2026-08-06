@@ -67,6 +67,18 @@ const STATUS: Record<StayEditError, number> = {
   update_failed: 500,
 }
 
+// ⚠️ WS6 — NOT MIGRATED: three wire facts, and the third is what closes the last option.
+// · A guest is answered `{"error":"not_signed_in"}` at 401. Every route() auth mode that resolves a
+//   caller answers `apiFail('auth_required', 401)`, and `Options` exposes no way to override that
+//   code (only `invalidBodyCode`). Migrating changes the body on the one branch every
+//   unauthenticated caller reaches.
+// · The limiter's key is `profile.id`, so it cannot be hoisted into `rateLimit:` without the
+//   wrapper first resolving the caller — and under `auth: 'public'` the wrapper keys the bucket on
+//   `clientIp(req)` instead, which pools every caller behind one NAT into a shared 60/h.
+// · `body:` alone would move parsing AHEAD of the pinned auth and limiter checks, because route()'s
+//   fixed order is auth → rateLimit → body and `auth: 'public'` skips straight to the body. A guest
+//   posting malformed JSON would then get 400 `invalid_body` where it gets 401 today.
+// With all three pinned in the handler, all four options are empty — churn, not a wrapper.
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id: itineraryId } = await params
   const profile = await getCurrentProfile()

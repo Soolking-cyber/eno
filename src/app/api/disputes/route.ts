@@ -1,7 +1,6 @@
-import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getCurrentProfileId } from '@/lib/admin'
 import { disputeStage } from '@/lib/dispute'
+import { route } from '@/lib/api/handler'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -12,10 +11,17 @@ const firstImg = (images: string | null): string | null => {
 
 // My dispute cases — both sides: cases I filed and cases filed about me/my storefront.
 // Open cases first, then by latest activity. Powers /disputes.
-export async function GET() {
-  const meId = await getCurrentProfileId()
-  if (!meId) return NextResponse.json({ error: 'auth_required' }, { status: 401 })
-
+//
+// ⚠️ WS6 MIGRATION — auth preamble only; there was nothing else to hoist (no rate limit, no body).
+// `auth: 'userId'` because the old code called getCurrentProfileId() and only ever uses the id as a
+// query predicate; `'profile'` would add an auth-server round trip + a Profile read to a list page.
+// Guest → 401 `{"error":"auth_required"}`, unchanged. The `{cases}` 200 shape is unchanged: the
+// handler returns a plain object and route() JSON-serialises it.
+//
+// ⚠️ ONE FAILURE-PATH WIRE CHANGE, DELIBERATE: neither Prisma call had a .catch(), so a DB error was
+// an unhandled throw and Next answered its own default 500. route() now catches it, logs with an
+// `op`, and answers `{"error":"internal_error"}` 500.
+export const GET = route({ auth: 'userId' }, async ({ userId: meId }) => {
   const mySeller = await db.seller.findUnique({ where: { ownerId: meId }, select: { id: true } })
   const rows = await db.report.findMany({
     where: {
@@ -57,5 +63,5 @@ export async function GET() {
       return b.lastActivityAt.localeCompare(a.lastActivityAt)
     })
 
-  return NextResponse.json({ cases })
-}
+  return { cases }
+})

@@ -197,6 +197,19 @@ const nextConfig: NextConfig = {
             // files that a marketplace build DOES compile. The gate stops it rendering; only the
             // alias stops eno.vn shipping the partner's name in its chunks.
             "@/lib/visa-provider": "./src/lib/visa-provider.stub.ts",
+            // The visa/itinerary half of the API error vocabulary. `src/lib/api/errors.ts` holds a
+            // RUNTIME array of code strings and is imported by `src/lib/api/client.ts`, which exists
+            // precisely so the 176 hand-rolled `fetch('/api/…')` call sites can eventually branch on
+            // typed codes — so this is a shared module on a path INTO client chunks. Eight of its
+            // entries name a surface eno.vn may not mention (`visa_database_unavailable`,
+            // `itinerary_limit_reached`, `not_a_visa_product`, …), and every one is emitted only by
+            // a `route.svc.ts` handler that a marketplace build never compiles. Nothing renders them
+            // today, which is exactly the state the sitemap leak was in before it shipped: a gate
+            // decides what renders, an alias decides what ships.
+            // ⚠️ THE TYPE UNION IS NOT SPLIT, ON PURPOSE — types are erased, so a whole
+            // `ApiErrorCode` costs the marketplace nothing and keeps one vocabulary for the
+            // compile-time subset assertions. Only the runtime array is edition-scoped.
+            "@/lib/api/errors-services": "./src/lib/api/errors-services.stub.ts",
             // The cross-site backlink surface: the canonical eno.vn destinations eno.forum links
             // to, and the promo section that introduces them. Aliased for a reason that reads
             // backwards until you say it out loud — the copy is about eno.vn, and eno.vn is

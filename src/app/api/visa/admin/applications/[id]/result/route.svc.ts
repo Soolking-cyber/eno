@@ -74,6 +74,17 @@ const BLOCKED_STATUSES = new Set(['draft', 'cancelled', 'rejected'])
 const NO_STORE = { 'Cache-Control': 'no-store, max-age=0, must-revalidate' } as const
 const refuse = (error: string, status: number) => NextResponse.json({ error }, { status, headers: NO_STORE })
 
+// ⚠️ WS6 — NOT MIGRATED: same three bytes as the sibling bundle route.
+//   · `auth: 'admin'` would change the refusal from `{"error":"forbidden"}` to
+//     `{"error":"Forbidden"}` (handler.ts:189 hardcodes the capital F).
+//   · `refuse()` puts `Cache-Control: no-store, max-age=0, must-revalidate` on every way out —
+//     403, 404, both 409s, all the 400s and the 503s — and so do the two success responses.
+//     `apiFail()` sets no headers.
+//   · `rateLimit:` is keyed on the ADMIN EMAIL; with `auth:'admin'` the wrapper's `userId` is null
+//     so it would key on `clientIp(req)`.
+// `body:` is unavailable regardless: the payload is `multipart/form-data`, and it is deliberately
+// read only AFTER the one-result-per-case cap has been checked, so a refused 10 MB PDF is never
+// buffered. The wrapper parses the body before the handler runs.
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   // (1) ADMIN ONLY. getAdmin() re-verifies the session with the auth server and matches it
   // against ADMIN_EMAILS — the same gate as the bundle and takeover routes. NOTHING is read

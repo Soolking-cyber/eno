@@ -1,9 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { getCurrentProfileId } from '@/lib/admin'
+import { NextResponse } from 'next/server'
 import { rateLimit } from '@/lib/ratelimit'
 import { getEnforcement, blocksPosting } from '@/lib/enforcement'
 import { getSupabaseAdmin, LISTING_VIDEOS_BUCKET } from '@/lib/supabase-admin'
 import { VIDEO_ALLOWED, VIDEO_MAX_BYTES } from '@/lib/core/media'
+import { route } from '@/lib/api/handler'
 
 export const runtime = 'nodejs'
 
@@ -16,12 +16,23 @@ export const runtime = 'nodejs'
 // accounts can't park content in public storage), per-profile rate limit, declared
 // type/size pre-check. The bucket's own MIME allowlist + 50MB cap re-check at upload
 // time, and /api/upload/video/complete verifies the landed object's real magic bytes.
-export async function POST(req: NextRequest) {
+//
+// ⚠️ WS6 MIGRATION — THE WRAPPER TAKES THE AUTH PREAMBLE ONLY, AND THE RATE LIMIT DELIBERATELY STAYS
+// IN THE HANDLER. route() runs `rateLimit` BEFORE the handler, which would put it ahead of the
+// enforcement gate and flip a restricted account that is also over the limit from 403
+// `account_restricted` to 429 `rate_limited`. The gate order above is documented and intentional, so
+// it is preserved rather than reordered for the sake of using the option. `auth: 'userId'` is the
+// same getCurrentProfileId() the old code called.
+//
+// ⚠️ NO `body:` SCHEMA — `req.json().catch(() => ({}))` means a missing/malformed body succeeds into
+// the `bad_type` 415, not a 400. A schema would change that code.
+//
+// ⚠️ THE try/catch STAYS: every throw here answers `sign_failed` 500, not `internal_error`, so this
+// route is byte-identical on every branch including the failure path. That catch would also rewrite a
+// thrown ApiError into `sign_failed` — return responses explicitly, don't convert them to throws.
+export const POST = route({ auth: 'userId' }, async ({ req, userId }) => {
   try {
-    const profileId = await getCurrentProfileId()
-    if (!profileId) return NextResponse.json({ error: 'auth_required' }, { status: 401 })
-
-    const { state } = await getEnforcement(profileId)
+    const { state } = await getEnforcement(userId)
     if (blocksPosting(state)) return NextResponse.json({ error: 'account_restricted' }, { status: 403 })
 
     // Accountable account → fail OPEN (don't block posting on a Redis blip).
@@ -29,7 +40,7 @@ export async function POST(req: NextRequest) {
     // write into the PUBLIC listing-videos bucket. Un-limited, that is free bulk file hosting on our
     // storage bill. Same blast radius as the transcode route: no video attach during an outage,
     // everything else about posting still works.
-    const limit = await rateLimit('upload-video-sign', profileId, 30, '1 h', { strict: true })
+    const limit = await rateLimit('upload-video-sign', userId, 30, '1 h', { strict: true })
     if (!limit.success) return NextResponse.json({ error: 'rate_limited' }, { status: 429 })
 
     const body = (await req.json().catch(() => ({}))) as { type?: unknown; size?: unknown }
@@ -55,4 +66,4 @@ export async function POST(req: NextRequest) {
     console.error('[POST /api/upload/video/sign]', e)
     return NextResponse.json({ error: 'sign_failed' }, { status: 500 })
   }
-}
+})

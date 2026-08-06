@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { NextResponse } from 'next/server'
-import { getCurrentProfileId } from '@/lib/admin'
+import { route } from '@/lib/api/handler'
 import { rateLimit } from '@/lib/ratelimit'
 import { decryptVisaPayload, visaApplicantSnapshotHash, visaCryptoReady } from '@/lib/visa/crypto'
 import { getVisaDb } from '@/lib/visa/db'
@@ -21,15 +21,43 @@ const actionSchema = z.discriminatedUnion('action', [
 ])
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
-export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const userId = await getCurrentProfileId()
-  if (!userId) return NextResponse.json({ error: 'auth_required' }, { status: 401 })
+// ⚠️ WS6 MIGRATION — `auth: 'userId'` AND NOTHING ELSE. THIS IS THE IRREVERSIBLE ONE (it stamps
+// the consent hashes and hands a government form to the desk), so the migration is deliberately
+// the smallest possible: the auth preamble was `getCurrentProfileId()` + `{error:'auth_required'}`
+// 401, which is `auth: 'userId'` exactly, and every other line — the env gate, the limiter, the
+// schema, the uuid test, all three CAS updates and every return — is byte-for-byte what it was.
+//
+// THE OTHER OPTIONS ARE BLOCKED BY ORDER. This route runs auth → 503 env gate → limiter → body →
+// uuid, and route()'s fixed order is auth → limiter → body → handler. Hoisting either would put
+// it in FRONT of the `visaCryptoReady()` gate, so a host without the key would answer 429
+// `rate_limited` (after 20 calls) or 400 `invalid_action` where it answers 503 today.
+//
+// THE WIRE, ENUMERATED. Guest → 401 `auth_required`; no key → 503
+// `visa_encryption_not_configured`; throttled → 429 `rate_limited`; body not one of the three
+// actions → 400 `invalid_action`; non-uuid `id` → 404 `not_found`; case absent or not yours → 404
+// `not_found`; cancel on a resolved case → 409 `application_locked`; cancel → 200 `{application}`;
+// checklist issues → 400 `{error:'application_incomplete',issues}` (an EXTRA field beside `error`,
+// which is a second reason no schema hoist could carry this route's 400s); send_for_review from a
+// non-editable status → 409 `invalid_status_transition`; no product selected → 409
+// `product_not_selected`; payments configured and unpaid → **402** `payment_required_first`;
+// either CAS matching zero rows → 409 `application_status_changed`; approve_for_prefill outside
+// `applicant_approval` → 409 `invalid_status_transition`; success → 200 `{application}`.
+//
+// ⚠️ THE TWO CAS UPDATES ARE THE SUBMISSION'S SAFETY PROPERTY AND ARE NOT TOUCHED. Each is one
+// awaited statement carrying `.eq('status', app.status).eq('updated_at', app.updated_at)`; route()
+// runs strictly before and after this handler and cannot move anything across either of them.
+//
+// ⚠️ ACCEPTED EXCEPTION, and on this route it is the whole method: there is no try/catch anywhere
+// below, so any unhandled throw in this handler used to reach Next's default 500 HTML and now
+// answers `{"error":"internal_error"}` 500 with the throw logged. Stated as a shape rather than an
+// inventory of causes. No deliberate branch changes, and nothing that WRITES changes at all.
+export const POST = route({ auth: 'userId' }, async ({ req, params, userId }) => {
   if (!visaCryptoReady()) return NextResponse.json({ error: 'visa_encryption_not_configured' }, { status: 503 })
   const limit = await rateLimit('visa-submit', userId, 20, '1 h', { strict: true })
   if (!limit.success) return NextResponse.json({ error: 'rate_limited' }, { status: 429 })
-  const parsed = actionSchema.safeParse(await request.json().catch(() => null))
+  const parsed = actionSchema.safeParse(await req.json().catch(() => null))
   if (!parsed.success) return NextResponse.json({ error: 'invalid_action' }, { status: 400 })
-  const { id } = await params
+  const { id } = params
   if (!UUID_RE.test(id)) return NextResponse.json({ error: 'not_found' }, { status: 404 })
   const db = getVisaDb()
   const [{ data: application }, { data: documents }] = await Promise.all([
@@ -104,4 +132,4 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const data = approve.data
   await recordVisaEvent(id, 'applicant', 'prefill_authorized', userId, { declarationVersion: VISA_DECLARATION_VERSION, authorizationVersion: VISA_AUTHORIZATION_VERSION })
   return NextResponse.json({ application: serializeVisa(data as VisaApplicationRow, docs) })
-}
+})

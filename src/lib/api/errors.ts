@@ -1,3 +1,8 @@
+import { SERVICES_ALL } from '@/lib/api/errors-services'
+import type { PublishBlockCode } from '@/lib/publish-guard'
+import type { ListingStatusErrorCode, ListingUpdateErrorCode } from '@/lib/core/listings'
+import type { SellerUpdateErrorCode } from '@/lib/core/seller'
+
 /**
  * THE ERROR VOCABULARY THAT IS ALREADY ON THE WIRE.
  *
@@ -205,6 +210,81 @@ export type NicheApiErrorCode =
   | 'reply_required'
   | 'report_cooldown'
   | 'reporting_blocked'
+  /**
+   * ⚠️ MISSED BY THE HARVEST, NOT NEW ON THE WIRE. POST /api/handle re-emits validateHandle()'s own
+   * code with `{ error: code }` where `code` is a VARIABLE, so the regex in this file's header —
+   * which matches a literal `error: '…'` — could not see it. Anything returning a computed code is
+   * invisible to that grep; this is the first one found (WS6, 2026-08-06). Added rather than folded
+   * into `invalid`: the handle editor distinguishes "that name is taken by the platform" from
+   * "that name is malformed", and they are different sentences to the user.
+   */
+
+  /**
+   * ⚠️ NINE CODES THAT WERE ON THE WIRE WHILE THIS TYPE SAID THEY DID NOT EXIST, AND THE REASON THEY
+   * HID IS THE POINT. The harvest that built this file — and `errors.test.ts`, which re-runs it on
+   * every test run — is a TEXT SCAN for `error: '…'` / `ApiError('…'` / `apiFail('…'`. A code that
+   * reaches the wire through a VARIABLE is invisible to it:
+   *   · nine of the twelve `PublishBlockCode`s (src/lib/publish-guard.ts) are re-emitted wholesale
+   *     as `e.code` when a `PublishBlockedError` is caught in `POST /api/listings` and
+   *     `PATCH /api/listings/[id]`. Every one is what a seller sees when a publish is refused.
+   *   · `visa_schema_not_ready` is computed — `{ error: missing ? 'visa_schema_not_ready' : message }`
+   *     at src/app/api/visa/applications/route.svc.ts:261 — so `error: ` is followed by an
+   *     identifier, not a quote.
+   * `apiErrorCode()` returned null for all ten, meaning a client could not type-check against the
+   * most common refusal in the whole app. Same blind spot that briefly swallowed `'reserved'`.
+   * `PublishBlockCode` is now coupled to this union at compile time (see the bottom of this file),
+   * so the thirteenth publish code cannot repeat this.
+   *
+   * ⚠️ RAISED IN REVIEW AND NOT FIXED HERE, BECAUSE IT PREDATES THIS CHANGE AND IS THE OWNER'S CALL:
+   * `visa_schema_not_ready` joins `visa_database_unavailable` and `visa_encryption_not_configured`,
+   * which were already members. All three are emitted ONLY by `route.svc.ts` files (13 of them),
+   * i.e. the services edition — so on eno.vn they are vocabulary for routes that do not exist, and
+   * `ALL` is a RUNTIME array, not just a type. Today that leaks nothing: `apiErrorCode()` has one
+   * caller (`src/lib/api/client.ts:93`) and `client.ts` has no production importer, so this module
+   * reaches no client bundle. But `client.ts` exists precisely to be adopted by the 176 raw
+   * `fetch('/api/…')` call sites, and the day the first eno.vn component adopts it, three
+   * visa-named strings ship in the licensed marketplace's JS. Per CLAUDE.md that edition must not
+   * even MENTION visa. The fix is an edition split of this vocabulary (or making `ALL` type-only);
+   * either is a deliberate change, not a drive-by inside an error-contract fix.
+   */
+  | 'contact_in_name'
+  | 'duplicate_listing'
+  | 'identity_expired'
+  | 'identity_pending'
+  | 'identity_suspended'
+  | 'identity_unverified'
+  | 'location_required'
+  | 'photo_required'
+  | 'photos_min'
+
+  /**
+   * ⚠️ FOUR MORE THE TEXT SCAN COULD NOT SEE, FROM A SECOND VARIABLE-SHAPED EMISSION.
+   * `PATCH /api/listings/[id]` answers `{ error: r.error }` where `r` comes from
+   * `updateListingCore`, whose return type was a bare `string` — so neither the harvest nor the
+   * compiler could name what it returns. Every one of these has been reaching real sellers mid-edit
+   * while `apiErrorCode()` called it unknown. `ListingUpdateErrorCode` in src/lib/core/listings.ts
+   * now names the union, and the assertion at the bottom of this file pins it to this one.
+   */
+  | 'invalid_price'
+  | 'no_phone_in_listing'
+  | 'title_too_short'
+  | 'urgent_quota'
+
+  /**
+   * ⚠️ SEVEN MORE FROM THE SAME CLASS, FOUND BY MEASURING IT RATHER THAN WAITING FOR IT.
+   * `{ error: <helper>.error }` appears at 40 route sites, and every helper behind one whose return
+   * type was a bare `string` could put an untyped code on the wire. Naming those unions
+   * (`SellerUpdateErrorCode`, `ListingStatusErrorCode`, `VisaTransitionErrorCode`) surfaced these,
+   * and each is now asserted a subset of this one at COMPILE time. `admin_required` is the sharpest
+   * of them: it is emitted by a server-action WRAPPER that the transition function itself never
+   * returns, so while the type was `string` the wrapper was silently widening the contract.
+   * ⚠️ `visa_database_not_configured` came from the same sweep and is in NEITHER list, because it
+   * belongs to `VisaTransitionErrorCode` — a server-action union, not an API one (see below).
+   */
+  | 'bad_tax_code'
+  | 'invalid_status'
+  | 'no_phone_in_profile'
+  | 'reserved'
   | 'retry'
   | 'save_failed'
   | 'send_failed'
@@ -239,6 +319,7 @@ export type NicheApiErrorCode =
   | 'verification_locked'
   | 'verify_phone_to_claim'
   | 'vertex_not_configured'
+  | 'visa_schema_not_ready'
   | 'visa_database_unavailable'
   | 'window_closed'
 /** Every error code this API can return today. */
@@ -262,7 +343,15 @@ export type ApiErrorBody = { error: ApiErrorCode }
 export function apiErrorCode(body: unknown): ApiErrorCode | null {
   if (!body || typeof body !== 'object') return null
   const e = (body as { error?: unknown }).error
-  return typeof e === 'string' && (ALL as readonly string[]).includes(e) ? (e as ApiErrorCode) : null
+  if (typeof e !== 'string') return null
+  /**
+   * ⚠️ BOTH HALVES. `ALL` is the marketplace vocabulary; `SERVICES_ALL` is the visa/itinerary
+   * vocabulary, and on an eno.vn build `next.config.ts` aliases it to an empty stub so those
+   * strings are absent from the artifact entirely. A marketplace caller therefore gets `null` for
+   * a services code — which is correct, because no route on that edition can emit one.
+   */
+  const known = (ALL as readonly string[]).includes(e) || (SERVICES_ALL as readonly string[]).includes(e)
+  return known ? (e as ApiErrorCode) : null
 }
 
 /**
@@ -347,7 +436,6 @@ const ALL = [
   'invalid_email',
   'invalid_events',
   'invalid_input',
-  'invalid_itinerary',
   'invalid_kind',
   'invalid_locale',
   'invalid_media_path',
@@ -361,10 +449,7 @@ const ALL = [
   'invalid_subscription',
   'invalid_token',
   'invalid_trip',
-  'invalid_visa_payload',
   'invalid_vote',
-  'itinerary_limit_reached',
-  'itinerary_schema_not_ready',
   'legal_address_required',
   'legal_name_required',
   'limit_reached',
@@ -394,7 +479,6 @@ const ALL = [
   'no_suggestions',
   'not_a_flag',
   'not_a_video',
-  'not_a_visa_product',
   'not_actionable',
   'not_active',
   'not_configured',
@@ -433,6 +517,23 @@ const ALL = [
   'reply_required',
   'report_cooldown',
   'reporting_blocked',
+  'contact_in_name',
+  'duplicate_listing',
+  'identity_expired',
+  'identity_pending',
+  'identity_suspended',
+  'identity_unverified',
+  'location_required',
+  'photo_required',
+  'photos_min',
+  'invalid_price',
+  'no_phone_in_listing',
+  'title_too_short',
+  'urgent_quota',
+  'bad_tax_code',
+  'invalid_status',
+  'no_phone_in_profile',
+  'reserved',
   'retry',
   'save_failed',
   'send_failed',
@@ -467,8 +568,6 @@ const ALL = [
   'verification_locked',
   'verify_phone_to_claim',
   'vertex_not_configured',
-  'visa_database_unavailable',
-  'visa_encryption_not_configured',
   'window_closed',
 ] as const satisfies readonly ApiErrorCode[]
 
@@ -482,6 +581,54 @@ const ALL = [
  * This line closes the other direction: if any union member is missing from `ALL`, `Missing` is not
  * `never` and the assignment fails to compile, naming the absent codes in the error.
  */
-type Missing = Exclude<ApiErrorCode, (typeof ALL)[number]>
+type Missing = Exclude<ApiErrorCode, (typeof ALL)[number] | (typeof SERVICES_ALL)[number]>
 const _everyCodeIsListed: Missing extends never ? true : ['missing from ALL:', Missing] = true
 void _everyCodeIsListed
+
+/**
+ * ⚠️ `PublishBlockCode` IS RE-EMITTED WHOLESALE, SO IT IS A SUBSET OF THIS UNION BY CONSTRUCTION —
+ * AND NOTHING ENFORCED THAT UNTIL NOW. `POST /api/listings` and `PATCH /api/listings/[id]` both
+ * catch `PublishBlockedError` and answer `{ error: e.code }`, so every member of that union is an
+ * API error code whether or not anyone remembered to add it here. Nine of the twelve were missing;
+ * see the block above for why the text-scan harvest could not see them.
+ *
+ * A `type` import, so this is erased at build time and adds no runtime coupling — `publish-guard`
+ * is client-safe (pure string/image helpers) and does not import this file, so there is no cycle.
+ *
+ * The failure this prevents is specific: someone adds a thirteenth publish block code, ships it,
+ * and it silently becomes a wire code that `apiErrorCode()` reports as unknown. Now it will not
+ * compile until the code is added here too.
+ */
+/**
+ * ⚠️ THE SAME COUPLING FOR THE SECOND VARIABLE-SHAPED EMISSION. `updateListingCore` returns a code
+ * that `PATCH /api/listings/[id]` puts straight on the wire, so its union is an API union by
+ * construction — and it went unenforced long enough for four members to go missing. Narrowing that
+ * function's return type from `string` is what made this assertion possible at all.
+ */
+/**
+ * ⚠️ `VisaTransitionErrorCode` IS DELIBERATELY ABSENT FROM THIS LIST, AND FINDING OUT WHY WAS THE
+ * useful part. It looks like a peer of the two below — a named helper union whose codes reach a
+ * caller — but `transitionVisaCase` has exactly one consumer,
+ * `src/app/admin/visas/[id]/actions.ts`, which is a SERVER ACTION, not a route. Its return value is
+ * an RPC result, not an HTTP response body, so its codes were never on the API wire and forcing
+ * them into `ApiErrorCode` would have made this vocabulary describe something it does not describe.
+ * Naming that union was still worth it on its own merits: it immediately exposed the wrapper
+ * returning `admin_required`, a code the transition function itself never produces.
+ */
+type UnlistedHelperCode = Exclude<
+  SellerUpdateErrorCode | ListingStatusErrorCode,
+  ApiErrorCode
+>
+const _everyHelperCodeIsAnApiCode:
+  UnlistedHelperCode extends never ? true : ['helper union missing from ApiErrorCode:', UnlistedHelperCode] = true
+void _everyHelperCodeIsAnApiCode
+
+type UnlistedListingUpdateCode = Exclude<ListingUpdateErrorCode, ApiErrorCode>
+const _everyListingUpdateCodeIsAnApiCode:
+  UnlistedListingUpdateCode extends never ? true : ['ListingUpdateErrorCode missing from ApiErrorCode:', UnlistedListingUpdateCode] = true
+void _everyListingUpdateCodeIsAnApiCode
+
+type UnlistedPublishCode = Exclude<PublishBlockCode, ApiErrorCode>
+const _everyPublishCodeIsAnApiCode:
+  UnlistedPublishCode extends never ? true : ['PublishBlockCode missing from ApiErrorCode:', UnlistedPublishCode] = true
+void _everyPublishCodeIsAnApiCode

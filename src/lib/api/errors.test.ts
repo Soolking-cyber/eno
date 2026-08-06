@@ -47,14 +47,245 @@ function codesOnTheWire(): Set<string> {
       found.add(m[1])
     }
   }
+  for (const c of codesReachingTheWireThroughAVariable(files)) found.add(c)
   return found
 }
 
+/**
+ * ⚠️ THE CODES THE TEXT SCAN STRUCTURALLY CANNOT SEE — DERIVED AND RE-VERIFIED, NOT ALLOWLISTED.
+ *
+ * The scan above matches a string LITERAL next to `error:` / `ApiError(` / `apiFail(`. Two families
+ * reach the wire through a VARIABLE instead, so it found neither, and all ten sat outside
+ * `ApiErrorCode` while the app returned them every day. `apiErrorCode()` answered `null` for the
+ * single most common refusal in the product. This is the same blind spot that briefly swallowed
+ * `'reserved'`; the difference is that one announced itself by failing this test, and these did not.
+ *
+ * ⚠️ THE POINT IS THAT THIS IS NOT A LIST OF EXEMPTIONS. Each entry is re-derived from source on
+ * every run and each is conditioned on the emitting code still existing, so deleting the route or
+ * the union makes its codes go stale again exactly as they should. A hardcoded exemption list would
+ * quietly become the next thing that is wrong.
+ */
+/**
+ * The helper unions a route re-emits verbatim. `floor` is the member count guard — see
+ * `unionMembers`. Adding a row is how a newly-NAMED helper union becomes visible to this harvest;
+ * naming the union in the first place is what makes the compile-time assertion in errors.ts
+ * possible, and that assertion is the real guarantee. This table only decides on-wire-ness.
+ */
+const RE_EMITTED_UNIONS = [
+  { fn: 'updateListingCore', type: 'ListingUpdateErrorCode', file: 'src/lib/core/listings.ts', floor: 5 },
+  { fn: 'setStatusCore', type: 'ListingStatusErrorCode', file: 'src/lib/core/listings.ts', floor: 2 },
+  { fn: 'updateSellerCore', type: 'SellerUpdateErrorCode', file: 'src/lib/core/seller.ts', floor: 7 },
+] as const
+
+function codesReachingTheWireThroughAVariable(routeFiles: string[]): string[] {
+  const out: string[] = []
+
+  // 1. PublishBlockCode — `POST /api/listings` and `PATCH /api/listings/[id]` catch a
+  //    PublishBlockedError and answer `{ error: e.code }`, so the WHOLE union is on the wire.
+  //    Conditioned on a route actually re-emitting it; derived from the union's own declaration.
+  //
+  // ⚠️ THE CONDITION IS "CATCHES IT **AND** RE-EMITS `.code`", ON COMMENT-STRIPPED SOURCE — and
+  // every one of those clauses replaces a bug that a review caught in the first draft. Each made the
+  // condition permanently true, which would turn this whole function into the blanket exemption its
+  // header promises it is not:
+  //   · `.includes('PublishBlockedError')` matched the identifier in these files' own PROSE.
+  //   · it is a SUBSTRING test, so renaming the symbol to `PublishBlockedErrorX` still satisfied it.
+  //   · merely CATCHING the error is not emitting its code — a route that swaps
+  //     `{ error: e.code }` for a generic 500 would keep all twelve codes marked as on-wire.
+  // The re-emission site this is really asserting is `src/app/api/listings/route.ts`'s
+  // `{ error: e.code, detail: e.detail }`.
+  // ⚠️ A BACKREFERENCE, BECAUSE PROXIMITY IS NOT COUPLING. This condition took three attempts and
+  // each intermediate version was provably vacuous — the mutation that exposed each is worth
+  // knowing, since the failure mode is a check that looks rigorous and asserts nothing:
+  //   1. `.includes('PublishBlockedError')` — matched the identifier in the file's own PROSE, and
+  //      being a substring test it also accepted `PublishBlockedErrorX`.
+  //   2. `\bPublishBlockedError\b` AND `error:\s*\w+\.code` as INDEPENDENT tests — proves only that
+  //      both strings exist somewhere in the file.
+  //   3. the two joined by a 400-character window — still just proximity: a route that catches the
+  //      error, answers a generic 500, and emits `{ error: db.code }` for an unrelated failure a few
+  //      lines below passed cleanly.
+  // Capturing the identifier the `instanceof` binds and requiring `error: <that same identifier>
+  // .code` is what finally ties the emission to the branch. `\1` is doing the real work here.
+  //
+  // ⚠️ IT IS STILL A HEURISTIC, AND SAYING SO IS THE POINT — a regex cannot match balanced braces,
+  // so a file that catches `e instanceof PublishBlockedError`, answers generically, and then emits
+  // `{ error: e.code }` for a DIFFERENT error reusing the name `e` within 400 characters would pass.
+  // That is contrived but not impossible (review raised it), and the honest framing is that the real
+  // guarantee lives elsewhere: `PublishBlockCode extends ApiErrorCode` is asserted at COMPILE time
+  // in errors.ts, so no publish code can go missing from the union whatever this function decides.
+  // What this function affects is only whether those codes count as on-wire — and both ways it can
+  // be wrong produce a loud red suite (a spurious "stale code", or the throw below), never a silent
+  // wire bug. A guard whose worst case is a false alarm is allowed to be a heuristic; one whose
+  // worst case is a false pass is not.
+  const reEmitters = routeFiles.filter((f) =>
+    // ⚠️ `PublishBlockedError\b` — the word boundary is load-bearing and was LOST once already while
+    // adding the backreference above, which silently re-opened flaw (1): without it,
+    // `PublishBlockedErrorX` matches by prefix. Re-caught by re-running the mutation battery rather
+    // than by reading, which is the argument for keeping that battery.
+    /(\w+)\s+instanceof\s+PublishBlockedError\b[\s\S]{0,400}?\berror:\s*\1\.code\b/.test(stripComments(readFileSync(f, 'utf8'))),
+  )
+  if (reEmitters.length) {
+    // ⚠️ A LINE SCAN, NOT A TERMINATOR REGEX, AND THE THIRD SHAPE THIS PARSE HAS TAKEN.
+    // `[^\n]+` broke on a multi-line reformat (one member, tripping the floor below and throwing on
+    // a cosmetic change). Its replacement read to `(?:\n\n|\nexport |\n\/\*)`, which review showed
+    // is worse in a subtler way: `stripComments` leaves the newlines around a stripped JSDoc, so a
+    // doc comment BETWEEN two members becomes a blank line, the capture stops mid-union at say 8 of
+    // 12, the `< 5` floor waves it through, and the four survivors report as "stale codes" — a red
+    // suite pointing at the union instead of at the parser. It also matched nothing at all if the
+    // declaration ended the file.
+    // Consuming the declaration line plus every following blank-or-`|` line handles all four
+    // shapes: one-liner, reformatted, JSDoc-interrupted, and end-of-file.
+    // ⚠️ COMMENT-STRIPPED TOO, AND THIS IS THE ONE THAT MATTERS MOST — it is the only file whose
+    // string LITERALS are harvested, so a comment near the union carrying a quoted example would be
+    // read as a wire code and silently widen the exemption. The draft stripped comments from the
+    // route files and not from this one; a reviewer pointed out the omission sat directly under a
+    // paragraph arguing that membership tests over commented source are guilty until proven
+    // otherwise. (`SharedApiErrorCode` in this very file carries trailing `// 89` counts, so
+    // commented unions are the local norm, not a hypothetical.)
+    out.push(...unionMembers('src/lib/publish-guard.ts', 'PublishBlockCode', 10))
+  }
+
+  // 2. One-off COMPUTED codes: `{ error: cond ? 'x' : y }` puts an identifier after `error:`.
+  //    Each is pinned to the file that emits it and only counts while that file still contains it.
+  // 2. HELPER UNIONS RE-EMITTED AS `{ error: <result>.error }`. A route calls a core helper and
+  //    hands its code straight to the client, so the helper's union IS an API union. There are 40
+  //    such sites; these are the ones whose helper return type is NAMED (the rest still say
+  //    `error: string`, and until a union is named neither the compiler nor this harvest can see
+  //    what it puts on the wire — that is how eleven live codes went missing).
+  //
+  //    Same backreference discipline as family 1: bind the identifier the helper is assigned to and
+  //    require the re-emission to read `.error` off THAT identifier. Two independent matches would
+  //    pass on any file that calls the helper and separately emits some other result's `.error`,
+  //    which describes most routes in this tree.
+  for (const { fn, type, file, floor } of RE_EMITTED_UNIONS) {
+    const emits = routeFiles.some((f) =>
+      new RegExp(String.raw`(\w+)\s*=\s*await\s+${fn}\b[\s\S]{0,400}?\berror:\s*\1\.error\b`)
+        .test(stripComments(readFileSync(f, 'utf8'))),
+    )
+    if (emits) out.push(...unionMembers(file, type, floor))
+  }
+
+  // 3. COMPUTED codes — `{ error: cond ? 'x' : y }` puts an identifier after `error:`, so the
+  //    literal scan skips the whole expression. Today that is exactly one code.
+  //
+  //    ⚠️ MATCHED INSIDE THE `error:` VALUE, NOT ANYWHERE IN THE FILE. A draft pinned this with
+  //    "does that file still contain the literal", which review correctly called vacuous: the string
+  //    surviving in a constant, a log line or dead code would keep the code marked on-wire after the
+  //    emission was gone. Requiring it to sit within the `error:` expression itself is what makes
+  //    deleting the ternary turn this red.
+  //
+  //    ⚠️ IT IS A SERVICES CODE AND THAT IS NOW SAFE TO SAY. An earlier attempt added it to `ALL`,
+  //    which would have put a visa-named string in eno.vn's runtime array; it lives in
+  //    `errors-services.ts` instead, aliased to an empty stub on a marketplace build.
+  for (const [code, file] of [
+    ['visa_schema_not_ready', 'src/app/api/visa/applications/route.svc.ts'],
+  ] as const) {
+    if (!routeFiles.includes(file)) continue
+    if (new RegExp(String.raw`\berror:\s*[^,}]*?'${code}'`).test(stripComments(readFileSync(file, 'utf8')))) {
+      out.push(code)
+    }
+  }
+
+  return out
+}
+
+/**
+ * Remove `//` and block comments so a claim about what a file EMITS is not satisfied by a file that
+ * merely TALKS about emitting it. This codebase comments unusually heavily — several routes discuss
+ * their own error codes at length — so on this repo that distinction is the difference between a
+ * real check and a decorative one.
+ *
+ * ⚠️ INLINE `//`, NOT JUST WHOLE-LINE. The first draft anchored the pattern with `^`, so it stripped
+ * only comments that START a line — and a trailing `// … PublishBlockedError …` on a line of real
+ * code sailed straight through and satisfied the guard. Review caught it; it is the same species of
+ * near-miss as the substring test above, and it is why every clause here is spelled out.
+ *
+ * Deliberately naive (it does not understand `//` inside a string or a regex literal), because the
+ * only consumers are the two membership tests above; over-matching can only make a check STRICTER,
+ * never vacuous, which is the safe direction for a guard to fail in.
+ */
+/**
+ * Extract the string-literal members of a named TS union, from comment-stripped source.
+ *
+ * ⚠️ A LINE SCAN, NOT A TERMINATOR REGEX, AND THE THIRD SHAPE THIS PARSE HAS TAKEN. `[^\n]+` broke
+ * on a multi-line reformat (one member, tripping the floor and throwing on a cosmetic change). Its
+ * replacement read to `(?:\n\n|\nexport |\n/*)`, which is worse in a subtler way: `stripComments`
+ * leaves the newlines around a stripped JSDoc, so a doc comment BETWEEN two members becomes a blank
+ * line, the capture stops mid-union at say 8 of 12, and the survivors report as "stale codes" — a
+ * red suite pointing at the union instead of at the parser. It also matched nothing at all when the
+ * declaration ended the file. Consuming the declaration line plus every following blank-or-`|` line
+ * handles all four shapes: one-liner, reformatted, JSDoc-interrupted, end-of-file.
+ *
+ * `floor` must sit just under the real member count. It exists so a change that breaks the parse
+ * fails LOUDLY rather than silently contributing nothing (re-opening the hole this file exists to
+ * close) or contributing a truncated set. A floor far below the count — `< 5` against 12 — waves a
+ * partial parse straight through, which is how the first draft would have failed.
+ */
+function unionMembers(file: string, typeName: string, floor: number): string[] {
+  const lines = stripComments(readFileSync(file, 'utf8')).split('\n')
+  const start = lines.findIndex((l) => new RegExp(`export type ${typeName}\\s*=`).test(l))
+  if (start === -1) throw new Error(`${typeName} declaration not found in ${file} — fix this derivation`)
+  const decl: string[] = [lines[start]]
+  for (let i = start + 1; i < lines.length; i++) {
+    if (lines[i].trim() === '' || lines[i].trim().startsWith('|')) decl.push(lines[i])
+    else break
+  }
+  const members = [...decl.join('\n').matchAll(/'([A-Za-z0-9_.-]+)'/g)].map((m) => m[1])
+  if (members.length < floor) {
+    throw new Error(`${typeName} parsed as ${members.length} members (floor ${floor}) — fix this derivation`)
+  }
+  return members
+}
+
+/** The services-edition runtime list, read as text so this test does not depend on the alias. */
+function codesInServicesList(): string[] {
+  const src = stripComments(readFileSync('src/lib/api/errors-services.ts', 'utf8'))
+  const block = src.slice(src.indexOf('SERVICES_ALL = ['))
+  return [...block.matchAll(/'([A-Za-z0-9_.-]+)',/g)].map((m) => m[1])
+}
+
+/**
+ * Every member of the `ApiErrorCode` TYPE — the two union declarations, not the runtime array.
+ * ⚠️ Read separately from `codesInTheType()`, which despite its name reads `ALL`. Keeping both is
+ * what lets the edition test assert the type stayed WHOLE while only the array was split.
+ */
+function typeUnionMembers(): Set<string> {
+  return new Set([
+    ...unionMembers('src/lib/api/errors.ts', 'SharedApiErrorCode', 20),
+    ...unionMembers('src/lib/api/errors.ts', 'NicheApiErrorCode', 100),
+  ])
+}
+
+function stripComments(src: string): string {
+  return src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '')
+}
+
 /** The runtime list inside errors.ts — read as text so the test does not depend on it being exported. */
-function codesInTheType(): Set<string> {
-  const src = readFileSync('src/lib/api/errors.ts', 'utf8')
+function codesInMarketplaceAll(): Set<string> {
+  // ⚠️ COMMENT-STRIPPED, FOR CONSISTENCY WITH EVERY OTHER HARVEST IN THIS FILE. Two things already
+  // protect this one — the slice starts at `const ALL = [`, and the pattern demands a trailing
+  // comma, so a quoted code mentioned in the prose ABOVE the array cannot become a phantom member
+  // (measured: it does not). But `errors.ts` now carries JSDoc quoting real code names, this file
+  // argues at length that a membership test over commented source is guilty until proven otherwise,
+  // and leaving the type-side harvest as the one un-stripped exception is how the next trap gets
+  // set. Stripping first makes the guarantee structural rather than incidental.
+  const src = stripComments(readFileSync('src/lib/api/errors.ts', 'utf8'))
   const block = src.slice(src.indexOf('const ALL = ['))
   return new Set([...block.matchAll(/'([A-Za-z0-9_.-]+)',/g)].map((m) => m[1]))
+}
+
+/**
+ * The COMPLETE runtime vocabulary — both editions' arrays — which is exactly what `apiErrorCode()`
+ * recognises when it is not aliased.
+ *
+ * ⚠️ THE TWO CONTRACT TESTS BELOW MUST USE THIS, NOT `codesInMarketplaceAll()`. The wire harvest
+ * scans `route.svc.ts` files as well as `route.ts`, so a services code IS on the wire; checking it
+ * against the marketplace half alone would report all eight as both "emitted but untyped" and
+ * "typed but unemitted" at once. Only the edition test above wants the marketplace half in
+ * isolation, and it wants it precisely because that is the array that ships to eno.vn.
+ */
+function codesInTheType(): Set<string> {
+  return new Set([...codesInMarketplaceAll(), ...codesInServicesList()])
 }
 
 describe('the error contract matches the wire', () => {
@@ -82,6 +313,78 @@ describe('the error contract matches the wire', () => {
     // every time it happens.
     const stale = [...type].filter((c) => !wire.has(c)).sort()
     expect(stale, 'These codes are in the type but no route emits them any more — remove them.').toEqual([])
+  })
+})
+
+/**
+ * ⚠️ THE EDITION BOUNDARY, ENFORCED RATHER THAN DOCUMENTED.
+ *
+ * `ALL` is a RUNTIME array in a module that `src/lib/api/client.ts` imports, and client.ts exists to
+ * be adopted by the 176 hand-rolled fetch call sites — so `errors.ts` sits on a path into eno.vn's
+ * client chunks. Eight codes name the visa/itinerary surfaces the licensed marketplace may not
+ * mention, so they live in `errors-services.ts`, which `next.config.ts` aliases to an empty stub on
+ * a marketplace build. That alias is what removes the strings from the ARTIFACT; a call-site gate
+ * could not (see scripts/edition-lint.mjs RULE C, and the sitemap leak that produced it).
+ *
+ * The alias is only as good as the split, and nothing structural stops someone appending
+ * `'visa_foo'` to `ALL` — which is why this runs on every test run instead of living in a comment.
+ */
+describe('the error vocabulary respects the edition boundary', () => {
+  /**
+   * ⚠️ THIS MATCHES SERVICES *VOCABULARY*, NOT SERVICES-ONLY *EMISSION*, AND THE DIFFERENCE IS A
+   * MEASURED GAP RATHER THAN A HYPOTHETICAL ONE. The leak this file guards is a prohibited WORD
+   * reaching eno.vn's bundle, so a name-based rule is the right shape for that harm — `body_too_large`
+   * shipping to the marketplace tells a reader nothing about visa, while `visa_database_unavailable`
+   * does.
+   *
+   * But it is not the same question as "which codes belong to the services edition". Measured
+   * 2026-08-06: **48 codes in `ALL` are emitted only by `route.svc.ts` handlers**, of which this
+   * regex catches the eight that happen to be named after the surface. The other 40 are vocabulary
+   * for routes a marketplace build does not compile — harmless as strings, but a more honest split
+   * would move them.
+   *
+   * ⚠️ IT WAS NOT DONE HERE BECAUSE THE OBVIOUS MECHANICAL RULE IS WRONG. "Emitted only by
+   * `.svc.ts`" has at least one false positive: `invalid_request` is also emitted by
+   * `src/app/api/v1/oauth/token/route.ts`, a MARKETPLACE route excluded from that scan because
+   * `/api/v1` is a different error envelope entirely. A correct rule has to reason about `/api/v1`
+   * and about codes reachable through shared `src/lib` helpers, and moving 40 entries out of a
+   * shared runtime array on a rule with a known hole is how the next silent breakage gets written.
+   * Two reviewers raised the regex's narrowness; this is the honest answer to it.
+   */
+  const SERVICES_VOCABULARY = /visa|itinerar|paypal|evisa/i
+
+  it('no services-shaped code sits in the marketplace ALL array', () => {
+    const leaked = [...codesInMarketplaceAll()].filter((c) => SERVICES_VOCABULARY.test(c)).sort()
+    expect(
+      leaked,
+      'These codes name a surface eno.vn may not mention, and ALL is a RUNTIME array on a path into ' +
+        'the marketplace bundle. Move them to src/lib/api/errors-services.ts (already aliased away ' +
+        'on a marketplace build) rather than deleting them.',
+    ).toEqual([])
+  })
+
+  it('every services code is still a member of the shared type', () => {
+    // The other direction. The type is deliberately NOT split — it is erased, so it costs the
+    // marketplace bundle nothing — and keeping it whole is what lets a .svc.ts handler and the
+    // compile-time subset assertions share one vocabulary. A services code missing from the type
+    // would make `apiErrorCode()` unable to narrow it on the edition that DOES emit it.
+    const all = codesInTheType()
+    const typeMembers = typeUnionMembers()
+    expect([...all].filter((c) => !typeMembers.has(c)).sort()).toEqual([])
+  })
+
+  it('every services code is emitted only by .svc.ts routes', () => {
+    // The premise the whole split rests on: if a marketplace `route.ts` emitted one of these, the
+    // alias would break that route rather than protect it — apiErrorCode() would return null for a
+    // code eno.vn genuinely sends.
+    const marketplaceRoutes = execFileSync('git', ['ls-files', 'src/app/api/**/route.ts'], { encoding: 'utf8' })
+      .trim().split('\n').filter((f) => f && !f.includes('/api/v1/'))
+    const offenders: string[] = []
+    for (const code of codesInServicesList()) {
+      const emitters = marketplaceRoutes.filter((f) => stripComments(readFileSync(f, 'utf8')).includes(`'${code}'`))
+      if (emitters.length) offenders.push(`${code} <- ${emitters.join(', ')}`)
+    }
+    expect(offenders).toEqual([])
   })
 })
 

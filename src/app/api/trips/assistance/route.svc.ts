@@ -16,6 +16,18 @@ import { assistanceHttpStatus } from '@/lib/trips/http'
  */
 const bodySchema = z.object({ itineraryId: z.string().min(1).max(64) }).strict()
 
+// ⚠️ WS6 — NOT MIGRATED: a guest gets `{"error":"not_signed_in"}` 401; the wrapper's
+// `auth: 'profile'` branch is a hardcoded `apiFail('auth_required', 401)`
+// (src/lib/api/handler.ts:195). Different body bytes at the same status, so auth stays here.
+//
+// That pins the other three by the wrapper's fixed auth → rateLimit → body order:
+//   · `rateLimit:` keys on `profile.id`, which does not exist until the call below; the wrapper
+//     would key an unauthenticated request on `clientIp(req)` instead.
+//   · `body:` would parse ahead of the 401, so a signed-out caller sending malformed JSON would go
+//     from 401 `not_signed_in` to 400 `invalid_body` — and the comment below states the ordering
+//     (identity first) as the deliberate design, not an accident.
+//   · `invalidBodyCode:` is meaningless without `body:`.
+// All four options empty, so migrating would be churn even setting the 401 aside.
 export async function POST(req: Request) {
   // Identity first, so an unauthenticated caller cannot even consume rate-limit budget keyed to
   // somebody else's address.

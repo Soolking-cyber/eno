@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createHash } from 'crypto'
 import { getTrending, logSearch } from '@/lib/trending'
 import { clientIp } from '@/lib/client-ip'
+import { route } from '@/lib/api/handler'
 
 export const runtime = 'nodejs'
 
@@ -10,19 +11,38 @@ export const runtime = 'nodejs'
 // OPEN to an empty list when Redis is unconfigured or errors, so the search UI
 // simply omits the trending row rather than breaking. CDN-cached ~5min since the
 // data is coarse-grained and identical for everyone.
-export async function GET() {
+//
+// ⚠️ WS6 MIGRATION (both exports). `auth: 'public'` on each — the trending row is the empty-focus
+// state of the search dropdown, which guests see first. No rate limit and no body option were
+// added; neither existed.
+//
+// ⚠️ NO ACCEPTED WIRE CHANGE ON EITHER VERB, WHICH IS UNUSUAL AND WORTH SAYING. `getTrending()` and
+// `logSearch()` are documented fail-OPEN (src/lib/trending.ts wraps every query and returns
+// `[]`/void on error), and the POST adds its own total try/catch on top. So route()'s
+// `internal_error` boundary is unreachable from here and all four branches are byte-identical.
+export const GET = route({ auth: 'public' }, async () => {
   const trending = await getTrending(6)
   return NextResponse.json(
     { trending },
     { headers: { 'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=600' } },
   )
-}
+})
 
 // Record a committed search against the trending counters. Fire-and-forget from the
 // client (keepalive fetch on submit) — logSearch normalizes, no-ops when Redis is
 // unconfigured, and swallows every error, so this can never break search. Always
 // 204, even on a malformed body.
-export async function POST(req: Request) {
+//
+// ⛔ NO `body:` SCHEMA, DELIBERATELY. The contract is "always 204, even on a malformed body" — it is
+// a keepalive fetch fired during navigation, so a truncated or absent body is a NORMAL outcome, not
+// a client bug. route()'s `body:` option answers 400 on unparseable JSON, which would turn that
+// normal outcome into an error the client cannot see and would not act on. The tolerant
+// `try { await req.json() } catch {}` stays here verbatim, along with the `typeof q === 'string'`
+// guard that is the actual validation.
+//
+// ⚠️ 204 HAS NO BODY, so the handler returns the `NextResponse` through route()'s escape hatch
+// rather than a plain object — `NextResponse.json(data ?? {})` would make it a 200 `{}`.
+export const POST = route({ auth: 'public' }, async ({ req }) => {
   try {
     const { q } = (await req.json()) as { q?: unknown }
     if (typeof q === 'string') {
@@ -37,4 +57,4 @@ export async function POST(req: Request) {
     /* fail-open */
   }
   return new NextResponse(null, { status: 204 })
-}
+})

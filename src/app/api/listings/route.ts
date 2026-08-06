@@ -17,6 +17,13 @@ import { publishOutcome, recordPublishOutcome } from '@/lib/publish-funnel'
 
 export const dynamic = 'force-dynamic'
 
+// ⚠️ WS6 — NOT MIGRATED (GET). The public browse/search feed: no auth, no rate limit, no request
+// body — all four route() options empty, which is the pure-churn shape the migration declines.
+// It is also Response-shaped on every path rather than object-shaped: the `fastPath` early
+// return, the histogram branch and the feed branch each carry their own Cache-Control (the
+// Cloudflare s-maxage tiers below are the point of this route being fast), so every branch would
+// take the wrapper's Response escape hatch and the auto-JSON that is most of its value would
+// never fire. Wrapping it would add an indirection and remove nothing.
 export async function GET(req: NextRequest) {
   const searchParams = req.nextUrl.searchParams
 
@@ -157,6 +164,36 @@ export async function GET(req: NextRequest) {
  * real one here would send an empty body to the client. The clone is cheap (these payloads
  * are small JSON) and the whole thing is wrapped so instrumentation can never break a
  * publish — on any failure to classify, we simply do not count.
+ *
+ * ⚠️ WS6 — NOT MIGRATED (POST). Three reasons, and the first is structural:
+ *
+ * · THE LIMITER'S BUCKET *AND* ITS strict FLAG ARE COMPUTED FROM THE CALLER. createListing picks
+ *   `listing-create-user`, keyed by profile id and fail-OPEN, for a signed-in seller, or
+ *   `listing-create`, keyed by IP and fail-CLOSED, for a guest — two buckets, two strictness
+ *   settings, chosen after getCurrentProfileId(). route()'s `rateLimit:` is one static bucket
+ *   with one strictness, applied before anything is known. No auth mode fits either: guest
+ *   posting by phone IS this endpoint's contract, so 'userId'/'profile' would 401 the wizard's
+ *   main path and 'public' resolves nobody, which is what makes the two-bucket choice possible.
+ * · route()'s CATCH WOULD SWALLOW THE 'exception' FUNNEL BRANCH. The wrapper above counts a throw
+ *   and rethrows it untouched; route() converts the same throw into {"error":"internal_error"}
+ *   500, so that branch would silently stop being recorded and start counting as an ordinary
+ *   failure — a change to the very numbers this instrumentation exists to produce.
+ * · TWO RESPONSE SHAPES ARE NOT `{error: ApiErrorCode}`. The banned-word 400 and the
+ *   PublishBlockedError reply both carry a second `detail` field (the duplicate's listing id is
+ *   read by the client), and the catch-all 500 is {"error":"Failed to create listing"} — an
+ *   English sentence, not a code. apiFail() can express neither, and rewording the 500 to
+ *   `internal_error` would be exactly the silent wire change this migration forbids.
+ *
+ * ✅ SEPARATE FINDING, NOW FIXED (it was deferred here only because it is a shared-file edit and
+ * other WS6 clusters were in flight): PublishBlockedError re-emits `e.code`, and 9 of the 12
+ * PublishBlockCodes in src/lib/publish-guard.ts:40 were ABSENT from the ApiErrorCode union —
+ * identity_unverified, identity_pending, identity_expired, identity_suspended, photo_required,
+ * photos_min, contact_in_name, duplicate_listing, location_required. The harvest that built
+ * src/lib/api/errors.ts greps for string LITERALS, so a code emitted through a variable was
+ * invisible to it, and apiErrorCode() answered null for the most common refusal in the product.
+ * All nine are in the union now, `errors.test.ts` derives them from the PublishBlockCode
+ * declaration rather than exempting them, and `PublishBlockCode extends ApiErrorCode` is asserted
+ * at COMPILE time in errors.ts — so a thirteenth publish code cannot repeat this.
  */
 export async function POST(req: NextRequest) {
   let res: NextResponse

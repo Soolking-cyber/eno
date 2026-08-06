@@ -1,9 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server'
 import { Type } from '@google/genai'
-import { getAdmin } from '@/lib/admin'
 import { getGemini, GEMINI_MODEL } from '@/lib/gemini'
 import { normalizeBrand } from '@/lib/brand-normalize'
 import { iconForBrand, iconPathForSlug } from '@/lib/brand-icons'
+import { ApiError, route } from '@/lib/api/handler'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -13,15 +12,42 @@ export const dynamic = 'force-dynamic'
 // one-line note. We then VALIDATE the logo against the real simple-icons set
 // (never trust the model to invent SVG paths), so the admin only ever sees a real
 // monotone mark to approve — or none (keep the monogram / paste a custom path).
-export async function POST(req: NextRequest) {
-  if (!(await getAdmin())) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+//
+// ⚠️ WS6 MIGRATION — THE AUTH PREAMBLE ONLY. `auth: 'admin'` is the same getAdmin() and emits the
+// same `{"error":"Forbidden"}` 403, capital F.
+//
+// ⚠️ `'admin'` RESOLVES NO PROFILE. An earlier draft of this header said it follows getAdmin()
+// with getCurrentProfile() and called the extra Profile read an accepted cost. It did, and the
+// cost turned out not to be acceptable anywhere: no admin handler reads ctx.profile or
+// ctx.userId, the call made read-only admin GETs perform a presence-heartbeat WRITE, and on a
+// first-ever call it runs ensureProfile()'s irreversible guest-Seller auto-claim. It was removed
+// from the wrapper in this same commit; getAdmin() is Supabase-auth only and touches no DB.
+// This route's handler touches no DB either, so with the read removed it once again answers from
+// Gemini alone rather than 500ing when Postgres is unreachable.
+//
+// ⚠️ NO `body:` SCHEMA — SAME TWO REASONS AS /api/admin/ai-review.
+//   1. ORDER: route() parses the body BEFORE the handler, which would move it ahead of the
+//      `ai_unavailable` 503 — malformed JSON with Gemini unconfigured would flip 503 → 400.
+//   2. COERCION + TWO CODES: `String(body.name || '')` accepts a number or null and stringifies it
+//      where zod would 400, and an absent name (`missing_name`) is a different code from
+//      unparseable JSON (`bad_request`) — one `invalidBodyCode` cannot be both.
+// No rate limit existed on this Gemini call and none is added; adding one would invent a 429.
+//
+// Branches: non-admin → 403 `{"error":"Forbidden"}` · Gemini unconfigured → 503 `ai_unavailable` ·
+// malformed JSON → 400 `bad_request` · empty/absent name → 400 `missing_name` · model call or JSON
+// parse throws → 502 `ai_failed` (the try/catch below is unchanged and still logs) · success → 200
+// `{name,iconSlug,iconPath,note}`.
+//
+// Byte-identical on every branch: the model call is the only thing that can reject and it is
+// already caught. Nothing here touches the DB.
+export const POST = route({ auth: 'admin' }, async ({ req }) => {
   const ai = getGemini()
-  if (!ai) return NextResponse.json({ error: 'ai_unavailable' }, { status: 503 })
+  if (!ai) throw new ApiError('ai_unavailable', 503)
 
   let body: { name?: string }
-  try { body = await req.json() } catch { return NextResponse.json({ error: 'bad_request' }, { status: 400 }) }
+  try { body = await req.json() } catch { throw new ApiError('bad_request', 400) }
   const input = String(body.name || '').trim().slice(0, 80)
-  if (!input) return NextResponse.json({ error: 'missing_name' }, { status: 400 })
+  if (!input) throw new ApiError('missing_name', 400)
 
   const prompt = `You help curate a brand catalogue. For the brand name "${input}", return:
 - "canonical": the brand's correct, canonical English display name (fix casing/typos, drop product/model words). E.g. "appl iphone" → "Apple", "huawi" → "Huawei", "bugaboo strollers" → "Bugaboo".
@@ -51,7 +77,7 @@ Return ONLY JSON.`
     parsed = JSON.parse(txt || '{}')
   } catch (e) {
     console.error('[admin/brands/ai]', e)
-    return NextResponse.json({ error: 'ai_failed' }, { status: 502 })
+    throw new ApiError('ai_failed', 502)
   }
 
   const name = (parsed.canonical || '').trim().slice(0, 60) || input
@@ -68,5 +94,5 @@ Return ONLY JSON.`
     if (match) { iconSlug = match.slug; iconPath = iconPathForSlug(match.slug) }
   }
 
-  return NextResponse.json({ name, iconSlug, iconPath, note: (parsed.note || '').trim().slice(0, 120) || null })
-}
+  return { name, iconSlug, iconPath, note: (parsed.note || '').trim().slice(0, 120) || null }
+})

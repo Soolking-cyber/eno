@@ -59,6 +59,33 @@ function hashIp(ip: string): string | null {
 // Reveal a verified listing's seller contact — ONLY to an authenticated user.
 // The phone never appears in any anonymous payload; it's delivered here after a
 // JWT-revalidated getUser() check, rate-limited, and logged as a lead.
+//
+// ⚠️ WS6 — NOT MIGRATED. Two independent blockers, either one sufficient on its own, and both
+// are about the guarantees this particular route exists to hold rather than about shape.
+//
+// 1. TWO LIMITERS, IN PARALLEL, BOTH FAIL-CLOSED. route() takes ONE static `rateLimit:` option.
+//    Hoisting the per-user window and leaving the per-IP one in the handler is NOT equivalent,
+//    because src/lib/ratelimit.ts increments the window on a DENIED attempt by design ("a DENIED
+//    attempt still increments the window counter, so sustained hammering extends the throttle").
+//    Today a caller over their 30/h user budget still burns their IP's 60/h; sequencing the two
+//    would stop that and hand a harvester a cheaper retry. Weakening a throttle on a PII reveal
+//    is not a refactor. The `strict: true` on BOTH is also load-bearing and is why they are here
+//    at all — this is the canonical fail-closed route named in ratelimit.ts's own doc comment.
+//
+// 2. THE HANDLER NEEDS THE SUPABASE AUTH USER — not an id, and not a Profile. `user.email` and
+//    `user.phone` feed metaUserDataFromHeaders() at the CAPI call below, and those are the
+//    AUTH-CONFIRMED values. Profile.phone is writable without an OTP through PATCH /api/profile
+//    (see the warning on getVerifiedPhone in src/lib/admin.ts), so `auth: 'profile'` would hash a
+//    self-asserted number into the ad payload — and would add a Profile read plus a presence
+//    heartbeat write to a reveal. `auth: 'userId'` is getClaims(): a LOCAL JWT check, which moves
+//    revocation of a banned account from instant to token expiry (~1h) on the one endpoint that
+//    hands out a seller's phone number. getUser() here is deliberate; the wrapper cannot say it.
+//
+// Branches, all unchanged: guest → 401 auth_required · either limiter (or a limiter outage, since
+// both are strict) → 429 rate_limited · missing / unverified / out-of-edition listing → 404
+// not_found · no conversation or no seller reply → 403 reply_required · seller has no stored
+// phone → 404 no_contact · success → 200 {phone,telHref,zaloHref}. The $transaction is already
+// try/caught, so there is no unhandled-throw branch for route() to improve on either.
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
 

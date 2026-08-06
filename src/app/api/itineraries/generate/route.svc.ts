@@ -3,7 +3,7 @@ import { ThinkingLevel, Type } from '@google/genai'
 import { after, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { aiGuard } from '@/lib/ai-guard'
-import { getCurrentProfileId } from '@/lib/admin'
+import { ApiError, route } from '@/lib/api/handler'
 import { fold } from '@/lib/fold'
 import { resolvePlaceName } from '@/lib/itinerary-places'
 import { fillMissingStopCoordinates } from '@/lib/itinerary-geocode'
@@ -482,16 +482,27 @@ async function claimGenerationSlot(profileId: string): Promise<{ release: () => 
   }
 }
 
-export async function POST(request: Request) {
+// ⚠️ WS6 MIGRATION, AND THE WRAPPER TAKES THE AUTH PREAMBLE ONLY. `auth: 'userId'` is literally
+// what this route did — getCurrentProfileId(), 401 `auth_required` — and it runs first, so the
+// load-bearing order below is unchanged.
+//
+// ⚠️ `body:` IS DELIBERATELY NOT USED. route()'s parser calls req.json() with no size ceiling and
+// answers one code; this route must read the body BOUNDED (16 kB → 413 `body_too_large`) and
+// answer 400 `invalid_trip` WITH the zod issues attached. Handing the schema to the wrapper would delete
+// the 413 branch and strip `issues` from the 400. readBoundedBody therefore stays exactly here.
+//
+// ⚠️ ONE BRANCH IS NOT BYTE-IDENTICAL. itineraryQuota() and aiGuard() had no catch, so a DB or
+// limiter failure was an unhandled throw and Next answered its own default 500; route() now
+// answers `{"error":"internal_error"}` 500. The generation slot is still released either way — the
+// `finally` runs before the throw leaves the handler.
+export const POST = route({ auth: 'userId' }, async ({ req: request, userId: profileId }) => {
   // ⚠️ ORDER IS LOAD-BEARING: identify → validate → claim the slot → SPEND. Nothing above the
   // claim costs quota, so a malformed body is now a free 400 instead of the two rate-limit tokens
   // it used to burn before anyone looked at it, and a rejected request cannot lock out a valid one.
   //
-  // getCurrentProfileId runs here and again inside aiGuard. That is a second cookie-session read
-  // per generation, accepted deliberately: the alternative is spending the quota BEFORE knowing
-  // whether this is a duplicate, which is the whole defect.
-  const profileId = await getCurrentProfileId()
-  if (!profileId) return NextResponse.json({ error: 'auth_required' }, { status: 401 })
+  // The caller is resolved here (by the wrapper) and again inside aiGuard. That is a second
+  // cookie-session read per generation, accepted deliberately: the alternative is spending the
+  // quota BEFORE knowing whether this is a duplicate, which is the whole defect.
 
   // ⚠️ THE CEILING EXISTS BECAUSE VALIDATION MOVED AHEAD OF THE METER. While aiGuard ran first,
   // an enormous body cost a rate-limit token before anything parsed it, so the 8/hour cap bounded
@@ -500,7 +511,7 @@ export async function POST(request: Request) {
   // a deep Zod traversal. App-Router handlers have no default body limit, so this is the limit.
   // A full request is well under 2 kB (15 cities, a 120-char origin, 600 chars of notes).
   const raw = await readBoundedBody(request)
-  if (raw === null) return NextResponse.json({ error: 'body_too_large' }, { status: 413 })
+  if (raw === null) throw new ApiError('body_too_large', 413)
   const parsed = itineraryRequestSchema.safeParse(raw)
   if (!parsed.success) {
     // ⚠️ LOG WHICH FIELD, NEVER ITS VALUE. This 400 was reported twice from production and both
@@ -534,13 +545,16 @@ export async function POST(request: Request) {
   }
 
   const slot = await claimGenerationSlot(profileId)
-  if (!slot) return NextResponse.json({ error: 'already_generating' }, { status: 409 })
+  if (!slot) throw new ApiError('already_generating', 409)
   try {
+    // runGeneration builds its own Responses (aiGuard's gate.res, the Retry-After header on a busy
+    // provider, the 200 with the plan). route() returns a Response untouched, so all of that —
+    // headers included — reaches the client exactly as before.
     return await runGeneration(parsed.data)
   } finally {
     await slot.release()
   }
-}
+})
 
 async function runGeneration(input: ItineraryRequest) {
   // Cost breakers, the app's standard shape (see classify/rephrase): aiGuard =

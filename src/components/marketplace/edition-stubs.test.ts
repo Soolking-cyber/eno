@@ -107,6 +107,14 @@ describe.each([
   ],
   // The lazily-loaded services translation catalogue. Generated, so nobody edits it by hand — but
   // it is aliased like the rest, and an alias with no parity check is the gap this list closes.
+  // The API error vocabulary's services half. Not copy — a RUNTIME array of code strings that
+  // `apiErrorCode()` reads, in a module `src/lib/api/client.ts` imports, i.e. on a path into client
+  // chunks. Its eight entries name visa and itinerary surfaces eno.vn may not mention.
+  // ⚠️ THE PARITY HERE IS ABOUT THE EXPORT NAME, NOT THE CONTENTS — the stub's array is
+  // deliberately EMPTY, which is the whole point of the alias. What must not drift is
+  // `SERVICES_ALL` existing at all: a rename in the real module with no rename here is a green
+  // typecheck and `undefined.includes(...)` on eno.vn the first time apiErrorCode() runs.
+  ['api/errors-services', 'src/lib/api/errors-services.ts', 'src/lib/api/errors-services.stub.ts'],
   ['ui-strings.services', 'src/generated/ui-strings.services.ts', 'src/generated/ui-strings.services.stub.ts'],
 ])('%s stub', (_label, realPath, stubPath) => {
   it('exports every name the real module exports', () => {
@@ -151,6 +159,7 @@ describe('alias coverage', () => {
     'src/components/marketplace/cross-site-promo.tsx',
     'src/components/marketplace/visa-start.tsx',
     'src/generated/ui-strings.services.ts',
+    'src/lib/api/errors-services.ts',
   ])
 
   it('finds the alias map (so the checks below are not vacuous)', () => {

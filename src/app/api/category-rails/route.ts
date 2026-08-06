@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { serializeListingCard, LISTING_CARD_SELECT } from '@/lib/serialize'
 import { localizeListingTitles } from '@/lib/translate'
+import { route } from '@/lib/api/handler'
 
 export const runtime = 'nodejs'
 
@@ -14,7 +15,19 @@ const PER_RAIL = 8 // listings per category rail (kept lean; rail scrolls for mo
 const MAX_RAILS = 10 // cap the page length
 const MIN_LISTINGS = 4 // skip near-empty rails (can't fill a desktop row)
 
-export async function GET() {
+// ⚠️ WS6 MIGRATION. `auth: 'public'` — the home page calls this logged-out; there was never an auth
+// preamble and adding one would 401 every guest. No rate limit and no body were added either: this
+// route had neither, and the wrapper must not invent policy.
+//
+// ⚠️ THE ONE ACCEPTED WIRE CHANGE IS ON THE FAILURE PATH, AND IT MATTERS MORE HERE THAN ELSEWHERE.
+// Nothing in this handler was wrapped — the groupBy, the category read, N per-rail findMany calls
+// inside Promise.all, and localizeListingTitles could each throw, and `scopedListingWhere()` throws
+// DeskResolutionError by design. All of those used to surface as Next's default 500; they now
+// answer `{"error":"internal_error"}` 500, logged with an `op`. Never the exception text.
+//
+// The success body returns as a NextResponse because the Cache-Control header is the point of the
+// route; route()'s plain-object path would drop it.
+export const GET = route({ auth: 'public' }, async () => {
   // Rank categories by demand over their live listings (like the brand rail), falling
   // back to listing count where there's no traffic yet.
   const grouped = await db.listing.groupBy({
@@ -73,4 +86,4 @@ export async function GET() {
     { rails: present },
     { headers: { 'Cache-Control': 'public, max-age=120, s-maxage=300, stale-while-revalidate=900' } },
   )
-}
+})

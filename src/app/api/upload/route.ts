@@ -10,6 +10,14 @@ export const runtime = 'nodejs'
 // returns public URLs. Kept open (the post wizard is a guest/anonymous flow), but
 // RATE-LIMITED to stop the endpoint being abused as free image hosting: generous for
 // signed-in users, tighter per-IP (fail-closed) for anonymous uploaders.
+//
+// ⚠️ WS6 — NOT MIGRATED: the auth is OPTIONAL, which no wrapper mode expresses. `getCurrentProfileId()`
+// returning null is a supported outcome here (the post wizard is a guest flow), whereas `auth: 'userId'`
+// 401s that caller — so migrating would break anonymous posting outright. The limiter is downstream of
+// the same fact: bucket, limit AND `strict` are all chosen by whether a profile was resolved
+// (`upload-user` 120/h fail-open vs `upload-ip` 30/h fail-closed), and the wrapper's option is one static
+// config. Its 429 body also carries `urls`/`failed` alongside the code, which apiFail() cannot emit.
+// No `body:` schema in any case — this reads multipart/form-data, not JSON.
 export async function POST(req: NextRequest) {
   try {
     const profileId = await getCurrentProfileId()

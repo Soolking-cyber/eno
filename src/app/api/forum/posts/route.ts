@@ -40,6 +40,19 @@ export function OPTIONS(request: Request) {
   return forumPreflight(request, 'GET, POST, OPTIONS')
 }
 
+// ⚠️ WS6 — NOT MIGRATED. Branches: 401 auth_required (ONLY when `saved=true`) · 200 {posts,nextCursor}
+// · 503 forum_schema_not_ready (P2021) · 200 {posts:[],nextCursor:null} (P2025, deleted cursor).
+// Three blockers:
+//   · AUTH IS CONDITIONAL ON A QUERY PARAM. A guest gets a full 200 feed; only `?saved=true` turns
+//     the missing session into 401. `auth:` is a static mode applied to every call, so 'profile'
+//     would 401 the anonymous feed — the forum's front page — and 'public' would not produce the
+//     401 the saved-tab needs.
+//   · THE RESOLVED CALLER IS ALSO A QUERY INPUT, not just a gate: `auth?.profile.id` feeds the block
+//     list, the `bookmarks: { some: … }` filter and the per-viewer vote/bookmark includes, falling
+//     back to the all-zeroes UUID when absent. The handler needs the nullable auth object either way.
+//   · CORS ON EVERY RESPONSE: forumJson sets Access-Control-Allow-Methods: 'GET, POST, OPTIONS',
+//     -Allow-Headers and -Max-Age on all four returns (+ -Allow-Origin and Vary: Origin for an
+//     allowlisted Origin); route() carries none.
 export async function GET(request: Request) {
   const url = new URL(request.url)
   const community = url.searchParams.get('community')?.trim() || null
@@ -116,6 +129,20 @@ export async function GET(request: Request) {
   }
 }
 
+// ⚠️ WS6 — NOT MIGRATED. Branches: 403 origin_not_allowed · 401 auth_required · 403
+// account_restricted · 429 rate_limited · 400 invalid_post(+issues) · 400 invalid_media_path · 404
+// community_not_found · 201 {post}. Five blockers:
+//   · THE ERROR ENVELOPE IS NOT THE WRAPPER'S. A bad body answers
+//     `{"error":"invalid_post","issues":[…]}`; apiFail() emits exactly `{"error":"<code>"}` and
+//     `invalidBodyCode:` only changes the string, so the `issues` array cannot be reproduced.
+//   · THE ORIGIN GUARD RUNS BEFORE AUTH — a guest from a disallowed origin gets 403
+//     origin_not_allowed, where route() would resolve the caller first and answer 401.
+//   · THE LIMITER RUNS AFTER `canParticipate()`: a suspended account over `forum-post-create` gets
+//     403 account_restricted today and would get 429 under the wrapper's auth → rateLimit order.
+//   · CORS ON EVERY RESPONSE (Access-Control-Allow-Methods: 'GET, POST, OPTIONS', -Allow-Headers,
+//     -Max-Age on all eight branches, plus -Allow-Origin and Vary: Origin for an allowlisted Origin).
+//   · AUTH IS getForumAuth() — bearer token or cookie session — which no auth mode expresses, and
+//     `auth.profile.id` is then used as a storage-path prefix check, not only as a gate.
 export async function POST(request: Request) {
   if (!isAllowedForumOrigin(request)) return forumJson(request, { error: 'origin_not_allowed' }, { status: 403 }, 'GET, POST, OPTIONS')
   const auth = await getForumAuth(request)

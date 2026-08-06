@@ -14,6 +14,13 @@ import { handoffAuthUrl, isNonce } from '@/lib/auth/handoff'
 // is host-validated on write and carries only a public PKCE code_challenge.
 export const dynamic = 'force-dynamic'
 
+// ⚠️ WS6 — NOT MIGRATED: all four options would be empty AND both exits set a header.
+// Public (the nonce is the only credential and is deliberately not a secret — see above), no
+// limiter, GET so no JSON body — so `route({}, …)` would add an import and a closure for nothing.
+// On top of that both returns carry `Cache-Control: no-store` (`{"ready":false}` and
+// `{"ready":true,"url":…}`), which the wrapper's plain-object return cannot attach; keeping the
+// header would mean returning a `Response` from the handler, i.e. writing exactly this code inside
+// a wrapper that then contributes nothing.
 export async function GET(request: Request) {
   const h = new URL(request.url).searchParams.get('h')
   if (!isNonce(h)) return NextResponse.json({ ready: false }, { headers: { 'Cache-Control': 'no-store' } })

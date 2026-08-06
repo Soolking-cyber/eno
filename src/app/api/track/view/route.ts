@@ -13,6 +13,13 @@ export const dynamic = 'force-dynamic'
 // passes the SAME event_id it used on the Pixel, so Meta dedupes the two into one event.
 // This is the only place a *browsing* event goes through CAPI; conversions stay separate.
 // Always 204 — analytics must never surface an error to the user; the send runs in after().
+//
+// ⚠️ WS6 — NOT MIGRATED: this route has NO failure vocabulary. Every branch — unconfigured, malformed
+// JSON, missing fields, over the limit — answers a bodyless 204, which is the point (a beacon must not
+// make the browser log an error). The wrapper's limiter answers 429 `{"error":"rate_limited"}` and its
+// `body:` option answers 400, so hoisting either would turn a silent no-op into a client-visible
+// failure. `metaCapiConfigured()` also has to run FIRST, before the limiter, so an unconfigured
+// deployment spends nothing. Public, so there is no auth to hoist either — all four options empty.
 export async function POST(req: NextRequest) {
   if (!metaCapiConfigured()) return new NextResponse(null, { status: 204 })
 
