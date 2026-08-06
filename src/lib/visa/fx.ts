@@ -40,10 +40,24 @@ export type VisaQuote = {
   listingId: string
   /** The admin's number, authoritative — whole đồng off Listing.price. */
   priceVnd: number
-  /** Integer cents actually charged. */
+  /** The service itself, in cents: priceVnd converted at vndPerUsd. What the desk keeps. */
+  serviceUsdCents: number
+  /** The payment-processing surcharge, in cents. See grossUpForProcessing. */
+  processingUsdCents: number
+  /** Integer cents actually charged = serviceUsdCents + processingUsdCents. */
   amountUsdCents: number
   /** The rate used, recorded for evidence. ĐỒNG PER ONE DOLLAR (≈ 26 000). */
   vndPerUsd: number
+  /**
+   * ⚠️ THE FEE TERMS ARE RECORDED IN THE QUOTE, FOR THE SAME REASON `vndPerUsd` IS.
+   * The first version re-read them from the environment at validation time, so correcting the rate
+   * — which the comment below explicitly tells you to do once a real capture settles — instantly
+   * made every outstanding quote unchargeable, and a rolling deploy made a quote chargeable on one
+   * instance and refused on another. All three reviewers found it. A quote must carry its own
+   * terms; validation re-derives from THESE, never from live config.
+   */
+  feePercent: number
+  feeFixedCents: number
   /** ISO. */
   quotedAt: string
   /** ISO — beyond this the quote must be re-issued. */
@@ -225,6 +239,71 @@ function usdCentsForVnd(priceVnd: number, vndPerUsd: number): number | null {
   return cents
 }
 
+// ── The payment-processing surcharge ────────────────────────────────────────────────────────────
+//
+// Owner, 2026-08-04: "prices for each visa differ so checkout should specify price from marketplace
+// and add paypal processing fees on checkout." The price half was already true — the charge is
+// derived from Listing.price on every request — so this adds the fee half.
+//
+// ⚠️⚠️ IT IS A GROSS-UP, NOT AN ADDITION, AND THE DIFFERENCE IS THE WHOLE POINT. PayPal takes its
+// percentage off the TOTAL it captures, so adding 4.4% to the price does NOT recover 4.4%:
+//     price 100 → charge 104.40 → PayPal takes 4.4% of 104.40 = 4.59 → desk nets 99.81. Still short.
+// The amount that nets the price exactly is  (price + fixed) / (1 - pct):
+//     (100 + 0.30) / (1 - 0.044) = 104.92 → PayPal takes 4.92 → desk nets exactly 100.00.
+// Naive addition under-recovers on every single transaction, by a little, forever — the kind of
+// leak that is invisible per order and only shows up when the books do not reconcile.
+//
+// ⚠️ THE RATE IS A GUESS UNTIL MEASURED. PayPal's cross-border commercial rate varies by the
+// RECEIVING account's country and the buyer's funding source; the defaults below are the common
+// international figures, not a quoted rate for this account. Once a real capture settles, read the
+// actual fee off the PayPal transaction and correct PAYPAL_FEE_PERCENT — do not leave a guess
+// priced into every order.
+const DEFAULT_FEE_PERCENT = 4.4
+/** No real processor charges over 15%; a higher value is a typo, not a price. */
+const MAX_FEE_PERCENT = 15
+const DEFAULT_FEE_FIXED_CENTS = 30
+/**
+ * Ceiling on the per-transaction fixed fee. $9.99 is already absurd — real processors charge
+ * $0.30–0.49 — and the tight bound is deliberate twice over: it catches a units error (3000 for
+ * $0.30), and it keeps this file free of any 4–6 digit literal that could be mistaken for an FX
+ * rate. The "no rate-shaped literal" test caught a 10_000 bound here and was right to.
+ */
+const MAX_FEE_FIXED_CENTS = 999
+
+function feeConfig(): { percent: number; fixedCents: number } {
+  const p = Number.parseFloat(process.env.PAYPAL_FEE_PERCENT || '')
+  const f = Number.parseInt(process.env.PAYPAL_FEE_FIXED_CENTS || '', 10)
+  return {
+    // ⚠️ Clamped, and a nonsense value falls back rather than pricing off it. A percent ≥ 100 would
+    // divide by zero or negative below and mint an absurd charge; env is a string and typos happen.
+    // ⚠️ BAND, NOT JUST A SANITY CHECK (codex). `< 50` accepted a fat-fingered 44 for 4.4 — a 78%
+    // surcharge on every order, from one missing decimal point. No real processor charges over 15%.
+    percent: Number.isFinite(p) && p >= 0 && p <= MAX_FEE_PERCENT ? p : DEFAULT_FEE_PERCENT,
+    fixedCents: Number.isFinite(f) && f >= 0 && f <= MAX_FEE_FIXED_CENTS ? f : DEFAULT_FEE_FIXED_CENTS,
+  }
+}
+
+/**
+ * The total to charge so that `serviceCents` survives the processor's cut, and the surcharge itself.
+ *
+ * Exported for the test, which pins the round-trip: charge − processor's actual cut === service.
+ */
+export function grossUpForProcessing(
+  serviceCents: number,
+  terms: { percent: number; fixedCents: number } = feeConfig(),
+): { totalCents: number; processingCents: number; percent: number; fixedCents: number } | null {
+  if (!Number.isSafeInteger(serviceCents) || serviceCents <= 0) return null
+  const { percent, fixedCents } = terms
+  if (!Number.isFinite(percent) || percent < 0 || percent > MAX_FEE_PERCENT) return null
+  if (!Number.isSafeInteger(fixedCents) || fixedCents < 0 || fixedCents > MAX_FEE_FIXED_CENTS) return null
+  const total = (serviceCents + fixedCents) / (1 - percent / 100)
+  if (!Number.isFinite(total) || total <= 0) return null
+  // ⚠️ CEIL, so rounding never lands the desk a cent short; the buyer pays at most one cent extra.
+  const totalCents = Math.ceil(total - CENT_SNAP_EPSILON)
+  if (!Number.isSafeInteger(totalCents) || totalCents > MAX_QUOTE_CENTS) return null
+  return { totalCents, processingCents: totalCents - serviceCents, percent, fixedCents }
+}
+
 /** A whole, positive, in-range đồng amount, or null. VND has no minor unit, so a
  *  fractional price is a corrupt row rather than a rounding question. */
 function usablePriceVnd(priceVnd: unknown): number | null {
@@ -257,14 +336,23 @@ export async function quoteVisaUsd(input: { listingId: string; priceVnd: number 
   const vndPerUsd = await vndPerUsdRate()
   if (vndPerUsd === null) return null
 
-  const amountUsdCents = usdCentsForVnd(priceVnd, vndPerUsd)
-  if (amountUsdCents === null) return null
+  const serviceUsdCents = usdCentsForVnd(priceVnd, vndPerUsd)
+  if (serviceUsdCents === null) return null
+
+  // ⚠️ The charge is the GROSSED-UP total, not the service price — see grossUpForProcessing.
+  const grossed = grossUpForProcessing(serviceUsdCents)
+  if (grossed === null) return null
+  const amountUsdCents = grossed.totalCents
 
   const quotedAt = new Date()
   const quote: VisaQuote = {
     listingId,
     priceVnd,
+    serviceUsdCents,
+    processingUsdCents: grossed.processingCents,
     amountUsdCents,
+    feePercent: grossed.percent,
+    feeFixedCents: grossed.fixedCents,
     vndPerUsd,
     quotedAt: quotedAt.toISOString(),
     expiresAt: new Date(quotedAt.getTime() + QUOTE_TTL_MS).toISOString(),
@@ -297,12 +385,23 @@ export function isQuoteChargeable(quote: VisaQuote, now: Date): boolean {
 
   const priceVnd = usablePriceVnd(quote.priceVnd)
   if (priceVnd === null) return false
-  const { vndPerUsd, amountUsdCents } = quote
+  const { vndPerUsd, amountUsdCents, serviceUsdCents, processingUsdCents, feePercent, feeFixedCents } = quote
   if (typeof vndPerUsd !== 'number' || !Number.isFinite(vndPerUsd)) return false
   if (vndPerUsd < MIN_VND_PER_USD || vndPerUsd > MAX_VND_PER_USD) return false
   if (!Number.isSafeInteger(amountUsdCents) || amountUsdCents <= 0 || amountUsdCents > MAX_QUOTE_CENTS) return false
-  // The rate must PRODUCE the amount — otherwise the three fields are not one quote.
-  if (usdCentsForVnd(priceVnd, vndPerUsd) !== amountUsdCents) return false
+  if (!Number.isSafeInteger(serviceUsdCents) || serviceUsdCents <= 0) return false
+  if (!Number.isSafeInteger(processingUsdCents) || processingUsdCents < 0) return false
+
+  // ⚠️ THE WHOLE CHAIN MUST RE-DERIVE, NOT JUST THE FIRST LINK. Before the processing
+  // surcharge existed this was one check — rate produces amount. Now a forged quote could
+  // otherwise keep an honest priceVnd and rate, quote a real serviceUsdCents, and simply
+  // declare processingUsdCents = 0 to knock the fee off. So: the rate must produce the
+  // SERVICE, the gross-up must produce the TOTAL, and the parts must sum to it.
+  if (usdCentsForVnd(priceVnd, vndPerUsd) !== serviceUsdCents) return false
+  if (serviceUsdCents + processingUsdCents !== amountUsdCents) return false
+  // ⚠️ THE QUOTE'S OWN TERMS, NOT feeConfig(). See the note on feePercent in VisaQuote.
+  const grossed = grossUpForProcessing(serviceUsdCents, { percent: feePercent, fixedCents: feeFixedCents })
+  if (grossed === null || grossed.totalCents !== amountUsdCents) return false
 
   const quotedMs = isoMs(quote.quotedAt)
   const expiresMs = isoMs(quote.expiresAt)
@@ -321,11 +420,21 @@ export function isQuoteChargeable(quote: VisaQuote, now: Date): boolean {
 export function parseVisaQuote(value: unknown): VisaQuote | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null
   const blob = value as Record<string, unknown>
-  const { listingId, priceVnd, amountUsdCents, vndPerUsd, quotedAt, expiresAt } = blob
+  const { listingId, priceVnd, amountUsdCents, serviceUsdCents, processingUsdCents, feePercent, feeFixedCents, vndPerUsd, quotedAt, expiresAt } = blob
   if (typeof listingId !== 'string' || !listingId.trim()) return null
   if (typeof priceVnd !== 'number' || typeof amountUsdCents !== 'number' || typeof vndPerUsd !== 'number') return null
+  // ⚠️ THE TWO NEW PARTS ARE REQUIRED, NOT OPTIONAL. Defaulting a missing processing fee to 0
+  // would let a client omit the field and have the surcharge silently vanish — a discount
+  // available by deleting a line of JSON. An echo without them is not a quote this server issued.
+  // ⚠️ INTEGER CENTS, NOT MERELY `typeof number` — that admits NaN, Infinity and fractional cents,
+  // and left the whole guarantee resting on every caller remembering to call isQuoteChargeable.
+  // typeof FIRST so TypeScript narrows `unknown`; Number.isSafeInteger alone does not.
+  if (typeof serviceUsdCents !== 'number' || !Number.isSafeInteger(serviceUsdCents) || serviceUsdCents <= 0) return null
+  if (typeof processingUsdCents !== 'number' || !Number.isSafeInteger(processingUsdCents) || processingUsdCents < 0) return null
+  if (typeof feePercent !== 'number' || !Number.isFinite(feePercent)) return null
+  if (typeof feeFixedCents !== 'number' || !Number.isSafeInteger(feeFixedCents)) return null
   if (typeof quotedAt !== 'string' || typeof expiresAt !== 'string') return null
-  return { listingId: listingId.trim(), priceVnd, amountUsdCents, vndPerUsd, quotedAt, expiresAt }
+  return { listingId: listingId.trim(), priceVnd, serviceUsdCents, processingUsdCents, amountUsdCents, feePercent, feeFixedCents, vndPerUsd, quotedAt, expiresAt }
 }
 
 /**
