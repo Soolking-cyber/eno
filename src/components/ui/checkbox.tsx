@@ -3,6 +3,7 @@
 import { Checkbox as BaseCheckbox } from '@base-ui/react/checkbox'
 import { Check, Minus } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { STROKE_MARK } from '@/lib/icon-tokens'
 
 // Shared checkbox — Base UI's Checkbox (a role="checkbox" span + a hidden <input> beside it), which
 // buys us the semantics the hand-rolled native input never wired up on its own: Space activation,
@@ -83,8 +84,8 @@ export function Checkbox({
       >
         {children ?? (
           indeterminate
-            ? <Minus className="h-3/4 w-3/4" strokeWidth={3} />
-            : <Check className="h-3/4 w-3/4" strokeWidth={3} />
+            ? <Minus className="h-3/4 w-3/4" strokeWidth={STROKE_MARK} />
+            : <Check className="h-3/4 w-3/4" strokeWidth={STROKE_MARK} />
         )}
       </BaseCheckbox.Indicator>
     </BaseCheckbox.Root>

@@ -14,10 +14,12 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { hapticTap } from '@/lib/haptics'
+import { STROKE_NAV, WASH_ACTIVE } from '@/lib/icon-tokens'
 
 // One uniform lucide stroke across the whole bar. A slightly thicker, identical weight on
 // every icon reads softer and keeps all five tabs at the same visual weight (symmetry).
-const STROKE = 2.25
+// STROKE_NAV is the platform weight (docs/icon-language.md §2) — shared with the header.
+const STROKE = STROKE_NAV
 
 // Spring release (bouncy settle) instead of a linear snap; touch-action kills the tap delay.
 const TAB = 'flex flex-1 cursor-pointer transition-transform duration-[240ms] [transition-timing-function:var(--ease-spring-snappy)] active:scale-[0.96] active:duration-[60ms] [touch-action:manipulation]'
@@ -79,8 +81,12 @@ const STACK_POST = 'relative flex h-full w-full flex-col items-center justify-en
 function TabBody({ active, icon, label, stack = STACK }: { active: boolean; icon: React.ReactNode; label: string; stack?: string }) {
   const { pending } = useLinkStatus()
   const on = active || pending
+  // Location-active = soft duotone (icon-language §5): the stack's ink turns brand AND the
+  // glyph gains the brand-100 interior wash. WASH_ACTIVE skips any icon already carrying an
+  // explicit fill-* class, so a user-state fill (the solid saved heart / unread bubble)
+  // always wins over mere location.
   return (
-    <span className={cn(stack, on ? 'text-accent-foreground' : 'text-body')}>
+    <span className={cn(stack, on ? cn('text-accent-foreground', WASH_ACTIVE) : 'text-body')}>
       {on && <span aria-hidden className="absolute top-0 h-0.5 w-8 rounded-full bg-accent-foreground" />}
       <TabStack icon={icon} label={label} />
     </span>
@@ -308,9 +314,12 @@ export function MobileNav() {
         // Emphasised but FLAT: a soft tinted chip (canon chip = rounded-full + tint, §2) with a
         // brand-blue plus — no shadow, no FAB lift, no heavy solid fill. It reads as the primary
         // action while staying part of the same flat canvas as the other tabs.
+        // bg-brand-50, not bg-tint (icon-language §6): the Post coin is the one chrome coin in
+        // the bar, and the brand-tinted disc ties it to the category-glyph wash — same blue
+        // family, still flat.
         stack={STACK_POST}
         icon={
-          <span className="flex size-13 items-center justify-center rounded-full bg-tint text-brand">
+          <span className="flex size-13 items-center justify-center rounded-full bg-brand-50 text-brand">
             <Plus className="h-7 w-7" strokeWidth={STROKE} />
           </span>
         }

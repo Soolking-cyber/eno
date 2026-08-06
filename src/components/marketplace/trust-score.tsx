@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { Tooltip } from '@/components/ui/tooltip'
 import { useLanguage } from '@/context/language-context'
 import { trustScoreColor, trustFillClass } from '@/lib/trust-score'
+import { SEAL_OUTLINE, SEAL_BAR, SEAL_CHIEF } from '@/components/marketplace/eno-seal'
 import { cn } from '@/lib/utils'
 
 type Props = {
@@ -72,15 +73,20 @@ export function TrustScore({ score, size = 'sm', showLabel = false, variant = 's
         )}
         style={fill ? undefined : { color, background: 'color-mix(in srgb, currentColor 10%, transparent)' }}
       >
-        <svg width={10} height={10} viewBox="0 0 24 24" className="shrink-0" aria-hidden="true">
+        {/* The eno seal at micro scale (docs/icon-language.md §0b) — tinted
+            chief + line silhouette + e-bar. Same paths as every other seal in
+            the app; only the tint opacity adapts to the pill's ink. */}
+        <svg width={11} height={11} viewBox="0 0 24 24" className="shrink-0" aria-hidden="true">
+          <path d={SEAL_CHIEF} fill="currentColor" fillOpacity={fill ? 0.55 : 0.3} />
           <path
-            d="M12 2 4 5v6.2c0 5.05 8 9 8 9s8-3.95 8-9V5l-8-3z"
-            fill="currentColor"
-            fillOpacity={fill ? 0.35 : 0.25}
+            d={SEAL_OUTLINE}
+            fill="none"
             stroke="currentColor"
-            strokeWidth="2.5"
+            strokeWidth="2.4"
+            strokeLinecap="round"
             strokeLinejoin="round"
           />
+          <path d={SEAL_BAR} fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" />
         </svg>
         {n}
       </span>,
@@ -97,8 +103,10 @@ export function TrustScore({ score, size = 'sm', showLabel = false, variant = 's
   }
 
   const px = PX[size]
-  // Shrink the digits a touch for 3-digit scores so they sit cleanly in the shield.
-  const fontSize = n >= 100 ? 7.6 : 9
+  // The number lives in the seal's belly (below the e-bar), so the digits are
+  // sized to that region: shrink for 3-digit scores, and keep the block clear
+  // of the tapering keel.
+  const fontSize = n >= 100 ? 7 : 8.6
   const grad = SHIELD_GRADIENT[band]
   const gradId = grad ? `trust-grad-${band}` : undefined
 
@@ -121,36 +129,37 @@ export function TrustScore({ score, size = 'sm', showLabel = false, variant = 's
         )}
         {grad ? (
           <>
-            {/* Vivid gradient seal + a glassy top-half highlight (static — shine
-                without motion; prefers-reduced-motion safe by construction). */}
+            {/* Vivid gradient badge on the eno seal (§0b): the chief becomes the
+                glassy highlight (static — shine without motion; reduced-motion
+                safe by construction) and the e-bar renders in the tier's text
+                ink, so the signature reads even on gold/violet. */}
             <path
-              d="M12 2 4 5v6.2c0 5.05 8 9 8 9s8-3.95 8-9V5l-8-3z"
+              d={SEAL_OUTLINE}
               fill={`url(#${gradId})`}
               strokeWidth="1"
               strokeLinejoin="round"
               style={{ stroke: grad.to }}
             />
-            <path
-              d="M12 2 4 5v5.5c2.5 1.2 5.3 1.8 8 1.8s5.5-.6 8-1.8V5l-8-3z"
-              fill="#ffffff"
-              fillOpacity="0.22"
-            />
-            <text x="12" y="10.6" textAnchor="middle" dominantBaseline="central" fontSize={fontSize} fontWeight="800" fontFamily="inherit" fill={grad.text}>
+            <path d={SEAL_CHIEF} fill="#ffffff" fillOpacity="0.25" />
+            <path d={SEAL_BAR} fill="none" stroke={grad.text} strokeOpacity="0.85" strokeWidth="1.5" strokeLinecap="round" />
+            <text x="12" y="13.1" textAnchor="middle" dominantBaseline="central" fontSize={fontSize} fontWeight="800" fontFamily="inherit" fill={grad.text}>
               {n}
             </text>
           </>
         ) : (
           <>
-            {/* Quiet tiers: flat tinted seal (fill/stroke via style so the CSS var
-                resolves — SVG attrs don't take var()). */}
+            {/* Quiet tiers: line seal with a tinted chief (fill/stroke via style
+                so the CSS var resolves — SVG attrs don't take var()). */}
+            <path d={SEAL_CHIEF} fillOpacity="0.16" style={{ fill: color }} />
             <path
-              d="M12 2 4 5v6.2c0 5.05 8 9 8 9s8-3.95 8-9V5l-8-3z"
-              fillOpacity="0.12"
+              d={SEAL_OUTLINE}
+              fill="none"
               strokeWidth="1.5"
               strokeLinejoin="round"
-              style={{ fill: color, stroke: color }}
+              style={{ stroke: color }}
             />
-            <text x="12" y="10.4" textAnchor="middle" dominantBaseline="central" fontSize={fontSize} fontWeight="800" fontFamily="inherit" style={{ fill: color }}>
+            <path d={SEAL_BAR} fill="none" strokeWidth="1.5" strokeLinecap="round" style={{ stroke: color }} />
+            <text x="12" y="13.1" textAnchor="middle" dominantBaseline="central" fontSize={fontSize} fontWeight="800" fontFamily="inherit" style={{ fill: color }}>
               {n}
             </text>
           </>

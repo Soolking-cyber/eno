@@ -100,6 +100,8 @@ import {
   HelpCircle,
   type LucideIcon,
 } from 'lucide-react'
+import { cn } from '@/lib/utils'
+import { STROKE_DISPLAY } from '@/lib/icon-tokens'
 
 // Resolves a lucide icon NAME (stored in the taxonomy / Category rows) to its
 // component. Covers every category AND subcategory glyph — keep in sync with
@@ -205,7 +207,60 @@ const ICONS: Record<string, LucideIcon> = {
   Zap,
 }
 
+// THE SIGNATURE WASH (docs/icon-language.md §0/§7): every category glyph is a
+// single ink line over ONE soft brand-blue interior region — the region a child
+// would color in. Selectors are curated per key because lucide child order is
+// arbitrary; keys without an entry fall back to washing `rect` children (a rect
+// is always a closed body region, so the default can never mis-fill an open
+// path). Keys with no washable region render pure line and still belong to the
+// family. ⚠️ Class strings must stay LITERAL (no template concatenation) —
+// Tailwind's scanner and the design-lint hook both read the source text.
+const WASH_MAP: Record<string, string> = {
+  Baby: '[&>path:nth-of-type(3)]:fill-brand-100',
+  Bike: '[&>circle]:fill-brand-100',
+  BookOpen: '[&>path]:fill-brand-100',
+  Building2: '[&>path:first-of-type]:fill-brand-100',
+  Camera: '[&>circle]:fill-brand-100',
+  Coffee: '[&>path:nth-of-type(3)]:fill-brand-100',
+  Compass: '[&>path]:fill-brand-100',
+  Dumbbell: '[&>path:first-of-type]:fill-brand-100 [&>path:nth-of-type(4)]:fill-brand-100',
+  Gamepad2: '[&>path]:fill-brand-100',
+  Heart: '[&>path]:fill-brand-100',
+  House: '[&>path:first-of-type]:fill-brand-100',
+  KeyRound: '[&>path]:fill-brand-100',
+  Laptop: '[&>path:first-of-type]:fill-brand-100',
+  Map: '[&>path:first-of-type]:fill-brand-100',
+  MessagesSquare: '[&>path:first-of-type]:fill-brand-100',
+  PackageOpen: '[&>path:nth-of-type(3)]:fill-brand-100',
+  PawPrint: '[&>*]:fill-brand-100',
+  Plane: '[&>path]:fill-brand-100',
+  PlaneTakeoff: '[&>path:nth-of-type(2)]:fill-brand-100',
+  Search: '[&>circle]:fill-brand-100',
+  Shirt: '[&>path]:fill-brand-100',
+  ShoppingBag: '[&>path:first-of-type]:fill-brand-100',
+  Sofa: '[&>path:nth-of-type(2)]:fill-brand-100',
+  Sparkles: '[&>path:first-of-type]:fill-brand-100',
+  Stamp: '[&>path:nth-of-type(2)]:fill-brand-100',
+  Tag: '[&>path]:fill-brand-100',
+  Truck: '[&>circle]:fill-brand-100',
+  UsersRound: '[&>circle]:fill-brand-100',
+  UtensilsCrossed: '[&>path:nth-of-type(2)]:fill-brand-100',
+  WashingMachine: '[&>rect]:fill-brand-100 [&>circle]:fill-brand-100',
+  Watch: '[&>circle]:fill-brand-100',
+  Wrench: '[&>path]:fill-brand-100',
+  Zap: '[&>path]:fill-brand-100',
+}
+const WASH_DEFAULT = '[&>rect]:fill-brand-100'
+
 export function CategoryIcon({ name, className }: { name: string; className?: string }) {
   const Icon = ICONS[name] ?? HelpCircle
-  return <Icon className={className} />
+  // Display tier stroke (icon-language §2): category art renders at h-11+ where
+  // stroke 2 looks rubber-stamped; 1.5 scales to the premium ~2.75px line. The
+  // caller's className comes last so a call-site can still override anything.
+  return (
+    <Icon
+      strokeWidth={STROKE_DISPLAY}
+      className={cn(WASH_MAP[name] ?? WASH_DEFAULT, className)}
+    />
+  )
 }

@@ -25,6 +25,7 @@ import {
 } from '@/hooks/use-search-box'
 import { RECENT_SEARCHES_KEY } from '@/lib/reco-signals'
 import { SITE_NAME } from '@/lib/edition'
+import { STROKE_NAV } from '@/lib/icon-tokens'
 // ⚠️ The rail's REAL open state, not a guess at it — see the logo's className below.
 import { useAccountPanel } from './account-panel'
 
@@ -39,7 +40,9 @@ const SUGGEST_ID = 'header-search-suggest'
 const AreaFilter = dynamic(() => import('./area-filter').then((m) => m.AreaFilter), { ssr: false })
 const SearchSuggest = dynamic(() => import('./search-suggest').then((m) => m.SearchSuggest), { ssr: false })
 
-const STROKE = 2.25
+// STROKE_NAV = the platform weight for nav chrome (docs/icon-language.md §2), shared
+// with the bottom nav so the two chrome bars carry one line weight.
+const STROKE = STROKE_NAV
 
 export function Header() {
   const { t, tr, lang } = useLanguage()

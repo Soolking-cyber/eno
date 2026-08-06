@@ -93,6 +93,10 @@ const PAGE_EXTENSIONS =
 
 const nextConfig: NextConfig = {
   pageExtensions: PAGE_EXTENSIONS,
+  // Dev-only: hide the floating Next.js devtools badge. It renders bottom-left —
+  // exactly over the bottom nav's first tab on mobile — and pollutes every design
+  // screenshot taken against `next dev`. No effect on production builds.
+  devIndicators: false,
   // Standalone server output for local `npm start` / self-hosting. NOT on Vercel:
   // standalone targets a Node server and makes Vercel bundle Edge middleware with
   // Node globals (`__dirname`), crashing it (MIDDLEWARE_INVOCATION_FAILED). Vercel

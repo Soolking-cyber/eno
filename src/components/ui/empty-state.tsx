@@ -1,5 +1,6 @@
 import type { LucideIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { STROKE_DISPLAY } from '@/lib/icon-tokens'
 
 // Shared centered empty / error placeholder: the dashed-border card (icon or media + title
 // + optional subtitle + optional action) that was hand-rolled in ~14 places — empty lists,
@@ -51,7 +52,15 @@ export function EmptyState({
         className,
       )}
     >
-      {media ?? (Icon && <Icon className="h-10 w-10 text-muted-foreground" />)}
+      {/* The chrome coin (icon-language §6): a lucide-led empty state sits its glyph on a
+          soft brand-50 disc at the display stroke — the same blue family as the category
+          wash, so "nothing here yet" still looks like eno rather than a gray void. Mascot
+          `media` nodes render verbatim as before (bespoke art needs no coin). */}
+      {media ?? (Icon && (
+        <span className="flex h-16 w-16 items-center justify-center rounded-full bg-brand-50">
+          <Icon className="h-8 w-8 text-brand" strokeWidth={STROKE_DISPLAY} />
+        </span>
+      ))}
       <div className="space-y-1">
         <p className={size === 'lg' ? 'text-base font-semibold text-foreground' : 'text-sm font-semibold text-body'}>{title}</p>
         {subtitle && <p className={cn('mx-auto max-w-sm text-muted-foreground', size === 'lg' ? 'text-sm' : 'text-xs')}>{subtitle}</p>}
