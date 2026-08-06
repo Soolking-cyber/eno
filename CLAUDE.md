@@ -92,6 +92,29 @@ These carry invariants recorded in their own comments. Read the comments before 
 
 `messages/[id]/page.tsx` deserves its own line, because the invariant here is easy to state backwards. **Text mode DOES have a tap-Send button** (the Zalo/FB pattern). The real rule is *why* it's safe: `ChatSendButton` fires on **`onMouseDown` + `preventDefault`, never `onPointerDown`** — that holds the composer's focus, so the tap can't blur the field, dismiss the keyboard, and shift the button out from under the finger. That focus-hold is the invariant; "no tap-Send" was an earlier workaround and is **obsolete** — don't let anyone "restore" it. Enter still sends (`enterKeyHint="send"`), and the Counter button must stay gated by `negotiable !== false` (a counter sends an offer; on a fixed-price listing the server 409s and docks the buyer's trust).
 
+## ⚠️ WS NUMBERS ARE NOT UNIQUE — CLAIM ONE BEFORE YOU USE IT (2026-08-06)
+
+Two sessions worked the `ws0-wire-the-gates` branch in parallel and collided **three times**:
+there are now **two WS5s** (fail-open guards / docs + destructive command), **two WS7s** (offer
+correctness / product-feed PII), **and no WS6 from one of them**. Nobody lost work — the commits
+are disjoint and all landed — but the numbering no longer identifies anything, which matters
+because the commit messages hand findings forward by number ("WS2 reported and did not fix…").
+
+**Before starting a stream, run `git log --oneline main..HEAD | grep -iE '^[0-9a-f]+ WS[0-9]'`
+and take the next FREE number.** The branch is the shared registry; there is no other one. If the
+number you want is taken, take the next one rather than qualifying it — "WS8" beats "WS7b".
+
+Two more habits that came out of the same collision, both cheap:
+
+- **`git commit` commits the INDEX, not your pathspec-shaped intent.** If the other session has
+  files staged, a plain `git commit -m` sweeps them into your commit under your message. This
+  happened twice. Commit with an explicit pathspec (`git commit -F - -- ':(literal)path'`) AND
+  **read the `--stat` afterwards**: a file you touched for two lines showing 60 insertions is the
+  tell. `git add -A` and `commit -a` remain banned for exactly this reason.
+- **Re-read `git log` before quoting a diff to a reviewer.** A review prompt built from
+  `git show HEAD` returned a REFUTED verdict on a correct fix, because HEAD had moved to the other
+  session's commit between writing the code and asking about it. Cite the SHA you mean.
+
 ## One session at a time (owner, 2026-07-27) — the cockpit is CLOSED
 
 **The multi-agent cockpit was retired on 2026-07-27. Owner's verdict: _"this experimental
