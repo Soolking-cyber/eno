@@ -51,6 +51,7 @@ export function serializeListing(
         ? new Date(l.priceDropAt!.getTime() + DROP_BADGE_MS).toISOString()
         : null,
     urgent: !!l.urgentUntil && l.urgentUntil.getTime() > Date.now(),
+    urgentUntil: l.urgentUntil ? l.urgentUntil.toISOString() : null,
     location: l.location,
     district: l.district,
     city: l.city,
@@ -155,6 +156,7 @@ export function serializeListingCard(l: ListingCardRow): SerializedListingCard {
     negotiable: l.negotiable,
     prevPrice: activeDropAnchor(l.previousPrice, l.priceDropAt, l.price),
     urgent: !!l.urgentUntil && l.urgentUntil.getTime() > Date.now(),
+    urgentUntil: l.urgentUntil ? l.urgentUntil.toISOString() : null,
     location: l.location,
     district: l.district,
     city: l.city,

@@ -231,6 +231,7 @@ export type NicheApiErrorCode =
   | 'unknown_category'
   | 'unknown_macro'
   | 'unsafe_url'
+  | 'takedown_failed'
   | 'unsupported_file_type'
   | 'unsupported_image_type'
   | 'url_required'
@@ -457,6 +458,7 @@ const ALL = [
   'unknown_category',
   'unknown_macro',
   'unsafe_url',
+  'takedown_failed',
   'unsupported_file_type',
   'unsupported_image_type',
   'url_required',
