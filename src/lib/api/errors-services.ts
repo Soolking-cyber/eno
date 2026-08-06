@@ -20,6 +20,29 @@
  * because only the runtime array ships. TypeScript never sees the stub (an alias is a bundler
  * resolution), so the exhaustiveness check in errors.ts reads this list and stays honest.
  *
+ * ⚠️ THREE REVIEW FAMILIES INDEPENDENTLY FILED THE SAME FINDING ON THIS FILE, AND IT IS WRONG.
+ * The claim: `human_help_pending` is in this list, `SERVICES_ALL` stubs to `[]` on a marketplace
+ * build, therefore `apiErrorCode()` returns null on eno.vn and the shared-thread degrade branch in
+ * `src/app/messages/[id]/page.tsx` never fires — so an eno.vn user whose concierge escalated on the
+ * forum sees an unknown-error state instead of "a person has been asked for".
+ *
+ * It does not hold: that page never narrows through `apiErrorCode()`. It imports neither
+ * `@/lib/api/errors` nor `@/lib/api/client`, and `apiErrorCode()` has exactly ONE caller in the
+ * repo — `src/lib/api/client.ts:93`, whose only importer is its own test.
+ *
+ * ⚠️ THE `:64` SITE IS WORTH TRACING RATHER THAN ASSERTING, because a fourth review pushed back on
+ * exactly that: `switch (code)` there takes a VARIABLE, so "the page imports neither module" is a
+ * narrower fact than "the value never passed through a recogniser". It is bound, in full:
+ *     :769  visaPost()        const error = typeof data?.error === 'string' ? data.error : undefined
+ *     :1014 setConciergeError(res.error ?? 'internal_error')
+ *     :197  conciergeErrorCopy(error, tr)   →   :64 switch (code)
+ * A raw `typeof` test on the response body, straight to the switch. The other site, `:978`, is a
+ * direct `data?.error === 'human_help_pending'` compare. Neither consults any array.
+ *
+ * Left here rather than deleted because a correlated false positive across three families is worth
+ * a note: every one of them reasoned from the array's PURPOSE ("this is how codes are recognised")
+ * instead of checking who calls the recogniser. If you are about to file it again, grep first.
+ *
  * ⚠️ MEMBERSHIP IS DECIDED BY WHETHER A MARKETPLACE ROUTE CAN EMIT THE CODE — not by the name, and
  * NOT by whether the literal appears somewhere in marketplace-compiled source. Those last two are
  * different questions and confusing them cost a round here, so the distinction is worth stating.
