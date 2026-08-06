@@ -22,6 +22,28 @@ export type DigestItem = {
 // Only surface drops from the last two weeks so the "sales" stay genuinely fresh.
 const DROP_WINDOW_MS = 14 * 24 * 60 * 60 * 1000
 
+// The drop badge's own lifetime — mirrors DROP.BADGE_MS in src/lib/price-drop.ts and the copy of it
+// in serialize.ts. A digest must never claim a discount the site itself has already retired.
+const DROP_BADGE_MS = 3 * 24 * 60 * 60 * 1000
+
+/**
+ * How far back "new this week" reaches for the top picks, and the widening fallback.
+ *
+ * ⚠️ THE DIGEST USED TO SEND THE SAME SIX LISTINGS EVERY WEEK. `top` ordered by rankScore across
+ * every active listing with no recency bound at all — and rankScore is a deliberately slow-moving
+ * trust⊕recency blend, so the same winners held the top six indefinitely and a subscriber got an
+ * identical email week after week. A weekly digest whose content does not change is unsubscribe
+ * bait, and it also buries exactly what the email exists to surface: what is NEW.
+ *
+ * So the window is the primary filter and rankScore only ORDERS WITHIN it — subscribers get the
+ * best of the new, not the best of all time. The fallback widens rather than dropping the window,
+ * because on a quiet week the right answer is "the last fortnight's best" and never "the same six
+ * again": each step still prefers recent listings, and the final 90-day step keeps the email from
+ * going out empty while the catalogue is still small.
+ */
+const TOP_WINDOWS_MS = [7, 14, 30, 90].map((d) => d * 24 * 60 * 60 * 1000)
+const TOP_COUNT = 6
+
 type Row = {
   id: string
   title: string
@@ -52,7 +74,19 @@ function firstImage(images: string): string | null {
 }
 
 function toItem(l: Row): DigestItem {
-  const hasDrop = l.previousPrice != null && l.previousPrice > l.price
+  // ⚠️ THE DROP MUST STILL BE LIVE, not merely historical. This was
+  // `l.previousPrice != null && l.previousPrice > l.price` with no window check at all — and
+  // previousPrice is cleared ONLY on a price RAISE (price-drop.ts:86), so a listing that dropped
+  // once and never raised kept it forever. The site retires the badge after DROP.BADGE_MS (3 days)
+  // everywhere else, so every weekly digest from day 4 onward emailed a red "−25%" pill for a
+  // discount the marketplace had already withdrawn, and the recipient clicked through to a PDP
+  // showing a plain price. That is an outbound reference-price claim with no upper bound on its
+  // age — the exact pattern price-drop.ts:11-14 cites EU-Omnibus Art 6a to prevent.
+  const hasDrop =
+    l.previousPrice != null &&
+    l.previousPrice > l.price &&
+    l.priceDropAt != null &&
+    Date.now() - l.priceDropAt.getTime() < DROP_BADGE_MS
   return {
     id: l.id,
     title: l.title,
@@ -74,13 +108,23 @@ export async function getDigestContent(): Promise<{ top: DigestItem[]; sales: Di
   // Promise.all element would also serialise the pair.
   const liveWhere = await scopedListingWhere({ verified: true, status: 'active' })
   const [topRows, saleRows] = await Promise.all([
-    // Top products — the bounded trust⊕recency blend (rankScore), same as "Recommended".
-    db.listing.findMany({
-      where: liveWhere,
-      orderBy: [{ rankScore: 'desc' }, { id: 'desc' }],
-      take: 6,
-      select: SELECT,
-    }),
+    // Top products — THE BEST OF WHAT IS NEW, not the best of all time. The window is the filter and
+    // rankScore only orders within it (see TOP_WINDOWS_MS). Widen only as far as needed: a busy week
+    // never leaves the 7-day window, and a quiet one still prefers the most recent listings rather
+    // than falling back to the same all-time winners the old query kept re-sending.
+    (async () => {
+      for (const windowMs of TOP_WINDOWS_MS) {
+        const rows = await db.listing.findMany({
+          where: { ...liveWhere, createdAt: { gte: new Date(Date.now() - windowMs) } },
+          orderBy: [{ rankScore: 'desc' }, { id: 'desc' }],
+          take: TOP_COUNT,
+          select: SELECT,
+        })
+        // Only the LAST window may return a short list; earlier ones widen instead of settling.
+        if (rows.length >= TOP_COUNT || windowMs === TOP_WINDOWS_MS[TOP_WINDOWS_MS.length - 1]) return rows
+      }
+      return []
+    })(),
     // Moving sales — a recent real drop (priceDropAt within the window) OR still urgent.
     // Over-fetch, then post-filter the previousPrice>price compare Prisma can't express.
     db.listing.findMany({
