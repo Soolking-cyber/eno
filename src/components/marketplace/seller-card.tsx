@@ -1,9 +1,11 @@
 'use client'
 
 import Link from 'next/link'
-import { MessageCircle, Store, Building2, BadgeCheck } from 'lucide-react'
+import { MessageCircle, Store, Building2, Star } from 'lucide-react'
+import { EnoSeal } from './eno-seal'
 import { useLanguage } from '@/context/language-context'
 import { TrustScore } from '@/components/marketplace/trust-score'
+import { trustBand } from '@/lib/trust-score'
 import { RatingValue, CountValue } from '@/components/marketplace/rating-value'
 import { Avatar } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
@@ -17,6 +19,29 @@ import type { SellerMetrics } from '@/lib/seller-metrics'
 // (serialized seller) and the storefront (raw Seller row) satisfy it. Every trust
 // signal (score/tier/rating/reviews/response) rides in via the `metrics` bundle so
 // the raw responseRate number never reaches this client component.
+/**
+ * §0/§0b stopgap for the BUILDING-band mini seal (shared by SellerCard and
+ * PdpShopLink — the two seller-surface TrustScore mounts). trust-score.tsx
+ * (foundation-owned) tints the quiet mini chip's chief with `currentColor`
+ * (neutral slate for Building), which desaturates the signature exactly where
+ * it lives: a pixel scan of the chip found ZERO blue — the seal read as lucide
+ * ShieldMinus. Until the foundation moves the brand wash INSIDE the mini
+ * variant, the call site restores it: the chief (the svg's FIRST path, a
+ * stable ordering trust-score.tsx documents) takes the `fill-brand-100` wash
+ * at full opacity — the same arbitrary-variant pattern as the category WASH
+ * map. Line + bar + digits keep the band's slate ink ("tinted chief + line +
+ * bar", icon-language §0b micro tier). EARNED tiers return undefined so their
+ * vivid gradient chips stay untouched (§0b addendum), as does restricted (red
+ * is a warning surface, not a trust signature). DELETE both call sites' usage
+ * when trust-score.tsx lands the wash natively (foundation request filed
+ * 2026-08-06, round 2).
+ */
+export function miniSealWashClass(score: number): string | undefined {
+  return trustBand(score) === 'standard'
+    ? '[&>svg>path:first-of-type]:fill-brand-100 [&>svg>path:first-of-type]:[fill-opacity:1]'
+    : undefined
+}
+
 export type SellerCardSeller = {
   id: string
   name: string
@@ -75,8 +100,12 @@ export function SellerCard({
   strip.push(tr(`Joined ${memberSinceYear}`, `Tham gia ${memberSinceYear}`))
   if (reviewCount > 0) {
     strip.push(
+      // lucide Star (rating fill), NOT the '★' text glyph — one rating mark across
+      // the strip, the reviews header and the review rows (icon-language §1: the
+      // base set is lucide; a font glyph drifts per-platform and takes no tokens).
       <span key="reviews" className="inline-flex items-center gap-1">
-        <RatingValue value={rating} />★ · <CountValue value={reviewCount} />{' '}
+        <Star className="h-3.5 w-3.5 shrink-0 fill-rating text-rating" aria-hidden />
+        <RatingValue value={rating} /> · <CountValue value={reviewCount} />{' '}
         {tr('reviews', 'đánh giá')}
       </span>,
     )
@@ -106,7 +135,7 @@ export function SellerCard({
             {seller.isBusiness && (
               seller.businessVerified ? (
                 <Badge variant="success" className="px-1.5 py-0.5 font-semibold">
-                  <BadgeCheck className="h-3 w-3" /> {tr('Business verified', 'Doanh nghiệp đã xác minh')}
+                  <EnoSeal aria-hidden className="h-3 w-3" /> {tr('Business verified', 'Doanh nghiệp đã xác minh')}
                 </Badge>
               ) : (
                 <Badge variant="neutral" className="px-1.5 py-0.5 font-semibold text-accent-foreground">
@@ -114,7 +143,7 @@ export function SellerCard({
                 </Badge>
               )
             )}
-            <TrustScore score={trustScore} variant="mini" size="sm" href="/trust" />
+            <TrustScore score={trustScore} variant="mini" size="sm" href="/trust" className={miniSealWashClass(trustScore)} />
           </div>
           {strip.length > 0 && (
             <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-muted-foreground">

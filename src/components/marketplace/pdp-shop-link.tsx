@@ -1,10 +1,11 @@
 'use client'
 
 import Link from 'next/link'
-import { ChevronRight, Building2, BadgeCheck } from 'lucide-react'
+import { ChevronRight, Building2, BadgeCheck, Star } from 'lucide-react'
 import { Avatar } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { TrustScore } from './trust-score'
+import { miniSealWashClass } from './seller-card'
 import { RatingValue, CountValue } from './rating-value'
 import { useLanguage } from '@/context/language-context'
 import { cn } from '@/lib/utils'
@@ -47,8 +48,11 @@ export function PdpShopLink({ name, avatarColor, avatarUrl, isBusiness, business
   strip.push(tr(`Joined ${memberSinceYear}`, `Tham gia ${memberSinceYear}`))
   if (reviewCount > 0) {
     strip.push(
+      // lucide Star (rating fill), NOT the '★' text glyph — same rating mark as the
+      // shared SellerCard strip and the storefront review rows (icon-language §1).
       <span key="reviews" className="inline-flex items-center gap-1">
-        <RatingValue value={rating} />★ · <CountValue value={reviewCount} /> {tr('reviews', 'đánh giá')}
+        <Star className="h-3.5 w-3.5 shrink-0 fill-rating text-rating" aria-hidden />
+        <RatingValue value={rating} /> · <CountValue value={reviewCount} /> {tr('reviews', 'đánh giá')}
       </span>,
     )
   }
@@ -80,7 +84,10 @@ export function PdpShopLink({ name, avatarColor, avatarUrl, isBusiness, business
               </Badge>
             )
           )}
-          <TrustScore score={trustScore} variant="mini" size="sm" href="/trust" />
+          {/* Building-band chips get the brand-100 chief wash from the call site —
+              the §0 signature at micro scale; see miniSealWashClass in seller-card.tsx
+              (stopgap pending the foundation fix inside trust-score.tsx). */}
+          <TrustScore score={trustScore} variant="mini" size="sm" href="/trust" className={miniSealWashClass(trustScore)} />
         </div>
         {strip.length > 0 && (
           <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-muted-foreground">

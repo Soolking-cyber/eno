@@ -1372,15 +1372,15 @@ html.native-tabs .bottom-nav-spacer {
 .trust-fill-trusted {
   background-image: linear-gradient(135deg, #3b82f6 0%, #2563eb 55%, #1d4ed8 100%);
   color: #fff;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45), 0 0 8px rgba(37, 99, 235, 0.28);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45);
 }
 .trust-fill-exceptional {
   background-image: linear-gradient(135deg, #fde047 0%, #facc15 45%, #f59e0b 100%);
   color: #713f12; /* amber-900 on gold ≈ 7:1 */
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55), 0 0 8px rgba(250, 204, 21, 0.4);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55);
 }
 .trust-fill-elite {
   background-image: linear-gradient(135deg, #7c3aed 0%, #6d28d9 55%, #5b21b6 100%);
   color: #fff;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), 0 0 8px rgba(124, 58, 237, 0.35);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4);
 }

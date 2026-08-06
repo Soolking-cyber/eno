@@ -1,7 +1,8 @@
 'use client'
 
 import Link from 'next/link'
-import { Star, BadgeCheck, ChevronRight } from 'lucide-react'
+import { Star, ChevronRight } from 'lucide-react'
+import { EnoSeal } from './eno-seal'
 import { useLanguage, Tr } from '@/context/language-context'
 import { Badge } from '@/components/ui/badge'
 import { getInitials } from '@/lib/utils'
@@ -60,7 +61,7 @@ export function ReviewsPreview({
                     size="sm"
                     className="gap-0.5 px-1.5 font-medium text-accent-foreground"
                   >
-                    <BadgeCheck className="h-3 w-3" aria-hidden />
+                    <EnoSeal aria-hidden className="h-3 w-3" />
                     {tr('Verified buyer', 'Đã mua')}
                   </Badge>
                 )}

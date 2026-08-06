@@ -156,7 +156,7 @@ export function SellerListings({
       {searchable && (
         /* Just a search within this seller's catalog — no category/type filters. */
         <div className="flex items-center gap-2 rounded-xl bg-tint px-3 py-2">
-          <Search className="h-4 w-4 shrink-0 text-ink-4" />
+          <Search className="h-4 w-4 shrink-0 text-ink-4" aria-hidden />
           <Input
             variant="unstyled"
             value={q}

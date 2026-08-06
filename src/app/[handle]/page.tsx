@@ -126,7 +126,7 @@ export default async function HandlePage({ params }: Props) {
           <h1 className="mt-4 text-xl font-bold text-foreground">{name}</h1>
           <p className="mt-0.5 text-sm font-semibold text-accent-foreground">@{row.handle}</p>
           <p className="mt-3 inline-flex items-center gap-1.5 text-xs text-muted-foreground">
-            <CalendarDays className="h-3.5 w-3.5" /> <Tr text="Member since" /> {memberYear}
+            <CalendarDays className="h-3.5 w-3.5" aria-hidden /> <Tr text="Member since" /> {memberYear}
           </p>
           <p className="mt-6 text-sm leading-relaxed text-body">
             <Tr text="This member hasn't opened a shop yet. Browse the marketplace to see what's for sale." />

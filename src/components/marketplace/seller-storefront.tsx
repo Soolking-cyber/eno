@@ -2,7 +2,8 @@ import { IS_MARKETPLACE } from '@/lib/edition'
 import { deskSellerIds, scopedListingWhere } from '@/lib/edition-scope'
 import { cache } from 'react'
 import { notFound } from 'next/navigation'
-import { AlertTriangle, BadgeCheck, Star } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, Star } from 'lucide-react'
+import { EnoSeal } from './eno-seal'
 import { db } from '@/lib/db'
 import { Button } from '@/components/ui/button'
 import { serializeListing } from '@/lib/serialize'
@@ -168,11 +169,20 @@ export async function SellerStorefront({ id }: { id: string }) {
                     public badge on its own, so a business that passed only the automatic
                     tax check (a copyable public MST) can no longer flash a partial
                     "verified" signal to buyers. */}
+                {/* Glyphs are RANKED, not interchangeable: the EnoSeal is the mark for
+                    signals eno actually VERIFIED ("Business verified", "Verified buyer") —
+                    §0b routes every first-party verification moment to the seal, and a
+                    stock BadgeCheck beside the authored seal chip diluted the signature
+                    (blind-critic catch, R2). The weaker "Active account" status takes the
+                    plain CheckCircle2 — stamping the verification mark on mere activity
+                    would devalue the real one.
+                    size="md" (text-xs + h-3.5 glyph) matches the HandleChip beside it,
+                    so the identity row reads as ONE height of chip. */}
                 {cardSeller.businessVerified ? (
-                  <Badge variant="success"><BadgeCheck className="h-3.5 w-3.5" /> <Tr text="Business verified" /></Badge>
+                  <Badge variant="success" size="md"><EnoSeal aria-hidden className="h-3.5 w-3.5" /> <Tr text="Business verified" /></Badge>
                 ) : (
                   seller.ownerId && (
-                    <Badge variant="success"><BadgeCheck className="h-3.5 w-3.5" /> <Tr text="Active account" /></Badge>
+                    <Badge variant="success" size="md"><CheckCircle2 className="h-3.5 w-3.5" aria-hidden /> <Tr text="Active account" /></Badge>
                   )
                 )}
                 {/* Report rides the END of this line. It is a rare, secondary action — as its
@@ -192,7 +202,7 @@ export async function SellerStorefront({ id }: { id: string }) {
               caution === 'throttled' ? 'bg-warning/10 text-warning' : 'bg-destructive/10 text-destructive'
             }`}
           >
-            <AlertTriangle className="h-4 w-4 shrink-0" />
+            <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden />
             {caution === 'throttled'
               ? <Tr text="This seller is under review — trade with extra care" />
               : <Tr text="This seller's account is on hold — don't send money or deposits" />}
@@ -226,9 +236,14 @@ export async function SellerStorefront({ id }: { id: string }) {
                       {r.author.split(' ').map((w) => w[0]).join('').toUpperCase()}
                     </span>
                     <span className="text-sm font-semibold text-foreground">{r.author}</span>
-                    {/* Earned badge: only reviews with real conversation provenance. */}
+                    {/* Earned badge: only reviews with real conversation provenance.
+                        Same treatment as the PDP's ReviewsPreview rows (neutral chip,
+                        accent ink, h-3 BadgeCheck inside 2xs text) — the two review
+                        surfaces are one click apart and must read as one hand. */}
                     {r.verified && (
-                      <Badge variant="success"><BadgeCheck className="h-3.5 w-3.5" /> <Tr text="Verified buyer" /></Badge>
+                      <Badge variant="neutral" size="sm" className="gap-0.5 px-1.5 font-medium text-accent-foreground">
+                        <EnoSeal aria-hidden className="h-3 w-3" /> <Tr text="Verified buyer" />
+                      </Badge>
                     )}
                     {/* Rating + date: pushed right when the row fits, but a plain LEFT-aligned
                         second line once it wraps on a phone — `ml-auto` alone left it as a
