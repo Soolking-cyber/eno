@@ -109,7 +109,11 @@ export async function POST(req: NextRequest) {
   try {
     const profileId = await getCurrentProfileId()
     if (!profileId) return NextResponse.json({ error: 'auth_required' }, { status: 401 })
-    const limit = await rateLimit('upload-video-transcode', profileId, 30, '1 h')
+    // ⚠️ strict: FAIL CLOSED. This is the most expensive request in the app — up to 50MB of billed
+    // egress plus ~210s of full-CPU Cloud Run per call. Video is optional on a listing and the
+    // wizard already tolerates a transcode failure, so failing closed costs an optional attachment
+    // during a limiter outage rather than an unbounded compute bill.
+    const limit = await rateLimit('upload-video-transcode', profileId, 30, '1 h', { strict: true })
     if (!limit.success) return NextResponse.json({ error: 'rate_limited' }, { status: 429 })
 
     const body = (await req.json().catch(() => ({}))) as { path?: unknown; hevc?: unknown }

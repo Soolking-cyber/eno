@@ -17,13 +17,19 @@ export async function PATCH(req: NextRequest) {
   const profile = await getCurrentProfile()
   if (!profile) return NextResponse.json({ error: 'auth_required' }, { status: 401 })
 
-  // The distinct 409 phone_taken response is an account-existence oracle; throttle
-  // so it can't be looped to enumerate which phone numbers have eno.vn accounts.
-  const rl = await rateLimit('profile-update', profile.id, 20, '1 h')
-  if (!rl.success) return NextResponse.json({ error: 'rate_limited' }, { status: 429 })
-
   let body: Record<string, unknown>
   try { body = await req.json() } catch { return NextResponse.json({ error: 'Invalid body' }, { status: 400 }) }
+
+  // The distinct 409 phone_taken response is an account-existence oracle; throttle
+  // so it can't be looped to enumerate which phone numbers have eno.vn accounts.
+  // ⚠️ STRICT ONLY WHEN A PHONE IS BEING SET, and the body parse moved above this line to make
+  // that possible. The limiter fails OPEN by default, so an rl_check outage un-capped exactly the
+  // oracle this comment exists to close: loop PATCH with {phone: <candidate>} and read a clean
+  // boolean for "does this number have an account?". Failing the whole route closed would be the
+  // blunt fix and would block ordinary display-name and avatar edits during a limiter blip for no
+  // security gain — so only the branch that answers the oracle is strict.
+  const rl = await rateLimit('profile-update', profile.id, 20, '1 h', { strict: body.phone !== undefined })
+  if (!rl.success) return NextResponse.json({ error: 'rate_limited' }, { status: 429 })
 
   const data: Record<string, unknown> = {}
   if (body.displayName !== undefined) {

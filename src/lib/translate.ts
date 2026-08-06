@@ -3,6 +3,7 @@ import crypto from 'crypto'
 import { db } from './db'
 import { detectContentLang } from './detect-lang'
 import { LANGS, type Lang } from './i18n/langs'
+import { rateLimit } from '@/lib/ratelimit'
 
 // Supported-language roster: canonical definition lives in the isomorphic
 // @/lib/i18n/langs; re-exported here so existing importers keep working.
@@ -429,6 +430,11 @@ export async function uncachedStats(texts: string[], target: Lang): Promise<{ co
 // at Google's $20/M) with most of it never read. The long tail (km/ms/th/fr/hi) fills via
 // the nightly warm-translations cron (which sweeps ALL languages for missing rows) or
 // lazily on first view through /api/translate. Sequential to respect provider throttles.
+/** Global hourly ceiling on automatic warm-translation batches (all accounts combined).
+ *  Sized well above organic publishing — ~500 listings/hour — so it only ever bites on a
+ *  runaway or an abuse burst, never on real sellers. */
+const WARM_GLOBAL_HOURLY = 500
+
 const EAGER_WARM_LANGS: Lang[] = (['vi', 'zh-Hans', 'ko', 'ja', 'ru'] as Lang[]).filter((l) => LANGS.includes(l))
 
 /**
@@ -441,6 +447,18 @@ const EAGER_WARM_LANGS: Lang[] = (['vi', 'zh-Hans', 'ko', 'ja', 'ru'] as Lang[])
 export async function warmTranslations(texts: string[], langs: Lang[] = EAGER_WARM_LANGS): Promise<void> {
   const clean = Array.from(new Set(texts.filter((t) => t && t.trim().length > 0)))
   if (clean.length === 0 || (!GOOGLE_KEY && !AZURE_KEY)) return
+  // ⚠️ A GLOBAL, FAIL-CLOSED CEILING ON THE ONLY UNCAPPED PAID CALL IN THE PUBLISH PATH.
+  // This runs from `after()` on EVERY listing create and bulk-import row, and it calls Google/Azure
+  // translate once per language — six of them. Until now nothing bounded it: chargeCharBudget()
+  // lives in /api/translate and guards the user-facing route only, so the automatic warm had no
+  // budget at all. The per-account publish limiter is not a substitute, because it fails OPEN by
+  // design (posting is the marketplace's core action and a limiter blip must not stop sellers).
+  // So the breaker goes on the SPEND instead of the post — the same shape semantic-rank.ts and
+  // ai-guard.ts already use. `strict: true` means an rl_check outage SKIPS the warm rather than
+  // un-capping it; the cost is only that these strings translate on demand later (still cached),
+  // which is exactly the degrade path `cachedOnly` already exists for.
+  const budget = await rateLimit('warm-translate-global', 'global', WARM_GLOBAL_HOURLY, '1 h', { strict: true })
+  if (!budget.success) return
   for (const l of langs) {
     try { await translateBatch(clean, l, { source: 'warm' }) } catch { /* best-effort per language */ }
   }

@@ -24,7 +24,11 @@ export async function POST(req: Request) {
   if (!profile) return NextResponse.json({ error: 'auth_required' }, { status: 401 })
   // Account-type is set once or rarely changed; cap per account so the phone_taken (409)
   // response can't be probed as a "does this number have an account?" oracle.
-  const rl = await rateLimit('account-type', profile.id, 12, '1 h')
+  // ⚠️ strict: FAIL CLOSED. The comment below names the threat, and phoneTakenByOther() further down
+  // answers it as a clean boolean — an un-limited caller can enumerate which phone numbers have an
+  // account. This route runs once or twice in an account's lifetime, so failing closed during a
+  // limiter outage is nearly free. Fixing only the profile editor would just move the oracle here.
+  const rl = await rateLimit('account-type', profile.id, 12, '1 h', { strict: true })
   if (!rl.success) return NextResponse.json({ error: 'rate_limited' }, { status: 429 })
   // True only on the genuine FIRST onboarding (accountType still null) → so the
   // CompleteRegistration conversion below isn't re-sent if the type is changed later.
