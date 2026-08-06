@@ -289,22 +289,15 @@ export function Header() {
         hidden ? '-translate-y-full opacity-0' : 'translate-y-0 opacity-100',
       )}
     >
-      {/* ⚠️ NO HORIZONTAL PADDING, DELIBERATELY — the logo and the action buttons sit flush to the
-          bar's edges (owner, 2026-08-02: "logo and other buttons should have no padding on both
-          sides"). This BREAKS FROM THE CANONICAL PAGE GUTTER on purpose: every other surface uses
-          `max-w-7xl px-3 sm:px-6 lg:px-8` (docs/design-language.md), so the header's contents no
-          longer align with the content column beneath them. That misalignment is the requested
-          look, not an oversight — do not "fix" it by restoring the gutter.
-          The border-b still spans the full max-w-7xl, so the hairline is unchanged. */}
-      {/* ⚠️ PADDED ON MOBILE, FLUSH FROM sm UP — both halves are deliberate and they came from the
-          owner in that order (2026-08-02 "logo and other buttons should have no padding on both
-          sides", then "on mobile and app have some padding"). On a phone the mark and the action
-          icons sat hard against the screen edge, which on iOS is where the swipe-back gesture and
-          the rounded display corners live; from sm up there is room and the flush look is wanted.
-          Still NOT the canonical page gutter (`px-3 sm:px-6 lg:px-8`, docs/design-language.md), so
-          the header deliberately does not align with the content column beneath it — see the note
-          on the logo below. Do not "restore" the gutter. */}
-      <div className="mx-auto flex h-16 w-full max-w-7xl items-center gap-2 border-b border-border/60 px-3 sm:gap-3 sm:px-0">
+      {/* CANONICAL PAGE GUTTER, RESTORED BY THE OWNER (2026-08-06: "lets have this match the width
+          of banner"). History, because this line has flipped twice: 2026-08-02 the owner asked for
+          a flush bar ("logo and other buttons should have no padding on both sides", then "on
+          mobile and app have some padding" → px-3 sm:px-0); 2026-08-06 they reversed it so the
+          header contents edge-align with the hero banner / content column beneath (`max-w-7xl
+          px-3 sm:px-6 lg:px-8`, docs/design-language.md — the same alignment rule as the footer).
+          The border-b spans the full max-w-7xl either way (padding sits inside the border), so the
+          hairline is unchanged. If this flips again, rewrite this note — don't stack another. */}
+      <div className="mx-auto flex h-16 w-full max-w-7xl items-center gap-2 border-b border-border/60 px-3 sm:gap-3 sm:px-6 lg:px-8">
         {/* Logo */}
         <Link
           href="/"
