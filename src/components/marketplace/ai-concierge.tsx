@@ -3,11 +3,12 @@
 import { Sparkles } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
 import { Button } from '@/components/ui/button'
+import { STROKE_NAV, WASH_ACTIVE } from '@/lib/icon-tokens'
 import { cn } from '@/lib/utils'
 
-/** The AI icon that sits left of the camera in every search bar. Pressing it opens the
+/** The AI icon that sits left of the map in every search bar. Pressing it opens the
  *  "eno AI" conversation in the messages tab (a native chat, not a popup). `active` is
- *  driven by the route so the icon fills in while you're on that chat. */
+ *  driven by the route so the icon lights up while you're on that chat. */
 export function AISearchButton({
   active, onClick, className, iconClassName = 'h-6 w-6',
 }: { active: boolean; onClick: () => void; className?: string; iconClassName?: string }) {
@@ -27,16 +28,22 @@ export function AISearchButton({
       title={tr('Ask eno AI', 'Hỏi eno AI')}
       className={cn(
         // Inactive = the search-bar icon standard (same as the magnifier + Map):
-        // quiet ink, turns brand-blue on hover. Active keeps the filled state.
-        // The caller's `iconClassName` (h-6 w-6 …) is a real class, (0,1,0), so it
-        // outweighs the base icon rule `[:where(&)_svg]:size-4` at (0,0,1) — the
-        // ✨ keeps its 24/28px size and is never squashed to 16px.
-        'rounded-xl transition-[color,transform] duration-200 hover:scale-110 tap-44 relative',
-        active ? 'bg-primary text-white shadow-sm' : 'text-ink-4 hover:text-accent-foreground',
+        // quiet ink, turns brand-blue on hover — a colour move only (icon-language §8;
+        // scale-on-hover belongs to tile glyphs, not chrome).
+        // Active = LOCATION state (§5, "you are here" on /messages/ai), so it takes the
+        // same soft duotone as the bottom nav's active tab: brand ink + the brand-100
+        // wash inside the big sparkle (WASH_ACTIVE fills the first path only — the body
+        // a child would colour in). The old solid bg-primary chip + shadow was the
+        // user-state treatment shouting about mere location, and the one shadow in the bar.
+        'rounded-full transition-colors duration-200 tap-44 relative active:scale-[0.96]',
+        active ? cn('text-accent-foreground', WASH_ACTIVE) : 'text-ink-4 hover:text-accent-foreground',
         className,
       )}
     >
-      <Sparkles className={iconClassName} />
+      {/* STROKE_NAV — the search-bar icon standard, matching the magnifier + Map (§2:
+          h-6 chrome carries the platform weight; the ✨ was the one glyph in the bar
+          still on the default 2 and read thinner than its neighbours). */}
+      <Sparkles className={iconClassName} strokeWidth={STROKE_NAV} />
     </Button>
   )
 }

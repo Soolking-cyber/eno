@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { usePathname } from 'next/navigation'
 import { ChevronUp } from 'lucide-react'
+import { STROKE_FLOAT } from '@/lib/icon-tokens'
 import { useAccountPanel } from './account-panel'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -104,11 +105,15 @@ export function BackToTop() {
           // ONLY this button (status-bar tap already scrolls to top there); Android keeps the chevron.
           // (The floating Help "?" was removed 2026-07-18 — the rail's Help row owns it.)
           className={cn(
-            'back-to-top-chevron relative flex h-11 w-11 items-center justify-center text-body transition-all duration-200 hover:text-accent-foreground hover:scale-110 active:scale-[0.96] tap-44',
+            // Hover = colour only (icon-language §8 — scale-on-hover is a tile-glyph move,
+            // not chrome); press keeps the standard settle.
+            'back-to-top-chevron relative flex h-11 w-11 items-center justify-center text-body transition-all duration-200 hover:text-accent-foreground active:scale-[0.96] tap-44',
             show ? 'opacity-100 translate-y-0' : 'pointer-events-none opacity-0 translate-y-2',
           )}
         >
-          <ChevronUp className="h-7 w-7 [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.28))]" strokeWidth={2.5} />
+          {/* STROKE_FLOAT (§2): a bare chevron floating over card imagery — heavier than
+              chrome so it survives busy photos; the drop-shadow is its only backing. */}
+          <ChevronUp className="h-7 w-7 [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.28))]" strokeWidth={STROKE_FLOAT} />
         </Button>
 
       </div>

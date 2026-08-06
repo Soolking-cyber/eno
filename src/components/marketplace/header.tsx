@@ -35,9 +35,10 @@ const SUGGEST_ID = 'header-search-suggest'
 
 // One uniform lucide stroke across the whole header, matching the bottom nav — a slightly
 // thicker, identical weight reads softer and keeps every icon visually the same weight.
-// Perf Phase 1: popover-only widgets load on demand — neither the area picker nor
-// the suggest dropdown belongs in the header's initial chunk.
-const AreaFilter = dynamic(() => import('./area-filter').then((m) => m.AreaFilter), { ssr: false })
+// Perf Phase 1: popover-only widgets load on demand — the suggest dropdown doesn't
+// belong in the header's initial chunk. (The AreaFilter dynamic import that lived here
+// was vestigial — nothing in the header could open it since the in-bar area pill moved
+// to the facet bar; its chunk, state and render were removed in the icon pass.)
 const SearchSuggest = dynamic(() => import('./search-suggest').then((m) => m.SearchSuggest), { ssr: false })
 
 // STROKE_NAV = the platform weight for nav chrome (docs/icon-language.md §2), shared
@@ -111,15 +112,6 @@ export function Header() {
   // hides it if a page ever reintroduces `#eno-hero-search`.
   const [showSearch, setShowSearch] = useState(true)
   const [searchVal, setSearchVal] = useState('')
-  const [province, setProvince] = useState<Geo | null>(null)
-  const [ward, setWard] = useState<Geo | null>(null)
-  const [nearby, setNearby] = useState<Nearby | null>(null)
-  const [areaOpen, setAreaOpen] = useState(false)
-  // Perf Phase 1: don't even fetch the area-picker chunk until the first open —
-  // stays mounted afterwards so close animations/state behave as before.
-  const [areaEverOpened, setAreaEverOpened] = useState(false)
-  useEffect(() => { if (areaOpen) setAreaEverOpened(true) }, [areaOpen])
-  const areaBtnRef = useRef<HTMLButtonElement>(null)
   // Quick-select suggestions (same store as the hero/in-explorer search): the user's
   // recent searches + recently-used areas, shown when the header search is focused.
   const [showSuggestions, setShowSuggestions] = useState(false)
@@ -251,9 +243,6 @@ export function Header() {
   }
 
   const applyArea = ({ province: p, ward: w, nearby: nb }: { province: Geo | null; ward: Geo | null; nearby: Nearby | null }) => {
-    setProvince(p)
-    setWard(w)
-    setNearby(nb)
     if (isExplorerPage) {
       window.dispatchEvent(new CustomEvent('eno:set-area', { detail: { province: p, ward: w, nearby: nb } }))
     } else {
@@ -426,56 +415,68 @@ export function Header() {
                 aria-activedescendant={activeOptionId}
                 className="min-w-0 flex-1 bg-transparent py-3 pl-2 pr-2 text-base text-foreground outline-none placeholder:text-ink-4"
               />
-              {/* Clear — appears once there's text, left of the location picker. */}
-              {searchVal && (
+              {/* De-crowd rule — keyed on ENGAGEMENT (suggest panel open), never on text
+                  presence. searchVal persists after submit, so a value-based swap would hide
+                  Map + AI on every results page — regressing the owner's 2026-08-03 mandate
+                  ("add mapview back to searchbar in top navbar"); all three diff reviewers
+                  flagged exactly that. While the panel is open the one affordance that
+                  matters is clearing (✕ with text, nothing when empty — an empty slot also
+                  means clearing can't land the next tap on ✨, the reviewer-caught mis-tap);
+                  the pair returns on submit/blur/Escape, all of which close the panel.
+                  h-6 per the §4 ladder — "header search/map/✕" share the 24px step. */}
+              {showSuggestions ? (searchVal ? (
                 <IconButton
-                  size="sm"
+                  size="md"
                   onClick={() => { setSearchVal(''); submitSearch('') }}
                   aria-label={tr('Clear search', 'Xóa tìm kiếm')}
                   // tap-48 overrides the IconButton's baked-in tap-44 (defined later in the sheet)
                   // for a 48px hit area — forgiving for kids / fast scrollers — with no size change.
                   className="mr-0.5 tap-48 text-ink-4 transition-colors hover:bg-muted hover:text-foreground"
                 >
-                  <X className="h-5 w-5" strokeWidth={STROKE} />
+                  <X className="h-6 w-6" strokeWidth={STROKE} />
                 </IconButton>
+              ) : null) : (
+                <>
+                  {/* AI shopping concierge — pressable: press to enter AI mode (duotone), press
+                      again for normal search. Sits left of the map in every search bar. */}
+                  <AISearchButton
+                    active={pathname === '/messages/ai'}
+                    onClick={() => { router.push('/messages/ai'); setShowSuggestions(false) }}
+                    // relative + tap-48 → a 48px hit area around the 40px visual (invisible ::before).
+                    className="relative mr-0.5 h-10 w-10 tap-48"
+                  />
+                  {/* ⚠️ MAP VIEW, BACK IN THE BAR (owner, 2026-08-03: "add mapview back to searchbar in
+                      top navbar, inside to the right of ai search icon"). It lived in the hero search
+                      that was deleted when the bar moved up here, so the entry point vanished with it —
+                      this restores the same action in its new home.
+                      Dispatches `eno:view-map` rather than calling setViewMode: the header is a SIBLING
+                      of the explorer, not its parent, and the explorer already listens for the header's
+                      other search events. Off an explorer page it routes home with ?view=map instead, so
+                      the button never dead-ends. Icon weight matches the magnifier and the ✨ beside it
+                      (STROKE_NAV) — the search-bar icon standard. Hover is a colour move only
+                      (icon-language §8: scale-on-hover belongs to tile glyphs, not chrome). */}
+                  <Button
+                    // ⚠️ type="button" IS LOAD-BEARING — this sits inside the search <form> (line ~358)
+                    // and ui/button sets no default type, so without it the browser treats it as
+                    // type="submit": tapping Map would ALSO submit the search, racing the map action
+                    // against a query navigation. codex caught this; the failure is intermittent and
+                    // would have read as "the map button sometimes just searches instead".
+                    type="button"
+                    variant="bare"
+                    size="none"
+                    onClick={() => {
+                      setShowSuggestions(false)
+                      if (isExplorerPage) window.dispatchEvent(new CustomEvent('eno:view-map'))
+                      else router.push('/?view=map')
+                    }}
+                    aria-label={tr('Map', 'Bản đồ')}
+                    title={tr('Map', 'Bản đồ')}
+                    className="relative mr-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-ink-4 tap-48 transition-[color,transform] duration-200 hover:text-accent-foreground active:scale-[0.96] cursor-pointer"
+                  >
+                    <Map className="h-6 w-6" strokeWidth={STROKE} />
+                  </Button>
+                </>
               )}
-              {/* AI shopping concierge — pressable: press to enter AI mode (filled), press
-                  again for normal search. Sits left of the camera in every search bar. */}
-              <AISearchButton
-                active={pathname === '/messages/ai'}
-                onClick={() => { router.push('/messages/ai'); setShowSuggestions(false) }}
-                // relative + tap-48 → a 48px hit area around the 40px visual (invisible ::before).
-                className="relative mr-0.5 h-10 w-10 tap-48"
-              />
-              {/* ⚠️ MAP VIEW, BACK IN THE BAR (owner, 2026-08-03: "add mapview back to searchbar in
-                  top navbar, inside to the right of ai search icon"). It lived in the hero search
-                  that was deleted when the bar moved up here, so the entry point vanished with it —
-                  this restores the same action in its new home.
-                  Dispatches `eno:view-map` rather than calling setViewMode: the header is a SIBLING
-                  of the explorer, not its parent, and the explorer already listens for the header's
-                  other search events. Off an explorer page it routes home with ?view=map instead, so
-                  the button never dead-ends. Icon weight matches the magnifier and the ✨ beside it
-                  (STROKE 2.25) — the search-bar icon standard. */}
-              <Button
-                // ⚠️ type="button" IS LOAD-BEARING — this sits inside the search <form> (line ~358)
-                // and ui/button sets no default type, so without it the browser treats it as
-                // type="submit": tapping Map would ALSO submit the search, racing the map action
-                // against a query navigation. codex caught this; the failure is intermittent and
-                // would have read as "the map button sometimes just searches instead".
-                type="button"
-                variant="bare"
-                size="none"
-                onClick={() => {
-                  setShowSuggestions(false)
-                  if (isExplorerPage) window.dispatchEvent(new CustomEvent('eno:view-map'))
-                  else router.push('/?view=map')
-                }}
-                aria-label={tr('Map', 'Bản đồ')}
-                title={tr('Map', 'Bản đồ')}
-                className="relative mr-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-ink-4 tap-48 transition-[color,transform] duration-200 hover:scale-110 hover:text-accent-foreground active:scale-100 cursor-pointer"
-              >
-                <Map className="h-6 w-6" strokeWidth={STROKE} />
-              </Button>
               {/* Photo search folded into the AI assistant (✨ → camera in the chat
                   composer) — one smart entry point, less icon crowding. Pasting an
                   image into this bar still visual-searches (handler above). */}
@@ -488,7 +489,9 @@ export function Header() {
                   {recentSearches.length > 0 && (
                     <div className="space-y-1.5">
                       <div className="flex items-center justify-between">
-                        <span className="flex items-center gap-1 text-2xs font-bold uppercase tracking-wider text-muted-foreground"><Clock className="h-3 w-3" strokeWidth={STROKE} />{tr('Recent', 'Tìm gần đây')}</span>
+                        {/* Micro-meta eyebrow icons ride the UI tier (lucide default 2) — STROKE_NAV
+                            is reserved for h-6/h-7 chrome (§2); 2.25 at 12px reads smudged. */}
+                        <span className="flex items-center gap-1 text-2xs font-bold uppercase tracking-wider text-muted-foreground"><Clock className="h-3 w-3" />{tr('Recent', 'Tìm gần đây')}</span>
                         <Button variant="bare" size="none" type="button" onClick={() => { localStorage.removeItem(RECENT_SEARCHES_KEY); setRecentSearches([]) }} className="text-2xs font-semibold text-muted-foreground hover:text-destructive cursor-pointer">{tr('Clear', 'Xóa')}</Button>
                       </div>
                       <div className="flex flex-wrap gap-1.5">
@@ -510,7 +513,7 @@ export function Header() {
                   {recentLocations.length > 0 && (
                     <div className="space-y-1.5">
                       <div className="flex items-center justify-between">
-                        <span className="flex items-center gap-1 text-2xs font-bold uppercase tracking-wider text-muted-foreground"><MapPin className="h-3 w-3" strokeWidth={STROKE} />{tr('Recent locations', 'Khu vực gần đây')}</span>
+                        <span className="flex items-center gap-1 text-2xs font-bold uppercase tracking-wider text-muted-foreground"><MapPin className="h-3 w-3" />{tr('Recent locations', 'Khu vực gần đây')}</span>
                         <Button variant="bare" size="none" type="button" onClick={() => { localStorage.removeItem(RECENT_LOCATIONS_KEY); setRecentLocations([]) }} className="text-2xs font-semibold text-muted-foreground hover:text-destructive cursor-pointer">{tr('Clear', 'Xóa')}</Button>
                       </div>
                       <div className="flex flex-wrap gap-1.5">
@@ -523,7 +526,7 @@ export function Header() {
                             onClick={() => { applyArea({ province: loc.province, ward: loc.ward, nearby: null }); setShowSuggestions(false) }}
                             className="whitespace-normal gap-1.5 rounded-xl px-3.5 py-2 text-sm font-semibold text-body hover:text-accent-foreground cursor-pointer"
                           >
-                            <MapPin className="h-3.5 w-3.5" strokeWidth={STROKE} />
+                            <MapPin className="h-3.5 w-3.5" />
                             {loc.ward ? (lang === 'vi' ? loc.ward.name : loc.ward.nameEn) : (lang === 'vi' ? loc.province.name : loc.province.nameEn)}
                           </Button>
                         ))}
@@ -606,16 +609,6 @@ export function Header() {
         </div>
       </div>
 
-      {areaEverOpened && <AreaFilter
-        open={areaOpen}
-        anchorRef={areaBtnRef}
-        onClose={() => setAreaOpen(false)}
-        province={province}
-        ward={ward}
-        nearby={nearby}
-        onApply={applyArea}
-        onReset={() => applyArea({ province: null, ward: null, nearby: null })}
-      />}
     </header>
   )
 }

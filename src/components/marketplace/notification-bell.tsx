@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Bell, MessageSquare, Tag, Clock, Search, Sparkles, Scale, X, TrendingDown } from 'lucide-react'
+import { EnoSeal } from './eno-seal'
+import { STROKE_NAV } from '@/lib/icon-tokens'
 import { useNotifications } from '@/context/notifications-context'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -62,8 +64,11 @@ export function NotificationBell() {
             className="text-body transition-[background-color,color,transform] duration-100 hover:bg-accent hover:text-accent-foreground active:scale-[0.96]"
           >
             {/* 28px everywhere — matches the bottom-nav icons on mobile and the
-                Saved/Messages action icons on desktop (one consistent nav scale). */}
-            <Bell className={cn('h-7 w-7', user && unread > 0 && 'fill-brand text-brand')} />
+                Saved/Messages action icons on desktop (one consistent nav scale).
+                STROKE_NAV: the bell is h-7 header chrome (§2 — it was the one chrome
+                glyph in the header still on lucide's default 2). The solid fill-brand
+                when unread is USER-state (§5) — something is yours/waiting. */}
+            <Bell className={cn('h-7 w-7', user && unread > 0 && 'fill-brand text-brand')} strokeWidth={STROKE_NAV} />
             {user && unread > 0 && (
               <Badge aria-hidden variant="counter" size="count" className="absolute right-1 top-1 animate-in zoom-in duration-200">
                 {unread > 9 ? '9+' : unread}
@@ -117,7 +122,10 @@ export function NotificationBell() {
             // Compact designed empty state (popover-scale) — says what lands here
             // and points somewhere useful, instead of a bare one-liner.
             <div className="px-6 py-10 text-center">
-              <span className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-tint text-ink-4">
+              {/* The chrome coin (§6) at popover scale — same brand-50 disc as ui/empty-state's
+                  badge, so "nothing here yet" stays in the blue family instead of a gray void.
+                  20px glyph keeps the UI stroke (display-tier 1.5 only thins h-8+ artwork). */}
+              <span className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-brand-50 text-brand">
                 <Bell className="h-5 w-5" />
               </span>
               <p className="mx-auto mt-3 max-w-[15rem] text-sm text-ink-4">
@@ -134,7 +142,10 @@ export function NotificationBell() {
           ) : (
             sorted.map((n) => {
               const href = n.url ? n.url : n.type === 'reminder' ? '/dashboard/availability' : n.conversationId ? `/messages/${n.conversationId}` : n.listingId ? `/listings/${n.listingId}` : '#'
-              const Icon = n.type === 'offer' ? Tag : n.type === 'price_drop' ? TrendingDown : n.type === 'reminder' ? Clock : n.type === 'saved_search' ? Search : n.type === 'milestone' ? Sparkles : n.type === 'dispute' ? Scale : MessageSquare
+              // 'system' = an official admin→user message, i.e. eno itself speaking — a genuine
+              // first-party moment, so it carries the eno seal (icon-language §0b: the signature
+              // echo, reserved for first-party trust; every other type keeps its lucide verb).
+              const Icon = n.type === 'system' ? EnoSeal : n.type === 'offer' ? Tag : n.type === 'price_drop' ? TrendingDown : n.type === 'reminder' ? Clock : n.type === 'saved_search' ? Search : n.type === 'milestone' ? Sparkles : n.type === 'dispute' ? Scale : MessageSquare
               return (
                 // Unread = brand-tinted with a left rail + dot; read = plain. Opening
                 // a notification marks just it read (so it sinks below on next view).
