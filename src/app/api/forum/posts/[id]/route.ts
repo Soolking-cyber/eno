@@ -10,6 +10,7 @@ import {
   type ForumCommentDto,
 } from '@/lib/forum/serialize'
 import { rateLimit } from '@/lib/ratelimit'
+import { logError } from '@/lib/log'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -90,7 +91,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       if (blocked) return forumJson(request, { error: 'not_found' }, { status: 404 }, 'GET, PATCH, DELETE, OPTIONS')
     }
 
-    void db.forumPost.update({ where: { id }, data: { viewCount: { increment: 1 } } }).catch(() => {})
+    void db.forumPost.update({ where: { id }, data: { viewCount: { increment: 1 } } }).catch((e) => logError(e, { op: 'forumPost.incrementViews' }))
     const comments = post.comments.map((comment) => serializeForumComment({
       ...comment,
       body: comment.status === 'removed' ? '[removed]' : comment.body,

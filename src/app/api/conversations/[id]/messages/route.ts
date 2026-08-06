@@ -5,6 +5,7 @@ import { rateLimit, kv } from '@/lib/ratelimit'
 import { insertMessage } from '@/lib/messages'
 import { messagingGate } from '@/lib/enforcement'
 import { recordFixedPriceOfferAttempt } from '@/lib/offer-guard'
+import { logError } from '@/lib/log'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -50,20 +51,25 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   }
   // A claim must never outlive a FAILED attempt — every error exit below releases it,
   // else a retry of a validation failure would 409 for the whole TTL.
-  const release = async () => { if (idemKey) await kv.del(idemKey).catch(() => {}) }
+  const release = async () => { if (idemKey) await kv.del(idemKey).catch((e) => logError(e, { op: 'messages.del' })) }
 
   // An offer is a structured message: validate the amount. The body carries ONLY
   // the sender's optional note (possibly empty) — the offer line itself is derived
   // client-side from offerAmount, so locale + money format live in the renderer.
+  // ⚠️ ROUND FIRST, THEN VALIDATE. Validating the RAW value and rounding afterwards let any
+  // 0 < x < 0.5 through as a genuine offer that then rounds to ZERO: POST {offerAmount: 0.4}
+  // stored kind='offer', offerAmount=0, offerStatus='pending', and the thread rendered an offer
+  // card for 0 đ that the seller could accept.
   const rawAmount = Number(body.offerAmount)
-  const isOffer = Number.isFinite(rawAmount) && rawAmount > 0
-  const offerAmount = isOffer ? Math.min(Math.round(rawAmount), 1e12) : undefined
+  const rounded = Number.isFinite(rawAmount) ? Math.min(Math.round(rawAmount), 1e12) : NaN
+  const isOffer = Number.isFinite(rounded) && rounded > 0
+  const offerAmount = isOffer ? rounded : undefined
   const text = String(body.body || '').trim().slice(0, MAX_LEN)
   if (!text && !isOffer) { await release(); return NextResponse.json({ error: 'empty' }, { status: 400 }) }
 
   const convo = await db.conversation.findUnique({
     where: { id },
-    select: { id: true, buyerProfileId: true, sellerProfileId: true, listing: { select: { id: true, negotiable: true } } },
+    select: { id: true, buyerProfileId: true, sellerProfileId: true, listing: { select: { id: true, negotiable: true, status: true } } },
   })
   if (!convo) { await release(); return NextResponse.json({ error: 'not_found' }, { status: 404 }) }
 
@@ -82,6 +88,18 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     return NextResponse.json({ error: 'not_negotiable' }, { status: 409 })
   }
 
+  // ⚠️ NO NEW OFFERS ON A LISTING THAT IS NOT ACTIVE. Neither this path nor actOnOffer read
+  // Listing.status, so a buyer could offer on — and a seller accept on — an item already marked
+  // SOLD or hidden. OFFERS ONLY: plain text stays allowed, because the sold page is a deliberate
+  // 200 surface where buyers still ask questions, and cutting the thread would be a worse bug than
+  // the one being fixed. Deliberately NOT counted as a fixed-price attempt: the listing being gone
+  // is not the buyer trying it on, and docking trust for it would be exactly the false positive
+  // offer-guard's own comments warn about.
+  if (isOffer && convo.listing.status !== 'active') {
+    await release()
+    return NextResponse.json({ error: 'listing_unavailable' }, { status: 409 })
+  }
+
   let message: Awaited<ReturnType<typeof insertMessage>>
   try {
     message = await insertMessage(
@@ -96,6 +114,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   }
   // Store the committed result for replay (best-effort — a miss just means a rare
   // duplicate on the exact old failure pattern, never a lost message).
-  if (idemKey) await kv.set(idemKey, message, { ex: 86_400 }).catch(() => {})
+  if (idemKey) await kv.set(idemKey, message, { ex: 86_400 }).catch((e) => logError(e, { op: 'messages.set' }))
   return NextResponse.json(message)
 }

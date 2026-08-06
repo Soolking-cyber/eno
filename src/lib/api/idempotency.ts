@@ -2,6 +2,7 @@ import 'server-only'
 import { NextResponse } from 'next/server'
 import crypto from 'crypto'
 import { kv } from '@/lib/ratelimit'
+import { logError } from '@/lib/log'
 
 // Idempotency for /api/v1 mutating endpoints. A client sends `Idempotency-Key: <id>` on a
 // POST; we run the handler at most once per (api-key, idempotency-key) and replay the
@@ -57,10 +58,10 @@ export async function withIdempotency(
   try {
     const r = await run()
     if (r.status >= 200 && r.status < 300) {
-      await kv.set(cacheKey, { status: r.status, body: r.body } satisfies Outcome, { ex: TTL_SECONDS }).catch(() => {})
+      await kv.set(cacheKey, { status: r.status, body: r.body } satisfies Outcome, { ex: TTL_SECONDS }).catch((e) => logError(e, { op: 'idempotency.set' }))
     }
     return NextResponse.json(r.body, { status: r.status, headers: headers(rate) })
   } finally {
-    await kv.del(progressKey).catch(() => {})
+    await kv.del(progressKey).catch((e) => logError(e, { op: 'idempotency.del' }))
   }
 }

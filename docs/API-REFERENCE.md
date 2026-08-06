@@ -11,7 +11,7 @@ REST API for the eno.vn marketplace. All routes live under `/api`. Unless noted,
 | `owner` | Signed-in **and** must own the target listing/storefront (`checkListingOwner`). | **owner-scoped** |
 | `business` | Signed-in with a **business-tier** Seller storefront. | **owner-scoped** |
 | `admin` | Platform admin only. | **owner-scoped** (privileged) |
-| `cron-bearer` | `Authorization: Bearer CRON_SECRET`, timing-safe compare. Vercel Cron only. | **server-to-server** |
+| `cron-bearer` | `Authorization: Bearer CRON_SECRET`, timing-safe compare. Cloud Scheduler only. | **server-to-server** |
 | `supabase-hmac` | Standard-Webhooks HMAC signature from Supabase auth hook. | **server-to-server** |
 | `basic-auth` | HTTP Basic (feed user/password). Open until creds configured. | **server-to-server** |
 
@@ -24,7 +24,7 @@ REST API for the eno.vn marketplace. All routes live under `/api`. Unless noted,
 
 ### Rate-limit modes
 
-- **strict / fail-closed** — request is rejected if the limiter (Upstash) is unavailable. Used on abuse-sensitive or billable paths.
+- **strict / fail-closed** — request is rejected if the limiter (Postgres — src/lib/ratelimit.ts) is unavailable. Used on abuse-sensitive or billable paths.
 - **open / fail-open** — request proceeds if the limiter is unavailable. Used on UX-critical paths.
 
 ---
@@ -291,12 +291,12 @@ Both cron routes are **server-to-server**, `cron-bearer` auth (`Authorization: B
 
 ### `GET /api/cron/daily-reminders`
 - **Rate limit:** none (~1/day per recipient dedupe)
-- **Purpose:** Vercel Cron — nudge sellers with stale live listings (in-app notif + Web Push) + run trust maintenance.
+- **Purpose:** Cloud Scheduler — nudge sellers with stale live listings (in-app notif + Web Push) + run trust maintenance.
 - **Response:** `{ ok, sellersWithStale, notified, pushed, trust }`; 401
 
 ### `GET /api/cron/saved-search-alerts`
 - **Rate limit:** none
-- **Purpose:** Vercel Cron — for each notify-on saved search, alert on new matches since `lastNotifiedAt` (notif + push).
+- **Purpose:** Cloud Scheduler — for each notify-on saved search, alert on new matches since `lastNotifiedAt` (notif + push).
 - **Response:** `{ ok, searches, notified, pushed }`; 401
 
 ---

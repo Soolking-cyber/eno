@@ -180,11 +180,24 @@ const RULES = [
   },
 ]
 
+/**
+ * ⚠️ `*.test.tsx` IS SKIPPED, AND THE REASON IS THAT THIS LINTER GUARDS SHIPPED UI.
+ * Every rule here — use the primitive, tokens not hex, no raw control — is about what a user sees.
+ * A test renders FIXTURES: a bare `<textarea>` next to the component under test exists to receive
+ * focus, not to be designed, and routing it through `ui/textarea` would couple a behavioural test to
+ * a primitive's styling for no gain. Added 2026-08-05 when the first component test in the repo was
+ * blocked for exactly that, plus a second hit on the word `<button>` inside a PROSE COMMENT — the
+ * comment-stripping runs on JSX, not on a sentence describing JSX.
+ *
+ * This does not weaken the canon: a test file ships to nobody, and the components it exercises are
+ * still linted in their own files. If a test ever needs to assert something ABOUT the design system,
+ * assert it against the primitive's own file rather than re-declaring markup here.
+ */
 function* walk(dir) {
   for (const name of readdirSync(dir)) {
     const p = join(dir, name)
     if (statSync(p).isDirectory()) yield* walk(p)
-    else if (name.endsWith('.tsx')) yield p
+    else if (name.endsWith('.tsx') && !name.endsWith('.test.tsx')) yield p
   }
 }
 

@@ -112,7 +112,7 @@ export function ScrollArrows({
   // work with), so -8 keeps the arrow fully visible with no h-scroll; once the viewport gutter opens
   // up (≥1360px) we push out to -14 for a full arrow-width gap. This never overflows at any width.
   const arrowCls =
-    'absolute z-10 hidden -translate-y-1/2 text-ink-4 transition-transform duration-150 hover:scale-110 hover:text-accent-foreground active:scale-90 pc:block'
+    'absolute z-10 hidden -translate-y-1/2 text-ink-4 transition-transform duration-150 hover:scale-110 hover:text-accent-foreground active:scale-[0.96] pc:block'
   const arrowIcon = 'size-7 [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.25))]'
   // 50% less space when tight: -8→-4 (32→16px), -14→-7 (56→28px).
   const leftInset = tight ? '-left-4 min-[1360px]:-left-7' : '-left-8 min-[1360px]:-left-14'

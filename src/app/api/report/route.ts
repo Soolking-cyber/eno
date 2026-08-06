@@ -49,7 +49,12 @@ export async function POST(req: NextRequest) {
   if (!REASONS.includes(reason)) return NextResponse.json({ error: 'Invalid reason' }, { status: 400 })
 
   const conversationId = body.conversationId ? String(body.conversationId).trim() : null
-  const listingId = body.listingId ? String(body.listingId).trim() : null
+  // ⚠️ `let`, NOT `const`, and the chat branch below OVERWRITES it. This is the value that
+  // decides which listing gets `verified: false` when an admin confirms the report
+  // (api/admin/moderate/route.ts), so a body-supplied id is an unpublish primitive aimed at
+  // any listing the reporter names. The chat branch's own comment already promised to leave it
+  // null; it simply never did, so the promise held only for callers who did not send the field.
+  let listingId = body.listingId ? String(body.listingId).trim() : null
   let sellerId = body.sellerId ? String(body.sellerId).trim() : null
   let targetProfileId: string | null = null
 
@@ -68,6 +73,11 @@ export async function POST(req: NextRequest) {
     const iAmSeller = convo.sellerProfileId === reporter.id
     // Never let someone report a thread they aren't part of.
     if (!iAmBuyer && !iAmSeller) return NextResponse.json({ error: 'not_participant' }, { status: 403 })
+    // Server-derived from here on: whatever listingId the client sent is discarded. A chat report
+    // is about the PERSON, so confirming it must not unpublish a listing — exactly what the
+    // comment at the top of this branch says. Deduplication is unaffected: dupeWhere tests
+    // conversationId first.
+    listingId = null
     if (iAmBuyer) {
       sellerId = convo.sellerId
       targetProfileId = convo.sellerProfileId ?? null

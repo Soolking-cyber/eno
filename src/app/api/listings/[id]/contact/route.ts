@@ -11,9 +11,48 @@ import { sendMetaCapiEvent, metaUserDataFromHeaders } from '@/lib/meta-capi'
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-const IP_SALT = process.env.CONTACT_IP_SALT || 'eno-contact'
+/**
+ * ⚠️ NO DEFAULT SALT. AN UNSALTED HASH OF AN IP IS NOT A HASH OF AN IP, IT IS AN IP.
+ *
+ * This read used to be `process.env.CONTACT_IP_SALT || 'eno-contact'`. A fallback printed in a
+ * public repository is not a secret, and the input space it protects is IPv4 — 2^32 candidates,
+ * which is minutes of brute force against a stolen table. What was MEASURED on 2026-08-05 is that
+ * CONTACT_IP_SALT is commented out at .env:40 and undefined in the runtime environment, so the
+ * fallback is what today's writes use; whether every historical deployment also lacked the variable
+ * was not verified and cannot be from here. Treat pre-2026-08-05 rows as possibly storing the raw
+ * client IP of a signed-in buyer — they are worth backfilling to NULL regardless, since nothing
+ * reads the column.
+ *
+ * ⚠️ IT DEGRADES TO NULL RATHER THAN THROWING, AND THAT IS A DELIBERATE DIVERGENCE FROM
+ * src/lib/compliance/subject-hash.ts, WHICH FAILS CLOSED FOR THIS EXACT PROBLEM. The difference is
+ * what the hash is FOR. There, the digest is load-bearing: it backs a uniqueness index, so an
+ * unkeyed fallback would create a second identity namespace and let the same person pass the index
+ * twice — a wrong answer is worse than an outage, so it throws. Here `ipHash` is a nullable
+ * write-only abuse signal: it is written at :78 and read by NOTHING in the codebase (verified), the
+ * column is already `String?`, and this route reveals a seller's phone number to a buyer who has
+ * already been through the reply-first gate. Throwing would take a live marketplace's contact
+ * reveal offline to protect a field nobody queries; storing NULL protects it completely, because
+ * the thing you never wrote cannot leak.
+ *
+ * ⚠️ TO RESTORE THE SIGNAL, set CONTACT_IP_SALT in Secret Manager (eno-root-env) — 32+ random
+ * bytes, e.g. `openssl rand -base64 32`. Nothing else has to change; hashing resumes on the next
+ * deploy. Rotating it is free precisely because no stored value is ever compared: old and new
+ * hashes never meet.
+ */
+const IP_SALT = process.env.CONTACT_IP_SALT || null
 
-function hashIp(ip: string): string {
+let warnedNoSalt = false
+
+function hashIp(ip: string): string | null {
+  if (!IP_SALT) {
+    // Once per process, not per request: this is a config gap the operator must see, but it is on
+    // the hot path of a user-facing reveal and must not become a log flood during an outage.
+    if (!warnedNoSalt) {
+      warnedNoSalt = true
+      console.error('[contact] CONTACT_IP_SALT is unset — storing ipHash=null instead of a guessable digest')
+    }
+    return null
+  }
   return crypto.createHash('sha256').update(IP_SALT + ip).digest('hex').slice(0, 32)
 }
 

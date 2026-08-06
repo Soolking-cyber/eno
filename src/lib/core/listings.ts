@@ -36,6 +36,7 @@ import { moderateListingById } from '@/lib/ai-moderation'
 import { indexAndCheckProvenance } from '@/lib/image-provenance'
 import { priceChangeEffects } from '@/lib/price-drop'
 import { activateUrgentGate, urgentQuotaFree, URGENT } from '@/lib/urgent'
+import { logError } from '@/lib/log'
 
 // ── Listing write-path "cores" (Phase 0 of the Partner API) ──────────────────────
 // These hold the business logic for mutating a listing, decoupled from HOW the caller
@@ -185,7 +186,12 @@ export async function setStatusCore(
         : {}
   await db.listing.update({
     where: { id: listingId },
-    data: { status, ...(status === 'active' ? { availabilityConfirmedAt: new Date() } : {}), ...saleData },
+    // ⚠️ marketPosition is cleared on REACTIVATION for the same reason the edit path clears it on a
+    // price change: it is the denormalized "Good price / Gia tot" verdict, the nightly cron only
+    // recomputes rows with status='active', and a hidden/sold row therefore keeps a FROZEN verdict.
+    // Without this, a listing hidden for a month comes back wearing a badge derived from a band
+    // that has since moved. No badge until the cron re-derives one is the correct fail-safe.
+    data: { status, ...(status === 'active' ? { availabilityConfirmedAt: new Date(), marketPosition: null } : {}), ...saleData },
   })
   revalidatePath(`/listings/${listingId}`) // sold/hidden must drop from the cached page (it 404s non-active)
   after(() => reindexListing(listingId)) // active → (re)index for AI search; sold/hidden → remove
@@ -221,7 +227,9 @@ export async function confirmCore(listingId: string, profileId: string): Promise
       data: {
         status: 'active',
         availabilityConfirmedAt: now,
-        ...(wasInactive ? { soldChannel: null, soldToProfileId: null, soldPlatform: null, soldAt: null } : {}),
+        // Same reason as setStatusCore above — a reactivated listing must not carry a stale
+        // market-position verdict the cron could not refresh while it was inactive.
+        ...(wasInactive ? { soldChannel: null, soldToProfileId: null, soldPlatform: null, soldAt: null, marketPosition: null } : {}),
         // A bump resets recency (postedAt=now) → recompute rankScore at age 0 so the listing
         // jumps up immediately. No bump (within cooldown) leaves recency to the daily decay.
         ...(bump ? { postedAt: now, rankScore: browseRankScore({ sellerTrustScore: current.sellerTrustScore ?? 100, postedAt: now, featured: current.featured, views: current.views, contactCount: current.contactCount }) } : {}),
@@ -236,7 +244,7 @@ export async function confirmCore(listingId: string, profileId: string): Promise
     after(() => reindexListing(listingId))
     after(() => dispatchListingEvent('listing.status_changed', listingId, undefined, { status: 'active' }))
   }
-  after(() => recordEngagement(profileId).catch(() => {})) // reward keeping listings fresh (daily-capped)
+  after(() => recordEngagement(profileId).catch((e) => logError(e, { op: 'listings.recordEngagement' }))) // reward keeping listings fresh (daily-capped)
   return { ok: true, bumped: bump }
 }
 
@@ -285,6 +293,14 @@ export async function updateListingCore(
     const price = Number(body.price)
     if (!Number.isFinite(price) || price < 0 || price > 1e12) return { ok: false, code: 400, error: 'invalid_price' }
     data.price = price
+    // ⚠️ THE "Good price" VERDICT MUST NOT SURVIVE A PRICE CHANGE. `marketPosition` is denormalized
+    // by the nightly price-stats cron and read by serialize.ts as `goodPrice: marketPosition === 'low'`,
+    // which paints the green "Giá tốt" badge on feed and search cards. Nothing else writes the column,
+    // so raising the price left the badge in place until the next cron pass: the grid advertised
+    // "cheaper than comparable listings" beside a price now above P75, while the PDP one click away
+    // computed the band live and said the opposite. Clearing it is the correct fail-safe — no badge
+    // until the cron re-derives one, and the PDP keeps showing the live band meanwhile.
+    data.marketPosition = null
   }
   if (body.district !== undefined) {
     const district = body.district ? String(body.district).trim().slice(0, 80) : null
@@ -735,7 +751,7 @@ export async function createListingCore(input: {
       verified: true,
     },
   })
-  if (brandSlug) after(() => { bumpBrandCount(brandSlug!); enrichBrandLogoIfMissing(brandSlug!).catch(() => {}) })
+  if (brandSlug) after(() => { bumpBrandCount(brandSlug!); enrichBrandLogoIfMissing(brandSlug!).catch((e) => logError(e, { op: 'listings.enrichBrandLogoIfMissing' })) })
 
   // Tier-2 illegal-content moderation: an AI vision+text pass runs AFTER the response
   // flushes (the listing is already live — instant-publish stays instant). Trust-gated to

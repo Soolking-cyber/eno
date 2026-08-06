@@ -142,7 +142,7 @@ export function HandleEditor({ target, initial, label }: { target: 'profile' | '
             size="none"
             disabled={state !== 'available' || saving}
             onClick={save}
-            className="shrink-0 gap-1.5 px-4 py-2.5 cursor-pointer active:scale-[0.98] disabled:opacity-40 disabled:cursor-default"
+            className="shrink-0 gap-1.5 px-4 py-2.5 cursor-pointer active:scale-[0.96] disabled:opacity-40 disabled:cursor-default"
           >
             {saving && <Loader2 className="h-4 w-4 animate-spin" />}
             {tr('Save', 'Lưu')}

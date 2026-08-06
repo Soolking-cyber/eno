@@ -1,4 +1,4 @@
-import type { Listing, Category, Seller } from '@/generated/prisma/client'
+import type { Listing, Category, Seller, Prisma } from '@/generated/prisma/client'
 import type { SerializedListing, SerializedListingCard, SerializedCategory, CategoryColor } from './types'
 
 export function safeParse<T>(value: string | null, fallback: T): T {
@@ -51,6 +51,7 @@ export function serializeListing(
         ? new Date(l.priceDropAt!.getTime() + DROP_BADGE_MS).toISOString()
         : null,
     urgent: !!l.urgentUntil && l.urgentUntil.getTime() > Date.now(),
+    urgentUntil: l.urgentUntil ? l.urgentUntil.toISOString() : null,
     location: l.location,
     district: l.district,
     city: l.city,
@@ -155,6 +156,7 @@ export function serializeListingCard(l: ListingCardRow): SerializedListingCard {
     negotiable: l.negotiable,
     prevPrice: activeDropAnchor(l.previousPrice, l.priceDropAt, l.price),
     urgent: !!l.urgentUntil && l.urgentUntil.getTime() > Date.now(),
+    urgentUntil: l.urgentUntil ? l.urgentUntil.toISOString() : null,
     location: l.location,
     district: l.district,
     city: l.city,
@@ -194,4 +196,63 @@ export function serializeCategoryBasic(c: { id: string; name: string; nameVi: st
     id: c.id, name: c.name, nameVi: c.nameVi, slug: c.slug, icon: c.icon,
     color: c.color as SerializedCategory['color'], description: c.description, verifiedCount: 0,
   }
+}
+
+/**
+ * THE PRODUCT-FEED PROJECTION — the narrowest row the Google Merchant / Meta catalog feeds need.
+ *
+ * ⚠️ IT EXISTS BECAUSE `serializeListing` REQUIRES A WHOLE `Listing`, and satisfying that meant the
+ * feeds fetching every scalar plus `include: { seller: true }` — which joined the seller's phone and
+ * email into a response that reads NOT ONE seller field. Narrowing the query is what surfaced the
+ * dependency: tsc rejected the narrow row against `serializeListing`'s wide parameter, which is the
+ * type system correctly refusing to pretend.
+ *
+ * Adding a third serializer is the smaller cost. The alternative — widening the feed's select back
+ * to satisfy a function whose output it 90% discards — is how the PII got there in the first place.
+ *
+ * ⚠️ IMAGE HANDLING STAYS SHARED. `images` is a JSON string column, and mock rows need
+ * `fixMockImage`; duplicating either into the route would be the real duplication. That is the whole
+ * reason this lives here rather than in the feed handlers.
+ */
+/**
+ * ⚠️ THERE IS DELIBERATELY NO `take` HERE, AND THAT IS A REVERSAL WORTH RECORDING.
+ * An earlier version of this change added `take: 45000` to both product feeds to bound a query that
+ * had none. All THREE reviewers independently refused it, and they were right: Google Merchant and
+ * Meta treat a full-catalog feed as AUTHORITATIVE, so an item missing from a fetch is DELISTED, not
+ * ignored. With `orderBy: postedAt desc`, crossing the cap would silently pull the oldest live
+ * listings out of Shopping and the Meta catalog — trading a hypothetical out-of-memory for a certain
+ * business regression. The cap also did not fix what it was written for: the whole result set is
+ * still concatenated into one string, so the response ceiling is hit long before the item count
+ * matters.
+ *
+ * The unbounded query is a REAL risk and it is still open. The fix is to stream rows into the
+ * response rather than to truncate the catalogue; it is genuine work and it does not belong in the
+ * same commit as a PII removal. Tracked, not silently "handled".
+ */
+
+export const LISTING_FEED_SELECT = {
+  id: true, title: true, titleVi: true, description: true, price: true, currency: true,
+  condition: true, images: true, brandSlug: true,
+  category: { select: { slug: true, name: true } },
+} as const
+
+/**
+ * ⚠️ DERIVED FROM THE SELECT, NOT RETYPED BESIDE IT. A hand-written row type is bound to the query
+ * by nothing at all: widen LISTING_FEED_SELECT and the two drift apart in silence. Deriving makes
+ * the select the single source of truth, so the type follows it automatically — verified by adding
+ * `seller: { select: { phone: true } }` and watching `SerializedFeedListing` gain `seller.phone`.
+ *
+ * ⚠️ IT SURFACES A LEAK, IT DOES NOT BLOCK ONE — an earlier version of this comment claimed more
+ * than that, and codex was right to call it. `serializeFeedListing` spreads `{ ...l }`, so anything
+ * added to the select still flows into the output; what changes is that it now appears in the TYPE,
+ * where a reader and every consumer can see it, instead of being invisible behind a stale hand-
+ * written shape. That is a meaningful difference and it is not a guarantee. The guarantee, if this
+ * ever needs one, is an explicit field-by-field return rather than a spread.
+ */
+type ListingFeedRow = Prisma.ListingGetPayload<{ select: typeof LISTING_FEED_SELECT }>
+
+export type SerializedFeedListing = Omit<ListingFeedRow, 'images'> & { images: string[] }
+
+export function serializeFeedListing(l: ListingFeedRow): SerializedFeedListing {
+  return { ...l, images: safeParse<string[]>(l.images, []).map(fixMockImage) }
 }

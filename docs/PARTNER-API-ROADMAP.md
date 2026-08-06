@@ -1,6 +1,6 @@
 # PARTNER-API-ROADMAP.md
 
-> A concrete path to let shops manage their eno.vn storefront programmatically — from their own backends and from AI agents — built on the marketplace's current reality (Supabase Auth + 1:1 `Profile`, RLS-bypassed app-code authz, denormalized trust, instant-publish listings, Upstash rate limits, `after()` side-effects). Every proposal below is tagged **REUSE-EXISTING** (wrap/expose code that already ships) or **BUILD-NEW** (net-new code).
+> A concrete path to let shops manage their eno.vn storefront programmatically — from their own backends and from AI agents — built on the marketplace's current reality (Supabase Auth + 1:1 `Profile`, RLS-bypassed app-code authz, denormalized trust, instant-publish listings, Postgres-backed rate limits, `after()` side-effects). Every proposal below is tagged **REUSE-EXISTING** (wrap/expose code that already ships) or **BUILD-NEW** (net-new code).
 
 ---
 
@@ -117,20 +117,20 @@ Partners may also pass remote `image_urls` in bulk and let the **bulk route's ex
 
 ## 4. Cross-Cutting Concerns
 
-### 4.1 Rate limits & quotas (REUSE Upstash, BUILD-NEW keying)
+### 4.1 Rate limits & quotas (REUSE the Postgres limiter, BUILD-NEW keying)
 
-The project already has a fail-open/fail-closed `rateLimit(bucket, key, n, window)` helper (Upstash). Partner routes **reuse it, keyed by `apiKeyId`** instead of IP/account:
+The project already has a fail-open/fail-closed `rateLimit(bucket, key, n, window)` helper (Postgres-backed — Upstash was retired 2026-07-20). Partner routes **reuse it, keyed by `apiKeyId`** instead of IP/account:
 
 - `listings:read` / `analytics:read` → generous, **fail-open** (read outages mustn't block a partner dashboard), e.g. 600/min.
 - `listings:write` → **fail-closed strict**, e.g. 120/min + a daily create quota tied to tier (mirrors the spirit of `listing-create` 15/h-per-IP and bulk 10/h). Writes fan out to paid translation + syndication + CAPI in `after()`, so the existing per-create cost rationale carries over.
 - `media:write` → reuse `/api/upload`'s 120/h shape, keyed per-key.
 - Surface limits as `X-RateLimit-Limit / -Remaining / -Reset` headers (BUILD-NEW, trivial).
 
-Because partner traffic hits `*.vercel.app` or `eno.vn`, the **edge-ingress guard** (`EDGE_SECRET` / `x-eno-edge`) matters: either (a) **EDGE-PIN EXEMPT** `/api/v1/*` like crons/feeds/send-sms (they carry their own bearer auth and aren't IP-rate-limited), or (b) require partners through Cloudflare. **Recommendation: exempt `/api/v1/*`** in `src/middleware.ts` (one line, matching the existing exemption list) since key-keyed limits don't depend on `cf-connecting-ip`.
+Because partner traffic hits the raw Cloud Run `*.run.app` origin or `eno.vn`, the **edge-ingress guard** (`EDGE_SECRET` / `x-eno-edge`) matters: either (a) **EDGE-PIN EXEMPT** `/api/v1/*` like crons/feeds/send-sms (they carry their own bearer auth and aren't IP-rate-limited), or (b) require partners through Cloudflare. **Recommendation: exempt `/api/v1/*`** in `src/middleware.ts` (one line, matching the existing exemption list) since key-keyed limits don't depend on `cf-connecting-ip`.
 
 ### 4.2 Idempotency keys (BUILD-NEW)
 
-Writes accept an `Idempotency-Key` header. Store `{ key, apiKeyId, requestHash, responseJson, status, createdAt }` in Redis (Upstash, already present) with a 24h TTL. Same key + same body → replay the stored response; same key + different body → `409 idempotency_conflict`. This makes `POST /api/v1/listings` and `/sync` safe to retry — essential for agents and flaky partner networks. The create path's `after()` side-effects must run **only on first execution**, not on replay.
+Writes accept an `Idempotency-Key` header. Store `{ key, apiKeyId, requestHash, responseJson, status, createdAt }` in the Postgres kv (`src/lib/ratelimit.ts`) with a 24h TTL. Same key + same body → replay the stored response; same key + different body → `409 idempotency_conflict`. This makes `POST /api/v1/listings` and `/sync` safe to retry — essential for agents and flaky partner networks. The create path's `after()` side-effects must run **only on first execution**, not on replay.
 
 ### 4.3 Pagination (BUILD-NEW, keyset)
 
@@ -231,7 +231,7 @@ Effort is rough eng-weeks for one engineer. Each phase ships independently and i
 
 **Goal:** a shop can authenticate and read its own data.
 
-- **BUILD-NEW:** `ApiKey` model + migration (remember the `db:setup` ritual: `prisma db push` then re-apply `unique-constraints.mjs`/`messaging-realtime.mjs`; partial indexes aren't Prisma-managed). Dashboard "Developers" UI to mint/rotate/revoke keys (business-tier only). `resolveApiKey()` helper. Scope-check middleware. Per-key rate limiting (**reuse** Upstash `rateLimit`, new key shape).
+- **BUILD-NEW:** `ApiKey` model + migration (⚠️ NOT `db:setup` — it is refused now; use `prisma migrate diff` → read → apply additive, then `npm run db:ddl` to re-apply `unique-constraints.mjs`/`messaging-realtime.mjs`; partial indexes aren't Prisma-managed). Dashboard "Developers" UI to mint/rotate/revoke keys (business-tier only). `resolveApiKey()` helper. Scope-check middleware. Per-key rate limiting (**reuse** the existing `rateLimit`, new key shape).
 - **Endpoints:** `GET /api/v1/shop`, `GET /api/v1/listings` (incl. held/sold), `GET /api/v1/listings/{id}`, `GET /api/v1/analytics/summary` — all read, all **reuse** dashboard/account/serialize cores.
 - **Cross-cutting:** error envelope, keyset pagination, `X-RateLimit-*` headers, `request_id` logging.
 - **Dependencies:** Phase 0. **Risk:** low — read-only, owner-scoped; the main failure mode (cross-shop leakage) is caught by the same scoping audit as internal routes.
@@ -241,7 +241,7 @@ Effort is rough eng-weeks for one engineer. Each phase ships independently and i
 **Goal:** programmatic create/update/delete/status.
 
 - **Endpoints:** `POST/PATCH/DELETE /api/v1/listings`, `/status`, `/confirm`, `/availability`, `PATCH /api/v1/shop`, `POST /api/v1/media`. All **reuse** the Phase-0 cores + `checkListingOwner` + `phoneTakenByOther`.
-- **BUILD-NEW:** `Idempotency-Key` handling (Upstash store). Ensure `after()` side-effects (syndication/CAPI/reindex/translation warm) fire once and only on autoPublish, identical to the session path.
+- **BUILD-NEW:** `Idempotency-Key` handling (Postgres kv store). Ensure `after()` side-effects (syndication/CAPI/reindex/translation warm) fire once and only on autoPublish, identical to the session path.
 - **Scopes:** gate on `listings:write` / `media:write`.
 - **Dependencies:** Phase 1. **Risk:** medium — writes touch trust-denorm (`sellerTrustScore` at create), syndication, and the publish gate; verify parity with session behavior via shared cores so there's no second code path to drift.
 
@@ -268,9 +268,9 @@ Effort is rough eng-weeks for one engineer. Each phase ships independently and i
 | Item | Phase | Type |
 |---|---|---|
 | `ApiKey` model + mint/revoke UI + `resolveApiKey` | 1 | BUILD-NEW |
-| Per-key rate limiting | 1 | REUSE Upstash, new key |
+| Per-key rate limiting | 1 | REUSE the Postgres limiter, new key |
 | Error envelope / keyset pagination / `request_id` | 1 | BUILD-NEW |
-| Idempotency store (Upstash) | 2 | BUILD-NEW |
+| Idempotency store (Postgres kv) | 2 | BUILD-NEW |
 | `Listing.externalId` + `/v1/listings/sync` | 3 | BUILD-NEW |
 | `WebhookEndpoint` + signed delivery | 3 | BUILD-NEW (reuse HMAC + SSRF guards) |
 | `ListingDailyStat` rollup in daily cron | 3 | BUILD-NEW (reuse cron) |

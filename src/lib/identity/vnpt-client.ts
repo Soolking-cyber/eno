@@ -1,5 +1,6 @@
 import 'server-only'
 import { vnptCredentials, vnptHeaders, type VnptCredentials } from './vnpt-auth'
+import { logError } from '@/lib/log'
 
 // ── VNPT IDG eKYC client ────────────────────────────────────────────────────────────────────────
 //
@@ -90,7 +91,7 @@ async function post(
         const bearer = typeof raw === 'string' ? raw.replace(/^Bearer\s+/i, '') : ''
         if (bearer) {
           const { invalidateAccessToken } = await import('./vnpt-token-store')
-          await invalidateAccessToken(bearer).catch(() => {})
+          await invalidateAccessToken(bearer).catch((e) => logError(e, { op: 'vnpt-client.invalidateAccessToken' }))
         }
       }
       return transient(`HTTP ${res.status}`)

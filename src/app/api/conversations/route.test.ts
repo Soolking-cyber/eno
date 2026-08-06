@@ -36,6 +36,9 @@ const h = vi.hoisted(() => ({
     delivered: [] as Row[],
     seq: 0,
     raceLosesThenVanishes: false,
+    // Conversation ids holding a PENDING offer. A thread with a live offer must not be
+    // retargeted to another listing — an offer is bound to the conversation, not the listing.
+    offerThreads: [] as string[],
   },
 }))
 
@@ -74,6 +77,14 @@ vi.mock('@/lib/db', () => ({
       // so the id still arrives at the top level.
       findFirst: ({ where }: Row) => Promise.resolve(h.state.listings[where.id] ?? null),
       findUnique: ({ where }: Row) => Promise.resolve(h.state.listings[where.id] ?? null),
+    },
+    message: {
+      findFirst: ({ where }: Row) =>
+        Promise.resolve(
+          where?.kind === 'offer' && where?.offerStatus === 'pending' && h.state.offerThreads.includes(where.conversationId)
+            ? { id: `offer-on-${where.conversationId}` }
+            : null,
+        ),
     },
     conversation: {
       findUnique: ({ where }: Row) => {
@@ -291,6 +302,26 @@ describe('ordinary storefronts keep the one-thread-per-seller rule exactly as be
     expect(json.created).toBe(false)
     expect(h.state.convos.find((c) => c.id === 'shop-thread')!.listingId).toBe(SHOP_B)
     expect(h.state.convos).toHaveLength(1)
+  })
+
+  // ⚠️ THE MONEY CASE. An offer row carries conversationId and NO listingId (schema.prisma:838), so
+  // retargeting a thread that holds a pending offer silently re-points that offer at a different
+  // item: the seller's Accept on the still-pending card would sell listing B at the price the buyer
+  // offered for listing A. actOnOffer cannot catch it — its predicate is
+  // { id, conversationId, kind, offerStatus }, all of which still match after the move.
+  it('refuses to retarget a thread that holds a PENDING offer, and delivers to a fresh thread', async () => {
+    h.state.convos = [convo('shop-thread', SHOP_A, OTHER_SELLER, 1000)]
+    h.state.offerThreads = ['shop-thread']
+
+    const { status, json } = await post({ listingId: SHOP_B, message: 'is this still available?' })
+
+    expect(status).toBe(200)
+    // The offer thread keeps its listing — this is the assertion that matters.
+    expect(h.state.convos.find((c) => c.id === 'shop-thread')!.listingId).toBe(SHOP_A)
+    // …and the buyer still gets through, on a different thread bound to the listing they asked about.
+    expect(json.id).not.toBe('shop-thread')
+    expect(h.state.convos).toHaveLength(2)
+    expect(h.state.convos.find((c) => c.id === json.id)!.listingId).toBe(SHOP_B)
   })
 
   it('creates the first thread with a seller and reports created:true', async () => {

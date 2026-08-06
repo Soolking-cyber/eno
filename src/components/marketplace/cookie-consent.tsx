@@ -73,8 +73,8 @@ export function CookieConsent() {
   // the dialog never renders before mount (show starts false).
   const isNative = typeof window !== 'undefined' && !!(window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor?.isNativePlatform?.()
 
-  const primary = 'rounded-lg px-4 py-1.5 text-sm transition-colors active:scale-95 cursor-pointer'
-  const ghost = 'rounded-lg px-3 py-1.5 text-sm font-semibold text-body transition-colors hover:bg-muted hover:text-body active:scale-95 cursor-pointer'
+  const primary = 'rounded-lg px-4 py-1.5 text-sm transition-colors active:scale-[0.96] cursor-pointer'
+  const ghost = 'rounded-lg px-3 py-1.5 text-sm font-semibold text-body transition-colors hover:bg-muted hover:text-body active:scale-[0.96] cursor-pointer'
 
   return (
     /* ⚠️ NON-MODAL, AND NOT A CENTERED DIALOG — THIS COST THREE GOOGLE VERIFICATION REJECTIONS.

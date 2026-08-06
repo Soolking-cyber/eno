@@ -1,6 +1,6 @@
 # eno.vn — Platform Architecture
 
-eno.vn is a verified marketplace for Vietnamese expats: Next.js 16 (App Router, Turbopack) + Prisma 7 (driver adapters) over Supabase Postgres, served via Vercel behind Cloudflare. This document maps the whole system — runtime, data model, every subsystem, and the security/ops posture — with `file:line` citations. See also [API-REFERENCE.md](./API-REFERENCE.md) and [PARTNER-API-ROADMAP.md](./PARTNER-API-ROADMAP.md).
+eno.vn is a verified marketplace for Vietnamese expats: Next.js 16 (App Router, Turbopack) + Prisma 7 (driver adapters) over Supabase Postgres, served via Cloud Run behind Cloudflare. This document maps the whole system — runtime, data model, every subsystem, and the security/ops posture — with `file:line` citations. See also [API-REFERENCE.md](./API-REFERENCE.md) and [PARTNER-API-ROADMAP.md](./PARTNER-API-ROADMAP.md).
 
 ## Contents
 
@@ -20,7 +20,7 @@ eno.vn is a verified marketplace for Vietnamese expats: Next.js 16 (App Router, 
 
 ## Stack & Runtime Architecture
 
-eno.vn is a server-rendered Next.js marketplace deployed on Vercel behind Cloudflare, with all persistence in a single Supabase Postgres instance reached through Prisma 7 driver adapters. This section describes the runtime stack and traces a request end-to-end. File references are to the actual source.
+eno.vn is a server-rendered Next.js marketplace deployed on Cloud Run (asia-southeast1) behind Cloudflare, with all persistence in a single Supabase Postgres instance reached through Prisma 7 driver adapters. This section describes the runtime stack and traces a request end-to-end. File references are to the actual source.
 
 ### Stack at a glance
 
@@ -31,23 +31,24 @@ eno.vn is a server-rendered Next.js marketplace deployed on Vercel behind Cloudf
 | Node | `>=24` | engine gate | `package.json:engines` |
 | ORM | Prisma + `@prisma/adapter-pg` (node-postgres `pg` 8.22) | `7.8.0` | `src/lib/db.ts`, `prisma.config.ts` |
 | Database | Supabase Postgres (AWS `ap-southeast-1`, Singapore) | — | `.env.example`, `next.config.ts:36` |
-| Hosting | Vercel, region `sin1` (Singapore) | — | `vercel.json` |
+| Hosting | Cloud Run, region `asia-southeast1` (Singapore) | — | `cloudbuild.yaml`, `Dockerfile` |
 | Edge / CDN / TLS | Cloudflare (DNS-proxied) | — | `src/lib/client-ip.ts`, `src/middleware.ts` |
-| Rate-limit store | Upstash Redis | — | `src/lib/ratelimit.ts` |
+| Rate-limit store | Supabase Postgres (UNLOGGED tables + SECURITY DEFINER functions) | — | `src/lib/ratelimit.ts` |
 
-Note the deliberate geographic colocation: Cloudflare edge → Vercel `sin1` → Supabase `ap-southeast-1` are all in/near Singapore, keeping the server-to-DB hop intra-region for the Vietnamese-expat audience.
+Note the deliberate geographic colocation: Cloudflare edge → Cloud Run `asia-southeast1` → Supabase `ap-southeast-1` are all in/near Singapore, keeping the server-to-DB hop intra-region for the Vietnamese-expat audience.
 
 ### Build & runtime targets
 
 `next.config.ts:8` switches output by environment:
-- On **Vercel** (`process.env.VERCEL` set) `output` is left `undefined` so Vercel handles bundling natively. The inline comment documents a real gotcha: forcing `standalone` on Vercel makes it bundle the Edge middleware with Node globals (`__dirname`) and crashes with `MIDDLEWARE_INVOCATION_FAILED`.
+<!-- docs-lint-allow: next.config.ts:100,111 genuinely still branch on process.env.VERCEL; this documents a VESTIGIAL code path, not a live deployment -->
+- ⚠️ *Vestigial — the app has not run on Vercel since 2026-07, but the branch is still in the code.* On **Vercel** (`process.env.VERCEL` set) `output` is left `undefined` so Vercel handles bundling natively. The inline comment documents a real gotcha: forcing `standalone` on Vercel makes it bundle the Edge middleware with Node globals (`__dirname`) and crashes with `MIDDLEWARE_INVOCATION_FAILED`.
 - Off Vercel it emits `"standalone"` for self-hosting. `Dockerfile` builds that standalone server for Cloud Run (Singapore) — Prisma 7 has no Rust engine and `pg` is pure JS, so no native-binary/OpenSSL handling is needed. `Caddyfile` is the local reverse-proxy front (`:81` → `localhost:3000`, forwarding `X-Forwarded-For`/`X-Real-IP`). These are the self-host fallback path, not the production path.
 
 Other build-shaping config in `next.config.ts`:
 - `experimental.inlineCss: true` (`:13`) — CSS is inlined into `<head>` instead of a render-blocking `<link>`; the comment notes this removed the #1 mobile render blocker (~570 ms stylesheet round-trip in PSI). Do not regress this.
 - `experimental.optimizePackageImports: ["lucide-react"]` (`:16`) — barrel tree-shaking; `lucide-react` is imported across ~68 files.
 - `turbopack.root: __dirname` (`:21`) — pins the workspace root so Turbopack won't latch onto a stray lockfile higher in the tree (e.g. `~/package-lock.json`).
-- `typescript.ignoreBuildErrors: false` (`:51`) — type errors fail the Vercel/CI build.
+- `typescript.ignoreBuildErrors: false` (`:51`) — type errors fail the Cloud Build / CI build.
 - `reactStrictMode: false` (`:53`).
 
 ### Image pipeline
@@ -61,7 +62,8 @@ Other build-shaping config in `next.config.ts`:
 
 `next.config.ts:61-100` attaches baseline headers to every response (`source: "/:path*"`): HSTS (2-year, `includeSubDomains; preload`), `X-Content-Type-Options: nosniff`, `X-Frame-Options: SAMEORIGIN`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy: camera=(), microphone=(), payment=()`.
 
-The **Content-Security-Policy is enforcing** (promoted from Report-Only after an audit). Key allowances (`:62-83`): `script-src` keeps `'unsafe-inline' 'unsafe-eval'` (Next has no nonce setup) plus GTM, Meta `connect.facebook.net`, Leaflet via `unpkg.com`, Cloudflare Insights, and `va.vercel-scripts.com`; `connect-src` allows Supabase REST + realtime (`https://*.supabase.co wss://*.supabase.co`), GA, Meta, Cloudflare. Violations are still collected via `report-to`/`report-uri` → `/api/csp-report` (the `Reporting-Endpoints` header at `:95` names the `csp-endpoint` group). Adding any new browser-loaded external origin requires updating this allowlist or it will be blocked.
+The **Content-Security-Policy is enforcing** (promoted from Report-Only after an audit). Key allowances (`:62-83`): `script-src` keeps `'unsafe-inline' 'unsafe-eval'` (Next has no nonce setup) plus GTM, Meta `connect.facebook.net`, Leaflet via `unpkg.com`, <!-- docs-lint-allow: va.vercel-scripts.com is genuinely still in the CSP allowlist at next.config.ts -->
+Cloudflare Insights, and `va.vercel-scripts.com`; `connect-src` allows Supabase REST + realtime (`https://*.supabase.co wss://*.supabase.co`), GA, Meta, Cloudflare. Violations are still collected via `report-to`/`report-uri` → `/api/csp-report` (the `Reporting-Endpoints` header at `:95` names the `csp-endpoint` group). Adding any new browser-loaded external origin requires updating this allowlist or it will be blocked.
 
 ### Prisma 7 over the Supabase pooler — the two-URL split
 
@@ -91,22 +93,22 @@ Rendering is split between cached RSC/ISR shells and live client fetches:
 
 Mutation routes also call `revalidatePath('/')` / `'/brands'` after admin changes to purge the cached shells.
 
-### Request flow: browser → Cloudflare → Vercel → Postgres
+### Request flow: browser → Cloudflare → Cloud Run → Postgres
 
 1. **Browser → Cloudflare.** DNS for eno.vn is proxied through Cloudflare, which terminates TLS, serves CDN/static assets, runs Insights, and — when configured — applies a **Transform Rule that injects `x-eno-edge: <secret>`** on inbound requests. Cloudflare also sets `cf-connecting-ip` to the true client IP.
-2. **Cloudflare → Vercel (`sin1`).** The request reaches the Vercel origin. `src/middleware.ts` runs first (Edge, `matcher: '/api/:path*'`). It's an **ingress guard**: when `EDGE_SECRET` is set, any `/api/*` request missing the matching `x-eno-edge` header gets `403`. This blocks attackers hitting the `*.vercel.app` origin directly — which would otherwise let them spoof `cf-connecting-ip` and bypass every IP-keyed rate limit and drain the paid AI/translate/geocode routes. It **no-ops until `EDGE_SECRET` is configured** (safe to ship early). Exempt paths that legitimately arrive off-Cloudflare with their own auth bypass it: `/api/cron/*` (CRON_SECRET), `/api/auth/send-sms` (Standard-Webhooks HMAC from Supabase Auth), and `/api/feeds/*` (Basic-Auth, fetched by Google Merchant/Meta).
-3. **Inside Vercel.** Cached RSC/ISR shells are served per the revalidate values above; dynamic pages and route handlers (Node runtime) execute server logic. IP-keyed work uses `clientIp()` (`src/lib/client-ip.ts`), which prefers `cf-connecting-ip` → `x-real-ip` → first `x-forwarded-for` hop (the comment explains XFF's first hop is a Cloudflare edge IP, useless for keying). Rate limiting (`src/lib/ratelimit.ts`) uses Upstash sliding windows and accepts both `UPSTASH_REDIS_REST_*` and Vercel-KV `KV_REST_API_*` env names. Critical default: limits **fail OPEN** (allow) when Redis is absent/erroring, but security/paid routes pass `{ strict: true }` to **fail CLOSED** (deny) so a missing env var can never silently reopen a billing-drain or PII-harvest vector.
-4. **Vercel → Postgres.** Data access goes through the Prisma singleton (`src/lib/db.ts`) over the **Supavisor pooler (6543, transaction mode)** to Supabase Postgres in `ap-southeast-1`. RLS is not enforced; the route/handler code that issued the query is the authorization boundary.
-5. **Cron path (out-of-band).** Vercel Cron (`vercel.json`) invokes `/api/cron/daily-reminders` (`0 2 * * *`) and `/api/cron/saved-search-alerts` (`0 5 * * *`) directly against the origin, authenticating with `CRON_SECRET` and bypassing the edge guard.
+2. **Cloudflare → Cloud Run (`asia-southeast1`).** The request reaches the Cloud Run origin. `src/middleware.ts` runs first (Edge, `matcher: '/api/:path*'`). It's an **ingress guard**: when `EDGE_SECRET` is set, any `/api/*` request missing the matching `x-eno-edge` header gets `403`. This blocks attackers hitting the raw Cloud Run `*.run.app` origin directly — which would otherwise let them spoof `cf-connecting-ip` and bypass every IP-keyed rate limit and drain the paid AI/translate/geocode routes. It **no-ops until `EDGE_SECRET` is configured** (safe to ship early). Exempt paths that legitimately arrive off-Cloudflare with their own auth bypass it: `/api/cron/*` (CRON_SECRET), `/api/auth/send-sms` (Standard-Webhooks HMAC from Supabase Auth), and `/api/feeds/*` (Basic-Auth, fetched by Google Merchant/Meta).
+3. **Inside Cloud Run.** Cached RSC/ISR shells are served per the revalidate values above; dynamic pages and route handlers (Node runtime) execute server logic. IP-keyed work uses `clientIp()` (`src/lib/client-ip.ts`), which prefers `cf-connecting-ip` → `x-real-ip` → first `x-forwarded-for` hop (the comment explains XFF's first hop is a Cloudflare edge IP, useless for keying). Rate limiting (`src/lib/ratelimit.ts`) uses Postgres-backed sliding windows — SECURITY DEFINER functions over UNLOGGED tables, needing no extra credentials. Critical default: limits **fail OPEN** (allow) when Redis is absent/erroring, but security/paid routes pass `{ strict: true }` to **fail CLOSED** (deny) so a missing env var can never silently reopen a billing-drain or PII-harvest vector.
+4. **Cloud Run → Postgres.** Data access goes through the Prisma singleton (`src/lib/db.ts`) over the **Supavisor pooler (6543, transaction mode)** to Supabase Postgres in `ap-southeast-1`. RLS is not enforced; the route/handler code that issued the query is the authorization boundary.
+5. **Cron path (out-of-band).** Cloud Scheduler invokes `/api/cron/daily-reminders` (`0 2 * * *`) and `/api/cron/saved-search-alerts` (`0 5 * * *`) directly against the origin, authenticating with `CRON_SECRET` and bypassing the edge guard.
 
 ### Operational gotchas to know
 
 - The runtime DB URL **must** be the 6543 pooler with `pgbouncer=true`; pointing it at 5432 (or DDL over 6543) is the classic failure mode the two-URL split exists to prevent.
-- The edge ingress guard, rate limits, and Upstash env are interlocked: until `EDGE_SECRET` + the Cloudflare Transform Rule + Vercel Deployment Protection are all live, the `*.vercel.app` origin is directly reachable and `cf-connecting-ip` is spoofable. Rate limiting is a literal no-op without Upstash credentials.
+- The edge ingress guard and rate limits are interlocked: until `EDGE_SECRET` + the Cloudflare Transform Rule + Cloud Run ingress restrictions are all live, the raw Cloud Run `*.run.app` origin is directly reachable and `cf-connecting-ip` is spoofable. Rate limiting shares the app's Postgres, so "the limiter is down" generally means the route is down anyway.
 - CSP is enforcing — any new third-party script/connect/image origin must be added to `next.config.ts` or it silently breaks in the browser.
 - Mock image hosts (`picsum.photos`, `loremflickr.com`) are still allow-listed in both `images.remotePatterns` and the CSP `img-src`; remove before launch.
 
-Key files: `/Users/mk1e3/eno.vn/next.config.ts`, `/Users/mk1e3/eno.vn/src/middleware.ts`, `/Users/mk1e3/eno.vn/src/lib/db.ts`, `/Users/mk1e3/eno.vn/prisma.config.ts`, `/Users/mk1e3/eno.vn/prisma/schema.prisma`, `/Users/mk1e3/eno.vn/src/lib/client-ip.ts`, `/Users/mk1e3/eno.vn/src/lib/ratelimit.ts`, `/Users/mk1e3/eno.vn/src/lib/supabase/server.ts`, `/Users/mk1e3/eno.vn/src/lib/supabase-admin.ts`, `/Users/mk1e3/eno.vn/vercel.json`, `/Users/mk1e3/eno.vn/Dockerfile`, `/Users/mk1e3/eno.vn/Caddyfile`.
+Key files: `/Users/mk1e3/eno.vn/next.config.ts`, `/Users/mk1e3/eno.vn/src/middleware.ts`, `/Users/mk1e3/eno.vn/src/lib/db.ts`, `/Users/mk1e3/eno.vn/prisma.config.ts`, `/Users/mk1e3/eno.vn/prisma/schema.prisma`, `/Users/mk1e3/eno.vn/src/lib/client-ip.ts`, `/Users/mk1e3/eno.vn/src/lib/ratelimit.ts`, `/Users/mk1e3/eno.vn/src/lib/supabase/server.ts`, `/Users/mk1e3/eno.vn/src/lib/supabase-admin.ts`, `/Users/mk1e3/eno.vn/Dockerfile`, `/Users/mk1e3/eno.vn/Caddyfile`.
 
 ---
 
@@ -255,7 +257,7 @@ This is the single most important security invariant. **There are no RLS policie
 
 **Consequence:** every authorization decision (ownership, participant checks, admin) lives in **application code** — chiefly the `getCurrentProfile()` / `getCurrentProfileId()` helpers above. There is no database-level backstop. A route that forgets to scope a query by the caller's profile id is a real vulnerability; do not assume the DB will catch it.
 
-Network-layer hardening: `src/middleware.ts` is an **edge-ingress guard** — when `EDGE_SECRET` is set, every `/api/*` request must carry the `x-eno-edge` header injected by a Cloudflare Transform Rule, blocking attackers hitting the `*.vercel.app` origin directly (which would let them spoof `cf-connecting-ip` and defeat IP-keyed rate limits). It is a no-op until configured, and bypasses crons, `/api/auth/send-sms`, and `/api/feeds/*` (which carry their own auth).
+Network-layer hardening: `src/middleware.ts` is an **edge-ingress guard** — when `EDGE_SECRET` is set, every `/api/*` request must carry the `x-eno-edge` header injected by a Cloudflare Transform Rule, blocking attackers hitting the raw Cloud Run `*.run.app` origin directly (which would let them spoof `cf-connecting-ip` and defeat IP-keyed rate limits). It is a no-op until configured, and bypasses crons, `/api/auth/send-sms`, and `/api/feeds/*` (which carry their own auth).
 
 ### Consent tiers (`src/lib/consent.ts`)
 
@@ -307,7 +309,7 @@ The create/read/update/delete lifecycle for marketplace listings, plus the in-br
 A single client component (~940 lines) that doubles as **create** and **edit** (driven by an optional `edit` prop) and can render standalone (`/post`) or `embedded` in the dashboard. The `/post` page (`src/app/post/page.tsx:18`) requires sign-in and `redirect('/signin?next=/post')`s guests — even though the `POST /api/listings` endpoint itself still supports guest-by-phone resolution (see below), the UI never exercises that path because an orphaned guest listing would have no owner inbox.
 
 Notable client behaviors:
-- **Photos** (`addPhotos`, line 374): accepts up to 6, filters to `image/*` or `.heic/.heif`, and runs each through `compressImageFile` (`src/lib/normalize-image.ts`) — HEIC→JPEG (native `createImageBitmap`, WASM `heic-to` fallback), then downscale to 1600px longest edge + WebP q0.82, **matching the server's output exactly** so the double-compress adds no visible loss. This client pass exists to dodge Vercel's ~4.5 MB request-body cap (a raw phone photo would 413 before sharp could shrink it). EXIF/GPS is stripped via canvas re-encode.
+- **Photos** (`addPhotos`, line 374): accepts up to 6, filters to `image/*` or `.heic/.heif`, and runs each through `compressImageFile` (`src/lib/normalize-image.ts`) — HEIC→JPEG (native `createImageBitmap`, WASM `heic-to` fallback), then downscale to 1600px longest edge + WebP q0.82, **matching the server's output exactly** so the double-compress adds no visible loss. This client pass exists to dodge the platform request-body cap (a raw phone photo would 413 before sharp could shrink it). EXIF/GPS is stripped via canvas re-encode.
 - **AI assist**: cover photo → `POST /api/ai/classify` autofills category/brand; description → `POST /api/ai/rephrase`.
 - **Required-field checklist** (`checks`, line 343): photo ≥1, category, title ≥3 chars, price set, an area, and contact (name ≥2 + phone ≥9 digits). `canSubmit` is `missing.length === 0 && !submitting`.
 - **Client-side phone block** (`submit`, line 400): runs `containsPhoneNumber` on title/description/contactName before any network call — the same function the server re-runs, so this is UX-only, not the security boundary.
@@ -488,7 +490,7 @@ The brand system canonicalizes free-typed brand strings into a growing catalogue
 
 ### Caching & rate limiting
 
-The feed response carries `Cache-Control: public, max-age=15, s-maxage=60, stale-while-revalidate=300` (`route.ts:427`) — short browser TTL, 60s Cloudflare edge TTL, SWR so cache hits never touch Cloud Run. Because all public data is verified+active only, edge caching of hot terms is safe. Write/scan-amplifying routes are IP rate-limited via `@/lib/ratelimit` (`listing-create` 15/h; `search-resolve`/`search-suggest` 120/min) — these no-op (fail-open vs fail-closed depends on config) when Upstash env is unset, per the security memo.
+The feed response carries `Cache-Control: public, max-age=15, s-maxage=60, stale-while-revalidate=300` (`route.ts:427`) — short browser TTL, 60s Cloudflare edge TTL, SWR so cache hits never touch Cloud Run. Because all public data is verified+active only, edge caching of hot terms is safe. Write/scan-amplifying routes are IP rate-limited via `@/lib/ratelimit` (`listing-create` 15/h; `search-resolve`/`search-suggest` 120/min) — these no-op (fail-open vs fail-closed depends on the `strict` flag) when the limiter errors, per the security memo.
 
 Key files: `src/app/api/listings/route.ts` (feed + facets + histogram + semantic), `src/lib/vertex-search.ts` (Vertex client + ingestion), `src/lib/listing-index.ts` (sync), `src/lib/trust.ts` + `src/lib/trust-score.ts` (ranking signal), `src/lib/fold.ts` (accent folding), `src/lib/brand.ts` + `src/lib/brand-normalize.ts` (catalogue/resolver), `src/app/api/search/{resolve,suggest}/route.ts`, `src/app/api/brands/route.ts`, `prisma/schema.prisma:188-263` (Listing model + indexes), `scripts/search-index.mjs` (pg_trgm GIN DDL), `src/components/marketplace/{listings-explorer,facet-bar,price-range-filter}.tsx` (client).
 
@@ -586,7 +588,7 @@ Every `recomputeTrust` cascades all three (`trust.ts:153-162`). Because Prisma `
 
 ### Decay & recovery cron
 
-`runTrustMaintenance()` (`trust.ts:285-340`) is invoked at the tail of the daily-reminders cron — `GET /api/cron/daily-reminders` (`src/app/api/cron/daily-reminders/route.ts:97`), scheduled `0 2 * * *` in `vercel.json`, guarded by `CRON_SECRET` via constant-time bearer check. It is **not** its own cron entry — it piggybacks. Two passes:
+`runTrustMaintenance()` (`trust.ts:285-340`) is invoked at the tail of the daily-reminders cron — `GET /api/cron/daily-reminders` (`src/app/api/cron/daily-reminders/route.ts:97`), scheduled `0 2 * * *` in `cloudbuild.yaml`, guarded by `CRON_SECRET` via constant-time bearer check. It is **not** its own cron entry — it piggybacks. Two passes:
 
 - **Decay**: owners with ≥1 verified+active listing whose `availabilityConfirmedAt` (or `postedAt` if never confirmed) is older than `INACTIVE_DAYS = 7` get `-3` (`INACTIVE_PENALTY`, type `decay_inactive`), **at most once per 7-day window** (skips owners already docked within the window). Rewards keeping listings fresh; the "confirm availability" bump both stops the reminder and earns the `+2` engagement.
 - **Recovery**: accounts with `trustScore < 100` that have at least one behavioral penalty (`report_confirmed` or `decay_inactive`) drift back up `+1/day` (`RECOVERY_DELTA`, type `decay_recover`) — **only** if clean for the last `RECOVERY_CLEAN_DAYS = 14` (no recent report/inactivity hit). Crucially, recovery is **capped at the total magnitude of behavioral penalties** (`remaining = penalty − alreadyHealed`): it heals reports/inactivity but **never** the new-account/verification deficit. So recovery alone can't lift an unverified account to 100 — only actually verifying (KYC/phone/Zalo/profile) closes that gap. This gives "no permanent death" for a single old mistake while keeping the Sybil baseline intact.
@@ -707,7 +709,7 @@ Net effect per path:
 - **Concierge** uses *both*: the multi-turn query-rewrite is a tiny Gemini call (real money, fractions of a cent), while retrieval and the one-sentence reply run on Vertex AI Search so they hit the $1000 credit (`route.ts:18-23`, `170-179`; `conciergeSearch` in `vertex-search.ts:114-139`). When Vertex isn't configured or is over budget it degrades to a free Postgres keyword search (`source:"fallback"`, `route.ts:185-187`) — that path draws *no* credit.
 - **Classify / rephrase / visual-search** are **Gemini-only** → real-money / $300-trial project. No Vertex involvement.
 
-Credentials in both libs accept the service-account JSON either raw or base64-encoded (base64 is paste-safe in the Vercel dashboard) and are injected inline — no key file on serverless (`gemini.ts:28-37`, `vertex-search.ts:48-50`).
+Credentials in both libs accept the service-account JSON either raw or base64-encoded (base64 is paste-safe in the Secret Manager console) and are injected inline — no key file on serverless (`gemini.ts:28-37`, `vertex-search.ts:48-50`).
 
 ### The shared gate: `src/lib/ai-guard.ts`
 
@@ -716,7 +718,7 @@ Every paid AI route calls `aiGuard(name, hourlyLimit?)` before doing any work:
 1. **Login-only.** `getCurrentProfileId()` (`src/lib/admin.ts:73-82`) verifies the Supabase JWT *locally* via `getClaims()` (ES256/JWKS, no network or DB hit); a forged/expired/absent token fails closed to `null` → `401 auth_required`. Keying on the Profile id (not IP) makes the account the accountable unit, since per-IP is spoofable behind Cloudflare (`ai-guard.ts:6-11`).
 2. **Per-account hourly cap, strict (fail-closed).** `rateLimit('ai-<name>', profileId, limit, '1 h', { strict: true })` → `429 rate_limited` when exceeded. Default `AI_HOURLY_LIMIT = 10` for the discovery/credit-drain surfaces (**concierge, visual-search**); the authoring routes pass higher caps because a seller legitimately processes many items — **classify 40** (`classify/route.ts:27`), **rephrase 60** (`rephrase/route.ts:18`).
 
-**Gotcha — strict means no Redis = AI fully off.** `rateLimit` (`src/lib/ratelimit.ts:45,57`) returns `success: !opts.strict` when Upstash/KV is unconfigured or errors. Because `aiGuard` is always `strict`, a missing `UPSTASH_REDIS_REST_*` / `KV_REST_API_*` env (or a Redis outage) fails **closed**: every AI request 429s. This is intentional — a missing env var must never silently reopen the paid-credit drain — but it means Upstash is a hard dependency for AI to function at all, not just for protection.
+**Gotcha — strict means no limiter = AI fully off.** `rateLimit` (`src/lib/ratelimit.ts:45,57`) returns `success: !opts.strict` when the limiter errors. Because `aiGuard` is always `strict`, a limiter outage fails **closed**: every AI request 429s. This is intentional — a missing env var must never silently reopen the paid-credit drain — but it means the limiter is a hard dependency for AI to function at all, not just for protection.
 
 ### Global daily budget breakers (concierge only)
 
@@ -773,7 +775,7 @@ Entry point `/dashboard/bulk` (`src/app/dashboard/bulk/page.tsx`, noindex). Clie
 **Server** `src/app/api/listings/bulk/route.ts` (`POST`, `runtime = 'nodejs'`) is the authoritative validator — the client preview is never trusted. Gating and budgets:
 
 - **Auth/tier gate:** 401 if no profile; **403 `business_only`** if `accountType !== 'business'` (`bulk/route.ts:69`); 403 `no_storefront` if the business has no `Seller` row yet.
-- **Rate limit:** `rateLimit('bulk-import', profile.id, 10, '1 h')` → 429 `rate_limited`. This limiter **fails OPEN** — `src/lib/ratelimit.ts` returns `success: true` when Upstash Redis is unconfigured or errors (unless `strict`). The deliberate posture (`bulk/route.ts:71-74`): an accountable, authenticated business shouldn't be blocked by a Redis blip; the cap only stops a runaway loop. (Contrast: this is one of the routes where rate-limiting is a no-op until `UPSTASH_*` env is set.)
+- **Rate limit:** `rateLimit('bulk-import', profile.id, 10, '1 h')` → 429 `rate_limited`. This limiter **fails OPEN** — `src/lib/ratelimit.ts` returns `success: true` when the limiter errors (unless `strict`). The deliberate posture (`bulk/route.ts:71-74`): an accountable, authenticated business shouldn't be blocked by a Redis blip; the cap only stops a runaway loop. (Contrast: this is one of the routes where rate-limiting fails open.)
 - **Row cap:** `MAX_ROWS = 200`. Over-cap is surfaced as **400 `too_many_rows`** rather than silently truncated (`bulk/route.ts:84-87`). The client also `.slice(0, 200)` defensively.
 - **Per-row validation** (`bulk/route.ts:106-117`): category slug must resolve (slugs are batch-resolved once via one `category.findMany`); title ≥3 chars (capped 140); description capped 5000; price finite, `0 ≤ price ≤ 1e12`; **phone numbers rejected** in title/description via `containsPhoneNumber`. Each row is independent — a bad row pushes an error to `results[]` and `continue`s; one bad row never aborts the batch.
 - **Image re-hosting + per-import fetch budget** — the security-load-bearing part. `image_urls` is split on `[|,\n]`, capped at 8 per row. For each URL, `rehost()` (`bulk/route.ts:32-60`):
@@ -799,14 +801,14 @@ The "is it still available?" loop that keeps the feed fresh. `STALE_DAYS = 7` an
 
 ### Cron jobs
 
-Registered in `vercel.json` (region `sin1`). Both are `runtime='nodejs'`, `maxDuration=60`, and authenticated by a **CRON_SECRET bearer check** using `timingSafeEqual` over the `Authorization: Bearer …` header (Vercel attaches this to scheduled invocations) — missing/mismatched → 401. **Gotcha:** without `CRON_SECRET` set, the jobs return 401 to everyone, including Vercel's scheduler, so they never run.
+Registered as Cloud Scheduler jobs (region `asia-southeast1`). Both are `runtime='nodejs'`, `maxDuration=60`, and authenticated by a **CRON_SECRET bearer check** using `timingSafeEqual` over the `Authorization: Bearer …` header (Cloud Scheduler attaches this to scheduled invocations) — missing/mismatched → 401. **Gotcha:** without `CRON_SECRET` set, the jobs return 401 to everyone, including Cloud Scheduler, so they never run.
 
 - **`/api/cron/daily-reminders` — `0 2 * * *`** (`src/app/api/cron/daily-reminders/route.ts`): scans active+verified listings owned by a real account that haven't been confirmed since the 7-day cutoff, tallies stale count per owning profile, then for each profile with `dailyReminderOptIn:true` who hasn't been reminded within `REMIND_EVERY_MS` (20h, cross-run dedupe so duplicate fires are idempotent → one nudge/day) it inserts a `Notification` (type `'reminder'`, deep-links `/dashboard`) and calls `sendPushToProfile` (tag `eno-availability`). Bounded: `MAX_SELLERS = 1000`, `CONCURRENCY = 20` fan-out batches. Also runs `runTrustMaintenance()` (decay inactive / recover clean accounts) in a try/catch so a trust failure doesn't break reminders.
 - **`/api/cron/saved-search-alerts` — `0 5 * * *`** (`src/app/api/cron/saved-search-alerts/route.ts`): for each `SavedSearch` with `notify:true` (ordered by `lastNotifiedAt asc`, cap `MAX_SEARCHES=5000`, `CONCURRENCY=10`), counts listings created since `lastNotifiedAt` matching `buildListingWhere(params)`; if any, drops a `Notification` (type `'saved_search'`, url `/?<params>`) + Web Push (tag `eno-saved-<id>`), then advances `lastNotifiedAt = runStart` so matches don't repeat. `runStart` is captured once before the loop to avoid a race where listings created mid-run are skipped.
 
 ### Security posture summary
 
-App-code is the only guard (RLS bypassed). Every route re-derives the caller and owner-scopes writes (`sellerId`/`profileId` filters in `updateMany`/`deleteMany`). Three distinct SSRF defenses converge here: `safeFetch` (bulk remote image fetch), `isListingImageUrl` (only our bucket counts as first-party), and `isAllowedPushEndpoint` (push endpoint allowlist). Bulk import's two abuse brakes are the fail-open per-account rate limit (no-op without Upstash env) and the fail-closed-ish `MAX_IMG_FETCHES=120` per-import remote-fetch budget (always enforced, in-process). Cron auth depends entirely on `CRON_SECRET`; push depends on VAPID keys (absent → silent no-op, never a crash).
+App-code is the only guard (RLS bypassed). Every route re-derives the caller and owner-scopes writes (`sellerId`/`profileId` filters in `updateMany`/`deleteMany`). Three distinct SSRF defenses converge here: `safeFetch` (bulk remote image fetch), `isListingImageUrl` (only our bucket counts as first-party), and `isAllowedPushEndpoint` (push endpoint allowlist). Bulk import's two abuse brakes are the fail-open per-account rate limit and the fail-closed-ish `MAX_IMG_FETCHES=120` per-import remote-fetch budget (always enforced, in-process). Cron auth depends entirely on `CRON_SECRET`; push depends on VAPID keys (absent → silent no-op, never a crash).
 
 ---
 
@@ -920,9 +922,9 @@ Key files: `src/lib/meta-capi.ts`, `src/app/api/track/view/route.ts`, `src/lib/a
 
 ## Ops, Security & Deploy
 
-This section covers everything an operator or integration partner needs to run, secure, and ship eno.vn: the full environment-variable surface, the Cloudflare→Vercel edge-ingress pin, Upstash rate limiting, the enforcing Content-Security-Policy and its report collector, CI, the schema-change workflow, deployment, and local development.
+This section covers everything an operator or integration partner needs to run, secure, and ship eno.vn: the full environment-variable surface, the Cloudflare→Cloud Run edge-ingress pin, Postgres rate limiting, the enforcing Content-Security-Policy and its report collector, CI, the schema-change workflow, deployment, and local development.
 
-Stack reminder: Next.js 16 (App Router, Turbopack) + Prisma 7 (driver adapters, no Rust engine) + Supabase Postgres (Singapore region), fronted by Cloudflare → Vercel (region `sin1`, see `vercel.json:3`). **Postgres RLS is bypassed by design — the Node app code is the only authorization guard** (the one exception is the realtime broadcast path, which *does* use an RLS SELECT policy; see `scripts/messaging-realtime.mjs`).
+Stack reminder: Next.js 16 (App Router, Turbopack) + Prisma 7 (driver adapters, no Rust engine) + Supabase Postgres (Singapore region), fronted by Cloudflare → Cloud Run (region `asia-southeast1`, see `cloudbuild.yaml`). **Postgres RLS is bypassed by design — the Node app code is the only authorization guard** (the one exception is the realtime broadcast path, which *does* use an RLS SELECT policy; see `scripts/messaging-realtime.mjs`).
 
 ### Environment variables (grouped by subsystem)
 
@@ -943,11 +945,11 @@ There is no committed secret: `.env` and all `.env*.local` / `.env.production` /
 
 **Edge ingress + cron auth** (see dedicated sections below)
 - `EDGE_SECRET` — shared secret for the Cloudflare→origin header pin (`src/middleware.ts:17`). No-op until set.
-- `CRON_SECRET` — Bearer token guarding `/api/cron/*`; Vercel Cron attaches `Authorization: Bearer $CRON_SECRET`. Verified with `timingSafeEqual` (`src/app/api/cron/daily-reminders/route.ts:19,32`; same in `saved-search-alerts`).
+- `CRON_SECRET` — Bearer token guarding `/api/cron/*`; Cloud Scheduler attaches `Authorization: Bearer $CRON_SECRET`. Verified with `timingSafeEqual` (`src/app/api/cron/daily-reminders/route.ts:19,32`; same in `saved-search-alerts`).
 
-**Rate limiting — Upstash Redis**
-- `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` — primary names. The code *also* accepts `KV_REST_API_URL` / `KV_REST_API_TOKEN` (the names Vercel's KV/Marketplace integration injects) — this dual-name acceptance exists specifically to avoid the "added Upstash but limiting still off" name-mismatch trap (`src/lib/ratelimit.ts:15-16`).
-- `CONTACT_IP_SALT` — salt for SHA-256-hashing reveal IPs before storage (`src/app/api/listings/[id]/contact/route.ts:13,16`); defaults to `'eno-contact'` if unset.
+**Rate limiting — Supabase Postgres**
+- ~~`UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN`~~ — **removed 2026-07-20.** The limiter is Postgres and needs no extra credentials. The historical dual-name acceptance (`KV_REST_API_URL` / `KV_REST_API_TOKEN` (the names a KV/Marketplace integration formerly injected) — this dual-name acceptance existed specifically to avoid the "added the store but limiting still off" name-mismatch trap (`src/lib/ratelimit.ts:15-16`).
+- `CONTACT_IP_SALT` — salt for SHA-256-hashing reveal IPs before storage (`src/app/api/listings/[id]/contact/route.ts`). **There is no default any more.** It used to fall back to the literal `'eno-contact'`, which is not a secret once it is in a public repo — and the protected input space is IPv4, so a stolen `ContactReveal` table could be reversed to raw IPs by brute force in minutes. Unset, the route now stores `ipHash = NULL` rather than a guessable digest, and logs once per process. Set it (32+ random bytes, `openssl rand -base64 32`) in Secret Manager to restore the abuse signal; rotation is free because no stored hash is ever compared. ⚠️ Rows written before 2026-08-05 were hashed with the old default and should be treated as storing the raw client IP of a signed-in buyer.
 
 **Phone OTP delivery — Supabase Send SMS Hook → eSMS.vn / SpeedSMS.vn**
 - `SEND_SMS_HOOK_SECRET` — Standard-Webhooks HMAC secret (form `v1,whsec_<base64>`); the *only* thing authenticating the public `/api/auth/send-sms` route — every request is verified and the OTP is never logged (`src/app/api/auth/send-sms/route.ts:11-17`).
@@ -959,7 +961,7 @@ There is no committed secret: `.env` and all `.env*.local` / `.env.production` /
 - `AZURE_TRANSLATOR_KEY` / `AZURE_TRANSLATOR_REGION` / `AZURE_TRANSLATOR_ENDPOINT` — fallback (Azure F0 free tier).
 
 **AI — Gemini on Vertex (paid; draws GenAI/free-trial credit)**
-- `GOOGLE_VERTEX_PROJECT` / `GOOGLE_VERTEX_LOCATION` (default `us-central1`) / `GOOGLE_VERTEX_CREDENTIALS` — service-account JSON, accepted as raw JSON **or** base64 (base64 is paste-safe in the Vercel dashboard) (`src/lib/gemini.ts:21-28`).
+- `GOOGLE_VERTEX_PROJECT` / `GOOGLE_VERTEX_LOCATION` (default `us-central1`) / `GOOGLE_VERTEX_CREDENTIALS` — service-account JSON, accepted as raw JSON **or** base64 (base64 is paste-safe in the Secret Manager console) (`src/lib/gemini.ts:21-28`).
 - `GEMINI_PROJECT` / `GEMINI_LOCATION` / `GEMINI_CREDENTIALS` — optional override so Gemini billing can sit on a *separate* project from Vertex Search (the $1000 credit covers Vertex **Search**, not the Gemini API). Falls back to the `GOOGLE_VERTEX_*` trio (`src/lib/gemini.ts:21-23`). Unconfigured → `getGemini()` returns `null` and AI routes degrade gracefully.
 - `NEXT_PUBLIC_AI_ASSIST` — client feature flag for the post-wizard AI assist.
 
@@ -984,31 +986,32 @@ There is no committed secret: `.env` and all `.env*.local` / `.env.production` /
 - `META_PIXEL_ID` (falls back to `NEXT_PUBLIC_META_PIXEL_ID`), `META_CAPI_TOKEN`, `META_TEST_EVENT_CODE` — server-side Meta Conversions API; both id+token required or every call is a silent no-op (`src/lib/meta-capi.ts:22-30`). The browser Pixel is deliberately disabled for performance; conversions fire server-side via `after()`.
 
 **Build/runtime (mostly platform-set)**
-- `VERCEL` — set by Vercel; toggles off `output: 'standalone'` (`next.config.ts:8`).
-- `NODE_ENV` — gates Prisma query logging (PII; prod logs `error` only, `src/lib/db.ts:20`) and the ratelimit "Upstash missing" warning (`src/lib/ratelimit.ts:21`).
+<!-- docs-lint-allow: describes a vestigial branch that still exists at next.config.ts:100 -->
+- `VERCEL` — ⚠️ *vestigial, never set in production since 2026-07.* When set, toggles off `output: 'standalone'` (`next.config.ts:100`).
+- `NODE_ENV` — gates Prisma query logging (PII; prod logs `error` only, `src/lib/db.ts:20`) and the ratelimit "limiter missing" warning (`src/lib/ratelimit.ts:21`).
 - `NEXT_TELEMETRY_DISABLED`, `PORT` (Cloud Run default 8080), `HOSTNAME` — Dockerfile/self-host only.
 
 **Script-only** (not runtime): `MOCK_PER_CATEGORY`, `BACKFILL_BASE_URL`, `BASE_URL`.
 
 ### Edge-ingress pin (Cloudflare Transform Rule + `x-eno-edge` + `EDGE_SECRET`)
 
-`src/middleware.ts` (matcher `'/api/:path*'`, `middleware.ts:34`) closes the "attacker hits the Vercel origin directly" hole. Without it, anyone who knows the `*.vercel.app` URL can spoof `cf-connecting-ip` and bypass every IP-keyed rate limit (and drain the paid AI/translate/geocode routes), since `clientIp()` trusts `cf-connecting-ip` first (`src/lib/client-ip.ts:11-13`).
+`src/middleware.ts` (matcher `'/api/:path*'`, `middleware.ts:34`) closes the "attacker hits the Cloud Run origin directly" hole. Without it, anyone who knows the raw `*.run.app` URL can spoof `cf-connecting-ip` and bypass every IP-keyed rate limit (and drain the paid AI/translate/geocode routes), since `clientIp()` trusts `cf-connecting-ip` first (`src/lib/client-ip.ts:11-13`).
 
 Mechanism: when `EDGE_SECRET` is set, every `/api/*` request must carry `x-eno-edge: <EDGE_SECRET>` or it gets a `403 Forbidden` (`middleware.ts:28-29`). That header is injected by a **Cloudflare Transform Rule** on the real domain, so only traffic that actually transited Cloudflare carries it.
 
 Three server-to-server routes are **exempt** because they legitimately hit the origin off-Cloudflare and carry their own auth (`middleware.ts:25`):
-- `/api/cron/*` — Vercel Cron, authed by `CRON_SECRET`.
+- `/api/cron/*` — Cloud Scheduler, authed by `CRON_SECRET`.
 - `/api/auth/send-sms` — Supabase Auth hook, authed by Standard-Webhooks HMAC. (Killing it would break phone-OTP signup/login.)
 - `/api/feeds/*` — Google Merchant / Meta fetchers, authed by Basic-Auth.
 
-It is a **no-op until `EDGE_SECRET` is configured** (`middleware.ts:18`), so it ships safely ahead of the Cloudflare rule. Full enable sequence (documented at `middleware.ts:11-15`): (1) add the Cloudflare Transform Rule setting `x-eno-edge`, (2) set `EDGE_SECRET` to the same value on Vercel, (3) turn on Vercel Deployment Protection so `*.vercel.app` isn't publicly reachable at all.
+It is a **no-op until `EDGE_SECRET` is configured** (`middleware.ts:18`), so it ships safely ahead of the Cloudflare rule. Full enable sequence (documented at `middleware.ts:11-15`): (1) add the Cloudflare Transform Rule setting `x-eno-edge`, (2) set `EDGE_SECRET` to the same value in Secret Manager (`eno-root-env`) so the Cloud Run revision has it, (3) turn on Cloud Run ingress restrictions so the raw `*.run.app` isn't publicly reachable at all.
 
-### Upstash rate limits — fail-open default vs. strict fail-closed
+### Rate limits — fail-open default vs. strict fail-closed
 
-Sliding-window limiting backed by Upstash Redis (`src/lib/ratelimit.ts`). In-memory limiting is a no-op on Vercel serverless (fresh process per invocation), so Redis is effectively required for real limits.
+Sliding-window limiting backed by Supabase Postgres (`src/lib/ratelimit.ts`; Upstash Redis was retired 2026-07-20). In-memory limiting would be a no-op across Cloud Run instances (fresh process per invocation), so Redis is effectively required for real limits.
 
 The keystone behavior is the **open/closed posture** (`ratelimit.ts:38-58`):
-- **Default = fail OPEN.** If Upstash env vars are absent or Redis errors, `rateLimit()` returns `success: true` — a missing/flaky Redis must never block legitimate use (messaging, posting). In production a missing config logs a warning (`ratelimit.ts:21-22`) but the app keeps working.
+- **Default = fail OPEN.** If the limiter errors or its tables are missing, `rateLimit()` returns `success: true` — a missing/flaky Redis must never block legitimate use (messaging, posting). In production a missing config logs a warning (`ratelimit.ts:21-22`) but the app keeps working.
 - **`{ strict: true }` = fail CLOSED.** On security/paid routes, if Redis is unavailable the request is **denied** (`success: false`), so a missing env var or Redis outage can never reopen a billing-drain or PII-harvest vector (`ratelimit.ts:45,57`).
 
 Keying uses `clientIp()` which prefers `cf-connecting-ip` (true client behind Cloudflare), then `x-real-ip`, then first `x-forwarded-for` hop (`src/lib/client-ip.ts`) — note this is only trustworthy *because* of the edge pin above.
@@ -1024,7 +1027,8 @@ Fail-open call sites (telemetry / accountable accounts): CSP report 60/min (`api
 
 Security headers are set on every response in `next.config.ts` `headers()` (`next.config.ts:61-100`), source `/:path*`: HSTS (2y, `includeSubDomains; preload`), `X-Content-Type-Options: nosniff`, `X-Frame-Options: SAMEORIGIN`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy: camera=(), microphone=(), payment=()`, `Reporting-Endpoints`, and the CSP.
 
-The **CSP is ENFORCING** (promoted from Report-Only after an audit confirmed every browser-loaded origin is allow-listed; `next.config.ts:54-60,96`). Key directives (`next.config.ts:62-83`): `default-src 'self'`; `object-src 'none'`; `base-uri/form-action/frame-ancestors 'self'`. `script-src`/`style-src` keep `'unsafe-inline' 'unsafe-eval'` (Next has no nonce setup; needed for GTM/Meta/Leaflet bootstrap) and allow-list googletagmanager, connect.facebook.net, unpkg, cloudflareinsights, va.vercel-scripts.com. `img-src`/`connect-src` allow Supabase REST+`wss`, CARTO basemaps, GA, Facebook, plus the mock image hosts. Violations are wired to both `report-to csp-endpoint` (modern Reporting API, paired with the `Reporting-Endpoints` header) and `report-uri /api/csp-report` (older browsers).
+The **CSP is ENFORCING** (promoted from Report-Only after an audit confirmed every browser-loaded origin is allow-listed; `next.config.ts:54-60,96`). Key directives (`next.config.ts:62-83`): `default-src 'self'`; `object-src 'none'`; `base-uri/form-action/frame-ancestors 'self'`. `script-src`/`style-src` keep `'unsafe-inline' 'unsafe-eval'` (Next has no nonce setup; needed for GTM/Meta/Leaflet bootstrap) and allow-list googletagmanager, connect.facebook.net, unpkg, <!-- docs-lint-allow: genuinely still in the CSP allowlist -->
+cloudflareinsights, va.vercel-scripts.com. `img-src`/`connect-src` allow Supabase REST+`wss`, CARTO basemaps, GA, Facebook, plus the mock image hosts. Violations are wired to both `report-to csp-endpoint` (modern Reporting API, paired with the `Reporting-Endpoints` header) and `report-uri /api/csp-report` (older browsers).
 
 Collector `src/app/api/csp-report/route.ts` (nodejs, force-dynamic) parses **both** shapes — legacy `{ "csp-report": {...} }` and Reporting-API `[{ type, body }]` batches — and logs one concise `[csp] <directive> blocked=… doc=…` line per violation (`csp-report/route.ts:25-33`). It is hardened against the known report-flood vector: 16 KB body cap, 60/min fail-open rate limit, never echoes the payload, and **always returns 204** so a prober gets no feedback (`csp-report/route.ts:14-23,38`).
 
@@ -1034,7 +1038,7 @@ Related server-side defenses worth noting: SSRF guard `src/lib/ssrf.ts` (`assert
 
 `.github/workflows/ci.yml` runs on push and PR to `main`. Single `check` job on `ubuntu-latest`, Node 24, npm cache: `npm ci` → `npx prisma generate` → **`npx tsc --noEmit`** → **`npx eslint .`** → **`npx vitest run`** (`ci.yml:34-41`). Prisma reads dummy `DATABASE_URL`/`DIRECT_URL` from job env since `generate` doesn't connect (`ci.yml:15-19`).
 
-- This is a ~1-minute pre-merge gate; the **Vercel build also enforces types** independently (`next.config.ts:47-51`, `ignoreBuildErrors: false`), so a type error fails the deploy even if CI is skipped. `tsc --noEmit` is kept green so this gate never blocks a legit deploy.
+- This is a ~1-minute pre-merge gate; the **Cloud Build image build also enforces types** independently (`next.config.ts:47-51`, `ignoreBuildErrors: false`), so a type error fails the deploy even if CI is skipped. `tsc --noEmit` is kept green so this gate never blocks a legit deploy.
 - ESLint config (`eslint.config.mjs`) is mostly relaxed (most TS/React/Next rules off) except a **design-system guard**: `no-restricted-syntax` errors on hardcoded brand-hex Tailwind classes (`bg-[#0a66c2]` etc.) to protect the token migration (`eslint.config.mjs:16-26`).
 - Vitest only runs pure security/correctness unit tests, `src/**/*.test.ts`, node environment (`vitest.config.ts`). Present tests: `fold`, `phone`, `slug`, `url`, `vnd` (`src/lib/*.test.ts`). No DB / Next runtime needed.
 
@@ -1044,7 +1048,8 @@ Local equivalents: `npm run lint`, `npm test` / `npm run test:watch`.
 
 **This project uses `prisma db push`, not migrations** — there is **no `prisma/migrations/` directory**. The generator emits an ESM client to `src/generated/prisma` (git-ignored, regenerated on install/build); runtime connects via the driver adapter, not the schema datasource (`prisma/schema.prisma:8-15`).
 
-The canonical flow is `npm run db:setup`, which is `prisma db push && node scripts/messaging-realtime.mjs && node scripts/unique-constraints.mjs` (`package.json`). The two follow-up scripts re-apply **raw/partial DDL that Prisma does not manage and that `db push` wipes**, so they MUST be re-run after every push/reset:
+<!-- docs-lint-allow: names the command in order to FORBID it -->
+The canonical flow WAS `npm run db:setup` (⛔ now refused — it emits 18 DROP TABLEs here; see the Conventions note in docs/README.md), which was `prisma db push && node scripts/messaging-realtime.mjs && node scripts/unique-constraints.mjs` (`package.json`). The two follow-up scripts re-apply **raw/partial DDL that Prisma does not manage and that `db push` wipes**, so they MUST be re-run after every push/reset:
 - `scripts/messaging-realtime.mjs` — AFTER-INSERT trigger on `"Message"` that broadcasts full message payloads on the private `convo:<id>` topic via `realtime.send(... private=true)`, gated by an RLS SELECT policy on `realtime.messages` so only the two participants receive it. `SECURITY DEFINER`; clients can never publish. Idempotent.
 - `scripts/unique-constraints.mjs` — dedupes + creates partial unique indexes for `TrustEvent` (one-time reasons), `Profile`/`Seller` trust recompute, and `SavedSearch` (prevents the alerts cron from amplifying duplicates). Idempotent.
 
@@ -1052,28 +1057,31 @@ Other relevant scripts (all run over `DIRECT_URL`): `setup-storage.mjs` (storage
 
 Other `package.json` DB scripts exist but are not the chosen workflow here: `db:push`, `db:generate`, and `db:migrate`/`db:reset` (the latter two assume a migrations dir this repo doesn't use).
 
-### Deploy (git push `main` → Vercel)
+### Deploy (git push `main` → Cloud Build → Cloud Run)
 
-Production deploys are triggered by pushing to `main` (the same branch CI gates). Vercel config lives in `vercel.json`: region `sin1` (Singapore, co-located with Supabase) and two Vercel Crons — `/api/cron/daily-reminders` at `0 2 * * *` and `/api/cron/saved-search-alerts` at `0 5 * * *`, both Bearer-authed by `CRON_SECRET`.
+Production deploys are triggered by pushing to `main` (the same branch CI gates) — Cloud Build builds the image and deploys the Cloud Run revision. Build/deploy config lives in `cloudbuild.yaml`: region `sin1` (Singapore, co-located with Supabase) and two Cloud Schedulers — `/api/cron/daily-reminders` at `0 2 * * *` and `/api/cron/saved-search-alerts` at `0 5 * * *`, both Bearer-authed by `CRON_SECRET`.
 
-Build command (`package.json`): `prisma generate && next build` (plus a standalone copy step that is skipped on Vercel). On Vercel, `output: 'standalone'` is disabled because the `VERCEL` env var is set — standalone targets a Node server and makes Vercel bundle Edge middleware with Node globals (`__dirname`), crashing it with `MIDDLEWARE_INVOCATION_FAILED` (`next.config.ts:4-8`).
+Build command (`package.json`): `prisma generate && next build` <!-- docs-lint-allow: describes the vestigial process.env.VERCEL branch that still exists at next.config.ts:100 -->
+(plus a standalone copy step that is skipped when `VERCEL` is set — ⚠️ vestigial). On Vercel, `output: 'standalone'` is disabled because the `VERCEL` env var is set — standalone targets a Node server and makes Vercel bundle Edge middleware with Node globals (`__dirname`), crashing it with `MIDDLEWARE_INVOCATION_FAILED` (`next.config.ts:4-8`).
 
-Secrets caveat (operational reality, per project memory): Vercel env values must be uploaded manually — automated writes land empty. After changing env, **redeploy** for it to take effect.
+Secrets caveat (operational reality, per project memory): Secret Manager values (`eno-root-env`) must be uploaded manually — automated writes land empty. After changing env, **redeploy** for it to take effect.
 
-Alternative target: a `Dockerfile` builds the standalone server (when `VERCEL` is unset) into a non-root `node:24-alpine` image on `$PORT` (8080) for Cloud Run Singapore. `NEXT_PUBLIC_*` values are inlined at build time and must be passed as `--build-arg`; `DATABASE_URL`/`DIRECT_URL` stay in the builder stage and never reach the runtime layer (`Dockerfile`).
+Alternative target: <!-- docs-lint-allow: names the vestigial VERCEL env branch, which is still real code -->
+a `Dockerfile` builds the standalone server (when `VERCEL` is unset) into a non-root `node:24-alpine` image on `$PORT` (8080) for Cloud Run Singapore. `NEXT_PUBLIC_*` values are inlined at build time and must be passed as `--build-arg`; `DATABASE_URL`/`DIRECT_URL` stay in the builder stage and never reach the runtime layer (`Dockerfile`).
 
 ### Running locally
 
 1. Copy `.env.example` → `.env` and fill at minimum `DATABASE_URL` + `DIRECT_URL` (Supabase → Connect → ORMs → Prisma). Supabase auth/storage keys, and `ADMIN_EMAILS` for `/admin`, are needed for those features.
 2. Install: `npm ci` (the `postinstall` hook runs `prisma generate`).
-3. Sync schema: `npm run db:setup` (push + realtime trigger + unique indexes). Optionally seed mock data with `npx tsx prisma/seed.ts`.
+<!-- docs-lint-allow: names the command in order to FORBID it -->
+3. Sync schema: ⛔ NOT `npm run db:setup` — it is refused (it emits 18 DROP TABLEs on this database). Use `prisma migrate diff` → read the SQL → apply only additive statements, then `npm run db:ddl` for the realtime triggers + unique indexes. Optionally seed mock data with `npx tsx prisma/seed.ts`.
 4. `npm run dev` — Next dev on port 3000 with Turbopack (output tee'd to `dev.log`).
 
 Notes for local dev:
-- **Rate limiting is disabled** without Upstash creds (fails open) — fine for dev; required in prod (`ratelimit.ts:8-10`).
+- **Rate limiting fails OPEN** if the limiter is unreachable — fine for dev; required in prod (`ratelimit.ts:8-10`).
 - The **edge-ingress pin is a no-op** without `EDGE_SECRET`, so local `/api/*` calls aren't 403'd.
 - Prisma query logging is on in dev (`['query','error']`) and off in prod to avoid logging seller-phone PII (`src/lib/db.ts:20`).
 - To run the production server locally (standalone build): `npm run build && npm start` (serves `.next/standalone/server.js`).
 - `Caddyfile` is a local reverse-proxy helper (port 81 → app on 3000, with an `XTransformPort` passthrough) for emulating the front proxy during development.
 
-Reference paths: `next.config.ts`, `vercel.json`, `src/middleware.ts`, `src/lib/ratelimit.ts`, `src/lib/client-ip.ts`, `src/app/api/csp-report/route.ts`, `.github/workflows/ci.yml`, `prisma.config.ts`, `prisma/schema.prisma`, `scripts/`, `Dockerfile`, `Caddyfile`.
+Reference paths: `next.config.ts`, `cloudbuild.yaml`, `src/middleware.ts`, `src/lib/ratelimit.ts`, `src/lib/client-ip.ts`, `src/app/api/csp-report/route.ts`, `.github/workflows/ci.yml`, `prisma.config.ts`, `prisma/schema.prisma`, `scripts/`, `Dockerfile`, `Caddyfile`.

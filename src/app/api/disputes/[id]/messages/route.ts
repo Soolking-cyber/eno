@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentProfileId } from '@/lib/admin'
 import { rateLimit } from '@/lib/ratelimit'
 import { db } from '@/lib/db'
+import { logError } from '@/lib/log'
 import {
   DISPUTE_BODY_MAX, DISPUTE_IMAGES_MAX,
   addPartyStatementOnce, isEvidencePath, loadDisputeForParty, partyCanPost, partyHasSubmitted,
@@ -51,7 +52,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   // the DisputeMessage (which the timeline + AI review already read); mirroring the
   // text would render it twice (legacy sellerResponse item + the real thread row).
   if (role === 'respondent' && !report.sellerRespondedAt) {
-    await db.report.update({ where: { id: report.id }, data: { sellerRespondedAt: new Date() } }).catch(() => {})
+    await db.report.update({ where: { id: report.id }, data: { sellerRespondedAt: new Date() } }).catch((e) => logError(e, { op: 'dispute.markSellerResponded' }))
   }
   return NextResponse.json({ ok: true, id: row.id }, { status: 201 })
 }

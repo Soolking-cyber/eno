@@ -31,7 +31,11 @@ export type SerializedListingCard = {
   // else null. Server-computed 30-day-min reference — never a seller-entered number.
   prevPrice: number | null
   // Urgent sale ("Bán gấp") — resolved read-time from urgentUntil.
+  // ⚠️ `urgent` is resolved at SERIALIZE time, so on an ISR-cached page it is frozen at the
+  // moment the HTML was generated. Anything that must stay honest on a cached page has to
+  // read `urgentUntil` and compare against a live clock — see <LiveUntil>.
   urgent: boolean
+  urgentUntil: string | null
   location: string
   district: string | null
   city: string
@@ -89,6 +93,7 @@ export type SerializedListing = {
   // the bare "−12%" so this is intentionally NOT on SerializedListingCard.
   dropExpiresAt: string | null
   urgent: boolean
+  urgentUntil: string | null
   location: string
   district: string | null
   city: string

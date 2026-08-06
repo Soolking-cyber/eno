@@ -1,6 +1,7 @@
 import 'server-only'
 import { db } from './db'
 import { HANDLE_RE, validateHandle, slugifyHandle } from './handle-format'
+import { logError } from '@/lib/log'
 
 // ── Public @handles (Telegram-style) ─────────────────────────────────────────────
 // "Alex Doe" → @alex_doe, "Apple Store" → @apple_store. ONE namespace for users and
@@ -68,7 +69,7 @@ export async function consolidateSellerHandle(
 
     // Shop already has its handle → just make sure the profile isn't also holding one.
     if (shopHandle) {
-      if (profileHandle) await db.handle.delete({ where: { handle: profileHandle.handle } }).catch(() => {})
+      if (profileHandle) await db.handle.delete({ where: { handle: profileHandle.handle } }).catch((e) => logError(e, { op: 'handle.releaseProfile' }))
       return
     }
 
@@ -83,7 +84,7 @@ export async function consolidateSellerHandle(
     // Otherwise claim a fresh shop-name handle, THEN release the profile's (claim-first
     // so a failure never leaves the account with no handle at all).
     await autoClaimHandle({ sellerId }, sellerName)
-    if (profileHandle) await db.handle.delete({ where: { handle: profileHandle.handle } }).catch(() => {})
+    if (profileHandle) await db.handle.delete({ where: { handle: profileHandle.handle } }).catch((e) => logError(e, { op: 'handle.releaseProfile' }))
   } catch (e) {
     console.error('[handle] consolidate failed', { sellerId, profileId }, (e as Error).message)
   }
@@ -103,7 +104,7 @@ export async function revertToPersonalHandle(
     // Free the shop's handle — the account is no longer a business.
     if (sellerId) {
       const shop = await db.handle.findUnique({ where: { sellerId }, select: { handle: true } })
-      if (shop) await db.handle.delete({ where: { handle: shop.handle } }).catch(() => {})
+      if (shop) await db.handle.delete({ where: { handle: shop.handle } }).catch((e) => logError(e, { op: 'handle.releaseShop' }))
     }
     // Already holding a personal handle → nothing to restore.
     const existing = await db.handle.findUnique({ where: { profileId }, select: { handle: true } })

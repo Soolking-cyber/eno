@@ -12,6 +12,7 @@ import { db } from '@/lib/db'
 import { getSupabaseAdmin, LISTING_VIDEOS_BUCKET } from '@/lib/supabase-admin'
 import { VIDEO_PATH_RE, VIDEO_MAX_BYTES } from '@/lib/core/media'
 import { transcodeToMp4 } from '@/lib/core/video-transcode'
+import { logError } from '@/lib/log'
 
 export const runtime = 'nodejs'
 export const maxDuration = 300 // Vercel Pro ceiling — a ≤60s clip transcodes in well under this
@@ -79,14 +80,21 @@ async function runTranscode(path: string, hevc: boolean, persist?: (s: JobState)
     const recorded = persist ? await persist(done) : true
     if (recorded) {
       // Compressed clip is live — evict the raw source (best-effort; the GC cron is the backstop).
-      await admin.storage.from(LISTING_VIDEOS_BUCKET).remove([path]).catch(() => {})
+      // ⚠️ CHECK THE RETURNED `error`, DO NOT `.catch()` IT. supabase-js does not reject on an API
+      // failure: StorageFileApi.handleOperation catches internally and returns `{ data: null, error }`
+      // unless `shouldThrowOnError` is set (verified in
+      // node_modules/@supabase/storage-js/dist/index.mjs). So a `.catch()` here is DEAD CODE for the
+      // realistic failure — a permissions or bucket error — and an earlier version of this line had
+      // exactly that, which is worse than the bare swallow it replaced because it looks handled.
+      const { error: rmErr } = await admin.storage.from(LISTING_VIDEOS_BUCKET).remove([path])
+      if (rmErr) logError(rmErr, { op: 'transcode.evictRawSource', bucket: LISTING_VIDEOS_BUCKET })
     }
     return done
   } catch (e) {
     console.error('[transcode] job', e)
     return fallback()
   } finally {
-    await rm(dir, { recursive: true, force: true }).catch(() => {})
+    await rm(dir, { recursive: true, force: true }).catch((e) => logError(e, { op: 'transcode.rm' }))
   }
 }
 
@@ -101,7 +109,11 @@ export async function POST(req: NextRequest) {
   try {
     const profileId = await getCurrentProfileId()
     if (!profileId) return NextResponse.json({ error: 'auth_required' }, { status: 401 })
-    const limit = await rateLimit('upload-video-transcode', profileId, 30, '1 h')
+    // ⚠️ strict: FAIL CLOSED. This is the most expensive request in the app — up to 50MB of billed
+    // egress plus ~210s of full-CPU Cloud Run per call. Video is optional on a listing and the
+    // wizard already tolerates a transcode failure, so failing closed costs an optional attachment
+    // during a limiter outage rather than an unbounded compute bill.
+    const limit = await rateLimit('upload-video-transcode', profileId, 30, '1 h', { strict: true })
     if (!limit.success) return NextResponse.json({ error: 'rate_limited' }, { status: 429 })
 
     const body = (await req.json().catch(() => ({}))) as { path?: unknown; hevc?: unknown }

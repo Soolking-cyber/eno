@@ -251,7 +251,6 @@ export function HelpCenter({ data }: { data: HelpCenterData }) {
 
   return (
     <div data-help-center data-hydrated={hydrated ? 'true' : 'false'} className="w-full">
-      <p className="eyebrow text-accent-foreground mb-2"><Tr text="Help center" /></p>
       <h1 className="h-display text-foreground"><Tr text="How can we help?" /></h1>
       <p className="mt-3 max-w-2xl text-sm leading-relaxed text-body">
         <Tr text="Answers about buying, selling, trust and staying safe on eno.vn — plus practical guides for getting around Vietnam. Upvote what helped you, and ask anything that is missing." />

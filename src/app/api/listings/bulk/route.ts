@@ -19,7 +19,11 @@ export async function POST(req: NextRequest) {
 
   // Rate-limit by account. Fail OPEN — an authenticated, accountable business shouldn't
   // be blocked from importing on a Redis blip; the cap only stops a runaway loop / abuse.
-  const rl = await rateLimit('bulk-import', profile.id, 10, '1 h')
+  // ⚠️ strict: FAIL CLOSED. Each row fans out to paid third parties (moderation, translation,
+  // embedding) and does an outbound rehost() of a caller-supplied image URL, x200 rows x unbounded
+  // requests if rl_check errors. A batch importer is a deliberate, retryable back-office action —
+  // a 429 during a limiter outage costs one retry; the open version costs a bill.
+  const rl = await rateLimit('bulk-import', profile.id, 10, '1 h', { strict: true })
   if (!rl.success) return NextResponse.json({ error: 'rate_limited' }, { status: 429 })
 
   const seller = await db.seller.findUnique({ where: { ownerId: profile.id }, select: { id: true, ownerId: true, trustTier: true, trustScore: true } })

@@ -25,7 +25,11 @@ export async function POST(req: NextRequest) {
     if (blocksPosting(state)) return NextResponse.json({ error: 'account_restricted' }, { status: 403 })
 
     // Accountable account → fail OPEN (don't block posting on a Redis blip).
-    const limit = await rateLimit('upload-video-sign', profileId, 30, '1 h')
+    // ⚠️ strict: FAIL CLOSED. Each call mints a signed URL authorising a direct 50MB browser→Supabase
+    // write into the PUBLIC listing-videos bucket. Un-limited, that is free bulk file hosting on our
+    // storage bill. Same blast radius as the transcode route: no video attach during an outage,
+    // everything else about posting still works.
+    const limit = await rateLimit('upload-video-sign', profileId, 30, '1 h', { strict: true })
     if (!limit.success) return NextResponse.json({ error: 'rate_limited' }, { status: 429 })
 
     const body = (await req.json().catch(() => ({}))) as { type?: unknown; size?: unknown }

@@ -54,7 +54,8 @@ until this one reaches parity.
 ## Status
 
 - 2026-07-20 (Kyle) v7–v9 (86a15293, 72aea9b6, 98d26006) — owner reassigned
-  Murat's lanes to Kyle (Murat on the Upstash work). **4/5 tabs native; the
+  <!-- docs-lint-allow: historical note on July 2026 lane assignment, not a claim about today's limiter -->
+Murat's lanes to Kyle (Murat on the Upstash work). **4/5 tabs native; the
   full buyer journey is native.** v7 #117 auth: enoAuth WKWebView bridge (web
   sign-in posts the session; guest tabs can't clobber it), Keychain storage,
   Supabase refresh, Bearer on every call, native Account tab. v8 #118

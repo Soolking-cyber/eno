@@ -7,6 +7,7 @@ import { isListingImageUrl } from '@/lib/listing-image'
 import { recordProfileComplete } from '@/lib/trust'
 import { lookupTaxCode, TAX_FACTS_TTL_MS } from '@/lib/tax-lookup'
 import { sellerIdentityHash } from '@/lib/business-verification'
+import { logError } from '@/lib/log'
 
 // Storefront (Seller) edit core — decoupled from auth, takes the already-resolved
 // sellerId + owning profileId. Shared by the dashboard PATCH /api/seller and the partner
@@ -140,7 +141,7 @@ export async function updateSellerCore(
   }
   // One-time trust bonus once the storefront is fully filled out.
   if (updated.name && updated.bio && updated.location && updated.avatarUrl && updated.phone) {
-    after(() => recordProfileComplete(profileId).catch(() => {}))
+    after(() => recordProfileComplete(profileId).catch((e) => logError(e, { op: 'seller.recordProfileComplete' })))
   }
   return { ok: true }
 }

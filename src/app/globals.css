@@ -20,7 +20,7 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-inter, ui-sans-serif), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
   --color-ring: var(--ring);
   --color-input: var(--input);
@@ -384,11 +384,33 @@
   }
   body {
     @apply bg-background text-foreground antialiased;
-    /* Inter (next/font, layout.tsx) opt-in features: cv01 serifed-1 · cv11
-       single-storey a · ss01/ss03 contextual alternates · zero slashed-0 —
-       disambiguates 0/O and 1/l in prices, phone numbers and IDs. */
+    /* Stated explicitly rather than left to Tailwind's preflight, so the site's typeface is
+       visible in this file instead of buried in `--default-font-family`. The fallback lives
+       INSIDE the var() on purpose: `var(--x), ui-sans-serif` does NOT survive a missing --x —
+       an undefined var() makes the whole declaration invalid at computed-value time and the
+       later list items never get a turn. That is precisely how Inter went missing for months
+       (see the comment on the font import in layout.tsx). */
+    font-family: var(--font-inter, ui-sans-serif), ui-sans-serif, system-ui, sans-serif;
+    /* Inter opt-in features: cv01 serifed-1 · cv11 single-storey a · ss01/ss03 contextual
+       alternates · zero slashed-0 — disambiguates 0/O and 1/l in prices, phone numbers and IDs.
+       These predate 2026-08-05 and were correct all along; they had simply never taken effect,
+       because Inter itself never applied (see the font import in layout.tsx). */
     font-feature-settings: "cv01", "cv11", "ss01", "ss03", "zero";
     font-variation-settings: "opsz" 32;
+  }
+
+  /* VIETNAMESE UI GETS THE FACE BUILT FOR IT (owner, 2026-08-05).
+     `lang` is set from localStorage by the boot script in layout.tsx and by language-context, and
+     'vi' is the exact code in src/lib/languages.ts — not 'vi-VN', which is the *locale* used for
+     number formatting. Measured: Be Vietnam Pro costs only +1.5% width on Vietnamese copy but +4.9%
+     on English, which is the extra feed truncation that made it the wrong default.
+     ⚠️ The feature settings MUST be cleared here. cv01/cv11/ss01/ss03/zero and the opsz axis are
+     Inter-specific; Be Vietnam Pro is a static family with axes:null, and leaving Inter's values
+     inherited would ask a font for axes it does not have. */
+  html[lang="vi"] body {
+    font-family: var(--font-be-vietnam-pro, ui-sans-serif), ui-sans-serif, system-ui, sans-serif;
+    font-feature-settings: normal;
+    font-variation-settings: normal;
   }
   /* Sub-100ms press feel: drop the browser's ~300ms double-tap-zoom wait on
      interactive elements (pan + pinch-zoom still work; only double-tap zoom is
@@ -1069,15 +1091,29 @@ html.native-tabs .bottom-nav-spacer {
 /* Availability-review nudge — a small periodic hop on the My-listings button when the
    seller hasn't confirmed availability for 3+ days. Compositor-only (transform) and
    OFF under reduced motion via the global kill switch. Two quick hops, long rest. */
+/* ⚠️ THE HOPS LEAD THE CYCLE, AND THE COUNT IS FINITE. Both were changed on 2026-08-05.
+   Movement used to sit at 78–94%, i.e. the TAIL of the cycle. That is invisible while the
+   animation is `infinite`, but the moment the count is finite it means the first hop lands
+   2.5s after the page arrives — after the seller has already looked away. Leading the cycle
+   puts hop one on arrival. */
 @keyframes availability-jump {
-  0%, 78%, 100% { transform: translateY(0); }
-  82% { transform: translateY(-4px); }
-  86% { transform: translateY(0); }
-  90% { transform: translateY(-2px); }
-  94% { transform: translateY(0); }
+  0% { transform: translateY(0); }
+  4% { transform: translateY(-4px); }
+  8% { transform: translateY(0); }
+  12% { transform: translateY(-2px); }
+  16%, 100% { transform: translateY(0); }
 }
+/* ⚠️ NOT `--ease-bounce`, AND NOT `infinite`. Two deliberate corrections:
+   · The token contract two hundred lines up reads "--ease-bounce … success moments ONLY".
+     This is a `bg-destructive` red warning button — animating it in the app's success
+     language was the clearest token-contract violation in this stylesheet.
+   · `infinite` is animation debt by definition: a loop that never ends stops being a signal
+     within seconds and becomes a permanent attention tax the seller trains themselves to
+     ignore, which burns the one gesture available when something is genuinely urgent. Three
+     bursts over ~9.6s say it, then the button sits still. `bg-destructive` is the persistent
+     signal and it does not decay. */
 .availability-overdue {
-  animation: availability-jump 3.2s var(--ease-bounce, ease-out) infinite;
+  animation: availability-jump 3.2s var(--ease-spring-snappy) 3;
 }
 
 @keyframes heart-pop {

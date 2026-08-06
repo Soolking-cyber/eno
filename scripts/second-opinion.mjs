@@ -25,13 +25,13 @@
 // the receipt; judging them stays a human act.
 import { execFileSync, spawn } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { mkdirSync, writeFileSync, existsSync, readFileSync, rmSync } from 'node:fs'
+import { mkdirSync, writeFileSync, existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 const ROOT = execFileSync('git', ['rev-parse', '--show-toplevel'], { encoding: 'utf8' }).trim()
 const RECEIPTS = join(ROOT, '.second-opinion')
 // Declared up here because `--status` validates receipts long before REVIEWERS is built below.
-const REVIEWER_NAMES = ['codex', 'agy', 'qwen']
+const REVIEWER_NAMES = ['codex', 'agy', 'opus']
 
 /** The exact content being committed. `--cached` so it matches what the hook will see. */
 export function stagedHash() {
@@ -57,6 +57,14 @@ if (process.argv.includes('--status')) {
       // ⚠️ DISTINCT, KNOWN FAMILIES — codex noted that counting raw entries let a receipt list the
       // same reviewer twice, or two invented names, and satisfy "two answered". The whole premise of
       // the stack is that these families fail DIFFERENTLY; two of the same one is one review.
+      /**
+       * ⚠️ ONLY CURRENTLY-KNOWN REVIEWERS COUNT, WHICH MATTERS WHEN THE PANEL CHANGES.
+       * Receipts written before 2026-08-06 list `qwen`, which is no longer a member. Such a receipt
+       * still validates whenever the other two answered (codex + agy = 2, the quorum), and is
+       * correctly rejected if qwen was one of only two verdicts — a review by a reviewer we no
+       * longer run is not a review. The cost is re-running the gate on a stale receipt, which is
+       * the safe direction.
+       */
       const known = new Set(REVIEWER_NAMES)
       const counted = [...new Set((r.reviewers || [])
         .filter((x) => !x.truncated && (x.verdict === 'CONFIRMED' || x.verdict === 'REFUTED'))
@@ -78,7 +86,7 @@ if (!diff.trim()) {
 
 // ⚠️ SCAN FOR SECRETS BEFORE SHIPPING THE DIFF TO THREE THIRD PARTIES. qwen raised this reviewing
 // the gate itself, and it is the sharpest finding against it: this script sends the ENTIRE staged
-// diff to OpenAI (codex), Google (agy) and Alibaba (qwen). Sending our SOURCE to them is already
+// diff to OpenAI (codex), Google (agy) and Anthropic (opus). Sending our SOURCE to them is already
 // standing policy — CLAUDE.md mandates these reviewers — but a CREDENTIAL is categorically
 // different: it cannot be un-sent, and it would land in three vendors' logs simultaneously.
 // The realistic path is not malice, it is a slip: `.env` is gitignored, but a key pasted into a
@@ -100,7 +108,7 @@ if (process.env.SECOND_OPINION_SKIP_SECRET_SCAN !== '1') {
   const hits = SECRET_PATTERNS.filter(([re]) => re.test(diff)).map(([, label]) => label)
   if (hits.length) {
     console.error(`⛔ REFUSING TO SEND THIS DIFF TO EXTERNAL REVIEWERS — it looks like it contains: ${hits.join(', ')}.`)
-    console.error('   codex, agy and qwen are third-party services; a credential sent to them cannot be recalled.')
+    console.error('   codex, agy and opus are third-party services; a credential sent to them cannot be recalled.')
     console.error('   Remove the value from the staged content (git reset the file, move it to Secret Manager via')
     console.error('   scripts/secret-set.sh), then re-run. If this is a FALSE POSITIVE — a fixture, a public key, a')
     console.error('   sample in documentation — re-run with SECOND_OPINION_SKIP_SECRET_SCAN=1 and say so out loud.')
@@ -130,9 +138,14 @@ If the diff is insufficient to judge, say INSUFFICIENT and name what is missing.
 STAGED DIFF:
 ${diff}`
 
-const promptFile = join(RECEIPTS, `.prompt-${hash}.txt`)
 mkdirSync(RECEIPTS, { recursive: true })
-writeFileSync(promptFile, prompt)
+
+// ⚠️ NO PROMPT FILE ANY MORE. The full staged diff used to be written to
+// `.second-opinion/.prompt-<hash>.txt` because qwen took the prompt as a PATH rather than on stdin.
+// qwen was replaced on 2026-08-06 and every remaining reviewer takes stdin, so that file had no
+// reader — it was writing the entire source diff to disk on every commit and relying on an exit
+// handler to unlink it. A temp file nobody reads is pure liability: it survives a SIGKILL, and the
+// cleanup path for it was itself the source of two earlier bugs.
 
 // ⚠️ CLEANUP BELONGS ON `exit`, NOT ON THE HAPPY PATH — I got this wrong TWICE and agy caught it
 // both times, which is why it is now structural instead of another well-placed call.
@@ -142,12 +155,15 @@ writeFileSync(promptFile, prompt)
 //        when reviewers had timed out (the case that CREATES orphans) nothing reaped them.
 // A handler on 'exit' runs on every terminating path, including process.exit() and an uncaught
 // throw, and it is synchronous — which is precisely what killing a pid and unlinking a file need.
-// SIGINT/SIGTERM are routed through the same handler so Ctrl-C during a 5-minute review does not
-// strand the full-diff prompt file on disk (agy's fourth finding).
+// SIGINT/SIGTERM are routed through the same handler so Ctrl-C during a 5-minute review reaps the
+// reviewer PROCESS TREES rather than orphaning three of them to keep burning quota in the
+// background. It no longer unlinks anything — the prompt file it used to clean up is gone (see
+// above) and the receipt is written synchronously at the very end, so an interrupted run simply
+// never writes one. (An earlier version of this comment still claimed file cleanup; caught by the
+// opus reviewer on the very commit that removed it.)
 const CHILDREN = new Set()
 process.on('exit', () => {
   for (const pid of CHILDREN) { try { process.kill(-pid, 'SIGKILL') } catch { /* already gone */ } }
-  try { rmSync(promptFile, { force: true }) } catch { /* best effort */ }
 })
 process.on('SIGINT', () => process.exit(130))
 process.on('SIGTERM', () => process.exit(143))
@@ -162,8 +178,9 @@ process.on('SIGTERM', () => process.exit(143))
 // that only saw the first 180KB would still have its verdict certify bytes it never read. On a
 // codebase where the failure mode is a visa/PayPal surface leaking onto the licensed marketplace,
 // "reviewed" must mean the reviewer saw the licensing-relevant hunk — which, in a big diff, is as
-// likely to be at the end as the start. codex (stdin) and qwen (file) both get the whole thing, so
-// the quorum is still reachable; agy's truncated verdict is recorded but not counted.
+// likely to be at the end as the start. codex and opus BOTH take the prompt on stdin and so both
+// get the whole thing, which is what keeps the quorum reachable; agy's truncated verdict is
+// recorded but deliberately not counted.
 const AGY_LIMIT = 180_000
 const agyTruncated = prompt.length > AGY_LIMIT
 
@@ -183,7 +200,31 @@ const REVIEWERS = [
     // silence. Whenever TIMEOUT_MS changes, this must stay below it.
     args: ['-p', agyTruncated ? prompt.slice(0, AGY_LIMIT) + '\n\n[DIFF TRUNCATED at 180KB for argv limits — judge only what is shown]' : prompt, '--model', 'Gemini 3.1 Pro (High)', '--dangerously-skip-permissions', '--print-timeout', '400s'],
   },
-  { name: 'qwen', cmd: 'node', args: [join(ROOT, 'scripts/qwen-review.mjs'), promptFile] },
+  /**
+   * ⚠️ REPLACED qwen ON 2026-08-06 (owner). qwen had been returning HTTP 403 —
+   * "The free quota has been exhausted" — on every run for a full day, so every review in that
+   * period was 2/3 rather than 3/3. A reviewer that cannot answer is not a reviewer; the gate was
+   * correctly refusing to count it, which meant the quorum sat permanently at its minimum.
+   *
+   * ⚠️ AND IT IS ANTHROPIC-LINEAGE, WHICH IS A REAL TRADE-OFF, NOT A FREE UPGRADE. CLAUDE.md's
+   * reviewer policy exists because "an Opus review of Opus code shares its blind spots" — the whole
+   * point of codex (OpenAI) and agy (Google) is that they fail differently from the main thread.
+   * This third seat is now the SAME family as the author, so the diversity of the panel is
+   * genuinely lower than it was when qwen worked. Two things reduce that, and neither eliminates it:
+   * it runs in a FRESH context with no memory of why the code was written, and it is prompted
+   * adversarially to refute rather than to review. Treat a unanimous 3/3 CONFIRMED with slightly
+   * more suspicion than before, and reach for `fable-reviewer` when a change is genuinely
+   * irreversible.
+   *
+   * `--effort max` is the point of using it at all. `--permission-mode plan` keeps it read-only:
+   * it answers from the pasted diff and cannot edit, run or commit anything.
+   */
+  {
+    name: 'opus',
+    cmd: 'claude',
+    args: ['-p', '--model', 'opus', '--effort', 'max', '--permission-mode', 'plan'],
+    stdin: true,
+  },
 ]
 
 // ⚠️ EVERY REVIEWER IS HARD-BOUNDED. Measured 2026-08-03: this script sat for 46 MINUTES on a
@@ -295,7 +336,6 @@ if (counted.length < 2) {
   console.error(`⚠️  Only ${counted.length} family/families reviewed the FULL diff — that is NOT a passed`)
   console.error('    review, and NO receipt was written. A truncated or errored reviewer does not count.')
   console.error('    Fix the reviewer (missing binary? no key? rate limited?) and re-run.')
-  try { rmSync(promptFile, { force: true }) } catch {}
   process.exit(1)
 }
 // ⚠️ THE RECEIPT KEEPS THE FINDINGS, not just the verdicts. codex caught that a REFUTED receipt with
@@ -306,10 +346,6 @@ writeFileSync(join(RECEIPTS, `${hash}.json`), JSON.stringify({
   hash, lines: diff.split('\n').length, quorum: counted.length,
   reviewers: results.map(({ name, verdict, truncated, text }) => ({ name, verdict, truncated, findings: text })),
 }, null, 2))
-// ⚠️ THE PROMPT FILE HOLDS THE ENTIRE STAGED DIFF. qwen caught that these accumulated forever under
-// .second-opinion/ — gitignored, so never committed, but sitting on disk in plain text indefinitely.
-// It exists only to hand the diff to qwen without argv limits; once the run is over it is a liability.
-try { rmSync(promptFile, { force: true }) } catch {}
 if (answered.some((r) => r.verdict === 'REFUTED')) {
   console.log('⚠️  At least one REFUTED. Read the findings above and VERIFY each by measuring before')
   console.log('    acting — on this repo roughly a third of reviewer claims do not survive checking.')

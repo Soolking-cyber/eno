@@ -1,3 +1,4 @@
+import { getVerifiedPhone } from '@/lib/admin'
 // POST /api/listings seller resolution: attach a signed-in poster's listing to their
 // Profile-owned storefront, or resolve/create a guest storefront by phone — with the
 // one-number-one-account claim rules. Extracted verbatim from route.ts; returns a
@@ -37,9 +38,45 @@ export async function resolveSellerForPost(meId: string | null, contactPhone: st
         return NextResponse.json({ error: 'phone_taken' }, { status: 409 })
       }
       const byPhone = await db.seller.findUnique({ where: { phone: contactPhone } })
-      if (byPhone && !byPhone.ownerId) {
-        // Claim the unowned guest storefront for this account.
-        seller = await db.seller.update({ where: { id: byPhone.id }, data: { ownerId: meId } })
+      // ⚠️ CLAIM ONLY ON AN AUTH-CONFIRMED PHONE — `contactPhone` here is TYPED INTO THE POST BODY.
+      // Without this check, any signed-in account with no storefront could take over an unowned
+      // guest storefront just by knowing its number (sellers advertise the same number on Facebook
+      // and Zalo), inheriting every listing, review and rating, receiving all future buyer threads
+      // (conversation creation resolves the seller side from Seller.ownerId), and locking the real
+      // owner out for good — the verified auto-claim in profile.ts requires `ownerId: null`.
+      // `phoneTakenByOther` above cannot catch this: it deliberately ignores unowned sellers,
+      // because they are meant to be claimable by whoever VERIFIES the number.
+      // src/lib/profile.ts:71-77 has always got this right ("Verified phone only (never a
+      // self-typed number)"); this path reimplemented the claim and dropped the condition.
+      const verifiedPhone = byPhone && !byPhone.ownerId ? await getVerifiedPhone() : null
+      if (byPhone && !byPhone.ownerId && verifiedPhone && verifiedPhone === byPhone.phone) {
+        // Claim the unowned guest storefront for this account. updateMany + the ownerId:null guard
+        // makes it atomic and claim-once, matching profile.ts — two racing claims cannot both win.
+        const claimed = await db.seller.updateMany({
+          where: { id: byPhone.id, ownerId: null },
+          data: { ownerId: meId, claimedAt: new Date() },
+        })
+        // ⚠️ On a LOST race, re-read before creating. `Seller.ownerId` is @unique, so if the
+        // concurrent request that beat us was this same account's, a blind create would throw a
+        // P2002 and fail the post. Losing the claim means either we now own it (our own concurrent
+        // request won) or someone else does — check ours first, and only then fall back.
+        seller = claimed.count > 0
+          ? await db.seller.findUniqueOrThrow({ where: { id: byPhone.id } })
+          : (await db.seller.findUnique({ where: { ownerId: meId } }))
+            ?? await db.seller.create({
+              data: { name: contactName || 'eno.vn seller', phone: null, ownerId: meId, verifiedSeller: false, rating: 0, reviewCount: 0, responseRate: 100 },
+            })
+      } else if (byPhone && !byPhone.ownerId) {
+        // An unowned storefront exists on this number and the caller has NOT verified it.
+        // ⚠️ ASK THEM TO VERIFY — do NOT quietly give them a second, empty storefront.
+        // That was the first version of this fix and it created an UNRECOVERABLE state:
+        // `Seller.ownerId` is @unique, so the empty row permanently occupies their one storefront
+        // slot, and the verified auto-claim in src/lib/profile.ts:73-77 is an unguarded
+        // `updateMany({ where: { phone, ownerId: null } })` — stamping a SECOND row for the same
+        // owner violates that unique index, the write throws, its `try` swallows it, and their
+        // real listings are stranded on the guest storefront forever. Blocking the post is
+        // recoverable in one OTP; the silent version was not recoverable at all.
+        return NextResponse.json({ error: 'verify_phone_to_claim' }, { status: 409 })
       } else {
         seller = await db.seller.create({
           data: { name: contactName || 'eno.vn seller', phone: contactPhone, ownerId: meId, verifiedSeller: false, rating: 0, reviewCount: 0, responseRate: 100 },

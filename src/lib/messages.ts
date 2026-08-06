@@ -905,6 +905,23 @@ export async function actOnOffer(
   // Only the OTHER party can accept/decline — never your own offer.
   if (!offer || offer.senderProfileId === actorId) return false
 
+  // ⚠️ ONE ACCEPTED OFFER PER THREAD. The supersede clause on the send path only demotes PENDING
+  // rows, so an offer sent AFTER an acceptance stays pending and is fully acceptable — no
+  // concurrency needed, just a buyer sending again minutes later. That left one conversation
+  // holding two 'accepted' offers at different prices with nothing recording which deal is real,
+  // and it inflated the seller's transaction count (see sellerTransactionCount in enforcement.ts).
+  // Declining stays allowed: a stale pending card must always be clearable.
+  // ⚠️ This is a check, not a lock — under READ COMMITTED it does not serialise against a truly
+  // simultaneous second accept (the EvalPlanQual lesson recorded above). It closes the sequential
+  // case, which is the reachable one; closing the concurrent case needs a row to compare-and-set
+  // against, i.e. a schema change.
+  if (action === 'accept') {
+    const already = await db.message.count({
+      where: { conversationId: convo.id, kind: 'offer', offerStatus: 'accepted' },
+    })
+    if (already > 0) return false
+  }
+
   const status = action === 'accept' ? 'accepted' : 'declined'
   // Atomic claim: only transition while STILL pending, so two concurrent
   // accept/decline (or double-clicks) can't both emit the confirmation message +

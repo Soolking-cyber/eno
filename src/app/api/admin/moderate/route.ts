@@ -6,6 +6,7 @@ import { applyTrustEvent, penalizeSeller, recomputeTrust, SEVERITY_PENALTY, FALS
 import { syncEnforcement } from '@/lib/enforcement'
 import { APPEAL_NOTICE, pickLocale } from '@/lib/admin-macros'
 import { DISPUTE_BODY_MAX, DISPUTE_WINDOW_MS, addDisputeMessage, notifyDispute, respondentProfileId } from '@/lib/dispute'
+import { logError } from '@/lib/log'
 
 export const dynamic = 'force-dynamic'
 
@@ -19,7 +20,7 @@ async function notifyActioned(targetProfileId: string, reportId: string) {
   const l = pickLocale(p?.locale)
   await db.notification.create({
     data: { recipientId: targetProfileId, type: 'dispute', title: APPEAL_NOTICE.title[l], body: APPEAL_NOTICE.body[l], actorName: 'eno.vn moderation', url: `/disputes/${reportId}` },
-  }).catch(() => {})
+  }).catch((e) => logError(e, { op: 'moderate.appealNotice' }))
 }
 
 // Tell each reporter their case closed with no violation — but ONLY for rows the
@@ -66,7 +67,7 @@ export async function POST(req: NextRequest) {
   switch (action) {
     case 'set-note': {
       // Staff-only note on the case — never shown to users.
-      await db.report.update({ where: { id }, data: { internalNote: String(body.note ?? '').slice(0, 2000) || null } }).catch(() => {})
+      await db.report.update({ where: { id }, data: { internalNote: String(body.note ?? '').slice(0, 2000) || null } }).catch((e) => logError(e, { op: 'moderate.internalNote' }))
       return NextResponse.json({ ok: true })
     }
 
@@ -77,7 +78,7 @@ export async function POST(req: NextRequest) {
       // SQL statement appends server-side; the 2000-char cap is enforced in the SET.
       const line = String(body.note ?? '').slice(0, 500)
       if (line) {
-        await db.$executeRaw`UPDATE "Report" SET "internalNote" = left(coalesce("internalNote" || E'\n', '') || ${line}, 2000) WHERE id = ${id}`.catch(() => {})
+        await db.$executeRaw`UPDATE "Report" SET "internalNote" = left(coalesce("internalNote" || E'\n', '') || ${line}, 2000) WHERE id = ${id}`.catch((e) => logError(e, { op: 'moderate.appendInternalNote' }))
       }
       return NextResponse.json({ ok: true })
     }
@@ -121,6 +122,8 @@ export async function POST(req: NextRequest) {
         select: { id: true, targetProfileId: true, targetSellerId: true, listingId: true, reporterProfileId: true },
       })
       let confirmed = 0
+      // Listing ids whose takedown write failed — the report is docked but the listing is STILL PUBLIC.
+      const takedownFailures: string[] = []
       for (const report of reports) {
         const rid = report.id
         const upd = await db.report.updateMany({ where: { id: rid, status: 'open' }, data: { status: 'confirmed', severity, resolvedBy: admin, resolvedAt: new Date() } })
@@ -130,13 +133,38 @@ export async function POST(req: NextRequest) {
           // Enforcement ladder: re-derive now that the confirmation landed (fail-quiet inside).
           if (res) await syncEnforcement(report.targetProfileId, res.breakdown, { persistedScore: res.score, triggerReportId: rid })
         } else if (report.targetSellerId) await penalizeSeller(report.targetSellerId, penalty, { reason: `report:${rid}`, reportId: rid })
-        if (report.listingId) { await db.listing.update({ where: { id: report.listingId }, data: { verified: false } }).catch(() => {}); revalidatePath(`/listings/${report.listingId}`) }
+        // ⚠️ A FAILED TAKEDOWN MUST NOT BE COUNTED AS A CONFIRMATION. This used to swallow the
+        // error and fall through to `confirmed++` and a 200, so staff were told a listing had been
+        // pulled while it was still public and still selling. Logging it (WS4) made the failure
+        // visible in Cloud Logging but changed nothing the operator sees.
+        if (report.listingId) {
+          try {
+            await db.listing.update({ where: { id: report.listingId }, data: { verified: false } })
+            revalidatePath(`/listings/${report.listingId}`)
+          } catch (e) {
+            logError(e, { op: 'moderate.unverifyListing', reportId: rid, listingId: report.listingId })
+            // Do NOT throw: the trust dock above already landed for THIS report, and aborting the
+            // loop would strand the remaining reports half-applied with no way for the client to
+            // tell which. Record it and report the count instead.
+            takedownFailures.push(report.listingId)
+          }
+        }
         if (report.targetProfileId) await notifyActioned(report.targetProfileId, rid)
         if (report.reporterProfileId) await notifyDispute(report.reporterProfileId, rid, 'decided_upheld_reporter')
         confirmed++
       }
       // Counts back to the client: `skipped` = ids that were missing or already
       // resolved (idempotency skips) — surfaced in the admin toast.
+      // ⚠️ NON-2xx WHEN ANY TAKEDOWN FAILED. The trust docks DID land, so this is a partial
+      // success and the body says exactly which listings are still public — the operator has to
+      // pull those by hand. moderation-client.tsx throws on !res.ok, so this surfaces without a
+      // client change; the point is that "some listings are still up" can never read as success.
+      if (takedownFailures.length) {
+        return NextResponse.json(
+          { error: 'takedown_failed', confirmed, skipped: ids.length - confirmed, stillPublic: takedownFailures },
+          { status: 500 },
+        )
+      }
       return NextResponse.json({ ok: true, confirmed, skipped: ids.length - confirmed })
     }
 
@@ -201,15 +229,32 @@ export async function POST(req: NextRequest) {
         await penalizeSeller(report.targetSellerId, penalty, { reason: `report:${id}`, reportId: id })
       }
       // Reactive: take the reported listing down immediately.
+      // ⚠️ IF THIS FAILS, THE REQUEST FAILS. It used to swallow the error and return 200, so an
+      // admin confirming a scam report was told the listing was pulled while it stayed public.
+      let takedownFailed = false
       if (report.listingId) {
-        await db.listing.update({ where: { id: report.listingId }, data: { verified: false } }).catch(() => {})
-        revalidatePath(`/listings/${report.listingId}`)
+        try {
+          await db.listing.update({ where: { id: report.listingId }, data: { verified: false } })
+          revalidatePath(`/listings/${report.listingId}`)
+        } catch (e) {
+          logError(e, { op: 'moderate.unverifyListing', reportId: id, listingId: report.listingId })
+          takedownFailed = true
+        }
       }
       // Tell the reported party (if they have an account) + give them an appeal path,
       // and close the loop for the reporter (dispute center: outcomes reach both sides).
       if (report.targetProfileId) await notifyActioned(report.targetProfileId, id)
       const upheldReporter = await db.report.findUnique({ where: { id }, select: { reporterProfileId: true } })
       if (upheldReporter?.reporterProfileId) await notifyDispute(upheldReporter.reporterProfileId, id, 'decided_upheld_reporter')
+      // ⚠️ A DISTINCT 500 — NOT AN UNCAUGHT THROW, and the difference matters. The report row
+      // already flipped to `confirmed` above, so a retry hits the `upd.count === 0` idempotency
+      // guard and returns a clean 200 with the listing still public — a bare throw would let the
+      // operator "fix" it by retrying and be lied to a second time. The distinct code lets the
+      // console say what is actually true: the trust dock landed, the listing did NOT come down,
+      // pull it by hand.
+      if (takedownFailed) {
+        return NextResponse.json({ error: 'takedown_failed', listingId: report.listingId }, { status: 500 })
+      }
       return NextResponse.json({ ok: true })
     }
 
@@ -320,7 +365,7 @@ export async function POST(req: NextRequest) {
       await addDisputeMessage(report, {
         senderProfileId: null, senderRole: 'system',
         body: `Evidence window extended until ${until.toISOString()}`,
-      }, { notify: false }).catch(() => {})
+      }, { notify: false }).catch((e) => logError(e, { op: 'moderate.extendWindowMessage' }))
       if (report.reporterProfileId) await notifyDispute(report.reporterProfileId, id, 'window_extended')
       const extendedRespondent = await respondentProfileId(report)
       if (extendedRespondent) await notifyDispute(extendedRespondent, id, 'window_extended')

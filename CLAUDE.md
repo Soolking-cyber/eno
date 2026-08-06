@@ -92,6 +92,29 @@ These carry invariants recorded in their own comments. Read the comments before 
 
 `messages/[id]/page.tsx` deserves its own line, because the invariant here is easy to state backwards. **Text mode DOES have a tap-Send button** (the Zalo/FB pattern). The real rule is *why* it's safe: `ChatSendButton` fires on **`onMouseDown` + `preventDefault`, never `onPointerDown`** — that holds the composer's focus, so the tap can't blur the field, dismiss the keyboard, and shift the button out from under the finger. That focus-hold is the invariant; "no tap-Send" was an earlier workaround and is **obsolete** — don't let anyone "restore" it. Enter still sends (`enterKeyHint="send"`), and the Counter button must stay gated by `negotiable !== false` (a counter sends an offer; on a fixed-price listing the server 409s and docks the buyer's trust).
 
+## ⚠️ WS NUMBERS ARE NOT UNIQUE — CLAIM ONE BEFORE YOU USE IT (2026-08-06)
+
+Two sessions worked the `ws0-wire-the-gates` branch in parallel and collided **three times**:
+there are now **two WS5s** (fail-open guards / docs + destructive command), **two WS7s** (offer
+correctness / product-feed PII), **and no WS6 from one of them**. Nobody lost work — the commits
+are disjoint and all landed — but the numbering no longer identifies anything, which matters
+because the commit messages hand findings forward by number ("WS2 reported and did not fix…").
+
+**Before starting a stream, run `git log --oneline main..HEAD | grep -iE '^[0-9a-f]+ WS[0-9]'`
+and take the next FREE number.** The branch is the shared registry; there is no other one. If the
+number you want is taken, take the next one rather than qualifying it — "WS8" beats "WS7b".
+
+Two more habits that came out of the same collision, both cheap:
+
+- **`git commit` commits the INDEX, not your pathspec-shaped intent.** If the other session has
+  files staged, a plain `git commit -m` sweeps them into your commit under your message. This
+  happened twice. Commit with an explicit pathspec (`git commit -F - -- ':(literal)path'`) AND
+  **read the `--stat` afterwards**: a file you touched for two lines showing 60 insertions is the
+  tell. `git add -A` and `commit -a` remain banned for exactly this reason.
+- **Re-read `git log` before quoting a diff to a reviewer.** A review prompt built from
+  `git show HEAD` returned a REFUTED verdict on a correct fix, because HEAD had moved to the other
+  session's commit between writing the code and asking about it. Cite the SHA you mean.
+
 ## One session at a time (owner, 2026-07-27) — the cockpit is CLOSED
 
 **The multi-agent cockpit was retired on 2026-07-27. Owner's verdict: _"this experimental
@@ -162,8 +185,11 @@ rewritten five times ON PRODUCTION in one afternoon, each round costing a build,
 cache purge and an owner screenshot to discover something a local preview would have shown
 in thirty seconds.
 
-**The mechanism, so nobody has to remember discipline:** the Cloud Build triggers fire on
-`push.branch: ^main$` (verified 2026-08-02 on both `eno-vn-deploy` and `eno-forum-deploy`).
+**The mechanism, so nobody has to remember discipline:** the Cloud Build trigger fires on
+`push.branch: ^main$`. ⚠️ There is now exactly ONE trigger, `eno-vn-deploy-asia` in
+asia-southeast1 (measured 2026-08-05). `eno-forum-deploy` was deleted together with the
+`eno-forum` Cloud Run service when the owner said *"remove eno.forum hosting in gcloud we
+continue with eno.vn only"* — so a push to main deploys eno.vn and nothing else.
 So **a push to main IS a deploy** — there is no separate approval step, and no way to "just
 push and check". Work on a branch; a branch push runs nothing and deploys nothing. Merging
 to main is the deploy.
@@ -255,45 +281,31 @@ is the likeliest thing to be missed, and it has nothing to do with the `/visa` p
 The two apps **share one database**, which means a eno.vn user's thread can already contain
 visa cards written by eno.forum. Degrade, never crash.
 
-Everything from here to the end of this section is **historical context for how the code got
-into its current shape** — the *direction* of ownership in it is now inverted. The
-Browserbase blocker and the `sync-pairs` warning below are still live and still matter.
+⚠️ THE SUPERSEDED 2026-07-29 NARRATIVE THAT SAT HERE WAS REMOVED 2026-08-05. It described an
+ownership direction that the 2026-07-31 reversal above already inverted, and it was labelled
+"historical context" in its own first line — ~39 lines every session paid to read a rule that no
+longer applied. Recover it from git history if the archaeology is ever needed.
 
----
+Two items from that block ARE still live, verified 2026-08-05, and are kept here:
 
-**⛔ (SUPERSEDED 2026-07-31 — see above) THE FORUM HAS NOTHING ABOUT VISA OR ITINERARY —
-ONLY eno.vn (owner, 2026-07-29, verbatim).** This superseded the softer 2026-07-21 wording.
-Both features belonged to **eno.vn (repo root)** end to end — applicant flow, AI passport
-extraction, payments, the in-DM experience, the admin/operator queue, and the trip builder.
-Under that rule you were not to add, restore, or "fix forward" a visa or itinerary surface
-under `apps/forum/**` for any reason.
-
-- **Itinerary: DONE.** Zero files remain under `apps/forum/**` (verified 2026-07-29).
-  The `/itinerary*` → `https://eno.vn/itinerary` 308 in `apps/forum/next.config.ts`
-  must outlive the deletion.
-- **Visa: 29 files still there, and retirement is now owner-approved in DIRECTION —
-  but it is still a plan, not a licence to `rm`.** Retiring a live route is
-  irreversible for anyone mid-application, so the inventory in
-  `apps/forum/docs/VISA_ASSISTANCE.md` gets read first.
-- ✅ **The PII retention cron is NO LONGER a blocker — it was ported.**
-  `src/app/api/cron/visa-retention` exists, is materially better than the forum's
-  (fail-closed object removal, terminal-status gate, drains the backlog), and runs as
-  the `eno-visa-retention` Cloud Scheduler job at 19:30 daily in asia-southeast1.
-  `eno-forum-visa-retention` still runs at 19:00; a concurrent double-sweep is
-  idempotent, so that one can simply be disabled with the forum surface.
-- ⛔ **The one real blocker left: the Browserbase hosted-prefill operator flow**
+- ⛔ **The Browserbase hosted-prefill operator flow exists ONLY in the forum tree**
   (`apps/forum/src/lib/visa/hosted-prefill.ts`, `api/visa/admin/applications/[id]/prefill-session`,
-  `api/visa/prefill/[token]`). It exists ONLY in the forum — eno.vn has no Browserbase
-  code at all — so deleting it removes a capability rather than a duplicate. Port it or
-  have the owner confirm it is abandoned BEFORE deleting the forum visa tree.
+  `api/visa/prefill/[token]` — file confirmed present). eno.vn has no Browserbase code at all, so
+  deleting it removes a capability rather than a duplicate. Port it or have the owner confirm it is
+  abandoned BEFORE deleting the forum visa tree.
+- ⚠️ `src/lib/sync-pairs.test.ts` (confirmed present) byte-couples six `src/lib/visa/*` files
+  (`mrz` · `image-quality` · `image-normalization` · `checkpoints` · `schema` · `crypto`) to their
+  forum copies, so editing one of those on the eno.vn side **fails the root vitest suite** until the
+  pair is mirrored or retired from the test. Check that list before touching `src/lib/visa/**`, and
+  prefer putting new visa logic in files that are not sync-paired.
+
 The visa admin identity is **`support@eno.vn`** (`apps/forum/src/lib/visa/auth.ts:5`) —
 `support@eno.forum` in any doc or env is stale.
-⚠️ `src/lib/sync-pairs.test.ts` byte-couples six `src/lib/visa/*` files
-(`mrz` · `image-quality` · `image-normalization` · `checkpoints` · `schema` · `crypto`)
-to their forum copies, so editing one of those on the eno.vn side **fails the root
-vitest suite** until the pair is mirrored or retired from the test. Check that list
-before touching `src/lib/visa/**`, and prefer putting new visa logic in files that are
-not sync-paired.
+
+⚠️ `apps/forum/**` STILL EXISTS IN THE REPO (33,884 files, measured 2026-08-05) even though its
+Cloud Run service and build trigger were deleted. The owner's instruction was *"dont delete project
+itself let it sit in git so we can host it later"* — so it is dormant source, not dead source: do
+not delete it, and do not treat its presence as evidence that eno.forum is deployed.
 
 **Codex handoff boundary (owner, 2026-07-18):** Codex only edits and validates
 `apps/forum/**`; it must not commit, push, trigger a deploy, or run the shipping workflow.

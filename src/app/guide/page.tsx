@@ -36,7 +36,6 @@ const FEATURES: { Icon: typeof Search; id?: string; title: string; body: string 
 export default function GuidePage() {
   return (
     <ContentPage
-      eyebrow="Guide"
       title="How eno.vn works"
       intro={<Tr text="eno.vn is the trusted marketplace for Vietnam’s international community. Here’s everything you need in a couple of minutes." />}
       sections={[

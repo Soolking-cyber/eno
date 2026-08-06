@@ -1,7 +1,7 @@
 # eno.vn design language — the canon
 
 This is the single source of truth for UI styling. `scripts/design-lint.mjs`
-(runs in `npm run lint` and on every Vercel build) enforces the banned patterns
+(runs in `npm run lint` and at the head of `npm run build`) enforces the banned patterns
 below — a violation fails the build. When a rule here conflicts with older code,
 this document wins.
 

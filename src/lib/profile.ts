@@ -6,6 +6,7 @@ import { maskEmailHandle } from './utils'
 import { checkBanEvasion } from './enforcement'
 import { recordNewAccount, recordPhoneVerified, recomputeTrust } from './trust'
 import { autoClaimHandle, consolidateSellerHandle } from './handle'
+import { logError } from '@/lib/log'
 
 /**
  * Idempotent: ensure the authenticated user has exactly one Profile row
@@ -52,7 +53,7 @@ export async function ensureProfile(user: User) {
 
   // Verification-gated onboarding: a new account starts below 100 (≈60) and earns
   // up via verification. Both calls are idempotent (applied once ever).
-  await recordNewAccount(profile.id).catch(() => {})
+  await recordNewAccount(profile.id).catch((e) => logError(e, { op: 'profile.recordNewAccount' }))
   // Public handle from the display name ("Alex Doe" → alex_doe), Telegram-style,
   // shareable as eno.vn/alex_doe — editable later in Dashboard → Settings. ONE handle
   // per account: a storefront owner's single handle lives on the SHOP (see
@@ -61,7 +62,7 @@ export async function ensureProfile(user: User) {
   const ownsSeller = await db.seller.findUnique({ where: { ownerId: profile.id }, select: { id: true } })
   if (!ownsSeller) await autoClaimHandle({ profileId: profile.id }, profile.displayName)
   // A confirmed phone (e.g. phone-OTP signup) is the baseline trust step → +bonus.
-  if (verifiedPhone) await recordPhoneVerified(profile.id).catch(() => {})
+  if (verifiedPhone) await recordPhoneVerified(profile.id).catch((e) => logError(e, { op: 'profile.recordPhoneVerified' }))
 
   // Auto-claim: if the user has a VERIFIED phone matching an UNOWNED guest Seller,
   // stamp ownership — transferring the storefront + all its listings/reviews with
@@ -84,7 +85,7 @@ export async function ensureProfile(user: User) {
             data: { sellerProfileId: profile.id },
           })
           // Mirror the owner's (new-account) trust onto the freshly-claimed storefront.
-          await recomputeTrust(profile.id).catch(() => {})
+          await recomputeTrust(profile.id).catch((e) => logError(e, { op: 'profile.recomputeTrust' }))
           // The account just gained a storefront → collapse to ONE handle on the shop
           // (frees the personal handle claimed moments ago at signup).
           await consolidateSellerHandle(claimed.id, claimed.name, profile.id)
@@ -107,7 +108,7 @@ export async function ensureProfile(user: User) {
   // mirror is dropped on phone collision, which is exactly the evasion pattern.
   // Fail-quiet + guarded inside: login must never throw, and pre-migration
   // (scripts/add-ban-evasion.mjs) it skips silently.
-  await checkBanEvasion(profile.id, { phone: verifiedPhone, email }).catch(() => {})
+  await checkBanEvasion(profile.id, { phone: verifiedPhone, email }).catch((e) => logError(e, { op: 'profile.checkBanEvasion' }))
 
   return profile
 }

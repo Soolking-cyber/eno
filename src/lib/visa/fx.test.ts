@@ -104,8 +104,8 @@ describe('the quote', () => {
     // ⚠️ DIRECTION: đồng per dollar, in the tens of thousands — not 0.0000383.
     expect(quote!.vndPerUsd).toBeCloseTo(26_109.66, 1)
     // 3 000 000 × 100 / 26 109.66 = 11 490.0 → $114.90
-    expect(quote!.amountUsdCents).toBe(11_490)
-    expect(Number.isInteger(quote!.amountUsdCents)).toBe(true)
+    expect(quote!.serviceUsdCents).toBe(11_490)
+    expect(Number.isInteger(quote!.serviceUsdCents)).toBe(true)
   })
 
   it('is stamped with the instant it was issued and an expiry a quarter of an hour out', async () => {
@@ -118,9 +118,9 @@ describe('the quote', () => {
 
   it('follows the đồng price, because there is no second copy of it', async () => {
     feedRate(25_000)
-    expect((await quoteVisaUsd({ listingId: 'a', priceVnd: 2_500_000 }))!.amountUsdCents).toBe(10_000)
+    expect((await quoteVisaUsd({ listingId: 'a', priceVnd: 2_500_000 }))!.serviceUsdCents).toBe(10_000)
     // The admin re-prices in the dashboard; the next quote is the new price.
-    expect((await quoteVisaUsd({ listingId: 'a', priceVnd: 3_750_000 }))!.amountUsdCents).toBe(15_000)
+    expect((await quoteVisaUsd({ listingId: 'a', priceVnd: 3_750_000 }))!.serviceUsdCents).toBe(15_000)
   })
 })
 
@@ -244,11 +244,11 @@ describe('rounding — up, by one cent at most, and never a fraction of one', ()
     // 1 000 001 ₫ / 25 000 = $40.00004 → 4001 cents, never 4000: the dollars must not come
     // out below the number the admin priced.
     const quote = (await quoteVisaUsd({ listingId: 'a', priceVnd: 1_000_001 }))!
-    expect(quote.amountUsdCents).toBe(4_001)
+    expect(quote.serviceUsdCents).toBe(4_001)
     // The invariant, stated as arithmetic: the charge covers the price.
-    expect((quote.amountUsdCents / 100) * quote.vndPerUsd).toBeGreaterThanOrEqual(quote.priceVnd)
+    expect((quote.serviceUsdCents / 100) * quote.vndPerUsd).toBeGreaterThanOrEqual(quote.priceVnd)
     // …and overshoots by less than a cent's worth of đồng.
-    expect((quote.amountUsdCents / 100) * quote.vndPerUsd - quote.priceVnd).toBeLessThan(quote.vndPerUsd / 100)
+    expect((quote.serviceUsdCents / 100) * quote.vndPerUsd - quote.priceVnd).toBeLessThan(quote.vndPerUsd / 100)
   })
 
   it('does not invent a cent when the conversion lands exactly on one', async () => {
@@ -256,7 +256,7 @@ describe('rounding — up, by one cent at most, and never a fraction of one', ()
     // Exact boundaries: ceil() on a true integer must stay put. These are the values where
     // a float artefact of 1e-12 would have bumped the charge a cent.
     for (const [priceVnd, cents] of [[25_000, 100], [250_000, 1_000], [2_500_000, 10_000], [1_000_000, 4_000]] as const) {
-      expect((await quoteVisaUsd({ listingId: 'a', priceVnd }))!.amountUsdCents, String(priceVnd)).toBe(cents)
+      expect((await quoteVisaUsd({ listingId: 'a', priceVnd }))!.serviceUsdCents, String(priceVnd)).toBe(cents)
     }
   })
 
@@ -264,9 +264,9 @@ describe('rounding — up, by one cent at most, and never a fraction of one', ()
     // 0.00004 is not exact in a double, so 1 / 0.00004 is 25 000 ± an ulp. The snap has to
     // absorb that from EITHER side — a rate a hair low would push ceil() up a whole cent.
     h.state.body = { result: 'success', rates: { USD: 0.00004 } }
-    expect((await quoteVisaUsd({ listingId: 'a', priceVnd: 2_500_000 }))!.amountUsdCents).toBe(10_000)
+    expect((await quoteVisaUsd({ listingId: 'a', priceVnd: 2_500_000 }))!.serviceUsdCents).toBe(10_000)
     h.state.body = { result: 'success', rates: { USD: 0.0000390625 } } // exactly 25 600
-    expect((await quoteVisaUsd({ listingId: 'a', priceVnd: 2_560_000 }))!.amountUsdCents).toBe(10_000)
+    expect((await quoteVisaUsd({ listingId: 'a', priceVnd: 2_560_000 }))!.serviceUsdCents).toBe(10_000)
   })
 
   it('always produces a safe positive integer, across the whole plausible surface', async () => {
@@ -277,8 +277,8 @@ describe('rounding — up, by one cent at most, and never a fraction of one', ()
         // Sub-cent prices (1 ₫) still quote — ceil takes them to one cent, the smallest
         // thing a card can be charged, and displayed and captured still agree.
         expect(quote, `${rate}/${priceVnd}`).not.toBeNull()
-        expect(Number.isSafeInteger(quote!.amountUsdCents), `${rate}/${priceVnd}`).toBe(true)
-        expect(quote!.amountUsdCents).toBeGreaterThan(0)
+        expect(Number.isSafeInteger(quote!.serviceUsdCents), `${rate}/${priceVnd}`).toBe(true)
+        expect(quote!.serviceUsdCents).toBeGreaterThan(0)
       }
     }
   })
@@ -289,7 +289,13 @@ describe('isQuoteChargeable', () => {
   const live = (over: Partial<VisaQuote> = {}): VisaQuote => ({
     listingId: 'listing-1',
     priceVnd: 2_500_000,
-    amountUsdCents: 10_000,
+    // 2 500 000 đ ÷ 25 000 = $100.00 service; grossed up for a 4.4% + 30¢ processor cut
+    // ⇒ (10000 + 30) / 0.956 = 10 491.6 → 10 492 charged, of which 492 is the surcharge.
+    serviceUsdCents: 10_000,
+    processingUsdCents: 492,
+    amountUsdCents: 10_492,
+    feePercent: 4.4,
+    feeFixedCents: 30,
     vndPerUsd: 25_000,
     quotedAt: '2026-07-22T09:00:00.000Z',
     expiresAt: '2026-07-22T09:15:00.000Z',
@@ -369,7 +375,13 @@ describe('parseVisaQuote — the hostile-input door', () => {
   const wire = {
     listingId: 'listing-1',
     priceVnd: 2_500_000,
-    amountUsdCents: 10_000,
+    // 2 500 000 đ ÷ 25 000 = $100.00 service; grossed up for a 4.4% + 30¢ processor cut
+    // ⇒ (10000 + 30) / 0.956 = 10 491.6 → 10 492 charged, of which 492 is the surcharge.
+    serviceUsdCents: 10_000,
+    processingUsdCents: 492,
+    amountUsdCents: 10_492,
+    feePercent: 4.4,
+    feeFixedCents: 30,
     vndPerUsd: 25_000,
     quotedAt: '2026-07-22T09:00:00.000Z',
     expiresAt: '2026-07-22T09:15:00.000Z',
@@ -410,7 +422,13 @@ describe('visaQuoteDrifted — "the price updated, confirm again"', () => {
   const q = (over: Partial<VisaQuote> = {}): VisaQuote => ({
     listingId: 'listing-1',
     priceVnd: 2_500_000,
-    amountUsdCents: 10_000,
+    // 2 500 000 đ ÷ 25 000 = $100.00 service; grossed up for a 4.4% + 30¢ processor cut
+    // ⇒ (10000 + 30) / 0.956 = 10 491.6 → 10 492 charged, of which 492 is the surcharge.
+    serviceUsdCents: 10_000,
+    processingUsdCents: 492,
+    amountUsdCents: 10_492,
+    feePercent: 4.4,
+    feeFixedCents: 30,
     vndPerUsd: 25_000,
     quotedAt: '2026-07-22T09:00:00.000Z',
     expiresAt: '2026-07-22T09:15:00.000Z',
@@ -420,17 +438,17 @@ describe('visaQuoteDrifted — "the price updated, confirm again"', () => {
   it('tolerates exactly one cent of movement and no more', () => {
     expect(VISA_QUOTE_DRIFT_TOLERANCE_CENTS).toBe(1)
     expect(visaQuoteDrifted(q(), q())).toBe(false)
-    expect(visaQuoteDrifted(q({ amountUsdCents: 9_999 }), q())).toBe(false)
-    expect(visaQuoteDrifted(q({ amountUsdCents: 10_001 }), q())).toBe(false)
-    expect(visaQuoteDrifted(q({ amountUsdCents: 9_998 }), q())).toBe(true)
-    expect(visaQuoteDrifted(q({ amountUsdCents: 10_002 }), q())).toBe(true)
+    expect(visaQuoteDrifted(q({ amountUsdCents: 10_491 }), q())).toBe(false)
+    expect(visaQuoteDrifted(q({ amountUsdCents: 10_493 }), q())).toBe(false)
+    expect(visaQuoteDrifted(q({ amountUsdCents: 10_490 }), q())).toBe(true)
+    expect(visaQuoteDrifted(q({ amountUsdCents: 10_494 }), q())).toBe(true)
   })
 
   it('catches an admin re-pricing the listing even when the dollars happen to match', () => {
     // A đồng price edit and an FX move that cancel out. The buyer is still owed the new
     // number — they are about to pay for a listing that is not the one they were shown.
-    const shown = q({ priceVnd: 2_500_000, vndPerUsd: 25_000, amountUsdCents: 10_000 })
-    const fresh = q({ priceVnd: 2_600_000, vndPerUsd: 26_000, amountUsdCents: 10_000 })
+    const shown = q({ priceVnd: 2_500_000, vndPerUsd: 25_000, amountUsdCents: 10_492 })
+    const fresh = q({ priceVnd: 2_600_000, vndPerUsd: 26_000, amountUsdCents: 10_492 })
     expect(visaQuoteDrifted(shown, fresh)).toBe(true)
   })
 

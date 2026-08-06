@@ -3,6 +3,7 @@ import webpush from 'web-push'
 import { db } from './db'
 import { sendNativePushToProfile } from './native-push'
 import { badgeCountFor } from './unread'
+import { logError } from '@/lib/log'
 
 // Configure VAPID once per process. If the keys aren't set (e.g. local dev
 // without push configured), sending becomes a safe no-op rather than throwing.
@@ -32,7 +33,7 @@ export async function sendPushToProfile(profileId: string, payload: PushPayload)
   // Part of the AWAITED work (audit P2): callers run this inside after(), which only
   // keeps the lambda alive until the returned promise settles — a detached native
   // branch was frozen mid-flight on serverless whenever web-push finished first.
-  const native = sendNativePushToProfile(profileId, payload).catch(() => {})
+  const native = sendNativePushToProfile(profileId, payload).catch((e) => logError(e, { op: 'push.sendNativePushToProfile' }))
   if (!configured) return 0
   const subs = await db.pushSubscription.findMany({ where: { profileId } })
   if (subs.length === 0) return 0

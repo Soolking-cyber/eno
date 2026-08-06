@@ -29,7 +29,7 @@ export function CaptureCard() {
           variant="cta"
           size="none"
           onClick={() => openSignIn()}
-          className="w-full py-2.5 active:scale-[0.98] cursor-pointer"
+          className="w-full py-2.5 active:scale-[0.96] cursor-pointer"
         >
           {tr('Continue with Google', 'Tiếp tục với Google')}
         </Button>

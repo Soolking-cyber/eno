@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { cn } from '@/lib/utils'
 import { googleOauthBlocked, isNativeTabs, openInSystemBrowser } from '@/lib/in-app-browser'
+import { HANDOFF_NEXT_KEY, handoffNonce } from '@/lib/auth/handoff-client'
 import { isNativeApp, nativeGoogleSignIn } from '@/lib/native-auth'
 import { googleIdentityEnabled, requestGoogleIdToken } from '@/lib/google-identity'
 import { useTurnstile } from './turnstile'
@@ -251,16 +252,54 @@ export function SignInForm({ className }: { className?: string }) {
 
   // Re-open the sign-in page in the device's real browser (escaping the in-app
   // webview), preserving where the user wanted to go.
+  /**
+   * Google, from a context Google refuses: an in-app browser, an Android System WebView, or an iOS
+   * home-screen PWA.
+   *
+   * ⚠️ THIS USED TO SEND THEM TO THE BROWSER AND STOP, WHICH SIGNED IN THE WRONG BROWSER. It opened
+   * `${authOrigin}/signin` in the system browser; the visitor signed in fine — in the BROWSER'S
+   * cookie jar — and this context stayed logged out with no way back. The file said so itself.
+   *
+   * Now it runs the native app's trick: ask Supabase for the Google URL WITHOUT navigating, so the
+   * PKCE code_verifier is written HERE. Whatever browser finishes can only park an authorization
+   * code, which is worthless without that verifier — and the visitor carries a short code back from
+   * the browser to prove the two halves belong to the same person. See src/lib/auth/handoff.ts.
+   *
+   * ⚠️ THE BROWSER IS OPENED BEFORE THE AWAITS, NOT AFTER. `openInSystemBrowser` needs the live user
+   * gesture; three awaits later the activation is gone and nothing opens. So the escape URL is
+   * launched first with a nonce we have already chosen, and the row is written behind it.
+   */
   const openGoogleInBrowser = () => {
     if (typeof window === 'undefined') return
     const { pathname, search } = window.location
     let next = pathname + search
     if (pathname === '/signin') next = new URLSearchParams(search).get('next') || '/'
     if (pathname.startsWith('/auth') || pathname.startsWith('/onboard')) next = '/'
-    // Hand off the CANONICAL sign-in URL to the system browser (see authOrigin) so its OAuth uses
-    // the allow-listed origin — the in-app webview has a separate cookie jar and stays logged out.
-    const handed = openInSystemBrowser(`${authOrigin}/signin?next=${encodeURIComponent(next)}`)
-    if (!handed) setIosHint(true) // iOS can't auto-escape a webview → show the manual hint
+
+    const nonce = handoffNonce()
+    try { localStorage.setItem(HANDOFF_NEXT_KEY, next) } catch { /* private mode */ }
+
+    // Synchronous, inside the gesture. The browser lands on /auth/escape, which will not have the
+    // row yet — it re-checks, so a moment of "expired" is not possible; see the escape page.
+    const escapePath = `/auth/escape?h=${encodeURIComponent(nonce)}`
+    const handed = openInSystemBrowser(`${authOrigin}${escapePath}`)
+    if (!handed) setIosHint(true)
+
+    void (async () => {
+      const sb = await getSupabase()
+      if (!sb) return
+      const { data, error } = await sb.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo: `${authOrigin}/auth/callback?handoff=${encodeURIComponent(nonce)}`, skipBrowserRedirect: true },
+      })
+      if (error || !data?.url) { setError({ code: 'raw', message: error?.message || 'Google sign-in failed' }); return }
+      await fetch('/api/auth/handoff/open', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nonce, authUrl: data.url }),
+      })
+      // The app moves to the waiting room, which doubles as the manual-escape URL on iOS.
+      window.location.assign(escapePath)
+    })()
   }
 
   const oauth = async (provider: 'google') => {

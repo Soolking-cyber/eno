@@ -14,7 +14,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { FieldControl } from '@/components/ui/field'
 import { RadioGroup, Radio } from '@/components/ui/radio-group'
-import { haptic } from '@/lib/haptics'
+import { haptic, hapticConfirm, hapticError } from '@/lib/haptics'
 import { useLanguage } from '@/context/language-context'
 import { useAuth } from '@/context/auth-context'
 import { containsPhoneNumber } from '@/lib/phone'
@@ -675,7 +675,12 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
         localStorage.setItem('eno-posted-before', '1')
       } catch {}
       setCreatedId(created.id ?? null)
-      haptic(18)
+      // hapticConfirm, NOT haptic(18). haptics.ts names this exact case in its own docblock —
+      // "a listing published" — and this line is the moment it describes. It used to fire a plain
+      // tap: the screen threw a party (mascot + "Your first listing is live!") while the hand got
+      // the same buzz as scrolling a chip. The edit path returns earlier, so this can only fire on
+      // a genuine new publish, never on a PATCH.
+      hapticConfirm()
       setSubmitted(true)
       onPosted?.() // embedded in dashboard → refresh listings + switch tab
     } catch (e) {
@@ -719,6 +724,15 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
           ? t('Số điện thoại này đã được một tài khoản khác sử dụng. Mỗi số chỉ dùng cho một tài khoản.', 'This phone number is already used by another account. Each number belongs to one account.')
           : t('Không gửi được, vui lòng thử lại.', 'Could not submit — please try again.'),
       )
+      // ⚠️ THE REJECTION HAS TO BE FELT, NOT JUST PRINTED — this is the FIRST call site
+      // hapticError has ever had. It shipped finished and documented and never once played,
+      // while hapticConfirm fires on success just above. That asymmetry is worse than having
+      // neither: the hand learns "buzz = it worked", so silence after a Publish tap reads as
+      // success while the screen says the opposite. Every branch above is a submission the
+      // app REJECTED, which is exactly the case haptics.ts reserves this texture for — and
+      // deliberately NOT the ordinary gates (a sign-in prompt buzzing here would read as
+      // punishment, which that same docblock warns against).
+      hapticError()
       console.error(e)
     } finally {
       submittingRef.current = false

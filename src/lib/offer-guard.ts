@@ -29,6 +29,28 @@ const PENALTY_COOLDOWN_SEC = 60 * 60 // at most one penalty per hour per buyer
  * grace, dock their trust (rate-limited to once/hour). Best-effort — never throws,
  * never blocks the caller's response.
  */
+/**
+ * ⚠️ TWO THINGS ABOUT THIS FUNCTION WERE AUDITED (2026-08-06) AND DELIBERATELY LEFT ALONE. Both
+ * read like defects and neither is; recorded here so the next audit stops at this comment.
+ *
+ * 1. THE COUNTER KEY IS BUYER-GLOBAL, NOT PER-LISTING. That looks like missing scope, but it is
+ *    what makes the guard work: a per-listing key would hand a scripted abuser GRACE free attempts
+ *    on EVERY fixed-price listing, and spraying across listings is precisely the abuse this exists
+ *    to stop. The cost is bounded — an honest buyer must POST three offers to fixed-price listings
+ *    inside 24h to be docked, on a control the UI hides entirely when `negotiable === false`, and
+ *    the penalty is -3 on a 0-150 scale that decays. If false positives ever show up in practice,
+ *    raise GRACE; do not add listing scope.
+ *
+ * 2. THE 24H WINDOW IS LAST-TOUCH, NOT FIXED. Every increment re-stamps the TTL (see below), so the
+ *    window closes 24h after the last attempt rather than 24h after the first. That is NOT an
+ *    immortal counter — kv_incrby resets to the increment once the row has expired — and reaching a
+ *    penalty still needs three deliberate attempts inside a 24h-of-silence gap, which is the abuse
+ *    profile rather than an honest buyer's. Changing it would mean altering kv_incrby, a shared
+ *    SECURITY DEFINER primitive with five other callers that the FORUM also calls cross-app over
+ *    PostgREST — so new SQL, a db:setup run (⛔ currently destructive, see CLAUDE.md) and a
+ *    coordinated deploy, to fix a spam counter with no observed false positive. If it is ever
+ *    revisited, do it call-site-local with a separate nx sentinel key, not by touching kv_incrby.
+ */
 export async function recordFixedPriceOfferAttempt(buyerId: string): Promise<void> {
   try {
     const countKey = `nonneg-offer:${buyerId}`

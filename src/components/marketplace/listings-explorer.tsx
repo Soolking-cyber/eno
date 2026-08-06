@@ -1488,10 +1488,152 @@ export function ListingsExplorer({
     const heroActiveOptionId = activeSuggestOptionId(SUGGEST_ID, heroListOpen, heroActiveIdx, heroSuggestItems.length)
     // overflow-hidden guards against horizontal spill on narrow screens; lifted on desktop (pc:) so
     // the rails' / category-grid ← / → gutter arrows aren't clipped at the content edge.
+    // ⚠️ `pt-5 sm:pt-6` AND the position of the hero block below are ONE fix — read them together.
+    // These two paddings are the ONLY thing setting the gap above the promo banner, and they are
+    // tuned so it MATCHES the gap below it (owner, 2026-08-05: "match the distance above banner to
+    // next line"). Both were derived by measuring the built page, not by arithmetic on the classes:
+    //   desktop (1280px): 8.5px (header→<main>) + 16px (<main> pt-4) + 24px (pt-6) = 48.5px
+    //                     against 48.0px measured from banner bottom to the hairline
+    //   mobile   (390px): 8.5px + 16px + 20px (pt-5) = 44.5px, against 44.3px measured
+    // ⚠️ The gap BELOW is NOT simply `space-y-8`/`space-y-12` — on mobile it measures 44.3px, not
+    // the 32px that space-y-8 would suggest, because the banner's own section contributes the rest.
+    // So if you touch the spacing below, RE-MEASURE the real gap rather than recomputing from the
+    // class names, or the two sides will drift apart again.
     return (
-      <section ref={listingsRef} id="listings" className="scroll-mt-20 relative overflow-hidden pc:overflow-visible pt-2 pb-5 sm:pt-3 sm:pb-8">
+      <section ref={listingsRef} id="listings" className="scroll-mt-20 relative overflow-hidden pc:overflow-visible pt-5 pb-5 sm:pt-6 sm:pb-8">
         {/* Width + edge gutter are owned by the parent page <main> (canonical
             max-w-7xl px-3 sm:px-6 lg:px-8) so the feed lines up with Header/Footer. */}
+        <div className="relative text-center">
+          {/* ⚠️ THIS HEADING IS VISIBLE ON PURPOSE, AND IT MUST STAY THAT WAY.
+              It was `sr-only` from 2026-07-16 (when the wordmark + tagline were stripped to
+              leave just the search) until 2026-08-02, when GOOGLE REJECTED OAUTH BRAND
+              VERIFICATION THREE TIMES over it — verbatim: "Your home page does not explain the
+              purpose of your app", "The app name … does not match the app name on your home
+              page", and "Your home page is behind a login page".
+
+              None of that was a login problem: the page is public and server-renders its
+              listings. The problem was that every description of the product lived in <meta>
+              tags and a hidden <h1>, so a human reviewer saw the "eno" wordmark, a search box
+              and a grid of products — no service name in text, no statement of what the site
+              is for. Reviewers read the rendered page, not the head.
+
+              So the hero states the name and the purpose in one compact block: two lines, above
+              the search, at the smallest weight that still reads as the page's title. If it is
+              ever hidden again, brand verification breaks and the consent screen keeps showing
+              the raw Supabase project ref instead of the eno logo.
+
+              ⚠️ NAME COMES FROM SITE_NAME, NOT A LITERAL. The old hardcoded string said
+              "eno.vn" on BOTH editions, so eno.forum's own home page announced itself as the
+              licensed marketplace. */}
+          {/* ⚠️ THE HERO HAS NO VISIBLE HEADING ON EITHER EDITION (owner, 2026-08-02: "also
+              remove this from eno.vn", after the same removal on eno.forum). The <h1> still
+              carries the site name for crawlers and screen readers, but nothing is painted: what
+              a visitor sees at the top of the page is the search bar.
+
+              ⚠️ READ THIS BEFORE RESTORING ANYTHING HERE. This is the third time this block has
+              been emptied, and the previous two both ended in a Google OAuth brand-verification
+              rejection — "Your home page does not explain the purpose of your app" and "The app
+              name … does not match the app name on your home page" — because a reviewer reads the
+              RENDERED page, and `sr-only` is position:absolute with clip-path:inset(50%), so no
+              visible-text extractor sees it. Measured 2026-08-02, before this removal: zero
+              painted "eno.vn" text nodes in the first 800px, with JS on and with JS off; the
+              first plain-text occurrence sat at y=3691 of a 4396px page, in the footer.
+
+              What still names the page to a human: the header wordmark (an <img>, on every
+              route). What names it to a machine: <title>, og:site_name, the JSON-LD Organization
+              block, and the manifest — all of which now say exactly SITE_NAME.
+
+              The verification failure being chased when this was removed turned out to be a
+              DIFFERENT problem entirely (the live OAuth client lives in project eno-vn/
+              671626883615 and is still named "eno", while the brand titled "eno.vn" sits in a
+              second project that renders identically in the console picker). So emptying this
+              block is not believed to be what fixes or breaks verification — but if the
+              name-mismatch or purpose complaint returns after the project mix-up is sorted, a
+              painted text heading here is the first thing to try, NOT another image. */}
+          {/* ⚠️ VISIBLE, PAINTED TEXT — AND IT IS THE ONLY STATE OF THIS HEADING THAT GOOGLE HAS
+              NEVER REJECTED. The history, because it has now cost six submissions:
+                sr-only text        → "does not explain the purpose" + "name does not match"
+                visible plain text  → the purpose complaint CLEARED
+                wordmark <img>      → "name does not match" returned
+                nothing at all      → "name does not match" again (2026-08-02)
+              Measured on the live page in the last state: zero painted "eno.vn" text nodes in
+              the top 800px with JS on AND off — the name existed only as an <img> in the header
+              and as plain text at y=3691, in the footer. An automated checker reading rendered
+              text finds nothing to match the console's "eno.vn" against.
+
+              ⚠️ SO IT MUST STAY TEXT. Not an image, not sr-only, not a background. If the hero
+              is restyled, the literal string SITE_NAME has to remain something a text extractor
+              can see above the fold. One line carries both complaints at once — the name for the
+              match, the trailing clause for "explain the purpose of your app" — which is why it
+              is a single sentence rather than the heading-plus-paragraph the owner twice called
+              "ugly ducklings". */}
+          {/* ⚠️ THE NAME IS AN IMAGE AGAIN, AND THAT HAS A KNOWN COST (owner, 2026-08-02, after
+              seeing the tagline: "and remove this"). The <h1> keeps SITE_NAME for crawlers and
+              screen readers via sr-only; the only thing a sighted visitor gets is the wordmark.
+
+              The record, because this block has now changed five times and each state was
+              answered by Google:
+                sr-only text only   → "does not explain the purpose" + "name does not match"
+                visible plain text  → the purpose complaint CLEARED
+                wordmark <img>      → "name does not match" returned
+                nothing             → "name does not match"
+                img + visible text  → shipped ~1h, no verdict received before this removal
+              An `alt` attribute does not substitute: alt is never painted, and /logo-dotvn.svg is
+              3 <path> elements with 0 <text>, so a text extractor finds no glyph anywhere.
+
+              So if brand review answers "the app name … does not match the app name on your home
+              page" again, THIS is the cause, and the fix is a painted text node containing
+              SITE_NAME above the fold — not another image, not alt text, not sr-only.
+
+              Marketplace-only: /logo-dotvn.svg spells the LICENSED company's name and must never
+              render on eno.forum. */}
+          {/* ⚠️ THE HERO WORDMARK IS GONE (owner, 2026-08-03) — the brand now lives at the top of
+              the left rail and in the header, so repeating it here was a third copy above the
+              fold. The <h1> keeps SITE_NAME as sr-only text for crawlers and screen readers.
+              ⚠️ Google's brand review has rejected this app for "the app name does not match the
+              app name on your home page" whenever the name was NOT painted text above the fold;
+              the header wordmark is what answers that now. If that complaint returns, restore a
+              PAINTED TEXT name here — not an image, and not sr-only.
+              ⚠️ NO LAYOUT CLASSES. This carried `mb-5 flex justify-center` while the wordmark was
+              inside it; with only an sr-only child left, the element has zero height but the
+              margin does not — a 20px dead band right where the owner asked the feed to start
+              with the categories scroller. sr-only content must not carry spacing. */}
+          <h1 className="sr-only">{SITE_NAME}</h1>
+          {/* ⚠️ THE PURPOSE SENTENCE THAT SAT HERE IS GONE (owner, 2026-08-02) — and it was not
+              decoration, so anyone restoring copy to this hero should know what it was doing.
+              Google's OAuth brand review rejected this page with "Your home page does not explain
+              the purpose of your app", and that complaint cleared only once a visible purpose
+              statement existed. The owner removed the visible sentence; the page still states its
+              purpose in <title>, meta description and og:description (all "…marketplace for
+              expats and internationals in Vietnam…"), which is what remains answering that
+              complaint. If brand review raises "does not explain the purpose" again, THIS is the
+              cause and a one-line visible tagline under the wordmark is the fix. */}
+
+          {/* Centered Search Bar (the header reveals its own search once this
+              scrolls out of view — id is the IntersectionObserver target). Wider pill
+              (max-w-3xl) — owner asked for a longer bar. */}
+          {/* ⚠️ THE HERO SEARCH BAR IS GONE — IT LIVES IN THE HEADER NOW (owner, 2026-08-03:
+              "move main searchbar to top navbar so feed starts with categories scroller",
+              following the Alibaba/QwenCloud console layout).
+              The header needed NO change for this: its reveal effect already does
+              `const el = document.getElementById('eno-hero-search'); if (!el) setShowSearch(true)`,
+              so deleting this block promotes the header's own search bar from
+              scroll-revealed to permanent, on every page, automatically.
+              ⚠️ DO NOT re-add an element with id="eno-hero-search" without also revisiting
+              header.tsx — that id is the IntersectionObserver target, and its mere presence
+              flips the header bar back to hidden-until-scrolled. */}
+        </div>
+        {/* ⚠️ THIS CONTAINER NOW OPENS *BELOW* THE HERO BLOCK, AND THAT ORDER IS THE FIX.
+            The hero wrapper above holds nothing but an sr-only <h1>, so it has ZERO height. While it
+            was the FIRST CHILD of this space-y container, the 48px that `space-y-12` was meant to put
+            BETWEEN the hero and the banner had no box to sit against — it collapsed straight through
+            and landed ABOVE both. The banner ended up 84.5px below the search bar while the gap under
+            it was 48px, which is the mismatch the owner spotted.
+            This is the THIRD dead band found in exactly this spot; the `mb-5` and `pb-2` notes in the
+            hero block record the previous two, both padding on that same doomed zero-height wrapper.
+            Keeping it OUTSIDE means <PromoBanner /> is unambiguously the first child and owns no
+            margin, so the only thing above it is the section's own padding. Do not move the hero
+            back inside, and do not give this container a first-child that renders nothing. */}
         <div className="relative w-full space-y-8 sm:space-y-12">
 
           {/* HERO SEARCH AREA */}
@@ -1499,126 +1641,6 @@ export function ListingsExplorer({
               position:absolute, so the div has zero height while any padding it carries is real: the
               `pb-2` that used to sit here was a dead band between the header and the promo banner,
               the same trap already documented for the `mb-5` that preceded it. */}
-          <div className="relative text-center">
-            {/* ⚠️ THIS HEADING IS VISIBLE ON PURPOSE, AND IT MUST STAY THAT WAY.
-                It was `sr-only` from 2026-07-16 (when the wordmark + tagline were stripped to
-                leave just the search) until 2026-08-02, when GOOGLE REJECTED OAUTH BRAND
-                VERIFICATION THREE TIMES over it — verbatim: "Your home page does not explain the
-                purpose of your app", "The app name … does not match the app name on your home
-                page", and "Your home page is behind a login page".
-
-                None of that was a login problem: the page is public and server-renders its
-                listings. The problem was that every description of the product lived in <meta>
-                tags and a hidden <h1>, so a human reviewer saw the "eno" wordmark, a search box
-                and a grid of products — no service name in text, no statement of what the site
-                is for. Reviewers read the rendered page, not the head.
-
-                So the hero states the name and the purpose in one compact block: two lines, above
-                the search, at the smallest weight that still reads as the page's title. If it is
-                ever hidden again, brand verification breaks and the consent screen keeps showing
-                the raw Supabase project ref instead of the eno logo.
-
-                ⚠️ NAME COMES FROM SITE_NAME, NOT A LITERAL. The old hardcoded string said
-                "eno.vn" on BOTH editions, so eno.forum's own home page announced itself as the
-                licensed marketplace. */}
-            {/* ⚠️ THE HERO HAS NO VISIBLE HEADING ON EITHER EDITION (owner, 2026-08-02: "also
-                remove this from eno.vn", after the same removal on eno.forum). The <h1> still
-                carries the site name for crawlers and screen readers, but nothing is painted: what
-                a visitor sees at the top of the page is the search bar.
-
-                ⚠️ READ THIS BEFORE RESTORING ANYTHING HERE. This is the third time this block has
-                been emptied, and the previous two both ended in a Google OAuth brand-verification
-                rejection — "Your home page does not explain the purpose of your app" and "The app
-                name … does not match the app name on your home page" — because a reviewer reads the
-                RENDERED page, and `sr-only` is position:absolute with clip-path:inset(50%), so no
-                visible-text extractor sees it. Measured 2026-08-02, before this removal: zero
-                painted "eno.vn" text nodes in the first 800px, with JS on and with JS off; the
-                first plain-text occurrence sat at y=3691 of a 4396px page, in the footer.
-
-                What still names the page to a human: the header wordmark (an <img>, on every
-                route). What names it to a machine: <title>, og:site_name, the JSON-LD Organization
-                block, and the manifest — all of which now say exactly SITE_NAME.
-
-                The verification failure being chased when this was removed turned out to be a
-                DIFFERENT problem entirely (the live OAuth client lives in project eno-vn/
-                671626883615 and is still named "eno", while the brand titled "eno.vn" sits in a
-                second project that renders identically in the console picker). So emptying this
-                block is not believed to be what fixes or breaks verification — but if the
-                name-mismatch or purpose complaint returns after the project mix-up is sorted, a
-                painted text heading here is the first thing to try, NOT another image. */}
-            {/* ⚠️ VISIBLE, PAINTED TEXT — AND IT IS THE ONLY STATE OF THIS HEADING THAT GOOGLE HAS
-                NEVER REJECTED. The history, because it has now cost six submissions:
-                  sr-only text        → "does not explain the purpose" + "name does not match"
-                  visible plain text  → the purpose complaint CLEARED
-                  wordmark <img>      → "name does not match" returned
-                  nothing at all      → "name does not match" again (2026-08-02)
-                Measured on the live page in the last state: zero painted "eno.vn" text nodes in
-                the top 800px with JS on AND off — the name existed only as an <img> in the header
-                and as plain text at y=3691, in the footer. An automated checker reading rendered
-                text finds nothing to match the console's "eno.vn" against.
-
-                ⚠️ SO IT MUST STAY TEXT. Not an image, not sr-only, not a background. If the hero
-                is restyled, the literal string SITE_NAME has to remain something a text extractor
-                can see above the fold. One line carries both complaints at once — the name for the
-                match, the trailing clause for "explain the purpose of your app" — which is why it
-                is a single sentence rather than the heading-plus-paragraph the owner twice called
-                "ugly ducklings". */}
-            {/* ⚠️ THE NAME IS AN IMAGE AGAIN, AND THAT HAS A KNOWN COST (owner, 2026-08-02, after
-                seeing the tagline: "and remove this"). The <h1> keeps SITE_NAME for crawlers and
-                screen readers via sr-only; the only thing a sighted visitor gets is the wordmark.
-
-                The record, because this block has now changed five times and each state was
-                answered by Google:
-                  sr-only text only   → "does not explain the purpose" + "name does not match"
-                  visible plain text  → the purpose complaint CLEARED
-                  wordmark <img>      → "name does not match" returned
-                  nothing             → "name does not match"
-                  img + visible text  → shipped ~1h, no verdict received before this removal
-                An `alt` attribute does not substitute: alt is never painted, and /logo-dotvn.svg is
-                3 <path> elements with 0 <text>, so a text extractor finds no glyph anywhere.
-
-                So if brand review answers "the app name … does not match the app name on your home
-                page" again, THIS is the cause, and the fix is a painted text node containing
-                SITE_NAME above the fold — not another image, not alt text, not sr-only.
-
-                Marketplace-only: /logo-dotvn.svg spells the LICENSED company's name and must never
-                render on eno.forum. */}
-            {/* ⚠️ THE HERO WORDMARK IS GONE (owner, 2026-08-03) — the brand now lives at the top of
-                the left rail and in the header, so repeating it here was a third copy above the
-                fold. The <h1> keeps SITE_NAME as sr-only text for crawlers and screen readers.
-                ⚠️ Google's brand review has rejected this app for "the app name does not match the
-                app name on your home page" whenever the name was NOT painted text above the fold;
-                the header wordmark is what answers that now. If that complaint returns, restore a
-                PAINTED TEXT name here — not an image, and not sr-only.
-                ⚠️ NO LAYOUT CLASSES. This carried `mb-5 flex justify-center` while the wordmark was
-                inside it; with only an sr-only child left, the element has zero height but the
-                margin does not — a 20px dead band right where the owner asked the feed to start
-                with the categories scroller. sr-only content must not carry spacing. */}
-            <h1 className="sr-only">{SITE_NAME}</h1>
-            {/* ⚠️ THE PURPOSE SENTENCE THAT SAT HERE IS GONE (owner, 2026-08-02) — and it was not
-                decoration, so anyone restoring copy to this hero should know what it was doing.
-                Google's OAuth brand review rejected this page with "Your home page does not explain
-                the purpose of your app", and that complaint cleared only once a visible purpose
-                statement existed. The owner removed the visible sentence; the page still states its
-                purpose in <title>, meta description and og:description (all "…marketplace for
-                expats and internationals in Vietnam…"), which is what remains answering that
-                complaint. If brand review raises "does not explain the purpose" again, THIS is the
-                cause and a one-line visible tagline under the wordmark is the fix. */}
-
-            {/* Centered Search Bar (the header reveals its own search once this
-                scrolls out of view — id is the IntersectionObserver target). Wider pill
-                (max-w-3xl) — owner asked for a longer bar. */}
-            {/* ⚠️ THE HERO SEARCH BAR IS GONE — IT LIVES IN THE HEADER NOW (owner, 2026-08-03:
-                "move main searchbar to top navbar so feed starts with categories scroller",
-                following the Alibaba/QwenCloud console layout).
-                The header needed NO change for this: its reveal effect already does
-                `const el = document.getElementById('eno-hero-search'); if (!el) setShowSearch(true)`,
-                so deleting this block promotes the header's own search bar from
-                scroll-revealed to permanent, on every page, automatically.
-                ⚠️ DO NOT re-add an element with id="eno-hero-search" without also revisiting
-                header.tsx — that id is the IntersectionObserver target, and its mere presence
-                flips the header bar back to hidden-until-scrolled. */}
-          </div>
 
           {/* PROMO BANNER — the advertising slot, ABOVE the category scroller (owner, 2026-08-05,
               choosing the Shopee-faithful position over keeping categories first).
@@ -1628,6 +1650,14 @@ export function ListingsExplorer({
               ⚠️ Landing mode only, by construction — it sits inside the isLandingMode branch, so a
               filtered or searched view never shows an ad above the results the visitor asked for. */}
           <PromoBanner />
+
+          {/* WHY eno — DIRECTLY UNDER THE BANNER (owner, 2026-08-05: "move this under banner").
+              ⚠️ This reverses the placement both external reviewers recommended, and the reasoning
+              they gave still stands on its own terms: stacking a banner and a value-prop strip above
+              the feed pushes the actual listings further down on a phone, and the reference's
+              equivalent row is navigation rather than a pitch. The owner chose the reference's
+              layout over that argument; recorded so the trade is visible rather than forgotten. */}
+          <WhyEno />
 
           {/* FINN-STYLE CATEGORY GRID */}
           <div className="space-y-4">
@@ -1672,7 +1702,7 @@ export function ListingsExplorer({
                 >
                   <CategoryIcon
                     name={s.icon}
-                    className="h-11 w-11 sm:h-12 sm:w-12 text-body transition-all duration-200 group-hover:scale-110 group-hover:text-brand"
+                    className="h-11 w-11 sm:h-12 sm:w-12 text-body transition-colors duration-200 group-hover:text-brand"
                   />
                   <span className="text-sm sm:text-base font-bold text-foreground leading-tight transition-colors group-hover:text-brand">
                     <Tr text={lang === 'vi' ? s.nameVi : s.name} />
@@ -1689,11 +1719,11 @@ export function ListingsExplorer({
                     key={cat.id}
                     onClick={() => handleCategorySelect(cat.slug)}
                     style={{ '--cat': hex } as CSSProperties}
-                    className="group flex snap-start flex-col items-center justify-center gap-2 whitespace-normal p-2 text-center cursor-pointer transition-transform duration-100 active:scale-95"
+                    className="group flex snap-start flex-col items-center justify-center gap-2 whitespace-normal p-2 text-center cursor-pointer transition-transform duration-100 active:scale-[0.96]"
                   >
                     <CategoryIcon
                       name={cat.icon}
-                      className="h-11 w-11 sm:h-12 sm:w-12 text-body transition-all duration-200 group-hover:scale-110 group-hover:text-[var(--cat)]"
+                      className="h-11 w-11 sm:h-12 sm:w-12 text-body transition-colors duration-200 group-hover:text-[var(--cat)]"
                     />
                     <span className="text-sm sm:text-base font-bold text-foreground leading-tight transition-colors group-hover:text-[var(--cat)]">
                       <Tr text={lang === 'vi' ? cat.nameVi : cat.name} />
@@ -1719,7 +1749,7 @@ export function ListingsExplorer({
                 >
                   <CategoryIcon
                     name={s.icon}
-                    className="h-11 w-11 sm:h-12 sm:w-12 text-body transition-all duration-200 group-hover:scale-110 group-hover:text-brand"
+                    className="h-11 w-11 sm:h-12 sm:w-12 text-body transition-colors duration-200 group-hover:text-brand"
                   />
                   <span className="text-sm sm:text-base font-bold text-foreground leading-tight transition-colors group-hover:text-brand">
                     <Tr text={lang === 'vi' ? s.nameVi : s.name} />
@@ -1854,14 +1884,6 @@ export function ListingsExplorer({
             </>
           )}
 
-          {/* WHY eno — the value-prop strip, deliberately BELOW the feed rather than under the
-              banner where the reference puts its icon row. Both external reviewers independently
-              recommended this: the reference's row is NAVIGATION (Vouchers, Telco & Bills), whereas
-              this is a pitch, and stacking a banner plus a six-item pitch above the grid would push
-              the actual listings off the first screen on a phone. A visitor who has scrolled the
-              feed is exactly the one deciding whether to trust the place. */}
-          <WhyEno />
-
         </div>
       </section>
     )
@@ -1956,7 +1978,7 @@ export function ListingsExplorer({
       return (
         <div className={cn('flex items-center gap-2 rounded-2xl bg-brand-50 px-2.5 py-2', className)}>
           <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">{chipBtns}</div>
-          <Button onClick={saveSearch} variant="cta" size="none" className="shrink-0 gap-1.5 px-3.5 py-1.5 text-xs shadow-sm active:scale-95 cursor-pointer">
+          <Button onClick={saveSearch} variant="cta" size="none" className="shrink-0 gap-1.5 px-3.5 py-1.5 text-xs shadow-sm active:scale-[0.96] cursor-pointer">
             <Bookmark className="size-4" /> {tr('Save search', 'Lưu tìm kiếm')}
           </Button>
         </div>
@@ -2067,8 +2089,16 @@ export function ListingsExplorer({
             (h1 → rail/section h2 → card h3s); visually hidden. */}
         <h1 className="sr-only">{tr('Marketplace listings', 'Tin đăng')}</h1>
 
-        {/* Single-column faceted directory */}
-        <div className="animate-in fade-in slide-in-from-bottom-3 duration-300">
+        {/* Single-column faceted directory.
+            ⚠️ NO ENTRANCE ANIMATION HERE, DELIBERATELY. This carried
+            `animate-in fade-in slide-in-from-bottom-3 duration-300` around the ENTIRE results
+            workspace — category rail, brand rail, facets, toolbar and grid. That is page-load
+            choreography on an Operate surface: every visitor waited 300ms and watched the whole
+            view translate 12px before they could act. It was also the middle of THREE stacked
+            opacity-0 entrances on one home navigation (.route-fade 150ms -> this 300ms -> the grid's
+            own 200ms below), i.e. the "one identical entrance on every section" pattern, twice, on
+            the money path. The feed should simply be there. */}
+        <div>
 
           {/* Listings Main Workspace */}
           <div className="space-y-4">
@@ -2190,12 +2220,34 @@ export function ListingsExplorer({
 
             {viewMode !== 'video' && !isLoading && shownListings.length === 0 && (queryError ? renderErrorState() : renderEmptyState())}
 
+            {/* ⚠️ THE TRANSITION LIVES OUTSIDE THE CONDITIONAL, AND THE PREDICATE IS `queryFetching`.
+                Both were wrong together, and the pair made this the one motion in the app that lied.
+                · `transition-opacity` used to sit INSIDE the `isLoading &&` string, so the utility was
+                  added and removed WITH the opacity: the dim could fade in, but the recovery — the
+                  moment results actually arrive — was a hard snap. The arrival was never animated.
+                · `isLoading` is `queryLoading || (queryFetching && listings.length === 0)`, and
+                  `placeholderData: (previousData) => previousData` keeps the old rows on screen, so
+                  on a facet or sort tap `listings.length` is never 0 and this was false for the WHOLE
+                  refetch. The only "results are loading" affordance on the surface never fired on the
+                  interaction it exists for.
+                `queryFetching` is true for exactly the window between the tap and the new inventory.
+                The dim is gentler than the old `opacity-60`, which read as DISABLED on results that
+                are still valid and still tappable; pointer-events are left alone for the same reason. */}
             {viewMode !== 'video' && shownListings.length > 0 && (
-              <div className={cn(isLoading && 'opacity-60 pointer-events-none transition-opacity')}>
-                <div
-                  key={`${viewMode}|${activeCategory}|${activeSubcategory}|${activeDistrict}|${sort}|${verifiedOnly}|${conditionFilter}`}
-                  className="animate-in fade-in slide-in-from-bottom-1 duration-200"
-                >
+              <div className={cn('transition-opacity duration-200', queryFetching && 'opacity-70')}>
+                {/* ⚠️ NO `key` AND NO ENTRANCE. The key was
+                    `viewMode|activeCategory|activeSubcategory|activeDistrict|sort|verifiedOnly|conditionFilter`,
+                    which forced a full unmount/remount of every card on each filter change: every
+                    <Image placeholder="blur"> re-entered blurred, CardVideo tore down and re-observed,
+                    per-card carousel idx/expanded state reset, the LCP card re-preloaded, and the
+                    memo() on ListingCard was defeated for that commit. All of it paid for a 200ms
+                    `animate-in fade-in slide-in-from-bottom-1` that — because placeholderData holds the
+                    previous rows — animated the OLD results in, then swapped the real ones in silently.
+                    The entrance was literally animating the wrong data. The key was also only a PARTIAL
+                    signature (it omitted priceRange, listingType, brand, model and the query), so it
+                    did not even remount consistently. Cards now update in place, which is what a
+                    continuous surface should do. */}
+                <div>
                 {viewMode === 'grid' && (
                   /* Grid Mode (Standard Cards) */
                   <div className="grid grid-cols-2 gap-2 sm:gap-4 sm:grid-cols-3 lg:grid-cols-4">

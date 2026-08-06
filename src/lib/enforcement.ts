@@ -334,8 +334,16 @@ export async function applyEnforcement(
     )
     return true
   } catch (e) {
+    // ⚠️ RETHROW — DO NOT return false here. This function returns `false` for the ordinary
+    // "already in that state, nothing to do" case, and the admin route explicitly treats that as
+    // non-fatal and answers HTTP 200 `{ ok: true }`. Collapsing a FAILED WRITE into the same
+    // `false` meant an admin could suspend a scammer, watch the console report success, and leave
+    // them trading — the single worst shape this bug class has, because the human believes the
+    // action landed and stops watching. The two system callers below already sit inside their own
+    // try/catch, so their best-effort behaviour is unchanged; only the admin path, which has no
+    // catch, now surfaces a non-2xx and tells the operator to retry.
     console.error('[enforcement] apply failed', profileId, next.state, e)
-    return false
+    throw e
   }
 }
 
@@ -634,12 +642,30 @@ export type GateError = { error: string; limit?: number }
 
 // Completed transactions for a SELLER (sold listings + accepted offers) — only ever
 // queried for young accounts, both sides indexed (sellerId).
+/**
+ * ⚠️ UNIONED BY LISTING, NOT SUMMED — this must agree with src/lib/trust.ts, which states the rule:
+ * "a sold listing OR a conversation with an accepted offer, unioned by listing so a sold listing
+ * whose thread also had an accepted offer counts once."
+ *
+ * This function used to `count()` accepted-offer MESSAGES and ADD them to the sold count, which
+ * inflated the same seller two different ways: a sold listing whose thread also held an accepted
+ * offer scored 2, and — since accepting is not terminal per-thread — several accepted offers on ONE
+ * listing each scored 1. That number gates probation (postingGate's 8-listing cap and
+ * bulkPostingBudget), so a new seller could lift their own cap by accepting a handful of offers in a
+ * single thread with one accomplice. Trust scored the same activity as one transaction, which is
+ * how the divergence stayed invisible: the two systems disagreed about the same seller.
+ */
 async function sellerTransactionCount(sellerId: string): Promise<number> {
   const [sold, offers] = await Promise.all([
-    db.listing.count({ where: { sellerId, status: 'sold' } }),
-    db.message.count({ where: { kind: 'offer', offerStatus: 'accepted', conversation: { sellerId } } }),
+    db.listing.findMany({ where: { sellerId, status: 'sold' }, select: { id: true } }),
+    db.message.findMany({
+      where: { kind: 'offer', offerStatus: 'accepted', conversation: { sellerId } },
+      select: { conversation: { select: { listingId: true } } },
+    }),
   ])
-  return sold + offers
+  const listings = new Set(sold.map((l) => l.id))
+  for (const m of offers) if (m.conversation?.listingId) listings.add(m.conversation.listingId)
+  return listings.size
 }
 
 /**
@@ -700,7 +726,14 @@ export async function conversationGate(profileId: string): Promise<GateError | n
   const ageDays = (Date.now() - profile.createdAt.getTime()) / DAY_MS
   if (ageDays >= ENFORCEMENT.PROBATION.MIN_ACCOUNT_AGE_DAYS) return null
   // Buyer-side transactions: offers accepted in threads they opened.
-  const tx = await db.message.count({ where: { kind: 'offer', offerStatus: 'accepted', conversation: { buyerProfileId: profileId } } })
+  // ⚠️ Unioned by listing, for the same reason as sellerTransactionCount above — a raw message
+  // count let several accepted offers in ONE thread each read as a separate transaction, which is
+  // what lifts the probation conversation cap. One listing bought is one transaction.
+  const accepted = await db.message.findMany({
+    where: { kind: 'offer', offerStatus: 'accepted', conversation: { buyerProfileId: profileId } },
+    select: { conversation: { select: { listingId: true } } },
+  })
+  const tx = new Set(accepted.map((m) => m.conversation?.listingId).filter(Boolean)).size
   if (!isProbation(ageDays, tx)) return null
 
   const today = await db.conversation.count({ where: { buyerProfileId: profileId, createdAt: { gt: new Date(Date.now() - DAY_MS) } } })

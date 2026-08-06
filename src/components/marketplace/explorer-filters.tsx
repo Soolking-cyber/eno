@@ -325,7 +325,7 @@ export function ExplorerFiltersDrawer({
             size="xs"
             onClick={() => onOpenChange(false)}
             aria-label={tr('Close', 'Đóng')}
-            className="bg-tint text-ink-3 hover:bg-line-strong active:scale-95"
+            className="bg-tint text-ink-3 hover:bg-line-strong active:scale-[0.96]"
           >
             <X className="h-4 w-4" />
           </IconButton>
@@ -344,7 +344,7 @@ export function ExplorerFiltersDrawer({
             onClick={() => onOpenChange(false)}
             // Massive, impossible-to-miss primary CTA: h-14 (56px), text-base, rounded-2xl. `cta`
             // already paints the solid brand fill; no shadow (flat canvas — elevation is banned).
-            className="w-full h-14 rounded-2xl text-base font-semibold active:scale-98 cursor-pointer"
+            className="w-full h-14 rounded-2xl text-base font-semibold active:scale-[0.96] cursor-pointer"
           >
             {tr('Apply Filters', 'Áp dụng lọc')} ({totalCount} {tr('listings', 'tin')})
           </Button>

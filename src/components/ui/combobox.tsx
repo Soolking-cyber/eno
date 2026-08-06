@@ -39,7 +39,7 @@ function ComboboxClear({ className, children, ...props }: ComboboxPrimitive.Clea
     <ComboboxPrimitive.Clear
       data-slot="combobox-clear"
       className={cn(
-        "flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-lg text-body outline-none transition-[color,background-color,opacity,transform] duration-150 hover:bg-tint hover:text-foreground active:scale-90 focus-visible:ring-2 focus-visible:ring-ring/40 data-starting-style:scale-75 data-starting-style:opacity-0 data-ending-style:scale-75 data-ending-style:opacity-0",
+        "flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-lg text-body outline-none transition-[color,background-color,opacity,transform] duration-150 hover:bg-tint hover:text-foreground active:scale-[0.96] focus-visible:ring-2 focus-visible:ring-ring/40 data-starting-style:scale-75 data-starting-style:opacity-0 data-ending-style:scale-75 data-ending-style:opacity-0",
         className,
       )}
       {...props}
@@ -54,7 +54,7 @@ function ComboboxTrigger({ className, children, ...props }: ComboboxPrimitive.Tr
     <ComboboxPrimitive.Trigger
       data-slot="combobox-trigger"
       className={cn(
-        "group flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-lg text-body outline-none transition-[color,background-color,transform] duration-150 hover:bg-tint hover:text-foreground active:scale-90 focus-visible:ring-2 focus-visible:ring-ring/40",
+        "group flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-lg text-body outline-none transition-[color,background-color,transform] duration-150 hover:bg-tint hover:text-foreground active:scale-[0.96] focus-visible:ring-2 focus-visible:ring-ring/40",
         className,
       )}
       {...props}

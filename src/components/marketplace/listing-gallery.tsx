@@ -141,7 +141,7 @@ function GalleryVideo({ src, poster, className }: { src: string; poster?: string
         size="sm"
         aria-label={muted ? tr('Unmute', 'Bật tiếng') : tr('Mute', 'Tắt tiếng')}
         onClick={(e) => { e.stopPropagation(); setMuted((m) => !m) }}
-        className="absolute bottom-2 left-2 z-20 bg-black/50 text-white backdrop-blur-[2px] transition-transform active:scale-90"
+        className="absolute bottom-2 left-2 z-20 bg-black/50 text-white backdrop-blur-[2px] transition-transform active:scale-[0.96]"
       >
         {muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
       </IconButton>
@@ -160,8 +160,18 @@ const ZOOM = 2.5
  *  carries priority/eager and gates the LCP; the backdrop requests a tiny 64px source
  *  (invisible once blurred) so it's a cheap raster + negligible fetch, never competing
  *  with the hero. */
-function BlurFillImage({ img, alt, sizes, mock, priority, eager, hover }: {
-  img: string; alt: string; sizes: string; mock?: boolean; priority?: boolean; eager?: boolean; hover?: boolean
+/**
+ * ⚠️ THE PHOTO DOES NOT SCALE ON HOVER, AND THERE IS NO `hover` PROP ANY MORE.
+ * This carried `hover && 'transition-transform duration-300 group-hover:scale-[1.02]'` on the <Image>
+ * below. It is the same treatment deleted from <ListingCard> on 2026-08-05 (the reason is written out
+ * on that file's <Image>): scaling product imagery on hover is a recognisable generated-UI signature,
+ * and on a marketplace where the buyer is judging condition from the photograph it works against the
+ * one job the picture has. That decision was made for the feed and never reached the PDP, so the same
+ * JPEG behaved differently in two frames of the same flow. The prop went with the class rather than
+ * being left behind as a dead API.
+ */
+function BlurFillImage({ img, alt, sizes, mock, priority, eager }: {
+  img: string; alt: string; sizes: string; mock?: boolean; priority?: boolean; eager?: boolean
 }) {
   return (
     <>
@@ -178,7 +188,7 @@ function BlurFillImage({ img, alt, sizes, mock, priority, eager, hover }: {
         unoptimized={mock || undefined}
         priority={priority}
         loading={eager && !priority ? 'eager' : undefined}
-        className={cn('object-contain', hover && 'transition-transform duration-300 group-hover:scale-[1.02]')}
+        className="object-contain"
       />
       <span className="img-watermark" aria-hidden />
     </>
@@ -291,7 +301,7 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
               also the Capacitor WebView the native apps load, so mobile-web square IS the
               iOS/Android square. */}
           <div data-protected className="relative aspect-square w-full overflow-hidden bg-tint">
-            <BlurFillImage img={images[0]} alt={title} sizes="(max-width:1024px) 100vw, 60vw" mock={isMockImageUrl(images[0])} priority hover />
+            <BlurFillImage img={images[0]} alt={title} sizes="(max-width:1024px) 100vw, 60vw" mock={isMockImageUrl(images[0])} priority />
           </div>
         </Button>
       ) : (
@@ -353,7 +363,7 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
                   const photoIdx = hasVideo ? sel - 1 : sel
                   return (
                     <Button variant="bare" size="none" onClick={() => openAt(photoIdx)} className="group relative block h-full w-full overflow-hidden rounded-none cursor-pointer active:scale-100">
-                      <BlurFillImage img={images[photoIdx]} alt={`${title} — photo ${photoIdx + 1}`} sizes="(max-width:1024px) 100vw, 60vw" mock={isMockImageUrl(images[photoIdx])} eager={photoIdx === 0} hover />
+                      <BlurFillImage img={images[photoIdx]} alt={`${title} — photo ${photoIdx + 1}`} sizes="(max-width:1024px) 100vw, 60vw" mock={isMockImageUrl(images[photoIdx])} eager={photoIdx === 0} />
                     </Button>
                   )
                 })()

@@ -8,6 +8,7 @@ import { getSupabaseAdmin, EVIDENCE_BUCKET } from '@/lib/supabase-admin'
 import { safeFetch } from '@/lib/ssrf'
 import { rateLimit } from '@/lib/ratelimit'
 import { reportContext } from '@/lib/admin-reports'
+import { logError } from '@/lib/log'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -396,7 +397,7 @@ ${sections.join('\n\n')}`
   await db.report.update({
     where: { id: reportId },
     data: { aiAnalysis: JSON.stringify(result), aiAnalyzedAt: new Date() },
-  }).catch(() => {})
+  }).catch((e) => logError(e, { op: 'ai-review.call' }))
 
   return NextResponse.json(result)
 }

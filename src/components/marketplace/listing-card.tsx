@@ -236,7 +236,14 @@ function ListingCardImpl({
                     alt={images.length > 1 ? `${displayTitle} — ${i + 1}/${images.length}` : displayTitle}
                     fill
                     sizes={sizes}
-                    className="object-cover transition-transform duration-200 group-hover:scale-[1.03]"
+                    // ⚠️ THE PHOTO DOES NOT MOVE ON HOVER, DELIBERATELY (owner decision, 2026-08-05).
+                    // This was `group-hover:scale-[1.03]`. Scaling the product photo on hover is one of
+                    // the most recognisable generated-UI signatures, and on a feed it also fights the
+                    // thing the card exists to do: show the item honestly. The hover affordance is kept
+                    // — the MEDIA brightens instead — so the card still answers the pointer without the
+                    // imagery drifting under it. Brightness is a compositor-only filter, so this stays
+                    // as cheap as the transform it replaced and never triggers layout.
+                    className="object-cover transition-[filter] duration-200 group-hover:brightness-105"
                     placeholder="blur"
                     blurDataURL={BLUR}
                     quality={60}
@@ -288,7 +295,13 @@ function ListingCardImpl({
         {/* Discount / urgent / new badges — top-left. On desktop hover they fade out
             so the action icons unfurling from the save heart own the top edge cleanly;
             back on mouse-out. (Touch has no hover, so mobile/tablet always show them.) */}
-        <CardBadges listing={listing} className="absolute left-2 top-2 z-10 transition-opacity duration-200 pc:group-hover:opacity-0" />
+        {/* ⚠️ THE BADGES DO NOT FADE ON HOVER ANY MORE. This carried `pc:group-hover:opacity-0`,
+            which used motion to DELETE information — the price-drop %, "Bán gấp" and New — at the
+            exact moment the buyer commits attention to the card. Those are the highest-value
+            conversion signals on it. The stated reason was crowding, but the badges sit at
+            `left-2 top-2` and the hover icon row is at `right-11 top-2`: they cannot collide at any
+            width where that row renders. */}
+        <CardBadges listing={listing} className="absolute left-2 top-2 z-10" />
 
         {/* Bottom-left status chips — a video indicator (so mobile, which has no hover,
             still knows there's a clip) + social proof "N saved" (≥3). One row so they never
@@ -329,7 +342,7 @@ function ListingCardImpl({
                 tapTarget={false}
                 aria-label={tr('Chat with seller', 'Nhắn tin với người bán')}
                 onClick={(e) => { e.stopPropagation(); quickGo({ body: tr('Hi! Is this still available?', 'Chào bạn! Món này còn không?') }) }}
-                className="pointer-events-auto translate-x-3 opacity-0 transition-all duration-200 hover:scale-110 active:scale-90 group-hover:translate-x-0 group-hover:opacity-100 focus-visible:translate-x-0 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                className="pointer-events-auto translate-x-3 opacity-0 transition-all duration-200 hover:scale-110 active:scale-[0.96] group-hover:translate-x-0 group-hover:opacity-100 focus-visible:translate-x-0 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
               >
                 <MessageCircle className="h-[20px] w-[20px]" />
               </IconButton>
@@ -345,7 +358,7 @@ function ListingCardImpl({
                 aria-pressed={quickOffer !== null}
                 onClick={(e) => { e.stopPropagation(); setQuickOffer(quickOffer === null ? 10 : null) }}
                 className={cn(
-                  'pointer-events-auto translate-x-3 opacity-0 transition-all duration-200 hover:scale-110 active:scale-90 group-hover:translate-x-0 group-hover:opacity-100 focus-visible:translate-x-0 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white',
+                  'pointer-events-auto translate-x-3 opacity-0 transition-all duration-200 hover:scale-110 active:scale-[0.96] group-hover:translate-x-0 group-hover:opacity-100 focus-visible:translate-x-0 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white',
                   quickOffer === null && 'delay-75 group-hover:delay-75',
                 )}
               >
@@ -364,7 +377,7 @@ function ListingCardImpl({
                 tapTarget={false}
                 aria-label={tr('Show on map', 'Xem trên bản đồ')}
                 onClick={(e) => { e.stopPropagation(); locate(listing) }}
-                className="pointer-events-auto translate-x-3 opacity-0 transition-all delay-150 duration-200 hover:scale-110 active:scale-90 group-hover:translate-x-0 group-hover:opacity-100 group-hover:delay-150 focus-visible:translate-x-0 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                className="pointer-events-auto translate-x-3 opacity-0 transition-all delay-150 duration-200 hover:scale-110 active:scale-[0.96] group-hover:translate-x-0 group-hover:opacity-100 group-hover:delay-150 focus-visible:translate-x-0 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
               >
                 <MapPin className="h-[20px] w-[20px]" />
               </IconButton>
@@ -383,7 +396,7 @@ function ListingCardImpl({
           aria-label={favorited ? tr('Remove favorite', 'Bỏ lưu') : tr('Add favorite', 'Lưu tin')}
           aria-pressed={favorited}
           onClick={(e) => { e.stopPropagation(); if (!favorited) setBurst(true); toggle(listing.id) }}
-          className="absolute right-2 top-2 z-10 transition-transform hover:scale-110 active:scale-90"
+          className="absolute right-2 top-2 z-10 transition-transform hover:scale-110 active:scale-[0.96]"
         >
           {/* Icon-only (no chip): white outline + subtle dark fill + drop-shadow —
               legible on ANY photo; blue fill when saved; heart-pop on save. */}

@@ -26,8 +26,22 @@ import { IconButton } from '@/components/ui/icon-button'
 // for everyone else (the Vietnamese shorthand is opaque to the expat audience),
 // native "500k" / "51tr" / "1,2 tỷ" for vi; the rare non-₫ listing keeps its
 // symbol-prefixed format.
-function pinLabel(l: SerializedListingCard, locale: MoneyLocale): string {
-  if (l.currency === '₫') return compactPrice(l.price, locale)
+function pinLabel(l: SerializedListingCard, locale: MoneyLocale, currency?: string, rate?: number): string {
+  // ⚠️ A PIN MUST NOT SHOW A BARE ĐỒNG MAGNITUDE TO SOMEONE READING IN DOLLARS. This returned
+  // `compactPrice(l.price, locale)` unconditionally for ₫ listings — a unit-less "51M" — while every
+  // other surface, including the popup this very pin opens, honoured the viewer's display currency.
+  // A USD reader saw "51M" on the pin and "$1,950" one tap later, on the same listing.
+  // Mirrors price-range-filter.tsx's compactAmt: convert first, keep the vi shorthand only when the
+  // viewer is actually reading đồng, and never emit a magnitude without its unit.
+  if (l.currency === '₫') {
+    const foreign = currency && currency !== 'VND' && currency !== '₫' && rate
+    if (!foreign) return compactPrice(l.price, locale)
+    const d = l.price * (rate as number)
+    const sym = currency === 'USD' ? '$' : `${currency} `
+    if (d >= 1_000_000) return `${sym}${(d / 1_000_000).toFixed(d % 1_000_000 === 0 ? 0 : 1)}M`
+    if (d >= 1_000) return `${sym}${(d / 1_000).toFixed(d % 1_000 === 0 ? 0 : 1)}k`
+    return `${sym}${Math.round(d)}`
+  }
   // Rare non-₫ listing: same canonical vnd.ts formatter the popup one tap away uses
   // (the old local formatPrice hardcoded Intl en-US — audit P1 #9; it's deleted).
   return formatMoneyFull(l.price, l.currency, locale)
@@ -183,7 +197,9 @@ function MapCredit({ className }: { className?: string }) {
 export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedId, onHover, focusId, nearby, areaKey, onPinOpen, onMove }: Props) {
   const { lang: uiLang, tr } = useLanguage()
   const { isFavorite, toggle } = useFavorites()
-  const { format: formatPrice } = useCurrency()
+  const { format: formatPrice, currency: displayCurrency, rates: fxRates } = useCurrency()
+  // /api/fx publishes 'currency per 1 VND', so this multiplies. Undefined until the rates land.
+  const displayRate = displayCurrency && displayCurrency !== 'VND' && displayCurrency !== '₫' ? fxRates[displayCurrency] : undefined
   // Pin + card amounts follow the viewer's UI language from CONTEXT — a former
   // `lang` prop was a content-localization hint some hosts hardcoded (listing-
   // detail-map passed 'vi'), so it could never drive money formatting; it was
@@ -407,7 +423,7 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
     listings.forEach((l) => {
       const { lat, lng } = getListingCoordinates(l)
       bounds.push([lat, lng])
-      const icon = L.divIcon({ html: pinHtml(pinLabel(l, locale), selectedId === l.id), className: 'eno-pin', iconSize: [0, 0] })
+      const icon = L.divIcon({ html: pinHtml(pinLabel(l, locale, displayCurrency, displayRate), selectedId === l.id), className: 'eno-pin', iconSize: [0, 0] })
       // `alt` gives the pin an accessible name (the visible label is just a price
       // string); keyboard users close the popup card via Escape on the wrapper.
       const marker = L.marker([lat, lng], { icon, riseOnHover: true, alt: l.title }).addTo(map)
@@ -471,11 +487,15 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
     markersRef.current.forEach((marker, id) => {
       const l = listings.find((x) => x.id === id)
       if (!l) return
-      marker.setIcon(L.divIcon({ html: pinHtml(pinLabel(l, locale), selectedId === id), className: 'eno-pin', iconSize: [0, 0] }))
+      marker.setIcon(L.divIcon({ html: pinHtml(pinLabel(l, locale, displayCurrency, displayRate), selectedId === id), className: 'eno-pin', iconSize: [0, 0] }))
       if (selectedId === id) marker.setZIndexOffset(1000)
       else marker.setZIndexOffset(0)
     })
-  }, [selectedId, ready])
+    // ⚠️ currency/rate belong on THIS effect, not the marker-BUILD effect above. Rates arrive from
+    // /api/fx a moment after first paint, and adding them to the build deps would tear down and
+    // recreate every marker — and re-fit the bounds — the instant they land. This effect only
+    // calls setIcon on markers that already exist, which is exactly what a re-label needs.
+  }, [selectedId, ready, listings, locale, displayCurrency, displayRate])
 
   // Fly to a specific listing when requested ("locate on map").
   useEffect(() => {
@@ -588,7 +608,7 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
                     tapTarget={false}
                     onClick={(e) => { e.stopPropagation(); toggle(card.id) }}
                     aria-label={isFavorite(card.id) ? tr('Saved', 'Đã lưu') : tr('Save', 'Lưu')}
-                    className="transition-transform hover:scale-110 active:scale-90"
+                    className="transition-transform hover:scale-110 active:scale-[0.96]"
                   >
                     <Heart className={cn('h-[22px] w-[22px] transition-colors [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.5))]', isFavorite(card.id) ? 'fill-brand text-white' : 'fill-black/25 text-white')} />
                   </IconButton>

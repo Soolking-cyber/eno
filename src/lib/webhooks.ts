@@ -2,6 +2,7 @@ import 'server-only'
 import crypto from 'crypto'
 import { db } from '@/lib/db'
 import { safeFetch } from '@/lib/ssrf'
+import { logError } from '@/lib/log'
 
 // Partner webhooks (Phase 3). A shop registers URLs that receive SIGNED listing events.
 // Delivery is best-effort, runs in after() (never blocks a mutation), and auto-disables an
@@ -37,7 +38,7 @@ async function recordFailure(id: string, error: string): Promise<void> {
       select: { failureCount: true },
     })
     if (row.failureCount >= MAX_FAILURES) {
-      await db.webhookEndpoint.update({ where: { id }, data: { enabled: false } }).catch(() => {})
+      await db.webhookEndpoint.update({ where: { id }, data: { enabled: false } }).catch((e) => logError(e, { op: 'webhook.disable' }))
     }
   } catch {
     /* best-effort bookkeeping */
@@ -74,7 +75,7 @@ async function deliver(h: Hook, event: ListingEvent, listingId: string, extra?: 
       body: payload,
     })
     if (res.ok) {
-      await db.webhookEndpoint.update({ where: { id: h.id }, data: { failureCount: 0, lastError: null, lastDeliveryAt: now } }).catch(() => {})
+      await db.webhookEndpoint.update({ where: { id: h.id }, data: { failureCount: 0, lastError: null, lastDeliveryAt: now } }).catch((e) => logError(e, { op: 'webhook.markHealthy' }))
     } else {
       await recordFailure(h.id, `HTTP ${res.status}`)
     }

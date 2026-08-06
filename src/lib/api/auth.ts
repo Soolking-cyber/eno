@@ -3,6 +3,7 @@ import crypto from 'crypto'
 import { db } from '@/lib/db'
 import { rateLimit } from '@/lib/ratelimit'
 import { verifyAccessToken, looksLikeAccessToken } from '@/lib/api/oauth'
+import { logError } from '@/lib/log'
 
 // ── /api/v1 machine authentication ───────────────────────────────────────────────
 // The ONLY authn for the partner API. Keys are Bearer tokens of the form
@@ -77,7 +78,7 @@ export async function resolveApiKey(req: Request, requiredScope?: string): Promi
   if (!rl.success) {
     return { ok: false, status: 429, code: 'rate_limited', message: 'Rate limit exceeded. Slow down or back off.' }
   }
-  void db.apiKey.update({ where: { id: key.id }, data: { lastUsedAt: new Date() } }).catch(() => {})
+  void db.apiKey.update({ where: { id: key.id }, data: { lastUsedAt: new Date() } }).catch((e) => logError(e, { op: 'apiKey.touchLastUsed' }))
   return { ok: true, auth: { keyId: key.id, sellerId: key.sellerId, profileId: key.profileId, scopes }, rate: { limit: API_RATE_PER_MIN, remaining: rl.remaining } }
 }
 

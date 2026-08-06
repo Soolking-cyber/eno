@@ -17,7 +17,7 @@ export function ChatSendButton({ className, ...props }: React.ButtonHTMLAttribut
       size="lg"
       onMouseDown={(e) => e.preventDefault()}
       {...props}
-      className={cn('bg-primary text-white transition-transform active:scale-90 disabled:opacity-40', className)}
+      className={cn('bg-primary text-white transition-transform active:scale-[0.96] disabled:opacity-40', className)}
     >
       <Send className="h-4 w-4" />
     </IconButton>

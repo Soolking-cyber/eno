@@ -32,13 +32,25 @@ export function BackToTop() {
       }
       setLift((p) => (Math.abs(p - extra) > 1 ? extra : p))
     }
-    const onScroll = () => { setShow(window.scrollY > 700); measure() }
-    onScroll()
+    // ⚠️ rAF-THROTTLED, because `measure()` is expensive and this used to run on EVERY scroll
+    // event. It does a `querySelectorAll` plus a `getBoundingClientRect()` per match, which forces
+    // a synchronous layout, and it then feeds `setLift` → React render → style write → another read
+    // on the next tick. Unthrottled that is a layout thrash on the one interaction that must stay
+    // smooth. This is the same pattern use-hide-on-scroll.ts already uses; the coalescing is what
+    // makes it correct, not the passive flag (passive only promises not to preventDefault).
+    let ticking = false
+    const update = () => { ticking = false; setShow(window.scrollY > 700); measure() }
+    const onScroll = () => {
+      if (ticking) return
+      ticking = true
+      requestAnimationFrame(update)
+    }
+    update()
     window.addEventListener('scroll', onScroll, { passive: true })
-    window.addEventListener('resize', measure, { passive: true })
+    window.addEventListener('resize', onScroll, { passive: true })
     return () => {
       window.removeEventListener('scroll', onScroll)
-      window.removeEventListener('resize', measure)
+      window.removeEventListener('resize', onScroll)
     }
   }, [])
 
@@ -92,7 +104,7 @@ export function BackToTop() {
           // ONLY this button (status-bar tap already scrolls to top there); Android keeps the chevron.
           // (The floating Help "?" was removed 2026-07-18 — the rail's Help row owns it.)
           className={cn(
-            'back-to-top-chevron relative flex h-11 w-11 items-center justify-center text-body transition-all duration-200 hover:text-accent-foreground hover:scale-110 active:scale-90 tap-44',
+            'back-to-top-chevron relative flex h-11 w-11 items-center justify-center text-body transition-all duration-200 hover:text-accent-foreground hover:scale-110 active:scale-[0.96] tap-44',
             show ? 'opacity-100 translate-y-0' : 'pointer-events-none opacity-0 translate-y-2',
           )}
         >

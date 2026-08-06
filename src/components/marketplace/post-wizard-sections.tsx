@@ -513,7 +513,7 @@ export function LocationSection({
           disabled={locating}
           aria-label={t('Dùng vị trí hiện tại', 'Use my current location')}
           title={t('Dùng vị trí hiện tại', 'Use my current location')}
-          className="h-[46px] w-[46px] rounded-xl bg-tint text-accent-foreground transition-colors hover:bg-muted active:scale-95 disabled:opacity-60"
+          className="h-[46px] w-[46px] rounded-xl bg-tint text-accent-foreground transition-colors hover:bg-muted active:scale-[0.96] disabled:opacity-60"
         >
           {locating ? <Loader2 className="h-5 w-5 animate-spin" /> : <LocateFixed className="h-5 w-5" />}
         </IconButton>

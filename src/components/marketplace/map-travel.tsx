@@ -35,7 +35,7 @@ export function MapsDirectionsButton({ to, className = '' }: { to: LatLng; class
       onClick={(e) => e.stopPropagation()}
       aria-label={tr('Get directions in Google Maps', 'Chỉ đường trong Google Maps')}
       title={tr('Directions in Google Maps', 'Chỉ đường trong Google Maps')}
-      className={`press inline-flex items-center justify-center rounded-full bg-popover shadow-pop ring-1 ring-border transition-transform hover:scale-105 active:scale-90 ${className}`}
+      className={`press inline-flex items-center justify-center rounded-full bg-popover shadow-pop ring-1 ring-border transition-transform hover:scale-105 active:scale-[0.96] ${className}`}
     >
       <GoogleMapsPin className="h-[18px] w-[18px]" />
     </a>

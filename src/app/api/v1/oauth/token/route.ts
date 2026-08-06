@@ -5,6 +5,7 @@ import { hashApiKey, API_KEY_RE } from '@/lib/api/auth'
 import { issueAccessToken, TOKEN_TTL_SECONDS } from '@/lib/api/oauth'
 import { rateLimit } from '@/lib/ratelimit'
 import { clientIp } from '@/lib/client-ip'
+import { logError } from '@/lib/log'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -94,7 +95,7 @@ export async function POST(req: NextRequest) {
   if (!token) return oauthError(503, 'temporarily_unavailable', 'Token signing is temporarily unavailable.')
 
   // Best-effort: mark the key used (mirrors resolveApiKey).
-  void db.apiKey.update({ where: { id: key.id }, data: { lastUsedAt: new Date() } }).catch(() => {})
+  void db.apiKey.update({ where: { id: key.id }, data: { lastUsedAt: new Date() } }).catch((e) => logError(e, { op: 'oauth.touchLastUsed' }))
 
   return NextResponse.json(
     { access_token: token, token_type: 'Bearer', expires_in: TOKEN_TTL_SECONDS, scope: granted.join(' ') },

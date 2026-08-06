@@ -30,11 +30,19 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
   const convo = await db.conversation.findUnique({
     where: { id },
-    select: { id: true, buyerProfileId: true, sellerProfileId: true, listing: { select: { id: true } } },
+    select: { id: true, buyerProfileId: true, sellerProfileId: true, listing: { select: { id: true, status: true } } },
   })
   if (!convo) return NextResponse.json({ error: 'not_found' }, { status: 404 })
   if (convo.buyerProfileId !== meId && convo.sellerProfileId !== meId) {
     return NextResponse.json({ error: 'forbidden' }, { status: 403 })
+  }
+
+  // ⚠️ ACCEPT ONLY WHILE THE LISTING IS ACTIVE — but DECLINE must always work. Neither this route
+  // nor actOnOffer read Listing.status, so a seller could accept an offer on an item they had
+  // already marked sold. Gating decline too would strand pending offer cards forever on every sold
+  // listing, with no way for either side to clear them, so the guard is scoped to 'accept'.
+  if (action === 'accept' && convo.listing.status !== 'active') {
+    return NextResponse.json({ error: 'listing_unavailable' }, { status: 409 })
   }
 
   const ok = await actOnOffer(

@@ -37,6 +37,7 @@ import { SameSellerShelf } from '@/components/marketplace/same-seller-shelf'
 import { SoldListing } from '@/components/marketplace/sold-listing'
 import { ProtectionsRow } from '@/components/marketplace/protections-row'
 import { DropCountdown } from '@/components/marketplace/drop-countdown'
+import { LiveUntil } from '@/components/marketplace/live-until'
 import { sellerMetrics, topSellerReviews, sameSellerListings } from '@/lib/seller-metrics'
 import { ListingDetailMap } from '@/components/marketplace/listing-detail-map'
 import { ReportButton } from '@/components/marketplace/report-button'
@@ -447,17 +448,26 @@ export default async function ListingPage({ params }: Props) {
                   <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
                     <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} className="text-3xl font-bold tracking-tight text-accent-foreground" />
                     {/* Server-computed drop anchor (30-day-min reference) — never a seller "was". */}
+                    {/* ⚠️ BOTH CLAIMS ARE WRAPPED IN <LiveUntil> BECAUSE THIS PAGE IS ISR-CACHED
+                        FOR 30 DAYS. `prevPrice` and `urgent` are resolved by serialize.ts against
+                        Date.now() at GENERATION time, so without a live clock a page generated
+                        during a 3-day drop window kept showing the struck-through price and the
+                        −% badge for up to a month after the discount ended — a stale reference
+                        price on the page that actually sells the item. Do not unwrap these to
+                        save a client component; the staleness is in the CACHE, not the serializer. */}
                     {listing.prevPrice != null && dropPercent(listing.prevPrice, listing.price) && (
-                      <>
+                      <LiveUntil until={listing.dropExpiresAt}>
                         <Price price={listing.prevPrice} currency={listing.currency} priceUnit="VND" className="text-base text-ink-4 line-through" />
                         <Badge variant="counter" size="sm" className="tabular-nums">
                           {dropPercent(listing.prevPrice, listing.price)}
                         </Badge>
                         <DropCountdown expiresAt={listing.dropExpiresAt} />
-                      </>
+                      </LiveUntil>
                     )}
                     {listing.urgent && (
-                      <Zap aria-label="Urgent sale" className="h-7 w-7 self-center fill-destructive stroke-none" />
+                      <LiveUntil until={listing.urgentUntil}>
+                        <Zap aria-label="Urgent sale" className="h-7 w-7 self-center fill-destructive stroke-none" />
+                      </LiveUntil>
                     )}
                     {!listing.negotiable && (
                       <Badge size="md" className="text-2xs text-body">

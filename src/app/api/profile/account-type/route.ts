@@ -1,7 +1,7 @@
 import { NextResponse, after } from 'next/server'
 import { db } from '@/lib/db'
 import { TOS_VERSION } from '@/lib/site-legal'
-import { getCurrentProfile } from '@/lib/admin'
+import { getCurrentProfile, getVerifiedPhone } from '@/lib/admin'
 import { normalizePhone } from '@/lib/phone'
 import { phoneTakenByOther } from '@/lib/phone-unique'
 import { sendMetaCapiEvent, metaUserDataFromHeaders } from '@/lib/meta-capi'
@@ -24,7 +24,11 @@ export async function POST(req: Request) {
   if (!profile) return NextResponse.json({ error: 'auth_required' }, { status: 401 })
   // Account-type is set once or rarely changed; cap per account so the phone_taken (409)
   // response can't be probed as a "does this number have an account?" oracle.
-  const rl = await rateLimit('account-type', profile.id, 12, '1 h')
+  // ⚠️ strict: FAIL CLOSED. The comment below names the threat, and phoneTakenByOther() further down
+  // answers it as a clean boolean — an un-limited caller can enumerate which phone numbers have an
+  // account. This route runs once or twice in an account's lifetime, so failing closed during a
+  // limiter outage is nearly free. Fixing only the profile editor would just move the oracle here.
+  const rl = await rateLimit('account-type', profile.id, 12, '1 h', { strict: true })
   if (!rl.success) return NextResponse.json({ error: 'rate_limited' }, { status: 429 })
   // True only on the genuine FIRST onboarding (accountType still null) → so the
   // CompleteRegistration conversion below isn't re-sent if the type is changed later.
@@ -110,11 +114,38 @@ export async function POST(req: Request) {
     if (ownedSeller) {
       await db.seller.update({ where: { id: ownedSeller.id }, data: { name: businessName!, ...(phone ? { phone } : {}), ...legalData } })
     } else {
-      // Claim an unowned guest storefront on phone match, else create a new one.
-      const byPhone = phone ? await db.seller.findUnique({ where: { phone }, select: { id: true, ownerId: true } }) : null
+      // Claim an unowned guest storefront on a VERIFIED phone match, else create a new one.
+      // ⚠️ `phone` here comes from the REQUEST BODY (`body.phone` above), so a match alone proves
+      // nothing. Claiming re-parents the storefront and with it every listing, review and rating,
+      // redirects all future buyer threads (conversations resolve the seller from Seller.ownerId),
+      // and is irreversible — the genuine owner's verified auto-claim in profile.ts requires
+      // `ownerId: null`. The `phoneTakenByOther` gate earlier cannot catch it either: it ignores
+      // unowned sellers by design, because they are meant to be claimable by whoever VERIFIES the
+      // number. So the claim is gated on the caller's auth-confirmed phone, matching the correct
+      // implementation at src/lib/profile.ts:71-77 ("Verified phone only, never a self-typed one").
+      const byPhone = phone ? await db.seller.findUnique({ where: { phone }, select: { id: true, ownerId: true, phone: true } }) : null
+      const verifiedPhone = byPhone && !byPhone.ownerId ? await getVerifiedPhone() : null
       try {
-        if (byPhone && !byPhone.ownerId) {
-          await db.seller.update({ where: { id: byPhone.id }, data: { ownerId: profile.id, name: businessName!, ...legalData } })
+        if (byPhone && !byPhone.ownerId && verifiedPhone && verifiedPhone === byPhone.phone) {
+          // Atomic claim-once via the ownerId:null guard, so two racing claims cannot both win.
+          const claimed = await db.seller.updateMany({
+            where: { id: byPhone.id, ownerId: null },
+            data: { ownerId: profile.id, name: businessName!, claimedAt: new Date(), ...legalData },
+          })
+          // ⚠️ On a LOST race, re-read before creating — Seller.ownerId is @unique, so if our own
+          // concurrent request already made one, a blind create throws P2002 and 500s onboarding.
+          if (claimed.count === 0 && !(await db.seller.findUnique({ where: { ownerId: profile.id }, select: { id: true } }))) {
+            await db.seller.create({ data: { name: businessName!, ownerId: profile.id, ...legalData, responseRate: 100 } })
+          }
+        } else if (byPhone && !byPhone.ownerId) {
+          // Unowned storefront on this number and the caller has not verified it.
+          // ⚠️ ASK THEM TO VERIFY rather than silently creating a SECOND, empty storefront. That
+          // was the first version of this fix and it is unrecoverable: `Seller.ownerId` is @unique,
+          // so the empty row takes their one storefront slot, and the verified auto-claim at
+          // src/lib/profile.ts:73-77 is an unguarded `updateMany({ where: { phone, ownerId: null } })`
+          // — stamping a second row for the same owner breaks that unique index, the write throws,
+          // its `try` swallows it, and the storefront they actually built stays orphaned forever.
+          return NextResponse.json({ error: 'verify_phone_to_claim' }, { status: 409 })
         } else {
           await db.seller.create({ data: { name: businessName!, ownerId: profile.id, ...(phone ? { phone } : {}), ...legalData, responseRate: 100 } })
         }

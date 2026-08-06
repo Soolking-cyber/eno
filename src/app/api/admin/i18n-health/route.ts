@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { getAdmin } from '@/lib/admin'
 import { translateBatch, LANGS, type Lang } from '@/lib/translate'
 import { UI_STRINGS } from '@/generated/ui-strings'
+import { logError } from '@/lib/log'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -42,7 +43,7 @@ export async function GET(req: NextRequest) {
   const t0 = Date.now()
   const [out] = await translateBatch([sentinel], 'ru', { source: 'health' })
   // translateBatch caches successful results — delete the junk probe row.
-  await db.translation.deleteMany({ where: { hash: sha1(sentinel), target: 'ru' } }).catch(() => {})
+  await db.translation.deleteMany({ where: { hash: sha1(sentinel), target: 'ru' } }).catch((e) => logError(e, { op: 'i18nHealth.clearSentinel' }))
   return NextResponse.json({
     ...base,
     probe: { ok: out !== sentinel, ms: Date.now() - t0, result: out.slice(0, 80) },

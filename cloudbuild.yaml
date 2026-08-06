@@ -25,6 +25,18 @@ steps:
       - |
         set -euo pipefail
         printf '%s' "$$BUILDENV" > /workspace/buildenv.env
+        # ⚠️ APPENDED, NOT ASSUMED — the same rule cloudbuild.services.yaml has always followed, and
+        # this pipeline was the one missing it (fixed 2026-08-05). The asymmetry was the danger: the
+        # SERVICES build guaranteed its edition in the pipeline, while the MARKETPLACE build — the
+        # licensed company's — trusted the eno-root-env secret to contain the line. And the failure
+        # direction is the illegal one: src/lib/edition.ts folds an ABSENT value to 'services', and
+        # next.config.ts rejects only a value that is present-and-misspelled, so a dropped line in
+        # the secret would silently build the SERVICES edition — visa, itinerary and PayPal — onto
+        # eno.vn, with no gate firing anywhere. Appending here means this file wins regardless of
+        # what the secret holds (the Dockerfile sources it with `set -a`, last assignment winning),
+        # and next.config.ts still cross-checks it against NEXT_PUBLIC_APP_URL, so a secret pointing
+        # at the wrong host fails the build rather than shipping mislabelled.
+        printf '\nNEXT_PUBLIC_ENO_EDITION=marketplace\n' >> /workspace/buildenv.env
         export DOCKER_BUILDKIT=1
         docker build \
           --secret id=buildenv,src=/workspace/buildenv.env \

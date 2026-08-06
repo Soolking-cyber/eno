@@ -15,7 +15,10 @@ const KINDS = ['feedback', 'technical', 'other'] as const
 export async function POST(req: NextRequest) {
   const profileId = await getCurrentProfileId()
   const ip = clientIp(req)
-  const rl = await rateLimit('feedback', profileId || ip, 8, '1 h')
+  // ⚠️ strict: FAIL CLOSED. This is an UNAUTHENTICATED write and this limiter is its only gate, so
+  // open means unbounded 4000-char rows landing in /admin/feedback — the queue a human triages.
+  // The route already returns 503 when its own write fails, so the client copy for that case exists.
+  const rl = await rateLimit('feedback', profileId || ip, 8, '1 h', { strict: true })
   if (!rl.success) return NextResponse.json({ error: 'rate_limited' }, { status: 429 })
 
   let body: { kind?: string; message?: string; email?: string; url?: string }
