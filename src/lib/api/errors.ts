@@ -205,6 +205,15 @@ export type NicheApiErrorCode =
   | 'reply_required'
   | 'report_cooldown'
   | 'reporting_blocked'
+  /**
+   * ⚠️ MISSED BY THE HARVEST, NOT NEW ON THE WIRE. POST /api/handle re-emits validateHandle()'s own
+   * code with `{ error: code }` where `code` is a VARIABLE, so the regex in this file's header —
+   * which matches a literal `error: '…'` — could not see it. Anything returning a computed code is
+   * invisible to that grep; this is the first one found (WS6, 2026-08-06). Added rather than folded
+   * into `invalid`: the handle editor distinguishes "that name is taken by the platform" from
+   * "that name is malformed", and they are different sentences to the user.
+   */
+  | 'reserved'
   | 'retry'
   | 'save_failed'
   | 'send_failed'
@@ -433,6 +442,7 @@ const ALL = [
   'reply_required',
   'report_cooldown',
   'reporting_blocked',
+  'reserved',
   'retry',
   'save_failed',
   'send_failed',

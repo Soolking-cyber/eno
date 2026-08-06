@@ -1,9 +1,8 @@
 import { z } from 'zod'
 import { NextResponse } from 'next/server'
-import { getCurrentProfileId } from '@/lib/admin'
+import { route } from '@/lib/api/handler'
 import { db } from '@/lib/db'
 import { insertMessage } from '@/lib/messages'
-import { rateLimit } from '@/lib/ratelimit'
 import { getVisaDb } from '@/lib/visa/db'
 import { visaDmFailureFor } from '@/lib/visa/dm-flow'
 import { getVisaThreadMode, setVisaThreadMode } from '@/lib/visa/dm-thread'
@@ -44,15 +43,37 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 // Message.body and Conversation.lastMessageText, where tr() cannot run at render time.
 const HELP_REQUEST_LINE = '🙋 Cần nhân viên hỗ trợ · Human help requested'
 
-export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const userId = await getCurrentProfileId()
-  if (!userId) return NextResponse.json({ error: 'auth_required' }, { status: 401 })
-  // Tight: this pings a human queue. A stuck applicant asks once or twice.
-  const limit = await rateLimit('visa-dm-help', userId, 10, '1 h', { strict: true })
-  if (!limit.success) return NextResponse.json({ error: 'rate_limited' }, { status: 429 })
+// ⚠️ WS6 MIGRATION (.svc surface). `auth: 'userId'` because the old preamble WAS
+// getCurrentProfileId() — same local JWT read, no Profile row, same 401 `auth_required`. The
+// limiter hoists too: its key was the bare `userId` (not a composite), its bucket/limit/window/
+// strict are passed through verbatim, and it already sat immediately after auth and before every
+// other check — so `auth → rateLimit → handler` reproduces the original order exactly.
+//
+// ⚠️ THE BODY SCHEMA DELIBERATELY STAYS IN THE HANDLER, and the blocking bytes are the
+// `.catch(() => ({}))`. A request with NO body — `fetch(url, { method: 'POST' })` — makes
+// `request.json()` reject, the catch substitutes `{}`, and `{}` PARSES: `note` is optional and
+// `mode` has `.default('human_requested')`, so a bodyless POST is a successful human-help request
+// answering 200 `{"mode":"human_requested"}` today. route()'s `body:` option answers
+// `apiFail(invalidBodyCode, 400)` the moment `req.json()` rejects, which would turn that success
+// into a 400. (A body of literal `null` is a different branch and is unaffected either way: it
+// PARSES to `null`, the catch never fires, and `safeParse(null)` fails an object schema → the same
+// 400 `invalid_request` as before.)
+//
+// Wire enumerated before editing, all unchanged: guest 401 `auth_required` · throttled 429
+// `rate_limited` · absent/unparseable body → treated as `{}`, proceeds · well-formed body failing
+// the strict schema 400 `invalid_request` · non-uuid id 404 `not_found` · case not the caller's (or
+// absent) 404 `not_found` · no bound thread 409 `thread_not_bound` · thread not the caller's 409
+// `thread_conflict` · operator holds the case 409 `admin_takeover` · already in the target mode 200
+// `{mode,unchanged:true}` · 200 `{"mode":"ai"}` · 200 `{"mode":"human_requested"}` · any throw
+// inside the try → visaDmFailureFor's own code+status, untouched.
+export const POST = route(
+  { auth: 'userId', rateLimit: { bucket: 'visa-dm-help', limit: 10, window: '1 h', strict: true } },
+  // Tight: this pings a human queue. A stuck applicant asks once or twice. Strict fails CLOSED —
+  // a limiter outage must not let an unbounded number of pages reach the desk.
+  async ({ req: request, params, userId }) => {
   const parsed = bodySchema.safeParse(await request.json().catch(() => ({})))
   if (!parsed.success) return NextResponse.json({ error: 'invalid_request' }, { status: 400 })
-  const { id } = await params
+  const { id } = params
   if (!UUID_RE.test(id)) return NextResponse.json({ error: 'not_found' }, { status: 404 })
 
   try {
@@ -113,4 +134,5 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const failure = visaDmFailureFor(error)
     return NextResponse.json({ error: failure.error }, { status: failure.status })
   }
-}
+  },
+)

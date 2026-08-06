@@ -120,6 +120,19 @@ async function readBoundedBody(request: Request): Promise<unknown> {
   }
 }
 
+// ⚠️ WS6 — NOT MIGRATED: three wire facts.
+// · A guest is answered `{"error":"not_signed_in"}` at 401. Every route() auth mode that resolves a
+//   caller answers `apiFail('auth_required', 401)`, and `Options` exposes no override for that code
+//   (only `invalidBodyCode`, which covers the body branch alone).
+// · The body is read BOUNDED — `content-length` and the delivered text are both checked against
+//   4 kB, and an oversized one is answered `{"error":"body_too_large"}` at 413. route()'s parser
+//   calls `req.json()` with no ceiling and can only answer one 400 code, so `body:` deletes the 413
+//   branch outright.
+// · There is no route-level limiter to hoist. The meter is `aiGuard('itinerary-refine', …)` plus
+//   `spendRefinement(itineraryId)`, and both must run AFTER the ownership 404s below — a stranger's
+//   `stayId` must cost no quota, and `spendRefinement` is keyed on the itinerary rather than on the
+//   caller, which `rateLimit:` cannot express.
+// With auth, body and the meter all pinned in the handler, all four options are empty.
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id: itineraryId } = await params
 

@@ -50,6 +50,22 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 const NO_STORE = { 'Cache-Control': 'no-store, max-age=0, must-revalidate' } as const
 const refuse = (error: string, status: number) => NextResponse.json({ error }, { status, headers: NO_STORE })
 
+// ⚠️ WS6 — NOT MIGRATED: EVERY RESPONSE CARRIES A HEADER THE WRAPPER CANNOT SET, INCLUDING THE
+// REFUSALS. `refuse()` above attaches `Cache-Control: no-store, max-age=0, must-revalidate` to the
+// 401, the 429, both 404s and all three 503s; `apiFail()` emits a bare `NextResponse.json({error})`
+// with no headers, so the 401 and the 429 the wrapper would produce lose the header the file's own
+// preamble calls a data leak in one direction and an outage in the other. The success path is a
+// `Response` with five headers, which a handler may still return — but the refusals are the ones
+// the wrapper would author, and it cannot.
+//
+// Two further wire facts block the individual options even if headers were free:
+//   · `auth:` — the gate is `!userId && !admin` over `Promise.all([getCurrentProfileId(),
+//     getAdmin()])`, and `admin` is read again at the ownership check and at the audit actor. Same
+//     disjunction as the per-document route; `auth:'userId'` 401s a caller today's bytes serve,
+//     `auth:'admin'` answers capital-F `Forbidden` 403 to the applicant who owns the visa.
+//   · `rateLimit:` — the key is `userId || admin || 'anon'`, i.e. it falls back to the ADMIN EMAIL
+//     for a desk caller. The wrapper keys on `userId ?? clientIp(req)`, so every admin download
+//     would move from a per-operator bucket to a per-IP one.
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const [userId, admin] = await Promise.all([getCurrentProfileId(), getAdmin()])
   if (!userId && !admin) return refuse('auth_required', 401)

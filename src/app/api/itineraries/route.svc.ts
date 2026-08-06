@@ -89,10 +89,31 @@ const itinerarySchema = z.object({
   })
 })
 
+// ⚠️ WS6 — NOT MIGRATED (all three exports): EVERY response this file returns is built by
+// `forumJson`/`forumPreflight`, which set `Access-Control-Allow-Origin` (echoing the caller's
+// origin), `Access-Control-Allow-Methods: GET, POST, OPTIONS`, `Access-Control-Allow-Headers:
+// Authorization, Content-Type`, `Access-Control-Max-Age: 86400` and APPEND `Vary: Origin`
+// (src/lib/forum/cors.ts:53-63). `apiFail()` and route()'s `NextResponse.json(data)` carry none of
+// them, so every migrated branch — success and error alike — would lose those five headers, and a
+// cross-origin caller's browser would then refuse to hand the body to the fetch that asked for it.
+// OPTIONS additionally answers `new NextResponse(null, { status: 204 })` — a bodyless 204. (route()
+// CAN return that, via the `data instanceof Response` escape hatch at handler.ts:232; an earlier
+// draft said it could not. The reason to skip is simply that with auth, rateLimit and body all
+// pinned in the handler, all four options are empty and the wrapper buys nothing.)
 export function OPTIONS(request: Request) {
   return forumPreflight(request, 'GET, POST, OPTIONS')
 }
 
+// ⚠️ WS6 — NOT MIGRATED: every response carries the CORS headers `forumJson` attaches
+// (src/lib/forum/cors.ts:53-63 — ACAO, ACAM, ACAH, Max-Age and an appended `Vary: Origin`), and
+// `apiFail()` / `NextResponse.json` carry none. That alone is the blocker, on every branch.
+//
+// ⚠️ IT IS *NOT* THAT THE WRAPPER IS COOKIES-ONLY — an earlier draft said so and it is FALSE.
+// `getCurrentProfile()` and `getCurrentProfileId()` both pass `bearerToken()` to Supabase
+// (src/lib/admin.ts:78, :150, helper at :138), against the same project `getForumAuth` uses, so
+// `auth: 'profile'` would answer a bearer-token caller 200 exactly as today, not 401. The review
+// caught this by reading admin.ts; it matters because the false version made the fix look like two
+// wrapper changes (CORS + a bearer mode) when the bearer half already ships.
 export async function GET(request: Request) {
   const auth = await getForumAuth(request)
   if (!auth) return forumJson(request, { error: 'auth_required' }, { status: 401 }, 'GET, POST, OPTIONS')
@@ -121,6 +142,19 @@ export async function GET(request: Request) {
   }
 }
 
+// ⚠️ WS6 — NOT MIGRATED: four blockers, any one of which is enough.
+// · `isAllowedForumOrigin` runs BEFORE the caller is resolved and answers 403 `origin_not_allowed`.
+//   route()'s order is auth → rateLimit → body, so a disallowed origin arriving without a session
+//   would be answered `{"error":"auth_required"}` 401 instead of that 403.
+// · the caller is `getForumAuth`, which on the bearer path builds its OWN Supabase client and
+//   returns null when NEXT_PUBLIC_SUPABASE_URL / _PUBLISHABLE_KEY are absent
+//   (src/lib/forum/auth.ts:31-33) — a fail-closed branch no wrapper mode has. It is NOT that the
+//   wrapper cannot read a bearer token; it can. See the note on GET.
+// · the limiter's key is `auth.profile.id`, which only exists after that helper has run, and its
+//   throttled answer `{"error":"rate_limited"}` 429 still carries the CORS headers `apiFail()`
+//   omits.
+// · the validation failure is `{"error":"invalid_itinerary","issues":[…]}` at 400 — two keys.
+//   `apiFail()` emits `{"error":"<code>"}` and nothing else, so `body:` would delete `issues`.
 export async function POST(request: Request) {
   if (!isAllowedForumOrigin(request)) return forumJson(request, { error: 'origin_not_allowed' }, { status: 403 }, 'GET, POST, OPTIONS')
   const auth = await getForumAuth(request)

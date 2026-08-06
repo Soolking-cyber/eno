@@ -101,6 +101,20 @@ async function fetchDocument(row: VisaDocumentRow): Promise<VisaBundleDocument> 
 const refuse = (error: string, status: number) =>
   NextResponse.json({ error }, { status, headers: { 'Cache-Control': 'no-store, max-age=0, must-revalidate' } })
 
+// ⚠️ WS6 — NOT MIGRATED: `auth: 'admin'` ANSWERS A DIFFERENT BYTE. This route refuses a non-admin
+// with `{"error":"forbidden"}` — lowercase f — while the wrapper's admin branch is hardcoded to
+// `apiFail('Forbidden', 403)`, capital F (handler.ts:189, and errors.ts keeps both spellings
+// precisely because both are live on the wire). Same status, one changed character, on the gate
+// guarding the most concentrated PII surface in the app.
+//
+// Independently blocking, either one on its own:
+//   · `refuse()` attaches `Cache-Control: no-store, max-age=0, must-revalidate` to EVERY refusal —
+//     403, 404, 429, 500, 503. That header is not cosmetic here: an external review found the
+//     refusals bare and the header was added because a heuristically-cached 404 on this URL keeps
+//     denying the desk after the case becomes downloadable. `apiFail()` sets no headers.
+//   · `rateLimit:` is keyed on the ADMIN EMAIL (`rateLimit('visa-admin-bundle', admin, …)`), which
+//     the wrapper cannot produce — `auth:'admin'` leaves `userId` null, so it would key on
+//     `clientIp(req)` and pool the whole desk behind one office IP.
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const admin = await getAdmin()
   if (!admin) return refuse('forbidden', 403)

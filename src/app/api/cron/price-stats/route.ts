@@ -1,5 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { timingSafeEqual } from 'node:crypto'
+import { route } from '@/lib/api/handler'
 import { db } from '@/lib/db'
 import { Prisma } from '@/generated/prisma/client'
 import { PRICE_STAT_MIN_SAMPLE, PRICE_STAT_MAX_SPREAD } from '@/lib/price-stat'
@@ -8,25 +7,23 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
 
-function bearerOk(header: string | null, secret: string): boolean {
-  const token = header?.startsWith('Bearer ') ? header.slice(7) : ''
-  const a = Buffer.from(token)
-  const b = Buffer.from(secret)
-  return a.length === b.length && timingSafeEqual(a, b)
-}
-
 // Market-price benchmarks (Vercel Cron → vercel.json). Guarded by CRON_SECRET. Recomputes the
 // robust percentile band (P25 / median / P75) for every brand+model+segment that has at least
 // MIN_SAMPLE active listings, in ONE aggregate upsert. Segment = condition, plus a 2-year band
 // when the listing has a `year` (vehicles) — so "Honda Wave (used, 2018–2019)" is its own row.
 // P-percentiles (not mean) shrug off scam/typo outliers. Stale segments (dropped below the
 // sample floor) are pruned so the PDP never shows an out-of-date band.
-export async function GET(req: NextRequest) {
-  const secret = process.env.CRON_SECRET
-  if (!secret || !bearerOk(req.headers.get('authorization'), secret)) {
-    return NextResponse.json({ error: 'forbidden' }, { status: 401 })
-  }
-
+//
+// ⚠️ WS6 MIGRATION — `auth: 'cron'`. One of five byte-identical `bearerOk()` copies, now a single
+// timing-safe comparison in `src/lib/api/handler.ts`. Both branches unchanged:
+//   · unset CRON_SECRET, or a missing/malformed/wrong Bearer token → `{"error":"forbidden"}` 401
+//   · success → `{"ok":true,"segments":…,"pruned":…,"positioned":…}` 200
+//
+// ⚠️ ONE ACCEPTED WIRE CHANGE, AS A SHAPE: any unhandled throw in this handler now returns
+// `{"error":"internal_error"}` 500 instead of Next's default 500 HTML. There is no try/catch here
+// at all — the two `$executeRaw` calls and the `$transaction` are bare — so this is the live
+// behaviour on a DB error, not a hypothetical.
+export const GET = route({ auth: 'cron' }, async () => {
   const upserted = await db.$executeRaw(Prisma.sql`
     INSERT INTO "PriceStat" ("brandSlug", model, segment, n, p25, median, p75, "updatedAt")
     SELECT
@@ -74,5 +71,5 @@ export async function GET(req: NextRequest) {
   `),
   ])
 
-  return NextResponse.json({ ok: true, segments: upserted, pruned: removed, positioned })
-}
+  return { ok: true, segments: upserted, pruned: removed, positioned }
+})

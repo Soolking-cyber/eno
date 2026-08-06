@@ -68,6 +68,13 @@ async function enforcementPayload(profileId: string, sellerId: string | null) {
 // seller opens the dashboard for: new messages? how are my listings doing? what
 // needs action? auth → core → respond (the aggregation is the shared
 // dashboardStatsCore, whose `stats` the future /api/v1/analytics/summary reuses).
+//
+// ⚠️ WS6 — NOT MIGRATED: THE 401 CARRIES A PAYLOAD KEY, NOT AN ERROR CODE. A guest gets
+// `{"dashboard":null}` with status 401 — the status is right but the body is the route's ordinary
+// envelope with a null payload, and the dashboard client reads `data.dashboard` rather than
+// `data.error`. `auth: 'profile'` would replace it with `{"error":"auth_required"}` and the page
+// would render its loaded state against `undefined`. Everything else here is a single authed read
+// path with no rate limit and no body, so the wrapper has nothing left to contribute.
 export async function GET() {
   const profile = await getCurrentProfile()
   if (!profile) return NextResponse.json({ dashboard: null }, { status: 401 })

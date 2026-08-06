@@ -1,9 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import sharp from 'sharp'
 import { Type } from '@google/genai'
 import { db } from '@/lib/db'
-import { getAdmin } from '@/lib/admin'
 import { getGemini, GEMINI_MODEL, GEMINI_MODEL_FALLBACK } from '@/lib/gemini'
+import { ApiError, route } from '@/lib/api/handler'
 import { getSupabaseAdmin, EVIDENCE_BUCKET } from '@/lib/supabase-admin'
 import { safeFetch } from '@/lib/ssrf'
 import { rateLimit } from '@/lib/ratelimit'
@@ -87,17 +87,56 @@ async function downscale(buf: Buffer): Promise<string | null> {
   }
 }
 
-export async function POST(req: NextRequest) {
-  const admin = await getAdmin()
-  if (!admin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-
+// ⚠️ WS6 MIGRATION — THE AUTH PREAMBLE ONLY, AND EVERY OTHER BLOCK STAYS PUT FOR A REASON.
+//
+// `auth: 'admin'` is the getAdmin() this route called; a non-admin still gets `{"error":"Forbidden"}`
+// 403, capital F. (The `admin` local was only ever read for that check, so nothing downstream loses
+// it.)
+//
+// ⚠️ `'admin'` RESOLVES NO PROFILE. An earlier draft of this header said it follows getAdmin()
+// with getCurrentProfile() and called the extra Profile read an accepted cost. It did, and the
+// cost turned out not to be acceptable anywhere: no admin handler reads ctx.profile or
+// ctx.userId, the call made read-only admin GETs perform a presence-heartbeat WRITE, and on a
+// first-ever call it runs ensureProfile()'s irreversible guest-Seller auto-claim. It was removed
+// from the wrapper in this same commit; getAdmin() is Supabase-auth only and touches no DB.
+//
+// ⚠️ NO `body:` SCHEMA — TWO INDEPENDENT REASONS, EITHER ONE SUFFICIENT.
+//   1. ORDER. route() parses the body BEFORE the handler runs, which would move it ahead of the
+//      `ai_unavailable` 503. Today an admin posting malformed JSON while Gemini is unconfigured
+//      gets 503; with a schema they would get 400.
+//   2. COERCION. `String(body.reportId || '').trim()` accepts a number, `null` or an object and
+//      turns it into a string; zod would 400 those. The distinction between an absent reportId
+//      (`missing_report_id`) and unparseable JSON (`bad_request`) is also two different codes that
+//      a single `invalidBodyCode` cannot express.
+//
+// ⚠️ THE DAILY BUDGET LIMITER DOES *NOT* MOVE INTO `rateLimit:`, for two reasons that compound:
+//   1. Its 429 body carries a `message` alongside the code — `{"error":"budget_exhausted",
+//      "message":"Daily AI review budget (200) is used up…"}` — and the wrapper's option emits a
+//      bare `{"error":"rate_limited"}`. The admin UI shows that sentence.
+//   2. It must run AFTER the not-found check and AFTER the cache hit. Hoisting it would spend a
+//      slot of a 200/day GLOBAL budget on re-opening a case that answers from cache for free, and
+//      would let a bad report id burn budget. It is a spend breaker, not an abuse limiter.
+// So it stays where it is and returns its Response directly through route()'s escape hatch.
+//
+// Branches: non-admin → 403 `{"error":"Forbidden"}` · Gemini unconfigured → 503 `ai_unavailable` ·
+// malformed JSON → 400 `bad_request` · no reportId → 400 `missing_report_id` · unknown report →
+// 404 `not_found` · fresh cached analysis → 200 the cached object + `cached:true` · budget spent →
+// 429 `budget_exhausted` + message · both model attempts fail, or an unusable `outcome` → 502
+// `ai_failed` · success → 200 the result object.
+//
+// ⚠️ ONE BRANCH IS NOT BYTE-IDENTICAL: none of the evidence-gathering awaits (the report lookup,
+// the Promise.all waves, the storage downloads) were wrapped, so a DB or Supabase rejection used to
+// surface as Next's default 500 HTML. route() now catches it, logs it with an `op`, and returns
+// `{"error":"internal_error"}` 500 — an improvement (a structured code, never the exception text,
+// which here could carry a Prisma query or a report's PII), but a wire change on that failure path.
+export const POST = route({ auth: 'admin' }, async ({ req }) => {
   const ai = getGemini()
-  if (!ai) return NextResponse.json({ error: 'ai_unavailable' }, { status: 503 })
+  if (!ai) throw new ApiError('ai_unavailable', 503)
 
   let body: { reportId?: string; force?: boolean }
-  try { body = await req.json() } catch { return NextResponse.json({ error: 'bad_request' }, { status: 400 }) }
+  try { body = await req.json() } catch { throw new ApiError('bad_request', 400) }
   const reportId = String(body.reportId || '').trim()
-  if (!reportId) return NextResponse.json({ error: 'missing_report_id' }, { status: 400 })
+  if (!reportId) throw new ApiError('missing_report_id', 400)
 
   const report = await db.report.findUnique({
     where: { id: reportId },
@@ -108,20 +147,25 @@ export async function POST(req: NextRequest) {
       aiAnalysis: true, aiAnalyzedAt: true, lastMessageAt: true,
     },
   })
-  if (!report) return NextResponse.json({ error: 'not_found' }, { status: 404 })
+  if (!report) throw new ApiError('not_found', 404)
 
   // Cached analysis (free) unless forced or the thread moved since it was produced —
   // re-opening a case doesn't silently re-spend the daily budget.
   if (!body.force && report.aiAnalysis && report.aiAnalyzedAt) {
     const stale = report.lastMessageAt && report.lastMessageAt > report.aiAnalyzedAt
     if (!stale) {
+      // ⚠️ THE SPREAD STAYS INSIDE THE try. JSON.parse on a corrupt cache must still fall through
+      // to a fresh run rather than escaping as a 500; only the NextResponse.json() wrapper moved out.
       try {
-        return NextResponse.json({ ...JSON.parse(report.aiAnalysis), cached: true, analyzedAt: report.aiAnalyzedAt.toISOString() })
+        return { ...JSON.parse(report.aiAnalysis), cached: true, analyzedAt: report.aiAnalyzedAt.toISOString() }
       } catch { /* corrupt cache → fall through to a fresh run */ }
     }
   }
 
   // Global daily budget breaker — admin-only surface, so one shared bucket.
+  // ⚠️ NOT route()'s `rateLimit:` option — see the header: the body carries a `message` the option
+  // cannot emit, and it must stay BELOW the not-found and cache-hit checks so a cached re-open
+  // never spends a slot. Returned as a Response through the wrapper's escape hatch.
   const gate = await rateLimit('admin-ai-review', 'global', DAILY_BUDGET, '1 d', { strict: true })
   if (!gate.success) return NextResponse.json({ error: 'budget_exhausted', message: `Daily AI review budget (${DAILY_BUDGET}) is used up — it resets tomorrow.` }, { status: 429 })
 
@@ -368,11 +412,11 @@ ${sections.join('\n\n')}`
       console.error(`[admin/ai-review] ${attempt.model}`, e)
     }
   }
-  if (!ok) return NextResponse.json({ error: 'ai_failed' }, { status: 502 })
+  if (!ok) throw new ApiError('ai_failed', 502)
 
   // Validate — never trust the model's fields blindly.
   const outcome = OUTCOMES.find((o) => o === parsed.outcome)
-  if (!outcome) return NextResponse.json({ error: 'ai_failed' }, { status: 502 })
+  if (!outcome) throw new ApiError('ai_failed', 502)
   const severity = outcome === 'confirm' ? (SEVS.find((s) => s === parsed.severity) ?? null) : null
   const confidence = Math.min(1, Math.max(0, Number(parsed.confidence) || 0))
   const strList = (v: unknown, max: number, len = 300): string[] =>
@@ -399,5 +443,5 @@ ${sections.join('\n\n')}`
     data: { aiAnalysis: JSON.stringify(result), aiAnalyzedAt: new Date() },
   }).catch((e) => logError(e, { op: 'ai-review.call' }))
 
-  return NextResponse.json(result)
-}
+  return result
+})

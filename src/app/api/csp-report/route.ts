@@ -14,6 +14,21 @@ export const dynamic = 'force-dynamic'
 // flood vector). Always 204 — a report sink must give a prober no feedback.
 const MAX_BODY = 16 * 1024
 
+// ⚠️ WS6 — NOT MIGRATED. EVERY branch of this route is a BODYLESS 204, and the wrapper cannot emit
+// one: a handler's plain-object return always becomes `NextResponse.json(...)`, and `apiFail()`
+// always writes `{"error":"<code>"}`. Specifically (WS6 audit, 2026-08-06):
+//   · THE THROTTLED ANSWER IS A 204, NOT A 429. `rateLimit:` would answer
+//     `{"error":"rate_limited"}` 429, which tells a prober that its reports are landing and that it
+//     has found the cap. "Always 204" is the contract stated in the comment above: a report sink
+//     gives a prober no feedback at all, and the limiter is deliberately fail-OPEN besides.
+//   · THE OVERSIZE AND MALFORMED BRANCHES ARE ALSO 204s, so `body:` / `invalidBodyCode` (a 400)
+//     would change both. The cap is checked on `req.text()` BEFORE JSON.parse; `body:` calls
+//     `req.json()`, which parses first and never sees a length.
+//   · THE PAYLOAD IS NOT `application/json`. Browsers send `application/csp-report` (report-uri) or
+//     `application/reports+json` (Reporting API), and the two carry different shapes — one object
+//     under a `csp-report` key, or a batch array of `{type, body}`. That is what the reader below
+//     normalises; a single zod schema is the wrong tool for it.
+// Auth stays public by necessity: the reporter is a browser with no session.
 export async function POST(req: NextRequest) {
   // Fail OPEN: telemetry must never throttle real users; the cap only blunts floods.
   const rl = await rateLimit('csp-report', clientIp(req), 60, '1 m')

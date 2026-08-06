@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { NextResponse } from 'next/server'
-import { getCurrentProfileId } from '@/lib/admin'
+import { route } from '@/lib/api/handler'
 import { db } from '@/lib/db'
 import { parseMessageMeta, setVisaStepState } from '@/lib/messages'
 import { rateLimit } from '@/lib/ratelimit'
@@ -59,9 +59,32 @@ const bodySchema = z.object({
   step: z.number().int().min(1).max(5).optional(),
 }).strict()
 
-export async function POST(request: Request, { params }: { params: Promise<{ messageId: string }> }) {
-  const userId = await getCurrentProfileId()
-  if (!userId) return NextResponse.json({ error: 'auth_required' }, { status: 401 })
+// ⚠️ WS6 MIGRATION (.svc surface), AUTH ONLY. `auth: 'userId'` is byte-identical — the preamble
+// WAS getCurrentProfileId() answering 401 `auth_required` — and proof (1) in the entitlement list
+// above is now the wrapper's job rather than this file's. Proofs (2)–(4) are untouched.
+//
+// ⚠️ THE LIMITER CANNOT HOIST, because `visaCryptoReady()` runs in front of it and route()'s order
+// is fixed at auth → rateLimit → body. That guard is a pure env read (`VISA_DATA_ENCRYPTION_KEY`,
+// src/lib/visa/crypto.ts:24-29), so it is process-CONSTANT: on a host without the key EVERY request
+// answers 503 `visa_encryption_not_configured` and spends no token. With the limiter in front, the
+// 181st such request in an hour would answer 429 `rate_limited` instead of 503 — a different status
+// and a different body on a branch that is live wherever the key is absent.
+//
+// ⚠️ AND THE BODY FOLLOWS THE LIMITER, so `body:` is blocked by the same ordering: today a
+// throttled caller with a malformed body gets 429, and with the schema hoisted while the limiter
+// stays here they would get 400 `invalid_request` instead. (The schema also could not carry the
+// three size gates below — the `edit`-needs-fields rule, the 40-key cap and the step ceiling —
+// which read `action` and the card's own `meta.step`.)
+//
+// Wire enumerated before editing, all unchanged: guest 401 `auth_required` · unconfigured crypto
+// 503 `visa_encryption_not_configured` · throttled 429 `rate_limited` · unparseable or
+// schema-failing body 400 `invalid_request` · `edit` with no fields, >40 fields, or a step above
+// the card's 400 `invalid_request` · absent/oversized messageId, a non-`visa_step` message, or
+// unreadable meta 404 `not_found` · someone else's thread 403 `not_your_card` · a rebound thread
+// 409 `card_superseded` · the dm-flow refusals at their own status with their own `fields`/`step`
+// companions · 200 `{ok:true, step, nextMessageId}` · anything thrown → visaDmFailureFor's
+// class-only code+status.
+export const POST = route({ auth: 'userId' }, async ({ req: request, params, userId }) => {
   if (!visaCryptoReady()) return NextResponse.json({ error: 'visa_encryption_not_configured' }, { status: 503 })
   const limit = await rateLimit('visa-dm-card-act', userId, 180, '1 h', { strict: true })
   if (!limit.success) return NextResponse.json({ error: 'rate_limited' }, { status: 429 })
@@ -70,7 +93,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ mes
   // Generic: a zod issue on `fields` can quote the offending VALUE, which here is passport
   // data. The client knows what it sent.
   if (!parsed.success) return NextResponse.json({ error: 'invalid_request' }, { status: 400 })
-  const { messageId } = await params
+  const { messageId } = params
   // Message.id is a cuid — a bounded opaque string, checked for shape only so a pathological
   // key never reaches the database.
   if (!messageId || messageId.length > 64) return NextResponse.json({ error: 'not_found' }, { status: 404 })
@@ -142,4 +165,4 @@ export async function POST(request: Request, { params }: { params: Promise<{ mes
     const failure = visaDmFailureFor(error)
     return NextResponse.json({ error: failure.error }, { status: failure.status })
   }
-}
+})

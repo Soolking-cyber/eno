@@ -46,6 +46,23 @@ function safeNextPath(next: unknown): string {
   return next
 }
 
+// ⚠️ WS6 — NOT MIGRATED: EVERY branch is a redirect, and every one carries `Cache-Control: no-store`.
+// There are exactly four exits and all four are `NextResponse.redirect(…, { headers: NO_STORE })`:
+// three via `plain()` (`${FORUM_URL}${next}`) and the mint (`${FORUM_URL}/auth/handoff?token_hash=…`).
+// The wrapper's plain-object return is a 200 JSON body with no headers, so nothing here survives it;
+// returning a `Response` from the handler would preserve it but then the handler builds every
+// response itself and the wrapper buys nothing.
+// Three more blockers, each independent:
+//   · A SIGNED-OUT CALLER MUST GET THE REDIRECT, NOT A 401. `if (!data.user || !email) return plain()`
+//     — a logged-out tap lands on the forum as a guest by design ("logged-out beats a dead tap"). Any
+//     authed mode answers `{"error":"auth_required"}` 401 instead. A phone-only account (no email)
+//     takes the same exit, which no auth mode can express at all.
+//   · THE THROTTLED ANSWER IS THAT SAME REDIRECT, not `{"error":"rate_limited"}` 429.
+//   · THE LIMITER RUNS FOURTH, AND ITS KEY IS THE SUPABASE USER ID. `rateLimit('forum-handoff',
+//     data.user.id, 5, '1 m', { strict: true })` sits behind the UA/nonce gate and behind
+//     `getUser()`, so it never fires for the non-native or nonce-less caller. `rateLimit:` is applied
+//     before the handler, which would start limiting traffic this route deliberately lets through
+//     un-metered, and would key it on `clientIp(req)` for a public route.
 export async function GET(req: Request) {
   const url = new URL(req.url)
   const next = safeNextPath(url.searchParams.get('next'))

@@ -90,6 +90,15 @@ async function geocodeNominatim(lat: string, lng: string, lang: string): Promise
 }
 
 // GET /api/reverse-geocode?lat=&lng=&lang= → { address, district }
+//
+// ⚠️ WS6 — NOT MIGRATED, AND THE REASON IS ORDER, NOT SHAPE. The limiter's code/status/key all match
+// what `rateLimit: { bucket: 'geocode', limit: 30, window: '1 m', strict: true }` would emit — but the
+// wrapper runs it BEFORE the handler, and here the `missing_coords` 400 deliberately runs FIRST. A
+// caller sending junk coordinates currently costs nothing and always reads 400; hoisting would charge
+// them 30 slots a minute and then answer 429 instead, throttling the post wizard's real "use my
+// location" tap on the strength of malformed requests. `strict: true` makes that worse — the limiter
+// fails CLOSED, so a limiter blip would 429 a request that today cannot get past validation. Public
+// and no JSON body, so with the limiter pinned in place all four options are empty.
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url)
   const lat = searchParams.get('lat')

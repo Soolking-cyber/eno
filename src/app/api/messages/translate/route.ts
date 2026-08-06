@@ -1,10 +1,10 @@
-import { NextResponse, after } from 'next/server'
+import { after } from 'next/server'
 import crypto from 'crypto'
 import { db } from '@/lib/db'
-import { getCurrentProfileId } from '@/lib/admin'
 import { translateBatch, LANGS, type Lang } from '@/lib/translate'
 import { rateLimit, kv } from '@/lib/ratelimit'
 import { logError } from '@/lib/log'
+import { ApiError, route } from '@/lib/api/handler'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -75,12 +75,46 @@ async function cacheFresh(lang: Lang, sources: string[], results: string[]): Pro
   if (fresh.length) await kv.mset(fresh, EPHEMERAL_TTL_SEC).catch((e) => logError(e, { op: 'translate.mset' }))
 }
 
-export async function POST(req: Request) {
-  const meId = await getCurrentProfileId()
-  if (!meId) return NextResponse.json({ error: 'auth_required' }, { status: 401 })
-
+// ⚠️ WS6 MIGRATION — THE AUTH PREAMBLE ONLY, AND BOTH OMISSIONS ARE FORCED BY ORDER.
+//
+// `auth: 'userId'` because the old code called getCurrentProfileId() verbatim and the handler only
+// compares the returned id against buyerProfileId/sellerProfileId and `senderProfileId: { not: meId }`.
+// No Profile field is read, so 'profile' would add a getUser() round trip and a Profile row read to a
+// call that fires on every thread open — the hot-path regression handler.ts's `userId` mode exists to
+// prevent.
+//
+// ⚠️ THE LIMITER DOES NOT MOVE INTO `rateLimit:`, for two independent reasons. (a) It runs only
+// `if (misses.length)` — a request served entirely from the ephemeral cache costs nothing and MUST
+// always serve, which is the whole affordability design above; the wrapper's option is unconditional.
+// (b) It runs AFTER the membership gate, so hoisting it would let a non-participant who currently
+// always gets 403 start seeing 429, and would spend a participant's per-minute budget on 404/403/413
+// requests that never reach the provider. `strict: true` is preserved exactly where it was.
+//
+// ⚠️ NO `body:` SCHEMA. The hand-coercion is deliberately TOLERANT in a way zod is not: a non-string
+// `conversationId`/`target` is coerced to '' and falls into the same 400, and `messageIds` is
+// FILTERED (non-strings and empties dropped, then deduped) rather than rejected — so today
+// `{messageIds:['a',1,'a']}` translates message `a`, where a zod array-of-string would 400. Adding a
+// schema would tighten validation, which is a wire change.
+//
+// Branches held, unchanged: guest → 401 `auth_required` · malformed JSON → 400 `bad_request` ·
+// missing/blank conversationId, unknown target lang, empty or >50 ids → 400 `bad_request` · unknown
+// thread → 404 `not_found` · non-participant → 403 `forbidden` · no eligible rows → 200 `{"items":[]}` ·
+// >5k chars → 413 `payload_too_large` · over the per-minute paid limit → 429 `rate_limited` ·
+// accounting down → 503 `budget_unavailable` · provider slow → 503 `translate_timeout` · provider
+// down, or over budget with a dead cache → 503 `translate_unavailable` · over budget with a live
+// cache → 200 with originals · success → 200 `{"items":[…]}`.
+//
+// ⚠️ ONE BRANCH IS NOT BYTE-IDENTICAL: ANY unhandled throw in this handler used to reach Next's
+// default 500 HTML, and route() now catches it, logs with an `op`, and returns
+// `{"error":"internal_error"}` 500 — an improvement, but a wire change on that failure path.
+//
+// Stated as a shape rather than an inventory, deliberately. The first draft named
+// `db.conversation.findUnique` / `db.message.findMany` as the causes; the review pointed out a
+// third that needs no DB at all — a body of literal `null` parses fine, so the tolerant parse
+// below does not fire, and the `typeof body.conversationId` coercion TypeErrors on null.
+export const POST = route({ auth: 'userId' }, async ({ req, userId: meId }) => {
   let body: { conversationId?: unknown; messageIds?: unknown; target?: unknown }
-  try { body = await req.json() } catch { return NextResponse.json({ error: 'bad_request' }, { status: 400 }) }
+  try { body = await req.json() } catch { throw new ApiError('bad_request', 400) }
 
   const conversationId = typeof body.conversationId === 'string' ? body.conversationId : ''
   const target = typeof body.target === 'string' ? body.target : ''
@@ -88,7 +122,7 @@ export async function POST(req: Request) {
     ? Array.from(new Set(body.messageIds.filter((x): x is string => typeof x === 'string' && !!x)))
     : []
   if (!conversationId || !LANGS.includes(target as Lang) || !ids.length || ids.length > MAX_IDS) {
-    return NextResponse.json({ error: 'bad_request' }, { status: 400 })
+    throw new ApiError('bad_request', 400)
   }
   const lang = target as Lang
 
@@ -101,9 +135,9 @@ export async function POST(req: Request) {
     where: { id: conversationId },
     select: { buyerProfileId: true, sellerProfileId: true },
   })
-  if (!convo) return NextResponse.json({ error: 'not_found' }, { status: 404 })
+  if (!convo) throw new ApiError('not_found', 404)
   if (meId !== convo.buyerProfileId && meId !== convo.sellerProfileId) {
-    return NextResponse.json({ error: 'forbidden' }, { status: 403 })
+    throw new ApiError('forbidden', 403)
   }
 
   // The server chooses what is translatable — the client's own filter is a courtesy, not
@@ -114,11 +148,11 @@ export async function POST(req: Request) {
     select: { id: true, body: true },
   })
   const eligible = rows.filter((r) => r.body.trim().length > 0)
-  if (!eligible.length) return NextResponse.json({ items: [] as Item[] })
+  if (!eligible.length) return { items: [] as Item[] }
 
   const totalChars = eligible.reduce((n, r) => n + r.body.length, 0)
   if (totalChars > MAX_CHARS_PER_REQ) {
-    return NextResponse.json({ error: 'payload_too_large' }, { status: 413 })
+    throw new ApiError('payload_too_large', 413)
   }
 
   // ── 1) Ephemeral cache: one round trip, and every hit is free ──────────────────────
@@ -157,7 +191,7 @@ export async function POST(req: Request) {
     const rl = await rateLimit('chat-translate', meId, 20, '1 m', { strict: true })
     if (!rl.success) {
       // Transient and per-minute — the client leaves these ids un-attempted and retries.
-      return NextResponse.json({ error: 'rate_limited' }, { status: 429 })
+      throw new ApiError('rate_limited', 429)
     }
     try {
       const day = today()
@@ -175,7 +209,10 @@ export async function POST(req: Request) {
     } catch {
       // No accounting ⇒ no paid call (same stance as /api/translate). But this is a BLIP,
       // not a ceiling, so it must not be answered with a cacheable 200.
-      return NextResponse.json({ error: 'budget_unavailable' }, { status: 503 })
+      // ⚠️ Thrown from the CATCH block, not the try — an ApiError raised here propagates to
+      // route()'s own catch, which turns it back into the same 503, rather than being swallowed
+      // and re-classified by the accounting catch it is reporting.
+      throw new ApiError('budget_unavailable', 503)
     }
 
     if (!overBudget.day && !overBudget.user) {
@@ -196,14 +233,14 @@ export async function POST(req: Request) {
           const late = await work
           if (late && late.length === misses.length) await cacheFresh(lang, misses, late)
         })
-        return NextResponse.json({ error: 'translate_timeout' }, { status: 503 })
+        throw new ApiError('translate_timeout', 503)
       }
       if (!timed || timed.length !== misses.length || stats.providerFailed) {
         // The provider is DOWN (or misaligned): `timed` is source fallback, not translation.
         // `stats.providerFailed` is why translateBatch grew an out-param — output===input is
         // otherwise indistinguishable from text that legitimately translates to itself, and
         // guessing would 503-loop every same-language thread.
-        return NextResponse.json({ error: 'translate_unavailable' }, { status: 503 })
+        throw new ApiError('translate_unavailable', 503)
       }
       misses.forEach((src, i) => translatedByBody.set(src, timed[i] ?? src))
       await cacheFresh(lang, misses, timed)
@@ -213,7 +250,7 @@ export async function POST(req: Request) {
     // "we failed to look". Answering 200 there would permanently bank that ignorance on the
     // client, so this narrow combination stays retryable (codex, confirm round).
     if ((overBudget.day || overBudget.user) && cacheReadFailed) {
-      return NextResponse.json({ error: 'translate_unavailable' }, { status: 503 })
+      throw new ApiError('translate_unavailable', 503)
     }
     // Over budget ⇒ no provider call at all. This is the ONE deliberate degrade-to-200: the
     // ceiling is DAILY, so a 503 here would make every client retry on every message append
@@ -231,5 +268,5 @@ export async function POST(req: Request) {
     const value = translatedByBody.get(r.body) ?? r.body
     return { id: r.id, text: value, translated: value !== r.body }
   })
-  return NextResponse.json({ items })
-}
+  return { items }
+})

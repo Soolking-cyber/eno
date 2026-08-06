@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { NextResponse } from 'next/server'
-import { getCurrentProfile } from '@/lib/admin'
+import { route } from '@/lib/api/handler'
 import { rateLimit } from '@/lib/ratelimit'
 import {
   getVisaShopListings,
@@ -115,10 +115,33 @@ async function visaCatalogueForApplicant(): Promise<VisaCatalogueEntry[]> {
   )
 }
 
-export async function GET(request: Request) {
-  const profile = await getCurrentProfile()
-  if (!profile) return NextResponse.json({ error: 'auth_required' }, { status: 401 })
-  const params = new URL(request.url).searchParams
+// ⚠️ WS6 MIGRATION — `auth: 'profile'` AND NOTHING ELSE. The old preamble was literally
+// `getCurrentProfile()` + `{ error: 'auth_required' }` 401, which is what `auth: 'profile'` emits;
+// `profile.id` (ownership scoping) and `profile.email` (POST's seeded payload) both need the ROW,
+// so `userId` would not do. Every other line below is untouched, including the responses, which
+// keep returning `NextResponse` through route()'s Response passthrough rather than being reshaped
+// — this is a live applicant-PII surface and a rewrite of ten return statements buys nothing.
+//
+// THE WIRE, ENUMERATED. GET: guest → 401 `auth_required`; `?catalogue=1` → 200
+// `{products,payments,encryptionReady}` (a catalogue read failure degrades to `products: []`, not
+// an error); `?active=1` → 200 `{application,applications,encryptionReady,payments,products}`;
+// otherwise → 200 `{applications,encryptionReady,payments,products}`; a missing visa table or a
+// `not_configured` message → 503 `{error:'visa_schema_not_ready'}` / `{error:<message>}`; any other
+// DB failure → 500 `{error:'internal_error'}`. No rate limit, no request body — there is nothing
+// else to hoist.
+//
+// ⚠️ THE 503's CODE IS COMPUTED (`missing ? 'visa_schema_not_ready' : message`), so it can never
+// go through `apiFail()` — that is a second, independent reason the returns stay as they are.
+// `visa_schema_not_ready` is on the wire and is NOT in `ApiErrorCode`; the harvest regex in
+// src/lib/api/errors.ts only sees a literal `error: '…'`, so a ternary is invisible to it. Left
+// alone rather than added, because nothing here emits it through the typed path.
+//
+// ⚠️ ONE BRANCH IS NOT BYTE-IDENTICAL, AND IT IS THE ACCEPTED EXCEPTION. The caller resolve and
+// the whole `?catalogue=1` branch sit OUTSIDE this handler's try, so any unhandled throw in them
+// used to reach Next's default 500 HTML; route() catches it, logs it with an `op`, and answers
+// `{"error":"internal_error"}` 500. Stated as a shape on purpose — not an inventory of causes.
+export const GET = route({ auth: 'profile' }, async ({ req, profile }) => {
+  const params = new URL(req.url).searchParams
   const activeMode = params.get('active') === '1'
   const catalogueMode = params.get('catalogue') === '1'
 
@@ -241,11 +264,31 @@ export async function GET(request: Request) {
     console.error('[visa] applications GET failed', error)
     return NextResponse.json({ error: 'internal_error' }, { status: 500 })
   }
-}
+})
 
-export async function POST() {
-  const profile = await getCurrentProfile()
-  if (!profile) return NextResponse.json({ error: 'auth_required' }, { status: 401 })
+// ⚠️ WS6 MIGRATION — `auth: 'profile'` only, for the same reason as GET.
+//
+// THE WIRE, ENUMERATED. Guest → 401 `auth_required`; encryption key absent → 503
+// `visa_encryption_not_configured`; throttled → 429 `rate_limited`; success → **201**
+// `{application}`; missing visa table / a `not_configured` message → 503
+// `{error:'visa_schema_not_ready'}` / `{error:<message>}`; any other DB failure → 500
+// `internal_error`. This method reads NO request body (it takes no argument), so there is no
+// schema to hoist.
+//
+// ⚠️ THE LIMITER STAYS IN THE HANDLER BECAUSE OF ITS POSITION, not its key. `rateLimit:` runs
+// BEFORE the handler, i.e. before the `visaCryptoReady()` gate — and on a host without the key
+// today EVERY call answers 503, whereas a hoisted limiter would answer 503 five times and then
+// `{"error":"rate_limited"}` 429 on a 24-hour budget the caller never got to spend. Different
+// bytes on a configuration this code explicitly supports ("a host without the key"), so the
+// `visa-create` budget stays where the 503 can shield it.
+//
+// ⚠️ THE 201 IS WHY THE SUCCESS RETURN KEEPS ITS `NextResponse`: route() serialises a returned
+// object as 200, and this route's created-draft answer is 201.
+//
+// ⚠️ ACCEPTED EXCEPTION, SAME SHAPE AS GET: the caller resolve, the env gate and the limiter sit
+// outside the try, so any unhandled throw there moves from Next's default 500 HTML to
+// `{"error":"internal_error"}` 500.
+export const POST = route({ auth: 'profile' }, async ({ profile }) => {
   // Env gate BEFORE any write: creating a draft encrypts the empty payload.
   if (!visaCryptoReady()) return NextResponse.json({ error: 'visa_encryption_not_configured' }, { status: 503 })
   const limit = await rateLimit('visa-create', profile.id, 5, '24 h', { strict: true })
@@ -272,4 +315,4 @@ export async function POST() {
     console.error('[visa] applications POST failed', error)
     return NextResponse.json({ error: 'internal_error' }, { status: 500 })
   }
-}
+})

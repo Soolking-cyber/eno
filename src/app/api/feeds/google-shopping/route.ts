@@ -14,6 +14,19 @@ function escapeXml(unsafe: string): string {
     .replace(/'/g, '&apos;')
 }
 
+// ⚠️ WS6 — NOT MIGRATED, for the same four reasons as its Meta sibling
+// (src/app/api/feeds/facebook-catalog/route.ts) — WS6 audit, 2026-08-06:
+//   · `feedAuthError()` is HTTP Basic: it resolves the caller itself and answers a PROSE 401 (the
+//     body is `Unauthorized`, not JSON) carrying `WWW-Authenticate`, `Cache-Control: no-store` and
+//     `Vary: Authorization`. `auth:` speaks only Supabase sessions and `apiFail()` carries no
+//     headers.
+//   · Unconfigured (no FEED_USER/FEED_PASSWORD) the feed is deliberately OPEN — a guest gets 200
+//     and the catalog, so any authed mode would 401 the normal caller.
+//   · The success body is `application/xml` plus `feedCacheHeaders()`; a plain-object return is
+//     always JSON with no headers.
+//   · The catch emits `{"error":"Internal Server Error"}` — prose, not an ApiErrorCode, and not the
+//     `{"error":"internal_error"}` route() produces.
+// Auth, rate limit and body would all be empty, so the wrapper buys nothing here regardless.
 export async function GET(req: Request) {
   // Same Basic-Auth protection as the Meta feed (Google Merchant supports a
   // scheduled-fetch login). Open until FEED_USER/FEED_PASSWORD are set.

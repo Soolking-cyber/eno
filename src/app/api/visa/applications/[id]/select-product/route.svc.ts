@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { NextResponse } from 'next/server'
-import { getCurrentProfileId } from '@/lib/admin'
+import { route } from '@/lib/api/handler'
 import { rateLimit } from '@/lib/ratelimit'
 import { selectVisaDmProduct, visaDmFailureFor } from '@/lib/visa/dm-flow'
 
@@ -32,17 +32,39 @@ const bodySchema = z.object({
   listingId: z.string().trim().min(1).max(64),
 }).strict()
 
-export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const userId = await getCurrentProfileId()
-  if (!userId) return NextResponse.json({ error: 'auth_required' }, { status: 401 })
-  const { id } = await params
+// ⚠️ WS6 MIGRATION — `auth: 'userId'` only (the preamble verbatim: getCurrentProfileId() + 401
+// `auth_required`; the id is all selectVisaDmProduct needs to scope the case). THE OTHER OPTIONS
+// ARE BLOCKED:
+//
+//   · `rateLimit:` cannot take this budget. Its KEY is `${userId}:${id}` — per (actor,
+//     application), so switching product on one case is never throttled by another of your own —
+//     and route() keys on `userId` alone. Hoisting it would collapse a per-case budget into a
+//     per-account one. It also has to run AFTER the uuid test, which lives in the handler.
+//   · `body:` cannot move either, because it is parsed after that limiter: hoisted, a malformed
+//     body would answer 400 `invalid_request` where a throttled caller is answered 429 today, and
+//     a non-uuid `id` would stop returning 404 first.
+//
+// THE WIRE, ENUMERATED. Guest → 401 `auth_required`; non-uuid `id` → 404 `not_found`; throttled →
+// 429 `rate_limited`; unparseable or non-`.strict()` body → 400 `invalid_request`; a refusal from
+// selectVisaDmProduct → `{error[,step]}` at its own status; success → 200
+// `{changed,step,nextMessageId,complete}` — including when the chained advance could not post a
+// card, which is deliberately still a 200; a throw inside the flow → visaDmFailureFor()'s
+// `{error}` at its status.
+//
+// ⚠️ THE CAS-GUARDED SELECTION WRITE IS UNTOUCHED. selectVisaDmProduct owns the whole
+// read-modify-write; route() adds nothing inside it and moves nothing across it.
+//
+// ⚠️ ACCEPTED EXCEPTION: the uuid test, the limiter and the body parse sit outside the try, so any
+// unhandled throw in them moves from Next's default 500 HTML to `{"error":"internal_error"}` 500.
+export const POST = route({ auth: 'userId' }, async ({ req, params, userId }) => {
+  const { id } = params
   if (!UUID_RE.test(id)) return NextResponse.json({ error: 'not_found' }, { status: 404 })
   // Per (actor, application) like resend — selection is a deliberate act, not a loop; and
   // the store counts DENIED attempts, so a retry storm extends its own throttle.
   const limit = await rateLimit('visa-select-product', `${userId}:${id}`, 30, '1 h', { strict: true })
   if (!limit.success) return NextResponse.json({ error: 'rate_limited' }, { status: 429 })
 
-  const parsed = bodySchema.safeParse(await request.json().catch(() => null))
+  const parsed = bodySchema.safeParse(await req.json().catch(() => null))
   if (!parsed.success) return NextResponse.json({ error: 'invalid_request' }, { status: 400 })
 
   try {
@@ -69,4 +91,4 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const failure = visaDmFailureFor(error)
     return NextResponse.json({ error: failure.error }, { status: failure.status })
   }
-}
+})

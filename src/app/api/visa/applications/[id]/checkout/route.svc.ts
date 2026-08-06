@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { NextResponse } from 'next/server'
-import { getCurrentProfileId } from '@/lib/admin'
+import { route } from '@/lib/api/handler'
 import { db as marketplaceDb } from '@/lib/db'
 import { rateLimit } from '@/lib/ratelimit'
 import { getVisaShopListings, resolveVisaProduct } from '@/lib/visa-shop'
@@ -108,9 +108,45 @@ async function explainUnsellable(listingId: string): Promise<{ error: string; st
   return { error: 'product_price_unavailable', status: 409 }
 }
 
-export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const userId = await getCurrentProfileId()
-  if (!userId) return NextResponse.json({ error: 'auth_required' }, { status: 401 })
+// ⚠️ WS6 MIGRATION (.svc surface), AUTH ONLY — on the route that decides an amount, so the
+// reasoning is spelled out rather than assumed.
+//
+// `auth: 'userId'` is byte-identical: the preamble WAS getCurrentProfileId() answering 401
+// `auth_required`, which is exactly what route() emits for that mode. Nothing else moves — every
+// guard below keeps its position, and in particular NOTHING that reads a price, a quote or a
+// provider changed by a character.
+//
+// ⚠️ THE LIMITER CANNOT HOIST, AND THAT IS A MONEY-SHAPED FACT, not a preference. route()'s order
+// is fixed at auth → rateLimit → body, but TWO 503 availability guards run in front of the limiter
+// here, and both are pure env reads — process-CONSTANT, not per-request:
+//   · visaCryptoReady()      → `VISA_DATA_ENCRYPTION_KEY` (src/lib/visa/crypto.ts:24-29)
+//   · visaPaymentsConfig()   → the fee + provider keys; THIS SURFACE IS DORMANT UNTIL THEY EXIST,
+//     so on today's deployments EVERY call answers 503 `payments_not_configured`.
+// Hoisting the limiter would meter that dormant 503: the 11th call in an hour would answer 429
+// `rate_limited` instead — a different status and a different body on the branch that is currently
+// the ONLY branch. Dormant is not deleted, so that is a live wire change, not a hypothetical.
+//
+// ⚠️ AND THE BODY FOLLOWS THE LIMITER, so `body:` is blocked by the same ordering: today a
+// throttled caller with a malformed body gets 429, and with the schema hoisted while the limiter
+// stays here they would get 400 `invalid_request` first. (Nine refusals below also carry extra
+// fields beside `error` — `issues`, `selectedListingId`, `missing`, `productEntryType` /
+// `applicationEntryType`, `speed` / `nextCutoffIso` / `nextOpensIso`, `quote` — which `apiFail()`
+// cannot express, so they stay hand-built NextResponses.)
+//
+// ⚠️ ONE BRANCH IS NOT BYTE-IDENTICAL, AND IT IS THE ACCEPTED ONE. Everything from the case read
+// down to the quote sits OUTSIDE the try/catch (which starts at the provider call), so ANY
+// unhandled throw in that region used to reach Next's default 500 page. route() now catches it,
+// logs it with an `op`, and answers `{"error":"internal_error"}` 500. Stated as a shape on purpose
+// — it is every throw in that region, not a list — because the causes are not enumerable from
+// here. Every DELIBERATE refusal is unchanged: 401, the two 503s, 429, 400 `invalid_request` /
+// `provider_not_configured` / `application_incomplete`, 404 `not_found` / `listing_not_found`, 409
+// `already_paid` / `invalid_status_transition` / `product_not_selected` /
+// `listing_selection_mismatch` / `product_not_for_sale` / `product_price_unavailable` /
+// `product_not_configured` / `product_entry_type_mismatch` / `submission_window_closed` /
+// `quote_expired` / `quote_changed`, 400 `not_a_visa_product`, 503 `fx_unavailable`, 502
+// `checkout_failed`, and the 200 body with its `url`/`quote`/`listingId`/`priceVnd`/
+// `amountUsdCents`/`currency`.
+export const POST = route({ auth: 'userId' }, async ({ req: request, params, userId }) => {
   if (!visaCryptoReady()) return NextResponse.json({ error: 'visa_encryption_not_configured' }, { status: 503 })
   const config = visaPaymentsConfig()
   if (!config) return NextResponse.json({ error: 'payments_not_configured' }, { status: 503 })
@@ -119,7 +155,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const parsed = bodySchema.safeParse(await request.json().catch(() => null))
   if (!parsed.success) return NextResponse.json({ error: 'invalid_request' }, { status: 400 })
   if (!config.providers.includes(parsed.data.provider)) return NextResponse.json({ error: 'provider_not_configured' }, { status: 400 })
-  const { id } = await params
+  const { id } = params
   if (!UUID_RE.test(id)) return NextResponse.json({ error: 'not_found' }, { status: 404 })
 
   const db = getVisaDb()
@@ -384,4 +420,4 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     console.error('[visa/checkout]', (error as Error)?.message?.slice(0, 300))
     return NextResponse.json({ error: 'checkout_failed' }, { status: 502 })
   }
-}
+})

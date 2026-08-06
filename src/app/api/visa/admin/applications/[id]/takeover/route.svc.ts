@@ -32,6 +32,17 @@ export const dynamic = 'force-dynamic'
 const bodySchema = z.object({ active: z.boolean() }).strict()
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
+// ⚠️ WS6 — NOT MIGRATED: ONE CHARACTER, AND IT IS THE WHOLE REASON. Everything else here lines up
+// with the wrapper exactly — the order is auth → rateLimit (429 `rate_limited`, the wrapper's own
+// code) → body (400 `invalid_request`, which `invalidBodyCode` supports) → the handler's uuid/404 —
+// so this is the closest a route in this cluster comes to migrating. It cannot, because the
+// non-admin refusal on the wire is `{"error":"forbidden"}` and `auth: 'admin'` is hardcoded to
+// `apiFail('Forbidden', 403)` (handler.ts:189). errors.ts lists both spellings because both are
+// live; the wrapper picked one, and this route is on the other.
+//
+// And with the admin gate pinned in the handler, `rateLimit:` cannot move either: the bucket is
+// keyed on the ADMIN EMAIL, which the wrapper has no way to supply — `auth:'admin'` leaves `userId`
+// null, so it would fall back to `clientIp(req)` and pool the desk behind one address.
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const admin = await getAdmin()
   if (!admin) return NextResponse.json({ error: 'forbidden' }, { status: 403 })

@@ -1,5 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { timingSafeEqual } from 'node:crypto'
+import { route } from '@/lib/api/handler'
 import { db } from '@/lib/db'
 import { sendPushToProfile } from '@/lib/push'
 import { STALE_DAYS } from '@/lib/stale'
@@ -20,24 +19,29 @@ const REMIND_EVERY_MS = 20 * 60 * 60 * 1000
 const MAX_SELLERS = 1000 // safety cap per run
 const CONCURRENCY = 20   // bounded fan-out so we don't serialize hundreds of pushes
 
-function bearerOk(header: string | null, secret: string): boolean {
-  const token = header?.startsWith('Bearer ') ? header.slice(7) : ''
-  const a = Buffer.from(token)
-  const b = Buffer.from(secret)
-  return a.length === b.length && timingSafeEqual(a, b)
-}
-
 // Daily reminder job (Vercel Cron → see vercel.json). Guarded by CRON_SECRET:
 // Vercel attaches `Authorization: Bearer $CRON_SECRET` to scheduled invocations.
 // For every seller with ≥1 stale LIVE listing who hasn't opted out, drops one
 // in-app notification (type 'reminder' → deep-links to /dashboard/availability) and sends a
 // Web Push to their devices. One notification per seller per run (collapsed).
-export async function GET(req: NextRequest) {
-  const secret = process.env.CRON_SECRET
-  if (!secret || !bearerOk(req.headers.get('authorization'), secret)) {
-    return NextResponse.json({ error: 'forbidden' }, { status: 401 })
-  }
-
+//
+// ⚠️ WS6 MIGRATION — `auth: 'cron'`. The local `bearerOk()` + `if (!secret || !bearerOk(...))`
+// block deleted here was one of FIVE byte-identical copies; the timing-safe comparison and the
+// fail-closed-on-unset-secret behaviour now live once, in `src/lib/api/handler.ts`. The wire is
+// unchanged in every branch:
+//   · unset CRON_SECRET, or a missing/malformed/wrong Bearer token → `{"error":"forbidden"}` 401
+//     (lowercase `forbidden`, status 401 — the mode reproduces that pairing deliberately)
+//   · success → `{"ok":true,"sellersWithStale":…,"skipped":…,"notified":…,"pushed":…,"trust":…,
+//     "responseRates":…,"reranked":…,"statRows":…,"disputeNudges":…}` 200, same keys in the same
+//     insertion order, because the handler returns the same object literal it always did.
+//
+// ⚠️ ONE ACCEPTED WIRE CHANGE, STATED AS A SHAPE: any unhandled throw in this handler now returns
+// `{"error":"internal_error"}` 500 instead of reaching Next's default 500 HTML page. This route
+// has no top-level try/catch — the per-pass `try/catch`es below cover only the maintenance
+// sweeps, not the reads above them — so that is a real change and not a theoretical one. Nothing
+// but a scheduler reads these responses, and a JSON 500 is strictly more legible in the cron log
+// than an HTML error page.
+export const GET = route({ auth: 'cron' }, async () => {
   const cutoff = new Date(Date.now() - STALE_DAYS * 86_400_000)
 
   // Stale = verified + active, owned by a real account, not confirmed since cutoff.
@@ -129,5 +133,5 @@ export async function GET(req: NextRequest) {
   let disputeNudges = 0
   try { disputeNudges = await sweepDisputeWindows() } catch (e) { console.error('[cron] dispute window sweep', e) }
 
-  return NextResponse.json({ ok: true, sellersWithStale: countByOwner.size, skipped: skippedRecent, notified, pushed, trust, responseRates, reranked, statRows, disputeNudges })
-}
+  return { ok: true, sellersWithStale: countByOwner.size, skipped: skippedRecent, notified, pushed, trust, responseRates, reranked, statRows, disputeNudges }
+})

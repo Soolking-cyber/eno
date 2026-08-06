@@ -17,6 +17,14 @@ const isoDay = (d: Date) => d.toISOString().slice(0, 10)
 // deltas here (a first snapshot with no prior baseline reports 0 — the daily
 // delta is unknown there). Sparse by design: the client fills missing days
 // with zeros across a fixed window.
+//
+// ⚠️ WS6 — NOT MIGRATED, same shape as its parent /api/dashboard: a guest gets 401
+// `{"series":null}`, the payload envelope with a null body, not `{"error":"auth_required"}`. The
+// sparkline client branches on `series` being null vs {} vs populated, so swapping in the error
+// envelope would make a signed-out fetch indistinguishable from a seller with no listings. The
+// success branches also carry `Cache-Control: private, max-age=300`, which a plain returned object
+// would drop — survivable via a returned Response, but there is nothing left for the wrapper to do
+// once auth cannot move: no rate limit, no body.
 export async function GET() {
   const profile = await getCurrentProfile()
   if (!profile) return NextResponse.json({ series: null }, { status: 401 })

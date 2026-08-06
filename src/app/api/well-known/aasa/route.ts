@@ -22,6 +22,13 @@ import { NextResponse } from "next/server";
 // into the native app, the Supabase session cookies would land in the wrong context and
 // sign-in would silently fail. (The custom enovn://auth-callback hop is app-internal and
 // unaffected by this file.)
+// ⚠️ WS6 — NOT MIGRATED: CHURN. All four wrapper options would be empty — public (the caller is
+// Apple's CDN, which has no session), no rate limit, no request body — so route() would add an
+// import and a closure and change nothing. Two branches also could not survive it anyway: the
+// unconfigured case is a BODYLESS `new NextResponse(null, { status: 404 })`, and the 200 carries
+// `Cache-Control: public, max-age=3600`, which is what stops Apple re-fetching the association on
+// every install. A plain-object return is always JSON and always header-less.
+// (WS6 audit, 2026-08-06.)
 export async function GET() {
   const team = process.env.APPLE_TEAM_ID;
   if (!team) {

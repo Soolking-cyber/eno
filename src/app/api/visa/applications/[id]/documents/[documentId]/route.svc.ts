@@ -10,6 +10,19 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
+// ⚠️ WS6 — NOT MIGRATED: THE 401 PREDICATE IS A DISJUNCTION OVER TWO IDENTITIES, AND THE WRAPPER
+// RESOLVES EXACTLY ONE. The gate is `!userId && !admin` over `Promise.all([getCurrentProfileId(),
+// getAdmin()])`, and `admin` is then load-bearing again three lines down (it is what lets the desk
+// read a case it does not own). Neither mode reproduces those bytes:
+//   · `auth: 'userId'` refuses on `!userId` alone, so a caller whose getClaims() path yields
+//     nothing while getUser() still resolves an ADMIN_EMAILS session — the two calls are different
+//     verifications of the same cookie, one local-JWKS and one round-trip — gets 401 where today
+//     they are served. It also serialises the two calls that are deliberately parallel here.
+//   · `auth: 'admin'` answers `{"error":"Forbidden"}` 403 (capital F, handler.ts:189) where every
+//     non-admin caller — including the applicant who OWNS the document — currently gets
+//     `{"error":"auth_required"}` 401. Two changed bytes and a changed status on the main path.
+// With auth pinned in the handler there is no rate limit, no JSON body and no invalidBodyCode
+// left to give the wrapper: all four options would be empty, which is churn.
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string; documentId: string }> }) {
   const [userId, admin] = await Promise.all([getCurrentProfileId(), getAdmin()])
   if (!userId && !admin) return NextResponse.json({ error: 'auth_required' }, { status: 401 })

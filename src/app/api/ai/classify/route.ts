@@ -20,6 +20,28 @@ const TAXONOMY_TEXT = TAXONOMY.map((c) =>
 // AI autofill: classify a product PHOTO into the listing taxonomy + suggest a title.
 // Output is validated against the taxonomy server-side, so a bad model response can
 // never put an invalid category/slug on a listing. Auth-gated + rate-limited.
+//
+// ⚠️ WS6 — NOT MIGRATED. Three blockers; the first is shared by the three DIRECT-Gemini routes
+// (classify, rephrase, visual-search) and is the reason none of those can take the wrapper
+// (WS6 audit, 2026-08-06). ⚠️ NOT by `/api/ai/concierge`, which is the fourth member of this
+// directory and does NOT call getGemini() before auth — its model call sits inside `understand()`,
+// well after aiGuard, and falls back to a heuristic rather than 503ing. Its refusal is separately
+// reasoned in its own header. Saying "the whole /api/ai family" here was wrong and would have sent
+// the next reader past a route whose blocker is different:
+//   · A GUARD RUNS BEFORE THE CALLER IS RESOLVED. `getGemini()` answers
+//     `{"error":"ai_unavailable"}` 503 on the first line of the handler, before aiGuard ever looks
+//     at a session. route() resolves the caller FIRST, so a signed-out call against an unconfigured
+//     Gemini would turn that 503 into `{"error":"auth_required"}` 401 — and the same inversion hits
+//     an over-quota caller, who gets 503 today and would get 429.
+//   · THERE ARE TWO LIMITERS, both `strict`, and both must pass: `ai-classify` keyed on the profile
+//     (40/h) plus the shared spend ceiling `ai-global` (2000/d, keyed on the literal 'global', not
+//     on the caller at all). `rateLimit:` takes ONE bucket, always keyed on the caller.
+//   · THE BODY IS MULTIPART, NOT JSON. `body:` parses with `req.json()`, which cannot read a
+//     FormData upload — a schema here would 400 every real request. The per-field codes it would
+//     replace are distinct on the wire anyway (`no_file` / `empty_file` / `too_big`), and
+//     `decode_failed` carries an EXTRA key beside `error`
+//     (`{"error":"decode_failed","type":"image/heic"}`), which is not the bare `{error}` shape
+//     `apiFail()` emits, so neither `invalidBodyCode` nor `ApiError` can reproduce it.
 export async function POST(req: NextRequest) {
   const ai = getGemini()
   if (!ai) return NextResponse.json({ error: 'ai_unavailable' }, { status: 503 })

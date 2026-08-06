@@ -18,6 +18,17 @@ import { listItineraryDrafts, MAX_SAVED_ITINERARIES } from '@/lib/itinerary-draf
  * The counts come back with the list deliberately: the picker has to render "2 of 3 saved" and the
  * remaining-slots number, and computing that client-side from `drafts.length` would silently go
  * wrong the moment the list is ever paginated or filtered.
+ *
+ * ⚠️ WS6 — NOT MIGRATED: TWO INDEPENDENT WIRE FACTS, either one sufficient.
+ *   1. A guest gets `{"error":"not_signed_in"}` 401. The wrapper's `auth: 'profile'` branch is a
+ *      hardcoded `apiFail('auth_required', 401)` (src/lib/api/handler.ts:195) — same status, a
+ *      different body, and it is the string the paragraph above treats as the whole answer.
+ *   2. The 503 degraded branch is a DOMAIN payload, not an error envelope:
+ *      `{"drafts":[],"used":0,"limit":3,"remaining":3,"degraded":true}`. `apiFail()` can only emit
+ *      `{"error":"<code>"}`, so that shape can only survive as a hand-built `NextResponse`.
+ * The 200 also carries `cache-control: private, no-store`, which would need route()'s Response
+ * pass-through rather than a returned object. With auth pinned, there is no limiter and no JSON
+ * body to hoist either — all four options empty, so this is churn on top of a wire change.
  */
 export async function GET() {
   const profile = await getCurrentProfile()

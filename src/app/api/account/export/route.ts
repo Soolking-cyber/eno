@@ -13,6 +13,16 @@ import { describeTrustEvent } from '@/lib/trust'
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
+// ⚠️ WS6 — NOT MIGRATED. Three of its four branches would change shape:
+//  · guest → `{"error":"Unauthorized"}` (capital U), not the wrapper's hardcoded `auth_required`;
+//  · over limit → `{"error":"Too many requests — try again later"}`, a sentence rather than
+//    `rate_limited`, and the export button renders `error` verbatim to the user;
+//  · success → a `new NextResponse` carrying Content-Disposition + Cache-Control: no-store. That
+//    one alone is survivable (route() passes a returned Response straight through), which is
+//    exactly why it is worth writing down that it is NOT what blocks this route — the two error
+//    strings are.
+// Reproducing the sentences by hand under `auth: 'public'` would empty every wrapper option and
+// leave pure indirection.
 export async function GET() {
   const profile = await getCurrentProfile()
   if (!profile) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

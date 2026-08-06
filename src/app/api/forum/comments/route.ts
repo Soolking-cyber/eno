@@ -18,6 +18,22 @@ export function OPTIONS(request: Request) {
   return forumPreflight(request, 'POST, OPTIONS')
 }
 
+// ⚠️ WS6 — NOT MIGRATED. Branches: 403 origin_not_allowed · 401 auth_required · 403
+// account_restricted · 429 rate_limited · 400 invalid_comment(+issues) · 404 post_not_found_or_locked
+// · 404 parent_not_found · 201 {comment}. Five blockers:
+//   · CORS ON EVERY RESPONSE. forumJson sets Access-Control-Allow-Methods: 'POST, OPTIONS',
+//     -Allow-Headers and -Max-Age on all eight branches (plus -Allow-Origin + Vary: Origin for an
+//     allowlisted Origin). route()/apiFail emit no headers at all, so its own 401/429/400 would drop
+//     them. Restoring them means returning forumJson() by hand, which empties all four options.
+//   · THE ERROR ENVELOPE IS NOT THE WRAPPER'S. A bad body answers
+//     `{"error":"invalid_comment","issues":[…]}` — zod's issue array alongside `error`. `apiFail()`
+//     emits exactly `{"error":"<code>"}` and `invalidBodyCode:` only changes the string, so the
+//     `issues` key cannot be reproduced.
+//   · THE ORIGIN GUARD RUNS BEFORE AUTH (403 origin_not_allowed to a guest, not 401).
+//   · THE LIMITER RUNS AFTER A ROLE CHECK. `canParticipate()` 403s a suspended/held account BEFORE
+//     `forum-comment-create` is consulted; the wrapper's fixed order is auth → rateLimit → handler,
+//     so a suspended account over the limit would flip from 403 account_restricted to 429.
+//   · AUTH IS getForumAuth() — bearer token or cookie session, which no auth mode expresses.
 export async function POST(request: Request) {
   if (!isAllowedForumOrigin(request)) return forumJson(request, { error: 'origin_not_allowed' }, { status: 403 }, 'POST, OPTIONS')
   const auth = await getForumAuth(request)

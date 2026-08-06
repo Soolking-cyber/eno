@@ -94,6 +94,16 @@ const STATUS: Record<StopEditError, number> = {
   update_failed: 500,
 }
 
+// ⚠️ WS6 — NOT MIGRATED: the same three wire facts as the sibling `stays` route.
+// · A guest is answered `{"error":"not_signed_in"}` at 401; every route() auth mode answers
+//   `apiFail('auth_required', 401)` and `Options` exposes no override for that code.
+// · The limiter's key is `profile.id`, so `rateLimit:` would need the wrapper to resolve the caller
+//   — and under `auth: 'public'` it keys on `clientIp(req)` instead, pooling every caller behind one
+//   NAT into a shared 240/h.
+// · `body:` alone would run the parse BEFORE the pinned auth and limiter, because route()'s fixed
+//   order is auth → rateLimit → body and `auth: 'public'` skips straight to the body — so a guest
+//   posting malformed JSON would get 400 `invalid_body` where it gets 401 today.
+// All three pinned in the handler leaves all four options empty — churn, not a wrapper.
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id: itineraryId } = await params
   const profile = await getCurrentProfile()

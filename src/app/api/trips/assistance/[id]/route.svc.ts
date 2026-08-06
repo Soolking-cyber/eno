@@ -37,6 +37,18 @@ const bodySchema = z
     }).strict(),
   ])
 
+// ⚠️ WS6 — NOT MIGRATED: a guest gets `{"error":"not_signed_in"}` 401 here, where the wrapper's
+// `auth: 'profile'` emits `{"error":"auth_required"}` 401 (src/lib/api/handler.ts:195) — a
+// different body at the same status.
+//
+// ⚠️ AND A SECOND, INDEPENDENT ONE WORTH STATING SEPARATELY, because it survives even if that code
+// were ever unified: the authorisation is not this route's. Every lifecycle function resolves its
+// OWN actor (`quoteAssistance` calls getAdmin(), the traveller paths resolve the session) and
+// answers more than 401 — 403 `forbidden`, 404 `request_not_found`, 409 `invalid_status_transition`
+// — through `assistanceHttpStatus`. An `auth:` mode would resolve the caller a second time and buy
+// no wire change at all; the check that guards the write is the domain's, as the header above says.
+// The limiter (keyed `profile.id`) and the body parse both sit behind that identity call, so with
+// auth pinned all four options are empty.
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
 
@@ -86,6 +98,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
  *
  * Authorisation is viewAssistance's, not this route's: traveller or admin, nobody else. A stranger
  * gets 403 rather than 404, so the endpoint never confirms which case ids are real.
+ *
+ * ⚠️ WS6 — NOT MIGRATED: this handler contains NO auth block to hoist. `viewAssistance` resolves the
+ * caller itself and is the only thing that answers — 401 `not_signed_in`, 403 `forbidden`, or the
+ * case — via `assistanceHttpStatus` (src/lib/trips/http.ts). Adding `auth: 'profile'` would resolve
+ * the session a SECOND time and replace that 401's body with `auth_required`, which is both a wire
+ * change and a duplicated identity resolution. No limiter and no JSON body: all four options empty.
  */
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params

@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { NextResponse } from 'next/server'
-import { getCurrentProfile } from '@/lib/admin'
+import { route } from '@/lib/api/handler'
 import { rateLimit } from '@/lib/ratelimit'
 import { visaCryptoReady } from '@/lib/visa/crypto'
 import { startVisaDmFlow, visaDmFailureFor } from '@/lib/visa/dm-flow'
@@ -42,11 +42,28 @@ const bodySchema = z.object({
   listingId: z.string().trim().min(1).max(64).optional(),
 }).strict()
 
-export async function POST(request: Request) {
-  // getCurrentProfile (not getCurrentProfileId): a fresh case is seeded with the account's
-  // email, and the Profile row must exist to be the buyer side of the conversation.
-  const profile = await getCurrentProfile()
-  if (!profile) return NextResponse.json({ error: 'auth_required' }, { status: 401 })
+// ⚠️ WS6 MIGRATION — `auth: 'profile'` AND NOTHING ELSE.
+// `auth: 'profile'` IS getCurrentProfile() + `{error:'auth_required'}` 401, which is exactly the
+// preamble it replaces — and it must be `profile`, not `userId`: a fresh case is seeded with
+// `profile.email` and the Profile row must exist to be the buyer side of the conversation.
+//
+// THE WIRE, ENUMERATED. Guest → 401 `auth_required`; no encryption key → 503
+// `visa_encryption_not_configured`; throttled → 429 `rate_limited`; unparseable or non-`.strict()`
+// body → 400 `invalid_request`; a refusal from startVisaDmFlow → its own `{error}` at its own
+// status; success → 200 `{applicationId,conversationId,step}`; a throw inside the flow →
+// visaDmFailureFor()'s `{error}` at its status.
+//
+// ⚠️ NEITHER THE LIMITER NOR THE SCHEMA CAN BE HOISTED, and the reason is ORDER, not shape. The
+// route's order is auth → 503 env gate → limiter → body. route()'s fixed order is auth → limiter
+// → body → handler, so moving either one past the `visaCryptoReady()` gate re-answers a dormant
+// host: today every call there is 503, and with a hoisted limiter the 31st call in an hour is
+// `{"error":"rate_limited"}` 429, with a hoisted schema a malformed body is `invalid_request` 400.
+// Both are different bytes on a configuration this file explicitly handles.
+//
+// ⚠️ ACCEPTED EXCEPTION: the env gate, the limiter and the body parse sit outside the try, so any
+// unhandled throw in them moves from Next's default 500 HTML to `{"error":"internal_error"}` 500.
+// Stated as a shape — every DELIBERATE branch above is unchanged.
+export const POST = route({ auth: 'profile' }, async ({ req, profile }) => {
   // Starting a case encrypts a payload — refuse honestly on a host without the key rather
   // than 500 halfway through.
   if (!visaCryptoReady()) return NextResponse.json({ error: 'visa_encryption_not_configured' }, { status: 503 })
@@ -56,7 +73,7 @@ export async function POST(request: Request) {
   const limit = await rateLimit('visa-dm-start', profile.id, 30, '1 h', { strict: true })
   if (!limit.success) return NextResponse.json({ error: 'rate_limited' }, { status: 429 })
 
-  const parsed = bodySchema.safeParse(await request.json().catch(() => null))
+  const parsed = bodySchema.safeParse(await req.json().catch(() => null))
   if (!parsed.success) return NextResponse.json({ error: 'invalid_request' }, { status: 400 })
 
   try {
@@ -81,4 +98,4 @@ export async function POST(request: Request) {
     const failure = visaDmFailureFor(error)
     return NextResponse.json({ error: failure.error }, { status: failure.status })
   }
-}
+})

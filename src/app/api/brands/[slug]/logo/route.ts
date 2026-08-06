@@ -11,6 +11,12 @@ export const runtime = 'nodejs'
 // to the requested color and rasterize so AsyncImage / Coil just load a PNG.
 // Brands with no logo 404 → the native side draws its monogram chip instead.
 //   ?w=<px, ≤256>   render width (square). ?c=<hex, no #>  fill color.
+//
+// ⚠️ WS6 — NOT MIGRATED: this route never emits `{ error }` at all. It answers a PNG with its own
+// Content-Type + Cache-Control, or a bodyless 404 (`new NextResponse(null, { status: 404 })`) that the
+// native image loaders read as "no logo, draw the monogram". route()'s value is the JSON error
+// envelope and the preamble, and there is neither here — public, no limiter, no JSON body, so all four
+// options would be empty and every return would still have to be a hand-built Response.
 export async function GET(req: NextRequest, { params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
   const w = Math.min(parseInt(req.nextUrl.searchParams.get('w') || '96', 10) || 96, 256)

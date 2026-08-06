@@ -1,6 +1,5 @@
 import { scopedListingWhere } from '@/lib/edition-scope'
-import { NextRequest, NextResponse } from 'next/server'
-import { timingSafeEqual } from 'node:crypto'
+import { route } from '@/lib/api/handler'
 import { db } from '@/lib/db'
 import { sendPushToProfile } from '@/lib/push'
 import { buildListingWhere, toUrlParams, type SavedSearchParams } from '@/lib/saved-search'
@@ -12,23 +11,23 @@ export const maxDuration = 60
 const MAX_SEARCHES = 5000 // safety cap per run
 const CONCURRENCY = 10
 
-function bearerOk(header: string | null, secret: string): boolean {
-  const token = header?.startsWith('Bearer ') ? header.slice(7) : ''
-  const a = Buffer.from(token)
-  const b = Buffer.from(secret)
-  return a.length === b.length && timingSafeEqual(a, b)
-}
-
 // Saved-search alerts (Vercel Cron → vercel.json). Guarded by CRON_SECRET. For each
 // notify-on saved search, count listings created since the last alert that match its
 // filters; if any, drop one in-app notification (type 'saved_search' → deep-links to
 // the results URL) + a Web Push, then advance lastNotifiedAt so matches don't repeat.
-export async function GET(req: NextRequest) {
-  const secret = process.env.CRON_SECRET
-  if (!secret || !bearerOk(req.headers.get('authorization'), secret)) {
-    return NextResponse.json({ error: 'forbidden' }, { status: 401 })
-  }
-
+//
+// ⚠️ WS6 MIGRATION — `auth: 'cron'`. One of five byte-identical `bearerOk()` copies, now a single
+// timing-safe comparison in `src/lib/api/handler.ts`. All three branches unchanged:
+//   · unset CRON_SECRET, or a missing/malformed/wrong Bearer token → `{"error":"forbidden"}` 401
+//   · no notify-on searches → `{"ok":true,"notified":0}` 200 (the early return below; a plain
+//     object serialises to the same bytes `NextResponse.json()` produced)
+//   · success → `{"ok":true,"searches":…,"notified":…,"pushed":…}` 200
+//
+// ⚠️ ONE ACCEPTED WIRE CHANGE, AS A SHAPE: any unhandled throw in this handler now returns
+// `{"error":"internal_error"}` 500 instead of Next's default 500 HTML. The per-search work is
+// already caught inside the fan-out (a single bad search must not kill the run), but the
+// `db.savedSearch.findMany` above it is bare.
+export const GET = route({ auth: 'cron' }, async () => {
   const runStart = new Date()
   const searches = await db.savedSearch.findMany({
     where: { notify: true },
@@ -36,7 +35,7 @@ export async function GET(req: NextRequest) {
     take: MAX_SEARCHES,
     select: { id: true, profileId: true, label: true, params: true, lastNotifiedAt: true },
   })
-  if (searches.length === 0) return NextResponse.json({ ok: true, notified: 0 })
+  if (searches.length === 0) return { ok: true, notified: 0 }
 
   let notified = 0
   let pushed = 0
@@ -77,5 +76,5 @@ export async function GET(req: NextRequest) {
     for (const r of res) { notified += r.notified; pushed += r.pushed }
   }
 
-  return NextResponse.json({ ok: true, searches: searches.length, notified, pushed })
-}
+  return { ok: true, searches: searches.length, notified, pushed }
+})

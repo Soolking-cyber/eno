@@ -9,6 +9,14 @@ export function OPTIONS(request: Request) {
   return forumPreflight(request, 'GET, OPTIONS')
 }
 
+// ⚠️ WS6 — NOT MIGRATED. Branches: 200 {helpers} · 200 {helpers:[],schemaReady:false} on Prisma
+// P2021 · any other Prisma error rethrows. Two blockers:
+//   · CORS ON EVERY RESPONSE. forumJson sets Access-Control-Allow-Methods: 'GET, OPTIONS',
+//     -Allow-Headers and -Max-Age on both returns (+ -Allow-Origin and Vary: Origin for an
+//     allowlisted Origin); route() returns a plain NextResponse.json carrying none of them.
+//   · ALL FOUR OPTIONS WOULD BE EMPTY — public, no rate limit, no body, no params. Note also that
+//     BOTH branches here are 200s: the missing-table case degrades to an empty rail rather than
+//     erroring, so there is no error path for the wrapper to standardise either.
 export async function GET(request: Request) {
   try {
     const rows = await db.forumProfile.findMany({

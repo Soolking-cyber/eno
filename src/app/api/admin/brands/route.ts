@@ -1,9 +1,8 @@
-import { NextRequest, NextResponse } from 'next/server'
 import { revalidatePath } from 'next/cache'
 import { db } from '@/lib/db'
-import { getAdmin } from '@/lib/admin'
 import { normalizeBrand } from '@/lib/brand-normalize'
 import { brandIconPath } from '@/lib/brand-icons'
+import { ApiError, route } from '@/lib/api/handler'
 
 export const dynamic = 'force-dynamic'
 
@@ -11,9 +10,39 @@ export const dynamic = 'force-dynamic'
 //   GET                      → all brands (newest-created / least-curated first)
 //   PATCH {id, ...fields}    → edit name / iconSlug / logoPath / status / aliases
 //   POST  {action:'merge', sourceId, targetId} → fold one brand into another
+//
+// ⚠️ WS6 MIGRATION — ALL THREE METHODS, THE AUTH PREAMBLE ONLY. `auth: 'admin'` is the same
+// getAdmin() each method opened with ("every action re-checks the session" above is still literally
+// true — route() runs it per request), and it emits the same `{"error":"Forbidden"}` 403, capital F.
+// ⚠️ `'admin'` RESOLVES NO PROFILE. An earlier draft of this header said it follows getAdmin()
+// with getCurrentProfile() and called the extra Profile read an accepted cost. It did, and the
+// cost turned out not to be acceptable anywhere: no admin handler reads ctx.profile or
+// ctx.userId, the call made read-only admin GETs perform a presence-heartbeat WRITE, and on a
+// first-ever call it runs ensureProfile()'s irreversible guest-Seller auto-claim. It was removed
+// from the wrapper in this same commit; getAdmin() is Supabase-auth only and touches no DB.
+//
+// ⚠️ NO `body:` SCHEMA ON PATCH OR POST. Both hand-coerce (`String(body.name)`, `String(a)` over
+// `aliases`, `body.logoPath ? String(body.logoPath) : ''`), so they accept a number, a boolean or
+// null where zod would 400 — a schema would tighten validation, which is a wire change. Both also
+// distinguish unparseable JSON from a missing field with DIFFERENT codes (PATCH: `bad_request` vs
+// `missing_id`), and `invalidBodyCode` is a single code. GET has no body at all.
+//
+// ⚠️ NO `rateLimit:` — none of the three had one, and adding one would invent a 429 branch.
+//
+// Branches. GET: non-admin → 403 `Forbidden` · success → 200 `{brands:[…]}`.
+// PATCH: non-admin → 403 · malformed JSON → 400 `bad_request` · no id → 400 `missing_id` · success
+// → 200 `{"ok":true}`.
+// POST: non-admin → 403 · malformed JSON → 400 `bad_request` · action ≠ 'merge', a missing
+// source/target id, or source === target → 400 `bad_request` · either brand missing → 404
+// `not_found` · success → 200 `{"ok":true}`.
+//
+// ⚠️ ONE BRANCH PER METHOD IS NOT BYTE-IDENTICAL: no DB call in this file was wrapped, so a
+// rejection used to reach Next's default 500 — including the common one, `db.brand.update` /
+// `db.brand.delete` throwing P2025 for an id that no longer exists (PATCH does NOT pre-check
+// existence the way POST does). Those now return `{"error":"internal_error"}` 500, logged with an
+// `op`. An improvement, and a wire change on the failure path.
 
-export async function GET() {
-  if (!(await getAdmin())) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+export const GET = route({ auth: 'admin' }, async () => {
   const rows = await db.brand.findMany({
     select: { id: true, slug: true, name: true, normalized: true, aliases: true, iconSlug: true, logoPath: true, listingCount: true, status: true, curatedAt: true },
     orderBy: [{ curatedAt: 'asc' }, { listingCount: 'desc' }, { name: 'asc' }], // uncurated (null) first
@@ -21,14 +50,13 @@ export async function GET() {
   })
   // Resolve the effective preview path server-side (simple-icons stays off the client).
   const brands = rows.map((b) => ({ ...b, iconPath: brandIconPath(b), curatedAt: b.curatedAt?.toISOString() ?? null }))
-  return NextResponse.json({ brands })
-}
+  return { brands }
+})
 
-export async function PATCH(req: NextRequest) {
-  if (!(await getAdmin())) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+export const PATCH = route({ auth: 'admin' }, async ({ req }) => {
   let body: { id?: string; name?: string; iconSlug?: string | null; logoPath?: string | null; status?: string; aliases?: string[] }
-  try { body = await req.json() } catch { return NextResponse.json({ error: 'bad_request' }, { status: 400 }) }
-  if (!body.id) return NextResponse.json({ error: 'missing_id' }, { status: 400 })
+  try { body = await req.json() } catch { throw new ApiError('bad_request', 400) }
+  if (!body.id) throw new ApiError('missing_id', 400)
 
   const data: Record<string, unknown> = { curatedAt: new Date() }
   if (body.name !== undefined) {
@@ -71,22 +99,21 @@ export async function PATCH(req: NextRequest) {
 
   await db.brand.update({ where: { id: body.id }, data })
   revalidatePath('/brands')
-  return NextResponse.json({ ok: true })
-}
+  return { ok: true }
+})
 
-export async function POST(req: NextRequest) {
-  if (!(await getAdmin())) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+export const POST = route({ auth: 'admin' }, async ({ req }) => {
   let body: { action?: string; sourceId?: string; targetId?: string }
-  try { body = await req.json() } catch { return NextResponse.json({ error: 'bad_request' }, { status: 400 }) }
+  try { body = await req.json() } catch { throw new ApiError('bad_request', 400) }
   if (body.action !== 'merge' || !body.sourceId || !body.targetId || body.sourceId === body.targetId) {
-    return NextResponse.json({ error: 'bad_request' }, { status: 400 })
+    throw new ApiError('bad_request', 400)
   }
 
   const [source, target] = await Promise.all([
     db.brand.findUnique({ where: { id: body.sourceId }, select: { slug: true, normalized: true, aliases: true } }),
     db.brand.findUnique({ where: { id: body.targetId }, select: { id: true, slug: true, aliases: true } }),
   ])
-  if (!source || !target) return NextResponse.json({ error: 'not_found' }, { status: 404 })
+  if (!source || !target) throw new ApiError('not_found', 404)
 
   // Move the source's listings onto the target brand.
   await db.listing.updateMany({ where: { brandSlug: source.slug }, data: { brandSlug: target.slug } })
@@ -104,5 +131,5 @@ export async function POST(req: NextRequest) {
   await db.brand.delete({ where: { id: body.sourceId } })
 
   revalidatePath('/brands')
-  return NextResponse.json({ ok: true })
-}
+  return { ok: true }
+})

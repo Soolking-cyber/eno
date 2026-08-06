@@ -12,6 +12,21 @@ const MAX_IN = 5000
 // AI "Polish": rewrite the seller's rough description into clean, professional
 // listing copy WITHOUT inventing facts, in the app's chosen language. Auth-gated +
 // rate-limited. The model is told never to add a phone number; we also re-check.
+//
+// ⚠️ WS6 — NOT MIGRATED. Same family blocker as /api/ai/classify, plus a body one
+// (WS6 audit, 2026-08-06):
+//   · `getGemini()` ANSWERS BEFORE THE CALLER IS RESOLVED — `{"error":"ai_unavailable"}` 503 is the
+//     first line of the handler, ahead of aiGuard. route() runs auth first, so a signed-out call
+//     against an unconfigured Gemini would become `{"error":"auth_required"}` 401.
+//   · TWO `strict` LIMITERS, both of which must pass: `ai-rephrase` keyed on the profile (60/h) and
+//     the shared spend ceiling `ai-global` (2000/d, keyed on the literal 'global'). `rateLimit:`
+//     takes one bucket and always keys it on the caller.
+//   · THE BODY IS COERCED, NOT VALIDATED, AND THAT IS LOAD-BEARING HERE. `String(body.text || '')`
+//     accepts a number, an array or an object and stringifies it; a zod `z.string()` would answer
+//     400 for inputs that succeed today. The length gate is its own code as well —
+//     `{"error":"too_short"}` 400 for fewer than 3 characters AFTER that coercion and the 5000-char
+//     slice — and `invalidBodyCode` is one code for the whole schema, so it cannot emit `too_short`
+//     while `bad_request` stays the answer for unparseable JSON.
 export async function POST(req: NextRequest) {
   const ai = getGemini()
   if (!ai) return NextResponse.json({ error: 'ai_unavailable' }, { status: 503 })

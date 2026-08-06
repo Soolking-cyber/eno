@@ -239,6 +239,25 @@ async function fallbackSearch(
   return { rows: [], relaxed: false }
 }
 
+// ⚠️ WS6 — NOT MIGRATED, AND UNLIKE ITS THREE /api/ai SIBLINGS THE REASON IS NOT THE WIRE. Stated
+// plainly because the next reader will re-derive it: `{ auth: 'userId', rateLimit: { bucket:
+// 'ai-concierge', limit: 10, window: '1 h', strict: true } }` reproduces this gate byte-for-byte —
+// aiGuard resolves the caller with the same `getCurrentProfileId()` and emits the same
+// `{"error":"auth_required"}` 401 and `{"error":"rate_limited"}` 429, in the same order, keyed on
+// the same profile id. The refusal is about what the migration would DELETE, not what it changes:
+//   · aiGuard IS the paid-AI policy, in one file, for SEVEN routes (the four /api/ai handlers and
+//     the three itinerary ones). Its subject is credit drain — `AI_HOURLY_LIMIT` and
+//     `AI_GLOBAL_DAILY_LIMIT` are exported constants with the threat model written above them.
+//     Expressing it as a config literal at one call site is exactly the drift that file exists to
+//     prevent, and the drift would be permanent: the other three /api/ai routes CANNOT follow,
+//     because `getGemini()` answers 503 ahead of their auth (see the note on each).
+//   · `{ skipGlobal: true }` is the one recorded exception to the global daily ceiling in the
+//     codebase — this route opts out because it degrades to heuristics instead of 429ing. As a
+//     `rateLimit:` option that opt-out has nowhere to live; it becomes the absence of a second
+//     bucket, which reads as an oversight rather than a decision.
+//   · No `body:` schema either: `messages` is validated by FILTERING (unknown roles and non-string
+//     contents are dropped, then the last 12 kept), so a schema strict enough to type it would
+//     reject bodies that succeed today, and one loose enough to accept them would validate nothing.
 export async function POST(req: NextRequest) {
   // Login required + strict 10/h per account (shared AI gate) so the concierge — which
   // draws the paid Vertex/Gemini credit — can't be drained by anonymous bots. The

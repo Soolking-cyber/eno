@@ -12,6 +12,19 @@ export function OPTIONS(request: Request) {
   return forumPreflight(request, 'POST, OPTIONS')
 }
 
+// ⚠️ WS6 — NOT MIGRATED. Branches: 403 origin_not_allowed · 401 auth_required · 400 invalid_bookmark
+// · 404 not_found · 200 {saved}. Four blockers:
+//   · A MISSING OR MALFORMED BODY IS DELIBERATELY TOLERATED, NOT A 400. The parse falls back to
+//     `{}` (not `null`), the schema's `saved` is optional, and `parsed.data.saved ?? !existing` then
+//     makes a body-less POST a TOGGLE. route()'s body step returns
+//     `{"error":"<invalidBodyCode>"}` 400 the moment `req.json()` throws, so a caller sending no
+//     body at all would go from 200 {saved:…} to 400. `invalid_bookmark` only ever reaches the wire
+//     for a body that parses as JSON but fails the schema (e.g. `{"saved":"yes"}`).
+//   · THE ORIGIN GUARD RUNS BEFORE AUTH (403 origin_not_allowed to a guest, not 401).
+//   · CORS ON EVERY RESPONSE: Access-Control-Allow-Methods: 'POST, OPTIONS', -Allow-Headers and
+//     -Max-Age on all five branches (+ -Allow-Origin and Vary: Origin for an allowlisted Origin);
+//     route() and apiFail carry none.
+//   · AUTH IS getForumAuth() — bearer token or cookie session — which no auth mode expresses.
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   if (!isAllowedForumOrigin(request)) return forumJson(request, { error: 'origin_not_allowed' }, { status: 403 }, 'POST, OPTIONS')
   const { id } = await params

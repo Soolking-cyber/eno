@@ -22,6 +22,14 @@ async function chargeCharBudget(chars: number): Promise<boolean> {
   }
 }
 
+// ⚠️ WS6 — NOT MIGRATED, and all four wrapper options would be empty, so route() buys nothing.
+// `auth: 'public'` (no caller at all — this serves the UI dictionary to guests). The limiter cannot
+// be hoisted: it fires only when `newCount > 0`, i.e. after the body is parsed AND priced by
+// uncachedStats(), so a request of purely cached strings must never touch it — that is the fix
+// behind the "DEGRADE, never refuse" note below. No `body:` schema either: the 400s here carry
+// PROSE, not codes (`"Expected { texts: string[], target: Lang }"`, `"Too many texts in one
+// request"`), which cannot be expressed as an ApiErrorCode and must not be tidied into one. The
+// catch-all 500 is likewise `{"error":"Translation failed"}`, not `internal_error`.
 export async function POST(req: Request) {
   // Public + triggers PAID translation on a cache miss → cross-request IP throttle
   // so the per-request size guard below can't be looped to drain the budget.

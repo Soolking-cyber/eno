@@ -1,10 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server'
 import { createHash } from 'node:crypto'
 import { db } from '@/lib/db'
-import { getAdmin } from '@/lib/admin'
 import { translateBatch, LANGS, type Lang } from '@/lib/translate'
 import { UI_STRINGS } from '@/generated/ui-strings'
 import { logError } from '@/lib/log'
+import { route } from '@/lib/api/handler'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -18,11 +17,32 @@ export const dynamic = 'force-dynamic'
 // (/api/cron/warm-translations) keeps coverage at 100%; if a language shows a gap
 // here for more than a day, the provider env (AZURE_TRANSLATOR_* /
 // GOOGLE_TRANSLATE_API_KEY without referer restriction) is the first suspect.
+//
+// ⚠️ WS6 MIGRATION — THE AUTH PREAMBLE ONLY, which is all this route had. `auth: 'admin'` is the
+// same getAdmin() and answers a non-admin with `{"error":"Forbidden"}` 403, capital F. A GET has no
+// body, so `body:` is meaningless; no rate limit existed and adding one would invent a 429 branch
+// — note that ?probe=1 bills ~30 characters of translation, so if a limiter is ever wanted it
+// belongs on that branch specifically, which route()'s static option could not express anyway.
+// ⚠️ `'admin'` RESOLVES NO PROFILE. An earlier draft of this header said it follows getAdmin()
+// with getCurrentProfile() and called the extra Profile read an accepted cost. It did, and the
+// cost turned out not to be acceptable anywhere: no admin handler reads ctx.profile or
+// ctx.userId, the call made read-only admin GETs perform a presence-heartbeat WRITE, and on a
+// first-ever call it runs ensureProfile()'s irreversible guest-Seller auto-claim. It was removed
+// from the wrapper in this same commit; getAdmin() is Supabase-auth only and touches no DB.
+//
+// Branches: non-admin → 403 `{"error":"Forbidden"}` · no ?probe=1 → 200
+// `{strings,providerConfigured,coverage}` · ?probe=1 → 200 the same plus `probe:{ok,ms,result}`.
+// The sentinel cleanup already swallows its own failure via logError.
+//
+// ⚠️ ONE BRANCH IS NOT BYTE-IDENTICAL: the per-language `db.translation.count` loop and
+// `translateBatch()` are unwrapped, so a DB outage or a provider throw used to reach Next's default
+// 500 — and a provider throw is the realistic case here, since ?probe=1 exists precisely to be run
+// when translation is suspected broken. Those now return `{"error":"internal_error"}` 500, logged
+// with an `op`. An improvement (structured, and never the provider's exception text, which can
+// carry the API key in a URL), but a wire change on that failure path.
 const sha1 = (s: string) => createHash('sha1').update(s).digest('hex')
 
-export async function GET(req: NextRequest) {
-  if (!(await getAdmin())) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-
+export const GET = route({ auth: 'admin' }, async ({ req }) => {
   const targets = LANGS.filter((l): l is Lang => l !== 'en' && l !== 'vi') // vi is hand-authored
   const hashes = UI_STRINGS.map(sha1)
   const coverage: Record<string, { have: number; total: number; pct: number }> = {}
@@ -34,7 +54,7 @@ export async function GET(req: NextRequest) {
   const providerConfigured = !!(process.env.AZURE_TRANSLATOR_KEY || process.env.GOOGLE_TRANSLATE_API_KEY)
   const base = { strings: UI_STRINGS.length, providerConfigured, coverage }
 
-  if (new URL(req.url).searchParams.get('probe') !== '1') return NextResponse.json(base)
+  if (new URL(req.url).searchParams.get('probe') !== '1') return base
 
   // Live probe: a timestamped sentence is never cached, so a translated result
   // proves the provider works FROM THIS deployment (referer-restricted keys fail
@@ -44,8 +64,8 @@ export async function GET(req: NextRequest) {
   const [out] = await translateBatch([sentinel], 'ru', { source: 'health' })
   // translateBatch caches successful results — delete the junk probe row.
   await db.translation.deleteMany({ where: { hash: sha1(sentinel), target: 'ru' } }).catch((e) => logError(e, { op: 'i18nHealth.clearSentinel' }))
-  return NextResponse.json({
+  return {
     ...base,
     probe: { ok: out !== sentinel, ms: Date.now() - t0, result: out.slice(0, 80) },
-  })
-}
+  }
+})

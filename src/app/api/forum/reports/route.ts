@@ -18,6 +18,21 @@ export function OPTIONS(request: Request) {
   return forumPreflight(request, 'POST, OPTIONS')
 }
 
+// ⚠️ WS6 — NOT MIGRATED. Branches: 403 origin_not_allowed · 401 auth_required · 403 report_cooldown
+// · 429 rate_limited · 400 invalid_report(+issues) · 404 not_found · 400 cannot_report_self · 200
+// {reportId,duplicate:true} · 201 {reportId,duplicate:false}. Five blockers:
+//   · THE LIMITER MUST RUN AFTER AN EARLY-OUT ON PROFILE STATE. `reportCooldownUntil` 403s a
+//     cooled-down reporter BEFORE `forum-report` is consulted, so that caller never spends a token.
+//     route()'s order is fixed at auth → rateLimit → handler, so hoisting the limiter would both
+//     charge the cooled-down reporter and turn their 403 report_cooldown into 429 once the window
+//     filled. The cooldown lives on the Profile row, which only the handler has.
+//   · THE ERROR ENVELOPE IS NOT THE WRAPPER'S — a bad body answers
+//     `{"error":"invalid_report","issues":[…]}`, and apiFail() emits only `{"error":"<code>"}`.
+//   · THE ORIGIN GUARD RUNS BEFORE AUTH (403 origin_not_allowed to a guest, not 401).
+//   · CORS ON EVERY RESPONSE: Access-Control-Allow-Methods: 'POST, OPTIONS', -Allow-Headers and
+//     -Max-Age on all nine branches (+ -Allow-Origin and Vary: Origin for an allowlisted Origin).
+//   · AUTH IS getForumAuth() (bearer or cookie; its bearer path fails closed on absent
+//     Supabase env — NOT a cookies-only-wrapper issue, see forum/posts/[id]/route.ts:138).
 export async function POST(request: Request) {
   if (!isAllowedForumOrigin(request)) return forumJson(request, { error: 'origin_not_allowed' }, { status: 403 }, 'POST, OPTIONS')
   const auth = await getForumAuth(request)

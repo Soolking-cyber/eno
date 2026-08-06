@@ -45,6 +45,24 @@ export const dynamic = 'force-dynamic'
 
 const HOOK_SECRET = process.env.SEND_SMS_HOOK_SECRET // form: "v1,whsec_<base64>"
 
+// ⚠️ WS6 — NOT MIGRATED: this is a Supabase webhook, not a first-party route, and it fails every
+// assumption the wrapper is built on.
+//   · AUTH IS AN HMAC OVER THE RAW BODY, AND IT MUST RUN FIRST. `wh.verify(await req.text(), headers)`
+//     needs the exact bytes — "do NOT parse then re-stringify". `body:` would call `req.json()` on the
+//     same stream, and the wrapper has no auth mode that means "verify a signature".
+//   · A MISSING SECRET IS A 500 BEFORE ANY OF THAT: `{"error":"Not configured"}` 500.
+//   · THE ERROR STRINGS ARE PROSE, NOT CODES. `{"error":"Invalid signature"}` 401,
+//     `{"error":"Missing phone/otp"}` 400 — neither is an `ApiErrorCode`, and both are read by
+//     Supabase's hook plumbing rather than by our client.
+//   · THE COOLDOWN 429 IS A NESTED OBJECT: `{"error":{"http_code":429,"message":"Please wait 60s
+//     before requesting another code."}}` — Supabase surfaces `message` to the sign-in form verbatim.
+//     `apiFail()` emits a bare string under `error` and cannot produce this.
+//   · FOUR THROTTLES, NONE OF THEM EXPRESSIBLE. `escalatingCooldown('otp-send', …)` is not
+//     `rateLimit()` at all, and then `otp-number` / `otp-prefix` / `otp-global` must ALL pass
+//     (`rateLimit:` takes one bucket). Their keys — `phone`, `phone.slice(0, 6)` — come from the
+//     SIGNED payload, which does not exist until after step 2.
+//   · TRIPPING THOSE BREAKERS RETURNS `{}` AT 200, not a 429: "swallow the delivery, return 200
+//     (Supabase keeps the code)". A 429 there would abort a real user's login.
 export async function POST(req: Request) {
   if (!HOOK_SECRET) {
     console.error('[send-sms] SEND_SMS_HOOK_SECRET not set')

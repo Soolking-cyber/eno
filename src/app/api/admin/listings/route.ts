@@ -1,7 +1,7 @@
-import { NextRequest, NextResponse, after } from 'next/server'
+import { NextResponse, after } from 'next/server'
 import { revalidatePath } from 'next/cache'
 import { db } from '@/lib/db'
-import { getAdmin } from '@/lib/admin'
+import { route } from '@/lib/api/handler'
 import { bumpBrandCount } from '@/lib/brand'
 import { reindexListing } from '@/lib/listing-index'
 import { fold } from '@/lib/fold'
@@ -13,8 +13,30 @@ export const dynamic = 'force-dynamic'
 // getAdmin(). GET lists (search/status/verified filters, paginated); POST runs a
 // batch action over selected ids.
 
-export async function GET(req: NextRequest) {
-  if (!(await getAdmin())) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+// ⚠️ WS6 MIGRATION — THE AUTH PREAMBLE ONLY, ON BOTH METHODS. `auth: 'admin'` emits exactly the
+// `{"error":"Forbidden"}` 403 both `if (!(await getAdmin()))` lines emitted, capital F included.
+// Neither method used the admin's email, so nothing is destructured from ctx beyond `req`.
+//
+// ⚠️ NO `body:` SCHEMA ON POST, AND THE REASON IS THE HAND-COERCION. Today `{"ids":"abc"}` and
+// `{"ids":[1,2]}` both survive `Array.isArray(...) ? filter(typeof x === 'string') : []` and land on
+// `{"error":"no_ids"}` 400; a zod schema would answer `bad_request` 400 instead. Same status, a
+// different code on the wire — so the tolerant parse stays. Malformed JSON already answers
+// `bad_request` 400 and keeps doing so from the same try/catch.
+//
+// ⚠️ NO `rateLimit:` — there was none. GET's query-string coercion also stays put: route() has no
+// searchParams option and this migration adds no validation it did not have.
+//
+// GET branches held: guest / non-admin → 403 `{"error":"Forbidden"}` · any q/status/verified/limit/
+// offset combination → 200 `{listings,total}` (limit clamped 1..100, offset ≥ 0, unchanged).
+// POST branches held: guest / non-admin → 403 `{"error":"Forbidden"}` · malformed JSON → 400
+// `{"error":"bad_request"}` · no usable ids → 400 `{"error":"no_ids"}` · unrecognised action → 400
+// `{"error":"bad_action"}` · success → 200 `{"ok":true,"affected":n}`.
+//
+// ⚠️ ONE BRANCH IS NOT BYTE-IDENTICAL, ON EACH METHOD: neither had a try/catch around its Prisma
+// calls, so a DB rejection (GET's findMany/count, POST's deleteMany/updateMany, or bumpBrandCount)
+// used to reach Next's default 500 HTML and now returns `{"error":"internal_error"}` 500, logged
+// with an `op`. Accepted improvement, declared rather than claimed away.
+export const GET = route({ auth: 'admin' }, async ({ req }) => {
   const { searchParams } = new URL(req.url)
   const q = searchParams.get('q')?.trim()
   const status = searchParams.get('status') // active | hidden | sold | all
@@ -58,10 +80,9 @@ export async function GET(req: NextRequest) {
     return { id: l.id, title: l.titleVi || l.title, price: l.price, currency: l.currency, image: l.images[0] ?? null, status: r.status, verified: r.verified, featured: r.featured, sellerName: r.seller.name, category: l.category.name, createdAt: r.createdAt.toISOString() }
   })
   return NextResponse.json({ listings, total })
-}
+})
 
-export async function POST(req: NextRequest) {
-  if (!(await getAdmin())) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+export const POST = route({ auth: 'admin' }, async ({ req }) => {
   let body: { action?: string; ids?: string[] }
   try { body = await req.json() } catch { return NextResponse.json({ error: 'bad_request' }, { status: 400 }) }
   const ids = Array.isArray(body.ids) ? body.ids.filter((x) => typeof x === 'string').slice(0, 500) : []
@@ -93,4 +114,4 @@ export async function POST(req: NextRequest) {
   // hide/unverify/delete → remove, activate/verify → add, feature → refresh).
   after(() => { for (const id of ids) reindexListing(id) })
   return NextResponse.json({ ok: true, affected })
-}
+})

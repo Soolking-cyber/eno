@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { timingSafeEqual } from 'node:crypto'
+import { route } from '@/lib/api/handler'
 import { getVisaDb } from '@/lib/visa/db'
 import { removeVisaFiles } from '@/lib/visa/storage'
 
@@ -42,19 +42,35 @@ const TERMINAL_STATUSES = ['approved', 'rejected', 'cancelled']
 const BATCH = 100
 const MAX_BATCHES = 20 // runaway stop: 2000 deletions per run is a backlog, not a sweep
 
-function bearerOk(header: string | null, secret: string): boolean {
-  const token = header?.startsWith('Bearer ') ? header.slice(7) : ''
-  const a = Buffer.from(token)
-  const b = Buffer.from(secret)
-  return a.length === b.length && timingSafeEqual(a, b)
-}
-
-export async function GET(request: Request) {
-  const secret = process.env.CRON_SECRET
-  if (!secret || !bearerOk(request.headers.get('authorization'), secret)) {
-    return NextResponse.json({ error: 'forbidden' }, { status: 401 })
-  }
-
+// ⚠️ WS6 MIGRATION — `auth: 'cron'`. THIS WAS THE SIXTH COPY, and closing it is the whole point of
+// the mode existing. Verified before editing, not assumed: the local `bearerOk()` deleted here was
+// byte-identical to the one `src/app/api/cron/price-stats/route.ts` carried at HEAD~5 (`diff` of the
+// two six-line functions: no output), and the gate block was identical too — same
+// `if (!secret || !bearerOk(<req>.headers.get('authorization'), secret))`, same
+// `{ error: 'forbidden' }`, same status **401**, differing only in the request parameter's NAME
+// (`request` here, `req` there). `cronAuthorized()` in `src/lib/api/handler.ts` reproduces it
+// exactly, including the fail-closed unset-secret branch and the `a.length === b.length &&`
+// short-circuit that keeps `timingSafeEqual` from throwing on unequal lengths.
+//
+// EVERY BRANCH, UNCHANGED:
+//   · unset CRON_SECRET, or a missing / malformed / wrong-length / wrong Bearer token
+//                                            → `{"error":"forbidden"}` 401
+//   · the expired-case query errors          → `{"error":"visa_database_unavailable"}` 503
+//   · success (including a run where individual cases failed and were counted in `failed`)
+//     → `{ok,deleted,failed,remaining,skippedNonTerminal,checkedAt}` 200 + `Cache-Control: no-store`
+//
+// ⚠️ BOTH RETURNS STAY `NextResponse`, VIA route()'s PASS-THROUGH, FOR TWO DIFFERENT REASONS.
+// The 200 carries a `Cache-Control: no-store` header, and neither `apiFail()` nor a returned plain
+// object can emit one — a sweep report is per-invocation and must never be served from a cache.
+// The 503 stays a Response because a returned object is serialised at **200**: `{"error":"…"}` with
+// a success status is exactly the silent failure a retention sweep must not have. route() passes a
+// handler-returned `Response` through unchanged, which is the escape hatch for both.
+//
+// ⚠️ ONE ACCEPTED WIRE CHANGE, STATED AS A SHAPE: any unhandled throw in this handler now returns
+// `{"error":"internal_error"}` 500 instead of Next's default 500 HTML. The per-case work is inside
+// a try, but nothing else is — `getVisaDb()` and the two trailing `count` queries are bare — so
+// this is a live path, not a hypothetical.
+export const GET = route({ auth: 'cron' }, async () => {
   const db = getVisaDb()
   const now = new Date().toISOString()
   let deleted = 0
@@ -126,4 +142,4 @@ export async function GET(request: Request) {
     { ok: true, deleted, failed, remaining: remaining ?? 0, skippedNonTerminal: skippedNonTerminal ?? 0, checkedAt: now },
     { headers: { 'Cache-Control': 'no-store' } },
   )
-}
+})

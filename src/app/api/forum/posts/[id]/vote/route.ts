@@ -13,6 +13,20 @@ export function OPTIONS(request: Request) {
   return forumPreflight(request, 'POST, OPTIONS')
 }
 
+// ⚠️ WS6 — NOT MIGRATED. Branches: 403 origin_not_allowed · 401 auth_required · 403
+// account_restricted · 400 invalid_vote · 429 rate_limited · 404 not_found · 200 {score,viewerVote}.
+// Same four blockers as the comment-vote route beside it:
+//   · THE BODY IS VALIDATED BEFORE THE LIMITER; route()'s order is fixed at auth → rateLimit → body.
+//     A caller over `forum-post-vote` who also sends a malformed body gets 400
+//     `{"error":"invalid_vote"}` today and would get 429 `{"error":"rate_limited"}`.
+//   · THE LIMITER RUNS AFTER `canParticipate()`, so a suspended account over the limit would flip
+//     from 403 account_restricted to 429.
+//   · CORS ON EVERY RESPONSE: forumJson sets Access-Control-Allow-Methods: 'POST, OPTIONS',
+//     -Allow-Headers and -Max-Age on all seven branches (+ -Allow-Origin and Vary: Origin for an
+//     allowlisted Origin). route()/apiFail carry none, and restoring them by hand empties all four
+//     options.
+//   · THE ORIGIN GUARD RUNS BEFORE AUTH, and auth is getForumAuth() (bearer or cookie; its bearer path fails closed on absent
+//     Supabase env — NOT a cookies-only-wrapper issue, see forum/posts/[id]/route.ts:138).
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   if (!isAllowedForumOrigin(request)) return forumJson(request, { error: 'origin_not_allowed' }, { status: 403 }, 'POST, OPTIONS')
   const { id } = await params

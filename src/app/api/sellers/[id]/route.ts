@@ -15,6 +15,12 @@ export const dynamic = 'force-dynamic'
 // /<handle> pages are SSR and never call this). Returns the storefront header
 // metrics (bucketed responsiveness — raw responseRate stays server-side, the
 // honesty gate), the seller's active listings as cards, and top reviews.
+//
+// ⚠️ WS6 — NOT MIGRATED: all four wrapper options would be empty (public, no limiter, no JSON body),
+// so route() would be pure noise here. It would also cost something: both 404s emit
+// `{"error":"Not found"}` — capital N, a space — which is NOT an ApiErrorCode and cannot be
+// `ApiError('not_found')` without changing the bytes the native apps parse, and the success path sets
+// its own `Cache-Control: s-maxage=60`, so it would have to keep returning a Response by hand anyway.
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   /**

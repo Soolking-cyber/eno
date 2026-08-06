@@ -1,7 +1,7 @@
 import { ThinkingLevel, Type } from '@google/genai'
 import { z } from 'zod'
 import { NextResponse } from 'next/server'
-import { getCurrentProfileId } from '@/lib/admin'
+import { route } from '@/lib/api/handler'
 import { AI_GLOBAL_DAILY_LIMIT } from '@/lib/ai-guard'
 import { aiErrorStatus, withAiRetry } from '@/lib/ai-retry'
 import { GEMINI_MODEL, GEMINI_MODEL_FALLBACK, getGemini } from '@/lib/gemini'
@@ -121,13 +121,47 @@ async function analyzeImage(
   })
 }
 
-export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const userId = await getCurrentProfileId()
-  if (!userId) return NextResponse.json({ error: 'auth_required' }, { status: 401 })
+// ⚠️ WS6 MIGRATION — `auth: 'userId'` ONLY. The other three options are each blocked by a specific
+// byte on the wire, so they stay in the handler:
+//
+//   · `body:` — an UNPARSEABLE body is not an error here. `request.json().catch(() => ({ kind:
+//     'passport' }))` means a missing, empty or malformed body falls back to a passport extraction
+//     and the request SUCCEEDS; only a body that parses and then fails the schema is 400
+//     `invalid_analysis_request`. The wrapper's body step answers 400 to both, which would turn
+//     today's bodyless POST from a 200 into a 400.
+//   · `rateLimit:` — there are THREE limiters, and they are not independent. Two per-user buckets
+//     run in parallel, and the shared `ai-global` budget is charged ONLY if both pass (the comment
+//     below explains why that ordering is load-bearing). They also run AFTER the case and document
+//     rows are read, because the throttled answer WRITES a validation report to visa_documents.
+//   · and the throttled answer is not the wrapper's envelope anyway: it is 429
+//     `{"error":"image_analysis_rate_limited"}` carrying `Retry-After: 300`.
+//
+// THE FULL BRANCH INVENTORY, all unchanged:
+//   guest                          401 {"error":"auth_required"}
+//   crypto key unset               503 {"error":"visa_encryption_not_configured"}
+//   body parses, fails schema      400 {"error":"invalid_analysis_request"}
+//   body unparseable/absent        → defaults to {kind:'passport'} and CONTINUES
+//   non-uuid id                    404 {"error":"not_found"}
+//   case absent or another user's  404 {"error":"not_found"}
+//   status not draft/needs_changes 409 {"error":"application_locked"}
+//   no document of that kind       409 {"error":"<kind>_image_required"}
+//   any of the three limiters      429 {"error":"image_analysis_rate_limited"} + Retry-After: 300
+//   Vertex unconfigured            503 {"error":"ai_unavailable"}
+//   storage download failed        500 {"error":"image_download_failed"}
+//   CAS miss on the payload write  409 {"error":"application_changed_retry"}
+//   model capacity                 429 {"error":"image_analysis_busy"} + Retry-After: 60
+//   model failure                  502 {"error":"image_analysis_failed"}
+//   success                        200 {"document":{…},"payload":…,"suggestions":…,…}
+//
+// ⚠️ ONE BRANCH IS NOT BYTE-IDENTICAL, AND IT IS THE ACCEPTED ONE. Everything above the inner
+// try/catch — the two row reads, the limiter calls, the storage download — had no catch, so any
+// unhandled throw in this handler reached Next's default 500. route() catches it, logs it with an
+// `op`, and answers `{"error":"internal_error"}` 500.
+export const POST = route({ auth: 'userId' }, async ({ req, params, userId }) => {
   if (!visaCryptoReady()) return NextResponse.json({ error: 'visa_encryption_not_configured' }, { status: 503 })
-  const parsed = requestSchema.safeParse(await request.json().catch(() => ({ kind: 'passport' })))
+  const parsed = requestSchema.safeParse(await req.json().catch(() => ({ kind: 'passport' })))
   if (!parsed.success) return NextResponse.json({ error: 'invalid_analysis_request' }, { status: 400 })
-  const { id } = await params
+  const { id } = params
   if (!UUID_RE.test(id)) return NextResponse.json({ error: 'not_found' }, { status: 404 })
   const db = getVisaDb()
   // validation_status is selected for the no-downgrade rule at the write below — without it we
@@ -323,4 +357,4 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     if (capacityBusy) response.headers.set('Retry-After', '60')
     return response
   }
-}
+})

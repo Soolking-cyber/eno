@@ -67,6 +67,20 @@ const STATUS: Record<WizardError, number> = {
   update_failed: 500,
 }
 
+// ⚠️ WS6 — NOT MIGRATED: a guest gets `{"error":"not_signed_in"}` 401, and the wrapper's
+// `auth: 'profile'` branch is a hardcoded `apiFail('auth_required', 401)`
+// (src/lib/api/handler.ts:195). Same status, different body bytes, so the auth block cannot move.
+//
+// With auth pinned in the handler, the other three options are empty too, and each for its own
+// reason rather than by inheritance:
+//   · `rateLimit:` — the wrapper runs the limiter for `auth: 'public'` keyed on `clientIp(req)`.
+//     This one is keyed on `profile.id`, which only exists after the getCurrentProfile() above, so
+//     hoisting it would re-key the bucket from the traveller to their IP.
+//   · `body:` — the wrapper's fixed order is auth → rateLimit → body. Hoisting the schema alone
+//     would parse the body BEFORE the hand-rolled 401 below, turning a signed-out caller with a
+//     malformed body from 401 `not_signed_in` into 400 `invalid_body`.
+//   · `invalidBodyCode:` — meaningless without `body:`.
+// Four empty options is churn, so the code stands as written.
 export async function POST(req: Request) {
   const profile = await getCurrentProfile()
   if (!profile) return NextResponse.json({ error: 'not_signed_in' }, { status: 401 })
@@ -124,6 +138,11 @@ export async function POST(req: Request) {
  *
  * Deliberately NOT an existence oracle: a thread that is not the caller's answers exactly as one
  * that does not exist, and a signed-out caller gets 401 before anything is looked up.
+ *
+ * ⚠️ WS6 — NOT MIGRATED: same 401 body as the POST — `{"error":"not_signed_in"}`, where the wrapper
+ * emits `{"error":"auth_required"}`. Nothing else here is hoistable in any case: no limiter, and no
+ * JSON body (the one input is a `?conversationId=` search param, which `body:` cannot validate), so
+ * all four options are empty.
  */
 export async function GET(req: Request) {
   const profile = await getCurrentProfile()

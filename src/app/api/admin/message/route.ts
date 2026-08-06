@@ -1,6 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getAdmin } from '@/lib/admin'
+import { route } from '@/lib/api/handler'
 import { localizedMacro } from '@/lib/admin-macros'
 
 export const dynamic = 'force-dynamic'
@@ -8,10 +8,31 @@ export const dynamic = 'force-dynamic'
 // Admin → user outreach from the moderation queue. The admin can ONLY send a PRE-PREPARED
 // macro (no free text) — delivered to the recipient's notification bell IN THEIR LANGUAGE
 // (Profile.locale, EN/VI). One-way (warnings / requests for detail), not a two-way thread.
-export async function POST(req: NextRequest) {
-  const admin = await getAdmin()
-  if (!admin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-
+//
+// ⚠️ WS6 MIGRATION — THE AUTH PREAMBLE ONLY. `auth: 'admin'` reproduces the
+// `{"error":"Forbidden"}` 403 exactly (capital F). The old code bound `const admin = await
+// getAdmin()` and then never read it — the admin's individual identity is deliberately never
+// stored on the notification, which renders as "eno.vn moderation" — so nothing is destructured
+// from ctx but `req`.
+//
+// ⚠️ NO `body:` SCHEMA, AND THE REASON IS TWO DIFFERENT 400s. Malformed JSON answers
+// `{"error":"Invalid body"}` — free text, not an ApiErrorCode, so `invalidBodyCode` cannot express
+// it — while a missing recipientId/macroKey answers `{"error":"Missing recipient or message"}`,
+// also free text. A schema would collapse both into one code and 400 the `String(body.x || '')`
+// coercion that currently accepts a number. Both stay hand-parsed. No `rateLimit:` either: there
+// was none, and adding one to an admin console would be a behaviour change, not a migration.
+//
+// Branches held: guest / non-admin → 403 `{"error":"Forbidden"}` · malformed JSON → 400
+// `{"error":"Invalid body"}` · missing recipientId or macroKey → 400 `{"error":"Missing recipient
+// or message"}` · unclaimed guest seller / unknown profile → 404
+// `{"error":"recipient_unreachable"}` · macro key not in the catalogue → 400
+// `{"error":"unknown_macro"}` · success → 200 `{"ok":true}`.
+//
+// ⚠️ ONE BRANCH IS NOT BYTE-IDENTICAL: nothing here was wrapped in a try/catch, so a rejection from
+// the Profile lookup, the Report lookup or the notification create used to reach Next's default 500
+// HTML. route() now catches it, logs with an `op`, and returns `{"error":"internal_error"}` 500 —
+// an improvement, and a wire change on that failure path.
+export const POST = route({ auth: 'admin' }, async ({ req }) => {
   let body: { recipientId?: string; macroKey?: string; listingId?: string; conversationId?: string }
   try {
     body = await req.json()
@@ -72,4 +93,4 @@ export async function POST(req: NextRequest) {
     },
   })
   return NextResponse.json({ ok: true })
-}
+})
