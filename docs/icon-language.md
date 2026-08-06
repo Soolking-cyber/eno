@@ -236,3 +236,8 @@ EARNED tiers (Trusted/Exceptional/Elite) = vivid tier-gradient chief on the same
 (owner decision 2026-07-13, preserved through the foundation restyle). A vivid earned chip beside
 tinted building chips on one card row is correct rendering of real rank data — do not "fix" it,
 and critics should read mixed vividness on one surface as information, not inconsistency.
+
+### §0/§6 addendum — symmetric twin regions count as ONE wash move (lead ruling, 2026-08-07)
+Glyphs whose closed body is a mirrored pair (dumbbell plates, binocular barrels, scale pans)
+wash BOTH twins: the pair reads as a single visual move, and washing one side reads as a
+rendering error, not restraint. The one-region law counts moves, not paths.

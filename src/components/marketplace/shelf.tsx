@@ -27,6 +27,16 @@ export const SECTION_TITLE = 'text-lg font-semibold text-foreground'
 export const SECTION_SEE_ALL =
   'flex shrink-0 items-center gap-0.5 text-sm font-semibold text-accent-foreground hover:underline'
 
+/** Small-size CategoryIcon override (icon-language §2 + the foundation handoff's
+ *  "tiny glyphs lose authority" request): the registry bakes the DISPLAY stroke (1.5)
+ *  because tiles render at h-11+, but at chip/header size (h-3.5/h-4) that scales to
+ *  <1px of ink and the glyph goes wispy next to its stroke-2 lucide neighbours.
+ *  CSS `stroke-width` beats the svg's presentation attribute and inherits into the
+ *  children, so this class re-tiers a small category glyph to the UI weight without
+ *  touching the (foundation-owned) registry. ⚠️ Literal on purpose — Tailwind's scanner
+ *  reads source text; the value mirrors STROKE_UI in src/lib/icon-tokens.ts. */
+export const CHIP_CATEGORY_ICON_STROKE = '[stroke-width:2]'
+
 /** Edge-fade for a hidden-scrollbar rail — a MASK, never a painted overlay (the flat canon
  *  bans new fills; a mask only lets the canvas through, in any theme). Clipping a tile
  *  mid-glyph at the container edge reads as a rendering bug; fading it reads as "more this

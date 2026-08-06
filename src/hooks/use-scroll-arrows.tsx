@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useLanguage } from '@/context/language-context'
+import { STROKE_FLOAT_MAX } from '@/lib/icon-tokens'
 import { cn } from '@/lib/utils'
 
 /**
@@ -122,12 +123,13 @@ export function ScrollArrows({
     <>
       {canLeft && (
         <Button variant="bare" size="none" onClick={() => page(-1)} aria-label={tr('Scroll left', 'Cuộn trái')} style={style} className={cn(arrowCls, arrowTop == null && 'top-1/2', leftInset)}>
-          <ChevronLeft className={arrowIcon} strokeWidth={2.75} />
+          {/* Floating-chevron tier (icon-language §2): rail scroll arrows ride the max. */}
+          <ChevronLeft className={arrowIcon} strokeWidth={STROKE_FLOAT_MAX} />
         </Button>
       )}
       {canRight && (
         <Button variant="bare" size="none" onClick={() => page(1)} aria-label={tr('Scroll right', 'Cuộn phải')} style={style} className={cn(arrowCls, arrowTop == null && 'top-1/2', rightInset)}>
-          <ChevronRight className={arrowIcon} strokeWidth={2.75} />
+          <ChevronRight className={arrowIcon} strokeWidth={STROKE_FLOAT_MAX} />
         </Button>
       )}
     </>

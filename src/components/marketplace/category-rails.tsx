@@ -6,7 +6,7 @@ import { ChevronRight } from 'lucide-react'
 import type { SerializedCategory, SerializedListingCard } from '@/lib/types'
 import { ListingCard } from './listing-card'
 import { CategoryIcon } from './category-icons'
-import { RAIL_CARD_W, RAIL_SCROLLER, MIN_RAIL_ITEMS, SECTION_HEADER_ROW, SECTION_TITLE, SECTION_SEE_ALL } from './shelf'
+import { RAIL_CARD_W, RAIL_SCROLLER, MIN_RAIL_ITEMS, SECTION_HEADER_ROW, SECTION_TITLE, SECTION_SEE_ALL, CHIP_CATEGORY_ICON_STROKE } from './shelf'
 import { useLanguage, Tr } from '@/context/language-context'
 import { useScrollArrows, ScrollArrows } from '@/hooks/use-scroll-arrows'
 import { ListingCardSkeleton } from './listing-card-skeleton'
@@ -49,7 +49,10 @@ function CategoryRail({ cat, listings, onCategory }: { cat: SerializedCategory; 
       <div className={SECTION_HEADER_ROW}>
         <h2 className="min-w-0">
           <Button variant="bare" size="none" onClick={() => onCategory(cat.slug)} className="group flex items-center gap-2">
-            <CategoryIcon name={cat.icon} className="h-4 w-4 text-accent-foreground" />
+            {/* Header size = the 16px UI tier, so the baked display stroke (1.5, tuned for
+                h-11 tiles) reads wispy beside the stroke-2 Clock/Award/History headers of
+                the sibling rails — re-tier it (see CHIP_CATEGORY_ICON_STROKE in shelf.tsx). */}
+            <CategoryIcon name={cat.icon} className={cn('h-4 w-4 text-accent-foreground', CHIP_CATEGORY_ICON_STROKE)} />
             <span className={cn(SECTION_TITLE, 'transition-colors group-hover:text-accent-foreground')}>
               <Tr text={lang === 'vi' ? cat.nameVi : cat.name} />
             </span>

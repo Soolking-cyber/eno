@@ -8,6 +8,7 @@ import { slugify } from '@/lib/slug'
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import { ArrowRight } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/empty-state'
@@ -189,9 +190,12 @@ export default async function CategoryPage({ params }: Props) {
               <SellerListings listings={listings} sortable={listings.length > 1} />
             </div>
             <div className="mt-8">
-              <Button asChild variant="cta" size="none">
+              {/* Real ArrowRight at h-4, not a literal '→' — the SEO-landing CTAs already
+                  use the lucide arrow, and one page family should speak one arrow language.
+                  gap-1.5 on the BUTTON (asChild concatenates the child's className). */}
+              <Button asChild variant="cta" size="none" className="gap-1.5">
                 <Link href={`/?category=${cat.slug}`} className="px-5 py-2.5">
-                  <Tr text="Refine in full search" /> →
+                  <Tr text="Refine in full search" /> <ArrowRight className="h-4 w-4" />
                 </Link>
               </Button>
             </div>

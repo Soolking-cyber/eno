@@ -1,19 +1,10 @@
 'use client'
 
 import { Fragment, useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState, useTransition, type CSSProperties } from 'react'
-import {
-  Search,
-  Inbox,
-  AlertTriangle,
-  MapPin,
-  Phone,
-  X,
-  Sliders,
-  Clock,
-  Map,
-  Bookmark,
-  TrendingUp,
-} from 'lucide-react'
+// Only the glyphs this file actually renders — the vestigial hero-search set
+// (Search/MapPin/Phone/Sliders/Map/TrendingUp) died with the hero bar and was
+// still being imported (icon-gauntlet cleanup, 2026-08-06).
+import { Inbox, AlertTriangle, X, Clock, Bookmark } from 'lucide-react'
 import { toast } from 'sonner'
 import type { SerializedListingCard, SerializedCategory } from '@/lib/types'
 import { CATEGORY_COLOR_CLASSES, timeAgo } from '@/lib/types'
@@ -1336,7 +1327,7 @@ export function ListingsExplorer({
   const mapSortedListings = useMemo(() => {
     const anchor = nearby ? { lat: nearby.lat, lng: nearby.lng } : mapCenter
     if (!anchor) return shownListings
-    // (plain record — `Map` is shadowed by the lucide icon import in this file)
+    // (plain record — kept from when `Map` was shadowed by a lucide icon import here)
     const dists: Record<string, number> = {}
     for (const l of shownListings) {
       const c = getListingCoordinates(l)
@@ -2036,7 +2027,7 @@ export function ListingsExplorer({
         <div className={cn('flex items-center gap-2 rounded-2xl bg-brand-50 px-2.5 py-2', className)}>
           <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">{chipBtns}</div>
           <Button onClick={saveSearch} variant="cta" size="none" className="shrink-0 gap-1.5 px-3.5 py-1.5 text-xs shadow-sm active:scale-[0.96] cursor-pointer">
-            <Bookmark className="size-4" /> {tr('Save search', 'Lưu tìm kiếm')}
+            <Bookmark className="h-4 w-4" /> {tr('Save search', 'Lưu tìm kiếm')}
           </Button>
         </div>
       )
@@ -2054,78 +2045,82 @@ export function ListingsExplorer({
   }
 
   // Empty state that diagnoses WHY there are no results and offers one-tap relaxation.
+  // Rendered through the foundation EmptyState primitive (icon-language §6): the raw
+  // oversized muted Inbox becomes the coin treatment — glyph on a brand-50 disc at the
+  // display stroke — so zero results still looks like eno rather than a gray void.
   const renderEmptyState = () => {
     const chips = getActiveChips()
 
     return (
-      <div className="flex flex-col items-center justify-center gap-4 rounded-2xl border border-dashed border-line-strong py-14 px-6 text-center">
-        <Inbox className="h-10 w-10 text-muted-foreground" />
-        <p className="text-sm font-semibold text-body">
-          {tr('No listings match these filters.', 'Không có tin nào khớp với bộ lọc này.')}
-        </p>
+      <EmptyState
+        icon={Inbox}
+        title={tr('No listings match these filters.', 'Không có tin nào khớp với bộ lọc này.')}
+        action={
+          <div className="flex flex-col items-center gap-4">
+            {chips.length > 0 && (
+              <div className="flex flex-wrap items-center justify-center gap-2">
+                <span className="text-xs text-ink-4">{tr('Remove:', 'Bỏ bớt:')}</span>
+                {chips.map((c, i) => (
+                  <Button
+                    key={i}
+                    variant="bare"
+                    size="none"
+                    onClick={c.onClear}
+                    className="inline-flex items-center gap-1 whitespace-normal rounded-xl px-3 py-1.5 text-xs font-semibold text-body hover:bg-muted transition-colors cursor-pointer"
+                  >
+                    {c.label}
+                    <X className="h-3 w-3" />
+                  </Button>
+                ))}
+              </div>
+            )}
 
-        {chips.length > 0 && (
-          <div className="flex flex-wrap items-center justify-center gap-2">
-            <span className="text-xs text-ink-4">{tr('Remove:', 'Bỏ bớt:')}</span>
-            {chips.map((c, i) => (
-              <Button
-                key={i}
-                variant="bare"
-                size="none"
-                onClick={c.onClear}
-                className="inline-flex items-center gap-1 whitespace-normal rounded-xl px-3 py-1.5 text-xs font-semibold text-body hover:bg-muted transition-colors cursor-pointer"
-              >
-                {c.label}
-                <X className="h-3 w-3" />
-              </Button>
-            ))}
-          </div>
-        )}
-
-        <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
-          {chips.length > 0 && (
-            <Button variant="cta" size="none"
-              onClick={clearAllFilters}
-              className="rounded-xl px-4 py-2 text-xs transition-colors cursor-pointer"
-            >
-              {tr('Clear all filters', 'Xóa tất cả bộ lọc')}
-            </Button>
-          )}
-          {/* The other two exits of the recovery trio (widening = the chip row above):
-              turn this search into an alert, or flip the intent and post a Wanted. */}
-          <Button variant="outline" size="none"
-            onClick={saveSearch}
-            className="rounded-xl px-4 py-2 text-xs font-semibold cursor-pointer"
-          >
-            {tr('Create an alert for this search', 'Tạo thông báo cho tìm kiếm này')}
-          </Button>
-          <Button asChild variant="outline" size="none" className="rounded-xl px-4 py-2 text-xs font-semibold">
-            <Link href="/post">
-              {tr('Post a Wanted — let sellers come to you', 'Đăng tin cần tìm — để người bán tìm đến bạn')}
-            </Link>
-          </Button>
-        </div>
-
-        {/* A dead end orients nobody — offer a one-tap jump to popular categories. */}
-        {categories.length > 0 && (
-          <div className="flex flex-col items-center gap-2 pt-1">
-            <span className="text-xs text-ink-4">{tr('Or browse', 'Hoặc xem')}</span>
             <div className="flex flex-wrap items-center justify-center gap-2">
-              {categories.slice(0, 4).map((c) => (
-                <Button
-                  key={c.slug}
-                  variant="bare"
-                  size="none"
-                  onClick={() => handleCategorySelect(c.slug)}
-                  className="inline-flex items-center rounded-full bg-tint px-3.5 py-1.5 text-xs font-semibold text-body transition-colors hover:bg-accent hover:text-accent-foreground cursor-pointer"
+              {chips.length > 0 && (
+                <Button variant="cta" size="none"
+                  onClick={clearAllFilters}
+                  className="rounded-xl px-4 py-2 text-xs transition-colors cursor-pointer"
                 >
-                  <Tr text={lang === 'vi' ? c.nameVi : c.name} />
+                  {tr('Clear all filters', 'Xóa tất cả bộ lọc')}
                 </Button>
-              ))}
+              )}
+              {/* The other two exits of the recovery trio (widening = the chip row above):
+                  turn this search into an alert, or flip the intent and post a Wanted. */}
+              <Button variant="outline" size="none"
+                onClick={saveSearch}
+                className="rounded-xl px-4 py-2 text-xs font-semibold cursor-pointer"
+              >
+                {tr('Create an alert for this search', 'Tạo thông báo cho tìm kiếm này')}
+              </Button>
+              <Button asChild variant="outline" size="none" className="rounded-xl px-4 py-2 text-xs font-semibold">
+                <Link href="/post">
+                  {tr('Post a Wanted — let sellers come to you', 'Đăng tin cần tìm — để người bán tìm đến bạn')}
+                </Link>
+              </Button>
             </div>
+
+            {/* A dead end orients nobody — offer a one-tap jump to popular categories. */}
+            {categories.length > 0 && (
+              <div className="flex flex-col items-center gap-2">
+                <span className="text-xs text-ink-4">{tr('Or browse', 'Hoặc xem')}</span>
+                <div className="flex flex-wrap items-center justify-center gap-2">
+                  {categories.slice(0, 4).map((c) => (
+                    <Button
+                      key={c.slug}
+                      variant="bare"
+                      size="none"
+                      onClick={() => handleCategorySelect(c.slug)}
+                      className="inline-flex items-center rounded-full bg-tint px-3.5 py-1.5 text-xs font-semibold text-body transition-colors hover:bg-accent hover:text-accent-foreground cursor-pointer"
+                    >
+                      <Tr text={lang === 'vi' ? c.nameVi : c.name} />
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
-        )}
-      </div>
+        }
+      />
     )
   }
 

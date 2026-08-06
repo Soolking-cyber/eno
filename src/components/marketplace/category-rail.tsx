@@ -8,7 +8,8 @@ import { SUBCATEGORIES } from '@/lib/subcategories'
 import { MoreOverflow } from './more-overflow'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
-import { railEdgeMask } from './shelf'
+import { STROKE_DISPLAY } from '@/lib/icon-tokens'
+import { railEdgeMask, CHIP_CATEGORY_ICON_STROKE } from './shelf'
 import { useScrollArrows, ScrollArrows } from '@/hooks/use-scroll-arrows'
 import { cn } from '@/lib/utils'
 import type { SerializedCategory } from '@/lib/types'
@@ -95,7 +96,12 @@ export function CategoryRail({
       {/* All */}
       <Button variant="bare" size="none" data-cat="all" onClick={() => onCategory('all')} className={cn('whitespace-normal', tileCls)}>
         <span className="flex h-11 items-center justify-center">
-          <Layers className={iconCls(activeCategory === 'all')} />
+          {/* 'Layers' has no registry key (foundation-owned category-icons.tsx), so this
+              direct lucide render restates CategoryIcon's two moves locally: the display
+              stroke tier (§2 — 2 at h-11 renders rubber-stamped) and the §0 wash on the
+              ONE closed region (the top layer). Foundation request filed to register the
+              key so this tile can route through <CategoryIcon> like its neighbours. */}
+          <Layers strokeWidth={STROKE_DISPLAY} className={cn('[&>path:first-of-type]:fill-brand-100', iconCls(activeCategory === 'all'))} />
         </span>
         <span className={nameCls(activeCategory === 'all')}>{tr('All', 'Tất cả')}</span>
       </Button>
@@ -134,7 +140,9 @@ export function CategoryRail({
                     const count = subcategoryCounts[sub.slug]
                     return (
                       <Button key={sub.slug} variant="bare" size="none" onClick={() => onSubcategory(subActive ? 'all' : sub.slug)} className={cn('block', subChip(subActive))}>
-                        <CategoryIcon name={sub.icon} className="mr-1 inline h-3.5 w-3.5 shrink-0 align-[-2px]" />
+                        {/* CHIP_CATEGORY_ICON_STROKE: at 14px the baked display stroke goes
+                            wispy — re-tier to the UI weight (see shelf.tsx). */}
+                        <CategoryIcon name={sub.icon} className={cn('mr-1 inline h-3.5 w-3.5 shrink-0 align-[-2px]', CHIP_CATEGORY_ICON_STROKE)} />
                         <Tr text={lang === 'vi' ? sub.nameVi : sub.name} />
                         {count != null && <span className="ml-1 text-3xs font-semibold text-ink-4">{count}</span>}
                       </Button>
@@ -153,7 +161,7 @@ export function CategoryRail({
                             onClick={() => onSubcategory(subActive ? 'all' : sub.slug)}
                             className={cn('flex w-full justify-between gap-3 rounded-lg px-2.5 py-1.5 text-left font-semibold transition-colors active:scale-100', subActive ? 'bg-accent text-accent-foreground' : 'text-body hover:bg-muted hover:text-accent-foreground')}
                           >
-                            <span className="flex min-w-0 items-center gap-2"><CategoryIcon name={sub.icon} className="h-4 w-4 shrink-0 text-ink-4" /><span className="truncate"><Tr text={lang === 'vi' ? sub.nameVi : sub.name} /></span></span>
+                            <span className="flex min-w-0 items-center gap-2"><CategoryIcon name={sub.icon} className={cn('h-4 w-4 shrink-0 text-ink-4', CHIP_CATEGORY_ICON_STROKE)} /><span className="truncate"><Tr text={lang === 'vi' ? sub.nameVi : sub.name} /></span></span>
                             {count != null && <span className="shrink-0 text-3xs font-semibold text-ink-4">{count}</span>}
                           </Button>
                         )

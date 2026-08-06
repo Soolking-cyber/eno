@@ -12,6 +12,7 @@ import {
   type CarouselApi,
 } from '@/components/ui/carousel'
 import { useLanguage } from '@/context/language-context'
+import { STROKE_DISPLAY } from '@/lib/icon-tokens'
 import { PROMO_SLIDES, type PromoSlide } from '@/lib/promo-slides'
 import { cn } from '@/lib/utils'
 
@@ -267,7 +268,10 @@ function SlidePanel({ slide }: { slide: PromoSlide }) {
           BOWS OUT (sm:hidden) — two translucent motifs stacked at the same corner is exactly the
           muddy, generic read this replaced. The old blurred CSS circle is gone for the same
           reason: every SVG already paints that radial highlight; the CSS copy doubled it. */}
-      <Icon aria-hidden className="pointer-events-none absolute -bottom-8 -right-4 size-36 -rotate-6 text-white/10 sm:hidden" />
+      {/* Display tier (icon-language §2): a 24-grid line scales with the box, so the
+          default stroke 2 renders ~12px of ink at size-36 — rubber-stamp weight. 1.5
+          keeps the oversized watermark elegant, matching the category-tile line. */}
+      <Icon aria-hidden strokeWidth={STROKE_DISPLAY} className="pointer-events-none absolute -bottom-8 -right-4 size-36 -rotate-6 text-white/10 sm:hidden" />
 
       <div className="relative max-w-[86%] sm:max-w-[76%]">
         {/* ⚠️ NO EYEBROW. The kicker that sat here ("FREE TO POST", …) is the labelled-heading

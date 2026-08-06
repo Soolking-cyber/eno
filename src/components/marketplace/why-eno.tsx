@@ -1,9 +1,10 @@
 'use client'
 
-import { BadgeCheck, Coins, Gavel, LockKeyhole, Megaphone } from 'lucide-react'
+import { Coins, Gavel, LockKeyhole, Megaphone } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useLanguage } from '@/context/language-context'
 import { SITE_NAME } from '@/lib/edition'
+import { EnoSeal } from './eno-seal'
 import { railEdgeMask } from './shelf'
 import { useScrollArrows } from '@/hooks/use-scroll-arrows'
 
@@ -31,7 +32,10 @@ import { useScrollArrows } from '@/hooks/use-scroll-arrows'
  */
 type Reason = {
   key: string
-  icon: LucideIcon
+  /** lucide glyph — or omitted for the ONE reason that carries the eno seal instead
+   *  (the trust score is a first-party trust claim, and icon-language §0b reserves
+   *  that moment for the seal, not a generic lucide badge). */
+  icon?: LucideIcon
   titleEn: string
   titleVi: string
 }
@@ -45,7 +49,8 @@ const REASONS: Reason[] = [
   },
   {
     key: 'trust',
-    icon: BadgeCheck,
+    // No lucide icon: this tile renders <EnoSeal> (see the map below) — the
+    // highest-visibility seal echo on the home page (foundation handoff request).
     titleEn: 'Trust scores you can check',
     titleVi: 'Điểm tin cậy có thể kiểm chứng',
   },
@@ -120,12 +125,17 @@ export function WhyEno() {
           const Icon = r.icon
           return (
             <li key={r.key} className="flex w-24 shrink-0 snap-start flex-col items-center text-center sm:w-auto sm:flex-1 sm:shrink">
-              {/* bg-brand-50 is a real token pair — #e8f1fb in light, #17314d in dark — so the tile
-                  keeps its contrast in both themes. A hardcoded light tile would go blind at night.
-                  size-12 at EVERY breakpoint — one consistent icon-container size is the band's
-                  rhythm; rounded-xl is the tier for a ~48px control-sized box. */}
-              <span className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-brand-50">
-                <Icon aria-hidden className="size-6 text-brand" />
+              {/* Bare glyphs, no tile: icon-language §6 reserves the brand-50 coin for the
+                  EmptyState badge and the Post chip — never behind inline icons (two blind
+                  critics flagged the boxed variant independently). The h-12 band keeps the
+                  row's vertical rhythm. These four are deliberately LINE-ONLY in brand ink;
+                  the seal is the row's single accented mark, so the one first-party claim
+                  is also the row's one visual emphasis. */}
+              <span className="flex h-12 shrink-0 items-center justify-center">
+                {/* For the trust reason the line is the eno seal itself (washed chief +
+                    e-bar), so the row's one first-party claim carries the one first-party
+                    mark. */}
+                {Icon ? <Icon aria-hidden className="size-8 text-brand" strokeWidth={1.5} /> : <EnoSeal aria-hidden className="size-8 text-brand" />}
               </span>
               {/* The blurb under each title was removed (owner, 2026-08-05) — icon + title only.
                   The two-line min-height floor went with it: its entire job was making the BLURBS
