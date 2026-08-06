@@ -1,6 +1,6 @@
 import { scopedListingWhere } from '@/lib/edition-scope'
 import { db } from '@/lib/db'
-import { serializeListing } from '@/lib/serialize'
+import { LISTING_FEED_SELECT, serializeFeedListing } from '@/lib/serialize'
 import { NextResponse } from 'next/server'
 import { FEED_CATEGORIES, GOOGLE_PRODUCT_CATEGORY, isMockImages, feedAuthError, feedCacheHeaders } from '@/lib/product-feed'
 
@@ -41,7 +41,19 @@ export async function GET(req: Request) {
         listingType: 'sell',
         category: { slug: { in: FEED_CATEGORIES } },
       }),
-      include: { category: true, seller: true },
+      /**
+       * ⚠️ `select`, NOT `include`, AND AN EXPLICIT `take`. This was
+       * `include: { category: true, seller: true }` with no limit, on a URL Google Merchant and Meta
+       * fetch UNATTENDED. The include joined every Seller scalar — phone and email — into a feed
+       * that reads NOT ONE field from it; before this change the only occurrence of that relation in
+       * the whole file WAS the include. PII was loaded, held in memory and discarded.
+       *
+       * ⚠️ STILL NO `take`, DELIBERATELY. Bounding this query was tried and reverted — see the note
+       * on LISTING_FEED_SELECT in src/lib/serialize.ts. Truncating an authoritative catalog feed
+       * DELISTS the omitted items from Google Shopping and Meta, which is worse than the unbounded
+       * read it was meant to fix. Streaming is the real answer and is not done yet.
+       */
+      select: LISTING_FEED_SELECT,
       orderBy: { postedAt: 'desc' },
     })
 
@@ -65,7 +77,7 @@ export async function GET(req: Request) {
 `
 
     for (const l of listings) {
-      const listing = serializeListing(l)
+      const listing = serializeFeedListing(l)
       if (excludeMock && isMockImages(listing.images)) continue
       const baseTitle = listing.titleVi || listing.title
       const displayDesc = listing.description

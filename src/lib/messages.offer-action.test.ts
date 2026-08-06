@@ -40,6 +40,13 @@ const h = vi.hoisted(() => ({
   /** When true, every findFirst is served the same pre-write snapshot (READ COMMITTED). */
   interleave: false,
   snapshot: null as Row | null,
+  /**
+   * ⚠️ OTHER offers in the same conversation. The mock held exactly ONE message until 2026-08-06,
+   * which made the state the `already accepted` guard exists for literally unrepresentable — and so
+   * the first two tests for it passed against code with the guard deleted. Both external reviewers
+   * caught that independently.
+   */
+  otherOffers: [] as Row[],
 }))
 
 vi.mock('next/server', () => ({ after: (fn: () => unknown) => { void fn() } }))
@@ -81,6 +88,18 @@ vi.mock('@/lib/db', () => ({
         Object.assign(o, data)
         return { count: 1 }
       },
+      /**
+       * ⚠️ ADDED WHEN `actOnOffer` GREW A SECOND GUARD (a7021b91, owner): accepting is refused if the
+       * conversation ALREADY has an accepted offer, because a thread can be retargeted to a
+       * different listing and a stale pending card would otherwise sell the wrong item. Modelled
+       * against live state rather than the read snapshot, since the real query is its own statement.
+       */
+      count: async ({ where }: Row) => {
+        if (where.conversationId !== CONVO.id || where.kind !== 'offer') return 0
+        // Counts across EVERY offer in the thread, target included — which is the only way a
+        // "some OTHER offer is already accepted" state can exist at all.
+        return [h.offer, ...h.otherOffers].filter((o) => o && o.offerStatus === where.offerStatus).length
+      },
       create: async ({ data }: Row) => {
         const row = { id: `msg-${h.messagesCreated.length + 1}`, createdAt: new Date(), metaJson: null, ...data }
         h.messagesCreated.push(row)
@@ -90,6 +109,18 @@ vi.mock('@/lib/db', () => ({
     conversation: { update: async () => ({}), updateMany: async () => ({ count: 1 }) },
     profile: { findUnique: async () => ({ displayName: 'Buyer Bob', email: 'bob@example.test' }) },
     notification: {
+      /**
+       * ⚠️ ADDED WHEN `actOnOffer` GREW A SECOND GUARD (a7021b91, owner): accepting is refused if the
+       * conversation ALREADY has an accepted offer, because a thread can be retargeted to a
+       * different listing and a stale pending card would otherwise sell the wrong item. Modelled
+       * against live state rather than the read snapshot, since the real query is its own statement.
+       */
+      count: async ({ where }: Row) => {
+        if (where.conversationId !== CONVO.id || where.kind !== 'offer') return 0
+        // Counts across EVERY offer in the thread, target included — which is the only way a
+        // "some OTHER offer is already accepted" state can exist at all.
+        return [h.offer, ...h.otherOffers].filter((o) => o && o.offerStatus === where.offerStatus).length
+      },
       create: async ({ data }: Row) => {
         if (h.notifyThrows) throw new Error('notification table down')
         h.notifications.push(data)
@@ -115,6 +146,7 @@ beforeEach(() => {
   h.notifyThrows = false
   h.interleave = false
   h.snapshot = null
+  h.otherOffers = []
 })
 
 describe('only the other party can act on an offer', () => {
@@ -178,6 +210,35 @@ describe('an offer can only be acted on once — the TOCTOU guard', () => {
     h.offer = pendingOfferFromSeller({ offerStatus: status })
     expect(await actOnOffer(CONVO, 'buyer-1', OFFER_ID, 'accept')).toBe(false)
     expect(h.messagesCreated).toEqual([])
+  })
+})
+
+describe('one accepted offer per conversation (owner, a7021b91)', () => {
+  it('a STILL-PENDING offer is refused when a DIFFERENT one in the thread was already accepted', async () => {
+    // ⚠️ THE TARGET MUST BE PENDING, OR THIS TEST PROVES NOTHING. A first version set the target
+    // itself to 'accepted', which the read predicate one describe-block up (offerStatus: 'pending')
+    // already rejects — so it passed with the guard deleted. Both reviewers caught it.
+    //
+    // The real state: a conversation's listing is MUTABLE (retargetForListing follows the buyer to
+    // whatever they ask about next), so an old pending card can outlive the listing it was made on.
+    // Accepting it after another offer already closed the thread sells the CURRENT listing at the
+    // OLD price.
+    h.offer = pendingOfferFromSeller()
+    h.otherOffers = [{ id: 'msg-offer-earlier', senderProfileId: 'seller-1', offerAmount: 1, offerStatus: 'accepted' }]
+
+    expect(await actOnOffer(CONVO, 'buyer-1', OFFER_ID, 'accept')).toBe(false)
+    expect(h.offer!.offerStatus).toBe('pending') // untouched
+    expect(h.messagesCreated).toEqual([])
+    expect(h.notifications).toEqual([])
+  })
+
+  it('but DECLINING that same pending card is still allowed, so it can be cleared', async () => {
+    // The asymmetry is deliberate and is the half a blanket "thread is closed" check would break:
+    // a stale pending card must always be dismissable, or it sits in the thread for ever.
+    h.offer = pendingOfferFromSeller()
+    h.otherOffers = [{ id: 'msg-offer-earlier', senderProfileId: 'seller-1', offerAmount: 1, offerStatus: 'accepted' }]
+    expect(await actOnOffer(CONVO, 'buyer-1', OFFER_ID, 'decline')).toBe(true)
+    expect(h.offer!.offerStatus).toBe('declined')
   })
 })
 

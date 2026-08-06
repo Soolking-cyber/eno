@@ -6,7 +6,7 @@ import { useLanguage } from '@/context/language-context'
 import { FORUM_URL, goToForum } from '@/lib/forum-nav'
 import { handleExternalClick } from '@/lib/native-browser'
 import { APP_STORE_URL, COMPANY, PLAY_STORE_URL } from '@/lib/site-legal'
-import { TAXONOMY } from '@/lib/taxonomy'
+import { NAV_CATEGORIES } from '@/lib/taxonomy-nav'
 import { SERVICES_FOOTER_GROUPS, SERVICES_FOOTER_LINKS } from '@/lib/edition-services-copy'
 import { IS_SERVICES, SITE_NAME } from '@/lib/edition'
 
@@ -205,12 +205,17 @@ export function Footer() {
           </div>
 
           {/* Explore — crawlable internal links to every /c/{slug} category landing
-              (SEO internal linking). Slugs and bilingual names come straight from the
-              canonical taxonomy (src/lib/taxonomy.ts), so this never drifts from it. */}
+              (SEO internal linking). Slugs and bilingual names come from NAV_CATEGORIES, a
+              slug/name/nameVi projection of the canonical taxonomy.
+              ⚠️ NOT `TAXONOMY` ITSELF. This is a client component rendered by 30 route files, so
+              its imports ship with all of them — and taxonomy.ts is 70,775 bytes, almost all of it
+              subcategory icons and search-synonym keyword arrays these fifteen links never read.
+              src/lib/taxonomy-nav.test.ts asserts the projection still matches, so it cannot
+              drift. */}
           <div className="col-span-2 space-y-3">
             <h3 className="text-sm font-bold text-foreground">{tr('Explore', 'Khám phá')}</h3>
             <ul className="grid grid-cols-2 gap-x-6 gap-y-2">
-              {TAXONOMY.map((cat) => (
+              {NAV_CATEGORIES.map((cat) => (
                 <li key={cat.slug}>
                   <a href={`/c/${cat.slug}`} className="text-xs text-muted-foreground transition-colors hover:text-accent-foreground">{tr(cat.name, cat.nameVi)}</a>
                 </li>
