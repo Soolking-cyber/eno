@@ -13,32 +13,36 @@ import { LiveUntil } from './live-until'
  * every buyer. A live preview could not exercise either path — no listing in the seeded catalogue
  * had an active drop — so this file is the only thing holding it.
  */
+// Hoisted to a constant, not written inline: `react/jsx-no-literals` bans bare strings as JSX
+// children app-wide (it is how every user-facing string is kept inside tr()), and a test file is
+// not exempt. An expression child satisfies the rule and reads no worse.
+const BADGE = '−25%'
 const inHours = (h: number) => new Date(Date.now() + h * 3600_000).toISOString()
 
 afterEach(cleanup)
 
 describe('LiveUntil', () => {
   it('SHOWS children while the window is still open', async () => {
-    render(<LiveUntil until={inHours(48)}><span>−25%</span></LiveUntil>)
-    expect(screen.getByText('−25%')).toBeTruthy()
+    render(<LiveUntil until={inHours(48)}><span>{BADGE}</span></LiveUntil>)
+    expect(screen.getByText(BADGE)).toBeTruthy()
     // Still there after the mount effect has run — the effect must not retract a live badge.
-    await waitFor(() => expect(screen.queryByText('−25%')).toBeTruthy())
+    await waitFor(() => expect(screen.queryByText(BADGE)).toBeTruthy())
   })
 
   it('retracts children once the window has closed', async () => {
-    render(<LiveUntil until={inHours(-1)}><span>−25%</span></LiveUntil>)
-    await waitFor(() => expect(screen.queryByText('−25%')).toBeNull())
+    render(<LiveUntil until={inHours(-1)}><span>{BADGE}</span></LiveUntil>)
+    await waitFor(() => expect(screen.queryByText(BADGE)).toBeNull())
   })
 
   it('renders nothing when there is no window at all', () => {
-    const { container } = render(<LiveUntil until={null}><span>−25%</span></LiveUntil>)
+    const { container } = render(<LiveUntil until={null}><span>{BADGE}</span></LiveUntil>)
     expect(container.textContent).toBe('')
   })
 
   it('does not retract on an unparseable timestamp — it fails toward SHOWING', async () => {
     // A bad value must never silently hide a discount the server said was live.
-    render(<LiveUntil until={'not-a-date'}><span>−25%</span></LiveUntil>)
-    await waitFor(() => expect(screen.queryByText('−25%')).toBeTruthy())
+    render(<LiveUntil until={'not-a-date'}><span>{BADGE}</span></LiveUntil>)
+    await waitFor(() => expect(screen.queryByText(BADGE)).toBeTruthy())
   })
 
   /**
@@ -50,11 +54,11 @@ describe('LiveUntil', () => {
    * with a mismatch.
    */
   it('the SERVER pass renders children even for a lapsed window', () => {
-    const html = renderToString(<LiveUntil until={inHours(-100)}><span>−25%</span></LiveUntil>)
-    expect(html).toContain('−25%')
+    const html = renderToString(<LiveUntil until={inHours(-100)}><span>{BADGE}</span></LiveUntil>)
+    expect(html).toContain(BADGE)
   })
 
   it('the server pass renders nothing when there is no window', () => {
-    expect(renderToString(<LiveUntil until={null}><span>−25%</span></LiveUntil>)).toBe('')
+    expect(renderToString(<LiveUntil until={null}><span>{BADGE}</span></LiveUntil>)).toBe('')
   })
 })
