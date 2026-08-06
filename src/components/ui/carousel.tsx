@@ -9,6 +9,7 @@ import { Tr } from "@/context/language-context"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react"
+import { STROKE_FLOAT } from "@/lib/icon-tokens"
 
 type CarouselApi = UseEmblaCarouselType[1]
 type UseCarouselParameters = Parameters<typeof useEmblaCarousel>
@@ -197,7 +198,10 @@ function CarouselPrevious({
       onClick={scrollPrev}
       {...props}
     >
-      <ChevronLeftIcon />
+      {/* Rail-affordance tier (icon-language §4): explicit h-5 + STROKE_FLOAT so the
+          chevron never falls through to the Button :where size-4 at UI stroke —
+          every embla rail shares this weight (05-pdp gauntlet request). */}
+      <ChevronLeftIcon className="h-5 w-5" strokeWidth={STROKE_FLOAT} />
       <span className="sr-only"><Tr text="Previous slide" /></span>
     </Button>
   )
@@ -227,7 +231,7 @@ function CarouselNext({
       onClick={scrollNext}
       {...props}
     >
-      <ChevronRightIcon />
+      <ChevronRightIcon className="h-5 w-5" strokeWidth={STROKE_FLOAT} />
       <span className="sr-only"><Tr text="Next slide" /></span>
     </Button>
   )

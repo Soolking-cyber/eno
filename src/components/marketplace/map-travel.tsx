@@ -37,7 +37,8 @@ export function MapsDirectionsButton({ to, className = '' }: { to: LatLng; class
       title={tr('Directions in Google Maps', 'Chỉ đường trong Google Maps')}
       className={`press inline-flex items-center justify-center rounded-full bg-popover shadow-pop ring-1 ring-border transition-transform hover:scale-105 active:scale-[0.96] ${className}`}
     >
-      <GoogleMapsPin className="h-[18px] w-[18px]" />
+      {/* h-5, not h-[18px] — §4 ladder step; the pin itself stays the official Maps mark. */}
+      <GoogleMapsPin className="h-5 w-5" />
     </a>
   )
 }

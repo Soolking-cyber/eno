@@ -1414,6 +1414,7 @@ export const UI_STRINGS: string[] = [
   "Trending now",
   "Trip",
   "Trust score",
+  "Trust scores you can check",
   "Trusted",
   "Try again",
   "Try another wording or topic — or ask the community below.",

@@ -190,8 +190,10 @@ export function ShareButton({ url, title, price, currency, className, compact = 
               onClick={() => { void openExternal(href); setOpen(false) }}
               className="group flex flex-col items-center gap-1 rounded-xl py-2 transition-colors hover:bg-muted cursor-pointer"
             >
+              {/* h-5, not h-[18px]: channel glyphs sit on the §4 size ladder like their lucide
+                  neighbours (Mail shares this exact box) — no off-grid sizes in the family. */}
               <span className="flex h-9 w-9 items-center justify-center rounded-full text-body transition-colors group-hover:bg-muted group-hover:text-accent-foreground">
-                <Icon className="h-[18px] w-[18px]" />
+                <Icon className="h-5 w-5" />
               </span>
               <span className="text-3xs font-medium text-body">{label}</span>
             </Button>

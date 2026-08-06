@@ -54,6 +54,7 @@ import { getPriceBand } from '@/lib/price-stat'
 import { MarketPrice } from '@/components/marketplace/market-price'
 import { SafetyStrip } from '@/components/marketplace/safety-strip'
 import { isBusinessVerified } from '@/lib/business-verification'
+import { EnoSeal } from '@/components/marketplace/eno-seal'
 
 type Props = {
   params: Promise<{ id: string }>
@@ -465,7 +466,14 @@ export default async function ListingPage({ params }: Props) {
                     )}
                     {listing.urgent && (
                       <LiveUntil until={listing.urgentUntil}>
-                        <Zap aria-label="Urgent sale" className="h-7 w-7 self-center fill-destructive stroke-none" />
+                        {/* Same "Bán gấp" vocabulary as the card badge (card-badges.tsx): a solid
+                            slate chip with a filled 12px bolt + the word. The old treatment — a
+                            bare 28px solid-red Zap — broke the icon language twice over (solid
+                            fills are reserved for user-state per §5, and an unlabeled glyph is a
+                            guess); the labelled chip reads instantly and matches the feed. */}
+                        <Badge size="md" className="gap-1 self-center bg-foreground text-2xs text-background">
+                          <Zap className="h-3 w-3 fill-current" /> <Tr text="Urgent" />
+                        </Badge>
                       </LiveUntil>
                     )}
                     {!listing.negotiable && (
@@ -474,6 +482,18 @@ export default async function ListingPage({ params }: Props) {
                       </Badge>
                     )}
                   </div>
+                  {/* §0b inline seal echo at 14px (the Vinted shield-at-two-scales pattern;
+                      foundation handoff 2026-08-06). ⚠️ COPY IS LOAD-BEARING: eno holds no money
+                      and offers no buyer protection, so this line must never promise one — all
+                      three diff reviewers flagged the original "protections apply" as a false
+                      consumer claim on a licensed sàn TMĐT. It carries the app's one approved,
+                      factual trust claim (same pair as why-eno), pointing at the trust system
+                      the seal actually stands for. Non-interactive; ProtectionsRow below tells
+                      the full safety story. */}
+                  <span className="inline-flex w-fit items-center gap-1.5 text-xs font-semibold text-body">
+                    <EnoSeal aria-hidden className="h-3.5 w-3.5 text-accent-foreground" />
+                    <Tr text="Trust scores you can check" />
+                  </span>
                   {/* The market-price gauge travels with the price — it's a benchmark OF this number. */}
                   {priceBand && <MarketPrice price={listing.price} band={priceBand} />}
                 </div>

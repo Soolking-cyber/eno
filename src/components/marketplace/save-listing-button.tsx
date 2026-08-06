@@ -2,6 +2,7 @@
 
 import { Heart } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { IconButton } from '@/components/ui/icon-button'
 import { useFavorites } from '@/context/favorites-context'
 import { useLanguage } from '@/context/language-context'
 import { cn } from '@/lib/utils'
@@ -9,7 +10,7 @@ import { cn } from '@/lib/utils'
 /**
  * Save (favorite) toggle for the listing detail page. Device-local via the
  * favorites context (same store as the bottom-nav Saved tab + /saved page).
- * `compact` renders an icon-only circular button for the mobile sticky bar.
+ * `compact` renders an icon-only circular button for the gallery overlay.
  */
 export function SaveListingButton({ id, compact = false, className }: { id: string; compact?: boolean; className?: string }) {
   const { isFavorite, toggle } = useFavorites()
@@ -18,24 +19,23 @@ export function SaveListingButton({ id, compact = false, className }: { id: stri
   const label = saved ? tr('Saved', 'Đã lưu') : tr('Save', 'Lưu')
 
   if (compact) {
-    // Over-media treatment (our icon aesthetic, matching ListingCard's overlay controls): NO circle
-    // background — a white glyph + baked drop-shadow reads on any photo (light OR dark), and the
-    // unsaved heart carries a translucent-black fill so it stays visible on bright images too.
+    // Over-media treatment via the shared shell: <IconButton variant="overlay"> IS the
+    // white-ink + baked-drop-shadow language (no circle chip — a hover chip over a photo
+    // looks like a bug), and it pairs 1:1 with ShareButton's compact trigger beside it.
+    // Heart states are the sanctioned overlay pair from the icon-button header comment:
+    // saved = solid fill-brand (§5 user-state, the loudest mark in the system) on white
+    // line; unsaved = translucent-black interior so the outline reads on bright photos.
     return (
-      <Button
-        variant="bare"
-        size="none"
-        type="button"
+      <IconButton
+        size="md"
+        variant="overlay"
         onClick={() => toggle(id)}
         aria-pressed={saved}
         aria-label={label}
-        className={cn(
-          'flex h-9 w-9 items-center justify-center text-white transition-transform active:scale-[0.96] [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.55))]',
-          className,
-        )}
+        className={cn('transition-transform active:scale-[0.96]', className)}
       >
-        <Heart className={cn('h-5 w-5', saved ? 'fill-brand' : 'fill-black/25')} />
-      </Button>
+        <Heart className={cn('h-5 w-5', saved ? 'fill-brand text-white' : 'fill-black/25')} />
+      </IconButton>
     )
   }
 
@@ -53,7 +53,8 @@ export function SaveListingButton({ id, compact = false, className }: { id: stri
         className,
       )}
     >
-      <Heart className={cn('h-4 w-4', saved && 'fill-brand')} />
+      {/* Saved = fill-brand + text-brand line — the exact §5 user-state pair FavoriteHeart uses. */}
+      <Heart className={cn('h-4 w-4', saved && 'fill-brand text-brand')} />
       <span className="hidden sm:inline">{label}</span>
     </Button>
   )

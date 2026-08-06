@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react'
 import Image from 'next/image'
 import { X, ChevronLeft, ChevronRight, Images, Play, Volume2, VolumeX } from 'lucide-react'
+import { STROKE_FLOAT } from '@/lib/icon-tokens'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from '@/components/ui/carousel'
@@ -523,7 +524,8 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
               aria-label="Previous"
               className="absolute left-4 top-1/2 h-11 w-11 -translate-y-1/2 [filter:drop-shadow(0_1px_3px_rgba(0,0,0,0.55))]"
             >
-              <ChevronLeft className="h-6 w-6" />
+              {/* Floating-chevron tier (§2): bare chevrons over content, same as back-to-top. */}
+              <ChevronLeft className="h-6 w-6" strokeWidth={STROKE_FLOAT} />
             </IconButton>
           )}
           {idx < last && !zoom && (
@@ -534,7 +536,7 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
               aria-label="Next"
               className="absolute right-4 top-1/2 h-11 w-11 -translate-y-1/2 [filter:drop-shadow(0_1px_3px_rgba(0,0,0,0.55))]"
             >
-              <ChevronRight className="h-6 w-6" />
+              <ChevronRight className="h-6 w-6" strokeWidth={STROKE_FLOAT} />
             </IconButton>
           )}
 
