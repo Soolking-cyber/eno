@@ -186,7 +186,12 @@ export async function setStatusCore(
         : {}
   await db.listing.update({
     where: { id: listingId },
-    data: { status, ...(status === 'active' ? { availabilityConfirmedAt: new Date() } : {}), ...saleData },
+    // ⚠️ marketPosition is cleared on REACTIVATION for the same reason the edit path clears it on a
+    // price change: it is the denormalized "Good price / Gia tot" verdict, the nightly cron only
+    // recomputes rows with status='active', and a hidden/sold row therefore keeps a FROZEN verdict.
+    // Without this, a listing hidden for a month comes back wearing a badge derived from a band
+    // that has since moved. No badge until the cron re-derives one is the correct fail-safe.
+    data: { status, ...(status === 'active' ? { availabilityConfirmedAt: new Date(), marketPosition: null } : {}), ...saleData },
   })
   revalidatePath(`/listings/${listingId}`) // sold/hidden must drop from the cached page (it 404s non-active)
   after(() => reindexListing(listingId)) // active → (re)index for AI search; sold/hidden → remove
@@ -222,7 +227,9 @@ export async function confirmCore(listingId: string, profileId: string): Promise
       data: {
         status: 'active',
         availabilityConfirmedAt: now,
-        ...(wasInactive ? { soldChannel: null, soldToProfileId: null, soldPlatform: null, soldAt: null } : {}),
+        // Same reason as setStatusCore above — a reactivated listing must not carry a stale
+        // market-position verdict the cron could not refresh while it was inactive.
+        ...(wasInactive ? { soldChannel: null, soldToProfileId: null, soldPlatform: null, soldAt: null, marketPosition: null } : {}),
         // A bump resets recency (postedAt=now) → recompute rankScore at age 0 so the listing
         // jumps up immediately. No bump (within cooldown) leaves recency to the daily decay.
         ...(bump ? { postedAt: now, rankScore: browseRankScore({ sellerTrustScore: current.sellerTrustScore ?? 100, postedAt: now, featured: current.featured, views: current.views, contactCount: current.contactCount }) } : {}),

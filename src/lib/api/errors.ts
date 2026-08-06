@@ -148,6 +148,7 @@ export type NicheApiErrorCode =
   | 'legal_name_required'
   | 'limit_reached'
   | 'listing_not_found'
+  | 'listing_unavailable'
   | 'listing_selection_mismatch'
   | 'migration_pending'
   | 'missing_coords'
@@ -368,6 +369,7 @@ const ALL = [
   'legal_name_required',
   'limit_reached',
   'listing_not_found',
+  'listing_unavailable',
   'listing_selection_mismatch',
   'migration_pending',
   'missing_coords',

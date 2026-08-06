@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Loader2, Sparkles } from 'lucide-react'
 import { PercentPicker, tidyPrice, BADGE_HINT_PCT } from './quick-discount'
 import { useLanguage } from '@/context/language-context'
+import { DROP } from '@/lib/price-drop-rules'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -32,7 +33,11 @@ export function BulkDiscount({
   const [saving, setSaving] = useState(false)
 
   const n = listings.length
-  const willEarnBadge = pct >= BADGE_HINT_PCT
+  // ⚠️ Same eligibility/promise distinction as quick-discount, and the inversion matters MORE
+  // here: this applies one percentage across every selected listing, so a -90% sweep gave away
+  // real margin on all of them for a badge none of them could earn.
+  const tooDeep = pct > (1 - DROP.TYPO_FLOOR) * 100
+  const willEarnBadge = pct >= BADGE_HINT_PCT && !tooDeep
 
   const apply = async () => {
     if (saving || n === 0) return
@@ -97,7 +102,7 @@ export function BulkDiscount({
             </p>
             {willEarnBadge ? (
               <p className="mt-1 inline-flex items-center gap-1 text-2xs font-semibold text-accent-foreground">
-                <Sparkles className="h-3 w-3" /> {tr('Each shows buyers a discount badge', 'Mỗi tin sẽ hiển thị nhãn giảm giá')}
+                <Sparkles className="h-3 w-3" /> {tr('Each may show buyers a discount badge', 'Mỗi tin có thể hiển thị nhãn giảm giá')}
               </p>
             ) : (
               <p className="mt-1 text-2xs text-muted-foreground">

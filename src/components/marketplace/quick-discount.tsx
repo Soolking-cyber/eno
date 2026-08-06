@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Field, FieldLabel, FieldControl, FieldError } from '@/components/ui/field'
 import { EnoSlider } from './eno-slider'
 import { useLanguage } from '@/context/language-context'
+import { DROP } from '@/lib/price-drop-rules'
 import { formatMoneyFull, parseVnd, groupVnd, dropPercent, moneyLocale } from '@/lib/vnd'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
@@ -121,7 +122,15 @@ export function QuickDiscount({
   const valid = newPrice > 0 && newPrice < cur
   const showErr = !!amount && !valid
   const pctLabel = valid ? dropPercent(cur, newPrice) : null
-  const willEarnBadge = valid && newPrice <= cur * (1 - BADGE_HINT_PCT / 100)
+  // ⚠️ THE BADGE IS ELIGIBILITY, NOT A PROMISE — and the deep-cut branch is the point.
+  // This was `pct >= 20` alone, which INVERTS below TYPO_FLOOR: a -90% cut fails
+  // `newPrice >= ref * 0.2` on the server, so the discount the dialog asserted most
+  // confidently was the one guaranteed to earn nothing. Now it checks the two gates a client
+  // CAN evaluate. The rest (the 30-day reference price, the 72h age and hold windows, the
+  // raise counter) are server-only, which is why the copy says 'may' rather than 'will'.
+  const tooDeep = valid && newPrice < cur * DROP.TYPO_FLOOR
+  const tooCheap = valid && newPrice < DROP.MIN_PRICE
+  const willEarnBadge = valid && !tooDeep && !tooCheap && newPrice <= cur * (1 - BADGE_HINT_PCT / 100)
 
   const openDialog = () => { setOpen(true); setPct(pct) }
   const reset = () => { setPctState(10); setAmount('') }
@@ -217,13 +226,17 @@ export function QuickDiscount({
                 <p className="text-sm font-bold text-accent-foreground tabular-nums">
                   {formatMoneyFull(newPrice, listing.currency, locale)} <span className="text-destructive">{pctLabel}</span>
                 </p>
-                {willEarnBadge ? (
+                {tooDeep ? (
+                  <p className="mt-1 text-2xs text-muted-foreground">
+                    {tr('Cuts over 80% do not earn a discount badge', 'Giảm trên 80% sẽ không được gắn nhãn giảm giá')}
+                  </p>
+                ) : willEarnBadge ? (
                   <p className="mt-1 inline-flex items-center gap-1 text-2xs font-semibold text-accent-foreground">
-                    <Sparkles className="h-3 w-3" /> {tr('Buyers see a discount badge on this', 'Người mua sẽ thấy nhãn giảm giá')}
+                    <Sparkles className="h-3 w-3" /> {tr('May show buyers a discount badge', 'Có thể hiển thị nhãn giảm giá cho người mua')}
                   </p>
                 ) : (
                   <p className="mt-1 text-2xs text-muted-foreground">
-                    {tr('Cut ≥20% to show buyers a discount badge', 'Giảm ≥20% để hiển thị nhãn giảm giá cho người mua')}
+                    {tr('Cut ≥20% to be eligible for a discount badge', 'Giảm ≥20% để đủ điều kiện gắn nhãn giảm giá')}
                   </p>
                 )}
               </div>

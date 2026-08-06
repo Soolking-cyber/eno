@@ -69,7 +69,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
   const convo = await db.conversation.findUnique({
     where: { id },
-    select: { id: true, buyerProfileId: true, sellerProfileId: true, listing: { select: { id: true, negotiable: true } } },
+    select: { id: true, buyerProfileId: true, sellerProfileId: true, listing: { select: { id: true, negotiable: true, status: true } } },
   })
   if (!convo) { await release(); return NextResponse.json({ error: 'not_found' }, { status: 404 }) }
 
@@ -86,6 +86,18 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     if (iAmBuyer) await recordFixedPriceOfferAttempt(meId)
     await release()
     return NextResponse.json({ error: 'not_negotiable' }, { status: 409 })
+  }
+
+  // ⚠️ NO NEW OFFERS ON A LISTING THAT IS NOT ACTIVE. Neither this path nor actOnOffer read
+  // Listing.status, so a buyer could offer on — and a seller accept on — an item already marked
+  // SOLD or hidden. OFFERS ONLY: plain text stays allowed, because the sold page is a deliberate
+  // 200 surface where buyers still ask questions, and cutting the thread would be a worse bug than
+  // the one being fixed. Deliberately NOT counted as a fixed-price attempt: the listing being gone
+  // is not the buyer trying it on, and docking trust for it would be exactly the false positive
+  // offer-guard's own comments warn about.
+  if (isOffer && convo.listing.status !== 'active') {
+    await release()
+    return NextResponse.json({ error: 'listing_unavailable' }, { status: 409 })
   }
 
   let message: Awaited<ReturnType<typeof insertMessage>>
