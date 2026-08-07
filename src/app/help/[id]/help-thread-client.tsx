@@ -3,10 +3,12 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, BadgeCheck, CheckCircle2, MessageCircle } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, MessageCircle } from 'lucide-react'
 import { toast } from 'sonner'
 import { useAuth } from '@/context/auth-context'
 import { Tr, useLanguage, useTr } from '@/context/language-context'
+import { EnoSeal } from '@/components/marketplace/eno-seal'
+import { HelpTopicIcon } from '@/components/marketplace/help-center'
 import { HelpVote } from '@/components/marketplace/help-vote'
 import { Avatar } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
@@ -152,14 +154,24 @@ export function HelpThreadClient({ post, comments: initial }: { post: HelpPost; 
         {topic && (
           <Link
             href="/help"
-            className="rounded-full border border-border px-3 py-1 text-xs font-semibold text-body transition-colors hover:bg-muted"
+            className="inline-flex items-center gap-1.5 rounded-full border border-border px-3 py-1 text-xs font-semibold text-body transition-colors hover:bg-muted"
           >
+            {/* Same renderer as the /help chips (14px at chip scale) so the topic's
+                glyph is identical everywhere it appears. Line-only here — an idle chip
+                is chrome (§6); the trust topic's seal keeps its chief by design. */}
+            <HelpTopicIcon slug={post.community} className="size-3.5" />
             {tr(topic.name, topic.nameVi)}
           </Link>
         )}
         {post.official && (
           <Badge variant="brand" size="sm">
-            <BadgeCheck className="size-3" aria-hidden />
+            {/* "From the eno team" is a first-party verification claim, so it carries
+                the ONE first-party mark (icon-language §0b: the seal, never a lucide
+                badge/shield — "when in doubt, it is the seal"). Chip-tier wash: the
+                brand-100 chief still reads one step deeper than the badge's bg-accent
+                in both themes. 14px sits on the header row beside the topic chip's
+                14px glyph. */}
+            <EnoSeal className="size-3.5" />
             <Tr text="From the eno team" />
           </Badge>
         )}

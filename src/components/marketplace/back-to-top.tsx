@@ -66,6 +66,20 @@ export function BackToTop() {
       <div
         className={cn(
           'fixed z-[60] flex flex-col items-center gap-2.5',
+          // ⚠️ NEVER OVER A MODAL. At z-[60] this cluster floated ON TOP of the report
+          // dialog's "Gửi báo cáo" submit and over the protections sheet's copy — a tap on
+          // the CTA's right edge scrolled the page instead of filing a fraud report (blind
+          // critic, 2026-08-07; same family as the fixed-overlay traps in globals.css).
+          // A modal owns the screen while open, so the affordance goes away — no state to
+          // wire, nothing to keep in sync.
+          // ⚠️ MATCH THE POPUP SLOTS, NOT role=dialog. The cookie-consent banner is a
+          // permanently-mounted role=dialog, so `body:has([role=dialog])` hides this button
+          // on every page forever (measured — it is a worse bug than the one being fixed).
+          // These three data-slots exist ONLY while a real popup is mounted (verified open →
+          // Escape → gone), and they cover every modal primitive in ui/*.
+          '[body:has([data-slot=dialog-content])_&]:hidden',
+          '[body:has([data-slot=sheet-content])_&]:hidden',
+          '[body:has([data-slot=alert-dialog-content])_&]:hidden',
           // Clear the mobile bottom-nav. The max(env, var) pairing covers Android
           // WebView < 140, where Capacitor injects --safe-area-inset-* vars instead
           // of env() passthrough (see the Android safe-area note in globals.css);

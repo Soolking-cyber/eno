@@ -3,7 +3,9 @@
 import { useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Check, Clock, Loader2, Scale, Shield, Sparkles } from 'lucide-react'
+import { Check, Clock, Loader2, Sparkles } from 'lucide-react'
+import { EnoSeal } from '@/components/marketplace/eno-seal'
+import { STROKE_MARK } from '@/lib/icon-tokens'
 import type { TargetInfo } from '@/lib/admin-reports'
 import { cn } from '@/lib/utils'
 import {
@@ -65,6 +67,13 @@ export type AdminCase = {
 }
 
 const SEVERITIES = ['minor', 'moderate', 'severe'] as const
+
+// Icon-language rule (shared with moderation-client): no text glyphs (✓ ← ↔) as
+// icons — done-states render lucide <Check> at STROKE_MARK (§2: a 2-weight mark
+// vanishes at micro sizes), inheriting the label's ink.
+const DoneCheck = ({ className = 'h-3.5 w-3.5' }: { className?: string }) => (
+  <Check className={className} strokeWidth={STROKE_MARK} aria-hidden="true" />
+)
 
 async function post(body: Record<string, unknown>) {
   const res = await fetch('/api/admin/moderate', {
@@ -160,13 +169,16 @@ export function DisputeRoomAdmin({ data }: { data: AdminCase }) {
 
   return (
     <div>
-      {/* ── Case header ── */}
+      {/* ── Case header ──
+          No lead glyph: the back-link directly above already says "Dispute center", and a
+          static brand-line Scale here was decoration — §6 reserves text-brand/accent line
+          icons for interactive affordances (R2 critic). The evidence chip likewise stays in
+          the neutral Badge's own surface ink: it is a status readout, not a link. */}
       <div className="mt-2 flex flex-wrap items-center gap-2">
-        <Scale className="h-5 w-5 text-accent-foreground" />
         <h1 className="h-title capitalize text-foreground">{data.reason}</h1>
         {open ? (
           data.stage === 'evidence'
-            ? <Badge variant="neutral" size="md" className="text-accent-foreground"><Clock className="h-3 w-3" />evidence window{left ? ` · ${left} left` : ''}</Badge>
+            ? <Badge variant="neutral" size="md"><Clock className="h-3 w-3" />evidence window{left ? ` · ${left} left` : ''}</Badge>
             : <Badge variant="warning" size="md" className="bg-warning/10">awaiting decision</Badge>
         ) : (
           <Badge variant="neutral" size="md" className={cn('capitalize', data.status === 'confirmed' ? 'text-success' : data.status === 'abusive' ? 'text-destructive' : 'text-ink-4')}>
@@ -291,7 +303,10 @@ export function DisputeRoomAdmin({ data }: { data: AdminCase }) {
           return (
             <div key={item.id} className={cn('flex flex-col', fromReporter ? 'items-start' : isAdmin ? 'items-center' : 'items-end')}>
               <div className={cn('max-w-[85%] rounded-2xl px-3.5 py-2.5', isAdmin ? 'bg-accent' : fromReporter ? 'bg-tint' : 'bg-primary/10')}>
-                {isAdmin && <p className="mb-1 flex items-center gap-1 text-2xs font-bold text-accent-foreground"><Shield className="h-3 w-3" /> eno.vn</p>}
+                {/* First-party voice = the eno seal, not a generic lucide shield (§0b:
+                    the seal replaces Shield* wherever eno itself is the trust claim).
+                    Micro scale → tinted chief + line + bar, ink from the label. */}
+                {isAdmin && <p className="mb-1 flex items-center gap-1 text-2xs font-bold text-accent-foreground"><EnoSeal className="h-3 w-3" /> eno.vn</p>}
                 {item.body && <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">{item.body}</p>}
                 {item.images.length > 0 && (
                   <div className={cn('flex flex-wrap gap-2', item.body && 'mt-2')}>
@@ -327,7 +342,9 @@ export function DisputeRoomAdmin({ data }: { data: AdminCase }) {
             disabled={busy !== null || !message.trim()}
             className="gap-1.5 px-4 py-2 text-xs disabled:opacity-40 cursor-pointer"
           >
-            {busy === 'dispute-message' && <Loader2 className="size-4 animate-spin" />} Send to both parties
+            {/* One optical rhythm for the text-xs action rows: h-3.5 glyphs (the old
+                mix of size-4 / h-3 across siblings read as three different hands). */}
+            {busy === 'dispute-message' && <Loader2 className="h-3.5 w-3.5 animate-spin" />} Send to both parties
           </Button>
           {open && (
             <Button
@@ -337,7 +354,7 @@ export function DisputeRoomAdmin({ data }: { data: AdminCase }) {
               disabled={busy !== null}
               className="gap-1.5 px-3 py-2 text-xs font-bold text-accent-foreground transition-colors disabled:opacity-40 cursor-pointer"
             >
-              {busy === 'extend-window' ? <Loader2 className="h-3 w-3 animate-spin" /> : <Clock className="h-3 w-3" />} Extend window +72h
+              {busy === 'extend-window' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Clock className="h-3.5 w-3.5" />} Extend window +72h
             </Button>
           )}
         </div>
@@ -372,7 +389,8 @@ export function DisputeRoomAdmin({ data }: { data: AdminCase }) {
               disabled={busy !== null}
               className="gap-1.5 px-4 py-2 text-xs font-bold disabled:opacity-40 cursor-pointer"
             >
-              {busy === 'confirm-report' ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />} Confirm & penalize
+              {/* A mark inside a small filled control takes the mark tier (§2). */}
+              {busy === 'confirm-report' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" strokeWidth={STROKE_MARK} />} Confirm & penalize
             </Button>
             <Button
               variant="bare"
@@ -418,7 +436,7 @@ export function DisputeRoomAdmin({ data }: { data: AdminCase }) {
           disabled={busy !== null}
           className="mt-1.5 px-3 py-1.5 text-xs font-bold text-accent-foreground transition-colors disabled:opacity-40 cursor-pointer"
         >
-          {noteSaved ? 'Saved ✓' : busy === 'set-note' ? 'Saving…' : 'Save note'}
+          {noteSaved ? <>Saved <DoneCheck /></> : busy === 'set-note' ? 'Saving…' : 'Save note'}
         </Button>
       </div>
 

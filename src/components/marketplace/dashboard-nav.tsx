@@ -130,8 +130,14 @@ export type NavItem = {
    *  get a value — CSS fill implicitly closes open paths, so an unverified glyph can render a
    *  blob or nothing exactly when its row is active (diff-review catch, 2026-08-07). Verified:
    *  'body' = Store/Heart/MessageSquare (the bottom-nav-validated set); 'twin' = Scale (both
-   *  pans, WASH_ACTIVE_TWIN). Unset = line-only active, the §6 sanctioned degrade. Extend only
-   *  with a zoomed screenshot of the ACTIVE state as proof. */
+   *  pans, WASH_ACTIVE_TWIN). Admin rows verified 2026-08-07 (piece 16 R2, zoomed active-state
+   *  shots in rounds/16-admin-console/R2, light + dark): Flag = banner (pole segment is
+   *  zero-width, no leak), Gavel = handle band (implicit closure forms the parallelogram; head
+   *  stays line), ShieldAlert = shield field (alert strokes stay line), Star = body (single
+   *  closed path, the Heart class), Filter = funnel body (single closed path). Unset =
+   *  line-only active, the §6 sanctioned degrade (still true for ClipboardList/Tags — their
+   *  first-path regions are unverified; extend only with a zoomed screenshot of the ACTIVE
+   *  state as proof). */
   wash?: 'body' | 'twin'
 }
 
@@ -222,13 +228,17 @@ export const DASHBOARD_NAV: NavGroup[] = [
     en: 'Admin',
     role: 'admin',
     items: [
-      { href: '/admin', en: 'Reports', icon: Flag, exact: true },
-      { href: '/admin/funnel', en: 'Publish funnel', icon: Filter },
-      { href: '/admin/disputes', en: 'Disputes', icon: Gavel },
-      { href: '/admin/enforcement', en: 'Enforcement', icon: ShieldAlert },
+      // ⚠️ Admin rows carry the SAME §5-addendum location treatment as every other rail row
+      // (R2 critic, piece 16: the signature "more wash, same line" must not vanish on the
+      // console's most repeated icon moment) — wash values below are on the verified
+      // allowlist documented on NavItem.wash, not eyeballed.
+      { href: '/admin', en: 'Reports', icon: Flag, exact: true, wash: 'body' },
+      { href: '/admin/funnel', en: 'Publish funnel', icon: Filter, wash: 'body' },
+      { href: '/admin/disputes', en: 'Disputes', icon: Gavel, wash: 'body' },
+      { href: '/admin/enforcement', en: 'Enforcement', icon: ShieldAlert, wash: 'body' },
       { href: '/admin/listings', en: 'Listings', icon: ClipboardList },
       { href: '/admin/brands', en: 'Brands', icon: Tags },
-      { href: '/admin/feedback', en: 'Feedback', icon: Star },
+      { href: '/admin/feedback', en: 'Feedback', icon: Star, wash: 'body' },
       ...(IS_SERVICES ? [{ ...SERVICES_NAV_ADMIN_QUEUE, icon: Stamp, servicesOnly: true }] : []),
       { href: '/admin/business-verification', en: 'Business verification', icon: VerificationSeal },
     ],

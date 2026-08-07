@@ -4,6 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Flag, Loader2, CheckCircle2 } from 'lucide-react'
+import { STROKE_DISPLAY } from '@/lib/icon-tokens'
 import { useLanguage } from '@/context/language-context'
 import { useAuth } from '@/context/auth-context'
 import { Button } from '@/components/ui/button'
@@ -131,7 +132,10 @@ export function ReportButton({ listingId, sellerId, conversationId, className }:
 
           {done ? (
             <div className="mt-4 text-center">
-              <CheckCircle2 className="mx-auto h-10 w-10 text-accent-foreground" />
+              {/* Display tier (§2): a 40px glyph at the UI stroke reads rubber-stamped —
+                  1.5 thins it back to the illustration weight. text-success = the same
+                  status ink the dispute room's resolved states speak. */}
+              <CheckCircle2 className="mx-auto h-10 w-10 text-success" strokeWidth={STROKE_DISPLAY} />
               <p className="mt-3 text-sm font-semibold text-foreground">{t('Dispute case opened', 'Đã mở hồ sơ khiếu nại')}</p>
               <p className="mt-1 text-sm text-muted-foreground">
                 {t('You can add evidence and follow progress. The eno.vn team will review and decide.', 'Bạn có thể bổ sung bằng chứng và theo dõi tiến trình. Đội ngũ eno.vn sẽ xem xét và quyết định.')}

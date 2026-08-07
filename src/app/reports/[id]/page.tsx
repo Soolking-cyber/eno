@@ -11,6 +11,7 @@ import { SignInPrompt } from '@/components/marketplace/account-actions'
 import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
 import { Loader2, ImagePlus, CheckCircle2, X, MessageSquareWarning } from 'lucide-react'
+import { STROKE_DISPLAY } from '@/lib/icon-tokens'
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
 import { Label } from '@/components/ui/label'
@@ -73,13 +74,15 @@ export default function ReportSupplementPage() {
           <div className="flex justify-center py-20"><Loader2 className="h-6 w-6 animate-spin text-accent-foreground" /></div>
         ) : !user ? (
           <div className="rounded-2xl bg-popover p-8 text-center shadow-pop">
-            <MessageSquareWarning className="mx-auto h-10 w-10 text-ink-4" />
+            {/* Display tier (§2) — 40px+ placeholder glyphs carry the 1.5 illustration
+                stroke, not the UI weight. */}
+            <MessageSquareWarning className="mx-auto h-10 w-10 text-ink-4" strokeWidth={STROKE_DISPLAY} />
             <p className="mt-3 text-sm text-muted-foreground">{t('Sign in to add details to your report.', 'Đăng nhập để bổ sung chi tiết cho báo cáo của bạn.')}</p>
             <div className="mt-4"><SignInPrompt /></div>
           </div>
         ) : done ? (
           <div className="rounded-2xl bg-popover p-8 text-center shadow-pop">
-            <CheckCircle2 className="mx-auto h-12 w-12 text-accent-foreground" />
+            <CheckCircle2 className="mx-auto h-12 w-12 text-success" strokeWidth={STROKE_DISPLAY} />
             <h1 className="mt-3 text-lg font-bold text-foreground">{t('Details added — thank you', 'Đã bổ sung — cảm ơn bạn')}</h1>
             <p className="mt-1 text-sm text-muted-foreground">{t('Your update went straight to the review team. You’ll hear back via your notifications.', 'Thông tin bổ sung đã được gửi thẳng đến đội xem xét. Bạn sẽ nhận phản hồi qua thông báo.')}</p>
             <Button asChild variant="cta" size="none"><Link href="/" className="mt-5 px-6 py-2">{t('Back to eno.vn', 'Về eno.vn')}</Link></Button>

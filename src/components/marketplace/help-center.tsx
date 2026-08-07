@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import {
-  BadgeCheck,
   ChevronRight,
   Mail,
   MessageCircle,
@@ -11,8 +10,8 @@ import {
   Rocket,
   Search,
   SearchX,
-  ShieldCheck,
   ShoppingBag,
+  Stamp,
   Star,
   Tag,
   UserRoundCog,
@@ -20,6 +19,7 @@ import {
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { Tr, useLanguage, useTr } from '@/context/language-context'
+import { EnoSeal } from '@/components/marketplace/eno-seal'
 import { HelpFeedback } from '@/components/marketplace/help-feedback'
 import { HelpVote } from '@/components/marketplace/help-vote'
 import { Accordion, AccordionItem, AccordionPanel, AccordionTrigger } from '@/components/ui/accordion'
@@ -51,13 +51,50 @@ import { cn } from '@/lib/utils'
 // Post titles/bodies are user content and go through useTr(), whose Vietnamese is
 // pre-seeded into the Translation cache by the sync script.
 
+// Topic glyphs, keyed by SLUG (the kebab-case `icon` strings in lib/help-center.ts are
+// mirrored into DB ForumCommunity.icon — they stay untouched; only artwork maps here).
+// 'help-trust-safety' is absent on purpose: first-party trust renders the eno seal, not
+// a lucide shield (icon-language §0b), via <HelpTopicIcon> below. 'eno-service-help'
+// (services edition only) gets a deliberate entry so it never falls back to UsersRound.
 const TOPIC_ICONS: Record<string, LucideIcon> = {
   'help-getting-started': Rocket,
   'help-buying': ShoppingBag,
   'help-selling': Tag,
-  'help-trust-safety': ShieldCheck,
   'help-account': UserRoundCog,
   'vietnam-travel': Plane,
+  'eno-service-help': Stamp,
+}
+
+// §0/§6 wash for the ACTIVE topic chip — the location-active soft duotone (same move as
+// the bottom nav's TabBody: ink line + one brand-tinted closed region, `fill-brand-100`
+// = the WASH token in icon-tokens.ts). Curated per glyph, the category-icons WASH-map
+// idiom, because a generic first-path wash hits the wrong region on half of these:
+// Rocket's first path is the exhaust fin (body is path 2), ShoppingBag's is the handle
+// arc (body is path 3), UserRoundCog's body is a <circle>, not a path. Tailwind needs
+// the literal class strings, so these cannot be composed from the WASH constant.
+const TOPIC_WASH: Record<string, string> = {
+  'help-getting-started': '[&_svg>path:nth-of-type(2)]:fill-brand-100', // rocket body
+  // 'help-buying' has NO wash, deliberately: lucide draws the bag BODY LAST (handle,
+  // rim, then body), so filling it paints over both details and leaves a blank washed
+  // square — the z-order trap icon-tokens.ts documents for Compass. §6: a glyph with no
+  // safe closed region loses its wash gracefully and stays pure line.
+  'help-selling': '[&_svg>path:first-of-type]:fill-brand-100', // tag body (dot stays ink)
+  'help-account': '[&_svg>circle:first-of-type]:fill-brand-100', // head
+  'vietnam-travel': '[&_svg>path:first-of-type]:fill-brand-100', // single-path silhouette (the nav-Heart precedent)
+  'eno-service-help': '[&_svg>path:nth-of-type(2)]:fill-brand-100', // stamp base
+  // 'help-trust-safety': none — the seal's chief is already the wash, in every state.
+}
+
+/**
+ * The one renderer for a help topic's glyph — shared by the /help chips, the grouped
+ * answer headings and the thread page's topic chip, so the family cannot drift.
+ * Trust renders the eno seal (§0b: the seal replaces lucide Shield* wherever
+ * first-party trust is claimed); unknown slugs fall back to UsersRound (community).
+ */
+export function HelpTopicIcon({ slug, className }: { slug: string; className?: string }) {
+  if (slug === 'help-trust-safety') return <EnoSeal className={className} />
+  const Icon = TOPIC_ICONS[slug] ?? UsersRound
+  return <Icon className={className} aria-hidden />
 }
 
 const MORE_LINKS: { label: string; href: string }[] = [
@@ -155,7 +192,10 @@ function ReviewCard({ review }: { review: HelpReview }) {
         <div className="flex items-center gap-2">
           <Avatar name={review.sellerName} url={review.sellerAvatarUrl} color={review.sellerAvatarColor} size="sm" />
           <span className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground">{review.sellerName}</span>
-          {review.sellerVerified && <BadgeCheck className="size-4 shrink-0 text-accent-foreground" aria-hidden />}
+          {/* First-party verification renders the ONE mark (icon-language §0b: the seal
+              replaces lucide badges/shields wherever eno itself vouches) — inline tier,
+              wash, on the accent ink the old check used. */}
+          {review.sellerVerified && <EnoSeal className="size-4 shrink-0 text-accent-foreground" />}
         </div>
         {/* --rating is a deliberate token, held apart from --warning so a caution
             colour change never repaints review stars (globals.css). */}
@@ -173,6 +213,10 @@ function ReviewCard({ review }: { review: HelpReview }) {
           <span className="truncate">{review.author}</span>
           {review.verifiedBuyer && (
             <Badge variant="brand" size="sm">
+              {/* Micro-tier seal echo (§0b ladder: trust chips on cards carry the mark
+                  at 10–12px) — same construction as the PDP reviews-preview pill, so
+                  "verified buyer" is one glyph everywhere it is claimed. */}
+              <EnoSeal className="size-3" />
               <Tr text="Verified buyer" />
             </Badge>
           )}
@@ -192,7 +236,15 @@ export function HelpCenter({ data }: { data: HelpCenterData }) {
   // retrying recovers it, because the event is simply gone. Tests wait on this instead
   // of sleeping, and it costs one attribute.
   const [hydrated, setHydrated] = useState(false)
-  useEffect(() => { setHydrated(true) }, [])
+  useEffect(() => {
+    setHydrated(true)
+    // Deep-linkable search (?q=…): read AFTER hydration so the server-rendered HTML and
+    // the first client render agree (this is state, not URL routing — the page itself
+    // never navigates on keystroke). Also what lets the zero-result state be reached by
+    // URL instead of only by typing.
+    const q = new URLSearchParams(window.location.search).get('q')
+    if (q) setQuery(q)
+  }, [])
 
   const needle = query.trim().toLocaleLowerCase()
 
@@ -287,7 +339,6 @@ export function HelpCenter({ data }: { data: HelpCenterData }) {
           <Tr text="All topics" />
         </Button>
         {HELP_TOPICS.map((item) => {
-          const Icon = TOPIC_ICONS[item.slug] ?? UsersRound
           const active = topic === item.slug
           return (
             <Button
@@ -299,10 +350,14 @@ export function HelpCenter({ data }: { data: HelpCenterData }) {
               onClick={() => setTopic(active ? null : item.slug)}
               className={cn(
                 'h-10 shrink-0 gap-2 rounded-full border border-border px-4 text-xs font-semibold transition-colors',
-                active ? 'border-brand bg-accent text-accent-foreground' : 'bg-transparent text-body hover:bg-muted',
+                active
+                  ? // §5 location-active: accent ink + the wash inside the glyph (soft
+                    // duotone) — never a solid fill, which is reserved for user-state.
+                    cn('border-brand bg-accent text-accent-foreground', TOPIC_WASH[item.slug])
+                  : 'bg-transparent text-body hover:bg-muted',
               )}
             >
-              <Icon className="size-4" aria-hidden />
+              <HelpTopicIcon slug={item.slug} className="size-4" />
               {tr(item.name, item.nameVi)}
             </Button>
           )
@@ -333,7 +388,13 @@ export function HelpCenter({ data }: { data: HelpCenterData }) {
               <div key={index}>
                 {column.map((group) => (
                   <section key={group.topic.slug} className="mt-6">
-                    <h3 className="text-base font-bold text-foreground">{tr(group.topic.name, group.topic.nameVi)}</h3>
+                    {/* The Shelf-header discipline: a 16px line-only glyph on the
+                        heading's ink (§6: no wash outside artwork/active — the seal
+                        keeps its chief, which is its signature, not a wash violation). */}
+                    <h3 className="flex items-center gap-2 text-base font-bold text-foreground">
+                      <HelpTopicIcon slug={group.topic.slug} className="size-4" />
+                      {tr(group.topic.name, group.topic.nameVi)}
+                    </h3>
                     <Accordion className="mt-1">
                       {group.posts.map((post) => (
                         <AnswerItem key={post.id} post={post} />

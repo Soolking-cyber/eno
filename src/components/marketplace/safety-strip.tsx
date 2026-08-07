@@ -1,7 +1,8 @@
 'use client'
 
 import Link from 'next/link'
-import { ShieldAlert } from 'lucide-react'
+import { SEAL_BAR, SEAL_CHIEF, SEAL_OUTLINE } from '@/components/marketplace/eno-seal'
+import { STROKE_UI } from '@/lib/icon-tokens'
 import { useLanguage } from '@/context/language-context'
 import { cn } from '@/lib/utils'
 
@@ -30,7 +31,23 @@ export function SafetyStrip({ categorySlug, action, className }: { categorySlug:
 
   return (
     <div className={cn('flex items-start gap-2.5 rounded-xl bg-warning/10 px-3 py-2.5 text-xs leading-relaxed', className)}>
-      <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-warning" aria-hidden />
+      {/* The eno seal replaces lucide ShieldAlert in this first-party safety moment
+          (§0b + foundation handoff request: seal-in-chip on the safety strip). On the
+          warning tint the chief takes the strip's OWN ink — the trust-chip micro form
+          (tinted chief + line + bar) — never brand blue over amber. Paths imported
+          from eno-seal.tsx, never redrawn (§0b: a seal that drifts is a counterfeit). */}
+      <svg viewBox="0 0 24 24" aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0 text-warning">
+        <path d={SEAL_CHIEF} fill="currentColor" fillOpacity={0.25} />
+        <path
+          d={SEAL_OUTLINE}
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={STROKE_UI}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        <path d={SEAL_BAR} fill="none" stroke="currentColor" strokeWidth={STROKE_UI} strokeLinecap="round" />
+      </svg>
       <div className="min-w-0 flex-1 space-y-0.5">
         <p className="font-medium text-foreground">{line}</p>
         {/* Guide link left, Report right (user-picked 2026-07-14) — the old

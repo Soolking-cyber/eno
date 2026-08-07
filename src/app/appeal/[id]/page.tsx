@@ -10,8 +10,11 @@ import { compressImageFile } from '@/lib/normalize-image'
 import { SignInPrompt } from '@/components/marketplace/account-actions'
 import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
-import { Loader2, ImagePlus, CheckCircle2, X, ShieldQuestion } from 'lucide-react'
+import { Loader2, ImagePlus, CheckCircle2, X } from 'lucide-react'
+import { EnoSeal } from '@/components/marketplace/eno-seal'
+import { STROKE_DISPLAY } from '@/lib/icon-tokens'
 import { Button } from '@/components/ui/button'
+import { IconButton } from '@/components/ui/icon-button'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 
@@ -64,13 +67,16 @@ export default function AppealPage() {
           <div className="flex justify-center py-20"><Loader2 className="h-6 w-6 animate-spin text-accent-foreground" /></div>
         ) : !user ? (
           <div className="rounded-2xl bg-popover p-8 text-center shadow-pop">
-            <ShieldQuestion className="mx-auto h-10 w-10 text-ink-4" />
+            {/* §0b: appealing an eno moderation decision is a first-party trust moment —
+                the seal replaces lucide ShieldQuestion. Display stroke at 40px (§2);
+                muted line, the brand-100 chief carries the signature. */}
+            <EnoSeal strokeWidth={STROKE_DISPLAY} className="mx-auto h-10 w-10 text-ink-4" />
             <p className="mt-3 text-sm text-muted-foreground">{t('Sign in to appeal a decision on your account.', 'Đăng nhập để khiếu nại quyết định trên tài khoản của bạn.')}</p>
             <div className="mt-4"><SignInPrompt /></div>
           </div>
         ) : done ? (
           <div className="rounded-2xl bg-popover p-8 text-center shadow-pop">
-            <CheckCircle2 className="mx-auto h-12 w-12 text-accent-foreground" />
+            <CheckCircle2 className="mx-auto h-12 w-12 text-success" strokeWidth={STROKE_DISPLAY} />
             <h1 className="mt-3 text-lg font-bold text-foreground">{t('Appeal submitted', 'Đã gửi khiếu nại')}</h1>
             <p className="mt-1 text-sm text-muted-foreground">{t('The eno.vn team will review your appeal and the proof you sent. You’ll hear back via your notifications.', 'Đội ngũ eno.vn sẽ xem xét khiếu nại và bằng chứng của bạn. Bạn sẽ nhận phản hồi qua thông báo.')}</p>
             <Button asChild variant="cta" size="none"><Link href="/" className="mt-5 px-6 py-2">{t('Back to eno.vn', 'Về eno.vn')}</Link></Button>
@@ -88,7 +94,9 @@ export default function AppealPage() {
               {files.map((f, i) => (
                 <div key={i} className="relative h-20 w-20 overflow-hidden rounded-xl bg-tint">
                   <img src={f.url} alt="" className="h-full w-full object-cover" />
-                  <Button variant="bare" size="none" onClick={() => removeFile(i)} aria-label={t('Remove', 'Xóa')} className="absolute right-0.5 top-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-black/60 text-white active:scale-100"><X className="h-3 w-3" /></Button>
+                  {/* IconButton, mirroring the sibling /reports/[id] tile exactly — the two
+                      supplement pages are one pattern and must stay byte-identical here. */}
+                  <IconButton size="xs" tapTarget={false} onClick={() => removeFile(i)} aria-label={t('Remove', 'Xóa')} className="absolute right-0.5 top-0.5 size-5 bg-black/60 text-white"><X className="h-3 w-3" /></IconButton>
                 </div>
               ))}
               {files.length < 6 && (

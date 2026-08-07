@@ -106,8 +106,11 @@ export function HelpVote({ id, kind, score, viewerVote, className, size = 'md' }
       )}
     >
       {/* Explicit size-* beats ui/button's icon rule, which is authored at
-          `:where(&) svg` (specificity 0,0,1) precisely so the caller wins. */}
-      <ArrowBigUp className={cn(size === 'sm' ? 'size-4' : 'size-5', state.voted && 'fill-current')} aria-hidden />
+          `:where(&) svg` (specificity 0,0,1) precisely so the caller wins.
+          Voted = USER-state (§5): solid fill-brand + text-brand stroke — the saved-heart
+          language, the loudest mark in the system, reserved for state the user owns.
+          (Not fill-current: that borrowed the chip's accent ink and read as location.) */}
+      <ArrowBigUp className={cn(size === 'sm' ? 'size-4' : 'size-5', state.voted && 'fill-brand text-brand')} aria-hidden />
       <span className="tabular-nums">{state.score}</span>
     </Button>
   )

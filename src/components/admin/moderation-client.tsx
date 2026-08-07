@@ -4,7 +4,8 @@ import { useState, useEffect, useRef, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 import Image from 'next/image'
-import { X, Loader2, ExternalLink, MessageSquare, ChevronDown, StickyNote, Users, ShieldQuestion, MoreHorizontal, Sparkles , Scale } from 'lucide-react'
+import { X, Loader2, ExternalLink, MessageSquare, Check, ChevronDown, Keyboard, StickyNote, Users, ShieldQuestion, MoreHorizontal, Sparkles , Scale } from 'lucide-react'
+import { STROKE_MARK } from '@/lib/icon-tokens'
 import { formatMoneyFull, moneyLocale } from '@/lib/vnd'
 import { useLanguage } from '@/context/language-context'
 import { cn } from '@/lib/utils'
@@ -85,6 +86,15 @@ const askedAgo = (iso: string) => {
 
 type BadgeVariant = 'neutral' | 'brand' | 'success' | 'warning' | 'destructive' | 'outline'
 
+// Icon-language rule for this console (decided piece-wide, mirrored in
+// dispute-room-client + the admin pages): text glyphs (✓ ↔ ← →) never stand in
+// for icons. Done-state confirmations render lucide <Check> at STROKE_MARK — the
+// mark tier exists because a 2-weight check vanishes at 12px (§2) — inheriting
+// the label's ink; separators/back-affordances use the matching lucide glyph.
+const DoneCheck = ({ className = 'h-3 w-3' }: { className?: string }) => (
+  <Check className={className} strokeWidth={STROKE_MARK} aria-hidden="true" />
+)
+
 function TierChip({ tier, score }: { tier: string | null; score: number | null }) {
   if (score == null) return null
   const variant: BadgeVariant = tier === 'restricted' ? 'destructive'
@@ -103,7 +113,7 @@ function NoteEditor({ caseId, initial, onSaved }: { caseId: string; initial: str
   if (!open) {
     return (
       <Button variant="bare" size="none" onClick={(e) => { e.stopPropagation(); setOpen(true) }} className="gap-1 whitespace-normal text-3xs font-semibold text-muted-foreground hover:text-foreground cursor-pointer">
-        <StickyNote className="h-3 w-3" /> {initial ? 'Internal note ✓' : 'Add internal note'}
+        <StickyNote className="h-3 w-3" /> {initial ? <>Internal note <DoneCheck /></> : 'Add internal note'}
       </Button>
     )
   }
@@ -138,7 +148,7 @@ function MacroSender({ recipientId, label, listingId, conversationId }: { recipi
     <DropdownMenuSub>
       <DropdownMenuSubTrigger disabled={state === 'sending'} className="text-2xs font-bold cursor-pointer data-disabled:opacity-50">
         {state === 'sending' && <Loader2 className="size-3 animate-spin text-muted-foreground" />}
-        {state === 'sent' ? `Sent to ${label} ✓` : state === 'sending' ? 'Sending…' : `Notify ${label}…`}
+        {state === 'sent' ? <>Sent to {label} <DoneCheck /></> : state === 'sending' ? 'Sending…' : `Notify ${label}…`}
       </DropdownMenuSubTrigger>
       <DropdownMenuSubContent className="w-64">
         {MOD_MACROS.map((m) => <DropdownMenuItem key={m.key} closeOnClick={false} onClick={() => send(m.key)} className="text-2xs cursor-pointer">{m.label}</DropdownMenuItem>)}
@@ -304,7 +314,7 @@ function AiReviewPanel({ caseId, internalNote, onUse, refresh }: {
         <Button size="none" onClick={() => onUse(review)} className="rounded-lg bg-foreground px-2.5 py-1 text-3xs font-bold text-background hover:bg-foreground hover:opacity-90 cursor-pointer">Use suggestion</Button>
         <Button size="none" variant="ghost" onClick={saveNote} disabled={noteState !== 'idle'} className="gap-1 rounded-lg border border-line-strong px-2.5 py-1 text-3xs font-bold text-foreground hover:bg-muted hover:text-foreground disabled:opacity-60 cursor-pointer">
           {noteState === 'saving' && <Loader2 className="size-3 animate-spin" />}
-          {noteState === 'saved' ? 'Saved to case notes ✓' : 'Save to case notes'}
+          {noteState === 'saved' ? <>Saved to case notes <DoneCheck /></> : 'Save to case notes'}
         </Button>
       </div>
       <p className="mt-1.5 text-3xs italic text-ink-4">AI can misread context — verify quotes in the conversation before confirming.</p>
@@ -643,7 +653,9 @@ export function ModerationClient({ cases, resolved }: { cases: ModCase[]; resolv
             </Button>
           ))}
         </div>
-        {!showResolved && <span className="ml-auto hidden items-center gap-1 text-3xs text-ink-4 sm:inline-flex"><ChevronDown className="h-3 w-3" /> keys: j/k move · c confirm · d dismiss · a abusive</span>}
+        {/* Keyboard glyph, not a caret — the old ChevronDown said "expand" beside a
+            hint that expands nothing (lazy default, §10.1 glyph-reads-instantly). */}
+        {!showResolved && <span className="ml-auto hidden items-center gap-1 text-3xs text-ink-4 sm:inline-flex"><Keyboard className="h-3 w-3" /> keys: j/k move · c confirm · d dismiss · a abusive</span>}
       </div>
 
       {!showResolved && checked.size > 0 && (

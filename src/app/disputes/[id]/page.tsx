@@ -4,7 +4,9 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { useParams } from 'next/navigation'
-import { Check, CheckCircle2, Clock, ImagePlus, Info, Loader2, Scale, Shield, X, XCircle } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Check, CheckCircle2, Clock, ImagePlus, Info, Loader2, Scale, X, XCircle } from 'lucide-react'
+import { EnoSeal } from '@/components/marketplace/eno-seal'
+import { ICON_SIZE, STROKE_DISPLAY, STROKE_MARK } from '@/lib/icon-tokens'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import { compressImageFile } from '@/lib/normalize-image'
@@ -213,13 +215,15 @@ export default function DisputeRoomPage() {
           <div className="flex justify-center py-20"><Loader2 className="h-6 w-6 animate-spin text-accent-foreground" /></div>
         ) : !user ? (
           <div className="mt-10 text-center">
-            <Scale className="mx-auto h-10 w-10 text-ink-4" />
+            {/* Display stroke (§2) — a 40px Scale at the UI weight is the rubber-stamp
+                look the display tier exists to prevent. */}
+            <Scale className="mx-auto h-10 w-10 text-ink-4" strokeWidth={STROKE_DISPLAY} />
             <p className="mt-3 text-sm text-muted-foreground">{t('Sign in to view this dispute case.', 'Đăng nhập để xem hồ sơ khiếu nại này.')}</p>
             <div className="mt-4"><SignInPrompt /></div>
           </div>
         ) : notFound ? (
           <div className="mt-10 text-center">
-            <Scale className="mx-auto h-10 w-10 text-ink-4" />
+            <Scale className="mx-auto h-10 w-10 text-ink-4" strokeWidth={STROKE_DISPLAY} />
             <p className="mt-3 text-sm font-semibold text-foreground">{t('Case not found', 'Không tìm thấy hồ sơ')}</p>
             <p className="mt-1 text-sm text-muted-foreground">{t('It may have been removed, or it belongs to another account.', 'Hồ sơ có thể đã bị xóa hoặc thuộc tài khoản khác.')}</p>
             <Link href="/disputes" className="mt-4 inline-block rounded-xl px-4 py-2 text-sm font-bold text-accent-foreground transition-colors hover:bg-muted">{t('All disputes', 'Tất cả khiếu nại')}</Link>
@@ -229,19 +233,23 @@ export default function DisputeRoomPage() {
         ) : (
           <>
             {/* ── Case header ── */}
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <Link href="/disputes" className="text-xs font-bold text-accent-foreground hover:underline">{t('← All disputes', '← Tất cả khiếu nại')}</Link>
-                <h1 className="h-title mt-1 text-foreground">
-                  {reasonLabel(data.reason)}
-                </h1>
-                <p className="mt-0.5 text-sm text-muted-foreground">
-                  {data.role === 'reporter'
-                    ? t('You reported', 'Bạn đã báo cáo') + (data.counterparty ? ` ${data.counterparty}` : '')
-                    : t('A report concerns you — share your side below.', 'Có báo cáo liên quan đến bạn — hãy trình bày phía bạn bên dưới.')}
-                </p>
-              </div>
-              <Scale className="mt-1 h-6 w-6 shrink-0 text-accent-foreground" />
+            {/* No decorative title glyph (same §6 ruling the disputes LIST carries in
+                disputes-panel.tsx: a static accent icon beside a heading fits no bucket
+                of the color taxonomy). Scale keeps meaning where it works — the
+                placeholder states and the list's fallback tile. */}
+            <div className="min-w-0">
+              <Link href="/disputes" className="inline-flex items-center gap-1 text-xs font-bold text-accent-foreground hover:underline">
+                <ArrowLeft className="h-3.5 w-3.5" aria-hidden />
+                {t('All disputes', 'Tất cả khiếu nại')}
+              </Link>
+              <h1 className="h-title mt-1 text-foreground">
+                {reasonLabel(data.reason)}
+              </h1>
+              <p className="mt-0.5 text-sm text-muted-foreground">
+                {data.role === 'reporter'
+                  ? t('You reported', 'Bạn đã báo cáo') + (data.counterparty ? ` ${data.counterparty}` : '')
+                  : t('A report concerns you — share your side below.', 'Có báo cáo liên quan đến bạn — hãy trình bày phía bạn bên dưới.')}
+              </p>
             </div>
 
             {/* ── Status stepper ── */}
@@ -254,7 +262,8 @@ export default function DisputeRoomPage() {
                       'flex h-5 w-5 items-center justify-center rounded-full text-3xs font-bold',
                       i < stageIndex ? 'bg-primary text-white' : i === stageIndex ? 'bg-primary text-white' : 'bg-tint text-ink-4',
                     )}>
-                      {i < stageIndex ? <Check className="h-3 w-3" /> : i + 1}
+                      {/* §2 mark tier: a 2-weight check vanishes inside a 12px filled coin. */}
+                      {i < stageIndex ? <Check className="h-3 w-3" strokeWidth={STROKE_MARK} /> : i + 1}
                     </span>
                     <span className={cn('text-3xs font-semibold', i <= stageIndex ? 'text-foreground' : 'text-ink-4')}>{t(s.en, s.vi)}</span>
                   </span>
@@ -271,7 +280,9 @@ export default function DisputeRoomPage() {
             )}
             {data.stage === 'review' && (
               <p className="mt-4 flex items-center gap-1.5 text-sm font-semibold text-warning">
-                <Shield className="h-4 w-4" />
+                {/* §0b: the eno team reviewing IS first-party trust — the seal replaces
+                    lucide Shield. Line variant: the warning ink already carries meaning. */}
+                <EnoSeal variant="line" className={ICON_SIZE.md} />
                 {t('Under review — the eno.vn team is deciding. Reviews typically finish within 48 hours.', 'Đang xem xét — đội ngũ eno.vn sẽ quyết định, thường trong vòng 48 giờ.')}
               </p>
             )}
@@ -284,8 +295,9 @@ export default function DisputeRoomPage() {
                   </p>
                   {data.decisionNote && <p className="mt-1 whitespace-pre-wrap pl-6 text-sm text-body">{data.decisionNote}</p>}
                   {data.role === 'respondent' && data.status === 'confirmed' && (
-                    <Link href={`/appeal/${data.id}`} className="mt-2 inline-block pl-6 text-sm font-bold text-accent-foreground hover:underline">
-                      {t('Appeal with proof →', 'Khiếu nại kèm bằng chứng →')}
+                    <Link href={`/appeal/${data.id}`} className="mt-2 inline-flex items-center gap-1 pl-6 text-sm font-bold text-accent-foreground hover:underline">
+                      {t('Appeal with proof', 'Khiếu nại kèm bằng chứng')}
+                      <ArrowRight className="h-3.5 w-3.5" aria-hidden />
                     </Link>
                   )}
                 </div>
@@ -336,7 +348,9 @@ export default function DisputeRoomPage() {
                       item.role === 'admin' ? 'bg-accent' : mine ? 'bg-primary/10' : 'bg-tint',
                     )}>
                       {item.role === 'admin' && (
-                        <p className="mb-1 flex items-center gap-1 text-2xs font-bold text-accent-foreground"><Shield className="h-3 w-3" /> eno.vn</p>
+                        // The seal marks the first-party voice in the room (§0b micro scale);
+                        // line variant on the accent-tinted bubble — the ink is the meaning.
+                        <p className="mb-1 flex items-center gap-1 text-2xs font-bold text-accent-foreground"><EnoSeal variant="line" className={ICON_SIZE.xs} /> eno.vn</p>
                       )}
                       {item.body && <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">{item.body}</p>}
                       {item.images.length > 0 && (
@@ -365,7 +379,9 @@ export default function DisputeRoomPage() {
               <div className="mt-6">
                 {/* One-shot notice — you submit ONCE, so put everything in now. */}
                 <div className="mb-2 flex items-start gap-2 rounded-xl bg-tint px-3 py-2 text-xs text-body">
-                  <Info className="mt-0.5 h-4 w-4 shrink-0 text-accent-foreground" />
+                  {/* Inherits the note's own ink (§6 — brand line is for interactive
+                      affordances; a static info glyph rides the surface ink). */}
+                  <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
                   <span>{t('You can submit your statement once — add all your details and photos before sending. The reviewer decides from what both sides submit.', 'Bạn chỉ gửi được một lần — hãy bổ sung đầy đủ chi tiết và ảnh trước khi gửi. Người xem xét sẽ quyết định dựa trên nội dung cả hai bên gửi.')}</span>
                 </div>
                 <Textarea

@@ -4,7 +4,8 @@ import { threadKind } from '@/lib/thread-kind'
 import { EmptyState } from '@/components/ui/empty-state'
 import { db } from '@/lib/db'
 import { getAdmin } from '@/lib/admin'
-import { ChevronLeft, Tag } from 'lucide-react'
+import { ArrowLeftRight, ChevronLeft, Tag } from 'lucide-react'
+import { STROKE_NAV } from '@/lib/icon-tokens'
 import Link from 'next/link'
 import { formatMoneyFull } from '@/lib/vnd'
 import type { Metadata } from 'next'
@@ -58,8 +59,10 @@ export default async function AdminConversationPage({ params }: Props) {
   return (
     <div className="flex flex-1 flex-col bg-background">
       <main id="main" tabIndex={-1} className="mx-auto w-full max-w-2xl flex-1 px-3 py-8 sm:px-6 lg:px-8">
+        {/* Back-affordance chevron = the nav-chrome tier (§2: section-header back
+            is STROKE_NAV), same hand as the dashboard section header's back. */}
         <Link href="/admin" className="mb-4 inline-flex items-center gap-1 text-sm font-semibold text-muted-foreground hover:text-accent-foreground">
-          <ChevronLeft className="h-4 w-4" /> Back to moderation
+          <ChevronLeft className="h-4 w-4" strokeWidth={STROKE_NAV} /> Back to moderation
         </Link>
 
         {!convo ? (
@@ -69,7 +72,9 @@ export default async function AdminConversationPage({ params }: Props) {
             <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
               <h1 className="text-base font-bold text-foreground">
                 <span className="text-accent-foreground">{buyerName}</span>
-                <span className="text-ink-4"> ↔ </span>
+                {/* Lucide, not the '↔' text glyph (piece rule: no literal-glyph icons
+                    in admin chrome) — inline, so it sits on the cap-height center. */}
+                <ArrowLeftRight className="mx-1.5 inline h-3.5 w-3.5 align-[-2px] text-ink-4" aria-label="with" />
                 {convo.seller ? (
                   <a href={`/sellers/${convo.seller.id}`} target="_blank" rel="noreferrer" className="text-accent-foreground hover:underline">{sellerName}</a>
                 ) : (

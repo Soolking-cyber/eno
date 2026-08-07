@@ -110,7 +110,9 @@ export function FeedbackClient({ items: initial }: { items: FeedbackItem[] }) {
                         disabled={busy === it.id}
                         className="ml-auto gap-1.5 text-xs font-semibold text-foreground"
                       >
-                        {resolved ? <><RotateCcw className="size-4" /> Reopen</> : <><CheckCircle2 className="h-3.5 w-3.5" /> Resolve</>}
+                        {/* Same slot, same size — Reopen's size-4 next to Resolve's h-3.5
+                            made the toggle jump a step on every flip (§4: one rhythm). */}
+                        {resolved ? <><RotateCcw className="h-3.5 w-3.5" /> Reopen</> : <><CheckCircle2 className="h-3.5 w-3.5" /> Resolve</>}
                       </Button>
                     </div>
                   </CardContent>

@@ -1,6 +1,10 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { Scale } from 'lucide-react'
+import {
+  ArrowRight, Ban, CircleEllipsis, Copy, Copyright, ImageOff, Info,
+  MessageSquareWarning, PackageCheck, TriangleAlert,
+} from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 import { db } from '@/lib/db'
 import { getAdmin } from '@/lib/admin'
 import { AdminDenied } from '@/components/admin/admin-denied'
@@ -15,6 +19,17 @@ export const metadata: Metadata = { title: 'Disputes — eno.vn admin', robots: 
 // Admin dispute center — every report is a CASE here (the queue at /admin stays the
 // fast triage surface; this is the case-room view: thread, evidence, deadlines).
 // Open cases sort by urgency: evidence window closing first, then latest activity.
+
+// Row lead = the REPORT-TYPE glyph, bare line in muted surface ink (R2 critic; canon
+// "lines, not boxes" — the old constant Scale-in-a-gray-tile was a container behind an
+// inline icon, §6 forbids, and carried zero information row to row). Vocabulary matches
+// the queue's REASON_LABEL set in moderation-client.tsx; CircleEllipsis is the
+// 'other'/unknown fallback. All chrome: line-only, STROKE_UI (lucide default 2).
+const REASON_GLYPH: Record<string, LucideIcon> = {
+  scam: TriangleAlert, counterfeit: Copyright, sold: PackageCheck, 'wrong-info': Info,
+  duplicate: Copy, offensive: MessageSquareWarning, prohibited: Ban,
+  stolen_photos: ImageOff, other: CircleEllipsis,
+}
 
 const fmtLeft = (d: Date | null): string | null => {
   if (!d) return null
@@ -61,12 +76,13 @@ export default async function AdminDisputesPage() {
     const reporter = r.reporterProfileId ? reporterById.get(r.reporterProfileId) : null
     const stage = disputeStage(r)
     const left = stage === 'evidence' ? fmtLeft(r.evidenceUntil) : null
+    const Lead = REASON_GLYPH[r.reason] ?? CircleEllipsis
     return (
       <Link
         href={`/admin/disputes/${r.id}`}
         className="flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-muted"
       >
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-tint"><Scale className="h-4 w-4 text-ink-4" /></span>
+        <Lead className="h-5 w-5 shrink-0 text-ink-4" aria-hidden="true" />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-1.5">
             <span className="text-sm font-bold capitalize text-foreground">{r.reason}</span>
@@ -87,7 +103,8 @@ export default async function AdminDisputesPage() {
           </div>
           <p className="mt-0.5 truncate text-xs text-muted-foreground">
             {reporter ? `by ${reporter.name} (trust ${reporter.trustScore}${reporter.strikes ? `, ${reporter.strikes} strikes` : ''})` : 'by unknown'}
-            {' → '}
+            {/* Piece rule: reporter→target direction is a lucide glyph, not a '→'. */}
+            <ArrowRight className="mx-1 inline h-3 w-3 align-[-1.5px] text-ink-4" aria-label="against" />
             {target ? `${target.name}${target.trustScore != null ? ` (trust ${target.trustScore})` : ''}` : 'unknown target'}
             {target?.listing ? ` · ${target.listing.title}` : ''}
           </p>

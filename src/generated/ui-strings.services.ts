@@ -332,6 +332,7 @@ export const UI_STRINGS_SERVICES: string[] = [
   "Your request is with our trip desk — we'll message you in the chat.",
   "Your saved trips",
   "Your trip plan is ready",
+  "days",
   "details below",
   "documents",
   "e-Visa",

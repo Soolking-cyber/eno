@@ -1,7 +1,9 @@
 'use client'
 
 import Link from 'next/link'
-import { ShieldCheck, BadgeCheck, Gavel, Flag, Wallet, ChevronRight } from 'lucide-react'
+import { BadgeCheck, Scale, Flag, Wallet, ChevronRight } from 'lucide-react'
+import { EnoSeal } from '@/components/marketplace/eno-seal'
+import { ICON_SIZE } from '@/lib/icon-tokens'
 import { useLanguage } from '@/context/language-context'
 import { Button } from '@/components/ui/button'
 import {
@@ -22,9 +24,14 @@ import {
 export function ProtectionsRow() {
   const { tr } = useLanguage()
 
+  // Item leads are LINE-ONLY in surface ink (§6 — brand line is reserved for
+  // interactive affordances; a static list glyph fits no brand bucket). The one
+  // wash in the sheet is the eno seal on the Trust-score item: §0b replaces
+  // lucide ShieldCheck with the seal in first-party trust moments, and its
+  // brand-100 chief is the single color move the icon language allows here.
   const items: { icon: React.ReactNode; title: string; body: string }[] = [
     {
-      icon: <BadgeCheck className="h-5 w-5 text-accent-foreground" aria-hidden />,
+      icon: <BadgeCheck className={`${ICON_SIZE.lg} text-body`} aria-hidden />,
       title: tr('Screened listings', 'Tin đã kiểm duyệt'),
       body: tr(
         'New listings are reviewed before they go live, and we keep removing ones that break our rules.',
@@ -32,7 +39,7 @@ export function ProtectionsRow() {
       ),
     },
     {
-      icon: <ShieldCheck className="h-5 w-5 text-accent-foreground" aria-hidden />,
+      icon: <EnoSeal className={`${ICON_SIZE.lg} text-body`} />,
       title: tr('Evidence-based Trust score', 'Điểm uy tín dựa trên bằng chứng'),
       body: tr(
         "Every seller's Trust score is computed from real activity — verified reviews, response record and dispute history — not paid badges.",
@@ -40,7 +47,7 @@ export function ProtectionsRow() {
       ),
     },
     {
-      icon: <Gavel className="h-5 w-5 text-accent-foreground" aria-hidden />,
+      icon: <Scale className={`${ICON_SIZE.lg} text-body`} aria-hidden />,
       title: tr('Dispute center', 'Trung tâm tranh chấp'),
       body: tr(
         'If something goes wrong, open a dispute. Both sides get a 72-hour window to submit evidence, reviewed privately by our team.',
@@ -48,7 +55,7 @@ export function ProtectionsRow() {
       ),
     },
     {
-      icon: <Flag className="h-5 w-5 text-accent-foreground" aria-hidden />,
+      icon: <Flag className={`${ICON_SIZE.lg} text-body`} aria-hidden />,
       title: tr('Admin-reviewed reports', 'Báo cáo được quản trị viên xử lý'),
       body: tr(
         'Report any listing or chat. A real person reviews every report and acts on the ones that break our policies.',
@@ -56,7 +63,7 @@ export function ProtectionsRow() {
       ),
     },
     {
-      icon: <Wallet className="h-5 w-5 text-accent-foreground" aria-hidden />,
+      icon: <Wallet className={`${ICON_SIZE.lg} text-body`} aria-hidden />,
       title: tr('Never pay in advance', 'Không trả trước'),
       body: tr(
         "eno doesn't hold your money. Meet in a public place, check the item, and only pay once you're happy — never transfer a deposit to strangers.",
@@ -79,7 +86,9 @@ export function ProtectionsRow() {
           className="press flex w-full items-center justify-start gap-2.5 whitespace-normal rounded-xl border border-border bg-tint px-3.5 py-2.5 text-left font-normal transition-colors hover:bg-accent"
         />
       }>
-          <ShieldCheck className="h-5 w-5 shrink-0 text-accent-foreground" aria-hidden />
+          {/* The eno seal — §0b's protection-chip echo (foundation handoff request):
+              ink line + brand-100 chief, the signature carrying the trust claim. */}
+          <EnoSeal className={ICON_SIZE.lg} />
           <span className="min-w-0 flex-1 text-xs leading-snug text-body">
             <span className="font-bold text-foreground">{tr('ENO protects you', 'ENO bảo vệ bạn')}</span>
             {' — '}
@@ -98,7 +107,7 @@ export function ProtectionsRow() {
       >
         <div className="px-5 pt-5 pb-4">
           <div className="flex items-center gap-2">
-            <ShieldCheck className="h-5 w-5 text-accent-foreground" aria-hidden />
+            <EnoSeal className={ICON_SIZE.lg} />
             <DialogTitle className="text-lg font-bold text-foreground">
               {tr('How ENO protects you', 'ENO bảo vệ bạn thế nào')}
             </DialogTitle>
@@ -124,7 +133,10 @@ export function ProtectionsRow() {
         </ul>
 
         <div className="mt-2 border-t border-border px-5 py-4">
-          <DialogClose render={
+          {/* nativeButton={false}: the close action IS this <Link> — without the flag
+              Base UI expects a native <button> and logs an a11y error on every open
+              (the red dev-overlay badge that polluted the judged screenshots). */}
+          <DialogClose nativeButton={false} render={
             <Link
               href="/safety"
               className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-brand px-5 py-2.5 text-sm font-bold text-accent-foreground transition-colors hover:bg-accent"

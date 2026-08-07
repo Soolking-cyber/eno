@@ -6,6 +6,8 @@ import { useLanguage } from '@/context/language-context'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
+import { WASH_ACTIVE } from '@/lib/icon-tokens'
+import { cn } from '@/lib/utils'
 
 // Hoisted to module scope so it keeps a stable component identity across the parent's
 // re-renders — a component created inside render remounts its subtree on every keystroke.
@@ -23,12 +25,19 @@ function Toggle({ label, Icon, active, onSelect }: { label: string; Icon: typeof
       type="button"
       aria-pressed={active}
       onClick={onSelect}
-      className={
-        'gap-1.5 rounded-xl px-3 py-1.5 text-sm font-semibold transition-colors cursor-pointer ' +
-        (active ? 'bg-primary text-white' : 'text-body hover:bg-muted')
-      }
+      className={cn(
+        'h-9 gap-1.5 rounded-full border px-3.5 text-sm font-semibold transition-colors cursor-pointer',
+        // §5 location-active soft duotone (accent tint + washed glyph), replacing the
+        // old solid bg-primary/text-white — a solid treatment is reserved for
+        // user-state, and this pair is "which mode am I in". WASH_ACTIVE is safe here:
+        // both glyphs' first path IS the body (MessageSquareText bubble, Wrench
+        // single-path silhouette).
+        active
+          ? cn('border-brand bg-accent text-accent-foreground', WASH_ACTIVE)
+          : 'border-border bg-transparent text-body hover:bg-muted',
+      )}
     >
-      <Icon className="h-4 w-4" /> {label}
+      <Icon className="h-4 w-4" aria-hidden /> {label}
     </Button>
   )
 }

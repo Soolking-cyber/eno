@@ -1,6 +1,8 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
+import { ChevronLeft } from 'lucide-react'
+import { STROKE_NAV } from '@/lib/icon-tokens'
 import { db } from '@/lib/db'
 import { getAdmin } from '@/lib/admin'
 import { AdminDenied } from '@/components/admin/admin-denied'
@@ -91,7 +93,11 @@ export default async function AdminDisputeRoomPage({ params }: { params: Promise
   return (
     <div className="flex flex-1 flex-col bg-background">
       <main id="main" tabIndex={-1} className="mx-auto w-full max-w-4xl flex-1 px-3 py-8 sm:px-6 lg:px-8">
-        <Link href="/admin/disputes" className="text-xs font-bold text-accent-foreground hover:underline">← Dispute center</Link>
+        {/* One back-link idiom across /admin (piece rule: no '←' text glyphs):
+            muted ink + nav-tier ChevronLeft, exactly as the conversation viewer. */}
+        <Link href="/admin/disputes" className="mb-2 inline-flex items-center gap-1 text-sm font-semibold text-muted-foreground hover:text-accent-foreground">
+          <ChevronLeft className="h-4 w-4" strokeWidth={STROKE_NAV} /> Dispute center
+        </Link>
         <DisputeRoomAdmin data={data} />
       </main>
     </div>
