@@ -3,7 +3,7 @@ import type { Metadata } from 'next'
 import { Suspense } from 'react'
 import { getCurrentProfile } from '@/lib/admin'
 import { db } from '@/lib/db'
-import { Spinner } from '@/components/ui/spinner'
+import { VisaCasesSkeleton } from './cases-client'
 import { VisaCasesClient } from './cases-client'
 
 // /dashboard/visa — the applicant's e-Visa CASES, and the way back into the thread each
@@ -76,13 +76,11 @@ async function VisaCasesBody() {
 export default function VisaPage() {
   return (
     // Suspense: the client reads useSearchParams for the payment-return params.
-    <Suspense
-      fallback={
-        <div role="status" className="flex min-h-[50vh] items-center justify-center">
-          <Spinner size="lg" />
-        </div>
-      }
-    >
+    // ⚠️ ONE skeleton for this surface, imported — not a second hand-written copy. The
+    // Suspense fallback here and the client's own auth gate both used to render the same
+    // centred `min-h-[50vh]` Spinner, duplicated across two files, and neither had the shape
+    // of the case list it hands over to.
+    <Suspense fallback={<VisaCasesSkeleton />}>
       <VisaCasesBody />
     </Suspense>
   )

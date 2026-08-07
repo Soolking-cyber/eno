@@ -39,9 +39,26 @@ export function SettingsClient() {
     return (
       <div role="status" aria-label={tr('Loading…', 'Đang tải…')}>
         <SectionHeader title={tr('Settings', 'Cài đặt')} />
-        <div className="w-full space-y-6">
+        <div className="w-full">
+          {/* h1: text-xl font-bold, sr-only below lg (28px line box) */}
           <Skeleton className="h-7 w-28 rounded-lg max-lg:hidden" />
-          {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-28 rounded-2xl" />)}
+          {/* ⚠️ FLAT GROUPS, NOT CARDS. The real body is a stack of <SettingsGroup>s —
+              `mt-6 border-t pt-6` + an uppercase text-xs caption + `mt-3` content, with NO box
+              around anything ("No space-y: each SettingsGroup carries its own hairline"). The
+              four `h-28 rounded-2xl` cards this used to draw promised exactly the boxed
+              treatment the flat canon removed, and account-client.tsx's own comment warns
+              against it. */}
+          <div className="mt-6">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className={cn(i > 0 && 'mt-6 border-t border-border pt-6')}>
+                <Skeleton className="h-4 w-24" />
+                <div className="mt-3 space-y-2">
+                  <Skeleton className="h-4 w-40 max-w-full" />
+                  <Skeleton className="h-11 w-full max-w-md rounded-xl" />
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     )
@@ -66,10 +83,19 @@ export function SettingsClient() {
         <h1 className="text-xl font-bold text-foreground max-lg:sr-only">{tr('Settings', 'Cài đặt')}</h1>
 
       {!dash ? (
-        <div className="mt-6 space-y-3">
-          <Skeleton className="h-16 rounded-2xl" />
-          <Skeleton className="h-10 rounded-xl" />
-          <Skeleton className="h-10 rounded-xl" />
+        // Second stage (auth resolved, `dash` still in flight) — the SAME flat-group shape as
+        // the gate above, so the two skeletons agree instead of swapping a 16+10+10 stack for
+        // four cards.
+        <div className="mt-6">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className={cn(i > 0 && 'mt-6 border-t border-border pt-6')}>
+              <Skeleton className="h-4 w-24" />
+              <div className="mt-3 space-y-2">
+                <Skeleton className="h-4 w-40 max-w-full" />
+                <Skeleton className="h-11 w-full max-w-md rounded-xl" />
+              </div>
+            </div>
+          ))}
         </div>
       ) : (
         <div

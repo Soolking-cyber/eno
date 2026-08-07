@@ -6,7 +6,7 @@ import { ChevronRight } from 'lucide-react'
 import type { SerializedCategory, SerializedListingCard } from '@/lib/types'
 import { ListingCard } from './listing-card'
 import { CategoryIcon } from './category-icons'
-import { RAIL_CARD_W, RAIL_SCROLLER, MIN_RAIL_ITEMS, SECTION_HEADER_ROW, SECTION_TITLE, SECTION_SEE_ALL } from './shelf'
+import { RAIL_CARD_W, RAIL_SCROLLER, MIN_RAIL_ITEMS, RAIL_SKELETON_COUNT, SECTION_HEADER_ROW, SECTION_TITLE, SECTION_SEE_ALL } from './shelf'
 import { STROKE_UI } from '@/lib/icon-tokens'
 import { useLanguage, Tr } from '@/context/language-context'
 import { useScrollArrows, ScrollArrows } from '@/hooks/use-scroll-arrows'
@@ -85,7 +85,7 @@ function CategoryRail({ cat, listings, onCategory }: { cat: SerializedCategory; 
                 </div>
               ))
             : // Same-size skeletons hold the row height until it mounts (no images, no shift).
-              Array.from({ length: Math.min(listings.length, 4) }).map((_, i) => (
+              Array.from({ length: Math.min(listings.length, RAIL_SKELETON_COUNT) }).map((_, i) => (
                 <ListingCardSkeleton key={i} className={RAIL_CARD_W} />
               ))}
         </div>

@@ -12,7 +12,7 @@ import { SavedSearches } from '@/components/marketplace/saved-searches'
 import { Mascot } from '@/components/marketplace/mascot'
 import { useFavorites } from '@/context/favorites-context'
 import { useLanguage } from '@/context/language-context'
-import { ListingCardSkeleton } from '@/components/marketplace/listing-card-skeleton'
+import { ListingCardSkeleton, SAVED_SKELETON_COUNT } from '@/components/marketplace/listing-card-skeleton'
 
 export default function SavedPage() {
   const { count, saved, savedError, retrySaved } = useFavorites()
@@ -50,8 +50,15 @@ export default function SavedPage() {
           // (count is known from the device-local favorites set, which loads before the
           // listings fetch), each matching a card's height — so no layout shift (CLS)
           // when the actual cards swap in.
+          // ⚠️ THE FLOOR IS SAVED_SKELETON_COUNT, NOT 2, AND IT IS SHARED WITH
+          // saved/loading.tsx. FavoritesContext fills `ids` in an effect, so on a HARD load
+          // of this route `count` is 0 for the first client render — the old floor of 2 made
+          // that paint two cards directly under the route skeleton's eight, then grow to the
+          // real number. Three stages, two jumps, from two hand-typed literals. Reading the
+          // same constant means the pre-hydration paint is identical to the route skeleton
+          // and only the real count moves anything.
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-            {Array.from({ length: Math.min(Math.max(count, 2), 24) }).map((_, i) => (
+            {Array.from({ length: count > 0 ? Math.min(count, 24) : SAVED_SKELETON_COUNT }).map((_, i) => (
               <ListingCardSkeleton key={i} />
             ))}
           </div>

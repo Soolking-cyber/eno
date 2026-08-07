@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Award } from 'lucide-react'
 import type { SerializedListingCard } from '@/lib/types'
 import { ListingCard } from './listing-card'
-import { Shelf, RAIL_CARD_W, MIN_RAIL_ITEMS } from './shelf'
+import { Shelf, RAIL_CARD_W, MIN_RAIL_ITEMS, RAIL_SKELETON_COUNT } from './shelf'
 import { useLanguage } from '@/context/language-context'
 import { ListingCardSkeleton } from './listing-card-skeleton'
 
@@ -38,7 +38,10 @@ export function BusinessRail({ initial }: { initial?: SerializedListingCard[] })
   return (
     <Shelf icon={Award} title={tr('Outstanding businesses', 'Doanh nghiệp nổi bật')} watch={listings?.length ?? 0}>
       {listings === null
-        ? Array.from({ length: 6 }).map((_, i) => (
+        ? // Un-seeded call sites only (the home landing passes `initial`). Four cards fill
+          // the widest row exactly — six placeholders against a three-item floor made a
+          // resolved rail visibly shrink.
+          Array.from({ length: RAIL_SKELETON_COUNT }).map((_, i) => (
             <ListingCardSkeleton key={i} className={RAIL_CARD_W} />
           ))
         : listings.map((l) => (

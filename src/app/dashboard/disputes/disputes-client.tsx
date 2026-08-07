@@ -23,10 +23,21 @@ export function DisputesClient() {
 
   if (loading || !user) {
     // Content-shaped first paint: the stack title bar + row skeletons, not a centered spinner.
+    //
+    // ⚠️ THE h-title AND THE EXPLANATORY LINE ARE PART OF THE SHAPE. <DisputesPanel> renders
+    // both ABOVE its own (identical) three-row skeleton at `mt-6`; without them here the rows
+    // sat near the top of the page and then got shoved ~70px down the moment the panel
+    // mounted — the same skeleton at two different vertical offsets, which reads as a jump
+    // even though nothing about the rows changed.
     return (
       <div role="status" aria-label={tr('Loading…', 'Đang tải…')}>
         <SectionHeader title={tr('Disputes', 'Khiếu nại')} />
-        <Rows className="mt-2">
+        <Skeleton className="h-[calc(var(--text-title)*1.22)] w-40 rounded-lg" />
+        <div className="mt-1">
+          <Skeleton className="h-5 w-full max-w-md rounded-lg" />
+          <Skeleton className="mt-1 h-5 w-2/3 max-w-sm rounded-lg lg:hidden" />
+        </div>
+        <Rows className="mt-6">
           {Array.from({ length: 3 }).map((_, i) => <Row key={i}><Skeleton className="h-12 rounded-lg" /></Row>)}
         </Rows>
       </div>

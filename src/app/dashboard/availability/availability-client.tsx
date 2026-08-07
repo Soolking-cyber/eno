@@ -136,7 +136,20 @@ export function AvailabilityClient() {
 
           <div className="min-h-0 flex-1 space-y-1.5 overflow-y-auto px-4 py-3 sm:px-6">
             {!listings ? (
-              Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-16 rounded-2xl" />)
+              // ⚠️ 76px, NOT h-16. The real row is `rounded-2xl p-2.5` (20px of padding) around
+              // an `h-14 w-14` thumb, so a flat 64px bar grew 12px per row — ~48px across the
+              // four — the moment the listings landed. Built from the row's own box model so it
+              // stays right if the thumb size changes.
+              Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="flex w-full items-center gap-3 rounded-2xl p-2.5">
+                  <Skeleton className="h-14 w-14 shrink-0 rounded-xl" />
+                  <div className="min-w-0 flex-1 space-y-1">
+                    <Skeleton className="h-5 w-40 max-w-full" />
+                    <Skeleton className="h-5 w-20" />
+                  </div>
+                  <Skeleton className="h-6 w-6 shrink-0 rounded-lg" />
+                </div>
+              ))
             ) : filtered.map((l) => {
               const sold = soldIds.has(l.id)
               return (

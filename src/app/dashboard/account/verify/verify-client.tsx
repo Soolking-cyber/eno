@@ -17,6 +17,7 @@ import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { DECLARATIONS, CURRENT_DECLARATION } from '@/lib/compliance/declaration'
 import { LEGAL_BASIS } from '@/lib/compliance/legal-basis'
@@ -35,7 +36,44 @@ export function VerifyClient() {
   }, [loading, user, router])
 
   if (loading || !user) {
-    return <div role="status" aria-label={tr('Loading…', 'Đang tải…')} className="h-64 animate-pulse rounded-2xl bg-muted/40" />
+    // ⚠️ THE APP HAS ONE SKELETON SYSTEM AND THIS USED TO BE OUTSIDE IT: a single
+    // `h-64 animate-pulse rounded-2xl bg-muted/40` slab — a hand-rolled placeholder idiom
+    // (opacity pulse over bg-muted) competing with the shared `.shimmer` <Skeleton>, and an
+    // opaque 256px box standing in for a `mx-auto max-w-2xl space-y-6` article. Content-shaped
+    // now, matching the header → declaration card → tier buttons below it, like every sibling
+    // dashboard gate.
+    return (
+      <div role="status" aria-label={tr('Loading…', 'Đang tải…')} className="mx-auto max-w-2xl space-y-6">
+        <div className="space-y-2">
+          {/* h1 — h-display + the h-8 seal beside it (fluid: 28 → 40px × 1.12) */}
+          <Skeleton className="h-[calc(var(--text-display)*1.12)] w-72 max-w-full" />
+          <div className="space-y-1">
+            <Skeleton className="h-6 w-full" />
+            <Skeleton className="h-6 w-full" />
+            <Skeleton className="h-6 w-2/3" />
+          </div>
+          <Skeleton className="h-4 w-3/4 max-w-full" />
+        </div>
+        {/* Declaration card (rounded-2xl border p-5) — heading, the numbered body, the consent row */}
+        <div className="space-y-4 rounded-2xl border border-border bg-card p-5">
+          <Skeleton className="h-[calc(var(--text-section)*1.3)] w-40" />
+          <div className="space-y-1.5">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <Skeleton key={i} className={i === 4 ? 'h-[22px] w-1/2' : 'h-[22px] w-full'} />
+            ))}
+          </div>
+          <Skeleton className="h-[68px] w-full rounded-xl" />
+        </div>
+        {/* "Choose how to verify" + the two tier buttons */}
+        <div className="space-y-3">
+          <Skeleton className="h-[calc(var(--text-section)*1.3)] w-48" />
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Skeleton className="h-[86px] rounded-2xl" />
+            <Skeleton className="h-[86px] rounded-2xl" />
+          </div>
+        </div>
+      </div>
+    )
   }
 
   const decl = DECLARATIONS[CURRENT_DECLARATION]

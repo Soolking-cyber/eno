@@ -124,15 +124,57 @@ export function AccountClient() {
     return (
       <div role="status" aria-label={tr('Loading…', 'Đang tải…')}>
         <SectionHeader title={tr('Account', 'Tài khoản')} />
-        <div className="mx-auto w-full max-w-2xl">
-          <div className="flex items-center gap-3 px-1">
-            <Skeleton className="h-20 w-20 rounded-full" />
-            <div className="flex-1 space-y-1.5"><Skeleton className="h-5 w-40" /><Skeleton className="h-3 w-52" /></div>
+        <div className="mx-auto w-full max-w-2xl pb-4">
+          {/* IDENTITY — the real block is a <Link> with `-mx-1 px-1 py-3`, an xl (h-20) avatar,
+              a TrustScore chip under the email and a trailing ChevronRight: 104px, not 80. The
+              old `flex items-center gap-3 px-1` skeleton dropped the 24px of vertical padding
+              and both trailing affordances. */}
+          <div className="flex items-center gap-3 -mx-1 px-1 py-3">
+            <Skeleton className="h-20 w-20 shrink-0 rounded-full" />
+            <div className="min-w-0 flex-1">
+              <Skeleton className="h-7 w-40 max-w-full" />
+              <Skeleton className="mt-1 h-4 w-52 max-w-full" />
+              <Skeleton className="mt-1.5 h-5 w-24 rounded-full" />
+            </div>
+            <Skeleton className="h-5 w-5 shrink-0" />
           </div>
-          {/* Skeleton geometry must match what replaces it — flat rows, not cards, or the
-              page visibly re-flows on hydrate. */}
-          <div className="mt-6 space-y-3">
-            {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-11 rounded-lg" />)}
+          {/* Skeleton geometry must match what replaces it — flat hairline-separated ROWS
+              inside <RowsSection> groups, not a stack of floating 44px cards. A nav row is
+              `py-3.5` around an h-5 lead glyph = exactly 48px, and the groups after the first
+              open with `mt-6 border-t pt-6` + an uppercase text-xs caption. */}
+          <div className="mt-2">
+            <div className="divide-y divide-border">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} className="flex items-center gap-3 py-3.5">
+                  <Skeleton className="h-5 w-5 shrink-0" />
+                  <Skeleton className="h-5 w-32 max-w-full" />
+                  <Skeleton className="ml-auto h-4 w-4 shrink-0" />
+                </div>
+              ))}
+            </div>
+            <div className="mt-6 border-t border-border pt-6">
+              <Skeleton className="h-4 w-24" />
+              <div className="mt-2 divide-y divide-border">
+                <div className="flex items-center gap-3 py-3.5">
+                  <Skeleton className="h-5 w-5 shrink-0" />
+                  <Skeleton className="h-5 w-28 max-w-full" />
+                  <Skeleton className="ml-auto h-4 w-4 shrink-0" />
+                </div>
+              </div>
+            </div>
+            {/* Display — <PreferencesInline>: two selects and the theme switch in one row. */}
+            <div className="mt-6 border-t border-border pt-6">
+              <Skeleton className="h-4 w-20" />
+              <div className="mt-2 flex items-center gap-2 pt-1">
+                <Skeleton className="h-10 min-w-0 flex-1 rounded-xl" />
+                <Skeleton className="h-10 min-w-0 flex-1 rounded-xl" />
+                <Skeleton className="h-9 w-[60px] shrink-0 rounded-full" />
+              </div>
+            </div>
+          </div>
+          {/* Sign out */}
+          <div className="mt-6 border-t border-border pt-6">
+            <Skeleton className="h-9 w-full rounded-xl" />
           </div>
         </div>
       </div>
@@ -162,9 +204,10 @@ export function AccountClient() {
           ) : (
             // Content-SHAPED, not a spinner: the same entry treatment the other dashboard
             // sections use, so landing here never flashes a centred loader then pops.
-            <div className="space-y-1.5">
-              <Skeleton className="h-5 w-40" />
-              <Skeleton className="h-3 w-52" />
+            <div>
+              {/* Same two line boxes the loaded state paints: text-lg (28) + text-xs (16). */}
+              <Skeleton className="h-7 w-40 max-w-full" />
+              <Skeleton className="mt-1 h-4 w-52 max-w-full" />
             </div>
           )}
           {typeof dash?.profile.trustScore === 'number' && (

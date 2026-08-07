@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import { Sparkles, TrendingUp } from 'lucide-react'
 import type { SerializedListingCard } from '@/lib/types'
 import { ListingCard } from './listing-card'
-import { Shelf, RAIL_CARD_W, MIN_RAIL_ITEMS } from './shelf'
+import { Shelf, RAIL_CARD_W, MIN_RAIL_ITEMS, RAIL_SKELETON_COUNT } from './shelf'
 import { useLanguage } from '@/context/language-context'
 import { personalizationAllowed } from '@/lib/consent'
 import { getRecoSignals, getInboundQuery } from '@/lib/reco-signals'
@@ -100,7 +100,10 @@ export function ForYouRail({ initial }: { initial?: SerializedListingCard[] }) {
       watch={listings?.length ?? 0}
     >
       {listings === null
-        ? Array.from({ length: 6 }).map((_, i) => (
+        ? // Un-seeded call sites only — the home landing passes `initial`, so this branch
+          // never runs there. RAIL_SKELETON_COUNT (4) fills the widest row exactly; six
+          // over-promised against the MIN_RAIL_ITEMS floor of three.
+          Array.from({ length: RAIL_SKELETON_COUNT }).map((_, i) => (
             <ListingCardSkeleton key={i} className={RAIL_CARD_W} />
           ))
         : listings.map((l) => (

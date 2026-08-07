@@ -17,6 +17,14 @@ import { useScrollArrows, ScrollArrows } from '@/hooks/use-scroll-arrows'
  *  so nothing becomes unreachable. One constant so every rail agrees on "sensible minimum". */
 export const MIN_RAIL_ITEMS = 3
 
+/** How many card placeholders a rail draws while its own fetch is in flight.
+ *  FOUR, because RAIL_CARD_W makes a card exactly one feed-grid column and the widest
+ *  breakpoint shows four of them — so the placeholder row fills the viewport and no more.
+ *  The rails each drew SIX against a MIN_RAIL_ITEMS floor of three, so a rail that
+ *  resolved to three or four items visibly shrank as the answer landed. category-rails
+ *  already reserved `min(listings.length, 4)`; this is the same number, named once. */
+export const RAIL_SKELETON_COUNT = 4
+
 /** ONE header treatment for every home section/rail (wow pass, 2026-08-06): same size,
  *  weight and margin everywhere, See-all right-aligned. Shelf consumes these; the rails
  *  that cannot use <Shelf> (category-rails' button-title, the landing feed heading)

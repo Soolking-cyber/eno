@@ -3,82 +3,114 @@ import { Footer } from '@/components/marketplace/footer'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ListingCardSkeleton } from '@/components/marketplace/listing-card-skeleton'
 
-// Card width inside horizontal rails — one card == one feed-grid column
-// (matches ForYouRail/BusinessRail/CategoryRails exactly).
-const RAIL_CARD_W =
-  'w-[calc((100%-0.5rem)/2)] shrink-0 snap-start sm:w-[calc((100%-2rem)/3)] lg:w-[calc((100%-3rem)/4)]'
-
-// Instant skeleton shown while the homepage server component fetches — turns a
-// frozen tab-tap into immediate visual feedback (and lets Next prefetch this shell).
-// Mirrors ListingsExplorer's landing mode as it renders TODAY: hero (wordmark +
-// eyebrow tagline + rounded-2xl search pill, max-w-4xl) → 2-row horizontally
-// scrolling category-tile grid (15 categories + 2 intent tiles) → the For You +
-// Outstanding-businesses rails (which SSR their own card skeletons) → the
-// 2/3/4-col infinite feed grid. Kept structurally faithful to avoid layout shift.
+/**
+ * Instant skeleton for the home landing view — it stands in for <ListingsExplorer>'s
+ * `isLandingMode` branch as it renders TODAY, inside the real <Header/> and <Footer/>.
+ *
+ * Real order, measured at 390px / 1280px (2026-08-07):
+ *   section `pt-5 pb-5 sm:pt-6 sm:pb-8`
+ *     ├ hero  — an sr-only <h1> only: ZERO height, so nothing is drawn for it here
+ *     └ `space-y-8 sm:space-y-12`
+ *         ├ <PromoBanner/>   189.5 / 300      (min-h-[188px] sm:212 lg:300, rounded-2xl)
+ *         ├ <WhyEno/>        122   / 108.3    (border-t + pt-8 + h-12 glyph band + label)
+ *         ├ category grid    230   / 256      (2 rows × 103/112px tiles)
+ *         └ feed             header 28 + mb-3 + the 2/3/4-col grid
+ *
+ * ⚠️ THREE THINGS THIS FILE USED TO DRAW THAT THE PAGE DOES NOT HAVE, and they are the
+ * reason it was ~150–190px too tall above the fold while being ~310px too short below:
+ *   1. A wordmark + eyebrow + a max-w-4xl search pill. The hero wordmark was removed
+ *      2026-08-03 and listings-explorer.tsx says in capitals that THE HERO SEARCH BAR IS
+ *      GONE — IT LIVES IN THE HEADER NOW. Because this file renders the real <Header/>,
+ *      the old skeleton showed a real header search bar AND a fake hero pill at once.
+ *   2. 17 category tiles ("15 categories + 2 intent tiles"). INTENT_SHORTCUTS is length 1
+ *      and DESK_SHORTCUTS is [] on the marketplace edition — the live grid is 16 tiles.
+ *   3. A third bar per tile for the listing count. The real tile renders that span only
+ *      when `cat.verifiedCount >= 20`, and the intent tile never does.
+ * And the tile icon is a BARE duotone <CategoryIcon> glyph — there is no tile chrome
+ * behind it — so the placeholder is a soft glyph-sized mass, not a rounded box.
+ *
+ * ⚠️ NO PLACEHOLDER FOR THE THREE RAILS (For You · Outstanding businesses · the
+ * per-category rails), DELIBERATELY. Each hides itself below MIN_RAIL_ITEMS = 3 and the
+ * category rails additionally wait on /api/category-rails, so none of them is guaranteed
+ * to paint at the moment this skeleton is replaced — measured on the live landing view,
+ * none of them renders at all. Reserving ~350px per rail for something that may never
+ * appear is the same mistake as the hero. If the rails ever become unconditional, add
+ * them BETWEEN the category grid and the feed, in that order.
+ */
 export default function HomeLoading() {
   return (
     <div className="flex min-h-screen flex-col blob-bg">
       <Header />
       <main id="main" tabIndex={-1} className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-4">
-        <section className="relative overflow-hidden pt-2 pb-5 sm:pt-3 sm:pb-8">
+        <section className="relative overflow-hidden pt-5 pb-5 sm:pt-6 sm:pb-8">
           <div className="relative w-full space-y-8 sm:space-y-12">
 
-            {/* HERO SEARCH AREA */}
-            <div className="pb-2 text-center">
-              <div className="flex flex-col items-center justify-center mb-4 sm:mb-6">
-                {/* Wordmark (h-14 sm:h-20, the SVG is 4:1) */}
-                <Skeleton className="h-14 w-56 max-w-full mb-2 rounded-2xl sm:h-20 sm:w-80 sm:mb-4" />
-                {/* Eyebrow tagline */}
-                <Skeleton className="h-3 w-44 max-w-full" />
-              </div>
+            {/* PROMO BANNER — the full-width carousel, first child of the landing container. */}
+            <Skeleton className="min-h-[188px] w-full rounded-2xl sm:min-h-[212px] lg:min-h-[300px]" />
 
-              {/* Centered rounded-2xl search pill (icons py-2.5 sm:py-3 → 44/52px) */}
-              <div className="relative max-w-4xl w-full mx-auto">
-                <Skeleton className="h-11 w-full rounded-2xl sm:h-[52px]" />
-              </div>
-            </div>
-
-            {/* CATEGORY GRID — two fixed rows of big tiles, horizontal scroll */}
-            <div className="space-y-4">
-              <div className="mx-auto grid w-fit max-w-full grid-rows-2 grid-flow-col auto-cols-[7rem] sm:auto-cols-[9rem] gap-x-4 gap-y-6 sm:gap-x-6 sm:gap-y-8 overflow-hidden px-3">
-                {Array.from({ length: 17 }).map((_, i) => (
-                  <div key={i} className="flex flex-col items-center justify-center gap-2 p-2">
-                    <Skeleton className="h-11 w-11 rounded-xl sm:h-12 sm:w-12" />
-                    <Skeleton className="h-4 w-16 sm:h-5" />
-                    <Skeleton className="h-3 w-10 sm:h-3.5" />
+            {/* WHY eno — hairline + a row of five bare glyphs with a label under each.
+                -mx-3/px-3 is COUPLED to the page frame's px-3, same as the real band. */}
+            <div className="border-t border-border pt-8">
+              <div className="-mx-3 flex gap-3 px-3 sm:mx-0 sm:gap-4 sm:px-0">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <div key={i} className="flex w-24 shrink-0 flex-col items-center sm:w-auto sm:flex-1">
+                    {/* h-12 band holds the row's vertical rhythm; the glyph itself is size-8 */}
+                    <span className="flex h-12 shrink-0 items-center justify-center">
+                      <Skeleton className="size-8 rounded-lg" />
+                    </span>
+                    <Skeleton className="mt-2 h-4 w-16 sm:h-[19px] sm:w-24" />
+                    {/* The titles wrap to two lines on a phone and one line from sm up. */}
+                    <Skeleton className="mt-0.5 h-4 w-12 sm:hidden" />
                   </div>
                 ))}
               </div>
             </div>
 
-            {/* HORIZONTAL RAILS — For You + Outstanding businesses (each SSRs a
-                header + a row of card skeletons; card width == one feed column) */}
-            {Array.from({ length: 2 }).map((_, row) => (
-              <section key={row}>
-                <div className="mb-3 flex items-center gap-2">
-                  <Skeleton className="h-4 w-4 rounded-lg" />
-                  {/* h-6 mirrors the rails' text-lg SECTION_TITLE line box */}
-                  <Skeleton className="h-6 w-40" />
-                </div>
-                <div className="flex gap-2 overflow-hidden snap-x sm:gap-4">
-                  {Array.from({ length: 6 }).map((_, i) => (
-                    <ListingCardSkeleton key={i} className={RAIL_CARD_W} />
+            {/* CATEGORY GRID — two fixed rows, horizontally scrolled. 16 tiles:
+                15 demand-ordered categories + the one intent tile (Free & Giveaways). */}
+            <div className="space-y-4">
+              <div className="relative">
+                <div className="mx-auto grid w-fit max-w-full grid-rows-2 grid-flow-col auto-cols-[7rem] sm:auto-cols-[9rem] gap-x-4 gap-y-6 sm:gap-x-6 sm:gap-y-8 overflow-hidden px-3">
+                  {Array.from({ length: 16 }).map((_, i) => (
+                    <div key={i} className="flex flex-col items-center justify-center gap-2 p-2">
+                      <Skeleton className="h-11 w-11 rounded-full sm:h-12 sm:w-12" />
+                      {/* Label: text-sm/leading-tight on a phone, text-base from sm — two
+                          lines either way, which is what sets the 103/112px tile height. */}
+                      <div className="flex w-full flex-col items-center">
+                        <Skeleton className="h-[17px] w-16 sm:h-5 sm:w-20" />
+                        <Skeleton className="mt-0.5 h-[17px] w-10 sm:mt-0 sm:h-5 sm:w-12" />
+                      </div>
+                    </div>
                   ))}
                 </div>
-              </section>
-            ))}
-
-            {/* INFINITE FEED GRID — first page is 12 cards. The real landing renders a
-                visible "Latest listings" header row above the grid (icon + text-lg title,
-                mb-3) — mirror it or the header's ~40px insertion shifts the grid on swap. */}
-            <div className="mb-3 flex items-center gap-2">
-              <Skeleton className="h-4 w-4 rounded-lg" />
-              <Skeleton className="h-6 w-40" />
+              </div>
             </div>
-            <div className="grid grid-cols-2 gap-2 sm:gap-4 sm:grid-cols-3 lg:grid-cols-4">
-              {Array.from({ length: 12 }).map((_, i) => (
-                <ListingCardSkeleton key={i} />
-              ))}
+
+            {/* THE FEED — "Latest listings" header (SECTION_HEADER_ROW + a text-lg
+                SECTION_TITLE whose line box is 28px, not 24) over the first page of 12. */}
+            <div>
+              <div className="mb-3 flex items-center justify-between gap-2">
+                <div className="flex min-w-0 items-center gap-2">
+                  <Skeleton className="h-4 w-4" />
+                  <Skeleton className="h-7 w-36" />
+                </div>
+              </div>
+              {/* ⚠️ The rendered grid has THIRTEEN cells for a signed-out visitor —
+                  <CaptureCard/> is spliced in after the 8th listing and renders null once
+                  signed in. A server component cannot know which, so the reservation stays
+                  at the page size the server actually fetches (`take: 12`). */}
+              <div className="grid grid-cols-2 gap-2 sm:gap-4 sm:grid-cols-3 lg:grid-cols-4">
+                {Array.from({ length: 12 }).map((_, i) => (
+                  <ListingCardSkeleton key={i} />
+                ))}
+              </div>
+              {/* The landing's ONE ending: a full-width "Browse everything" button over a
+                  hairline, shown whenever there is more than one page. Measured 71px
+                  including the rule and its pt-6 — without it the skeleton's footer sat ~95px
+                  high and the whole page shortened as the real ending landed. */}
+              <div className="mt-6 border-t border-border pt-6">
+                <Skeleton className="h-[46px] w-full rounded-xl" />
+              </div>
             </div>
 
           </div>

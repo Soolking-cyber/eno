@@ -16,7 +16,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { EmptyState } from '@/components/ui/empty-state'
-import { Spinner } from '@/components/ui/spinner'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { SectionHeader } from '@/components/marketplace/section-header'
 import { useMinuteTick, VisaStart } from '@/components/marketplace/visa-start'
@@ -375,6 +375,52 @@ function CaseRow({ item, conversationId, deskThreadId, isDetail, busy, now, lang
   )
 }
 
+/**
+ * ONE skeleton for /dashboard/visa, exported so the route's Suspense fallback
+ * (page.svc.tsx) and this client's own auth gate render the SAME thing.
+ *
+ * ⚠️ IT REPLACED A CENTRED `min-h-[50vh]` SPINNER THAT EXISTED IN BOTH FILES. Every other
+ * dashboard section moved to a content-shaped gate in f359299b; visa (with help and dev)
+ * was never converted, so the case list popped in from a blank half-screen. This mirrors
+ * the loaded state: the stack title bar, the text-2xl h1 with its desktop-only lede, then
+ * the hairline-topped cases table on lg and the stacked case cards below it.
+ */
+export function VisaCasesSkeleton() {
+  const { tr } = useLanguage()
+  return (
+    <>
+      <SectionHeader title={tr('My e-Visa', 'E-Visa của tôi')} />
+      <div className="w-full" role="status" aria-label={tr('Loading…', 'Đang tải…')}>
+        <Skeleton className="h-8 w-72 max-w-full rounded-lg max-lg:hidden" />
+        <Skeleton className="mt-1 hidden h-5 w-full max-w-2xl rounded-lg lg:block" />
+        {/* Desktop: the 7-column cases table under its top rule */}
+        <div className="mt-4 hidden border-t border-border lg:block">
+          <div className="flex items-center gap-4 py-3">
+            {['w-8', 'w-28', 'w-40', 'w-24', 'w-24', 'w-24', 'w-20'].map((w, i) => (
+              <Skeleton key={i} className={`h-4 ${w}`} />
+            ))}
+          </div>
+          <div className="divide-y divide-border">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="flex items-center gap-4 py-4">
+                {['w-8', 'w-28', 'w-40', 'w-24', 'w-24', 'w-24', 'w-20'].map((w, j) => (
+                  <Skeleton key={j} className={`h-5 ${w}`} />
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
+        {/* Mobile: one card per case */}
+        <div className="mt-4 space-y-3 lg:hidden">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <Skeleton key={i} className="h-[124px] w-full rounded-2xl" />
+          ))}
+        </div>
+      </div>
+    </>
+  )
+}
+
 export function VisaCasesClient({ threads }: {
   /** applicationId → the conversation it lives in — the IMMUTABLE
    *  visa_applications.conversation_id first, live binding as the legacy fallback
@@ -631,16 +677,7 @@ export function VisaCasesClient({ threads }: {
 
   const sectionHeader = <SectionHeader title={tr('My e-Visa', 'E-Visa của tôi')} />
 
-  if (authLoading || !user || (loading && user)) {
-    return (
-      <>
-        {sectionHeader}
-        <div role="status" className="flex min-h-[50vh] items-center justify-center">
-          <Spinner size="lg" />
-        </div>
-      </>
-    )
-  }
+  if (authLoading || !user || (loading && user)) return <VisaCasesSkeleton />
 
   if (notConfigured) {
     // Honest env-absent state: the visa rows are ENCRYPTED and this host has no

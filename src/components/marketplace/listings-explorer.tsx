@@ -11,6 +11,7 @@ import { CATEGORY_COLOR_CLASSES, timeAgo } from '@/lib/types'
 import { IS_MARKETPLACE, SITE_NAME } from '@/lib/edition'
 import { CategoryIcon } from './category-icons'
 import { ListingCard } from './listing-card'
+import { CompactListingRowSkeleton, COMPACT_LIST_GRID } from './compact-listing-row-skeleton'
 import { CaptureCard } from './capture-card'
 import { useHideOnScroll } from '@/hooks/use-hide-on-scroll'
 import { BrandRail } from './brand-rail'
@@ -40,7 +41,6 @@ import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { EmptyState } from '@/components/ui/empty-state'
-import { Skeleton } from '@/components/ui/skeleton'
 import { Separator } from '@/components/ui/separator'
 import { Input } from '@/components/ui/input'
 import { Mascot } from './mascot'
@@ -117,6 +117,13 @@ function DeferredCategoryRails(props: React.ComponentProps<typeof CategoryRails>
 }
 const FacetBar = dynamic(() => import('./facet-bar').then((m) => m.FacetBar), { ssr: false })
 
+/** Rows in one page of results. ONE constant, because the results skeleton is a promise
+ *  about this number: it drew six placeholders against a twelve-row answer, so the column
+ *  grew by a whole grid row (~300px on a phone) the moment the query resolved. The
+ *  "Near you" path deliberately pulls a broader set — it distance-filters client-side —
+ *  and is the one caller that overrides it. */
+const FIRST_PAGE_SIZE = 12
+
 // Perf: the LIST view's row and the MOBILE filters drawer were static imports, so both shipped
 // in the home route's first load even though neither is on the landing path — the landing mode
 // renders its own ListingCard grid and the drawer is a mobile overlay nobody has opened yet.
@@ -128,18 +135,12 @@ const FacetBar = dynamic(() => import('./facet-bar').then((m) => m.FacetBar), { 
 //
 // The row needs a placeholder with the real row's geometry, because in list view many of these
 // render at once — a null while the chunk arrives would collapse the whole column and then push
-// it back down. Mirrors CompactListingRow's own box: p-1.5 pr-1 around an h-14 thumbnail.
+// it back down. That placeholder is <CompactListingRowSkeleton>, in its own module: this file
+// used to carry TWO hand-rolled versions of it (here, and in the first-page loading state
+// further down) which had already drifted apart from each other and from the row.
 const CompactListingRow = dynamic(() => import('./compact-listing-row').then((m) => m.CompactListingRow), {
   ssr: false,
-  loading: () => (
-    <div className="flex items-center gap-3 rounded-xl p-1.5 pr-1">
-      <Skeleton className="h-14 w-16 shrink-0 rounded-lg" />
-      <div className="min-w-0 flex-1 space-y-1.5">
-        <Skeleton className="h-[15px] w-3/4" />
-        <Skeleton className="h-3 w-1/3" />
-      </div>
-    </div>
-  ),
+  loading: () => <CompactListingRowSkeleton />,
 })
 
 const ExplorerFiltersDrawer = dynamic(() => import('./explorer-filters').then((m) => m.ExplorerFiltersDrawer), {
@@ -148,10 +149,15 @@ const ExplorerFiltersDrawer = dynamic(() => import('./explorer-filters').then((m
 
 const ListingsMap = dynamic(() => import('./listings-map').then((m) => m.ListingsMap), {
   ssr: false,
+  // ⚠️ NO `animate-pulse`, and ink-4 rather than text-body — this is the same placeholder
+  // listing-detail-map.tsx documents at length, and the fix there was never back-ported here.
+  // `animate-pulse` fades the whole subtree to 50%, which drops this 10px bold label to
+  // ~3.36:1 (axe AA failure); the Spinner already says "loading", so the pulse was redundant
+  // with it anyway. Keep the two placeholders identical — they stand in for the same map.
   loading: () => (
-    <div className="w-full h-full bg-tint flex flex-col items-center justify-center gap-2 select-none animate-pulse">
+    <div className="w-full h-full bg-tint flex flex-col items-center justify-center gap-2 select-none">
       <Spinner size="md" />
-      <span className="text-3xs font-bold text-body uppercase tracking-wider">
+      <span className="text-3xs font-bold text-ink-4 uppercase tracking-wider">
         <Tr text="Loading map…" />
       </span>
     </div>
@@ -916,7 +922,7 @@ export function ListingsExplorer({
       // Structural filters come from the shared memo; only paging is per-query here.
       // "Near you" ignores area filters and pulls a broad set to distance-filter client-side.
       const params = new URLSearchParams(baseParamsString)
-      const limit = nearby ? 100 : 12
+      const limit = nearby ? 100 : FIRST_PAGE_SIZE
       const offset = (page - 1) * limit
       params.set('limit', String(limit))
       params.set('offset', String(offset))
@@ -1274,7 +1280,7 @@ export function ListingsExplorer({
 
         applyFilterParams(params, customFilters, activeCategory, activeSubcategory)
 
-        const limit = 12
+        const limit = FIRST_PAGE_SIZE
         const offset = (nextPage - 1) * limit
         params.set('limit', String(limit))
         params.set('offset', String(offset))
@@ -2251,24 +2257,24 @@ export function ListingsExplorer({
             )}
 
             {/* LISTINGS CONTAINER */}
+            {/* First-page placeholders. ⚠️ PAGE_SIZE of them, not six: the query's `limit`
+                is 12 (see the fetcher above), so six left the results area a full grid row
+                short on every breakpoint and the column jumped down when the answer landed.
+                The list branch renders the SAME row placeholder and the SAME container as the
+                real compact view — it used to hand-roll a wider, unrounded row inside a
+                single-column `space-y-2`, which on desktop was six stacked rows standing in
+                for three rows of two. */}
             {viewMode !== 'video' && isLoading && listings.length === 0 && (
               viewMode === 'grid' ? (
                 <div className="grid grid-cols-2 gap-2 sm:gap-4 sm:grid-cols-3 lg:grid-cols-4">
-                  {Array.from({ length: 6 }).map((_, i) => (
+                  {Array.from({ length: FIRST_PAGE_SIZE }).map((_, i) => (
                     <ListingCardSkeleton key={i} />
                   ))}
                 </div>
               ) : (
-                <div className="space-y-2">
-                  {Array.from({ length: 6 }).map((_, i) => (
-                    <div key={i} className="flex items-center gap-3 p-2">
-                      <Skeleton className="h-16 w-20 shrink-0" />
-                      <div className="flex-1 space-y-2">
-                        <Skeleton className="h-3.5 w-1/2" />
-                        <Skeleton className="h-3 w-1/3" />
-                      </div>
-                      <Skeleton className="h-8 w-24 mr-2" />
-                    </div>
+                <div className={COMPACT_LIST_GRID}>
+                  {Array.from({ length: FIRST_PAGE_SIZE }).map((_, i) => (
+                    <CompactListingRowSkeleton key={i} />
                   ))}
                 </div>
               )

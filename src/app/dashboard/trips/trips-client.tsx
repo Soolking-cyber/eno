@@ -109,15 +109,35 @@ export function TripsClient({ planListingId }: { planListingId: string | null })
   }, [user, load])
 
   if (loading || switching || !user) {
-    // Content-shaped first paint: the stack title bar + a builder-shaped block, not a spinner.
+    // Content-shaped first paint: the stack title bar + the saved-trips section, not a spinner.
+    //
+    // ⚠️ NO "BUILDER-SHAPED BLOCK". The `h-56 w-full rounded-2xl` slab that opened this gate
+    // stood in for the trip builder, and PLANNING LEFT THIS PAGE on 2026-07-26 (owner: "this
+    // should be in chat experience only") — the real page opens straight into "Your saved
+    // trips". 224px of skeleton for something that no longer renders.
+    //
+    // The wrapper is `mt-4 border-t pt-8` (the real <section>), not mt-8/pt-8; the heading is
+    // text-xl (28) with a 2-line text-sm lede under it, and the rows are <Row> (py-3) around
+    // an h-11 body — the exact shape the in-body skeleton below uses, so the two agree.
     return (
       <div role="status" aria-label={tr('Loading…', 'Đang tải…')}>
         <SectionHeader title={tr('My Trips', 'Chuyến đi của tôi')} />
-        <Skeleton className="h-56 w-full rounded-2xl" />
-        <div className="mt-8 space-y-2.5 border-t border-border pt-8">
-          <Skeleton className="h-6 w-56 rounded-lg" />
-          {Array.from({ length: 2 }).map((_, i) => <Skeleton key={i} className="h-20 rounded-2xl" />)}
-        </div>
+        <section className="mt-4 border-t border-border pt-8">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="min-w-0">
+              <Skeleton className="h-7 w-56 max-w-full rounded-lg" />
+              <Skeleton className="mt-1 h-5 w-80 max-w-full rounded-lg" />
+              <Skeleton className="mt-1 h-5 w-64 max-w-full rounded-lg lg:hidden" />
+            </div>
+          </div>
+          <div className="mt-5">
+            <Rows>
+              {Array.from({ length: 2 }).map((_, i) => (
+                <Row key={i}><Skeleton className="h-11 rounded-lg" /></Row>
+              ))}
+            </Rows>
+          </div>
+        </section>
       </div>
     )
   }
