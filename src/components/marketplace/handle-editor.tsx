@@ -112,7 +112,9 @@ export function HandleEditor({ target, initial, label }: { target: 'profile' | '
       </FieldLabel>
       <div className="mt-1 flex items-center gap-2">
         <div className="relative min-w-0 flex-1">
-          <AtSign className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-4" />
+          {/* §4: input lead glyphs sit on the h-5 step (the trailing verdict marks stay h-4 —
+              they are feedback, not leads). */}
+          <AtSign className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-ink-4" />
           <FieldControl
             id={`handle-${target}`}
             render={
@@ -125,7 +127,7 @@ export function HandleEditor({ target, initial, label }: { target: 'profile' | '
                 autoCapitalize="none"
                 spellCheck={false}
                 variant="filled"
-                className="py-2.5 pl-9 pr-9 font-semibold transition-colors focus:ring-brand/20"
+                className="py-2.5 pl-10 pr-9 font-semibold transition-colors focus:ring-brand/20"
               />
             }
           />

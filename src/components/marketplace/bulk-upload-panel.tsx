@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import Papa from 'papaparse'
-import { Upload, Download, FileText, Loader2, CheckCircle2, AlertTriangle } from 'lucide-react'
+import { Upload, Download, FileText, Loader2, Check, CheckCircle2, AlertTriangle } from 'lucide-react'
+import { STROKE_DISPLAY } from '@/lib/icon-tokens'
 import { useLanguage } from '@/context/language-context'
 import { containsPhoneNumber } from '@/lib/phone'
 import { cn } from '@/lib/utils'
@@ -113,7 +114,11 @@ export function BulkUploadPanel({ onDone }: { onDone?: () => void }) {
         {/* Result */}
         {result ? (
           <div className="mt-6 rounded-2xl bg-popover p-5 shadow-pop">
-            <CheckCircle2 className="h-8 w-8 text-accent-foreground" />
+            {/* EmptyState's chrome coin (§6): display-stroke glyph on the brand-50 disc —
+                the bare h-8 stroke-2 CheckCircle2 read rubber-stamped and off-ladder. */}
+            <span className="flex h-16 w-16 items-center justify-center rounded-full bg-brand-50">
+              <Check className="h-8 w-8 text-brand" strokeWidth={STROKE_DISPLAY} />
+            </span>
             <p className="mt-2 text-sm font-bold text-foreground">{tr('Import complete', 'Hoàn tất')}</p>
             {/* role=status: the outcome is the answer to the action just taken — spoken, not only shown. */}<p role="status" aria-live="polite" className="mt-1 text-sm text-muted-foreground">{result.created} {tr('listings created', 'tin đã tạo')}{result.failed > 0 ? `, ${result.failed} ${tr('failed', 'lỗi')}` : ''}.</p>
             {result.failed > 0 && (
@@ -137,7 +142,11 @@ export function BulkUploadPanel({ onDone }: { onDone?: () => void }) {
               onDrop={(e) => { e.preventDefault(); const f = e.dataTransfer.files?.[0]; if (f) onFile(f) }}
               className="mt-4 flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-line-strong bg-card py-10 text-center transition-colors hover:border-brand/40"
             >
-              <Upload className="h-8 w-8 text-ink-4" />
+              {/* Same coin as ui/empty-state (§6): the dropzone is an empty state you can drop
+                  onto, so it sits its glyph on the brand disc at the display stroke. */}
+              <span className="flex h-16 w-16 items-center justify-center rounded-full bg-brand-50">
+                <Upload className="h-8 w-8 text-brand" strokeWidth={STROKE_DISPLAY} />
+              </span>
               <p className="mt-2 text-sm font-semibold text-foreground">{fileName || tr('Drop your CSV here, or click to choose', 'Thả CSV vào đây, hoặc bấm để chọn')}</p>
               <p className="mt-0.5 text-xs text-muted-foreground">{tr('Up to 200 rows', 'Tối đa 200 dòng')}</p>
               <input ref={fileRef} type="file" accept=".csv,text/csv" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) onFile(f) }} />
@@ -169,8 +178,10 @@ export function BulkUploadPanel({ onDone }: { onDone?: () => void }) {
                       <span className="w-6 shrink-0 font-mono text-muted-foreground">{r._row}</span>
                       <span className="min-w-0 flex-1 truncate font-medium text-foreground">{r.title || <span className="italic text-ink-4">{tr('(no title)', '(không có tiêu đề)')}</span>}</span>
                       <span className="shrink-0 text-muted-foreground">{r.category_slug}</span>
+                      {/* One size for both verdicts (§4 dense-meta step) — h-3 vs h-3.5 in the
+                          same column read as two different hands. */}
                       {r._error ? (
-                        <span className="flex min-w-0 max-w-[55%] shrink items-center gap-1 font-semibold text-destructive"><AlertTriangle className="h-3 w-3 shrink-0" /><span className="truncate">{r._error}</span></span>
+                        <span className="flex min-w-0 max-w-[55%] shrink items-center gap-1 font-semibold text-destructive"><AlertTriangle className="h-3.5 w-3.5 shrink-0" /><span className="truncate">{r._error}</span></span>
                       ) : (
                         <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-accent-foreground" />
                       )}

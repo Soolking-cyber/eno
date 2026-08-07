@@ -1,6 +1,7 @@
 'use client'
 
 import { useLanguage } from '@/context/language-context'
+import { STROKE_DISPLAY } from '@/lib/icon-tokens'
 
 const DAY_MS = 86_400_000
 const WINDOW_DAYS = 14
@@ -45,7 +46,7 @@ export function ListingSparkline({ series, className }: { series: SparkPoint[]; 
           fill="none"
           stroke="currentColor"
           strokeOpacity="0.6"
-          strokeWidth="1.5"
+          strokeWidth={STROKE_DISPLAY} // §2 data tier — a chart line is never chrome-weight
           strokeLinecap="round"
           strokeLinejoin="round"
         />

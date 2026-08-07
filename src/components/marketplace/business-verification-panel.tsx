@@ -1,12 +1,13 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { BadgeCheck, Loader2, ShieldCheck, Upload } from 'lucide-react'
+import { Loader2, Upload } from 'lucide-react'
 import { toast } from 'sonner'
 import { useLanguage } from '@/context/language-context'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Checkbox } from '@/components/ui/checkbox'
+import { EnoSeal } from './eno-seal'
 
 // The seller's own "get verified" surface (mounts under the business profile editor).
 // One badge, granted after >=2 channels: the tax-registry check (Channel 1, automatic,
@@ -99,14 +100,19 @@ export function BusinessVerificationPanel() {
 
   return (
     <div className="mt-6 rounded-2xl bg-tint p-4">
-      <div className="flex items-center gap-2">
-        <ShieldCheck className="h-4 w-4 text-accent-foreground" />
+      {/* First-party verification is a SEAL moment (icon-language §0b): the eno seal replaces
+          lucide ShieldCheck + BadgeCheck here — this panel claims eno's own trust, not a generic one. */}
+      {/* text-foreground on the WRAPPER so the seal's line inherits the heading ink (§0 —
+          the wash in the chief is the brand note; a blue outline is §6's link signal). */}
+      <div className="flex items-center gap-2 text-foreground">
+        <EnoSeal className="h-4 w-4" />
         <h3 className="text-sm font-bold text-foreground">{tr('Get your business verified', 'Xác minh doanh nghiệp')}</h3>
       </div>
 
       {isVerified ? (
         <p className="mt-2 flex items-center gap-1.5 text-sm font-semibold text-success">
-          <BadgeCheck className="h-4 w-4" /> {tr('Your business is verified.', 'Doanh nghiệp của bạn đã được xác minh.')}
+          {/* Success ink on the line, brand wash in the chief — §0's "same line, one wash". */}
+          <EnoSeal className="h-4 w-4" /> {tr('Your business is verified.', 'Doanh nghiệp của bạn đã được xác minh.')}
         </p>
       ) : isPending ? (
         <p className="mt-2 text-sm text-body">
@@ -143,13 +149,16 @@ export function BusinessVerificationPanel() {
           </div>
 
           <label className="mt-3 flex cursor-pointer items-start gap-2.5 text-xs leading-relaxed text-body">
-            <Checkbox checked={consent} onChange={setConsent} className="mt-0.5" />
+            {/* h-5: matches the listing-row/availability rounded-square check boxes — the h-4
+                default turns the 7px radius token into a circle and forks the checkbox family. */}
+            <Checkbox checked={consent} onChange={setConsent} className="mt-0.5 h-5 w-5" />
             <span>{tr('I allow eno to process these documents to verify my business. They are deleted after review.', 'Tôi cho phép eno xử lý các giấy tờ này để xác minh doanh nghiệp. Chúng sẽ được xóa sau khi xét duyệt.')}</span>
           </label>
 
           <div className="mt-3">
             <Button variant="cta" size="sm" disabled={busy || !hasId || !hasBank || !consent} onClick={() => void submit()}>
-              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
+              {/* line variant: on the solid brand CTA the ink already carries the meaning (§0b). */}
+              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <EnoSeal variant="line" className="h-4 w-4" />}
               {tr('Submit for verification', 'Gửi để xác minh')}
             </Button>
           </div>

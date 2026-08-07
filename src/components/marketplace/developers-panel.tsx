@@ -287,7 +287,10 @@ function WebhooksSection() {
   return (
     <div className="space-y-4">
       <div>
-        <h2 className="h-section flex items-center gap-2 text-foreground"><Webhook className="h-5 w-5 text-accent-foreground" /> {tr('Webhooks', 'Webhook')}</h2>
+        {/* No header ornament (§6): a static heading is chrome, not a link, and the
+            reference apps decorate zero headings — this also ends the 2-of-3
+            inconsistency with the icon-free 'API keys' h2 above (R1 critic). */}
+        <h2 className="h-section text-foreground">{tr('Webhooks', 'Webhook')}</h2>
         <p className="mt-1 text-sm leading-relaxed text-body">
           {tr('Get a signed POST to your server the moment a listing changes. Verify each delivery with the',
               'Nhận POST đã ký tới máy chủ của bạn ngay khi tin đăng thay đổi. Xác minh mỗi lần gửi bằng header')}{' '}
@@ -424,7 +427,10 @@ function McpSection() {
   return (
     <div className="space-y-4">
       <div>
-        <h2 className="h-section flex items-center gap-2 text-foreground"><Bot className="h-5 w-5 text-accent-foreground" /> {tr('MCP server', 'Máy chủ MCP')}</h2>
+        {/* No header ornament (§6): a static heading is chrome, not a link, and the
+            reference apps decorate zero headings — this also ends the 2-of-3
+            inconsistency with the icon-free 'API keys' h2 above (R1 critic). */}
+        <h2 className="h-section text-foreground">{tr('MCP server', 'Máy chủ MCP')}</h2>
         <p className="mt-1 text-sm leading-relaxed text-body">
           {tr('Connect an AI assistant (Claude and others) to run your shop in plain language — list, create, update, bulk-import, sync a catalogue, and read analytics. The assistant only ever sees tool results, never your key.',
               'Kết nối trợ lý AI (Claude và các trợ lý khác) để quản lý gian hàng bằng ngôn ngữ tự nhiên — đăng, tạo, cập nhật, nhập hàng loạt, đồng bộ danh mục và xem phân tích. Trợ lý chỉ thấy kết quả công cụ, không bao giờ thấy khóa của bạn.')}

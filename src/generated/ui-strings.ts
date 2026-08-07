@@ -400,7 +400,6 @@ export const UI_STRINGS: string[] = [
   "Current price",
   "Customer service",
   "Cut ≥20% to be eligible for a discount badge",
-  "Cut ≥20% to show buyers a discount badge",
   "Cuts over 80% do not earn a discount badge",
   "Càng cụ thể càng tốt…",
   "Còn thiếu",
@@ -452,7 +451,6 @@ export const UI_STRINGS: string[] = [
   "Directions in Google Maps",
   "Discount",
   "Discount percent",
-  "Discount selected",
   "Dismiss",
   "Display",
   "Display currency",
@@ -487,7 +485,6 @@ export const UI_STRINGS: string[] = [
   "EU 42",
   "EU 43",
   "EU 44+",
-  "Each may show buyers a discount badge",
   "East",
   "Edit",
   "Edit in Settings",
@@ -810,6 +807,7 @@ export const UI_STRINGS: string[] = [
   "Market price",
   "Marketing",
   "Marketplace listings",
+  "Matches the tax registry",
   "Material",
   "Maternity",
   "Max",
@@ -909,7 +907,6 @@ export const UI_STRINGS: string[] = [
   "No matches yet",
   "No messages yet. Tap \"Message\" on a listing to start a chat.",
   "No offers — ask & buy directly",
-  "No prices changed",
   "No replies yet",
   "No rows found in this CSV.",
   "No saved listings yet",
@@ -1810,6 +1807,5 @@ export const UI_STRINGS: string[] = [
   "Ảnh đầu là ảnh bìa. Video (tùy chọn) tự phát khi rê chuột và trong mục Video.",
   "— alerts on new matches",
   "← All disputes",
-  "← Tất cả khiếu nại",
-  "✓ Matches the tax registry"
+  "← Tất cả khiếu nại"
 ]

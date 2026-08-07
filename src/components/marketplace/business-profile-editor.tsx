@@ -169,8 +169,11 @@ export function BusinessProfileEditor({ seller, repName, onSaved }: { seller: Se
         ) : (
           <span className="flex h-20 w-20 items-center justify-center rounded-full bg-accent text-xl font-bold text-accent-foreground">{initials}</span>
         )}
-        <span className="absolute -bottom-0.5 -right-0.5 flex h-7 w-7 items-center justify-center rounded-full bg-primary text-white shadow-sm ring-2 ring-background transition-transform group-hover:scale-105">
-          {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-4 w-4" />}
+        {/* Line-only CHROME, not a coin (§6's coin list is enumerative and excludes this spot —
+            R2 critic): bordered card disc + ink-line Plus, same treatment as the individual
+            editor's avatar-edit affordance. */}
+        <span className="absolute -bottom-0.5 -right-0.5 flex h-7 w-7 items-center justify-center rounded-full border border-line-strong bg-card text-body ring-2 ring-background transition-transform group-hover:scale-105">
+          {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
         </span>
         <input type="file" accept="image/jpeg,image/png,image/webp,.heic,.heif" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadLogo(f) }} />
       </label>
@@ -258,8 +261,11 @@ export function BusinessProfileEditor({ seller, repName, onSaved }: { seller: Se
                 never blocks saving (launch lenience); it shows on the UNEDITED value so a
                 mid-edit code isn't judged against stale facts. */}
             {taxCode === (seller.taxCode || '') && seller.taxVerdict === 'verified' && (
-              <FieldDescription className="font-semibold text-success">
-                {tr('✓ Matches the tax registry', '✓ Khớp với đăng ký thuế')}{seller.taxRegisteredName ? ` — ${seller.taxRegisteredName}` : ''}
+              <FieldDescription className="inline-flex items-center gap-1 font-semibold text-success">
+                {/* A drawn Check on the dense-meta step, not a typed "✓" — text glyphs sit
+                    outside the icon system's stroke geometry and read as a different hand. */}
+                <Check className="h-3.5 w-3.5 shrink-0" />
+                <span>{tr('Matches the tax registry', 'Khớp với đăng ký thuế')}{seller.taxRegisteredName ? ` — ${seller.taxRegisteredName}` : ''}</span>
               </FieldDescription>
             )}
             {taxCode === (seller.taxCode || '') && seller.taxVerdict === 'mismatch' && (

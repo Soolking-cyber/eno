@@ -11,7 +11,8 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { ShieldCheck, Fingerprint, IdCard } from 'lucide-react'
+import { Fingerprint, IdCard } from 'lucide-react'
+import { EnoSeal } from '@/components/marketplace/eno-seal'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import { Button } from '@/components/ui/button'
@@ -46,7 +47,12 @@ export function VerifyClient() {
     <div className="mx-auto max-w-2xl space-y-6">
       <header className="space-y-2">
         <h1 className="h-display flex items-center gap-2 text-foreground">
-          <ShieldCheck className="h-6 w-6 text-accent-foreground" strokeWidth={2.25} />
+          {/* Identity verification is first-party trust → the eno seal, not lucide ShieldCheck
+              (icon-language §0b). Washed chief carries the brand; the LINE is currentColor and
+              inherits the heading's ink (§0) — a blue outline beside a near-black heading would
+              spend §6's link-blue on a non-interactive mark. h-8 against the ~40px display
+              heading: at h-6 the seal read as a bullet, not a signature (R2 critic). */}
+          <EnoSeal className="h-8 w-8" />
           {tr('Verify your identity', 'Xác minh danh tính')}
         </h1>
         <p className="text-body">
@@ -75,8 +81,11 @@ export function VerifyClient() {
         <label className="flex cursor-pointer items-start gap-3 rounded-xl bg-muted/40 p-3">
           {/* ⚠️ NEVER PRE-CHECKED. buildDeclaration() refuses a record without explicit acceptance,
               and a pre-ticked box would make that server-side guard a formality over a UI that had
-              already decided for the user. */}
-          <Checkbox checked={accepted} onChange={setAccepted} className="mt-0.5 shrink-0" />
+              already decided for the user.
+              h-5: ONE check-this shape across the dashboard. The primitive's h-4 default under the
+              7px radius token renders as a CIRCLE (radio-shaped) — at h-5 the same radius reads as
+              the rounded square the listing-row select and availability boxes already draw. */}
+          <Checkbox checked={accepted} onChange={setAccepted} className="mt-0.5 h-5 w-5 shrink-0" />
           <span className="text-sm font-medium text-foreground">
             {tr(
               'I have read the above and I confirm it is true. I accept legal responsibility for this declaration.',
@@ -103,7 +112,9 @@ export function VerifyClient() {
             onClick={() => setTier('A')}
             className="h-auto flex-col items-start gap-1 rounded-2xl p-4 text-left"
           >
-            <span className="flex items-center gap-2 font-bold"><Fingerprint className="h-5 w-5" strokeWidth={2.25} />{tr('Vietnamese citizen', 'Công dân Việt Nam')}</span>
+            {/* §2: tier-choice leads are BUTTON content, not nav chrome — the hand-typed 2.25
+                was tier drift; the UI default (lucide's own 2) is the law for this surface. */}
+            <span className="flex items-center gap-2 font-bold"><Fingerprint className="h-5 w-5" />{tr('Vietnamese citizen', 'Công dân Việt Nam')}</span>
             <span className="text-xs font-normal opacity-80">{tr('VNeID or CCCD — about two minutes', 'VNeID hoặc CCCD — khoảng hai phút')}</span>
           </Button>
           <Button
@@ -113,7 +124,7 @@ export function VerifyClient() {
             onClick={() => setTier('B')}
             className="h-auto flex-col items-start gap-1 rounded-2xl p-4 text-left"
           >
-            <span className="flex items-center gap-2 font-bold"><IdCard className="h-5 w-5" strokeWidth={2.25} />{tr('Foreign resident', 'Người nước ngoài')}</span>
+            <span className="flex items-center gap-2 font-bold"><IdCard className="h-5 w-5" />{tr('Foreign resident', 'Người nước ngoài')}</span>
             {/* ⚠️ THIS SENTENCE WAS FALSE AND HAD TO CHANGE. It said "read on your device, not
                 uploaded" — true when the plan was local-only MRZ reading, and untrue the moment
                 VNPT makes the decision, because their API takes an uploaded image hash. On a page

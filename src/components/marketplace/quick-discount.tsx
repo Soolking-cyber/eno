@@ -171,7 +171,9 @@ export function QuickDiscount({
           className,
         )}
       >
-        <TrendingDown className="h-3 w-3" /> {tr('Discount', 'Giảm giá')}
+        {/* §4 chip step (h-3.5 beside text-xs); the dashboard row's `[&_svg]:size-4`
+            override lifts it to 16 when this chip joins the unified action cluster. */}
+        <TrendingDown className="h-3.5 w-3.5" /> {tr('Discount', 'Giảm giá')}
       </Button>
 
       <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) reset() }}>

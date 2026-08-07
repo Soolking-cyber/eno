@@ -85,8 +85,13 @@ export function ProfileEditor({ profile, onSaved }: { profile: Profile; onSaved:
     <div>
       <label className="group relative inline-block cursor-pointer" title={tr('Change photo', 'Đổi ảnh')}>
         <Avatar name={name} url={avatarUrl} color={profile.avatarColor} size="xl" />
-        <span className="absolute -bottom-0.5 -right-0.5 flex h-7 w-7 items-center justify-center rounded-full bg-primary text-white shadow-sm ring-2 ring-background transition-transform group-hover:scale-105">
-          {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-4 w-4" />}
+        {/* Line-only CHROME, not a coin: §6's coin allowlist is enumerative (EmptyState badge,
+            bottom-nav Post chip) and this affordance is neither — the R2 critic flagged the
+            bg-brand-50 disc here as an unsanctioned third coin location. A bordered card disc
+            with ink-line Plus is the Vinted/Carousell avatar-edit idiom; the ring-2
+            ring-background cutout still separates it from the photo underneath. */}
+        <span className="absolute -bottom-0.5 -right-0.5 flex h-7 w-7 items-center justify-center rounded-full border border-line-strong bg-card text-body ring-2 ring-background transition-transform group-hover:scale-105">
+          {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
         </span>
         <input type="file" accept="image/jpeg,image/png,image/webp,.heic,.heif" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadPhoto(f) }} />
       </label>

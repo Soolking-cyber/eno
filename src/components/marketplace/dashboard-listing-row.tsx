@@ -2,7 +2,8 @@
 
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { Eye, MessageSquareText, CheckCircle2, RotateCcw, Trash2, ExternalLink, Pencil, Heart, Check, MoreHorizontal, Link2 } from 'lucide-react'
+import { Eye, MessageSquare, CheckCircle2, RotateCcw, Trash2, ExternalLink, Pencil, Heart, Check, MoreHorizontal, Link2 } from 'lucide-react'
+import { STROKE_MARK } from '@/lib/icon-tokens'
 import type { SerializedListing } from '@/lib/types'
 import { Price } from './price'
 import { QuickDiscount } from './quick-discount'
@@ -46,12 +47,15 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row', serie
           ? { label: tr('Hidden', 'Đã ẩn'), variant: 'neutral', className: 'text-2xs text-muted-foreground', cls: 'bg-tint text-muted-foreground' }
           : { label: tr('Live', 'Đang hiển thị'), variant: 'brand', className: 'text-2xs', cls: 'bg-accent text-accent-foreground' }
 
-  // Unified tinted action chips (owner 2026-07-17): every action is the SAME soft blue-tint chip with
-  // an accent-blue icon and even spacing — consistent, forum-scale (text-sm label + size-4 icon). The
-  // `border-transparent` + `[&_svg]:*` overrides also fold QuickDiscount (a warning chip) and
-  // ShareButton into the same look when this class is passed to them.
+  // Unified tinted action chips (owner 2026-07-17): every action is the SAME soft tint chip with
+  // even spacing — consistent, forum-scale (text-sm label + size-4 icon). The `border-transparent`
+  // + `[&_svg]:size-4` overrides also fold QuickDiscount (a warning chip) and ShareButton into the
+  // same look when this class is passed to them.
+  // ⚠️ NO icon color override here (§6/§1 currentColor law): the glyph inherits the chip's own
+  // text-foreground, so all three siblings (Discount / Mark sold / …) carry ONE ink. A blue icon
+  // beside an ink label made three adjacent chips read as three different controls.
   const chip =
-    'inline-flex items-center gap-1.5 rounded-lg border border-transparent bg-tint px-3 py-1.5 text-sm font-semibold text-foreground transition-colors hover:bg-secondary disabled:opacity-40 cursor-pointer [&_svg]:size-4 [&_svg]:text-accent-foreground'
+    'inline-flex items-center gap-1.5 rounded-lg border border-transparent bg-tint px-3 py-1.5 text-sm font-semibold text-foreground transition-colors hover:bg-secondary disabled:opacity-40 cursor-pointer [&_svg]:size-4'
 
   // Warm the listing page on hover/touch so opening it is instant.
   const prefetch = () => router.prefetch(`/listings/${listing.id}`)
@@ -84,18 +88,21 @@ export function DashboardListingRow({ listing, onChanged, variant = 'row', serie
           selected ? 'border-brand bg-primary text-white' : 'border-line-strong bg-card hover:border-brand',
         )}
       >
-        <Check className="h-3.5 w-3.5" strokeWidth={3} />
+        <Check className="h-3.5 w-3.5" strokeWidth={STROKE_MARK} />
       </Checkbox>
     </span>
   ) : null
 
-  // Shared between the row + square-card layouts.
+  // Shared between the row + square-card layouts. Stat glyphs sit on the §4 dense-meta
+  // step (h-3.5 beside text-xs) — size-4 read a step too loud against the 12px counts.
   const meta = (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
-      <span className="inline-flex items-center gap-1"><Eye className="size-4" />{listing.views}</span>
-      <span className="inline-flex items-center gap-1"><MessageSquareText className="size-4" />{listing.contactCount} {tr('leads', 'liên hệ')}</span>
+      <span className="inline-flex items-center gap-1"><Eye className="h-3.5 w-3.5" />{listing.views}</span>
+      {/* Leads = chats started → the ONE Messages bubble (plain MessageSquare, frozen in the
+          mobile tab bar §9) at meta size — never MessageSquareText, which forks the family. */}
+      <span className="inline-flex items-center gap-1"><MessageSquare className="h-3.5 w-3.5" />{listing.contactCount} {tr('leads', 'liên hệ')}</span>
       {listing.savedCount > 0 && (
-        <span className="inline-flex items-center gap-1"><Heart className="size-4" />{listing.savedCount} {tr('saved', 'đã lưu')}</span>
+        <span className="inline-flex items-center gap-1"><Heart className="h-3.5 w-3.5" />{listing.savedCount} {tr('saved', 'đã lưu')}</span>
       )}
       {/* Business tier only (series is fetched lazily for business dashboards and
           simply never passed otherwise) — the slot only exists once data arrived,

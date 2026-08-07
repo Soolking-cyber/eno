@@ -13,8 +13,10 @@ import type { SerializedListing } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogPortal, DialogOverlay } from '@/components/ui/dialog'
+import { IconButton } from '@/components/ui/icon-button'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
+import { STROKE_MARK } from '@/lib/icon-tokens'
 
 // localStorage marker so the daily review only auto-shows once per day per user.
 export const reviewKey = (uid: string) => `eno-avail:${uid}`
@@ -113,7 +115,11 @@ export function AvailabilityClient() {
             <Mascot name="success" className="mx-auto h-24 w-24" />
             <DialogPrimitive.Title className="mt-2 h-title text-foreground">{tr('Still available?', 'Còn hàng không?')}</DialogPrimitive.Title>
             <p className="mt-1 text-sm text-muted-foreground">{tr('Tick anything that sold — everything else gets bumped to the top.', 'Đánh dấu món đã bán — những món còn lại sẽ được đẩy lên đầu.')}</p>
-            <DialogPrimitive.Close aria-label={tr('Close', 'Đóng')} className="absolute right-3 top-3 rounded-full p-1.5 text-ink-4 transition-colors hover:bg-muted cursor-pointer">
+            {/* Icon-only control → the IconButton shell (44px tap target), composed onto the
+                Base UI Close via the render prop — not a bare padded button. */}
+            <DialogPrimitive.Close
+              render={<IconButton aria-label={tr('Close', 'Đóng')} className="absolute right-3 top-3 text-ink-4 transition-colors hover:bg-muted" />}
+            >
               <X className="h-5 w-5" />
             </DialogPrimitive.Close>
           </div>
@@ -121,7 +127,8 @@ export function AvailabilityClient() {
           {total > 6 && (
             <div className="shrink-0 px-4 sm:px-6">
               <div className="relative mt-2">
-                <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-4" />
+                {/* §4: input lead glyphs sit on the h-5 step. */}
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-ink-4" />
                 <Input variant="filled" value={query} onChange={(e) => setQuery(e.target.value)} aria-label={tr('Search your listings', 'Tìm tin của bạn')} placeholder={tr('Search your listings', 'Tìm tin của bạn')} className="py-2.5 pl-10 pr-4 focus:bg-muted focus:ring-0" />
               </div>
             </div>
@@ -141,8 +148,12 @@ export function AvailabilityClient() {
                     <p className={cn('truncate text-sm font-semibold', sold ? 'text-muted-foreground line-through' : 'text-foreground')}>{l.titleVi || l.title}</p>
                     <Price price={l.price} currency={l.currency} priceUnit={l.priceUnit} compact className="text-sm font-bold text-accent-foreground" />
                   </div>
-                  <span className={cn('flex h-6 w-6 shrink-0 items-center justify-center rounded-lg text-xs font-bold transition-colors', sold ? 'bg-primary text-white' : 'bg-tint text-ink-4')}>
-                    {sold ? <Check className="h-4 w-4" /> : ''}
+                  {/* Unchecked = a clearly-STROKED empty box (border-2, like ui/checkbox and the
+                      listing-row select box) — a borderless tint blob read as decoration, not as
+                      a tickable affordance. border-2 on BOTH states so the flip never resizes. */}
+                  <span className={cn('flex h-6 w-6 shrink-0 items-center justify-center rounded-lg border-2 text-xs font-bold transition-colors', sold ? 'border-primary bg-primary text-white' : 'border-line-strong bg-card')}>
+                    {/* §2: a Check inside a small filled box is a MARK — checkbox weight. */}
+                    {sold ? <Check className="h-4 w-4" strokeWidth={STROKE_MARK} /> : ''}
                   </span>
                 </Button>
               )
