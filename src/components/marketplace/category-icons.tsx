@@ -383,7 +383,14 @@ function DuotoneGlyph({
       {/* `relative`, so the ink layer is POSITIONED too. Absolutely-positioned
           boxes paint above in-flow content regardless of document order, so a
           static ink layer would end up UNDER the tint. */}
-      <Icon aria-hidden strokeWidth={stroke} className="relative size-full" />
+      {/* ⚠️ `fill-none` IS LOAD-BEARING, not a default. The ink layer must never fill — and
+          it also has to be IMMUNE to an ancestor's blanket fill rule. The bottom nav paints
+          its active tab with `[&_svg:not([class*=fill-])]:fill-brand-100`; without a fill-*
+          class here that rule caught the ink layer too, Compass's outer circle filled over
+          its own needle, and the glyph collapsed into a solid disc (owner, 2026-08-07:
+          "explore icon when filled inside disappears"). Carrying `fill-none` makes the
+          guard skip this layer, which is exactly what the guard is for. */}
+      <Icon aria-hidden strokeWidth={stroke} className="relative size-full fill-none" />
     </span>
   )
 }

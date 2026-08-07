@@ -15,6 +15,7 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { hapticTap } from '@/lib/haptics'
 import { STROKE_NAV } from '@/lib/icon-tokens'
+import { CategoryGlyphArt } from './category-icons'
 
 // One uniform lucide stroke across the whole bar. A slightly thicker, identical weight on
 // every icon reads softer and keeps all five tabs at the same visual weight (symmetry).
@@ -78,7 +79,7 @@ const STACK_POST = 'relative flex h-full w-full flex-col items-center justify-en
 /** Content of a navigating tab: the icon + micro-label stack. Active = the whole stack turns
  *  brand + a short bar sits at the top of the bar. Lives INSIDE <Link> so useLinkStatus lights
  *  it the instant it's tapped — feedback before the destination loads. */
-function TabBody({ active, icon, label, stack = STACK }: { active: boolean; icon: React.ReactNode; label: string; stack?: string }) {
+function TabBody({ active, icon, label, stack = STACK }: { active: boolean; icon: React.ReactNode | ((on: boolean) => React.ReactNode); label: string; stack?: string }) {
   const { pending } = useLinkStatus()
   const on = active || pending
   // Location-active = soft duotone (icon-language §5): the stack's ink turns brand AND the
@@ -95,7 +96,7 @@ function TabBody({ active, icon, label, stack = STACK }: { active: boolean; icon
   return (
     <span className={cn(stack, on ? cn('text-accent-foreground', '[&_svg:not([class*=fill-])]:fill-brand-100', 'wash-in') : 'text-body')}>
       {on && <span aria-hidden className="bar-in absolute top-0 h-0.5 w-8 rounded-full bg-accent-foreground" />}
-      <TabStack icon={icon} label={label} />
+      <TabStack icon={typeof icon === 'function' ? icon(on) : icon} label={label} />
     </span>
   )
 }
@@ -105,7 +106,7 @@ function TabBody({ active, icon, label, stack = STACK }: { active: boolean; icon
  *  to a page that would gate inconsistently — so every gated action on mobile
  *  meets the SAME card. While auth is still resolving (or signed in) it's a normal
  *  Link, so a logged-in user is never wrongly shown the modal. */
-function GatedTab({ href, active, onHref, icon, label, gate, onClick, prefetch, stack }: { href: string; active: boolean; onHref?: boolean; icon: React.ReactNode; label: string; gate: boolean; onClick: (e: React.MouseEvent<HTMLAnchorElement>) => void; prefetch?: false; stack?: string }) {
+function GatedTab({ href, active, onHref, icon, label, gate, onClick, prefetch, stack }: { href: string; active: boolean; onHref?: boolean; icon: React.ReactNode | ((on: boolean) => React.ReactNode); label: string; gate: boolean; onClick: (e: React.MouseEvent<HTMLAnchorElement>) => void; prefetch?: false; stack?: string }) {
   const { openSignIn, user, loading } = useAuth()
   const router = useRouter()
   // ⚠️ THE BOOT WINDOW WAS A DOUBLE REDIRECT TO A SECOND LOGIN PAGE (owner, 2026-08-03: "mobile
@@ -141,7 +142,8 @@ function GatedTab({ href, active, onHref, icon, label, gate, onClick, prefetch, 
     return (
       <Button type="button" variant="bare" size="none" onClick={() => openSignIn()} aria-label={label} className={TAB}>
         <span className={cn(stack ?? STACK, 'text-body')}>
-          <TabStack icon={icon} label={label} />
+          {/* The sign-in gate is never the active tab, so the icon renders in its idle form. */}
+          <TabStack icon={typeof icon === 'function' ? icon(false) : icon} label={label} />
         </span>
       </Button>
     )
@@ -289,7 +291,18 @@ export function MobileNav() {
           compresses the icons out of the bar. */}
       <div className="flex min-h-[4.5rem] items-stretch">
       <Link href="/" prefetch={at('/') ? false : undefined} aria-label={tr('Explore', 'Khám phá')} aria-current={at('/') ? 'page' : undefined} className={TAB} onClick={(e) => onTabClick(e, at('/'))}>
-        <TabBody active={at('/')} label={tr('Explore', 'Khám phá')} icon={<Compass className="h-7 w-7" strokeWidth={STROKE} />} />
+        {/* ⚠️ COMPASS RENDERS AS THE TWO-LAYER DUOTONE, not a single filled svg. lucide draws
+            the needle FIRST and the outer circle SECOND, so a fill applied to the whole svg
+            paints the circle over the needle and the glyph collapses into a solid disc (owner,
+            2026-08-07: "mobile explore icon when filled inside disappears"). CategoryGlyphArt
+            paints the tint UNDERNEATH an untouched ink layer, so the needle survives the fill —
+            the same reason the category tiles never had this problem. The other three tabs
+            (Heart, MessageSquare, User) have no self-covering child and stay single-svg. */}
+        <TabBody
+          active={at('/')}
+          label={tr('Explore', 'Khám phá')}
+          icon={(on) => <CategoryGlyphArt Icon={Compass} selected={on} stroke={STROKE} className="h-7 w-7" />}
+        />
       </Link>
 
       {/* Saved is public — favorites are stored device-local (localStorage), so a
