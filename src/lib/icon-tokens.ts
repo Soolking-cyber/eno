@@ -54,6 +54,12 @@ export const ICON_SIZE = {
  * artwork/active glyph. Line stays currentColor; only a closed region fills.
  * `WASH_ACTIVE` is the location-active (bottom-nav) form: it skips any icon
  * that already carries an explicit fill-* class (user-state fills win, §5).
+ *
+ * ⚠️ THIS IS THE **CHROME/INLINE** WASH, NOT THE CATEGORY-TILE ONE. Category
+ * artwork went FULL duotone on 2026-08-07 (owner: "make sure your icons are
+ * fully filled, i see some are half filled in categories") — see
+ * `<CategoryIcon>`'s duotone layers. The one-closed-region law
+ * survives only here: nav/rail location marks and the inline seal.
  */
 export const WASH = 'fill-brand-100'
 // Washes the FIRST PATH child only, not the whole svg: svg-level fill inherits
@@ -73,3 +79,4 @@ export const WASH_ACTIVE = "[&_svg:not([class*='fill-'])>path:first-of-type]:fil
 // WASH_ACTIVE; single-body glyphs keep WASH_ACTIVE untouched.
 export const WASH_ACTIVE_TWIN =
   "[&_svg:not([class*='fill-'])>path:first-of-type]:fill-brand-100 [&_svg:not([class*='fill-'])>path:nth-of-type(2)]:fill-brand-100"
+

@@ -14,7 +14,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { hapticTap } from '@/lib/haptics'
-import { STROKE_NAV, WASH_ACTIVE } from '@/lib/icon-tokens'
+import { STROKE_NAV } from '@/lib/icon-tokens'
 
 // One uniform lucide stroke across the whole bar. A slightly thicker, identical weight on
 // every icon reads softer and keeps all five tabs at the same visual weight (symmetry).
@@ -82,12 +82,19 @@ function TabBody({ active, icon, label, stack = STACK }: { active: boolean; icon
   const { pending } = useLinkStatus()
   const on = active || pending
   // Location-active = soft duotone (icon-language §5): the stack's ink turns brand AND the
-  // glyph gains the brand-100 interior wash. WASH_ACTIVE skips any icon already carrying an
+  // glyph fills its whole body with brand-100 — the same rule the category tiles and the
+  // dashboard rail follow, so one selection language runs across every nav surface. The
+  // `:not([class*=fill-])` guard skips any icon already carrying an
   // explicit fill-* class, so a user-state fill (the solid saved heart / unread bubble)
   // always wins over mere location.
+  // Motion (icon-language §8): the wash ARRIVES rather than blinking on — `wash-in` fades the
+  // duotone interior up over 180ms while the ink flips instantly, and the indicator bar grows
+  // from its centre in the same window. Both are added by the class flip, so they run exactly
+  // once per activation, and `useLinkStatus`'s `pending` means they start on the TAP — before
+  // the destination has loaded. Neither can repeat while the tab stays active.
   return (
-    <span className={cn(stack, on ? cn('text-accent-foreground', WASH_ACTIVE) : 'text-body')}>
-      {on && <span aria-hidden className="absolute top-0 h-0.5 w-8 rounded-full bg-accent-foreground" />}
+    <span className={cn(stack, on ? cn('text-accent-foreground', '[&_svg:not([class*=fill-])]:fill-brand-100', 'wash-in') : 'text-body')}>
+      {on && <span aria-hidden className="bar-in absolute top-0 h-0.5 w-8 rounded-full bg-accent-foreground" />}
       <TabStack icon={icon} label={label} />
     </span>
   )

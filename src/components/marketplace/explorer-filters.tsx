@@ -6,6 +6,7 @@ import { Check, X } from 'lucide-react'
 import { CustomSelect } from './custom-select'
 import { RangeFacetControl } from './range-facet-control'
 import { CategoryIcon } from './category-icons'
+import { STROKE_UI } from '@/lib/icon-tokens'
 import { DISTRICTS } from './listings-explorer.constants'
 import { cn } from '@/lib/utils'
 import { useLanguage, Tr } from '@/context/language-context'
@@ -169,13 +170,19 @@ export function ExplorerFilters({
                        : 'text-body hover:bg-muted'
                    )}
                 >
-                  {/* stroke-2: the foundation's small-size glyph rule for facet/filter chips —
-                      CategoryIcon bakes the display tier (1.5), which at h-3.5 renders ~0.9px
-                      and loses all authority; at chip size the artwork joins the UI tier (2)
-                      like every other 14px glyph on this surface. Wash stays (it's still
-                      category artwork). CSS stroke-width beats the svg attribute, so the
-                      class override is safe without touching the foundation renderer. */}
-                  <CategoryIcon name={cat.icon} className={cn('h-3.5 w-3.5 shrink-0 stroke-2', isActive ? 'text-accent-foreground' : 'text-body')} />
+                  {/* Two things ride this glyph, and both come from `isActive` — the drawer's
+                      OWN existing "this category is chosen" boolean, the same one painting the
+                      chip's label accent one line up. No new state.
+                      · selected → the brand-100 fill INSIDE the ink line (owner, 2026-08-07:
+                        "use icons filling only when selected, not as default"). Unselected chips
+                        stay pure line.
+                      · stroke={STROKE_UI} → the 14px re-tier. ⚠️ This used to be a `stroke-2`
+                        CLASS on the mount, which is now DEAD: a category glyph is no longer one
+                        svg, so the class lands on the wrapper <span> and stroke-width inheritance
+                        LOSES to each layer's own presentation attribute. It silently left these
+                        chips on the display tier (1.5 → ~0.9px at h-3.5). Same deletion note as
+                        CHIP_CATEGORY_ICON_STROKE in shelf.tsx: the re-tier is a prop now. */}
+                  <CategoryIcon name={cat.icon} stroke={STROKE_UI} selected={isActive} className={cn('h-3.5 w-3.5 shrink-0', isActive ? 'text-accent-foreground' : 'text-body')} />
                   <span className="text-3xs truncate"><Tr text={lang === 'vi' ? cat.nameVi : cat.name} /></span>
                 </Button>
               )
@@ -219,8 +226,10 @@ export function ExplorerFilters({
                       : 'text-body hover:bg-muted'
                   )}
                 >
-                  {/* stroke-2 — same small-size chip rule as the category chips above. */}
-                  <CategoryIcon name={sub.icon} className="h-3.5 w-3.5 shrink-0 stroke-2" />
+                  {/* Same two rules as the category chips above: the UI-tier stroke as a PROP
+                      (the old `stroke-2` class could not reach the layers), and the fill driven
+                      by this row's existing `isSubActive`. */}
+                  <CategoryIcon name={sub.icon} stroke={STROKE_UI} selected={isSubActive} className="h-3.5 w-3.5 shrink-0" />
                   <Tr text={lang === 'vi' ? sub.nameVi : sub.name} />
                 </Button>
               )

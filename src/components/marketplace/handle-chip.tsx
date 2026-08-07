@@ -27,7 +27,8 @@ export function HandleChip({ handle }: { handle: string }) {
         onClick={copy}
         className="gap-1 rounded-full bg-tint px-2.5 py-1 text-xs font-semibold text-accent-foreground transition-colors hover:bg-accent cursor-pointer"
       >
-        {copied ? <Check className="h-3.5 w-3.5 text-success" aria-hidden /> : <AtSign className="h-3.5 w-3.5" aria-hidden />}
+        {/* §8 state-confirmed — same `.bubble-in` arrival as the share sheet's copy check. */}
+        {copied ? <Check className="bubble-in h-3.5 w-3.5 text-success" aria-hidden /> : <AtSign className="h-3.5 w-3.5" aria-hidden />}
         {copied ? tr('Link copied', 'Đã chép liên kết') : handle}
       </Button>
     </Tooltip>

@@ -1,3 +1,6 @@
+'use client'
+
+import { useState } from 'react'
 import { Send } from 'lucide-react'
 import { IconButton } from '@/components/ui/icon-button'
 import { Button } from '@/components/ui/button'
@@ -5,7 +8,9 @@ import { contactLinksFor, extractPhoneNumber } from '@/lib/phone'
 import { cn } from '@/lib/utils'
 
 // Shared chat primitives used by both threads (messages/[id] person-to-person + messages/ai).
-// Pure presentational — no 'use client' needed.
+// ⚠️ 'use client' since 2026-08-07 — ChatSendButton owns one piece of state (the send-tap
+// animation flag). Every importer was already a client component, so this changes no boundary;
+// it just makes the directive honest. The rest of the file stays purely presentational.
 
 /** The blue paper-plane send FAB (identical across the AI + text + offer composers). Bakes in
  *  the onMouseDown preventDefault "hold composer focus" trick so a tap never blurs the field →
@@ -13,18 +18,30 @@ import { cn } from '@/lib/utils'
  *  (Return still sends via enterKeyHint). Spread the rest (onClick/disabled/aria-label/title).
  *  Glyph rides the 20px composer-action step (icon-language §4: inputs/action rows = h-5), the
  *  same optical size as the Tag offer toggle and the camera beside it — one rhythm per row. */
-export function ChatSendButton({ className, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) {
+export function ChatSendButton({ className, onClick, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) {
+  // Motion (icon-language §8): the tap gets TWO one-shots and no more. `.press` replaces the
+  // hand-rolled `transition-transform active:scale-[0.96]` — same depth, but the canon's
+  // asymmetric spring (instant down, spring back) instead of a linear 150ms, so every pressable
+  // thing in the app now presses alike. `.send-lift` then leans the plane into its direction of
+  // travel for 220ms. It is keyed off the CLICK, not off mount or off message arrival: a
+  // composer that animates while you read is decoration, and a send that animates is feedback.
+  const [flying, setFlying] = useState(false)
   return (
     <IconButton
       size="lg"
       onMouseDown={(e) => e.preventDefault()}
       {...props}
+      // ⚠️ AFTER the spread, so it cannot be dropped by a caller passing its own onClick — the
+      // caller's handler still runs first-class, this only piggybacks the animation on it.
+      onClick={(e) => { setFlying(true); onClick?.(e) }}
       // Disabled = muted coin + quiet ink (on the §5 ladder), not a brand tint: 40%-opacity
       // brand read as an ambiguous mid-blue "coin" in the blind A/B — enabled/disabled must be
       // readable at a glance, and a faded CTA color is neither state.
-      className={cn('bg-primary text-white transition-transform active:scale-[0.96] disabled:bg-muted disabled:text-ink-4', className)}
+      className={cn('press bg-primary text-white disabled:bg-muted disabled:text-ink-4', className)}
     >
-      <Send className="h-5 w-5" aria-hidden />
+      <span aria-hidden onAnimationEnd={() => setFlying(false)} className={cn('inline-flex', flying && 'send-lift')}>
+        <Send className="h-5 w-5" aria-hidden />
+      </span>
     </IconButton>
   )
 }

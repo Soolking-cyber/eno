@@ -135,7 +135,7 @@ export function WhyEno() {
                 {/* For the trust reason the line is the eno seal itself (washed chief +
                     e-bar), so the row's one first-party claim carries the one first-party
                     mark. */}
-                {Icon ? <Icon aria-hidden className="size-8 text-brand" strokeWidth={1.5} /> : <EnoSeal aria-hidden className="size-8 text-brand" />}
+                {Icon ? <Icon aria-hidden className="size-8 text-brand" strokeWidth={1.5} /> : <EnoSeal aria-hidden variant="line" strokeWidth={1.5} className="size-8 text-brand" />}
               </span>
               {/* The blurb under each title was removed (owner, 2026-08-05) — icon + title only.
                   The two-line min-height floor went with it: its entire job was making the BLURBS

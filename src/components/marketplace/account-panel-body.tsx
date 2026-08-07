@@ -9,7 +9,8 @@ import { Fragment, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { LogOut } from 'lucide-react'
-import { ICON_SIZE, STROKE_NAV, STROKE_UI, WASH_ACTIVE, WASH_ACTIVE_TWIN } from '@/lib/icon-tokens'
+import { ICON_SIZE, STROKE_NAV, STROKE_UI } from '@/lib/icon-tokens'
+import { CategoryGlyphArt } from './category-icons'
 import { Tooltip } from '@/components/ui/tooltip'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
@@ -125,19 +126,19 @@ export function AccountPanel({ open, onClose }: { open: boolean; onClose: () => 
   // Ghost pill (borderless, tactile). On the collapsed desktop rail the icon sits CENTRED in the
   // 72px column with no label; expanded, it left-aligns with the revealed label. bg-secondary/60 on
   // hover, filled bg-secondary when active.
-  // Active = LOCATION state (icon-language §5): the row speaks the same soft-duotone
-  // language as the bottom nav's active tab — ink turns accent-foreground AND the glyph
-  // gains the brand-100 interior wash — but ONLY for rows whose glyph is on the
-  // VERIFIED allowlist (`wash` on the nav row): CSS fill implicitly closes open paths,
-  // so an unverified glyph washes as a blob or not at all precisely when its row is
-  // active (diff-review catch 2026-08-07). Unlisted rows go line-only active — §6's
-  // sanctioned degrade. The bg-secondary pill stays the rail's "you are here" fill;
-  // never a solid fill-brand — that tier is user-state (§5). Scale takes
-  // WASH_ACTIVE_TWIN so BOTH pans fill (twin addendum).
-  const navItem = (isOn: boolean, wash?: 'body' | 'twin') => cn(
+  // Active = LOCATION state (icon-language §5): the row's ink turns accent-foreground and
+  // its glyph FILLS. The bg-secondary pill stays the rail's "you are here" fill; never a
+  // solid fill-brand — that tier is user-state (§5).
+  // ⚠️ THE GLYPH FILL NO LONGER LIVES IN THIS CLASS STRING. It used to: `wash` named a
+  // verified region per row (WASH_ACTIVE / WASH_ACTIVE_TWIN) and any row without one — Help
+  // center, View storefront, Listings, Brands — stayed line-only when selected, which is the
+  // bug the owner reported (2026-08-07: "help icon, storefront icons on select should be
+  // filled"). The fill is now `<CategoryGlyphArt selected>` in renderNav: one rule, every
+  // row, driven by the SAME `isOn` that paints this pill.
+  const navItem = (isOn: boolean) => cn(
     'flex w-full items-center gap-3 rounded-2xl px-3.5 py-2.5 text-sm font-medium transition-colors hover:bg-secondary/60 cursor-pointer',
     expanded ? 'lg:justify-start lg:gap-3 lg:px-3.5' : 'lg:justify-center lg:gap-0 lg:px-0',
-    isOn ? cn('bg-secondary hover:bg-secondary text-accent-foreground', wash === 'twin' ? WASH_ACTIVE_TWIN : wash === 'body' ? WASH_ACTIVE : null) : 'text-foreground',
+    isOn ? 'bg-secondary hover:bg-secondary text-accent-foreground' : 'text-foreground',
   )
   // Label that reveals as the rail expands. FULL on mobile; on desktop it slides + fades between a
   // 0-width collapsed state and a bounded expanded state. Only max-width + opacity animate (compositor
@@ -160,13 +161,23 @@ export function AccountPanel({ open, onClose }: { open: boolean; onClose: () => 
     const accessibleName = badgeLabel ? tr(`${it.label}, ${badgeLabel} new`, `${it.label}, ${badgeLabel} mới`) : it.label
     const inner = (
       <>
-        <span className="relative shrink-0">
+        {/* `flex`, not the bare inline box it used to be: the child is now an inline-flex
+            <span> (the duotone's two-layer box) instead of a bare <svg>, and an inline-level
+            child would sit on a text baseline and add descender space under it — which would
+            drift the absolutely-positioned badge below off the icon's corner. As a flex
+            container this span is exactly the glyph's 24px, in both states. */}
+        <span className="relative flex shrink-0">
           {/* ⚠️ h-6 + STROKE_NAV IS THE PLATFORM WEIGHT, not a bump for its own sake (owner,
                 2026-08-03: "icons sizes to platform ui now it seems too small"). The header bell and
                 the mobile bottom nav render the same tier, so the rail reads as the same control
                 set. The width now comes from icon-tokens (§2) instead of a hand-typed 2.25 —
-                hand-typed numbers are how tiers drift. */}
-            <Icon className={cn(ICON_SIZE.xl, 'shrink-0')} strokeWidth={STROKE_NAV} aria-hidden />
+                hand-typed numbers are how tiers drift.
+                ⚠️ `selected={isOn}` IS THE WHOLE FILL RULE (owner, 2026-08-07: "use icons filling
+                only when selected, not as default"). Idle rows are pure ink line; the row you are
+                on gets the brand-100 body inside its own line. Same `isOn` as the pill and the
+                aria-current below, so "you are here" cannot disagree with itself, and every row
+                obeys it — no per-glyph allowlist to fall off. */}
+          <CategoryGlyphArt Icon={Icon} selected={isOn} stroke={STROKE_NAV} className={cn(ICON_SIZE.xl, 'shrink-0')} />
           {/* Collapsed desktop rail (icon-only): the count overlaps the icon's corner like the bottom
               nav — so Messages/Saved counters stay visible without expanding. Hidden on mobile + when
               expanded, where the inline pill below shows instead. */}
@@ -181,9 +192,9 @@ export function AccountPanel({ open, onClose }: { open: boolean; onClose: () => 
       </>
     )
     const el = it.external ? (
-      <a href={it.href} aria-current={isOn ? 'page' : undefined} aria-label={accessibleName} onClick={closeOnMobile} className={navItem(isOn, it.wash)}>{inner}</a>
+      <a href={it.href} aria-current={isOn ? 'page' : undefined} aria-label={accessibleName} onClick={closeOnMobile} className={navItem(isOn)}>{inner}</a>
     ) : (
-      <Link href={it.href} aria-current={isOn ? 'page' : undefined} aria-label={accessibleName} onClick={closeOnMobile} className={navItem(isOn, it.wash)}>{inner}</Link>
+      <Link href={it.href} aria-current={isOn ? 'page' : undefined} aria-label={accessibleName} onClick={closeOnMobile} className={navItem(isOn)}>{inner}</Link>
     )
     // Collapsed desktop rail: hovering an icon reveals its NAME as a tooltip to the right (Gemini
     // model). Expanded → label already visible, so no tooltip. Mobile never hovers (Base UI Tooltip

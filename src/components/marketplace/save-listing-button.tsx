@@ -32,9 +32,15 @@ export function SaveListingButton({ id, compact = false, className }: { id: stri
         onClick={() => toggle(id)}
         aria-pressed={saved}
         aria-label={label}
-        className={cn('transition-transform active:scale-[0.96]', className)}
+        className={cn('press', className)}
       >
-        <Heart className={cn('h-5 w-5', saved ? 'fill-brand text-white' : 'fill-black/25')} />
+        {/* §5 user-state + §8 motion: the same key-remount pop the grid card and the row heart
+            use (`key` flips → the span remounts → the CSS one-shot re-runs). The PDP was the
+            one save surface with no confirmation at all, which made the loudest state change in
+            the system the quietest moment. Only ever on SAVE — an unsave is not a celebration. */}
+        <span key={saved ? 'on' : 'off'} className={cn('inline-flex', saved && 'animate-heart-pop')}>
+          <Heart className={cn('h-5 w-5', saved ? 'fill-brand text-white' : 'fill-black/25')} />
+        </span>
       </IconButton>
     )
   }
@@ -48,13 +54,15 @@ export function SaveListingButton({ id, compact = false, className }: { id: stri
       aria-pressed={saved}
       aria-label={label}
       className={cn(
-        'flex gap-1.5 rounded-xl border px-3.5 py-2 font-semibold transition-colors active:scale-[0.96]',
+        'press flex gap-1.5 rounded-xl border px-3.5 py-2 font-semibold transition-colors',
         saved ? 'border-brand text-accent-foreground' : 'border-border text-body hover:border-brand hover:text-accent-foreground',
         className,
       )}
     >
       {/* Saved = fill-brand + text-brand line — the exact §5 user-state pair FavoriteHeart uses. */}
-      <Heart className={cn('h-4 w-4', saved && 'fill-brand text-brand')} />
+      <span key={saved ? 'on' : 'off'} className={cn('inline-flex', saved && 'animate-heart-pop')}>
+        <Heart className={cn('h-4 w-4', saved && 'fill-brand text-brand')} />
+      </span>
       <span className="hidden sm:inline">{label}</span>
     </Button>
   )

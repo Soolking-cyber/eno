@@ -1724,7 +1724,7 @@ export function ListingsExplorer({
                   // these are the FIRST two columns, so without it `snap-x` has nothing to catch at
                   // the very start of the scroll and the pinned tiles drift under a swipe. The
                   // category tiles below carry it for the same reason. Caught by a reviewer.
-                  className="group flex snap-start flex-col items-center justify-center gap-2 whitespace-normal p-2 text-center cursor-pointer"
+                  className="press group flex snap-start flex-col items-center justify-center gap-2 whitespace-normal p-2 text-center cursor-pointer"
                 >
                   <CategoryIcon
                     name={s.icon}
@@ -1749,8 +1749,12 @@ export function ListingsExplorer({
                     // already presses every tile at 0.97, and the extra 0.96 + its
                     // transition-transform (which tailwind-merge let REPLACE the base
                     // transition-all) made these tiles press differently from the pinned and
-                    // intent tiles beside them. One press feel per row.
-                    className="group flex snap-start flex-col items-center justify-center gap-2 whitespace-normal p-2 text-center cursor-pointer"
+                    // intent tiles beside them. One press feel per row — which is now `.press`
+                    // on EVERY tile in the row (icon-language §8): same 0.97 depth (the base
+                    // utility still wins the scale), but the canon's asymmetric spring on the
+                    // release instead of a linear 100ms, so a tapped tile settles like the rest
+                    // of the app. `.press` is the shared utility; it is not a second scale.
+                    className="press group flex snap-start flex-col items-center justify-center gap-2 whitespace-normal p-2 text-center cursor-pointer"
                   >
                     <CategoryIcon
                       name={cat.icon}
@@ -1776,7 +1780,7 @@ export function ListingsExplorer({
                   size="none"
                   key={s.type}
                   onClick={() => browseIntent(s.type)}
-                  className="group flex flex-col items-center justify-center gap-2 whitespace-normal p-2 text-center cursor-pointer"
+                  className="press group flex flex-col items-center justify-center gap-2 whitespace-normal p-2 text-center cursor-pointer"
                 >
                   <CategoryIcon
                     name={s.icon}

@@ -157,8 +157,12 @@ export function HelpThreadClient({ post, comments: initial }: { post: HelpPost; 
             className="inline-flex items-center gap-1.5 rounded-full border border-border px-3 py-1 text-xs font-semibold text-body transition-colors hover:bg-muted"
           >
             {/* Same renderer as the /help chips (14px at chip scale) so the topic's
-                glyph is identical everywhere it appears. Line-only here — an idle chip
-                is chrome (§6); the trust topic's seal keeps its chief by design. */}
+                glyph is identical everywhere it appears.
+                ⚠️ NO `selected` HERE, ON PURPOSE. This chip LABELS the post's topic — it is
+                not a selection, and tapping it goes to /help unfiltered — so it renders the
+                idle pure line, like the answer-group headings. Filling it would claim a
+                "you are here" state the page does not have, and would be the one chip on
+                the site that is filled at rest (owner, 2026-08-07: "not as default"). */}
             <HelpTopicIcon slug={post.community} className="size-3.5" />
             {tr(topic.name, topic.nameVi)}
           </Link>

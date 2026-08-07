@@ -11,13 +11,22 @@ of restating numbers. `scripts/design-lint.mjs` enforces the color rules on ever
 > **Every eno glyph is a single ink line over a soft brand-blue wash.**
 
 That is the whole trick, and it is deliberately simple. The glyph's *line* is
-`currentColor` (inherits the surface's ink); its *interior* — one closed region,
-never the whole silhouette — is filled with the brand tint (`fill-brand-100` for
-artwork, `fill-brand-50` for chrome coins). The wash is what makes a screen of eno
-icons read as one branded set at a glance, without a single raster tile, gradient,
-or second hue. Active states are the same idea turned up: **more wash, same line**
-— and the fully-saturated `fill-brand` is reserved for *user-state* (saved,
-unread), never for mere location.
+`currentColor` (inherits the surface's ink); its *interior* is filled with the
+brand tint (`fill-brand-100` for artwork, `fill-brand-50` for chrome coins). The
+wash is what makes a screen of eno icons read as one branded set at a glance,
+without a single raster tile, gradient, or second hue. Active states are the same
+idea turned up: **more wash, same line** — and the fully-saturated `fill-brand` is
+reserved for *user-state* (saved, unread), never for mere location.
+
+**How much of the glyph the wash fills depends on the tier, and there are exactly
+two answers** (owner ruling, 2026-08-07 — see the §0/§6/§7 addendum at the foot of
+this file):
+
+| Tier | Wash | Why |
+|---|---|---|
+| **Category artwork** — tiles, chips, pickers, card placeholders (everything through `CategoryIcon`) | the **whole silhouette**: a tinted body layer under the ink line | a grid is read as a SET. One curated region per glyph made neighbours disagree — some tinted, some hollow, some tinted in half their body — and side by side that reads as a rendering bug, not restraint |
+| **Chrome + inline marks** — the seal's chief, EmptyState badges | **one closed region** (`SEAL_CHIEF`) | these are marks, not artwork: the chief IS the seal's design |
+| **Location-active nav + rail glyphs** | **full duotone, on selection only** | owner ruling 2026-08-07 — "vehicle icon all should be filled in dashboard too", "help icon, storefront icons on select should be filled". A rail row is a selection, and a half-tinted selected row read as a rendering fault. It stays distinguishable from user-state because user-state is SOLID `fill-brand` (§5) while this is the pale `brand-100` body under the ink line |
 
 Why this wins the A/B: Chợ Tốt's grid is playful 3D raster tiles — loud, busy,
 un-themable. Carousell/Vinted win on restraint. eno takes the restraint (one line
@@ -162,9 +171,14 @@ fills for counts — the counter Badge carries the number.
 
 - The wash (`fill-brand-100`) appears **inside artwork tiers only**: category
   glyphs (baked into `CategoryIcon` — call-sites get it for free) and location-
-  active nav glyphs. It targets ONE closed region per glyph — the body a child
-  would color in — via per-key selectors in `category-icons.tsx` (`WASH` map;
-  default washes `rect` children, curation handles path-only glyphs).
+  active nav glyphs. **Category artwork washes the WHOLE silhouette** (§7); a
+  location-active chrome glyph washes ONE closed region (`WASH_ACTIVE` — the
+  first path, the body on all five nav glyphs).
+- ⛔ **There is no per-key wash map any more, and re-introducing one is a
+  regression.** `WASH_MAP` in `category-icons.tsx` (35 curated selectors against
+  ~100 keys) was deleted on 2026-08-07. Every selector was a guess about lucide's
+  child ORDER, keys with no separable region rendered pure line, and the result
+  was three densities in one row.
 - The chrome coin (`fill`-equivalent as `bg-brand-50` on a rounded-full span)
   backs a glyph only where the component owns a real container: EmptyState's
   badge, the bottom-nav Post chip. Never behind inline icons.
@@ -173,8 +187,9 @@ fills for counts — the counter Badge carries the number.
 - Multicolor stays reserved for allowlisted third-party marks (Google, Zalo,
   WhatsApp, Maps pin). First-party marks render as currentColor/bespoke per canon.
 
-**DO** let a glyph lose its wash gracefully — a key with no curated region renders
-pure line and still belongs to the family.
+**DO** let a *chrome* glyph lose its wash gracefully — a nav glyph with no closed
+body renders pure line and still belongs to the family.
+**DON'T** let a *category* glyph do that — artwork is never line-only (§7), and
 **DON'T** wash chrome (header/nav idle icons, carets, ✕) — chrome is line-only, or
 the wash stops meaning "artwork/active".
 
@@ -182,31 +197,78 @@ the wash stops meaning "artwork/active".
 
 - All category/subcategory glyphs resolve through `CategoryIcon` (registry keys =
   DB `Category.icon` rows — **keys and taxonomy name strings are immutable**;
-  change artwork under existing keys only, aliasing internally).
-- Tiles: display-tier stroke (1.5), one washed region, label `font-bold`,
-  glyph inherits tile ink (`text-body`) and takes the category hover color from
-  the call-site. No tile backgrounds, no borders — the flat canon's "lines, not
-  boxes" holds; the wash carries the color, the canvas carries the tile.
+  change artwork under existing keys only, aliasing internally). A glyph with no
+  key — a slug-keyed artwork fix, the browse rail's "All" — goes through
+  `CategoryGlyphArt`, the same renderer minus the lookup. **Nothing draws
+  category artwork as a bare lucide svg**; that is how a tile ends up rendering a
+  different density from the tile beside it.
+- **The tile glyph is a full duotone: one tinted body under one ink line.**
+  Mechanically, `CategoryIcon` draws the glyph twice inside one box — a body
+  layer (`fill-brand-100 stroke-brand-100`, stroke fattened by
+  `WASH_UNDERLAY_BLEED`) and the ink line on top at the display tier (1.5).
+  Ordering is the whole design: the tint can never paint over the line or over
+  interior detail, so lucide's arbitrary child order stops mattering, and the fat
+  tint stroke gives open-path glyphs (crossed cutlery, a bolt, three dots) a body
+  they do not have — which is what makes every key read at the same density.
+- Small mounts re-tier the INK line with the `stroke` prop
+  (`<CategoryIcon stroke={STROKE_UI}>`), never with a `stroke-width` class: the
+  glyph is two layers now, and a class would either miss them or flatten the tint
+  into the line.
+- Tiles: label `font-bold`, glyph inherits tile ink (`text-body`) and takes the
+  category hover color from the call-site. No tile backgrounds, no borders — the
+  flat canon's "lines, not boxes" holds; the wash carries the color, the canvas
+  carries the tile.
 - The wash is *always brand blue*, even where a category has an accent hue —
-  hover/active text may go `var(--cat)`, the interior stays brand. One blue.
-- New key? Register the lucide component AND, if the glyph is path-only, add a
-  `WASH` entry choosing its closed region. Check both light and dark.
+  hover/active text may go `var(--cat)`, the interior stays brand. One blue. On a
+  selected brand pill the glyph goes pure line by redefining the variable
+  (`[--color-brand-100:transparent]`), which inherits into both layers.
+- New key? Register the lucide component. That is the entire procedure — the
+  duotone is a rule, not a per-key decision. Check both light and dark.
 
 **DON'T** clone Chợ Tốt: no 3D tiles, no colored circles behind every glyph, no
 per-category fill hues.
 
 ## 8. Micro-motion
 
-Reuse the canon's machinery — icons get no animation machinery of their own:
+**Motion confirms an action. It never decorates, never fires on scroll-past, and
+never repeats idly.** That is the whole policy — Carousell and Vinted read premium
+because their motion is scarce, not because it is clever. Budget: **120–260ms**,
+spring easing from the canon's `--ease-spring` / `--ease-spring-snappy` tokens,
+**transform / opacity only** (the one exception is documented below), every move
+one-shot and every move dead under `prefers-reduced-motion` (globals.css has a
+global kill switch — do not hand-roll a second one).
+
+Reuse the canon's machinery first — icons get almost no machinery of their own:
 
 - Press: the owning control's `.press` / ui/button `active:scale-[0.97]`. Never a
-  second scale on the svg.
-- Entrance: `.bubble-in` for state flips (heart fill-in), `.reveal-on-scroll` for
-  tiles — both already respect `prefers-reduced-motion`.
+  second scale on the svg. `.press` on a `<Button>` presses exactly once (the
+  base utility wins the depth; `.press` supplies the spring release), so it is
+  safe — and preferred — on tiles, save buttons and the send FAB.
+- Entrance / state confirmed: `.bubble-in` when a confirmation glyph swaps in
+  (copy → ✓ in share-button and handle-chip). `.reveal-on-scroll` for tiles.
+- Save (user-state, §5): `.animate-heart-pop` — the 420ms bounce is the canon's
+  sanctioned success moment and is the ONE move outside the 260ms budget. Fires
+  on save only, never on unsave, via a `key` remount. Every save surface has it:
+  grid card, list row, PDP button, PDP overlay.
 - Hover (desktop): color transition `transition-colors duration-200`, optional
   `group-hover:scale-110` on tile glyphs only (exists today — keep).
+
+Three moves ARE icon-owned, because what changes is the glyph's own ink and no
+existing utility can say that (all three live in globals.css beside `.press`):
+
+| Utility | Moment | Shape |
+|---|---|---|
+| `.wash-in` | bottom-nav tab activation | the duotone interior fades up (`fill-opacity` 0→1, 180ms `--ease-spring`) behind an ink flip that is instant. **The wash ARRIVING, not a bounce** — the tab does not jump. Selector mirrors `WASH_ACTIVE` including `:not([class*='fill-'])`, so a user-state glyph never flashes |
+| `.bar-in` | the same tab's 2px indicator | `scaleX(0.25)→1` + fade, 200ms snappy, so bar and wash read as one move |
+| `.send-lift` | chat send tap | the plane leans into its travel and settles (220ms snappy). Keyed off the click and cleared on `animationend` — a thread you are only reading sits still |
+
+`fill-opacity` is the single non-compositor property in the set, and it is
+deliberate: a wash arriving cannot be expressed as a transform, and it animates
+one 28px glyph.
+
 - State flip (outline→fill): instant fill + `transition-colors` on the stroke.
-  No morphing paths, no keyframe imports.
+  No morphing paths, no keyframe imports, no animation library. **Never** add a
+  dependency for motion.
 
 ## 9. Do-not-touch inventory
 
@@ -236,6 +298,37 @@ EARNED tiers (Trusted/Exceptional/Elite) = vivid tier-gradient chief on the same
 (owner decision 2026-07-13, preserved through the foundation restyle). A vivid earned chip beside
 tinted building chips on one card row is correct rendering of real rank data — do not "fix" it,
 and critics should read mixed vividness on one surface as information, not inconsistency.
+
+### ⛔ §0/§6/§7 REVERSAL — category artwork is a FULL duotone (owner mandate, 2026-08-07)
+**The owner looked at the live category grid and said: _"make sure your icons are fully filled,
+i see some are half filled in categories."_ They were right, and this OVERRIDES the
+one-closed-region law FOR CATEGORY TILE ARTWORK **and for location-active nav/rail glyphs**
+(owner, 2026-08-07). Only the seal's chief and EmptyState badges keep the one-region rule — they
+are marks whose design IS the region, not artwork being filled.
+
+⚠️ **AND FILL IS A STATE, NOT A STYLE (owner, 2026-08-07: "use icons filling only when selected,
+not as default").** Every glyph in this family renders as a PURE INK LINE at rest; the duotone
+appears only on the selected/active one. That is the outline-idle / filled-active grammar iOS and
+Carousell use, and it is why the always-on tint had to go: a filled magnifier, filled brackets and
+filled cutlery are defensible as a deliberate "you are here" and never as a resting state. Glyphs
+with no colourable interior (crossed cutlery, magnifier, brackets — the `NO_FILL` set in
+category-icons.tsx) stay line in BOTH states and let ink colour plus the pill carry selection.
+
+What was actually on screen: `WASH_MAP` tinted one curated region per key, so a single row showed
+tinted glyphs (House), hollow ones (Plane, Users, Ellipsis — no separable closed region, the old
+"graceful degrade") and glyphs tinted in only part of their body. Each was defensible alone; as a
+SET they read as a rendering bug. A rule nobody can state by looking at the screen is not
+restraint.
+
+What ships instead: `<CategoryIcon>` draws the glyph twice — a `fill-brand-100 stroke-brand-100`
+body layer at `ink + WASH_UNDERLAY_BLEED`, then the ink line on top. One rule, ~100 keys, zero
+per-key entries; `WASH_MAP` and `CHIP_CATEGORY_ICON_STROKE` are DELETED and must not return. Every
+key was walked at 3x in both themes (`eno-icons-gauntlet/scripts/fv2-glyph-sheet.mjs` renders the
+whole registry from the source of truth) — no hollow glyph, no half-filled glyph, uniform density
+from h-3.5 to h-12.
+
+The twin-pair ruling below is now MOOT for category artwork (the whole silhouette washes, so twins
+are trivially both filled). It still governs chrome: the dashboard rail's Scale row.
 
 ### §0/§6 addendum — symmetric twin regions count as ONE wash move (lead ruling, 2026-08-07)
 Glyphs whose closed body is a mirrored pair (dumbbell plates, binocular barrels, scale pans)

@@ -8,8 +8,7 @@
 import { useId } from 'react'
 import { Cog, Ellipsis, ImagePlus } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { STROKE_DISPLAY } from '@/lib/icon-tokens'
-import { CHIP_CATEGORY_ICON_STROKE } from './shelf'
+import { STROKE_DISPLAY, STROKE_UI } from '@/lib/icon-tokens'
 import { Button } from '@/components/ui/button'
 import {
   Field as UiField,
@@ -18,7 +17,7 @@ import {
   FieldError,
 } from '@/components/ui/field'
 import { useLanguage } from '@/context/language-context'
-import { CategoryIcon } from './category-icons'
+import { CategoryIcon, CategoryGlyphArt } from './category-icons'
 import { formatMoneyFull, moneyLocale } from '@/lib/vnd'
 
 export function PublishButton({
@@ -154,25 +153,29 @@ export function Field({ id, label, counter, hint, error, group, children }: { id
  *  unambiguous coordinate — picks the artwork at this mount only: Phụ tùng = Cog
  *  ('Phụ tùng' reused the identical wrench as 'Dịch vụ' in the same viewport),
  *  Khác = Ellipsis ('Khác' drew a truck, which read "Trucks" and invited
- *  miscategorization). Wash choices follow §6: Cog washes its one gear-disc region
- *  (first path in lucide 0.525.0); Ellipsis has no closed region → pure line
- *  degrade. Foundation request filed: mint distinct registry keys + DB migration
- *  (e.g. parts-gear → 'Cog', vehicle-other → 'Ellipsis') so this map can be
- *  deleted. */
-const SUB_GLYPH_FIX: Record<string, { Icon: React.ComponentType<React.SVGProps<SVGSVGElement>>; wash?: string }> = {
-  'parts-gear': { Icon: Cog, wash: '[&>path:first-of-type]:fill-brand-100' },
-  'vehicle-other': { Icon: Ellipsis },
+ *  miscategorization). Foundation request filed: mint distinct registry keys + DB
+ *  migration (e.g. parts-gear → 'Cog', vehicle-other → 'Ellipsis') so this map can
+ *  be deleted. */
+const SUB_GLYPH_FIX: Record<string, React.ComponentType<React.SVGProps<SVGSVGElement>>> = {
+  'parts-gear': Cog,
+  'vehicle-other': Ellipsis,
 }
 
 /** Resolves a picker option's glyph: the slug-keyed artwork fix above when one exists,
- *  otherwise the shared registry (same glyph family as the home grid / browse rail). */
-function PickerGlyph({ slug, name, className }: { slug: string; name: string; className?: string }) {
-  const fix = SUB_GLYPH_FIX[slug]
-  if (!fix) return <CategoryIcon name={name} className={className} />
-  const { Icon, wash } = fix
-  // Mirrors CategoryIcon's contract: display-tier stroke baked in (callers re-tier
-  // small mounts via CHIP_CATEGORY_ICON_STROKE in their className), wash via tokens.
-  return <Icon strokeWidth={STROKE_DISPLAY} className={cn(wash, className)} aria-hidden />
+ *  otherwise the shared registry (same glyph family as the home grid / browse rail).
+ *  ⚠️ BOTH BRANCHES RENDER THE SAME DUOTONE. The fix branch used to draw a bare lucide
+ *  svg with a hand-picked wash region, which is exactly the half-filled look the owner
+ *  called out (2026-08-07): Ellipsis had no closed region at all, so 'Khác' sat hollow
+ *  in a row of tinted siblings. `CategoryGlyphArt` is `CategoryIcon` minus the registry
+ *  lookup — one silhouette rule, key or no key. */
+function PickerGlyph({ slug, name, className, stroke, selected }: { slug: string; name: string; className?: string; stroke?: number; selected?: boolean }) {
+  const Fix = SUB_GLYPH_FIX[slug]
+  // ⚠️ `selected` reaches BOTH branches. A slug-fixed option (Phụ tùng, Khác) is picked the
+  // same way its neighbours are, so if only the registry branch filled, the two fixed chips
+  // would be the only ones in the row that never light up — the half-filled row the owner
+  // rejected, reintroduced through the back door.
+  if (!Fix) return <CategoryIcon name={name} className={className} stroke={stroke} selected={selected} />
+  return <CategoryGlyphArt Icon={Fix} className={className} stroke={stroke} selected={selected} />
 }
 
 /** Single-pick chip row. `icon` (a CategoryIcon registry name — subcategories and
@@ -193,13 +196,18 @@ export function Chips({ options, value, onPick }: { options: { value: string; la
           className={cn('gap-1.5 rounded-xl px-3.5 py-2 text-sm font-semibold transition-colors cursor-pointer', value === o.value ? 'bg-primary text-white' : 'text-body hover:bg-muted')}
         >
           {o.icon && (
-            // Selected chip = brand pill → pure line: the wash variable is neutralized
-            // on the svg (same deterministic override as the category picker — the
-            // dark-mode wash tint would otherwise punch a dark hole in the glyph).
+            // Fill marks the pick (owner, 2026-08-07: "use icons filling only when selected").
+            // `value === o.value` is the same comparison that paints the pill and sets
+            // aria-pressed above — the glyph cannot drift out of sync with either.
+            // ⚠️ The `[--color-brand-100:transparent]` that used to be here is deleted, not
+            // moved: it neutralized the (then unconditional) wash on exactly the chip that now
+            // has to fill. Re-adding it disables this whole mechanism on the row.
             <PickerGlyph
               slug={o.value}
               name={o.icon}
-              className={cn('h-3.5 w-3.5 shrink-0', CHIP_CATEGORY_ICON_STROKE, value === o.value && '[--color-brand-100:transparent]')}
+              stroke={STROKE_UI}
+              selected={value === o.value}
+              className="h-3.5 w-3.5 shrink-0"
             />
           )}
           {o.label}
@@ -218,8 +226,12 @@ export function Preview({ cover, title, price, priceUnit, area, categoryIcon, t 
           <img src={cover} alt="" className="h-full w-full object-cover" />
         ) : (
           <div className="flex h-full w-full items-center justify-center">
-            {/* Category chosen → its tile glyph at the display tier (h-11, wash baked in),
-                exactly like a no-photo listing card. No category yet → the chrome coin
+            {/* Category chosen → its tile glyph at the display tier (h-11), exactly like a
+                no-photo listing card — and like that card it stays PURE LINE. This canvas
+                simulates the buyer's card; nothing on it is being picked, so a fill here would
+                spend the one selection cue on a preview and stop meaning "chosen" in the picker
+                twelve inches above it (listing-card.tsx mounts the same glyph unselected).
+                No category yet → the chrome coin
                 (icon-language §6): this canvas is the largest icon moment on the surface
                 and the first-run state was its only family-less glyph — a dead gray lucide
                 on gray, while the sibling state renders fully branded. The coin mirrors

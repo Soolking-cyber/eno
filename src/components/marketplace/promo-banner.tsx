@@ -127,7 +127,7 @@ export function PromoBanner() {
               the clip box and the neighbouring slide showed as a dark strip down the banner's left
               edge. Cancel BOTH or neither — killing only one makes every slide a gutter-width too
               wide and clips the last one. */}
-          <CarouselContent className="ml-0">
+          <CarouselContent className="ml-0" viewportClassName="rounded-2xl">
             {PROMO_SLIDES.map((slide, i) => {
               const current = i === selected
               return (
@@ -160,11 +160,11 @@ export function PromoBanner() {
               to stylesheet order. Pointer-only: on touch the swipe is the gesture. */}
           <CarouselPrevious
             variant="bare"
-            className="left-3 hidden size-9 border-0 bg-black/25 text-white opacity-0 backdrop-blur-sm transition-opacity hover:bg-black/40 group-hover/carousel:opacity-100 focus-visible:opacity-100 pc:flex"
+            className="left-2 hidden text-white/80 opacity-0 transition-[opacity,color,transform] hover:text-white active:scale-[0.96] group-hover/carousel:opacity-100 focus-visible:opacity-100 pc:flex"
           />
           <CarouselNext
             variant="bare"
-            className="right-3 hidden size-9 border-0 bg-black/25 text-white opacity-0 backdrop-blur-sm transition-opacity hover:bg-black/40 group-hover/carousel:opacity-100 focus-visible:opacity-100 pc:flex"
+            className="right-2 hidden text-white/80 opacity-0 transition-[opacity,color,transform] hover:text-white active:scale-[0.96] group-hover/carousel:opacity-100 focus-visible:opacity-100 pc:flex"
           />
 
           {/* Dots. Real <Button>s with labels, not decorative spans: they are the only slide control
@@ -244,7 +244,7 @@ function SlidePanel({ slide }: { slide: PromoSlide }) {
         // so the vertical padding is slack the min-height already absorbs — halving py alone moves
         // nothing until the content outgrows the panel. Shortening the banner means lowering the
         // min-h values below, which is a separate decision and deliberately left alone.
-        'relative flex min-h-[188px] flex-col justify-center overflow-hidden rounded-2xl px-3 py-3 text-white sm:min-h-[212px] sm:px-4 lg:min-h-[300px] lg:px-7',
+        'relative flex min-h-[188px] flex-col justify-center overflow-hidden px-3 py-3 text-white sm:min-h-[212px] sm:px-4 lg:min-h-[300px] lg:px-7 pc:px-14',
         slide.surface,
       )}
     >

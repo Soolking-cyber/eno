@@ -114,9 +114,10 @@ import { STROKE_DISPLAY } from '@/lib/icon-tokens'
  *  besides the wheels — tail → saddle → step-through dip → floorboard, then the
  *  steering column with its grip hooking back. Earlier drafts added a leg shield
  *  AND a front fork and the converging lines mushed into a curl at the 14px chip
- *  step; like lucide's own Bike, the front wheel needs no touching fork. The
- *  wash lives in WASH_MAP like every other key (both wheel discs — a mirrored
- *  twin pair counts as ONE wash move, §0 addendum, exactly how Bike washes). */
+ *  step; like lucide's own Bike, the front wheel needs no touching fork. It
+ *  needs no wash entry of its own: the duotone below is a rule about the whole
+ *  silhouette, so bespoke artwork joins the family for free — which is the
+ *  point of having deleted the per-key map. */
 function MotorbikeIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <svg
@@ -252,66 +253,166 @@ const ICONS: Record<string, CategoryGlyph> = {
   Zap,
 }
 
-// THE SIGNATURE WASH (docs/icon-language.md §0/§7): every category glyph is a
-// single ink line over ONE soft brand-blue interior region — the region a child
-// would color in. Selectors are curated per key because lucide child order is
-// arbitrary; keys without an entry fall back to washing `rect` children (a rect
-// is always a closed body region, so the default can never mis-fill an open
-// path). Keys with no washable region render pure line and still belong to the
-// family. ⚠️ Class strings must stay LITERAL (no template concatenation) —
-// Tailwind's scanner and the design-lint hook both read the source text.
-const WASH_MAP: Record<string, string> = {
-  Baby: '[&>path:nth-of-type(3)]:fill-brand-100',
-  Bike: '[&>circle]:fill-brand-100',
-  BookOpen: '[&>path]:fill-brand-100',
-  Building2: '[&>path:first-of-type]:fill-brand-100',
-  Camera: '[&>circle]:fill-brand-100',
-  Coffee: '[&>path:nth-of-type(3)]:fill-brand-100',
-  Compass: '[&>path]:fill-brand-100',
-  Dumbbell: '[&>path:first-of-type]:fill-brand-100 [&>path:nth-of-type(4)]:fill-brand-100',
-  Gamepad2: '[&>path]:fill-brand-100',
-  // Bespoke motorbike: both wheel discs — a mirrored twin pair is ONE wash move
-  // (§0 addendum), exactly how Bike washes its circles.
-  Gauge: '[&>circle]:fill-brand-100',
-  Heart: '[&>path]:fill-brand-100',
-  House: '[&>path:first-of-type]:fill-brand-100',
-  KeyRound: '[&>path]:fill-brand-100',
-  Laptop: '[&>path:first-of-type]:fill-brand-100',
-  Map: '[&>path:first-of-type]:fill-brand-100',
-  MessagesSquare: '[&>path:first-of-type]:fill-brand-100',
-  PackageOpen: '[&>path:nth-of-type(3)]:fill-brand-100',
-  PawPrint: '[&>*]:fill-brand-100',
-  // Plane: deliberately NO entry. Its single closed path is the whole
-  // silhouette, and §0 forbids whole-silhouette washes — §6's graceful degrade
-  // (pure line) applies. Confirmed as a spec breach by the blind critic
-  // (2026-08-06, pixel-probed); do not re-add without a separable region.
-  PlaneTakeoff: '[&>path:nth-of-type(2)]:fill-brand-100',
-  Search: '[&>circle]:fill-brand-100',
-  Shirt: '[&>path]:fill-brand-100',
-  ShoppingBag: '[&>path:first-of-type]:fill-brand-100',
-  Sofa: '[&>path:nth-of-type(2)]:fill-brand-100',
-  Sparkles: '[&>path:first-of-type]:fill-brand-100',
-  Stamp: '[&>path:nth-of-type(2)]:fill-brand-100',
-  Tag: '[&>path]:fill-brand-100',
-  Truck: '[&>circle]:fill-brand-100',
-  UsersRound: '[&>circle]:fill-brand-100',
-  UtensilsCrossed: '[&>path:nth-of-type(2)]:fill-brand-100',
-  WashingMachine: '[&>rect]:fill-brand-100 [&>circle]:fill-brand-100',
-  Watch: '[&>circle]:fill-brand-100',
-  Wrench: '[&>path]:fill-brand-100',
-  Zap: '[&>path]:fill-brand-100',
+/**
+ * THE CATEGORY DUOTONE — one rule, every key (docs/icon-language.md §0/§7,
+ * owner mandate 2026-08-07: *"make sure your icons are fully filled, i see some
+ * are half filled in categories"*).
+ *
+ * ⛔ THE PER-KEY `WASH_MAP` IS GONE, AND IT IS NOT COMING BACK. It filled ONE
+ * curated region per glyph, which meant a single grid row rendered three
+ * different densities side by side: tinted (House), hollow (Plane, Users,
+ * Ellipsis — no separable closed region, the old "graceful degrade") and
+ * half-tinted (a body whose interior is only part of its silhouette). Restraint
+ * you cannot state as a rule reads as a rendering bug, and the owner read it as
+ * one. Curation also scaled badly — 35 hand-tuned selectors against ~100 keys,
+ * each one a guess about lucide's child ORDER, which is arbitrary and changes
+ * between releases.
+ *
+ * The mechanism instead: draw the glyph TWICE in one box.
+ *   1. the BODY layer — same paths, `fill-brand-100 stroke-brand-100`, stroke
+ *      at the SAME width as the ink line. Filling every child tints every closed
+ *      region; the fat stroke welds them into one silhouette and gives
+ *      open-path glyphs (UtensilsCrossed, Zap, Users, Ellipsis) a body they
+ *      never had. Density is identical across the whole set by construction.
+ *   2. the INK layer — the untouched lucide line, painted ON TOP.
+ *
+ * Two properties fall out of the ordering, and both were requirements:
+ *   · the ink line always reads crisply — nothing can paint over it, so the
+ *     "lucide draws some bodies LAST" hazard that WASH_MAP existed to dodge
+ *     simply cannot occur;
+ *   · interior detail survives — a filled body can only ever cover the TINT
+ *     layer's own paths, never a stroke.
+ *
+ * The tint stays `--color-brand-100` (one blue, §0), so the selected-chip trick
+ * of redefining that variable to `transparent` still turns the glyph into pure
+ * line on a brand pill — the variable inherits from the wrapper into both
+ * layers.
+ */
+/**
+ * DECORATION, NOT BODY — the children a selected glyph must NOT fill.
+ *
+ * The duotone fills the WHOLE glyph by default, because that is what the owner asked
+ * for glyph after glyph on 2026-08-07: "fill side rectangles too" (Building2's wings),
+ * "fill as circle inside head shape" (Baby), "fill full body and between front person
+ * and person behind" (Users), "fill bottom of the box too" (PackageOpen), "cover of box
+ * should be filled" (Gift's lid), "car front window half not filled" (CarFront).
+ *
+ * ⚠️ AN EARLIER VERSION FILLED ONLY SUBPATHS THAT CLOSE, AND IT WAS WRONG. lucide draws
+ * most bodies as OPEN paths that close visually against a neighbour — a sofa back, a
+ * building wing, a baby's head, a box lid — so that rule left half of every glyph
+ * hollow, which is the exact "half filled" defect this work started from. Geometry is
+ * not the drawing.
+ *
+ * These exclusions are the inverse case: children that are decoration, where a fill
+ * implicitly closes an open line into a blob. Add one ONLY from a rendered screenshot.
+ *   · Layers — the two lower sheets suggest depth; filling them stacks three overlapping
+ *     blobs ("infill only top closed shape").
+ *   · UtensilsCrossed — the fork's tines ("fork shouldnt have infill"); the knife blade,
+ *     which is a real closed body, still fills ("needs knife infill").
+ */
+const FILL_EXCLUDE: Record<string, number[]> = {
+  Layers: [2, 3],
+  UtensilsCrossed: [1, 4],
+  // Community — front person only (owner, 2026-08-07: "revert, put previous icon and fill
+  // only front person"). Child 3 is the figure BEHIND, drawn as two thin arcs: filling it
+  // implicitly closes them into a crescent that reads as a smudge rather than a person. A
+  // bespoke two-body glyph was tried and rejected — the stock drawing is the one to keep.
+  UsersRound: [3],
 }
-const WASH_DEFAULT = '[&>rect]:fill-brand-100'
 
-export function CategoryIcon({ name, className }: { name: string; className?: string }) {
-  const Icon = ICONS[name] ?? HelpCircle
-  // Display tier stroke (icon-language §2): category art renders at h-11+ where
-  // stroke 2 looks rubber-stamped; 1.5 scales to the premium ~2.75px line. The
-  // caller's className comes last so a call-site can still override anything.
+const excludeClasses = (name?: string) =>
+  (name && FILL_EXCLUDE[name] ? FILL_EXCLUDE[name] : [])
+    .filter((i) => i >= 1 && i <= 8)
+    .map((i) => `duo-x${i}`)
+
+function DuotoneGlyph({
+  Icon,
+  name,
+  className,
+  stroke = STROKE_DISPLAY,
+  selected = false,
+}: {
+  Icon: CategoryGlyph
+  name?: string
+  className?: string
+  stroke?: number
+  selected?: boolean
+}) {
+  // ⚠️ FILL IS A STATE, NOT A STYLE (owner, 2026-08-07: "use icons filling only
+  // when selected, not as default"). Default is the pure ink line — the same
+  // outline-idle / filled-active grammar iOS and Carousell use, and the reason
+  // the old always-on tint made a category row look like a rendering bug: a
+  // filled magnifier, filled brackets and filled cutlery are only defensible as
+  // a deliberate "you are here", never as a resting state.
+  // Fill is a STATE (owner, 2026-08-07: "use icons filling only when selected, not as
+  // default"): the resting glyph is a pure ink line, exactly the outline-idle /
+  // filled-active grammar iOS and Carousell use. A glyph with no fillable body simply
+  // has no tint layer to render — no special-casing needed.
+  // ⚠️ RESOLVE THE FILL KEY FROM THE COMPONENT when no name is passed. Every lucide
+  // component carries `displayName` = its PascalCase name (createLucideIcon sets it), and
+  // that is exactly the key the fill map is generated under. Without this fallback every
+  // <CategoryGlyphArt> mount — the rail's "All" tile, the whole dashboard rail, the
+  // wizard's slug-fixed glyphs — would resolve no body and stay hollow when selected,
+  // which is the "some are filled, some are not" defect the owner rejected.
+  const key = name ?? (Icon as { displayName?: string }).displayName
   return (
-    <Icon
-      strokeWidth={STROKE_DISPLAY}
-      className={cn(WASH_MAP[name] ?? WASH_DEFAULT, className)}
-    />
+    // The caller's className lands HERE, on the box: size (h-11 w-11 …), ink
+    // colour (currentColor inherits into both layers), margins, hover/press
+    // transitions. h-6 w-6 is a floor for an unsized mount, not a default worth
+    // relying on — the §4 ladder still says put the size on the call site.
+    // ⚠️ `size-full` on the layers, not `h-full w-full`: ui/button's icon rule
+    // is `[&_svg:not([class*='size-'])]:size-4`, and matching that attribute
+    // selector is what opts a 44px tile glyph out of being shrunk to 16px.
+    <span aria-hidden className={cn('relative inline-flex h-6 w-6 shrink-0', className)}>
+      {/* ⚠️ THE TINT STROKE MATCHES THE INK STROKE EXACTLY — it must never be fatter.
+          A fattened underlay (this was `stroke + 2`) paints tint OUTSIDE the ink line, so
+          every glyph wore a pale-blue halo and read as an OUTLINED icon rather than a
+          filled one (owner, 2026-08-07: "make sure icons dont have outline, fill only
+          inside"). At equal width the two layers share one geometry, so the opaque ink
+          line covers the tint stroke completely and the tint survives only where it
+          should: inside the shape. The FILL is what closes open paths (SVG implicitly
+          closes a filled subpath), so the weld the fat stroke was there for costs
+          nothing. */}
+      {selected && (
+        <Icon
+          aria-hidden
+          strokeWidth={stroke}
+          className={cn('absolute inset-0 size-full fill-brand-100 stroke-brand-100', excludeClasses(key))}
+        />
+      )}
+      {/* `relative`, so the ink layer is POSITIONED too. Absolutely-positioned
+          boxes paint above in-flow content regardless of document order, so a
+          static ink layer would end up UNDER the tint. */}
+      <Icon aria-hidden strokeWidth={stroke} className="relative size-full" />
+    </span>
   )
+}
+
+/**
+ * A category/subcategory glyph, resolved from the immutable registry key that
+ * mirrors the DB's `Category.icon` row.
+ *
+ * `stroke` re-tiers the ink line for small mounts (icon-language §2): the tile
+ * default is the display tier (1.5, which at h-11 renders the premium ~2.75px),
+ * but at the 14/16px chip step that scales to under a pixel and the glyph goes
+ * wispy beside its stroke-2 lucide neighbours — chips pass STROKE_UI. It is a
+ * PROP rather than a `[stroke-width:2]` class because the glyph is no longer a
+ * single svg: a class on the wrapper cannot reach past each layer's own
+ * presentation attribute, and the tint layer must stay fatter than the ink one.
+ */
+export function CategoryIcon({ name, className, stroke, selected }: { name: string; className?: string; stroke?: number; selected?: boolean }) {
+  return <DuotoneGlyph Icon={ICONS[name] ?? HelpCircle} name={name} className={className} stroke={stroke} selected={selected} />
+}
+
+/**
+ * The same duotone for a glyph that has no registry key — a slug-keyed artwork
+ * fix (post-wizard-parts' Cog/Ellipsis) or a non-taxonomy tile (the browse
+ * rail's "All" Layers). Registry keys are DB-mirrored and immutable, so these
+ * mounts cannot be expressed as keys; they still have to look like family.
+ */
+export function CategoryGlyphArt({ Icon, name, className, stroke, selected }: { Icon: CategoryGlyph; name?: string; className?: string; stroke?: number; selected?: boolean }) {
+  // `name` is the FILL KEY, not a registry lookup — these mounts have no taxonomy key
+  // (the rail's "All" Layers tile, the wizard's slug-fixed Cog/Ellipsis). Without it the
+  // glyph resolves no fillable body and can never light up when selected.
+  return <DuotoneGlyph Icon={Icon} name={name} className={className} stroke={stroke} selected={selected} />
 }

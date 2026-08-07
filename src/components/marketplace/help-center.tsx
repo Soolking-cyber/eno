@@ -19,6 +19,8 @@ import {
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { Tr, useLanguage, useTr } from '@/context/language-context'
+import { STROKE_UI } from '@/lib/icon-tokens'
+import { CategoryGlyphArt } from '@/components/marketplace/category-icons'
 import { EnoSeal } from '@/components/marketplace/eno-seal'
 import { HelpFeedback } from '@/components/marketplace/help-feedback'
 import { HelpVote } from '@/components/marketplace/help-vote'
@@ -65,36 +67,31 @@ const TOPIC_ICONS: Record<string, LucideIcon> = {
   'eno-service-help': Stamp,
 }
 
-// §0/§6 wash for the ACTIVE topic chip — the location-active soft duotone (same move as
-// the bottom nav's TabBody: ink line + one brand-tinted closed region, `fill-brand-100`
-// = the WASH token in icon-tokens.ts). Curated per glyph, the category-icons WASH-map
-// idiom, because a generic first-path wash hits the wrong region on half of these:
-// Rocket's first path is the exhaust fin (body is path 2), ShoppingBag's is the handle
-// arc (body is path 3), UserRoundCog's body is a <circle>, not a path. Tailwind needs
-// the literal class strings, so these cannot be composed from the WASH constant.
-const TOPIC_WASH: Record<string, string> = {
-  'help-getting-started': '[&_svg>path:nth-of-type(2)]:fill-brand-100', // rocket body
-  // 'help-buying' has NO wash, deliberately: lucide draws the bag BODY LAST (handle,
-  // rim, then body), so filling it paints over both details and leaves a blank washed
-  // square — the z-order trap icon-tokens.ts documents for Compass. §6: a glyph with no
-  // safe closed region loses its wash gracefully and stays pure line.
-  'help-selling': '[&_svg>path:first-of-type]:fill-brand-100', // tag body (dot stays ink)
-  'help-account': '[&_svg>circle:first-of-type]:fill-brand-100', // head
-  'vietnam-travel': '[&_svg>path:first-of-type]:fill-brand-100', // single-path silhouette (the nav-Heart precedent)
-  'eno-service-help': '[&_svg>path:nth-of-type(2)]:fill-brand-100', // stamp base
-  // 'help-trust-safety': none — the seal's chief is already the wash, in every state.
-}
-
 /**
  * The one renderer for a help topic's glyph — shared by the /help chips, the grouped
  * answer headings and the thread page's topic chip, so the family cannot drift.
  * Trust renders the eno seal (§0b: the seal replaces lucide Shield* wherever
  * first-party trust is claimed); unknown slugs fall back to UsersRound (community).
+ *
+ * ⛔ THE PER-SLUG `TOPIC_WASH` MAP IS GONE (owner, 2026-08-07: "use icons filling only
+ * when selected, not as default"). It hand-picked one closed region per glyph — rocket
+ * body = path 2, tag body = path 1, account head = a <circle>, buying = nothing at all
+ * because lucide draws the bag body LAST — so the chip row rendered three different
+ * densities side by side, and the one topic with no safe region never filled however you
+ * selected it. `<CategoryGlyphArt selected>` draws the glyph twice instead (tinted body
+ * under the untouched ink line), which is order-independent, needs no curation, and gives
+ * every topic the same density. The idle chip is unchanged: pure line.
+ *
+ * `selected` is the ONLY thing that fills — including the seal, which swaps to its washed
+ * chief rather than taking the duotone (a full-silhouette flood is what §0 forbids for the
+ * one first-party mark, and its own `variant` is the sanctioned way to say "active").
  */
-export function HelpTopicIcon({ slug, className }: { slug: string; className?: string }) {
-  if (slug === 'help-trust-safety') return <EnoSeal className={className} />
+export function HelpTopicIcon({ slug, className, selected = false }: { slug: string; className?: string; selected?: boolean }) {
+  if (slug === 'help-trust-safety') return <EnoSeal variant={selected ? 'wash' : 'line'} className={className} />
   const Icon = TOPIC_ICONS[slug] ?? UsersRound
-  return <Icon className={className} aria-hidden />
+  // STROKE_UI, not the duotone's display default: these mount at 14–16px, where the 1.5
+  // display tier scales to under a pixel and goes wispy beside its lucide neighbours (§2).
+  return <CategoryGlyphArt Icon={Icon} selected={selected} stroke={STROKE_UI} className={className} />
 }
 
 const MORE_LINKS: { label: string; href: string }[] = [
@@ -351,13 +348,16 @@ export function HelpCenter({ data }: { data: HelpCenterData }) {
               className={cn(
                 'h-10 shrink-0 gap-2 rounded-full border border-border px-4 text-xs font-semibold transition-colors',
                 active
-                  ? // §5 location-active: accent ink + the wash inside the glyph (soft
-                    // duotone) — never a solid fill, which is reserved for user-state.
-                    cn('border-brand bg-accent text-accent-foreground', TOPIC_WASH[item.slug])
+                  ? // §5 location-active: accent ink on the chip; the glyph's own fill is
+                    // passed as state below, never as a class here — never a solid fill,
+                    // which is reserved for user-state.
+                    'border-brand bg-accent text-accent-foreground'
                   : 'bg-transparent text-body hover:bg-muted',
               )}
             >
-              <HelpTopicIcon slug={item.slug} className="size-4" />
+              {/* `active` is the same boolean that paints the chip and sets aria-pressed —
+                  one selection fact, three renderings of it. */}
+              <HelpTopicIcon slug={item.slug} selected={active} className="size-4" />
               {tr(item.name, item.nameVi)}
             </Button>
           )
@@ -388,9 +388,10 @@ export function HelpCenter({ data }: { data: HelpCenterData }) {
               <div key={index}>
                 {column.map((group) => (
                   <section key={group.topic.slug} className="mt-6">
-                    {/* The Shelf-header discipline: a 16px line-only glyph on the
-                        heading's ink (§6: no wash outside artwork/active — the seal
-                        keeps its chief, which is its signature, not a wash violation). */}
+                    {/* The Shelf-header discipline: a 16px line-only glyph on the heading's
+                        ink. A heading is not a selection, so no `selected` — including on
+                        the trust topic, whose seal drops to its `line` variant here rather
+                        than carrying a chief nothing else on the row has. */}
                     <h3 className="flex items-center gap-2 text-base font-bold text-foreground">
                       <HelpTopicIcon slug={group.topic.slug} className="size-4" />
                       {tr(group.topic.name, group.topic.nameVi)}

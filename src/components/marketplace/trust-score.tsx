@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { Tooltip } from '@/components/ui/tooltip'
 import { useLanguage } from '@/context/language-context'
 import { trustScoreColor, trustFillClass } from '@/lib/trust-score'
-import { SEAL_OUTLINE, SEAL_BAR, SEAL_CHIEF } from '@/components/marketplace/eno-seal'
+import { SEAL_OUTLINE, SEAL_CHECK, SEAL_CHIEF } from '@/components/marketplace/eno-seal'
 import { cn } from '@/lib/utils'
 
 type Props = {
@@ -86,7 +86,7 @@ export function TrustScore({ score, size = 'sm', showLabel = false, variant = 's
             strokeLinecap="round"
             strokeLinejoin="round"
           />
-          <path d={SEAL_BAR} fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" />
+          <path d={SEAL_CHECK} fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
         {n}
       </span>,
@@ -141,7 +141,11 @@ export function TrustScore({ score, size = 'sm', showLabel = false, variant = 's
               style={{ stroke: grad.to }}
             />
             <path d={SEAL_CHIEF} fill="#ffffff" fillOpacity="0.25" />
-            <path d={SEAL_BAR} fill="none" stroke={grad.text} strokeOpacity="0.85" strokeWidth="1.5" strokeLinecap="round" />
+            {/* ⚠️ NO CHECK IN A BADGE THAT CARRIES THE SCORE. The seal's check and the
+                numeral both want the shield's optical centre, and drawn together they
+                overlap into an unreadable smudge (owner, 2026-08-07: "maybe not tickmark
+                here"). The NUMBER is this variant's content; the silhouette + chief carry
+                the identity. The check belongs to the seal wherever it stands alone. */}
             <text x="12" y="13.1" textAnchor="middle" dominantBaseline="central" fontSize={fontSize} fontWeight="800" fontFamily="inherit" fill={grad.text}>
               {n}
             </text>
@@ -158,7 +162,7 @@ export function TrustScore({ score, size = 'sm', showLabel = false, variant = 's
               strokeLinejoin="round"
               style={{ stroke: color }}
             />
-            <path d={SEAL_BAR} fill="none" strokeWidth="1.5" strokeLinecap="round" style={{ stroke: color }} />
+            {/* No check here either — see the note above: the numeral owns the centre. */}
             <text x="12" y="13.1" textAnchor="middle" dominantBaseline="central" fontSize={fontSize} fontWeight="800" fontFamily="inherit" style={{ fill: color }}>
               {n}
             </text>

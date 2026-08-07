@@ -13,7 +13,7 @@
 // Admin labels are EN-only by repo convention (admin chrome is never localized), hence vi
 // is optional — a renderer must fall back to `en` when `vi` is undefined.
 
-import type { ComponentType } from 'react'
+import type { ComponentType, SVGProps } from 'react'
 import { IS_SERVICES } from '@/lib/edition'
 import { SERVICES_NAV_ADMIN_QUEUE, SERVICES_NAV_CASES, SERVICES_NAV_TRIPS } from '@/lib/edition-services-copy'
 // Glyph choices follow docs/icon-language.md §3 (soft-cornered object metaphors, one
@@ -27,8 +27,9 @@ import { SERVICES_NAV_ADMIN_QUEUE, SERVICES_NAV_CASES, SERVICES_NAV_TRIPS } from
 //  - View storefront was Eye — but Eye IS the view-count glyph in the listing meta row on
 //    the very screen the rail opens to (/dashboard/listings). Now SquareArrowOutUpRight:
 //    the outbound mark the critic asked for ("swap to an outbound/storefront-preview
-//    glyph"), which also agrees with the row's mechanism (`external: true`, a full <a>
-//    out to the PUBLIC page) and with the outbound family dashboard-listing-row already
+//    glyph"), which still reads right: the row leaves the dashboard for the PUBLIC page
+//    (it is a client transition now, not a document load) and matches the outbound family
+//    dashboard-listing-row already
 //    uses for "view live". One quiet outbound row is not the R0 debug-cluster problem —
 //    that was `</>` + box-arrow + red logout stacked together.
 //  - Admin Disputes was Scale — identical to the seller "Khiếu nại" Scale four slots above
@@ -40,12 +41,14 @@ import { SERVICES_NAV_ADMIN_QUEUE, SERVICES_NAV_CASES, SERVICES_NAV_TRIPS } from
 //    comment names as THE nav glyph), so one concept wore two glyphs across the two nav
 //    surfaces (R3 critic). The rail/hub now adopt the nav's plain bubble; the bubble-with-
 //    text-lines variant stays the LEADS-count meta mark (dashboard-listing-row: "a message
-//    with words in it" = an inquiry) — one glyph per concept in both directions. The wash
-//    is unaffected either way: WASH_ACTIVE fills the first path, the bubble in both variants.
+//    with words in it" = an inquiry) — one glyph per concept in both directions. The
+//    selected-state fill is unaffected either way: it is drawn from the glyph's own
+//    silhouette, not from a per-key region (see NavIcon below).
 import {
   Store, SquareArrowOutUpRight, MessageSquare, Heart, Scale, Upload, Plug,
   CircleHelp, FileCheck2, Route,
   Flag, ShieldAlert, ClipboardList, Tags, Star, Stamp, Gavel, Filter,
+  type LucideIcon,
 } from 'lucide-react'
 import { EnoSeal } from './eno-seal'
 import { cn } from '@/lib/utils'
@@ -54,19 +57,34 @@ export type NavRole = 'all' | 'business' | 'seller' | 'admin'
 
 /** The minimal contract every rail/hub renderer actually uses. Lucide glyphs satisfy it,
  *  and so does the one first-party mark (the eno seal adapter below) — widened from
- *  `LucideIcon` so a trust moment is not forced to wear a lucide glyph (§0b). */
-export type NavIcon = ComponentType<{ className?: string; strokeWidth?: number; 'aria-hidden'?: boolean }>
+ *  `LucideIcon` so a trust moment is not forced to wear a lucide glyph (§0b).
+ *
+ *  ⚠️ THIS IS DELIBERATELY THE SAME SHAPE AS category-icons' `CategoryGlyph`, because the
+ *  rail now renders its rows THROUGH `<CategoryGlyphArt selected>` (owner, 2026-08-07:
+ *  "use icons filling only when selected, not as default — fix everywhere in dashboard").
+ *  A narrower hand-written prop bag (the old `{ className?; strokeWidth?: number }`) is not
+ *  assignable to that component's `Icon` prop, and widening it here is what lets ONE fill
+ *  rule cover the rail instead of a second, rail-local mechanism. */
+export type NavIcon = LucideIcon | ComponentType<SVGProps<SVGSVGElement>>
 
 // Business verification renders THE SEAL, not lucide BadgeCheck (R2 critic; icon-language
 // §0b: a first-party verification queue is a trust moment, and "when in doubt, it is the
 // seal"). `line` variant — the rail is chrome and idle chrome is line-only (§6); the washed
-// chief belongs to artwork/trust-chip mounts. `fill-none` on the svg is deliberate and
-// load-bearing: it opts the seal OUT of the WASH_ACTIVE location selector (icon-tokens §5,
-// which skips any svg carrying a fill-* class). Without it, an active row would flood the
-// seal's FIRST path — the whole silhouette in the line variant — and a full-silhouette wash
-// is exactly what §0 forbids. Losing the wash gracefully is the sanctioned fallback (§6).
-const VerificationSeal: NavIcon = ({ className, strokeWidth, ...rest }) => (
-  <EnoSeal variant="line" strokeWidth={strokeWidth} className={cn('fill-none', className)} {...rest} />
+// chief belongs to artwork/trust-chip mounts.
+// ⚠️ `fill-none` + the paths' own `fill="none"` attributes are what make the seal DEGRADE
+// GRACEFULLY under the rail's selected-state duotone: the tint layer paints `fill` on the
+// <svg>, and fill is an inherited property that any child's own declaration beats — so the
+// seal keeps its line even on the active row. That is the §6 sanctioned fallback and the
+// right answer here, because the seal's fillable region is its whole silhouette, and a
+// full-silhouette flood is exactly what §0 forbids for this mark.
+// strokeWidth arrives as SVG's `string | number`; EnoSeal takes the §2 numeric tier, so a
+// non-numeric value falls back to the seal's own default rather than being coerced.
+const VerificationSeal = ({ className, strokeWidth }: SVGProps<SVGSVGElement>) => (
+  <EnoSeal
+    variant="line"
+    strokeWidth={typeof strokeWidth === 'number' ? strokeWidth : undefined}
+    className={cn('fill-none', className)}
+  />
 )
 
 /**
@@ -123,22 +141,22 @@ export type NavItem = {
   /** Renderer-computed href: 'storefront' → the signed-in seller's public storefront URL
    *  (/{handle} when a handle exists, else /sellers/{id}). */
   dynamic?: 'storefront'
-  /** This row's glyph is a MIRRORED PAIR (Scale's two pans) — its location-active
-   *  wash must fill BOTH twins (icon-tokens WASH_ACTIVE_TWIN; §0/§6 addendum, lead
-   *  ruling 2026-08-07: the pair is one visual move, half a wash reads as a bug). */
-  /** Location-active wash mode. ONLY glyphs whose fill regions were VISUALLY verified at zoom
-   *  get a value — CSS fill implicitly closes open paths, so an unverified glyph can render a
-   *  blob or nothing exactly when its row is active (diff-review catch, 2026-08-07). Verified:
-   *  'body' = Store/Heart/MessageSquare (the bottom-nav-validated set); 'twin' = Scale (both
-   *  pans, WASH_ACTIVE_TWIN). Admin rows verified 2026-08-07 (piece 16 R2, zoomed active-state
-   *  shots in rounds/16-admin-console/R2, light + dark): Flag = banner (pole segment is
-   *  zero-width, no leak), Gavel = handle band (implicit closure forms the parallelogram; head
-   *  stays line), ShieldAlert = shield field (alert strokes stay line), Star = body (single
-   *  closed path, the Heart class), Filter = funnel body (single closed path). Unset =
-   *  line-only active, the §6 sanctioned degrade (still true for ClipboardList/Tags — their
-   *  first-path regions are unverified; extend only with a zoomed screenshot of the ACTIVE
-   *  state as proof). */
-  wash?: 'body' | 'twin'
+  /* ⛔ THE PER-ROW `wash` ALLOWLIST IS GONE (owner, 2026-08-07: "help icon, storefront
+   * icons on select should be filled"). It named which glyph regions had been verified by
+   * zoomed screenshot — 'body' = first path, 'twin' = Scale's two pans — and every row NOT
+   * on the list stayed line-only when active. Help center (CircleHelp) and View storefront
+   * (SquareArrowOutUpRight) were both off it, which is precisely the pair the owner
+   * reported: you select the row, and nothing fills.
+   *
+   * The allowlist existed because a per-region CSS selector can only be trusted for a glyph
+   * someone eyeballed — lucide's child ORDER is arbitrary, so `path:first-of-type` is a
+   * guess. The rail no longer makes that guess: `<CategoryGlyphArt selected>` draws the
+   * whole glyph twice (tinted body under untouched ink line), so the fill comes from the
+   * silhouette itself and is identical on every row by construction. Nothing to verify,
+   * nothing to allowlist, and one rule shared with the category tiles.
+   *
+   * The one row that still degrades to line-only is Business verification, and that is now
+   * a property of the SEAL (see VerificationSeal above), not of a list kept over here. */
 }
 
 export type NavGroup = {
@@ -171,15 +189,22 @@ export const DASHBOARD_NAV: NavGroup[] = [
       // below ARE the dashboard, so a link back to a bare overview earned its place in the
       // rail only by habit. /dashboard itself still resolves — nothing routes THROUGH this
       // link — so an existing bookmark or a redirect target is unaffected.
-      { href: '/dashboard/listings', ...tr('My listings', 'Tin của tôi'), icon: Store, wash: 'body' },
-      { href: '/messages', ...tr('Messages', 'Tin nhắn'), icon: MessageSquare, badge: 'unread', wash: 'body' },
-      { href: '/saved', ...tr('Saved', 'Đã lưu'), icon: Heart, badge: 'saved', wash: 'body' },
+      { href: '/dashboard/listings', ...tr('My listings', 'Tin của tôi'), icon: Store },
+      { href: '/messages', ...tr('Messages', 'Tin nhắn'), icon: MessageSquare, badge: 'unread' },
+      { href: '/saved', ...tr('Saved', 'Đã lưu'), icon: Heart, badge: 'saved' },
       // Label matches the page's own name ("Availability review" / "còn hàng").
-      { href: '/dashboard/disputes', ...tr('Disputes', 'Khiếu nại'), icon: Scale, wash: 'twin' },
+      { href: '/dashboard/disputes', ...tr('Disputes', 'Khiếu nại'), icon: Scale },
       { href: '/dashboard/bulk', ...tr('Bulk upload', 'Tải hàng loạt'), icon: Upload, role: 'business' },
       { href: '/dashboard/dev', ...tr('Developers', 'Lập trình'), icon: Plug, role: 'business' },
       // Public storefront of the signed-in seller — href is computed by the renderer.
-      { href: '/sellers', ...tr('View storefront', 'Xem gian hàng'), icon: SquareArrowOutUpRight, external: true, role: 'seller', dynamic: 'storefront' },
+      // ⚠️ NOT `external` — it renders as a <Link>, like every other row. The storefront
+      // href resolves to `/{handle}` (or `/sellers/{id}`), which is an ordinary route in THIS
+      // app, so `external: true` bought nothing and cost a full document load: clicking it
+      // white-flashed and jumped the page while every sibling row transitioned client-side
+      // (owner, 2026-08-07: "make sure all pages in dashboard behave similarly and have smooth
+      // transition without jumping"). `external` stays in the type for a genuinely off-app
+      // destination — there is none in the rail today.
+      { href: '/sellers', ...tr('View storefront', 'Xem gian hàng'), icon: SquareArrowOutUpRight, role: 'seller', dynamic: 'storefront' },
     ],
   },
   {
@@ -228,17 +253,17 @@ export const DASHBOARD_NAV: NavGroup[] = [
     en: 'Admin',
     role: 'admin',
     items: [
-      // ⚠️ Admin rows carry the SAME §5-addendum location treatment as every other rail row
-      // (R2 critic, piece 16: the signature "more wash, same line" must not vanish on the
-      // console's most repeated icon moment) — wash values below are on the verified
-      // allowlist documented on NavItem.wash, not eyeballed.
-      { href: '/admin', en: 'Reports', icon: Flag, exact: true, wash: 'body' },
-      { href: '/admin/funnel', en: 'Publish funnel', icon: Filter, wash: 'body' },
-      { href: '/admin/disputes', en: 'Disputes', icon: Gavel, wash: 'body' },
-      { href: '/admin/enforcement', en: 'Enforcement', icon: ShieldAlert, wash: 'body' },
+      // ⚠️ Admin rows carry the SAME location treatment as every other rail row (R2 critic,
+      // piece 16: the signature "more fill, same line" must not vanish on the console's most
+      // repeated icon moment). They need no per-row opt-in any more — the selected fill is
+      // the renderer's one rule, applied to whatever glyph the row carries.
+      { href: '/admin', en: 'Reports', icon: Flag, exact: true },
+      { href: '/admin/funnel', en: 'Publish funnel', icon: Filter },
+      { href: '/admin/disputes', en: 'Disputes', icon: Gavel },
+      { href: '/admin/enforcement', en: 'Enforcement', icon: ShieldAlert },
       { href: '/admin/listings', en: 'Listings', icon: ClipboardList },
       { href: '/admin/brands', en: 'Brands', icon: Tags },
-      { href: '/admin/feedback', en: 'Feedback', icon: Star, wash: 'body' },
+      { href: '/admin/feedback', en: 'Feedback', icon: Star },
       ...(IS_SERVICES ? [{ ...SERVICES_NAV_ADMIN_QUEUE, icon: Stamp, servicesOnly: true }] : []),
       { href: '/admin/business-verification', en: 'Business verification', icon: VerificationSeal },
     ],

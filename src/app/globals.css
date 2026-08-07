@@ -1196,6 +1196,55 @@ html.native-tabs .bottom-nav-spacer {
 }
 .bubble-in { animation: bubble-in 220ms var(--ease-spring) both; }
 
+/* ============================================================
+   ICON MOTION — docs/icon-language.md §8. Three one-shot moves, each tied to a
+   USER ACTION; nothing here fires on scroll-past, on a timer, or in a loop, and
+   nothing animates layout (transform / opacity / fill-opacity only).
+
+   ⚠️ THE ICON SYSTEM OWNS NO ANIMATION MACHINERY OF ITS OWN. Press feel is
+   `.press`, an arriving element is `.bubble-in`, a save is `.animate-heart-pop`
+   — all above. These three exist because the glyph's own INK is what changes,
+   which none of those can express: a wash arriving is not an element arriving.
+   The global prefers-reduced-motion switch at the bottom of this file already
+   collapses every one of them; the explicit no-preference guard on the wash is
+   belt-and-braces for the one rule that paints rather than transforms.
+   ============================================================ */
+
+/* 1 · THE WASH ARRIVES (bottom-nav tab activation, icon-language §5 location
+   state). The tab's ink turns brand instantly — that is the state — and the
+   duotone interior fades up behind it, so the glyph fills rather than pops. The
+   selector mirrors WASH_ACTIVE exactly, `:not([class*='fill-'])` included: a
+   user-state glyph (the solid saved heart, an unread bubble) already owns its
+   fill and must not flash to transparent and back when its tab is chosen. */
+@keyframes wash-arrive {
+  from { fill-opacity: 0; }
+  to   { fill-opacity: 1; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .wash-in svg:not([class*='fill-']) > path:first-of-type {
+    animation: wash-arrive 180ms var(--ease-spring) both;
+  }
+}
+
+/* 2 · The 2px location bar that comes with it — grows from the centre out. Not
+   a bounce: it is the same "you are here" statement as the wash, arriving in
+   the same 200ms window so the two read as ONE move. */
+@keyframes bar-in {
+  from { opacity: 0; transform: scaleX(0.25); }
+  to   { opacity: 1; transform: none; }
+}
+.bar-in { animation: bar-in 200ms var(--ease-spring-snappy) both; }
+
+/* 3 · The send tap — the paper plane leans into its own direction of travel and
+   settles back. It fires on the tap ONLY (chat-parts drops the class again on
+   animationend), never on mount, so a thread full of messages sits still. */
+@keyframes send-lift {
+  0%   { transform: none; }
+  45%  { transform: translate(3px, -3px) rotate(8deg); }
+  100% { transform: none; }
+}
+.send-lift { animation: send-lift 220ms var(--ease-spring-snappy) both; }
+
 /* Scroll-driven feed reveal: cards gently rise + fade as they enter. Runs OFF the main
    thread with ZERO scroll listeners. iOS Safari 26+ only → pure enhancement behind
    @supports; iOS 18–25 and reduced-motion users just see the card (no animation). */
@@ -1384,3 +1433,23 @@ html.native-tabs .bottom-nav-spacer {
   color: #fff;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4);
 }
+
+/* ── The category duotone: fill the whole body, exclude the decorations ──────────
+   The tint layer fills EVERY child by default, so a glyph reads as one solid duotone
+   silhouette (owner, 2026-08-07, across eight glyphs: "fill side rectangles too",
+   "fill full body and between front person and person behind", "fill bottom of the box
+   too", "cover of box should be filled"). An earlier fill-only-closed-subpaths rule was
+   wrong: most bodies in lucide are drawn with OPEN paths that close visually against
+   their neighbours, so that rule left backs, wings, heads and lids hollow.
+   `duo-xN` opts a single child OUT — for the few children that are decoration rather
+   than body (the lower sheets of a stack, the tines of a fork), where a fill implicitly
+   closes an open line into a blob.
+   ⚠️ STATIC classes: Tailwind cannot see an `[&>*:nth-child(N)]` built at runtime. */
+.duo-x1 > *:nth-child(1),
+.duo-x2 > *:nth-child(2),
+.duo-x3 > *:nth-child(3),
+.duo-x4 > *:nth-child(4),
+.duo-x5 > *:nth-child(5),
+.duo-x6 > *:nth-child(6),
+.duo-x7 > *:nth-child(7),
+.duo-x8 > *:nth-child(8) { fill: none; }

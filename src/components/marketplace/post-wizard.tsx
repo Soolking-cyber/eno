@@ -11,8 +11,8 @@ import { CategoryIcon } from './category-icons'
 import { EnoSeal } from './eno-seal'
 // Small-mount CategoryIcon re-tier (icon-language §2): the registry bakes the
 // display stroke (1.5) for h-11+ tiles; at the picker's h-4/h-3.5 that scales to
-// <1px of ink. Shelf's documented override re-tiers chips to the UI weight.
-import { CHIP_CATEGORY_ICON_STROKE } from './shelf'
+// <1px of ink, so the picker passes the UI weight explicitly.
+import { STROKE_UI } from '@/lib/icon-tokens'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -809,7 +809,12 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
               // Category is fixed when editing (changing it would re-derive subcategory/
               // brand/facets). To switch category, delete + repost.
               <div className="inline-flex items-center gap-1.5 rounded-xl bg-muted px-3.5 py-2 text-sm font-semibold text-body">
-                {cat && <CategoryIcon name={cat.icon} className={cn('h-4 w-4 text-body', CHIP_CATEGORY_ICON_STROKE)} />}
+                {/* This pill occupies the picker's slot and shows the category that IS chosen —
+                    it is the create flow's selected chip, frozen. So it fills, on the same rule
+                    as that chip; a line glyph here would say "nothing picked" about the one
+                    category the listing cannot change. Selection is structural (a listing always
+                    has a category), not stateful, hence the literal. */}
+                {cat && <CategoryIcon name={cat.icon} stroke={STROKE_UI} selected className="h-4 w-4 text-body" />}
                 {cat ? tr(cat.name, cat.nameVi) : categorySlug}
                 <span className="ml-1 text-xs font-normal text-ink-4">{t('(không đổi khi sửa)', '(fixed when editing)')}</span>
               </div>
@@ -859,20 +864,20 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                       onClick={() => chooseCategory(c.slug)}
                       className={cn('gap-1.5 rounded-xl px-3.5 py-2 text-sm font-semibold transition-colors', categorySlug === c.slug ? 'bg-primary text-white' : 'text-body hover:bg-muted')}
                     >
-                      {/* Selected chip is a brand pill: the ink already carries the meaning, so
-                          the glyph goes pure line (the EnoSeal 'line'-on-brand-pill rule, §6).
-                          The baked wash can't be class-overridden (tailwind-merge doesn't dedupe
-                          arbitrary variants — foundation note), but fill-brand-100 resolves
-                          var(--color-brand-100), so redefining the VARIABLE on the svg wins
-                          deterministically — critical in dark mode, where the wash tint renders
-                          as a dark hole inside the bg-primary chip. */}
+                      {/* ⚠️ FILL IS THE SELECTION CUE (owner, 2026-08-07: "use icons filling only
+                          when selected, not as default"). `selected` is the SAME boolean that
+                          paints the pill — one comparison drives pill, aria-pressed and glyph, so
+                          they can never disagree.
+                          The old `[--color-brand-100:transparent]` override that sat here is GONE
+                          and must not come back: it existed because the wash used to be baked in
+                          unconditionally, and its whole job was to switch the tint OFF on the
+                          selected chip — precisely the state that now has to fill. Re-adding it
+                          would silently make this the one picker in the app that never fills. */}
                       <CategoryIcon
                         name={c.icon}
-                        className={cn(
-                          'h-4 w-4',
-                          CHIP_CATEGORY_ICON_STROKE,
-                          categorySlug === c.slug ? 'text-white [--color-brand-100:transparent]' : 'text-body',
-                        )}
+                        stroke={STROKE_UI}
+                        selected={categorySlug === c.slug}
+                        className={cn('h-4 w-4', categorySlug === c.slug ? 'text-white' : 'text-body')}
                       />
                       {tr(c.name, c.nameVi)}
                     </Button>

@@ -296,7 +296,25 @@ export function Header() {
           Still NOT the canonical page gutter (`px-3 sm:px-6 lg:px-8`, docs/design-language.md), so
           the header deliberately does not align with the content column beneath it — see the note
           on the logo below. Do not "restore" the gutter. */}
-      <div className="mx-auto flex h-16 w-full max-w-7xl items-center gap-2 border-b border-border/60 px-3 sm:gap-3 sm:px-0">
+      {/* ⚠️ ALIGNED TO THE HERO BANNER — this SUPERSEDES the 2026-08-02 "no padding on both
+          sides" instruction and the two notes above it (owner, 2026-08-07: the header
+          "width should match banner width … the other banner below with 3 images", i.e.
+          the hero carousel, not the full-bleed prelaunch strip). The hero renders at the
+          canonical page gutter, measured 112→1328 at a 1440 viewport; the header was
+          flush at 0→1440, so the logo and the action buttons hung outside the content
+          column that starts directly beneath them. Using the SAME canonical frame here
+          (`max-w-7xl px-3 sm:px-6 lg:px-8`, docs/design-language.md) makes the two edges
+          share one line at every breakpoint. Do not restore the flush variant without the
+          owner: it is the older instruction, not the current one. */}
+      <div className="relative mx-auto flex h-16 w-full max-w-7xl items-center gap-2 px-3 sm:gap-3 sm:px-6 lg:px-8">
+        {/* ⚠️ THE HAIRLINE IS INSET TO THE CONTENT EDGES, not drawn on the padded box
+            (owner, 2026-08-07: "match the line between top navbar and the banner — the line
+            is sticking out"). A `border-b` on this container spans its BORDER box, which is
+            the gutter wider than the hero banner beneath it (80→1360 vs 112→1328 at 1440),
+            so the rule overhung the banner by one gutter on each side. Mirroring the px-*
+            scale as inset-x-* lands the line exactly on the content column at every
+            breakpoint. Keep the two scales in lockstep if either ever changes. */}
+        <span aria-hidden className="pointer-events-none absolute inset-x-3 bottom-0 h-px bg-border/60 sm:inset-x-6 lg:inset-x-8" />
         {/* Logo */}
         <Link
           href="/"

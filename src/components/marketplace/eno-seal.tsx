@@ -9,8 +9,17 @@ import { cn } from '@/lib/utils'
  *
  *   - the FLAT TOP with 2.2-radius corners is the app icon's rounded square,
  *   - the sides fall into a shield KEEL (the mascots' silhouette family),
- *   - the BAR quotes the crossbar of the wordmark's lowercase "e",
- *   - the CHIEF (the closed region above the bar) takes the §0 brand wash.
+ *   - the CHECK inside it is what the mark MEANS: verified.
+ *   - the CHIEF (the band under the flat top) carries the tier tint.
+ *
+ * ⚠️ THE INTERIOR WAS A BARE HORIZONTAL BAR UNTIL 2026-08-07, and it had to go.
+ * The bar was meant to quote the crossbar of the wordmark's lowercase "e", but
+ * with no letterform around it a viewer sees a MINUS SIGN inside a shield —
+ * rendered at 6x it reads "no entry", the opposite of trust. The owner's
+ * verdict was blunt ("the new trust icons are not good"), and they were right.
+ * A check is unambiguous in every market and every size; the ownable part was
+ * never the bar, it is the SILHOUETTE — a flat 2.2-radius top falling into a
+ * keel, which no stock shield has. Do not reintroduce the bar.
  *
  * It survives every scale: at 10px the keel + bar still read; at 48px all
  * three moves are visible. That is what makes it echoable — the same mark
@@ -27,10 +36,21 @@ import { cn } from '@/lib/utils'
 export const SEAL_OUTLINE =
   'M6.7 3.5h10.6a2.2 2.2 0 0 1 2.2 2.2V10c0 4.8-3.9 8.5-7.5 10.6-3.6-2.1-7.5-5.8-7.5-10.6V5.7a2.2 2.2 0 0 1 2.2-2.2Z'
 
-/** The e-bar — the wordmark's crossbar, floated under the chief. */
-export const SEAL_BAR = 'M8.2 8.2h7.6'
+/**
+ * The check. Drawn to the shield's optical centre, not its geometric one: the
+ * keel pulls visual weight downward, so the mark sits slightly high (apex at
+ * y≈8.6, vertex at y≈14.2) or it looks like it is sliding out of the shield.
+ * Short arms and a wide angle are deliberate — a long elegant check is the
+ * first thing to disintegrate at the 12px chip step.
+ */
+export const SEAL_CHECK = 'M8.5 11.6l2.6 2.6 4.6-5.2'
 
-/** The chief — the one closed wash region (§0/§6): everything above the bar. */
+/** @deprecated The minus-reading bar. Kept only so an old import cannot crash a
+ *  build mid-deploy; it renders nothing anyone should ship. Remove after one
+ *  release. */
+export const SEAL_BAR = SEAL_CHECK
+
+/** The chief — the band under the flat top; the tier badges tint it. */
 export const SEAL_CHIEF =
   'M6.7 3.5h10.6a2.2 2.2 0 0 1 2.2 2.2v2.5h-15V5.7a2.2 2.2 0 0 1 2.2-2.2Z'
 
@@ -60,7 +80,7 @@ export function EnoSeal({ variant = 'wash', strokeWidth = STROKE_UI, className }
         strokeLinecap="round"
         strokeLinejoin="round"
       />
-      <path d={SEAL_BAR} fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" />
+      <path d={SEAL_CHECK} fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   )
 }

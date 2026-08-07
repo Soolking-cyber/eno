@@ -3,13 +3,13 @@
 import { Fragment, useEffect, useRef } from 'react'
 import { Layers } from 'lucide-react'
 import { useLanguage, Tr } from '@/context/language-context'
-import { CategoryIcon } from './category-icons'
+import { CategoryIcon, CategoryGlyphArt } from './category-icons'
 import { SUBCATEGORIES } from '@/lib/subcategories'
 import { MoreOverflow } from './more-overflow'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
-import { STROKE_DISPLAY } from '@/lib/icon-tokens'
-import { railEdgeMask, CHIP_CATEGORY_ICON_STROKE } from './shelf'
+import { STROKE_UI } from '@/lib/icon-tokens'
+import { railEdgeMask } from './shelf'
 import { useScrollArrows, ScrollArrows } from '@/hooks/use-scroll-arrows'
 import { cn } from '@/lib/utils'
 import type { SerializedCategory } from '@/lib/types'
@@ -66,7 +66,9 @@ export function CategoryRail({
     container.scrollTo({ left, behavior: 'smooth' })
   }, [activeCategory])
 
-  const tileCls = 'group flex w-[4.75rem] shrink-0 snap-start flex-col items-center gap-1.5 py-1 text-center cursor-pointer select-none'
+  // `.press` (icon-language §8): the browse rail's tiles press with the same spring as the
+  // home grid's — one tile, one feel, wherever the grid appears.
+  const tileCls = 'press group flex w-[4.75rem] shrink-0 snap-start flex-col items-center gap-1.5 py-1 text-center cursor-pointer select-none'
   const iconCls = (active: boolean) =>
     cn('h-11 w-11 transition-transform duration-200 group-hover:scale-110', active ? 'text-accent-foreground' : 'text-body group-hover:text-accent-foreground')
   // ⚠️ w-full + break-words. The tile is a FIXED 4.75rem column, but this span is a flex
@@ -96,12 +98,17 @@ export function CategoryRail({
       {/* All */}
       <Button variant="bare" size="none" data-cat="all" onClick={() => onCategory('all')} className={cn('whitespace-normal', tileCls)}>
         <span className="flex h-11 items-center justify-center">
-          {/* 'Layers' has no registry key (foundation-owned category-icons.tsx), so this
-              direct lucide render restates CategoryIcon's two moves locally: the display
-              stroke tier (§2 — 2 at h-11 renders rubber-stamped) and the §0 wash on the
-              ONE closed region (the top layer). Foundation request filed to register the
-              key so this tile can route through <CategoryIcon> like its neighbours. */}
-          <Layers strokeWidth={STROKE_DISPLAY} className={cn('[&>path:first-of-type]:fill-brand-100', iconCls(activeCategory === 'all'))} />
+          {/* 'Layers' has no registry key (keys mirror DB Category.icon rows and are
+              immutable), so it mounts through CategoryGlyphArt — the registry's duotone
+              renderer minus the key lookup. It used to be a bare lucide svg with a
+              locally-restated wash on ONE path, which is precisely how a tile ends up
+              reading a different density from the tiles beside it. */}
+          {/* ⚠️ FILL IS THE SELECTION, NOT A STYLE (owner, 2026-08-07: "use icons filling only
+              when selected, not as default"). Every glyph on this rail takes `selected` from the
+              SAME boolean that already paints its label accent — `activeCategory === 'all'` here,
+              `isActive` / `subActive` / the intent's `active` below. No new state was introduced:
+              if the tile reads as chosen, its glyph fills; otherwise it is pure ink line. */}
+          <CategoryGlyphArt Icon={Layers} name="Layers" className={iconCls(activeCategory === 'all')} selected={activeCategory === 'all'} />
         </span>
         <span className={nameCls(activeCategory === 'all')}>{tr('All', 'Tất cả')}</span>
       </Button>
@@ -123,7 +130,7 @@ export function CategoryRail({
           <Fragment key={cat.id}>
             <Button variant="bare" size="none" data-cat={cat.slug} onClick={() => onCategory(isActive ? 'all' : cat.slug)} className={cn('whitespace-normal', tileCls)}>
               <span className="flex h-11 items-center justify-center">
-                <CategoryIcon name={cat.icon} className={iconCls(isActive)} />
+                <CategoryIcon name={cat.icon} className={iconCls(isActive)} selected={isActive} />
               </span>
               <span className={nameCls(isActive)}><Tr text={lang === 'vi' ? cat.nameVi : cat.name} /></span>
             </Button>
@@ -140,9 +147,9 @@ export function CategoryRail({
                     const count = subcategoryCounts[sub.slug]
                     return (
                       <Button key={sub.slug} variant="bare" size="none" onClick={() => onSubcategory(subActive ? 'all' : sub.slug)} className={cn('block', subChip(subActive))}>
-                        {/* CHIP_CATEGORY_ICON_STROKE: at 14px the baked display stroke goes
-                            wispy — re-tier to the UI weight (see shelf.tsx). */}
-                        <CategoryIcon name={sub.icon} className={cn('mr-1 inline h-3.5 w-3.5 shrink-0 align-[-2px]', CHIP_CATEGORY_ICON_STROKE)} />
+                        {/* At 14px the baked display stroke goes wispy — re-tier the ink
+                            line to the UI weight (icon-language §2). */}
+                        <CategoryIcon name={sub.icon} stroke={STROKE_UI} selected={subActive} className="mr-1 h-3.5 w-3.5 shrink-0 align-[-2px]" />
                         <Tr text={lang === 'vi' ? sub.nameVi : sub.name} />
                         {count != null && <span className="ml-1 text-3xs font-semibold text-ink-4">{count}</span>}
                       </Button>
@@ -161,7 +168,7 @@ export function CategoryRail({
                             onClick={() => onSubcategory(subActive ? 'all' : sub.slug)}
                             className={cn('flex w-full justify-between gap-3 rounded-lg px-2.5 py-1.5 text-left font-semibold transition-colors active:scale-100', subActive ? 'bg-accent text-accent-foreground' : 'text-body hover:bg-muted hover:text-accent-foreground')}
                           >
-                            <span className="flex min-w-0 items-center gap-2"><CategoryIcon name={sub.icon} className={cn('h-4 w-4 shrink-0 text-ink-4', CHIP_CATEGORY_ICON_STROKE)} /><span className="truncate"><Tr text={lang === 'vi' ? sub.nameVi : sub.name} /></span></span>
+                            <span className="flex min-w-0 items-center gap-2"><CategoryIcon name={sub.icon} stroke={STROKE_UI} selected={subActive} className="h-4 w-4 shrink-0 text-ink-4" /><span className="truncate"><Tr text={lang === 'vi' ? sub.nameVi : sub.name} /></span></span>
                             {count != null && <span className="shrink-0 text-3xs font-semibold text-ink-4">{count}</span>}
                           </Button>
                         )
@@ -186,7 +193,7 @@ export function CategoryRail({
             return (
               <Button key={s.type} variant="bare" size="none" data-intent={s.type} onClick={() => onIntent?.(s.type)} className={cn('whitespace-normal', tileCls)}>
                 <span className="flex h-11 items-center justify-center">
-                  <CategoryIcon name={s.icon} className={iconCls(active)} />
+                  <CategoryIcon name={s.icon} className={iconCls(active)} selected={active} />
                 </span>
                 <span className={nameCls(active)}><Tr text={lang === 'vi' ? s.nameVi : s.name} /></span>
               </Button>

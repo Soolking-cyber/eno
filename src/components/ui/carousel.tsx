@@ -9,7 +9,7 @@ import { Tr } from "@/context/language-context"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react"
-import { STROKE_FLOAT } from "@/lib/icon-tokens"
+import { STROKE_FLOAT_MAX } from "@/lib/icon-tokens"
 
 type CarouselApi = UseEmblaCarouselType[1]
 type UseCarouselParameters = Parameters<typeof useEmblaCarousel>
@@ -135,13 +135,18 @@ function Carousel({
   )
 }
 
-function CarouselContent({ className, ...props }: React.ComponentProps<"div">) {
+function CarouselContent({ className, viewportClassName, ...props }: React.ComponentProps<"div"> & { viewportClassName?: string }) {
   const { carouselRef, orientation } = useCarousel()
 
   return (
     <div
       ref={carouselRef}
-      className="overflow-hidden"
+      /* ⚠️ ROUND THE VIEWPORT, NOT THE SLIDES. A radius on each slide shows TWO rounded
+         cards mid-transition — the corners cut into the artwork as one slide leaves and
+         the next arrives (owner, 2026-08-07: "the 3-banner transition does not need corner
+         rounding inside, it looks weird when transitioned"). Rounding the clipping
+         viewport instead gives one stable rounded frame the slides move through. */
+      className={cn("overflow-hidden", viewportClassName)}
       data-slot="carousel-content"
     >
       <div
@@ -174,10 +179,22 @@ function CarouselItem({ className, ...props }: React.ComponentProps<"div">) {
   )
 }
 
+/**
+ * ⚠️ THE APP'S ONE FLOATING-ARROW LOOK — a BARE bold chevron, never a circle (owner,
+ * 2026-08-07: "arrows inside banner have circle outline, remove it and match arrows to
+ * the other arrows on the home screen — clean, minimal, our style"). This is byte-for-byte
+ * the rail-arrow treatment in use-scroll-arrows.tsx: size-7 at the floating-chevron max
+ * stroke with a hairline drop-shadow so it stays legible over a photo or a gradient. The
+ * default variant is `bare`/`none` for the same reason — `outline` + `icon-sm` drew the
+ * bordered pill the owner rejected. A caller that genuinely wants a chip can still pass
+ * variant/size, but nothing in the app does.
+ */
+const ARROW_GLYPH = 'size-7 [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.25))]'
+
 function CarouselPrevious({
   className,
-  variant = "outline",
-  size = "icon-sm",
+  variant = "bare",
+  size = "none",
   ...props
 }: React.ComponentProps<typeof Button>) {
   const { orientation, scrollPrev, canScrollPrev } = useCarousel()
@@ -198,10 +215,7 @@ function CarouselPrevious({
       onClick={scrollPrev}
       {...props}
     >
-      {/* Rail-affordance tier (icon-language §4): explicit h-5 + STROKE_FLOAT so the
-          chevron never falls through to the Button :where size-4 at UI stroke —
-          every embla rail shares this weight (05-pdp gauntlet request). */}
-      <ChevronLeftIcon className="h-5 w-5" strokeWidth={STROKE_FLOAT} />
+      <ChevronLeftIcon className={ARROW_GLYPH} strokeWidth={STROKE_FLOAT_MAX} />
       <span className="sr-only"><Tr text="Previous slide" /></span>
     </Button>
   )
@@ -209,8 +223,8 @@ function CarouselPrevious({
 
 function CarouselNext({
   className,
-  variant = "outline",
-  size = "icon-sm",
+  variant = "bare",
+  size = "none",
   ...props
 }: React.ComponentProps<typeof Button>) {
   const { orientation, scrollNext, canScrollNext } = useCarousel()
@@ -231,7 +245,7 @@ function CarouselNext({
       onClick={scrollNext}
       {...props}
     >
-      <ChevronRightIcon className="h-5 w-5" strokeWidth={STROKE_FLOAT} />
+      <ChevronRightIcon className={ARROW_GLYPH} strokeWidth={STROKE_FLOAT_MAX} />
       <span className="sr-only"><Tr text="Next slide" /></span>
     </Button>
   )

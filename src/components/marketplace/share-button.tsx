@@ -203,7 +203,12 @@ export function ShareButton({ url, title, price, currency, className, compact = 
         <div className="mt-3 pt-2">
           <Button variant="bare" size="none" onClick={copy} className="flex w-full justify-start items-center gap-2.5 rounded-xl px-2 py-2 text-sm font-semibold text-body transition-colors hover:bg-muted cursor-pointer">
             <span className="flex h-7 w-7 items-center justify-center rounded-full hover:bg-muted">
-              {copied ? <Check className="h-4 w-4 text-accent-foreground" /> : <Link2 className="h-4 w-4" />}
+              {/* §8 state-confirmed: the check ARRIVES (`.bubble-in`, the canon's 220ms spring)
+                  rather than swapping in place. It is the one moment on this sheet where
+                  something actually happened, and the label change alone was easy to miss on a
+                  surface the user is about to dismiss. Reuses the chat-bubble utility — the icon
+                  system adds no entrance animation of its own. */}
+              {copied ? <Check className="bubble-in h-4 w-4 text-accent-foreground" /> : <Link2 className="h-4 w-4" />}
             </span>
             {copied ? tr('Link copied', 'Đã sao chép') : tr('Copy link', 'Sao chép liên kết')}
           </Button>
