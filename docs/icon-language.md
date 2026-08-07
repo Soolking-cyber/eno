@@ -246,3 +246,14 @@ rendering error, not restraint. The one-region law counts moves, not paths.
 Solid amber rating stars are the marketplace genre's shared vocabulary (both reference apps use
 them); they carry the `rating` token, never brand blue, and are exempt from the one-wash law the
 same way third-party brand marks are. Do not wash or blue-shift a star.
+
+### §5 addendum — the rail pill is the third sanctioned location treatment (lead ruling, 2026-08-07)
+An icon-only collapsed rail (72px dashboard/admin) marks location with a neutral bg-accent
+rounded pill BEHIND the washed glyph — the wash + accent ink are TabBody's, the pill replaces the
+tab's 2px bar (there is no edge to hang a bar on in a centered rail slot). Tabs keep the bar;
+rails keep the pill; nothing else gets either.
+
+### §6 addendum — EmptyState glyphs are brand-toned by design (lead ruling, 2026-08-07)
+The EmptyState badge renders its glyph in text-brand on the brand-50 coin deliberately (the
+foundation's warm-empty move) — this is a sanctioned exception to "brand-line = interactive";
+it applies ONLY inside ui/empty-state's badge.

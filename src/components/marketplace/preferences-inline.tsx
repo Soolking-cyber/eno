@@ -68,10 +68,20 @@ export function PreferencesInline({ className, compact = false }: { className?: 
           // (#737373) is 4.35:1 against the track and 4.74:1 against the knob. In dark it is
           // #b8b8b8 and merely decorative, because the fill already carries the boundary.
           'h-7 w-7 top-1 left-1 data-checked:left-7 shadow-sm ring-1 ring-ink-3 duration-200 ease-out',
-          // The glyph sits on WHITE now, so its colour must work against white, not against the
-          // old dark thumb: accent-foreground was 2.22:1 there, under the 3:1 floor for a
-          // non-text UI element. --primary is #0a66c2 in BOTH themes → 5.69:1.
-          isDark ? 'text-primary' : 'text-warning',
+          // SURFACE INK, both faces (lead ruling R2, 2026-08-07; icon-language §0/§6). The
+          // R1 thumb wore text-warning amber for the sun and brand blue for the moon — a
+          // second hue inside shell chrome (neither a rating star nor an allowlisted
+          // third-party mark), and the pair wasn't even self-consistent across themes. The
+          // ruling: theme is not a brand or status moment — both glyphs render the ink of
+          // the surface they sit on. That surface is the ALWAYS-WHITE thumb (ui/switch's
+          // bg-white, load-bearing for the knob's own contrast, see above), so its ink is
+          // dark in BOTH themes: ink-2 in light (#262626, ~13.5:1 on white); in dark the
+          // ink-* tokens invert to light values, so the dark-on-white value comes from the
+          // token that still holds it — the canvas (--background #1b1b1b, ~16:1 on white).
+          // Both clear the 3:1 non-text floor with room (accent-foreground's 2.22:1 was the
+          // original bug; primary's 5.69:1 was compliant but made theme a brand moment).
+          // Sun-vs-Moon shape alone says which mode you are in — no hue needed.
+          'text-ink-2 dark:text-background',
         )}
       >
         {isDark ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}

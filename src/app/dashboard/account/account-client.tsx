@@ -19,6 +19,7 @@ import { DASHBOARD_NAV } from '@/components/marketplace/dashboard-nav'
 import { resolveNavGroups, type ResolvedNavItem } from '@/components/marketplace/dashboard-nav-resolve'
 import { Rows, Row as RowItem, RowsSection } from '@/components/ui/rows'
 import { PreferencesInline } from '@/components/marketplace/preferences-inline'
+import { ICON_SIZE, STROKE_NAV } from '@/lib/icon-tokens'
 import { cn } from '@/lib/utils'
 
 // ── /dashboard/account — THE ACCOUNT DESTINATION (mobile) ────────────────────────────
@@ -52,27 +53,37 @@ function NavRow({ item }: { item: ResolvedNavItem }) {
   const Icon = item.icon
   const body = (
     <>
-      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-tint">
-        <Icon className="h-4 w-4 text-accent-foreground" aria-hidden />
-      </span>
+      {/* ⛔ NO COIN. The bg-brand-50 squircle that used to back every row lead here was the
+          R2 critic's single biggest finding, and it was banned TWICE by the spec it thought
+          it was following: §6 allows the chrome coin in exactly two places — EmptyState's
+          badge and the bottom-nav Post chip — and says "never behind inline icons"; §7
+          separately names "colored circles behind every glyph" as the Chợ Tốt move the whole
+          language exists to reject. Seven brand-tinted coins per screen also spent the wash
+          on idle chrome, so the §5 location-active duotone (rail + bottom nav) stopped
+          meaning "you are here". The lead is now a plain LINE glyph in the row's surface
+          ink — the same nav set as the desktop rail one step down the ladder: h-5 (§4 list
+          leads) at the platform weight (STROKE_NAV), so hub and rail still read as one
+          system. Blue in this hub now appears only where it means something: the count
+          Badge (user-state) and the identity row's TrustScore seal. */}
+      <Icon className={cn(ICON_SIZE.lg, 'shrink-0')} strokeWidth={STROKE_NAV} aria-hidden />
       <span className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground">{item.label}</span>
       {/* A real count, never a zero-filled dot — an empty badge is noise. */}
       {!!item.badge && item.badge > 0 && <Badge variant="brand">{item.badge > 99 ? '99+' : item.badge}</Badge>}
       <ChevronRight className="h-4 w-4 shrink-0 text-ink-4" aria-hidden />
     </>
   )
-  // ⚠️ NO `tap-48` HERE, DELIBERATELY. These rows are already 57px tall (py-3 + a 32px icon),
-  // comfortably past the 48px floor, so the utility would add nothing — and it is actively
-  // DANGEROUS on an unpositioned element: `tap-48::before` is `position:absolute` sized 100% of
-  // its containing block, so without `relative` on the row it resolves against a distant
-  // positioned ancestor and each row's hit layer covers THE WHOLE LIST. Stacked, the LAST row
-  // wins every tap — which is exactly what shipped: every row opened the last one's page. The
-  // utility's own comment in globals.css says "add `relative` too"; the honest fix here is to
-  // not need it at all.
+  // ⚠️ NO `tap-48` HERE, DELIBERATELY. These rows are exactly 48px tall (py-3.5 = 28px + the
+  // 20px lead glyph — py bumped from py-3 when the 32px coin box left, so the tap floor
+  // held), so the utility would add nothing — and it is actively DANGEROUS on an unpositioned
+  // element: `tap-48::before` is `position:absolute` sized 100% of its containing block, so
+  // without `relative` on the row it resolves against a distant positioned ancestor and each
+  // row's hit layer covers THE WHOLE LIST. Stacked, the LAST row wins every tap — which is
+  // exactly what shipped: every row opened the last one's page. The utility's own comment in
+  // globals.css says "add `relative` too"; the honest fix here is to not need it at all.
   // No radius, no fill: on the flat canvas a row is separated by the hairline above it and
   // nothing else. -mx-1/px-1 lets the pressed/hover tint bleed to the gutter so it reads as a
   // full-width row rather than a floating pill.
-  const cls = 'flex w-full items-center gap-3 -mx-1 px-1 py-3 transition-colors active:bg-tint/60 hover:bg-tint/40'
+  const cls = 'flex w-full items-center gap-3 -mx-1 px-1 py-3.5 transition-colors active:bg-tint/60 hover:bg-tint/40'
   return item.external
     ? <a href={item.href} className={cls}>{body}</a>
     : <Link href={item.href} className={cls}>{body}</Link>
@@ -194,7 +205,11 @@ export function AccountClient() {
       </div>
 
       <div className="mt-6 border-t border-border pt-6">
-        <Button variant="outline" size="sm" onClick={() => void signOut()} className="w-full justify-center text-destructive">
+        {/* QUIET sign-out (R2 critic; §6 "everything else inherits surface ink"): red idle
+            chrome is outside the sanctioned color roles, and Vinted/Carousell both keep the
+            least-used destructive action the quietest control on the screen. The confirm
+            surface for destructiveness is the action itself — not idle paint. */}
+        <Button variant="outline" size="sm" onClick={() => void signOut()} className="w-full justify-center">
           <LogOut className="h-4 w-4" />
           {tr('Sign out', 'Đăng xuất')}
         </Button>

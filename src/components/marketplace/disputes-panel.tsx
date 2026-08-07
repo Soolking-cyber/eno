@@ -8,6 +8,7 @@ import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import { SignInPrompt } from '@/components/marketplace/account-actions'
 import { Badge } from '@/components/ui/badge'
+import { EmptyState } from '@/components/ui/empty-state'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Rows, Row } from '@/components/ui/rows'
 import { cn } from '@/lib/utils'
@@ -81,12 +82,13 @@ export function DisputesPanel({ compact = false }: { compact?: boolean }) {
 
   return (
     <div>
-      {!compact && (
-        <div className="flex items-center gap-2.5">
-          <Scale className="h-5 w-5 text-accent-foreground" />
-          <h1 className="h-title text-foreground">{t('Disputes', 'Khiếu nại')}</h1>
-        </div>
-      )}
+      {/* Plain h1, NO glyph (R3 critic; icon-language §6). The accent-blue Scale that sat
+          beside this title was decorative brand chrome: §6's color taxonomy is exhaustive
+          (brand line-only = links/affordances, solid = user-state, wash = artwork/active)
+          and a static header icon fits no bucket — nor do the sibling dashboard sections
+          (listings, help) or any mobile SectionHeader carry a title glyph. The concept
+          keeps its Scale where it MEANS something: the rail row and the empty state. */}
+      {!compact && <h1 className="h-title text-foreground">{t('Disputes', 'Khiếu nại')}</h1>}
       <p className={cn('text-sm text-muted-foreground', !compact && 'mt-1')}>
         {t('Reports you filed and cases about you. Both sides can add evidence; the eno.vn team decides.', 'Báo cáo bạn đã gửi và hồ sơ liên quan đến bạn. Hai bên đều có thể nộp bằng chứng; đội ngũ eno.vn sẽ quyết định.')}
       </p>
@@ -105,13 +107,18 @@ export function DisputesPanel({ compact = false }: { compact?: boolean }) {
           {Array.from({ length: 3 }).map((_, i) => <Row key={i}><Skeleton className="h-12 rounded-lg" /></Row>)}
         </Rows>
       ) : cases.length === 0 ? (
-        <div className="mt-14 text-center">
-          <Scale className="mx-auto h-10 w-10 text-ink-4" />
-          <p className="mt-3 text-sm font-semibold text-foreground">{t('No disputes', 'Chưa có khiếu nại nào')}</p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {t('If you report a listing, seller or conversation — or someone reports you — the case appears here.', 'Khi bạn báo cáo tin đăng, người bán hay cuộc trò chuyện — hoặc có người báo cáo bạn — hồ sơ sẽ hiển thị ở đây.')}
-          </p>
-        </div>
+        // THE shared empty-state primitive, not a hand-rolled stack (R3 critic — this was
+        // the one §2 breach left on the dashboard: a bare ~40px Scale carrying the UI/nav
+        // stroke, i.e. exactly the "rubber-stamped" look the display tier exists to
+        // prevent, and a second empty-state language beside the listings page's coin).
+        // EmptyState bakes the sanctioned §6 treatment once: brand-50 coin, brand glyph,
+        // STROKE_DISPLAY — same dashed card the sibling /dashboard/listings empty renders.
+        <EmptyState
+          className="mt-6"
+          icon={Scale}
+          title={t('No disputes', 'Chưa có khiếu nại nào')}
+          subtitle={t('If you report a listing, seller or conversation — or someone reports you — the case appears here.', 'Khi bạn báo cáo tin đăng, người bán hay cuộc trò chuyện — hoặc có người báo cáo bạn — hồ sơ sẽ hiển thị ở đây.')}
+        />
       ) : (
         /* One stacked column on EVERY breakpoint (user-picked 2026-07-14). The old
            lg:grid-cols-2 came from the full-page dashboard; inside the 440px account

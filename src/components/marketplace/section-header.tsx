@@ -6,9 +6,9 @@ import { useHideOnScroll } from '@/hooks/use-hide-on-scroll'
 import { useSafeBack } from '@/lib/safe-back'
 import { cn } from '@/lib/utils'
 import { IconButton } from '@/components/ui/icon-button'
-
-// Match the header/bottom-nav lucide weight (see header.tsx STROKE).
-const STROKE = 2.25
+// Nav-chrome tier (icon-language §2) — the same platform weight the header and
+// bottom nav render, imported so the tiers can never drift apart.
+import { STROKE_NAV } from '@/lib/icon-tokens'
 
 /** Mobile-only (lg:hidden) pushed-screen TITLE BAR for /dashboard/* section pages —
  *  the native stack-navigation affordance: back chevron · section title · optional
@@ -78,7 +78,7 @@ export function SectionHeader({ title, action, fallbackHref = '/dashboard/listin
         // tap-48 is defined after tap-44 in globals.css, so it wins over the baked one.
         className="press tap-48 -ml-2 text-foreground"
       >
-        <ChevronLeft className="h-6 w-6" strokeWidth={STROKE} aria-hidden />
+        <ChevronLeft className="h-6 w-6" strokeWidth={STROKE_NAV} aria-hidden />
       </IconButton>
       {/* Plain text, not a heading — each page keeps its real h1 (sr-only on mobile
           where it would double the bar), so the document outline never forks. */}

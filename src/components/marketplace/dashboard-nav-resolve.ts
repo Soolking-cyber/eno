@@ -16,6 +16,8 @@ export type ResolvedNavItem = {
   exact?: boolean
   external?: boolean
   badge?: number
+  /** Mirrored-pair glyph — location-active wash fills BOTH twins (WASH_ACTIVE_TWIN). */
+  wash?: 'body' | 'twin'
 }
 
 export type ResolvedNavGroup = { caption: string; items: ResolvedNavItem[] }
@@ -57,6 +59,7 @@ const toRail = (it: NavItem, ctx: NavResolveCtx): ResolvedNavItem | null => {
     exact: it.exact,
     external: it.external,
     badge: it.badge === 'unread' ? ctx.counters.unread : it.badge === 'saved' ? ctx.counters.saved : undefined,
+    wash: it.wash,
   }
 }
 

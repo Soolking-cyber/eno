@@ -8,7 +8,8 @@
 import { Fragment, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { CircleHelp, LogOut } from 'lucide-react'
+import { LogOut } from 'lucide-react'
+import { ICON_SIZE, STROKE_NAV, STROKE_UI, WASH_ACTIVE, WASH_ACTIVE_TWIN } from '@/lib/icon-tokens'
 import { Tooltip } from '@/components/ui/tooltip'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
@@ -124,10 +125,19 @@ export function AccountPanel({ open, onClose }: { open: boolean; onClose: () => 
   // Ghost pill (borderless, tactile). On the collapsed desktop rail the icon sits CENTRED in the
   // 72px column with no label; expanded, it left-aligns with the revealed label. bg-secondary/60 on
   // hover, filled bg-secondary when active.
-  const navItem = (isOn: boolean) => cn(
-    'flex w-full items-center gap-3 rounded-2xl px-3.5 py-2.5 text-sm font-medium text-foreground transition-colors hover:bg-secondary/60 cursor-pointer',
+  // Active = LOCATION state (icon-language §5): the row speaks the same soft-duotone
+  // language as the bottom nav's active tab — ink turns accent-foreground AND the glyph
+  // gains the brand-100 interior wash — but ONLY for rows whose glyph is on the
+  // VERIFIED allowlist (`wash` on the nav row): CSS fill implicitly closes open paths,
+  // so an unverified glyph washes as a blob or not at all precisely when its row is
+  // active (diff-review catch 2026-08-07). Unlisted rows go line-only active — §6's
+  // sanctioned degrade. The bg-secondary pill stays the rail's "you are here" fill;
+  // never a solid fill-brand — that tier is user-state (§5). Scale takes
+  // WASH_ACTIVE_TWIN so BOTH pans fill (twin addendum).
+  const navItem = (isOn: boolean, wash?: 'body' | 'twin') => cn(
+    'flex w-full items-center gap-3 rounded-2xl px-3.5 py-2.5 text-sm font-medium transition-colors hover:bg-secondary/60 cursor-pointer',
     expanded ? 'lg:justify-start lg:gap-3 lg:px-3.5' : 'lg:justify-center lg:gap-0 lg:px-0',
-    isOn && 'bg-secondary hover:bg-secondary',
+    isOn ? cn('bg-secondary hover:bg-secondary text-accent-foreground', wash === 'twin' ? WASH_ACTIVE_TWIN : wash === 'body' ? WASH_ACTIVE : null) : 'text-foreground',
   )
   // Label that reveals as the rail expands. FULL on mobile; on desktop it slides + fades between a
   // 0-width collapsed state and a bounded expanded state. Only max-width + opacity animate (compositor
@@ -151,12 +161,12 @@ export function AccountPanel({ open, onClose }: { open: boolean; onClose: () => 
     const inner = (
       <>
         <span className="relative shrink-0">
-          {/* ⚠️ h-6 + strokeWidth 2.25 IS THE PLATFORM WEIGHT, not a bump for its own sake (owner,
+          {/* ⚠️ h-6 + STROKE_NAV IS THE PLATFORM WEIGHT, not a bump for its own sake (owner,
                 2026-08-03: "icons sizes to platform ui now it seems too small"). The header bell and
-                the mobile bottom nav both render lucide at 2.25 (STROKE in header.tsx), while this
-                rail was alone at h-5/2 — visibly lighter and smaller than every other nav surface in
-                the app. Matching them makes the rail read as the same control set. */}
-            <Icon className="h-6 w-6 shrink-0" strokeWidth={2.25} aria-hidden />
+                the mobile bottom nav render the same tier, so the rail reads as the same control
+                set. The width now comes from icon-tokens (§2) instead of a hand-typed 2.25 —
+                hand-typed numbers are how tiers drift. */}
+            <Icon className={cn(ICON_SIZE.xl, 'shrink-0')} strokeWidth={STROKE_NAV} aria-hidden />
           {/* Collapsed desktop rail (icon-only): the count overlaps the icon's corner like the bottom
               nav — so Messages/Saved counters stay visible without expanding. Hidden on mobile + when
               expanded, where the inline pill below shows instead. */}
@@ -171,9 +181,9 @@ export function AccountPanel({ open, onClose }: { open: boolean; onClose: () => 
       </>
     )
     const el = it.external ? (
-      <a href={it.href} aria-current={isOn ? 'page' : undefined} aria-label={accessibleName} onClick={closeOnMobile} className={navItem(isOn)}>{inner}</a>
+      <a href={it.href} aria-current={isOn ? 'page' : undefined} aria-label={accessibleName} onClick={closeOnMobile} className={navItem(isOn, it.wash)}>{inner}</a>
     ) : (
-      <Link href={it.href} aria-current={isOn ? 'page' : undefined} aria-label={accessibleName} onClick={closeOnMobile} className={navItem(isOn)}>{inner}</Link>
+      <Link href={it.href} aria-current={isOn ? 'page' : undefined} aria-label={accessibleName} onClick={closeOnMobile} className={navItem(isOn, it.wash)}>{inner}</Link>
     )
     // Collapsed desktop rail: hovering an icon reveals its NAME as a tooltip to the right (Gemini
     // model). Expanded → label already visible, so no tooltip. Mobile never hovers (Base UI Tooltip
@@ -378,9 +388,13 @@ export function AccountPanel({ open, onClose }: { open: boolean; onClose: () => 
             <IconButton
               onClick={() => { onClose(); signOut() }}
               aria-label={tr('Sign out', 'Đăng xuất')}
-              className="shrink-0 text-destructive hover:bg-destructive/10 hover:text-destructive lg:hidden"
+              // QUIET AT REST (R2 critic; §6 "chrome inherits surface ink"): red idle chrome
+              // sits outside the sanctioned color roles, so the glyph rests in surface ink
+              // and only turns destructive under an expressed intent (hover on hybrids).
+              className="shrink-0 hover:bg-destructive/10 hover:text-destructive lg:hidden"
             >
-              <LogOut className="h-5 w-5" strokeWidth={2} />
+              {/* Compact utility button beside the prefs row — UI tier (§2), not nav chrome. */}
+              <LogOut className={ICON_SIZE.lg} strokeWidth={STROKE_UI} />
             </IconButton>
           </div>
 
@@ -390,9 +404,19 @@ export function AccountPanel({ open, onClose }: { open: boolean; onClose: () => 
               size="none"
               onClick={() => { onClose(); signOut() }}
               aria-label={tr('Sign out', 'Đăng xuất')}
-              className={cn(navItem(false), 'max-lg:hidden text-destructive hover:bg-destructive/10 hover:text-destructive')}
+              // QUIET AT REST (R2 critic, 2026-08-06; §6 "everything else inherits surface
+              // ink"): the R1 rail painted this row danger-red idle, which made the least-used
+              // destructive action the loudest pixel in PERMANENT navigation — a craft miss by
+              // Vinted/Carousell standards and outside the sanctioned color roles. navItem(false)
+              // already rests it in surface ink like every row above; the destructive tint now
+              // appears only under expressed intent (hover/focus), which is when the "this one
+              // is different" signal actually earns its hue.
+              className={cn(navItem(false), 'max-lg:hidden hover:bg-destructive/10 hover:text-destructive focus-visible:text-destructive')}
             >
-              <LogOut className="h-5 w-5 shrink-0" strokeWidth={2} />
+              {/* Same tier as the nav rows above it (h-6 @ STROKE_NAV) — the sign-out row sits IN
+                  the rail's control set; rendering it a step smaller/lighter read as debug chrome
+                  (foundation critic, 2026-08-06). */}
+              <LogOut className={cn(ICON_SIZE.xl, 'shrink-0')} strokeWidth={STROKE_NAV} />
               <span className={labelCls}>{tr('Sign out', 'Đăng xuất')}</span>
             </Button>
           </Tooltip>

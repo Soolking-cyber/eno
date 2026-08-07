@@ -296,7 +296,7 @@
   --brand-dark: #74b3f2;   /* hover goes LIGHTER in dark */
   --brand-light: #2f5377;
   --brand-50: #17314d;     /* dark blue tint (was #e8f1fb) */
-  --brand-100: #214161;
+  --brand-100: #2b5983; /* one step lighter than the old #214161 — the location-active wash was near-invisible on charcoal (blind-critic catch, dashboard round): the ONE brand move must read in both themes */
 
   --background: #1b1b1b;   /* soft neutral canvas (lighter than near-black) */
   --foreground: #f0f0f0;

@@ -62,3 +62,14 @@ export const WASH = 'fill-brand-100'
 // filled outline. The first path is the interior/body region on all five nav
 // glyphs (Compass needle, Heart body, MessageSquare bubble, User shoulders).
 export const WASH_ACTIVE = "[&_svg:not([class*='fill-'])>path:first-of-type]:fill-brand-100"
+// §0/§6 addendum (lead ruling, 2026-08-07): a glyph whose closed body is a
+// MIRRORED PAIR (scale pans, binocular barrels, dumbbell plates) washes BOTH
+// twins — the pair reads as ONE visual move, and washing a single side reads
+// as a rendering error, not restraint. Lucide draws the twin bodies as the
+// first two paths on these glyphs (Scale: pan, pan, beam, post), so this is
+// WASH_ACTIVE plus the second path, under the same user-state guard (an
+// explicit fill-* class on the icon still wins, §5). Location-active rows
+// whose glyph is a mirrored pair (the rail's Scale row) take this instead of
+// WASH_ACTIVE; single-body glyphs keep WASH_ACTIVE untouched.
+export const WASH_ACTIVE_TWIN =
+  "[&_svg:not([class*='fill-'])>path:first-of-type]:fill-brand-100 [&_svg:not([class*='fill-'])>path:nth-of-type(2)]:fill-brand-100"
