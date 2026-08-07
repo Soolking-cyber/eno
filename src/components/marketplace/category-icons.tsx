@@ -363,7 +363,16 @@ function DuotoneGlyph({
     // ⚠️ `size-full` on the layers, not `h-full w-full`: ui/button's icon rule
     // is `[&_svg:not([class*='size-'])]:size-4`, and matching that attribute
     // selector is what opts a 44px tile glyph out of being shrunk to 16px.
-    <span aria-hidden className={cn('relative inline-flex h-6 w-6 shrink-0', className)}>
+    <span
+      aria-hidden
+      /* ⚠️ `align-middle` keeps this wrapper on the same optical line as a BARE <svg>. An
+         inline-flex box takes its baseline from its own content, so where a plain lucide
+         icon sat, this wrapper rode ~3px higher — visible the moment one bottom-nav tab
+         used the duotone and the other four did not (owner, 2026-08-07: "why are some
+         icons above and some below, they are not aligned"). Harmless inside flex/grid
+         parents, which ignore vertical-align. */
+      className={cn('relative inline-flex h-6 w-6 shrink-0 align-middle', className)}
+    >
       {/* ⚠️ THE TINT STROKE MATCHES THE INK STROKE EXACTLY — it must never be fatter.
           A fattened underlay (this was `stroke + 2`) paints tint OUTSIDE the ink line, so
           every glyph wore a pale-blue halo and read as an OUTLINED icon rather than a
