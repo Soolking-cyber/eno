@@ -1,14 +1,7 @@
-<?xml version="1.0" standalone="no"?>
-<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 20010904//EN"
- "http://www.w3.org/TR/2001/REC-SVG-20010904/DTD/svg10.dtd">
-<svg version="1.0" xmlns="http://www.w3.org/2000/svg"
- width="340.709855pt" height="315.351660pt" viewBox="0 0 340.709855 315.351660"
- preserveAspectRatio="xMidYMid meet">
-<metadata>
-Created by potrace 1.16, written by Peter Selinger 2001-2019
-</metadata>
-<g transform="translate(-86.044904,427.988529) scale(0.100000,-0.100000)"
-fill="#000000" stroke="none">
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+<!-- eno mascot family. Shared canvas 512; shield outer width 248, centre x 234, baseline (shield tip) y 384.
+     Traced outlines are unedited: only the group transforms place them on the shared grid. -->
+<g fill="#000000" stroke="none" transform="translate(53.1993,81.5508) scale(1.0451) translate(-86.044904,427.988529) scale(0.1,-0.1)">
 <path d="M2420 4184 c-257 -171 -451 -255 -755 -331 -99 -25 -190 -51 -202
 -59 -32 -20 -41 -65 -54 -268 -17 -280 6 -580 67 -840 14 -61 28 -121 31 -133
 4 -19 1 -23 -20 -23 -40 0 -77 21 -82 47 -3 13 -7 33 -10 46 -2 13 -16 39 -29
