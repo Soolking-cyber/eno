@@ -119,7 +119,9 @@ export function HandoffWaiting({ nonce }: { nonce: string }) {
     <div className="mx-auto flex min-h-[60vh] w-full max-w-md flex-col items-center justify-center px-6 text-center">
       {(phase === 'waiting' || phase === 'exchanging') && (
         <>
-          <Loader2 className="size-7 animate-spin text-muted-foreground" aria-hidden />
+          {/* h-6 + accent ink = the app-wide page-wait spinner (onboard, disputes, appeals,
+              reports all use it) — size-7 gray was this flow's private dialect. */}
+          <Loader2 className="h-6 w-6 animate-spin text-accent-foreground" aria-hidden />
           <h1 className="mt-4 text-lg font-extrabold tracking-tight text-foreground">
             {phase === 'exchanging' ? tr('Signing you in…', 'Đang đăng nhập…') : tr('Finish in your browser', 'Hoàn tất trong trình duyệt')}
           </h1>

@@ -41,7 +41,8 @@ export function HandoffLaunch({ nonce }: { nonce: string }) {
     <div className="mx-auto flex min-h-[60vh] w-full max-w-md flex-col items-center justify-center px-6 text-center">
       {!stuck ? (
         <>
-          <Loader2 className="size-7 animate-spin text-muted-foreground" aria-hidden />
+          {/* h-6 + accent ink = the app-wide page-wait spinner convention (see handoff-waiting). */}
+          <Loader2 className="h-6 w-6 animate-spin text-accent-foreground" aria-hidden />
           <p className="mt-4 text-sm font-semibold text-muted-foreground">
             {tr('Opening Google…', 'Đang mở Google…')}
           </p>

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { Mail, Phone, Loader2, ExternalLink } from 'lucide-react'
+import { STROKE_DISPLAY } from '@/lib/icon-tokens'
 import { useLanguage } from '@/context/language-context'
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp'
 import { Button } from '@/components/ui/button'
@@ -485,7 +486,9 @@ export function SignInForm({ className }: { className?: string }) {
     if (usable.length === 1) {
       return t('The code arrives on {app} — you need it on this number.', 'Mã sẽ được gửi qua {app} — bạn cần có ứng dụng này trên số máy đó.').replace('{app}', usable[0])
     }
-    return t('The code arrives on {apps} — you need one of them on this number.', 'Mã sẽ được gửi qua {apps} — bạn cần có một trong số đó trên số máy đó.').replace('{apps}', usable.join(' or '))
+    // The joiner is copy too — 'WhatsApp or Telegram' inside a Vietnamese sentence was
+    // the one untranslated word on the /signin screenshot.
+    return t('The code arrives on {apps} — you need one of them on this number.', 'Mã sẽ được gửi qua {apps} — bạn cần có một trong số đó trên số máy đó.').replace('{apps}', usable.length > 1 ? usable.slice(0, -1).join(', ') + t(' or ', ' hoặc ') + usable[usable.length - 1] : usable[0] ?? '')
   })()
 
   const sendPhone = async () => {
@@ -583,10 +586,12 @@ export function SignInForm({ className }: { className?: string }) {
       // className FIRST so this stage's text-center beats the page's text-left
       // (tailwind-merge: last conflicting class wins).
       <div className={cn(className, 'text-center')}>
-        {/* Anchored success mark — an icon floating on the bare canvas read as
-            unfinished; the tinted circle gives the state a visual center. */}
-        <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-tint">
-          <Mail className="h-7 w-7 text-accent-foreground" />
+        {/* Anchored success mark — the chrome coin (icon-language §6), byte-matching
+            ui/empty-state's recipe: brand-50 disc + h-8 glyph at the display stroke.
+            bg-tint (a gray) made this the one off-family coin in the app; the blue
+            disc is what keeps "check your email" looking like eno, in both themes. */}
+        <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-brand-50">
+          <Mail className="h-8 w-8 text-brand" strokeWidth={STROKE_DISPLAY} />
         </span>
         <p className="mt-4 text-lg font-bold text-foreground">{t('Check your email', 'Kiểm tra email của bạn')}</p>
         <p className="mt-1.5 text-sm text-muted-foreground">{t('We sent a magic link to', 'Chúng tôi đã gửi liên kết đăng nhập tới')}</p>
@@ -660,8 +665,26 @@ export function SignInForm({ className }: { className?: string }) {
       <Tabs value={tab} onValueChange={(v) => { setTab(v as 'email' | 'phone'); reset() }} className="gap-3">
         <TabsList className="flex w-full items-stretch rounded-full bg-tint p-1 text-sm font-semibold group-data-horizontal/tabs:h-auto">
           {(['phone', 'email'] as const).map((m) => (
+            // Selecting a method is LOCATION state (icon-language §5): the active glyph takes
+            // the soft duotone — SAME line, plus the brand-100 interior wash (more wash, same
+            // line, exactly the bottom nav's active treatment). The washes are LOCAL per-glyph
+            // classes (lead ruling, R2 — icon-tokens stays untouched).
+            // ⚠️ Mail washes its FLAP PATH, not its rect, and the reason is PAINT ORDER, verified
+            // in the rendered DOM: this lucide version emits <path d="m22 7-8.991…"/> (the flap)
+            // BEFORE <rect …/> (the body), and SVG paints in document order — so an opaque
+            // fill-brand-100 on the rect lands ON TOP of the flap line and deletes it (measured:
+            // the glyph became a lineless washed box). §0's signature is "one ink line OVER a
+            // soft wash"; a wash that erases the line fails the law it serves. The flap region
+            // (the fill an open V encloses) tints the envelope's upper interior and leaves every
+            // ink line intact. Phone's single handset path has no such hazard.
+            // The condition lives in cn() because the tabs are controlled by our own `tab` state
+            // (`tab === m` IS Base UI's data-active), and a runtime `data-active:`-prefixed
+            // template string would never be seen by Tailwind's scanner. One closed region each,
+            // never the whole silhouette (§0).
             <TabsTrigger key={m} value={m} className="flex h-auto cursor-pointer rounded-full border-0 px-0 py-1.5 text-sm font-semibold outline-none transition-colors duration-100 active:scale-[0.97] text-muted-foreground hover:text-muted-foreground dark:text-muted-foreground dark:hover:text-muted-foreground data-active:bg-popover data-active:text-accent-foreground data-active:shadow-sm dark:data-active:bg-popover dark:data-active:text-accent-foreground">
-              {m === 'email' ? <Mail className="h-4 w-4" /> : <Phone className="h-4 w-4" />}
+              {m === 'email'
+                ? <Mail className={cn('h-4 w-4', tab === m && '[&>path]:fill-brand-100')} />
+                : <Phone className={cn('h-4 w-4', tab === m && '[&>path]:fill-brand-100')} />}
               {m === 'email' ? tr('Email') : t('Phone', 'Điện thoại')}
             </TabsTrigger>
           ))}
@@ -677,8 +700,12 @@ export function SignInForm({ className }: { className?: string }) {
               {/* onMouseDown+preventDefault holds the email field's focus through the tap. On the
                   native code path this is a focus TRANSFER into the code strip inside one keyboard
                   session — the same invariant the phone "Send code" button documents. Never
-                  onPointerDown: that fires before the browser's focus handling and loses the field. */}
-              <Button variant="cta" size="none" onMouseDown={(e) => e.preventDefault()} onClick={sendEmail} disabled={loading || !email.includes('@')} className="flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm disabled:opacity-40 transition-colors cursor-pointer">
+                  onPointerDown: that fires before the browser's focus handling and loses the field.
+                  Disabled = bg-muted + text-ink-4 (here and on every full-width CTA in this flow,
+                  onboarding included), NOT the base's opacity fade: cta's white-on-brand at 40%
+                  opacity was white on ~brand-200 — far below AA and still reading as tappable.
+                  A flat gray field is unmistakably inert; disabled:opacity-100 cancels the base. */}
+              <Button variant="cta" size="none" onMouseDown={(e) => e.preventDefault()} onClick={sendEmail} disabled={loading || !email.includes('@')} className="flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm disabled:opacity-100 disabled:bg-muted disabled:text-ink-4 transition-colors cursor-pointer">
                 {loading && <Loader2 className="h-4 w-4 animate-spin" />} {emailCode ? t('Send code', 'Gửi mã') : t('Send magic link', 'Gửi liên kết đăng nhập')}
               </Button>
             </>
@@ -706,7 +733,7 @@ export function SignInForm({ className }: { className?: string }) {
                   ))}
                 </InputOTPGroup>
               </InputOTP>
-              <Button variant="cta" size="none" onClick={() => verifyEmailCode()} disabled={loading || code.length < EMAIL_CODE_LEN} className="flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm disabled:opacity-40 transition-colors cursor-pointer">
+              <Button variant="cta" size="none" onClick={() => verifyEmailCode()} disabled={loading || code.length < EMAIL_CODE_LEN} className="flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm disabled:opacity-100 disabled:bg-muted disabled:text-ink-4 transition-colors cursor-pointer">
                 {loading && <Loader2 className="h-4 w-4 animate-spin" />} {t('Verify', 'Xác nhận')}
               </Button>
               <div className="flex items-center justify-between px-1 text-xs">
@@ -733,7 +760,7 @@ export function SignInForm({ className }: { className?: string }) {
                   across the handoff. NEVER onPointerDown — that fires before focus and does not
                   hold it. Click is unaffected (preventDefault on mousedown does not cancel it),
                   and keyboard activation goes through keydown, so Tab+Enter is untouched. */}
-              <Button variant="cta" size="none" onMouseDown={(e) => e.preventDefault()} onClick={sendPhone} disabled={loading || phone.replace(/\D/g, '').length < 9} className="flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm disabled:opacity-40 transition-colors cursor-pointer">
+              <Button variant="cta" size="none" onMouseDown={(e) => e.preventDefault()} onClick={sendPhone} disabled={loading || phone.replace(/\D/g, '').length < 9} className="flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm disabled:opacity-100 disabled:bg-muted disabled:text-ink-4 transition-colors cursor-pointer">
                 {loading && <Loader2 className="h-4 w-4 animate-spin" />} {t('Send code', 'Gửi mã')}
               </Button>
               {/* ⚠️ SET EXPECTATIONS BEFORE THE SEND — THERE IS NO SMS FALLBACK ANY MORE.
@@ -790,7 +817,7 @@ export function SignInForm({ className }: { className?: string }) {
                   ))}
                 </InputOTPGroup>
               </InputOTP>
-              <Button variant="cta" size="none" onClick={() => verifyPhone()} disabled={loading || code.length < 6} className="flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm disabled:opacity-40 transition-colors cursor-pointer">
+              <Button variant="cta" size="none" onClick={() => verifyPhone()} disabled={loading || code.length < 6} className="flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm disabled:opacity-100 disabled:bg-muted disabled:text-ink-4 transition-colors cursor-pointer">
                 {loading && <Loader2 className="h-4 w-4 animate-spin" />} {t('Verify', 'Xác nhận')}
               </Button>
               <div className="flex items-center justify-between px-1 text-xs">

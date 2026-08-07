@@ -2,8 +2,27 @@
 
 import { useState } from 'react'
 import { CheckCircle2, AlertCircle, Copy, Check } from 'lucide-react'
+import { STROKE_DISPLAY } from '@/lib/icon-tokens'
 import { Button } from '@/components/ui/button'
 import { useLanguage } from '@/context/language-context'
+
+/** Status coin — ui/empty-state's chrome-coin recipe, exactly as §6 writes it:
+ *  bg-brand-50 disc, h-8 glyph at the display stroke, line in the brand ink.
+ *  Replaces bare size-9 icons floating on the canvas (36px is off the §4 ladder,
+ *  and stroke 2 at that size renders ~3px — the rubber-stamp look §2 exists to kill).
+ *  ⚠️ The first cut tinted the disc with status colours (bg-warning/10, bg-success/10)
+ *  — a SECOND hue family inside an icon moment, which §0/§6's one-blue rule never
+ *  grants, and the R2 critic cited the terracotta coin as drift precedent. These
+ *  phases are calm, informational states (a question, an expired link, a confirmed
+ *  cancellation — nothing is broken and nothing is lost), so they take the one
+ *  sanctioned coin; status ink stays reserved for genuinely destructive moments. */
+function StatusCoin({ icon: Icon }: { icon: typeof CheckCircle2 }) {
+  return (
+    <span className="flex h-16 w-16 items-center justify-center rounded-full bg-brand-50 text-brand">
+      <Icon className="h-8 w-8" strokeWidth={STROKE_DISPLAY} aria-hidden />
+    </span>
+  )
+}
 
 /**
  * The REAL BROWSER, after Google. Two jobs: get a yes/no that this sign-in was actually started by
@@ -52,7 +71,7 @@ export function HandoffConfirm({ nonce, parked }: { nonce: string | null; parked
     <div className="mx-auto flex min-h-[70vh] w-full max-w-md flex-col items-center justify-center px-6 text-center">
       {phase === 'ask' && (
         <>
-          <CheckCircle2 className="size-9 text-success" aria-hidden />
+          <StatusCoin icon={CheckCircle2} />
           <h1 className="mt-4 text-xl font-extrabold tracking-tight text-foreground">
             {tr('Almost there', 'Sắp xong rồi')}
           </h1>
@@ -78,8 +97,10 @@ export function HandoffConfirm({ nonce, parked }: { nonce: string | null; parked
           <div className="mt-5 rounded-2xl border border-line-strong bg-card px-6 py-4">
             <span className="font-mono text-3xl font-extrabold tracking-[0.3em] text-foreground">{pair}</span>
           </div>
+          {/* No margins on the svgs (icon-language §3) — ui/button's base gap-2 spaces them.
+              bubble-in on the Check = the canon's state-flip entrance (§8). */}
           <Button variant="soft" size="none" type="button" onClick={copy} className="mt-3 px-4 py-2 font-bold">
-            {copied ? <><Check className="mr-1 size-4" />{tr('Copied', 'Đã sao chép')}</> : <><Copy className="mr-1 size-4" />{tr('Copy', 'Sao chép')}</>}
+            {copied ? <><Check className="size-4 bubble-in" />{tr('Copied', 'Đã sao chép')}</> : <><Copy className="size-4" />{tr('Copy', 'Sao chép')}</>}
           </Button>
           <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
             {tr('Switch back to the eno app and type it in. The code lasts 5 minutes.', 'Quay lại ứng dụng eno và nhập mã. Mã có hiệu lực 5 phút.')}
@@ -106,7 +127,7 @@ export function HandoffConfirm({ nonce, parked }: { nonce: string | null; parked
 
       {phase === 'voided' && (
         <>
-          <AlertCircle className="size-9 text-warning" aria-hidden />
+          <StatusCoin icon={AlertCircle} />
           <h1 className="mt-4 text-xl font-extrabold tracking-tight text-foreground">
             {tr('Cancelled — nothing was signed in', 'Đã huỷ — không có đăng nhập nào')}
           </h1>
@@ -118,7 +139,7 @@ export function HandoffConfirm({ nonce, parked }: { nonce: string | null; parked
 
       {phase === 'gone' && (
         <>
-          <AlertCircle className="size-9 text-warning" aria-hidden />
+          <StatusCoin icon={AlertCircle} />
           <h1 className="mt-4 text-xl font-extrabold tracking-tight text-foreground">
             {tr('This sign-in link has expired', 'Liên kết đăng nhập đã hết hạn')}
           </h1>

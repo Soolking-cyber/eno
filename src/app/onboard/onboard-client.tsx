@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { User, Store, Loader2, Check } from 'lucide-react'
+import { STROKE_UI, WASH_ACTIVE } from '@/lib/icon-tokens'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import { Mascot } from '@/components/marketplace/mascot'
@@ -138,7 +139,14 @@ export function OnboardClient() {
     <main id="main" tabIndex={-1} className="flex min-h-screen flex-col items-center justify-center bg-background px-4 py-10">
       <div className="w-full max-w-md">
         <div className="mb-4 flex justify-center">
-          <Mascot name="profile" className="h-44 w-44" />
+          {/* Brand ink, not the default line-strong gray: at hero size the neutral mascot read
+              as a skeleton/placeholder (R2 critic). text-brand-light is the token twin of the
+              desktop /signin panel's low-opacity blue mascot — a soft brand tint in light mode.
+              ⚠️ In dark, --brand-light is #2f5377 — a low-contrast slate that killed the charm
+              (R3 critic). dark:text-brand-dark rides the canon's lighter-in-dark inversion
+              (#74b3f2), the closest token to light mode's pastel; a real fix is a livelier dark
+              --brand-light value, filed with foundation, after which this override collapses. */}
+          <Mascot name="profile" className="h-44 w-44 text-brand-light dark:text-brand-dark" />
         </div>
         <div>
           <h1 className="text-center text-xl font-bold text-foreground">{t('Welcome to eno.vn', 'Chào mừng đến eno.vn')}</h1>
@@ -152,8 +160,12 @@ export function OnboardClient() {
               ⚠️ flex/gap, NOT space-y: Base UI's Radio.Root emits a hidden <input> sibling, and
               space-y-* (`> :not(:last-child)`) would hand that invisible last child the margin
               exemption and shift the cards. */}
+          {/* `?? ''` not `?? undefined`: an undefined first value makes Base UI treat the group as
+              UNCONTROLLED, so the first selection flips it uncontrolled→controlled (console warning,
+              and Base UI ignores later programmatic value changes). '' is controlled-with-nothing-
+              selected from the first render. */}
           <RadioGroup
-            value={choice ?? undefined}
+            value={choice ?? ''}
             onValueChange={(v) => setChoice(v as Choice)}
             aria-label={t('Account type', 'Loại tài khoản')}
             className="mt-6 flex flex-col gap-3"
@@ -169,11 +181,31 @@ export function OnboardClient() {
                     active ? 'bg-accent ring-2 ring-brand/30' : 'hover:bg-muted',
                   )}
                 >
-                  <span className={cn('flex h-10 w-10 shrink-0 items-center justify-center rounded-full', active ? 'bg-primary text-white' : 'text-muted-foreground')}>
-                    <Icon className="h-5 w-5" />
+                  {/* NO COIN. The chrome coin is sanctioned in exactly two places (§6:
+                      EmptyState's badge, the nav Post chip) and it is bg-brand-50 — R1's
+                      gray discs were a third, off-token coin location, and R2's swap to a
+                      bg-brand-100 disc on selection was a THIRD active treatment next to
+                      §5's two (the R3 critic named both). So the row now speaks the
+                      system's own two-state language, byte-borrowing TabBody's classes:
+                      idle = plain line in surface ink (text-body, §6 "everything else
+                      inherits surface ink"); selected = LOCATION duotone — the stack turns
+                      text-accent-foreground AND the glyph gains the brand-100 interior via
+                      WASH_ACTIVE (User washes the shoulders exactly like the nav's account
+                      tab; Store's first path closes into the roof). More wash, same line —
+                      the card's bg-accent surface, not a private coin, carries the halo. */}
+                  <span aria-hidden className={cn('shrink-0 transition-colors duration-200', active ? cn('text-accent-foreground', WASH_ACTIVE) : 'text-body')}>
+                    {/* h-5 = the §4 list-lead step (h-6 is header-chrome's — ladder-use drift
+                        flagged by the R3 critic). */}
+                    <Icon className="h-5 w-5" strokeWidth={STROKE_UI} />
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="flex items-center gap-2 text-sm font-bold text-foreground">{title}{active && <Check className="h-4 w-4 text-accent-foreground" />}</span>
+                    {/* The selection check is UI tier (lead ruling, R2): a check floating in a
+                        text row is body-copy chrome, so it takes STROKE_UI 2 — §2's tier 3 is
+                        ONLY for marks inside small filled boxes, and R1's heavier tick was
+                        exactly the freelancing §2 names. Explicit constant so the tier is
+                        documented, not inherited by luck; bubble-in = the canon's state-flip
+                        entrance (§8), same as the handoff Copy→Check. */}
+                    <span className="flex items-center gap-2 text-sm font-bold text-foreground">{title}{active && <Check className="h-4 w-4 shrink-0 text-accent-foreground bubble-in" strokeWidth={STROKE_UI} aria-hidden />}</span>
                     <span className="mt-0.5 block text-xs leading-relaxed text-muted-foreground">{desc}</span>
                   </span>
                 </Radio>
@@ -214,7 +246,7 @@ export function OnboardClient() {
           <Button variant="cta" size="none"
             onClick={submit}
             disabled={!canSubmit}
-            className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm disabled:opacity-40 transition-colors cursor-pointer"
+            className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm disabled:opacity-100 disabled:bg-muted disabled:text-ink-4 transition-colors cursor-pointer"
           >
             {submitting && <Loader2 className="h-4 w-4 animate-spin" />} {t('Continue', 'Tiếp tục')}
           </Button>

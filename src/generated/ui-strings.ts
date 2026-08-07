@@ -1419,6 +1419,7 @@ export const UI_STRINGS: string[] = [
   "Trust score",
   "Trust scores you can check",
   "Trusted",
+  "Trusted sellers · your number stays private",
   "Try again",
   "Try another wording or topic — or ask the community below.",
   "Trình bày của bạn",
