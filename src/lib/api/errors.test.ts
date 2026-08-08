@@ -75,6 +75,15 @@ const RE_EMITTED_UNIONS = [
   { fn: 'updateListingCore', type: 'ListingUpdateErrorCode', file: 'src/lib/core/listings.ts', floor: 5 },
   { fn: 'setStatusCore', type: 'ListingStatusErrorCode', file: 'src/lib/core/listings.ts', floor: 2 },
   { fn: 'updateSellerCore', type: 'SellerUpdateErrorCode', file: 'src/lib/core/seller.ts', floor: 7 },
+  // ⚠️ THESE THREE ARE A LAYER DEEPER, AND THAT LAYER IS WHY FIFTEEN CODES WERE MISSING. They are
+  // not route helpers — they are LIBRARY flows that emit through an internal `fail(code)`, one step
+  // below anything the route-file scan can see. `human_help_pending` is the tell: errors.ts's own
+  // header cites `messages/[id]/page.tsx  data?.error === 'human_help_pending'` as its example of a
+  // client branching on a code, and it was not a member of the union the header introduces.
+  // The wire is not only what routes write; it is what everything routes delegate to writes.
+  { fn: 'advanceVisaDmFlow', type: 'VisaDmErrorCode', file: 'src/lib/visa/dm-flow.ts', floor: 20 },
+  { fn: 'askVisaConcierge', type: 'VisaConciergeErrorCode', file: 'src/lib/visa/concierge.ts', floor: 6 },
+  { fn: 'requestAssistance', type: 'AssistanceError', file: 'src/lib/trips/assistance.ts', floor: 4 },
 ] as const
 
 function codesReachingTheWireThroughAVariable(routeFiles: string[]): string[] {
@@ -237,6 +246,38 @@ function unionMembers(file: string, typeName: string, floor: number): string[] {
   return members
 }
 
+/**
+ * Split `src` into the source a MARKETPLACE build compiles and the `.svc` source it does not, read
+ * ONCE. Tests are excluded (never shipped) and `errors*.ts` is excluded (the vocabulary lists are
+ * declarations, not emissions).
+ *
+ * ⚠️ INDEXED ONCE, NOT PER CODE, AND THE FIRST DRAFT WAS O(codes x files). It re-ran `git ls-files`
+ * and re-read ~780 files for each of 186 codes — roughly 145,000 reads, which passed once at 4.9s
+ * and then TIMED OUT at vitest's 5s default. Worth recording because of how it failed: a timeout is
+ * reported as a red test, so for one confusing round the mutation battery showed every mutation
+ * "failing" including the unmutated baseline. A guard that is too slow does not degrade gracefully,
+ * it degrades into noise that looks like signal.
+ */
+const SOURCE_HALVES = (() => {
+  const files = execFileSync('git', ['ls-files', 'src'], { encoding: 'utf8' })
+    .trim().split('\n')
+    .filter((f) => /\.tsx?$/.test(f) && !/\.test\.tsx?$/.test(f) && !f.includes('lib/api/errors'))
+  let services = ''
+  let marketplace = ''
+  for (const f of files) {
+    const src = readFileSync(f, 'utf8')
+    if (f.includes('.svc.')) services += src
+    else marketplace += src
+  }
+  return { services, marketplace }
+})()
+
+/** True when a code's literal appears in `.svc` source and in NO marketplace-compiled file. */
+function onlyEmittedByServices(code: string): boolean {
+  const lit = `'${code}'`
+  return SOURCE_HALVES.services.includes(lit) && !SOURCE_HALVES.marketplace.includes(lit)
+}
+
 /** The services-edition runtime list, read as text so this test does not depend on the alias. */
 function codesInServicesList(): string[] {
   const src = stripComments(readFileSync('src/lib/api/errors-services.ts', 'utf8'))
@@ -353,13 +394,75 @@ describe('the error vocabulary respects the edition boundary', () => {
    */
   const SERVICES_VOCABULARY = /visa|itinerar|paypal|evisa/i
 
-  it('no services-shaped code sits in the marketplace ALL array', () => {
-    const leaked = [...codesInMarketplaceAll()].filter((c) => SERVICES_VOCABULARY.test(c)).sort()
+  it('no code in the marketplace ALL array is emitted only by .svc routes', () => {
+    /**
+     * ⚠️ THE MECHANICAL RULE, AND IT REPLACES A VOCABULARY GUESS. The first version of this test
+     * matched code NAMES against /visa|itinerar|paypal|evisa/, which is the right shape for the
+     * narrow harm (a prohibited WORD in eno.vn's bundle) and the wrong shape for the question
+     * actually being asked — which codes belong to the services edition at all. It caught 8 of 35.
+     *
+     * ⚠️ IT IS A LOWER BOUND, NOT A DECISION PROCEDURE, AND THE GAP IS REAL RATHER THAN THEORETICAL.
+     * The question that actually decides membership is EDITION REACHABILITY — can a route a
+     * marketplace build compiles actually emit this code — and a grep cannot compute that. Fifteen
+     * members of `SERVICES_ALL` are there on a reachability argument this test cannot see: they are
+     * emitted by `src/lib/visa/{dm-flow,concierge}.ts` and `src/lib/trips/assistance.ts`, plain
+     * `.ts` libraries the marketplace build compiles, so their literals ARE in non-`.svc` source.
+     * They belong to the services edition anyway because `advanceVisaDmFlow` / `askVisaConcierge` /
+     * `requestAssistance` have no marketplace-route caller at all, and the one flow that does
+     * (`startVisaDmFlow`, from `api/conversations/route.ts`) sits behind `scopedListingWhere`, which
+     * excludes the desk's listings on eno.vn.
+     *
+     * So this test catches the EASY direction and nothing more. It cannot be strengthened into the
+     * real rule without modelling reachability, and an earlier attempt to do so by testing textual
+     * presence produced the opposite of the right answer — it demanded two codes move INTO the
+     * marketplace array, which would have carried them into client chunks for no benefit.
+     *
+     * The rule it does enforce: a code whose literal appears ONLY in `.svc` source is services-only, because
+     * `pageExtensions` means a marketplace build never compiles those files. Nothing else has to be
+     * maintained, and a code that starts being emitted by a marketplace route turns this red.
+     *
+     * ⚠️ `/api/v1` COUNTS AS MARKETPLACE, and getting that wrong is how the obvious version of this
+     * rule failed. An earlier scan excluded it — reasonably, since `/api/v1` has its own error
+     * envelope — and therefore reported `invalid_request` as services-only when
+     * `src/app/api/v1/oauth/token/route.ts` emits it on eno.vn. Exclusion by ENVELOPE is not
+     * exclusion by EDITION. Everything a marketplace build compiles is marketplace here.
+     */
+    const offenders = [...codesInMarketplaceAll()].filter(onlyEmittedByServices).sort()
     expect(
-      leaked,
-      'These codes name a surface eno.vn may not mention, and ALL is a RUNTIME array on a path into ' +
-        'the marketplace bundle. Move them to src/lib/api/errors-services.ts (already aliased away ' +
-        'on a marketplace build) rather than deleting them.',
+      offenders,
+      'These are emitted only by .svc routes, so on eno.vn they are vocabulary for routes that do ' +
+        'not exist — and ALL is a RUNTIME array on a path into the marketplace bundle. Move them ' +
+        'to src/lib/api/errors-services.ts, which is aliased to an empty stub on that edition.',
+    ).toEqual([])
+  })
+
+  it('the marketplace array adds no services WORD the bundle does not already contain', () => {
+    /**
+     * ⚠️ "ADDS NO WORD", NOT "CONTAINS NO WORD" — and the difference is the whole subtlety.
+     * A cheaper tripwire than the emission rule above, and it fires EARLIER: a code named after the
+     * surface but not yet emitted anywhere is invisible to an emission scan and still ships the
+     * string.
+     *
+     * But it must NOT fire for a code whose literal is already in marketplace source, because for
+     * those, membership in `ALL` costs the bundle nothing — the word is there either way — while
+     * EXCLUSION costs something real: `apiErrorCode()` returning `null` on eno.vn for a code eno.vn
+     * genuinely sends.
+     *
+     * `visa_encryption_not_configured` and `visa_schema_not_ready` are exactly that case. A
+     * name-based pass moved them to the services list; the artifact grep then found them still in
+     * the marketplace build, because `src/lib/visa/{dm-flow,concierge}.ts` are plain `.ts` libraries
+     * reachable from `api/conversations/route.ts`. Moving them out had removed no string and broken
+     * recognition — a strictly worse trade, and one that only showed up in a built artifact.
+     */
+    const adds = [...codesInMarketplaceAll()]
+      .filter((c) => /visa|itinerar|paypal|evisa/i.test(c))
+      .filter((c) => !SOURCE_HALVES.marketplace.includes(`'${c}'`))
+      .sort()
+    expect(
+      adds,
+      'These name a services surface and their literal is NOWHERE in marketplace source, so listing ' +
+        'them in the runtime ALL array is the only thing putting the word in eno.vn\'s bundle. ' +
+        'Move them to src/lib/api/errors-services.ts.',
     ).toEqual([])
   })
 
@@ -373,6 +476,24 @@ describe('the error vocabulary respects the edition boundary', () => {
     expect([...all].filter((c) => !typeMembers.has(c)).sort()).toEqual([])
   })
 
+  /**
+   * ⚠️ A TEST THAT USED TO SIT HERE WAS DELETED, AND THE REASON IS WORTH MORE THAN THE TEST WAS.
+   * It asserted "no code in SERVICES_ALL appears in marketplace-compiled source" — sound-looking,
+   * and it fired on `visa_encryption_not_configured` / `visa_schema_not_ready` because
+   * `src/lib/visa/{dm-flow,concierge}.ts` are plain `.ts` libraries the marketplace build compiles.
+   *
+   * The premise was wrong. Whether a LITERAL appears in compiled source is a different question
+   * from whether a marketplace route can EMIT it: `api/conversations/route.ts:75` resolves listings
+   * through `scopedListingWhere`, which excludes the desk's rows on eno.vn, so the branch that
+   * would return those codes is unreachable there. Acting on the failing test moved two codes into
+   * the marketplace runtime array, which removed no string from the bundle (the libraries put it
+   * there) and would have carried both into CLIENT chunks the day `lib/api/client.ts` gains a
+   * production importer — strictly worse than the state it was "fixing".
+   *
+   * The route-scoped check below is the correct question and was right all along. If a stronger
+   * guard is ever wanted it has to model EDITION REACHABILITY, not textual presence, and that is a
+   * different and much harder tool than a grep.
+   */
   it('every services code is emitted only by .svc.ts routes', () => {
     // The premise the whole split rests on: if a marketplace `route.ts` emitted one of these, the
     // alias would break that route rather than protect it — apiErrorCode() would return null for a

@@ -2,6 +2,7 @@ import { SERVICES_ALL } from '@/lib/api/errors-services'
 import type { PublishBlockCode } from '@/lib/publish-guard'
 import type { ListingStatusErrorCode, ListingUpdateErrorCode } from '@/lib/core/listings'
 import type { SellerUpdateErrorCode } from '@/lib/core/seller'
+import type { OwnerCheckErrorCode } from '@/lib/listing-owner'
 
 /**
  * THE ERROR VOCABULARY THAT IS ALREADY ON THE WIRE.
@@ -284,6 +285,33 @@ export type NicheApiErrorCode =
   | 'bad_tax_code'
   | 'invalid_status'
   | 'no_phone_in_profile'
+
+  /**
+   * ⚠️ FIFTEEN MORE, AND ONE OF THEM IS CITED IN THIS FILE'S OWN HEADER. The header lists
+   * `src/app/messages/[id]/page.tsx  data?.error === 'human_help_pending'` as its example of a
+   * client branching on a code string — and `human_help_pending` was not a member of the union,
+   * while that page branches on it at two places (`:64` and `:978`). The original harvest read
+   * ROUTES; these are emitted by `src/lib/visa/{dm-flow,concierge}.ts` and
+   * `src/lib/trips/assistance.ts` through `fail(code)` helpers, one library layer below the scan.
+   *
+   * That is the same blind spot as `{ error: e.code }` and `{ error: r.error }`, one level deeper:
+   * the wire is not only what routes write, it is what everything routes DELEGATE to writes.
+   */
+  | 'application_cancelled'
+  | 'case_changed_reload'
+  | 'checkout_card_refused'
+  | 'concierge_unavailable'
+  | 'field_not_in_step'
+  | 'human_help_pending'
+  | 'invalid_amount'
+  | 'invalid_fields'
+  | 'no_thread'
+  | 'not_a_participant'
+  | 'payload_unreadable'
+  | 'request_not_found'
+  | 'step_card_refused'
+  | 'too_many_applications'
+  | 'update_failed'
   | 'reserved'
   | 'retry'
   | 'save_failed'
@@ -374,11 +402,8 @@ const ALL = [
   'already_reviewed',
   'already_submitted',
   'application_changed_retry',
-  'application_delete_failed',
-  'application_incomplete',
   'application_locked',
   'application_not_deletable',
-  'application_status_changed',
   'auth_required',
   'bad_action',
   'bad_avatar',
@@ -392,7 +417,6 @@ const ALL = [
   'bad_url',
   'bad_url_host',
   'banned_words',
-  'body_too_large',
   'budget_exhausted',
   'budget_unavailable',
   'business_name_required',
@@ -401,11 +425,8 @@ const ALL = [
   'cannot_block_self',
   'cannot_report_self',
   'captcha_failed',
-  'card_superseded',
-  'checkout_failed',
   'community_not_found',
   'complete_failed',
-  'confirm_failed',
   'consent_required',
   'contact_in_text',
   'cooldown',
@@ -419,14 +440,10 @@ const ALL = [
   'fx_unavailable',
   'geocode_failed',
   'id_number_required',
-  'image_analysis_rate_limited',
-  'image_download_failed',
   'image_size_invalid',
   'internal_error',
   'invalid',
   'invalid_account_type',
-  'invalid_action',
-  'invalid_analysis_request',
   'invalid_block',
   'invalid_body',
   'invalid_bookmark',
@@ -439,23 +456,19 @@ const ALL = [
   'invalid_kind',
   'invalid_locale',
   'invalid_media_path',
-  'invalid_payload',
   'invalid_post',
   'invalid_report',
   'invalid_request',
   'invalid_scopes',
-  'invalid_signature',
   'invalid_status_transition',
   'invalid_subscription',
   'invalid_token',
-  'invalid_trip',
   'invalid_vote',
   'legal_address_required',
   'legal_name_required',
   'limit_reached',
   'listing_not_found',
   'listing_unavailable',
-  'listing_selection_mismatch',
   'migration_pending',
   'missing_coords',
   'missing_fields',
@@ -486,33 +499,24 @@ const ALL = [
   'not_decided',
   'not_found',
   'not_negotiable',
-  'not_paid',
   'not_participant',
   'not_signed_in',
   'not_transacted',
-  'not_your_card',
   'origin_not_allowed',
   'own_listing',
   'parent_not_found',
   'payload_too_large',
-  'payment_required_first',
   'payments_not_configured',
   'phone_taken',
   'post_not_found_or_locked',
-  'processing_failed',
-  'product_entry_type_mismatch',
   'product_not_configured',
   'product_not_for_sale',
   'product_not_selected',
   'product_price_unavailable',
-  'provider_not_configured',
   'question_required',
   'queue_failed',
-  'quote_changed',
-  'quote_expired',
   'rate_limited',
   'recipient_unreachable',
-  'reference_mismatch',
   'refinement_limit',
   'reply_required',
   'report_cooldown',
@@ -541,13 +545,11 @@ const ALL = [
   'shop_unavailable',
   'sign_failed',
   'store_failed',
-  'submission_window_closed',
   'taken',
   'thread_conflict',
   'thread_not_bound',
   'too_big',
   'too_large',
-  'too_many',
   'too_many_keys',
   'too_many_rows',
   'too_many_webhooks',
@@ -563,7 +565,6 @@ const ALL = [
   'unsafe_url',
   'takedown_failed',
   'unsupported_file_type',
-  'unsupported_image_type',
   'url_required',
   'verification_locked',
   'verify_phone_to_claim',
@@ -616,7 +617,7 @@ void _everyCodeIsListed
  * returning `admin_required`, a code the transition function itself never produces.
  */
 type UnlistedHelperCode = Exclude<
-  SellerUpdateErrorCode | ListingStatusErrorCode,
+  SellerUpdateErrorCode | ListingStatusErrorCode | OwnerCheckErrorCode,
   ApiErrorCode
 >
 const _everyHelperCodeIsAnApiCode:
