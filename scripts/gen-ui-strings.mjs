@@ -115,10 +115,48 @@ for (const u of ['month', 'month (est.)', 'hour', 'visit (from)', 'service (from
 // colon). The inline Vietnamese is the translation SOURCE's counterpart, not a
 // target — letting it into this batch would ask the translator to render Vietnamese
 // into Vietnamese and would poison the cache keyed on English.
-for (const path of ['src/lib/taxonomy.ts', 'src/lib/visa/speed.ts']) {
+// ⚠️ `titleEn` IS IN THE ALTERNATION FOR why-eno.tsx, AND IT IS HERE BECAUSE OF A NEAR-MISS.
+// The home page's "Why eno" row holds its five claims in a `REASONS` table and renders them with
+// `tr(r.titleEn, r.titleVi)` — a variable call, so the literal scans above never saw a single one
+// of them. Four had therefore NEVER been pre-warmed. The fifth, "Trust scores you can check", was
+// in the catalogue purely by accident: the product page happened to render the SAME sentence as a
+// literal `<Tr text=…>`, and harvesting that one copy covered its twin. Deleting that product-page
+// line on 2026-08-08 dropped the string, and two independent reviewers read the result as a fresh
+// regression. It was not fresh — it was the accident ending, which is the more useful finding.
+//
+// Vietnamese is unaffected either way (`tr()` returns the inline `titleVi` directly); the cost lands
+// on the ~11 machine-translated languages, which fall back to a per-string /api/translate plus a
+// repaint — English text that flips a beat later, on the home page's first screen.
+//
+// Harvesting `titleEn` and NOT `titleVi` is the same rule the name/label pair follows: the inline
+// Vietnamese is the source's counterpart, not a target, and feeding it to the translator would ask
+// for Vietnamese→Vietnamese and poison a cache keyed on English.
+// ⚠️ EACH FILE CARRIES ITS OWN FIELD LIST — DO NOT COLLAPSE THIS INTO ONE SHARED ALTERNATION.
+// A reviewer caught the first version doing exactly that: `titleEn` was applied to every path in
+// the loop, including `src/lib/visa/speed.ts`. Nothing breaks today (that file has no `titleEn`),
+// but this block sets `currentFile = ''`, which means everything harvested here is classified CORE
+// unconditionally — it BYPASSES the services-origin classifier that keeps visa vocabulary out of
+// the catalogue eno.vn ships to browsers. Widening a pattern here widens that bypass. Keep each
+// file's fields to the minimum that file actually needs.
+//
+// ⚠️ PRE-EXISTING AND WORTH KNOWING: the seven `VISA_SPEED_SPECS` labels are ALREADY in the shared
+// catalogue for this reason ("Within 1 hour", "2 working days", "Standard" — verified 2026-08-08).
+// They are harmless in substance, which is exactly why nobody noticed: they are generic time
+// phrases with no visa vocabulary, unlike the "Download e-Visa PDF" class the split was built for.
+// It is a latent classification hole, not a live leak — but if visa copy with real vocabulary is
+// ever deduplicated into a file listed here, it ships to eno.vn silently.
+const VARIABLE_RENDERED_COPY = [
+  // Taxonomy display copy — rendered via <Tr text={variable}> / tr(label, labelVi).
+  ['src/lib/taxonomy.ts', ['name', 'label']],
+  ['src/lib/visa/speed.ts', ['name', 'label']],
+  // The home page's "Why eno" row — see the note above on why `titleEn` is here.
+  ['src/components/marketplace/why-eno.tsx', ['titleEn']],
+]
+for (const [path, fields] of VARIABLE_RENDERED_COPY) {
   const tax = readFileSync(path, 'utf8')
-  for (const m of tax.matchAll(/\b(?:name|label)\s*:\s*'((?:[^'\\]|\\.)*)'/g)) add(unesc(m[1]))
-  for (const m of tax.matchAll(/\b(?:name|label)\s*:\s*"((?:[^"\\]|\\.)*)"/g)) add(unesc(m[1]))
+  const f = fields.join('|')
+  for (const m of tax.matchAll(new RegExp(`\\b(?:${f})\\s*:\\s*'((?:[^'\\\\]|\\\\.)*)'`, 'g'))) add(unesc(m[1]))
+  for (const m of tax.matchAll(new RegExp(`\\b(?:${f})\\s*:\\s*"((?:[^"\\\\]|\\\\.)*)"`, 'g'))) add(unesc(m[1]))
 }
 
 const all = [...strings].sort()

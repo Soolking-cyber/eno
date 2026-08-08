@@ -54,7 +54,6 @@ import { getPriceBand } from '@/lib/price-stat'
 import { MarketPrice } from '@/components/marketplace/market-price'
 import { SafetyStrip } from '@/components/marketplace/safety-strip'
 import { isBusinessVerified } from '@/lib/business-verification'
-import { EnoSeal } from '@/components/marketplace/eno-seal'
 
 type Props = {
   params: Promise<{ id: string }>
@@ -482,18 +481,15 @@ export default async function ListingPage({ params }: Props) {
                       </Badge>
                     )}
                   </div>
-                  {/* §0b inline seal echo at 14px (the Vinted shield-at-two-scales pattern;
-                      foundation handoff 2026-08-06). ⚠️ COPY IS LOAD-BEARING: eno holds no money
-                      and offers no buyer protection, so this line must never promise one — all
-                      three diff reviewers flagged the original "protections apply" as a false
-                      consumer claim on a licensed sàn TMĐT. It carries the app's one approved,
-                      factual trust claim (same pair as why-eno), pointing at the trust system
-                      the seal actually stands for. Non-interactive; ProtectionsRow below tells
-                      the full safety story. */}
-                  <span className="inline-flex w-fit items-center gap-1.5 text-xs font-semibold text-body">
-                    <EnoSeal aria-hidden className="h-3.5 w-3.5 shrink-0 text-accent-foreground" />
-                    <Tr text="Trust scores you can check" />
-                  </span>
+                  {/* ⛔ NO INLINE SEAL LINE HERE (owner, 2026-08-08: "remove this line excessive").
+                      A "Trust scores you can check" echo sat under the price from the 2026-08-06
+                      foundation handoff. It was redundant on this page three times over: the
+                      seller's actual TrustScore badge renders in the shop link below, ProtectionsRow
+                      tells the full safety story, and a generic claim under a specific price adds
+                      nothing the buyer can act on. ⚠️ If a trust line is ever restored here, the COPY
+                      is still load-bearing — eno holds no money and offers no buyer protection, so it
+                      must never promise one (three diff reviewers flagged the original "protections
+                      apply" as a false consumer claim on a licensed sàn TMĐT). */}
                   {/* The market-price gauge travels with the price — it's a benchmark OF this number. */}
                   {priceBand && <MarketPrice price={listing.price} band={priceBand} />}
                 </div>

@@ -103,10 +103,57 @@ export function TrustScore({ score, size = 'sm', showLabel = false, variant = 's
   }
 
   const px = PX[size]
-  // The number lives in the seal's belly (below the e-bar), so the digits are
-  // sized to that region: shrink for 3-digit scores, and keep the block clear
-  // of the tapering keel.
-  const fontSize = n >= 100 ? 7 : 8.6
+  // ⚠️ THE NUMERAL IS ANCHORED TO THE SEAL'S OPTICAL CENTRE, NOT THE VIEWBOX'S.
+  // `SEAL_CHECK` already declares where the seal's content belongs — its mass sits
+  // around y≈12, deliberately ABOVE the geometric middle, because the keel drags
+  // visual weight downward (see the note on the path in eno-seal.tsx). The score is
+  // this variant's content, so it takes the check's place exactly; it used to sit at
+  // y=13.1, which pushed the digits into the taper and left a dead band under the
+  // chief.
+  //
+  // ⚠️ `y` LANDS THE DIGIT INK CENTRE — VERIFIED, BECAUSE IT WAS DISPUTED. A reviewer argued
+  // `dominantBaseline="central"` is a FONT baseline (halfway between ascender and descender),
+  // not an ink centre, and predicted the digits sit 0.3–0.7 units off — which would make every
+  // fit number below wrong. Measured instead of argued: rendering the same string twice,
+  // once `alphabetic` and once `central`, gives the shift `central` applies (2.275 units at
+  // 6.2, 2.65 at 7.2); adding that to y and subtracting the canvas ink ascent puts the ink
+  // centre at 12.08–12.12 against a y of 12.1 — off by ≤0.02 units in every case. The
+  // reviewer's reasoning is right in general and cancels here specifically: DIGITS HAVE NO
+  // DESCENDERS, so in this face their ink is symmetric about the central baseline. Keep the
+  // check in mind if this `<text>` ever renders anything but digits.
+  //
+  // Sizes are bounded by the interior WIDTH, which is the real constraint. The shield is
+  // 15 units wide at the chief but narrows as the keel closes: ~12.4 where the digits'
+  // lowest ink sits. THE OLD SIZES DID NOT FIT — swept across every score 0..150, the worst
+  // case (100, the widest three-digit) overflowed the outline by 0.51 units at 109% of the
+  // interior, and even 45/95 sat at 102–103%. The digits were literally wider than the
+  // shield they were inside (owner, 2026-08-08: "numbers ... dont look right ... make
+  // numbers smaller and fit nicely into the shield"). At 7.2/6.2 the worst case is 100
+  // again, now at 87% with 0.84 units of clear air; two-digit scores sit at 73–77%.
+  //
+  // ⚠️ THESE NUMBERS ARE FONT-CONDITIONAL — `fontFamily="inherit"` resolves to Be Vietnam Pro,
+  // and they were measured with `document.fonts.ready` awaited. A fallback face during the
+  // font swap has different advance widths. That exposure is pre-existing and strictly
+  // smaller than before (the old sizes overflowed in the MEASURED face, never mind a
+  // fallback), but do not re-tune these against a cold cache.
+  //
+  // ⚠️ THREE-DIGIT SCORES ARE COMMON, NOT AN EDGE CASE — `TRUST.MAX` is 150 and the
+  // Exceptional tier STARTS at 110, so most earned badges have three digits. That is
+  // why a second size exists at all. Keep the step small (7.2→6.2, ~14%): the old
+  // 8.6→7.0 was a 23% jump, so a 95 and a 118 side by side in one list visibly
+  // disagreed about how big a trust score is.
+  //
+  // ⚠️ BOTH EXTERNAL REVIEWERS ARGUED 6.2 IS TOO SMALL AND IT WAS KEPT ANYWAY — the
+  // reasoning, so it is not re-litigated. At `sm` (28px) 6.2 renders at 7.2px against the
+  // old 7.0's 8.2px, and 6.5 was built and compared side by side. 6.5 buys 0.35px of glyph
+  // and gives back a third of the clearance (89% fill), which at 110px reads as pressing
+  // into the walls again — the exact complaint being fixed. The strong form of the
+  // objection is also wrong on the facts: WCAG sets NO minimum font size, and this `<svg>`
+  // is `aria-hidden` with the score exposed as text on the wrapper's `title`/tooltip
+  // ("Trust score: 118 · Exceptional"), so assistive tech never depends on the glyph. If a
+  // future owner wants bigger digits the honest lever is `PX.sm`, not the font size —
+  // the interior width, not the type, is what ran out.
+  const fontSize = n >= 100 ? 6.2 : 7.2
   const grad = SHIELD_GRADIENT[band]
   const gradId = grad ? `trust-grad-${band}` : undefined
 
@@ -146,7 +193,7 @@ export function TrustScore({ score, size = 'sm', showLabel = false, variant = 's
                 overlap into an unreadable smudge (owner, 2026-08-07: "maybe not tickmark
                 here"). The NUMBER is this variant's content; the silhouette + chief carry
                 the identity. The check belongs to the seal wherever it stands alone. */}
-            <text x="12" y="13.1" textAnchor="middle" dominantBaseline="central" fontSize={fontSize} fontWeight="800" fontFamily="inherit" fill={grad.text}>
+            <text x="12" y="12.1" textAnchor="middle" dominantBaseline="central" fontSize={fontSize} fontWeight="800" fontFamily="inherit" fill={grad.text}>
               {n}
             </text>
           </>
@@ -163,7 +210,7 @@ export function TrustScore({ score, size = 'sm', showLabel = false, variant = 's
               style={{ stroke: color }}
             />
             {/* No check here either — see the note above: the numeral owns the centre. */}
-            <text x="12" y="13.1" textAnchor="middle" dominantBaseline="central" fontSize={fontSize} fontWeight="800" fontFamily="inherit" style={{ fill: color }}>
+            <text x="12" y="12.1" textAnchor="middle" dominantBaseline="central" fontSize={fontSize} fontWeight="800" fontFamily="inherit" style={{ fill: color }}>
               {n}
             </text>
           </>
