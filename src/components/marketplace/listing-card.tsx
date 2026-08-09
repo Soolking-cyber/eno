@@ -3,8 +3,7 @@
 import { useEffect, useState, useRef, memo } from 'react'
 import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
-import { Heart, ChevronLeft, ChevronRight, Building2, MapPin, MessageCircle, Tag, Play, ArrowRight } from 'lucide-react'
-import { STROKE_FLOAT } from '@/lib/icon-tokens'
+import { Heart, Building2, MapPin, MessageCircle, Tag, Play, ArrowRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { IconButton } from '@/components/ui/icon-button'
@@ -16,6 +15,7 @@ import type { SerializedListingCard } from '@/lib/types'
 import { Price } from './price'
 import { formatMoneyFull, moneyLocale, dropPercent } from '@/lib/vnd'
 import { CategoryIcon } from './category-icons'
+import { cardSlots } from '@/lib/card-slots'
 import { isMockImageUrl } from '@/lib/listing-image'
 import { cn } from '@/lib/utils'
 import { useLanguage, useTr } from '@/context/language-context'
@@ -39,6 +39,22 @@ const BLUR =
 function prettyBrand(slug: string): string {
   return slug.split('-').map((w) => (w ? w[0].toUpperCase() + w.slice(1) : w)).join(' ')
 }
+
+/** Grace period before a hover-expanded card releases its extra slides (see `expanded`).
+ *
+ *  ⚠️ THIS DEFERS THE UNMOUNT; IT DOES NOT DEFER THE MOUNT. An earlier version of this comment
+ *  claimed a graze "does not pay a mount/decode cycle" — untrue, and opus was right to call it:
+ *  `onMouseEnter` expands synchronously with no dwell threshold, so brushing a card still mounts
+ *  its extra slides and then holds them 400ms longer. What the window actually buys is the
+ *  RE-entry case (clipping a corner, crossing one card to reach the next) not remounting.
+ *
+ *  Left as-is deliberately, because the direction of travel is what matters: before this change
+ *  the same mouseenter mounted ALL of a listing's photos — a 12-photo card mounted twelve — and
+ *  nothing ever released them, because `setExpanded(false)` did not exist. A graze now costs
+ *  three lazy images and gets them back. A dwell timer would cut the graze cost to zero, but it
+ *  would also mean a fast sweep arrives at slot 2 before slot 2 exists, and a blank slot under
+ *  the pointer is a worse bug than a speculative fetch. */
+const COLLAPSE_MS = 400
 
 type Props = {
   listing: SerializedListingCard
@@ -109,6 +125,27 @@ function ListingCardImpl({
   // Only the first image is in the DOM until the user engages the carousel
   // (hover/touch) — cuts initial DOM nodes + image bytes on the homepage grid.
   const [expanded, setExpanded] = useState(false)
+  // True while the CURRENT slide was chosen by hovering rather than by swiping. Hover is
+  // transient — the pointer leaves and the card must go back to its cover — but a touch swipe is
+  // a deliberate, sticky choice. Without this flag a hybrid device (a touchscreen laptop) would
+  // snap back to photo 1 the moment the mouse happened to leave, undoing a swipe the finger made.
+  const hoverNav = useRef(false)
+  // Deferred release of the hover-mounted slides. ⚠️ This is NOT a debounce on the visual —
+  // `idx` resets instantly on mouse-out. It only delays UNMOUNTING, so a pointer that grazes a
+  // card on its way somewhere else does not pay a mount/decode cycle. (Codex raised the
+  // unbounded case at plan time: without it, one sweep across a 48-card grid leaves every card
+  // holding its extra slides for the life of the page.)
+  const collapseTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => () => { if (collapseTimer.current) clearTimeout(collapseTimer.current) }, [])
+  // A live mirror of `idx` for the collapse timer to read when it FIRES, 400ms after the handler
+  // that scheduled it closed over its own value. Codex argued a hybrid-device ordering — touchend
+  // changes idx, a mouse-leave whose closure still sees idx === 0 schedules the release, and the
+  // slides are unmounted while the strip is translated to -200%, i.e. a blank card. React flushes
+  // discrete updates (touchend is one) before dispatching the next event, so I could not make it
+  // happen; this makes the argument moot rather than winning it. The release decision belongs at
+  // fire time regardless — nothing about "should this collapse?" is knowable 400ms in advance.
+  const idxRef = useRef(0)
+  idxRef.current = idx
   // Image-failure recovery. All FIRST slides on a feed fetch simultaneously on page
   // load (later slides lazy-load), and the mock host (picsum) rate-limits under that
   // burst — a single onError used to placeholder the slide for the whole session even
@@ -135,7 +172,14 @@ function ListingCardImpl({
   const touchStartX = useRef<number | null>(null)
   const suppressClick = useRef(false)
 
-  const last = images.length - 1
+  // Slot arithmetic — the hover-scan ceiling and the "+N" doorway. Lives in lib/card-slots.ts so
+  // every count from 0 to 60 is covered by a test rather than by reading this line carefully.
+  const { photoCount, overflow, moreCount, segments } = cardSlots(images.length)
+  // Floored at 0 so an image-less listing (segments === 0) reports a sane upper bound rather than
+  // -1. goTo's own Math.max already refuses to return a negative index, so this is belt-and-braces
+  // — but `last` is read on its own below, and a -1 "last slide" is the kind of value that reads
+  // as correct right up until someone compares against it.
+  const last = Math.max(0, segments - 1)
   const goTo = (n: number) => setIdx(Math.max(0, Math.min(last, n)))
   // A live price-drop already signals "cheap" — don't also stack the below-market chip
   // (redundant, and it crowds the price row on a narrow card).
@@ -209,22 +253,90 @@ function ListingCardImpl({
           // a middle-click on any real link does. onClick never fires for the middle button.
           if (e.button === 1) { e.preventDefault(); window.open(`/listings/${listing.id}`, '_blank', 'noopener') }
         }}
-        onMouseEnter={() => { if (images.length > 1) setExpanded(true); if (listing.video) setHoverVideo(true) }}
-        onMouseLeave={() => { setQuickOffer(null); setHoverVideo(false) }}
-        onTouchStart={(e) => { if (images.length > 1) setExpanded(true); touchStartX.current = e.touches[0].clientX }}
+        onMouseEnter={() => {
+          // A re-entry inside the grace period cancels the pending release, so the slides the
+          // card already has are kept rather than remounted.
+          if (collapseTimer.current) { clearTimeout(collapseTimer.current); collapseTimer.current = null }
+          if (segments > 1) setExpanded(true)
+          if (listing.video) setHoverVideo(true)
+        }}
+        onMouseLeave={() => {
+          setQuickOffer(null)
+          setHoverVideo(false)
+          // ⚠️ TWO SEPARATE DECISIONS, AND THEY MUST NOT SHARE A GUARD.
+          // (a) Rewind the slide — only if HOVER put us here. Hover is transient, so the grid
+          //     never ends up a mosaic of cards frozen on somebody's third photo; but a slide the
+          //     FINGER chose is a deliberate choice and is left alone.
+          // (b) Release the mounted slides — ALWAYS, because onMouseEnter always mounts them.
+          // Guarding (b) behind hoverNav leaked: entering the card over a z-10 control (the save
+          // heart, whose 44px tap area reaches within ~2px of the corner) fires the media box's
+          // own onMouseEnter — so `expanded` latches true — while no zone is ever entered, so
+          // hoverNav stays false and the timer was never armed. `setExpanded(false)` exists
+          // nowhere else, so those slides stayed mounted and fetched for the life of the page,
+          // with no visual symptom. "Hover the heart, click it, move on" is the single most
+          // common non-navigating gesture on a feed. Found by codex + the pointer-lens reviewer,
+          // independently, at diff review; the earlier browser measurements could not see it
+          // because they always entered over bare photo.
+          const rewinding = hoverNav.current
+          if (rewinding) { hoverNav.current = false; setIdx(0) }
+          // ⚠️ Release ONLY when the card is (or is about to be) back on its cover. Unmounting
+          // slides 2..n while slide 3 is the one on screen would leave the strip translated to
+          // -200% over nothing — a blank card. That is the real reason the two were coupled, and
+          // it is preserved here as an `idx === 0` test rather than as a hover test: the case
+          // that must be protected is "a finger chose a slide", which is exactly idx > 0 without
+          // a rewind, not "hover never happened".
+          if (!rewinding && idx !== 0) return
+          if (collapseTimer.current) clearTimeout(collapseTimer.current)
+          collapseTimer.current = setTimeout(() => {
+            collapseTimer.current = null
+            // Re-checked at FIRE time against the live index, not the one this handler closed
+            // over — see idxRef. Unmounting the slides while a non-cover slide is showing is the
+            // one outcome that must be impossible, so it is tested where the damage would happen.
+            if (idxRef.current === 0) setExpanded(false)
+          }, COLLAPSE_MS)
+        }}
+        onTouchStart={(e) => {
+          // ⚠️ DOES NOT CLEAR hoverNav — ownership transfers on the SWIPE, in onTouchEnd, not on
+          // first contact. Clearing it here latched a card open on a touchscreen laptop: hover to
+          // photo 3, then touch WITHOUT swiping (tap the heart, start a vertical scroll, or get a
+          // touchcancel) and the hover-chosen slide was suddenly owned by nobody — mouse-out then
+          // saw `!rewinding && idx !== 0` and bailed, so the card stayed on photo 3 with every
+          // slide mounted, forever. A touch that does not move the strip has not chosen anything.
+          if (collapseTimer.current) { clearTimeout(collapseTimer.current); collapseTimer.current = null }
+          if (segments > 1) setExpanded(true)
+          touchStartX.current = e.touches[0].clientX
+        }}
+        // ⚠️ THE SWIPE IS CAPPED AT THE SAME FOUR SLOTS, AND THAT IS A DELIBERATE NARROWING.
+        // This used to swipe through ALL of a listing's photos on a phone (`last` was
+        // images.length - 1); now it stops at the doorway. The owner's spec describes the card as
+        // having four sections, and a card that behaves one way under a mouse and another way
+        // under a thumb is two components. Touch also GAINS the doorway, which is the thing the
+        // old unbounded swipe never had: a phone buyer who wants photo 7 now has an obvious way
+        // to ask for it instead of discovering by swiping that there were more. The full set
+        // lives one tap away on the PDP either way.
         onTouchEnd={(e) => {
-          if (touchStartX.current == null || images.length < 2) return
+          if (touchStartX.current == null || segments < 2) return
           const dx = e.changedTouches[0].clientX - touchStartX.current
-          if (Math.abs(dx) > 40) { suppressClick.current = true; goTo(idx + (dx < 0 ? 1 : -1)) }
+          if (Math.abs(dx) > 40) {
+            suppressClick.current = true
+            // THIS is where touch takes ownership of the slide — a swipe that actually moved it.
+            // From here a stray mouse-out (hybrid devices emit one) must not rewind the choice.
+            hoverNav.current = false
+            goTo(idx + (dx < 0 ? 1 : -1))
+          }
           touchStartX.current = null
         }}
       >
         {images.length > 0 ? (
           <div
-            className="flex h-full w-full transition-transform duration-300 ease-out"
+            // 200ms, not the old 300: at 300 a left→right sweep across four slots lags visibly
+            // behind the pointer, and the whole point of hover-scan is that the photos keep up
+            // with the hand. Still a slide (not a crossfade) because the same transform carries
+            // the touch swipe, and a swipe has to track the finger's direction.
+            className="flex h-full w-full transition-transform duration-200 ease-out"
             style={{ transform: `translateX(-${idx * 100}%)` }}
           >
-            {images.slice(0, expanded ? images.length : 1).map((src, i) => (
+            {images.slice(0, expanded ? photoCount : 1).map((src, i) => (
               <div key={i} className="relative h-full w-full shrink-0 overflow-hidden">
                 {slideDown[i] ? (
                   <div className="flex h-full w-full items-center justify-center bg-tint">
@@ -234,6 +346,13 @@ function ListingCardImpl({
                   <Image
                     key={`${i}:${slideTry[i] ?? 0}`}
                     src={src}
+                    // ⚠️ The denominator is the LISTING's photo count, not the strip's. I briefly
+                    // changed it to photoCount on the theory that "1/6" promises slides the card
+                    // does not have; two reviewers pushed back and they were right. Alt text
+                    // describes the photo set, and a screen-reader user realistically only ever
+                    // reaches slide 0 (the rest mount on hover), so "1/3" on a six-photo listing
+                    // is simply a false statement about the listing — while "1/6" is true, and
+                    // no more misleading about what is reachable from the card than "1/3" was.
                     alt={images.length > 1 ? `${displayTitle} — ${i + 1}/${images.length}` : displayTitle}
                     fill
                     sizes={sizes}
@@ -264,11 +383,85 @@ function ListingCardImpl({
                 )}
               </div>
             ))}
+
+            {/* THE DOORWAY — the fourth slot when there are more photos than slots. It is not a
+                control: the whole media box already opens the listing on click, so this reads as a
+                destination and inherits the behaviour for free (plain click, modifier-click and
+                middle-click all bubble to the box's handlers, so "+6" opens in a new tab exactly
+                like the rest of the card does).
+                Backdrop = the FIRST unshown photo under a scrim, not a flat panel. A dead grey
+                tile at the end of a sweep reads as "the photos ran out"; a real photo you can
+                half-see reads as "there is more in here", which is the only reason the slot exists.
+                aria-hidden: this is a hover affordance that duplicates the card link an AT user is
+                already on, and the photos themselves live on the PDP. */}
+            {overflow && expanded && (
+              // bg-tint on the tile itself, not just on the media box behind it: if the backdrop
+              // photo fails to load the <Image> is omitted entirely, and without a fill the scrim
+              // would sit over nothing — a translucent grey rectangle with floating text. The
+              // doorway has to keep working when its decoration does not. (Reviewer catch at the
+              // commit gate; the other slides already do this via their own placeholder branch.)
+              <div className="relative h-full w-full shrink-0 overflow-hidden bg-tint">
+                {!slideDown[photoCount] && (
+                  <Image
+                    key={`${photoCount}:${slideTry[photoCount] ?? 0}`}
+                    src={images[photoCount]}
+                    alt=""
+                    aria-hidden
+                    fill
+                    sizes={sizes}
+                    className="object-cover"
+                    placeholder="blur"
+                    blurDataURL={BLUR}
+                    // ⚠️ 60, NOT a cheaper number, even though this image is never seen
+                    // unscrimmed. `qualities` in next.config.ts is an ALLOWLIST — [60, 70] — and
+                    // Next's optimizer answers 400 to any `q` outside it (the same invariant
+                    // src/lib/listing-image.ts:32 records for `w`). An off-list value fails
+                    // ONLY for real Supabase photos: seeded mock images are `unoptimized`, so
+                    // they bypass the optimizer entirely and a local grid of mock data renders a
+                    // perfect doorway while production shows an empty one.
+                    quality={60}
+                    unoptimized={isMockImageUrl(images[photoCount])}
+                    onError={() => onImgError(photoCount)}
+                    loading="lazy"
+                  />
+                )}
+                <span aria-hidden className="absolute inset-0 flex flex-col items-center justify-center gap-0.5 bg-black/55 text-white">
+                  {/* Black + white, not tokens: this sits ON a photo, so it must not follow the
+                      theme — same rule as the legibility scrims and the save heart below. */}
+                  <span className="text-lg font-bold leading-none tabular-nums">+{moreCount}</span>
+                  <span className="text-2xs font-medium">{tr('photos', 'ảnh')}</span>
+                </span>
+              </div>
+            )}
           </div>
         ) : (
           <div className="flex h-full w-full items-center justify-center bg-tint">
             <CategoryIcon name={listing.category.icon} className="h-11 w-11 text-muted-foreground" />
           </div>
+        )}
+
+        {/* THE HOVER ZONES — `segments` invisible equal columns laid over the photo. Entering one
+            selects its slide, so sweeping left→right walks the strip with no clicking (Avito's
+            card gallery; the owner's reference).
+            · z-[1]: above the photo, BELOW every control. The heart, the quick-action row, the
+              badges and the offer overlay are all z-10+, so they keep their own hover and clicks;
+              only bare photo is covered. CardVideo is `pointer-events-none absolute inset-0` with
+              no z-index, so it neither intercepts these nor paints over them.
+            · A click on a zone bubbles to the media box → opens the listing, unchanged.
+            · hover-pointer, not `pc`: the precondition is a real hovering pointer, not a wide
+              screen. `pc` would deny hover-scan to a mouse user with a half-width window, and the
+              arrows this replaces are gone. Gating it at all matters because touch devices emit a
+              synthetic mouseenter on tap, which would jump the photo out from under the thumb. */}
+        {segments > 1 && (
+          <span aria-hidden className="pointer-events-none absolute inset-0 z-[1] hidden hover-pointer:flex">
+            {Array.from({ length: segments }, (_, i) => (
+              <span
+                key={i}
+                className="pointer-events-auto h-full flex-1"
+                onMouseEnter={() => { setExpanded(true); hoverNav.current = true; setIdx(i) }}
+              />
+            ))}
+          </span>
         )}
 
         {/* Video: autoplays over the cover once the card settles in view (see CardVideo —
@@ -453,35 +646,24 @@ function ListingCardImpl({
           </div>
         )}
 
-        {/* carousel arrows (desktop hover, only when multiple images) */}
-        {images.length > 1 && (
+        {/* ⚠️ THE HOVER ARROWS ARE GONE (2026-08-09), replaced by the zones above.
+            They were `hidden … group-hover:flex` — `display:none` until the card was hovered, with
+            no `focus-visible:` escape hatch. A KEYBOARD-ONLY user could therefore never reach them
+            and loses nothing here. Stating it precisely, because I first put it too strongly and
+            codex was right to push back: they WERE focusable while a pointer rested on the card,
+            so a mouse-plus-keyboard user could tab to them, and that path does disappear. It is an
+            acceptable trade — the same pointer that un-hid the arrows now scans the photos by
+            itself, with no clicking or tabbing at all — and the two could not have coexisted
+            anyway: the left arrow sat on top of slot 1's zone, so "previous" was unreachable by
+            hover while the pointer was over it.
+            Everyone still reaches every photo the way they always did: open the card. */}
+        {segments > 1 && (
           <>
-            {idx > 0 && (
-              <IconButton
-                size="sm"
-                variant="overlay"
-                aria-label={tr('Previous photo')}
-                onClick={(e) => { e.stopPropagation(); goTo(idx - 1) }}
-                className="absolute left-1 top-1/2 -translate-y-1/2 z-10 hidden opacity-0 transition-opacity group-hover:flex group-hover:opacity-100 hover:scale-110 [filter:drop-shadow(0_1px_3px_rgba(0,0,0,0.55))]"
-              >
-                {/* Bare chevron floating over imagery → the floating tier (icon-language §2). */}
-                <ChevronLeft className="h-6 w-6" strokeWidth={STROKE_FLOAT} />
-              </IconButton>
-            )}
-            {idx < last && (
-              <IconButton
-                size="sm"
-                variant="overlay"
-                aria-label={tr('Next photo')}
-                onClick={(e) => { e.stopPropagation(); goTo(idx + 1) }}
-                className="absolute right-1 top-1/2 -translate-y-1/2 z-10 hidden opacity-0 transition-opacity group-hover:flex group-hover:opacity-100 hover:scale-110 [filter:drop-shadow(0_1px_3px_rgba(0,0,0,0.55))]"
-              >
-                <ChevronRight className="h-6 w-6" strokeWidth={STROKE_FLOAT} />
-              </IconButton>
-            )}
-            {/* dots */}
+            {/* Slot indicator. Counts SLOTS, not photos: with nine photos this is four pips, not
+                nine. Nine pips would promise a strip that does not exist and shrink each one below
+                the point of being countable. */}
             <div className="absolute bottom-2 left-1/2 z-10 flex -translate-x-1/2 items-center gap-1">
-              {images.map((_, i) => (
+              {Array.from({ length: segments }, (_, i) => (
                 <span
                   key={i}
                   className={cn(

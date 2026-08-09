@@ -8,6 +8,14 @@
    there (user decision 2026-07-06). Width alone (lg:) misclassifies tablets. */
 @custom-variant pc (@media (min-width: 64rem) and (pointer: fine));
 @custom-variant mobile (@media not ((min-width: 64rem) and (pointer: fine)));
+/* `hover-pointer` = a real hovering pointer, at ANY width — deliberately NOT `pc`.
+   Use it for an affordance whose only precondition is "the pointer can rest somewhere
+   without committing", where screen width is irrelevant: the listing card's hover photo
+   scan is the first. `pc` would deny it to a mouse user running a half-width window,
+   which is an ordinary desktop posture, not an edge case. It still has to be gated on
+   SOMETHING, because touch devices emit a synthetic mouseenter on tap — an ungated
+   hover affordance fires under the thumb. */
+@custom-variant hover-pointer (@media (hover: hover) and (pointer: fine));
 /* Base UI emits data-orientation="vertical|horizontal". WITHOUT these two lines,
    Tailwind reads `data-vertical:w-px` as the built-in bare-attribute variant and
    compiles it to `[data-vertical]` — an attribute Base UI never sets. Every rule in
