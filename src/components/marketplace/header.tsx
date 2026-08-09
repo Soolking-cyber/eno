@@ -368,6 +368,21 @@ export function Header() {
           <form
             ref={searchFormRef}
             role="search"
+            // ⚠️ A REAL GET TARGET, SO ENTER SEARCHES BEFORE REACT HYDRATES.
+            // `onSubmit` preventDefaults, so once hydrated these never fire and behaviour is
+            // unchanged — the explorer still handles the query via its event, with no document
+            // navigation. They matter only in the window between first paint and hydration, where
+            // the box is fully visible and looks ready: without an action and a field name, Enter
+            // did nothing at all and the keystroke was silently lost.
+            // Measured on the built artifact: dead at 0ms after DOMContentLoaded, working from
+            // ~500ms. `/?q=…` is the same destination submitSearch() uses off the explorer, so the
+            // unhydrated path lands exactly where the hydrated one would.
+            // ⚠️ This works WITHOUT a submit button because the form has exactly ONE field that
+            // blocks implicit submission (the search input; the Map and clear controls are
+            // type="button" on purpose). Add a second text field and Enter stops submitting —
+            // at which point this needs a visually-hidden submit button, not a shrug.
+            action="/"
+            method="get"
             onSubmit={(e) => { e.preventDefault(); submitSearch(searchVal); setShowSuggestions(false) }}
             className="relative min-w-0 flex-1 animate-in fade-in duration-200"
           >
@@ -419,6 +434,8 @@ export function Header() {
                 // chevrons over the composer (the accessory bar's "Done" itself is a native
                 // WKWebView feature the web can't remove). Still tap-usable elsewhere.
                 tabIndex={pathname && /^\/messages\/.+/.test(pathname) ? -1 : undefined}
+                // Named so the pre-hydration GET above actually carries the query.
+                name="q"
                 placeholder={tr('Find products…', 'Tìm sản phẩm…')}
                 aria-label={tr('Search', 'Tìm kiếm')}
                 // Combobox semantics for the typeahead the arrow keys already drive.
