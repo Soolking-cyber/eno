@@ -30,7 +30,21 @@ export function SafetyStrip({ categorySlug, action, className }: { categorySlug:
           )
 
   return (
-    <div className={cn('flex items-start gap-2.5 rounded-xl bg-warning/10 px-3 py-2.5 text-xs leading-relaxed', className)}>
+    // ⚠️ THE LEFT RULE AND THE INK ARE THE POINT — this strip carries the one sentence that can
+    // stop a buyer losing money on a marketplace where deposit-link fraud is THE loss mode, and
+    // it was rendering as decoration. At `bg-warning/10` with neutral `text-foreground` it read
+    // as a tinted note, and on the PDP it sits directly beneath the "ENO protects you" panel —
+    // same rounded shape, same padding, near-identical value — so the informational box and the
+    // scam warning formed one grey blob. A design review flagged it as having less visual weight
+    // than the price.
+    // `border-l-2 border-warning` is the smallest thing that restores hierarchy without breaking
+    // the flat-canvas canon (§3b): it is an accent RULE, not a second box, and it distinguishes
+    // this strip from every neutral panel around it at a glance. The line itself goes
+    // `font-semibold text-warning` so the warning speaks in the warning's own voice.
+    // ⚠️ `--warning` is amber-800 (#92400e) in light and amber-400 in dark, both chosen for
+    // contrast as TEXT (see the token note in globals.css) — so this is safe as ink, which is
+    // exactly why the token exists rather than a raw amber.
+    <div className={cn('flex items-start gap-2.5 rounded-xl border-l-2 border-warning bg-warning/10 px-3 py-2.5 text-xs leading-relaxed', className)}>
       {/* The eno seal replaces lucide ShieldAlert in this first-party safety moment
           (§0b + foundation handoff request: seal-in-chip on the safety strip). On the
           warning tint the chief takes the strip's OWN ink — the trust-chip micro form
@@ -49,7 +63,9 @@ export function SafetyStrip({ categorySlug, action, className }: { categorySlug:
         <path d={SEAL_BAR} fill="none" stroke="currentColor" strokeWidth={STROKE_UI} strokeLinecap="round" />
       </svg>
       <div className="min-w-0 flex-1 space-y-0.5">
-        <p className="font-medium text-foreground">{line}</p>
+        {/* `text-warning`, not `text-foreground` — see the note on the container. A warning
+            printed in body ink is a sentence; printed in its own ink it is a warning. */}
+        <p className="font-semibold text-warning">{line}</p>
         {/* Guide link left, Report right (user-picked 2026-07-14) — the old
             standalone tips|report footer was a duplicate of this same link. */}
         <div className="flex items-center justify-between gap-3">

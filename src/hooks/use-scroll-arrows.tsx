@@ -48,7 +48,20 @@ export function useScrollArrows<T extends HTMLElement = HTMLDivElement>(
   const sync = useCallback(() => {
     const el = scrollerRef.current
     if (!el) return
-    setCanLeft(el.scrollLeft > 4)
+    // ⚠️ THE SCROLLER'S OWN START PADDING IS NOT "SCROLLED", AND IGNORING THAT SHOWED A FADE
+    // OVER CONTENT NOBODY HAD SCROLLED PAST. Rails written as `-mx-3 px-3` (a full-bleed row
+    // that keeps its gutter) begin life at `scrollLeft === paddingLeft`, because the first
+    // snap point sits after the padding. The old test — `scrollLeft > 4` — read that resting
+    // 12px as "the user has scrolled", so `canLeft` was true on FIRST PAINT and
+    // `railEdgeMask` drew a 40px left fade before anyone touched anything.
+    // Measured on `/` at 390px: the why-eno value-prop row AND the category grid both rest at
+    // scrollLeft 12 with padding-left 12, and both were masked — on why-eno that faded 40px of
+    // a 96px tile, i.e. 42% of "Free to post", the first claim the product makes.
+    // Padding is read per sync rather than cached: `sync` already runs on scroll/resize where
+    // a style read is cheap next to the layout the browser has just done, and caching it would
+    // go stale across the breakpoint that changes the gutter.
+    const startPad = parseFloat(getComputedStyle(el).paddingInlineStart) || 0
+    setCanLeft(el.scrollLeft > startPad + 4)
     setCanRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 4)
     if (centerSelector) {
       // First item's media box — its vertical offset is stable across horizontal scroll, and the
