@@ -1661,7 +1661,17 @@ export function ListingsExplorer({
             Keeping it OUTSIDE means <PromoBanner /> is unambiguously the first child and owns no
             margin, so the only thing above it is the section's own padding. Do not move the hero
             back inside, and do not give this container a first-child that renders nothing. */}
-        <div className="relative w-full space-y-8 sm:space-y-12">
+        {/* ⚠️ `lg:space-y-8` TIGHTENS DESKTOP BACK TO THE MOBILE RHYTHM, ON PURPOSE. Measured
+            2026-08-09 at 1440×900: the first product sat at y=983 on a 900px viewport, i.e. a
+            MARKETPLACE whose first screen contained zero merchandise. Three `sm:space-y-12`
+            gaps were 144px of that. Desktop normally earns more air than mobile, but this is a
+            dense feed in the Shopee/Lazada family, where the reference sits nearer 24–32px —
+            and the air here was buying nothing except distance from the listings.
+            ⚠️ THIS DOES NOT REORDER ANYTHING, and must not start to. The banner-then-why-eno
+            order above is an owner decision from 2026-08-05, taken against both external
+            reviewers' advice and recorded as such. Vertical COST is fair game; the sequence is
+            not. */}
+        <div className="relative w-full space-y-8 sm:space-y-12 lg:space-y-8">
 
           {/* HERO SEARCH AREA */}
           {/* ⚠️ NO PADDING — this element is now EMPTY apart from the sr-only <h1>. sr-only is
@@ -1698,7 +1708,7 @@ export function ListingsExplorer({
                 more to scroll (canLeft/canRight), pairing with the ← / → arrows outside the
                 scroller, and vanishes entirely when the row fits. A mask, not a fill — the
                 flat canon stays intact. */}
-            <div ref={catScrollerRef} style={railEdgeMask(catCanLeft, catCanRight)} className="mx-auto grid w-fit max-w-full grid-rows-2 grid-flow-col auto-cols-[7rem] sm:auto-cols-[9rem] gap-x-4 gap-y-6 sm:gap-x-6 sm:gap-y-8 overflow-x-auto scrollbar-none snap-x px-3">
+            <div ref={catScrollerRef} style={railEdgeMask(catCanLeft, catCanRight)} className="mx-auto grid w-fit max-w-full grid-rows-2 grid-flow-col auto-cols-[7rem] sm:auto-cols-[9rem] gap-x-4 gap-y-6 sm:gap-x-6 sm:gap-y-8 lg:gap-y-5 overflow-x-auto scrollbar-none snap-x px-3">
               {/* ⚠️ eno's OWN TWO PRODUCTS, PINNED AHEAD OF THE DEMAND ORDER. Measured 2026-07-28:
                   `/` took 570 page views in a week and `/vietnam-evisa` took ZERO. They were never
                   unreachable — this grid is demand-ordered and `services` already sat SECOND — they
@@ -1730,7 +1740,11 @@ export function ListingsExplorer({
                   // these are the FIRST two columns, so without it `snap-x` has nothing to catch at
                   // the very start of the scroll and the pinned tiles drift under a swipe. The
                   // category tiles below carry it for the same reason. Caught by a reviewer.
-                  className="press group flex snap-start flex-col items-center justify-center gap-2 whitespace-normal p-2 text-center cursor-pointer"
+                  // `lg:gap-1.5 lg:p-1`: a tile measured 112px tall to hold a 48px icon and a
+                  // 20px label — 44px of padding per row, twice over, directly above the feed.
+                  // Trimmed on desktop only; the touch target is unaffected because this is the
+                  // lg breakpoint, where there is no thumb.
+                  className="press group flex snap-start flex-col items-center justify-center gap-2 lg:gap-1.5 whitespace-normal p-2 lg:p-1 text-center cursor-pointer"
                 >
                   <CategoryIcon
                     name={s.icon}
@@ -1760,7 +1774,10 @@ export function ListingsExplorer({
                     // utility still wins the scale), but the canon's asymmetric spring on the
                     // release instead of a linear 100ms, so a tapped tile settles like the rest
                     // of the app. `.press` is the shared utility; it is not a second scale.
-                    className="press group flex snap-start flex-col items-center justify-center gap-2 whitespace-normal p-2 text-center cursor-pointer"
+                    // `lg:gap-1.5 lg:p-1` — the desktop padding trim explained on the first tile
+                    // above. These two tiles are byte-identical by design (see the note there), so
+                    // the classes have to move together.
+                    className="press group flex snap-start flex-col items-center justify-center gap-2 lg:gap-1.5 whitespace-normal p-2 lg:p-1 text-center cursor-pointer"
                   >
                     <CategoryIcon
                       name={cat.icon}
