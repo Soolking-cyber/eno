@@ -5,8 +5,52 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { cn } from "@/lib/utils"
 
 const buttonVariants = cva(
-  // Press feedback: a subtle compositor-only scale (active:scale-[0.97] at 100ms).
-  // `transition-all` covers it — note Tailwind v4's scale-* utilities set the standalone
+  // Press feedback: a subtle compositor-only scale (active:scale-[0.97] at 160ms on
+  // --ease-spring-snappy).
+  //
+  // ⚠️ 160ms + THE SNAPPY SPRING IS THE CONTRACT, NOT A PREFERENCE. globals.css pairs each
+  // curve with a duration band — snappy is "toggles/chips/press, pair 160–220ms" — and this
+  // is THE canonical button, so it was the loudest place the app ignored its own rule. It
+  // ran 100ms (below the band) on Tailwind's DEFAULT cubic-bezier(0.4,0,0.2,1), a symmetric
+  // Material curve. Measured across src/: 134 `duration-*` declarations, only 23 lines that
+  // also name an easing — so ~111 transitions were Material, in a system whose design
+  // language says "spring". Fixing the button first is the highest-leverage single edit.
+  //
+  // ⚠️ THE PROPERTY LIST IS EXPLICIT, AND ALL FOUR TRANSFORM PROPERTIES ARE NAMED.
+  // `transition-all` also animates LAYOUT properties, so any variant changing
+  // padding/width/height animates geometry — jank, never intended. But narrowing is only
+  // safe if the list is complete, and the first version of it was NOT: it listed
+  // `transform` and stopped, on the assumption that `transform` covers translate/rotate.
+  // It does not — Tailwind v4 emits `translate-*`, `scale-*` and `rotate-*` as STANDALONE
+  // properties, which is the same fact stated about `scale` just below. Two review families
+  // caught it; measured `transition-property` confirmed `translate` and `rotate` were absent,
+  // so a future negative-translate press variant would have snapped. Tailwind's own
+  // `transition-transform` shorthand expands to all four, so anything less is a regression
+  // against the utility it replaces.
+  //
+  // ⚠️ THE LIST IS DERIVED FROM TAILWIND'S OWN `transition` DEFAULT, MINUS LAYOUT — do not
+  // hand-curate it from imagination. Read the default at runtime and diff against it; that is
+  // how the second omission was found (`outline-color`, `text-decoration-color`, `fill`,
+  // `stroke` were all missing, so an animated focus outline, an underline colour, or an icon
+  // with an explicit `fill-*`/`stroke-*` would have snapped). What is deliberately excluded
+  // is only the layout/paint-order group: `display`, `content-visibility`, `overlay`,
+  // `pointer-events`, and the gradient stops. If you add a variant that animates something
+  // else, add it here.
+  //
+  // ⚠️ USE THE `ease-` UTILITY WITH AN ARBITRARY VALUE, NOT AN ARBITRARY-PROPERTY CLASS that
+  // sets the timing-function longhand directly. The longhand form does not set `--tw-ease`,
+  // so tailwind-merge does not group it with `ease-*`: a call site passing `ease-out` would
+  // NOT win through cn(), both classes would ship, and stylesheet order would decide (the
+  // concatenation trap in CLAUDE.md). The utility form sets the variable Tailwind's own
+  // transition utility reads, so it survives both.
+  //
+  // ⚠️ AND DO NOT SPELL THAT LONGHAND CLASS OUT IN A COMMENT. Tailwind v4 scans source TEXT,
+  // not parsed code, so a class-shaped string inside a comment is compiled like any other.
+  // Writing the arbitrary-property form here — with an ellipsis standing in for the value —
+  // emitted a real CSS rule whose value was that ellipsis, and broke the build outright:
+  // "Parsing CSS source code failed / Unexpected token Ident". Describe such classes in
+  // prose, or break the bracket, but never write a complete one in a comment.
+  // Note Tailwind v4's scale-* utilities set the standalone
   // `scale` property, NOT `transform`; the two are independent and COMPOSE, which is
   // exactly how a second press-scale used to compound here (see the `.press` block in
   // globals.css). Call sites that pass their own active:scale-* via className win through
@@ -26,7 +70,7 @@ const buttonVariants = cva(
   // that must be re-stated at every call site is a defect in the primitive, not in the
   // callers. (`disabled:pointer-events-none` below already suppresses hover on a disabled
   // button, so this needs no disabled: counterpart.)
-  "cursor-pointer inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl text-sm font-medium transition-all duration-100 active:scale-[0.97] disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 aria-invalid:border-destructive",
+  "cursor-pointer inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl text-sm font-medium transition-[color,background-color,border-color,outline-color,text-decoration-color,fill,stroke,opacity,box-shadow,filter,backdrop-filter,transform,translate,scale,rotate] duration-[160ms] ease-[var(--ease-spring-snappy)] active:scale-[0.97] disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 aria-invalid:border-destructive",
   {
     variants: {
       variant: {

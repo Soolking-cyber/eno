@@ -300,7 +300,13 @@ function SlidePanel({ slide }: { slide: PromoSlide }) {
             LOOKS like the CTA. A real <Button> inside an <a> is invalid HTML and swallows the tap
             target it sits on. `.press` still works on a span: tapping the CTA area puts it in the
             :active chain, so the one control that looks pressable also feels pressable. */}
-        <span className="press mt-4 inline-flex items-center rounded-xl bg-white px-4 py-2 text-sm font-bold text-brand shadow-sm sm:mt-6">
+        {/* `shadow-onmedia`, not Tailwind's `shadow-sm` (2026-08-09). This is the home page's
+            primary CTA and it was the ONE element on the page wearing a foreign shadow token.
+            ⚠️ It is NOT `shadow-pop`, which was the first replacement and was wrong: pop is 8%
+            ink at 30px blur, authored for popovers on the near-white canvas, and it all but
+            disappears against the hero's blue slide artwork. This button is white chrome on
+            media — the case `--shadow-onmedia` exists for. */}
+        <span className="press mt-4 inline-flex items-center rounded-xl bg-white px-4 py-2 text-sm font-bold text-brand shadow-onmedia sm:mt-6">
           {tr(slide.ctaEn, slide.ctaVi)}
         </span>
       </div>

@@ -195,7 +195,24 @@ function ListingCardImpl({
     // included — is one long-press target. Inert on web.
     <div
       data-card-root
-      className="reveal-on-scroll group relative flex flex-col h-full w-full text-left rounded-xl cursor-pointer transition-transform duration-200 [transition-timing-function:var(--ease-spring-snappy)] active:scale-[0.985] [touch-action:manipulation]"
+      // ⚠️ PRESS IS 0.97, NOT 0.985 — the old value was below the perceptual threshold on the
+      // app's most-tapped surface. Scale is RELATIVE, so the same number is a different amount
+      // of travel at different sizes: 0.985 on a 179px card moves the edge 2.7px, which reads
+      // as nothing. 0.97 moves it 5.4px. Large surfaces do need LESS scale than small ones —
+      // that part of the original reasoning was right — but 0.985 overshot the correction.
+      // 0.97 is not a new number either: it is `ui/button`'s value, 26 live uses. Live census
+      // when this changed: 0.96 ×114, 0.97 ×26, 0.985 ×25 — three depths across the rendered
+      // page, and the 25 were all instances of THIS component (one per card), i.e. the card
+      // was the only component wearing the third depth.
+      // ⚠️ `has-[button:active]:scale-100` STOPS THE PRESS FROM COMPOUNDING. `:active` matches
+      // ANCESTORS, so pressing an in-card control (favourite, share, the quick-action row —
+      // all `<button>`) fired this scale as well as the button's own: 0.97 × 0.96 = 0.931, a
+      // 6.9% shrink of the whole card because you tapped a 32px heart, resolving in two steps
+      // on two clocks (200ms here, 160ms there). The defect predates this line (0.985 × 0.96
+      // = 0.946) and raising the card to 0.97 made it louder, which is how a reviewer found
+      // it. Only `button` is exempted, NOT `a`: the card's stretched link IS the card's own
+      // press, so exempting anchors would delete the feedback this line exists to provide.
+      className="reveal-on-scroll group relative flex flex-col h-full w-full text-left rounded-xl cursor-pointer transition-transform duration-200 [transition-timing-function:var(--ease-spring-snappy)] active:scale-[0.97] has-[button:active]:scale-100 [touch-action:manipulation]"
     >
       {/* Card = link, actions = siblings. The whole card navigates via this ONE real,
           keyboard-focusable stretched <a> (the card link). Every IconButton below is a
@@ -228,7 +245,12 @@ function ListingCardImpl({
       <div
         data-protected
         data-rail-media
-        className="relative aspect-square w-full overflow-hidden rounded-xl bg-tint transform-gpu isolate transition-shadow duration-200 group-hover:shadow-[var(--shadow-card)]"
+        // ⚠️ `rounded-2xl`, NOT `xl` — canon §2's size rule ("all media ≥ ~96px"), which this
+        // 179px surface always satisfied. It sat at `xl` because the table used to carve
+        // listing-card media out by name; that contradiction was resolved 2026-08-09 and the
+        // carve-out deleted. Do not "restore" it: at the old xl this was a 9px corner on the
+        // most-repeated photo in the product, which is most of why the feed read as generic.
+        className="relative aspect-square w-full overflow-hidden rounded-2xl bg-tint transform-gpu isolate transition-shadow duration-200 group-hover:shadow-[var(--shadow-card)]"
         onClick={(e) => {
           // Image-area click → open the listing. It bubbles up from the photo, scrims,
           // badges and dots (none of which stopPropagation); the action buttons DO
@@ -329,10 +351,26 @@ function ListingCardImpl({
       >
         {images.length > 0 ? (
           <div
-            // 200ms, not the old 300: at 300 a left→right sweep across four slots lags visibly
-            // behind the pointer, and the whole point of hover-scan is that the photos keep up
-            // with the hand. Still a slide (not a crossfade) because the same transform carries
-            // the touch swipe, and a swipe has to track the finger's direction.
+            // ⛔ `ease-out` IS DELIBERATE HERE — DO NOT "UPGRADE" THIS TO A SPRING.
+            // It was changed to `--ease-spring` on the argument that a swipe should settle
+            // rather than decelerate, and that an overshoot inside `overflow-hidden` is
+            // harmless because it gets clipped. The second half is wrong, and two review
+            // families caught it independently. Clipping bounds an overrun; it cannot
+            // MANUFACTURE a slide. The track translates by -100%·index, so overshooting past
+            // the LAST index pulls the strip further left than its content extends and opens
+            // a blank sliver at the right edge — ~2px on a 179px card, ~4px in a full-width
+            // gallery, 8–13 device px at dpr 2–3, against a photo boundary. Index 0 does the
+            // same on the left. That is exactly the "resting position IS the boundary" case
+            // the motion contract in globals.css forbids; a track END is a boundary just as
+            // much as a viewport edge. A spring is only safe where the overrun has somewhere
+            // to go.
+            //
+            // The DURATION is 200, not the 300 it carried before the hover-scan landed, and that
+            // is a separate decision from the easing above — the no-spring rule is about the
+            // curve and survives untouched. At 300 a left→right sweep across four slots lags
+            // visibly behind the pointer, and hover-scan only works if the photos keep up with
+            // the hand. Still a slide rather than a crossfade, because this same transform
+            // carries the touch swipe and a swipe has to track the finger's direction.
             className="flex h-full w-full transition-transform duration-200 ease-out"
             style={{ transform: `translateX(-${idx * 100}%)` }}
           >
@@ -686,10 +724,14 @@ function ListingCardImpl({
                 <span
                   key={i}
                   className={cn(
-                    'h-1.5 rounded-full bg-white transition-all',
+                    // `shadow-onmedia` replaces an inline `0 0 2px rgba(0,0,0,0.4)` halo (2026-08-09).
+                    // Same legibility job on pale photos — the scrim alone does NOT cover it, see the
+                    // token — but lit from above like every other shadow in the app, and no raw
+                    // colour literal in a `style` prop (design-lint bans those in className; an
+                    // rgba() in `style` slipped the rule).
+                    'h-1.5 rounded-full bg-white transition-all shadow-onmedia',
                     i === idx ? 'w-3 opacity-100' : 'w-1.5 opacity-60',
                   )}
-                  style={{ boxShadow: '0 0 2px rgba(0,0,0,0.4)' }}
                 />
               ))}
             </div>
