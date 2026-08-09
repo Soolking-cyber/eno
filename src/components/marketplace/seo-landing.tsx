@@ -256,7 +256,7 @@ export async function SeoLanding({ content, after }: { content: SeoContent; afte
                   </div>
                   <div className="flex flex-1 flex-col gap-0.5 px-0.5 pt-2.5">
                     <span className="line-clamp-1 text-sm font-semibold text-foreground group-hover:text-accent-foreground">{l.title}</span>
-                    <Price price={l.price} currency={l.currency} priceUnit={l.priceUnit} className="text-sm font-bold text-accent-foreground" />
+                    <Price price={l.price} currency={l.currency} priceUnit={l.priceUnit} className="text-sm font-extrabold text-accent-foreground" />
                     <span className="flex items-center gap-1 text-xs text-muted-foreground">
                       <MapPin className="h-3 w-3 shrink-0 text-ink-4" />
                       <span className="truncate">{l.location}</span>

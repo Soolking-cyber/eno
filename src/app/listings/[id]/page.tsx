@@ -445,7 +445,7 @@ export default async function ListingPage({ params }: Props) {
               <div className="order-3 flex flex-col gap-2">
                 <div className="flex flex-col gap-1.5">
                   <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-                    <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} className="text-3xl font-bold tracking-tight text-accent-foreground" />
+                    <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} className="text-3xl font-extrabold tracking-tight text-accent-foreground" />
                     {/* Server-computed drop anchor (30-day-min reference) — never a seller "was". */}
                     {/* ⚠️ BOTH CLAIMS ARE WRAPPED IN <LiveUntil> BECAUSE THIS PAGE IS ISR-CACHED
                         FOR 30 DAYS. `prevPrice` and `urgent` are resolved by serialize.ts against

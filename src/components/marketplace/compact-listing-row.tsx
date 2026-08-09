@@ -108,7 +108,7 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
           {/* unit="sm" for the same reason as dual="sm": on a phone " / service" is
               the widest and least informative part of the row — every visa row says
               it — and it is what pushed the amount into the action cluster. */}
-          <Price price={l.price} currency={l.currency} priceUnit={l.priceUnit} compact dual="sm" unit="sm" className="shrink-0 text-base font-bold text-accent-foreground" />
+          <Price price={l.price} currency={l.currency} priceUnit={l.priceUnit} compact dual="sm" unit="sm" className="shrink-0 text-base font-extrabold text-accent-foreground" />
           {/* Urgent — RIGHT of the price (user-picked 2026-07-14): the bare black
               bolt on EVERY breakpoint. The desktop chip (outline + "Urgent" word)
               is gone — one glyph reads the same everywhere and keeps the one-line

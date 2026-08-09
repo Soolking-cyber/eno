@@ -748,7 +748,7 @@ function ListingCardImpl({
             everything else so the eye lands here first. Deal chips sit INLINE (baseline
             row) so "was"/"Good price" add no vertical bulk. */}
         <span className="flex items-baseline gap-1.5">
-          <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} compact className="text-lg font-bold leading-tight text-accent-foreground" />
+          <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} compact className="text-lg font-extrabold leading-tight text-accent-foreground" />
           {/* Struck-through "was" anchor — server-computed 30-day-min reference, only
               present while the drop badge is live. */}
           {hasDrop && (
