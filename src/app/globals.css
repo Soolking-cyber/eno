@@ -443,8 +443,17 @@
 }
 
 @layer base {
+  /* ⚠️ `outline-ring/50` WAS REMOVED FROM HERE, and it was dead style paid for on every node.
+     It set `outline-color: color-mix(in oklab, var(--ring) 50%, transparent)` on EVERY element in
+     the document — a per-element colour computation — while painting nothing, because Tailwind's
+     preflight leaves `outline-style: none` and nothing ever turned it on implicitly. Every real
+     focus ring in the app names its own colour (`focus-visible:outline-ring`,
+     `focus-visible:ring-ring`, see ui/tabs.tsx and ui/accordion.tsx), so no visible outline
+     depended on the inherited value.
+     ⚠️ `border-border` STAYS and is load-bearing: preflight sets `border: 0 solid` with NO colour,
+     so this is what gives every `border` utility its colour. Do not "tidy" it away with the other. */
   * {
-    @apply border-border outline-ring/50;
+    @apply border-border;
   }
   /* The <html> background IS the canvas: it paints the whole viewport, including the strip a
      rubber-band overscroll exposes past either edge and the area below a page shorter than the

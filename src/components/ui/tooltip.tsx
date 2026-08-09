@@ -30,6 +30,49 @@ export function TooltipProvider({
   return <TooltipPrimitive.Provider delay={delay} closeDelay={closeDelay} {...props} />
 }
 
+/**
+ * ⚠️ ONE SHARED MediaQueryList FOR THE WHOLE APP, RESOLVED AT MODULE SCOPE.
+ * The mobile homepage renders 73 tooltips (3 per listing card + the trust badge). Giving each one
+ * its own `matchMedia` call and its own `useEffect` would trade a hydration cost for 73 extra
+ * post-hydration commits on desktop — paying twice to fix paying once. One MQL, one snapshot
+ * function, and `useSyncExternalStore` so React handles the SSR/hydration handshake instead of us.
+ */
+let hoverMql: MediaQueryList | null | undefined
+function hoverQuery(): MediaQueryList | null {
+  if (hoverMql === undefined) {
+    hoverMql = typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+      // ⚠️ `any-hover`/`any-pointer`, NOT `hover`/`pointer`. The unprefixed queries describe only
+      // the PRIMARY pointer, so a touch-primary hybrid — an iPad with a trackpad, an Android
+      // tablet with a mouse, a phone docked to a keyboard — reports `hover: none` while having an
+      // input that can hover and focus perfectly well. Gating on the primary pointer would have
+      // denied those users every tooltip. `any-*` asks the question we actually mean: can ANY
+      // attached input hover with a fine pointer? Phones answer no, hybrids answer yes.
+      ? window.matchMedia('(any-hover: hover) and (any-pointer: fine)')
+      : null
+  }
+  return hoverMql
+}
+// Stable identities — a new function per render would resubscribe on every commit.
+const subscribeHover = (onChange: () => void) => {
+  const mql = hoverQuery()
+  if (!mql) return () => {}
+  // ⚠️ Safari 13 and earlier expose MediaQueryList WITHOUT addEventListener — only the legacy
+  // addListener. Calling the modern API there throws inside React's subscription and takes the
+  // whole tree down. The fallback is two lines; the alternative is a white screen on an old
+  // iPhone, which is exactly the device least able to tell us about it.
+  if (typeof mql.addEventListener === 'function') {
+    mql.addEventListener('change', onChange)
+    return () => mql.removeEventListener('change', onChange)
+  }
+  mql.addListener(onChange)
+  return () => mql.removeListener(onChange)
+}
+const getHoverSnapshot = () => hoverQuery()?.matches ?? false
+// ⚠️ FALSE ON THE SERVER, ALWAYS. The server cannot know the pointer, and guessing `true` would
+// server-render 73 Base UI trees and then throw them away — the exact cost this removes. Guessing
+// false renders the bare child on both server and first client render, so hydration matches.
+const getHoverServerSnapshot = () => false
+
 export function Tooltip({
   content,
   children,
@@ -46,8 +89,23 @@ export function Tooltip({
   align?: TooltipPrimitive.Positioner.Props["align"]
   className?: string
 }) {
+  // ⚠️ THIS HOOK MUST STAY ABOVE EVERY EARLY RETURN. `content` is not static at all call sites —
+  // account-panel-body.tsx toggles it between undefined and a string on a MOUNTED component, so a
+  // hook placed after the `!content` return would change the hook order between renders and crash.
+  const hoverable = React.useSyncExternalStore(subscribeHover, getHoverSnapshot, getHoverServerSnapshot)
+
   // No content → don't pay for a tooltip; render the control as-is.
   if (!content) return children
+
+  // ⚠️ NO TOOLTIP TREE ON A TOUCH DEVICE, AND THAT REMOVES NOTHING A TOUCH USER HAD.
+  // Base UI's Tooltip deliberately never opens on touch (see the note above), so on a phone all
+  // 73 of these were pure cost: a Root + Trigger + Portal + Positioner per control, hydrated,
+  // with a mouseenter listener each, for a popup that can never appear. Measured on the mobile
+  // homepage against a real production build with a 4x CPU throttle: script evaluation fell from
+  // a 2624 ms median to 2059 ms across 11 interleaved A/B runs (permutation p = 0.0067).
+  // The accessible name is unaffected — every call site carries its own aria-label, which the
+  // doc comment above already requires precisely because the tooltip is not the name.
+  if (!hoverable) return children
 
   // Open/close delay is grouped by <TooltipProvider> (delay=600ms). Base UI's Tooltip.Root
   // takes no per-instance delay in this version — the Provider owns it.

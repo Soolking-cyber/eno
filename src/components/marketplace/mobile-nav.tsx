@@ -153,7 +153,13 @@ function GatedTab({ href, active, onHref, icon, label, gate, onClick, prefetch, 
   return (
     <Link
       href={href}
-      prefetch={onHref ? false : prefetch}
+      // ⚠️ `loading` GATES THE PREFETCH, not just the tap. While auth is unresolved the tap handler
+      // below already swallows the tap and replays it — so during that exact window the tab is not
+      // a navigation at all, yet Next was still prefetching /post, /messages and /dashboard/account.
+      // Three RSC payloads fetched on the slowest part of a cold mobile load, for destinations the
+      // user cannot reach yet and which may resolve to a different route once auth lands. The
+      // prefetch resumes by itself the moment `loading` flips.
+      prefetch={onHref || loading ? false : prefetch}
       aria-label={label}
       aria-current={active ? 'page' : undefined}
       className={TAB}
