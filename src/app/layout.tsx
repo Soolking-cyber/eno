@@ -61,10 +61,43 @@ const SITE_ORIGIN = process.env.NEXT_PUBLIC_APP_URL || "https://eno.vn";
  * 800 carries the real display moments (promo-banner headline, trust score). 900 is omitted — its 3
  * call sites match down to 800 indistinguishably.
  */
+/**
+ * ⚠️ `axes: ["opsz"]` IS REQUIRED FOR THE OPTICAL-SIZE AXIS TO EXIST AT ALL, and its absence
+ * made a typographic claim in globals.css a no-op for as long as it has been written.
+ * next/font/google serves the WGHT-ONLY cut of a variable font unless the extra axes are named,
+ * so `font-variation-settings: "opsz" …` had nothing to vary. Measured before this change by
+ * rendering one 100px string at both extremes: `opsz 14` and `opsz 32` came back byte-identical
+ * at 1179.297px, while `wght 400` → `800` moved 1179.297 → 1243.539 — so the technique was
+ * sound and the axis was simply absent. `document.fonts` confirmed it: the loaded face reported
+ * "Inter 100 900", a weight range and no optical range.
+ *
+ * What it buys: a 40px hero heading and a 10px nav label stop being drawn from the SAME cut.
+ * Optical sizing is the thing SF Text vs SF Display exists to do — tighter spacing and thinner
+ * strokes as type grows, looser and sturdier as it shrinks. Verified working after the change:
+ * one string at opsz 14 / 20 / 32 measures 1209.7 / 1186.0 / 1138.5 — monotonic, 5.9% end to
+ * end, where all three were byte-identical before.
+ *
+ * ⚠️ IT COSTS +28.9 KB ON THE PRELOADED CRITICAL PATH (57.3 → 86.2 KB, measured in the built
+ * artifact), because a second axis has to ship in the same woff2. The number belongs here
+ * rather than in a commit message nobody re-reads.
+ *
+ * ⚠️ AND THE OBVIOUS DEFENCE OF THAT COST IS WRONG, so it is written down before someone
+ * reaches for it again. "The home page's LCP element is a card photo, not text, so fonts do
+ * not gate LCP" is inverted: next/font emits `<link rel="preload" as="font">`, which the
+ * browser fetches at HIGHEST priority — ahead of images. So the extra font bytes compete with
+ * the LCP photo for the same early bandwidth; being an image is precisely what makes it
+ * vulnerable, not what makes it safe. A reviewer caught this and was right.
+ * The honest position: this is a real cost in the primary market's network conditions, it is
+ * NOT measurable on a dev machine, and it has not been measured on a throttled 3G profile.
+ * If a perf pass wants it back, deleting this one `axes` line reverts the entire feature —
+ * nothing else depends on it, because the optical ladder is the browser's job (see the note
+ * in globals.css), not a set of hardcoded values that would have to be unwound too.
+ */
 const inter = Inter({
   variable: "--font-inter",
   subsets: ["latin", "vietnamese"],
   display: "swap",
+  axes: ["opsz"],
 });
 
 /**

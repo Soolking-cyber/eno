@@ -479,7 +479,25 @@
        These predate 2026-08-05 and were correct all along; they had simply never taken effect,
        because Inter itself never applied (see the font import in layout.tsx). */
     font-feature-settings: "cv01", "cv11", "ss01", "ss03", "zero";
-    font-variation-settings: "opsz" 32;
+    /* ⛔ NO `font-variation-settings: "opsz" …` HERE — AND THAT IS THE WHOLE POINT.
+       This line used to read `"opsz" 32`, which was a no-op for its entire life because the
+       axis was never shipped (see `axes: ["opsz"]` in layout.tsx). Shipping the axis was the
+       fix; PINNING the value would have been a new bug, and a subtler one.
+
+       `font-optical-sizing: auto` is the CSS INITIAL VALUE, and once the axis exists the
+       browser maps opsz to each element's computed font-size automatically and CONTINUOUSLY.
+       Measured here, normalised width-per-px at weight 600: 10px → 5.7432, 16px → 5.7012,
+       40px → 5.3652. That is a smooth ladder across every size in the app, for free.
+       An explicit `font-variation-settings` would OVERRIDE it and pin one cut — so the
+       hand-written three-step ladder that briefly sat here was strictly worse than nothing:
+       it would have frozen `.h-display` at the display cut even when its own `clamp()` shrinks
+       it to 28px on a phone, and any small `<span>` nested inside a heading would have
+       inherited the display cut too, because font-variation-settings inherits and knows
+       nothing about size.
+       It also removes a trap: a class-based ladder is a DIRECT declaration, so it beats the
+       inherited `font-variation-settings: normal` in the `html[lang="vi"]` rule below — two
+       review families caught that independently. Nothing to scope now, because nothing is set.
+       Do not "restore the optical ladder". The axis is the feature; the browser is the ladder. */
   }
 
   /* VIETNAMESE UI GETS THE FACE BUILT FOR IT (owner, 2026-08-05).

@@ -178,7 +178,12 @@ export function ContactComposer({
       // same `scale` property from @layer components, so the button's own value simply wins
       // and there is nothing to cancel. Keeping the class would now READ as "no press feel"
       // and actually DELIVER it, silently killing the tactile press on the PDP's main CTA.
-      className="press flex w-full items-center justify-center gap-1.5 py-2.5 cursor-pointer"
+      // ⚠️ `min-h-11` = 44px, THE TAP FLOOR — this is the PDP's primary action and it measured
+      // 366×40 (`size="none"` + `py-2.5` leaves 20px of padding around a 20px line). 40px is
+      // under the 44px minimum every touch guideline agrees on, on the one control the whole
+      // page exists to get pressed. A floor, not fixed padding, so a wrapped label grows past
+      // it instead of being clipped.
+      className="press flex min-h-11 w-full items-center justify-center gap-1.5 py-2.5 cursor-pointer"
     >
       {planning
         ? <><Route className="h-4 w-4" /> {tr('Plan my trip in chat', 'Lên lịch trình trong chat')}</>
@@ -199,7 +204,15 @@ export function ContactComposer({
           size="none"
           onClick={() => openSignIn({ listingTitle, listingImage, sellerName })}
           // `active:scale-100` dropped — see the note on chatButton above.
-          className="press flex w-full cursor-pointer gap-1.5 py-2.5 font-bold text-accent-foreground hover:bg-tint"
+          // `min-h-11` for the same reason as chatButton above — this measured 366×40 too, and
+          // it is the second-most-important action on the page.
+          // `items-center` comes WITH the floor and is not optional: a min-height taller than the
+          // content leaves the icon and label hanging at the top of the box without it.
+          // ⚠️ Horizontal alignment is deliberately NOT touched. A `justify-center` briefly rode
+          // along here and a reviewer flagged it as an undisclosed visual change — correct: this
+          // row is left-aligned today, that is a design decision nobody asked to revisit, and a
+          // tap-target fix is the wrong place to smuggle one.
+          className="press flex min-h-11 w-full cursor-pointer items-center gap-1.5 py-2.5 font-bold text-accent-foreground hover:bg-tint"
         >
           <Tag className="h-4 w-4" /> {tr('Sign in to make an offer', 'Đăng nhập để trả giá')}
         </Button>
