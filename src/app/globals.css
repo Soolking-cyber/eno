@@ -1563,17 +1563,38 @@ html.native-tabs .bottom-nav-spacer {
 
 /* ── Trust badge fills — the EARNED tiers get vivid, glossy gradient chips ──────
    (Trusted = electric blue, Exceptional = true yellow gold, Elite = royal violet).
-   Text colors hold ≥4.5:1 against the LIGHTEST gradient stop. The gloss is a
+   ⚠️ TEXT HOLDS ≥4.5:1 AGAINST THE WORST STOP — AND THE WORST STOP IS NOT ALWAYS THE
+   LIGHTEST. That sentence used to read "the LIGHTEST gradient stop", and the rule being
+   stated wrong is what let two of the three tiers ship failing. It only holds for LIGHT ink:
+   white text is worst over the lightest stop, but DARK text is worst over the DARKEST one.
+   Exceptional carries dark ink on gold, so checking its lightest stop measured a comfortable
+   6.58:1 while the end of the same gradient sat at 4.04:1. The rule is: compare against the
+   stop CLOSEST IN LUMINANCE to the text, and check all three. The gloss is a
    static inner highlight (no animation on feed chips — dozens per screen); the
    larger shield SVG carries its own glassy highlight. Same fills in both themes. */
 .trust-fill-trusted {
-  background-image: linear-gradient(135deg, #3b82f6 0%, #2563eb 55%, #1d4ed8 100%);
+  /* ⚠️ #3473da, NOT #3b82f6 (blue-500). The lighter stop measured 3.68:1 against white —
+     under AA — and this chip renders the score at 10px on EVERY listing card, so the
+     large-text allowance does not apply. Verified across all three stops: 4.55 / 5.17 / 6.70. */
+  background-image: linear-gradient(135deg, #3473da 0%, #2563eb 55%, #1d4ed8 100%);
   color: #fff;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45);
 }
 .trust-fill-exceptional {
-  background-image: linear-gradient(135deg, #fde047 0%, #facc15 45%, #f59e0b 100%);
-  color: #713f12; /* amber-900 on gold ≈ 7:1 */
+  /* ⚠️ MID AT 55%, MATCHING THE SHIELD — it was 45% here and 55% in the SVG, so this one
+     tier rendered a visibly different gold in the chip than in the badge. Colours alone are
+     not the sync pair; the STOP POSITIONS are half of it. */
+  background-image: linear-gradient(135deg, #fde047 0%, #facc15 55%, #f59e0b 100%);
+  /* ⚠️ THE TEXT MOVED, NOT THE GOLD — the gradient is the brand's, and darkening the ink is
+     the change nobody sees. #713f12 measured 4.04:1 against the DARKEST stop (#f59e0b); the
+     old "≈7:1" note was reading the lightest stop only, the wrong end for dark ink.
+     Measured for #5c330e: 8.23 / 7.09 / 5.05 across the three stops.
+     ⚠️ DARKEN THE INK, NEVER THE GOLD, TO BUY HEADROOM. A reviewer proposed darkening the
+     `to` stop instead; measured, that makes it WORSE — dark ink on darker gold loses
+     contrast (4.51 → 3.75 → 3.04 as the end stop darkens). That is the same
+     wrong-direction reasoning the original comment shipped. An intermediate #673910 also
+     cleared AA, but only by 0.007, which is not a margin — hence #5c330e. */
+  color: #5c330e;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55);
 }
 .trust-fill-elite {

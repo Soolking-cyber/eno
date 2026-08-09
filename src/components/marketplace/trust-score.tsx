@@ -26,10 +26,29 @@ const PX = { sm: 28, md: 38, lg: 48 } as const
 
 // Gradient stops + in-badge text color per EARNED tier (mirrors the .trust-fill-*
 // classes in globals.css — SVG needs its own <linearGradient>, CSS classes can't
-// paint SVG fills). Text colors hold ≥4.5:1 against the lightest stop.
+// paint SVG fills).
+//
+// ⚠️ TEXT HOLDS ≥4.5:1 AGAINST THE WORST STOP, AND THE WORST STOP DEPENDS ON THE INK.
+// This comment used to say "against the lightest stop", and that wrong rule is exactly why
+// two of the three tiers shipped failing AA — measured 2026-08-09: trusted `from` #3b82f6
+// gave 3.68:1 with white, and exceptional's dark ink gave 4.04:1 against `to` #f59e0b.
+// White ink is worst over the LIGHTEST stop; dark ink is worst over the DARKEST one. Check
+// all three, against the stop closest in luminance to the text.
+// Now: trusted 4.55/5.17/6.70 · exceptional 8.23/7.09/5.05 · elite 5.70/7.10/8.98.
+//
+// ⚠️ TO BUY HEADROOM ON A DARK-INK TIER, DARKEN THE INK — NEVER THE GRADIENT. A reviewer
+// proposed darkening Exceptional's `to` stop; measured, that moves it the wrong way
+// (4.51 → 3.75 → 3.04 as the end stop darkens), because dark ink on darker gold loses
+// contrast. It is the same inverted reasoning that produced the original bug, which is why
+// it is written down here rather than just fixed.
+//
+// ⚠️ THESE VALUES ARE DUPLICATED IN `globals.css` (.trust-fill-*) BY NECESSITY — a CSS class
+// cannot paint an SVG fill, so the chip and the shield each need their own copy. They are a
+// sync pair with no compiler to enforce it: change one, change the other, or the same score
+// renders two different blues on one screen.
 const SHIELD_GRADIENT: Record<string, { from: string; mid: string; to: string; text: string }> = {
-  trusted: { from: '#3b82f6', mid: '#2563eb', to: '#1d4ed8', text: '#ffffff' },
-  exceptional: { from: '#fde047', mid: '#facc15', to: '#f59e0b', text: '#713f12' },
+  trusted: { from: '#3473da', mid: '#2563eb', to: '#1d4ed8', text: '#ffffff' },
+  exceptional: { from: '#fde047', mid: '#facc15', to: '#f59e0b', text: '#5c330e' },
   elite: { from: '#7c3aed', mid: '#6d28d9', to: '#5b21b6', text: '#ffffff' },
 }
 
