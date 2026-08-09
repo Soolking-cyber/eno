@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Tag, Send, MessageCircle, Route } from 'lucide-react'
+import { Tag, Send, MessageCircle, Route, Loader2 } from 'lucide-react'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import { formatMoneyFull, moneyLocale } from '@/lib/vnd'
@@ -78,11 +78,27 @@ export function ContactComposer({
   // and drained by the effect below once `loading` settles — an early "Chat now"
   // click used to silently no-op, which e2e papered over with retries.
   const pendingRef = useRef<{ body?: string; offerAmount?: number | null; plan?: boolean } | null>(null)
+  /**
+   * ⚠️ THE PRIMARY CTA HAD NO PENDING STATE, AND THE WORST CASE WAS SILENT FOR SECONDS.
+   * `send()` either buffers (auth still resolving) or stashes and pushes to /messages/pending —
+   * a client navigation that fetches an RSC payload. Neither showed the buyer anything, so the
+   * most consequential tap in the product answered with nothing and the natural response is to
+   * tap again. A design review scored "visibility of system status" 2/4 on exactly this.
+   *
+   * `busy` covers BOTH waits with one flag, because from the buyer's side they are one wait:
+   * "I asked to talk to this seller and it has not happened yet".
+   * ⚠️ It is NOT cleared on the success path on purpose — the navigation unmounts this component,
+   * and clearing it first would flash the idle label for a frame before the page changes. It IS
+   * cleared whenever the flow stops here instead: a guest hitting the sign-in dialog, or a stash
+   * failure. Anything that leaves the buyer on this page must leave the button usable.
+   */
+  const [busy, setBusy] = useState(false)
   const send = (opts: { body?: string; offerAmount?: number | null; plan?: boolean }) => {
     // Until auth resolves, treat as not-ready: don't push to /messages/pending
     // (which would 401-bounce). Prompt only once we know they're truly logged out.
     if (!user) {
       if (loading) { pendingRef.current = opts; return }
+      setBusy(false) // the sign-in dialog is the answer; the buyer stays here and may retry
       openSignIn({ listingTitle, listingImage, sellerName })
       return
     }
@@ -92,6 +108,30 @@ export function ContactComposer({
     stashCompose({ listingId, body: opts.body, offerAmount, listingTitle, listingImage, price, currency, plan: opts.plan })
     router.push('/messages/pending')
   }
+
+  /**
+   * ⚠️ A BACKSTOP, BECAUSE A STUCK SPINNER IS WORSE THAN NO SPINNER. The success path never
+   * clears `busy` — the navigation unmounts this component, which is the correct and flicker-free
+   * exit. But that makes the flag depend on a navigation actually happening. If `router.push`
+   * stalls (a dead network mid-RSC-fetch is the realistic one), the buyer is left on the PDP
+   * looking at "Opening chat…" forever, with the guard refusing further taps: a silent button, the
+   * exact defect this state was added to remove, only now permanent.
+   * 8s is chosen to be well past any plausible navigation on a slow connection — measured LCP on
+   * this app at fast-3G+4x CPU is ~3s — so it should never fire on a healthy path. If it fires,
+   * the button simply becomes pressable again.
+   */
+  useEffect(() => {
+    if (!busy) return
+    const t = setTimeout(() => {
+      // ⚠️ DISARM THE BUFFERED INTENT TOO, or the backstop creates the race it exists to prevent:
+      // the button becomes pressable again while `pendingRef` is still loaded, so a re-tap would
+      // stash once immediately AND once more when auth resolves and the drain fires. Releasing
+      // the button has to mean releasing the whole attempt.
+      pendingRef.current = null
+      setBusy(false)
+    }, 8000)
+    return () => clearTimeout(t)
+  }, [busy])
 
   // Drain a buffered intent once auth resolves: send() then routes it (signed-in →
   // stash + redirect; signed-out → sign-in prompt). One-shot: cleared before replay.
@@ -121,9 +161,26 @@ export function ContactComposer({
    * first line to a seller, and typing it is the friction the one-tap flow exists to remove. There
    * is no equivalent for the desk's own planning service.
    */
-  const chatNow = () => { hapticTap(); send(planning ? { plan: true } : { body: opener() }) }
+  // `setBusy(true)` sits in the GESTURE handler, not in send(), for the same reason the haptic
+  // does: send() also runs from the deferred auth drain, and a spinner starting there would
+  // appear without a tap behind it.
+  // ⚠️ THE `busy` GUARD IS LOAD-BEARING, NOT COSMETIC. Without it a second tap during the wait
+  // calls stashCompose again and pushes a second navigation — and the whole reason this state
+  // exists is that a silent button INVITES a second tap. `aria-disabled` announces it; this
+  // returns early so the announcement is true.
+  const chatNow = () => {
+    if (busy) return
+    hapticTap(); setBusy(true); send(planning ? { plan: true } : { body: opener() })
+  }
   const sendOffer = () => {
     if (!canOffer) return
+    // ⚠️ THE SAME GUARD, BECAUSE THE TWO BUTTONS SHARE `send()`. Gating only `chatNow` left the
+    // double-send reachable through the adjacent control: during "Opening chat…" a tap on Send
+    // offer fired a second stashCompose + push and clobbered the stashed opener. A reviewer caught
+    // that the guard's own comment claimed more than the code did. If a third caller of send() is
+    // ever added, it needs this line too.
+    if (busy) return
+    setBusy(true)
     if (user) hapticConfirm()
     else hapticTap()
     send({ offerAmount: offerPrice })
@@ -183,11 +240,31 @@ export function ContactComposer({
       // under the 44px minimum every touch guideline agrees on, on the one control the whole
       // page exists to get pressed. A floor, not fixed padding, so a wrapped label grows past
       // it instead of being clipped.
-      className="press flex min-h-11 w-full items-center justify-center gap-1.5 py-2.5 cursor-pointer"
+      // `aria-busy` rather than `disabled`: a disabled button drops out of the a11y tree and stops
+      // announcing, so a screen-reader user would hear silence exactly when a sighted user sees the
+      // spinner. `aria-disabled` + the guard in chatNow blocks the double-send instead.
+      aria-busy={busy}
+      aria-disabled={busy}
+      // `aria-disabled:cursor-wait` — a reviewer noted an inert control still offering a click-me
+      // cursor. The button stays visually undimmed on purpose: it is not disabled, it is working.
+      className="press flex min-h-11 w-full items-center justify-center gap-1.5 py-2.5 cursor-pointer aria-disabled:cursor-wait"
     >
-      {planning
-        ? <><Route className="h-4 w-4" /> {tr('Plan my trip in chat', 'Lên lịch trình trong chat')}</>
-        : <><MessageCircle className="h-4 w-4" /> {tr('Chat now', 'Chat ngay')}</>}
+      {busy
+        // ⚠️ THE LABEL CHANGES, NOT JUST THE ICON. A spinner beside an unchanged "Chat now" reads
+        // as the button still asking to be pressed. Naming the state — "Opening chat…" — is what
+        // makes the wait legible, and it is the difference the status heuristic was scoring.
+        // ⚠️ ONE LABEL FOR BOTH BRANCHES, DELIBERATELY. The planning branch first said "Opening the
+        // planner…", which reads better — and was wrong twice over. Both branches do the same
+        // thing (open a chat thread), so the extra wording bought nothing; and it would have put
+        // NEW itinerary vocabulary into `ui-strings.ts`, the catalogue eno.vn ships to every
+        // browser. The planning branch cannot render on the marketplace edition (the PDP resolves
+        // through `scopedListingWhere`, which excludes the desk's rows) but the STRING would still
+        // be in the artifact, and that is the standard this repo holds the edition split to. A
+        // reviewer flagged it; adding a licensing surface for a nicer verb is a bad trade.
+        ? <><Loader2 className="h-4 w-4 animate-spin" /> {tr('Opening chat…', 'Đang mở khung chat…')}</>
+        : planning
+          ? <><Route className="h-4 w-4" /> {tr('Plan my trip in chat', 'Lên lịch trình trong chat')}</>
+          : <><MessageCircle className="h-4 w-4" /> {tr('Chat now', 'Chat ngay')}</>}
     </Button>
   )
 

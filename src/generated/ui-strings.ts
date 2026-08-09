@@ -945,6 +945,7 @@ export const UI_STRINGS: string[] = [
   "Open the dispute case to add your side",
   "Open the dispute case to follow it",
   "Opening Google…",
+  "Opening chat…",
   "Operating Regulations",
   "Operating regulations",
   "Or browse",
