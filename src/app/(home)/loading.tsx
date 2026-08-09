@@ -1,3 +1,5 @@
+import { Header } from '@/components/marketplace/header'
+import { Footer } from '@/components/marketplace/footer'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ListingCardSkeleton } from '@/components/marketplace/listing-card-skeleton'
 
@@ -37,7 +39,10 @@ import { ListingCardSkeleton } from '@/components/marketplace/listing-card-skele
  */
 export default function HomeLoading() {
   return (
-    <section className="relative overflow-hidden pt-5 pb-5 sm:pt-6 sm:pb-8">
+    <div className="flex min-h-screen flex-col blob-bg">
+      <Header />
+      <main id="main" tabIndex={-1} className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-4">
+        <section className="relative overflow-hidden pt-5 pb-5 sm:pt-6 sm:pb-8">
           <div className="relative w-full space-y-8 sm:space-y-12">
 
             {/* PROMO BANNER — the full-width carousel, first child of the landing container. */}
@@ -109,6 +114,9 @@ export default function HomeLoading() {
             </div>
 
           </div>
-    </section>
+        </section>
+      </main>
+      <Footer />
+    </div>
   )
 }
