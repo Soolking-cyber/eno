@@ -66,12 +66,15 @@ export function ProfileEditor({ profile, onSaved }: { profile: Profile; onSaved:
           setFieldErr({ phone: tr('Enter a valid phone number.', 'Nhập số điện thoại hợp lệ.') })
         } else if (d.error === 'name_too_short') {
           setFieldErr({ name: tr('Enter your name.', 'Nhập tên của bạn.') })
-        } else if (d.error === 'no_phone_in_name') {
-          // /api/profile/route.ts:31 — containsPhoneNumber() rejects a phone hidden in the display
-          // name (the contact gate exists to keep numbers out of public text). It is a NAME error;
-          // without this branch it fell through to the generic "Could not save", leaving the user to
-          // guess which field the server hated.
-          setFieldErr({ name: tr("Phone numbers aren't allowed in your name.", 'Không ghi số điện thoại trong tên.') })
+        } else if (d.error === 'no_phone_in_name' || d.error === 'no_contact_in_name') {
+          // The name field has TWO server rejections, not one, and this branch only listened for
+          // the first: containsPhoneNumber() throws `no_phone_in_name`, and containsContactInfo()
+          // — which also catches an email or a URL smuggled into the name — throws
+          // `no_contact_in_name`. Anyone who put an email in their name therefore got the generic
+          // "Could not save. Try again." with no indication of which field was wrong, which is the
+          // exact failure this mapping exists to prevent. Both codes are the same story to a
+          // person: contact details do not belong in a display name.
+          setFieldErr({ name: tr("Contact details aren't allowed in your name.", 'Không ghi thông tin liên hệ trong tên.') })
         } else {
           setError(tr('Could not save. Try again.', 'Không lưu được. Thử lại.'))
         }

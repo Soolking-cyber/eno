@@ -1,4 +1,5 @@
 import { getInitials, cn, BRAND_BLUE } from '@/lib/utils'
+import { AvatarImage } from './avatar-image'
 
 // Shared user/seller avatar: a photo when there is one, otherwise the app-wide initials
 // on the account's `avatarColor` (brand blue fallback). Consolidates the image-or-initials
@@ -28,16 +29,30 @@ export function Avatar({
   size?: keyof typeof SIZES
   className?: string
 }) {
-  const base = cn('shrink-0 overflow-hidden rounded-full', SIZES[size], className)
-  if (url) {
-    return <img src={url} alt="" className={cn(base, 'object-cover')} />
-  }
+  // ⚠️ THE INITIALS ARE ALWAYS RENDERED, AND THE PHOTO SITS ON TOP OF THEM.
+  // This used to be an either/or: a url meant an `<img>` and nothing else, so a photo that
+  // failed to load left a blank hole where a face should be — no initials, no colour, just the
+  // edit affordance floating in space (owner, 2026-08-09). Photos fail for ordinary reasons
+  // (a rotated Google account photo, a deleted storage object, a flaky network), and an avatar
+  // is identity: the fallback has to be the DEFAULT layer, not a branch that a load error can
+  // skip past. Now the coloured initials are the substrate and the photo covers them when it
+  // arrives — so the failure mode is "this person's initials" instead of a void.
+  // The photo layer removes itself on error; see AvatarImage for why that needs a client leaf.
+  const bg = color || BRAND_BLUE
   return (
     <span
-      className={cn(base, 'flex items-center justify-center font-bold text-white')}
-      style={{ backgroundColor: color || BRAND_BLUE }}
+      className={cn(
+        'relative flex shrink-0 items-center justify-center overflow-hidden rounded-full font-bold text-white',
+        SIZES[size],
+        className,
+      )}
+      style={{ backgroundColor: bg }}
     >
       {getInitials(name)}
+      {/* keyed on the url so a freshly uploaded photo clears a previous failure instead of
+          inheriting the old element's `failed` state and staying invisible. The colour is
+          handed down so the photo can paint itself opaque over the initials — see AvatarImage. */}
+      {url && <AvatarImage key={url} src={url} color={bg} />}
     </span>
   )
 }
