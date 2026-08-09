@@ -83,7 +83,18 @@ export function ProtectionsRow() {
           type="button"
           variant="bare"
           size="none"
-          className="press flex w-full items-center justify-start gap-2.5 whitespace-normal rounded-xl border border-border bg-tint px-3.5 py-2.5 text-left font-normal transition-colors hover:bg-accent"
+          // ⚠️ A FLAT ROW, NOT A PANEL — IT WAS COMPETING WITH THE SCAM WARNING BELOW IT.
+          // On the PDP this sits DIRECTLY above the deposit-fraud strip, and until now the two
+          // were the same shape: identical rounded box, identical padding, near-identical tonal
+          // value (bg-tint vs warning/10). An informational panel and the one sentence that can
+          // stop a buyer losing money read as a single grey blob, and a design review put it
+          // bluntly — the warning had less visual weight than the price.
+          // Nothing here is downgraded in FUNCTION: same trigger, same dialog, same copy, still a
+          // full-width tap target. What goes is the box. Canon §3b says a thing in normal flow is
+          // a row with a hairline, not a panel — and losing the box is what lets the warning's
+          // tinted strip and left rule read as the only emphasised thing in the block, which is
+          // the correct hierarchy when one of the two can cost someone money.
+          className="press flex w-full items-center justify-start gap-2.5 whitespace-normal border-b border-border px-1 py-2.5 text-left font-normal transition-colors hover:bg-tint"
         />
       }>
           {/* The eno seal — §0b's protection-chip echo (foundation handoff request):
