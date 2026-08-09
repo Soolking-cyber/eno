@@ -525,12 +525,21 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
     : undefined
   const priceErr = err.price ? t('Hãy nhập giá', 'Set a price') : undefined
   // Jump to (and focus) the first still-missing field when a publish attempt fails.
-  const scrollToMissing = () => {
-    const first = missing[0]
-    if (!first) return
-    const el = document.getElementById(`pw-${first.key}`)
+  /**
+   * Jump to ONE named field. Extracted from scrollToMissing so the mobile "still needed" list can
+   * send the seller to the item they actually tapped instead of always to the first one.
+   * ⚠️ THE ID CONVENTION IS `pw-<key>` AND IT IS LOAD-BEARING — the title field's id must stay
+   * exactly `pw-title` (see the landmine note in CLAUDE.md). Both callers go through here now, so
+   * there is one place that knows the convention rather than two.
+   */
+  const scrollToField = (key: string) => {
+    const el = document.getElementById(`pw-${key}`)
     el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
     if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) el.focus({ preventScroll: true })
+  }
+  const scrollToMissing = () => {
+    const first = missing[0]
+    if (first) scrollToField(first.key)
   }
 
   // ⚠️ EVERY EARLY RETURN BELOW IS A PUBLISH THAT NEVER REACHES THE SERVER, so /api/listings'
@@ -758,8 +767,22 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
     t,
   }
 
+  // ⚠️ 13rem, NOT 9rem — AND 9rem WAS ALREADY TOO SMALL BEFORE THIS PASS. This padding is the
+  // ONLY thing keeping the last form field out from under the fixed publish bar, and it is a
+  // hardcoded guess at that bar's height rather than a measurement of it.
+  // Measured at 390×844 with a fresh draft: the bar is 183px tall with the "still needed" chips
+  // present and ~142px without them, against a 144px (9rem) reserve — so the checklist state,
+  // which is the state EVERY seller is in until the last field, overflowed by ~39px, and even the
+  // old single-line version overflowed by ~12px.
+  // 12rem (192px) clears the measured 183px — but by only 9px, and a reviewer was right that 9px
+  // is not a margin here: this bar's height tracks OS font scaling and Vietnamese labels are
+  // longer, either of which eats it. 13rem = 208px gives 25px, which survives a step of text
+  // enlargement. It is still a guess at a measured thing, which is why the warning below matters.
+  // ⚠️ IF YOU CHANGE THE BAR'S CONTENTS, RE-MEASURE THIS. The two numbers are coupled with nothing
+  // to enforce it: the bar grows, this does not, and the failure is silent — the last field simply
+  // sits under the bar and the seller cannot reach it.
   return (
-    <div className="pb-[calc(9rem+env(safe-area-inset-bottom))] lg:pb-0">
+    <div className="pb-[calc(13rem+env(safe-area-inset-bottom))] lg:pb-0">
       {/* Exit is a <Link>, not an <a>: inside the Capacitor WebView a raw anchor is a fresh
           HTTP load of the live site — blank screen, full document teardown. The draft is
           already autosaved to localStorage, so a soft nav loses nothing. */}
@@ -1101,10 +1124,35 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
       <div data-fab-clear className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-background/95 px-4 pt-3 pb-[calc(4.75rem+env(safe-area-inset-bottom))] backdrop-blur lg:hidden">
         <div className="mx-auto max-w-7xl space-y-2">
           {/* What's still missing — mobile parity with the desktop checklist */}
+          {/* ⚠️ TAPPABLE CHIPS ON ONE SCROLLING ROW — was a `truncate`d sentence, and both halves
+              of that were wrong at the seller funnel's last step.
+              · `truncate` hard-clipped mid-word ("Add a title · Write a de…"), so the instruction
+                telling the seller how to finish was itself unreadable — and it was 11px.
+              · It was PROSE. The seller read what was missing and then had to go find it. Each
+                item now jumps to its own field, so the checklist IS the navigation.
+              ⚠️ ONE ROW, SCROLLED — NOT `flex-wrap`. The form root reserves a FIXED bottom padding for this bar (see the note above the form root);
+              a wrapping list grows the bar and the last fields disappear behind it, which is the exact failure the comment above warns
+              about. A horizontal scroller keeps the height constant however many items are
+              outstanding, and nothing is ever clipped mid-word.
+              `shrink-0` on each chip is what stops flex squeezing them back into ellipses. */}
           {missing.length > 0 && (
-            <p className="truncate text-2xs font-semibold text-ink-4">
-              {t('Còn thiếu', 'Still needed')}: {missing.map((c) => c.label).join(' · ')}
-            </p>
+            <div className="space-y-1">
+              <p className="text-2xs font-semibold text-ink-4">{t('Còn thiếu', 'Still needed')}</p>
+              <div className="-mx-1 flex gap-1.5 overflow-x-auto scrollbar-none px-1">
+                {missing.map((c) => (
+                  <Button
+                    key={c.key}
+                    type="button"
+                    variant="bare"
+                    size="none"
+                    onClick={() => scrollToField(c.key)}
+                    className="press shrink-0 whitespace-nowrap rounded-full bg-warning/10 px-2.5 py-1 text-2xs font-semibold text-warning cursor-pointer"
+                  >
+                    {c.label}
+                  </Button>
+                ))}
+              </div>
+            </div>
           )}
           <PublishButton {...publishButtonProps} />
         </div>

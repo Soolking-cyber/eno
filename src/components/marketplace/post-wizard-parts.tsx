@@ -41,17 +41,49 @@ export function PublishButton({
     <Button variant="cta" size="none"
       onClick={onSubmit}
       // NOT disabled when fields are missing — a click then reveals what's left
-      // (disabled submit hides the reason). Only blocked mid-submit. `canSubmit`
-      // still drives the label ("N left" vs "Publish").
+      // (disabled submit hides the reason). Only blocked mid-submit.
       disabled={submitting}
-      aria-disabled={!canSubmit}
-      className={cn('w-full rounded-xl px-7 py-3 text-sm transition-colors disabled:opacity-40 disabled:pointer-events-none cursor-pointer', !canSubmit && !submitting && 'opacity-70', className)}
+      // ⛔ NO `aria-disabled={!canSubmit}` — it was a lie, and once `opacity-70` went it was the
+      // only remaining one. The control IS actionable with fields outstanding: that is the whole
+      // design, a tap runs scrollToMissing and reveals what is left. `aria-disabled` told assistive
+      // tech "unavailable" about a button that works, and it now told them the opposite of what
+      // sighted users see. Incompleteness is carried by the count badge, which every user gets.
+      // A reviewer caught the mismatch after the dimming was removed.
+      // ⛔ NO `opacity-70` WHEN FIELDS ARE MISSING. It used to dim the button on exactly the
+      // screens where the seller most needs to believe it works, and it contradicted the line
+      // above it: this button is DELIBERATELY not disabled, because a tap is what reveals what's
+      // left. Affordance and behaviour were arguing — the thing looked dead and wasn't — at the
+      // single highest-drop-off moment in the product, the last step of the seller funnel.
+      // Incompleteness is now carried by the count badge in the label, which states the same fact
+      // without lying about whether the control works.
+      className={cn('w-full rounded-xl px-7 py-3 text-sm transition-colors disabled:opacity-40 disabled:pointer-events-none cursor-pointer', className)}
     >
       {submitting
         ? (edit ? t('Đang lưu…', 'Saving…') : t('Đang đăng…', 'Posting…'))
-        : missingCount
-        ? t(`Còn ${missingCount} mục`, `${missingCount} left to finish`)
-        : (edit ? t('Lưu thay đổi', 'Save changes') : t('Đăng tin', 'Publish listing'))}
+        : (
+          // ⚠️ THE LABEL IS ALWAYS A VERB. It used to read "6 left to finish" — a COUNT where the
+          // primary action belongs, so the button stopped naming what it does at the exact moment
+          // the seller is deciding whether to bother. The verb stays put and the count rides
+          // alongside as a badge: same information, but the button still says what pressing it is
+          // for. `tabular-nums` so the badge does not reflow the label as the count ticks down.
+          <span className="inline-flex items-center justify-center gap-2">
+            {edit ? t('Lưu thay đổi', 'Save changes') : t('Đăng tin', 'Publish listing')}
+            {missingCount > 0 && (
+              <span
+                aria-label={t(`Còn ${missingCount} mục chưa xong`, `${missingCount} still needed`)}
+                // ⚠️ `bg-white/20` ASSUMES THIS BUTTON IS DARK, and that holds only because
+                // `variant="cta"` is the solid brand fill — measured rgb(10,102,194). It is a
+                // scrim on the button's own ink, not a themed surface, which is why it is white
+                // rather than a token. If this button ever takes a light variant the badge
+                // disappears, and with the dimming gone there would then be NO incompleteness
+                // signal at all. Change the variant, change this.
+                className="inline-flex min-w-5 items-center justify-center rounded-full bg-white/20 px-1.5 py-0.5 text-2xs font-bold tabular-nums"
+              >
+                {missingCount}
+              </span>
+            )}
+          </span>
+        )}
     </Button>
   )
 }
