@@ -52,29 +52,51 @@ const TAB = 'flex flex-1 cursor-pointer transition-transform duration-[240ms] [t
 // bar into a text row. No colour of its own, so it INHERITS the tab's state colour and the
 // whole stack lights up together when active — one legible unit a child can read.
 function TabStack({ icon, label }: { icon: React.ReactNode; label: string }) {
+  // ⚠️ THE LABEL OWNS A FIXED SLOT AT THE BOTTOM; THE GLYPH CENTRES IN WHAT IS LEFT.
+  // This is the only structure that keeps all five labels on ONE baseline while the Post chip
+  // stays taller than the other four icons. With a plain centred stack the label position is a
+  // function of glyph height — measured, labelTop = 32 + glyphHeight/2 — so a 44px chip beside
+  // 28px icons puts its label 8px low, and the ONLY centred solution is to make every glyph the
+  // same size, which would delete the Post chip's prominence. Bottom-anchoring the label removes
+  // glyph height from the equation entirely.
   return (
     <>
-      <span className="relative">{icon}</span>
+      <span className="flex flex-1 items-center justify-center"><span className="relative">{icon}</span></span>
       {/* ⚠️ NO overflow-hidden / truncate on this label, ever. Vietnamese stacks diacritics
           ABOVE the cap height and descenders below ("Đăng tin"), and leading-none makes the
           line box exactly the font size — clipping it would cut the marks off the letters,
           which is the mid-word-truncation failure that killed the hand-built native apps.
           At an enlarged text size the label is allowed to WRAP and the bar grows with it
           (min-h-16 below); nothing is ever cut. */}
-      <span className="text-3xs font-medium leading-none text-center">{label}</span>
+      <span className="pb-1.5 text-3xs font-medium leading-none text-center">{label}</span>
     </>
   )
 }
 
 // gap-0.5 (not gap-1) so the taller Post chip + its label sit as one tight unit.
-const STACK = 'relative flex h-full w-full flex-col items-center justify-center gap-0.5 transition-colors'
+const STACK = 'relative flex h-full w-full flex-col items-center gap-0.5 transition-colors'
 
-// The Post tab only. Its chip is the tallest thing in the bar, and centring it left the
-// chip's top edge FLUSH with the bar's top border — exactly where the active/pending
-// indicator draws its 2px line, so the two merged into one smudge on tap (owner report,
-// 2026-07-21). Bottom-weighting the stack pushes the whole tab DOWN, which parks all of
-// the bar's slack above the chip and gives the indicator its own clear band.
-const STACK_POST = 'relative flex h-full w-full flex-col items-center justify-end gap-0.5 pb-0.5 transition-colors'
+// ⛔ STACK_POST IS GONE — the Post tab uses STACK like every other tab (2026-08-09).
+//
+// It existed because the Post chip is the tallest thing in the bar, and centring it left the
+// chip's top edge FLUSH with where the active/pending indicator draws its 2px line, so the two
+// merged into one smudge on tap (owner report, 2026-07-21). `justify-end pb-0.5` pushed the
+// whole tab down and parked the bar's slack above the chip.
+//
+// That fixed a real bug by breaking a different one: bottom-weighting moved the Post LABEL off
+// the row. Measured — Explore/Saved/Messages/Account labels all sat at y=818 and Post at y=832,
+// a 14px break across the app's most-looked-at 73px, on the one tab in the middle where the eye
+// compares hardest.
+//
+// The clearance is now bought where it was actually missing — the chip is 40px (`size-10`)
+// instead of 52px, and the indicator is inset 2px from the top edge. Both make room WITHOUT
+// moving the type. Measured after: all five labels at 56px from the bar's top, and the chip
+// clears the indicator band by 3px.
+// ⚠️ 40px, NOT 44px — an earlier revision of this note claimed 44 and a reviewer caught the
+// mismatch with `size-10`. 40 is what the geometry allows: the label slot is 16px and the gap
+// 2px, leaving 54px, and a 44px chip in that space closes the indicator gap to 1px. The 44px
+// TAP floor is unaffected either way, because the tap target is the full-height <Link>, not the
+// coin — measured at 72px tall.
 
 /** Content of a navigating tab: the icon + micro-label stack. Active = the whole stack turns
  *  brand + a short bar sits at the top of the bar. Lives INSIDE <Link> so useLinkStatus lights
@@ -95,7 +117,7 @@ function TabBody({ active, icon, label, stack = STACK }: { active: boolean; icon
   // the destination has loaded. Neither can repeat while the tab stays active.
   return (
     <span className={cn(stack, on ? cn('text-accent-foreground', '[&_svg:not([class*=fill-])]:fill-brand-100', 'wash-in') : 'text-body')}>
-      {on && <span aria-hidden className="bar-in absolute top-0 h-0.5 w-8 rounded-full bg-accent-foreground" />}
+      {on && <span aria-hidden className="bar-in absolute top-0.5 h-0.5 w-8 rounded-full bg-accent-foreground" />}
       <TabStack icon={typeof icon === 'function' ? icon(on) : icon} label={label} />
     </span>
   )
@@ -276,7 +298,17 @@ export function MobileNav() {
         // invisibly into the content scrolling beneath it — the old "no top border, the fill
         // carries it" choice broke the moment the fill stopped differing from the canvas. The
         // border-t is the "line, not box" separation the flat language uses.
-        'mobile-nav lg:hidden fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card pb-[env(safe-area-inset-bottom)] transition-[transform,opacity] duration-[250ms] ease-out [will-change:transform,opacity] motion-reduce:transition-none',
+        // `hairline-t` instead of `border-t border-border`: the same line at ONE device pixel
+        // instead of two (dpr 2) or three (dpr 3) — see the note in globals.css. This is the
+        // app's most-looked-at edge, so it is the one worth getting to native weight.
+        // ⚠️ THE BAR IS 1px SHORTER: 73px → 72px, measured. A border is part of the border box
+        // and a pseudo-element is not, so the line no longer reserves its own row — it paints
+        // over row 0 instead, which is also why the active indicator moved to `top-0.5`. An
+        // earlier version of this comment claimed the height was unchanged; a reviewer caught
+        // it. 1px is within the slack of everything that clears this bar (the `.kb-*` contract
+        // and `--nav-h` both use 4.5rem = 72px), but if something ever measures the bar at
+        // runtime, it is now 72.
+        'mobile-nav lg:hidden fixed inset-x-0 bottom-0 z-40 hairline-t bg-card pb-[env(safe-area-inset-bottom)] transition-[transform,opacity] duration-[250ms] ease-out [will-change:transform,opacity] motion-reduce:transition-none',
         // Reveal-on-focus: if a keyboard user tabs into the (scroll-hidden) bar, :focus-within
         // out-specificities the retract below and slides it back into view — never an invisible,
         // focused control. (Harmless while docked; a no-op when inert during keyboard-up.)
@@ -343,9 +375,9 @@ export function MobileNav() {
         // bg-brand-50, not bg-tint (icon-language §6): the Post coin is the one chrome coin in
         // the bar, and the brand-tinted disc ties it to the category-glyph wash — same blue
         // family, still flat.
-        stack={STACK_POST}
+        stack={STACK}
         icon={
-          <span className="flex size-13 items-center justify-center rounded-full bg-brand-50 text-brand">
+          <span className="flex size-10 items-center justify-center rounded-full bg-brand-50 text-brand">
             <Plus className="h-7 w-7" strokeWidth={STROKE} />
           </span>
         }

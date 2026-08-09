@@ -244,6 +244,17 @@ function SlidePanel({ slide }: { slide: PromoSlide }) {
         // so the vertical padding is slack the min-height already absorbs — halving py alone moves
         // nothing until the content outgrows the panel. Shortening the banner means lowering the
         // min-h values below, which is a separate decision and deliberately left alone.
+        // ⛔ NO `.press` HERE, AND THE REASON IS THE GESTURE, NOT THE SIZE.
+        // A design review flagged this panel as the largest tap target on the home page with no
+        // press feedback, and adding `.press` looked obviously right. It is not: this panel is a
+        // SWIPE surface (see the carousel note below — "on touch the swipe is the gesture").
+        // `:active` latches on pointer-down and holds for the whole drag, so a 0.96 scale would
+        // shrink the panel under the finger for the length of every swipe — ~7px of edge travel
+        // at 366×188, ~24px at the lg:min-h-[300px] size. Press feedback is sized for a tap; on a
+        // drag surface it reads as the page flinching. A reviewer caught this after it shipped in
+        // an earlier revision of this line.
+        // If this ever needs tap feedback, it has to be gated on a real tap (pointerup without
+        // movement), not on `:active`.
         'relative flex min-h-[188px] flex-col justify-center overflow-hidden px-3 py-3 text-white sm:min-h-[212px] sm:px-4 lg:min-h-[300px] lg:px-7 pc:px-14',
         slide.surface,
       )}

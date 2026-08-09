@@ -26,6 +26,40 @@
 @custom-variant data-vertical (&[data-orientation="vertical"]);
 
 @theme inline {
+  /* ⚠️ THE HOUSE CURVE IS THE DEFAULT, WHICH IS THE ONLY WAY THIS EVER GOT FIXED.
+     Tailwind's `transition-*` utilities fall back to `--default-transition-timing-function`
+     when no `ease-*` class is present. Measured 2026-08-09: 134 `duration-*` declarations
+     across src/, and only 23 lines named ANY easing — so ~111 transitions ran Tailwind's
+     stock `cubic-bezier(0.4,0,0.2,1)`, a symmetric Material curve, in an app whose design
+     language says "spring motion" and which had three hand-sampled `linear()` springs sitting
+     unused in :root. Rewriting 111 call sites would have been a migration nobody finishes;
+     changing the fallback fixes all of them at once and makes the house curve the thing you
+     get by DOING NOTHING, which is the only kind of convention that holds.
+
+     `--ease-spring` (not `-snappy`) is the right default: the contract two hundred lines down
+     pairs it with 220–340ms as "default", and its overshoot is 1.1% against snappy's 3.0%.
+     Anything that wants the quicker curve still asks for it.
+
+     ⚠️ THIS DOES NOT REACH THE FLUSH-DOCKED SURFACES, AND MUST NOT. `#app-header` and
+     `.mobile-nav` name `ease-out` explicitly, so an explicit class beats this fallback and
+     they keep their non-overshooting curve — see the boundary rule in the motion contract
+     below. If you ever remove `ease-out` from those, you reintroduce the 0.7–0.8px gap.
+     ⚠️ THEY ARE EXAMPLES OF A CLASS, NOT THE WHOLE CLASS — a reviewer's phrasing, and it is
+     the right way to hold this. ANY element whose transition rests exactly on a boundary
+     (a docked bar, a drawer at its open position, a value clamped at 0 or 100%) needs an
+     explicit non-overshooting curve. The default is right for the other ~300.
+
+     ⚠️ IT DOES NOT TOUCH CSS ANIMATIONS, WHICH IS WHY THE FLOATING LAYERS ARE SAFE. The same
+     reviewer expected Base UI popovers/menus/tooltips to start overshooting. Measured by
+     opening one: it runs `animation: enter` with `animation-timing-function: ease`, and this
+     variable is the fallback for `transition-timing-function` only. Keyframed enter/exit is a
+     separate system and is unaffected.
+
+     ⚠️ Durations are deliberately NOT defaulted. `--default-transition-duration` would move
+     every un-timed transition at once, and the durations in this app ARE stated at each call
+     site; the curve was the thing nobody was stating. */
+  --default-transition-timing-function: var(--ease-spring);
+
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-inter-vn), var(--font-inter, ui-sans-serif), ui-sans-serif, system-ui, sans-serif;
@@ -680,6 +714,79 @@
 .shadow-overlay { box-shadow: var(--shadow-overlay); }
 /* White chrome over user photography — see --shadow-onmedia for why it is required. */
 .shadow-onmedia { box-shadow: var(--shadow-onmedia); }
+
+/* ============================================================
+   TRUE HAIRLINES — one DEVICE pixel, at any density
+   ============================================================
+   A `border-top: 1px` is one CSS pixel, which is TWO device pixels at dpr 2 and THREE at
+   dpr 3. Every divider in the app therefore renders at double or triple the weight of a
+   native iOS separator (0.5pt = 1 device px), which is a large part of why dense chrome
+   reads heavier here than on the platform it sits next to.
+
+   ⚠️ `border-width: 0.5px` DOES NOT WORK, AND NOT FOR THE REASON YOU EXPECT. The usual
+   objection is that it vanishes at fractional zoom; a reviewer raised exactly that. Measured
+   instead of argued — rasterised and ink-counted across dpr 1/2/3 × zoom 1/1.1/1.25/1.5/1.75,
+   15 combinations: it never vanished ONCE, and it never got thinner either. Ink ratio against
+   a 1px border was 1.00 in every single case, because Chromium clamps sub-pixel border widths
+   up. So it is a no-op, not a risk. Do not "fix" hairlines by halving a border width.
+
+   What actually works, from the same measurement (ink, where 1.000 = one device row):
+       border-top:1px          dpr2 2.000   dpr3 3.000    ← the problem
+       gradient (this)         dpr2 1.000   dpr3 1.000    ← one device px at ANY density
+       transform:scaleY(.5)    dpr2 1.000   dpr3 1.502
+       box-shadow inset .5px   dpr2 1.000   dpr3 1.502
+   The gradient wins because it is the only one that stays at exactly one device row as
+   density rises; the other two drift back toward 1.5 at dpr 3.
+
+   ⚠️ DRAWN ON A PSEUDO-ELEMENT, SO IT COSTS NO LAYOUT. A border occupies space and a
+   background does not, so swapping one for the other would silently shorten every element it
+   touched. These utilities add an absolutely-positioned 1px strip instead: the box keeps its
+   geometry and only the paint changes.
+
+   ⛔ THESE RULES DO NOT SET `position`, AND MUST NOT — THAT WAS A SHIP-BLOCKER.
+   The first version carried `.hairline-t { position: relative }` so the pseudo would anchor
+   itself. This file emits plain, UNLAYERED CSS (same as `.shadow-overlay` above), and an
+   unlayered declaration beats every `@layer utilities` rule no matter the specificity — so on
+   `.mobile-nav`, whose `fixed` comes from a Tailwind utility, `position: relative` WON and the
+   bottom bar stopped being fixed: it fell into document flow and scrolled away with the page.
+   A reviewer caught it from the cascade alone, and a measurement I had already taken agreed
+   without my noticing — the nav's labels reported a viewport top of 5310px, which no fixed
+   element can have.
+   ⚠️ THE HOST MUST THEREFORE ALREADY BE A POSITIONING CONTEXT (fixed/absolute/relative/sticky).
+   `.mobile-nav` is `fixed`, so it qualifies. On an unpositioned host the strip would escape to
+   the nearest positioned ancestor and draw a line across the wrong box — the same trap
+   documented for `tap-44`. Check the host before adding this class.
+
+   ⚠️ RETINA ONLY. At dpr 1 there is no half-pixel to aim at: the gradient's 50% stop would
+   paint the single available device row at ~50% coverage, i.e. a hairline that is not thinner,
+   just fainter. So a plain 1px border is the dpr-1 branch, and the gradient only takes over
+   where a device pixel is actually smaller than a CSS pixel.
+   Use on CHROME separators — the nav's top edge, the header's bottom edge, long divided
+   lists. `border-border` stays correct for boxes that need a real border on all sides. */
+.hairline-t::after, .hairline-b::after {
+  content: '';
+  position: absolute;
+  inset-inline: 0;
+  height: 1px;
+  background-color: var(--border);
+  pointer-events: none;
+}
+.hairline-t::after { top: 0; }
+.hairline-b::after { bottom: 0; }
+@media (min-resolution: 2dppx) {
+  .hairline-t::after {
+    background-color: transparent;
+    background-image: linear-gradient(to bottom, var(--border) 50%, transparent 50%);
+    background-size: 100% 1px;
+    background-repeat: no-repeat;
+  }
+  .hairline-b::after {
+    background-color: transparent;
+    background-image: linear-gradient(to top, var(--border) 50%, transparent 50%);
+    background-size: 100% 1px;
+    background-repeat: no-repeat;
+  }
+}
 /* The slider handle's lift. Plain CSS (like its siblings above), so it is emitted
    unconditionally — it does not depend on Tailwind scanning a class name. */
 .shadow-thumb { box-shadow: var(--shadow-thumb); }
