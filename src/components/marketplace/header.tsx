@@ -383,7 +383,26 @@ export function Header() {
             // at which point this needs a visually-hidden submit button, not a shrug.
             action="/"
             method="get"
-            onSubmit={(e) => { e.preventDefault(); submitSearch(searchVal); setShowSuggestions(false) }}
+            // ⚠️ THE QUERY COMES FROM THE FIELD, NOT FROM REACT STATE, and that is a correctness
+            // fix rather than a style choice. There is a window during hydration where the handler
+            // is already attached but `searchVal` is still '' — React does not adopt text the user
+            // typed into the SSR input before it attached its onChange. In that window the old
+            // code preventDefaulted the native submit and then searched for an EMPTY string, so a
+            // fast typist on a slow phone got "no results" for a query they had clearly typed.
+            // That is worse than the dead-Enter it replaced: a dead key invites a retry, an empty
+            // result set looks like an answer. Found by re-landing the home layout split, which
+            // makes the header hydrate first and widens the window until it is reproducible.
+            // The DOM value is authoritative in every state — it is literally what the user can
+            // see in the box — and post-hydration it is identical to `searchVal`, so this changes
+            // nothing once React owns the input. `searchVal` stays as the fallback for the
+            // programmatic callers that submit without a form event.
+            onSubmit={(e) => {
+              e.preventDefault()
+              const field = e.currentTarget.elements.namedItem('q')
+              const typed = field instanceof HTMLInputElement ? field.value : null
+              submitSearch(typed ?? searchVal)
+              setShowSuggestions(false)
+            }}
             className="relative min-w-0 flex-1 animate-in fade-in duration-200"
           >
             {/* Positioning context for the whole search component. The form is `flex-1`, so the bar
