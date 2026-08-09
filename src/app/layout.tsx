@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Be_Vietnam_Pro, Inter } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 import { AnalyticsTags } from "@/components/marketplace/analytics-tags";
 import { AttributionCapture } from "@/components/marketplace/attribution-capture";
@@ -95,9 +96,48 @@ const SITE_ORIGIN = process.env.NEXT_PUBLIC_APP_URL || "https://eno.vn";
  */
 const inter = Inter({
   variable: "--font-inter",
-  subsets: ["latin", "vietnamese"],
+  // ⚠️ "latin" ONLY — the vietnamese subset is served by interVietnamese below, and preloading
+  // BOTH put a file on the critical path that never got used. See the note on interVietnamese.
+  subsets: ["latin"],
   display: "swap",
   axes: ["opsz"],
+});
+
+/**
+ * ⚠️ THE VIETNAMESE CUT OF INTER, SELF-HOSTED, AND IT SAVES 83 KiB ON AN ENGLISH VISIT.
+ *
+ * The bug it fixes: an English mobile homepage downloaded THREE Inter files (140.6 KiB), and the
+ * biggest — 85,272 bytes of `latin-ext` — was fetched for exactly four characters: đ ư Đ ă, from
+ * the prelaunch banner, "Prices in Đ and $", and the company name in the footer. Every one of
+ * those glyphs is also in the 10,280-byte vietnamese file we were ALREADY preloading. The browser
+ * picked the wrong one because Google's generated @font-face blocks overlap on those codepoints
+ * and `latin-ext` is declared LAST, so it wins — and the declaration order is not ours to change.
+ *
+ * The fix is to stop arguing about @font-face order and use FAMILY order, which is evaluated per
+ * character and IS ours: this face goes first in the font-family list (globals.css), so any glyph
+ * in its unicode-range is served from 10 KB and never reaches Next's latin-ext face at all.
+ *
+ * Fails safe by construction: a latin-ext codepoint OUTSIDE this range — Polish ł, Turkish ş in a
+ * user-submitted listing title — simply falls through to Next's own latin-ext face exactly as it
+ * does today. Nothing is routed to a system fallback that would not already have been used.
+ *
+ * The file is the exact artifact Next itself emitted for the vietnamese subset, committed verbatim
+ * (10,280 bytes) with Inter's OFL licence beside it. Regenerate by pulling
+ * `_next/static/media/*-s.p.*.woff2` whose unicode-range matches the one below.
+ */
+const interVietnamese = localFont({
+  src: "../fonts/inter-vietnamese.woff2",
+  variable: "--font-inter-vn",
+  weight: "100 900",
+  display: "swap",
+  preload: true,
+  // Copied verbatim from the @font-face Next generates for Inter's vietnamese subset — this is
+  // the contract that keeps the two faces from fighting. Widening it would start stealing glyphs
+  // from the latin face; narrowing it hands them back to the 85 KB latin-ext one.
+  declarations: [{
+    prop: "unicode-range",
+    value: "U+102-103,U+110-111,U+128-129,U+168-169,U+1A0-1A1,U+1AF-1B0,U+300-301,U+303-304,U+308-309,U+323,U+329,U+1EA0-1EF9,U+20AB",
+  }],
 });
 
 /**
@@ -200,7 +240,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${inter.variable} ${beVietnamPro.variable}`} suppressHydrationWarning>
+    <html lang="en" className={`${inter.variable} ${interVietnamese.variable} ${beVietnamPro.variable}`} suppressHydrationWarning>
       <head>
         {/* Set the theme class BEFORE paint to avoid a flash of the wrong scheme —
             reads the persisted System/Light/Dark choice + the OS preference. Kept

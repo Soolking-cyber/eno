@@ -28,7 +28,7 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-inter, ui-sans-serif), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-inter-vn), var(--font-inter, ui-sans-serif), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
   --color-ring: var(--ring);
   --color-input: var(--input);
@@ -482,7 +482,7 @@
        an undefined var() makes the whole declaration invalid at computed-value time and the
        later list items never get a turn. That is precisely how Inter went missing for months
        (see the comment on the font import in layout.tsx). */
-    font-family: var(--font-inter, ui-sans-serif), ui-sans-serif, system-ui, sans-serif;
+    font-family: var(--font-inter-vn), var(--font-inter, ui-sans-serif), ui-sans-serif, system-ui, sans-serif;
     /* Inter opt-in features: cv01 serifed-1 · cv11 single-storey a · ss01/ss03 contextual
        alternates · zero slashed-0 — disambiguates 0/O and 1/l in prices, phone numbers and IDs.
        These predate 2026-08-05 and were correct all along; they had simply never taken effect,
