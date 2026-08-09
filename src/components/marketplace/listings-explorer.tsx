@@ -1917,7 +1917,21 @@ export function ListingsExplorer({
                       onMouseEnter={() => prefetchListing(l.id)}
                       onTouchStart={() => prefetchListing(l.id)}
                     >
-                      <ListingCard listing={l} onOpen={handleOpen} priority={index === 0} lcp={index === 0} onLocate={locateListing} />
+                      {/* ⚠️ NO `lcp` ON THE LANDING FEED — THE FIRST CARD IS NOT THIS PAGE'S LCP.
+                          Measured at 390×844 / 4× CPU / 1.6 Mbps: the browser picks
+                          `/banners/promo-1.svg` (the promo banner) as LCP at 1816 ms, not a card
+                          photo. `lcp` is the flag that turns on next/image `priority`, i.e. emits
+                          a <link rel=preload> — so here it was spending a high-priority hint on an
+                          element that never wins, while COMPETING with the element that does.
+                          The banner now preloads itself from promo-banner.tsx.
+                          ⚠️ `priority` STAYS. It is a different lever: without `lcp` it resolves to
+                          `loading="eager"` (see listing-card.tsx ~435), so the first card still
+                          skips lazy-loading — it just stops claiming the preload budget.
+                          ⚠️ AND THIS IS THE LANDING BRANCH ONLY. The other <ListingCard lcp> call
+                          site is the filtered/search view, which renders NO banner, so there the
+                          first card really is the LCP and the hint is correctly spent. Do not
+                          "tidy" the two call sites into agreement. */}
+                      <ListingCard listing={l} onOpen={handleOpen} priority={index === 0} onLocate={locateListing} />
                     </div>
                   </Fragment>
                 ))}

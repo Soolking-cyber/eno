@@ -17,6 +17,31 @@ import { PROMO_SLIDES, type PromoSlide } from '@/lib/promo-slides'
 import { cn } from '@/lib/utils'
 
 /**
+ * ⛔ DO NOT ADD `preload(PROMO_SLIDES[0].image)` HERE — IT WAS TRIED AND IT LEAKS.
+ *
+ * The problem is real and still open. Measured at 390×844 / 4× CPU / 1.6 Mbps / 150 ms RTT: the
+ * browser picks `/banners/promo-1.svg` as this page's LCP element, and nothing preloads it — the
+ * only image preload on the page is `/logo-mark.svg`. The file is 1.1 KB, so this is NOT a payload
+ * problem, it is a DISCOVERY problem: the artwork is a CSS `background-image` (see the note on the
+ * layer below for why that is right for a decorative SVG), and the preload scanner cannot see
+ * inside a style attribute. The URL is learned only after CSS parses and the element lays out.
+ *
+ * ⚠️ `preload()` FROM react-dom DOES NOT FIX IT, and the reason is worth keeping. It was added on
+ * the reasoning that a call inside this CLIENT component would live and die with the banner, which
+ * only the landing page renders — unlike the Server Component version whose failure
+ * `(home)/page.tsx` already documents. That reasoning is wrong: React hoists the <link> to <head>
+ * and does NOT remove it on unmount. Verified rather than assumed, on a marketplace production
+ * build: soft-navigated `/` → `/signin` and `link[rel=preload][href*="promo-1"]` was STILL in the
+ * head. Same leak as before, moved one file.
+ *
+ * The likely correct fix is to stop hiding the image from the scanner — render it as a real
+ * `<img aria-hidden fetchpriority="high">` positioned like the current background layer, so it is
+ * in the SSR HTML where the scanner can see it and it unmounts with the component. That is a
+ * change to how the banner paints, not a one-liner, so it is left for a pass that can measure it
+ * properly rather than bolted on here.
+ */
+
+/**
  * THE HOME PROMO BANNER — the Shopee-shaped advertising slot at the top of the feed.
  *
  * Geometry follows the reference the owner sent: a wide carousel with a column of static tiles
