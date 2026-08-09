@@ -184,7 +184,12 @@ function ListingCardImpl({
       <div
         data-protected
         data-rail-media
-        className="relative aspect-square w-full overflow-hidden rounded-xl bg-tint transform-gpu isolate transition-shadow duration-200 group-hover:shadow-[var(--shadow-card)]"
+        // ⚠️ `rounded-2xl`, NOT `xl` — canon §2's size rule ("all media ≥ ~96px"), which this
+        // 179px surface always satisfied. It sat at `xl` because the table used to carve
+        // listing-card media out by name; that contradiction was resolved 2026-08-09 and the
+        // carve-out deleted. Do not "restore" it: at the old xl this was a 9px corner on the
+        // most-repeated photo in the product, which is most of why the feed read as generic.
+        className="relative aspect-square w-full overflow-hidden rounded-2xl bg-tint transform-gpu isolate transition-shadow duration-200 group-hover:shadow-[var(--shadow-card)]"
         onClick={(e) => {
           // Image-area click → open the listing. It bubbles up from the photo, scrims,
           // badges and dots (none of which stopPropagation); the action buttons DO
@@ -485,10 +490,14 @@ function ListingCardImpl({
                 <span
                   key={i}
                   className={cn(
-                    'h-1.5 rounded-full bg-white transition-all',
+                    // `shadow-onmedia` replaces an inline `0 0 2px rgba(0,0,0,0.4)` halo (2026-08-09).
+                    // Same legibility job on pale photos — the scrim alone does NOT cover it, see the
+                    // token — but lit from above like every other shadow in the app, and no raw
+                    // colour literal in a `style` prop (design-lint bans those in className; an
+                    // rgba() in `style` slipped the rule).
+                    'h-1.5 rounded-full bg-white transition-all shadow-onmedia',
                     i === idx ? 'w-3 opacity-100' : 'w-1.5 opacity-60',
                   )}
-                  style={{ boxShadow: '0 0 2px rgba(0,0,0,0.4)' }}
                 />
               ))}
             </div>

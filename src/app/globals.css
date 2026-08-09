@@ -39,12 +39,29 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
-  --radius-sm: calc(var(--radius) - 2px);
-  --radius-md: calc(var(--radius) - 1px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 2px);
-  --radius-2xl: calc(var(--radius) + 4px);
-  --radius-3xl: calc(var(--radius) + 8px);
+  /* ⚠️ EXPLICIT ROLE VALUES — DO NOT GO BACK TO DERIVING THESE FROM ONE `--radius`.
+     They used to be `--radius ± 1/2/4/8`, which produced 5/6/7/9/11/15px: a scale only
+     10px wide end to end. Measured on the home page, that shipped as TWO shapes, not four
+     — 221 elements at `rounded-full`, 116 at 9px, 2 at 11px, 1 at 7px. A 179px card photo
+     and a 28px menu item got corners 2px apart, which is why the app read as generic
+     (owner, 2026-08-09: "the Apple squircle obsession type of good"). A ±2px arithmetic
+     step cannot express a role; a role scale has to be authored.
+
+     ⚠️ THE CEILING ON `xl` IS A MEASURED PILL CLIFF, NOT TASTE. `rounded-xl` is the
+     overloaded workhorse: 113 live elements spanning a 24×24 icon button to a 179px card
+     image. CSS clamps a radius when 2R exceeds the shorter side, so raising the tier
+     silently turns small chips into pills. Counted on `/`: 9px→2 pills (today), 12px→4,
+     14px→7, 18px→13. The cliff is the 28px-tall chip population, so 12px (2R = 24 < 28)
+     is the last value that leaves them rounded rectangles. The 4 that do become pills at
+     12px are all 24×24 icon buttons, where a circle is correct anyway.
+     Re-measure this before raising `xl` again — the safe value is a property of the
+     smallest consumer, not of the tier. */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 10px;  /* small thumbs ≤64px, compact controls ≤28px, menu items */
+  --radius-xl: 12px;  /* buttons, inputs, selects — capped by the pill cliff above */
+  --radius-2xl: 18px; /* cards, panels, dialogs, popovers, images ≥96px */
+  --radius-3xl: 26px; /* sheets and drawers (no consumer in src/ today — headroom) */
 
   /* Micro type steps below Tailwind's `xs` — the ONLY sanctioned sizes for dense
      card meta and badge labels (docs/design-language.md). They replace the ad-hoc
@@ -108,7 +125,12 @@
      semantic only : amber #f59e0b (caution) · red #ef4444 (destructive)
      Category colours all resolve to the single blue; product photos provide the colour.
      ============================================================ */
-  --radius: 0.4375rem;
+  /* ⛔ `--radius` (was 0.4375rem) IS GONE ON PURPOSE — 2026-08-09. It was the single seed
+     every corner tier was derived from, and deriving a role scale by ±2px arithmetic is
+     what flattened the app to two shapes. The tiers are authored explicitly in @theme
+     above; there is nothing left to seed. Re-adding it would give the next person a way
+     to move every corner in the app at once without seeing the pill cliff documented up
+     there, so leave it deleted. Verified zero `var(--radius)` consumers before removal. */
 
   /* Brand blues (FINN.no palette) */
   --brand: #0a66c2;
@@ -223,9 +245,38 @@
   --pending: #f59e0b;
 
   /* ── Elevation (soft, diffuse — Airbnb-style) ────────────────────── */
+  /* ⚠️ ONE LIGHT SOURCE, FROM ABOVE. Every shadow here has a POSITIVE y-offset and no
+     x-offset, which is what makes a set of shadows read as one scene rather than four
+     unrelated effects. A zero-offset shadow (`0 0 Npx`) is a halo — light coming from the
+     viewer — and does not belong in this file or in a `style` prop. Audited 2026-08-09:
+     the only such shadow left the codebase with `--shadow-onmedia` below. */
   --shadow-pop: 0 8px 30px rgba(16, 24, 40, 0.08);     /* dropdowns, popovers */
   --shadow-card: 0 6px 20px rgba(16, 24, 40, 0.10);    /* card hover lift */
   --shadow-overlay: 0 16px 48px rgba(16, 24, 40, 0.16); /* dialogs / modals */
+  /* White chrome sitting ON user photography (carousel dots, the hero CTA over slide art).
+     Pure black rather than the 16/24/40 ink, because it lands on photos, not on canvas.
+
+     ⚠️ THIS IS AN OUTLINE FIRST AND AN ELEVATION SHADOW SECOND — that ordering is the
+     point, and getting it backwards caused a real regression here. It briefly shipped as
+     a purely directional `0 1px 2px` on the argument that a zero-offset shadow is "light
+     from the viewer" and violates the one-light-source rule above. Three review families
+     independently called that wrong, and they were right: a downward-only shadow
+     delineates the BOTTOM edge only, so a white dot on an overexposed sky loses its top,
+     left and right edges entirely. The one-light-source rule governs ELEVATION. Keeping
+     white chrome legible on an arbitrary photo is a different job — the same job
+     `text-shadow` does for captions over video — and it needs to work in every direction.
+     So: a soft omnidirectional ring for legibility, plus a small downward offset so it
+     still agrees with the light. Do not "simplify" it back to one layer.
+
+     ⚠️ IT IS LOAD-BEARING — do not delete it as "redundant with the scrim". The card's
+     bottom scrim is `from-black/20` over 48px and the dots sit 8px up, so only ~16.7%
+     black reaches them; white dots on a pale photo measure ~1.67:1 there, under the 3:1
+     WCAG 1.4.11 asks of a meaningful non-text indicator. */
+  /* ⚠️ THE RING LAYER IS 0.45, NOT 0.35 — it must be ≥ the 0.40 of the halo this replaced,
+     or the swap is a net LEGIBILITY LOSS on the three edges the directional layer does not
+     serve. It briefly shipped at 0.35 and a reviewer caught the arithmetic. Every edge is
+     now strictly darker than before; the second layer only adds the downward bias. */
+  --shadow-onmedia: 0 0 2px rgba(0, 0, 0, 0.45), 0 1px 2px rgba(0, 0, 0, 0.30);
   --shadow-thumb: 0 1px 4px rgba(16, 24, 40, 0.18);    /* slider handle — ported verbatim
      from the old .eno-slider::-webkit-slider-thumb; intentionally NOT overridden in dark
      (the native thumb never was), so the handle reads identically in both themes. */
@@ -493,10 +544,83 @@
 }
 
 /* ============================================================
+   CONTINUOUS CURVATURE (squircles) — progressive enhancement
+   ============================================================
+   `corner-shape: squircle` replaces the circular corner arc with a superellipse: the
+   curvature is continuous into the straight edge instead of joining it at a tangent
+   discontinuity. It is the actual geometry behind the "Apple corner" (owner, 2026-08-09).
+
+   ⚠️ THIS IS AN ENHANCEMENT AND MUST STAY ONE. Measured 2026-08-09: Chromium-only
+   (Chrome 139+, ~65% of users, NOT Baseline, no announced Safari or Firefox timeline).
+   Unsupported engines ignore the declaration and keep the arc from `border-radius`, which
+   is why the tiers above were retuned FIRST and independently — every browser gets the
+   better scale, Chromium additionally gets the better curve. Never move a value that
+   only exists inside this block into the base tiers.
+
+   ⚠️ A SQUIRCLE READS SQUARER THAN AN ARC AT THE SAME RADIUS (rendered side by side to
+   check: sq18 ≈ arc14, so ~1.25×). THE RADIUS IS DELIBERATELY *NOT* COMPENSATED FOR THAT,
+   and the reason is worth keeping because the obvious fix does not work:
+
+     `@theme inline` (line 20) INLINES token values into the utility declarations — it
+     does not emit `var(--radius-2xl)` for `rounded-2xl` to read at runtime. So the
+     natural implementation, re-declaring `--radius-2xl` on `:root` inside this block,
+     compiles to nothing and fails SILENTLY. It was written that way first and caught only
+     by measuring the rendered corner: the card media reported 18px when the override said
+     22px. A per-class `border-radius` override would work, but it would also flatten the
+     23 live directional variants (`rounded-t-2xl` and friends) into all-corner rounding.
+
+   Uncompensated is also the better design, not just the cheaper one: the win here is
+   tangent continuity, not extra roundness, and a Chromium corner reading slightly tighter
+   than a Safari one is a difference nobody can see without the two side by side. Two sets
+   of numbers to keep in sync would have been the real cost.
+
+   ⚠️ THE TIER NAME IS MATCHED AS A SUBSTRING, BUT NEVER A BARE `[class*="rounded-"]`.
+   The distinction is the whole safety argument. A bare prefix match also catches
+   `rounded-t-none` (2 live uses) and would catch `rounded-*-full` the day one appears —
+   putting a superellipse on something that must stay a true square corner or a true
+   circle. Including the TIER in the pattern makes that impossible, because `-none` and
+   `-full` are not tiers.
+   Matching the substring rather than the exact class is what covers VARIANT PREFIXES:
+   `md:rounded-2xl` compiles to `.md\:rounded-2xl`, which an exact `.rounded-2xl` selector
+   does not match. There are 5 such utilities live (`sm:`/`md:`/`lg:rounded-2xl`), and the
+   first version of this block missed every one — three review families caught it
+   independently. The failure would have been invisible in a spot check: one breakpoint
+   showing arcs beside squircled siblings.
+   ⚠️ `:not([class*="rounded-full"])` IS THE PRICE OF SUBSTRING MATCHING, AND IT IS NOT
+   OPTIONAL. An attribute selector reads the whole `class` STRING, not the class that is
+   currently winning the cascade — so `rounded-full md:rounded-2xl` matches at EVERY width,
+   and below `md` Chromium would draw a superellipse where a true circle is intended.
+   Reproduced before fixing: at 390px that element computed `border-radius: 1.67772e+07px`
+   (pill) with `corner-shape: squircle` — a distorted circle. No such combination exists in
+   `src/` today, so this is a landmine rather than a live bug, which is exactly why the
+   guard belongs here instead of in someone's memory. Two review families found it
+   independently after the exact-class version was fixed; the two selector styles fail in
+   opposite directions and this is the pairing that fails SAFE. An element that mixes
+   `rounded-full` with a tier now simply keeps arcs — a missed enhancement, never a broken
+   shape.
+   `rounded-full` alone is excluded for the same reason — avatars, dots, counters and text
+   pills are circles, and Apple uses a superellipse for containers, not for circles.
+   Per-corner (`rounded-tl-*`) and logical (`rounded-s-*`) families have ZERO uses today;
+   add them here if that changes. */
+@supports (corner-shape: squircle) {
+  :is(
+    [class*="rounded-lg"], [class*="rounded-xl"], [class*="rounded-2xl"], [class*="rounded-3xl"],
+    [class*="rounded-t-lg"], [class*="rounded-t-xl"], [class*="rounded-t-2xl"], [class*="rounded-t-3xl"],
+    [class*="rounded-b-lg"], [class*="rounded-b-xl"], [class*="rounded-b-2xl"], [class*="rounded-b-3xl"],
+    [class*="rounded-l-lg"], [class*="rounded-l-xl"], [class*="rounded-l-2xl"], [class*="rounded-l-3xl"],
+    [class*="rounded-r-lg"], [class*="rounded-r-xl"], [class*="rounded-r-2xl"], [class*="rounded-r-3xl"]
+  ):not([class*="rounded-full"]) {
+    corner-shape: squircle;
+  }
+}
+
+/* ============================================================
    ELEVATION — soft diffuse shadows + Airbnb-style hover lift
    ============================================================ */
 .shadow-pop { box-shadow: var(--shadow-pop); }
 .shadow-overlay { box-shadow: var(--shadow-overlay); }
+/* White chrome over user photography — see --shadow-onmedia for why it is required. */
+.shadow-onmedia { box-shadow: var(--shadow-onmedia); }
 /* The slider handle's lift. Plain CSS (like its siblings above), so it is emitted
    unconditionally — it does not depend on Tailwind scanning a class name. */
 .shadow-thumb { box-shadow: var(--shadow-thumb); }

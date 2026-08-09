@@ -37,16 +37,31 @@ consumed by CSS rules in `globals.css` only — never as utilities in markup
 
 Four tiers. Pick by element role, not by taste.
 
-| Utility | Use for |
-|---|---|
-| `rounded-full` | circles, pills, chips, badges, avatars, icon buttons |
-| `rounded-2xl` | cards, panels, dialogs, popovers, menus, images ≥ ~96px |
-| `rounded-xl` | buttons, inputs, selects, textareas, medium controls, listing-card media (the shipped `<ListingCard>` image container) |
-| `rounded-lg` | small thumbnails/media ≤ ~64px, tiny nested boxes, and compact controls ≤ ~28px tall in dense surfaces (admin tables, menu items) |
+| Utility | Value | Use for |
+|---|---|---|
+| `rounded-full` | pill | circles, pills, chips, badges, avatars, icon buttons |
+| `rounded-2xl` | 18px | cards, panels, dialogs, popovers, menus, **and all media ≥ ~96px, including `<ListingCard>`'s image container** |
+| `rounded-xl` | 12px | buttons, inputs, selects, textareas, medium controls, **and media between ~64px and ~96px** |
+| `rounded-lg` | 10px | small thumbnails/media ≤ ~64px, tiny nested boxes, and compact controls ≤ ~28px tall in dense surfaces (admin tables, menu items) |
 
 **Banned:** bare `rounded`, `rounded-sm`, `rounded-md` (map: tiny element →
 `lg`, control → `xl`). Directional variants (`rounded-t-*` for sheets/drawers)
 follow the same tiers.
+
+⚠️ **This table contradicted itself until 2026-08-09** and the contradiction had a
+consequence, so it is worth naming. `2xl` said "images ≥ ~96px" while `xl` carved out
+"listing-card media" by name — and the card image is 179px, so the two rules gave
+opposite answers about the single most-repeated surface in the product. The carve-out
+won in code, which is how the app's most-seen photo ended up at the same 9px corner as a
+menu item. **The size rule is the rule; there is no per-component exception.** If a
+component ever needs one, it needs a reason written next to it, not a second row here.
+
+⚠️ **The values are authored, not derived, and `xl` has a measured ceiling.** They were
+`--radius ± 1/2/4/8` (5/6/7/9/11/15px) until 2026-08-09 — a scale 10px wide that shipped
+as two shapes. `xl` cannot simply be raised: it is the overloaded tier (113 live
+elements, from a 24×24 icon button to full-width panels), and CSS clamps a radius to a
+pill once 2R passes the shorter side. Measured on `/`: 12px pills 4 elements, 14px pills
+7, 18px pills 13. Re-measure before changing it — see the note in `globals.css @theme`.
 
 ## 3. Color
 
