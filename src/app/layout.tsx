@@ -63,36 +63,36 @@ const SITE_ORIGIN = process.env.NEXT_PUBLIC_APP_URL || "https://eno.vn";
  * call sites match down to 800 indistinguishably.
  */
 /**
- * ⚠️ `axes: ["opsz"]` IS REQUIRED FOR THE OPTICAL-SIZE AXIS TO EXIST AT ALL, and its absence
- * made a typographic claim in globals.css a no-op for as long as it has been written.
- * next/font/google serves the WGHT-ONLY cut of a variable font unless the extra axes are named,
- * so `font-variation-settings: "opsz" …` had nothing to vary. Measured before this change by
- * rendering one 100px string at both extremes: `opsz 14` and `opsz 32` came back byte-identical
- * at 1179.297px, while `wght 400` → `800` moved 1179.297 → 1243.539 — so the technique was
- * sound and the axis was simply absent. `document.fonts` confirmed it: the loaded face reported
- * "Inter 100 900", a weight range and no optical range.
+ * ⛔ THE OPTICAL-SIZE AXIS WAS SHIPPED, MEASURED, AND REMOVED — DO NOT RE-ADD `axes: ["opsz"]`
+ * WITHOUT THE OWNER SAYING SO. The whole story is kept because the feature was CORRECT and the
+ * reason it went is a priced trade-off, not a bug. Anyone reaching for it again needs the price.
  *
- * What it buys: a 40px hero heading and a 10px nav label stop being drawn from the SAME cut.
- * Optical sizing is the thing SF Text vs SF Display exists to do — tighter spacing and thinner
- * strokes as type grows, looser and sturdier as it shrinks. Verified working after the change:
- * one string at opsz 14 / 20 / 32 measures 1209.7 / 1186.0 / 1138.5 — monotonic, 5.9% end to
- * end, where all three were byte-identical before.
+ * WHAT IT DID: next/font/google serves the WGHT-ONLY cut of a variable font unless the extra axes
+ * are named, so a `font-variation-settings: "opsz" …` claim in globals.css had been a no-op for as
+ * long as it was written. Naming the axis fixed it — one string at opsz 14 / 20 / 32 measured
+ * 1209.7 / 1186.0 / 1138.5, monotonic and 5.9% end to end, where all three had been byte-identical.
+ * A 40px hero and a 10px nav label stopped being drawn from the same cut.
  *
- * ⚠️ IT COSTS +28.9 KB ON THE PRELOADED CRITICAL PATH (57.3 → 86.2 KB, measured in the built
- * artifact), because a second axis has to ship in the same woff2. The number belongs here
- * rather than in a commit message nobody re-reads.
+ * WHAT IT COST: +22.9 KB on the Inter latin file (48.4 → 71.3 KB built), 24.0 KB across the whole
+ * preloaded set (57.3 → 81.3 KB) — two independent measurements, mine and the design session's.
+ * ⚠️ And it lands on a `<link rel="preload" as="font">`, which the browser fetches at HIGHEST
+ * priority, AHEAD of images. The tempting defence — "the LCP element is a photo, so fonts do not
+ * gate LCP" — is exactly inverted.
  *
- * ⚠️ AND THE OBVIOUS DEFENCE OF THAT COST IS WRONG, so it is written down before someone
- * reaches for it again. "The home page's LCP element is a card photo, not text, so fonts do
- * not gate LCP" is inverted: next/font emits `<link rel="preload" as="font">`, which the
- * browser fetches at HIGHEST priority — ahead of images. So the extra font bytes compete with
- * the LCP photo for the same early bandwidth; being an image is precisely what makes it
- * vulnerable, not what makes it safe. A reviewer caught this and was right.
- * The honest position: this is a real cost in the primary market's network conditions, it is
- * NOT measurable on a dev machine, and it has not been measured on a throttled 3G profile.
- * If a perf pass wants it back, deleting this one `axes` line reverts the entire feature —
- * nothing else depends on it, because the optical ladder is the browser's job (see the note
- * in globals.css), not a set of hardcoded values that would have to be unwound too.
+ * WHAT WE LEARNED AFTERWARDS, and it argues the cost was smaller than feared: on the home page at
+ * 1.6 Mbps / 150 ms RTT / 4x CPU, fonts complete at ~955 ms while LCP lands at ~2956 ms. The photo
+ * is ~2 s behind the fonts, so on THIS page type was not the thing gating LCP. One page, one
+ * profile — but it is the honest reading.
+ *
+ * WHY IT IS GONE ANYWAY: owner, 2026-08-09, adjudicating the open question once the cost was on the
+ * table — "need it to be fast save every byte so revert". A real 5.9% refinement in letterfit lost
+ * to ~24 KB in front of the LCP image on a Vietnamese mobile connection. That is a judgement about
+ * priorities, not about whether the feature worked.
+ *
+ * ⚠️ NOTHING ELSE UNWINDS WITH IT, AND NOTHING ELSE SHOULD. Do NOT "restore" a hand-written
+ * `font-variation-settings` ladder to compensate: with no axis shipped it is a no-op, and with one
+ * it PINS a single cut and defeats `font-optical-sizing: auto`, which maps opsz to computed
+ * font-size continuously and for free. The ⛔ block in globals.css is still correct as written.
  */
 const inter = Inter({
   variable: "--font-inter",
@@ -100,7 +100,6 @@ const inter = Inter({
   // BOTH put a file on the critical path that never got used. See the note on interVietnamese.
   subsets: ["latin"],
   display: "swap",
-  axes: ["opsz"],
 });
 
 /**
