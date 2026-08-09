@@ -376,9 +376,27 @@ function ListingCardImpl({
                     // next/image `priority` so Next emits a <link rel=preload> — the preload
                     // scanner fetches it before render. Other above-the-fold images just load
                     // eagerly (no preload flood across every row).
+                    //
+                    // ⚠️ SLIDES 2..n ARE EAGER, AND THAT IS NOT A CONTRADICTION OF THE LAZY FEED.
+                    // They are only in the DOM at all because the pointer is on this card
+                    // (`expanded`), so deferring them a second time buys nothing and costs the
+                    // whole feature: `lazy` waits for an intersection that only happens once the
+                    // slot is already under the pointer, so a sweep outran the fetch and slots 2
+                    // and 3 rendered as the blur placeholder. Caught in the preview screenshots —
+                    // the dev-mode runs had the images warm in cache and looked perfect.
+                    //
+                    // The objection to this is that a pointer merely crossing the grid now pays
+                    // for images nobody looks at (agy, at the commit gate: "network flood",
+                    // "massive spike in wasted bandwidth"). Right in direction, wrong in size —
+                    // MEASURED, because the whole argument turns on a number: a fast pass across
+                    // a full row of cards fired 6 requests for 19 KB, about 5 KB per card
+                    // crossed. These are 360px webp thumbnails, not hero images. Weigh a real
+                    // 5 KB against a blank slot under the pointer before changing this back, and
+                    // re-measure rather than re-reasoning: `scripts` aside, the probe is a mouse
+                    // sweep plus a content-length tally.
                     {...(lcp && i === 0
                       ? { priority: true }
-                      : { loading: priority && i === 0 ? 'eager' : 'lazy' })}
+                      : { loading: i === 0 ? (priority ? 'eager' : 'lazy') : 'eager' })}
                   />
                 )}
               </div>
@@ -422,7 +440,8 @@ function ListingCardImpl({
                     quality={60}
                     unoptimized={isMockImageUrl(images[photoCount])}
                     onError={() => onImgError(photoCount)}
-                    loading="lazy"
+                    // eager for the same reason as the slides above — it only mounts on hover.
+                    loading="eager"
                   />
                 )}
                 <span aria-hidden className="absolute inset-0 flex flex-col items-center justify-center gap-0.5 bg-black/55 text-white">
