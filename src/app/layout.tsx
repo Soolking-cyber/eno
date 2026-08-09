@@ -209,10 +209,49 @@ export default function RootLayout({
             in remote-server mode): the html.native-ios overscroll rule (iOS
             pull-to-refresh reachability) must hold from first paint, not from
             hydration. native-bootstrap re-adds the same classes later —
-            idempotent, kept as the fallback. */}
+            idempotent, kept as the fallback.
+
+            ⚠️ THE SPLASH HIDE LIVES HERE NOW, AND THAT IS WHY THE APP FELT SLOW.
+            The only other `SplashScreen.hide()` is in native-bootstrap.tsx, inside a useEffect —
+            so it cannot run until React hydrates, and on a phone it never won the race against
+            the 3s `launchAutoHide` floor. Measured on a real bridge shim (iPhone 13, 4x CPU,
+            slow-4G): warm launch painted at 856ms and the cover did not lift until 5541ms; cold
+            painted at 2652ms and lifted at 8128ms. Every reveal was therefore a flat 3.0s, with a
+            fully painted page sitting behind a static image. Android was worse than a wasted wait:
+            its OnPreDrawListener returns false for the whole duration, so it draws no frame at all.
+
+            Three details that make this safe rather than just early:
+            · It fires ON FIRST CONTENTFUL PAINT, not at document start. Render-blocking CSS has
+              landed by then, so the SSR page is styled and laid out; CLS is 0, so nothing shifts
+              as images stream in. Revealing at document start would show an empty WebView, which
+              is the one failure mode worth fearing here.
+              ⚠️ A PerformanceObserver on `paint`, NOT DOMContentLoaded — and the difference is
+              1.5 seconds. DOMContentLoaded waits for the whole 349 KB document to finish parsing:
+              measured on the real artifact under 4x CPU, paint at 688 ms but DCL-driven hide at
+              2259 ms. FCP is the moment there is something worth revealing, so that is the
+              moment to reveal it. `buffered: true` covers an FCP that already happened before the
+              observer was installed.
+              ⚠️ DOMContentLoaded is registered ONLY when PerformanceObserver is unavailable, and
+              that exclusivity is the point. Registering both looks like belt-and-braces but is a
+              race: DCL does NOT wait for stylesheets while FCP does, so on a slow-CSS load the
+              DCL path could fire FIRST and reveal an unpainted WebView — the exact failure this
+              whole approach exists to avoid. codex caught it.
+            · `done` is set only AFTER the bridge call is actually issued, and is released again if
+              the returned promise rejects, so a failed hide leaves the 4s backstop and the
+              native-bootstrap fallback able to retry. Latching it up front would have turned one
+              failed call into a permanently stuck splash.
+            · It calls `C.nativePromise(...)` — the RAW bridge — not `Capacitor.Plugins`, which is
+              only populated when a bundle imports @capacitor/core's registerPlugin. Same trap
+              already documented in capacitor/www/index.html. This also drops the dynamic
+              `import('@capacitor/splash-screen')` chunk fetch the old path waited on (273ms of it).
+            · The 4s belt-and-braces timeout covers a document that paints but never fires
+              DOMContentLoaded. It is longer than the native 3s floor on purpose: it must never be
+              the thing that reveals a blank WebView, only a last resort if the floor is raised.
+            native-bootstrap's hide stays as an idempotent fallback — both platforms no-op when the
+            splash is already hidden. */}
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){try{var t=localStorage.getItem('eno-theme');if(t==='dark'||((!t||t==='system')&&matchMedia('(prefers-color-scheme: dark)').matches))document.documentElement.classList.add('dark');var l=localStorage.getItem('lang');if(l)document.documentElement.lang=l;}catch(e){}try{var dc=document.documentElement.classList;var C=window.Capacitor;if(C&&C.isNativePlatform&&C.isNativePlatform()){dc.add('native');dc.add('native-'+(C.getPlatform?C.getPlatform():'ios'));}else if(navigator.userAgent.indexOf('EnoNativeTabs')>-1){dc.add('native');dc.add('native-ios');dc.add('native-tabs');}else if(!window.scrollY){dc.add('page-at-top');}}catch(e){}})();`,
+            __html: `(function(){try{var t=localStorage.getItem('eno-theme');if(t==='dark'||((!t||t==='system')&&matchMedia('(prefers-color-scheme: dark)').matches))document.documentElement.classList.add('dark');var l=localStorage.getItem('lang');if(l)document.documentElement.lang=l;}catch(e){}try{var dc=document.documentElement.classList;var C=window.Capacitor;if(C&&C.isNativePlatform&&C.isNativePlatform()){dc.add('native');dc.add('native-'+(C.getPlatform?C.getPlatform():'ios'));(function(){var done=false;var lift=function(){if(done)return;try{var r=C.nativePromise('SplashScreen','hide',{fadeOutDuration:200});done=true;if(r&&typeof r.catch==='function')r.catch(function(){done=false;});}catch(e){}};var po=null;try{po=new PerformanceObserver(function(list){for(var i=0,e=list.getEntries();i<e.length;i++){if(e[i].name==='first-contentful-paint'){po.disconnect();requestAnimationFrame(lift);return;}}});po.observe({type:'paint',buffered:true});}catch(e){po=null;}if(!po){var dcl=function(){requestAnimationFrame(function(){requestAnimationFrame(lift);});};if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',dcl,{once:true});else dcl();}setTimeout(lift,4000);})();}else if(navigator.userAgent.indexOf('EnoNativeTabs')>-1){dc.add('native');dc.add('native-ios');dc.add('native-tabs');}else if(!window.scrollY){dc.add('page-at-top');}}catch(e){}})();`,
           }}
         />
         {/* Supabase preconnect REMOVED (perf Phase 1, measured): every above-the-fold
