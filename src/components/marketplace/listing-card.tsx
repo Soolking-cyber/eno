@@ -151,7 +151,24 @@ function ListingCardImpl({
     // included — is one long-press target. Inert on web.
     <div
       data-card-root
-      className="reveal-on-scroll group relative flex flex-col h-full w-full text-left rounded-xl cursor-pointer transition-transform duration-200 [transition-timing-function:var(--ease-spring-snappy)] active:scale-[0.985] [touch-action:manipulation]"
+      // ⚠️ PRESS IS 0.97, NOT 0.985 — the old value was below the perceptual threshold on the
+      // app's most-tapped surface. Scale is RELATIVE, so the same number is a different amount
+      // of travel at different sizes: 0.985 on a 179px card moves the edge 2.7px, which reads
+      // as nothing. 0.97 moves it 5.4px. Large surfaces do need LESS scale than small ones —
+      // that part of the original reasoning was right — but 0.985 overshot the correction.
+      // 0.97 is not a new number either: it is `ui/button`'s value, 26 live uses. Live census
+      // when this changed: 0.96 ×114, 0.97 ×26, 0.985 ×25 — three depths across the rendered
+      // page, and the 25 were all instances of THIS component (one per card), i.e. the card
+      // was the only component wearing the third depth.
+      // ⚠️ `has-[button:active]:scale-100` STOPS THE PRESS FROM COMPOUNDING. `:active` matches
+      // ANCESTORS, so pressing an in-card control (favourite, share, the quick-action row —
+      // all `<button>`) fired this scale as well as the button's own: 0.97 × 0.96 = 0.931, a
+      // 6.9% shrink of the whole card because you tapped a 32px heart, resolving in two steps
+      // on two clocks (200ms here, 160ms there). The defect predates this line (0.985 × 0.96
+      // = 0.946) and raising the card to 0.97 made it louder, which is how a reviewer found
+      // it. Only `button` is exempted, NOT `a`: the card's stretched link IS the card's own
+      // press, so exempting anchors would delete the feedback this line exists to provide.
+      className="reveal-on-scroll group relative flex flex-col h-full w-full text-left rounded-xl cursor-pointer transition-transform duration-200 [transition-timing-function:var(--ease-spring-snappy)] active:scale-[0.97] has-[button:active]:scale-100 [touch-action:manipulation]"
     >
       {/* Card = link, actions = siblings. The whole card navigates via this ONE real,
           keyboard-focusable stretched <a> (the card link). Every IconButton below is a
@@ -226,6 +243,19 @@ function ListingCardImpl({
       >
         {images.length > 0 ? (
           <div
+            // ⛔ `ease-out` IS DELIBERATE HERE — DO NOT "UPGRADE" THIS TO A SPRING.
+            // It was changed to `--ease-spring` on the argument that a swipe should settle
+            // rather than decelerate, and that an overshoot inside `overflow-hidden` is
+            // harmless because it gets clipped. The second half is wrong, and two review
+            // families caught it independently. Clipping bounds an overrun; it cannot
+            // MANUFACTURE a slide. The track translates by -100%·index, so overshooting past
+            // the LAST index pulls the strip further left than its content extends and opens
+            // a blank sliver at the right edge — ~2px on a 179px card, ~4px in a full-width
+            // gallery, 8–13 device px at dpr 2–3, against a photo boundary. Index 0 does the
+            // same on the left. That is exactly the "resting position IS the boundary" case
+            // the motion contract in globals.css forbids; a track END is a boundary just as
+            // much as a viewport edge. A spring is only safe where the overrun has somewhere
+            // to go.
             className="flex h-full w-full transition-transform duration-300 ease-out"
             style={{ transform: `translateX(-${idx * 100}%)` }}
           >

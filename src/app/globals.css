@@ -286,7 +286,31 @@
      paired with transform/opacity; the global reduced-motion switch neutralizes them.
        --ease-spring        gentle, ~no overshoot   → default (pair 220–340ms)
        --ease-spring-snappy quick, tiny overshoot   → toggles/chips/press (pair 160–220ms)
-       --ease-bounce        playful, big overshoot  → success moments only (pair 400–520ms) */
+       --ease-bounce        playful, big overshoot  → success moments only (pair 400–520ms)
+
+     ⚠️ NEVER PUT AN OVERSHOOTING CURVE ON A SURFACE THAT DOCKS FLUSH TO A VIEWPORT EDGE.
+     This is the rule that was missing, and it cost a planned change. `#app-header`
+     (`-translate-y-full` → `translate-y-0`) and `.mobile-nav` (`translate-y-full` →
+     `translate-y-0`) both slide to rest EXACTLY on an edge, so an overshoot does not settle
+     — it travels PAST the dock and opens a gap that shows the page sliding underneath.
+     Computed from the stops: spring peaks at 1.011 and snappy at 1.030, i.e. a 0.70px gap on
+     the 64px header and 0.80px on the 73px nav with `--ease-spring`, and 1.9–2.2px with
+     snappy — 2 to 6 DEVICE pixels at dpr 2–3, along a colour boundary, on every scroll-up.
+     Both bars therefore keep `ease-out` deliberately; that is not an oversight to "fix".
+
+     ⚠️ A TRACK END IS A BOUNDARY TOO, AND `overflow-hidden` DOES NOT RESCUE IT. The card
+     carousel was changed to a spring in the same commit that wrote this rule, on the
+     argument that a clipped overrun is harmless. It is not: clipping BOUNDS an overrun, it
+     cannot MANUFACTURE content. A track at `-100%·lastIndex` that overshoots pulls past its
+     own content and opens a sliver at the right edge (~2px on a 179px card, ~4px full-width,
+     8–13 device px at dpr 2–3). Reverted. A spring is safe only where the overrun has
+     somewhere to GO — a scale, an opacity, an element with room on the far side — never
+     where the resting position is the last position that exists.
+
+     ⚠️ THE PAIRINGS ABOVE ARE A CONTRACT AND THE APP LARGELY IGNORED IT. Measured 2026-08-09:
+     134 `duration-*` declarations across src/, only 23 lines naming any easing — so ~111
+     transitions ran Tailwind's default cubic-bezier(0.4,0,0.2,1). If you add a transition,
+     name a curve and a duration from the same row. */
   --ease-spring: linear(0, 0.007, 0.029, 0.063, 0.108, 0.219, 0.354, 0.5, 0.638, 0.756, 0.85, 0.919, 0.965, 0.992, 1.006, 1.011, 1.009, 1.005, 1.001, 1);
   --ease-spring-snappy: linear(0, 0.026, 0.101, 0.219, 0.375, 0.559, 0.727, 0.859, 0.949, 1.001, 1.025, 1.03, 1.024, 1.014, 1.005, 0.999, 0.998, 1);
   --ease-bounce: linear(0, 0.004, 0.036, 0.098, 0.19, 0.417, 0.685, 0.912, 1.062, 1.13, 1.147, 1.13, 1.098, 1.062, 1.033, 1.013, 1.002, 0.998, 0.999, 1);
