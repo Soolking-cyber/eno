@@ -14,6 +14,7 @@ import { BusinessProfileEditor } from '@/components/marketplace/business-profile
 import { BusinessVerificationPanel } from '@/components/marketplace/business-verification-panel'
 import { HandleSettings } from '@/components/marketplace/handle-settings'
 import { ChangeEmailForm } from '@/components/marketplace/change-email-form'
+import { SetPasswordForm } from '@/components/marketplace/set-password-form'
 import { AccountTypeSwitcher } from '@/components/marketplace/account-type-switcher'
 import { ReminderSettings } from '@/components/marketplace/reminder-settings'
 import { DeleteAccount } from '@/components/marketplace/delete-account'
@@ -112,6 +113,12 @@ export function SettingsClient() {
           {isBusiness && dash.seller && <BusinessVerificationPanel />}
           <SettingsGroup caption={tr('Handle', 'Tên định danh')}><HandleSettings /></SettingsGroup>
           <SettingsGroup caption={tr('Email', 'Email')}><ChangeEmailForm currentEmail={dash.profile.email} /></SettingsGroup>
+          {/* Directly under Email on purpose: this is the ONLY place a password can be created
+              (there is no password signup anywhere in the app), so it has to be findable by
+              someone who came here looking for "how do I stop waiting for a code". Sits beside
+              the other identity controls rather than in Danger zone — adding a password is
+              additive and reversible, not destructive. */}
+          <SettingsGroup caption={tr('Security', 'Bảo mật')}><SetPasswordForm /></SettingsGroup>
           <SettingsGroup caption={tr('Account type', 'Loại tài khoản')}><AccountTypeSwitcher isBusiness={isBusiness} businessName={dash.profile.businessName} onSaved={refresh} /></SettingsGroup>
           <SettingsGroup caption={tr('Reminders', 'Nhắc nhở')}><ReminderSettings /></SettingsGroup>
           {/* Consent withdrawal (PDPL): the footer's "Cookie settings" link is the other entry

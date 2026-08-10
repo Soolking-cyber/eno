@@ -102,6 +102,7 @@ export type NicheApiErrorCode =
   | 'budget_unavailable'
   | 'business_name_required'
   | 'buyer_not_in_conversations'
+  | 'bad_credentials'                    // api/auth/password — the ONE failure shape
   | 'cannot_block_self'
   | 'cannot_report_self'
   | 'captcha_failed'
@@ -190,6 +191,11 @@ export type NicheApiErrorCode =
   | 'not_your_card'
   | 'own_listing'
   | 'parent_not_found'
+  | 'partner_chat_only'                  // api/listings/[id]/contact — an OFFICIAL PARTNER
+                                         // declines the phone by agreement. Deliberately not
+                                         // `no_contact`: that means "hasn't added one yet", and
+                                         // the UI tells a buyer to keep waiting for a number
+                                         // that is never coming. 403 (policy), not 404 (absence).
   | 'payload_too_large'
   | 'payment_required_first'
   | 'payments_not_configured'
@@ -422,6 +428,7 @@ const ALL = [
   'business_name_required',
   'business_only',
   'buyer_not_in_conversations',
+  'bad_credentials',
   'cannot_block_self',
   'cannot_report_self',
   'captcha_failed',
@@ -505,6 +512,7 @@ const ALL = [
   'origin_not_allowed',
   'own_listing',
   'parent_not_found',
+  'partner_chat_only',
   'payload_too_large',
   'payments_not_configured',
   'phone_taken',

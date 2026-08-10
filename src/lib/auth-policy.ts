@@ -10,11 +10,26 @@
  * "in sign up the requirements are email or gmail verify and phone verify — 2 should be required to
  * sign up, but for now test mode email only is good enough."
  *
- * EMAIL IS ALREADY MANDATORY AND ALREADY VERIFIED, by construction rather than by a check: there is
- * no password anywhere in this app. Every route in creates a session only by proving control of an
- * identity — a magic link or emailed code we mint ourselves (api/auth/email-link → auth/confirm),
- * Google OAuth, or a phone OTP. An unverified email cannot produce a session, so there is nothing
- * to add for the first half of the requirement.
+ * EMAIL IS ALREADY MANDATORY AND ALREADY VERIFIED, by construction rather than by a check. Every
+ * route in creates a session only by proving control of an identity — a magic link or emailed code
+ * we mint ourselves (api/auth/email-link → auth/confirm), Google OAuth, or a phone OTP. An
+ * unverified email cannot produce a session, so there is nothing to add for the first half of the
+ * requirement.
+ *
+ * ⚠️ THIS PARAGRAPH USED TO SAY "there is no password anywhere in this app". THAT IS NO LONGER
+ * TRUE (owner, 2026-08-10) and the conclusion above survives only because of HOW passwords were
+ * added — so do not restore the old sentence, and do not weaken what replaced it. Password sign-in
+ * exists (api/auth/password), but a password can be SET only from inside an already-authenticated
+ * session (components/marketplace/set-password-form.tsx, reachable from Settings → Security). There
+ * is deliberately no password signup. So a password is a credential an account acquires AFTER
+ * proving control of its identity, never a way of acquiring an account — which is exactly why
+ * "an unverified email cannot produce a session" still holds.
+ *
+ * ⚠️ The one thing this file cannot promise: Supabase's own /auth/v1/signup endpoint accepts
+ * email+password with the public anon key regardless of what this app renders (measured 2026-08-10:
+ * disable_signup=false, external.email=true, Turnstile enforced in front). Closing that is a
+ * dashboard change, not a code change. If the invariant above ever has to be enforced rather than
+ * merely maintained by us, that is where it happens.
  *
  * PHONE IS THE HALF THAT IS NOT ENFORCED. `Profile.phone` is nullable and mirrors a VERIFIED auth
  * phone (schema.prisma), so its presence is already proof — nobody can self-type it. Today it is

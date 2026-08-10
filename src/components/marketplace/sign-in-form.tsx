@@ -129,7 +129,14 @@ export function SignInForm({ className }: { className?: string }) {
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
   const [code, setCode] = useState('')
-  const [stage, setStage] = useState<'input' | 'code' | 'sent'>('input')
+  // ⚠️ PASSWORD IS A STAGE, NOT A TAB. The owner's decision (2026-08-10) is that the code /
+  // link path stays primary and password is the alternative reached from inside whichever
+  // tab you are already on — so the identifier the visitor already typed carries straight
+  // over, and someone who never sets a password never sees a password field at all. Making
+  // it a third tab would have put a credential most accounts do NOT have on equal footing
+  // with the two that always work.
+  const [password, setPassword] = useState('')
+  const [stage, setStage] = useState<'input' | 'code' | 'sent' | 'password'>('input')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<SignInError>(null)
   const [countdown, setCountdown] = useState(0)
@@ -579,7 +586,198 @@ export function SignInForm({ className }: { className?: string }) {
   // different number legitimately starts back at 60s.
   // Both ladders reset: the server keys its cooldowns per channel, so leaving an armed
   // phone countdown behind would disable the email tab's resend for no reason.
-  const reset = () => { setStage('input'); setCode(''); setError(null); lastSubmitted.current = ''; smsSends.current = 0; emailSends.current = 0; setCountdown(0) }
+  const reset = () => { setStage('input'); setCode(''); setPassword(''); setError(null); lastSubmitted.current = ''; smsSends.current = 0; emailSends.current = 0; setCountdown(0) }
+
+  /**
+   * Password sign-in — posts to OUR route, never supabase.auth.signInWithPassword().
+   *
+   * ⚠️ THE CLIENT SDK CALL IS THE BUG, not a shortcut. GoTrue answers "no such user" and
+   * "wrong password" differently, so a browser-side call would turn this form into an
+   * account-existence oracle for every address and phone number on the platform — undoing
+   * the effort api/auth/email-link spends returning a generic 200 for every outcome. The
+   * route normalises every cause to one 401 and adds our own per-IP and per-identifier
+   * limits. Both external reviewers raised this independently at plan stage.
+   *
+   * The captcha token is minted here and FORWARDED by the route rather than verified by it:
+   * Supabase enforces a captcha on the password grant itself (measured), and a Turnstile
+   * token is single-use, so it can only be spent once — upstream.
+   *
+   * On success the route has already written the auth cookies, which the browser client
+   * shares; getSession() makes it notice, and auth-context's onAuthStateChange does the
+   * rest exactly as it does for OTP.
+   */
+  const signInWithPassword = async () => {
+    setLoading(true); setError(null)
+    const identifier = tab === 'email' ? email.trim().toLowerCase() : phone.trim()
+    try {
+      // ⚠️ INSIDE THE try, AND THE RESULT IS CHECKED. Two separate bugs a reviewer found
+      // here, both of which stranded the user on a spinner:
+      //  · getCaptchaToken() REJECTING escaped the function, so setLoading(false) never ran
+      //    and the CTA span forever with no error and no way back. This project has already
+      //    shipped a live Turnstile 110200 on one edition, so that is a real state.
+      //  · a token that resolves UNDEFINED (widget blocked, or a password manager
+      //    autofilling and submitting before the widget finished mounting) used to be
+      //    posted anyway. Supabase rejects it, the route collapses every cause to
+      //    bad_credentials, and the user is told their correct password is wrong — while
+      //    burning one of their five lockout attempts. Bail before the request instead.
+      const captchaToken = await getCaptchaToken()
+      if (!captchaToken) {
+        setLoading(false)
+        setError({ code: 'captcha' })
+        return
+      }
+      const res = await fetch('/api/auth/password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ identifier, password, captchaToken }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setLoading(false)
+        if (res.status === 429) {
+          // ⚠️ STATIC STRINGS WITH THE VALUE APPENDED, NOT A TEMPLATE LITERAL INSIDE t().
+          // scripts/gen-ui-strings.mjs harvests tr()/t() call sites by STATIC analysis, so
+          // `t(\`… ${x} …\`)` is invisible to it and ships untranslated — the Vietnamese
+          // half never reaches the dictionary. Caught by a reviewer reading the generated
+          // ui-strings.ts in the same diff and noticing these were absent from it.
+          setError({ code: 'raw', message: data?.retryAfterSec
+            ? `${t('Too many attempts. Try again in', 'Quá nhiều lần thử. Thử lại sau')} ${fmtCountdown(data.retryAfterSec)}.`
+            : t('Too many attempts. Try again later.', 'Quá nhiều lần thử. Thử lại sau.') })
+          return
+        }
+        // ⚠️ THE 403 MUST NOT BE FLATTENED INTO "wrong password" — I DID EXACTLY THAT AND TWO
+        // REVIEWERS CAUGHT IT INDEPENDENTLY. The route goes out of its way to separate a
+        // captcha verdict from a credential verdict, precisely because a visitor whose token
+        // is rejected upstream would otherwise be told their correct password is wrong, retype
+        // it, and be told the same thing again. Special-casing only 429 here re-collapsed them
+        // and defeated the server-side fix in the same commit that made it. `captcha` renders
+        // the existing "the security check didn't complete" copy, which names something the
+        // user can actually act on.
+        if (res.status === 403 && data?.error === 'captcha_failed') {
+          setError({ code: 'captcha' })
+          return
+        }
+        // ⚠️ ONE MESSAGE FOR EVERY CAUSE, and it names BOTH fields on purpose. "We don't
+        // recognise that email" would leak exactly what the route refuses to say.
+        setError({ code: 'raw', message: tab === 'email'
+          ? t('Wrong email or password.', 'Email hoặc mật khẩu không đúng.')
+          : t('Wrong phone number or password.', 'Số điện thoại hoặc mật khẩu không đúng.') })
+        return
+      }
+      // ⚠️ RELOAD IN PLACE — NOT a navigation to `next`, and NOT getSession().
+      //
+      // Two separate corrections live in this one line. First, the session was created by
+      // the ROUTE, which wrote the auth cookies server-side, so nothing happened inside this
+      // tab's supabase client and there is no guarantee it emits SIGNED_IN — the event every
+      // other path in this form relies on to close the modal or redirect. Reading the cookie
+      // back with getSession() is not reliably enough to wake the rest of the app.
+      //
+      // Second, the fix for that must not be `assign(next || '/')`. A reviewer caught that
+      // this form is ALSO rendered in a modal, opened from a listing, where the URL has no
+      // `?next=` — so every modal password sign-in would have hard-navigated to the HOMEPAGE,
+      // losing the listing entirely.
+      //
+      // ⚠️ To be accurate about what this does and does not save, because an earlier version of
+      // this comment over-claimed and a reviewer called it: a reload keeps the PAGE, not the
+      // React state on it. A half-written message in the composer is gone either way. What it
+      // buys is that the user is still looking at the listing they were buying, instead of the
+      // homepage. Matching OTP exactly would mean waking auth-context in place rather than
+      // reloading, which is the better end state and needs the SIGNED_IN question settled
+      // first — see above.
+      //
+      // Reloading the current URL is correct in BOTH places without a branch: in the modal it
+      // re-renders the same listing, signed in; on /signin the page's own effect sees `user`
+      // and performs the ?next= redirect it already owns. One behaviour, no special case.
+      window.location.reload()
+    } catch {
+      setLoading(false)
+      setError({ code: 'raw', message: t('Could not sign in. Check your connection and try again.', 'Không thể đăng nhập. Kiểm tra kết nối và thử lại.') })
+    }
+  }
+
+  // ⚠️ RENDERED AS ITS OWN STAGE RATHER THAN INSIDE BOTH <TabsContent>s. The block is
+  // identical for email and phone apart from one label, so putting it in each tab would have
+  // been the same markup twice, drifting the moment one is edited. It keeps `tab` for the
+  // wording and for which identifier it reads.
+  if (stage === 'password') {
+    const identifier = tab === 'email' ? email : phone
+    return (
+      <div className={cn(className, 'space-y-2')}>
+        <p className="text-sm text-muted-foreground">
+          {t('Signing in as', 'Đăng nhập với')} <span className="font-semibold text-foreground">{identifier}</span>
+        </p>
+        {/* ⚠️ THE HIDDEN USERNAME FIELD IS REQUIRED, NOT BELT-AND-BRACES. A reviewer caught
+            that rendering the identifier as static text leaves a password input with no
+            username anywhere in the form, and every password manager — 1Password, Chrome,
+            Safari Keychain — keys on that pairing. Without it they cannot reliably offer the
+            saved credential, and crucially cannot offer to SAVE one after a successful
+            sign-in, so the feature quietly fails for exactly the people most likely to use a
+            password. It stays hidden because the visible identifier is not editable here.
+            autoComplete="username" is the documented hook; readOnly stops it becoming a
+            second source of truth. */}
+        <input
+          type="text"
+          name="username"
+          autoComplete="username"
+          value={identifier}
+          readOnly
+          hidden
+          aria-hidden
+          tabIndex={-1}
+        />
+        {/* autoComplete="current-password" (not new-password) so a password manager offers the
+            SAVED credential here rather than proposing a fresh one. */}
+        <Input
+          type="password"
+          autoComplete="current-password"
+          enterKeyHint="go"
+          aria-label={t('Password', 'Mật khẩu')}
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter' && !loading && password) signInWithPassword() }}
+          placeholder={t('Password', 'Mật khẩu')}
+        />
+        <Button
+          variant="cta"
+          size="none"
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={signInWithPassword}
+          disabled={loading || !password}
+          className="flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm disabled:opacity-100 disabled:bg-muted disabled:text-ink-4 transition-colors cursor-pointer"
+        >
+          {loading && <Loader2 className="h-4 w-4 animate-spin" />} {t('Sign in', 'Đăng nhập')}
+        </Button>
+        {error && <p role="alert" className="text-xs font-semibold text-destructive">{signInErrorText(error, t)}</p>}
+        {/* ⚠️ THIS LINK IS ALSO THE FORGOT-PASSWORD FLOW, AND THAT IS WHY THERE ISN'T ONE.
+            The plan carried a fourth workstream — mint a recovery token, send a reset email,
+            build a set-new-password screen — and it turned out to be entirely redundant.
+            Every account on this platform can ALWAYS sign in with a code or a link, because
+            that is the only way accounts are created in the first place. So the recovery path
+            for a forgotten password already exists, is already the most-tested flow in the
+            app, and is one tap away: sign in with a code, then change the password in
+            Settings. A bespoke reset flow would have added a second credential-bearing email
+            template, another token type to expire correctly, and another anti-enumeration
+            surface to get right — to reach a screen the user can already reach.
+            The copy therefore names BOTH jobs, so someone who has simply forgotten their
+            password recognises the way out instead of hunting for the words "forgot".
+            ⚠️ It is also not optional for a second reason: password is opt-in from Settings,
+            so most visitors who land here never set one at all. */}
+        <Button
+          variant="bare"
+          size="none"
+          onClick={() => { setStage('input'); setPassword(''); setError(null) }}
+          className="w-full pt-1 text-center text-sm font-semibold text-accent-foreground hover:underline cursor-pointer"
+        >
+          {tab === 'email'
+            ? t('Forgot it? Use a code or link instead', 'Quên mật khẩu? Dùng mã hoặc liên kết')
+            : t('Forgot it? Use a code instead', 'Quên mật khẩu? Dùng mã đăng nhập')}
+        </Button>
+        {/* Mounted so signInWithPassword() can mint a token — Supabase enforces a captcha on
+            the password grant, so without this every attempt would fail as bad credentials. */}
+        <Turnstile />
+      </div>
+    )
+  }
 
   if (stage === 'sent') {
     return (
@@ -708,6 +906,16 @@ export function SignInForm({ className }: { className?: string }) {
               <Button variant="cta" size="none" onMouseDown={(e) => e.preventDefault()} onClick={sendEmail} disabled={loading || !email.includes('@')} className="flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm disabled:opacity-100 disabled:bg-muted disabled:text-ink-4 transition-colors cursor-pointer">
                 {loading && <Loader2 className="h-4 w-4 animate-spin" />} {emailCode ? t('Send code', 'Gửi mã') : t('Send magic link', 'Gửi liên kết đăng nhập')}
               </Button>
+              {/* Secondary by construction: a text button under the CTA, shown only once the
+                  field holds something that could BE an account. Password is opt-in from
+                  Settings, so most visitors have none — leading with it, or making it a third
+                  tab, would put a credential most accounts lack beside the two that always
+                  work. Enabled state mirrors the CTA's so it cannot advance on an empty box. */}
+              <PasswordSwitch
+                show={email.includes('@')}
+                onClick={() => { setStage('password'); setPassword(''); setError(null) }}
+                label={t('Use a password instead', 'Dùng mật khẩu')}
+              />
             </>
           )}
 
@@ -773,6 +981,14 @@ export function SignInForm({ className }: { className?: string }) {
                   The app named follows the same country rule the server routes on — Zalo for a
                   Vietnamese number, WhatsApp for a foreign one — so the two cannot disagree. */}
               <p className="text-2xs leading-snug text-muted-foreground">{otpAppHint}</p>
+              {/* Sits BELOW the delivery warning, not above it: with no SMS fallback the
+                  warning is the thing a visitor most needs to read before tapping send, and
+                  password is the rarer path. Same 9-digit threshold as the CTA. */}
+              <PasswordSwitch
+                show={phone.replace(/\D/g, '').length >= 9}
+                onClick={() => { setStage('password'); setPassword(''); setError(null) }}
+                label={t('Use a password instead', 'Dùng mật khẩu')}
+              />
             </div>
           )}
 
@@ -847,6 +1063,34 @@ export function SignInForm({ className }: { className?: string }) {
         {' '}{t('and', 'và')}{' '}
         <a href="/privacy" target="_blank" rel="noreferrer" className="font-medium underline underline-offset-2 hover:text-accent-foreground">{t('Privacy Policy', 'Chính sách bảo mật')}</a>.
       </p>
+    </div>
+  )
+}
+
+/**
+ * The "use a password instead" switch, shared by both tabs.
+ *
+ * ⚠️ IT RESERVES ITS SPACE WHEN HIDDEN. Rendering `show && <Button/>` made the whole form
+ * grow by a row the moment the visitor typed an "@", which pushed the CTA out from under a
+ * thumb already travelling toward it — the tap-target-moves-mid-gesture failure the app has
+ * hit before. `invisible` keeps the row in the layout at all times, and `pointer-events-none`
+ * + `tabIndex -1` + `aria-hidden` keep the hidden state genuinely unreachable rather than
+ * merely unseen: an invisible button that a screen reader still announces, or that Tab still
+ * lands on, is worse than one that is simply absent.
+ */
+function PasswordSwitch({ show, onClick, label }: { show: boolean; onClick: () => void; label: string }) {
+  return (
+    <div className={cn('pt-0.5 text-center', !show && 'invisible pointer-events-none')} aria-hidden={!show}>
+      <Button
+        variant="bare"
+        size="none"
+        tabIndex={show ? undefined : -1}
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={onClick}
+        className="text-xs font-semibold text-muted-foreground hover:text-accent-foreground hover:underline cursor-pointer"
+      >
+        {label}
+      </Button>
     </div>
   )
 }
