@@ -219,8 +219,35 @@ export function SignInForm({ className }: { className?: string }) {
   // so this is what retracts a captcha message the moment it stops being true — see the hook.
   // A function updater, so it reads the error that is actually on screen rather than one captured
   // when this callback was created.
+  //
+  // ⚠️ IT CLEARS THE MESSAGE BUT IT DOES NOT FINISH THE JOB, WHICH IS WHY THE RETRY EXISTS.
+  // Reported from production on the password path: the widget demands a visible challenge,
+  // getToken() gives up before the visitor finishes ticking it, the form says "the security
+  // check didn't complete" — and then Cloudflare shows "Success!" underneath. Pressing Sign in
+  // again does NOT recover, because getToken() calls reset() before execute(), which THROWS AWAY
+  // the token that was just solved and starts another challenge. So the visitor loops: solve,
+  // press, discarded, solve again. onSolved retracting the message only made the loop quieter.
+  // `retryOnCaptchaSolvedRef` lets the stage that is waiting resume itself with the token that
+  // actually arrived. The OTP paths do not set it and are unaffected.
+  const retryOnCaptchaSolvedRef = useRef<((token: string) => void) | null>(null)
+  // ⚠️ READ AT SUBMIT TIME, NOT CAPTURED AT RENDER TIME. All three reviewers found the same
+  // defect in the first version of the resume: it stored the closure from the render that
+  // FAILED, so it carried that render's `password`/`email`/`phone`. The visible challenge is up
+  // for seconds and the form stays interactive, so the realistic sequence is — visitor mistypes,
+  // presses Sign in, sees the challenge, fixes the typo while it is up, ticks it — and the resume
+  // then submits the TYPO, fails, and spends one of their five lockout attempts on a password
+  // they had already corrected. This ref always holds what is on screen now.
+  const liveRef = useRef({ tab, email, phone, password })
+  liveRef.current = { tab, email, phone, password }
   const { getToken: getCaptchaToken, Widget: Turnstile } = useTurnstile({
-    onSolved: () => setError(errorAfterCaptchaSolved),
+    onSolved: (token?: string) => {
+      setError(errorAfterCaptchaSolved)
+      const resume = retryOnCaptchaSolvedRef.current
+      if (resume && token) {
+        retryOnCaptchaSolvedRef.current = null
+        resume(token)
+      }
+    },
   })
   // Return the user to the page they triggered sign-in from (continuum of their
   // action) — not always home. Phone OTP stays in place (no redirect; the modal
@@ -606,9 +633,15 @@ export function SignInForm({ className }: { className?: string }) {
    * shares; getSession() makes it notice, and auth-context's onAuthStateChange does the
    * rest exactly as it does for OTP.
    */
-  const signInWithPassword = async () => {
+  const signInWithPassword = async (presetToken?: string) => {
+    // ⚠️ DISARM FIRST. A manual retry must cancel any pending resume, or a visitor who presses
+    // Sign in again while the challenge is still up gets TWO submissions racing — one with the
+    // token they just solved and one from the resume — and the loser burns a lockout attempt.
+    retryOnCaptchaSolvedRef.current = null
     setLoading(true); setError(null)
-    const identifier = tab === 'email' ? email.trim().toLowerCase() : phone.trim()
+    const live = liveRef.current
+    const identifier = live.tab === 'email' ? live.email.trim().toLowerCase() : live.phone.trim()
+    const password = live.password
     try {
       // ⚠️ INSIDE THE try, AND THE RESULT IS CHECKED. Two separate bugs a reviewer found
       // here, both of which stranded the user on a spinner:
@@ -620,10 +653,17 @@ export function SignInForm({ className }: { className?: string }) {
       //    posted anyway. Supabase rejects it, the route collapses every cause to
       //    bad_credentials, and the user is told their correct password is wrong — while
       //    burning one of their five lockout attempts. Bail before the request instead.
-      const captchaToken = await getCaptchaToken()
+      // A token handed in by onSolved is one the visitor JUST completed — use it rather than
+      // calling getToken(), which would reset the widget and discard it.
+      const captchaToken = presetToken ?? await getCaptchaToken()
       if (!captchaToken) {
         setLoading(false)
         setError({ code: 'captcha' })
+        // ⚠️ ARM THE RESUME. Without this the visitor is stuck in the loop described at the
+        // useTurnstile call site: every retry resets the widget and throws away the token they
+        // just solved. Armed only while they are actually waiting on this screen — cleared on
+        // success, on any other error, and whenever they leave the password stage.
+        retryOnCaptchaSolvedRef.current = (token: string) => { void signInWithPassword(token) }
         return
       }
       const res = await fetch('/api/auth/password', {
@@ -631,6 +671,7 @@ export function SignInForm({ className }: { className?: string }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ identifier, password, captchaToken }),
       })
+      retryOnCaptchaSolvedRef.current = null
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
         setLoading(false)
@@ -659,7 +700,7 @@ export function SignInForm({ className }: { className?: string }) {
         }
         // ⚠️ ONE MESSAGE FOR EVERY CAUSE, and it names BOTH fields on purpose. "We don't
         // recognise that email" would leak exactly what the route refuses to say.
-        setError({ code: 'raw', message: tab === 'email'
+        setError({ code: 'raw', message: live.tab === 'email'
           ? t('Wrong email or password.', 'Email hoặc mật khẩu không đúng.')
           : t('Wrong phone number or password.', 'Số điện thoại hoặc mật khẩu không đúng.') })
         return
@@ -690,6 +731,7 @@ export function SignInForm({ className }: { className?: string }) {
       // and performs the ?next= redirect it already owns. One behaviour, no special case.
       window.location.reload()
     } catch {
+      retryOnCaptchaSolvedRef.current = null
       setLoading(false)
       setError({ code: 'raw', message: t('Could not sign in. Check your connection and try again.', 'Không thể đăng nhập. Kiểm tra kết nối và thử lại.') })
     }
@@ -734,14 +776,19 @@ export function SignInForm({ className }: { className?: string }) {
           aria-label={t('Password', 'Mật khẩu')}
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter' && !loading && password) signInWithPassword() }}
+          onKeyDown={(e) => { if (e.key === 'Enter' && !loading && password) void signInWithPassword() }}
           placeholder={t('Password', 'Mật khẩu')}
         />
         <Button
           variant="cta"
           size="none"
           onMouseDown={(e) => e.preventDefault()}
-          onClick={signInWithPassword}
+          // ⚠️ ARROW, NOT A BARE REFERENCE. signInWithPassword now takes an optional preset
+          // captcha token, and onClick would pass React's MouseEvent straight into it — sending
+          // a synthetic event object to the server as `captchaToken`. tsc caught it; it would
+          // otherwise have failed as "the security check didn't complete", i.e. indistinguishable
+          // from the very bug this change exists to fix.
+          onClick={() => signInWithPassword()}
           disabled={loading || !password}
           className="flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm disabled:opacity-100 disabled:bg-muted disabled:text-ink-4 transition-colors cursor-pointer"
         >
@@ -765,7 +812,7 @@ export function SignInForm({ className }: { className?: string }) {
         <Button
           variant="bare"
           size="none"
-          onClick={() => { setStage('input'); setPassword(''); setError(null) }}
+          onClick={() => { retryOnCaptchaSolvedRef.current = null; setStage('input'); setPassword(''); setError(null) }}
           className="w-full pt-1 text-center text-sm font-semibold text-accent-foreground hover:underline cursor-pointer"
         >
           {tab === 'email'

@@ -79,7 +79,7 @@ function loadScript(): Promise<void> {
  * it's enabled). The widget container must stay in the DOM (not display:none) so a
  * visible challenge can render on the rare occasions one is required.
  */
-export function useTurnstile(opts?: { onSolved?: () => void }) {
+export function useTurnstile(opts?: { onSolved?: (token?: string) => void }) {
   const widgetIdRef = useRef<string | null>(null)
   /** Held in a ref, and updated in an effect rather than during render, so a changing callback never
    *  re-runs `attach` — re-attaching would tear down and re-render the live widget, losing an
@@ -123,7 +123,13 @@ export function useTurnstile(opts?: { onSolved?: () => void }) {
             // note on onSolved in the hook's doc comment. Guarded because a throw from a consumer's
             // callback here would run inside Turnstile's own callback and lose the token.
             try {
-              onSolvedRef.current?.()
+              // ⚠️ THE TOKEN IS PASSED, and that is load-bearing rather than tidy. A caller whose
+              // getToken() already gave up cannot ask for this token afterwards: getToken() begins
+              // with reset(), which discards exactly the token that was just solved and starts a
+              // fresh challenge. Handing it to the listener is the only way a screen that timed
+              // out can finish with the answer the visitor actually gave. Optional, so the OTP
+              // callers that only want to retract a stale message are unaffected.
+              onSolvedRef.current?.(token)
             } catch (e) {
               console.warn('[turnstile] onSolved threw', (e as Error)?.message)
             }
