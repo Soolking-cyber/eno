@@ -235,6 +235,15 @@ type Thread = {
    */
   kind?: 'visa' | 'itinerary' | 'listing'
   iAmSeller?: boolean // true = I'm the listing's seller → hide "request contact" (I'm the contact)
+  // Seller.officialPartner — a partner shares no number by agreement, so the contact strip is not
+  // offered at all. ⚠️ OPTIONAL, and that is load-bearing, exactly as it is for iAmSeller above:
+  // three writers seed a Thread that is NOT the server payload (the pending-compose stub in
+  // messages/pending/page.tsx, the localStorage restore and prefetch in chat-context.tsx), and a
+  // payload written by an older build has no such field. Undefined → falsy → the strip shows for a
+  // beat until load() lands, which is the pre-change UI and is refused by the server anyway.
+  // Do NOT "fix" that by defaulting to hidden: it would hide every ordinary seller's contact strip
+  // on a cold open.
+  sellerIsPartner?: boolean
   hasReviewed?: boolean // buyer side: this conversation already produced a review → no prompt
   // The e-Visa case this thread is bound to + the desk state its cards render against
   // (mode · picked product · server-issued USD quote · live payment providers). Absent on
@@ -1364,7 +1373,21 @@ export default function ThreadPage() {
 
           {/* Contact is requested IN-CHAT, and only once the seller has replied —
               this is what gets sellers logging in daily to answer + keep listings fresh. */}
-          {thread && !thread.iAmSeller && (
+          {/* Hide the strip for an official partner — but NOT while a number is on screen.
+              `contact` is session state set by the reveal POST, so this keeps an in-flight reveal
+              from vanishing under the buyer if the seller is promoted mid-session.
+              ⚠️ IT DOES NOT SURVIVE A RELOAD, AND THAT IS A DECISION, NOT AN OVERSIGHT. Three
+              reviewers pushed for a durable entitlement: remember that this buyer already revealed
+              (a `ContactReveal` row exists) and keep serving the number after promotion. Rejected —
+              serving it again means bypassing `phoneForSeller`'s partner refusal, which is the
+              single hard invariant this whole feature rests on ("a partner's number is never
+              served"). Trading a total invariant for a re-serve to one buyer is a bad trade, and an
+              invariant with one exception is not an invariant.
+              ⚠️ The transition is also not currently reachable: partners are accounts eno CREATES
+              as partners, and the only one has no stored phone at all. If ordinary sellers ever get
+              promoted in bulk, revisit this — the honest answer then is to tell the buyer in the
+              thread that the seller moved to eno chat, not to quietly re-open the reveal. */}
+          {thread && !thread.iAmSeller && (contact || !thread.sellerIsPartner) && (
             <div className="flex items-center gap-2 border-t border-border bg-background px-4 py-2">
               {contact ? (
                 <>

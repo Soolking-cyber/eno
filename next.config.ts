@@ -109,13 +109,18 @@ const nextConfig: NextConfig = {
    *
    *   NEXT_DIST_DIR=.next-dev npm run dev:vn      # dev on :3000, leaves .next alone
    *
-   * ⚠️ USE `.next-dev` SPECIFICALLY — it is a convention, not a free-form path, and two reviewers
-   * caught an earlier version of this comment overselling it. Only the `.next` and `.next-` prefixed
-   * directory patterns are gitignored (so `.nextfoo` WOULD be committable), and `tsconfig.json`
-   * includes route types from
-   * `.next-dev` alone, so any other value silently loses generated types. `scripts/preview.mjs`
-   * also still copies from `.next` unconditionally — the preview server is not isolated by this,
-   * only dev is, which is exactly the split it was added for.
+   * ⚠️ PREFIX THE NAME `.next-` — that is the part that matters. Only the `.next` and `.next-`
+   * prefixed directory patterns are gitignored, so a name like `.nextfoo` WOULD be committable.
+   * Route types take care of themselves: Next appends `tsconfig.json` include paths for whatever
+   * dist dir it is given, so a new name self-registers on first run. (An earlier version of this
+   * comment claimed other values "silently lose generated types". A colleague running a different
+   * name disproved it within the hour — Next simply added theirs. Kept as a note because two
+   * reviewers and I all reasoned our way to the same wrong answer about a behaviour that took one
+   * observation to settle.)
+   *
+   * ⚠️ DEV ONLY. `scripts/preview.mjs` still copies from `.next` unconditionally, so the production
+   * preview is NOT isolated by this — which is fine, because the collision it was added for is a
+   * dev server clobbering a preview, and moving the dev server is enough to prevent it.
    */
   distDir: process.env.NEXT_DIST_DIR || ".next",
   // Dev-only: hide the floating Next.js devtools badge. It renders bottom-left —

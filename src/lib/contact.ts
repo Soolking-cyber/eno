@@ -1,4 +1,5 @@
 import 'server-only'
+import { normalizePhone } from './phone'
 // Single source of truth for seller contact. SERVER-ONLY — the number must never
 // reach the client bundle; only the auth-gated /api/listings/[id]/contact route
 // may resolve it. Returns the seller's REAL stored phone (set in the post wizard)
@@ -34,11 +35,30 @@ function digits(p: string): string {
   return p.replace(/\D/g, '')
 }
 
-/** A working tel: link, normalized to Vietnam international format. */
+/**
+ * A working tel: link — E.164 WITH the leading '+'.
+ *
+ * ⚠️ THIS WAS BROKEN FOR EVERY SELLER IN PRODUCTION, NOT AS AN EDGE CASE. The old body did
+ * `digits(phone)` — which strips the '+' — and then only re-added it on the `startsWith('0')`
+ * branch, so an already-international number fell straight through and emitted `tel:84901234567`.
+ * A tel: URI without the '+' is not E.164; the dialler treats it as a local number and it does not
+ * connect.
+ *
+ * ⚠️ AND THE '0' BRANCH IS DEAD CODE IN PRODUCTION, which is what made it look latent. Measured
+ * 2026-08-10: all 9 sellers with a stored number hold it in `+…` form and NONE start with '0',
+ * because every write path (post wizard, listing PATCH, storefront PATCH, account-type switch,
+ * resolve-seller) runs `normalizePhone` first — see src/lib/phone.ts, "the stored Seller.phone
+ * key". So 100% of contact reveals emitted a link that could not dial. An earlier comment of mine
+ * called this "latent rather than universal"; the data says the exact opposite, and I only found
+ * that out by counting the rows instead of reasoning about the function.
+ *
+ * The fix is to stop re-deriving, badly, a normalisation the repo already owns. `normalizePhone`
+ * is idempotent for stored numbers and still repairs a hand-typed local form, so the '0' case that
+ * the old branch existed for keeps working. `phone.ts` imports nothing server-only (a client
+ * component already imports it), so the direction is safe from this `server-only` module.
+ */
 export function telHref(phone: string): string {
-  const d = digits(phone)
-  const intl = d.startsWith('0') ? `+84${d.slice(1)}` : d
-  return `tel:${intl}`
+  return `tel:${normalizePhone(phone)}`
 }
 
 /** A working Zalo deep link to the seller's number. Zalo resolves VN numbers in LOCAL

@@ -116,15 +116,23 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   if (!listing || !listing.verified) return NextResponse.json({ error: 'not_found' }, { status: 404 })
 
   // ── OFFICIAL PARTNER: there is no number to reveal, and saying so is not a leak. ──
-  // ⚠️ KNOWN, DELIBERATE, AND NOT FREE: this sits BELOW the rate limiter, so a buyer who taps
-  // "request contact" in a partner thread spends a strict 30/h contact-reveal slot on a request
-  // that can never succeed — and ratelimit.ts increments on DENIED attempts by design, so the cost
-  // is real. Reviewed and left as-is because the alternatives are both worse right now: hoisting
-  // the partner check means a DB read BEFORE the limiter on the route that exists to resist
-  // harvesting, and the proper fix is to stop offering the affordance at all — the thread's
-  // `listing` payload carries no seller fields, so that means widening the conversations API and
-  // editing messages/[id]/page.tsx, which is a landmine file. Bounded in practice: the buyer gets
-  // an accurate answer on the first tap, so realistic burn is 1–2 of 30. Fix it with the UI change.
+  // ⚠️ THIS SITS BELOW THE RATE LIMITER, AND A PARTNER REFUSAL THEREFORE COSTS THE CALLER A SLOT.
+  // ratelimit.ts increments on DENIED attempts by design, so a refused partner request still spends
+  // one of the buyer's strict 30/h — budget they will not have for an ordinary seller later.
+  //
+  // ⚠️ THE UI REDUCES THIS BUT DOES NOT CLOSE IT, and an earlier version of this comment claimed
+  // otherwise ("not reachable — it answers a hand-rolled POST, not a button"). All three reviewers
+  // refused that, correctly: the thread hides the strip via `sellerIsPartner`, but that field is
+  // OPTIONAL precisely because three non-server writers seed a Thread without it (the
+  // pending-compose stub, the localStorage restore, prefetch) — so on a cold open the button is
+  // painted until load() lands, and a tab opened before this shipped never learns the field at all.
+  // A fast tap in that window reaches here. Rare, self-inflicted, and bounded by the buyer's own
+  // patience; NOT impossible. Saying "unreachable" in a security-adjacent comment was the error —
+  // the client cannot enforce whether an authenticated endpoint is called.
+  //
+  // Left below the limiter anyway, deliberately: hoisting it means a DB read BEFORE the throttle on
+  // the one route built to resist harvesting, which trades a rare self-burn for a cheaper attack.
+  // If the affordance is ever exposed again by default, revisit that trade rather than this comment.
   // Checked HERE, ahead of the reply-first gate, for two reasons. It is the honest answer at any
   // reply state — a partner has no phone whether or not they have written back, so making the buyer
   // clear an unrelated gate first only to be refused is a worse experience for no security gain.

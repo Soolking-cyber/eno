@@ -48,17 +48,45 @@ describe('link builders', () => {
     expect(telHref('0901234567')).toBe('tel:+84901234567')
   })
 
-  // ⚠️ PRE-EXISTING DEFECT, PINNED HERE AS-IS RATHER THAN FIXED IN A BADGE COMMIT.
-  // `digits()` strips the '+', so an already-international number falls through the
-  // `startsWith('0')` branch untouched and emits `tel:84901234567` — no plus, which is not E.164
-  // and will not dial. Only reachable when a seller STORED their number in +84/84 form (the wizard
-  // does not normalise), so it is latent rather than universal.
-  // This test asserts what the code DOES, so it goes red the moment someone fixes it — at which
-  // point flip it to expect 'tel:+84901234567'. The fix is one line (prefix '+' when the digits
-  // already start with 84), but it changes a live contact-reveal dial path for existing sellers,
-  // which does not belong in the same commit as a partner badge. Reported to the owner separately.
-  it('tel: DROPS THE PLUS on an already-international number (known bug, see comment)', () => {
-    expect(telHref('+84901234567')).toBe('tel:84901234567')
+  // ⚠️ THIS IS THE CASE THAT WAS BROKEN FOR EVERY SELLER IN PRODUCTION — and the previous version
+  // of this test PINNED THE BUG, with a comment calling it "latent rather than universal" on the
+  // reasoning that the wizard does not normalise. That reasoning was wrong in both halves: the
+  // wizard does normalise (`normalizePhone`, every write path), which is precisely WHY all 9
+  // sellers with a number store it in `+…` form and none start with '0' — so the old function's
+  // repair branch never fired and 100% of reveals emitted an unusable `tel:`. Counting the rows
+  // refuted an argument that had sounded airtight. Keep this assertion; it is the regression.
+  it('tel: KEEPS the plus on an already-international number (E.164, dials)', () => {
+    expect(telHref('+84901234567')).toBe('tel:+84901234567')
+  })
+
+  it('tel: a non-VN country code keeps its plus too', () => {
+    // Two sellers hold non-+84 numbers. The old code emitted `tel:77…`, which dials nothing.
+    expect(telHref('+77012345622')).toBe('tel:+77012345622')
+  })
+
+  it('tel: still repairs a hand-typed local number — the branch the old code existed for', () => {
+    expect(telHref('0901234567')).toBe('tel:+84901234567')
+  })
+
+  it('tel: is idempotent, so a stored canonical number survives a round trip', () => {
+    expect(telHref(telHref('+84901234567').replace('tel:', ''))).toBe('tel:+84901234567')
+  })
+
+  // ⚠️ TOTALITY. telHref now delegates to normalizePhone, and two reviewers flagged that the
+  // helper's contract is invisible from this module — if it returned null/undefined for an input it
+  // could not parse, TS would not complain inside a template literal and we would emit `tel:null`.
+  // It does not (src/lib/phone.ts: `return d ? '+'+d : ''`), but "I read it once" is not a contract.
+  // These pin it, so a future change to normalizePhone breaks here rather than in a dial link.
+  it.each([
+    ['', 'tel:'],
+    ['   ', 'tel:'],
+    ['not a phone', 'tel:'],
+    ['+84 90 123 4567', 'tel:+84901234567'],
+    ['(090) 123-4567', 'tel:+84901234567'],
+  ])('tel: stays a string for %j', (input, expected) => {
+    const out = telHref(input)
+    expect(out).toBe(expected)
+    expect(out.includes('null') || out.includes('undefined')).toBe(false)
   })
 
   it('zalo: uses the LOCAL form — an 84-prefixed link opens to "user not found"', () => {

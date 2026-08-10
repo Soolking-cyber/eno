@@ -123,7 +123,19 @@ export const GET = route({ auth: 'userId' }, async ({ req, params, userId: meId 
       // `owner.locale` / `buyer.locale` = the counterpart's persisted app language, the ONLY
       // signal the live-translation toggle keys off (contract A). It is a language preference,
       // not personal data: nothing here says who they are or where they are.
-      seller: { select: { id: true, name: true, avatarColor: true, avatarUrl: true, trustScore: true, trustTier: true, memberSince: true, reviewCount: true, owner: { select: { lastSeenAt: true, locale: true } } } },
+      // `officialPartner` → the client hides the contact strip entirely.
+      // ⚠️ THIS READS THE CONVERSATION'S SELLER; THE ENFORCEMENT READS THE LISTING'S. Two sources
+      // for one fact, which a reviewer rightly flagged. They cannot diverge, and the reason is
+      // worth writing down rather than rediscovering: `Conversation.listingId` IS retargeted (in
+      // api/conversations/route.ts retargetForListing and lib/visa/dm-flow.ts) but `sellerId` is
+      // not, and both retargets are seller-scoped — the candidate lookup filters on
+      // `sellerId: listing.sellerId`, and the visa retarget stays inside the one desk storefront.
+      // So conversation.seller IS the listing's seller, by construction of the only two writers.
+      // If a third retarget is ever added that does not filter by seller, this display and the
+      // server's refusal will disagree and the buyer gets a hidden strip on a revealable listing.
+      // Belt: the server is authoritative either way, so the failure is a missing affordance, not
+      // a leak.
+      seller: { select: { id: true, name: true, avatarColor: true, avatarUrl: true, trustScore: true, trustTier: true, memberSince: true, reviewCount: true, officialPartner: true, owner: { select: { lastSeenAt: true, locale: true } } } },
       buyer: { select: { displayName: true, email: true, avatarColor: true, avatarUrl: true, lastSeenAt: true, locale: true } },
       // Bounded (audit P2): the full history shipped on EVERY call × a 15s poll per
       // open tab. Last 200 in reverse, un-reversed below — covers any realistic
@@ -245,6 +257,12 @@ export const GET = route({ auth: 'userId' }, async ({ req, params, userId: meId 
     // The seller of the listing reveals nothing here (they ARE the contact) — the client
     // uses this to hide the "Request number / Zalo" action for the seller side.
     iAmSeller,
+    // An OFFICIAL PARTNER shares no phone by agreement, so the client hides the whole contact strip
+    // rather than offering a button the server will refuse with 403 partner_chat_only.
+    // ⚠️ TOP-LEVEL, NOT INSIDE `listing`, DELIBERATELY. It is a Seller fact, and nesting it under
+    // `listing` would send the next reader to the listing select above, where it does not exist —
+    // and would become an outright lie the day a conversation retarget crosses sellers.
+    sellerIsPartner: convo.seller.officialPartner,
     // availabilityConfirmedAt powers the buyer's instant "still available?" answer
     // (fresh seller confirmation → answered inline, no message sent).
     listing: { id: convo.listing.id, title: convo.listing.title, image: img, price: convo.listing.price, currency: convo.listing.currency, priceUnit: convo.listing.priceUnit, negotiable: convo.listing.negotiable, availabilityConfirmedAt: convo.listing.availabilityConfirmedAt?.toISOString() ?? null, status: convo.listing.status },
