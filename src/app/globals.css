@@ -1665,7 +1665,12 @@ html.native-tabs .bottom-nav-spacer {
   }
 }
 [data-sonner-toast] {
-  border-radius: 1rem;                 /* rounded-2xl panel */
+  /* The token, not a hand-copied 1rem. This was a literal 1rem annotated "rounded-2xl
+     panel" while --radius-2xl had moved to 18px — so the toast was the one floating
+     panel in the app rendering 2px tighter than every dialog and popover it appears
+     over, and the annotation had quietly become false. A literal cannot follow the
+     tier; the var can. */
+  border-radius: var(--radius-2xl);
   box-shadow: var(--shadow-pop);
   font-family: inherit;
   font-size: 0.875rem;

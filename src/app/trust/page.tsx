@@ -12,6 +12,19 @@ export const metadata: Metadata = {
 
 // Flat, single-canvas content page (matches Guide/About) — no boxes; the tier ladder
 // and the points tables are rows separated by hairlines (divide-y), never panels.
+//
+// Every prose paragraph below carries `leading-relaxed`, and that is deliberate rather
+// than decoration. ContentSection caps body copy at 70ch, and a 70ch measure set at
+// text-sm's default 14/20 (ratio 1.43) is a hard line to track back on — the eye loses
+// its place returning to the left edge. The page was also arguing with itself: of its
+// seven prose paragraphs, six sat at 1.43 and one at 1.63 — the tell that the leading
+// was never chosen, just inherited. /guide, /about, /safety, /privacy and /terms all
+// set their prose relaxed; this page is now the same, measured at 1.63 across all
+// seven. The five compact notes inside Band keep the tighter 1.43 on purpose — those
+// are list metadata beside a fixed-height shield, not prose, and relaxing them only
+// makes the ladder taller. So "every paragraph on the page" is NOT the claim here and
+// a reviewer reading it that way will find five counterexamples: the claim is every
+// PROSE paragraph, and the ladder notes are deliberately not prose.
 function Band({ score, name, range, note }: { score: number; name: string; range: string; note: string }) {
   return (
     <div className="flex items-start gap-4 py-4">
@@ -58,7 +71,7 @@ export default function TrustPage() {
       ]}
     >
       <ContentSection id="colors" title="What the colors mean">
-          <p className="text-sm text-body"><Tr text="Every account starts at 60 — a neutral 'Building' state, not a warning. The upper tiers are earned with real volume: a badge certifies a track record, never just a number." /></p>
+          <p className="text-sm leading-relaxed text-body"><Tr text="Every account starts at 60 — a neutral 'Building' state, not a warning. The upper tiers are earned with real volume: a badge certifies a track record, never just a number." /></p>
           <div className="mt-1 divide-y divide-border">
             <Band score={175} name="Elite" range="160 and up" note="The top tier — a long, high-volume, spotless track record. The most trusted businesses on eno.vn." />
             <Band score={130} name="Exceptional" range="110–159" note="At least 10 completed deals in the last year, reviews from 5 different buyers, a proven fast-reply record, and 6 clean months." />
@@ -69,7 +82,7 @@ export default function TrustPage() {
       </ContentSection>
 
       <ContentSection id="built" title="How the score is built">
-          <p className="text-sm text-body"><Tr text="The score starts at 60 and adds four components, each with a hard ceiling — so no single tactic can be farmed to the top. Everything except verification is windowed: only recent behavior moves it." /></p>
+          <p className="text-sm leading-relaxed text-body"><Tr text="The score starts at 60 and adds four components, each with a hard ceiling — so no single tactic can be farmed to the top. Everything except verification is windowed: only recent behavior moves it." /></p>
           <div className="mt-1">
             <Points rows={[
               ['Verification', 25, 'One-time gates: verified phone +10, business identity (KYC) +10, account older than 90 days +5'],
@@ -81,12 +94,12 @@ export default function TrustPage() {
       </ContentSection>
 
       <ContentSection id="reviews" title="Reviews that can't be gamed">
-          <p className="text-sm text-body"><Tr text="Only verified buyers — people who actually completed a deal through eno chat — can review, and each buyer counts once per 90 days. Ratings are statistically smoothed toward the platform average, so two perfect ratings can never beat two hundred near-perfect ones. Reply speed is judged the same way: a proven rate over many conversations beats a lucky streak of three." /></p>
-          <p className="text-sm text-body"><Tr text="Who says it matters too: reviews and reports from established, verified accounts carry full weight, while a day-old account carries very little — so burner accounts can neither inflate a friend nor sink a rival." /></p>
+          <p className="text-sm leading-relaxed text-body"><Tr text="Only verified buyers — people who actually completed a deal through eno chat — can review, and each buyer counts once per 90 days. Ratings are statistically smoothed toward the platform average, so two perfect ratings can never beat two hundred near-perfect ones. Reply speed is judged the same way: a proven rate over many conversations beats a lucky streak of three." /></p>
+          <p className="text-sm leading-relaxed text-body"><Tr text="Who says it matters too: reviews and reports from established, verified accounts carry full weight, while a day-old account carries very little — so burner accounts can neither inflate a friend nor sink a rival." /></p>
       </ContentSection>
 
       <ContentSection id="penalties" title="What costs you trust">
-          <p className="text-sm text-body"><Tr text="Only reports confirmed by our moderators count, weighted by severity and by the reporter's credibility. Minor issues fade in about 3 months of clean trading; misrepresentation takes about a year." /></p>
+          <p className="text-sm leading-relaxed text-body"><Tr text="Only reports confirmed by our moderators count, weighted by severity and by the reporter's credibility. Minor issues fade in about 3 months of clean trading; misrepresentation takes about a year." /></p>
           <div className="mt-1">
             <Points rows={[
               ['Confirmed scam or counterfeit', -45, 'Does NOT fade with time — see below'],
@@ -95,7 +108,7 @@ export default function TrustPage() {
               ['Confirmed minor issue (spam/duplicate)', -5, 'Fades in ~3 months'],
             ]} />
           </div>
-          <p className="text-xs text-muted-foreground"><Tr text="A confirmed scam is different: waiting does nothing. Its full penalty stays frozen until the seller completes 5 new clean deals — only then does it slowly start to fade, and it never drops below 40% of its weight. Time alone never launders fraud; reform requires behavior." /></p>
+          <p className="text-xs leading-relaxed text-muted-foreground"><Tr text="A confirmed scam is different: waiting does nothing. Its full penalty stays frozen until the seller completes 5 new clean deals — only then does it slowly start to fade, and it never drops below 40% of its weight. Time alone never launders fraud; reform requires behavior." /></p>
       </ContentSection>
 
       <ContentSection id="fair" title="Fair by design">

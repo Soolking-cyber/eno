@@ -106,7 +106,17 @@ export function PdpShopLink({ name, avatarColor, avatarUrl, isBusiness, business
         className="group flex shrink-0 items-center gap-0.5 rounded-xl px-2 py-1.5 text-xs font-semibold text-accent-foreground transition-colors hover:bg-secondary"
       >
         {tr('Shop', 'Gian hàng')}
-        <ChevronRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5 motion-reduce:transition-none" />
+        {/* `motion-reduce:group-hover:translate-x-0` is NOT redundant beside
+            `motion-reduce:transition-none`: killing the transition removes only the TWEEN,
+            leaving the 2px displacement to happen instantly — the jump a reduced-motion
+            reader asked not to see. Measured on the sibling copy of this idiom in
+            help-center.tsx: 2.00px of movement on hover normally, 0.00px with the pair.
+            No `shrink-0` on the icon — the Link above is already `shrink-0` and sized by
+            its content, so nothing can compress the glyph and the class would be noise.
+            Keep the bare `transition-transform` UTILITY rather than an arbitrary list:
+            v4 expands it to transform+translate+scale+rotate, whereas a hand-written
+            `transition-[…,transform]` omits `translate` and silently kills the tween. */}
+        <ChevronRight className="h-4 w-4 transition-transform duration-200 group-hover:translate-x-0.5 motion-reduce:transition-none motion-reduce:group-hover:translate-x-0" />
       </Link>
     </div>
   )

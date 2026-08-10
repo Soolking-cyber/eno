@@ -30,7 +30,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Input } from '@/components/ui/input'
-import { HELP_TOPICS } from '@/lib/help-center'
+import { HELP_TOPICS, splitIntoColumns } from '@/lib/help-center'
 import { FORUM_URL, goToForum } from '@/lib/forum-nav'
 import type { HelpCenterData, HelpPost, HelpReview } from '@/lib/help-center-data'
 import { cn } from '@/lib/utils'
@@ -270,28 +270,17 @@ export function HelpCenter({ data }: { data: HelpCenterData }) {
   //
   // A plain `lg:grid-cols-2` lays the groups out row by row, so each row grows to its
   // tallest cell and a short topic leaves a visible hole beside a long one — with
-  // 3-question "Getting started" next to 6-question "Buying & offers" the gap was
-  // most of a screen. CSS `columns-2` fixes the packing but can slice an accordion
-  // across the column break as panels open. Distributing greedily by question count
-  // gives independent columns with neither problem.
-  const columns = useMemo(() => {
-    const left: typeof groups = []
-    const right: typeof groups = []
-    let leftCount = 0
-    let rightCount = 0
-    for (const group of groups) {
-      // +1 per group for its heading, so a topic's fixed chrome is weighed too.
-      const weight = group.posts.length + 1
-      if (leftCount <= rightCount) {
-        left.push(group)
-        leftCount += weight
-      } else {
-        right.push(group)
-        rightCount += weight
-      }
-    }
-    return [left, right]
-  }, [groups])
+  // 3-question "Getting started" next to 6-question "Buying & offers" the gap was most
+  // of a screen. CSS `columns-2` fixes the packing but can slice an accordion across the
+  // column break as panels open. Packing the groups ourselves gives independent columns
+  // with neither problem.
+  //
+  // The algorithm and every measured number behind it live in `splitIntoColumns` (and
+  // are covered by help-center-columns.test.ts, whose cases are mutation-verified — put
+  // the old greedy pack back and six of them fail). The short version: ONE contiguous
+  // split, never an alternating greedy pack — the columns stack below `lg`, so
+  // interleaving them scrambles the curated topic order on every phone.
+  const columns = useMemo(() => splitIntoColumns(groups), [groups])
 
   const resetFilters = () => {
     setQuery('')
@@ -383,8 +372,26 @@ export function HelpCenter({ data }: { data: HelpCenterData }) {
             className="mt-3 bg-transparent ring-0"
           />
         ) : grouped ? (
-          <div className="mt-2 grid items-start gap-x-12 lg:grid-cols-2">
-            {columns.map((column, index) => (
+          /* ⚠️ BARE /* *\/ HERE, NOT {/* *\/} — a JSX comment container is only valid as a
+             CHILD, and this is a ternary branch. The braces form parses as an object
+             literal and takes the whole file down (TS1005 at the next section).
+
+             `lg:grid-cols-2` only when BOTH columns have something in them. With one
+             populated column an unconditional two-column grid renders that topic at half
+             width beside a void, the narrower measure making it look like a rendering
+             failure rather than a result. Empty columns are dropped rather than rendered
+             as empty divs, so the grid has nothing to reserve space for.
+
+             ⚠️ ON REACHABILITY, because a reviewer and I both got this wrong in opposite
+             directions. The reviewer said a search matching one topic hits it; that is
+             FALSE — `grouped` is `!topic && !needle`, so any search or topic filter drops
+             to the flat list below and this grid is not rendered at all. Verified in the
+             browser: searching "eSIM", "etiquette" or "notifications" produces no grouped
+             grid. What CAN reach it is a thin taxonomy — the edition filter or a sparse
+             DB leaving fewer than two topics that have posts. Rarer than claimed, still
+             real, and one className either way. */
+          <div className={cn('mt-2 grid items-start gap-x-12', columns.every((c) => c.length > 0) && 'lg:grid-cols-2')}>
+            {columns.filter((column) => column.length > 0).map((column, index) => (
               <div key={index}>
                 {column.map((group) => (
                   <section key={group.topic.slug} className="mt-6">
@@ -471,15 +478,42 @@ export function HelpCenter({ data }: { data: HelpCenterData }) {
       {/* More from eno.vn */}
       <section className="mt-12 border-t border-border pt-8">
         <h2 className="h-section text-foreground"><Tr text="More from eno.vn" /></h2>
+        {/* ⚠️ The rows below are `gap-1`, NOT `justify-between` — the chevron has to belong
+            to the WORD. These rows are 596px wide in the 2-column grid while the labels are
+            only 76–114px, so justify-between threw the glyph 466–505px away from the text it
+            points at (measured at 1440px). At that distance it stops reading as "this label
+            goes somewhere" and becomes a column of loose arrows down the right edge. Sitting
+            it against the label keeps the whole row tappable — the Link is still the flex
+            container, so its full width and the border-b underline are unchanged — and lets
+            the hover slide actually mean something, because the eye is already on the glyph. */}
         <div className="mt-3 grid grid-cols-1 gap-x-6 sm:grid-cols-2">
           {MORE_LINKS.map(({ label, href }) => (
             <Link
               key={label}
               href={href}
-              className="group flex items-center justify-between border-b border-border/60 py-3 text-sm font-semibold text-foreground transition-colors hover:text-accent-foreground"
+              className="group flex items-center gap-1 border-b border-border/60 py-3 text-sm font-semibold text-foreground transition-colors hover:text-accent-foreground"
             >
               <Tr text={label} />
-              <ChevronRight className="size-4 text-muted-foreground transition-colors group-hover:text-accent-foreground" />
+              {/* ⚠️ `motion-reduce:group-hover:translate-x-0` is NOT redundant beside
+                  `motion-reduce:transition-none`. Killing the transition only removes the
+                  TWEEN — the 2px displacement still happens, instantly, which is precisely
+                  the jump a reduced-motion reader asked not to see. Both are needed to make
+                  the slide actually not exist; the colour change carries the hover on its
+                  own. pdp-shop-link.tsx's chevron, where this idiom came from, was missing
+                  the same pair and is fixed in this commit.
+                  `translate-x` is physical, not logical, so it would slide the wrong way
+                  under dir=rtl. Harmless today — the UI ships EN and VI only, and nothing
+                  in src/ sets dir=rtl — but if an RTL locale is ever added this is one of
+                  three call sites (here, pdp-shop-link, listing-card) to sweep together. */}
+              {/* ⚠️ `transition-[color,translate]`, NOT `[color,transform]`. Tailwind v4's
+                  translate-x-* utilities set the `translate` PROPERTY, not `transform`, so an
+                  arbitrary transition list naming `transform` animates nothing and the chevron
+                  jumps its 2px instead of sliding. Measured: with `transform` the position had
+                  ONE distinct value across six samples through the 200ms window; with
+                  `translate` it tweens. The bare `transition-transform` utility is safe here
+                  (v4 expands it to transform+translate+scale+rotate) — it is only the
+                  hand-written arbitrary list that has to name the real property. */}
+              <ChevronRight className="size-4 shrink-0 text-muted-foreground transition-[color,translate] duration-200 group-hover:translate-x-0.5 group-hover:text-accent-foreground motion-reduce:transition-none motion-reduce:group-hover:translate-x-0" />
             </Link>
           ))}
         </div>

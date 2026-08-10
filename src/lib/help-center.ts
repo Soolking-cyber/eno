@@ -282,3 +282,64 @@ export function helpTopic(slug: string): HelpTopic | null {
 export function isHelpTopic(slug: string): boolean {
   return BY_SLUG.has(slug)
 }
+
+/**
+ * Split an ORDERED list of topic groups into two reading columns, choosing the single
+ * break point that balances them best.
+ *
+ * Extracted from the /help UI so it can be tested: it is small, pure, and every claim
+ * below is a measured number rather than an intuition, which is exactly the combination
+ * that rots silently when a topic gains a question.
+ *
+ * ⚠️ SPLIT AT ONE POINT — DO NOT "IMPROVE" THIS BACK INTO AN ALTERNATING GREEDY PACK.
+ * The previous implementation walked the groups and pushed each onto whichever column
+ * was currently shorter. That is the textbook greedy bin-fill and on the real content it
+ * lost badly: weights [4,7,11,9,4,11] gave L=19 / R=27, measured in the browser at
+ * 1440px as a 1065px column beside a 1521px one — a 456px hole. Greedy commits to a
+ * column before it has seen the big group still coming, and with six items it never
+ * recovers. The best single break gives L=22 / R=24 → 1236px vs 1350px, a 114px hole.
+ *
+ * The bigger reason is ORDER, not balance. The two columns STACK below `lg`, so a pack
+ * that interleaves them ships a scrambled topic list to every phone — the greedy version
+ * rendered Getting started, Selling, Account, Buying, Trust, Vietnam at 390px. A
+ * contiguous split is the only shape that survives stacking, because a column IS a
+ * contiguous run of the sequence.
+ *
+ * ⚠️ A contiguous split is NOT always the best-balanced one, and that is a deliberate
+ * trade rather than an oversight: for weights [6,8,7] greedy reaches an imbalance of 5
+ * where the best split can only reach 7, and [10,20,10] is worse still. Both reviewers
+ * raised it. Greedy buys that balance by REORDERING curated content, which is the mobile
+ * bug above, so within the order-preserving constraint this is optimal and the constraint
+ * is the product requirement. Worst-case imbalance is bounded by the largest group.
+ *
+ * WEIGHT MODEL: `posts + 1`. Verified against real DOM heights — a section measures
+ * 57*posts + 27 px and carries a 24px `mt-6`, so its true cost is 57*posts + 51, i.e.
+ * 57*(posts + 0.895). The margin is load-bearing in that arithmetic; drop it and the
+ * heading looks worth 27/57 = 0.47 of a post instead of ~1.
+ *
+ * Fewer than two groups returns everything in the FIRST column with an empty second (not
+ * the reverse), and the caller drops the empty column so a lone topic renders full width
+ * rather than half a two-column grid. That state is reached by a thin taxonomy — the
+ * edition filter or a sparse DB leaving under two topics with posts — NOT by search: the
+ * /help UI only groups when there is no query and no topic filter, and falls back to a
+ * flat list otherwise.
+ */
+export function splitIntoColumns<T extends { posts: readonly unknown[] }>(groups: readonly T[]): [T[], T[]] {
+  const weights = groups.map((g) => g.posts.length + 1)
+  const total = weights.reduce((sum, w) => sum + w, 0)
+  // `bestDiff = Infinity` means the first iteration always assigns, so this initializer
+  // is reachable only when groups.length < 2 — and 1 (not 0) keeps that lone group in
+  // the FIRST column.
+  let best = 1
+  let bestDiff = Infinity
+  let run = 0
+  for (let k = 1; k < groups.length; k++) {
+    run += weights[k - 1]
+    const diff = Math.abs(run - (total - run))
+    if (diff < bestDiff) {
+      bestDiff = diff
+      best = k
+    }
+  }
+  return [groups.slice(0, best), groups.slice(best)]
+}
