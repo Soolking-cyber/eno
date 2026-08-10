@@ -62,6 +62,10 @@ export async function dashboardStatsCore(profile: Profile) {
           name: seller.name,
           handle: seller.handle?.handle ?? null,
           verifiedSeller: seller.verifiedSeller,
+          // Drives the Settings → Security section: password sign-in is a PARTNER-ONLY
+          // feature (owner, 2026-08-10), so a non-partner must not be offered a password
+          // they could set and then never use — api/auth/password refuses them.
+          officialPartner: seller.officialPartner,
           trustScore: seller.trustScore,
           trustTier: seller.trustTier,
           responseRate: seller.responseRate,

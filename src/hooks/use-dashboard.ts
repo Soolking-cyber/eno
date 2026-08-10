@@ -25,6 +25,8 @@ export type Dash = {
     name: string
     handle: string | null
     responseRate: number
+    /** Legacy cached payloads may lack it — treat absent as NOT a partner. */
+    officialPartner?: boolean
     bio: string | null
     location: string | null
     phone: string | null

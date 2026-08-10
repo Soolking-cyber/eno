@@ -113,12 +113,23 @@ export function SettingsClient() {
           {isBusiness && dash.seller && <BusinessVerificationPanel />}
           <SettingsGroup caption={tr('Handle', 'Tên định danh')}><HandleSettings /></SettingsGroup>
           <SettingsGroup caption={tr('Email', 'Email')}><ChangeEmailForm currentEmail={dash.profile.email} /></SettingsGroup>
-          {/* Directly under Email on purpose: this is the ONLY place a password can be created
-              (there is no password signup anywhere in the app), so it has to be findable by
-              someone who came here looking for "how do I stop waiting for a code". Sits beside
-              the other identity controls rather than in Danger zone — adding a password is
-              additive and reversible, not destructive. */}
-          <SettingsGroup caption={tr('Security', 'Bảo mật')}><SetPasswordForm /></SettingsGroup>
+          {/* ⚠️ SHOWN TO EVERYONE, DELIBERATELY — AND HIDING IT WAS A SECURITY MISTAKE I MADE
+              AND ALL THREE REVIEWERS CAUGHT INDEPENDENTLY.
+              Password SIGN-IN is partner-only (owner, 2026-08-10) and api/auth/password enforces
+              that. The obvious next step looked like hiding this section from non-partners so
+              nobody sets a password they cannot use. It is the wrong move, because setting a
+              password OVERWRITES any password already on the account — and this is the only
+              place a user can do that. Supabase's signup endpoint is reachable with the public
+              anon key, so an ordinary user may have a planted credential they never created;
+              hiding this control would leave them unable to see it, replace it, or rotate it,
+              while it stayed live against Supabase directly. That converts a hole into a hole
+              nobody can reach.
+              So: visible to all, with the copy telling a non-partner the truth — setting one
+              secures the account without changing how they sign in. `officialPartner` decides
+              the WORDING, never the presence. */}
+          <SettingsGroup caption={tr('Security', 'Bảo mật')}>
+            <SetPasswordForm signInEnabled={dash.seller?.officialPartner === true} />
+          </SettingsGroup>
           <SettingsGroup caption={tr('Account type', 'Loại tài khoản')}><AccountTypeSwitcher isBusiness={isBusiness} businessName={dash.profile.businessName} onSaved={refresh} /></SettingsGroup>
           <SettingsGroup caption={tr('Reminders', 'Nhắc nhở')}><ReminderSettings /></SettingsGroup>
           {/* Consent withdrawal (PDPL): the footer's "Cookie settings" link is the other entry

@@ -24,6 +24,8 @@ vi.mock('@/lib/ratelimit', () => ({
   kv: { get: (...a: unknown[]) => kvGet(...a), set: (...a: unknown[]) => kvSet(...a), del: (...a: unknown[]) => kvDel(...a) },
 }))
 vi.mock('@/lib/client-ip', () => ({ clientIp: () => '203.0.113.9' }))
+const profileFindFirst = vi.fn()
+vi.mock('@/lib/db', () => ({ db: { profile: { findFirst: (...a: unknown[]) => profileFindFirst(...a) } } }))
 vi.mock('@/lib/email-alias', () => ({ canonicalEmail: (e: string) => e.replace('@eno.vn', '@eno.forum') }))
 vi.mock('@/lib/api/handler', () => ({
   // The wrapper is not under test; call the handler directly.
@@ -32,9 +34,15 @@ vi.mock('@/lib/api/handler', () => ({
 
 const { POST } = await import('./route')
 
-const post = (body: unknown) =>
+// ⚠️ EVERY CALL CARRIES A captchaToken BY DEFAULT. The route now rejects a token-less request
+// with 403 before it does anything else, so without this the whole suite would exercise that one
+// early return and assert nothing. Tests that care about the token pass their own.
+const post = (body: Record<string, unknown>) =>
   (POST as unknown as (r: Request) => Promise<Response>)(
-    new Request('https://eno.vn/api/auth/password', { method: 'POST', body: JSON.stringify(body) }),
+    new Request('https://eno.vn/api/auth/password', {
+      method: 'POST',
+      body: JSON.stringify({ captchaToken: 'tok_test', ...body }),
+    }),
   )
 
 beforeEach(() => {
@@ -43,6 +51,105 @@ beforeEach(() => {
   kvGet.mockResolvedValue(null)
   kvSet.mockResolvedValue('OK')
   kvDel.mockResolvedValue(undefined)
+  // Default: the caller IS an official partner, so the existing suite exercises the
+  // authenticated path. The gate itself is covered in its own block below.
+  profileFindFirst.mockResolvedValue({ seller: { officialPartner: true } })
+})
+
+describe('POST /api/auth/password — official-partner gate', () => {
+  // ⚠️ WHAT THIS GATE IS AND IS NOT. It restricts what OUR route will do; it cannot restrict
+  // what Supabase will do, because /auth/v1/token?grant_type=password is reachable with the
+  // public anon key and never sees `officialPartner`. One reviewer asserted the gate closes
+  // account pre-hijacking outright — it does not, and these tests deliberately do not claim it.
+  const nonPartners = [
+    ['no profile at all', null],
+    ['a profile with no seller', { seller: null }],
+    ['a seller that is not a partner', { seller: { officialPartner: false } }],
+  ] as const
+
+  it('refuses every non-partner with the SAME response a wrong password gets', async () => {
+    const seen = new Set<string>()
+    for (const [, row] of nonPartners) {
+      profileFindFirst.mockResolvedValueOnce(row)
+      const res = await post({ identifier: 'a@b.com', password: 'x' })
+      seen.add(`${res.status}:${await res.text()}`)
+    }
+    signInWithPassword.mockResolvedValueOnce({ data: {}, error: { code: 'invalid_credentials', message: 'x' } })
+    const wrongPw = await post({ identifier: 'a@b.com', password: 'x' })
+    seen.add(`${wrongPw.status}:${await wrongPw.text()}`)
+    // One distinct answer across "not a partner" and "wrong password", or partner status
+    // becomes discoverable for any address.
+    expect(seen.size).toBe(1)
+    expect([...seen][0]).toBe('401:{"error":"bad_credentials"}')
+  })
+
+  it('never verifies a non-partner password upstream', async () => {
+    profileFindFirst.mockResolvedValue({ seller: { officialPartner: false } })
+    await post({ identifier: 'a@b.com', password: 'x' })
+    expect(signInWithPassword).not.toHaveBeenCalled()
+  })
+
+  it('does not spend a non-partner\'s lockout budget', async () => {
+    // Counting these would let anyone lock an ordinary user out by merely naming them.
+    profileFindFirst.mockResolvedValue({ seller: { officialPartner: false } })
+    await post({ identifier: 'a@b.com', password: 'x' })
+    expect(kvSet).not.toHaveBeenCalled()
+  })
+
+  it('pads the non-partner rejection to the same floor as a real attempt', async () => {
+    // Without this the gate is a latency oracle: one local read vs a network round trip.
+    profileFindFirst.mockResolvedValue({ seller: { officialPartner: false } })
+    const started = Date.now()
+    await post({ identifier: 'a@b.com', password: 'x' })
+    expect(Date.now() - started).toBeGreaterThanOrEqual(850)
+  })
+
+  it('answers 403 for a token-less request, whoever the caller is', async () => {
+    // Found by live-testing against the real database, not by reading the code: without this,
+    // a caller sending no token got 401 for a non-partner and 403 for a partner — a free
+    // "is this an official partner?" enumerator.
+    // ⚠️ NO mockResolvedValueOnce QUEUE HERE. An earlier version primed one per iteration, but
+    // the route returns BEFORE the lookup, so none were consumed — and vitest's `Once` queue
+    // survives clearAllMocks(), so all three leaked into the next test and made a fail-closed
+    // assertion silently exercise the happy path instead. That the lookup is never called is
+    // itself the thing worth asserting.
+    const seen = new Set<string>()
+    for (let i = 0; i < 3; i++) {
+      const res = await (POST as unknown as (r: Request) => Promise<Response>)(
+        new Request('https://eno.vn/api/auth/password', {
+          method: 'POST',
+          body: JSON.stringify({ identifier: 'a@b.com', password: 'x' }),
+        }),
+      )
+      seen.add(`${res.status}:${await res.text()}`)
+    }
+    expect(seen.size).toBe(1)
+    expect([...seen][0]).toBe('403:{"error":"captcha_failed"}')
+    expect(profileFindFirst).not.toHaveBeenCalled()
+  })
+
+  it('fails CLOSED when the partner lookup throws', async () => {
+    profileFindFirst.mockRejectedValue(new Error('db down'))
+    const res = await post({ identifier: 'a@b.com', password: 'x' })
+    expect(res.status).toBe(401)
+    expect(signInWithPassword).not.toHaveBeenCalled()
+  })
+
+  it('looks the partner up by the CANONICAL identifier, not the typed one', async () => {
+    // ⚠️ THE VALUE, NOT JUST THE KEY. Prisma does an exact match, so if we look up the string
+    // the user typed rather than the one Profile stores, a real partner is silently classed as
+    // a non-partner and denied — measured in prod: all 10 phone-bearing profiles store a
+    // leading '+', and no profile has a non-lowercase email, so these are the formats to match.
+    profileFindFirst.mockResolvedValue({ seller: { officialPartner: true } })
+    signInWithPassword.mockResolvedValue({ data: {}, error: { code: 'x', message: 'x' } })
+
+    await post({ identifier: '0987 654 321', password: 'x' })
+    expect(profileFindFirst.mock.calls[0][0].where).toEqual({ phone: '+84987654321' })
+
+    profileFindFirst.mockClear()
+    await post({ identifier: '  Info@VietKite.com.vn ', password: 'x' })
+    expect(profileFindFirst.mock.calls[0][0].where).toEqual({ email: 'info@vietkite.com.vn' })
+  })
 })
 
 describe('POST /api/auth/password — failure indistinguishability', () => {

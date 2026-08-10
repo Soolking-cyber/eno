@@ -4,6 +4,7 @@ import { rateLimit, kv } from '@/lib/ratelimit'
 import { clientIp } from '@/lib/client-ip'
 import { canonicalEmail } from '@/lib/email-alias'
 import { normalizePhoneForRouting } from '@/lib/phone'
+import { db } from '@/lib/db'
 import { route } from '@/lib/api/handler'
 
 // Password sign-in — eno.vn's own endpoint, deliberately NOT the client SDK's
@@ -227,13 +228,87 @@ export const POST = route({ auth: 'public' }, async ({ req }) => {
     )
   }
 
+  // ⚠️ REQUIRE THE CAPTCHA TOKEN TO EXIST BEFORE THE PARTNER LOOKUP RUNS, and answer the same
+  // 403 the upstream would. Found by live-testing the gate rather than reasoning about it: a
+  // caller sending NO token got 401 for a non-partner (rejected locally) but 403 for a partner
+  // (rejected by Supabase's captcha, further down the path) — so the pair of status codes was a
+  // free "is this address an official partner?" enumerator for anyone with curl. Answering 403
+  // for every token-less request removes that, and costs a real user nothing: the widget always
+  // supplies one, and the client already refuses to post without it.
+  //
+  // ⚠️ THIS IS NOT A COMPLETE FIX AND SHOULD NOT BE READ AS ONE. A caller who sends a GARBAGE
+  // token still gets 401-vs-403, because only Supabase can adjudicate the token and it is
+  // single-use so we cannot check it first. Fully equalising would mean moving the partner gate
+  // AFTER the upstream call — which would mean verifying planted passwords and then discarding
+  // the resulting session, giving up the property that makes this gate worth having. The residual
+  // leak is partner status, which is already public: partners carry a visible badge on their
+  // storefront. Leaking "is public information" is an acceptable trade; leaking "does this
+  // account exist" would not be.
+  if (!body.captchaToken) {
+    return NextResponse.json({ error: 'captcha_failed' }, { status: 403 })
+  }
+
+  // ⚠️ THE TIMING BASELINE STARTS HERE, BEFORE THE PARTNER LOOKUP — NOT BEFORE THE UPSTREAM
+  // CALL. A reviewer caught that gating on partner status creates a NEW timing oracle if the
+  // floor only covers the Supabase round trip: a non-partner is rejected after one local DB
+  // read while a partner pays a network call, so the two are trivially distinguishable by
+  // latency even though the bodies are identical. Starting the clock before the read makes
+  // "not a partner", "no such account" and "wrong password" cost the same wall time.
+  // It still sits AFTER req.json(), so slow-dripping the body cannot exhaust the budget —
+  // which is the separate attack an earlier round of review found.
+  const startedAt = Date.now()
+
+  // ⚠️⚠️ PASSWORD SIGN-IN IS RESTRICTED TO OFFICIAL PARTNER ACCOUNTS (owner, 2026-08-10).
+  //
+  // Partners are companies eno onboards and whose accounts eno creates itself. Everyone else
+  // keeps magic link / emailed code / phone OTP / Google, which is how every account on this
+  // platform is created anyway. The point is blast radius: a password planted on an ordinary
+  // user's address cannot be spent HERE.
+  //
+  // ⛔ DO NOT MISREAD THIS AS CLOSING THE PRE-HIJACKING HOLE. IT DOES NOT, AND ONE OF THE TWO
+  // REVIEWERS SAID IT DID. Supabase's own /auth/v1/token?grant_type=password is reachable with
+  // the PUBLIC anon key — measured 2026-08-10, it answers `captcha_failed`, which proves it is
+  // live and unauthenticated — and it never consults this flag. A Supabase session IS an eno
+  // session (the app reads @supabase/ssr cookies and trusts getUser()), so an attacker holding
+  // a planted password can authenticate around this route entirely. This gate narrows what OUR
+  // surface will do; only the Supabase dashboard can narrow what Supabase will do.
+  //
+  // ⚠️ THE LOOKUP IS AN EXACT STRING MATCH, so the format we normalise TO must equal the format
+  // Profile stores. Two reviewers flagged this as an untested assumption that would silently
+  // deny the only account the feature exists for. Measured against production 2026-08-10 rather
+  // than assumed: every Profile with a phone (10/10) stores it WITH a leading '+', which is what
+  // canonicalPhone emits; zero profiles have a non-lowercase email, which is what the lowercase
+  // + canonicalEmail path emits; and the one partner's address is already lowercase. The formats
+  // agree today. If Profile ever starts storing a bare `84…`, this gate denies that partner
+  // silently — they would fall back to a magic link, so it degrades rather than breaks, but the
+  // symptom would be "password stopped working for one account" with nothing in the logs.
+  //
+  // FAILS CLOSED: a DB error denies. A partner whose Profile row is missing its mirrored email
+  // is denied too, and that is the correct trade — they fall back to a magic link, which always
+  // works, rather than us loosening the gate to catch a case that should not occur.
+  let isPartner = false
+  try {
+    const owner = await db.profile.findFirst({
+      where: isEmail ? { email: identifier } : { phone: identifier },
+      select: { seller: { select: { officialPartner: true } } },
+    })
+    isPartner = owner?.seller?.officialPartner === true
+  } catch (e) {
+    console.error('[auth/password] partner lookup failed — denying', e)
+    return failAfterFloor(startedAt)
+  }
+  if (!isPartner) {
+    // ⚠️ NOT COUNTED TOWARD THE LOCKOUT, and both reviewers agreed on why: no credential was
+    // checked, so there is nothing to throttle — and counting it would hand an attacker a
+    // trivial way to lock ORDINARY users out of a path they never use, purely by naming them.
+    return failAfterFloor(startedAt)
+  }
+
   const sb = await createSupabaseServer()
   const credentials = isEmail
     ? { email: identifier, password, options: { captchaToken: body.captchaToken } }
     : { phone: identifier, password, options: { captchaToken: body.captchaToken } }
 
-  // ⚠️ THE TIMING-FLOOR BASELINE. Here, not at the top of the handler — see FAILURE_FLOOR_MS.
-  const startedAt = Date.now()
   const { data, error } = await sb.auth.signInWithPassword(credentials)
 
   if (error || !data.session) {

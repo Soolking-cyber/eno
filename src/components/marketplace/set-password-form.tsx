@@ -44,7 +44,12 @@ const MIN_LENGTH = 8
  */
 const MAX_LENGTH = 200
 
-export function SetPasswordForm() {
+export function SetPasswordForm({ signInEnabled = false }: {
+  /** True only for official-partner accounts — the ones api/auth/password will actually admit.
+   *  It changes the COPY, never whether this form renders: see the note at the call site for why
+   *  hiding it from everyone else was a security mistake rather than a tidy-up. */
+  signInEnabled?: boolean
+}) {
   const { tr } = useLanguage()
   const [editing, setEditing] = useState(false)
   const [password, setPassword] = useState('')
@@ -134,7 +139,9 @@ export function SetPasswordForm() {
       {done ? (
         <>
           <p className="text-xs font-semibold text-success">
-            {tr('Password saved. You can now sign in with it — codes and links keep working too.', 'Đã lưu mật khẩu. Bạn có thể đăng nhập bằng mật khẩu — mã và liên kết vẫn dùng được.')}
+            {signInEnabled
+            ? tr('Password saved. You can now sign in with it — codes and links keep working too.', 'Đã lưu mật khẩu. Bạn có thể đăng nhập bằng mật khẩu — mã và liên kết vẫn dùng được.')
+            : tr('Password saved. Sign in still uses a code or link.', 'Đã lưu mật khẩu. Đăng nhập vẫn dùng mã hoặc liên kết.')}
           </p>
           {/* ⚠️ THE SUCCESS STATE NEEDS A WAY OUT. `done` was terminal: after one save this
               section rendered only the confirmation for the rest of the session, so a user who
@@ -154,7 +161,14 @@ export function SetPasswordForm() {
       ) : !editing ? (
         <>
           <p className="text-xs text-body">
-            {tr('Optional. Add a password to sign in without waiting for a code.', 'Tùy chọn. Thêm mật khẩu để đăng nhập mà không cần chờ mã.')}
+            {signInEnabled
+              ? tr('Optional. Add a password to sign in without waiting for a code.', 'Tùy chọn. Thêm mật khẩu để đăng nhập mà không cần chờ mã.')
+              // ⚠️ HONEST, AND IT DOES NOT ALARM. A non-partner is told plainly that a password
+              // will not change how they sign in, so nobody sets one expecting a faster login.
+              // It stops short of "someone may have set one for you" — true in principle, but a
+              // sentence that would frighten every reader to describe a case almost none of them
+              // are in. Setting one here replaces whatever is on the account either way.
+              : tr('Password sign-in is for partner accounts. You can still set one here — it secures your account, but sign-in keeps using a code or link.', 'Đăng nhập bằng mật khẩu dành cho tài khoản đối tác. Bạn vẫn có thể đặt mật khẩu — để bảo mật tài khoản, nhưng đăng nhập vẫn dùng mã hoặc liên kết.')}
           </p>
           <Button
             variant="link"
