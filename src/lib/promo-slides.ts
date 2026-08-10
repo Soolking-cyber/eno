@@ -58,6 +58,30 @@ export type PromoSlide = {
    * in dark mode and white text stays legible in both — which is why no dark: variant appears here.
    */
   surface: string
+  /**
+   * OPTIONAL full-bleed partner artwork with the message BAKED INTO THE IMAGE.
+   *
+   * ⚠️ THIS IS THE EXCEPTION TO THE RULE DIRECTLY ABOVE, and it costs something real: a baked
+   * image is permanently monolingual, so a Vietnamese visitor sees English on this slide. That is
+   * accepted only because the artwork is a PARTNER'S BRAND ASSET — their lockup, their typography,
+   * their CTA — and redrawing it as DOM text would misrepresent their brand. Do not use `art` for
+   * eno's own slides; those keep real DOM copy so they translate.
+   *
+   * When present, the panel renders the image INSTEAD of `surface` + headline + body + CTA, since
+   * all of that is already in the picture. `alt` therefore has to carry the whole message, because
+   * it is the only thing a screen reader gets.
+   *
+   * Two files, not one: the desktop art is 1280x300 (4.27:1) and the mobile 366x188 (1.95:1) —
+   * cropping one to serve both would cut the lockup or the CTA off. They are switched by a
+   * `<source media>` so the browser downloads exactly one.
+   *
+   * ⚠️ WEBP, NOT THE SUPPLIED PNGs. The partner sent PNGs at 495KB (desktop) and 85KB (mobile);
+   * re-encoded at quality 86 they are 60KB and 18KB — an 88% cut on the file that IS the home
+   * page's LCP element. Shipping the PNG would have made the thing we just told the browser to
+   * prioritise the heaviest asset on the page. webp is not a new dependency: every listing photo
+   * already serves as webp through the image pipeline.
+   */
+  art?: { mobile: string; desktop: string; alt: string; altVi: string }
 }
 
 /**
@@ -66,6 +90,35 @@ export type PromoSlide = {
  * nothing to browse), not the one that flatters the product most.
  */
 export const PROMO_SLIDES: PromoSlide[] = [
+  {
+    // ⚠️ FIRST SLIDE = THE PARTNER, BY OWNER DECISION (2026-08-10). This displaces the supply-side
+    // "post free" slide from the one position most visitors ever see. The reasoning above about
+    // supply still holds for eno's own slides — it was overridden here deliberately, not forgotten.
+    // Visa content on eno.vn is sanctioned as of that date; see src/app/vietkite/page.tsx for the
+    // basis and the limits.
+    key: 'vietkite-evisa',
+    // The eyebrow/title/body/cta below are NOT RENDERED for an `art` slide — the artwork carries
+    // them. They stay populated so that removing `art` (or supplying localised artwork later)
+    // restores a working bilingual slide with no migration.
+    eyebrowEn: 'Travel & Visa', eyebrowVi: 'Du lịch & Thị thực',
+    titleEn: 'Vietnam E-Visa, Your Way', titleVi: 'Thị thực điện tử Việt Nam, theo cách của bạn',
+    bodyEn: 'Single and multiple entry options, handled by our licensed partner VietKite.',
+    bodyVi: 'Lựa chọn nhập cảnh một lần hoặc nhiều lần, do đối tác được cấp phép VietKite thực hiện.',
+    ctaEn: 'View e-visa options', ctaVi: 'Xem các lựa chọn thị thực',
+    // Internal: the partner's company page, which carries the licence facts and the
+    // "eno is not the provider" sentence. Never link a marketing banner straight at a checkout.
+    href: '/vietkite',
+    icon: BadgeCheck,
+    image: '/banners/promo-1.svg',
+    surface: 'bg-brand-deep',
+    art: {
+      mobile: '/banners/vietkite-mobile.webp',
+      desktop: '/banners/vietkite-desktop.webp',
+      // Alt carries the WHOLE message because it replaces baked-in text, not decoration.
+      alt: 'VietKite — Vietnam E-Visa, your way. Single and multiple entry options. View e-visa options.',
+      altVi: 'VietKite — Thị thực điện tử Việt Nam. Lựa chọn nhập cảnh một lần hoặc nhiều lần. Xem các lựa chọn thị thực.',
+    },
+  },
   {
     key: 'post-free',
     image: '/banners/promo-1.svg',

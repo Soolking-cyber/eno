@@ -172,7 +172,7 @@ export function PromoBanner() {
                   aria-hidden={!current}
                   aria-label={tr(`Slide ${i + 1} of ${PROMO_SLIDES.length}`, `Trang ${i + 1} trên ${PROMO_SLIDES.length}`)}
                 >
-                  <SlidePanel slide={slide} />
+                  <SlidePanel slide={slide} first={i === 0} />
                 </CarouselItem>
               )
             })}
@@ -242,9 +242,47 @@ export function PromoBanner() {
  * never collapses-then-fills (the CLS bug that cost this page 0.142 once already), and a long
  * Vietnamese line grows the panel instead of being cut off.
  */
-function SlidePanel({ slide }: { slide: PromoSlide }) {
+function SlidePanel({ slide, first = false }: { slide: PromoSlide; first?: boolean }) {
   const { tr } = useLanguage()
   const Icon = slide.icon
+
+  /**
+   * ⚠️ PARTNER ARTWORK PATH — a real <img>, not a CSS background, and that is a performance fix as
+   * much as a rendering one. The decorative slides paint their art via `background-image`, which
+   * the browser's preload scanner CANNOT see: it is discovered only after CSS parses and the
+   * element lays out. Measured on the home page, the banner IS the LCP element (1816ms) while the
+   * only preloaded image was the logo — so the LCP element was the one thing nobody told the
+   * browser about. An <img> in the SSR markup is visible to the scanner immediately, and
+   * fetchPriority="high" on the FIRST slide tells it this is the one that matters.
+   * ⚠️ Only the first slide gets the hint. Marking all four "high" is the same as marking none.
+   */
+  if (slide.art) {
+    return (
+      <Link href={slide.href} prefetch={false} className="group relative block overflow-hidden" aria-label={tr(slide.art.alt, slide.art.altVi)}>
+        <picture>
+          {/* sm = 640px, matching the panel's own breakpoint below. The two files have different
+              aspect ratios on purpose (4.27:1 desktop, 1.95:1 mobile); one cropped source would
+              cut off either the lockup or the CTA. */}
+          <source media="(min-width: 640px)" srcSet={slide.art.desktop} width={1280} height={300} />
+          {/* eslint-disable-next-line @next/next/no-img-element -- see the note above: next/image
+              defers discovery behind its own runtime, and this element is the LCP. A plain <img>
+              with explicit intrinsic size is what the preload scanner can act on at parse time. */}
+          <img
+            src={slide.art.mobile}
+            alt={tr(slide.art.alt, slide.art.altVi)}
+            width={366}
+            height={188}
+            // Intrinsic dimensions + w-full/h-auto: the box is reserved before the bytes land, so
+            // this cannot reintroduce layout shift (CLS is 0 and must stay there).
+            className="block h-auto w-full"
+            fetchPriority={first ? 'high' : 'auto'}
+            loading={first ? 'eager' : 'lazy'}
+            decoding={first ? 'sync' : 'async'}
+          />
+        </picture>
+      </Link>
+    )
+  }
 
   return (
     <Link
