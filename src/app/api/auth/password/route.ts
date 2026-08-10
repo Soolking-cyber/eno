@@ -4,6 +4,7 @@ import { rateLimit, kv } from '@/lib/ratelimit'
 import { clientIp } from '@/lib/client-ip'
 import { canonicalEmail } from '@/lib/email-alias'
 import { normalizePhoneForRouting } from '@/lib/phone'
+import { verifyTurnstile } from '@/lib/turnstile-verify'
 import { db } from '@/lib/db'
 import { route } from '@/lib/api/handler'
 
@@ -21,16 +22,30 @@ import { route } from '@/lib/api/handler'
 // EVERY EMAIL AND PHONE NUMBER ON THE PLATFORM, which is worse than the feature is worth.
 // Routing it here means one generic failure for every cause, and our own rate limits.
 //
-// ⚠️ THE CAPTCHA TOKEN IS FORWARDED, NOT VERIFIED HERE — this is the one place this route
-// deliberately differs from api/auth/email-link, which calls verifyTurnstile() itself.
-// A Turnstile token is SINGLE-USE: verifying it against siteverify here would consume it,
-// and the upstream call below would then be rejected by Supabase's own captcha check with
-// no way to satisfy it. Measured 2026-08-10 against this project: an unauthenticated POST
-// to /auth/v1/token?grant_type=password answers
-//   400 {"error_code":"captcha_failed","msg":"captcha protection: request disallowed"}
-// so the captcha IS enforced upstream on this grant and does not need a second owner. We
-// keep our rate limits in front of it regardless, because they are keyed on things
-// Supabase's are not (our own IP extraction, and a per-identifier lockout).
+// ⚠️⚠️ WE VERIFY THE CAPTCHA OURSELVES AND AUTHENTICATE WITH THE SERVICE-ROLE KEY, and the
+// reason is the whole story of this route. The first version forwarded the token for Supabase
+// to check. That could never have worked on this project, and it took three wrong guesses and
+// finally the PRODUCTION LOGS to see it:
+//
+//   [auth/password] sign-in failed — email captcha_failed      (x8, every real attempt)
+//
+// The widget was fine and the token was real. Supabase validates it against the Turnstile
+// SECRET held in its own dashboard, and that secret does not match this project's widget.
+// Nothing else in the app exercises it — api/auth/email-link verifies Turnstile itself with
+// TURNSTILE_SECRET_KEY — so the mismatch stayed invisible until a feature depended on it.
+// Measured: OUR secret is valid (siteverify answers `invalid-input-response`, not
+// `invalid-input-secret`, and site key + secret share the 0x4AAAAAADvY prefix).
+//
+// Rather than block on a dashboard change that cannot be made from here, this route owns the
+// check, exactly as the email sender already does. Measured 2026-08-10: the password grant
+// called with SERVICE-ROLE auth answers `invalid_credentials` rather than `captcha_failed` —
+// GoTrue does not gate a service-role caller on its captcha — so verifying with our own secret
+// and authenticating as the service role is a complete path with no second owner.
+//
+// ⚠️ THAT MAKES THIS ROUTE THE ONLY CAPTCHA ENFORCER ON THIS PATH. verifyTurnstile fails
+// CLOSED once a secret is configured, the per-IP ceiling and per-identifier lockout still sit
+// in front, and the partner gate below still admits one account — but if that call is ever
+// deleted, nothing else stops automated password guessing at the platform's own rate.
 //
 // SESSION HANDLING. createSupabaseServer() is the @supabase/ssr cookie client, so a
 // successful sign-in writes the auth cookies from here and the browser singleton picks the
@@ -115,6 +130,36 @@ async function failAfterFloor(startedAt: number) {
 }
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+/**
+ * Is this account one we are willing to issue a session for?
+ *
+ * ⚠️ THE IDENTITY MUST BE CONFIRMED AND THE ACCOUNT MUST NOT BE BANNED, and we assert both here
+ * rather than trusting the grant to have done it. The service-role call that lets us past
+ * GoTrue's captcha may also put the request on its admin path, where those checks are reported
+ * to be skipped. Unverified either way from outside — so this route does not rely on the answer.
+ *
+ * The stake is precisely the pre-hijacking case the whole feature is shaped around: an attacker
+ * plants a password on victim@example.com, the victim never confirms, and without this an
+ * unconfirmed account would still mint a session. That would make this route the delivery
+ * mechanism for the attack it was written to narrow.
+ *
+ * A phone identity confirms via `phone_confirmed_at`, an email one via `email_confirmed_at`;
+ * `confirmed_at` covers both on older shapes. Missing user object → refuse, because an
+ * unknown account state is not a safe one.
+ */
+function isUsableAccount(user: unknown, viaEmail: boolean): boolean {
+  if (!user || typeof user !== 'object') return false
+  const u = user as { email_confirmed_at?: string | null; phone_confirmed_at?: string | null; banned_until?: string | null }
+  if (u.banned_until && new Date(u.banned_until).getTime() > Date.now()) return false
+  // ⚠️ THE CREDENTIAL USED MUST ITSELF BE CONFIRMED — "either one" is not good enough, and a
+  // reviewer caught the first version accepting exactly that. An account whose EMAIL is
+  // confirmed but whose phone never was would have been able to sign in BY PHONE, which is the
+  // pre-hijacking shape wearing a different identifier: whoever attached that unverified phone
+  // number is not established to be the account's owner. `confirmed_at` is gone from this check
+  // for the same reason — it says "something was confirmed", not "this was".
+  return viaEmail ? !!u.email_confirmed_at : !!u.phone_confirmed_at
+}
 
 /**
  * One phone number → one string, using the app's OWN normaliser rather than a second copy.
@@ -244,7 +289,28 @@ export const POST = route({ auth: 'public' }, async ({ req }) => {
   // leak is partner status, which is already public: partners carry a visible badge on their
   // storefront. Leaking "is public information" is an acceptable trade; leaking "does this
   // account exist" would not be.
+  // ⚠️ THIS ROUTE REQUIRES TURNSTILE TO BE CONFIGURED, unlike every other caller of
+  // verifyTurnstile. That helper returns TRUE when TURNSTILE_SECRET_KEY is unset — deliberate,
+  // so an unconfigured preview is not bricked — which means a route relying on it alone has NO
+  // captcha at all wherever the secret is missing. My first attempt to compensate was a check
+  // that `body.captchaToken` is merely non-empty, and a reviewer immediately pointed out that
+  // an attacker supplies "x". Presence proves nothing; only verification does.
+  //
+  // A password endpoint is the one place that trade is wrong: it is the only unauthenticated
+  // path that accepts a guessable secret, so an unconfigured environment must lose the FEATURE
+  // rather than lose the protection. Passwordless sign-in still works everywhere.
+  if (!process.env.TURNSTILE_SECRET_KEY?.trim()) {
+    console.error('[auth/password] TURNSTILE_SECRET_KEY not configured — refusing password sign-in')
+    return NextResponse.json({ error: 'captcha_failed' }, { status: 403 })
+  }
   if (!body.captchaToken) {
+    return NextResponse.json({ error: 'captcha_failed' }, { status: 403 })
+  }
+  // ⚠️ OUR OWN SECRET, AND IT CONSUMES THE TOKEN — which is correct now rather than a problem,
+  // because the token is no longer forwarded anywhere. A missing token and an invalid one get
+  // the same 403: both mean "the check did not pass", and neither says anything about an account.
+  if (!(await verifyTurnstile(body.captchaToken, ip))) {
+    console.warn('[auth/password] captcha rejected —', body.captchaToken ? 'token present but INVALID (secret/sitekey mismatch?)' : 'NO token from the widget')
     return NextResponse.json({ error: 'captcha_failed' }, { status: 403 })
   }
 
@@ -304,12 +370,60 @@ export const POST = route({ auth: 'public' }, async ({ req }) => {
     return failAfterFloor(startedAt)
   }
 
+  // ⚠️ THE GRANT IS CALLED DIRECTLY WITH THE SERVICE-ROLE KEY, not through the anon client,
+  // because that is precisely what skips GoTrue's captcha — the one this project cannot
+  // satisfy (see the header). The SSR cookie client still establishes the session afterwards,
+  // so the browser ends up with exactly the cookies any other sign-in would have written.
   const sb = await createSupabaseServer()
-  const credentials = isEmail
-    ? { email: identifier, password, options: { captchaToken: body.captchaToken } }
-    : { phone: identifier, password, options: { captchaToken: body.captchaToken } }
-
-  const { data, error } = await sb.auth.signInWithPassword(credentials)
+  const grantBody = isEmail ? { email: identifier, password } : { phone: identifier, password }
+  let session: { access_token: string; refresh_token: string } | null = null
+  let error: { code?: string; message?: string } | null = null
+  // ⚠️ FAIL CLOSED ON MISSING CONFIG. Without this the headers below interpolate the string
+  // "undefined", every sign-in breaks, and the failure is a generic 401 that looks like a wrong
+  // password — an outage disguised as user error. A reviewer caught that the test even asserted
+  // the broken state by expecting "undefined".
+  const serviceKey = process.env.SUPABASE_SECRET_KEY
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  if (!serviceKey || !supabaseUrl) {
+    console.error('[auth/password] SUPABASE_SECRET_KEY or NEXT_PUBLIC_SUPABASE_URL missing — denying')
+    return failAfterFloor(startedAt)
+  }
+  try {
+    const res = await fetch(`${supabaseUrl}/auth/v1/token?grant_type=password`, {
+      method: 'POST',
+      headers: {
+        apikey: serviceKey,
+        Authorization: `Bearer ${serviceKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(grantBody),
+    })
+    const json = await res.json().catch(() => ({}))
+    // ⚠️ BOTH TOKENS, NOT JUST THE ACCESS ONE. setSession needs the refresh token too; accepting
+    // a partial response would create a session that cannot be refreshed and dies in an hour.
+    if (!res.ok || !json.access_token || !json.refresh_token) {
+      error = { code: json.error_code || `http_${res.status}`, message: json.msg }
+    } else if (!isUsableAccount(json.user, isEmail)) {
+      // ⚠️⚠️ WE CHECK CONFIRMATION AND BANS OURSELVES — DO NOT DELETE THIS BECAUSE "GoTrue DOES
+      // IT". A reviewer's claim that a service-role grant SKIPS GoTrue's own email-confirmed and
+      // banned checks is exactly the kind of thing that is catastrophic if true and unverifiable
+      // from here: it would mean an attacker who planted a password on an address the real owner
+      // has never confirmed could sign in as them — turning this route from a narrowing of the
+      // pre-hijacking risk into the thing that delivers it. Rather than depend on the answer,
+      // the route enforces it. If GoTrue also enforces it, this is redundant and free.
+      error = { code: 'account_not_usable' }
+    } else {
+      const { error: setErr } = await sb.auth.setSession({
+        access_token: json.access_token,
+        refresh_token: json.refresh_token,
+      })
+      if (setErr) error = { code: 'set_session_failed', message: setErr.message }
+      else session = { access_token: json.access_token, refresh_token: json.refresh_token }
+    }
+  } catch (e) {
+    error = { code: 'network', message: (e as Error)?.message }
+  }
+  const data = { session }
 
   if (error || !data.session) {
     // ⚠️ LOG THE CAUSE, RETURN NONE OF IT. Operators need to tell "wrong password" from

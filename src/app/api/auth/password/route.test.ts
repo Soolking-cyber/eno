@@ -16,9 +16,17 @@ const kvGet = vi.fn()
 const kvSet = vi.fn()
 const kvDel = vi.fn()
 
+// ⚠️ THE ROUTE NO LONGER CALLS signInWithPassword(). It verifies Turnstile with OUR secret and
+// then hits the token endpoint directly with the SERVICE-ROLE key, because Supabase's dashboard
+// holds a Turnstile secret that does not match this project's widget — every real sign-in was
+// logging `captcha_failed` in production. `signInWithPassword` is kept as the name of the spy
+// that stands in for that upstream call so the existing assertions still read naturally.
+const setSession = vi.fn()
 vi.mock('@/lib/supabase/server', () => ({
-  createSupabaseServer: async () => ({ auth: { signInWithPassword } }),
+  createSupabaseServer: async () => ({ auth: { setSession } }),
 }))
+const verifyTurnstile = vi.fn()
+vi.mock('@/lib/turnstile-verify', () => ({ verifyTurnstile: (...a: unknown[]) => verifyTurnstile(...a) }))
 vi.mock('@/lib/ratelimit', () => ({
   rateLimit: (...a: unknown[]) => rateLimit(...a),
   kv: { get: (...a: unknown[]) => kvGet(...a), set: (...a: unknown[]) => kvSet(...a), del: (...a: unknown[]) => kvDel(...a) },
@@ -45,8 +53,31 @@ const post = (body: Record<string, unknown>) =>
     }),
   )
 
+// The upstream grant is now a fetch. This adapter lets every existing test keep expressing its
+// intent as "signInWithPassword resolves {data,error}" while the route does an HTTP call.
 beforeEach(() => {
+  vi.stubGlobal('fetch', vi.fn(async () => {
+    const r = await signInWithPassword()
+    if (r?.error) return new Response(JSON.stringify({ error_code: r.error.code, msg: r.error.message }), { status: 400 })
+    // A confirmed, unbanned user by default — the route refuses anything else, so every
+    // existing "success" case has to describe a usable account.
+    if (r?.data?.session) return new Response(JSON.stringify({
+      access_token: 'at', refresh_token: 'rt',
+      user: { email_confirmed_at: '2026-01-01T00:00:00Z', banned_until: null },
+    }), { status: 200 })
+    return new Response(JSON.stringify({}), { status: 400 })
+  }))
+  verifyTurnstile.mockResolvedValue(true)
+  setSession.mockResolvedValue({ error: null })
   vi.clearAllMocks()
+  // Stand in for Cloudflare: a token present and non-empty passes, absent fails — which is
+  // exactly verifyTurnstile's real contract once a secret is configured.
+  // The route fails CLOSED without these, which is deliberate — see the guard it protects.
+  process.env.SUPABASE_SECRET_KEY = 'test-service-key'
+  process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://test.supabase.co'
+  process.env.TURNSTILE_SECRET_KEY = 'test-turnstile-secret'
+  verifyTurnstile.mockImplementation(async (token?: string) => !!token)
+  setSession.mockResolvedValue({ error: null })
   rateLimit.mockResolvedValue({ success: true, remaining: 10 })
   kvGet.mockResolvedValue(null)
   kvSet.mockResolvedValue('OK')
@@ -309,14 +340,15 @@ describe('POST /api/auth/password — keys and inputs', () => {
   })
 
   it('routes an email to email and anything else to phone', async () => {
+    // Read from the request BODY now — the credentials go over HTTP rather than through the SDK.
+    const body = (i = 0) => JSON.parse((globalThis.fetch as unknown as { mock: { calls: [string, { body: string }][] } }).mock.calls[i][1].body)
     signInWithPassword.mockResolvedValue({ data: {}, error: { code: 'x', message: 'x' } })
     await post({ identifier: 'a@b.com', password: 'x' })
-    expect(signInWithPassword.mock.calls[0][0]).toHaveProperty('email')
-    signInWithPassword.mockClear()
+    expect(body()).toHaveProperty('email')
+    ;(globalThis.fetch as unknown as { mockClear: () => void }).mockClear()
     await post({ identifier: '+84 901 234 567', password: 'x' })
-    const arg = signInWithPassword.mock.calls[0][0] as { phone?: string }
-    expect(arg).toHaveProperty('phone')
-    expect(arg.phone).toBe('+84901234567') // punctuation stripped, digits and + kept
+    expect(body()).toHaveProperty('phone')
+    expect(body().phone).toBe('+84901234567') // punctuation stripped, digits and + kept
   })
 
   it('rejects oversized input before it can reach bcrypt', async () => {
@@ -332,11 +364,93 @@ describe('POST /api/auth/password — keys and inputs', () => {
     expect(signInWithPassword).not.toHaveBeenCalled()
   })
 
-  it('forwards the captcha token upstream rather than consuming it here', async () => {
-    // A Turnstile token is single-use and Supabase enforces the captcha on this grant, so
-    // verifying it locally would spend it and guarantee an upstream rejection.
+  it('verifies the captcha with OUR secret and does NOT forward it upstream', async () => {
+    // ⚠️ THIS ASSERTION IS THE EXACT INVERSE OF THE ONE IT REPLACES, and the inversion is the
+    // fix. Forwarding the token meant Supabase adjudicated it against a dashboard secret that
+    // does not match this project's widget — production logged `captcha_failed` on every real
+    // attempt. We now check it ourselves and authenticate as the service role, which GoTrue
+    // does not captcha-gate. Sending the token onward as well would be pointless and would
+    // reintroduce the failure the moment anyone stopped using service-role auth.
     signInWithPassword.mockResolvedValue({ data: {}, error: { code: 'x', message: 'x' } })
     await post({ identifier: 'a@b.com', password: 'x', captchaToken: 'tok_abc' })
-    expect(signInWithPassword.mock.calls[0][0]).toMatchObject({ options: { captchaToken: 'tok_abc' } })
+    expect(verifyTurnstile).toHaveBeenCalledWith('tok_abc', expect.anything())
+    const sent = JSON.parse((globalThis.fetch as unknown as { mock: { calls: [string, { body: string }][] } }).mock.calls[0][1].body)
+    expect(sent).not.toHaveProperty('captchaToken')
+    expect(sent).not.toHaveProperty('gotrue_meta_security')
+  })
+
+  it('refuses password sign-in entirely when Turnstile is not configured', async () => {
+    // ⚠️ NOT "presence is enough". verifyTurnstile returns true with no secret configured, so a
+    // route trusting it alone has no captcha at all — and a check that the token is merely
+    // non-empty is satisfied by "x". An unconfigured environment must lose the FEATURE, not the
+    // protection; passwordless sign-in still works there.
+    delete process.env.TURNSTILE_SECRET_KEY
+    const res = await post({ identifier: 'a@b.com', password: 'x', captchaToken: 'x' })
+    expect(res.status).toBe(403)
+    expect(globalThis.fetch).not.toHaveBeenCalled()
+  })
+
+  it('requires the CREDENTIAL USED to be confirmed, not merely some identifier', async () => {
+    // Email confirmed, phone never was → signing in BY PHONE must fail. Accepting "either one"
+    // is the pre-hijacking shape wearing a different identifier.
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({
+      access_token: 'at', refresh_token: 'rt',
+      user: { email_confirmed_at: '2026-01-01T00:00:00Z', phone_confirmed_at: null },
+    }), { status: 200 })))
+    expect((await post({ identifier: '+84901234567', password: 'correct' })).status).toBe(401)
+    expect(setSession).not.toHaveBeenCalled()
+    // ...and the same account signing in by EMAIL is fine.
+    expect((await post({ identifier: 'a@b.com', password: 'correct' })).status).toBe(200)
+  })
+
+  it('fails CLOSED when the service key is missing, rather than sending "undefined"', async () => {
+    // Without the guard, the headers interpolate the literal string "undefined", every sign-in
+    // breaks, and the failure reads as a wrong password — an outage disguised as user error.
+    delete process.env.SUPABASE_SECRET_KEY
+    const res = await post({ identifier: 'a@b.com', password: 'correct' })
+    expect(res.status).toBe(401)
+    expect(globalThis.fetch).not.toHaveBeenCalled()
+  })
+
+  it('refuses an UNCONFIRMED account even when the password is right', async () => {
+    // ⚠️ THE PRE-HIJACKING CASE, ASSERTED. An attacker plants a password on an address the real
+    // owner has never confirmed. Using the service-role key to get past GoTrue's captcha may
+    // also put the call on its admin path, where the confirmed/banned checks are reported to be
+    // skipped — so the route enforces them itself and this pins that. If this ever goes green
+    // by deletion, the route becomes the delivery mechanism for the attack it exists to narrow.
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({
+      access_token: 'at', refresh_token: 'rt',
+      user: { email_confirmed_at: null, phone_confirmed_at: null, confirmed_at: null },
+    }), { status: 200 })))
+    const res = await post({ identifier: 'a@b.com', password: 'correct' })
+    expect(res.status).toBe(401)
+    expect(await res.text()).toBe('{"error":"bad_credentials"}')
+    expect(setSession).not.toHaveBeenCalled()
+  })
+
+  it('refuses a BANNED account even when the password is right', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({
+      access_token: 'at', refresh_token: 'rt',
+      user: { email_confirmed_at: '2026-01-01T00:00:00Z', banned_until: '2099-01-01T00:00:00Z' },
+    }), { status: 200 })))
+    expect((await post({ identifier: 'a@b.com', password: 'correct' })).status).toBe(401)
+    expect(setSession).not.toHaveBeenCalled()
+  })
+
+  it('refuses a response missing the refresh token rather than minting a dying session', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({
+      access_token: 'at', user: { email_confirmed_at: '2026-01-01T00:00:00Z' },
+    }), { status: 200 })))
+    expect((await post({ identifier: 'a@b.com', password: 'correct' })).status).toBe(401)
+    expect(setSession).not.toHaveBeenCalled()
+  })
+
+  it('authenticates with the SERVICE-ROLE key, which is what skips GoTrue\'s captcha', async () => {
+    signInWithPassword.mockResolvedValue({ data: {}, error: { code: 'x', message: 'x' } })
+    await post({ identifier: 'a@b.com', password: 'x' })
+    const [url, init] = (globalThis.fetch as unknown as { mock: { calls: [string, { headers: Record<string,string> }][] } }).mock.calls[0]
+    expect(url).toContain('grant_type=password')
+    // Anything other than the service key here silently reinstates the captcha gate.
+    expect(init.headers.Authorization).toContain(process.env.SUPABASE_SECRET_KEY ?? 'undefined')
   })
 })
