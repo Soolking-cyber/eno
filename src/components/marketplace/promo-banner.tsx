@@ -258,12 +258,23 @@ function SlidePanel({ slide, first = false }: { slide: PromoSlide; first?: boole
    */
   if (slide.art) {
     return (
-      <Link href={slide.href} prefetch={false} className="group relative block overflow-hidden" aria-label={tr(slide.art.alt, slide.art.altVi)}>
+      <Link
+        href={slide.href}
+        prefetch={false}
+        aria-label={tr(slide.art.alt, slide.art.altVi)}
+        // ⚠️ THE SAME min-h LADDER AS THE DECORATIVE PANELS BELOW, and it is not cosmetic: the
+        // carousel sizes its viewport to the tallest slide, so an art slide that computed its own
+        // height from the image aspect made the panel change height between slides. Sharing the
+        // ladder means every slide is exactly as tall as every other one.
+        className="group relative block min-h-[188px] overflow-hidden sm:min-h-[212px] lg:min-h-[300px]"
+      >
         <picture>
-          {/* sm = 640px, matching the panel's own breakpoint below. The two files have different
-              aspect ratios on purpose (4.27:1 desktop, 1.95:1 mobile); one cropped source would
-              cut off either the lockup or the CTA. */}
-          <source media="(min-width: 640px)" srcSet={slide.art.desktop} width={1280} height={300} />
+          {/* ⚠️ THE SWITCH IS AT lg (1024), NOT sm. The two cuts are 4.27:1 (desktop) and 1.95:1
+              (mobile), and the panel is ~1.95:1 on a phone but ~4:1 at lg. Serving the wide cut
+              from 640px put a 4.27:1 image into a 2.8:1 box, which `object-cover` then had to crop
+              by a third — taking the lockup off the left and the entry chips off the right. Below
+              lg the mobile cut is much closer to the box, so almost nothing is lost. */}
+          <source media="(min-width: 1024px)" srcSet={slide.art.desktop} width={1280} height={300} />
           {/* eslint-disable-next-line @next/next/no-img-element -- see the note above: next/image
               defers discovery behind its own runtime, and this element is the LCP. A plain <img>
               with explicit intrinsic size is what the preload scanner can act on at parse time. */}
@@ -272,9 +283,15 @@ function SlidePanel({ slide, first = false }: { slide: PromoSlide; first?: boole
             alt={tr(slide.art.alt, slide.art.altVi)}
             width={366}
             height={188}
-            // Intrinsic dimensions + w-full/h-auto: the box is reserved before the bytes land, so
-            // this cannot reintroduce layout shift (CLS is 0 and must stay there).
-            className="block h-auto w-full"
+            // ⚠️ FILL THE PANEL AND CROP THE SIDES — owner, 2026-08-10 ("height adjust to fit all
+            // into banner, cut from sides"). `h-auto` let the artwork dictate the height, which
+            // left a short slide sitting in a taller viewport. Now the panel owns the height and
+            // the image covers it; anything that does not fit goes off the LEFT and RIGHT edges,
+            // never the top and bottom, because the artwork's message sits on the horizontal
+            // centre line while its margins are decorative landscape.
+            // Absolute + inset-0 so the image fills the min-h box rather than defining it — that
+            // is what keeps the height stable and CLS at 0 while the bytes are still arriving.
+            className="absolute inset-0 h-full w-full object-cover object-center"
             fetchPriority={first ? 'high' : 'auto'}
             loading={first ? 'eager' : 'lazy'}
             decoding={first ? 'sync' : 'async'}
