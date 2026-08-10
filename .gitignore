@@ -7,6 +7,9 @@ node_modules/
 
 # next.js — unanchored: also catches apps/*/.next
 .next/
+# Isolated build dirs from NEXT_DIST_DIR (see next.config.ts): lets a dev server and a
+# production preview run from one checkout without overwriting each other's .next.
+.next-*/
 /out/
 /build
 next-env.d.ts

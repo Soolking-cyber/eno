@@ -69,6 +69,10 @@ export type SerializedListingCard = {
   seller: {
     trustScore: number
     isBusiness: boolean
+    /** Replaces the business glyph on the card — partner outranks it, and the row is icon-only.
+     *  Optional so a projection that predates the column degrades to the business glyph rather
+     *  than to a missing badge that looks like a bug. */
+    officialPartner?: boolean
   }
 }
 
@@ -129,6 +133,11 @@ export type SerializedListing = {
     rating: number
     reviewCount: number
     verifiedSeller: boolean
+    /** eno's own commercial partner (Seller.officialPartner). A CLAIM ENO MAKES, not one the
+     *  seller asserts and not a trust tier — see partner-badge.tsx for why it must never render
+     *  as a second gold trust pill. Safe to serialize: unlike `phone` below it is meant to be
+     *  public, and the badge has to reach cards, the PDP and the storefront. */
+    officialPartner: boolean
     trustTier: string
     trustScore: number
     responseRate: number

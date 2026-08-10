@@ -122,6 +122,7 @@ export async function SellerStorefront({ id }: { id: string }) {
     // The verified-business badge — the identity-hash-derived gate (>=2 channels).
     // seller has every scalar column (loadSeller uses include, no explicit select).
     businessVerified: seller.owner?.accountType === 'business' && isBusinessVerified(seller),
+    officialPartner: seller.officialPartner,
   }
   // Anchor "Chat" to the newest active listing (listings already ordered postedAt
   // desc). Null when there's nothing active to talk about → button self-omits.

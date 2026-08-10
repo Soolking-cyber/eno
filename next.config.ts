@@ -93,6 +93,31 @@ const PAGE_EXTENSIONS =
 
 const nextConfig: NextConfig = {
   pageExtensions: PAGE_EXTENSIONS,
+  /**
+   * ⚠️ OPT-IN BUILD-DIRECTORY ISOLATION, SO TWO SERVERS CAN SHARE ONE CHECKOUT.
+   *
+   * `next dev`, `next build` and `next start` all read and write `.next`. Start a dev server while
+   * a production preview is being served from the same tree and the dev compiler rewrites BUILD_ID
+   * and the server chunks underneath it — the preview then 500s on the next request for a route it
+   * has not already cached, which looks like a broken build rather than a clobbered directory.
+   * `scripts/preview.mjs` says as much about the two EDITIONS ("one edition at a time, by
+   * construction"); this is the same collision between two PROCESSES.
+   *
+   * ⚠️ UNSET IS THE DEFAULT AND CHANGES NOTHING. Cloud Build never sets this, so production
+   * resolves `.next` exactly as before and the Dockerfile's `.next/standalone` + `.next/static`
+   * COPY lines are untouched. Only a developer who opts in gets a separate directory:
+   *
+   *   NEXT_DIST_DIR=.next-dev npm run dev:vn      # dev on :3000, leaves .next alone
+   *
+   * ⚠️ USE `.next-dev` SPECIFICALLY — it is a convention, not a free-form path, and two reviewers
+   * caught an earlier version of this comment overselling it. Only the `.next` and `.next-` prefixed
+   * directory patterns are gitignored (so `.nextfoo` WOULD be committable), and `tsconfig.json`
+   * includes route types from
+   * `.next-dev` alone, so any other value silently loses generated types. `scripts/preview.mjs`
+   * also still copies from `.next` unconditionally — the preview server is not isolated by this,
+   * only dev is, which is exactly the split it was added for.
+   */
+  distDir: process.env.NEXT_DIST_DIR || ".next",
   // Dev-only: hide the floating Next.js devtools badge. It renders bottom-left —
   // exactly over the bottom nav's first tab on mobile — and pollutes every design
   // screenshot taken against `next dev`. No effect on production builds.

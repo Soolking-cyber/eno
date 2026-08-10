@@ -66,7 +66,7 @@ export const GET = route({ auth: 'admin' }, async ({ req }) => {
         status: true,
         featured: true,
         createdAt: true,
-        seller: { select: { name: true, trustScore: true, owner: { select: { accountType: true } } } },
+        seller: { select: { name: true, trustScore: true, officialPartner: true, owner: { select: { accountType: true } } } },
       },
       orderBy: { createdAt: 'desc' },
       take: limit,

@@ -132,6 +132,10 @@
   /* Rating gold — a CONVENTION (the review star), not a status. Kept apart from
      --warning so a caution colour change never repaints the stars. */
   --color-rating: var(--rating);
+  /* Official-partner foil. Third gold in the file and deliberately its own, for the same
+     reason --rating is kept apart from --warning: shared meaning, not shared token. */
+  --color-partner: var(--partner);
+  --color-partner-ground: var(--partner-ground);
   --color-ink: var(--ink);
   --color-ink-2: var(--ink-2);
   --color-ink-3: var(--ink-3);
@@ -280,6 +284,28 @@
                          bg-warning/10, the callout idiom this app uses. This clears AA (5.82:1). */
   --info:    #0a66c2; /* brand blue */
   --rating:  #f59e0b; /* amber-500  — review-star gold on white cards */
+
+  /* ── Official partner — a company eno itself has an agreement with ──────────────
+     ⚠️ GOLD ON A DARK GROUND, AND THE DARK GROUND IS THE WHOLE POINT. The obvious
+     implementation is a light-gold gradient pill, which is exactly what
+     .trust-fill-exceptional already is — and both external reviewers independently
+     refused it: colour is pattern-matched before text, so two gold pills would conflate
+     an EARNED behavioural score with a GRANTED commercial relationship, and a partner who
+     later reaches Exceptional would wear two of them side by side. Inverting the ground
+     separates them at a glance while keeping the app to one gold family: the trust chip is
+     light-gold-on-dark-ink, this is dark-ink-with-gold-foil. Same metal, opposite stamp.
+     ⚠️ NOT DERIVED FROM --trust-exceptional even though the hues are cousins. Coupling
+     them means a future trust-palette change silently repaints the partner badge.
+     Contrast measured: #f3d894 on #1f1a12 = 12.4:1 (AAA). */
+  --partner:        #f3d894; /* the foil — label ink and seal tint on the dark pill */
+  --partner-ground: #1f1a12; /* warm near-black; a neutral #111 reads as a dead chip */
+  /* Seal gloss. Three stops, mid at 55% — the SAME stop geometry as the trust shield,
+     because that ratio is what makes a small gradient read as metal rather than as a
+     blur. Only the values differ; see the .trust-fill-exceptional note on why stop
+     POSITIONS are half of a gradient's identity. */
+  --partner-foil-from: #fde68a;
+  --partner-foil-mid:  #f5c542;
+  --partner-foil-to:   #c98a17;
 
   /* Semantic — used ONLY to carry meaning, never decoration.
      verified/trust folds into the brand blue; amber = caution; red = destructive. */
@@ -466,6 +492,16 @@
 
   --verified: #74b3f2;
   --pending: #f5b042;
+
+  /* Official partner (dark): the ground LIFTS instead of staying near-black. A #1f1a12 pill
+     on the dark canvas loses its edge and the badge stops reading as a stamped object —
+     the same reason --knob exists as the one raised fill in the light ramp. The foil
+     brightens a little to hold the contrast against the lifted ground (10.1:1). */
+  --partner:        #f7e3ae;
+  --partner-ground: #33291a;
+  --partner-foil-from: #fef0c3;
+  --partner-foil-mid:  #f7d268;
+  --partner-foil-to:   #d99a28;
 
   /* Deepen elevation so surfaces still read on the dark canvas */
   --shadow-pop: 0 8px 30px rgba(0, 0, 0, 0.45);

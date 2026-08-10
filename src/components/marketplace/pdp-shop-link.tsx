@@ -6,6 +6,7 @@ import { Avatar } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { TrustScore } from './trust-score'
 import { miniSealWashClass } from './seller-card'
+import { PartnerBadge } from './partner-badge'
 import { RatingValue, CountValue } from './rating-value'
 import { useLanguage } from '@/context/language-context'
 import { cn } from '@/lib/utils'
@@ -18,12 +19,13 @@ import type { SellerMetrics } from '@/lib/seller-metrics'
  *  reviews) AND the "Shop >" jump to the storefront — so the old duplicate seller-card lower in the
  *  buy box is gone (its "Chat now" lives on in the ContactComposer). The whole strip is a div (not
  *  one anchor) so the trust chip and the Shop link can each be their own real link. */
-export function PdpShopLink({ name, avatarColor, avatarUrl, isBusiness, businessVerified, href, metrics, className }: {
+export function PdpShopLink({ name, avatarColor, avatarUrl, isBusiness, businessVerified, officialPartner, href, metrics, className }: {
   name: string
   avatarColor?: string | null
   avatarUrl?: string | null
   isBusiness?: boolean
   businessVerified?: boolean
+  officialPartner?: boolean
   href: string
   metrics: SellerMetrics
   className?: string
@@ -73,16 +75,20 @@ export function PdpShopLink({ name, avatarColor, avatarUrl, isBusiness, business
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
           <Link href={href} className="truncate text-sm font-bold text-foreground hover:underline">{name}</Link>
+          {officialPartner && <PartnerBadge size="sm" />}
+          {/* Same ranking as seller-card.tsx: the partner badge absorbs the plain "Business"
+              chip (which only restates the account type) but never "Business verified"
+              (a document check eno actually ran). Keep the two files in step. */}
           {isBusiness && (
             businessVerified ? (
               <Badge variant="success" className="px-1.5 py-0.5 font-semibold">
                 <BadgeCheck className="h-3 w-3" /> {tr('Business verified', 'Doanh nghiệp đã xác minh')}
               </Badge>
-            ) : (
+            ) : !officialPartner ? (
               <Badge variant="neutral" className="px-1.5 py-0.5 font-semibold text-accent-foreground">
                 <Building2 className="h-3 w-3" /> {tr('Business', 'Doanh nghiệp')}
               </Badge>
-            )
+            ) : null
           )}
           {/* Building-band chips get the brand-100 chief wash from the call site —
               the §0 signature at micro scale; see miniSealWashClass in seller-card.tsx

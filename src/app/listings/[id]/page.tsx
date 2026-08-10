@@ -417,7 +417,7 @@ export default async function ListingPage({ params }: Props) {
               order-2 (same slot as the gallery) + placed first in source so it sits just above it;
               md:hidden — the desktop twin lives in the left column. */}
           <div className="order-2 md:hidden">
-            <PdpShopLink name={listing.seller.name} avatarColor={listing.seller.avatarColor} avatarUrl={listing.seller.avatarUrl} isBusiness={listing.seller.isBusiness} businessVerified={sellerBusinessVerified} href={sellerHref} metrics={sellerMetricsBundle} />
+            <PdpShopLink name={listing.seller.name} avatarColor={listing.seller.avatarColor} avatarUrl={listing.seller.avatarUrl} isBusiness={listing.seller.isBusiness} businessVerified={sellerBusinessVerified} officialPartner={listing.seller.officialPartner} href={sellerHref} metrics={sellerMetricsBundle} />
           </div>
 
           {/* 2 — Gallery, MOBILE mount: edge-to-edge (negative gutter cancels <main>'s padding),
@@ -607,7 +607,7 @@ export default async function ListingPage({ params }: Props) {
                 leads the left column at lg (above the gallery) and follows only the breadcrumb when
                 the layout is a single flattened column at md; hidden below md (mobile twin above). */}
             <div className="order-1 hidden md:block">
-              <PdpShopLink name={listing.seller.name} avatarColor={listing.seller.avatarColor} avatarUrl={listing.seller.avatarUrl} isBusiness={listing.seller.isBusiness} businessVerified={sellerBusinessVerified} href={sellerHref} metrics={sellerMetricsBundle} />
+              <PdpShopLink name={listing.seller.name} avatarColor={listing.seller.avatarColor} avatarUrl={listing.seller.avatarUrl} isBusiness={listing.seller.isBusiness} businessVerified={sellerBusinessVerified} officialPartner={listing.seller.officialPartner} href={sellerHref} metrics={sellerMetricsBundle} />
             </div>
 
             {/* Gallery, DESKTOP mount (hidden below md; the mobile mount handles small screens) */}

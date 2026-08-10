@@ -383,6 +383,23 @@ model Seller {
   reviewCount          Int                  @default(0)
   verified             Boolean              @default(false)
   verifiedSeller       Boolean              @default(false)
+  // ⚠️ A COMMERCIAL RELATIONSHIP, NOT A VERIFICATION, AND NOT A TRUST SCORE. eno created this
+  // account itself for a company it has an agreement with (the first is VietKite, a licensed VN
+  // travel/visa company). It is deliberately NOT `verified`/`verifiedSeller` — those mean "eno
+  // checked a document" and are earned per-seller — and it is NOT a trustTier, which is computed
+  // from behaviour. Overloading either would corrupt a meaning that other code already reads.
+  //
+  // ⚠️ IT CHANGES BEHAVIOUR, NOT JUST DECORATION: an official partner shares NO phone number, and
+  // that rule is enforced in phoneForSeller() (src/lib/contact.ts), the single source of truth for
+  // seller contact — NOT in the reveal route alone. Putting it in the helper is what makes the rule
+  // survive a future caller; the route-only version held only because VietKite's phone column
+  // happened to be NULL, which any profile edit would silently have undone.
+  //
+  // ⚠️ SET BY eno ONLY. There is no seller-facing write path: updateSeller() builds its `data`
+  // object field-by-field from an allowlist (verified 2026-08-10, no `...body` spread anywhere),
+  // so this column is unreachable from PATCH /api/profile. Keep it that way — if that function
+  // ever grows a spread, a seller can grant themselves the badge and switch off their own phone.
+  officialPartner      Boolean              @default(false)
   // Mirror of the owner Profile's trust (denormalized so a storefront card/badge
   // renders without a Profile join; recomputed whenever the owner's score changes).
   trustScore           Int                  @default(100)

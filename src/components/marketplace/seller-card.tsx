@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { MessageCircle, Store, Building2, Star } from 'lucide-react'
 import { EnoSeal } from './eno-seal'
+import { PartnerBadge } from './partner-badge'
 import { useLanguage } from '@/context/language-context'
 import { TrustScore } from '@/components/marketplace/trust-score'
 import { trustBand } from '@/lib/trust-score'
@@ -51,6 +52,9 @@ export type SellerCardSeller = {
   /** The verified-business badge (server-computed isBusinessVerified). Optional so
    *  older serializers that don't send it degrade to the plain "Business" label. */
   businessVerified?: boolean
+  /** eno's own commercial partner. Optional for the same reason as businessVerified —
+   *  a caller that doesn't send it degrades to no badge, never to a false one. */
+  officialPartner?: boolean
 }
 
 export type SellerCardProps = {
@@ -132,16 +136,24 @@ export function SellerCard({
             ) : (
               <span className="truncate text-sm font-bold text-foreground">{seller.name}</span>
             )}
+            {seller.officialPartner && <PartnerBadge size="sm" />}
+            {/* ⚠️ A PARTNER SUPPRESSES THE PLAIN "Business" CHIP, BUT NOT "Business verified".
+                The two say different things and only one is redundant. "Business" merely reports
+                the account TYPE, which "Official partner" already implies — showing both spends a
+                third badge slot in a row that also carries the trust chip, to tell the reader
+                something they just read. "Business verified" is a document check eno actually
+                performed, so it survives: a partner who has ALSO cleared verification has earned
+                two distinct claims and should show both. */}
             {seller.isBusiness && (
               seller.businessVerified ? (
                 <Badge variant="success" className="px-1.5 py-0.5 font-semibold">
                   <EnoSeal aria-hidden className="h-3 w-3" /> {tr('Business verified', 'Doanh nghiệp đã xác minh')}
                 </Badge>
-              ) : (
+              ) : !seller.officialPartner ? (
                 <Badge variant="neutral" className="px-1.5 py-0.5 font-semibold text-accent-foreground">
                   <Building2 className="h-3 w-3" /> {tr('Business', 'Doanh nghiệp')}
                 </Badge>
-              )
+              ) : null
             )}
             <TrustScore score={trustScore} variant="mini" size="sm" href="/trust" className={miniSealWashClass(trustScore)} />
           </div>

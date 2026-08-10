@@ -87,6 +87,9 @@ export function serializeListing(
       rating: l.seller.rating,
       reviewCount: l.seller.reviewCount,
       verifiedSeller: l.seller.verifiedSeller,
+      // eno's own commercial partners. Public by design — it is a claim eno makes about the
+      // seller, unlike the phone beside it, and the badge has to reach cards and the PDP.
+      officialPartner: l.seller.officialPartner,
       trustTier: l.seller.trustTier,
       trustScore: l.seller.trustScore,
       responseRate: l.seller.responseRate,
@@ -132,7 +135,7 @@ export const LISTING_CARD_SELECT = {
   location: true, district: true, city: true, lat: true, lng: true, images: true, video: true,
   brandSlug: true, model: true, condition: true, marketPosition: true, verified: true, postedAt: true, savedCount: true, contactCount: true,
   category: { select: { id: true, name: true, nameVi: true, slug: true, icon: true, color: true } },
-  seller: { select: { trustScore: true, owner: { select: { accountType: true } } } },
+  seller: { select: { trustScore: true, officialPartner: true, owner: { select: { accountType: true } } } },
 } as const
 
 type ListingCardRow = {
@@ -142,7 +145,7 @@ type ListingCardRow = {
   lat: number | null; lng: number | null; images: string; video: string | null; brandSlug: string | null
   model: string | null; condition: string | null; marketPosition: string | null; verified: boolean; postedAt: Date; savedCount: number; contactCount: number
   category: { id: string; name: string; nameVi: string; slug: string; icon: string; color: string }
-  seller: { trustScore: number; owner?: { accountType: string | null } | null }
+  seller: { trustScore: number; officialPartner: boolean; owner?: { accountType: string | null } | null }
 }
 
 export function serializeListingCard(l: ListingCardRow): SerializedListingCard {
@@ -185,6 +188,7 @@ export function serializeListingCard(l: ListingCardRow): SerializedListingCard {
     seller: {
       trustScore: l.seller.trustScore,
       isBusiness: l.seller.owner?.accountType === 'business',
+      officialPartner: l.seller.officialPartner,
     },
   }
 }

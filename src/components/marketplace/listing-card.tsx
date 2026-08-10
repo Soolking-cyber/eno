@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { IconButton } from '@/components/ui/icon-button'
 import { Tooltip } from '@/components/ui/tooltip'
 import { TrustScore } from './trust-score'
+import { PartnerSeal } from './partner-badge'
 import { CardBadges } from './card-badges'
 import Image from 'next/image'
 import type { SerializedListingCard } from '@/lib/types'
@@ -810,7 +811,14 @@ function ListingCardImpl({
               )
             })()}
           </span>
-          {listing.seller.isBusiness && (
+          {/* Partner outranks and REPLACES the business glyph — this row is icon-only and already
+              carries the trust chip, so a partner's card must not spend two slots saying "company"
+              twice. The worded badge is deliberately not used here; see PartnerSeal's comment. */}
+          {listing.seller.officialPartner ? (
+            <span role="img" title={tr('Official partner', 'Đối tác chính thức')} aria-label={tr('Official partner', 'Đối tác chính thức')} className="inline-flex shrink-0 items-center">
+              <PartnerSeal size={14} />
+            </span>
+          ) : listing.seller.isBusiness && (
             <span role="img" title={tr('Business', 'Doanh nghiệp')} aria-label={tr('Business', 'Doanh nghiệp')} className="inline-flex shrink-0 items-center">
               <Building2 className="h-3.5 w-3.5" />
             </span>

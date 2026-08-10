@@ -59,6 +59,12 @@ const VARIANTS = {
   // for one and wrong for the other; the tokens are right by construction for both.
   counter: 'bg-destructive text-destructive-foreground',
   'counter-brand': 'bg-primary text-primary-foreground',
+  // Official partner — the ONLY inverted chip in the set: gold foil on a dark ground.
+  // Every other variant tints a light surface, which is precisely why this one does not;
+  // see the --partner block in globals.css for why the badge must not read as a second
+  // gold trust pill. The ring is a hairline of the foil at low alpha, which is what keeps
+  // the pill's edge legible on the dark canvas where ground and page get close.
+  partner: 'bg-partner-ground text-partner ring-1 ring-partner/25',
 } as const
 
 const SIZES = {

@@ -82,6 +82,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       location: seller.location,
       isBusiness: seller.owner?.accountType === 'business',
       businessVerified: seller.owner?.accountType === 'business' && isBusinessVerified(seller),
+      officialPartner: seller.officialPartner,
       handle: seller.handle?.handle ?? null,
       trustScore: metrics.trustScore,
       trustTier: metrics.trustTier,

@@ -81,11 +81,12 @@ function hashIp(ip: string): string | null {
 //    revocation of a banned account from instant to token expiry (~1h) on the one endpoint that
 //    hands out a seller's phone number. getUser() here is deliberate; the wrapper cannot say it.
 //
-// Branches, all unchanged: guest → 401 auth_required · either limiter (or a limiter outage, since
-// both are strict) → 429 rate_limited · missing / unverified / out-of-edition listing → 404
-// not_found · no conversation or no seller reply → 403 reply_required · seller has no stored
-// phone → 404 no_contact · success → 200 {phone,telHref,zaloHref}. The $transaction is already
-// try/caught, so there is no unhandled-throw branch for route() to improve on either.
+// Branches: guest → 401 auth_required · either limiter (or a limiter outage, since both are
+// strict) → 429 rate_limited · missing / unverified / out-of-edition listing → 404 not_found ·
+// OFFICIAL PARTNER → 403 partner_chat_only · no conversation or no seller reply → 403
+// reply_required · seller has no stored phone → 404 no_contact · success → 200
+// {phone,telHref,zaloHref}. The $transaction is already try/caught, so there is no unhandled-throw
+// branch for route() to improve on either.
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
 
@@ -109,10 +110,31 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   // the licensed marketplace. The existing !verified check below already turns null into the 404.
   const listing = await db.listing.findFirst({
     where: await scopedListingWhere({ id }),
-    select: { id: true, verified: true, seller: { select: { id: true, phone: true } } },
+    select: { id: true, verified: true, seller: { select: { id: true, phone: true, officialPartner: true } } },
   })
   // Only verified (public) listings expose contact — never pending/hidden ones.
   if (!listing || !listing.verified) return NextResponse.json({ error: 'not_found' }, { status: 404 })
+
+  // ── OFFICIAL PARTNER: there is no number to reveal, and saying so is not a leak. ──
+  // ⚠️ KNOWN, DELIBERATE, AND NOT FREE: this sits BELOW the rate limiter, so a buyer who taps
+  // "request contact" in a partner thread spends a strict 30/h contact-reveal slot on a request
+  // that can never succeed — and ratelimit.ts increments on DENIED attempts by design, so the cost
+  // is real. Reviewed and left as-is because the alternatives are both worse right now: hoisting
+  // the partner check means a DB read BEFORE the limiter on the route that exists to resist
+  // harvesting, and the proper fix is to stop offering the affordance at all — the thread's
+  // `listing` payload carries no seller fields, so that means widening the conversations API and
+  // editing messages/[id]/page.tsx, which is a landmine file. Bounded in practice: the buyer gets
+  // an accurate answer on the first tap, so realistic burn is 1–2 of 30. Fix it with the UI change.
+  // Checked HERE, ahead of the reply-first gate, for two reasons. It is the honest answer at any
+  // reply state — a partner has no phone whether or not they have written back, so making the buyer
+  // clear an unrelated gate first only to be refused is a worse experience for no security gain.
+  // And it is 403, not the 404 `no_contact` below: those mean different things and the UI renders
+  // them differently. 404 says "this seller hasn't added a number yet", which for a partner is
+  // false and reads as a half-finished profile; 403 says eno declines by policy, which is the truth.
+  // phoneForSeller() would return null for a partner anyway — this branch exists to name WHY.
+  if (listing.seller.officialPartner) {
+    return NextResponse.json({ error: 'partner_chat_only' }, { status: 403 })
+  }
 
   // SECURITY GATE: reveal the number ONLY after a real in-app contact — the caller must
   // have a conversation with this seller for this listing AND the seller must have
@@ -129,7 +151,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   if (!sellerReplied) return NextResponse.json({ error: 'reply_required' }, { status: 403 })
 
   // Only the seller's REAL stored phone — never a synthetic/fallback number.
-  const phone = phoneForSeller({ phone: listing.seller.phone })
+  // Pass the seller WHOLE. Handing over `{ phone }` alone is what the required `officialPartner`
+  // field exists to stop — and it is what this line did until tsc refused it, on the one route
+  // that hands out PII. The partner branch above already returned, so this is belt and braces;
+  // the point is that the belt is now compiler-enforced for every future caller too.
+  const phone = phoneForSeller(listing.seller)
   if (!phone) return NextResponse.json({ error: 'no_contact' }, { status: 404 })
 
   // Log the reveal once per (listing, viewer); bump contactCount only on a NEW row.

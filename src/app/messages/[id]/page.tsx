@@ -662,7 +662,11 @@ export default function ThreadPage() {
       // Surface WHY instead of silently doing nothing (looks broken otherwise).
       const err = (await res.json().catch(() => null))?.error
       toast.error(
-        err === 'no_contact' ? tr("This seller hasn't added a phone number yet.", 'Người bán chưa thêm số điện thoại.')
+        // An official partner declines the phone by AGREEMENT, so this must not fall through to
+        // the "hasn't added a number yet" copy below — that describes an unfinished profile and
+        // invites the buyer to keep waiting for something that is never coming.
+        err === 'partner_chat_only' ? tr('This is an official eno partner — they handle everything here in chat.', 'Đây là đối tác chính thức của eno — mọi trao đổi đều diễn ra tại đây.')
+        : err === 'no_contact' ? tr("This seller hasn't added a phone number yet.", 'Người bán chưa thêm số điện thoại.')
         : err === 'reply_required' ? tr('You can request contact once the seller replies.', 'Bạn có thể xin liên hệ sau khi người bán trả lời.')
         : err === 'rate_limited' ? tr('Too many requests — please try again shortly.', 'Quá nhiều yêu cầu — vui lòng thử lại sau.')
         : err === 'auth_required' ? tr('Please sign in to request contact.', 'Vui lòng đăng nhập để xin liên hệ.')

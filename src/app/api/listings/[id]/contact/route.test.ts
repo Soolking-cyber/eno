@@ -48,7 +48,10 @@ vi.mock('@/lib/ratelimit', () => ({
   rateLimit: async () => ({ success: h.rateOk, remaining: 10 }),
 }))
 vi.mock('@/lib/contact', () => ({
-  phoneForSeller: ({ phone }: Row) => phone ?? null,
+  // Mirrors the real helper's partner short-circuit. A mock that ignored `officialPartner` would
+  // still pass every test below — the route refuses partners before it calls this — but it would
+  // quietly stop modelling the defence-in-depth the real function provides.
+  phoneForSeller: ({ phone, officialPartner }: Row) => (officialPartner ? null : phone ?? null),
   telHref: (p: string) => `tel:${p}`,
   zaloHref: (p: string) => `https://zalo.me/${p}`,
 }))
@@ -130,6 +133,41 @@ describe('who is refused, and with which code', () => {
     const res = await call()
     expect(res.status).toBe(404)
     await expect(res.json()).resolves.toMatchObject({ error: 'no_contact' })
+  })
+})
+
+describe('official partners never hand out a phone', () => {
+  // The rule these pin down: a partner shares no number BY POLICY. Before `officialPartner` existed
+  // it held only because VietKite's `phone` column happened to be NULL — so the first test is the
+  // one that matters, because it is the case the old arrangement got wrong.
+  it('refuses even when the seller HAS a phone stored', async () => {
+    h.listing = verifiedListing({ seller: { id: SELLER, phone: '+84901234567', officialPartner: true } })
+    const res = await call()
+    expect(res.status).toBe(403)
+    await expect(res.json()).resolves.toMatchObject({ error: 'partner_chat_only' })
+  })
+
+  it('answers partner_chat_only BEFORE the reply-first gate, not reply_required', async () => {
+    // Ordering is a deliberate product decision, not an accident of where the line landed: making a
+    // buyer earn a reply first, only to be refused anyway, is a worse experience for no security
+    // gain. If someone moves the partner check below the conversation lookup, this goes red.
+    h.listing = verifiedListing({ seller: { id: SELLER, phone: '+84901234567', officialPartner: true } })
+    h.convo = null
+    h.messages = []
+    await expect((await call()).json()).resolves.toMatchObject({ error: 'partner_chat_only' })
+  })
+
+  it('is 403 (policy) and not the 404 a phoneless seller gets — the UI renders them differently', async () => {
+    h.listing = verifiedListing({ seller: { id: SELLER, phone: null, officialPartner: true } })
+    const partner = await call()
+    h.listing = verifiedListing({ seller: { id: SELLER, phone: null, officialPartner: false } })
+    const plain = await call()
+    expect([partner.status, plain.status]).toEqual([403, 404])
+  })
+
+  it('leaves ordinary sellers untouched', async () => {
+    h.listing = verifiedListing({ seller: { id: SELLER, phone: '+84901234567', officialPartner: false } })
+    expect((await call()).status).toBe(200)
   })
 })
 
