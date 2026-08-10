@@ -275,14 +275,17 @@ function SlidePanel({ slide, first = false }: { slide: PromoSlide; first?: boole
               by a third — taking the lockup off the left and the entry chips off the right. Below
               lg the mobile cut is much closer to the box, so almost nothing is lost. */}
           <source media="(min-width: 1024px)" srcSet={slide.art.desktop} width={1280} height={300} />
-          {/* eslint-disable-next-line @next/next/no-img-element -- see the note above: next/image
-              defers discovery behind its own runtime, and this element is the LCP. A plain <img>
-              with explicit intrinsic size is what the preload scanner can act on at parse time. */}
+          {/* A plain <img>, deliberately: next/image defers discovery behind its own runtime and
+              this element is the LCP, so what the preload scanner can act on at parse time is
+              exactly the point. (No eslint-disable needed — no-img-element does not fire inside
+              a <picture>; the directive that sat here was reported unused.) */}
           <img
             src={slide.art.mobile}
             alt={tr(slide.art.alt, slide.art.altVi)}
-            width={366}
-            height={188}
+            // ⚠️ 732x376 — the mobile cut is a 2x asset. The RATIO is what reserves the box and it
+            // is unchanged (1.947:1), so CLS is unaffected; these just describe the real file.
+            width={732}
+            height={376}
             // ⚠️ FILL THE PANEL AND CROP THE SIDES — owner, 2026-08-10 ("height adjust to fit all
             // into banner, cut from sides"). `h-auto` let the artwork dictate the height, which
             // left a short slide sitting in a taller viewport. Now the panel owns the height and
