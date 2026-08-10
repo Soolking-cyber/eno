@@ -79,13 +79,38 @@ function loadScript(): Promise<void> {
  * it's enabled). The widget container must stay in the DOM (not display:none) so a
  * visible challenge can render on the rare occasions one is required.
  */
-export function useTurnstile(opts?: { onSolved?: (token?: string) => void }) {
+// ⚠️ `onSolved` TAKES NO TOKEN, and the type says so on purpose. A previous revision passed the
+// solved token to the listener; that was a double-spend, because the hook also banks it for the
+// next getToken() and a Turnstile token is single-use — the loser of the race is rejected as
+// `timeout-or-duplicate`, which is indistinguishable from the bug the banking exists to fix.
+// Reviewers pointed out that leaving the wider `(token?: string) => void` signature in place
+// while the runtime stopped passing one lets a consumer compile fine and receive `undefined`
+// only after an interactive challenge — a failure that appears months later, in the rarest path.
+// The narrow type makes that a compile error instead. Sole consumer today: sign-in-form.tsx
+// (apps/forum has its own separate copy of this file and is unaffected).
+export function useTurnstile(opts?: { onSolved?: () => void }) {
   const widgetIdRef = useRef<string | null>(null)
   /** Held in a ref, and updated in an effect rather than during render, so a changing callback never
    *  re-runs `attach` — re-attaching would tear down and re-render the live widget, losing an
    *  in-progress challenge. */
   /** Cloudflare's last widget-error code, kept so a failure can name itself. Cleared on success. */
   const lastErrorRef = useRef<string | null>(null)
+  /**
+   * A token the widget produced that NOBODY HAS SPENT YET.
+   *
+   * ⚠️ THIS IS WHAT BREAKS THE SOLVE-PRESS-DISCARD LOOP, and that loop is the actual reported
+   * bug. getToken() begins with reset()+execute(), so a visitor who completes a visible
+   * challenge and then presses the button has their fresh token THROWN AWAY and is handed
+   * another challenge. Solve, press, discarded, solve again — reported twice as "same", and
+   * neither retraction of the message nor an automatic resume fixed it, because both left the
+   * next press resetting the widget.
+   *
+   * The callback banks the token here; getToken() spends it instead of resetting when one is
+   * waiting. Cleared the instant it is handed out, so it can never be sent twice — a Turnstile
+   * token is single-use and a replayed one is rejected upstream, which would look exactly like
+   * the bug it fixes.
+   */
+  const unspentTokenRef = useRef<{ token: string; at: number } | null>(null)
   const onSolvedRef = useRef(opts?.onSolved)
   useEffect(() => { onSolvedRef.current = opts?.onSolved }, [opts?.onSolved])
   const resolverRef = useRef<((t: string | undefined) => void) | null>(null)
@@ -108,6 +133,7 @@ export function useTurnstile(opts?: { onSolved?: (token?: string) => void }) {
       }
       widgetIdRef.current = null
       resolverRef.current = null
+      unspentTokenRef.current = null // do not carry a token across a widget teardown
       return
     }
     if (widgetIdRef.current) return // already attached to a live node
@@ -125,19 +151,31 @@ export function useTurnstile(opts?: { onSolved?: (token?: string) => void }) {
             // note on onSolved in the hook's doc comment. Guarded because a throw from a consumer's
             // callback here would run inside Turnstile's own callback and lose the token.
             lastErrorRef.current = null
+            // ⚠️ EXACTLY ONE CONSUMER PER TOKEN — a Turnstile token is single-use and a replay is
+            // rejected upstream as `timeout-or-duplicate`, which looks EXACTLY like the bug this
+            // banking exists to fix. The first version exposed one token through three paths at
+            // once (banked, passed to onSolved, and handed to the waiting resolver); all three
+            // reviewers caught it. If someone is waiting, they get it and nothing is banked.
+            // Otherwise it is banked for the next getToken(), and onSolved is told WITHOUT the
+            // token so a listener cannot spend it behind the bank's back.
+            const waiting = resolverRef.current
+            if (waiting) {
+              unspentTokenRef.current = null
+              resolverRef.current = null
+              waiting(token)
+              try { onSolvedRef.current?.() } catch (e) { console.warn('[turnstile] onSolved threw', (e as Error)?.message) }
+              return
+            }
+            unspentTokenRef.current = { token, at: Date.now() }
             try {
-              // ⚠️ THE TOKEN IS PASSED, and that is load-bearing rather than tidy. A caller whose
-              // getToken() already gave up cannot ask for this token afterwards: getToken() begins
-              // with reset(), which discards exactly the token that was just solved and starts a
-              // fresh challenge. Handing it to the listener is the only way a screen that timed
-              // out can finish with the answer the visitor actually gave. Optional, so the OTP
-              // callers that only want to retract a stale message are unaffected.
-              onSolvedRef.current?.(token)
+              // Notified WITHOUT the token — see the note on the hook's signature. The listener's
+              // job is to retract a stale message and, if it wants, retry; the retry gets the
+              // token from the bank via getToken(), so there is exactly one consumer.
+              onSolvedRef.current?.()
             } catch (e) {
               console.warn('[turnstile] onSolved threw', (e as Error)?.message)
             }
-            resolverRef.current?.(token)
-            resolverRef.current = null
+
           },
           // ⚠️ LOG THE CODE. This used to swallow it, and that is why a total email sign-in
           // outage took a dozen browser probes to pin down on 2026-07-27 instead of one glance at
@@ -163,6 +201,7 @@ export function useTurnstile(opts?: { onSolved?: (token?: string) => void }) {
             // challenge failure was to ask someone to open a console. Retaining it lets the form
             // show it in small print, so a screenshot is a diagnosis.
             lastErrorRef.current = code ?? null
+            unspentTokenRef.current = null // a failed widget's banked token is not trustworthy
             console.warn('[turnstile] widget error', code ?? '(no code)')
             resolverRef.current?.(undefined)
             resolverRef.current = null
@@ -176,6 +215,19 @@ export function useTurnstile(opts?: { onSolved?: (token?: string) => void }) {
 
   const getToken = useCallback((): Promise<string | undefined> => {
     return new Promise((resolve) => {
+      // ⚠️ SPEND A BANKED TOKEN BEFORE TOUCHING THE WIDGET. Checked first, and deliberately
+      // ahead of the `!api || !id` guard, so a token the visitor already solved is usable even
+      // if the widget has since been torn down by a stage change.
+      // ⚠️ FRESHNESS MATTERS: a Turnstile token lives ~300s and a stale one is rejected as
+      // `timeout-or-duplicate` — the same symptom as the loop. 120s is deliberately well inside
+      // that, so a banked token is either comfortably valid or discarded in favour of a fresh
+      // challenge. Cleared as it is handed out, so it can only ever be spent once.
+      const banked = unspentTokenRef.current
+      unspentTokenRef.current = null
+      if (banked && Date.now() - banked.at < 120_000) {
+        resolve(banked.token)
+        return
+      }
       const api = window.turnstile
       const id = widgetIdRef.current
       if (!api || !id) {

@@ -237,7 +237,7 @@ export function SignInForm({ className }: { className?: string }) {
   // press, discarded, solve again. onSolved retracting the message only made the loop quieter.
   // `retryOnCaptchaSolvedRef` lets the stage that is waiting resume itself with the token that
   // actually arrived. The OTP paths do not set it and are unaffected.
-  const retryOnCaptchaSolvedRef = useRef<((token: string) => void) | null>(null)
+  const retryOnCaptchaSolvedRef = useRef<(() => void) | null>(null)
   // ⚠️ READ AT SUBMIT TIME, NOT CAPTURED AT RENDER TIME. All three reviewers found the same
   // defect in the first version of the resume: it stored the closure from the render that
   // FAILED, so it carried that render's `password`/`email`/`phone`. The visible challenge is up
@@ -248,12 +248,17 @@ export function SignInForm({ className }: { className?: string }) {
   const liveRef = useRef({ tab, email, phone, password })
   liveRef.current = { tab, email, phone, password }
   const { getToken: getCaptchaToken, Widget: Turnstile, lastErrorRef: captchaErrorRef } = useTurnstile({
-    onSolved: (token?: string) => {
+    onSolved: () => {
       setError(errorAfterCaptchaSolved)
+      // ⚠️ NO TOKEN PASSES THROUGH HERE, DELIBERATELY. The hook BANKS the solved token and
+      // getToken() spends it on the next call, so the resume just retries normally. Handing the
+      // token to a listener as well was a double-spend: one single-use token reaching two
+      // consumers, the loser rejected as `timeout-or-duplicate` — which looks exactly like the
+      // loop this fixes. One token, one consumer, one path.
       const resume = retryOnCaptchaSolvedRef.current
-      if (resume && token) {
+      if (resume) {
         retryOnCaptchaSolvedRef.current = null
-        resume(token)
+        resume()
       }
     },
   })
@@ -641,7 +646,7 @@ export function SignInForm({ className }: { className?: string }) {
    * shares; getSession() makes it notice, and auth-context's onAuthStateChange does the
    * rest exactly as it does for OTP.
    */
-  const signInWithPassword = async (presetToken?: string) => {
+  const signInWithPassword = async () => {
     // ⚠️ DISARM FIRST. A manual retry must cancel any pending resume, or a visitor who presses
     // Sign in again while the challenge is still up gets TWO submissions racing — one with the
     // token they just solved and one from the resume — and the loser burns a lockout attempt.
@@ -661,9 +666,9 @@ export function SignInForm({ className }: { className?: string }) {
       //    posted anyway. Supabase rejects it, the route collapses every cause to
       //    bad_credentials, and the user is told their correct password is wrong — while
       //    burning one of their five lockout attempts. Bail before the request instead.
-      // A token handed in by onSolved is one the visitor JUST completed — use it rather than
-      // calling getToken(), which would reset the widget and discard it.
-      const captchaToken = presetToken ?? await getCaptchaToken()
+      // getToken() returns the token the visitor already solved if one is banked — see the
+      // hook. That is what lets a retry succeed instead of resetting into a new challenge.
+      const captchaToken = await getCaptchaToken()
       if (!captchaToken) {
         setLoading(false)
         // ⚠️ NAME THE CAUSE WHEN CLOUDFLARE GAVE US ONE. Two reports of this exact sentence
@@ -678,7 +683,7 @@ export function SignInForm({ className }: { className?: string }) {
         // useTurnstile call site: every retry resets the widget and throws away the token they
         // just solved. Armed only while they are actually waiting on this screen — cleared on
         // success, on any other error, and whenever they leave the password stage.
-        retryOnCaptchaSolvedRef.current = (token: string) => { void signInWithPassword(token) }
+        retryOnCaptchaSolvedRef.current = () => { void signInWithPassword() }
         return
       }
       const res = await fetch('/api/auth/password', {
@@ -798,11 +803,9 @@ export function SignInForm({ className }: { className?: string }) {
           variant="cta"
           size="none"
           onMouseDown={(e) => e.preventDefault()}
-          // ⚠️ ARROW, NOT A BARE REFERENCE. signInWithPassword now takes an optional preset
-          // captcha token, and onClick would pass React's MouseEvent straight into it — sending
-          // a synthetic event object to the server as `captchaToken`. tsc caught it; it would
-          // otherwise have failed as "the security check didn't complete", i.e. indistinguishable
-          // from the very bug this change exists to fix.
+          // Arrow kept even though the parameter is gone: it is one character of insurance
+          // against re-introducing the bug tsc caught when this took an optional first argument
+          // and onClick fed React's MouseEvent straight into it as the captcha token.
           onClick={() => signInWithPassword()}
           disabled={loading || !password}
           className="flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm disabled:opacity-100 disabled:bg-muted disabled:text-ink-4 transition-colors cursor-pointer"
