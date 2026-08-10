@@ -80,7 +80,20 @@ export function Price({ price, currency, priceUnit, compact = false, dual = true
         ? <span className="hidden sm:inline">{suffix}</span>
         : suffix)}
       {approx && (
-        <span className={cn('ml-1.5 text-[0.8em] font-medium text-muted-foreground', dual === 'sm' && 'hidden sm:inline')}>
+        /**
+         * ⚠️ THE WHOLE APPROXIMATION IS `aria-hidden`, NOT JUST THE OPERATOR.
+         * A screen reader was announcing "eighty-one thousand VND ALMOST EQUAL TO three dollars"
+         * — on every card in the feed, every rail, and every PDP. The `≈` is spoken, and the
+         * conversion doubles the length of the single most-repeated string in the product.
+         * It is a CONVENIENCE for sighted scanning, not information: the price is the amount
+         * above it, and the converted figure is an estimate from a live FX rate that the copy
+         * elsewhere is careful never to present as a price. Hiding the whole span leaves the
+         * real amount announced once, cleanly.
+         * ⚠️ Do NOT "fix" this by aria-hiding only the `≈` glyph — that leaves "eighty-one
+         * thousand VND three dollars", two prices run together with nothing between them, which
+         * is worse than the operator.
+         */
+        <span aria-hidden className={cn('ml-1.5 text-[0.8em] font-medium text-muted-foreground', dual === 'sm' && 'hidden sm:inline')}>
           {'≈'} {approx}
         </span>
       )}

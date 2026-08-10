@@ -780,9 +780,35 @@ function ListingCardImpl({
             {/* condition leads the line (owner, 2026-07-23) — the fastest signal a buyer scans
                 for. Stored values are the two facet buckets 'new'/'used'; anything else shows
                 as-is, and null (services/jobs, where condition is meaningless) drops out. */}
-            {[conditionLabel, displayLocation, (listing.brandSlug || listing.model)
-              ? [listing.brandSlug ? prettyBrand(listing.brandSlug) : null, listing.model].filter(Boolean).join(' · ')
-              : null].filter(Boolean).join(' · ')}
+            {/* ⚠️ THE BRAND/MODEL TERM IS DROPPED BELOW `sm`, BECAUSE THREE FACTS NEVER FIT.
+                At the feed's two-column phone width the card is ~179px and this line is 11px, so
+                condition + ward + brand·model truncated on essentially EVERY card:
+                "Used · Ấp 43 · Samso…", "New · Tân Nhựt · Paris…". A line that always ends in an
+                ellipsis is not three facts, it is two facts and a smudge — and the smudge lands
+                on the term the buyer can least act on, because brand is already visible in the
+                title and available as a filter.
+                Rendered as a second span rather than trimmed from the array so the DESKTOP line
+                is byte-identical to before; only the phone drops the term. `hidden sm:inline`
+                with the separator inside it, or the middot would strand at the end of the line. */}
+            {/* ⚠️ THE SEPARATOR IS PART OF THE JOIN, NEVER A LITERAL. A first version emitted
+                `{' · '}` inside the brand span, which strands a LEADING middot the moment the
+                left side is empty — and the left side is empty exactly where the comment above
+                says it can be: services and jobs, which have no condition, and rows with no
+                ward. Those listings would have rendered "· Foo" at every width. A reviewer
+                caught it. Building both sides as arrays and joining once makes an empty side
+                impossible to see. */}
+            {(() => {
+              const lead = [conditionLabel, displayLocation].filter(Boolean)
+              const brand = [listing.brandSlug ? prettyBrand(listing.brandSlug) : null, listing.model].filter(Boolean)
+              return (
+                <>
+                  {lead.join(' · ')}
+                  {brand.length > 0 && (
+                    <span className="hidden sm:inline">{lead.length > 0 ? ' · ' : ''}{brand.join(' · ')}</span>
+                  )}
+                </>
+              )
+            })()}
           </span>
           {listing.seller.isBusiness && (
             <span role="img" title={tr('Business', 'Doanh nghiệp')} aria-label={tr('Business', 'Doanh nghiệp')} className="inline-flex shrink-0 items-center">

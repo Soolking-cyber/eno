@@ -792,7 +792,26 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
         </Link>
       )}
       {!embedded && <h1 className="mt-3 h-display text-foreground">{t('Tạo tin đăng', 'Create a listing')}</h1>}
-      <p className={cn('text-base text-body', !embedded && 'mt-1')}>{t('Điền các mục bên dưới — bản xem trước cập nhật ngay.', 'Fill in the sections below — your preview updates live.')}</p>
+      {/* ⚠️ THE PREVIEW HALF OF THIS SENTENCE IS DESKTOP-ONLY, BECAUSE THE PREVIEW IS.
+          The `<Preview>` aside is `hidden lg:block` (line ~1090), so on a phone this line
+          promised a thing the viewport cannot show — the seller reads "your preview updates
+          live", looks for it, and there is nothing. A first-run instruction that describes a
+          UI the reader does not have is worse than no instruction: it makes them think they
+          have missed something.
+          Two spans rather than two full sentences so the shared clause is translated once. */}
+      {/* ⚠️ THE EM-DASH SEPARATOR IS A LITERAL, NOT PART OF ANY TRANSLATED STRING. The first
+          version passed ' — your preview updates live.' with a LEADING SPACE, and
+          scripts/gen-ui-strings.mjs trims what it harvests — so the catalogue recorded
+          '— your preview…' while the runtime asked for ' — your preview…'. The keys would never
+          have matched, so the pre-warmed dictionary and any curated vi-override would silently
+          no-op for the ~11 machine-translated languages and fall back to the lazy path. A
+          reviewer caught it. Keep translated strings free of leading/trailing whitespace. */}
+      <p className={cn('text-base text-body', !embedded && 'mt-1')}>
+        {t('Điền các mục bên dưới', 'Fill in the sections below')}
+        {' — '}
+        <span className="hidden lg:inline">{t('bản xem trước cập nhật ngay.', 'your preview updates live.')}</span>
+        <span className="lg:hidden">{t('bạn có thể xem lại trước khi đăng.', 'you can check everything before it goes live.')}</span>
+      </p>
 
       <div className="mt-8 grid gap-10 lg:grid-cols-[1fr_19rem]">
         {/* ── FORM ── */}
