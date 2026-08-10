@@ -53,7 +53,13 @@ export type SignInErrorCode =
   | 'unknown'
 
 export type SignInError =
-  | { code: SignInErrorCode; retryAfterSec?: number }
+  /** `detail` is Cloudflare's widget-error code on a captcha failure — see signInErrorText.
+   *  ⚠️ It rides ALONGSIDE `code`, never replaces it. An earlier version switched the whole
+   *  error to `code:'raw'` to append the number, which silently broke retraction: the
+   *  `onSolved` hook clears only `code === 'captcha'`, so the message would have stayed on
+   *  screen after the visitor solved the challenge — reintroducing the red-above-green state
+   *  this whole area exists to prevent. Caught in review. */
+  | { code: SignInErrorCode; retryAfterSec?: number; detail?: string }
   | { code: 'raw'; message: string }
   | null
 
@@ -78,8 +84,10 @@ export function signInErrorText(e: SignInError, t: (en: string, vi: string) => s
   switch (e.code) {
     case 'raw':
       return e.message
-    case 'captcha':
-      return t("The security check didn't complete — try again, and tick the verification box if one appears.", 'Kiểm tra bảo mật chưa hoàn tất — thử lại và đánh dấu ô xác minh nếu nó hiện ra nhé.')
+    case 'captcha': {
+      const base = t("The security check didn't complete — try again, and tick the verification box if one appears.", 'Kiểm tra bảo mật chưa hoàn tất — thử lại và đánh dấu ô xác minh nếu nó hiện ra nhé.')
+      return 'detail' in e && e.detail ? `${base} (${e.detail})` : base
+    }
     case 'network':
       return t('Connection problem — check your network and try again.', 'Sự cố kết nối — kiểm tra mạng và thử lại.')
     case 'email_unreachable':
@@ -239,7 +247,7 @@ export function SignInForm({ className }: { className?: string }) {
   // they had already corrected. This ref always holds what is on screen now.
   const liveRef = useRef({ tab, email, phone, password })
   liveRef.current = { tab, email, phone, password }
-  const { getToken: getCaptchaToken, Widget: Turnstile } = useTurnstile({
+  const { getToken: getCaptchaToken, Widget: Turnstile, lastErrorRef: captchaErrorRef } = useTurnstile({
     onSolved: (token?: string) => {
       setError(errorAfterCaptchaSolved)
       const resume = retryOnCaptchaSolvedRef.current
@@ -658,7 +666,14 @@ export function SignInForm({ className }: { className?: string }) {
       const captchaToken = presetToken ?? await getCaptchaToken()
       if (!captchaToken) {
         setLoading(false)
-        setError({ code: 'captcha' })
+        // ⚠️ NAME THE CAUSE WHEN CLOUDFLARE GAVE US ONE. Two reports of this exact sentence
+        // blocking sign-in were indistinguishable from each other, because a widget ERROR
+        // (which resolves the token as undefined immediately, so the resume below never arms —
+        // no token ever arrives) and a challenge the visitor simply has not finished produce
+        // the same message. 110200 means the hostname is not on the widget's Cloudflare
+        // allow-list and is a dashboard fix, not a code one; a 3xxxxx/6xxxxx is a challenge
+        // failure. Appended in small print so a screenshot is a diagnosis.
+        setError({ code: 'captcha', detail: captchaErrorRef.current ?? undefined })
         // ⚠️ ARM THE RESUME. Without this the visitor is stuck in the loop described at the
         // useTurnstile call site: every retry resets the widget and throws away the token they
         // just solved. Armed only while they are actually waiting on this screen — cleared on

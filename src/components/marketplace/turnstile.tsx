@@ -84,6 +84,8 @@ export function useTurnstile(opts?: { onSolved?: (token?: string) => void }) {
   /** Held in a ref, and updated in an effect rather than during render, so a changing callback never
    *  re-runs `attach` — re-attaching would tear down and re-render the live widget, losing an
    *  in-progress challenge. */
+  /** Cloudflare's last widget-error code, kept so a failure can name itself. Cleared on success. */
+  const lastErrorRef = useRef<string | null>(null)
   const onSolvedRef = useRef(opts?.onSolved)
   useEffect(() => { onSolvedRef.current = opts?.onSolved }, [opts?.onSolved])
   const resolverRef = useRef<((t: string | undefined) => void) | null>(null)
@@ -122,6 +124,7 @@ export function useTurnstile(opts?: { onSolved?: (token?: string) => void }) {
             // BEFORE resolving, so a listener sees "solved" even when nothing is waiting — see the
             // note on onSolved in the hook's doc comment. Guarded because a throw from a consumer's
             // callback here would run inside Turnstile's own callback and lose the token.
+            lastErrorRef.current = null
             try {
               // ⚠️ THE TOKEN IS PASSED, and that is load-bearing rather than tidy. A caller whose
               // getToken() already gave up cannot ask for this token afterwards: getToken() begins
@@ -151,6 +154,15 @@ export function useTurnstile(opts?: { onSolved?: (token?: string) => void }) {
             interactiveRef.current?.()
           },
           'error-callback': (code?: string) => {
+            // ⚠️ KEEP THE CODE, DO NOT JUST LOG IT. The comment above says the code is
+            // diagnostic and not something a visitor can act on, and that is true — but it is
+            // also the ONLY thing that separates causes needing completely different fixes, and
+            // throwing it away means every one of them reaches the user as the same sentence.
+            // Twice now a blocking sign-in failure has been reported as "same", and the only way
+            // to tell "hostname not allow-listed" (110200, a dashboard fix) from a plain
+            // challenge failure was to ask someone to open a console. Retaining it lets the form
+            // show it in small print, so a screenshot is a diagnosis.
+            lastErrorRef.current = code ?? null
             console.warn('[turnstile] widget error', code ?? '(no code)')
             resolverRef.current?.(undefined)
             resolverRef.current = null
@@ -170,6 +182,17 @@ export function useTurnstile(opts?: { onSolved?: (token?: string) => void }) {
         resolve(undefined)
         return
       }
+      // ⚠️ THE CODE IS **NOT** CLEARED HERE, AND THAT IS THE SECOND ANSWER TO THIS QUESTION.
+      // Round one of review said clear it per attempt, so a stale code cannot be pinned on a
+      // later failure. I did, and round two showed that erases the very case worth reporting:
+      // a hostname rejection (110200) fires from `error-callback` at WIDGET RENDER time, before
+      // anyone presses anything, so clearing at the start of getToken() wiped it and the visitor
+      // got the generic sentence again after a 15s hang. The two rounds are both right about
+      // their own case, and only one of them is about a bug someone can act on.
+      // So it is cleared on SUCCESS alone: a token proves the widget works, and until one
+      // arrives an unreset error code is still TRUE. The residual imprecision — a challenge
+      // failure from an earlier attempt shown against a later timeout — mislabels one challenge
+      // failure as another, which changes nobody's next move.
       let settled = false
       let timer = setTimeout(() => finish(undefined), 15000)
       function finish(token: string | undefined) {
@@ -222,5 +245,5 @@ export function useTurnstile(opts?: { onSolved?: (token?: string) => void }) {
     [attach],
   )
 
-  return { getToken, Widget }
+  return { getToken, Widget, lastErrorRef }
 }
