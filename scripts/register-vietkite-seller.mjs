@@ -52,6 +52,12 @@ const SELLER = {
   // to make the bio shorter — it is the line that keeps eno's position accurate.
   bio: 'Licensed Vietnamese travel and visa company. VietKite is the provider of record for e-visa services under its own licence; eno introduces VietKite and does not perform or guarantee the service.',
   avatarUrl: '/vietkite-logo.png',
+  // ⚠️ WHITE, NOT THE SCHEMA'S RED DEFAULT (#dc2626). ui/avatar paints avatarColor BEHIND the
+  // photo so a transparent logo cannot show the initials through its gaps — which means for a
+  // transparent PNG this colour IS the logo's background. VietKite's mark is an orange wordmark
+  // and a green kite drawn on white; on the red default every transparent pixel rendered red and
+  // the storefront looked like a different company. Any partner logo with alpha needs this set.
+  avatarColor: '#ffffff',
   // ⚠️ Both stay FALSE. These badges mean eno verified something and nobody has run that check.
   // A trust signal granted by a seed script is exactly what the trust system exists to prevent.
   verified: false,
@@ -119,9 +125,9 @@ try {
   )
   const s = await c.query(
     `insert into "Seller" (id, "ownerId", name, "legalName", bio, "avatarUrl", verified, "verifiedSeller", "memberSince", "claimedAt")
-     values (gen_random_uuid()::text, $1::uuid, $2, $3, $4, $5, $6, $7, now(), now())
+     values (gen_random_uuid()::text, $1::uuid, $2, $3, $4, $5, $8, $6, $7, now(), now())
      returning id`,
-    [userId, SELLER.name, SELLER.legalName, SELLER.bio, SELLER.avatarUrl, SELLER.verified, SELLER.verifiedSeller],
+    [userId, SELLER.name, SELLER.legalName, SELLER.bio, SELLER.avatarUrl, SELLER.verified, SELLER.verifiedSeller, SELLER.avatarColor],
   )
   const sellerId = s.rows[0].id
   await c.query(`insert into "Handle" (handle, "sellerId", "createdAt") values ($1, $2, now())`, [HANDLE, sellerId])
