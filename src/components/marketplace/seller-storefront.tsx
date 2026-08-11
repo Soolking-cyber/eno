@@ -2,7 +2,7 @@ import { IS_MARKETPLACE } from '@/lib/edition'
 import { deskSellerIds, scopedListingWhere } from '@/lib/edition-scope'
 import { cache } from 'react'
 import { notFound } from 'next/navigation'
-import { AlertTriangle, CheckCircle2, Star } from 'lucide-react'
+import { AlertTriangle, Star } from 'lucide-react'
 import { EnoSeal } from './eno-seal'
 import { db } from '@/lib/db'
 import { Button } from '@/components/ui/button'
@@ -195,12 +195,21 @@ export async function SellerStorefront({ id }: { id: string }) {
                     would devalue the real one.
                     size="md" (text-xs + h-3.5 glyph) matches the HandleChip beside it,
                     so the identity row reads as ONE height of chip. */}
-                {cardSeller.businessVerified ? (
+                {/* ⚠️ "Active account" WAS REMOVED (owner, 2026-08-11) — do not restore it.
+                    It was the else-branch of this badge: a verified business showed "Business
+                    verified", everyone else showed "Active account". The second one asserted
+                    nothing a reader could act on — every storefront that renders at all belongs
+                    to an active account — while the card's metrics strip directly above already
+                    carries the honest version of that signal, a real last-seen bucket computed
+                    from lastSeenAt. A green tick claiming "active" beside a line saying when
+                    they were actually last online is the weaker of two claims about the same
+                    thing, and it borrowed the success colour to say it.
+                    What remains is a badge only where something was genuinely VERIFIED, which
+                    is what the one-badge rule (owner 2026-07-23) was protecting in the first
+                    place: a storefront now shows a badge or it shows nothing, and the badge
+                    means eno checked a document. */}
+                {cardSeller.businessVerified && (
                   <Badge variant="success" size="md"><EnoSeal aria-hidden className="h-3.5 w-3.5" /> <Tr text="Business verified" /></Badge>
-                ) : (
-                  seller.ownerId && (
-                    <Badge variant="success" size="md"><CheckCircle2 className="h-3.5 w-3.5" aria-hidden /> <Tr text="Active account" /></Badge>
-                  )
                 )}
                 {/* Report rides the END of this line. It is a rare, secondary action — as its
                     own red block under the CTA it read as loud as "Chat now". */}

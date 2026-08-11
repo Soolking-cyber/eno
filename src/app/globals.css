@@ -1524,15 +1524,18 @@ html.native-tabs .bottom-nav-spacer {
    Neither is clipped by the avatar's own `overflow-hidden`, which a border or an inset
    shadow would be.
 
-   ⚠️ ONE CLASS FOR BOTH SURFACES, AND IT USED TO BE TWO. The media ring was first drawn
-   INSIDE the corner as a hairline, on the reasoning that a halo around a feed card would
-   read as a selection state. Seen side by side against the avatar on real partner cards
-   that was simply wrong — the owner's brief was one recognisable mark, and an inset
-   hairline and an offset ring do not read as the same thing at all: different weight,
-   different distance from the artwork, one hugging and one floating. A partner's shop and
-   a partner's product now carry the IDENTICAL ring, which is the whole point of a mark.
-   `outline` follows each element's own border-radius, so the same declaration is a circle
-   on the avatar and a squircle on the 2xl media with nothing to keep in sync.
+   ⚠️ SAME STROKE, OPPOSITE SIDE — AND THE MEDIA RING SITS INSIDE FOR A HARD REASON, NOT A
+   TASTE ONE. It went outside briefly so it would match the avatar exactly, and that clipped
+   in many places: a product tile is not a free-floating element like an avatar in a header,
+   it lives inside rails and grids whose tracks carry `overflow-hidden`, and an outline drawn
+   OUTSIDE the box is clipped by any such ancestor. The result was a ring that was whole on
+   some cards and sliced on others, which is worse than either choice made consistently.
+   Drawn inside, nothing can clip it: the outline is within the element's own box on every
+   surface, and the negative offset lands it flush against the frame it decorates.
+   What still makes it one mark is what people actually read — same colour, same weight,
+   same hairline — while the gap direction is dictated by where the element lives.
+   `outline` follows each element's own border-radius, so the same stroke is a circle on the
+   avatar and a squircle on the 2xl media with nothing to keep in sync.
 
    ⚠️ THE RING IS DECORATION AND MUST NEVER BE THE ONLY SIGNAL. Every call site carries a
    real accessible name, and the avatar surfaces also carry a `title` so a sighted visitor
@@ -1549,13 +1552,14 @@ html.native-tabs .bottom-nav-spacer {
    "fix" it to 2px expecting a small change: that is a doubling of everything anyone can see.
    Same family as the `border-width: 0.5px` clamp already recorded for the hairline rules.
 
-   ⚠️ THE MEDIA RING NEEDS ITS OWN CLASS ONLY FOR THE GAP, not the stroke. A product photo
-   fills its tile edge to edge, so the ring sits closer than on an avatar — 1px instead of 2px
-   — or it drifts into the grid gutter and starts reading as a card selection rather than as a
-   mark on the artwork. Everything else is inherited from the same declaration. */
+   ⚠️ THE OFFSET IS NEGATIVE, AND THAT IS THE ANTI-CLIP FIX. -1.5px equals the stroke, so the
+   outline's outer edge lands exactly on the element's edge: flush inside the frame, never a
+   pixel beyond it, so no ancestor's `overflow-hidden` can take a bite out of it. It also
+   paints OVER the photo, which an inset box-shadow could not — that renders beneath child
+   content, so the <img> would hide it entirely. */
 .partner-ring-media {
   outline: 1.5px solid var(--partner-foil-mid);
-  outline-offset: 1px;
+  outline-offset: -1.5px;
 }
 
 .press {

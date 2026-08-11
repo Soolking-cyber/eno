@@ -58,6 +58,48 @@ function titleJaccard(a: string, b: string): number {
   return inter / (ta.size + tb.size - inter)
 }
 
+/**
+ * Do these two listings describe different taxonomy VARIANTS?
+ *
+ * True only when both sides actually carry facets and those facets differ. Absent or empty
+ * attributes on either side return false, so a category without facets is completely
+ * unaffected and the guard behaves exactly as before for it.
+ */
+function differsByFacet(candidate: Record<string, string> | null | undefined, existingJson: string | null): boolean {
+  if (!candidate || Object.keys(candidate).length === 0) return false
+  let existing: Record<string, string>
+  try {
+    const parsed = existingJson ? JSON.parse(existingJson) : null
+    if (!parsed || typeof parsed !== 'object') return false
+    existing = parsed as Record<string, string>
+  } catch {
+    return false // unreadable attributes must not silently WAIVE the guard
+  }
+  if (Object.keys(existing).length === 0) return false
+  // ⚠️ ONLY KEYS PRESENT ON BOTH SIDES COUNT, AND THAT CLOSES A REAL BYPASS. The first version
+  // treated "absent on the existing row" as different — so a candidate that simply ADDED a key
+  // the old listing never had (`{color:'x'}`, anything) waived the guard completely, since this
+  // check short-circuits every other signal including the image one. Two reviewers found it
+  // independently, and it is worse than the false-positive it was written to fix: one blocks a
+  // real seller, the other hands every seller a one-field spam bypass.
+  //
+  // Requiring a SHARED key with a differing value is the honest test of "different variant":
+  // both listings describe the same facet and disagree about it (single vs multiple entry,
+  // 1H vs 2D). A key only one side declares says nothing about whether the products differ —
+  // it is an incomplete comparison, not evidence.
+  //
+  // ⚠️ KNOWN LIMIT, not closed here: these keys are not validated against the CATEGORY's real
+  // taxonomy, so a direct-API caller could still post two listings that both declare an invented
+  // facet with different values. That is a narrower hole than the one being fixed (it needs two
+  // cooperating listings and leaves an obviously bogus facet on both, visible to moderation),
+  // but validating against the facet list for the category is the proper closure.
+  for (const [k, v] of Object.entries(candidate)) {
+    if (!(k in existing)) continue // one-sided key: not evidence either way
+    if (String(existing[k] ?? '') !== String(v ?? '')) return true
+  }
+  return false
+}
+
 export async function findDuplicateListing(input: {
   sellerId: string
   categoryId: string
@@ -68,17 +110,39 @@ export async function findDuplicateListing(input: {
   /** The new listing's stored image URLs — their embedded dHashes drive the IMAGE signal
    *  (catches a repost that reuses the same photos but reworded the title/price). */
   images: string[]
+  /**
+   * The candidate's taxonomy attributes (the create's `attributes` JSON, already parsed).
+   *
+   * ⚠️ THIS EXISTS BECAUSE THE GUARD WAS BLOCKING LEGITIMATE VARIANTS. Reported 2026-08-11:
+   * an official partner could not post a NINTH e-visa product even with a different photo.
+   * Their catalogue is eight rows that differ ONLY by facet — single/multiple entry × 1 hour,
+   * 2 hours, 1 day, 2 days — and they naturally share product artwork. Measured against the
+   * real rows: no PAIR trips the title or text signals at all, so the culprit is the IMAGE
+   * signal, whose bar is only "2+ photos in common and a bare majority" (isImageRepost).
+   * Swapping one image cannot clear that when the rest of the set legitimately repeats.
+   *
+   * A listing that differs in its structured facets is a different PRODUCT, not a repost —
+   * which is exactly what the taxonomy exists to express — so a facet difference is now
+   * enough to say "not a duplicate", whatever the photos look like.
+   *
+   * ⚠️ It does weaken the guard against a determined bumper who edits one facet per repost.
+   * That is an accepted trade rather than an oversight: facets are a small closed set per
+   * category and changing one changes what the listing CLAIMS to be, which is visible to
+   * buyers and to moderation. Blocking real sellers from their own catalogue is the worse
+   * failure, and the text/price signals still apply to genuine same-facet reposts.
+   */
+  attributes?: Record<string, string> | null
   excludeId?: string
 }): Promise<DuplicateMatch | null> {
-  const { sellerId, categoryId, title, searchText, price, images, excludeId } = input
+  const { sellerId, categoryId, title, searchText, price, images, attributes, excludeId } = input
   try {
     // One seller-scoped scan (sellerId is indexed; a seller holds at most a few hundred
     // active rows) computing the pg_trgm similarity against the stored searchText; `images`
     // (JSON string of URLs) rides along for the perceptual-hash comparison.
     const rows = await db.$queryRaw<
-      { id: string; title: string; price: number; categoryId: string; images: string | null; score: number }[]
+      { id: string; title: string; price: number; categoryId: string; images: string | null; attributes: string | null; score: number }[]
     >(Prisma.sql`
-      SELECT id, title, price, "categoryId", images, similarity("searchText", ${searchText}) AS score
+      SELECT id, title, price, "categoryId", images, attributes, similarity("searchText", ${searchText}) AS score
       FROM "Listing"
       WHERE "sellerId" = ${sellerId} AND status = 'active'
         ${excludeId ? Prisma.sql`AND id <> ${excludeId}` : Prisma.empty}
@@ -87,6 +151,9 @@ export async function findDuplicateListing(input: {
     `)
 
     for (const r of rows) {
+      // ⚠️ A DIFFERENT FACET SET MEANS A DIFFERENT PRODUCT — checked FIRST, so it short-circuits
+      // every signal below including the image one. See the `attributes` doc on the input.
+      if (differsByFacet(attributes, r.attributes)) continue
       const score = Number(r.score) || 0
       const dPrice = priceDelta(price, Number(r.price) || 0)
       const tj = titleJaccard(title, r.title)

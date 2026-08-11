@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { BadgeCheck, Scale, Flag, Wallet, ChevronRight } from 'lucide-react'
 import { EnoSeal } from '@/components/marketplace/eno-seal'
 import { ICON_SIZE } from '@/lib/icon-tokens'
+import { cn } from '@/lib/utils'
 import { useLanguage } from '@/context/language-context'
 import { Button } from '@/components/ui/button'
 import {
@@ -21,7 +22,20 @@ import {
  * screened listings, the evidence-based Trust score, the 72h dispute center,
  * admin-reviewed reports, and safe-payment guidance. No escrow, no returns.
  */
-export function ProtectionsRow() {
+export function ProtectionsRow({ inline = false }: {
+  /**
+   * Render as the quiet second line INSIDE the safety strip rather than as a row of its own
+   * (owner, 2026-08-11: combine the two PDP trust blocks).
+   *
+   * ⚠️ `inline` DROPS THE SEAL AND THE HAIRLINE, and both are deliberate. The strip it now
+   * lives in already carries a seal, and two marks in one block devalues the signature — the
+   * icon language is explicit that one stamp per surface is what keeps it worth anything.
+   * The hairline goes because it was separating this row from the block BELOW it, and that
+   * block is now its own container.
+   * It stays a real button opening the same dialog: what changes is its weight, not its job.
+   */
+  inline?: boolean
+} = {}) {
   const { tr } = useLanguage()
 
   // Item leads are LINE-ONLY in surface ink (§6 — brand line is reserved for
@@ -94,12 +108,21 @@ export function ProtectionsRow() {
           // a row with a hairline, not a panel — and losing the box is what lets the warning's
           // tinted strip and left rule read as the only emphasised thing in the block, which is
           // the correct hierarchy when one of the two can cost someone money.
-          className="press flex w-full items-center justify-start gap-2.5 whitespace-normal border-b border-border px-1 py-2.5 text-left font-normal transition-colors hover:bg-tint"
+          className={cn(
+            'press flex w-full items-center justify-start gap-2.5 whitespace-normal text-left font-normal transition-colors',
+            inline
+              // Inside the warning strip: no border, no tint hover (the strip is already
+              // tinted — a second wash on top reads as a rendering fault), and tighter
+              // padding so it sits as a LINE under the warning rather than a second row.
+              ? 'px-0 py-0.5 hover:bg-transparent'
+              : 'border-b border-border px-1 py-2.5 hover:bg-tint',
+          )}
         />
       }>
           {/* The eno seal — §0b's protection-chip echo (foundation handoff request):
-              ink line + brand-100 chief, the signature carrying the trust claim. */}
-          <EnoSeal className={ICON_SIZE.lg} />
+              ink line + brand-100 chief, the signature carrying the trust claim.
+              Suppressed when inline: the safety strip already stamps this block once. */}
+          {!inline && <EnoSeal className={ICON_SIZE.lg} />}
           <span className="min-w-0 flex-1 text-xs leading-snug text-body">
             <span className="font-bold text-foreground">{tr('ENO protects you', 'ENO bảo vệ bạn')}</span>
             {' — '}

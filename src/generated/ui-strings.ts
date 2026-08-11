@@ -72,7 +72,6 @@ export const UI_STRINGS: string[] = [
   "Account",
   "Account type",
   "Active",
-  "Active account",
   "Active listings",
   "Ad personalization",
   "Ad-network signals (Meta/Google) for retargeting.",

@@ -580,12 +580,18 @@ export default async function ListingPage({ params }: Props) {
                     />}
               </div>
 
-              {/* 7 — Buyer protections */}
-              <div className="order-7"><ProtectionsRow /></div>
-
-              {/* 9 — Safety strip + report */}
+              {/* 9 — ONE trust block: the scam warning, with "ENO protects you" folded in as its
+                  second line (owner, 2026-08-11). The separate order-7 protections row is GONE —
+                  the two were adjacent boxes circling the same subject, and the warning is the
+                  half that can stop someone losing money, so it keeps the container and the ink.
+                  See the notes in safety-strip.tsx and protections-row.tsx for why the merge went
+                  in this direction rather than the other. */}
               <div className="order-9">
-                <SafetyStrip categorySlug={rawListing.category.slug} action={<ReportButton listingId={listing.id} />} />
+                <SafetyStrip
+                  categorySlug={rawListing.category.slug}
+                  protections={<ProtectionsRow inline />}
+                  action={<ReportButton listingId={listing.id} />}
+                />
               </div>
 
               {/* 10 — Reviews. Rendered CONDITIONALLY: an always-present wrapper around a

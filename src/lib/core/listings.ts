@@ -733,7 +733,14 @@ export async function createListingCore(input: {
   // Same ACCEPTED check-then-create race as the urgent quota above: two simultaneous
   // posts of the same item can both pass — the dup is visible and admin-removable.
   const searchText = buildSearchText([title, String(body.description || ''), district, category.name, category.nameVi, brandSlug, model])
-  const dup = await findDuplicateListing({ sellerId: seller.id, categoryId: category.id, title, searchText, price, images })
+  // `attributes` is the taxonomy facet set — two listings that differ by facet are variants,
+  // not reposts. It is the JSON string built above, so parse it back to the shape the guard
+  // compares; a malformed value degrades to "no facets", i.e. the guard's old behaviour.
+  const dupFacets = (() => {
+    if (!attributes) return null
+    try { return JSON.parse(attributes) as Record<string, string> } catch { return null }
+  })()
+  const dup = await findDuplicateListing({ sellerId: seller.id, categoryId: category.id, title, searchText, price, images, attributes: dupFacets })
   if (dup) throw new PublishBlockedError('duplicate_listing', dup.id)
 
   const listing = await db.listing.create({

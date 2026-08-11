@@ -10,7 +10,7 @@ import { cn } from '@/lib/utils'
 // #1 marketplace scam, so the warning must be read BEFORE the buyer contacts the
 // seller, not buried in the footer note. Copy is category-aware: vehicles get the
 // papers/chassis check, property & rentals get the visit-before-deposit rule.
-export function SafetyStrip({ categorySlug, action, className }: { categorySlug: string; action?: React.ReactNode; className?: string }) {
+export function SafetyStrip({ categorySlug, action, protections, className }: { categorySlug: string; action?: React.ReactNode; /** The "ENO protects you" trigger, folded in as the quiet second line — see the note at its render. */ protections?: React.ReactNode; className?: string }) {
   const { tr } = useLanguage()
 
   const line =
@@ -66,6 +66,18 @@ export function SafetyStrip({ categorySlug, action, className }: { categorySlug:
         {/* `text-warning`, not `text-foreground` — see the note on the container. A warning
             printed in body ink is a sentence; printed in its own ink it is a warning. */}
         <p className="font-semibold text-warning">{line}</p>
+        {/* ⚠️ "ENO protects you" MOVED IN HERE, and the ORDER is the whole design (owner,
+            2026-08-11: combine these two). They were two adjacent blocks — a neutral
+            protections panel at order-7 and this warning at order-9 — saying related things
+            in two boxes. Merging them is right, but the direction matters: this strip carries
+            the one sentence that can stop someone losing money, and a design review already
+            found it reading as LESS weighty than the panel above it. So the warning keeps the
+            container, the ink and the top line; protections becomes the quiet second line
+            inside it, still tappable, still opening the same dialog.
+            It also drops a duplicate seal — one mark per block, and this block already has it.
+            The result is one thing that says "here is the risk, and here is what we do about
+            it", which is the sentence the two boxes were circling separately. */}
+        {protections}
         {/* Guide link left, Report right (user-picked 2026-07-14) — the old
             standalone tips|report footer was a duplicate of this same link. */}
         <div className="flex items-center justify-between gap-3">
