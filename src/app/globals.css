@@ -1558,8 +1558,17 @@ html.native-tabs .bottom-nav-spacer {
    paints OVER the photo, which an inset box-shadow could not — that renders beneath child
    content, so the <img> would hide it entirely. */
 .partner-ring-media {
-  outline: 1.5px solid var(--partner-foil-mid);
-  outline-offset: -1.5px;
+  /* ⚠️ 2px, NOT the avatar's hairline — reported invisible at 1.5 (which Chromium rounds to a
+     1px line anyway). An avatar ring sits OUTSIDE the shape against a plain surface, where a
+     hairline is plenty. This one sits INSIDE, on top of a photograph: it competes with whatever
+     the image happens to be at its edge, and a 1px gold line over a bright or busy photo simply
+     is not there. 2px is the smallest stroke that survives an arbitrary background.
+     ⚠️ The inner shadow is doing real work, not decoration: a gold line on a pale photo has
+     almost no contrast, so a 1px dark inset underneath it guarantees an edge in every case.
+     Together they read as a foil rim rather than a stray border. */
+  outline: 2px solid var(--partner-foil-mid);
+  outline-offset: -2px;
+  box-shadow: inset 0 0 0 3px rgb(0 0 0 / 0.10);
 }
 
 .press {

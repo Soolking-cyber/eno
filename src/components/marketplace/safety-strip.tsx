@@ -62,7 +62,12 @@ export function SafetyStrip({ categorySlug, action, protections, className }: { 
         />
         <path d={SEAL_BAR} fill="none" stroke="currentColor" strokeWidth={STROKE_UI} strokeLinecap="round" />
       </svg>
-      <div className="min-w-0 flex-1 space-y-0.5">
+      {/* ⚠️ THE RHYTHM CARRIES THE HIERARCHY. At `space-y-0.5` the three lines — warning,
+          protections, actions — sat at the same distance from each other as the words within
+          them, so the block read as a pile of links rather than one statement with a footnote.
+          `space-y-1.5` separates them enough to be read in order, which is the whole reason
+          they are stacked in this order in the first place. */}
+      <div className="min-w-0 flex-1 space-y-1.5">
         {/* `text-warning`, not `text-foreground` — see the note on the container. A warning
             printed in body ink is a sentence; printed in its own ink it is a warning. */}
         <p className="font-semibold text-warning">{line}</p>
@@ -80,8 +85,11 @@ export function SafetyStrip({ categorySlug, action, protections, className }: { 
         {protections}
         {/* Guide link left, Report right (user-picked 2026-07-14) — the old
             standalone tips|report footer was a duplicate of this same link. */}
-        <div className="flex items-center justify-between gap-3">
-          <Link href="/safety" className="inline-block font-semibold text-accent-foreground hover:underline">
+        {/* Guide left, Report right (user-picked 2026-07-14). `-my-1` pulls the row back into
+            the block: Report is a `tap-44` control, so its 44px hit area otherwise pushed a
+            visible gap below the strip that looked like stray padding. */}
+        <div className="-my-1 flex items-center justify-between gap-3">
+          <Link href="/safety" className="font-semibold text-accent-foreground hover:underline">
             {tr('Safe trading guide', 'Cẩm nang giao dịch an toàn')}
           </Link>
           {action}

@@ -109,13 +109,17 @@ export function ProtectionsRow({ inline = false }: {
           // tinted strip and left rule read as the only emphasised thing in the block, which is
           // the correct hierarchy when one of the two can cost someone money.
           className={cn(
-            'press flex w-full items-center justify-start gap-2.5 whitespace-normal text-left font-normal transition-colors',
+            'press whitespace-normal text-left font-normal transition-colors',
             inline
-              // Inside the warning strip: no border, no tint hover (the strip is already
-              // tinted — a second wash on top reads as a rendering fault), and tighter
-              // padding so it sits as a LINE under the warning rather than a second row.
-              ? 'px-0 py-0.5 hover:bg-transparent'
-              : 'border-b border-border px-1 py-2.5 hover:bg-tint',
+              // ⚠️ `inline-flex w-auto`, NOT `w-full justify-start`. As a full-width row the
+              // chevron was flung to the far right of the strip, four hundred-odd pixels from
+              // the words it points at — the exact defect fixed on /help, reintroduced here by
+              // reusing the row's layout inside a much wider container. Sized to its content,
+              // the glyph sits against the sentence and reads as one affordance.
+              // No tint hover either: the strip is already tinted, and a second wash on top of
+              // it looks like a rendering fault rather than a hover.
+              ? 'inline-flex w-auto items-center gap-1 py-0.5 hover:bg-transparent'
+              : 'flex w-full items-center justify-start gap-2.5 border-b border-border px-1 py-2.5 hover:bg-tint',
           )}
         />
       }>
@@ -123,12 +127,12 @@ export function ProtectionsRow({ inline = false }: {
               ink line + brand-100 chief, the signature carrying the trust claim.
               Suppressed when inline: the safety strip already stamps this block once. */}
           {!inline && <EnoSeal className={ICON_SIZE.lg} />}
-          <span className="min-w-0 flex-1 text-xs leading-snug text-body">
+          <span className={cn('min-w-0 text-xs leading-snug text-body', !inline && 'flex-1')}>
             <span className="font-bold text-foreground">{tr('ENO protects you', 'ENO bảo vệ bạn')}</span>
             {' — '}
             {tr('disputes handled in 72h · listings screened', 'tranh chấp xử lý trong 72 giờ · tin đã kiểm duyệt')}
           </span>
-          <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+          <ChevronRight className={cn('shrink-0 text-muted-foreground', inline ? 'h-3.5 w-3.5' : 'h-4 w-4')} aria-hidden />
       </DialogTrigger>
 
       <DialogContent

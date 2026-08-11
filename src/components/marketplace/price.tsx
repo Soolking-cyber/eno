@@ -83,7 +83,16 @@ export function Price({ price, currency, priceUnit, compact = false, dual = true
     // the PDP and the card is deliberately light — a heavy strikethrough competes with the
     // price that actually applies. Those pass an explicit weight, and cn()'s tailwind-merge
     // makes the later class win. Do not "tidy" those away.
-    <span className={cn('tabular-nums font-black', className)}>
+    // ⚠️ 800, NOT 900, AND THE REASON IS THE SECOND FONT (owner, 2026-08-11: "use 800 for both").
+    // This app ships TWO faces: Inter (declared `100 900`) and Be Vietnam Pro (declared
+    // 400–800, no 900). `font-black` therefore rendered 900 on the English face and CLAMPED to
+    // 800 on the Vietnamese one — the same price looked different in the two languages, and on
+    // Inter the 800→900 step is small enough that it read as "not bolder" anyway. Measured on
+    // production: computed weight 900, 18px, Inter with a real 900 face available, so the class
+    // was applying — it simply was not buying much, at the cost of a cross-language mismatch.
+    // 800 is the heaviest weight BOTH faces actually have, so it renders identically in both.
+    // ⚠️ Do not "upgrade" this to font-black without adding 900 to Be Vietnam Pro in layout.tsx.
+    <span className={cn('tabular-nums font-extrabold', className)}>
       {amount}
       {/* The bare text node is kept for the default (always-on) case so the other
           call sites' DOM is byte-identical to before; only the 'sm' variant needs a

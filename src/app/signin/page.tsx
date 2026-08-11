@@ -35,9 +35,9 @@ function SignInPageInner() {
       <div className="relative hidden flex-col justify-between overflow-hidden bg-gradient-to-br from-brand-deep to-brand-deeper p-12 text-white md:flex">
         {/* Mascot with a key (access) — anchored in the empty lower-right */}
         <Mascot name="key" white className="pointer-events-none absolute bottom-8 right-8 h-72 w-72 opacity-[0.13] lg:h-96 lg:w-96" />
-        <Link href="/" className="relative text-2xl font-black tracking-tight">eno.vn</Link>
+        <Link href="/" className="relative text-2xl font-extrabold tracking-tight">eno.vn</Link>
         <div className="relative">
-          <h1 className="text-4xl font-black leading-tight">{tr('e-commerce with no drama', 'Mua bán không drama.')}</h1>
+          <h1 className="text-4xl font-extrabold leading-tight">{tr('e-commerce with no drama', 'Mua bán không drama.')}</h1>
           <p className="mt-3 max-w-sm text-base text-blue-100">
             {tr("Vietnam's trusted marketplace for the international community.", 'Chợ uy tín cho cộng đồng quốc tế tại Việt Nam.')}
           </p>
