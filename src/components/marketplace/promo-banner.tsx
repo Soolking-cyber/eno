@@ -344,9 +344,25 @@ function SlidePanel({ slide, first = false }: { slide: PromoSlide; first?: boole
             aria-hidden because the same words are already first in the link's aria-label above;
             without it a screen reader that ignores aria-label on a link would say them twice.
             pointer-events-none so the chip cannot become a dead spot in the swipe surface. */}
+        {/* ⛔ BOTTOM-LEFT, NOT TOP-LEFT — THE FIRST VERSION DEFACED THE ADVERTISER IT EXISTS TO NAME.
+            At top-2 this pill sat exactly on the artwork's own lockup on every phone width. Measured
+            on the live slide: at a 390px viewport the mobile cut (732×376) maps 2:1 onto the 366×188
+            panel, so `object-cover` crops nothing and the lockup's ink lands at CSS x31.5–199.5,
+            y5.5–59.5 — the kite mark, the "VietKite" wordmark and "Travel & Visa" all fell inside the
+            chip's x8–145, y8–27 box. Not width-sensitive either: at 360px `object-cover` shifts the
+            lockup 15px further LEFT (deeper under the chip) and at 430px it crops 10px off the top,
+            landing the wordmark at y7–18 — still inside. Only the desktop cut cleared it. A
+            disclosure that hides the brand it discloses is worse than none.
+            ⚠️ BOTTOM-RIGHT IS TAKEN: the slide dots are `absolute inset-x-0 bottom-1 … justify-end
+            pr-3` in the parent, so the right side of this edge is spoken for. Bottom-LEFT is the one
+            free corner, and it is also where an ad label conventionally sits.
+            ⚠️ THIS REMAINS A BET ON ARTWORK WE DO NOT CONTROL — a future partner is free to put their
+            lockup bottom-left. The durable fix is a caption OUTSIDE the image; that costs vertical
+            space on a banner already capped so grid row 1 stays above the fold, which is why it is
+            not taken here. If a second partner slide lands, re-measure rather than assume. */}
         <span
           aria-hidden
-          className="pointer-events-none absolute left-2 top-2 rounded-full bg-black/60 px-2 py-0.5 text-2xs font-semibold text-white sm:left-3 sm:top-3"
+          className="pointer-events-none absolute bottom-2 left-2 rounded-full bg-black/60 px-2 py-0.5 text-2xs font-semibold text-white sm:bottom-3 sm:left-3"
         >
           {adDisclosure}
         </span>

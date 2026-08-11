@@ -36,6 +36,7 @@ import { useLanguage, useTr } from '@/context/language-context'
 import { useLocalized, PostedAgo } from './listing-content'
 import { useFavorites } from '@/context/favorites-context'
 import { useAuth } from '@/context/auth-context'
+import { useMounted } from '@/hooks/use-mounted'
 // Perf Phase 1: both are OPTIONAL card features — the video enhancement mounts only
 // on in-viewport video cards, the discount slider only inside the owner's popover —
 // so neither belongs in the default card path every page pays for.
@@ -117,6 +118,9 @@ function ListingCardImpl({
   const [quickOffer, setQuickOffer] = useState<number | null>(null)
   const router = useRouter()
   const { user, loading: authLoading, openSignIn } = useAuth()
+  // Gates the meta row's relative time — see the comment at its render site for why this route
+  // in particular cannot afford an ungated client-clock value.
+  const mounted = useMounted()
 
   // Quick actions land IN the conversation: stash the structured compose payload
   // and let /messages/pending create the thread + post it (same flow as the PDP
@@ -890,9 +894,35 @@ function ListingCardImpl({
                 <>
                   {lead.join(' · ')}
                   <span className="hidden sm:inline">
-                    {lead.length > 0 ? ' · ' : ''}
-                    <PostedAgo iso={listing.postedAt} />
-                    {brand.length > 0 ? ` · ${brand.join(' · ')}` : ''}
+                    {/* ⛔ MOUNT-GATED, AND ON THIS ROUTE THAT IS NOT A NICETY — IT IS THE DIFFERENCE
+                        BETWEEN AN ISR PAGE AND A CLIENT-RENDERED ONE. `PostedAgo` derives its label
+                        from the CLIENT clock, and `/` is ISR-cached for 6h with 12 of these cards
+                        baked into the HTML (app/(home)/page.tsx revalidate=21600, take:12). So the
+                        HTML says "· 3h ago" and a visitor five hours later computes "· 8h ago".
+                        React 19 does not patch a text mismatch the way 18 did — it throws
+                        HydrationMismatchException and recovers by CLIENT-RENDERING FROM THE NEAREST
+                        SUSPENSE BOUNDARY. This route has no user boundary; the only one is Next's
+                        segment boundary from (home)/loading.tsx, which encloses the header, the whole
+                        feed and the footer. One stale label anywhere in it re-renders the entire
+                        route — on essentially every cache hit, on the page whose LCP was taken from
+                        5.4s to 1.57s. `useMounted` is the repo's own answer to exactly this and says
+                        so in its docblock; live-until.tsx and pdp-shop-link.tsx both already use the
+                        two-pass shape for client-time values, the latter after review caught it.
+                        ⚠️ BOTH SEPARATORS ARE INSIDE THE GATE, and the first version of this got it
+                        wrong in the most instructive way: it gated the time but left the LEADING
+                        " · " outside, so a listing with a lead and no brand rendered
+                        "Bình Thạnh · " — a dangling middot baked into the 6h HTML, seen by Googlebot
+                        and by every no-JS visitor permanently. The comment right here claimed the
+                        separator was gated while the line above it proved otherwise; all three
+                        review families caught it independently. A separator belongs to the thing it
+                        separates, so it lives or dies with it. */}
+                    {/* Two rules, each naming what it separates, so no state can strand one:
+                        · before TIME  — only once the time exists, and only if something precedes it
+                        · before BRAND — if brand exists AND anything precedes it (lead, or the time) */}
+                    {mounted && lead.length > 0 ? ' · ' : ''}
+                    {mounted && <PostedAgo iso={listing.postedAt} />}
+                    {brand.length > 0 && (mounted || lead.length > 0) ? ' · ' : ''}
+                    {brand.length > 0 ? brand.join(' · ') : ''}
                   </span>
                 </>
               )
