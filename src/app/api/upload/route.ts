@@ -38,14 +38,35 @@ export async function POST(req: NextRequest) {
 
     const urls: string[] = []
     let failed = 0
+    // ⚠️ WHY A FILE WAS DROPPED IS NOW RECORDED. This route answers 200 with a SHORT `urls`
+    // array when it rejects a file, the client turns that into "Could not upload your photos —
+    // please try again", and until now nothing anywhere said which photo or why. A real report
+    // of that error was undiagnosable from production: four requests, all 200, no rejection
+    // reason on either side. `reason` distinguishes the three causes, all of which are
+    // properties of the caller's OWN file and so safe to name.
+    const reasons: string[] = []
     for (const file of files.slice(0, 8)) {
       // Cheap pre-check on the client-provided type/size; the core re-decodes with sharp.
-      if (!IMG_ALLOWED.has(file.type) || file.size === 0 || file.size > IMG_MAX_BYTES) { failed++; continue }
+      if (!IMG_ALLOWED.has(file.type)) {
+        // The picker accepts .heic/.heif and the client converts them, so a HEIC arriving here
+        // means that conversion silently produced nothing — worth seeing rather than guessing.
+        console.warn('[POST /api/upload] rejected type', file.type || '(none)', file.name?.slice(-12))
+        failed++; reasons.push('type'); continue
+      }
+      if (file.size === 0 || file.size > IMG_MAX_BYTES) {
+        console.warn('[POST /api/upload] rejected size', file.size)
+        failed++; reasons.push(file.size === 0 ? 'empty' : 'size'); continue
+      }
       const url = await storeListingImage(Buffer.from(await file.arrayBuffer()), { watermark })
       if (url) urls.push(url)
-      else failed++
+      else {
+        // sharp could not decode it despite an allowed mime — a mislabelled or corrupt file.
+        console.warn('[POST /api/upload] storeListingImage returned nothing for', file.type, file.size)
+        failed++; reasons.push('decode')
+      }
     }
-    return NextResponse.json({ urls, failed })
+    if (failed) console.warn('[POST /api/upload]', failed, 'of', files.length, 'rejected —', reasons.join(','))
+    return NextResponse.json({ urls, failed, reasons })
   } catch (e) {
     console.error('[POST /api/upload]', e)
     return NextResponse.json({ error: 'Upload failed' }, { status: 500 })

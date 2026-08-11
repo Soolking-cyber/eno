@@ -700,7 +700,27 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
     } catch (e) {
       const msg = e instanceof Error ? e.message : ''
       setError(
-        msg === 'upload'
+        // ⚠️ THE THREE SPECIFIC CAUSES COME FIRST, because "try again" is actively wrong for all
+        // of them: a rejected format or an oversized file will fail identically forever, and a
+        // rate-limited caller retrying only digs deeper. Only the residual 'upload' — a genuine
+        // transient — deserves the retry wording.
+        // ⚠️ NO APOSTROPHES IN THESE STRINGS, AND THAT IS NOT A STYLE CHOICE.
+        // gen-ui-strings.mjs harvests `t('…', '…')` with a regex that matches SINGLE-quoted
+        // arguments only. An English half containing an apostrophe has to be written with
+        // double quotes, which the pattern cannot see — so the string silently never reaches
+        // the catalogue and the ~11 machine-translated languages fall back to English. Two of
+        // these three did exactly that until a reviewer noticed the generated file gained only
+        // one pair; verified by grepping ui-strings.ts, not by rereading the regex. Same family
+        // as the template-literal trap already documented in set-password-form.tsx.
+        msg === 'upload_type'
+          ? t('Định dạng ảnh này không được hỗ trợ. Hãy dùng ảnh JPG, PNG hoặc WebP.', 'That photo format is not supported — use a JPG, PNG or WebP.')
+          : msg === 'upload_size'
+          ? t('Ảnh quá lớn (tối đa 12MB). Hãy chọn ảnh nhỏ hơn.', 'That photo is too large (12MB max) — pick a smaller one.')
+          : msg === 'upload_broken'
+          ? t('Không đọc được một ảnh trong số này. Hãy bỏ ảnh đó ra rồi đăng lại.', 'One of those photos could not be read — remove it and post again.')
+          : msg === 'upload_rate_limited'
+          ? t('Bạn đã tải lên quá nhiều ảnh trong một giờ. Hãy đợi một lát rồi thử lại.', 'You have uploaded a lot of photos this hour — wait a little and try again.')
+          : msg === 'upload'
           ? t('Không tải được ảnh, vui lòng thử lại.', 'Could not upload your photos — please try again.')
           : msg === 'video'
           ? t('Không tải được video, vui lòng thử lại.', 'Could not upload your video — please try again.')
