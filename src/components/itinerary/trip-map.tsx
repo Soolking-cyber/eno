@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
 import { Spinner } from '@/components/ui/spinner'
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from '@/components/ui/drawer'
+import { OSM_CREDIT, CARTO_CREDIT } from '@/lib/map-credit'
 import { cn } from '@/lib/utils'
 import { handleExternalClick } from '@/lib/native-browser'
 
@@ -278,7 +279,10 @@ function MapCredit({ className }: { className?: string }) {
         // (light) / 6.6:1 (dark) regardless of what the tiles are doing underneath. Both measured on a
         // production build, not derived — an earlier version of this comment claimed 12.6:1 for dark,
         // which was a guess written before the measurement and wrong.
-        `pointer-events-none absolute ${OVERLAY_Z} flex items-center gap-1 rounded-lg bg-card px-1.5 py-0.5 text-3xs leading-none text-ink-4`,
+        // Same footnote treatment as the marketplace map's credit — kept in step deliberately:
+        // these two MapCredit components are duplicated, and a restyle that lands in only one
+        // leaves the same legal notice looking like two different things on two maps.
+        `pointer-events-none absolute ${OVERLAY_Z} flex items-center gap-1 rounded-lg bg-card/70 px-1 py-px text-3xs leading-none text-ink-4/80 backdrop-blur-[2px]`,
         className,
       )}
     >
@@ -289,22 +293,28 @@ function MapCredit({ className }: { className?: string }) {
           Done tap from the map. (The single documented exception is evisa.gov.vn, for reasons that
           do not apply here.) A credit the native app cannot follow is decoration. */}
       <a
-        className="pointer-events-auto underline-offset-2 hover:underline"
+        className="pointer-events-auto underline-offset-2 transition-colors hover:text-body hover:underline"
         href="https://www.openstreetmap.org/copyright"
         onClick={handleExternalClick}
         target="_blank"
         rel="noreferrer"
       >
-        {tr('© OpenStreetMap contributors', '© Cộng tác viên OpenStreetMap')}
+        {/* ⚠️ NOT TRANSLATED, AND THAT IS THE FIX. This ran through tr(), so for every
+            machine-translated language the catalogue rendered it in that language — reported
+            live as "© Участники проекта OpenStreetMap" on a Vietnamese/English marketplace.
+            It is a LEGAL attribution (ODbL) and a proper noun, not UI copy: the required
+            wording is "OpenStreetMap contributors", and translating it both looks broken and
+            weakens the credit it exists to give. Rendered verbatim, in every language. */}
+        {OSM_CREDIT}
       </a>
       <a
-        className="pointer-events-auto underline-offset-2 hover:underline"
+        className="pointer-events-auto underline-offset-2 transition-colors hover:text-body hover:underline"
         href="https://carto.com/attributions"
         onClick={handleExternalClick}
         target="_blank"
         rel="noreferrer"
       >
-        {tr('© CARTO', '© CARTO')}
+        {CARTO_CREDIT}
       </a>
     </p>
   )

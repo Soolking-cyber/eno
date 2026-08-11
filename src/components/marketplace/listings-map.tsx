@@ -15,6 +15,7 @@ import { useFavorites } from '@/context/favorites-context'
 import { LocalizedText } from './listing-content'
 import { getListingCoordinates } from '@/lib/geo'
 import type { Nearby } from './area-filter'
+import { OSM_CREDIT, CARTO_CREDIT } from '@/lib/map-credit'
 import { cn } from '@/lib/utils'
 import { handleExternalClick } from '@/lib/native-browser'
 import { Spinner } from '@/components/ui/spinner'
@@ -162,7 +163,14 @@ function MapCredit({ className }: { className?: string }) {
         // floating listing card (1100). It does NOT need to beat the popup pane's 700 — see the note
         // on OVERLAY_Z in trip-map.tsx: `.leaflet-map-pane`'s transform contains that whole ladder at
         // z-400. 800 is insurance for Leaflet's non-transform fallback, where it would not.
-        'pointer-events-none absolute z-[800] flex items-center gap-1 rounded-lg bg-card px-1.5 py-0.5 text-3xs leading-none text-ink-4',
+        // ⚠️ QUIETER, NOT GONE — see src/lib/map-credit.ts for why the second option does not
+        // exist. The credit was a solid `bg-card` chip with underlined links, which on a pale
+        // basemap read as a UI control the visitor was meant to use. It is a legal footnote, so
+        // it should look like one: a translucent backdrop that only resolves against the tiles,
+        // ink at the quietest step, and the underline held back until hover. It stays legible
+        // (the blur keeps it readable over any tile) and stays clickable, which is what the
+        // licence actually asks for.
+        'pointer-events-none absolute z-[800] flex items-center gap-1 rounded-lg bg-card/70 px-1 py-px text-3xs leading-none text-ink-4/80 backdrop-blur-[2px]',
         className,
       )}
     >
@@ -173,22 +181,28 @@ function MapCredit({ className }: { className?: string }) {
           Done tap from the map. (The single documented exception is evisa.gov.vn, for reasons that
           do not apply here.) A credit the native app cannot follow is decoration. */}
       <a
-        className="pointer-events-auto underline-offset-2 hover:underline"
+        className="pointer-events-auto underline-offset-2 transition-colors hover:text-body hover:underline"
         href="https://www.openstreetmap.org/copyright"
         onClick={handleExternalClick}
         target="_blank"
         rel="noreferrer"
       >
-        {tr('© OpenStreetMap contributors', '© Cộng tác viên OpenStreetMap')}
+        {/* ⚠️ NOT TRANSLATED, AND THAT IS THE FIX. This ran through tr(), so for every
+            machine-translated language the catalogue rendered it in that language — reported
+            live as "© Участники проекта OpenStreetMap" on a Vietnamese/English marketplace.
+            It is a LEGAL attribution (ODbL) and a proper noun, not UI copy: the required
+            wording is "OpenStreetMap contributors", and translating it both looks broken and
+            weakens the credit it exists to give. Rendered verbatim, in every language. */}
+        {OSM_CREDIT}
       </a>
       <a
-        className="pointer-events-auto underline-offset-2 hover:underline"
+        className="pointer-events-auto underline-offset-2 transition-colors hover:text-body hover:underline"
         href="https://carto.com/attributions"
         onClick={handleExternalClick}
         target="_blank"
         rel="noreferrer"
       >
-        {tr('© CARTO', '© CARTO')}
+        {CARTO_CREDIT}
       </a>
     </p>
   )

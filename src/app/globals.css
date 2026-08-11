@@ -1557,6 +1557,49 @@ html.native-tabs .bottom-nav-spacer {
    pixel beyond it, so no ancestor's `overflow-hidden` can take a bite out of it. It also
    paints OVER the photo, which an inset box-shadow could not — that renders beneath child
    content, so the <img> would hide it entirely. */
+/* ── The eno basemap ────────────────────────────────────────────────────────────────
+   CARTO `light_all` is a good neutral map and looks like every other neutral map. These two
+   rules make it read as ours without swapping provider (which would restart the attribution
+   question) and without shipping a tile pipeline.
+
+   ⚠️ IT IS APPLIED TO THE TILE PANE ONLY, never the map container. Leaflet stacks markers,
+   popups and controls in sibling panes above `.leaflet-tile-pane`; a filter on the parent
+   would desaturate our own price pins, the trust chips inside popups and the zoom control
+   along with the roads — and, worse, `filter` creates a containing block, which would
+   re-anchor every `position: fixed` descendant and quietly break the popup card.
+
+   What the values do, and why they are small: saturate(0.9) takes the edge off CARTO's road
+   ochres so the brand blue of a price pin is the most saturated thing on screen; the tiny
+   hue-rotate pulls the greys a few degrees toward the app's blue so the map sits in the same
+   family as the UI around it; brightness(1.02) lifts it just off pure white so the card
+   surfaces floating over it keep an edge. Anything stronger stops looking like a map and
+   starts looking like a filter, which is the failure mode this is trying to avoid. */
+/* ⚠️ THE LIGHT VALUES ARE THE BARE-`:root` DEFAULT, and the dark ones are added only under a
+   real dark signal. The first version inverted under `:root:not([data-theme='light'])`, which is
+   TRUE for the default "system" setting — so every visitor who had never touched the theme
+   toggle got an inverted map on a light page. Same three-state rule the rest of this file
+   follows: define the light palette unconditionally, then override under BOTH
+   `prefers-color-scheme: dark` (guarded so an explicit light choice still wins) and an explicit
+   `[data-theme='dark']`. A colour whose only definition lives inside a media query is a bug
+   waiting for the third state. */
+.leaflet-tile-pane {
+  filter: saturate(0.9) hue-rotate(-6deg) brightness(1.02);
+}
+/* Dark mode: the basemap is always CARTO's LIGHT style (noted at the tile layer — it does not
+   follow the app theme), so on a dark canvas it is a glaring white rectangle. Inverting the
+   tiles and rotating the hue back is the standard trick for exactly this case: roads and
+   labels stay legible, water and parks keep plausible colours, and the sheet stops being the
+   brightest object on a dark page. Still the tile pane only, so the pins keep their real
+   colours on top of it. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .leaflet-tile-pane {
+    filter: invert(0.92) hue-rotate(180deg) saturate(0.75) brightness(0.95);
+  }
+}
+:root[data-theme='dark'] .leaflet-tile-pane {
+  filter: invert(0.92) hue-rotate(180deg) saturate(0.75) brightness(0.95);
+}
+
 .partner-ring-media {
   /* ⚠️ 2px, NOT the avatar's hairline — reported invisible at 1.5 (which Chromium rounds to a
      1px line anyway). An avatar ring sits OUTSIDE the shape against a plain surface, where a
