@@ -29,7 +29,7 @@ import { QuickReplyChips, MarkSoldPrompt } from '@/components/marketplace/quick-
 import { ReviewPrompt } from '@/components/marketplace/review-prompt'
 import { ChatComposer, type ChatComposerHandle } from '@/components/marketplace/chat-composer'
 import { useSafeBack } from '@/lib/safe-back'
-import { FirstContactNote, OffPlatformWarning, findOffPlatformMessageId } from '@/components/marketplace/chat-safety-note'
+import { FirstContactNote, OfferAcceptedNote, OffPlatformWarning, findOffPlatformMessageId } from '@/components/marketplace/chat-safety-note'
 import {
   VisaCheckoutCard, VisaPickerCard, VisaResendChip, VisaResultCard, VisaStepCard, VisaThreadStrip,
   parseVisaCheckoutMeta, parseVisaPickerMeta, parseVisaResultMeta, parseVisaStepMeta, parseVisaThreadInfo,
@@ -1293,17 +1293,52 @@ export default function ThreadPage() {
   const lastTheirs = thread ? [...thread.messages].reverse().find((m) => !m.mine) : undefined
   const hasPendingBuyerOffer = !!lastTheirs && lastTheirs.kind === 'offer' && lastTheirs.offerStatus === 'pending'
 
+  /**
+   * THE ACCEPTED OFFER — the moment this thread agreed a number.
+   *
+   * ⚠️ READ OFF THE SAME ARRAY THE TIMELINE RENDERS, never a second fetch, for the same reason
+   * `liveWizardMessageId` is: two answers to "did this deal close?" can disagree, and the one
+   * that would be wrong is the one nobody is looking at. Everything hanging off this moment —
+   * the buyer's review prompt and the safety line under the card — then moves together.
+   *
+   * Newest-first, matching the other live-card derivations above. The server allows only ONE
+   * accepted offer per thread (actOnOffer counts before it claims), but threads that predate
+   * that check can hold two at different prices, and the deal that stands is the last one.
+   */
+  const acceptedOfferId = useMemo(() => {
+    const msgs = thread?.messages ?? []
+    for (let i = msgs.length - 1; i >= 0; i--) {
+      const m = msgs[i]
+      if (m.kind === 'offer' && m.offerStatus === 'accepted') return m.id
+    }
+    return null
+  }, [thread])
+
   // Buyer-side review prompt: the deal closed (listing sold OR an offer here was
   // accepted) and this conversation hasn't produced a review yet.
-  const hasAcceptedOffer = !!thread?.messages.some((m) => m.kind === 'offer' && m.offerStatus === 'accepted')
+  const hasAcceptedOffer = !!acceptedOfferId
   const showReviewPrompt = !!thread && !thread.iAmSeller && !thread.hasReviewed && !!thread.counterpart.sellerId &&
     (thread.listing.status === 'sold' || hasAcceptedOffer)
 
-  // Safety interjections — pure render-time, no fetch/send involvement.
+  // Safety interjections — pure render-time, no fetch/send involvement. THREE moments now:
+  // the thread's first breath, the first off-platform lure, and the moment a price is agreed.
   // First-contact hint: I haven't spoken yet (or the thread barely started).
   // Genuine thread STARTS only — an old unanswered thread (buyer wrote 10 messages
   // weeks ago, seller never replied) is not a 'first chat' and the copy would lie.
-  const showFirstContactNote = !!thread && thread.messages.length <= 3 && !thread.messages.some((m) => m.mine)
+  //
+  // ⚠️ THE ACCEPTED-OFFER LINE WINS OVER THIS ONE — that is what `!acceptedOfferId` is for.
+  // Both notes end on the SAME sentence ("Meet in public, inspect, then pay."), so running both
+  // prints one instruction twice on one screen; and "First chat" has stopped being true the
+  // moment a number was agreed, so this is also the note that would be lying. The later moment
+  // is the one the sentence is about, and it is anchored to the card rather than to the top of
+  // a scroller, so it is the one that gets read.
+  //
+  // The overlap is narrow but real, and it does NOT close itself: accepting posts a "✅ …" line
+  // authored by the acceptor, which alone would falsify `!some(m => m.mine)` — except actOffer
+  // flips offerStatus OPTIMISTICALLY, so there is a live frame (and, on a dropped response, far
+  // longer) where the acceptance is on screen and the confirmation message is not. Deriving the
+  // suppression from the rendered array closes that frame instead of trusting a message to land.
+  const showFirstContactNote = !!thread && !acceptedOfferId && thread.messages.length <= 3 && !thread.messages.some((m) => m.mine)
   // Off-platform lure: anchor ONE warning under the first suspicious incoming message.
   const offPlatformWarnId = thread ? findOffPlatformMessageId(thread.messages) : null
 
@@ -1531,6 +1566,27 @@ export default function ThreadPage() {
                     {m.mine && m.offerStatus === 'pending' && (
                       <div className="mt-1 text-xs text-ink-4">{tr('Waiting for a response…', 'Đang chờ phản hồi…')}</div>
                     )}
+                    {/* §10.2 — THE SAFETY LINE AT THE MOMENT OF AGREEMENT. Inside the card, to
+                        BOTH parties, immediately above the Mark-as-sold action below. The buyer
+                        gets the line on its own (there is no sold action on their side, and the
+                        instruction is mostly theirs to act on anyway).
+                        ⚠️ GATED ON THE ACCEPTED OFFER AND NOTHING ELSE — not on justAcceptedId,
+                        not on the listing still being active, not on the sold prompt being
+                        unanswered. It has to survive a reload and be there for the party who did
+                        NOT tap Accept; a safety line with an off switch is one that goes missing
+                        at the moment it exists for. Anchoring to the single derived id (rather
+                        than to `m.offerStatus === 'accepted'`) keeps a legacy thread carrying two
+                        'accepted' rows down to ONE line. Pending / countered / declined / expired
+                        never match: none of them is the id this resolved to.
+                        ⚠️ NOT ALSO GATED TO MARKETPLACE THREADS, and that was MEASURED rather than
+                        assumed — two reviewers read "meet in public, inspect" on an e-Visa as the
+                        obvious hole. A desk thread cannot hold an offer to accept: both desks seed
+                        their products `negotiable = false` (seed-visa-shop.mjs, seed-trip-desk.mjs),
+                        the composer's offer button is gated on `negotiable !== false`, and the send
+                        route refuses one anyway (409 not_negotiable). A `kind === 'listing'` gate
+                        here would be dead code that ALSO hid the line on a cold cache paint, where
+                        `kind` is absent — the deny-list lesson written out in the timeline map above. */}
+                    {m.id === acceptedOfferId && <OfferAcceptedNote />}
                     {/* Seller just accepted THIS offer → follow through to "sold". */}
                     {thread?.iAmSeller && m.id === justAcceptedId && m.offerStatus === 'accepted' && (
                       <MarkSoldPrompt listingId={thread.listing.id} listingTitle={thread.listing.title} />
