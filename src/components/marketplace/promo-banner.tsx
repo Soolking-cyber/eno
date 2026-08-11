@@ -241,6 +241,90 @@ export function PromoBanner() {
  * min-h keeps both properties that matter: the height is reserved before hydration so the block
  * never collapses-then-fills (the CLS bug that cost this page 0.142 once already), and a long
  * Vietnamese line grows the panel instead of being cut off.
+ *
+ * ⚠️ THE lg STEP IS 232px AND THAT NUMBER IS A MEASURED FLOOR, NOT A TASTE CHOICE — DO NOT LOWER IT.
+ * It was 300px. The home-page wireframe asked for ~112px so the first grid row clears the fold at
+ * 1080p (listings-explorer.tsx records the companion measurement: first product at y=983 on a 900px
+ * viewport). 112px is NOT REACHABLE with the artwork the partner supplied, and the arithmetic is
+ * worth keeping because the next person will be asked for it again.
+ *
+ * ⚠️ AND STATE THE RESULT HONESTLY: THIS DOES NOT, ON ITS OWN, CLEAR THE FOLD. 983 - 900 = 83px of
+ * overshoot; 300→232 removes 68 of it and leaves the first grid row at y≈915, still ~15px under a
+ * 900px viewport. It clears on a taller one (a 1080p screen with less browser chrome, ≥950px), and
+ * the remaining ~15px has to come from the blocks BELOW this one (WhyEno, the category grid) or
+ * from a shorter partner cut — not from this ladder, which is already at its floor. An earlier
+ * draft of this comment asserted the fold was cleared; it was not, and three reviewers caught it.
+ *
+ * The binding case is the WIDEST panel: max-w-7xl caps at 1280px, so from a 1344px viewport up the
+ * art slide paints /banners/vietkite-desktop.webp (1280x300) at scale 1.0 and `object-cover` crops
+ * PURELY VERTICALLY, symmetric about the centre line. The visible source band is exactly
+ * [150 - H/2, 150 + H/2]. Measured against the real file by cropping it at candidate heights:
+ *   H=300 → band [0,300]   the native cut, nothing cropped
+ *   H=232 → band [34,266]  ✅ everything survives: the VietKite lockup, "Travel & Visa /
+ *                          VISA 24 GIỜ", the headline, the subline, the VIEW E-VISA OPTIONS
+ *                          button and BOTH entry cards down to their "+ MORE OPTIONS" row.
+ *                          Only the decorative landscape strip along the bottom is lost.
+ *   H=224 → band [38,262]  ❌ already too tight: "Travel & Visa" loses its ascenders and the
+ *                          "+ MORE OPTIONS" rows touch the bottom edge.
+ *   H=216 → band [42,258]  ❌ the lockup is sliced through; the option rows clip.
+ *   H=112 → band [94,206]  ❌ the lockup is GONE ENTIRELY and the CTA button is cut in half.
+ * So 232 is the smallest height at which no partner content is lost, and it is symmetric by
+ * coincidence: the topmost ink (the lockup, y≈34-38) and the bottommost (the entry cards, y≈262-266)
+ * sit almost equidistant from the centre line, so nothing is bought by shifting object-position.
+ *
+ * ⚠️ 232 IS FLUSH, NOT COMFORTABLE — there is ~4px of margin at each edge and 224 already fails, so
+ * do not shave "just a few more px". An external reviewer raised the flip side and it is worth
+ * stating: a SECOND art slide added later would silently inherit this 34px top/bottom crop with no
+ * failure signal, because 232 was measured against ONE file. Any new `art` slide has to be re-cropped
+ * against this ladder before it ships.
+ *
+ * ⚠️ THE REST OF THE lg BAND WAS CHECKED TOO, because the crop FLIPS DIRECTION inside it and the
+ * 1280 measurement above does not cover that. The flip happens where the box stops being wider than
+ * the asset: W/232 < 4.267, i.e. W < 990px. The panel only reaches that at the very bottom of lg
+ * (viewport 1024 → W=960, the narrowest lg panel), so the horizontal case spans roughly viewport
+ * 1024-1054 and nothing else. Worst case, at W=960: cover scales by height (s = 232/300 = 0.773),
+ * the asset paints 990px wide into a 960px box, so 30px of RENDERED width is lost = 15px per side =
+ * ~19px per side in SOURCE pixels. The lockup begins near x=85, so it survives with ~66px to spare;
+ * this is verified a fortiori by a much harsher test — cropping the source to its middle 1152px
+ * (64px off EACH side, >3x the real loss) still leaves the lockup completely intact, taking only the
+ * outer edge of the "UNLIMITED ENTRIES" ribbon. Quote the units when repeating this: rendered and
+ * source pixels differ by the 0.773 scale and a reviewer mixed them up comparing 15 with 20.
+ *
+ * ⛔ SHIPPING 112px WOULD BE THE SAME DEFECT THIS FILE FIXED ONE COMMIT AGO. The "Advertisement ·
+ * VietKite" chip was removed because covering a partner's lockup is not ours to do; cropping that
+ * same lockup off the top of the frame destroys it just as completely, and more quietly. A 112px
+ * banner needs a NEW PARTNER CUT — roughly 1280x112 (11.4:1) with the lockup, headline, CTA and
+ * entry chips re-laid out for that band — which is a promo-slides.ts + public/banners change, not a
+ * CSS one.
+ *
+ * The DOM slides are not what holds the floor up: measured at the 1280px panel their tallest
+ * composition (1-line h2 at text-3xl + 2-line body + CTA + py-3) is ~182px, so 232 is real slack for
+ * them and the cap actually applies rather than being silently overridden by content.
+ *
+ * ⚠️ min-h IS A FLOOR, SO "CAP" ONLY HOLDS WHILE THE CONTENT FITS — and because the carousel takes
+ * the MAX across slides, one slide outgrowing 232 re-lengthens the banner for ALL of them. Two
+ * things bound it, one solid and one not:
+ *   SOLID — panel width does NOT change the body's line count. The <p> is `max-w-xl` (576px), which
+ *   is narrower than the text column at every lg width (76% of a 960px panel is 687px, of a 1280px
+ *   panel 930px), so it wraps to the same 2 lines at 1024 as at 1920. A reviewer argued the narrower
+ *   1024 panel would force extra lines and grow the box; checked, and it does not.
+ *   NOT SOLID — the headroom is only ~50px, and en/vi is NOT the whole language set. `tr(en, vi)`
+ *   falls through to TR_OVERRIDES and then to machine translation (see language-context.tsx), so
+ *   these slides render in every language the app offers, and a longer MT string is not bounded by
+ *   the 92-char bodyVi or the ≤33-char titles this was measured against. At a 1024 viewport an MT
+ *   title can take a 2nd line (687px column) and an MT body a 3rd, which together reach ~246px and
+ *   breach 232.
+ * ⚠️ THAT BREACH IS GRACEFUL, WHICH IS WHY 232 IS STILL THE RIGHT NUMBER: the banner simply
+ * re-lengthens, so the cost is the fold win, NOT the artwork — a taller panel crops the partner cut
+ * LESS, never more. So this degrades toward the old 300px behaviour rather than toward a defect. It
+ * is a real reduction in slack though (300 left ~118px, 232 leaves ~50px), so re-measure when slide
+ * copy changes rather than assuming the fit still holds.
+ *
+ * ⚠️ THIS LADDER IS MIRRORED IN src/app/(home)/loading.tsx (the instant skeleton reserves the same
+ * min-h so the block does not resize when real content replaces it). THE TWO MUST MOVE TOGETHER —
+ * a skeleton reserving 300 for a 232 banner is a 68px collapse, i.e. exactly the CLS bug this
+ * component's min-h exists to prevent. That file is owned by another stream in this wave; if it
+ * still reads lg:min-h-[300px], this cap has shipped a regression and that is the fix.
  */
 function SlidePanel({ slide, first = false }: { slide: PromoSlide; first?: boolean }) {
   const { tr } = useLanguage()
@@ -296,14 +380,34 @@ function SlidePanel({ slide, first = false }: { slide: PromoSlide; first?: boole
         // carousel sizes its viewport to the tallest slide, so an art slide that computed its own
         // height from the image aspect made the panel change height between slides. Sharing the
         // ladder means every slide is exactly as tall as every other one.
-        className="group relative block min-h-[188px] overflow-hidden sm:min-h-[212px] lg:min-h-[300px]"
+        // ⚠️ THE TWO LADDERS MUST STAY CHARACTER-IDENTICAL. Because the carousel takes the MAX, a
+        // ladder that drifts on one branch does not misalign that slide — it silently raises the
+        // floor for ALL of them, and the cap below stops applying with nothing failing loudly.
+        // 232 at lg is a measured floor; the SlidePanel doc comment above has the crop arithmetic.
+        className="group relative block min-h-[188px] overflow-hidden sm:min-h-[212px] lg:min-h-[232px]"
       >
         <picture>
           {/* ⚠️ THE SWITCH IS AT lg (1024), NOT sm. The two cuts are 4.27:1 (desktop) and 1.95:1
-              (mobile), and the panel is ~1.95:1 on a phone but ~4:1 at lg. Serving the wide cut
-              from 640px put a 4.27:1 image into a 2.8:1 box, which `object-cover` then had to crop
-              by a third — taking the lockup off the left and the entry chips off the right. Below
-              lg the mobile cut is much closer to the box, so almost nothing is lost. */}
+              (mobile). Serving the wide cut from 640px put a 4.27:1 image into a ~2.8:1 box, which
+              `object-cover` then had to crop by a third — taking the lockup off the left and the
+              entry chips off the right. The mobile cut is the safer of the two below lg.
+              ⚠️ "SAFER" IS NOT "SAFE", AND THIS IS A KNOWN OPEN DEFECT — MEASURED, NOT SUSPECTED.
+              A fixed min-height cannot serve a fixed-aspect image across a FLUID width range: the
+              box ratio is W/H, so the wider the viewport the more vertical crop the same height
+              buys. The mobile cut only fits where the panel is ~1.95:1, which is true at exactly
+              one place on the ladder — a 390px phone, where 366/188 = 1.947 and nothing is lost.
+              Everywhere else below lg it already loses partner content, at TODAY's heights:
+                640px viewport → panel 592x212 → visible source band [57,319] of 376: the VietKite
+                                 mark is decapitated and "Travel & Visa" is gone entirely.
+                1023px         → panel 975x212 → band [108,267]: the lockup AND both entry cards
+                                 are gone; only the headline and half the CTA survive.
+              This predates the 300→232 cap below and is untouched by it — the cap only moves the lg
+              step, and lg is the one range that was already correct. It is NOT fixable by nudging
+              these numbers: dropping the wide cut to md trades the crop for illegibility (a 1280px
+              asset painted into a 720px box shrinks the partner's 18px type to ~11px, which is why
+              they supplied a separate mobile cut at all), and making the art slide aspect-ratio'd
+              instead of min-h'd breaks the shared-ladder invariant documented above. The real fix
+              is a third cut sized for the 600-1023 band, i.e. a promo-slides.ts change. */}
           <source media="(min-width: 1024px)" srcSet={slide.art.desktop} width={1280} height={300} />
           {/* A plain <img>, deliberately: next/image defers discovery behind its own runtime and
               this element is the LCP, so what the preload scanner can act on at parse time is
@@ -316,12 +420,22 @@ function SlidePanel({ slide, first = false }: { slide: PromoSlide; first?: boole
             // is unchanged (1.947:1), so CLS is unaffected; these just describe the real file.
             width={732}
             height={376}
-            // ⚠️ FILL THE PANEL AND CROP THE SIDES — owner, 2026-08-10 ("height adjust to fit all
-            // into banner, cut from sides"). `h-auto` let the artwork dictate the height, which
-            // left a short slide sitting in a taller viewport. Now the panel owns the height and
-            // the image covers it; anything that does not fit goes off the LEFT and RIGHT edges,
-            // never the top and bottom, because the artwork's message sits on the horizontal
-            // centre line while its margins are decorative landscape.
+            // ⚠️ FILL THE PANEL — owner, 2026-08-10 ("height adjust to fit all into banner, cut
+            // from sides"). `h-auto` let the artwork dictate the height, which left a short slide
+            // sitting in a taller viewport. Now the panel owns the height and the image covers it.
+            // ⚠️ WHICH EDGES THE CROP TAKES FROM IS NOT A CHOICE, IT IS W/H vs THE ASSET RATIO, and
+            // an earlier version of this comment claimed the loss is always left/right. It is not,
+            // and believing that is how the lockup gets cropped off without anyone noticing:
+            //   box ratio  <  asset ratio → the asset is the wider one → crop is LEFT/RIGHT
+            //   box ratio  >  asset ratio → the box is the wider one   → crop is TOP/BOTTOM
+            // Both happen here. At lg the panel runs 960x232 (4.14:1, narrower than the desktop
+            // cut's 4.27 → ~20px off each side) up to 1280x232 (5.52:1, wider → 34px off the top
+            // and bottom). Below lg the panel is wider than the mobile cut everywhere except a
+            // 390px phone, so the loss there is top/bottom too — see the <source> note above.
+            // object-center is right for BOTH directions on this artwork: the message is centred
+            // horizontally between the lockup and the entry cards, and vertically between them and
+            // the decorative landscape. Shifting object-position buys nothing (measured) and would
+            // help one breakpoint by hurting another.
             // Absolute + inset-0 so the image fills the min-h box rather than defining it — that
             // is what keeps the height stable and CLS at 0 while the bytes are still arriving.
             className="absolute inset-0 h-full w-full object-cover object-center"
@@ -360,25 +474,34 @@ function SlidePanel({ slide, first = false }: { slide: PromoSlide; first?: boole
         // It is `lg:` rather than `pc:` deliberately: `pc:` and `lg:` are different variants that
         // both match on a desktop, and which one wins would come down to stylesheet order, which is
         // exactly the fragile thing this codebase has been bitten by before.
-        // Taller at lg now that the banner spans the full width rather than two thirds of it —
-        // a 1400px-wide panel only 248px tall reads as a strip, not a banner.
+        // ⚠️ THE lg STEP WAS 300px AND IS NOW 232px, CAPPED SO THE FIRST GRID ROW CLEARS THE FOLD
+        // AT 1080p. It is NOT a free aesthetic knob in either direction: the number is set by what
+        // the partner artwork on the sibling branch can lose without losing its lockup (the crop
+        // arithmetic is in the SlidePanel doc comment), and the carousel takes the MAX of the two
+        // branches, so raising it here re-lengthens the banner for every slide including that one.
+        // The older note this replaces read "a 1400px-wide panel only 248px tall reads as a strip,
+        // not a banner" — that judgement still stands on its own terms and was overridden
+        // deliberately, because a banner nobody scrolls past is worth more than a taller one.
         // Padding halved (owner, 2026-08-05): px-5/py-6/sm:px-7/lg:px-14 -> px-3/py-3/sm:px-4/lg:px-7.
         // ⚠️ This tightens the INSET, not the height. The panel is sized by min-h + justify-center,
         // so the vertical padding is slack the min-height already absorbs — halving py alone moves
-        // nothing until the content outgrows the panel. Shortening the banner means lowering the
-        // min-h values below, which is a separate decision and deliberately left alone.
+        // nothing until the content outgrows the panel. Shortening the banner therefore means
+        // lowering the min-h values below — which has now been done at the lg step (300 -> 232),
+        // and the py-3 above is still slack rather than the thing that sets the height.
         // ⛔ NO `.press` HERE, AND THE REASON IS THE GESTURE, NOT THE SIZE.
         // A design review flagged this panel as the largest tap target on the home page with no
         // press feedback, and adding `.press` looked obviously right. It is not: this panel is a
         // SWIPE surface (see the carousel note below — "on touch the swipe is the gesture").
         // `:active` latches on pointer-down and holds for the whole drag, so a 0.96 scale would
         // shrink the panel under the finger for the length of every swipe — ~7px of edge travel
-        // at 366×188, ~24px at the lg:min-h-[300px] size. Press feedback is sized for a tap; on a
+        // at a 366px-wide panel, ~26px at the 1280px lg one. (That travel is set by the panel's
+        // WIDTH, not by the min-h ladder, so capping the lg height to 232 did not shrink it.)
+        // Press feedback is sized for a tap; on a
         // drag surface it reads as the page flinching. A reviewer caught this after it shipped in
         // an earlier revision of this line.
         // If this ever needs tap feedback, it has to be gated on a real tap (pointerup without
         // movement), not on `:active`.
-        'relative flex min-h-[188px] flex-col justify-center overflow-hidden px-3 py-3 text-white sm:min-h-[212px] sm:px-4 lg:min-h-[300px] lg:px-7 pc:px-14',
+        'relative flex min-h-[188px] flex-col justify-center overflow-hidden px-3 py-3 text-white sm:min-h-[212px] sm:px-4 lg:min-h-[232px] lg:px-7 pc:px-14',
         slide.surface,
       )}
     >
