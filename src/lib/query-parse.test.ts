@@ -548,3 +548,39 @@ describe('parseQuery — edges', () => {
     expect(r.facets).toEqual([])
   })
 })
+
+/**
+ * ⛔ A MEASUREMENT IS NOT A PRICE, AND THIS WAS A LIVE DEAD END.
+ *
+ * `MEASURE_UNITS` originally guarded only the YEAR reading, so the bare-money inference read an
+ * odometer as a budget: "xe cu chay 55.000 km" became a 55.000 ₫ ceiling — under MIN_PRICE_VND,
+ * which this file justifies as "nothing on this marketplace is listed under it" — so the buyer got
+ * a guaranteed empty feed AND lost the number from their query. The worst shape kept the wrong
+ * number and dropped the right one: with the ceiling slot already filled by the odometer, a real
+ * budget later in the same query stayed as free text. Found by an external reviewer.
+ */
+describe('a number followed by a measure unit is never a price', () => {
+  it('does not read an odometer as a budget', () => {
+    const r = parseQuery('xe cu chay 55.000 km')
+    expect(r.priceMax).toBeUndefined()
+    expect(r.text).toContain('55.000')
+  })
+
+  it('keeps the year and still refuses the odometer', () => {
+    const r = parseQuery('oto toyota vios 2019 90.000 km')
+    expect(r.year).toBe(2019)
+    expect(r.priceMax).toBeUndefined()
+  })
+
+  it('takes the REAL budget when a measurement appears first', () => {
+    // The ceiling slot must not be spent on the odometer, or the actual budget is left as text.
+    const r = parseQuery('xe 80.000 km gia 50 trieu')
+    expect(r.priceMax).toBe(50_000_000)
+  })
+
+  it('agrees with the glued spelling, which was always refused', () => {
+    // Two spellings of one intent must parse the same — the reason MEASURE_UNITS exists.
+    expect(parseQuery('xe 50.000km').priceMax).toBeUndefined()
+    expect(parseQuery('xe 50.000 km').priceMax).toBeUndefined()
+  })
+})

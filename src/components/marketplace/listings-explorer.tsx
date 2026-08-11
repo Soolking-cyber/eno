@@ -1094,7 +1094,7 @@ export function ListingsExplorer({
     return params.toString()
   }, [activeBrand, activeModel, activeCategory, activeSubcategory, nearby, activeDistrict, activeProvince, activeWard, conditionFilter, listingType, debouncedQuery, looseMatch, sort, verifiedOnly, priceRange, customFilters, lang])
 
-  const { data: listingsData, isLoading: queryLoading, isFetching: queryFetching, isError: queryError, refetch: refetchListings } = useQuery({
+  const { data: listingsData, isLoading: queryLoading, isFetching: queryFetching, isPlaceholderData: queryShowingStaleSet, isError: queryError, refetch: refetchListings } = useQuery({
     queryKey: [
       'listings',
       {
@@ -2609,8 +2609,27 @@ export function ListingsExplorer({
               would flash the page. Page 1 is exactly the refetch that REPLACES the set (a filter
               or sort change — placeholderData holds the old rows meanwhile), which is the case
               this affordance was written for. External reviewer. */}
+          {/* ⛔ `queryShowingStaleSet`, NOT `queryFetching` ALONE — THE PAGE-1 NARROWING IS NOT
+                ENOUGH ON THE HOME FEED. The home route bakes 12 cards into 6h ISR HTML and seeds the
+                query with them; staleTime is 30s, so `refetchOnMount` fires a page-1 revalidation
+                the moment the tree hydrates, on 100% of cold loads. With only `queryFetching &&
+                page === 1` that meant: frame A the grid paints at full opacity, frame B the WHOLE
+                grid dips to 70% and the footer button is replaced by a shorter spinner, frame C it
+                all comes back — a flash and a shift on the site's most-served route, none of which
+                happened before the landing and results branches were merged.
+                `isPlaceholderData` is the honest signal for what this affordance was written for:
+                it is true only while the rows on screen belong to the PREVIOUS query (a filter or
+                sort change, held over by `placeholderData`), which is exactly when dimming says
+                something true — "these are the old results". A background revalidation of the set
+                you are already looking at is not that, and must be invisible.
+                ⚠️ THIS COMMENT SITS OUTSIDE THE `&& (` ON PURPOSE. A braced JSX comment is only
+                valid as a CHILD; in expression position — directly after `cond && (` — it is a
+                syntax error, not a comment. Putting it there is what broke this file for one edit.
+                ⚠️ And do not write the closing marker of a block comment inside one, even as prose:
+                it ends the comment there and the remainder becomes JSX text with stray braces.
+                That is what broke it a second time, one line below this. */}
           {viewMode !== 'video' && shownListings.length > 0 && (
-            <div className={cn('transition-opacity duration-200', queryFetching && page === 1 && 'opacity-70')}>
+            <div className={cn('transition-opacity duration-200', queryShowingStaleSet && page === 1 && 'opacity-70')}>
               {/* ⚠️ NO `key` AND NO ENTRANCE. The key was
                   `viewMode|activeCategory|activeSubcategory|activeDistrict|sort|verifiedOnly|conditionFilter`,
                   which forced a full unmount/remount of every card on each filter change: every
@@ -2781,7 +2800,12 @@ export function ListingsExplorer({
                   client-side: there is no further page to fetch. */}
               {!nearby && viewMode !== 'map' && (
                 <div ref={loadMoreRef} className="mt-6 select-none">
-                  {showDiscovery && hasMore && !feedUnlocked && !queryFetching && (
+                  {/* ⚠️ THE BUTTON AND THE SPINNER ARE MUTUALLY EXCLUSIVE AND BOTH KEY OFF THE SAME
+                      CONDITION, or the footer swaps a 44px button for a ~19px spinner and shifts the
+                      page. Gated on a fetch that is actually LOADING MORE (page > 1) rather than any
+                      fetch: the automatic page-1 revalidation on every cold home load is not the
+                      user asking for more, and treating it as such is what made this region flicker. */}
+                  {showDiscovery && hasMore && !feedUnlocked && !(queryFetching && page > 1) && (
                     <div className="border-t border-border pt-6">
                       {/* The undirected feed's ONE ending (wow pass, 2026-08-06): a full-width
                           continuation instead of a small centred "Load more" — on a sparse
@@ -2797,7 +2821,7 @@ export function ListingsExplorer({
                       </Button>
                     </div>
                   )}
-                  {queryFetching && hasMore && (
+                  {queryFetching && page > 1 && hasMore && (
                     <div className="flex items-center justify-center gap-2 border-t border-border pt-5 text-xs font-semibold text-muted-foreground">
                       <Spinner size="sm" className="border-border border-t-brand" />
                       {tr('Loading more…', 'Đang tải thêm…')}

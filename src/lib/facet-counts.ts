@@ -302,6 +302,17 @@ export function releasedParams(searchParams: URLSearchParams, dimension: FacetDi
       p.delete('subcategory')
       p.delete('brand')
       p.delete('model')
+      // ⛔ THE PRICE RANGE GOES TOO, BECAUSE THE TAP CLEARS IT. `handleCategorySelect` in
+      // listings-explorer.tsx also does `setPriceRange('all')` — "price brackets are
+      // category-specific" — so a category count computed WITH the current price band answers a
+      // question the tap will never ask. Measured shape of the lie: a buyer browsing Electronics
+      // under 5,000,000 ₫ saw "Vehicles · 0", because almost no motorbike is under 5M; tapping it
+      // would have reset the band and returned hundreds. That is off by two orders of magnitude in
+      // the direction that SUPPRESSES a tap which would have worked — the inverse of the dead end
+      // and the same class of lie. A released dimension must match what the handler actually
+      // clears; if that handler ever stops clearing the price, this line comes out with it.
+      p.delete('priceMin')
+      p.delete('priceMax')
       // Snapshot the keys first — deleting while iterating a live URLSearchParams skips entries.
       for (const k of [...p.keys()]) if (k.startsWith('attr_') || k.startsWith('range_')) p.delete(k)
       break
@@ -380,7 +391,18 @@ export type FacetCountOptions = {
  * from what it already holds; a DIFFERENT caller with no such data can ask for it by name.
  */
 export function defaultDimensions(searchParams: URLSearchParams): FacetDimension[] {
-  const category = searchParams.get('category') || undefined
+  // ⛔ `priorityCategory` COUNTS AS A CATEGORY SIGNAL HERE, AND MISSING THAT KILLED TAPS 3 AND 4.
+  // The explorer does NOT send `category` once a brand is chosen without a model — it sends
+  // `priorityCategory` instead (listings-explorer.tsx: `else if (activeCategory !== 'all')
+  // params.set('priorityCategory', activeCategory)`). Reading only `category` therefore returned
+  // ['category','condition','type','area'] the instant someone tapped a brand, and since an ABSENT
+  // dimension means "render no counts", the brand rail went dark at exactly the tap that opens it
+  // and the MODEL rail — tap four, the one this whole module exists for — could only ever get
+  // counts after a model was already picked. The four-tap dead end was unguarded precisely where
+  // it is most likely.
+  // It stays a PRESENTATION_PARAM for the count BASES (it is a ranking hint, not a filter, so it
+  // must not narrow a count); this reads it only to decide WHICH RAILS EXIST.
+  const category = searchParams.get('category') || searchParams.get('priorityCategory') || undefined
   const subcategory = searchParams.get('subcategory') || undefined
   const dims: FacetDimension[] = ['category', 'condition', 'type', 'area']
   if (category && category !== 'all' && CATEGORY_BY_SLUG[category]) {

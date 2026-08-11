@@ -132,11 +132,20 @@ describe('releasedParams', () => {
       new URLSearchParams({
         category: 'vehicles', subcategory: 'motorbikes', brand: 'honda', model: 'Wave',
         attr_transmission: 'manual', range_year: '2015-2020',
-        condition: 'used', type: 'sell', district: 'd1', priceMin: '1000',
+        condition: 'used', type: 'sell', district: 'd1', priceMin: '1000', priceMax: '5000000',
       }),
       'category',
     )
-    expect(Object.fromEntries(p)).toEqual({ condition: 'used', type: 'sell', district: 'd1', priceMin: '1000' })
+    // ⛔ THE PRICE BAND IS RELEASED TOO, AND THE FIRST VERSION OF THIS TEST ASSERTED THE OPPOSITE.
+    // A released dimension must mirror what the TAP actually clears, and `handleCategorySelect` in
+    // listings-explorer.tsx also does `setPriceRange('all')` — "price brackets are
+    // category-specific". Counting the category rail with the old band still applied produced the
+    // exact lie this module exists to prevent, in the direction nobody notices: a buyer browsing
+    // Electronics under 5,000,000 ₫ saw "Vehicles · 0", because almost no motorbike is under 5M —
+    // yet tapping it would have reset the band and returned hundreds. Off by two orders of
+    // magnitude, and it SUPPRESSES a tap that would have worked. Found by an external reviewer.
+    // If that handler ever stops clearing the price, this expectation moves back with it.
+    expect(Object.fromEntries(p)).toEqual({ condition: 'used', type: 'sell', district: 'd1' })
   })
 
   it('releases ONLY the subcategory for the subcategory rail — brand survives a subcategory tap', () => {

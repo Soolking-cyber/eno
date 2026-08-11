@@ -11,7 +11,7 @@ import { ListingCardSkeleton } from '@/components/marketplace/listing-card-skele
  *   section `pt-5 pb-5 sm:pt-6 sm:pb-8`
  *     ├ hero  — an sr-only <h1> only: ZERO height, so nothing is drawn for it here
  *     └ `space-y-8 sm:space-y-12`
- *         ├ <PromoBanner/>   189.5 / 300      (min-h-[188px] sm:212 lg:300, rounded-2xl)
+ *         ├ <PromoBanner/>   189.5 / 232      (min-h-[188px] sm:212 lg:232, rounded-2xl)
  *         ├ <WhyEno/>        122   / 108.3    (border-t + pt-8 + h-12 glyph band + label)
  *         ├ category grid    230   / 256      (2 rows × 103/112px tiles)
  *         └ feed             header 28 + mb-3 + the 2/3/4-col grid
@@ -46,7 +46,13 @@ export default function HomeLoading() {
           <div className="relative w-full space-y-8 sm:space-y-12">
 
             {/* PROMO BANNER — the full-width carousel, first child of the landing container. */}
-            <Skeleton className="min-h-[188px] w-full rounded-2xl sm:min-h-[212px] lg:min-h-[300px]" />
+            {/* ⛔ THE lg HEIGHT IS COUPLED TO promo-banner.tsx AND THE TWO MOVE TOGETHER. The banner
+                was capped from 300px to 232px at lg so the first grid row clears the fold at 1080p;
+                this skeleton was not in that stream's allowlist, so for one commit it reserved 300px
+                for a 232px banner — a 68px collapse on every cold desktop load, taking CLS from
+                0.002 to roughly 0.14 on the one page deliberately tuned to 0.002. The banner's own
+                comment names this file as the other half of the change. Either both move or neither. */}
+            <Skeleton className="min-h-[188px] w-full rounded-2xl sm:min-h-[212px] lg:min-h-[232px]" />
 
             {/* WHY eno — hairline + a row of five bare glyphs with a label under each.
                 -mx-3/px-3 is COUPLED to the page frame's px-3, same as the real band. */}

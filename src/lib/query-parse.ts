@@ -625,7 +625,22 @@ export function parseQuery(input: string, opts: { now?: Date } = {}): ParsedQuer
      * "xe 20 triệu trở lên" measured as priceMax 20.000.000 before this guard.
      */
     const blocked = inferenceBlockedBy(folded[i - 1]) || phraseAt(folded, i - 2, FLOOR_PHRASES_BEFORE)
-    const money = wellFormed && !blocked && !raisesFloorAt(folded, i + wellFormed.consumed) ? wellFormed : null
+    /**
+     * ⛔ A NUMBER FOLLOWED BY A MEASURE UNIT IS A MEASUREMENT, NOT A PRICE — AND THIS GUARD USED TO
+     * PROTECT ONLY THE YEAR READING. `MEASURE_UNITS` fed `yearBlocked` and nothing else, so the
+     * bare-money inference below happily read an odometer. Measured on the pinned clock:
+     *   "xe cu chay 55.000 km"          → priceMax 55.000 ₫, residual "xe cu chay km"
+     *   "oto toyota vios 2019 90.000 km" → year 2019 + priceMax 90.000 ₫
+     *   "xe 80.000 km gia 50 trieu"      → priceMax 80.000 ₫, and the REAL budget ("50 trieu") is
+     *                                      left as free text because the ceiling slot is taken
+     * Every one of those lands under MIN_PRICE_VND — the floor this file justifies as "nothing on
+     * this marketplace is listed under it" — so the buyer gets a guaranteed empty feed AND their
+     * number deleted from the query: the four-tap dead end reached in one tap. The glued spelling
+     * "xe 50.000km" was already refused, so the two spellings of one intent disagreed, which is
+     * exactly the defect MEASURE_UNITS was introduced to fix for years. Same rule, both readings.
+     */
+    const measureFollows = MEASURE_UNITS.has(folded[i + (wellFormed?.consumed ?? 1)] ?? '')
+    const money = wellFormed && !blocked && !measureFollows && !raisesFloorAt(folded, i + wellFormed.consumed) ? wellFormed : null
 
     /**
      * A bare four-digit year inside the window. Guard 4 is the whole rule: outside 1990…now+1 this
