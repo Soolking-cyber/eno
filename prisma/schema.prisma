@@ -701,6 +701,55 @@ model Listing {
   soldToProfileId         String?            @db.Uuid // the in-app buyer, when soldChannel='eno' (scalar; display resolves at read)
   soldPlatform            String? // free text external marketplace, when soldChannel='external'
   soldAt                  DateTime?
+  // ── Two-sided sale confirmation (the trade loop, 2026-08-11) ───────────────────
+  // ⚠️ READ THE PREFIXES. `sold*` above is what the SELLER DECLARED, unilaterally — it is
+  // set by whichever of the five sold-writing paths ran, and one person's word is not a
+  // trade. `sale*` below is what the MARKETPLACE OBSERVED: the buyer's own answer, plus
+  // the number both sides agreed on. Trust and sold-price guidance read `sale*` ONLY.
+  // Everything here is nullable with no backfill, so the currently-deployed revision keeps
+  // working against the migrated DB (it simply never writes or reads these).
+  // The pure rules live in src/lib/trade-loop.ts — never re-derive them at a call site.
+  //
+  // The agreed price, in VND, as the SELLER entered it on the mark-sold sheet. Deliberately
+  // NOT `price`: a haggled item sells below its ask, and price guidance built from asks is
+  // the thing this column exists to replace. null = the seller did not say.
+  salePrice               Float?
+  // The buyer tapped "Yes, I bought it". ONLY this makes the sale count for trust, and only
+  // once BOTH sides have spoken does the review prompt appear (canPromptReview).
+  saleConfirmedAt         DateTime?
+  // The buyer tapped "No". Terminal-ISH: it stops every re-prompt forever and never counts
+  // toward trust, but the seller may re-attribute the sale to a DIFFERENT buyer (they picked
+  // the wrong person), which clears this stamp. See validateMarkSold.
+  saleDeclinedAt          DateTime?
+  // ⚠️ THE DURABLE PER-BUYER MEMORY, and the only thing that makes the anti-harassment and
+  // anti-relitigation rules TRUE rather than merely intended. Compact JSON, owned end-to-end by
+  // src/lib/trade-loop.ts (parseBuyerHistory / serializeBuyerHistory), one entry per buyer ever
+  // asked on this listing: [{"i":"<profile uuid>","a":<first-asked ms>,"d":<declined ms>}].
+  //
+  // Everything else in this cluster describes the CURRENT attribution and is therefore wiped
+  // whenever the seller re-attributes — which is exactly what two rounds of external review
+  // broke, both times MEASURED against the draft before fixing:
+  //   · A single "who declined" column: buyer A declines, seller attributes to B, B declines and
+  //     OVERWRITES A, so A becomes nameable again with a fresh window.
+  //   · A prompt clock keyed to the current channel: mark external, then mark the same buyer
+  //     again, and both clocks restamp. A silent buyer took 300 notifications over 300 days.
+  //   · A window keyed to soldAt: the intermediate external mark restamped it, so the window
+  //     crept forward a day per round and never closed at all.
+  //   · A restamp that skipped the cooldown: alternating the price hourly sent 336 notifications
+  //     in 14 days against a documented maximum of three.
+  //   · A plain slice() cap: naming 50 more buyers evicted the first decliner, who became
+  //     nameable again. `a` is therefore the IMMOVABLE window anchor (never soldAt, which must
+  //     stay free to mean "when it sold"), `p` is the price the buyer was last asked about, and
+  //     declined entries are never evicted by the cap.
+  // A per-buyer record survives every re-attribution, so none of the round-trips work.
+  //
+  // Cleared ONLY by a reactivation (a relisted item is genuinely a new sale). A scalar text
+  // blob, like Listing.attributes beside it — no FK, additive, safe outside the push flow.
+  saleBuyerHistory        String?
+  // Last time the buyer was ASKED. The re-prompt is bounded by a cooldown from here AND a
+  // deadline from soldAt (TRADE_LOOP in trade-loop.ts), which is why no attempt COUNTER is
+  // needed: an unanswered prompt stops on its own instead of nagging forever.
+  saleConfirmPromptedAt   DateTime?
   postedAt                DateTime           @default(now()) // also the feed-recency key; "confirm availability" bumps it
   views                   Int                @default(0)
   savedCount              Int                @default(0)
@@ -758,6 +807,57 @@ model Listing {
   @@index([city])
   @@index([condition])
   @@index([views])
+  // ── Trade loop (three indexes, each written for ONE named query) ───────────────
+  // ⚠️ THE COLUMN ORDER IS THE POINT. A B-tree serves leading equality predicates and then
+  // ONE trailing range; `IS NULL` is an equality-class predicate and is indexable, so the
+  // "not answered yet" columns sit in the equality prefix, not after the range.
+  //
+  // ⚠️ AND THESE INDEXES ARE THE ACCESS PATH, NOT THE PREDICATE LIST. A reviewer caught the
+  // first draft writing each query as ONLY the indexed columns — which is a weaker filter
+  // than the module enforces, and these comments are what the query author copies. Every
+  // WHERE below is written in FULL; the index covers the selective prefix and Postgres
+  // applies the rest as residual filters. The authority on "does this sale count" is
+  // src/lib/trade-loop.ts (countsTowardTrust / canRespondToSale) — never a SQL predicate
+  // reconstructed from memory.
+  //
+  // ⛔ AND EVERY CONSUMER MUST **ALSO** AND IN THE EDITION SCOPE. Visa/itinerary products are
+  // ordinary Listing rows (the shared-desk design), so a sweep or badge built from these
+  // predicates alone crosses the eno.vn / eno.forum boundary: an eno.vn user is asked to
+  // confirm a visa purchase, and confirmed visa sales are summed into a public marketplace
+  // trust score. These WHEREs are complete for the TRADE LOOP and for nothing else — see
+  // src/lib/edition-scope.ts.
+  //
+  // (1) The buyer's own pending prompt — "what am I being asked to confirm?", run on every
+  //     notification-badge read for a signed-in buyer:
+  //       WHERE "soldToProfileId" = $me AND status = 'sold' AND "soldChannel" = 'eno'
+  //         AND "saleConfirmedAt" IS NULL AND "saleDeclinedAt" IS NULL
+  //         AND "soldAt" >= now() - interval '14 days'   -- TRADE_LOOP.CONFIRM_WINDOW_DAYS
+  //         AND "complianceStatus" <> 'taken_down'
+  //     (status/soldChannel/soldAt matter: without them the badge counts prompts on
+  //     reactivated listings and on sales whose confirm window has already closed.)
+  //     soldToProfileId had NO index at all before this line (measured: pg_indexes on
+  //     "Listing" matched nothing containing 'sold'), so this query was a seq scan.
+  @@index([soldToProfileId, saleConfirmedAt, saleDeclinedAt])
+  // (2) The re-prompt sweep (a cron nudging buyers who never answered):
+  //       WHERE "soldChannel" = 'eno' AND status = 'sold' AND "soldToProfileId" IS NOT NULL
+  //         AND "saleConfirmedAt" IS NULL AND "saleDeclinedAt" IS NULL
+  //         AND "soldAt" >= $windowCutoff
+  //         AND "complianceStatus" <> 'taken_down'
+  //     Three equality/IS NULL columns then the one range column, in that order.
+  @@index([soldChannel, saleConfirmedAt, saleDeclinedAt, soldAt])
+  // (3) Trust's transaction count, which after this wave reads CONFIRMED sales instead of
+  //     approximating from Listing.updatedAt (src/lib/trust.ts):
+  //       WHERE "sellerId" = $seller AND status = 'sold' AND "soldChannel" = 'eno'
+  //         AND "soldToProfileId" IS NOT NULL AND "saleDeclinedAt" IS NULL
+  //         AND "saleConfirmedAt" >= $txSince
+  //         AND "complianceStatus" <> 'taken_down'
+  //     Equality on sellerId, range on saleConfirmedAt. The channel/buyer/declined clauses
+  //     are what stop a contradictory or reactivated row counting here while saleState()
+  //     reads it as declined or unsold.
+  @@index([sellerId, saleConfirmedAt])
+  // NOTE — deliberately NO index for sold-price guidance. Its consumer is the nightly
+  // /api/cron/price-stats aggregate, which reads the whole table by brand+model in one
+  // pass; a row-level index does not serve a full aggregate and would only cost writes.
   // Accelerates the accent-folded search (`searchText LIKE '%term%'`). Requires the
   // pg_trgm extension (already installed). Trivial at current row counts but keeps
   // search from sequential-scanning as the catalog grows.
