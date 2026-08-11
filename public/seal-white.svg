@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" role="img" aria-label="eno">
+  <!--
+    GENERATED FILE. DO NOT EDIT, AND DO NOT TRACE IT BY HAND.
+    Written by scripts/gen-seal-svg.mjs from the paths exported by
+    src/components/marketplace/eno-seal.tsx. Change the component, then re-run
+    the script; src/lib/seal-assets.test.ts fails CI when these bytes drift.
+
+    Variant: white — the line treatment in white ink. Dark or photographic grounds.
+
+    RESERVED MARK: the eno seal stands for FIRST-PARTY trust (trust score,
+    protections, fee safety, verification) per docs/icon-language.md §0b. It is
+    not decoration and not a slot: never place it beside a partner, advertiser
+    or third-party claim, and never on an enforcement or suspension surface —
+    its interior is a check, and a check asserts "verified".
+  -->
+  <path d="M6.7 3.5h10.6a2.2 2.2 0 0 1 2.2 2.2V10c0 4.8-3.9 8.5-7.5 10.6-3.6-2.1-7.5-5.8-7.5-10.6V5.7a2.2 2.2 0 0 1 2.2-2.2Z" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M8.5 11.6l2.6 2.6 4.6-5.2" fill="none" stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
