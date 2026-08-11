@@ -37,7 +37,28 @@ function SignInPageInner() {
         <Mascot name="key" white className="pointer-events-none absolute bottom-8 right-8 h-72 w-72 opacity-[0.13] lg:h-96 lg:w-96" />
         <Link href="/" className="relative text-2xl font-extrabold tracking-tight">eno.vn</Link>
         <div className="relative">
-          <h1 className="text-4xl font-extrabold leading-tight">{tr('e-commerce with no drama', 'Mua bán không drama.')}</h1>
+          {/* `h-display`, not a fixed off-scale utility step. §1 of the canon caps the markup scale
+              at 3xl/30px and routes anything larger through the FLUID display class
+              (clamp(1.75rem, 1.4rem + 1.5vw, 2.5rem) × 1.12), which is what the other ten h1s in
+              the app use. This heading was the app's ONLY off-scale one — grep confirms nothing
+              else exceeds 3xl.
+
+              ⚠️ THE "MOBILE" ARGUMENT FOR CHANGING IT IS WRONG, so don't restate it: this panel is
+              `hidden … md:flex`, so it never renders below 768px and a fixed 36px never reached a
+              phone. The real argument is the COLUMN. The panel is one half of `md:grid-cols-2`
+              minus p-12, so its content width is (viewport / 2 − 96px): 288px at 768, 416px at
+              1024, 624px at 1440. A viewport-driven clamp tracks that exactly — 33.9px at 768,
+              37.8px at 1024, 40px from ~1173 up — whereas a flat 36px was heaviest relative to the
+              column precisely where the column was narrowest, wrapping the English string across
+              three lines at the breakpoint. Fluid is SMALLER than the old value where it was
+              crowded and larger where there is room.
+
+              Weight drops 800 → 700 with the class, and that is intended: `.h-display` is plain
+              unlayered CSS in globals.css, so it beats a `@layer utilities` font-weight utility —
+              keeping one here would have been a class that silently did nothing. 700 is also what
+              every other page title in the app renders at. Colour still comes from the panel's own
+              `text-white` (these type classes never set colour). */}
+          <h1 className="h-display">{tr('e-commerce with no drama', 'Mua bán không drama.')}</h1>
           <p className="mt-3 max-w-sm text-base text-blue-100">
             {tr("Vietnam's trusted marketplace for the international community.", 'Chợ uy tín cho cộng đồng quốc tế tại Việt Nam.')}
           </p>

@@ -308,6 +308,9 @@ function loadDraft(messageId: string): Draft {
 
 export function TripWizardCard({ conversationId, messageId, meta }: { conversationId: string; messageId: string; meta: WizardStepMeta }) {
   const { tr, lang } = useLanguage()
+  // Same derivation as TripQuoteCard above: every money figure in this card is grouped for the
+  // ACTIVE language (vi → dot thousands), never for a hardcoded locale.
+  const locale = moneyLocale(lang)
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT)
   /** WHICH card's answers are loaded — not merely 'some card's'. See the repair effect. */
   const [hydratedCard, setHydratedCard] = useState<string | null>(null)
@@ -318,7 +321,15 @@ export function TripWizardCard({ conversationId, messageId, meta }: { conversati
   // Plausibility-banded đồng-per-dollar — a bare `> 0` check would let an absurd-but-positive rate
   // convert a sensible $120 into a figure that still passes the schema and becomes the AI's target.
   const usdRate = vndPerUsd(useCurrency().rates)
-  const usdPerDay = (vnd: number) => (usdRate ? `$${Math.round(vnd / usdRate).toLocaleString('en-US')}` : '')
+  /**
+   * The ≈$/day hint beside each budget tier. Money is formatted by src/lib/vnd.ts and by nothing
+   * else (docs/design-language.md §2) — this used to hand-roll `$` + toLocaleString('en-US'), which
+   * pinned COMMA thousands for every viewer and so printed "$1,200" to a Vietnamese reader on a
+   * screen where the đồng figure two lines up said "12.000.000 đ". formatMoneyFull carries the
+   * separator with the language (vi → "$1.200") and rounds internally, so no Math.round here.
+   * `design-lint.mjs` now fails the build on the old shape; see its money rule.
+   */
+  const usdPerDay = (vnd: number) => (usdRate ? formatMoneyFull(vnd / usdRate, '$', locale) : '')
   // ⚠️ The field's UNIT follows the rate, so the text is cleared when that flips — otherwise
   // "3000000" typed as đồng becomes three million DOLLARS the moment rates arrive.
   const unitIsUsd = !!usdRate
@@ -739,7 +750,7 @@ export function TripWizardCard({ conversationId, messageId, meta }: { conversati
                   {customBudgetInvalid
                     ? tr('Enter a realistic daily amount per traveler.', 'Nhập số tiền hợp lý mỗi khách, mỗi ngày.')
                     : customBudgetVnd
-                      ? `≈ ${formatMoneyFull(customBudgetVnd, '₫', moneyLocale(lang))} / ${tr('traveler / day', 'khách / ngày')}`
+                      ? `≈ ${formatMoneyFull(customBudgetVnd, '₫', locale)} / ${tr('traveler / day', 'khách / ngày')}`
                       : tr('Excludes long-haul flights, like the tiers above.', 'Chưa gồm vé bay đường dài, giống các mức ở trên.')}
                 </p>
               </div>

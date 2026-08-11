@@ -120,10 +120,19 @@ function SelectContent({
             so there is nothing left to race. The fade, zoom and slide utilities only set the
             keyframes' custom properties, so they are inert with no animation running.
             (Don't spell a full utility candidate in this comment: Tailwind scans raw TEXT,
-            so a class name written here is emitted into the bundle even if nothing uses it.) */}
+            so a class name written here is emitted into the bundle even if nothing uses it.
+            That rule is why the shadow note below names no stock utility.)
+
+            ELEVATION: `shadow-pop` is the TOKEN, not one of Tailwind's stock t-shirt shadow
+            utilities — which is what this popup carried until 2026-08-11. The tokens live in
+            globals.css (--shadow-pop / --shadow-card / --shadow-overlay) as plain `:root` vars
+            with `.dark` counterparts, so they share one light source and DEEPEN in dark mode
+            (0.08 → 0.45 alpha). A stock shadow is a fixed light-mode rgba that all but
+            disappears on the dark canvas, so an unfixed select sat visibly flatter than the
+            dropdown-menu next to it. */}
         <SelectPrimitive.Popup
           data-slot="select-content"
-          className={cn("relative isolate z-50 max-h-(--available-height) w-(--anchor-width) min-w-36 origin-(--transform-origin) overflow-x-hidden overflow-y-auto rounded-2xl bg-popover text-popover-foreground shadow-md ring-1 ring-foreground/10 duration-100 ease-out data-[side=bottom]:slide-in-from-top-2 data-[side=inline-end]:slide-in-from-left-2 data-[side=inline-start]:slide-in-from-right-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-[side=bottom]:data-closed:slide-out-to-top-2 data-[side=inline-end]:data-closed:slide-out-to-left-2 data-[side=inline-start]:data-closed:slide-out-to-right-2 data-[side=left]:data-closed:slide-out-to-right-2 data-[side=right]:data-closed:slide-out-to-left-2 data-[side=top]:data-closed:slide-out-to-bottom-2 not-data-[side=none]:data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 not-data-[side=none]:data-closed:animate-out data-closed:ease-in data-closed:fade-out-0 data-closed:zoom-out-95", className )}
+          className={cn("relative isolate z-50 max-h-(--available-height) w-(--anchor-width) min-w-36 origin-(--transform-origin) overflow-x-hidden overflow-y-auto rounded-2xl bg-popover text-popover-foreground shadow-pop ring-1 ring-foreground/10 duration-100 ease-out data-[side=bottom]:slide-in-from-top-2 data-[side=inline-end]:slide-in-from-left-2 data-[side=inline-start]:slide-in-from-right-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-[side=bottom]:data-closed:slide-out-to-top-2 data-[side=inline-end]:data-closed:slide-out-to-left-2 data-[side=inline-start]:data-closed:slide-out-to-right-2 data-[side=left]:data-closed:slide-out-to-right-2 data-[side=right]:data-closed:slide-out-to-left-2 data-[side=top]:data-closed:slide-out-to-bottom-2 not-data-[side=none]:data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 not-data-[side=none]:data-closed:animate-out data-closed:ease-in data-closed:fade-out-0 data-closed:zoom-out-95", className )}
           {...props}
         >
           <SelectScrollUpButton />

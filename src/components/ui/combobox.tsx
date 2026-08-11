@@ -75,10 +75,17 @@ function ComboboxContent({
   return (
     <ComboboxPrimitive.Portal>
       <ComboboxPrimitive.Positioner side={side} sideOffset={sideOffset} align={align} className="isolate z-50">
+        {/* `shadow-pop` — the ELEVATION TOKEN, not one of Tailwind's stock t-shirt shadow
+            utilities (what this carried until 2026-08-11). The combobox list is the same kind of
+            floating layer as ui/select and ui/dropdown-menu, so it takes the same token: the
+            tokens are what make those three read as one light source, and what deepens them in
+            dark mode (0.08 → 0.45 alpha) where a stock light-mode rgba disappears.
+            ⚠️ Do NOT name a stock shadow utility in this comment — Tailwind scans raw TEXT, so
+            spelling one here re-emits it into the bundle (see the same warning in select.tsx). */}
         <ComboboxPrimitive.Popup
           data-slot="combobox-content"
           className={cn(
-            "relative z-50 max-h-(--available-height) w-(--anchor-width) min-w-64 origin-(--transform-origin) overflow-hidden rounded-2xl bg-popover text-popover-foreground shadow-lg ring-1 ring-foreground/10 duration-100 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95 data-[side=bottom]:slide-in-from-top-2 data-[side=top]:slide-in-from-bottom-2",
+            "relative z-50 max-h-(--available-height) w-(--anchor-width) min-w-64 origin-(--transform-origin) overflow-hidden rounded-2xl bg-popover text-popover-foreground shadow-pop ring-1 ring-foreground/10 duration-100 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95 data-[side=bottom]:slide-in-from-top-2 data-[side=top]:slide-in-from-bottom-2",
             className,
           )}
           {...props}

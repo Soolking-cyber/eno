@@ -23,6 +23,7 @@ import type { IRunOptions } from 'docx'
 import type { ActivityPlan, GeneratedItineraryResponse } from '@/lib/itinerary-data'
 import { buildItineraryResourceGroups } from '@/lib/itinerary-resources'
 import { localeForLanguage, type Language } from '@/lib/languages'
+import { formatMoneyFull, moneyLocale } from '@/lib/vnd'
 
 const BRAND = '0A66C2'
 const BRAND_DEEP = '123F6D'
@@ -61,11 +62,27 @@ function docRun(options: IRunOptions | string) {
   return new TextRun(typeof options === 'string' ? { text: options, font: 'Arial' } : { ...options, font: options.font || 'Arial' })
 }
 
+/**
+ * Every đồng figure in the exported document — day costs, per-traveller bands, nightly rates,
+ * fares. It delegates to src/lib/vnd.ts because that is the ONE money formatter in the app
+ * (docs/design-language.md §2), and this file is the highest-stakes place to honour that: a
+ * traveller can print this and take it to a hotel desk, so a figure here outlives every screen.
+ *
+ * ⚠️ IT USED TO BUILD ITS OWN `Intl.NumberFormat(..., style: 'currency', currency: 'VND')`, and
+ * that produced a rendering NO SCREEN IN THE APP EVER SHOWS. Intl's VND pattern is symbol-led and
+ * locale-placed — "₫12,000,000" for en, "12.000.000 ₫" for vi — while the app writes
+ * "12,000,000 VND" / "12.000.000 đ" everywhere else. So the saved plan disagreed with the chat
+ * card the traveller saved it from, in the one artefact they keep.
+ *
+ * ⚠️ THE LOCALE COLLAPSES FROM ~11 TO 2, ON PURPOSE. `localeForLanguage` (still used by dateLabel
+ * below) resolves the full MT language set; `moneyLocale` is deliberately binary — vi gets native
+ * dot-grouped đồng, every other language gets the international style. That is vnd.ts's documented
+ * rule, not a shortcut: a Russian reader of a Vietnamese itinerary reads the international figure,
+ * and there is exactly one place to change that decision.
+ */
 function money(amount: number, lang: Language) {
   if (!amount) return '—'
-  return new Intl.NumberFormat(localeForLanguage(lang), {
-    style: 'currency', currency: 'VND', maximumFractionDigits: 0,
-  }).format(amount)
+  return formatMoneyFull(amount, '₫', moneyLocale(lang))
 }
 
 function dateLabel(value: string, lang: Language) {
