@@ -11,6 +11,7 @@ import { postingGate } from '@/lib/enforcement'
 import { rateLimit } from '@/lib/ratelimit'
 import { createListingCore } from '@/lib/core/listings'
 import { idsFastPath, buildFeedFilters, buildFeedOrderBy, getSubcategoryCounts } from './feed-query'
+import { computeFacetCounts, subcategoryDimension, type FacetCounts } from '@/lib/facet-counts'
 import { semanticRank } from './semantic-rank'
 import { resolveSellerForPost } from './resolve-seller'
 import { publishOutcome, recordPublishOutcome } from '@/lib/publish-funnel'
@@ -46,6 +47,47 @@ export async function GET(req: NextRequest) {
       { headers: { 'Cache-Control': 'public, max-age=30, s-maxage=120, stale-while-revalidate=300' } },
     )
   }
+
+  /**
+   * EVERY CHIP CARRIES ITS LIVE COUNT — one count per rail, each computed with every OTHER filter
+   * applied and its own released (src/lib/facet-counts.ts explains the rule, and why a global count
+   * would be worse than no count at all).
+   *
+   * ⚠️ STARTED HERE, ABOVE `semanticRank`, AND NOT AWAITED UNTIL THE Promise.all BELOW. The
+   * aggregates depend on nothing either the semantic path or the feed query produces, so kicking
+   * them off first lets them run under whatever those cost — including a Vertex call that is
+   * allowed up to 2.5s. Awaiting the promise where it is created would turn a few milliseconds into
+   * a full round trip added to every search.
+   *
+   * ⚠️ FIRST PAGE ONLY. A load-more request re-renders no rail, so `offset > 0` must not pay for
+   * six aggregates — that is what keeps this off the hot path of an infinite scroll. The
+   * long-standing `subcategoryCounts` / `categoryTotal` keys are NOT gated this way and still ship
+   * on every page; `facets.subcategory` below is filled from those same two values rather than from
+   * a second query.
+   *
+   * `facets=0` is an explicit opt-out for a caller that only wants rows. It is a query param, so
+   * the CDN keys on it and the two payload shapes cannot share one edge cache entry.
+   */
+  const wantFacets = offset === 0 && searchParams.get('facets') !== '0'
+  /**
+   * ⚠️ THE `.catch()` IS ATTACHED AT CREATION, NOT LEFT TO THE `Promise.all`, AND IT IS THE
+   * DIFFERENCE BETWEEN A 500 AND A DEAD WORKER. Node has terminated the process on an unhandled
+   * rejection since v15. A promise that rejects while nothing is listening — and nothing is, for as
+   * long as the `await semanticRank(...)` below takes, which is up to 2.5s on a Vertex call — fires
+   * `unhandledRejection` before the `Promise.all` ever gets to catch it. Verified by running that
+   * exact shape (reject at t≈0, attach the handler after an awaited timer): the process exits 9.
+   * computeFacetCounts is deliberately fail-soft, but it re-throws `DeskResolutionError`, which is
+   * precisely the misconfiguration most likely to hit every request at once — so the loud failure
+   * this route wants would arrive as a crash loop instead of an error. Capture here, re-throw after
+   * the join, and the behaviour is the intended one: the request 500s, the worker lives.
+   */
+  let facetsError: unknown = null
+  const facetsPromise: Promise<FacetCounts> = wantFacets
+    ? computeFacetCounts({ searchParams, buildFilters: buildFeedFilters }).catch((e: unknown) => {
+        facetsError = e
+        return {} as FacetCounts
+      })
+    : Promise.resolve({})
 
   const orderBy = buildFeedOrderBy(sort)
 
@@ -93,18 +135,45 @@ export async function GET(req: NextRequest) {
     promises[2] = getSubcategoryCounts(facetBaseFilters)
   }
 
-  const [listings, total, subCounts, categoryTotal] = await Promise.all([
+  const [listings, total, subCounts, categoryTotal, facetCounts] = await Promise.all([
     promises[0],
     promises[1],
     promises[2] || Promise.resolve([]),
     categoryTotalPromise,
+    facetsPromise,
   ])
+
+  // Re-throw what the facet promise caught at creation (see above). Same outcome as never having
+  // caught it — a 500 on the feed — minus the window in which nobody was listening.
+  if (facetsError) throw facetsError
 
   if (subCounts && subCounts.length > 0) {
     subCounts.forEach((c) => {
       subcategoryCounts[c.slug] = c.count
     })
   }
+
+  /**
+   * Fold the subcategory rail into the one object the UI reads every rail from, so no consumer has
+   * to know that this one dimension arrives by a different route.
+   *
+   * The two numbers come from two queries — `getSubcategoryCounts` for the buckets, a COUNT for the
+   * "All" — but from the IDENTICAL `facetBaseFilters`, which is what makes them consistent: the
+   * buckets sum to `categoryTotal` minus the rows carrying no subcategorySlug, exactly as
+   * `DimensionCounts` documents. Assembled through `subcategoryDimension()` rather than by hand so
+   * the zero-seeding is the same here as in facet-counts.ts; a rail that skipped it would be the
+   * one dimension whose `values[slug]` is undefined instead of 0.
+   *
+   * Gated on `wantFacets` AND the same `category` test that decides whether the groupBy ran at
+   * all, so `facets` either carries the rail or stays empty — never a fabricated one on a page that
+   * computed nothing. Note the asymmetry that follows, and it is deliberate: with `facets=0` (or on
+   * a load-more page) `subcategoryCounts` and `categoryTotal` still ship at the top level, but
+   * `facets` is `{}`. A consumer that reads rails only from `facets` must therefore ask for facets;
+   * the top-level keys remain the compatibility surface they have always been.
+   */
+  const facets: FacetCounts = wantFacets && category && category !== 'all'
+    ? { ...facetCounts, subcategory: subcategoryDimension(category, categoryTotal, subcategoryCounts) }
+    : facetCounts
 
   // Hierarchy for a brand search: keep the trust/recency order the DB returned, but
   // stable-promote the active category's items to the front (current category first,
@@ -129,6 +198,9 @@ export async function GET(req: NextRequest) {
       limit,
       subcategoryCounts,
       categoryTotal,
+      // Live counts for every chip rail — see src/lib/facet-counts.ts for the shape. `{}` on a
+      // load-more page or when `facets=0` was asked for.
+      facets,
     },
     {
       headers: {
