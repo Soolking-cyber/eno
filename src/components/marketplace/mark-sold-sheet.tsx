@@ -515,8 +515,18 @@ function MarkSoldForm({
               <span className="block text-sm font-semibold text-foreground">
                 {tr('Someone not on eno', 'Người không dùng eno')}
               </span>
+              {/* ⛔ THIS LINE MUST NOT PROMISE TRUST CREDIT. It read "it still counts", which is
+                  accurate about the LISTING (the sale is recorded and the listing comes down) and
+                  a lie about the SCORE the seller is really asking about. The spec is explicit
+                  that an off-platform sale cannot count toward trust — nobody corroborated it —
+                  and `countsTowardTrust` in lib/trade-loop.ts encodes exactly that.
+                  ⚠️ The trap is that the old wording is TRUE TODAY and becomes false the moment
+                  the loop is wired: trust.ts:265 still counts every `status:'sold'` row within the
+                  window, unilateral or not. So shipping the promise now would earn it a
+                  contradiction later, on the surface where a seller decides whether to tell the
+                  truth about where the sale happened. Say what is certain and stop there. */}
               <span className="block text-xs text-body">
-                {tr('Sold off the app — it still counts', 'Bán ngoài ứng dụng — vẫn được tính')}
+                {tr('Sold off the app — we will still take the listing down', 'Bán ngoài ứng dụng — tin đăng vẫn được gỡ xuống')}
               </span>
             </span>
           </Radio>
