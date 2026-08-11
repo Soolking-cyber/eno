@@ -38,10 +38,19 @@ export function ContentPage({ title, meta, intro, sections, children }: {
           {intro && <p className="mt-4 max-w-[70ch] text-base leading-relaxed text-body">{intro}</p>}
         </header>
         <div className={cn('mt-10', hasRail && 'lg:grid lg:grid-cols-[210px_minmax(0,1fr)] lg:gap-12')}>
+          {/* ⚠️ The rail names itself with aria-labelledBY, not aria-label. This is a SERVER
+              component, so there is no `tr()` in scope for an attribute string — and the rail
+              already renders those very words, translated, as its visible heading. Pointing the
+              landmark at that heading gives it a name in the viewer's language for free and keeps
+              the accessible name identical to the visible one, which a hardcoded English
+              aria-label stopped doing the moment the heading swapped out of English.
+              NOT a CSS/test hook: the one aria-label selector in the codebase is globals.css's
+              `nav[aria-label="breadcrumb" i]` (it hides breadcrumbs in the native app) — read the
+              note there before renaming any other nav. */}
           {hasRail && (
-            <nav aria-label="On this page" className="hidden lg:block">
+            <nav aria-labelledby="on-this-page" className="hidden lg:block">
               <div className="sticky top-24 space-y-0.5">
-                <p className="eyebrow mb-2 text-ink-4"><Tr text="On this page" /></p>
+                <p id="on-this-page" className="eyebrow mb-2 text-ink-4"><Tr text="On this page" /></p>
                 {sections!.map((s) => (
                   <a key={s.id} href={`#${s.id}`} className="block rounded-lg px-2 py-1 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
                     <Tr text={s.label} />

@@ -200,6 +200,11 @@ function BlurFillImage({ img, alt, sizes, mock, priority, eager }: {
  *  from photos — 45%-wide mosaic tiles were too small on a phone), Airbnb-style
  *  mosaic ≥md, and a full-screen lightbox with swipe nav + double-tap zoom. */
 export function ListingGallery({ images, title, video, showAllLabel = 'Show all photos', variant = 'auto' }: Props) {
+  // The lightbox chrome (Close/Previous/Next) and the video thumb are icon-only, so their
+  // aria-label IS their whole accessible name — it has to follow the viewer's language.
+  // eslint's i18n rule is configured with ignoreProps:true / noAttributeStrings:false and
+  // sees none of it, which is how these four sat in English for every locale.
+  const { tr } = useLanguage()
   const hasVideo = !!video && images.length > 0
   const mediaCount = images.length + (hasVideo ? 1 : 0)
   const [open, setOpen] = useState(false)
@@ -389,7 +394,7 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
                       variant="bare"
                       size="none"
                       onClick={() => setSel(0)}
-                      aria-label="Video"
+                      aria-label={tr('Video', 'Video')}
                       className={cn('relative h-20 w-20 overflow-hidden rounded-lg border-2 transition-colors cursor-pointer active:scale-100', sel === 0 ? 'border-brand' : 'border-transparent hover:border-line-strong')}
                     >
                       <Image src={images[0]} alt="" fill sizes="80px" quality={60} unoptimized={isMockImageUrl(images[0]) || undefined} className="object-cover" />
@@ -441,7 +446,7 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
             size="lg"
             variant="overlay"
             onClick={() => setOpen(false)}
-            aria-label="Close"
+            aria-label={tr('Close', 'Đóng')}
             // Safe-area term: the lightbox is a fullscreen overlay and the native WebView is
             // edge-to-edge, so a bare top-4 puts Close under the Dynamic Island. 0 on web.
             className="absolute right-4 top-[calc(env(safe-area-inset-top)+1rem)] [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.5))]"
@@ -521,7 +526,7 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
               size="lg"
               variant="overlay"
               onClick={(e) => { e.stopPropagation(); goTo(idx - 1) }}
-              aria-label="Previous"
+              aria-label={tr('Previous', 'Trước')}
               className="absolute left-4 top-1/2 h-11 w-11 -translate-y-1/2 [filter:drop-shadow(0_1px_3px_rgba(0,0,0,0.55))]"
             >
               {/* Floating-chevron tier (§2): bare chevrons over content, same as back-to-top. */}
@@ -533,7 +538,7 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
               size="lg"
               variant="overlay"
               onClick={(e) => { e.stopPropagation(); goTo(idx + 1) }}
-              aria-label="Next"
+              aria-label={tr('Next', 'Sau')}
               className="absolute right-4 top-1/2 h-11 w-11 -translate-y-1/2 [filter:drop-shadow(0_1px_3px_rgba(0,0,0,0.55))]"
             >
               <ChevronRight className="h-6 w-6" strokeWidth={STROKE_FLOAT} />

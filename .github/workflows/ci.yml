@@ -71,13 +71,21 @@ jobs:
       - name: Lint
         run: npm run lint
 
-      # i18n freshness: the pre-warm batch (ui-strings.ts) must include every UI
-      # string, or new copy ships English to the 9 machine-translated languages.
-      # Fails when someone adds copy without running `node scripts/gen-ui-strings.mjs`.
+      # i18n freshness: the pre-warm batch must include every UI string, or new copy ships
+      # English to the 9 machine-translated languages. Fails when someone adds copy without
+      # running `node scripts/gen-ui-strings.mjs`.
+      #
+      # ⚠️ BOTH CATALOGUES. One generator run writes TWO files — ui-strings.ts (shared) and
+      # ui-strings.services.ts (visa/itinerary copy, aliased away on a marketplace build; see
+      # the split note at the top of the generator). Until 2026-08-11 this step diffed only the
+      # first, so a services-only copy change — the whole e-Visa wizard, the passport screens,
+      # the trip planner — could go in stale and nothing anywhere would say so. It is a MERGE-time
+      # hole specifically: the .claude hook that regenerates on edit only runs in this checkout,
+      # so a commit authored anywhere else lands the drift in a file its author never opened.
       - name: i18n string harvest is fresh
         run: |
           node scripts/gen-ui-strings.mjs
-          git diff --exit-code src/generated/ui-strings.ts || (echo '::error::src/generated/ui-strings.ts is stale — run `node scripts/gen-ui-strings.mjs` and commit it.' && exit 1)
+          git diff --exit-code src/generated/ui-strings.ts src/generated/ui-strings.services.ts || (echo '::error::src/generated/ui-strings.ts / ui-strings.services.ts is stale — run `node scripts/gen-ui-strings.mjs` and commit BOTH files.' && exit 1)
 
       # Root↔forum visa sync pairs. The two apps deploy independently but decrypt and
       # RE-ENCRYPT the same visa_applications rows, and visaPayloadSchema is z.object() —

@@ -1,6 +1,6 @@
 import { SITE_NAME } from '@/lib/edition'
 import { scopedListingWhere } from '@/lib/edition-scope'
-import { cache } from 'react'
+import { cache, type ReactNode } from 'react'
 import { db } from '@/lib/db'
 import { formatMoneyFull, dropPercent } from '@/lib/vnd'
 import { serializeListing, safeParse } from '@/lib/serialize'
@@ -258,9 +258,16 @@ export default async function ListingPage({ params }: Props) {
 
   const attrs = listing.attributes ? Object.entries(listing.attributes) : []
   // Structured numeric specs (vehicles) — rendered first in Details, with units.
-  const numericSpecs: { label: string; value: string }[] = []
+  // `value` is a ReactNode, not a string, so a grouped number can be a client leaf:
+  // mileage used to be formatted here with a hardcoded 'en-US' and a vi buyer read
+  // "125,000 km" — comma thousands, which is the DECIMAL mark in Vietnamese. This page is
+  // a server component and has no language context, so the only way to follow the viewer
+  // is <CountValue> (rating-value.tsx), the same SSR-en-then-swap leaf <Tr> uses.
+  // ⚠️ Year stays a bare String(): a year is an identifier, never grouped ("2015", not
+  // "2,015"), which is exactly what a grouping formatter would do to it.
+  const numericSpecs: { label: string; value: ReactNode }[] = []
   if (listing.year != null) numericSpecs.push({ label: 'Year', value: String(listing.year) })
-  if (listing.mileageKm != null) numericSpecs.push({ label: 'Mileage', value: `${new Intl.NumberFormat('en-US').format(listing.mileageKm)} km` })
+  if (listing.mileageKm != null) numericSpecs.push({ label: 'Mileage', value: <><CountValue value={listing.mileageKm} /> km</> })
   if (listing.engineL != null) numericSpecs.push({ label: 'Engine', value: `${listing.engineL} L` })
   // Brand chip (when the listing carries a canonical brand) — links into the
   // brand-filtered feed (resolved in the parallel batch above).

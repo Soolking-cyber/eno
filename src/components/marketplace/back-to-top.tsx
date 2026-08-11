@@ -7,6 +7,7 @@ import { ChevronUp } from 'lucide-react'
 import { STROKE_FLOAT } from '@/lib/icon-tokens'
 import { useAccountPanel } from './account-panel'
 import { Button } from '@/components/ui/button'
+import { useLanguage } from '@/context/language-context'
 import { cn } from '@/lib/utils'
 
 /** Floating bottom-right controls, portaled to <body> (no ancestor can offset them),
@@ -15,6 +16,10 @@ import { cn } from '@/lib/utils'
 export function BackToTop() {
   const [show, setShow] = useState(false)
   const [mounted, setMounted] = useState(false)
+  // This button has NO visible text — its aria-label is the only name a screen reader
+  // gets, so it has to follow the viewer's language like any other copy. eslint's i18n
+  // rule runs with ignoreProps/noAttributeStrings off and cannot see attribute copy.
+  const { tr } = useLanguage()
   // Mounted inside AccountPanelShell (see layout.tsx) purely to read this.
   const { open: panelOpen } = useAccountPanel()
   // Extra clearance when a page renders a sticky bottom bar (listing contact bar,
@@ -103,7 +108,7 @@ export function BackToTop() {
           variant="bare"
           size="none"
           type="button"
-          aria-label="Back to top"
+          aria-label={tr('Back to top', 'Lên đầu trang')}
           // opacity-0 + pointer-events-none hides this from the MOUSE only: none of the
           // three classes below removes the button from the TAB ORDER or the accessibility
           // tree, so a keyboard user used to tab into an invisible "Back to top". `inert`
