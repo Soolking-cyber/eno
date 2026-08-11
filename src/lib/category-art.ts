@@ -69,6 +69,23 @@ export type CategoryArtState = 'rest' | 'selected'
  * `stroke` then inherit the root `<svg fill="none">`, and the tint simply never appears — which
  * looks exactly like "the rule has not been added yet".
  */
+/**
+ * ⛔ DO NOT ADD THE `.cat-art-body` TINT RULE TO globals.css UNTIL TWO GLYPHS ARE REDRAWN.
+ *
+ * The selected variants are currently INERT — with no rule for this class they render identically
+ * to their rest counterparts, which is a deliberate fail-safe (never a blob) and the reason this
+ * wave could land at all. The moment the rule exists, two of the seventeen light up wrong, and an
+ * adversarial review caught both on the shipped bytes rather than in theory:
+ *   · food-drink — the chef hat gets a hard-edged white trapezoid punched through its crown
+ *   · property   — both side wings stay untinted except for a thin diagonal sliver
+ * Both are HALF-FILLED glyphs, which docs/icon-language.md forbids outright: a partly-tinted glyph
+ * reads as a rendering fault, not as a state. Fix the two source paths (or exclude them from the
+ * tint the way the other two exclusions are pinned) BEFORE adding:
+ *   @media not (forced-colors: active) {
+ *     .cat-art-body { fill: var(--color-brand-100); stroke: var(--color-brand-100); }
+ *   }
+ * ⚠️ The forced-colors guard is not optional — without it the tint fights the user's own palette.
+ */
 export const CATEGORY_ART_BODY_CLASS = 'cat-art-body'
 
 /** The ink line — `stroke="currentColor"`, painted over the body. Exported so a renderer that
