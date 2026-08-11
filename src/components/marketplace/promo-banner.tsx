@@ -257,11 +257,42 @@ function SlidePanel({ slide, first = false }: { slide: PromoSlide; first?: boole
    * ⚠️ Only the first slide gets the hint. Marking all four "high" is the same as marking none.
    */
   if (slide.art) {
+    /**
+     * ⚠️ AN AD THAT DOES NOT SAY IT IS AN AD IS WHAT THIS LABEL EXISTS TO PREVENT, and this is the
+     * only slide shape that needs it. The artwork replaces eno's own copy with a third party's paid
+     * message, in the one position above the fold every visitor sees, and it is the FIRST slide by
+     * owner decision — so it reads as editorial unless it says otherwise. The decorative slides
+     * below are eno's own and get no chip; that difference is exactly why `partner` lives inside
+     * `art` in promo-slides.ts, where the type makes it impossible to have one without the other.
+     *
+     * The wording is lifted verbatim from /regulations Article 14 — "Quảng cáo" / "Advertisement" —
+     * where the operator has already published, in both languages, that a paid position is labelled
+     * where it appears. Two different words for one concept is how a published commitment quietly
+     * stops matching the product; if that Article is ever reworded, reword this with it.
+     *
+     * ⚠️ THE DISCLOSURE ALSO HAS TO REACH ASSISTIVE TECH, AND PAINTING IT IS NOT ENOUGH. The <a>
+     * carries an explicit aria-label, which REPLACES its contents for the accessible name — so a
+     * chip rendered inside it is invisible to a screen reader however prominent it looks. The word
+     * is therefore prepended to that label as well: disclosure first, pitch second, in both
+     * channels.
+     *
+     * ⚠️ BUT ONLY THE WORD GOES IN THE aria-label — THE PARTNER NAME MUST NOT BE PREPENDED THERE.
+     * A reviewer caught this and it was measured: the label read "Advertisement · VietKite —
+     * VietKite — Vietnam E-Visa, your way…", i.e. a screen reader said the partner twice, because
+     * `alt` opens with the partner's own lockup. The attribution is already in `alt`, and
+     * promo-slides.test.ts ASSERTS it is in both languages — that test is what makes dropping the
+     * name here safe, so do not delete it and then "fix" this line back.
+     *
+     * The visible chip keeps the name, because a sighted visitor never receives `alt` — they get
+     * the artwork, and the chip is the only text tying the word "Advertisement" to an advertiser.
+     */
+    const adWord = tr('Advertisement', 'Quảng cáo')
+    const adDisclosure = `${adWord} · ${slide.art.partner}`
     return (
       <Link
         href={slide.href}
         prefetch={false}
-        aria-label={tr(slide.art.alt, slide.art.altVi)}
+        aria-label={`${adWord} — ${tr(slide.art.alt, slide.art.altVi)}`}
         // ⚠️ THE SAME min-h LADDER AS THE DECORATIVE PANELS BELOW, and it is not cosmetic: the
         // carousel sizes its viewport to the tallest slide, so an art slide that computed its own
         // height from the image aspect made the panel change height between slides. Sharing the
@@ -300,6 +331,25 @@ function SlidePanel({ slide, first = false }: { slide: PromoSlide; first?: boole
             decoding={first ? 'sync' : 'async'}
           />
         </picture>
+        {/* ⚠️ AFTER THE <picture>, AND THAT ORDER IS THE STACKING. Both are positioned with no
+            z-index, so paint order is DOM order — moving this above the image would hide it under
+            the artwork on a slide whose whole job is to be seen.
+            ⚠️ bg-black/60, NOT /40 OR /50. The scrim is the only thing guaranteeing contrast,
+            because the pixels underneath are a partner's artwork that can change without a code
+            change. Worst case (pure white art) 60% black composites to #666 and white text on it
+            measures 5.7:1 — over WCAG AA for this size. At /50 the same case is 4.0:1 and fails.
+            ⚠️ text-2xs (11px, the canon's "chip labels" step), NOT text-3xs. 3xs is authored for
+            counters and micro badges — decoration you may or may not read. A disclosure that is
+            too small to read is not a disclosure, and one step is the difference for free.
+            aria-hidden because the same words are already first in the link's aria-label above;
+            without it a screen reader that ignores aria-label on a link would say them twice.
+            pointer-events-none so the chip cannot become a dead spot in the swipe surface. */}
+        <span
+          aria-hidden
+          className="pointer-events-none absolute left-2 top-2 rounded-full bg-black/60 px-2 py-0.5 text-2xs font-semibold text-white sm:left-3 sm:top-3"
+        >
+          {adDisclosure}
+        </span>
       </Link>
     )
   }

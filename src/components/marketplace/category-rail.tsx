@@ -124,8 +124,31 @@ export function CategoryRail({
         // collapse into a "More" cell when there are MORE than 8 — at ≤8 show them all.
         // (auto-adjusts as the listing counts above re-rank them.)
         const subsNeedMore = subs.length > 8
-        const visibleSubs = subsNeedMore ? subs.slice(0, 7) : subs
-        const overflowSubs = subsNeedMore ? subs.slice(7) : []
+        // ⚠️ THE ACTIVE SUBCATEGORY IS PROMOTED INTO THE VISIBLE SET — IT IS NOT LEFT WHEREVER ITS
+        // LISTING COUNT PUT IT. A positional slice(0, 7) knows nothing about the selection, so
+        // picking the 9th-ranked subcategory filtered the results and then folded the chosen chip
+        // away inside +N — leaving NOTHING in the grid lit. Not the chip you picked (hidden), and
+        // not "All" either, since that one lights on `activeSubcategory === 'all'` and something
+        // else is now selected. So the results were filtered while the strip showed no selection at
+        // all, and the only way to clear a filter you cannot see is to guess it is in the overflow
+        // menu and reopen it.
+        // (It only bites categories with ≥9 subcategories — below that `subsNeedMore` is false and
+        // nothing is hidden in the first place.) brand-rail.tsx already does this for models; this
+        // is the same fix one rail over, written the same way on purpose so they stay comparable.
+        //
+        // The cost when it fires, stated exactly because it is visible: All + 8 chips + More = 10
+        // cells, and the grid is 3 rows column-filled, so the columns become [All, s0, s1] [s2, s3,
+        // s4] [s5, s6, promoted] [More] — a FOURTH column holding the More control on its own. The
+        // grid is therefore one column wider for as long as a low-ranked subcategory is selected,
+        // which pushes the categories to its right further along the rail. That is accepted: the
+        // strip already scrolls sideways, the shift lands after the tap that caused it, and it is
+        // the same trade brand-rail already makes. A filter the user cannot see is the worse one.
+        // Note `activeSubcategory === 'all'` promotes nothing (no sub carries that slug), so the
+        // common case — nothing selected — is byte-for-byte the old layout.
+        // The +N badge stays honest through all of this because MoreOverflow is handed
+        // `overflowSubs.length`, the real array, never a `subs.length - 7` arithmetic guess.
+        const visibleSubs = subsNeedMore ? subs.filter((s, i) => i < 7 || s.slug === activeSubcategory) : subs
+        const overflowSubs = subsNeedMore ? subs.filter((s, i) => i >= 7 && s.slug !== activeSubcategory) : []
         return (
           <Fragment key={cat.id}>
             <Button variant="bare" size="none" data-cat={cat.slug} onClick={() => onCategory(isActive ? 'all' : cat.slug)} className={cn('whitespace-normal', tileCls)}>
@@ -139,7 +162,10 @@ export function CategoryRail({
             {subs.length > 0 && (
               <div className="flex shrink-0 items-center gap-2 animate-in fade-in slide-in-from-left-2 duration-200">
                 <Separator orientation="vertical" className="h-12 shrink-0" />
-                {/* 3×3 grid (column-fill): All first, 7 most-used in between, More last. */}
+                {/* 3×3 grid (column-fill): All first, the 7 most-used in between, More last — plus
+                    the active subcategory when its count ranked it below those 7 (see the promotion
+                    above). That is the one case that fills all 9 cells and pushes More alone into a
+                    4th column. */}
                 <div className="grid grid-rows-3 grid-flow-col auto-cols-max gap-x-1.5 gap-y-0.5 rounded-2xl bg-brand-50 p-1.5">
                   <Button variant="bare" size="none" onClick={() => onSubcategory('all')} className={cn('block', subChip(activeSubcategory === 'all'))}>{tr('All', 'Tất cả')}</Button>
                   {visibleSubs.map((sub) => {

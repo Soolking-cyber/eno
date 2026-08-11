@@ -80,8 +80,26 @@ export type PromoSlide = {
    * page's LCP element. Shipping the PNG would have made the thing we just told the browser to
    * prioritise the heaviest asset on the page. webp is not a new dependency: every listing photo
    * already serves as webp through the image pipeline.
+   *
+   * ⚠️ `partner` IS INSIDE THIS OBJECT, NOT BESIDE IT, AND THAT NESTING IS THE WHOLE GUARD. Baked
+   * artwork is the only thing on this page that deletes eno's own bilingual copy and puts a third
+   * party's paid message above the fold in its place, so the slide has to be able to say WHOSE
+   * message it is. Nesting the field makes an undisclosed partner banner a TYPE ERROR — you cannot
+   * add `art` without naming the advertiser — where a sibling `partner?:` would be a convention
+   * nobody enforces and a lint rule would be no help at all, because scripts/design-lint.mjs only
+   * walks .tsx and this is a .ts file. promo-banner.tsx renders it, and src/lib/promo-slides.test.ts
+   * covers the two things the type cannot: that the name is not the empty string, and that the alt
+   * text names them too (alt is the ONLY thing a screen reader gets from a baked image, and the
+   * banner's aria-label DEPENDS on that second assertion — see the note there before deleting it).
+   *
+   * ⚠️ WHAT THIS DOES NOT GUARD, STATED PLAINLY: it ties disclosure to a SHAPE (baked artwork), not
+   * to money. A future paid placement written as an ordinary slide — eno's own DOM copy, sold —
+   * would carry no `art`, so no `partner`, so no chip, and nothing here would notice. That is
+   * acceptable only while `art` and "bought" mean the same thing, which they do today because
+   * artwork exists solely to carry a partner's lockup. The day a slide is sold without artwork,
+   * this field moves up to PromoSlide and the disclosure stops keying off `art`.
    */
-  art?: { mobile: string; desktop: string; alt: string; altVi: string }
+  art?: { mobile: string; desktop: string; alt: string; altVi: string; partner: string }
 }
 
 /**
@@ -114,6 +132,11 @@ export const PROMO_SLIDES: PromoSlide[] = [
     art: {
       mobile: '/banners/vietkite-mobile.webp',
       desktop: '/banners/vietkite-desktop.webp',
+      // The advertiser, rendered on the panel as the "Quảng cáo · VietKite" disclosure chip and
+      // spoken FIRST in the link's accessible name. Not a duplicate of the alt string: alt is the
+      // artwork's message, this is the attribution, and the two are separated so the disclosure
+      // survives any future rewrite of the copy.
+      partner: 'VietKite',
       // Alt carries the WHOLE message because it replaces baked-in text, not decoration.
       alt: 'VietKite — Vietnam E-Visa, your way. Single and multiple entry options. View e-visa options.',
       altVi: 'VietKite — Thị thực điện tử Việt Nam. Lựa chọn nhập cảnh một lần hoặc nhiều lần. Xem các lựa chọn thị thực.',
