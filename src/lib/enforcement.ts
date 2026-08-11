@@ -5,7 +5,7 @@ import { db } from './db'
 import { sendPushToProfile } from './push'
 import { pickLocale } from './admin-macros'
 import { DAY_MS } from './trust-math'
-import { isBusinessVerified } from './business-verification'
+import { isVerifiedCatalogueSeller } from './catalogue-seller'
 import {
   ENFORCEMENT,
   ENFORCEMENT_REASON,
@@ -682,25 +682,21 @@ async function sellerTransactionCount(sellerId: string): Promise<number> {
  * in this function. `Profile.accountType === 'business'` is a free choice in a dropdown at
  * signup — nobody checks it — so exempting it would not narrow the probation cap, it would
  * DELETE it: any spammer selects "business" and posts without limit on day one. The cap
- * exists precisely to make a brand-new account's first 30 days cheap to police. What
- * `isBusinessVerified` adds is a registry the seller does not control.
+ * exists precisely to make a brand-new account's first 30 days cheap to police. What the
+ * tax-registry clause adds is a fact the seller does not control.
  *
  * If the owner does want self-declared businesses exempt too, that is one clause here —
  * but it should be a decision taken knowing it retires the new-account cap in practice.
  */
+/**
+ * ⚠️ THE PREDICATE MOVED TO `lib/catalogue-seller.ts` AND IS NOW SHARED WITH THE DUPLICATE GUARD.
+ * It was inlined here first; the moment a second gate needed the same question ("is this an
+ * anonymous account or a registry-backed business?") two copies would have started drifting, and
+ * a security predicate that disagrees with itself between two gates is worse than either answer.
+ * The doc above still describes the rule — the implementation just lives in one place now.
+ */
 async function isListingCapExempt(sellerId: string): Promise<boolean> {
-  const seller = await db.seller.findUnique({
-    where: { id: sellerId },
-    select: {
-      officialPartner: true,
-      // Everything isBusinessVerified reads — see VerificationFacts.
-      name: true, legalName: true, legalAddress: true, idNumber: true, taxCode: true,
-      taxCheckedAt: true, taxRegisteredName: true, taxActive: true,
-      verifiedIdentityHash: true, verifiedUntil: true,
-    },
-  })
-  if (!seller) return false
-  return seller.officialPartner || isBusinessVerified(seller)
+  return isVerifiedCatalogueSeller(sellerId)
 }
 
 /**

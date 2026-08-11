@@ -57,8 +57,26 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
       onTouchStart={() => onPrefetch(l.id)}
       className="group flex items-center gap-3 rounded-xl p-1.5 pr-1 text-left transition-[background-color,transform] duration-100 hover:bg-muted active:scale-[0.99] cursor-pointer"
     >
-      {/* Thumbnail — small, square-ish so the row reads as one line */}
-      <div className="relative h-14 w-16 shrink-0 overflow-hidden rounded-lg bg-tint">
+      {/* Thumbnail — small, square-ish so the row reads as one line.
+          ⚠️ THE PARTNER RING BELONGS HERE TOO, AND ITS ABSENCE IS WHY THE FEATURE READ AS BROKEN.
+          The gold ring shipped on <ListingCard> only — the GRID view — while `viewMode` defaults
+          to 'compact' (listings-explorer.tsx), so the default browse feed showed no ring at all
+          and the owner reported it invisible three times running. Measured, not reasoned:
+          `document.querySelectorAll('.partner-ring-media').length` was 0 on /?category=services
+          with all eight partner listings on screen. Any NEW listing surface has to opt in the
+          same way; there is no inherited styling to rely on. */}
+      <div
+        // `title` is for the SIGHTED reader the sr-only line cannot reach — roughly 8% of men see
+        // this gold as a grey-green, and for them a ring with no hover text is decoration with no
+        // meaning. It is the same treatment the avatar surfaces already carry, and it is additive:
+        // the sr-only text below is what assistive tech announces, since `title` on a plain div is
+        // not reliably exposed.
+        title={l.seller.officialPartner ? tr('Official partner', 'Đối tác chính thức') : undefined}
+        className={cn(
+          'relative h-14 w-16 shrink-0 overflow-hidden rounded-lg bg-tint',
+          l.seller.officialPartner && 'partner-ring-media',
+        )}
+      >
         {cover ? (
           <Image
             src={cover}
@@ -89,6 +107,16 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
           <h4 className="truncate text-sm font-medium leading-snug text-foreground group-hover:underline">
             {displayTitle}
           </h4>
+          {/* ⚠️ THE RING NEEDS A NAME, AND THIS ROW SHIPPED WITHOUT ONE. The gold ring on the
+              thumbnail is an `::after` overlay, and pseudo-element content is never announced —
+              so for a screen-reader user, and for the ~8% of men who read this gold as a
+              grey-green, partner status was carried by nothing at all. On the DEFAULT browse
+              view, which is this one. `<ListingCard>` has carried this same sr-only line since
+              the seal was removed; the compact row was simply missed when the ring was added.
+              Zero-width by construction, so it costs the one-line layout nothing. */}
+          {l.seller.officialPartner && (
+            <span className="sr-only">{tr('Official partner', 'Đối tác chính thức')}</span>
+          )}
           <TrustScore
             score={l.seller.trustScore}
             variant="mini"
@@ -108,6 +136,19 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
           {/* unit="sm" for the same reason as dual="sm": on a phone " / service" is
               the widest and least informative part of the row — every visa row says
               it — and it is what pushed the amount into the action cluster. */}
+          {/* ⛔ 16px, AND `sm:text-lg` WAS TRIED AND REVERTED — DO NOT REINTRODUCE IT WITHOUT A
+              CONTAINER QUERY. The row gets its extra weight from <Price>'s 900, not from size.
+              Why the breakpoint version is wrong: `sm:` asks about the VIEWPORT, but what
+              constrains this price is the ROW, and the two move in opposite directions. The
+              explorer lays compact rows out `grid-cols-1 lg:grid-cols-2`, so at exactly 1024px
+              the row HALVES while the viewport is at its widest — the meta column drops to
+              ~228px. Measured there with the bump in place: an 18px price rendered 245px inside
+              a 228px column and was CLIPPED by the `overflow-hidden` below, and a clipped price
+              is a wrong price. Both external reviewers predicted this from the class alone; the
+              measurement only confirmed it.
+              A container query on the text column is the correct tool if the size ever needs to
+              scale here — `container-type: inline-size` plus `@sm:text-lg` — not a viewport
+              breakpoint that cannot see the column it is sizing text for. */}
           <Price price={l.price} currency={l.currency} priceUnit={l.priceUnit} compact dual="sm" unit="sm" className="shrink-0 text-base text-accent-foreground" />
           {/* Urgent — RIGHT of the price (user-picked 2026-07-14): the bare black
               bolt on EVERY breakpoint. The desktop chip (outline + "Urgent" word)

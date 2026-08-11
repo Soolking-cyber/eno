@@ -12,14 +12,23 @@ type Props = {
   priceUnit: string
   compact?: boolean
   /** Dual-currency approximation (user decision 2026-07-13): true = always show,
-   *  'sm' = only at sm+ (one-line rows that fight for phone width), false = off. */
+   *  'sm' = only at sm+ (one-line rows that fight for phone width), false = off.
+   *
+   *  ⚠️ 'sm' HIDES THIS SLOT ONLY WHEN IT REALLY IS AN APPROXIMATION — see `approxIsEstimate`. */
   dual?: boolean | 'sm'
-  /** Unit suffix (" / service", " / month"): true = always, 'sm' = only at sm+,
-   *  false = never. Same three-way contract as `dual`, for the same reason — on a
-   *  phone the suffix is the widest, least informative part of a one-line row
-   *  (every visa row reads "/ service"), and it is what pushed the price into the
-   *  action icons. Hiding it is preferred over shrinking the amount: a truncated
-   *  price is a wrong price. */
+  /** Unit suffix (" / service", " / month"): true = always, 'sm' = only at sm+, false = never.
+   *  On a one-line ROW the suffix is the widest, least informative part (every visa row reads
+   *  "/ service") and it is what pushed the price into the action icons — so a row may hide it,
+   *  because a row carries a category, a district and other context that disambiguate.
+   *
+   *  ⛔ THERE IS DELIBERATELY NO 'fit' HERE, AND IT WAS WRITTEN AND THEN REMOVED. Hiding the
+   *  suffix by container width would have dropped "/ month" from every card under 208px — all
+   *  phones and every rail — so a rental at "15,000,000 VND / month" would render as
+   *  "15,000,000 VND" and read as a SALE price. That is not a layout trade, it is a change of
+   *  meaning, and it is exactly the case a marketplace cannot get wrong. A reviewer caught it
+   *  before it shipped. If a card genuinely cannot fit the price, the price WRAPS — two truthful
+   *  lines beat one misleading one. Only `dual` gets the container treatment, because an FX
+   *  approximation is the one part that carries no meaning of its own. */
   unit?: boolean | 'sm'
   className?: string
 }
@@ -64,10 +73,23 @@ export function Price({ price, currency, priceUnit, compact = false, dual = true
   // approximation is safe to show — a reviewer correctly pointed out that two copies of this rule
   // are only equal until one of them changes.
   let approx: string | null = null
+  // `dual`/`unit` of 'fit' are truthy here on purpose: the element is always RENDERED and hidden
+  // by a container query in CSS. Deciding it in JS would need the container's width, which is not
+  // known at render and would tear on resize.
   if (dual !== false && currency === '₫' && price > 0) {
     if (displayCur === 'USD') approx = formatMoneyFull(price, '₫', locale)
     else if (vndPerUsd(rates)) approx = formatMoney(price, 'USD', rates, locale)
   }
+  // ⛔ THE SECOND FIGURE IS NOT ALWAYS THE ESTIMATE, AND 'fit' MUST NOT HIDE IT WHEN IT IS NOT.
+  // Read the branch above: for a viewer whose display currency is USD, `amount` is the CONVERTED
+  // dollar figure and this second slot holds the stored ĐỒNG price — the authoritative number,
+  // the one the buyer actually pays. Hiding it on a narrow card would leave a USD-viewing expat
+  // looking only at an FX estimate, with the real price nowhere on the card.
+  // ⚠️ It is also the legally load-bearing one: under NĐ 340/2025 a Vietnamese marketplace
+  // displaying prices in USD is sanctionable, so the đồng figure is the last thing that may be
+  // dropped for space. 'fit' therefore only ever hides a genuine approximation.
+  // A reviewer caught this; the first version applied the container query unconditionally.
+  const approxIsEstimate = displayCur !== 'USD'
 
   return (
     // tabular-nums: fixed-width digits so price columns align across card grids.
@@ -83,16 +105,20 @@ export function Price({ price, currency, priceUnit, compact = false, dual = true
     // the PDP and the card is deliberately light — a heavy strikethrough competes with the
     // price that actually applies. Those pass an explicit weight, and cn()'s tailwind-merge
     // makes the later class win. Do not "tidy" those away.
-    // ⚠️ 800, NOT 900, AND THE REASON IS THE SECOND FONT (owner, 2026-08-11: "use 800 for both").
-    // This app ships TWO faces: Inter (declared `100 900`) and Be Vietnam Pro (declared
-    // 400–800, no 900). `font-black` therefore rendered 900 on the English face and CLAMPED to
-    // 800 on the Vietnamese one — the same price looked different in the two languages, and on
-    // Inter the 800→900 step is small enough that it read as "not bolder" anyway. Measured on
-    // production: computed weight 900, 18px, Inter with a real 900 face available, so the class
-    // was applying — it simply was not buying much, at the cost of a cross-language mismatch.
-    // 800 is the heaviest weight BOTH faces actually have, so it renders identically in both.
-    // ⚠️ Do not "upgrade" this to font-black without adding 900 to Be Vietnam Pro in layout.tsx.
-    <span className={cn('tabular-nums font-extrabold', className)}>
+    // ⚠️ 900, AND THE PRECONDITION IS ALREADY MET — Be Vietnam Pro NOW SHIPS A 900 CUT.
+    // The history matters because this value moved three times. The app ships two faces: Inter
+    // (variable, `100 900`) and Be Vietnam Pro (static, enumerated weights). While that second
+    // list stopped at 800, `font-black` rendered 900 in English and CLAMPED to 800 in Vietnamese
+    // — the same price looking different in the two languages — which is why the owner said "use
+    // 800 for both", and 800 was right for as long as 900 did not exist on both faces.
+    // ⚠️ THE HONEST PART: 800 was ALSO the weight every call site already had before the "make
+    // prices bolder" pass, so that pass changed nothing anyone could see, which is exactly what
+    // was reported back, three times. Rendering the four weights side by side at 18px settled it:
+    // 700→800 is marginal, 800→900 is plainly visible. Adding the missing cut in layout.tsx
+    // removed the constraint rather than working around it.
+    // ⚠️ So this now depends on layout.tsx listing "900" for Be Vietnam Pro. Removing it there
+    // silently reintroduces the cross-language clamp — the two files have to move together.
+    <span className={cn('tabular-nums font-black', className)}>
       {amount}
       {/* The bare text node is kept for the default (always-on) case so the other
           call sites' DOM is byte-identical to before; only the 'sm' variant needs a
@@ -102,7 +128,18 @@ export function Price({ price, currency, priceUnit, compact = false, dual = true
         : suffix)}
       {approx && (
         /**
-         * ⚠️ THE WHOLE APPROXIMATION IS `aria-hidden`, NOT JUST THE OPERATOR.
+         * ⛔ `aria-hidden` IS CONDITIONAL, AND THE CONDITION IS THE SAME ONE THAT GOVERNS THE
+         * CONTAINER QUERY — this slot does not always hold an approximation. When the viewer's
+         * display currency is USD, the amount above is the CONVERTED dollar figure and this span
+         * holds the stored ĐỒNG price. Hiding it from assistive tech left a blind USD-viewing
+         * user hearing "one hundred and fifteen dollars" and never the đồng price they would
+         * actually pay — the same NĐ 340/2025 exposure the visual fix above addresses, reached
+         * through the accessibility tree instead of the layout. Found by a reviewer immediately
+         * after the visual half was fixed and the a11y half was not, which is the lesson: a rule
+         * about "which figure is authoritative" has to be applied everywhere the figure is
+         * suppressed, not just where it is hidden with CSS.
+         *
+         * ⚠️ WHEN IT IS A GENUINE ESTIMATE, THE WHOLE THING IS HIDDEN — NOT JUST THE OPERATOR.
          * A screen reader was announcing "eighty-one thousand VND ALMOST EQUAL TO three dollars"
          * — on every card in the feed, every rail, and every PDP. The `≈` is spoken, and the
          * conversion doubles the length of the single most-repeated string in the product.
@@ -113,9 +150,58 @@ export function Price({ price, currency, priceUnit, compact = false, dual = true
          * ⚠️ Do NOT "fix" this by aria-hiding only the `≈` glyph — that leaves "eighty-one
          * thousand VND three dollars", two prices run together with nothing between them, which
          * is worse than the operator.
+         *
+         * ⚠️ `whitespace-nowrap` KEEPS THE OPERATOR WITH ITS NUMBER. On a narrow grid card the
+         * price line is genuinely too long for one line — at 1024px the feed lays out cards at
+         * 228px while "3,030,000 VND / service ≈ $115" measures ~271px at 18px — so it wraps,
+         * and it used to break at the space INSIDE the approximation, stranding a lone "≈" at
+         * the end of line one and "$115" on line two. That reads as a rendering fault rather
+         * than a second currency. Now the whole approximation moves down together.
+         * This does NOT stop the wrap itself, which predates the weight change.
+         * ⚠️ A CORRECTION WORTH KEEPING, because the first version of this note was wrong in a
+         * way that is easy to repeat: "tabular-nums, so 800 and 900 measure identically" was
+         * measured on INTER, which is variable. `tabular-nums` equalises digit advances WITHIN a
+         * face, not across weights, and Be Vietnam Pro is STATIC — 800 and 900 are separately
+         * drawn files. Measured on the real face at 18px: "3.030.000 đ / dịch vụ ≈ $115" is
+         * 258.16px at 800 and 261.04px at 900, so Vietnamese runs ~1.1% wider at 900. Not enough
+         * to change any wrap decision recorded here (the grid card has ~48px of slack at 1280),
+         * but do not reuse the "identical" claim — a reviewer caught it and was right.
+         *
+         * ⚠️ AND ON A NARROW ROW WITH A USD DISPLAY THIS SPAN IS NOT OPTIONAL, so it can run out
+         * of room on a very large price. Measured at 390px, USD display, compact row:
+         * "$115 ≈ 3,030,000 VND" is 139px inside a 162px column — comfortable. A nine-figure
+         * property price is the case that would not fit. The alternative is worse (hiding the
+         * đồng figure entirely, which is the compliance problem the guard above exists for), so
+         * the real fix if that shows up is to make đồng the PRIMARY amount on narrow surfaces
+         * for USD viewers — a product decision, not a styling one.
          */
-        <span aria-hidden className={cn('ml-1.5 text-[0.8em] font-medium text-muted-foreground', dual === 'sm' && 'hidden sm:inline')}>
-          {'≈'} {approx}
+        <span
+          aria-hidden={approxIsEstimate}
+          className={cn(
+            'ml-1.5 whitespace-nowrap text-[0.8em] font-medium text-muted-foreground',
+            // ⛔ `approxIsEstimate` GUARDS THE HIDE, AND THE UNGUARDED VERSION WAS A LIVE LEGAL
+            // BUG ON THE DEFAULT FEED. `dual="sm"` is passed by the compact row — the default
+            // browse view — so on a phone this span was `display: none` unconditionally. For a
+            // viewer whose display currency is USD that span holds the ĐỒNG price, so the
+            // marketplace showed a USD-only price to every USD-viewing mobile user: exactly the
+            // NĐ 340/2025 exposure this component is otherwise careful about. Found by a reviewer
+            // after the identical hole was fixed in a sibling code path and this one was not,
+            // which is the lesson — the rule is about the FIGURE, so it belongs on every branch
+            // that can suppress the figure.
+            dual === 'sm' && approxIsEstimate && 'hidden sm:inline',
+          )}
+        >
+          {/* ⚠️ THE GLYPH IS HIDDEN SEPARATELY IN THE NON-ESTIMATE BRANCH, AND ONLY THERE.
+              With the span exposed (USD display, so this is the real đồng price), a screen
+              reader was reading "ALMOST EQUAL TO one million three hundred twenty thousand
+              đồng" over the figure two lines of comment above call legally authoritative —
+              announcing the exact price as an approximation. `≈` is a visual shorthand for
+              "converted", not a claim about this number.
+              ⚠️ This is NOT the "aria-hide only the operator" fix the block above forbids. That
+              warning is about the ESTIMATE branch, where both figures are announced and dropping
+              the operator runs two prices together. Here the span itself is already hidden in
+              that branch, so this only ever applies when the second figure is exact. */}
+          <span aria-hidden={!approxIsEstimate}>{'≈'}</span> {approx}
         </span>
       )}
     </span>

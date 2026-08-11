@@ -148,7 +148,18 @@ const interVietnamese = localFont({
 const beVietnamPro = Be_Vietnam_Pro({
   variable: "--font-be-vietnam-pro",
   subsets: ["latin", "vietnamese"],
-  weight: ["400", "500", "600", "700", "800"],
+  // ⚠️ 900 IS BACK, AND IT IS LOAD-BEARING RATHER THAN A LEFTOVER (owner, 2026-08-11, fourth
+  // report of "prices arent bold"). It was dropped as unused when the weight list was trimmed,
+  // which is what forced <Price> down to 800: `font-black` rendered 900 on Inter and CLAMPED to
+  // 800 on this face, so the same price looked different in English and Vietnamese, and "use 800
+  // for both" was the correct call GIVEN THAT CONSTRAINT. Adding the cut removes the constraint
+  // instead of living with it — both faces now have a real 900, so the price is heavier in every
+  // language rather than heavier in one. Rendered side by side at 18px, 800→900 is a clearly
+  // visible step where 700→800 was not, which is why three "it is applied" answers did not
+  // satisfy the request.
+  // The cost is bounded by `preload: false` below: these files are fetched only when a rule under
+  // html[lang="vi"] actually matches, so an English visitor never downloads the added weight.
+  weight: ["400", "500", "600", "700", "800", "900"],
   display: "swap",
   preload: false,
 });

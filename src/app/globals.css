@@ -1510,9 +1510,16 @@ html.native-tabs .bottom-nav-spacer {
    rendering artefact rather than a mark of status. The mid stop is the one that carries
    as metal on a light surface. Same palette, different job.
 
-   ⚠️ BOTH RINGS ARE `outline`, NOT `box-shadow`, AND THAT IS TWO BUG FIXES IN ONE CHOICE.
-   The first version drew the avatar ring as a box-shadow with a --card-coloured band to
-   FAKE the gap, and reviewers caught both consequences:
+   ⚠️ THE TWO RINGS USE DIFFERENT MECHANISMS, AND THE SPLIT IS DELIBERATE — READ BOTH.
+   The AVATAR ring is an `outline` (below). The MEDIA ring is an `::after` overlay, because an
+   inset outline is painted UNDER an absolutely-positioned child and the product photo is
+   exactly that; the full measurement is on `.partner-ring-media`. Everything in the two
+   paragraphs immediately below is about the AVATAR ring, where `outline` is still right —
+   it sits OUTSIDE its shape, over the page surface rather than over a photo.
+
+   ⚠️ THE AVATAR RING IS `outline`, NOT `box-shadow`, AND THAT IS TWO BUG FIXES IN ONE CHOICE.
+   The first version drew it as a box-shadow with a --card-coloured band to FAKE the gap, and
+   reviewers caught both consequences:
    · a painted gap is only invisible on the surface it was named after. The same avatar
      renders on --card, on --background and inside a dialog, so the fake gap showed as a
      pale stripe wherever the surface was not --card. `outline-offset` leaves a REAL
@@ -1521,26 +1528,28 @@ html.native-tabs .bottom-nav-spacer {
      the ring is now the only visible partner signal, that meant the mark vanished for
      exactly the users least able to afford losing it. Outlines survive forced-colors and
      are re-coloured to a system colour.
-   Neither is clipped by the avatar's own `overflow-hidden`, which a border or an inset
-   shadow would be.
+   The avatar ring is not clipped by the avatar's own `overflow-hidden` either, which a border
+   or an inset shadow would be — one more reason the mechanisms differ: the media ring solves
+   clipping by sitting INSIDE the box instead.
 
    ⚠️ SAME STROKE, OPPOSITE SIDE — AND THE MEDIA RING SITS INSIDE FOR A HARD REASON, NOT A
    TASTE ONE. It went outside briefly so it would match the avatar exactly, and that clipped
    in many places: a product tile is not a free-floating element like an avatar in a header,
-   it lives inside rails and grids whose tracks carry `overflow-hidden`, and an outline drawn
+   it lives inside rails and grids whose tracks carry `overflow-hidden`, and a ring drawn
    OUTSIDE the box is clipped by any such ancestor. The result was a ring that was whole on
    some cards and sliced on others, which is worse than either choice made consistently.
-   Drawn inside, nothing can clip it: the outline is within the element's own box on every
-   surface, and the negative offset lands it flush against the frame it decorates.
-   What still makes it one mark is what people actually read — same colour, same weight,
-   same hairline — while the gap direction is dictated by where the element lives.
-   `outline` follows each element's own border-radius, so the same stroke is a circle on the
-   avatar and a squircle on the 2xl media with nothing to keep in sync.
+   Drawn inside, nothing can clip it. What still makes it one mark is what people actually
+   read — same colour, comparable weight — while the gap direction is dictated by where the
+   element lives.
 
-   ⚠️ THE RING IS DECORATION AND MUST NEVER BE THE ONLY SIGNAL. Every call site carries a
-   real accessible name, and the avatar surfaces also carry a `title` so a sighted visitor
-   who cannot read gold — roughly 8% of men see this as a grey-green — can still discover
-   what the ring means. If a future change drops those, this becomes colour-only status. */
+   ⚠️ THE RING IS DECORATION AND MUST NEVER BE THE ONLY SIGNAL, AND THAT IS AN OBLIGATION ON
+   EVERY CALL SITE, NOT ON THIS FILE. A ring drawn with `outline` or `::after` is invisible to
+   assistive tech — pseudo-element content is not announced at all — so each surface that adds
+   the class MUST also add a real accessible name (`sr-only` text, or a `title` on the avatar
+   surfaces so a sighted visitor who cannot read gold, roughly 8% of men, can discover what the
+   ring means). This was found violated once already: the compact row got the ring and no name,
+   which made partner status colour-only on the DEFAULT browse view. Adding the class without
+   the name is the whole failure mode. */
 .partner-ring {
   outline: 1.5px solid var(--partner-foil-mid);
   outline-offset: 2px;
@@ -1552,11 +1561,10 @@ html.native-tabs .bottom-nav-spacer {
    "fix" it to 2px expecting a small change: that is a doubling of everything anyone can see.
    Same family as the `border-width: 0.5px` clamp already recorded for the hairline rules.
 
-   ⚠️ THE OFFSET IS NEGATIVE, AND THAT IS THE ANTI-CLIP FIX. -1.5px equals the stroke, so the
-   outline's outer edge lands exactly on the element's edge: flush inside the frame, never a
-   pixel beyond it, so no ancestor's `overflow-hidden` can take a bite out of it. It also
-   paints OVER the photo, which an inset box-shadow could not — that renders beneath child
-   content, so the <img> would hide it entirely. */
+   ⚠️ THE AVATAR OFFSET IS POSITIVE (+2px) — the ring sits OUTSIDE the circle, over the page
+   surface, which is why `outline` still works here and why the transparent-gap argument above
+   applies. The media ring's inside-the-frame problem is a different one and is solved a
+   different way; see `.partner-ring-media`. */
 /* ── The eno basemap ────────────────────────────────────────────────────────────────
    CARTO `light_all` is a good neutral map and looks like every other neutral map. These two
    rules make it read as ours without swapping provider (which would restart the attribution
@@ -1600,18 +1608,77 @@ html.native-tabs .bottom-nav-spacer {
   filter: invert(0.92) hue-rotate(180deg) saturate(0.75) brightness(0.95);
 }
 
+/* ⛔ THIS RING IS AN OVERLAY, NOT AN `outline`, AND THAT IS THE WHOLE FIX — DO NOT "SIMPLIFY"
+   IT BACK. Three shipped attempts were invisible on a real card, and the reason was never
+   subtlety: an inset `outline` DOES NOT PAINT OVER CHILD CONTENT IN CHROME. The media wrapper's
+   photo is `position: absolute; inset: 0` (next/image `fill`), so it covers the entire border
+   box and the outline is drawn beneath it. Proven, not reasoned — the earlier version of this
+   comment asserted the opposite and was simply never tested:
+
+     · `outline: 2px solid gold; outline-offset: -2px`  → nothing visible.
+     · probe raised to `6px solid RED` on the live page → still nothing visible.
+     · `overflow: visible` on the wrapper                → still nothing (so it was never clipping).
+
+   A 6px red line you cannot see is not a contrast problem, and no amount of widening or
+   re-colouring would ever have fixed it. `inset box-shadow` fails identically and for the same
+   reason, which is why that is not the answer either.
+
+   An absolutely-positioned `::after` sits in the same paint order as the photo and comes after
+   it in the tree, so it lands ON TOP. `border-radius: inherit` keeps it locked to whatever
+   corner the call site uses (rounded-lg on the compact row, rounded-2xl on the grid card) with
+   nothing to keep in sync, and `pointer-events: none` keeps every click, hover and swipe on the
+   photo underneath exactly as before.
+
+   ⚠️ THE RING IS DECORATION AND MUST NEVER BE THE ONLY SIGNAL — the accessible name lives in the
+   meta row, and `::after` content is not announced at all. If a future change drops that name,
+   partner status becomes colour-only status. */
 .partner-ring-media {
-  /* ⚠️ 2px, NOT the avatar's hairline — reported invisible at 1.5 (which Chromium rounds to a
-     1px line anyway). An avatar ring sits OUTSIDE the shape against a plain surface, where a
-     hairline is plenty. This one sits INSIDE, on top of a photograph: it competes with whatever
-     the image happens to be at its edge, and a 1px gold line over a bright or busy photo simply
-     is not there. 2px is the smallest stroke that survives an arbitrary background.
-     ⚠️ The inner shadow is doing real work, not decoration: a gold line on a pale photo has
-     almost no contrast, so a 1px dark inset underneath it guarantees an edge in every case.
-     Together they read as a foil rim rather than a stray border. */
-  outline: 2px solid var(--partner-foil-mid);
-  outline-offset: -2px;
-  box-shadow: inset 0 0 0 3px rgb(0 0 0 / 0.10);
+  /* Defensive: every call site today is already `relative`, but a `static` one would let the
+     ring escape to the nearest positioned ancestor and draw around the whole card. */
+  position: relative;
+}
+.partner-ring-media::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  border-radius: inherit;
+  /* ⚠️ `corner-shape: inherit` IS REQUIRED, AND `border-radius: inherit` ALONE IS THE BUG IT
+     FIXES (owner, 2026-08-11: "match the edges we use squircle for both"). The squircle block
+     above applies `corner-shape: squircle` by matching CLASS NAMES (`[class*="rounded-2xl"]`) —
+     and a pseudo-element has no class attribute, so it can never be matched by that selector.
+     The ring therefore drew a circular ARC while the media it traced drew a SUPERELLIPSE, and
+     the two edges visibly disagreed at every corner.
+     `inherit` is the right mechanism rather than restating `squircle`: `corner-shape` is not an
+     inherited property, so this explicitly takes whatever the HOST resolved to — squircle on
+     Chromium 139+, the initial `round` everywhere else — and a host that is deliberately not
+     squircled (a `rounded-full` avatar, say) keeps its own shape with nothing to remember. On an
+     engine with no `corner-shape` support the whole declaration is invalid and dropped, which is
+     exactly the progressive-enhancement contract the block above documents. */
+  corner-shape: inherit;
+  /* ⚠️ 2px, NOT the avatar's hairline. The avatar ring sits OUTSIDE its shape against a plain
+     surface, where a hairline is plenty. This one sits INSIDE, on top of a photograph, and
+     competes with whatever the image happens to be at its edge. The inner dark line is doing
+     real work rather than decoration: gold on a pale photo has almost no contrast on its own,
+     so a hairline of black underneath guarantees an edge on any artwork. Together they read as
+     a foil rim rather than a stray border. */
+  border: 2px solid var(--partner-foil-mid);
+  box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.18);
+}
+/* ⚠️ FORCED COLORS KEEPS THE RING, EXPLICITLY. Both external reviewers raised this against the
+   move away from `outline`, and they are right that the treatment does not survive untouched: a
+   `box-shadow` is DROPPED entirely in forced-colors mode, and the gold `border-color` is replaced
+   by a system colour, so the "gold rim over a dark hairline" reduces to a plain 2px line. Naming
+   `Highlight` makes that reduction deliberate and legible rather than whatever the UA picks, and
+   it is the system colour reserved for "this item is called out".
+   The ring stays decoration either way — the partner's accessible name lives in the meta row, and
+   `::after` content is never announced — so this is about not silently losing a visual signal for
+   high-contrast users, not about carrying status in colour. */
+@media (forced-colors: active) {
+  .partner-ring-media::after {
+    border-color: Highlight;
+  }
 }
 
 .press {

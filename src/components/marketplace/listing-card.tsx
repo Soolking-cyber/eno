@@ -251,10 +251,15 @@ function ListingCardImpl({
         // carve-out deleted. Do not "restore" it: at the old xl this was a 9px corner on the
         // most-repeated photo in the product, which is most of why the feed read as generic.
         // ⚠️ `partner-ring-media` REPLACES THE PARTNER SEAL THAT USED TO SIT IN THE META ROW
-        // (owner, 2026-08-11: ring on the products, remove the badge). It is an outline with a
-        // negative offset, so it hugs this rounded-2xl corner and paints OVER the photo without
-        // taking layout — an inset box-shadow renders beneath child content and the <img> would
-        // hide it. The accessible name moved to the meta row; see the sr-only there.
+        // (owner, 2026-08-11: ring on the products, remove the badge). It is an `::after` overlay
+        // that hugs this rounded-2xl corner and takes no layout.
+        // ⛔ THE EARLIER COMMENT HERE SAID IT WAS "an outline with a negative offset [that] paints
+        // OVER the photo". THAT WAS FALSE and it is why the ring shipped invisible three times: an
+        // inset outline is painted UNDER an absolutely-positioned child, and next/image `fill`
+        // makes the photo exactly that. An inset box-shadow fails the same way. Proven with a 6px
+        // red probe on the live page — see `.partner-ring-media` in globals.css for the full
+        // measurement before reaching for either again.
+        // The accessible name moved to the meta row; see the sr-only there.
         className={cn(
           'relative aspect-square w-full overflow-hidden rounded-2xl bg-tint transform-gpu isolate transition-shadow duration-200 group-hover:shadow-[var(--shadow-card)]',
           listing.seller.officialPartner && 'partner-ring-media',
@@ -751,11 +756,38 @@ function ListingCardImpl({
           one tightly-packed subdued metadata line → (mobile only) a quiet action row.
           gap-0.5 keeps it dense; the metadata line is pushed to the bottom (mt-auto)
           so cards with 1- vs 2-line titles still align their footers across the grid. */}
+      {/* ⛔ AN `@container` + `<Price dual="fit">` PAIR WAS BUILT HERE AND REMOVED — DO NOT REDO IT
+          WITHOUT READING THIS. The goal was real: this price wraps to two lines on a narrow card
+          (179px at 390, 229px at 768, against ~262px of "3,030,000 VND / service ≈ $115"), and a
+          viewport breakpoint cannot fix it because a wider viewport adds COLUMNS and makes the
+          card NARROWER. A container query is the right tool. What sank it was that a FIXED
+          threshold cannot gate a VARIABLE-LENGTH string: it hid the ≈ conversion on a small card
+          showing "81,000 VND ≈ $3" that had room to spare, while a property price still overflowed
+          a container comfortably past the threshold. It over-fired and under-fired at once — and
+          `container-type: inline-size` additionally makes this box a containing block and a
+          stacking context for anything absolutely positioned inside it.
+          If this is attempted again it needs to key on the RENDERED width of the amount, not on a
+          constant — and the wrap it fixes has been there all along, so it is a deliberate piece of
+          work, not a tidy-up. */}
       <div className="flex flex-1 flex-col gap-0.5 px-0.5 pt-2.5">
         {/* PRIMARY — price. The card's single blue accent, bold and a step larger than
             everything else so the eye lands here first. Deal chips sit INLINE (baseline
             row) so "was"/"Good price" add no vertical bulk. */}
         <span className="flex items-baseline gap-1.5">
+          {/* ⛔ `text-lg` IS THE CEILING HERE — `text-xl` WAS TRIED AND REVERTED IN THE SAME PASS.
+              Context, because "make the prices bolder" keeps coming back: the WEIGHT lever is
+              already spent. Every feed price was ALREADY `font-extrabold` (800) before that
+              request; the pass that answered it moved the weight into <Price> and briefly tried
+              900 before landing back on 800 (Be Vietnam Pro has no 900), so the net visual change
+              was zero — which is exactly what kept being reported. That leaves the type scale.
+              ⚠️ And the type scale is spent too, for width reasons, measured on a real card:
+              a 272px card renders "3,030,000 VND / service ≈ $115" at 271px on ONE line at 18px,
+              and at 20px it WRAPS — the approximation drops to a second line, which breaks the
+              `mt-auto` footer alignment across the grid and reads as a broken card. A property
+              price ("9,500,000,000 VND / month") is already 299px at 18px, so this line is at its
+              limit today. Any future attempt to enlarge the price has to buy the width first —
+              by dropping the unit suffix or the ≈ approximation on this surface — not by bumping
+              the size and hoping. */}
           <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} compact className="text-lg leading-tight text-accent-foreground" />
           {/* Struck-through "was" anchor — server-computed 30-day-min reference, only
               present while the drop badge is live. */}
