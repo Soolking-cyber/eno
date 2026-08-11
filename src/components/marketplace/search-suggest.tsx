@@ -232,7 +232,7 @@ export function SearchSuggest({
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-medium text-foreground transition-colors group-hover:text-accent-foreground"><Highlight text={title} query={q} /></span>
                   <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <Price price={l.price} currency={l.currency} priceUnit={l.priceUnit} compact className="font-semibold text-accent-foreground" />
+                    <Price price={l.price} currency={l.currency} priceUnit={l.priceUnit} compact className="text-accent-foreground" />
                     <span className="truncate">· {l.location}</span>
                   </span>
                 </span>

@@ -374,7 +374,7 @@ function VideoFeedItem({
             <h3 className="line-clamp-2 text-base font-semibold leading-snug drop-shadow sm:text-lg">{title}</h3>
           </Button>
           <div className="mt-1">
-            <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} compact className="text-xl font-extrabold text-white drop-shadow" />
+            <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} compact className="text-xl text-white drop-shadow" />
           </div>
           {(location || listing.model) && (
             <p className="mt-0.5 truncate text-sm text-white/80 drop-shadow">{[location, listing.model].filter(Boolean).join(' · ')}</p>

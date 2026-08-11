@@ -13,6 +13,7 @@ import { EnoSeal } from './eno-seal'
 // display stroke (1.5) for h-11+ tiles; at the picker's h-4/h-3.5 that scales to
 // <1px of ink, so the picker passes the UI weight explicitly.
 import { STROKE_UI } from '@/lib/icon-tokens'
+import { ENFORCEMENT } from '@/lib/enforcement-machine'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -752,8 +753,14 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
           ? t('Tin đăng của bạn đang tạm dừng trong khi chúng tôi xem xét một báo cáo — xem chi tiết và khiếu nại trong trang quản lý.', 'Your listings are paused while we review a report — see your dashboard for details and to appeal.')
           : msg === 'account_suspended'
           ? t('Tài khoản của bạn đang tạm ngưng nên chưa thể đăng tin — xem chi tiết trong trang quản lý.', 'Your account is suspended, so posting is paused — see your dashboard for details.')
+          // ⚠️ THE NUMBER COMES FROM THE CONSTANT, NEVER RETYPED. It said "8" while the server
+          // enforced ENFORCEMENT.PROBATION.MAX_ACTIVE_LISTINGS, so raising the cap to 30 would
+          // have left every blocked seller reading a limit that had not been true since the
+          // change — the same trap `minPhotosFor` exists to prevent on the photo gate.
+          // enforcement-machine.ts is the PURE state machine (no DB, no server-only), so the
+          // client can import it; enforcement.ts, which cannot, is not what is imported here.
           : msg === 'probation_listing_cap'
-          ? t('Tài khoản mới có thể giữ tối đa 8 tin đang đăng — hãy đánh dấu đã bán một tin, hoặc chờ tài khoản đủ 30 ngày.', 'New accounts can keep up to 8 active listings — mark something sold or wait until your account is 30 days old.')
+          ? `${t('Tài khoản mới có thể giữ tối đa', 'New accounts can keep up to')} ${ENFORCEMENT.PROBATION.MAX_ACTIVE_LISTINGS} ${t('tin đang đăng — hãy đánh dấu đã bán một tin, hoặc chờ tài khoản đủ 30 ngày.', 'active listings — mark something sold or wait until your account is 30 days old.')}`
           : msg === 'phone_taken'
           ? t('Số điện thoại này đã được một tài khoản khác sử dụng. Mỗi số chỉ dùng cho một tài khoản.', 'This phone number is already used by another account. Each number belongs to one account.')
           : t('Không gửi được, vui lòng thử lại.', 'Could not submit — please try again.'),

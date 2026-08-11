@@ -445,7 +445,7 @@ export default async function ListingPage({ params }: Props) {
               <div className="order-3 flex flex-col gap-2">
                 <div className="flex flex-col gap-1.5">
                   <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-                    <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} className="text-3xl font-extrabold tracking-tight text-accent-foreground" />
+                    <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} className="text-3xl tracking-tight text-accent-foreground" />
                     {/* Server-computed drop anchor (30-day-min reference) — never a seller "was". */}
                     {/* ⚠️ BOTH CLAIMS ARE WRAPPED IN <LiveUntil> BECAUSE THIS PAGE IS ISR-CACHED
                         FOR 30 DAYS. `prevPrice` and `urgent` are resolved by serialize.ts against
@@ -456,7 +456,9 @@ export default async function ListingPage({ params }: Props) {
                         save a client component; the staleness is in the CACHE, not the serializer. */}
                     {listing.prevPrice != null && dropPercent(listing.prevPrice, listing.price) && (
                       <LiveUntil until={listing.dropExpiresAt}>
-                        <Price price={listing.prevPrice} currency={listing.currency} priceUnit="VND" className="text-base text-ink-4 line-through" />
+                        <Price price={listing.prevPrice} currency={listing.currency} priceUnit="VND" /* ⚠️ EXPLICIT font-medium — Price now defaults to font-black, and a heavy strikethrough
+                       fights the price that actually applies. The old price must read as background. */
+                    className="text-base font-medium text-ink-4 line-through" />
                         <Badge variant="counter" size="sm" className="tabular-nums">
                           {dropPercent(listing.prevPrice, listing.price)}
                         </Badge>

@@ -71,7 +71,19 @@ export function Price({ price, currency, priceUnit, compact = false, dual = true
 
   return (
     // tabular-nums: fixed-width digits so price columns align across card grids.
-    <span className={cn('tabular-nums', className)}>
+    //
+    // ⚠️ THE WEIGHT LIVES HERE, NOT AT THE CALL SITES (owner, 2026-08-11: "prices bolder on
+    // products, make sure its implemented everywhere"). It was previously repeated as
+    // `font-extrabold` at eight call sites, `font-semibold` at a ninth, and omitted at two —
+    // which is exactly how a "make it consistent" instruction quietly becomes untrue again the
+    // next time someone adds a surface. Owning it in the component means a new <Price /> is
+    // correct by default and the audit cannot drift.
+    //
+    // ⚠️ A CALL SITE CAN STILL OVERRIDE IT, AND TWO MUST: the struck-through PREVIOUS price on
+    // the PDP and the card is deliberately light — a heavy strikethrough competes with the
+    // price that actually applies. Those pass an explicit weight, and cn()'s tailwind-merge
+    // makes the later class win. Do not "tidy" those away.
+    <span className={cn('tabular-nums font-black', className)}>
       {amount}
       {/* The bare text node is kept for the default (always-on) case so the other
           call sites' DOM is byte-identical to before; only the 'sm' variant needs a

@@ -166,7 +166,10 @@ describe('probation (caps, not shame)', () => {
   })
 
   it('cap constants match the spec', () => {
-    expect(ENFORCEMENT.PROBATION.MAX_ACTIVE_LISTINGS).toBe(8)
+    // 8 → 30 (owner, 2026-08-11). The pin stays: this test's job is to make a change to a
+    // user-facing limit deliberate rather than incidental, so it should fail when the number
+    // moves — it just has to be updated with it, not deleted.
+    expect(ENFORCEMENT.PROBATION.MAX_ACTIVE_LISTINGS).toBe(30)
     expect(ENFORCEMENT.PROBATION.MAX_NEW_CONVERSATIONS_PER_DAY).toBe(15)
   })
 })

@@ -17,6 +17,7 @@ import { ReportButton } from '@/components/marketplace/report-button'
 import { HandleChip } from '@/components/marketplace/handle-chip'
 import { Badge } from '@/components/ui/badge'
 import { StorefrontSellerCard } from '@/components/marketplace/storefront-seller-card'
+import { StorefrontChatButton } from '@/components/marketplace/storefront-chat-button'
 import { getVisaShopSeller } from '@/lib/visa-shop'
 import { sellerMetrics } from '@/lib/seller-metrics'
 import { getEnforcement } from '@/lib/enforcement'
@@ -151,7 +152,13 @@ export async function SellerStorefront({ id }: { id: string }) {
                 // product from the grid below and its PDP "Apply" starts the case with that
                 // product pre-chosen (the inline speed-tier picker that used to sit here was
                 // removed on owner direction 2026-07-23 — the sortable grid is the chooser).
-                chatListingId={isVisaDesk ? null : chatListingId}
+                // ⚠️ ALWAYS null NOW — the CTA moved OUT of the card so it can share the chip
+                // row below (owner, 2026-08-11). SellerCard hides its primary button when it
+                // gets no onChat, and that is precisely how this suppression works; if you ever
+                // restore a value here the page will render TWO "Chat now" buttons.
+                // The visa-desk rule is unchanged, it just moved to the button below: that desk
+                // does not take a generic chat, its threads ARE applications.
+                chatListingId={null}
                 listingCount={listings.length}
               />
             </div>
@@ -159,8 +166,17 @@ export async function SellerStorefront({ id }: { id: string }) {
                 stacking into two more blocks under the card. Owner 2026-07-24: "what can be put
                 in one line put, small chips" — the header was five stacked blocks on a phone
                 (identity · metrics · Chat · chips · Report) before any content. */}
-            {(seller.handle || seller.ownerId) && (
+            {/* ⚠️ THE CTA NOW LIVES ON THIS ROW, so the guard has to admit it. The row used to
+                render only when there was a handle or an owner; a seller with a chat target but
+                neither would have lost their "Chat now" entirely when it moved here. */}
+            {(seller.handle || seller.ownerId || (!isVisaDesk && chatListingId)) && (
               <div className="flex flex-wrap items-center gap-2">
+                {/* One line, mobile and desktop (owner, 2026-08-11). `flex-wrap` is deliberate
+                    and is NOT a second row in disguise: at 320px the chips + CTA + Report cannot
+                    fit, and forcing them to would either overflow the viewport or shrink the
+                    primary action below a 44px target. Wrapping degrades to two lines only where
+                    one is physically impossible; everywhere else it is the single row asked for. */}
+                {!isVisaDesk && <StorefrontChatButton chatListingId={chatListingId} />}
                 {seller.handle && <HandleChip handle={seller.handle.handle} />}
                 {/* ONE badge only (owner 2026-07-23: "only 1 badge, no 2 badge system").
                     A business that passed the >=2-channel verification shows "Business

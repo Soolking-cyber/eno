@@ -5,6 +5,7 @@ import { db } from './db'
 import { sendPushToProfile } from './push'
 import { pickLocale } from './admin-macros'
 import { DAY_MS } from './trust-math'
+import { isBusinessVerified } from './business-verification'
 import {
   ENFORCEMENT,
   ENFORCEMENT_REASON,
@@ -669,10 +670,50 @@ async function sellerTransactionCount(sellerId: string): Promise<number> {
 }
 
 /**
+ * Is this seller exempt from the new-account listing cap? (owner, 2026-08-11)
+ *
+ * Two kinds of seller are, and both are ACCOUNTS ENO ITSELF VOUCHED FOR:
+ *   · an official partner — a company eno has a commercial agreement with and whose
+ *     account eno created;
+ *   · a verified business — one that passed the two-channel check (tax registry live and
+ *     matching, plus an unexpired approval stamped against the CURRENT identity).
+ *
+ * ⚠️ SELF-DECLARED "business" IS DELIBERATELY NOT ENOUGH, and this is the whole judgement
+ * in this function. `Profile.accountType === 'business'` is a free choice in a dropdown at
+ * signup — nobody checks it — so exempting it would not narrow the probation cap, it would
+ * DELETE it: any spammer selects "business" and posts without limit on day one. The cap
+ * exists precisely to make a brand-new account's first 30 days cheap to police. What
+ * `isBusinessVerified` adds is a registry the seller does not control.
+ *
+ * If the owner does want self-declared businesses exempt too, that is one clause here —
+ * but it should be a decision taken knowing it retires the new-account cap in practice.
+ */
+async function isListingCapExempt(sellerId: string): Promise<boolean> {
+  const seller = await db.seller.findUnique({
+    where: { id: sellerId },
+    select: {
+      officialPartner: true,
+      // Everything isBusinessVerified reads — see VerificationFacts.
+      name: true, legalName: true, legalAddress: true, idNumber: true, taxCode: true,
+      taxCheckedAt: true, taxRegisteredName: true, taxActive: true,
+      verifiedIdentityHash: true, verifiedUntil: true,
+    },
+  })
+  if (!seller) return false
+  return seller.officialPartner || isBusinessVerified(seller)
+}
+
+/**
  * Publish gate for POST /api/listings: held/suspended block posting outright;
- * a probation account (<30d AND <3 transactions) is capped at 8 active listings.
+ * a probation account (<30d AND <3 transactions) is capped at ENFORCEMENT.PROBATION.MAX_ACTIVE_LISTINGS
+ * active listings (30 as of 2026-08-11) unless isListingCapExempt() waives it.
  * Error codes are stable JSON the post wizard maps to friendly copy:
  * 'account_held' | 'account_suspended' | { 'probation_listing_cap', limit }.
+ *
+ * ⚠️ THE EXEMPTION SITS AFTER THE HELD/SUSPENDED CHECK, NEVER BEFORE IT. A partner or a
+ * verified business that gets suspended is still suspended — the exemption lifts the
+ * NEW-ACCOUNT cap, not enforcement. Putting it first would make a vouched-for account
+ * unbannable, which is the opposite of what vouching is for.
  */
 export async function postingGate(profileId: string, sellerId: string): Promise<GateError | null> {
   const { state } = await getEnforcement(profileId)
@@ -683,6 +724,7 @@ export async function postingGate(profileId: string, sellerId: string): Promise<
   const ageDays = (Date.now() - profile.createdAt.getTime()) / DAY_MS
   if (ageDays >= ENFORCEMENT.PROBATION.MIN_ACCOUNT_AGE_DAYS) return null
   if (!isProbation(ageDays, await sellerTransactionCount(sellerId))) return null
+  if (await isListingCapExempt(sellerId)) return null
 
   const active = await db.listing.count({ where: { sellerId, status: 'active' } })
   if (active >= ENFORCEMENT.PROBATION.MAX_ACTIVE_LISTINGS) {
@@ -708,6 +750,12 @@ export async function bulkPostingBudget(profileId: string, sellerId: string): Pr
   const ageDays = (Date.now() - profile.createdAt.getTime()) / DAY_MS
   if (ageDays >= ENFORCEMENT.PROBATION.MIN_ACCOUNT_AGE_DAYS) return { blocked: null, maxNewActive: null }
   if (!isProbation(ageDays, await sellerTransactionCount(sellerId))) return { blocked: null, maxNewActive: null }
+  // ⚠️ THE SAME EXEMPTION AS postingGate, AND IT HAS TO BE HERE TOO. This function's own
+  // docblock exists because the single-post gate is only a preflight — a seller who is exempt
+  // at postingGate but not here would be waved through the wizard and then silently truncated
+  // by the bulk/sync cores, which is a worse failure than being blocked outright. `null` means
+  // uncapped, the same value a non-probation seller gets.
+  if (await isListingCapExempt(sellerId)) return { blocked: null, maxNewActive: null }
   const active = await db.listing.count({ where: { sellerId, status: 'active' } })
   return { blocked: null, maxNewActive: Math.max(0, ENFORCEMENT.PROBATION.MAX_ACTIVE_LISTINGS - active) }
 }

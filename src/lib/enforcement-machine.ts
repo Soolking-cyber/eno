@@ -60,7 +60,9 @@ export const ENFORCEMENT = {
   PROBATION: {
     MIN_ACCOUNT_AGE_DAYS: 30, // probation ends at ≥30d age…
     MIN_TRANSACTIONS: 3, // …OR ≥3 completed transactions, whichever first
-    MAX_ACTIVE_LISTINGS: 8,
+    // 8 → 30 (owner, 2026-08-11). Official partners and verified businesses are exempt
+    // from this cap entirely — see isListingCapExempt in enforcement.ts.
+    MAX_ACTIVE_LISTINGS: 30,
     MAX_NEW_CONVERSATIONS_PER_DAY: 15,
   },
 } as const
