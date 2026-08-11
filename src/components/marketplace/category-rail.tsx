@@ -5,6 +5,7 @@ import { Layers } from 'lucide-react'
 import { useLanguage, Tr } from '@/context/language-context'
 import { CategoryIcon, CategoryGlyphArt } from './category-icons'
 import { SUBCATEGORIES } from '@/lib/subcategories'
+import { CountChip, optionCount, railDimension } from './count-chip'
 import { MoreOverflow } from './more-overflow'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
@@ -13,16 +14,25 @@ import { railEdgeMask } from './shelf'
 import { useScrollArrows, ScrollArrows } from '@/hooks/use-scroll-arrows'
 import { cn } from '@/lib/utils'
 import type { SerializedCategory } from '@/lib/types'
+// Type only — erased at compile time, so the client bundle never reaches for the module's
+// Prisma/`server-only` chain. It is imported rather than restated so the rail's prop and the
+// payload the route ships are literally the same type.
+import type { FacetCounts } from '@/lib/facet-counts'
 
-// Line 1 of the search header. Large, flat category tiles (icon + name, on the
+// Line 1 of the search header. Large, flat category tiles (icon + name + live count, on the
 // canvas — no background fill, matching the home grid) in one horizontally
 // scrollable line. Tapping a category rolls its subcategories OUT to the right
 // (pushing the categories after it further along); tapping it again collapses.
+//
+// The counts answer "how many results if I tap this, GIVEN everything else I have already
+// chosen" — they are conditional, not global (src/lib/facet-counts.ts). Every one of them is
+// optional: with no `facets` prop this renders exactly the countless strip it was before.
 export function CategoryRail({
   categories,
   activeCategory,
   activeSubcategory,
   subcategoryCounts,
+  facets,
   onCategory,
   onSubcategory,
   intents,
@@ -33,6 +43,37 @@ export function CategoryRail({
   activeCategory: string
   activeSubcategory: string
   subcategoryCounts: Record<string, number>
+  /**
+   * Live chip counts from the feed response's `facets` key (src/lib/facet-counts.ts). Omit — or
+   * pass `{}` — and the rail renders exactly as it did before counts existed.
+   *
+   * ⚠️ AN ABSENT DIMENSION IS "NOT COMPUTED", NEVER ZERO. `facets` is `{}` on a load-more page
+   * (`offset > 0`), with `?facets=0`, and when the whole computation is shed under load or fails
+   * — all three are all-or-nothing, whole-payload states (`return {}` in computeFacetCounts), not
+   * per-dimension ones. Every count below flows through `optionCount`, which returns `undefined`
+   * for a missing DIMENSION and `0` for a missing KEY inside a present one.
+   *
+   * ⚠️ THE CALLER MUST NOT OVERWRITE A COMPUTED PAYLOAD WITH AN EMPTY ONE. Keep the last
+   * response that CARRIED facets (`if (Object.keys(d.facets ?? {}).length) setFacets(d.facets)`).
+   * That is safe rather than stale because filters only ever change on a page-1 request, and
+   * page 1 always computes facets — the only `offset > 0` fetch is load-more, which changes no
+   * filter. Clobbering instead would blank every number the moment someone scrolls.
+   *
+   * ⚠️ REPLACE THE OBJECT WHOLESALE; NEVER MERGE IT DIMENSION BY DIMENSION. Which dimensions a
+   * payload carries is a statement about the current filters (no `brand` outside a brand
+   * category, no `model` before a brand is picked). Merging would keep a dimension the new
+   * filters say should not exist and hand this rail a confident answer to a question nobody asked.
+   *
+   * ⚠️ AND DROP IT WHEN THE FILTERS CHANGE — THIS IS THE ONE OBLIGATION THE COMPONENT CANNOT TAKE
+   * OVER. The payload carries no record of the filters that produced it, and this rail sees only
+   * the category axes, so it cannot tell "counted under your current condition + price + district"
+   * from "counted under the previous ones". The owner of the filters can: listings-explorer
+   * already computes a `filterSig` and resets paging from it, and clearing `facets` on that same
+   * signature change is the whole fix. `railDimension` below catches the gross case (a payload
+   * keyed by another category's slugs) so a missed invalidation degrades to no numbers rather
+   * than to wrong ones — but it cannot catch a scope change that keeps some of the same keys.
+   */
+  facets?: FacetCounts
   onCategory: (slug: string) => void
   onSubcategory: (slug: string) => void
   // Intent shortcuts (Free / Wanted) — appended after the categories so the results
@@ -65,6 +106,80 @@ export function CategoryRail({
     const left = container.scrollLeft + (el.getBoundingClientRect().left - container.getBoundingClientRect().left)
     container.scrollTo({ left, behavior: 'smooth' })
   }, [activeCategory])
+
+  // The category dimension: counted with `category` (and its whole cascade) released, so
+  // `values[slug]` is what tapping that tile returns and `all` is what tapping "All" returns.
+  // `all` is legitimately LARGER than the visible tiles sum — rows in a category the taxonomy
+  // does not list still come back when the rail is cleared — so it is rendered as its own number
+  // and never as a total of what is on screen. (It is edition-scoped like every other base:
+  // computeFacetCounts wraps each one in `scopedListingWhere`, which excludes the visa/trip desk
+  // and THROWS rather than degrading — so "a category the taxonomy does not list" never means a
+  // desk SKU counted into a marketplace rail.)
+  //
+  // ⚠️ THE TILES ARE THE ONE RAIL A STALE PAYLOAD CANNOT HURT, AND IT IS WORTH KNOWING WHY. The
+  // `category` base RELEASES category, subcategory, brand, model, price and every attr_*/range_*
+  // (releasedParams in src/lib/facet-counts.ts) — which is exactly the set a category tap clears —
+  // so what is left is condition + area + type, none of which a category tap touches. These
+  // numbers are therefore IDENTICAL before and after the tap: a payload held over from the
+  // previous category is not stale here, it is the same answer. `railDimension` is still applied
+  // for one rule everywhere; on this rail it is a no-op, because the dimension is seeded with all
+  // of the taxonomy's slugs and can never miss them.
+  const catDim = railDimension(facets?.category, categories.map((c) => c.slug))
+
+  /**
+   * ⚠️ ONE SUBCATEGORY SOURCE, AND `facets.subcategory` IS THE ONE THAT WON. The payload ships the
+   * same numbers twice: the long-standing top-level `subcategoryCounts` / `categoryTotal` keys
+   * this rail has always read, and `facets.subcategory`, which the route assembles FROM those two
+   * (`subcategoryDimension(category, categoryTotal, subcategoryCounts)` in
+   * src/app/api/listings/route.ts) over the identical facet base. They cannot disagree by
+   * construction, so this is a preference order, not a second opinion — nothing is stacked and no
+   * chip ever shows two numbers.
+   *
+   * `facets.subcategory` is preferred for two things the legacy pair cannot do:
+   *  · IT IS ZERO-SEEDED from the taxonomy, so a subcategory with nothing in it reads an honest
+   *    "0". The legacy map is groupBy output — a missing key there is indistinguishable from "the
+   *    counts have not arrived yet", which is why it can only ever be rendered as `undefined`.
+   *  · IT CARRIES `all`, which is the number the subcategory "All" chip needs. Reading
+   *    `categoryTotal` for that would have meant a new prop for a value the payload already
+   *    publishes here.
+   *
+   * ⚠️ THE LEGACY MAP IS KEPT AS THE FALLBACK, AND FOR RANKING IT IS THE SAFETY NET. The rail is
+   * ORDERED by these counts (see `subs` below), and `subcategoryCounts` ships on EVERY page while
+   * `facets` is `{}` for `offset > 0`. Ranking on the fallback chain means the order is computed
+   * from the same numbers whichever key is present, so a load-more response cannot re-sort the
+   * strip under a reader's finger even if a caller does clobber `facets` with `{}`. Display keeps
+   * the same chain purely so a `?facets=0` payload renders precisely what it renders today.
+   *
+   * ⚠️ AND IT IS PUT THROUGH `railDimension` FIRST, WHICH IS WHAT STOPS A CATEGORY SWITCH PRINTING
+   * A GRID OF ZEROS. `facets.subcategory` is seeded with the subcategory slugs of the category it
+   * was computed FOR, so the payload held across a Vehicles → Electronics tap misses every
+   * Electronics slug — and a miss inside a present dimension is a legitimate 0. Without the guard
+   * every chip would read 0 (and rank as 0) until the feed answered. With it the rail falls
+   * through to the legacy map, which has no keys for the new category either and therefore renders
+   * exactly the numberless, taxonomy-ordered strip it renders today during that same beat.
+   *
+   * ⚠️ THAT LAST STEP RESTS ON SUBCATEGORY SLUGS BEING GLOBALLY UNIQUE, AND A REVIEWER WAS RIGHT
+   * THAT AN UNSTATED ASSUMPTION IS NOT AN ARGUMENT — so it was measured rather than assumed: all
+   * 101 subcategory slugs in src/lib/taxonomy.ts are distinct (101 occurrences, 101 distinct), and
+   * the taxonomy suffixes the collisions on purpose ('car' vs 'car-rental', 'house' vs
+   * 'house-rental'). The legacy map for the previous category therefore cannot key a slug of this
+   * one. If a future taxonomy edit reuses a slug across two categories, this fallback starts
+   * printing the other category's number on a chip during that beat.
+   */
+  const subDim = railDimension(facets?.subcategory, (SUBCATEGORIES[activeCategory] ?? []).map((s) => s.slug))
+  // ⚠️ BOTH LOOKUPS GO THROUGH `Object.hasOwn`, NOT A BARE INDEX. The first version wrote
+  // `subDim.values[slug] ?? 0` here while the sibling helper in count-chip.tsx was being hardened
+  // against exactly that — two reviewers caught the inconsistency inside one diff. Neither record
+  // is a Map: `values` is built with Object.fromEntries and `subcategoryCounts` is parsed JSON, so
+  // both carry Object.prototype and a slug named `constructor` or `toString` indexes to a
+  // FUNCTION, which `??` does not catch. `subCount` would merely clamp it to 0, but `subRank`
+  // feeds it to `b - a`, and a comparator returning NaN makes the sort order implementation-
+  // defined — a rail that reshuffles for no visible reason. No such slug exists today; the point
+  // is that the rule was written in this change and must not be skipped in it.
+  const legacySubCount = (slug: string): number | undefined =>
+    Object.hasOwn(subcategoryCounts, slug) ? subcategoryCounts[slug] : undefined
+  const subCount = (slug: string): number | undefined => optionCount(subDim, slug) ?? legacySubCount(slug)
+  const subRank = (slug: string) => subCount(slug) ?? 0
 
   // `.press` (icon-language §8): the browse rail's tiles press with the same spring as the
   // home grid's — one tile, one feel, wherever the grid appears.
@@ -110,15 +225,40 @@ export function CategoryRail({
               if the tile reads as chosen, its glyph fills; otherwise it is pure ink line. */}
           <CategoryGlyphArt Icon={Layers} name="Layers" className={iconCls(activeCategory === 'all')} selected={activeCategory === 'all'} />
         </span>
-        <span className={nameCls(activeCategory === 'all')}>{tr('All', 'Tất cả')}</span>
+        {/* ⚠️ THE COUNT SITS ON ITS OWN LINE UNDER THE NAME, NOT APPENDED INSIDE IT. `nameCls`
+            carries line-clamp-2, so an inline number would be clipped away on exactly the tiles
+            whose label already wraps — and a count that disappears for long words is worse than
+            no count. The extra wrapper is inert when there is no count: a one-child flex column
+            renders byte-for-byte like the bare span it replaces.
+            Height: the strip is `items-center`, so its height is the TALLEST tile, and in the app
+            that is already a TWO-line tile — the intent shortcut reading "Free & Giveaways" /
+            "Cho tặng miễn phí", which listings-explorer passes on every render of this rail. So a
+            category tile that goes from one line of name to name-plus-count lands at the same two
+            lines and the strip does not grow. Note that `intents` is an OPTIONAL prop: the
+            no-growth property belongs to the caller that passes it, not to this component, and a
+            caller that omits it pays the one line described below.
+            What was actually counted, in both languages, off the 15 top-level entries in
+            src/lib/taxonomy.ts: every English name is a single word (longest "Electronics"), and
+            every Vietnamese one is at most two short words ("Thời trang", "Cộng đồng", "Nhà đất"
+            — there is no long one; the category is "Nhà đất", not a spelled-out phrase). What is
+            NOT measured here is the exact wrap point of a 4.75rem tile at the viewer's text-size
+            preference, which the app lets the OS scale between 85% and 150%. So the honest claim
+            is bounded rather than absolute: at the default size no name needs a second line, and
+            in the worst case counts cost this strip ONE text line, once, when they first land. */}
+        <span className="flex w-full flex-col items-center gap-0.5">
+          <span className={nameCls(activeCategory === 'all')}>{tr('All', 'Tất cả')}</span>
+          <CountChip count={catDim?.all} />
+        </span>
       </Button>
 
       {categories.map((cat) => {
         const isActive = activeCategory === cat.slug
         // Order subcategories by how many listings they hold (most first); ties keep
         // taxonomy order. Empty counts (pre-load) leave the canonical order.
+        // (`subRank` is the reconciled source above — the same numbers whichever key the payload
+        // carried, so switching to it changed no order, only where the figure is read from.)
         const subs = isActive
-          ? [...(SUBCATEGORIES[cat.slug] ?? [])].sort((a, b) => (subcategoryCounts[b.slug] ?? 0) - (subcategoryCounts[a.slug] ?? 0))
+          ? [...(SUBCATEGORIES[cat.slug] ?? [])].sort((a, b) => subRank(b.slug) - subRank(a.slug))
           : []
         // 3×3 grid (9 cells): "All" + up to 8 subcats. All+8 fills it exactly, so only
         // collapse into a "More" cell when there are MORE than 8 — at ≤8 show them all.
@@ -155,7 +295,12 @@ export function CategoryRail({
               <span className="flex h-11 items-center justify-center">
                 <CategoryIcon name={cat.icon} className={iconCls(isActive)} selected={isActive} />
               </span>
-              <span className={nameCls(isActive)}><Tr text={lang === 'vi' ? cat.nameVi : cat.name} /></span>
+              {/* Own line under the name — see the "All" tile above for why, and for the
+                  height measurement. */}
+              <span className="flex w-full flex-col items-center gap-0.5">
+                <span className={nameCls(isActive)}><Tr text={lang === 'vi' ? cat.nameVi : cat.name} /></span>
+                <CountChip count={optionCount(catDim, cat.slug)} />
+              </span>
             </Button>
 
             {/* Subcategories roll out to the right of the active category */}
@@ -167,17 +312,23 @@ export function CategoryRail({
                     above). That is the one case that fills all 9 cells and pushes More alone into a
                     4th column. */}
                 <div className="grid grid-rows-3 grid-flow-col auto-cols-max gap-x-1.5 gap-y-0.5 rounded-2xl bg-brand-50 p-1.5">
-                  <Button variant="bare" size="none" onClick={() => onSubcategory('all')} className={cn('block', subChip(activeSubcategory === 'all'))}>{tr('All', 'Tất cả')}</Button>
+                  {/* "All" = this rail released, every other filter still applied — so it is
+                      legitimately larger than the chips beside it sum to (rows carrying no
+                      subcategorySlug come back when the rail is cleared). Never a sum. */}
+                  <Button variant="bare" size="none" onClick={() => onSubcategory('all')} className={cn('block', subChip(activeSubcategory === 'all'))}>
+                    {tr('All', 'Tất cả')}
+                    <CountChip count={subDim?.all} className="ml-1" />
+                  </Button>
                   {visibleSubs.map((sub) => {
                     const subActive = activeSubcategory === sub.slug
-                    const count = subcategoryCounts[sub.slug]
+                    const count = subCount(sub.slug)
                     return (
                       <Button key={sub.slug} variant="bare" size="none" onClick={() => onSubcategory(subActive ? 'all' : sub.slug)} className={cn('block', subChip(subActive))}>
                         {/* At 14px the baked display stroke goes wispy — re-tier the ink
                             line to the UI weight (icon-language §2). */}
                         <CategoryIcon name={sub.icon} stroke={STROKE_UI} selected={subActive} className="mr-1 h-3.5 w-3.5 shrink-0 align-[-2px]" />
                         <Tr text={lang === 'vi' ? sub.nameVi : sub.name} />
-                        {count != null && <span className="ml-1 text-3xs font-semibold text-ink-4">{count}</span>}
+                        <CountChip count={count} className="ml-1" />
                       </Button>
                     )
                   })}
@@ -185,7 +336,7 @@ export function CategoryRail({
                     <MoreOverflow count={overflowSubs.length}>
                       {overflowSubs.map((sub) => {
                         const subActive = activeSubcategory === sub.slug
-                        const count = subcategoryCounts[sub.slug]
+                        const count = subCount(sub.slug)
                         return (
                           <Button
                             key={sub.slug}
@@ -195,7 +346,7 @@ export function CategoryRail({
                             className={cn('flex w-full justify-between gap-3 rounded-lg px-2.5 py-1.5 text-left font-semibold transition-colors active:scale-100', subActive ? 'bg-accent text-accent-foreground' : 'text-body hover:bg-muted hover:text-accent-foreground')}
                           >
                             <span className="flex min-w-0 items-center gap-2"><CategoryIcon name={sub.icon} stroke={STROKE_UI} selected={subActive} className="h-4 w-4 shrink-0 text-ink-4" /><span className="truncate"><Tr text={lang === 'vi' ? sub.nameVi : sub.name} /></span></span>
-                            {count != null && <span className="shrink-0 text-3xs font-semibold text-ink-4">{count}</span>}
+                            <CountChip count={count} className="shrink-0" />
                           </Button>
                         )
                       })}
