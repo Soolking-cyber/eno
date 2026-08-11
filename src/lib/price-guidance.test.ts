@@ -71,7 +71,7 @@ function eight(over: Partial<GuidanceComparable> = {}): GuidanceComparable[] {
   return EIGHT_PRICES.map((p) => confirmed(p, over))
 }
 
-const SUBJECT: GuidanceSubject = { brandSlug: 'honda', model: 'Vision', condition: 'used', year: 2020 }
+const SUBJECT: GuidanceSubject = { brandSlug: 'honda', model: 'Vision', priceUnit: 'VND', condition: 'used', year: 2020 }
 
 function band(rows: readonly GuidanceComparable[], subject: GuidanceSubject = SUBJECT): SoldPriceBand {
   const result = priceGuidance(rows, subject, NOW)
@@ -242,7 +242,7 @@ describe('the band narrows as the fields fill in', () => {
     const withCondition = band(rows)
     expect(withCondition.tier).toBe('model_year')
     // And the proof of the property, not just of the branch: saying less buys you nothing.
-    const saidLess = band(rows, { brandSlug: 'honda', model: 'Vision', year: 2020 })
+    const saidLess = band(rows, { brandSlug: 'honda', model: 'Vision', priceUnit: 'VND', year: 2020 })
     expect(saidLess).toEqual(withCondition)
   })
 
@@ -270,18 +270,18 @@ describe('the band narrows as the fields fill in', () => {
   })
 
   it('offers a year tier to a subject that has a year but no condition', () => {
-    const subject: GuidanceSubject = { brandSlug: 'honda', model: 'Vision', year: 2020 }
+    const subject: GuidanceSubject = { brandSlug: 'honda', model: 'Vision', priceUnit: 'VND', year: 2020 }
     expect(band(eight(), subject).tier).toBe('model_year')
   })
 
   it('falls back to model alone when the subject states neither', () => {
-    const subject: GuidanceSubject = { brandSlug: 'honda', model: 'Vision' }
+    const subject: GuidanceSubject = { brandSlug: 'honda', model: 'Vision', priceUnit: 'VND' }
     expect(band(eight(), subject).tier).toBe('model')
   })
 
   it('⚠️ a blank condition is ABSENT, not a value — the price-stat trap, on both sides', () => {
     // Subject side: whitespace must not open a condition tier that nothing can satisfy.
-    const blankSubject: GuidanceSubject = { brandSlug: 'honda', model: 'Vision', condition: '   ', year: 2020 }
+    const blankSubject: GuidanceSubject = { brandSlug: 'honda', model: 'Vision', priceUnit: 'VND', condition: '   ', year: 2020 }
     expect(band(eight(), blankSubject).tier).toBe('model_year')
     // Row side: a partner-sync row with a whitespace condition can never match a condition tier,
     // so a subject that HAS one skips both condition rungs — and lands on the year, not on the
@@ -482,12 +482,12 @@ describe('a range too wide to act on is not shown', () => {
 
 describe('what counts as the same thing', () => {
   it('needs a brand AND a model on the subject', () => {
-    expect(priceGuidance(eight(), { brandSlug: null, model: 'Vision' }, NOW)).toEqual({
+    expect(priceGuidance(eight(), { brandSlug: null, model: 'Vision', priceUnit: 'VND' }, NOW)).toEqual({
       shown: false,
       reason: 'no_subject_model',
       comparables: 0,
     })
-    expect(priceGuidance(eight(), { brandSlug: 'honda', model: '  ' }, NOW)).toEqual({
+    expect(priceGuidance(eight(), { brandSlug: 'honda', model: '  ', priceUnit: 'VND' }, NOW)).toEqual({
       shown: false,
       reason: 'no_subject_model',
       comparables: 0,
@@ -496,7 +496,7 @@ describe('what counts as the same thing', () => {
 
   it('folds case, spacing and accents on the free-typed model', () => {
     const rows = EIGHT_PRICES.map((p, i) => confirmed(p, { model: ['wave alpha', 'Wave-Alpha', 'WAVE  ALPHA'][i % 3] }))
-    const subject: GuidanceSubject = { brandSlug: 'honda', model: 'Wave Alpha', condition: 'used', year: 2020 }
+    const subject: GuidanceSubject = { brandSlug: 'honda', model: 'Wave Alpha', priceUnit: 'VND', condition: 'used', year: 2020 }
     expect(band(rows, subject).n).toBe(8)
   })
 
@@ -595,5 +595,46 @@ describe('where a price sits against the band', () => {
       expect(isAskAboveBand(null, b)).toBe(false)
       expect(isAskAboveBand(0, b)).toBe(false)
     })
+  })
+})
+
+/**
+ * ⛔ A RENT IS NOT A SALE PRICE, AND brand+model CANNOT TELL THEM APART.
+ *
+ * `brandSlug`/`model` are written for ANY category and `priceUnit` is 'VND/month' for rentals, so
+ * a Toyota Vios FOR RENT and a Toyota Vios FOR SALE are indistinguishable in this shape. The
+ * existing asked-price guidance refuses rentals on purpose — "the PriceStat bands are sale prices,
+ * so guidance there would coach sellers against the wrong market" — and this module inherited the
+ * job without the guard. An 18.000.000 d/month listing against a sold-car band reads as wildly
+ * underpriced, i.e. the guidance would tell a landlord to RAISE the rent toward a car's sale price.
+ * Found by an external reviewer.
+ */
+describe('recurring prices never get a sale band', () => {
+  const sold = () => eight()
+
+  it('refuses a per-month subject even with a full pool', () => {
+    const r = priceGuidance(sold(), { ...SUBJECT, priceUnit: 'VND/month' }, NOW)
+    expect(r.shown).toBe(false)
+    if (!r.shown) expect(r.reason).toBe('not_a_sale_price')
+  })
+
+  it('refuses a per-service subject', () => {
+    const r = priceGuidance(sold(), { ...SUBJECT, priceUnit: 'VND/service' }, NOW)
+    expect(r.shown).toBe(false)
+  })
+
+  it('allows the sale units a listing actually stores', () => {
+    // ⚠️ Must reuse SUBJECT's brand+model: `eight()` builds comparables for it, and a mismatched
+    // subject would return false for the ordinary no-comparables reason and prove nothing.
+    for (const unit of ['VND', '', null]) {
+      const r = priceGuidance(sold(), { ...SUBJECT, priceUnit: unit }, NOW)
+      expect(r.shown).toBe(true)
+    }
+  })
+
+  it('refuses an unrecognised unit rather than waving it through', () => {
+    // Allow-list, not deny-list: a missing band costs nothing, a wrong one costs the feature.
+    const r = priceGuidance(sold(), { ...SUBJECT, priceUnit: 'VND/week' }, NOW)
+    expect(r.shown).toBe(false)
   })
 })

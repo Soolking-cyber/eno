@@ -48,6 +48,11 @@ function healthy(over: Partial<ListingHealthFacts> = {}): ListingHealthFacts {
     band: { n: 12, p25: 9_000_000, median: 10_000_000, p75: 11_000_000 },
     viewsInWindow: 40,
     leadsInWindow: 3,
+    // Contact arrives two ways and only one of them is a phone reveal: a reveal is gated on the
+    // seller having already replied in chat, so `leadsInWindow` reads 0 for every listing whose
+    // buyers simply stayed in the thread. The healthy fixture therefore has to say BOTH, or the
+    // conversion nudges here would be testing a state that barely occurs in production.
+    conversationsInWindow: 2,
     unansweredThreads: 0,
     oldestUnansweredHours: 0,
     ...over,
@@ -68,7 +73,7 @@ describe('silence is the default', () => {
   it('says nothing about a listing that is not live', () => {
     // A sold listing has no problems, and a hidden one is hidden on purpose.
     for (const status of ['sold', 'hidden', 'draft']) {
-      expect(codes(healthy({ status, photoCount: 1, viewsInWindow: 0, leadsInWindow: 0 }))).toEqual([])
+      expect(codes(healthy({ status, photoCount: 1, viewsInWindow: 0, leadsInWindow: 0, conversationsInWindow: 0 }))).toEqual([])
     }
   })
 
@@ -88,7 +93,7 @@ describe('silence is the default', () => {
       expect(codes(healthy({ ...paused, status }))).toEqual([])
     }
     // And a paused listing still gets no performance VERDICT — it is not on the market.
-    expect(codes(healthy({ status: 'hidden', photoCount: 1, viewsInWindow: 40, leadsInWindow: 0 }))).toEqual([])
+    expect(codes(healthy({ status: 'hidden', photoCount: 1, viewsInWindow: 40, leadsInWindow: 0, conversationsInWindow: 0 }))).toEqual([])
   })
 
   it('says nothing about an unverified listing — that is the publish gate story, not this one', () => {
@@ -104,7 +109,7 @@ describe('silence is the default', () => {
     const stale = healthy({
       createdAt: new Date(NOW.getTime() - 90 * DAY),
       viewsInWindow: 40,
-      leadsInWindow: 0,
+      leadsInWindow: 0, conversationsInWindow: 0,
       price: 15_000_000,
     })
     expect(codes(stale)).toContain('price_above_band')
@@ -121,7 +126,7 @@ describe('silence is the default', () => {
       photoCount: 1,
       descriptionLength: 20,
       viewsInWindow: 0,
-      leadsInWindow: 0,
+      leadsInWindow: 0, conversationsInWindow: 0,
       brandSlug: null,
       model: null,
     })
@@ -133,7 +138,7 @@ describe('silence is the default', () => {
   it('will not claim "seen but never contacted" on traffic too thin to support it', () => {
     // Measured: the median active listing accrues ~11 views a week. Below the floor the honest
     // reading is "nobody is seeing it", so the conversion nudges must stay silent.
-    const thin = healthy({ photoCount: 1, descriptionLength: 10, viewsInWindow: HEALTH.MIN_VIEWS_FOR_CONVERSION - 1, leadsInWindow: 0 })
+    const thin = healthy({ photoCount: 1, descriptionLength: 10, viewsInWindow: HEALTH.MIN_VIEWS_FOR_CONVERSION - 1, leadsInWindow: 0, conversationsInWindow: 0 })
     expect(codes(thin)).not.toContain('no_leads_thin_photos')
     expect(codes(thin)).not.toContain('no_leads_thin_description')
     expect(codes(thin)).not.toContain('price_above_band')
@@ -167,7 +172,7 @@ describe('unanswered_messages — the only nudge that outranks everything', () =
   it('outranks a measured pricing problem', () => {
     const both = waiting(48, {
       viewsInWindow: 50,
-      leadsInWindow: 0,
+      leadsInWindow: 0, conversationsInWindow: 0,
       price: 15_000_000,
       band: { n: 12, p25: 9_000_000, median: 10_000_000, p75: 11_000_000 },
     })
@@ -196,7 +201,7 @@ describe('unanswered_messages — the only nudge that outranks everything', () =
 
 describe('price_above_band — the only nudge that quotes a checkable number', () => {
   const stuck = (over: Partial<ListingHealthFacts> = {}) =>
-    healthy({ viewsInWindow: 40, leadsInWindow: 0, photoCount: 6, descriptionLength: 600, ...over })
+    healthy({ viewsInWindow: 40, leadsInWindow: 0, conversationsInWindow: 0, photoCount: 6, descriptionLength: 600, ...over })
 
   it('names the cause with the numbers behind it', () => {
     const n = listingNudge(stuck({ price: 11_200_000 }), NOW)
@@ -276,7 +281,7 @@ describe('price_above_band — the only nudge that quotes a checkable number', (
 
 describe('no_leads_thin_photos / no_leads_thin_description', () => {
   const seen = (over: Partial<ListingHealthFacts> = {}) =>
-    healthy({ viewsInWindow: 14, leadsInWindow: 0, band: null, ...over })
+    healthy({ viewsInWindow: 14, leadsInWindow: 0, conversationsInWindow: 0, band: null, ...over })
 
   it('asks for a specific number of photos, never zero', () => {
     const n = listingNudge(seen({ photoCount: 2, descriptionLength: 600 }), NOW)
@@ -315,7 +320,7 @@ describe('no_leads_thin_photos / no_leads_thin_description', () => {
 
 describe('no_views_missing_brand', () => {
   const invisible = (over: Partial<ListingHealthFacts> = {}) =>
-    healthy({ viewsInWindow: 0, leadsInWindow: 0, photoCount: 6, descriptionLength: 600, ...over })
+    healthy({ viewsInWindow: 0, leadsInWindow: 0, conversationsInWindow: 0, photoCount: 6, descriptionLength: 600, ...over })
 
   it('fires only when a brand is actually missing on a listing nobody is seeing', () => {
     const n = listingNudge(invisible({ brandSlug: null, model: null }), NOW)
@@ -347,7 +352,7 @@ describe('no_views_missing_brand', () => {
 
 describe('few_photos', () => {
   const quiet = (over: Partial<ListingHealthFacts> = {}) =>
-    healthy({ viewsInWindow: 5, leadsInWindow: 0, descriptionLength: 600, band: null, ...over })
+    healthy({ viewsInWindow: 5, leadsInWindow: 0, conversationsInWindow: 0, descriptionLength: 600, band: null, ...over })
 
   it('is INFO — a photo suggestion is an opportunity, not a fault', () => {
     // ⚠️ THE RULE THAT KEEPS THE DASHBOARD FROM GOING PERMANENTLY AMBER. If this ever flips to
@@ -375,7 +380,7 @@ describe('few_photos', () => {
     expect(codes(old)).toEqual([])
     expect(isListingHealthy(old, NOW)).toBe(true)
     // But with traffic converting at zero there IS evidence, and the warn-tier nudge still fires.
-    const oldAndStuck = quiet({ photoCount: 1, createdAt: old.createdAt, viewsInWindow: 40, leadsInWindow: 0 })
+    const oldAndStuck = quiet({ photoCount: 1, createdAt: old.createdAt, viewsInWindow: 40, leadsInWindow: 0, conversationsInWindow: 0 })
     expect(codes(oldAndStuck)).toEqual(['no_leads_thin_photos'])
   })
 
@@ -390,7 +395,7 @@ describe('few_photos', () => {
     expect(conversionPhotoTarget('electronics')).toBe(HEALTH.GOOD_PHOTOS)
     expect(codes(quiet({ categorySlug: 'services', photoCount: 1 }))).toEqual([])
     // And with traffic converting at zero, which is where the warn-tier nudge lives.
-    const busy = quiet({ categorySlug: 'services', photoCount: 1, viewsInWindow: 40, leadsInWindow: 0 })
+    const busy = quiet({ categorySlug: 'services', photoCount: 1, viewsInWindow: 40, leadsInWindow: 0, conversationsInWindow: 0 })
     expect(codes(busy)).not.toContain('no_leads_thin_photos')
     expect(codes(busy)).not.toContain('few_photos')
   })
@@ -401,7 +406,7 @@ describe('few_photos', () => {
 describe('listingNudge — one nudge, the highest-value one', () => {
   const broken = healthy({
     viewsInWindow: 40,
-    leadsInWindow: 0,
+    leadsInWindow: 0, conversationsInWindow: 0,
     price: 15_000_000,
     photoCount: 1,
     descriptionLength: 10,
@@ -431,7 +436,7 @@ describe('listingNudge — one nudge, the highest-value one', () => {
     expect(FIX_FOR_CODE.no_leads_thin_photos).toBe(FIX_FOR_CODE.few_photos)
     const facts = healthy({
       viewsInWindow: 40,
-      leadsInWindow: 0,
+      leadsInWindow: 0, conversationsInWindow: 0,
       band: null,
       photoCount: 1,
       descriptionLength: 600,
@@ -443,7 +448,7 @@ describe('listingNudge — one nudge, the highest-value one', () => {
 
   it('repeats once the cooldown has expired', () => {
     const at = new Date(NOW.getTime() - HEALTH.NUDGE_COOLDOWN_DAYS * DAY)
-    const facts = healthy({ viewsInWindow: 40, leadsInWindow: 0, band: null, photoCount: 1, descriptionLength: 600, recentNudges: [{ code: 'no_leads_thin_photos', at }] })
+    const facts = healthy({ viewsInWindow: 40, leadsInWindow: 0, conversationsInWindow: 0, band: null, photoCount: 1, descriptionLength: 600, recentNudges: [{ code: 'no_leads_thin_photos', at }] })
     expect(listingNudge(facts, NOW)?.code).toBe('no_leads_thin_photos')
   })
 
@@ -453,7 +458,7 @@ describe('listingNudge — one nudge, the highest-value one', () => {
     // seven-day suppression. A cooldown a two-step sequence walks around is not a cooldown.
     const facts = healthy({
       viewsInWindow: 40,
-      leadsInWindow: 0,
+      leadsInWindow: 0, conversationsInWindow: 0,
       price: 15_000_000,
       photoCount: 1,
       descriptionLength: 10,
@@ -470,7 +475,7 @@ describe('listingNudge — one nudge, the highest-value one', () => {
   it('discards a future-dated entry rather than being silenced by a bad clock', () => {
     // ⚠️ REVIEWER FINDING, CONFIRMED. A timestamp months ahead is clock skew, not evidence; taking
     // it at face value suppresses that fix until real time catches up.
-    const only = { viewsInWindow: 5, leadsInWindow: 0, band: null, descriptionLength: 600, photoCount: 1 }
+    const only = { viewsInWindow: 5, leadsInWindow: 0, conversationsInWindow: 0, band: null, descriptionLength: 600, photoCount: 1 }
     const skewed = healthy({ ...only, recentNudges: [{ code: 'few_photos' as const, at: new Date(NOW.getTime() + 90 * DAY) }] })
     expect(codes(skewed)).toEqual(['few_photos'])
     expect(listingNudge(skewed, NOW)?.code).toBe('few_photos')
@@ -490,7 +495,7 @@ describe('listingNudge — one nudge, the highest-value one', () => {
       oldestUnansweredHours: 72,
       photoCount: 1,
       viewsInWindow: 40,
-      leadsInWindow: 0,
+      leadsInWindow: 0, conversationsInWindow: 0,
       recentNudges: [{ code: 'unanswered_messages', at: new Date(NOW.getTime() - 2 * DAY) }],
     })
     expect(listingNudge(facts, NOW)?.code).toBe('unanswered_messages')
@@ -500,7 +505,7 @@ describe('listingNudge — one nudge, the highest-value one', () => {
   })
 
   it('goes silent rather than reaching for a nudge that is not true', () => {
-    const facts = healthy({ photoCount: 1, viewsInWindow: 5, leadsInWindow: 0, band: null, recentNudges: [{ code: 'few_photos', at: new Date(NOW.getTime() - DAY) }] })
+    const facts = healthy({ photoCount: 1, viewsInWindow: 5, leadsInWindow: 0, conversationsInWindow: 0, band: null, recentNudges: [{ code: 'few_photos', at: new Date(NOW.getTime() - DAY) }] })
     expect(codes(facts)).toEqual(['few_photos'])
     expect(listingNudge(facts, NOW)).toBeNull()
   })
@@ -516,7 +521,7 @@ describe('nudge contracts', () => {
     const worst = rankListingNudges(
       healthy({
         viewsInWindow: 40,
-        leadsInWindow: 0,
+        leadsInWindow: 0, conversationsInWindow: 0,
         price: 15_000_000,
         photoCount: 1,
         descriptionLength: 10,
@@ -539,12 +544,12 @@ describe('nudge contracts', () => {
     // Every declared code is reachable — a code with no rule behind it is dead copy.
     const allCodes = Object.keys(FIX_FOR_CODE) as ListingNudgeCode[]
     expect(allCodes).toHaveLength(6)
-    const invisible = codes(healthy({ viewsInWindow: 0, leadsInWindow: 0, brandSlug: null, model: null, photoCount: 6, descriptionLength: 600 }))
+    const invisible = codes(healthy({ viewsInWindow: 0, leadsInWindow: 0, conversationsInWindow: 0, brandSlug: null, model: null, photoCount: 6, descriptionLength: 600 }))
     expect(invisible).toContain('no_views_missing_brand')
   })
 
   it('carries numbers, never formatted money — vnd.ts owns that at the surface', () => {
-    const n = listingNudge(healthy({ viewsInWindow: 40, leadsInWindow: 0, price: 15_000_000 }), NOW)
+    const n = listingNudge(healthy({ viewsInWindow: 40, leadsInWindow: 0, conversationsInWindow: 0, price: 15_000_000 }), NOW)
     expect(n?.code).toBe('price_above_band')
     for (const v of Object.values(n as Record<string, unknown>)) {
       expect(typeof v === 'string' ? /[₫đ]|VND/.test(v) : false).toBe(false)
@@ -555,7 +560,7 @@ describe('nudge contracts', () => {
     const tones = new Map<ListingNudgeCode, string>()
     const facts = healthy({
       viewsInWindow: 40,
-      leadsInWindow: 0,
+      leadsInWindow: 0, conversationsInWindow: 0,
       price: 15_000_000,
       photoCount: 1,
       descriptionLength: 10,
@@ -572,7 +577,7 @@ describe('nudge contracts', () => {
   it('isListingHealthy is NOT the negation of a silent nudge', () => {
     // A listing whose only nudge is on cooldown is silent but not healthy; a dashboard that
     // painted a green tick from the silence would be lying.
-    const facts = healthy({ photoCount: 1, viewsInWindow: 5, leadsInWindow: 0, band: null, recentNudges: [{ code: 'few_photos', at: new Date(NOW.getTime() - DAY) }] })
+    const facts = healthy({ photoCount: 1, viewsInWindow: 5, leadsInWindow: 0, conversationsInWindow: 0, band: null, recentNudges: [{ code: 'few_photos', at: new Date(NOW.getTime() - DAY) }] })
     expect(listingNudge(facts, NOW)).toBeNull()
     expect(isListingHealthy(facts, NOW)).toBe(false)
   })
@@ -580,5 +585,58 @@ describe('nudge contracts', () => {
   it('hoursSince never goes negative on clock skew', () => {
     expect(hoursSince(new Date(NOW.getTime() + 60_000), NOW)).toBe(0)
     expect(hoursSince(new Date(NOW.getTime() - 3_600_000), NOW)).toBe(1)
+  })
+})
+
+/**
+ * ⛔ A PHONE REVEAL IS NOT THE ONLY WAY A BUYER MAKES CONTACT.
+ *
+ * `leadsInWindow` counts contact reveals, and a reveal is gated on the seller having ALREADY
+ * replied in an in-app conversation (api/listings/[id]/contact returns 403 `reply_required`). So
+ * for the normal case — buyers who simply stay in chat — leads is 0 while real threads sit in the
+ * inbox. Keying "seen but never contacted" on leads alone showed a seller "25 views, 0 messages in
+ * 7 days · similar listings priced 12% lower" while they had answered four threads that week: a
+ * claim the reader can disprove from their own inbox, at warn tone, on a healthy listing. Found by
+ * an external reviewer. These tests are what stop it coming back.
+ */
+const CONVERSION_CODES = ['price_above_band', 'no_leads_thin_photos', 'no_leads_thin_description']
+const conversionCodes = (f: ListingHealthFacts) => codes(f).filter((c) => CONVERSION_CODES.includes(c))
+
+describe('conversion nudges need BOTH contact signals', () => {
+  it('stays silent when buyers contacted in chat but never revealed a phone', () => {
+    const facts = healthy({
+      viewsInWindow: 25,
+      leadsInWindow: 0,
+      conversationsInWindow: 4,
+      photoCount: 1,
+      price: 20_000_000,
+    })
+    // `few_photos` is a PRESENTATION nudge and correctly fires either way — the claim under test is
+    // only that we do not ATTRIBUTE a conversion failure to a listing people actually messaged.
+    expect(conversionCodes(facts)).toEqual([])
+  })
+
+  it('still speaks when nobody made contact at all', () => {
+    const facts = healthy({
+      viewsInWindow: 25,
+      leadsInWindow: 0,
+      conversationsInWindow: 0,
+      photoCount: 1,
+      price: 20_000_000,
+    })
+    expect(conversionCodes(facts).length).toBeGreaterThan(0)
+  })
+
+  it('stays silent when contact could not be measured at all', () => {
+    // undefined is "not measured", which is the opposite claim to "nobody came" and must never be
+    // spoken as one.
+    const facts = healthy({
+      viewsInWindow: 25,
+      leadsInWindow: 0,
+      conversationsInWindow: undefined,
+      photoCount: 1,
+      price: 20_000_000,
+    })
+    expect(conversionCodes(facts)).toEqual([])
   })
 })

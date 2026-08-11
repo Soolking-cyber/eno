@@ -338,6 +338,16 @@ export type ListingHealthFacts = {
   viewsInWindow: number
   /** Leads (contact reveals) over the same window, from `ListingDailyStat.leads`. */
   leadsInWindow: number
+  /**
+   * Conversations STARTED on this listing inside the window — the other half of "did a buyer make
+   * contact", and the half `leadsInWindow` structurally cannot see.
+   *
+   * ⚠️ REQUIRED, AND `undefined` MEANS "NOT MEASURED", NOT "NONE". A caller that cannot supply it
+   * gets no conversion nudges, because "I could not measure contact" and "nobody made contact" are
+   * opposite claims and only one of them may be said out loud to a seller. Producer:
+   * count Conversation rows for this listing with createdAt inside the window.
+   */
+  conversationsInWindow: number | undefined
   /** Conversations on this listing where the buyer spoke last and the seller has not replied. */
   unansweredThreads: number
   /** Hours the longest-waiting of those has been waiting. 0 when there are none. */
@@ -437,8 +447,23 @@ export function rankListingNudges(facts: ListingHealthFacts, now: Date): Listing
   const views = Math.max(0, facts.viewsInWindow)
   const leads = Math.max(0, facts.leadsInWindow)
   const windowDays = HEALTH.WINDOW_DAYS
-  // "Seen but never contacted" — the only state in which we may attribute a conversion failure.
-  const converting = views >= HEALTH.MIN_VIEWS_FOR_CONVERSION && leads === 0
+  // ⛔ "NO LEADS" IS NOT "NO BUYERS" — A CONTACT REVEAL IS NOT THE ONLY WAY A BUYER ARRIVES, AND
+  // TREATING IT AS ONE MADE THIS MODULE TELL SELLERS A CHECKABLE LIE ABOUT THEIR OWN INBOX.
+  // `leadsInWindow` counts phone reveals, and a reveal is gated on the seller having ALREADY
+  // replied in an in-app conversation (api/listings/[id]/contact returns 403 `reply_required`).
+  // So for every listing whose buyers simply stayed in chat — the normal case — leads is 0 while
+  // real conversations are sitting in the inbox. Three `warn` nudges keyed off this fired on
+  // healthy listings: "25 views, 0 messages in 7 days · similar listings priced 12% lower" shown
+  // to a seller who had answered four threads that week. A nudge the reader can immediately
+  // disprove does not just fail; it teaches them to ignore the channel, which is the one asset
+  // this feature has. Found by an external reviewer.
+  // ⚠️ `conversationsInWindow` is therefore REQUIRED to attribute a conversion failure, and it is
+  // deliberately not optional-with-a-default: a caller that cannot supply it must not get these
+  // nudges at all, because "I could not measure contact" and "nobody made contact" are opposite
+  // claims. Absent (undefined) suppresses; 0 is a real, usable measurement.
+  const contacts = facts.conversationsInWindow
+  const converting =
+    views >= HEALTH.MIN_VIEWS_FOR_CONVERSION && leads === 0 && contacts === 0
   const publishFloor = minPhotosFor(facts.categorySlug)
   const photoTarget = conversionPhotoTarget(facts.categorySlug)
 

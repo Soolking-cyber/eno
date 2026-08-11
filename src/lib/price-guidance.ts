@@ -245,6 +245,23 @@ export type GuidanceSubject = {
   model: string | null
   condition?: string | null
   year?: number | null
+  /**
+   * ⛔ REQUIRED, BECAUSE brand+model IS NOT A CATEGORY BOUNDARY AND A RENT IS NOT A PRICE.
+   *
+   * `brandSlug`/`model` are written for ANY category, and `priceUnit` is 'VND/month' for rentals
+   * and 'VND/service' for services — so nothing else in this shape can tell a Toyota Vios FOR SALE
+   * from a Toyota Vios FOR RENT. The existing asked-price guidance already refuses that case on
+   * purpose (post-wizard.tsx: "rentals price per MONTH — the PriceStat bands are sale prices, so
+   * guidance there would coach sellers against the wrong market"), and this module dropped the
+   * guard while inheriting the job. Concretely: an 18.000.000 đ/month listing measured against a
+   * sold-car band reads as wildly underpriced and the guidance would coach the landlord to raise
+   * a rent toward a car's sale price.
+   * Anything other than a one-off sale unit returns NO band — a wrong band destroys trust in the
+   * feature permanently, which is the whole reason it is gated at 8 comparables in the first place.
+   * Comparables carry the same field for the same reason: a per-month row may never enter a
+   * sale-price band, whatever its brand and model say. Found by an external reviewer.
+   */
+  priceUnit: string | null
 }
 
 /**
@@ -269,11 +286,19 @@ export type SoldPriceBand = {
  * the client owns the wording, and none of these is ever rendered to a user anyway (the band is
  * simply absent). They exist for tests and telemetry.
  *  · no_subject_model — the subject has no brand+model, so "comparable" is undefined.
+ *  · not_a_sale_price  — the subject is a rent or a fee; a sale band would coach the wrong market.
  *  · no_comparables   — zero confirmed sales survived the filters. THE DAY-ONE STATE.
  *  · too_few          — some, but under MIN_COMPARABLES even at the widest tier.
  *  · too_wide         — enough sales, but the spread makes the range useless (MAX_SPREAD).
  */
-export type GuidanceHiddenReason = 'no_subject_model' | 'no_comparables' | 'too_few' | 'too_wide'
+export type GuidanceHiddenReason =
+  | 'no_subject_model'
+  /** The subject is priced per month / per service, so a band of one-off SALE prices does not
+   *  describe its market at all — see GuidanceSubject.priceUnit. */
+  | 'not_a_sale_price'
+  | 'no_comparables'
+  | 'too_few'
+  | 'too_wide'
 
 export type PriceGuidance =
   | { shown: true; band: SoldPriceBand }
@@ -494,6 +519,22 @@ function matchesTier(row: Usable, tier: GuidanceTier, subject: GuidanceSubject):
  * spread is almost always worse, and a rule that keeps searching for a tier it can display is a
  * rule optimising for showing SOMETHING. That is the failure this feature cannot afford.
  */
+/**
+ * Is this a ONE-OFF SALE price, i.e. the only kind a sale band describes?
+ *
+ * `priceUnit` is 'VND' (or empty) for a sale, 'VND/month' for a rental and 'VND/service' for a
+ * service — see taxonomy.ts. Anything carrying a period or a per-unit suffix is a recurring or
+ * per-delivery price and cannot be compared against a band built from outright sales.
+ * ⚠️ Deliberately an ALLOW-list, not a deny-list of known suffixes: a unit this function has never
+ * heard of must be refused rather than waved through, because the cost of a wrong band is the
+ * feature being distrusted permanently and the cost of a missing one is nothing at all.
+ */
+export function isSaleUnit(priceUnit: string | null | undefined): boolean {
+  if (priceUnit == null) return true // unset is the sale default, and matches how listings store it
+  const u = priceUnit.trim()
+  return u === '' || u === 'VND' || u === '₫'
+}
+
 export function priceGuidance(
   comparables: readonly GuidanceComparable[],
   subject: GuidanceSubject,
@@ -502,6 +543,12 @@ export function priceGuidance(
   const brand = brandKey(subject.brandSlug)
   const model = modelKey(subject.model)
   if (!brand || !model) return { shown: false, reason: 'no_subject_model', comparables: 0 }
+
+  // ⛔ A RECURRING PRICE IS NOT A SALE PRICE — see the note on GuidanceSubject.priceUnit. A rent or
+  // a service fee measured against a band of one-off sale prices produces guidance that is not
+  // merely useless but inverted, and brand+model cannot distinguish them. Refuse first, before any
+  // pooling: there is no partial answer worth giving here.
+  if (!isSaleUnit(subject.priceUnit)) return { shown: false, reason: 'not_a_sale_price', comparables: 0 }
 
   const maxAgeMs = PRICE_GUIDANCE.MAX_AGE_DAYS * DAY_MS
   const nowMs = now.getTime()
