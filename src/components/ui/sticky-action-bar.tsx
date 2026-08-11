@@ -221,7 +221,21 @@ function BarAction({
   //   not bake `relative`, which is the other half of that trap.
   // size="lg" supplies the rounded-xl control radius (design-language §2) and the horizontal
   // padding; min-h-12 wins over its min-h-10 through tailwind-merge.
-  const className = 'min-h-12 flex-1 gap-1.5'
+  // ⛔ `min-w-0` AND `whitespace-normal` ARE LOAD-BEARING — WITHOUT THEM A LONG LABEL PUSHES THE
+  // PRIMARY CTA OFF THE SCREEN. ui/button's base carries `whitespace-nowrap` and `shrink-0`, and a
+  // flex item defaults to `min-width: auto`, so `flex-1` alone clamps each item UP to its
+  // min-content width and the row overflows the panel with no scrollbar and nothing to drag.
+  // Measured in Chromium against the repo's own Tailwind build, at the common 360px Android width:
+  //   'Trả giá ngay' + 'Nhắn tin cho người bán'  → panel scrollWidth 366, CTA right edge 6px past
+  //                                                 the viewport and 18px past its px-3 gutter
+  //   'Save this listing' + 'Contact the seller now' → 17px off-screen
+  // so English is not a safe fallback either, and Vietnamese labels run longer than English as a
+  // rule. `min-w-0` lets the item shrink below its content; `whitespace-normal` lets a two-word
+  // label take two lines instead of demanding the width. The bar grows a little taller — which is
+  // recoverable — rather than hiding the one control the surface exists for, which is not.
+  // ⚠️ Both must go on the PRIMITIVE, not on a render child: a className on a render/asChild child
+  // is CONCATENATED, not merged, so stylesheet order would decide against `whitespace-nowrap`.
+  const className = 'min-h-12 min-w-0 flex-1 gap-1.5 whitespace-normal'
 
   if (action.render && !action.disabled) {
     // ui/button's asChild clones the child and does NOT compose handlers, so onClick has to go

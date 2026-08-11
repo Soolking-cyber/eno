@@ -14,6 +14,16 @@ import { formatCount, moneyLocale, type MoneyLocale } from '@/lib/vnd'
 import { railEdgeMask } from './shelf'
 
 /**
+ * The breadcrumb separator, as a CONST rather than a literal in JSX.
+ * `react/jsx-no-literals` — an error in `npm run lint`, which is its own CI step — cannot tell a
+ * bare glyph from untranslated English, and that rule is what keeps copy from shipping unwrapped.
+ * It is `aria-hidden` at the call site: the path is announced as its parts, and a screen reader
+ * saying "single right-pointing angle quotation mark" between every level is noise, not structure.
+ */
+const PATH_SEP = '\u203a'
+
+
+/**
  * THE MOBILE LADDER — the phone shape of category → subcategory → brand → model.
  *
  * On desktop the explorer rolls a category's subcategories OUT TO THE RIGHT as a 3×3 grid
@@ -611,7 +621,23 @@ function Chip({
  *  — see the development warning in <MobileLadder>, and the chrome notes in the file header for
  *  why these are a safe fallback rather than the production setting. */
 export const STICKY_TOP_DEFAULT = 'var(--ladder-sticky-top, 0px)'
-export const STICKY_Z_DEFAULT = 30
+/**
+ * ⛔ 29, NOT 30 — z-30 IS ALREADY TAKEN BY THE BAR THIS ONE DOCKS BESIDE.
+ *
+ * The explorer's own sort strip (explorer-toolbar.tsx) is `sticky z-30 … bg-background/95
+ * backdrop-blur`, in the SAME subtree, docking at the SAME top band, driven by the same
+ * useHideOnScroll() as the header. Neither it nor the ladder has a stacking-context ancestor —
+ * `#listings` is `relative` with z-index auto — so at equal z-index the root stacking context
+ * falls back to DOM ORDER, and the sort strip is mounted later. Its opaque background would paint
+ * straight over the collapsed path line: the one piece of chrome whose entire job is to still tell
+ * you where you are after everything else has scrolled away.
+ *
+ * Sitting one BELOW is the correct answer rather than one above. The path line is a passive
+ * indicator; the sort strip is interactive and its dropdown must not open behind anything. If they
+ * ever need to coexist visually, the fix is a shared docking offset so they stack, not a z-index
+ * race — and either way the integrator can override this per surface.
+ */
+export const STICKY_Z_DEFAULT = 29
 export const STICKY_INSET_END_DEFAULT = 'var(--ladder-sticky-inset-end, 0px)'
 
 function prefersReducedMotion(): boolean {
@@ -860,7 +886,7 @@ export function MobileLadder({
                   <Fragment key={`${c.id}-${i}`}>
                     {i > 0 && (
                       <span aria-hidden="true" className="shrink-0 text-ink-4">
-                        ›
+                        {PATH_SEP}
                       </span>
                     )}
                     {/* ⚠️ THE DEEPEST RUNG NEVER ELLIPSISES AWAY. Earlier rungs are `min-w-0

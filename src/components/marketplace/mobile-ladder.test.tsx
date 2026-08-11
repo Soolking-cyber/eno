@@ -13,6 +13,7 @@ import {
   optionCount,
   usableOptions,
   visibleLevels,
+  STICKY_Z_DEFAULT,
   type LadderLevel,
 } from './mobile-ladder'
 
@@ -730,7 +731,12 @@ describe('the sticky line', () => {
     // retracts on scroll-down — exactly when this line has a job.
     renderIn('en', <MobileLadder levels={deepLevels()} onReopen={() => {}} />)
     expect(bar()!.style.top).toBe('var(--ladder-sticky-top, 0px)')
-    expect(bar()!.style.zIndex).toBe('30')
+    // ⛔ 29, and the number matters: the explorer's sort strip is already `sticky z-30` in the same
+    // subtree with no stacking-context ancestor, so at equal z-index DOM order decides and its
+    // opaque backdrop paints over the path line. Docking one BELOW is deliberate — see
+    // STICKY_Z_DEFAULT. If this ever reads 30 again, that collision is back.
+    expect(bar()!.style.zIndex).toBe(String(STICKY_Z_DEFAULT))
+    expect(STICKY_Z_DEFAULT).toBeLessThan(30)
     expect(bar()!.style.paddingRight).toBe('calc(0.75rem + var(--ladder-sticky-inset-end, 0px))')
 
     cleanup()

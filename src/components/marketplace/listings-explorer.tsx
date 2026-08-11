@@ -7,6 +7,10 @@ import { Fragment, useCallback, useDeferredValue, useEffect, useLayoutEffect, us
 import { Inbox, AlertTriangle, X, Clock, Bookmark } from 'lucide-react'
 import { toast } from 'sonner'
 import type { SerializedListingCard, SerializedCategory } from '@/lib/types'
+// ⚠️ TYPE-ONLY, AND IT MUST STAY THAT WAY. src/lib/facet-counts.ts is `server-only` and pulls the
+// Prisma chain; a value import here would drag it into the client bundle (or fail the build).
+// `import type` is erased at compile, so this costs nothing at runtime.
+import type { FacetCounts } from '@/lib/facet-counts'
 import { CATEGORY_COLOR_CLASSES, timeAgo } from '@/lib/types'
 import { IS_MARKETPLACE, SITE_NAME } from '@/lib/edition'
 import { CategoryIcon } from './category-icons'
@@ -415,6 +419,24 @@ export function ListingsExplorer({
   const pendingSnapRef = useRef<{ sig: string; listings: SerializedListingCard[]; page: number; totalCount: number; scrollY: number; ts: number; unlocked?: boolean; anchorId?: string | null; anchorTop?: number | null } | null>(null)
   const snapReadRef = useRef(false)
   const [subcategoryCounts, setSubcategoryCounts] = useState<Record<string, number>>({})
+  /**
+   * THE CONDITIONAL FACET COUNTS, straight off the feed response — this is what makes every chip
+   * answer "how many results if I tap this, given everything else I have already chosen".
+   *
+   * ⚠️ HELD IN STATE RATHER THAN READ INLINE, for the same reason `subcategoryCounts` is: the feed
+   * response for a LOAD MORE (offset > 0) carries `facets: {}` by design, and reading inline would
+   * blank every number on the page the moment someone pages. Holding the last non-empty payload
+   * keeps the counts on screen while more rows arrive.
+   * ⚠️ THE PAYLOAD IS DEEP-FROZEN — it is a shared 60s memo entry on the server. Never sort, splice
+   * or assign into it; the rails only ever read.
+   * ⚠️ A HELD PAYLOAD GOES STALE ACROSS A FILTER CHANGE, and that is handled downstream rather than
+   * here: after a category tap the held brand/subcategory dimensions are still keyed by the OLD
+   * category's slugs, so every lookup misses — and a miss inside a PRESENT dimension is legitimately
+   * 0, which would paint a wall of zeros over a full catalogue for one round trip. `railDimension`
+   * in count-chip.tsx is the net: a dimension is used only if it carries at least one key the rail
+   * is actually rendering. Three reviewers found that independently; do not "simplify" it away.
+   */
+  const [facetCounts, setFacetCounts] = useState<FacetCounts>({})
   const [categoryTotal, setCategoryTotal] = useState(0)
   const [debouncedQuery, setDebouncedQuery] = useState(query)
 
@@ -1367,6 +1389,14 @@ export function ListingsExplorer({
       }
       if (listingsData.categoryTotal !== undefined) {
         setCategoryTotal(listingsData.categoryTotal)
+      }
+      // ⚠️ ONLY ADOPT A NON-EMPTY PAYLOAD. `facets` is `{}` on a load-more (offset > 0) and under
+      // `?facets=0`, and an empty object is "nothing to say", NOT "everything is zero" — adopting
+      // it would strip every number off the page the instant someone paged. Keeping the previous
+      // payload means the counts stay put while more rows arrive, which is what a reader expects
+      // from a number that was true a second ago.
+      if (listingsData.facets && Object.keys(listingsData.facets).length > 0) {
+        setFacetCounts(listingsData.facets)
       }
       const term = debouncedQuery.trim()
       if (term.length >= 2) {
@@ -2421,6 +2451,7 @@ export function ListingsExplorer({
               activeCategory={activeCategory}
               activeSubcategory={activeSubcategory}
               subcategoryCounts={subcategoryCounts}
+              facets={facetCounts}
               onCategory={handleCategorySelect}
               onSubcategory={setActiveSubcategory}
               // Free / Wanted shortcuts — same tiles the home grid shows, so nothing's
@@ -2445,6 +2476,7 @@ export function ListingsExplorer({
               subcategory={activeSubcategory}
               activeBrand={activeBrand}
               activeModel={activeModel}
+              facets={facetCounts}
               onPickBrand={setActiveBrand}
               onPickModel={setActiveModel}
             />
@@ -2464,6 +2496,7 @@ export function ListingsExplorer({
               costs one late row of shift; re-measure here if that becomes visible. */}
           <div className="min-h-12">
             <FacetBar
+              facetCounts={facetCounts}
               activeCategory={activeCategory}
               activeSubcategory={activeSubcategory}
               setActiveSubcategory={setActiveSubcategory}

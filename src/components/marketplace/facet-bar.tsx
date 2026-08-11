@@ -150,6 +150,8 @@ export function labelWithCount(label: string, n: number | null, lang: string): s
 function ChipCount({ n, selected }: { n: number | null; selected: boolean }) {
   const { lang, tr } = useLanguage()
   if (n == null) return null
+  // Hoisted: react/jsx-no-literals rejects a template literal in JSX position. See count-chip.tsx.
+  const srName = `, ${resultCountLabel(n, lang, tr)}`
   return (
     <>
       <span aria-hidden="true" className={cn('text-3xs font-semibold tabular-nums', selected ? 'text-white/80' : 'text-ink-4')}>
@@ -159,7 +161,7 @@ function ChipCount({ n, selected }: { n: number | null; selected: boolean }) {
           are built by concatenating inline text with NO separator, so without it the name computed
           as "Used860 listings" — the label and the figure fused into one token. With it the name is
           "Used, 860 listings" and the comma is also the pause a screen reader wants. */}
-      <span className="sr-only">{`, ${resultCountLabel(n, lang, tr)}`}</span>
+      <span className="sr-only">{srName}</span>
     </>
   )
 }

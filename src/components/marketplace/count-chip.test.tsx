@@ -10,6 +10,11 @@ import { CountChip, countChipLabel, countDigits, optionCount, railDimension } fr
 import { CategoryRail } from './category-rail'
 import { BrandRail } from './brand-rail'
 
+// A fixture label, as a const: `react/jsx-no-literals` is an ERROR in `npm run lint` and it
+// lints tests too — a bare word in JSX is indistinguishable to it from untranslated product copy.
+const BRAND = 'Honda'
+
+
 /**
  * THE NUMBER BESIDE A CHIP — the four things that are easy to get wrong and invisible in a
  * screenshot: the SEPARATOR (a Vietnamese reader must see 2.418, not 2,418), the difference
@@ -196,7 +201,7 @@ describe('<CountChip> — what renders, and what a screen reader hears', () => {
     renderIn(
       'en',
       <button type="button">
-        Honda
+        {BRAND}
         <CountChip count={412} />
       </button>,
     )
@@ -217,7 +222,7 @@ describe('<CountChip> — what renders, and what a screen reader hears', () => {
     renderIn(
       'vi',
       <button type="button">
-        Honda
+        {BRAND}
         <CountChip count={2418} />
       </button>,
     )

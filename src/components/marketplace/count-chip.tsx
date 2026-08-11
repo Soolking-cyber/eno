@@ -195,6 +195,7 @@ export function railDimension(
 export function CountChip({ count, className }: { count?: number | null; className?: string }) {
   const { lang, tr } = useLanguage()
   if (count == null) return null
+  const srName = `, ${countChipLabel(count, lang, tr)}`
   return (
     <>
       <span
@@ -203,7 +204,12 @@ export function CountChip({ count, className }: { count?: number | null; classNa
       >
         {countDigits(count, lang)}
       </span>
-      <span className="sr-only">{`, ${countChipLabel(count, lang, tr)}`}</span>
+      {/* ⚠️ HOISTED INTO A CONST, NOT INLINED. `react/jsx-no-literals` (a `npm run lint` error, and
+          lint is its own CI step separate from tsc) rejects a template literal in JSX position —
+          it cannot tell a computed accessible name from a hardcoded English string, and the rule
+          exists because the second kind is how untranslated copy ships. Building the string above
+          and rendering the identifier keeps the guard meaningful and the name intact. */}
+      <span className="sr-only">{srName}</span>
     </>
   )
 }
