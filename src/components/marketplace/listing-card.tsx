@@ -19,7 +19,21 @@ import { cardSlots } from '@/lib/card-slots'
 import { isMockImageUrl } from '@/lib/listing-image'
 import { cn } from '@/lib/utils'
 import { useLanguage, useTr } from '@/context/language-context'
-import { useLocalized } from './listing-content'
+// PostedAgo (not a bare timeAgo() call) so the card's relative time is the SAME string the PDP
+// prints — it derives its label from useLanguage at render time, which is the repo's existing
+// answer to relative time on a cached page (the PDP renders it inside the ISR'd listing route,
+// and drop-countdown.tsx follows it). Client-time derivation means the label is computed at
+// RENDER time, and the home route is ISR-cached for 6h with 12 cards baked into its HTML — so a
+// card can ship "1h ago" in that HTML and hydrate to "7h ago". MEASURED on that baked HTML: the
+// "New" badge above is already computed from Date.now() against a 48h window and is already baked
+// 26× into it, so the CLASS of mismatch is not new — ⚠️ but be honest about frequency, because a
+// reviewer was right to push on it: the badge only flips across one 48h boundary, while an
+// hours-granularity label crosses a bucket on most cards of a 6h-old page. React recovers (the
+// client value wins, which is the correct one) at the cost of re-rendering that subtree. Closing
+// it properly means gating on mount, or the <LiveUntil> treatment the PDP already uses for its
+// own Date.now()-derived claims — inside listing-content.tsx, which is a deliberate piece of work
+// and not a line in this import.
+import { useLocalized, PostedAgo } from './listing-content'
 import { useFavorites } from '@/context/favorites-context'
 import { useAuth } from '@/context/auth-context'
 // Perf Phase 1: both are OPTIONAL card features — the video enhancement mounts only
@@ -553,12 +567,10 @@ function ListingCardImpl({
         {/* eno.vn watermark — hidden until a save/copy/drag attempt (ImageShield) */}
         {images.length > 0 && <span className="img-watermark" aria-hidden />}
 
-        {/* Top-left signals: Urgent → price-drop % → New (the shared, app-wide badge
-            system — see card-badges.tsx). "New" yields when a stronger, honest signal
-            (urgent/drop) is present so a narrow card never crowds. */}
-        {/* Discount / urgent / new badges — top-left. On desktop hover they fade out
-            so the action icons unfurling from the save heart own the top edge cleanly;
-            back on mouse-out. (Touch has no hover, so mobile/tablet always show them.) */}
+        {/* Top-left signal: ONE badge — the first of Urgent → price-drop % → New that applies
+            (the shared, app-wide badge system — see card-badges.tsx, which carries the reasoning
+            for why a suppressed drop loses nothing: the struck-through "was" price in the price
+            row below states it a second time, independently of this chip). */}
         {/* ⚠️ THE BADGES DO NOT FADE ON HOVER ANY MORE. This carried `pc:group-hover:opacity-0`,
             which used motion to DELETE information — the price-drop %, "Bán gấp" and New — at the
             exact moment the buyer commits attention to the card. Those are the highest-value
@@ -789,8 +801,13 @@ function ListingCardImpl({
               by dropping the unit suffix or the ≈ approximation on this surface — not by bumping
               the size and hoping. */}
           <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} compact className="text-lg leading-tight text-accent-foreground" />
-          {/* Struck-through "was" anchor — server-computed 30-day-min reference, only
-              present while the drop badge is live. */}
+          {/* Struck-through "was" anchor — server-computed 30-day-min reference, present
+              whenever the listing HAS a live drop.
+              ⚠️ IT IS NO LONGER TIED TO THE DROP BADGE, AND MUST NOT BE RE-TIED TO IT. The badge
+              is now a single winner (card-badges.tsx), so an urgent listing that also dropped
+              shows no "-24%" chip — and this struck price is then the ONLY place the card states
+              the drop. `hasDrop` is computed here, from prevPrice, exactly so this line survives
+              a badge the overlay chose not to render. */}
           {hasDrop && (
             <Price price={listing.prevPrice!} currency={listing.currency} priceUnit="VND" compact className="truncate text-2xs font-medium text-ink-4 line-through" />
           )}
@@ -810,8 +827,10 @@ function ListingCardImpl({
           {displayTitle}
         </h3>
 
-        {/* TERTIARY — one subdued metadata line. Location · brand/model truncate on the left;
-            business + trust cluster (shrink-0) on the right. Business is an icon-only store glyph
+        {/* TERTIARY — one subdued metadata line: condition · area · posted-ago · brand/model
+            truncate on the left; business + trust cluster (shrink-0) on the right. Everything on
+            the left shares ONE truncating span so the row can never wrap, and the last two facts
+            are `sm:`-only (see the measurement below). Business is an icon-only store glyph
             (role=img so AT still announces it) to keep the row from wrapping on a narrow card. The
             "N contacted" demand count moved to the PDP — one fewer shrink-0 item keeps this line
             from overflowing on a 2-col mobile card, and reads cleaner. */}
@@ -820,32 +839,61 @@ function ListingCardImpl({
             {/* condition leads the line (owner, 2026-07-23) — the fastest signal a buyer scans
                 for. Stored values are the two facet buckets 'new'/'used'; anything else shows
                 as-is, and null (services/jobs, where condition is meaningless) drops out. */}
-            {/* ⚠️ THE BRAND/MODEL TERM IS DROPPED BELOW `sm`, BECAUSE THREE FACTS NEVER FIT.
-                At the feed's two-column phone width the card is ~179px and this line is 11px, so
-                condition + ward + brand·model truncated on essentially EVERY card:
-                "Used · Ấp 43 · Samso…", "New · Tân Nhựt · Paris…". A line that always ends in an
-                ellipsis is not three facts, it is two facts and a smudge — and the smudge lands
-                on the term the buyer can least act on, because brand is already visible in the
-                title and available as a filter.
-                Rendered as a second span rather than trimmed from the array so the DESKTOP line
-                is byte-identical to before; only the phone drops the term. `hidden sm:inline`
-                with the separator inside it, or the middot would strand at the end of the line. */}
-            {/* ⚠️ THE SEPARATOR IS PART OF THE JOIN, NEVER A LITERAL. A first version emitted
-                `{' · '}` inside the brand span, which strands a LEADING middot the moment the
-                left side is empty — and the left side is empty exactly where the comment above
-                says it can be: services and jobs, which have no condition, and rows with no
-                ward. Those listings would have rendered "· Foo" at every width. A reviewer
-                caught it. Building both sides as arrays and joining once makes an empty side
-                impossible to see. */}
+            {/* ⚠️ THE RELATIVE TIME AND THE BRAND/MODEL TERM SHARE ONE `sm:`-ONLY SPAN, BECAUSE A
+                PHONE CARD HAS ROOM FOR EXACTLY TWO FACTS. The brand was dropped below `sm` first,
+                for this reason: at the feed's two-column phone width the card is ~179px and this
+                line is 11px, so condition + ward + brand·model truncated on essentially EVERY
+                card ("Used · Ấp 43 · Samso…", "New · Tân Nhựt · Paris…"). A line that always ends
+                in an ellipsis is not three facts, it is two facts and a smudge — and the smudge
+                lands on the term the buyer can least act on, because brand is already visible in
+                the title and available as a filter.
+                MEASURED on the real feed before adding the time, at 390px: card 179px, this row
+                175px, and after the trust chip (45px) + gap the truncating span gets 124px — 104px
+                when the Business glyph renders. At 11px the Vietnamese lead "Đã dùng · Bình Thạnh"
+                is ALREADY 108.4px, and the shortest possible VI relative time adds 55.1px
+                (" · vừa xong"); the common " · 3 ngày trước" adds 71.1px. So a third fact does not
+                fit at ANY phone width — it renders as the ward plus a fragment of the time
+                ("… · 3 ngà"), i.e. the same smudge, on the signal the spec actually asked for.
+                ⚠️ THAT MEASUREMENT IS ALSO WHY THIS ROW STAYS AT `text-2xs` (11px) AND WAS NOT
+                RAISED TO 12px: at 12px the same VI lead is 118.3px against a 124px budget, so a
+                business seller's card (104px) would begin truncating with no new content at all.
+                The width has to be bought first — one fewer fact, or shorter VI time strings in
+                timeAgo() — not borrowed against.
+                ORDER: the time sits immediately after the area ("area · relative time") and BEFORE
+                brand/model, so when the line does overflow at sm/md the ellipsis eats the brand
+                first — it is repeated in the title above — rather than the freshness signal, which
+                appears nowhere else on the card. That ordering is doing real work, because `sm:` is
+                a VIEWPORT query and this card is also used in rails, which are narrower than the
+                grid at the same width: measured at 768px, a rail card is 229px but leaves this span
+                only 154px and 6 of 9 rows truncate — and they truncated BEFORE the time existed
+                too (~187px needed without it). The overflow is pre-existing; what this ordering
+                decides is which fact survives it. */}
+            {/* ⚠️ EVERY SEPARATOR IS CONDITIONAL ON WHAT PRECEDES IT, NEVER A LITERAL. A first
+                version emitted `{' · '}` inside the brand span, which strands a LEADING middot
+                the moment the left side is empty — and the left side is empty exactly where the
+                comment above says it can be: services and jobs, which have no condition, and rows
+                with no ward. Those listings would have rendered "· Foo" at every width. A reviewer
+                caught it. The rule survives the time being inserted: the sm-only span opens with a
+                middot only when `lead` is non-empty, and the brand's own middot is safe
+                unconditionally ONLY because the time is inside the same span and always renders.
+                ⚠️ THAT LAST CLAIM IS LOAD-BEARING, SO HERE IS ITS PROOF rather than an assertion —
+                two reviewers read `card-badges.tsx`'s defensive `!!listing.postedAt` as evidence
+                the field is nullable, and it is not: `Listing.postedAt` is `DateTime
+                @default(now())` (NOT NULL) in schema.prisma, and serialize.ts projects it as
+                `l.postedAt.toISOString()`, which would throw long before a card rendered. Move the
+                time out of this span, or make it conditional, and the brand's middot has to become
+                conditional in the same edit. */}
             {(() => {
               const lead = [conditionLabel, displayLocation].filter(Boolean)
               const brand = [listing.brandSlug ? prettyBrand(listing.brandSlug) : null, listing.model].filter(Boolean)
               return (
                 <>
                   {lead.join(' · ')}
-                  {brand.length > 0 && (
-                    <span className="hidden sm:inline">{lead.length > 0 ? ' · ' : ''}{brand.join(' · ')}</span>
-                  )}
+                  <span className="hidden sm:inline">
+                    {lead.length > 0 ? ' · ' : ''}
+                    <PostedAgo iso={listing.postedAt} />
+                    {brand.length > 0 ? ` · ${brand.join(' · ')}` : ''}
+                  </span>
                 </>
               )
             })()}

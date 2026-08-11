@@ -51,9 +51,35 @@ export function Badge({
   )
 }
 
-/** The standard top-left overlay stack (Urgent → Drop → New) for a card. Renders
- *  nothing when the listing carries no signal. New is shown ONLY when neither
- *  urgent nor a drop applies (they're the stronger, honest claims). */
+/** The card's top-left overlay signal — EXACTLY ONE badge, never a row of them. The
+ *  winner is the first of Urgent → price Drop → New that applies; no signal renders nothing.
+ *
+ *  ⚠️ ONE BADGE IS THE WHOLE POINT — DO NOT RE-ADD A SECOND CHIP. This used to render urgent
+ *  AND drop side by side (only `new` carried the exclusions), which cost the card twice: two
+ *  competing claims read as noise exactly where the eye lands first, and the pair ate the
+ *  top-left corner of a 179px phone card. The winner is resolved here, as returns, rather
+ *  than as three siblings each carrying a longer list of `&& !other` conditions — that shape
+ *  is precisely how "urgent AND drop" survived for so long, because nothing in it says out
+ *  loud that only one may render.
+ *
+ *  ⚠️ WHY SUPPRESSING A LIVE DROP IS NOT AN OMISSION. A price drop is a real, server-anchored
+ *  fact (prevPrice = the 30-day minimum), so hiding it under "urgent" would normally lose the
+ *  buyer something. It does not here, because the card states the drop a SECOND time, in the
+ *  price row: listing-card.tsx renders the struck-through "was" price from its own `hasDrop`,
+ *  which never consults this component. An urgent listing that also dropped therefore still
+ *  shows BOTH prices — strictly more information than the "-24%" chip suppressed here, which
+ *  is a rounding of the same two numbers. What is lost is the red chip's loudness, not the
+ *  fact. ⛔ That struck price IS this decision's safety net, and the safety net lives in the
+ *  CALLER: if it is ever removed from the price row, or a NEW surface adopts this component
+ *  without carrying a "was" price of its own, an urgent+dropped listing states its drop
+ *  nowhere. Today there is exactly one call site (listing-card.tsx), which does carry it —
+ *  the compact row builds its own chips from the `Badge` export above, not from this.
+ *  ⚠️ KNOWN GAP, RAISED BY A REVIEWER AND LEFT OPEN DELIBERATELY: that fallback is VISUAL. The
+ *  struck price is styled `line-through` with no accessible label — on the card and on the PDP
+ *  alike — so a screen-reader user on an urgent+dropped listing now hears two prices and no
+ *  relationship, where the "-24%" chip used to be read out. The honest fix is one "was"-price
+ *  label chosen ONCE for both surfaces, which is a change to listings/[id]/page.tsx too, so it
+ *  is not made here rather than made inconsistently. */
 export function CardBadges({
   listing,
   showNew = true,
@@ -66,19 +92,24 @@ export function CardBadges({
   const { tr } = useLanguage()
   const drop = listing.prevPrice != null && dropPercent(listing.prevPrice, listing.price)
   const isNew = showNew && !!listing.postedAt && Date.now() - new Date(listing.postedAt).getTime() < NEW_MS
-  if (!listing.urgent && !drop && !isNew) return null
 
-  return (
-    <span className={cn('flex items-center gap-1', className)}>
-      {listing.urgent && (
-        <Badge kind="urgent">
-          {/* Filled mark inside a small filled chip — a stroked bolt disappears at the
-              micro step; h-3 is the icon ladder's 12px size for 3xs labels (§4). */}
-          <Zap className="h-3 w-3 fill-current" /> {tr('Urgent', 'Bán gấp')}
-        </Badge>
-      )}
-      {drop && <Badge kind="drop">{drop}</Badge>}
-      {isNew && !listing.urgent && !drop && <Badge kind="new">{tr('New', 'Mới')}</Badge>}
-    </span>
-  )
+  // One badge → no wrapper. `className` therefore styles THE CHIP, not a row around it: the
+  // caller's positioning classes ride on the chip (an absolutely-positioned inline/inline-flex
+  // box is blockified and still shrink-to-fits, so it sits and sizes exactly where the old flex
+  // row put it — measured on the live feed: the Urgent chip is 60×17 at left-2/top-2, unchanged)
+  // and every card in the feed sheds a DOM node. ⚠️ The corollary is that row-level utilities
+  // are no longer meaningful here — a caller passing `gap-*`/`space-x-*` would retune the gap
+  // between the bolt and its label instead of spacing chips.
+  if (listing.urgent) {
+    return (
+      <Badge kind="urgent" className={className}>
+        {/* Filled mark inside a small filled chip — a stroked bolt disappears at the
+            micro step; h-3 is the icon ladder's 12px size for 3xs labels (§4). */}
+        <Zap className="h-3 w-3 fill-current" /> {tr('Urgent', 'Bán gấp')}
+      </Badge>
+    )
+  }
+  if (drop) return <Badge kind="drop" className={className}>{drop}</Badge>
+  if (isNew) return <Badge kind="new" className={className}>{tr('New', 'Mới')}</Badge>
+  return null
 }
