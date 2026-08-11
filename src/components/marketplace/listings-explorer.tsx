@@ -83,8 +83,14 @@ function parseFilterParams(p: URLSearchParams, categorySlug: string, subcategory
   return out
 }
 
-// CategoryRails (below the fold) + the filter-only FacetBar are code-split out of the
-// landing's initial bundle. ForYouRail + BusinessRail stay STATIC: they SSR their
+// CategoryRails and the FacetBar are code-split out of the home route's initial bundle.
+// ⚠️ NEITHER DESCRIPTION IN THE OLD VERSION OF THIS NOTE SURVIVED THE 2026-08-11 MERGE, so
+// read the new positions rather than the names: CategoryRails is no longer "below the fold"
+// by luck — it is now explicitly BELOW THE RESULTS GRID with the other discovery shelves —
+// and the FacetBar is no longer "filter-only", because home and search are one view and the
+// facets sit above the feed on both. FacetBar is therefore now a cold-path chunk that mounts
+// AFTER hydration directly above the grid, which is why its slot is height-reserved at the
+// call site (min-h-12 — the reasoning is spelled out there). ForYouRail + BusinessRail stay STATIC: they SSR their
 // shimmer skeleton (reserving the rail's height) so they don't pop in and shift the feed
 // — `ssr:false` here caused the CLS "layout shift culprits". They're tiny (reuse the
 // already-bundled ListingCard), so the JS cost is negligible.
@@ -94,11 +100,16 @@ const CategoryRails = dynamic(() => import('./category-rails').then((m) => m.Cat
 // they injected many sections above the feed right after hydration (layout shift +
 // an immediate /api/category-rails fetch on every cold load). The sentinel is
 // zero-height, so deferral itself never moves anything.
+// ⚠️ Since 2026-08-11 these rails render BELOW the results grid, so the sentinel is a
+// full feed away from the fold and `near` no longer fires on first paint. The idle gate
+// below is now belt-and-braces rather than the load-bearing half of the deferral — do not
+// remove it on that basis: on a short/sparse catalogue (every rail above hidden by the
+// MIN_RAIL_ITEMS floor, a single grid row) the sentinel can still start inside the fold.
 function DeferredCategoryRails(props: React.ComponentProps<typeof CategoryRails>) {
   const { ref, near } = useNearViewport<HTMLDivElement>()
-  // Idle-armed on top of near-viewport: the sentinel sits at the first-paint fold,
-  // so near fires immediately — without the idle gate the rails (and their
-  // /api/category-rails fetch) would still land inside the critical window.
+  // Idle-armed on top of near-viewport: when the sentinel starts at the first-paint fold
+  // (see above) `near` fires immediately, and without this gate the rails — and their
+  // /api/category-rails fetch — would still land inside the critical window.
   const [armed, setArmed] = useState(false)
   useEffect(() => {
     const arm = () => setArmed(true)
@@ -125,13 +136,15 @@ const FacetBar = dynamic(() => import('./facet-bar').then((m) => m.FacetBar), { 
 const FIRST_PAGE_SIZE = 12
 
 // Perf: the LIST view's row and the MOBILE filters drawer were static imports, so both shipped
-// in the home route's first load even though neither is on the landing path — the landing mode
-// renders its own ListingCard grid and the drawer is a mobile overlay nobody has opened yet.
-// ⚠️ NOT because "the default view is the grid" — it is not. viewMode defaults to 'compact'
-// (see the useState below), so this row IS the default results view once the explorer opens;
-// almost all of the saved bytes are the drawer. Nothing here was ever server-rendered
-// (showExplorer starts false), so ssr:false costs no HTML, but the row's chunk does land on the
-// primary browse path — keep the skeleton geometry-matched. (Corrected 2026-07-25.)
+// in the home route's first load even though neither is on the default path — the feed renders
+// a ListingCard grid and the drawer is a mobile overlay nobody has opened yet.
+// ⚠️ THE 2026-07-25 CORRECTION THAT USED TO BE HERE IS ITSELF OUT OF DATE. It said "viewMode
+// defaults to 'compact', so this row IS the default results view once the explorer opens" —
+// true while there were two branches, wrong since the 2026-08-11 merge: viewMode now decides
+// what the HOME page renders too, so it defaults to 'grid' (see the useState) and this row is
+// an opt-in view again. That makes the deferral a straightforward win on the primary browse
+// path rather than a trade. Nothing here is server-rendered, so ssr:false costs no HTML —
+// keep the skeleton geometry-matched anyway, because in list view many of these mount at once.
 //
 // The row needs a placeholder with the real row's geometry, because in list view many of these
 // render at once — a null while the chunk arrives would collapse the whole column and then push
@@ -186,9 +199,23 @@ function prettyBrand(slug: string): string {
 type SortKey = 'newest' | 'recent' | 'price-low' | 'price-high' | 'popular'
 type ViewMode = 'compact' | 'grid' | 'map' | 'video'
 
-// The hero typeahead's listbox. Distinct from the header bar's ('header-search-suggest')
-// so both can sit in the DOM at once — the header search reveals itself on scroll while
-// the hero is still mounted — without colliding ids.
+/** The view this surface opens in, and the one a "go home" reset returns to.
+ *  ⚠️ It became load-bearing on 2026-08-11, when the landing branch and the results branch
+ *  merged. Before that, viewMode governed only the results branch and the landing rendered a
+ *  card grid unconditionally; now this single value decides what the HOME page renders, so
+ *  'compact' would silently turn the home feed into bonbanh-style list rows. It also stops the
+ *  presentation from CHANGING when the visitor searches — cards before, cards after — which is
+ *  the whole point of merging the two. Named once because three places have to agree: the
+ *  useState, the Video view's fall-back-to ref, and resetToLandingPage. */
+const DEFAULT_VIEW: ViewMode = 'grid'
+
+// The in-page typeahead's listbox id. Deliberately DISTINCT from the header bar's
+// ('header-search-suggest') so the two can sit in the DOM at once without colliding.
+// ⚠️ Nothing in this file renders an input bound to it today — the hero search bar moved
+// into the header on 2026-08-03 and the landing branch that hosted it was merged away on
+// 2026-08-11. The wiring is kept intact (see the panel/listbox derivations before the
+// return) precisely so a future in-page input cannot re-derive the contract differently
+// from the header's, which is how the two bars drifted apart the first time.
 const SUGGEST_ID = 'hero-search-suggest'
 
 type Props = {
@@ -240,10 +267,12 @@ export function ListingsExplorer({
   const [activeSubcategory, setActiveSubcategory] = useState('all')
   const [activeBrand, setActiveBrand] = useState('all') // canonical brand slug, or 'all'
   const [activeModel, setActiveModel] = useState('all') // model display string, or 'all'
-  const [viewMode, setViewMode] = useState<ViewMode>('compact')
+  // See DEFAULT_VIEW for why this is 'grid' and not 'compact'. The compact row is one tap away
+  // on the view toggles, and ?view=compact still deep-links straight to it.
+  const [viewMode, setViewMode] = useState<ViewMode>(DEFAULT_VIEW)
   // The full-screen Video view remembers the view to fall back to on close (so exiting the
   // takeover lands the user back where they were, not always on the grid).
-  const prevViewRef = useRef<ViewMode>('grid')
+  const prevViewRef = useRef<ViewMode>(DEFAULT_VIEW)
   const changeView = useCallback((m: ViewMode) => {
     setViewMode((cur) => { if (m === 'video' && cur !== 'video') prevViewRef.current = cur; return m })
   }, [])
@@ -342,7 +371,23 @@ export function ListingsExplorer({
   // non-urgent update — keeps INP low on mid-range Android.
   const deferredListings = useDeferredValue(shownListings)
   const [, startFilterTransition] = useTransition()
-  const [totalCount, setTotalCount] = useState(0)
+  // ⚠️ SEEDED FROM THE ISR HTML, NOT 0, AND THE MERGE IS WHY. The result count is now rendered
+  // on the undirected home view as well (the results header serves both states), so whatever
+  // this holds at first paint is baked into the 6h-ISR HTML and served to every anonymous
+  // visitor and every crawler. At 0 that HTML said the marketplace had no listings while
+  // showing twelve of them, and it also made `hasMore` false, so the "Browse everything"
+  // ending popped in after hydration instead of being in the markup (app/(home)/loading.tsx
+  // already reserves it). initialTotal is the count for exactly the rows baked beside it —
+  // page.tsx runs the count() against the same predicate as the findMany().
+  // Known, accepted imprecision: a FILTERED deep link (/?q=…) is served the same prerendered
+  // HTML, so it shows the unfiltered total for one paint before the response corrects it. It
+  // showed 0 before, which is equally wrong and worse for the common case.
+  // ⚠️ A reviewer read this as "crawlers and no-JS visitors permanently get a count that
+  // contradicts the filter". Measured, they do not: `listings` also initialises from
+  // initialListings, so a no-JS visitor to /?q=x sees the unfiltered TWELVE CARDS and the
+  // unfiltered COUNT — wrong about the query, but internally consistent, and identical to what
+  // that visitor got before this line existed. The count never disagrees with the cards beside it.
+  const [totalCount, setTotalCount] = useState(initialTotal ?? 0)
   const [page, setPage] = useState(1)
   // Hard pagination stop: if a genuinely DEEPER page (offset past the deepest we've grown
   // at) comes back with zero new rows, we're done — even if totalCount still reads higher.
@@ -407,6 +452,17 @@ export function ListingsExplorer({
     return [...trendingShown, ...businessesShown].map((l) => l.id)
   }, [initialTrending, dedupedBusinesses])
 
+  // ⚠️ NOT A MODE ANY MORE — A PREDICATE. Until 2026-08-11 this gated an early `return`, so
+  // the home page and the search page were two different trees and moving between them
+  // unmounted one and mounted the other. That boundary is gone; what survives is the QUESTION
+  // it answered: "has the visitor directed this feed at anything yet?" False the moment they
+  // search, pick a facet, choose an area, or ask for the map/video view.
+  // ⚠️ ITS ONLY CONSUMER TODAY IS showDiscovery BELOW, AND IT IS STILL WORTH ITS OWN NAME.
+  // The two are different questions — "has the visitor directed the feed" versus "is the
+  // undirected-browse chrome on screen" — and they diverge on exactly one axis (the map and
+  // video views, which are directed surfaces the FILTERS have not been touched for). Every
+  // consumer so far has wanted the second question; folding this into it would still leave
+  // that distinction to be re-derived by whoever next needs the first.
   const isLandingMode = useMemo(() => {
     return (
       !showExplorer &&
@@ -417,6 +473,36 @@ export function ListingsExplorer({
       Object.keys(customFilters).length === 0
     )
   }, [showExplorer, activeCategory, activeDistrict, activeSubcategory, activeProvince, activeWard, nearby, customFilters])
+
+  // Is the undirected-browse chrome (promo banner, value strip, big category tiles, discovery
+  // shelves) on screen? Everything isLandingMode asks, plus: the map and video views are
+  // results surfaces in their own right — the map is a 60dvh/full-column takeover and the
+  // video feed is a fixed-inset one — so an ad and three merchandising rails around them
+  // would be decorating a view the visitor explicitly asked for.
+  // ⚠️ THE viewMode HALF IS NOT COSMETIC — THE PAGINATION GATE READS THIS, NOT isLandingMode.
+  // The merge put the view toggles on the home page, which created a state nobody had ever been
+  // in: map view with showExplorer still false. Gate pagination on isLandingMode there and the
+  // map dead-ends at twelve listings, because the map paginates through its own in-column
+  // sentinel and renders no "Browse everything" button to unlock it — a feed that simply stops,
+  // with nothing to click and no error. Reading showDiscovery instead means opening a takeover
+  // view counts as directing the feed, which is what it is.
+  const showDiscovery = isLandingMode && viewMode !== 'map' && viewMode !== 'video'
+
+  // ⚠️ THE SORT STRIP IS THE ONE CONTROL THE PREDICATES ABOVE DO NOT SEE, AND ALL THREE
+  // REVIEWERS FOUND IT. Measured: the showExplorer sync effect covers category, query, district,
+  // subcategory, brand, model, listingType, condition, price and the custom facets — so every one
+  // of those DOES leave undirected browse. `sort` is in neither that effect nor isLandingMode,
+  // deliberately (it is not a filter: it reorders the same set), and until the merge that was
+  // invisible because the strip only existed in the results branch. It is on the home page now,
+  // so a visitor can reorder the home feed by price while a heading says "Latest listings".
+  // The FEED is fine either way; the CLAIM is what breaks, so this fixes the claim rather than
+  // flipping the whole page out of discovery for a reorder — a sort tap is not a search, and
+  // tearing the banner, tiles and shelves off the page for one would be the "hop" this wave
+  // exists to remove.
+  // ⚠️ Also: 'newest' is the legacy param name for the DEFAULT RELEVANCE blend, not recency (see
+  // SortKey) — so this reads "the feed is in the order the home page always showed it in", which
+  // is exactly the claim the heading makes.
+  const feedInDefaultOrder = showDiscovery && sort === 'newest'
 
   const resetToLandingPage = useCallback(() => {
     setQuery('')
@@ -441,6 +527,24 @@ export function ListingsExplorer({
     setPriceRange('all')
     setShowExplorer(false)
     setFeedUnlocked(false) // re-gate the home feed (footer reachable again)
+    // ⚠️ THE VIEW IS PART OF "GO HOME" NOW (2026-08-11). It was not, and did not need to be,
+    // while the landing was its own tree that ignored viewMode entirely — a logo tap from the
+    // map landed on the landing and the stale 'map' was invisible. One tree means a leftover
+    // 'map'/'video' survives the reset and keeps showDiscovery false, so the visitor gets the
+    // home page with no banner, no tiles and no shelves: a logo that looks broken, which is the
+    // exact class of bug the setListingType line above was added for.
+    setViewMode(DEFAULT_VIEW)
+    // ⚠️ AND THE PAGE DEPTH, or the line above it only half-happens. Resetting a FILTER drops the
+    // loaded pages for free (the filter signature changes, which resets page to 1 during render
+    // and makes the sync effect REPLACE the rows). Coming home from the plain unfiltered feed
+    // changes no signature, so without this a visitor who pressed "Browse everything", scrolled
+    // to card 48 and tapped the logo kept all 48 rows while the gate re-armed underneath them —
+    // the button reappearing in the middle of a feed it had already been used on. An external
+    // reviewer measured the gap between this behaviour and the comment describing it.
+    // It also reopens the hard stop: the listingsData sync effect's page===1 branch calls
+    // setReachedEnd(false), so a visitor who had paged all the way to the end does not come home
+    // to "You've reached the end" printed under twelve cards with no way to continue.
+    setPage(1)
   }, [])
 
   // Clicking the header logo while already on the homepage resets the explorer back
@@ -452,17 +556,28 @@ export function ListingsExplorer({
       setActiveWard(null)
       setNearby(null)
       setShowSuggestions(false)
-      // Instant jump AFTER the landing layout re-renders (the feed unmounts → the
-      // page shrinks): a smooth scroll from deep in the feed gets clamped by the
-      // shrink and lands mid-page, so the logo "didn't go home". rAF + auto fixes it.
+      // Instant jump AFTER the reset re-renders: a smooth scroll from deep in the feed gets
+      // clamped by a shrinking document and lands mid-page, so the logo "didn't go home".
+      // rAF + `auto` fixes it. ⚠️ The document no longer shrinks as much as it did — the feed
+      // used to UNMOUNT here (landing was a different tree) and now only the discovery chrome
+      // toggles — but the reset still restores the pagination gate (setFeedUnlocked(false)),
+      // which drops every page past the first, so the clamp is still reachable.
       requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: 'auto' }))
     }
     window.addEventListener('eno:reset-home', onResetHome)
     return () => window.removeEventListener('eno:reset-home', onResetHome)
   }, [resetToLandingPage])
 
-  // Sync showExplorer with URL/parameters on mount or change
-  useEffect(() => {
+  // Sync showExplorer with URL/parameters on mount or change.
+  // ⚠️ useLayoutEffect SINCE 2026-08-11, AND IT IS THE SAME REASON THE UN-LATCH BELOW USES ONE.
+  // As a passive effect this is flushed AFTER paint, which was invisible while it only chose
+  // between two trees. Now it decides whether the promo banner, the value strip, the big category
+  // tiles and four discovery shelves are on the page — so applying a filter it owns (price or
+  // condition from the FacetBar, a brand from the typeahead) painted one frame of the FULL home
+  // chrome above the new results and then collapsed several hundred pixels of it in the next.
+  // The axes that live in isLandingMode itself (category, area, subcategory, custom facets) never
+  // had this problem: that memo reads them directly, so it is already false in the same render.
+  useLayoutEffect(() => {
     if (
       activeCategory !== 'all' ||
       query.trim() !== '' ||
@@ -478,6 +593,78 @@ export function ListingsExplorer({
       setShowExplorer(true)
     }
   }, [activeCategory, query, activeDistrict, activeSubcategory, activeBrand, activeModel, customFilters, listingType, conditionFilter, priceRange])
+  // ⚠️ THE AXIS LIST ABOVE IS THE CONTRACT THE UN-LATCH BELOW MIRRORS. Add an axis here and add
+  // it there, or the pair disagrees about what "applied" means and the disagreement is a trap
+  // rather than a bug: an axis this effect ignores but the un-latch honours can never be
+  // un-latched, and one it honours but this ignores latches TRUE and is instantly cleared.
+
+  // ⚠️ THE OTHER HALF OF THE EFFECT ABOVE, AND WITHOUT IT showExplorer IS A ONE-WAY LATCH.
+  // Everything up there sets it TRUE; until 2026-08-11 nothing but resetToLandingPage ever set it
+  // false, which was harmless while it merely CHOSE between two trees — a stale TRUE with nothing
+  // applied still rendered a results page that looked deliberate. Since the merge it decides
+  // whether the home page has a promo banner, category tiles, discovery shelves and a reachable
+  // footer, so a stale TRUE is a broken home page: no chrome, BrandRail fetching /api/brands at
+  // category=all, "Found N listings" where "Latest listings" belongs, and (showDiscovery false
+  // while feedUnlocked is false) an armed sentinel — an infinite home feed with no footer.
+  //
+  // ⚠️ IT HAS TO LIVE HERE, NOT ON THE CONTROLS. Three external review rounds walked a different
+  // route into that state each time — the chip's ✕, "Clear all filters", the FacetBar's own
+  // "Clear", emptying the header search — and patching each one is how the next route gets
+  // missed. This is the invariant instead: nothing applied and no takeover view means undirected
+  // browse, whoever cleared the last thing and whichever control they used.
+  //
+  // ⚠️ useLayoutEffect, NOT useEffect: a passive effect is flushed AFTER paint, so every one of
+  // those clears would show one frame of the filterless results view before the home chrome came
+  // back. This runs inside the same commit.
+  //
+  // ⚠️ verifiedOnly IS DELIBERATELY ABSENT FROM THE TEST, AND AN EARLIER DRAFT HAD IT. Treating
+  // "verified only is off" as an applied filter here — while the latch above ignores it and
+  // getActiveChips emits no chip for it — made it the one axis that could latch the results view
+  // and then refuse to release it: search, turn verified off, clear the search, and the visitor is
+  // stranded on a filterless results view with no chip, no Save box and therefore no "Clear all".
+  // Three reviewers found the asymmetry. The rule is symmetry: this test mirrors the latch's axis
+  // list plus the area axes (which the header sets alongside showExplorer directly).
+  // Not reachable today either way — measured 2026-08-11, the only two callers of setVerifiedOnly
+  // in the app are FacetBar's "Clear" (which sets it TRUE) and explorer-filters.tsx, the drawer
+  // this file documents as having no trigger anywhere in the repo.
+  //
+  // ⚠️ THE MAP AND VIDEO VIEWS ARE EXEMPT ON PURPOSE. They are directed surfaces whether or not a
+  // filter is set — the footer's Map link opens an unfiltered map deliberately — and they carry
+  // no discovery chrome by design (see showDiscovery). Un-latching there would fight the very
+  // deep links (?view=map, eno:view-map, the video back-nav restore) that set this.
+  useLayoutEffect(() => {
+    if (!showExplorer) return
+    if (viewMode === 'map' || viewMode === 'video') return
+    if (
+      activeCategory !== 'all' ||
+      // ⚠️ BOTH HALVES OF THE SEARCH TERM, AND THE LAGGING ONE IS THE POINT. `query` is what the
+      // box holds; `debouncedQuery` (150ms behind) is what the FETCHER and getActiveChips use.
+      // Testing only `query` released the chrome the instant the term was cleared, so for 150ms
+      // the promo banner, the tiles, the shelves and "Latest listings" sat above the still-
+      // FILTERED rows and the still-present search chip. Testing only `debouncedQuery` inverts it
+      // and fights the latch above (which fires on `query`) for the same 150ms while typing.
+      // Requiring both to be empty makes the chrome come back exactly when the unfiltered rows do.
+      query.trim() !== '' ||
+      debouncedQuery.trim() !== '' ||
+      activeDistrict !== 'all' ||
+      activeSubcategory !== 'all' ||
+      activeBrand !== 'all' ||
+      activeModel !== 'all' ||
+      listingType !== 'all' ||
+      conditionFilter !== 'all' ||
+      priceRange !== 'all' ||
+      activeProvince !== null || activeWard !== null || nearby !== null ||
+      Object.keys(customFilters).length > 0
+    ) return
+    setShowExplorer(false)
+    // Back to undirected browse → back behind the pagination gate, exactly as the logo reset
+    // does. Without it the home feed keeps auto-paginating and the footer stays lost.
+    setFeedUnlocked(false)
+  }, [
+    showExplorer, viewMode, activeCategory, query, debouncedQuery, activeDistrict, activeSubcategory, activeBrand,
+    activeModel, listingType, conditionFilter, priceRange, activeProvince, activeWard,
+    nearby, customFilters,
+  ])
 
   // Listen to open-mobile-filters event from Header
   useEffect(() => {
@@ -619,12 +806,14 @@ export function ListingsExplorer({
     const onViewMap = () => {
       setViewMode('map')
       setShowExplorer(true)
-      // ⚠️ SCROLL AFTER THE RE-RENDER, NOT DURING IT. `id="listings"` exists in BOTH branches (the
-      // landing section and the explorer one), so this lookup never returns null — which is why the
-      // bug is easy to miss. In landing mode it finds the node that `setShowExplorer(true)` is about
-      // to REPLACE, and React batches that update, so a smooth scroll starts toward an offset that
-      // stops being correct the moment the landing rails above it unmount. One frame later the
-      // explorer tree is mounted and laid out, and the same query resolves to the real target.
+      // ⚠️ SCROLL AFTER THE RE-RENDER, NOT DURING IT. This used to be about the node being
+      // REPLACED — `id="listings"` existed in both branches, so the lookup found the landing
+      // section that setShowExplorer was about to swap out. Since the 2026-08-11 merge there is
+      // one section and one id, and the rAF is still required for the same underlying reason:
+      // setViewMode('map') + setShowExplorer(true) are batched, and BOTH move this section's
+      // offset (the promo banner, the value strip, the big tile grid and the discovery shelves
+      // all unmount, and a 60dvh map mounts). A smooth scroll started in this tick aims at an
+      // offset that stops being true one commit later.
       requestAnimationFrame(() => {
         document.getElementById('listings')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
       })
@@ -654,9 +843,19 @@ export function ListingsExplorer({
     }
   }, [handleLandingSearch, applyVisualSearch])
 
+  // ⚠️ HEADER CONTRACT — DO NOT DELETE THIS DISPATCH. header.tsx listens for `eno:hero` and
+  // changes its own chrome on it: `present: true` makes it attach an IntersectionObserver to
+  // #eno-hero-search and reveal its search bar once that element scrolls past; `present: false`
+  // makes it detach and show the bar outright. Today BOTH paths end at showSearch=true, because
+  // no element with that id exists any more (the hero bar moved into the header on 2026-08-03) —
+  // so the event is currently inert, and that is exactly why it must not be "cleaned up": the
+  // day a hero search returns, this is the wire that keeps the header from double-rendering one.
+  // The payload now tracks showDiscovery rather than isLandingMode, which is the honest reading
+  // of "is the hero chrome on screen" — and is indistinguishable to the header while the id is
+  // absent. If a hero input is ever re-added, add it to the DISCOVERY block or this lies.
   useEffect(() => {
-    window.dispatchEvent(new CustomEvent('eno:hero', { detail: { present: isLandingMode } }))
-  }, [isLandingMode])
+    window.dispatchEvent(new CustomEvent('eno:hero', { detail: { present: showDiscovery } }))
+  }, [showDiscovery])
 
   // '/' and ⌘/Ctrl+K focus the search input (extracted).
   useSearchShortcuts(setShowSuggestions)
@@ -1315,8 +1514,24 @@ export function ListingsExplorer({
   // Infinite feed (FB-style): an off-screen sentinel below the list bumps the page
   // as it nears the viewport. Disabled for "near you" (single broad client-filtered
   // fetch) — there's nothing more to page through.
-  // Home feed: don't auto-infinite-scroll until the user opts in. They see the first
-  // page + can reach the footer; a "Load more" button then unlocks infinite scroll.
+  // ⚠️ UNDIRECTED BROWSE IS NOT AN INFINITE FEED, AND THE MERGE DID NOT CHANGE THAT. The
+  // results grid is now on screen from the first paint, which makes it tempting to read
+  // "results are always shown" as "the home page is now an endless scroll". It is not: while
+  // showDiscovery holds, the sentinel below is inert and the feed ends on the "Browse
+  // everything" button, so the FOOTER stays reachable on the site's most-visited page. The
+  // button loads page 2 and sets this to true, which hands the rest over to the sentinel.
+  // A searched or faceted view auto-paginates from the start, exactly as before — the moment
+  // the visitor directs the feed they have opted in.
+  // ⚠️ Restored from the back-nav snapshot too (see the restore effect, which calls
+  // setFeedUnlocked(snap.unlocked === true)): coming back to a deep feed with the gate re-armed
+  // dead-ends the buyer at a button they already pressed.
+  // ⚠️ KNOWN GAP, NOT CLOSED ON PURPOSE (external reviewer): the MAP view paginates through its
+  // own in-column sentinel without ever setting this, so map-then-grid on the home page can land
+  // on sixty loaded cards with the gate re-armed and the "Browse everything" button back. That is
+  // an odd affordance, not a dead end — the button works and loads from where the feed actually
+  // is. The obvious fix (unlock on any auto-pagination) is worse: it would leave the home feed
+  // infinite after any directed browsing, which is precisely the footer-loss this gate exists to
+  // prevent, so it trades a cosmetic oddity for the regression.
   const [feedUnlocked, setFeedUnlocked] = useState(false)
   const loadMoreRef = useRef<HTMLDivElement | null>(null)
   // Map view's result list scrolls inside its own column on desktop, so the
@@ -1355,7 +1570,23 @@ export function ListingsExplorer({
   const hasMore = !nearby && !reachedEnd && listings.length < totalCount
   useEffect(() => {
     if (!hasMore) return
-    if (isLandingMode && !feedUnlocked) return // home feed: gated behind the "Load more" button
+    // ⚠️ THE GATE, AND IT IS THE REASON THE HOME PAGE HAS A FOOTER. Undirected browse never
+    // arms this observer until the visitor presses "Browse everything" (see feedUnlocked).
+    // showDiscovery, NOT isLandingMode — see the note where it is derived: the map view is
+    // undirected browsing too, but it has no "Browse everything" button to unlock with, so
+    // gating it produces a dead end rather than a reachable footer.
+    if (showDiscovery && !feedUnlocked) return
+    // ⚠️ NEVER AUTO-PAGE A FEED WHOSE QUERY HAS NOT LANDED YET. `query` is the committed search
+    // and `debouncedQuery` is what the fetcher actually uses, 150ms behind it; while they differ
+    // the rows on screen belong to the PREVIOUS query, so appending page 2 appends the wrong
+    // inventory and then throws it away when the filter signature settles and resets page to 1.
+    // The window that matters is a deep link: /?q=… is served the UNFILTERED prerender, so twelve
+    // unrelated cards paint with the sentinel 600px below them, inside the viewport on a desktop
+    // screen, before the query has been debounced even once. Measured as pre-existing rather than
+    // new — the listingsData sync effect sets totalCount to initialTotal on the first effect flush
+    // whether or not the state is seeded, so the observer armed one commit later without this
+    // guard — but seeding totalCount widened it, and an external reviewer was right to say so.
+    if (query.trim() !== debouncedQuery.trim()) return
     const isMap = viewMode === 'map'
     // Desktop map view → the left column is the scroll container (Tailwind lg = 1024px).
     const columnScroll = isMap && typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches
@@ -1372,7 +1603,7 @@ export function ListingsExplorer({
     )
     io.observe(el)
     return () => io.disconnect()
-  }, [hasMore, queryFetching, prefetchNextPage, viewMode, isLandingMode, feedUnlocked])
+  }, [hasMore, queryFetching, prefetchNextPage, viewMode, showDiscovery, feedUnlocked, query, debouncedQuery])
 
   // One detail view everywhere: any card/pin click navigates to the full listing
   // page (no modal).
@@ -1478,9 +1709,9 @@ export function ListingsExplorer({
 
   // Distinct from the empty state: a failed fetch (DB down, 500) must NOT read as
   // "no listings" — show an error + retry so the marketplace never looks empty.
-  // Hoisted ABOVE the isLandingMode early return on purpose: both the landing feed and
-  // the explorer feed call it, and a const arrow declared after that return would be in
-  // its TDZ (ReferenceError) when the landing branch renders.
+  // (It was hoisted here to clear the old isLandingMode early return's TDZ. That return is
+  // gone as of 2026-08-11 — there is one tree now — so the position is no longer load-bearing;
+  // it is left where it is because moving it would be churn for nothing.)
   const renderErrorState = (className?: string) => (
     <EmptyState
       icon={AlertTriangle}
@@ -1497,41 +1728,397 @@ export function ListingsExplorer({
     />
   )
 
-  if (isLandingMode) {
-    // Never open an empty dropdown: with a typed query it's the typeahead; when empty
-    // it needs recents/locations or the Popular fallback (categories, already
-    // client-side). With nothing to show the pill stays a plain pill.
-    const heroPanelOpen = showSuggestions && (
-      landingQuery.trim().length >= 2 || recentSearches.length > 0 || recentLocations.length > 0 || categories.length > 0 || trending.length > 0
+  // ── THE TYPEAHEAD'S PANEL / LISTBOX DERIVATIONS ─────────────────────────────────────
+  // These were locals of the old `if (isLandingMode) return (…)` branch, which is gone: home
+  // and search are ONE view as of 2026-08-11 (see isLandingMode above). The hero search INPUT
+  // they described went earlier — 2026-08-03, when the bar moved into the header — so nothing
+  // in this file has rendered an input for them since that date.
+  //
+  // ⚠️ THEY ARE KEPT, NOT DELETED, AND THE REST OF THE TYPEAHEAD ABOVE THEM WITH THEM
+  // (landingQuery, heroSuggest, heroSuggestItems, the arrow-key nav, pickHeroSuggest). Together
+  // they are the COMPLETE a11y contract for an in-page search input: which panel is open, whether
+  // that panel is the listbox (≥2 chars) rather than the recents/Popular panel, and the
+  // active-descendant id. Re-deriving that from scratch is exactly how the hero and header bars
+  // drifted apart the first time; use-search-box.ts documents the contract.
+  //
+  // ⚠️ THE LIVE TYPEAHEAD IS header.tsx's, and it is untouched. It reaches this component through
+  // the `eno:search` / `eno:visual-search` / `eno:set-area` events, and since the merge those
+  // events filter the results IN PLACE — they no longer swap the page into a second layout.
+  const heroPanelOpen = showSuggestions && (
+    landingQuery.trim().length >= 2 || recentSearches.length > 0 || recentLocations.length > 0 || categories.length > 0 || trending.length > 0
+  )
+  const heroListOpen = showSuggestions && landingQuery.trim().length >= 2
+  const heroActiveOptionId = activeSuggestOptionId(SUGGEST_ID, heroListOpen, heroActiveIdx, heroSuggestItems.length)
+
+  // Active applied-filter chips — shared by the persistent results bar AND the
+  // empty state so the two never drift. Brand+model collapse into one chip.
+  const getActiveChips = (): { label: string; onClear: () => void }[] => {
+    const chips: { label: string; onClear: () => void }[] = []
+    if (debouncedQuery.trim()) chips.push({ label: `"${debouncedQuery.trim()}"`, onClear: () => setQuery('') })
+    if (activeSubcategory !== 'all') {
+      const sub = SUBCATEGORIES[activeCategory]?.find((s) => s.slug === activeSubcategory)
+      chips.push({ label: sub ? (lang === 'vi' ? sub.nameVi : sub.name) : activeSubcategory, onClear: () => setActiveSubcategory('all') })
+    }
+    if (activeBrand !== 'all') {
+      chips.push({ label: activeModel !== 'all' ? `${prettyBrand(activeBrand)} · ${activeModel}` : prettyBrand(activeBrand), onClear: () => { setActiveBrand('all'); setActiveModel('all') } })
+    } else if (activeModel !== 'all') {
+      chips.push({ label: activeModel, onClear: () => setActiveModel('all') })
+    }
+    if (activeDistrict !== 'all') {
+      const d = DISTRICTS.find((x) => x.slug === activeDistrict)
+      chips.push({ label: d ? (lang === 'vi' ? d.name : d.nameEn) : activeDistrict, onClear: () => setActiveDistrict('all') })
+    }
+    // Area / location (new province→ward model + "near you" radius) — so the saved
+    // search + alert clearly include where the user is looking.
+    if (nearby) {
+      chips.push({ label: tr(`Within ${nearby.radiusKm} km`, `Trong ${nearby.radiusKm} km`), onClear: () => { setNearby(null); setActiveProvince(null); setActiveWard(null) } })
+    } else if (activeWard) {
+      chips.push({ label: lang === 'vi' ? activeWard.name : activeWard.nameEn, onClear: () => setActiveWard(null) })
+    } else if (activeProvince) {
+      chips.push({ label: lang === 'vi' ? activeProvince.name : activeProvince.nameEn, onClear: () => { setActiveProvince(null); setActiveWard(null) } })
+    }
+    if (priceRange !== 'all') chips.push({ label: tr('Price range', 'Khoảng giá'), onClear: () => setPriceRange('all') })
+    if (conditionFilter !== 'all') chips.push({ label: conditionFilter === 'new' ? tr('New', 'Mới') : tr('Used', 'Đã dùng'), onClear: () => setConditionFilter('all') })
+    if (listingType !== 'all') {
+      const lt = LISTING_TYPES.find((t) => t.value === listingType)
+      chips.push({ label: lt ? (lang === 'vi' ? lt.labelVi : lt.label) : listingType, onClear: () => setListingType('all') })
+    }
+    Object.entries(customFilters).forEach(([k, v]) =>
+      chips.push({ label: `${k}: ${v}`, onClear: () => setCustomFilters((prev) => { const n = { ...prev }; delete n[k]; return n }) }),
     )
-    // The subset of `heroPanelOpen` where the panel is actually the typeahead LISTBOX
-    // (≥2 chars) rather than the recents/locations/Popular panel. This — not
-    // heroPanelOpen — is what the input's aria-expanded/-controls may claim: the other
-    // panel is a set of plain buttons and has no listbox to point at.
-    // Mirrors the `landingQuery.trim().length >= 2` branch that renders <SearchSuggest/>.
-    const heroListOpen = showSuggestions && landingQuery.trim().length >= 2
-    // Virtual focus announcement for the input (shared derivation — see
-    // activeSuggestOptionId in use-search-box.ts for the a11y contract).
-    const heroActiveOptionId = activeSuggestOptionId(SUGGEST_ID, heroListOpen, heroActiveIdx, heroSuggestItems.length)
-    // overflow-hidden guards against horizontal spill on narrow screens; lifted on desktop (pc:) so
-    // the rails' / category-grid ← / → gutter arrows aren't clipped at the content edge.
-    // ⚠️ `pt-5 sm:pt-6` AND the position of the hero block below are ONE fix — read them together.
-    // These two paddings are the ONLY thing setting the gap above the promo banner, and they are
-    // tuned so it MATCHES the gap below it (owner, 2026-08-05: "match the distance above banner to
-    // next line"). Both were derived by measuring the built page, not by arithmetic on the classes:
+    return chips
+  }
+
+  const clearAllFilters = () => {
+    setQuery('')
+    // ⚠️ THE CATEGORY IS A FILTER, WHATEVER ELSE IT ALSO IS. It was the one axis this function
+    // left standing — the component treats the category as navigation (it drives the rail, the
+    // facet set and the brand directory) rather than as a removable chip, so getActiveChips()
+    // does not emit one for it and this reset skipped it. The result was a button labelled
+    // "Clear all filters" that left the visitor inside an empty category with zero results and
+    // nothing on screen admitting why; two external reviewers found it independently. Clearing it
+    // is also what the merged tree makes coherent: with one page, dropping the category puts the
+    // visitor back on the home tiles (in the grid and compact views — see the note on viewMode at
+    // the end of this function) instead of on a second, emptier page.
+    setActiveCategory('all')
+    setActiveSubcategory('all')
+    setActiveBrand('all')
+    setActiveModel('all')
+    setActiveDistrict('all')
+    setActiveProvince(null)
+    setActiveWard(null)
+    setNearby(null)
+    setPriceRange('all')
+    setConditionFilter('all')
+    setListingType('all')
+    setCustomFilters({})
+    setVerifiedOnly(true)
+    // ⚠️ AND showExplorer, OR NOTHING ABOVE IS OBSERVABLE. Measured: the ONLY other place in this
+    // file that sets it false is resetToLandingPage — the sync effect one-way-latches it TRUE and
+    // never clears it. So without this line "Clear all filters" cleared the filters and left the
+    // visitor on a filterless RESULTS view: no banner, no tiles, no shelves, BrandRail firing
+    // /api/brands at category=all, "Found N listings" where "Latest listings" belongs, and —
+    // because showDiscovery false + feedUnlocked false arms the sentinel — an infinite home feed
+    // with no reachable footer. Two external reviewers found this independently, and it was
+    // introduced by this wave: before the merge showExplorer only chose between two trees, so a
+    // stale TRUE with nothing applied rendered a results page that looked deliberate.
+    // ⚠️ CLEARING showExplorer AND RE-GATING THE FEED IS NOT DONE HERE — the un-latch layout
+    // effect further up owns both, for every route out of a filtered state rather than just this
+    // button. Doing it here as well was the first attempt; it left the FacetBar's own "Clear",
+    // the chip ✕ and an emptied header search still stranding the visitor.
+    // ⚠️ THE VIEW IS DELIBERATELY *NOT* RESET HERE, and that is the one place this function and
+    // resetToLandingPage differ. Two reviewers called it an omission; it is a decision. The logo
+    // means "take me home", so it restores the home view wholesale. "Clear all filters" is a
+    // control ON the results, and a visitor who chose the map does not expect clearing a price
+    // range to close it. Clearing in map/video therefore keeps showDiscovery false and leaves
+    // them on a filterless MAP — which is a real destination (the footer's Map link opens exactly
+    // it) carrying the category rail, brand rail, facets, sort and the view toggles, not a dead
+    // end. That is why the setActiveCategory note above is scoped to grid and compact rather
+    // than claiming a home reset outright.
+  }
+
+  // Save-search + active-filter chips box. `compact` = the desktop version that sits on
+  // the sort row and fills the space up to the "Newest" dropdown (one horizontal line:
+  // chips left, Save right). Non-compact = the full-width mobile version on its own
+  // line. Each chip removes its own filter; "Clear all" resets them.
+  const renderSaveBox = (compact: boolean, className?: string) => {
+    const chips = getActiveChips()
+    if (chips.length === 0) return null
+    const chipBtns = (
+      <>
+        {chips.map((c, i) => (
+          <Button
+            key={i}
+            variant="bare"
+            size="none"
+            onClick={c.onClear}
+            aria-label={tr('Remove filter', 'Bỏ bộ lọc') + `: ${c.label}`}
+            className="whitespace-normal text-left inline-flex items-center gap-1 rounded-full bg-card px-2.5 py-1 text-xs font-semibold text-foreground shadow-sm transition-colors hover:bg-muted cursor-pointer"
+          >
+            {c.label}
+            <X className="h-3 w-3 text-ink-4" />
+          </Button>
+        ))}
+        {/* ⚠️ > 0, NOT > 1 — REMOVING THE LAST CHIP IS NOT THE SAME ACTION AS CLEARING. It was
+            > 1 on the reasonable theory that with one chip its own ✕ does the same job. Since the
+            merge it does not, because clearAllFilters drops axes that emit no chip of their own —
+            the CATEGORY above all. With one chip applied inside an empty category the ✕ removed
+            the chip and left the category standing, so > 1 hid the only control that could clear
+            it. (Leaving the RESULTS view is not the difference: the un-latch layout effect does
+            that for every route out of a filtered state.) The redundancy at exactly one chip is
+            the cheap half of the trade. */}
+        {chips.length > 0 && (
+          <Button variant="bare" size="none" onClick={clearAllFilters} className="inline-flex items-center rounded-full px-2 py-1 text-xs font-semibold text-accent-foreground hover:bg-accent transition-colors cursor-pointer">
+            {tr('Clear all', 'Xóa tất cả')}
+          </Button>
+        )}
+      </>
+    )
+    if (compact) {
+      // Desktop: one horizontal row — chips fill the left up to the sort dropdown, Save on the right.
+      return (
+        <div className={cn('flex items-center gap-2 rounded-2xl bg-brand-50 px-2.5 py-2', className)}>
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">{chipBtns}</div>
+          <Button onClick={saveSearch} variant="cta" size="none" className="shrink-0 gap-1.5 px-3.5 py-1.5 text-xs shadow-sm active:scale-[0.96] cursor-pointer">
+            <Bookmark className="h-4 w-4" /> {tr('Save search', 'Lưu tìm kiếm')}
+          </Button>
+        </div>
+      )
+    }
+    // Mobile: vertical — chips above a full-width save button.
+    return (
+      <div className={cn('space-y-2.5 rounded-2xl bg-brand-50 p-3', className)}>
+        <div className="flex flex-wrap items-center gap-1.5">{chipBtns}</div>
+        <Button variant="bare" size="none" onClick={saveSearch} className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-card py-2 text-sm font-bold text-accent-foreground shadow-sm transition-colors hover:bg-accent cursor-pointer">
+          <Bookmark className="h-4 w-4" /> {tr('Save this search', 'Lưu tìm kiếm này')}
+          <span className="text-2xs font-normal text-muted-foreground">{tr('— alerts on new matches', '— báo khi có tin mới')}</span>
+        </Button>
+      </div>
+    )
+  }
+
+  // Empty state that diagnoses WHY there are no results and offers one-tap relaxation.
+  // Rendered through the foundation EmptyState primitive (icon-language §6): the raw
+  // oversized muted Inbox becomes the coin treatment — glyph on a brand-50 disc at the
+  // display stroke — so zero results still looks like eno rather than a gray void.
+  //
+  // ⚠️ TWO EMPTY STATES, ONE FUNCTION, AND THE BRANCH IS `chips.length` — NOT isLandingMode.
+  // The merged landing branch had its own zero-results block, and it said something different
+  // and correct: with nothing applied there are no filters to relax, so "No listings match
+  // these filters" is a lie and a "Clear all filters" button clears nothing. What is true then
+  // is that the catalogue itself came back empty, and the only useful exits are an alert or a
+  // Wanted post. Keyed on the CHIPS because the chips are the relaxable set — sort and the
+  // verified default produce none, and an empty-string search commit leaves showExplorer true
+  // with nothing to remove, which isLandingMode would have got wrong.
+  // ⚠️ The landing block also carried a "Widen the area" button gated on nearby/ward/province/
+  // district, and it was DEAD THERE BY CONSTRUCTION — every one of those axes produces a chip, so
+  // the branch it lived in could never see one. It is reproduced in the FILTERED branch instead,
+  // which is the only branch that can actually reach it.
+  // ⚠️ SEAM FOR THE ZERO-RESULTS COMPONENT (stream D): this function is the single call site
+  // for "the grid has nothing to show and the fetch did not fail" — see the results block. A
+  // replacement needs both branches, because the marketplace-is-empty case is reachable on the
+  // home page (thin catalogue, edition scoping) and reads as a broken site if it is skipped.
+  const renderEmptyState = () => {
+    const chips = getActiveChips()
+
+    // ⚠️ `activeCategory === 'all'` IS NOT REDUNDANT WITH `chips.length === 0`, AND LEAVING IT
+    // OUT WAS A REAL BUG (external reviewer). getActiveChips() covers the query, subcategory,
+    // brand/model, district, area, price, condition, intent and the custom facets — but NOT the
+    // CATEGORY, which is the one filter this component treats as navigation rather than as a
+    // chip. So an empty category (tap a tile with no live listings) produced zero chips and was
+    // told "No listings found", i.e. the whole marketplace is empty — with no way back except
+    // the browser button. It now falls through to the filtered branch, whose "Or browse" row of
+    // category chips is exactly the recovery that case needs.
+    // ⚠️ THE OTHER HALF OF THAT GAP IS CLOSED IN clearAllFilters (it now resets the category too).
+    // What remains open, deliberately, is that getActiveChips() still emits no chip for the
+    // category: the chips row is also the SAVED-SEARCH receipt and the applied-filter bar, so
+    // adding one there changes surfaces this wave does not own. The recovery path below covers
+    // the case that matters.
+    if (chips.length === 0 && activeCategory === 'all') {
+      return (
+        <EmptyState
+          className="bg-card/60"
+          title={
+            <>
+              <Mascot name="search" className="mx-auto mb-3 h-32 w-32" />
+              <span className="block">{tr('No listings found.', 'Không có tin đăng nào.')}</span>
+            </>
+          }
+          action={
+            <div className="flex w-full max-w-xs flex-col items-stretch gap-2">
+              <Button
+                variant="outline"
+                size="none"
+                onClick={saveSearch}
+                className="rounded-xl px-4 py-2.5 text-sm font-semibold cursor-pointer"
+              >
+                {tr('Create an alert for this search', 'Tạo thông báo cho tìm kiếm này')}
+              </Button>
+              <Button asChild variant="outline" size="none" className="rounded-xl px-4 py-2.5 text-sm font-semibold">
+                <Link href="/post">
+                  {tr('Post a Wanted — let sellers come to you', 'Đăng tin cần tìm — để người bán tìm đến bạn')}
+                </Link>
+              </Button>
+            </div>
+          }
+        />
+      )
+    }
+
+    return (
+      <EmptyState
+        icon={Inbox}
+        title={tr('No listings match these filters.', 'Không có tin nào khớp với bộ lọc này.')}
+        action={
+          <div className="flex flex-col items-center gap-4">
+            {chips.length > 0 && (
+              <div className="flex flex-wrap items-center justify-center gap-2">
+                <span className="text-xs text-ink-4">{tr('Remove:', 'Bỏ bớt:')}</span>
+                {chips.map((c, i) => (
+                  <Button
+                    key={i}
+                    variant="bare"
+                    size="none"
+                    onClick={c.onClear}
+                    className="inline-flex items-center gap-1 whitespace-normal rounded-xl px-3 py-1.5 text-xs font-semibold text-body hover:bg-muted transition-colors cursor-pointer"
+                  >
+                    {c.label}
+                    <X className="h-3 w-3" />
+                  </Button>
+                ))}
+              </div>
+            )}
+
+            {/* ⚠️ `|| activeCategory !== 'all'` ON THE CLEAR BUTTON, AND WITHOUT IT THIS SCREEN IS
+                A TRAP. The category emits no chip (see getActiveChips), so tapping a tile with no
+                live listings lands here with chips.length === 0 — which used to hide the Remove
+                row AND the Clear CTA, while "Widen the area" is hidden too (every area axis emits
+                a chip, so zero chips means none is set) and the "Or browse" chips only move to a
+                DIFFERENT category. The visitor was left reading "No listings match these filters"
+                with no filter on screen and no way back to the home view except the browser's
+                Back button. External reviewer; it is the mirror image of the defect the branch
+                above this one exists to fix. */}
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              {/* The most specific relaxation first: a too-narrow AREA is the commonest cause of a
+                  zero-result set, and clearing it keeps every other filter the visitor chose.
+                  Same four clears as the area chip in getActiveChips, one tap instead of hunting
+                  for the chip's exit. 'outline', not 'cta' — "Clear all filters" beside it is already
+                  the group's one brand CTA (design canon), and two would compete. */}
+              {(nearby !== null || activeWard !== null || activeProvince !== null || activeDistrict !== 'all') && (
+                <Button
+                  variant="outline"
+                  size="none"
+                  onClick={() => { setNearby(null); setActiveWard(null); setActiveProvince(null); setActiveDistrict('all') }}
+                  className="rounded-xl px-4 py-2 text-xs font-semibold cursor-pointer"
+                >
+                  {tr('Widen the area', 'Mở rộng khu vực tìm kiếm')}
+                </Button>
+              )}
+              {(chips.length > 0 || activeCategory !== 'all') && (
+                <Button variant="cta" size="none"
+                  onClick={clearAllFilters}
+                  className="rounded-xl px-4 py-2 text-xs transition-colors cursor-pointer"
+                >
+                  {tr('Clear all filters', 'Xóa tất cả bộ lọc')}
+                </Button>
+              )}
+              {/* The other two exits of the recovery trio (widening = the chip row above):
+                  turn this search into an alert, or flip the intent and post a Wanted. */}
+              <Button variant="outline" size="none"
+                onClick={saveSearch}
+                className="rounded-xl px-4 py-2 text-xs font-semibold cursor-pointer"
+              >
+                {tr('Create an alert for this search', 'Tạo thông báo cho tìm kiếm này')}
+              </Button>
+              <Button asChild variant="outline" size="none" className="rounded-xl px-4 py-2 text-xs font-semibold">
+                <Link href="/post">
+                  {tr('Post a Wanted — let sellers come to you', 'Đăng tin cần tìm — để người bán tìm đến bạn')}
+                </Link>
+              </Button>
+            </div>
+
+            {/* A dead end orients nobody — offer a one-tap jump to popular categories. */}
+            {categories.length > 0 && (
+              <div className="flex flex-col items-center gap-2">
+                <span className="text-xs text-ink-4">{tr('Or browse', 'Hoặc xem')}</span>
+                <div className="flex flex-wrap items-center justify-center gap-2">
+                  {categories.slice(0, 4).map((c) => (
+                    <Button
+                      key={c.slug}
+                      variant="bare"
+                      size="none"
+                      onClick={() => handleCategorySelect(c.slug)}
+                      className="inline-flex items-center rounded-full bg-tint px-3.5 py-1.5 text-xs font-semibold text-body transition-colors hover:bg-accent hover:text-accent-foreground cursor-pointer"
+                    >
+                      <Tr text={lang === 'vi' ? c.nameVi : c.name} />
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        }
+      />
+    )
+  }
+
+  // List / Grid / Map view toggles — one source for the desktop sort row AND the
+  // mobile results-count row (where the collapsed sort/view row's controls live).
+  // Sort tabs + view toggles are presentational (see ./explorer-toolbar). pickSort keeps the
+  // filter transition here since it owns setSort + the useTransition.
+  const pickSort = (val: SortKey) => startFilterTransition(() => setSort(val))
+
+  // ⚠️ ONE RETURN. There used to be two, and the boundary between them was the product bug this
+  // component was rewritten to remove: `if (isLandingMode) return (…)` rendered the home page —
+  // ad, value strip, category tiles, rails, a feed — and the second return rendered a DIFFERENT
+  // page for anyone who searched or tapped a facet. A search therefore unmounted the whole
+  // surface and mounted another one, which is what "users hop between pages" meant even though
+  // home, browse and search have always been the same route.
+  //
+  // Now: the ladder (category row → facets → toolbar → sort) and the results are ALWAYS mounted;
+  // `showDiscovery` only decides whether the undirected-browse chrome (ad, value strip, big
+  // category tiles, discovery shelves) is also on screen. Typing filters the grid in place.
+  return (
+    // overflow-x-CLIP (not hidden): hidden would make this section the sort strip's
+    // scroll box and position:sticky would never pin; clip contains the horizontal
+    // bleed without creating a scroll container.
+    // ⚠️ THE OLD LANDING BRANCH USED `overflow-hidden` AND THAT IS NOW A TRAP: it could afford
+    // to, because the sticky sort strip lived only in the other branch. The strip is on every
+    // view now, so `overflow-hidden` here would silently un-stick it and nothing would fail.
+    //
+    // ⚠️ `pt-5 sm:pt-6` IS MEASURED, NOT CHOSEN — read it together with <PromoBanner/> below.
+    // These paddings are the ONLY thing setting the gap above the promo banner, and they are
+    // tuned so it MATCHES the gap below it (owner, 2026-08-05: "match the distance above banner
+    // to next line"). Both were derived by measuring the built page, not by arithmetic on the
+    // class names:
     //   desktop (1280px): 8.5px (header→<main>) + 16px (<main> pt-4) + 24px (pt-6) = 48.5px
     //                     against 48.0px measured from banner bottom to the hairline
     //   mobile   (390px): 8.5px + 16px + 20px (pt-5) = 44.5px, against 44.3px measured
-    // ⚠️ The gap BELOW is NOT simply `space-y-8`/`space-y-12` — on mobile it measures 44.3px, not
-    // the 32px that space-y-8 would suggest, because the banner's own section contributes the rest.
-    // So if you touch the spacing below, RE-MEASURE the real gap rather than recomputing from the
-    // class names, or the two sides will drift apart again.
-    return (
-      <section ref={listingsRef} id="listings" className="scroll-mt-20 relative overflow-hidden pc:overflow-visible pt-5 pb-5 sm:pt-6 sm:pb-8">
-        {/* Width + edge gutter are owned by the parent page <main> (canonical
-            max-w-7xl px-3 sm:px-6 lg:px-8) so the feed lines up with Header/Footer. */}
+    // ⚠️ The gap BELOW is NOT simply the space-y class — on mobile it measured 44.3px, not the
+    // 32px space-y-8 suggests, because the banner's own section contributes the rest. If you
+    // touch the spacing below, RE-MEASURE the real gap rather than recomputing from the classes.
+    <section ref={listingsRef} id="listings" className="scroll-mt-20 relative overflow-x-clip pc:overflow-visible pt-5 pb-5 sm:pt-6 sm:pb-8">
+      {/* Width + edge gutter are owned by the parent page <main> (canonical
+          max-w-7xl px-3 sm:px-6 lg:px-8) so the feed lines up with Header/Footer. */}
+      <div className="relative w-full">
+        {/* ⚠️ ZERO-HEIGHT WRAPPER — IT MUST NEVER CARRY SPACING, AND IT MUST NEVER BE THE FIRST
+            CHILD OF A `space-y-*` CONTAINER. It holds nothing but an sr-only <h1>, and sr-only is
+            position:absolute, so any margin/padding on this element is real height with no box to
+            justify it. Three separate dead bands have been found here (`mb-5`, `pb-2`, and the
+            `space-y-12` that collapsed straight through it and landed ABOVE the banner). It sits
+            outside the stacks below for exactly that reason. */}
         <div className="relative text-center">
-          {/* ⚠️ THIS HEADING IS VISIBLE ON PURPOSE, AND IT MUST STAY THAT WAY.
+          {/* ⚠️ READ THE BLOCKS BELOW AS A CHRONOLOGICAL RECORD, OLDEST FIRST — THE LAST ONE IS
+              THE ONLY ONE THAT DESCRIBES THE CODE. Six Google OAuth brand-review submissions are
+              recorded here and each block was written while a different state was live, so the
+              early ones say things ("THIS HEADING IS VISIBLE ON PURPOSE") that the CURRENT code
+              deliberately contradicts: the owner removed every painted heading on 2026-08-02 and
+              the <h1> is sr-only today. An external reviewer read the stack as a set of live
+              claims and reported the sr-only h1 as a fresh bug; it is neither fresh nor a bug the
+              code can fix — it is an owner decision, with the cost of reversing it written out
+              below. The record is kept whole because each state's VERDICT is the evidence.
+
+              ⚠️ THIS HEADING IS VISIBLE ON PURPOSE, AND IT MUST STAY THAT WAY.
               It was `sr-only` from 2026-07-16 (when the wordmark + tagline were stripped to
               leave just the search) until 2026-08-02, when GOOGLE REJECTED OAUTH BRAND
               VERIFICATION THREE TIMES over it — verbatim: "Your home page does not explain the
@@ -1625,6 +2212,11 @@ export function ListingsExplorer({
               inside it; with only an sr-only child left, the element has zero height but the
               margin does not — a 20px dead band right where the owner asked the feed to start
               with the categories scroller. sr-only content must not carry spacing. */}
+          {/* ⚠️ THIS IS THE PAGE'S ONLY <h1>, AND THAT IS NEW (2026-08-11). The results branch
+              used to carry a second sr-only <h1> ("Marketplace listings") because it was a
+              separate tree that never coexisted with this one. One tree means one h1, and it has
+              to be the SITE_NAME one — the whole Google brand-review record above hangs on it.
+              Outline stays sequential: h1 (site name) → h2 (results section) → h3 (cards). */}
           <h1 className="sr-only">{SITE_NAME}</h1>
           {/* ⚠️ THE PURPOSE SENTENCE THAT SAT HERE IS GONE (owner, 2026-08-02) — and it was not
               decoration, so anyone restoring copy to this hero should know what it was doing.
@@ -1635,73 +2227,73 @@ export function ListingsExplorer({
               expats and internationals in Vietnam…"), which is what remains answering that
               complaint. If brand review raises "does not explain the purpose" again, THIS is the
               cause and a one-line visible tagline under the wordmark is the fix. */}
-
-          {/* Centered Search Bar (the header reveals its own search once this
-              scrolls out of view — id is the IntersectionObserver target). Wider pill
-              (max-w-3xl) — owner asked for a longer bar. */}
-          {/* ⚠️ THE HERO SEARCH BAR IS GONE — IT LIVES IN THE HEADER NOW (owner, 2026-08-03:
-              "move main searchbar to top navbar so feed starts with categories scroller",
-              following the Alibaba/QwenCloud console layout).
-              The header needed NO change for this: its reveal effect already does
-              `const el = document.getElementById('eno-hero-search'); if (!el) setShowSearch(true)`,
-              so deleting this block promotes the header's own search bar from
-              scroll-revealed to permanent, on every page, automatically.
-              ⚠️ DO NOT re-add an element with id="eno-hero-search" without also revisiting
-              header.tsx — that id is the IntersectionObserver target, and its mere presence
-              flips the header bar back to hidden-until-scrolled. */}
+          {/* ⚠️ DO NOT re-add an element with id="eno-hero-search". The header's reveal effect
+              does `const el = document.getElementById('eno-hero-search'); if (!el) setShowSearch(true)`,
+              so that id's mere presence flips the header's own search bar back to
+              hidden-until-scrolled — and the header bar is now the ONLY search input on the page
+              (owner, 2026-08-03: "move main searchbar to top navbar so feed starts with
+              categories scroller"). */}
         </div>
-        {/* ⚠️ THIS CONTAINER NOW OPENS *BELOW* THE HERO BLOCK, AND THAT ORDER IS THE FIX.
-            The hero wrapper above holds nothing but an sr-only <h1>, so it has ZERO height. While it
-            was the FIRST CHILD of this space-y container, the 48px that `space-y-12` was meant to put
-            BETWEEN the hero and the banner had no box to sit against — it collapsed straight through
-            and landed ABOVE both. The banner ended up 84.5px below the search bar while the gap under
-            it was 48px, which is the mismatch the owner spotted.
-            This is the THIRD dead band found in exactly this spot; the `mb-5` and `pb-2` notes in the
-            hero block record the previous two, both padding on that same doomed zero-height wrapper.
-            Keeping it OUTSIDE means <PromoBanner /> is unambiguously the first child and owns no
-            margin, so the only thing above it is the section's own padding. Do not move the hero
-            back inside, and do not give this container a first-child that renders nothing. */}
-        {/* ⚠️ `lg:space-y-8` TIGHTENS DESKTOP BACK TO THE MOBILE RHYTHM, ON PURPOSE. Measured
-            2026-08-09 at 1440×900: the first product sat at y=983 on a 900px viewport, i.e. a
-            MARKETPLACE whose first screen contained zero merchandise. Three `sm:space-y-12`
-            gaps were 144px of that. Desktop normally earns more air than mobile, but this is a
-            dense feed in the Shopee/Lazada family, where the reference sits nearer 24–32px —
-            and the air here was buying nothing except distance from the listings.
-            ⚠️ THIS DOES NOT REORDER ANYTHING, and must not start to. The banner-then-why-eno
-            order above is an owner decision from 2026-08-05, taken against both external
-            reviewers' advice and recorded as such. Vertical COST is fair game; the sequence is
-            not. */}
-        <div className="relative w-full space-y-8 sm:space-y-12 lg:space-y-8">
 
-          {/* HERO SEARCH AREA */}
-          {/* ⚠️ NO PADDING — this element is now EMPTY apart from the sr-only <h1>. sr-only is
-              position:absolute, so the div has zero height while any padding it carries is real: the
-              `pb-2` that used to sit here was a dead band between the header and the promo banner,
-              the same trap already documented for the `mb-5` that preceded it. */}
+        {/* ⚠️ ADVERTISING + VALUE STRIP — UNDIRECTED BROWSE ONLY, AND THE ORDER IS AN OWNER
+            DECISION. banner-then-why-eno is owner, 2026-08-05 ("move this under banner"), taken
+            against both external reviewers' advice and recorded as such: stacking an ad and a
+            pitch above the feed pushes real listings down on a phone, and the reference's
+            equivalent row is navigation rather than a pitch. Vertical COST is fair game; the
+            SEQUENCE is not — do not swap these two, and do not put either between the ladder and
+            the grid.
+            ⚠️ `showDiscovery`, not `isLandingMode`: a visitor who searched, faceted, or opened the
+            map/video view is being shown results they asked for, and an ad above those is the one
+            placement the old two-branch layout was careful never to make. Keep it that way.
+            ⚠️ THE BANNER'S HEIGHT DECIDES THIS PAGE'S LCP. It is the element the browser picks
+            (measured at 390×844 / 4× CPU / 1.6 Mbps: /banners/promo-1.svg at 1816 ms), it
+            preloads itself from promo-banner.tsx, and it is the single biggest thing standing
+            between the fold and the first row of merchandise. */}
+        {showDiscovery && (
+          // ⚠️ pb-8/12/8 REPRODUCES THE OLD SPACE-Y STEP, IT IS NOT A SEPARATE CHOICE. All of
+          // this used to be one space-y-8 sm:space-y-12 lg:space-y-8 column, so the gap under
+          // <WhyEno/> was 32/48/32. Its parent here is a plain wrapper with NO space-y (the
+          // zero-height hero div above is exactly why — a space-y container whose first child
+          // renders nothing collapses its gap upward, which is how the banner ended up 84.5px
+          // below the search bar with 48px under it). So this block's own padding is the entire
+          // gap to the ladder, and it has to restate the step or the rhythm silently tightens.
+          <div className="space-y-8 pb-8 sm:space-y-12 sm:pb-12 lg:space-y-8 lg:pb-8">
+            <PromoBanner />
+            <WhyEno />
+          </div>
+        )}
 
-          {/* PROMO BANNER — the advertising slot, ABOVE the category scroller (owner, 2026-08-05,
-              choosing the Shopee-faithful position over keeping categories first).
-              ⚠️ It costs the categories ~190px of vertical position on a phone, which is the whole
-              trade the owner was shown and accepted. If categories ever need to lead again, move
-              this one line below the category block rather than deleting it.
-              ⚠️ Landing mode only, by construction — it sits inside the isLandingMode branch, so a
-              filtered or searched view never shows an ad above the results the visitor asked for. */}
-          <PromoBanner />
+        {/* ── THE LADDER + THE RESULTS ─────────────────────────────────────────────────────
+            Always mounted, in this order: category row → brand row → facets → toolbar → sort →
+            results. Nothing here unmounts when a filter is applied; the pieces that are specific
+            to undirected browse swap IN PLACE (the big tile grid becomes the compact
+            <CategoryRail>) so a search never tears the page down and rebuilds it.
+            ⚠️ `lg:space-y-8` on the block ABOVE tightens desktop back to the mobile rhythm on
+            purpose. Measured 2026-08-09 at 1440×900: the first product sat at y=983 on a 900px
+            viewport, i.e. a MARKETPLACE whose first screen contained zero merchandise. This is a
+            dense feed in the Shopee/Lazada family, where the reference sits nearer 24–32px, and
+            the air was buying nothing except distance from the listings.
+            ⚠️ NO ENTRANCE ANIMATION ON THIS WORKSPACE, DELIBERATELY, AND THE RECORD MOVED HERE
+            WITH IT. The results tree used to carry
+            `animate-in fade-in slide-in-from-bottom-3 duration-300` around the ENTIRE workspace —
+            category rail, brand rail, facets, toolbar and grid. That is page-load choreography on
+            an Operate surface: every visitor waited 300ms and watched the whole view translate
+            12px before they could act. It was also the middle of THREE stacked opacity-0
+            entrances on one home navigation (.route-fade 150ms → this 300ms → the grid's own
+            200ms), i.e. the "one identical entrance on every section" pattern, twice, on the
+            money path. The feed should simply be there — and now that this tree is also the
+            LANDING tree, an entrance here would fire on every cold home load. */}
+        <div className="space-y-4">
 
-          {/* WHY eno — DIRECTLY UNDER THE BANNER (owner, 2026-08-05: "move this under banner").
-              ⚠️ This reverses the placement both external reviewers recommended, and the reasoning
-              they gave still stands on its own terms: stacking a banner and a value-prop strip above
-              the feed pushes the actual listings further down on a phone, and the reference's
-              equivalent row is navigation rather than a pitch. The owner chose the reference's
-              layout over that argument; recorded so the trade is visible rather than forgotten. */}
-          <WhyEno />
-
-          {/* FINN-STYLE CATEGORY GRID */}
-          <div className="space-y-4">
-            {/* Two fixed rows — big tiles. mx-auto + w-fit + max-w-full centers the row
-                when it fits and scrolls it from the start (no cut-off) when it doesn't.
-                Free & Wanted are intent tiles at the end. The relative wrapper hosts the
-                desktop ← / → arrows (only appear once the row overflows). */}
+          {/* CATEGORY LADDER — ONE SLOT, TWO REPRESENTATIONS.
+              Undirected: the FINN-style two-row tile grid (big tiles, eno's own two products
+              pinned first, Free/Wanted intent tiles at the tail) — the cold-start affordance.
+              Directed: <CategoryRail>, the compact strip that can show WHICH category is active
+              and roll its subcategories out beside it, which a tile grid cannot.
+              ⚠️ They are alternatives, never both: two category ladders on one screen is the
+              duplication the merge exists to remove. The swap costs ~150px of height and happens
+              on a tap, so it is a user-initiated reflow, not layout shift. */}
+          {showDiscovery ? (
             <div className="relative">
             {/* railEdgeMask: the row used to cut a tile mid-label at the container edge — a
                 stray clipped word that read as a bug. The mask fades only the side(s) with
@@ -1720,6 +2312,11 @@ export function ListingsExplorer({
                   pushes Electronics (the largest real category, 8 of 32 listings) to column 2. To
                   reverse: move this block AFTER {categories.map(...)} and the tiles fall to the end
                   of the scroller; delete it and the grid is exactly today's order.
+
+                  ⚠️ AND THIS IS THE ONLY PLACE THESE TWO TILES EXIST. <CategoryRail> — the strip
+                  that replaces this grid the moment a category is picked — has no desk-shortcut
+                  slot, so replacing the grid with the rail everywhere would have deleted the bet
+                  silently. That is why the swap is conditional rather than a straight substitution.
 
                   Byte-identical to the INTENT_SHORTCUTS tile below on purpose — same Button, same
                   CategoryIcon sizing, same label span. Only the onClick differs. It is a <Button>
@@ -1817,386 +2414,8 @@ export function ListingsExplorer({
             </div>
             <ScrollArrows canLeft={catCanLeft} canRight={catCanRight} page={catPage} tight />
             </div>
-          </div>
-
-          {/* Recently viewed — the returning buyer's own trail, up top so they can
-              jump straight back to an item. Self-hides for new visitors. */}
-          <RecentlyViewedRail />
-
-          {/* For You — horizontal rail between the category grid and the vertical feed
-              (search → categories → horizontal For You → vertical). Self-hides once a
-              filter/search is active. */}
-          <ForYouRail initial={initialTrending} />
-
-          {/* Outstanding businesses — second horizontal rail: the highest-trust business
-              storefronts (only on the home landing view). Seeded with the DEDUPED set (see
-              railExcludeIds above) so it never repeats the For You rail card-for-card. */}
-          <BusinessRail initial={dedupedBusinesses} />
-
-          {/* Browse by category — one horizontal rail per category, most-used first.
-              Tapping a heading / "See all" opens that category (same as the grid). */}
-          <DeferredCategoryRails categories={categories} onCategory={handleCategorySelect} excludeIds={railExcludeIds} />
-
-          {/* THE FEED, headed like every rail above it (wow pass, 2026-08-06): the h2 was
-              sr-only, which kept the outline legal but left the grid as the one section on
-              the page with no name — the header row here is byte-identical to the Shelf
-              treatment (SECTION_* from shelf.tsx), so all home sections read as one family.
-              The wrapper div groups header + grid into a single space-y child, otherwise the
-              container would push them a full section-gap apart. */}
-          <div>
-            <div className={SECTION_HEADER_ROW}>
-              <div className="flex min-w-0 items-center gap-2">
-                <Clock className="h-4 w-4 shrink-0 text-accent-foreground" aria-hidden />
-                <h2 className={SECTION_TITLE}>{tr('Latest listings', 'Tin đăng mới nhất')}</h2>
-              </div>
-            </div>
-
-          {/* INFINITE FEED (Facebook-style) — all listings, loads more on scroll. */}
-          {shownListings.length === 0 && !isLoading ? (
-            queryError ? (
-              renderErrorState('gap-3 bg-card/60 py-16')
-            ) : (
-              // Zero results is a fork, not a dead end: widen the area (only when an
-              // area filter is narrowing — never true in landing mode by construction,
-              // gated so the block stays correct if landing ever allows area filters),
-              // turn the search into an alert, or flip the intent and post a Wanted.
-              <EmptyState
-                className="bg-card/60"
-                title={
-                  <>
-                    <Mascot name="search" className="mx-auto mb-3 h-32 w-32" />
-                    <span className="block">{tr('No listings found.', 'Không có tin đăng nào.')}</span>
-                  </>
-                }
-                action={
-                  <div className="flex w-full max-w-xs flex-col items-stretch gap-2">
-                    {(nearby !== null || activeWard !== null || activeProvince !== null || activeDistrict !== 'all') && (
-                      <Button
-                        variant="cta"
-                        size="none"
-                        // Same clears as the area chip in getActiveChips — one tap
-                        // instead of hunting for the chip's ✕.
-                        onClick={() => { setNearby(null); setActiveWard(null); setActiveProvince(null); setActiveDistrict('all') }}
-                        className="rounded-xl px-4 py-2.5 text-sm transition-colors cursor-pointer"
-                      >
-                        {tr('Widen the area', 'Mở rộng khu vực tìm kiếm')}
-                      </Button>
-                    )}
-                    <Button
-                      variant="outline"
-                      size="none"
-                      onClick={saveSearch}
-                      className="rounded-xl px-4 py-2.5 text-sm font-semibold cursor-pointer"
-                    >
-                      {tr('Create an alert for this search', 'Tạo thông báo cho tìm kiếm này')}
-                    </Button>
-                    <Button asChild variant="outline" size="none" className="rounded-xl px-4 py-2.5 text-sm font-semibold">
-                      <Link href="/post">
-                        {tr('Post a Wanted — let sellers come to you', 'Đăng tin cần tìm — để người bán tìm đến bạn')}
-                      </Link>
-                    </Button>
-                  </div>
-                }
-              />
-            )
           ) : (
-            <>
-              <div className="grid grid-cols-2 gap-2 sm:gap-4 sm:grid-cols-3 lg:grid-cols-4">
-                {deferredListings.map((l, index) => (
-                  <Fragment key={l.id}>
-                    {/* Guest capture (5a #7): one signup card at the point of interest,
-                        after the 8th listing. Renders null once signed in. */}
-                    {index === 8 && <CaptureCard />}
-                    {/* data-feed-card = the back-nav restore ANCHOR. The return-to-feed
-                        effect realigns this exact element, which is what makes "put me
-                        back where I was" survive a page whose height changed while we
-                        were away (the landing rails above the grid mount lazily). */}
-                    <div
-                      data-feed-card={l.id}
-                      className="flex flex-col h-full"
-                      onMouseEnter={() => prefetchListing(l.id)}
-                      onTouchStart={() => prefetchListing(l.id)}
-                    >
-                      {/* ⚠️ NO `lcp` ON THE LANDING FEED — THE FIRST CARD IS NOT THIS PAGE'S LCP.
-                          Measured at 390×844 / 4× CPU / 1.6 Mbps: the browser picks
-                          `/banners/promo-1.svg` (the promo banner) as LCP at 1816 ms, not a card
-                          photo. `lcp` is the flag that turns on next/image `priority`, i.e. emits
-                          a <link rel=preload> — so here it was spending a high-priority hint on an
-                          element that never wins, while COMPETING with the element that does.
-                          The banner now preloads itself from promo-banner.tsx.
-                          ⚠️ `priority` STAYS. It is a different lever: without `lcp` it resolves to
-                          `loading="eager"` (see listing-card.tsx ~435), so the first card still
-                          skips lazy-loading — it just stops claiming the preload budget.
-                          ⚠️ AND THIS IS THE LANDING BRANCH ONLY. The other <ListingCard lcp> call
-                          site is the filtered/search view, which renders NO banner, so there the
-                          first card really is the LCP and the hint is correctly spent. Do not
-                          "tidy" the two call sites into agreement. */}
-                      <ListingCard listing={l} onOpen={handleOpen} priority={index === 0} onLocate={locateListing} />
-                    </div>
-                  </Fragment>
-                ))}
-              </div>
-              {/* Home feed: a "Load more" button instead of auto-infinite, so the footer
-                  is reachable. Clicking it loads the next page AND unlocks infinite
-                  scroll (the sentinel below takes over from there). */}
-              {!nearby && (
-                <div ref={loadMoreRef} className="mt-6 select-none">
-                  {hasMore && !feedUnlocked && !queryFetching && (
-                    <div className="border-t border-border pt-6">
-                      {/* The landing's ONE ending (wow pass, 2026-08-06): a full-width
-                          continuation instead of a small centred "Load more" — on a sparse
-                          catalogue the rails above may all hide, so the page needs to end on
-                          an invitation, not trail off. Same handler as before: loads the next
-                          page AND unlocks infinite scroll. */}
-                      <Button
-                        variant="bare"
-                        size="none"
-                        onClick={() => { prefetchNextPage(); setPage((p) => p + 1); setFeedUnlocked(true) }}
-                        className="w-full rounded-xl border border-line-strong px-6 py-3 text-sm font-bold text-foreground transition-colors hover:bg-muted"
-                      >
-                        {tr('Browse everything', 'Xem tất cả tin đăng')}
-                      </Button>
-                    </div>
-                  )}
-                  {queryFetching && hasMore && (
-                    <div className="flex items-center justify-center gap-2 border-t border-border pt-5 text-xs font-semibold text-muted-foreground">
-                      <Spinner size="sm" className="border-border border-t-brand" />
-                      {tr('Loading more…', 'Đang tải thêm…')}
-                    </div>
-                  )}
-                  {!hasMore && totalCount > 24 && (
-                    <p className="border-t border-border pt-5 text-center text-xs font-semibold text-ink-4">{tr("You've reached the end", 'Bạn đã xem hết')}</p>
-                  )}
-                </div>
-              )}
-            </>
-          )}
-          </div>
-
-        </div>
-      </section>
-    )
-  }
-
-  // Active applied-filter chips — shared by the persistent results bar AND the
-  // empty state so the two never drift. Brand+model collapse into one chip.
-  const getActiveChips = (): { label: string; onClear: () => void }[] => {
-    const chips: { label: string; onClear: () => void }[] = []
-    if (debouncedQuery.trim()) chips.push({ label: `"${debouncedQuery.trim()}"`, onClear: () => setQuery('') })
-    if (activeSubcategory !== 'all') {
-      const sub = SUBCATEGORIES[activeCategory]?.find((s) => s.slug === activeSubcategory)
-      chips.push({ label: sub ? (lang === 'vi' ? sub.nameVi : sub.name) : activeSubcategory, onClear: () => setActiveSubcategory('all') })
-    }
-    if (activeBrand !== 'all') {
-      chips.push({ label: activeModel !== 'all' ? `${prettyBrand(activeBrand)} · ${activeModel}` : prettyBrand(activeBrand), onClear: () => { setActiveBrand('all'); setActiveModel('all') } })
-    } else if (activeModel !== 'all') {
-      chips.push({ label: activeModel, onClear: () => setActiveModel('all') })
-    }
-    if (activeDistrict !== 'all') {
-      const d = DISTRICTS.find((x) => x.slug === activeDistrict)
-      chips.push({ label: d ? (lang === 'vi' ? d.name : d.nameEn) : activeDistrict, onClear: () => setActiveDistrict('all') })
-    }
-    // Area / location (new province→ward model + "near you" radius) — so the saved
-    // search + alert clearly include where the user is looking.
-    if (nearby) {
-      chips.push({ label: tr(`Within ${nearby.radiusKm} km`, `Trong ${nearby.radiusKm} km`), onClear: () => { setNearby(null); setActiveProvince(null); setActiveWard(null) } })
-    } else if (activeWard) {
-      chips.push({ label: lang === 'vi' ? activeWard.name : activeWard.nameEn, onClear: () => setActiveWard(null) })
-    } else if (activeProvince) {
-      chips.push({ label: lang === 'vi' ? activeProvince.name : activeProvince.nameEn, onClear: () => { setActiveProvince(null); setActiveWard(null) } })
-    }
-    if (priceRange !== 'all') chips.push({ label: tr('Price range', 'Khoảng giá'), onClear: () => setPriceRange('all') })
-    if (conditionFilter !== 'all') chips.push({ label: conditionFilter === 'new' ? tr('New', 'Mới') : tr('Used', 'Đã dùng'), onClear: () => setConditionFilter('all') })
-    if (listingType !== 'all') {
-      const lt = LISTING_TYPES.find((t) => t.value === listingType)
-      chips.push({ label: lt ? (lang === 'vi' ? lt.labelVi : lt.label) : listingType, onClear: () => setListingType('all') })
-    }
-    Object.entries(customFilters).forEach(([k, v]) =>
-      chips.push({ label: `${k}: ${v}`, onClear: () => setCustomFilters((prev) => { const n = { ...prev }; delete n[k]; return n }) }),
-    )
-    return chips
-  }
-
-  const clearAllFilters = () => {
-    setQuery('')
-    setActiveSubcategory('all')
-    setActiveBrand('all')
-    setActiveModel('all')
-    setActiveDistrict('all')
-    setActiveProvince(null)
-    setActiveWard(null)
-    setNearby(null)
-    setPriceRange('all')
-    setConditionFilter('all')
-    setListingType('all')
-    setCustomFilters({})
-    setVerifiedOnly(true)
-  }
-
-  // Save-search + active-filter chips box. `compact` = the desktop version that sits on
-  // the sort row and fills the space up to the "Newest" dropdown (one horizontal line:
-  // chips left, Save right). Non-compact = the full-width mobile version on its own
-  // line. Each chip removes its own filter; "Clear all" resets them.
-  const renderSaveBox = (compact: boolean, className?: string) => {
-    const chips = getActiveChips()
-    if (chips.length === 0) return null
-    const chipBtns = (
-      <>
-        {chips.map((c, i) => (
-          <Button
-            key={i}
-            variant="bare"
-            size="none"
-            onClick={c.onClear}
-            aria-label={tr('Remove filter', 'Bỏ bộ lọc') + `: ${c.label}`}
-            className="whitespace-normal text-left inline-flex items-center gap-1 rounded-full bg-card px-2.5 py-1 text-xs font-semibold text-foreground shadow-sm transition-colors hover:bg-muted cursor-pointer"
-          >
-            {c.label}
-            <X className="h-3 w-3 text-ink-4" />
-          </Button>
-        ))}
-        {chips.length > 1 && (
-          <Button variant="bare" size="none" onClick={clearAllFilters} className="inline-flex items-center rounded-full px-2 py-1 text-xs font-semibold text-accent-foreground hover:bg-accent transition-colors cursor-pointer">
-            {tr('Clear all', 'Xóa tất cả')}
-          </Button>
-        )}
-      </>
-    )
-    if (compact) {
-      // Desktop: one horizontal row — chips fill the left up to the sort dropdown, Save on the right.
-      return (
-        <div className={cn('flex items-center gap-2 rounded-2xl bg-brand-50 px-2.5 py-2', className)}>
-          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">{chipBtns}</div>
-          <Button onClick={saveSearch} variant="cta" size="none" className="shrink-0 gap-1.5 px-3.5 py-1.5 text-xs shadow-sm active:scale-[0.96] cursor-pointer">
-            <Bookmark className="h-4 w-4" /> {tr('Save search', 'Lưu tìm kiếm')}
-          </Button>
-        </div>
-      )
-    }
-    // Mobile: vertical — chips above a full-width save button.
-    return (
-      <div className={cn('space-y-2.5 rounded-2xl bg-brand-50 p-3', className)}>
-        <div className="flex flex-wrap items-center gap-1.5">{chipBtns}</div>
-        <Button variant="bare" size="none" onClick={saveSearch} className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-card py-2 text-sm font-bold text-accent-foreground shadow-sm transition-colors hover:bg-accent cursor-pointer">
-          <Bookmark className="h-4 w-4" /> {tr('Save this search', 'Lưu tìm kiếm này')}
-          <span className="text-2xs font-normal text-muted-foreground">{tr('— alerts on new matches', '— báo khi có tin mới')}</span>
-        </Button>
-      </div>
-    )
-  }
-
-  // Empty state that diagnoses WHY there are no results and offers one-tap relaxation.
-  // Rendered through the foundation EmptyState primitive (icon-language §6): the raw
-  // oversized muted Inbox becomes the coin treatment — glyph on a brand-50 disc at the
-  // display stroke — so zero results still looks like eno rather than a gray void.
-  const renderEmptyState = () => {
-    const chips = getActiveChips()
-
-    return (
-      <EmptyState
-        icon={Inbox}
-        title={tr('No listings match these filters.', 'Không có tin nào khớp với bộ lọc này.')}
-        action={
-          <div className="flex flex-col items-center gap-4">
-            {chips.length > 0 && (
-              <div className="flex flex-wrap items-center justify-center gap-2">
-                <span className="text-xs text-ink-4">{tr('Remove:', 'Bỏ bớt:')}</span>
-                {chips.map((c, i) => (
-                  <Button
-                    key={i}
-                    variant="bare"
-                    size="none"
-                    onClick={c.onClear}
-                    className="inline-flex items-center gap-1 whitespace-normal rounded-xl px-3 py-1.5 text-xs font-semibold text-body hover:bg-muted transition-colors cursor-pointer"
-                  >
-                    {c.label}
-                    <X className="h-3 w-3" />
-                  </Button>
-                ))}
-              </div>
-            )}
-
-            <div className="flex flex-wrap items-center justify-center gap-2">
-              {chips.length > 0 && (
-                <Button variant="cta" size="none"
-                  onClick={clearAllFilters}
-                  className="rounded-xl px-4 py-2 text-xs transition-colors cursor-pointer"
-                >
-                  {tr('Clear all filters', 'Xóa tất cả bộ lọc')}
-                </Button>
-              )}
-              {/* The other two exits of the recovery trio (widening = the chip row above):
-                  turn this search into an alert, or flip the intent and post a Wanted. */}
-              <Button variant="outline" size="none"
-                onClick={saveSearch}
-                className="rounded-xl px-4 py-2 text-xs font-semibold cursor-pointer"
-              >
-                {tr('Create an alert for this search', 'Tạo thông báo cho tìm kiếm này')}
-              </Button>
-              <Button asChild variant="outline" size="none" className="rounded-xl px-4 py-2 text-xs font-semibold">
-                <Link href="/post">
-                  {tr('Post a Wanted — let sellers come to you', 'Đăng tin cần tìm — để người bán tìm đến bạn')}
-                </Link>
-              </Button>
-            </div>
-
-            {/* A dead end orients nobody — offer a one-tap jump to popular categories. */}
-            {categories.length > 0 && (
-              <div className="flex flex-col items-center gap-2">
-                <span className="text-xs text-ink-4">{tr('Or browse', 'Hoặc xem')}</span>
-                <div className="flex flex-wrap items-center justify-center gap-2">
-                  {categories.slice(0, 4).map((c) => (
-                    <Button
-                      key={c.slug}
-                      variant="bare"
-                      size="none"
-                      onClick={() => handleCategorySelect(c.slug)}
-                      className="inline-flex items-center rounded-full bg-tint px-3.5 py-1.5 text-xs font-semibold text-body transition-colors hover:bg-accent hover:text-accent-foreground cursor-pointer"
-                    >
-                      <Tr text={lang === 'vi' ? c.nameVi : c.name} />
-                    </Button>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        }
-      />
-    )
-  }
-
-  // List / Grid / Map view toggles — one source for the desktop sort row AND the
-  // mobile results-count row (where the collapsed sort/view row's controls live).
-  // Sort tabs + view toggles are presentational (see ./explorer-toolbar). pickSort keeps the
-  // filter transition here since it owns setSort + the useTransition.
-  const pickSort = (val: SortKey) => startFilterTransition(() => setSort(val))
-
-  return (
-    // overflow-x-CLIP (not hidden): hidden would make this section the sort strip's
-    // scroll box and position:sticky would never pin; clip contains the horizontal
-    // bleed without creating a scroll container.
-    <section ref={listingsRef} id="listings" className="scroll-mt-20 relative overflow-x-clip pc:overflow-visible py-5 sm:py-8">
-      {/* Width + edge gutter owned by the parent page <main> (see landing branch). */}
-      <div className="relative w-full">
-        {/* Page heading for the search/results view — keeps a sequential outline
-            (h1 → rail/section h2 → card h3s); visually hidden. */}
-        <h1 className="sr-only">{tr('Marketplace listings', 'Tin đăng')}</h1>
-
-        {/* Single-column faceted directory.
-            ⚠️ NO ENTRANCE ANIMATION HERE, DELIBERATELY. This carried
-            `animate-in fade-in slide-in-from-bottom-3 duration-300` around the ENTIRE results
-            workspace — category rail, brand rail, facets, toolbar and grid. That is page-load
-            choreography on an Operate surface: every visitor waited 300ms and watched the whole
-            view translate 12px before they could act. It was also the middle of THREE stacked
-            opacity-0 entrances on one home navigation (.route-fade 150ms -> this 300ms -> the grid's
-            own 200ms below), i.e. the "one identical entrance on every section" pattern, twice, on
-            the money path. The feed should simply be there. */}
-        <div>
-
-          {/* Listings Main Workspace */}
-          <div className="space-y-4">
-
-            {/* Line 1 — category rail (square logo + name); tap to expand subcategories */}
+            /* Line 1 of the search header (square logo + name); tap to expand subcategories */
             <CategoryRail
               categories={categories}
               activeCategory={activeCategory}
@@ -2205,28 +2424,45 @@ export function ListingsExplorer({
               onCategory={handleCategorySelect}
               onSubcategory={setActiveSubcategory}
               // Free / Wanted shortcuts — same tiles the home grid shows, so nothing's
-              // missing when you switch to results. Toggle the listingType filter.
+              // missing when the grid swaps to this rail. Toggle the listingType filter.
               intents={INTENT_SHORTCUTS}
               activeType={listingType}
               onIntent={(type) => setListingType(listingType === type ? 'all' : type)}
             />
+          )}
 
-            {/* Brand rail — brands present in this category + subcategory (logo +
-                name), tap to filter + expand the brand's models. Brand categories — and
-                ALL (owner 2026-07-23: "when all selected show all brands available"):
-                /api/brands treats category=all as the most-listed-overall directory. */}
-            {(activeCategory === 'all' || categoryHasBrand(activeCategory)) && (
-              <BrandRail
-                category={activeCategory}
-                subcategory={activeSubcategory}
-                activeBrand={activeBrand}
-                activeModel={activeModel}
-                onPickBrand={setActiveBrand}
-                onPickModel={setActiveModel}
-              />
-            )}
+          {/* Brand rail — brands present in this category + subcategory (logo +
+              name), tap to filter + expand the brand's models. Brand categories — and
+              ALL (owner 2026-07-23: "when all selected show all brands available"):
+              /api/brands treats category=all as the most-listed-overall directory.
+              ⚠️ `!showDiscovery` GUARDS THE HOME COLD PATH. This rail fetches /api/brands on
+              mount and it accepts category=all, so without the guard every anonymous home load
+              — the most-served request on the site — would fire a brand-directory query before
+              the visitor has expressed any interest in a brand. It appears the moment they do. */}
+          {!showDiscovery && (activeCategory === 'all' || categoryHasBrand(activeCategory)) && (
+            <BrandRail
+              category={activeCategory}
+              subcategory={activeSubcategory}
+              activeBrand={activeBrand}
+              activeModel={activeModel}
+              onPickBrand={setActiveBrand}
+              onPickModel={setActiveModel}
+            />
+          )}
 
-            {/* Category-aware facet bar (replaces the old sidebar) */}
+          {/* Category-aware facet bar (replaces the old sidebar). Now on the HOME view too —
+              area, price, condition and intent are what "home is also a search page" means in
+              practice, and they were previously unreachable without first leaving the landing.
+              ⚠️ min-h-12 IS A RESERVATION, NOT DECORATION. <FacetBar> is a `ssr:false` dynamic
+              (see the import), so it is absent from the ISR HTML and mounts after hydration —
+              directly ABOVE the feed. Without a reserved row the whole grid would be pushed down
+              on every cold load, which is precisely the CLS class this page paid 0.142 → 0.002 to
+              get rid of. 48px is the bar's own single-row height, not a guess: every pill is a
+              <CustomSelect> whose trigger carries `min-h-12` (custom-select.tsx), and the bar is
+              one `flex items-center` row (flex-nowrap + overflow-x-auto on mobile, so it can
+              never wrap there). It can wrap to a second row on a narrow DESKTOP window, which
+              costs one late row of shift; re-measure here if that becomes visible. */}
+          <div className="min-h-12">
             <FacetBar
               activeCategory={activeCategory}
               activeSubcategory={activeSubcategory}
@@ -2249,230 +2485,377 @@ export function ListingsExplorer({
               setVerifiedOnly={setVerifiedOnly}
               histogramQuery={histogramQuery}
             />
+          </div>
 
-            {/* Save-search & View row — DESKTOP ONLY (sorting moved to the strip
-                below). On mobile this row collapses: the view toggles sit on the
-                results-count row, so the results start a full row higher. */}
-            <div className="hidden items-start gap-3 lg:flex">
-              {renderSaveBox(true, 'hidden min-w-0 flex-1 lg:flex')}
-              {/* View toggles — pinned top-right (ml-auto keeps them right even
-                  when there are no chips / no save box on the left). */}
-              <div className="flex items-center gap-2.5 lg:ml-auto lg:shrink-0">
-                <ViewToggles viewMode={viewMode} onViewMode={changeView} showVideo={showVideoView} />
-              </div>
-            </div>
+          {/* Save-search box — the applied-filter chips plus "Save search". Desktop gets the
+              compact one-line version, mobile the stacked one; both return NULL when nothing is
+              applied, so on the undirected home view this costs zero height.
+              ⚠️ THE DESKTOP VIEW TOGGLES USED TO HAVE THEIR OWN ROW HERE, and it is gone on
+              purpose (2026-08-11). That row was `hidden lg:flex` with the save box on the left
+              and the toggles pinned right — fine when this tree only ever rendered for someone
+              who had already searched, but it is now on the HOME page, where the save box is
+              always null and the row was 56px of empty space (a 40px toggle row plus the stack
+              gap) sitting between the ad and the first listing. The toggles moved to the results
+              header row below, which already carried them on mobile and had spare width on the
+              right at every size. One row, one place, ~56px of fold recovered on desktop. */}
+          {renderSaveBox(true, 'hidden min-w-0 lg:flex')}
+          {renderSaveBox(false, 'lg:hidden')}
 
-            {/* Mobile: the full save box stays below the facet bar (unchanged); desktop
-                renders the compact 1/3 box on the filter line above. */}
-            {renderSaveBox(false, 'lg:hidden')}
+          {/* One-row sort strip — sticks under the header while the results scroll. */}
+          <SortStrip sort={sort} onPickSort={pickSort} headerHidden={headerHidden} />
 
-            {/* One-row sort strip — sticks under the header while the results scroll. */}
-            <SortStrip sort={sort} onPickSort={pickSort} headerHidden={headerHidden} />
-
-            {/* Results metadata count — also the feed's h2 (keeps headings sequential).
-                On mobile the view toggles live here (the sort/view row is collapsed). */}
-            <div className="flex items-center justify-between text-xs text-muted-foreground px-1 select-none">
-              <h2 aria-live="polite" aria-atomic="true" className="text-xs font-normal text-muted-foreground">
-                {tr('Found', 'Tìm thấy')}{' '}
-                <strong className="text-foreground">{nearby ? shownListings.length : totalCount}</strong>{' '}
-                {tr('listings', 'tin đăng')}
-              </h2>
-              <div className="flex items-center gap-1 lg:hidden"><ViewToggles viewMode={viewMode} onViewMode={changeView} showVideo={showVideoView} /></div>
-            </div>
-
-            {/* Video view (4th mode): its own vertical clip feed with a self-contained
-                data fetch (hasVideo=1) + loading/empty states — replaces the grid/list/map
-                results area entirely, so the blocks below are skipped in this mode. */}
-            {viewMode === 'video' && (
-              <VideoFeed baseParams={baseParamsString} onOpen={handleOpen} onPrefetch={prefetchListing} onClose={() => { setViewMode(prevViewRef.current); setVideoReturn(null) }} restoreTo={videoReturn} />
-            )}
-
-            {/* LISTINGS CONTAINER */}
-            {/* First-page placeholders. ⚠️ PAGE_SIZE of them, not six: the query's `limit`
-                is 12 (see the fetcher above), so six left the results area a full grid row
-                short on every breakpoint and the column jumped down when the answer landed.
-                The list branch renders the SAME row placeholder and the SAME container as the
-                real compact view — it used to hand-roll a wider, unrounded row inside a
-                single-column `space-y-2`, which on desktop was six stacked rows standing in
-                for three rows of two. */}
-            {viewMode !== 'video' && isLoading && listings.length === 0 && (
-              viewMode === 'grid' ? (
-                <div className="grid grid-cols-2 gap-2 sm:gap-4 sm:grid-cols-3 lg:grid-cols-4">
-                  {Array.from({ length: FIRST_PAGE_SIZE }).map((_, i) => (
-                    <ListingCardSkeleton key={i} />
-                  ))}
-                </div>
+          {/* THE RESULTS HEADER — one row that serves both states, which is the point.
+              Undirected it is the feed's section heading, styled like every other home section
+              (SECTION_* from shelf.tsx, wow pass 2026-08-06 — the grid used to be the one
+              section on the page with no name). Directed it collapses to the result count, which
+              is what a search view owes the visitor. The count is the aria-live region in BOTH
+              states: it is the thing that changes, and a heading whose text changes announces
+              badly. The view toggles live on this row at every breakpoint — the desktop-only
+              toolbar row that used to hold them was 56px of empty space on the home page.
+              ⚠️ SEAM FOR THE COUNTS API (stream A): the number rendered here is `totalCount`, the
+              `total` field of the /api/listings response, or `shownListings.length` when "near
+              you" is on (that path distance-filters client-side, so the server total is wrong by
+              construction). A per-facet counts endpoint plugs in HERE and nowhere else. */}
+          <div className={cn(SECTION_HEADER_ROW, 'select-none')}>
+            <div className="flex min-w-0 items-center gap-2">
+              {feedInDefaultOrder ? (
+                <>
+                  <Clock className="h-4 w-4 shrink-0 text-accent-foreground" aria-hidden />
+                  <h2 className={SECTION_TITLE}>{tr('Latest listings', 'Tin đăng mới nhất')}</h2>
+                </>
               ) : (
-                <div className={COMPACT_LIST_GRID}>
-                  {Array.from({ length: FIRST_PAGE_SIZE }).map((_, i) => (
-                    <CompactListingRowSkeleton key={i} />
+                /* ⚠️ THE HEADING GOES SR-ONLY RATHER THAN AWAY, and it carries the string the
+                   deleted second <h1> used to. The results need A heading for the outline to stay
+                   sequential (h1 site name → h2 here → h3 cards), but a big painted "Marketplace
+                   listings" over a result set the visitor defined themselves is noise, and beside
+                   "Found 32 listings" it says the same word twice. */
+                <h2 className="sr-only">{tr('Marketplace listings', 'Tin đăng')}</h2>
+              )}
+              {/* ⚠️ ONE LIVE REGION, MOUNTED IN BOTH STATES — the count is the only thing on this
+                  row that changes, so it is the only thing that should be announced, and the NODE
+                  has to survive the state flip. An earlier draft put an aria-live <span> in the
+                  discovery branch and an aria-live <p> in the other; swapping element TYPES at the
+                  same position remounts the region, and a live region that is destroyed and
+                  recreated announces nothing — the reader has no previous contents to diff
+                  against. Caught by an external reviewer. Only the "Found" prefix is conditional
+                  now; the element, its position and its attributes are fixed. */}
+              <p aria-live="polite" aria-atomic="true" className="min-w-0 text-xs font-normal text-muted-foreground">
+                {!feedInDefaultOrder && <>{tr('Found', 'Tìm thấy')}{' '}</>}
+                <strong className="font-semibold text-foreground">{nearby ? shownListings.length : totalCount}</strong>{' '}
+                {tr('listings', 'tin đăng')}
+              </p>
+            </div>
+            {/* View toggles — every breakpoint now (see the save-box note above), right-aligned
+                by this row's justify-between. */}
+            <div className="flex shrink-0 items-center gap-1"><ViewToggles viewMode={viewMode} onViewMode={changeView} showVideo={showVideoView} /></div>
+          </div>
+
+          {/* Video view (4th mode): its own vertical clip feed with a self-contained
+              data fetch (hasVideo=1) + loading/empty states — replaces the grid/list/map
+              results area entirely, so the blocks below are skipped in this mode. */}
+          {viewMode === 'video' && (
+            <VideoFeed baseParams={baseParamsString} onOpen={handleOpen} onPrefetch={prefetchListing} onClose={() => { setViewMode(prevViewRef.current); setVideoReturn(null) }} restoreTo={videoReturn} />
+          )}
+
+          {/* LISTINGS CONTAINER */}
+          {/* First-page placeholders. ⚠️ FIRST_PAGE_SIZE of them, not six: the query's `limit`
+              is 12 (see the fetcher above), so six left the results area a full grid row
+              short on every breakpoint and the column jumped down when the answer landed.
+              The list branch renders the SAME row placeholder and the SAME container as the
+              real compact view — it used to hand-roll a wider, unrounded row inside a
+              single-column `space-y-2`, which on desktop was six stacked rows standing in
+              for three rows of two.
+              ⚠️ Not reached on a cold HOME load: the query is seeded with the ISR listings
+              (initialData below), so `isLoading` is false and the real cards paint first. */}
+          {viewMode !== 'video' && isLoading && listings.length === 0 && (
+            viewMode === 'grid' ? (
+              <div className="grid grid-cols-2 gap-2 sm:gap-4 sm:grid-cols-3 lg:grid-cols-4">
+                {Array.from({ length: FIRST_PAGE_SIZE }).map((_, i) => (
+                  <ListingCardSkeleton key={i} />
+                ))}
+              </div>
+            ) : (
+              <div className={COMPACT_LIST_GRID}>
+                {Array.from({ length: FIRST_PAGE_SIZE }).map((_, i) => (
+                  <CompactListingRowSkeleton key={i} />
+                ))}
+              </div>
+            )
+          )}
+
+          {viewMode !== 'video' && !isLoading && shownListings.length === 0 && (
+            queryError ? renderErrorState(showDiscovery ? 'gap-3 bg-card/60 py-16' : undefined) : renderEmptyState()
+          )}
+
+          {/* ⚠️ THE TRANSITION LIVES OUTSIDE THE CONDITIONAL, AND THE PREDICATE IS `queryFetching`.
+              Both were wrong together, and the pair made this the one motion in the app that lied.
+              · `transition-opacity` used to sit INSIDE the `isLoading &&` string, so the utility was
+                added and removed WITH the opacity: the dim could fade in, but the recovery — the
+                moment results actually arrive — was a hard snap. The arrival was never animated.
+              · `isLoading` is `queryLoading || (queryFetching && listings.length === 0)`, and
+                `placeholderData: (previousData) => previousData` keeps the old rows on screen, so
+                on a facet or sort tap `listings.length` is never 0 and this was false for the WHOLE
+                refetch. The only "results are loading" affordance on the surface never fired on the
+                interaction it exists for.
+              `queryFetching` is true for exactly the window between the tap and the new inventory.
+              The dim is gentler than the old `opacity-60`, which read as DISABLED on results that
+              are still valid and still tappable; pointer-events are left alone for the same reason.
+              ⚠️ AND `page === 1`, WHICH THE MERGE MADE NECESSARY. queryFetching is also true while
+              a LATER page is being appended, so without this the whole grid dimmed on every step
+              of the infinite feed — the one thing an infinite feed must not do, since the rows
+              being dimmed are the ones the reader is looking at and nothing about them is
+              changing. That was survivable while this block only served the results view; the
+              merge points it at the home feed, where "Browse everything" and every scroll after it
+              would flash the page. Page 1 is exactly the refetch that REPLACES the set (a filter
+              or sort change — placeholderData holds the old rows meanwhile), which is the case
+              this affordance was written for. External reviewer. */}
+          {viewMode !== 'video' && shownListings.length > 0 && (
+            <div className={cn('transition-opacity duration-200', queryFetching && page === 1 && 'opacity-70')}>
+              {/* ⚠️ NO `key` AND NO ENTRANCE. The key was
+                  `viewMode|activeCategory|activeSubcategory|activeDistrict|sort|verifiedOnly|conditionFilter`,
+                  which forced a full unmount/remount of every card on each filter change: every
+                  <Image placeholder="blur"> re-entered blurred, CardVideo tore down and re-observed,
+                  per-card carousel idx/expanded state reset, the LCP card re-preloaded, and the
+                  memo() on ListingCard was defeated for that commit. All of it paid for a 200ms
+                  `animate-in fade-in slide-in-from-bottom-1` that — because placeholderData holds the
+                  previous rows — animated the OLD results in, then swapped the real ones in silently.
+                  The entrance was literally animating the wrong data. The key was also only a PARTIAL
+                  signature (it omitted priceRange, listingType, brand, model and the query), so it
+                  did not even remount consistently. Cards now update in place, which is what a
+                  continuous surface should do — and since the merge that is true across the
+                  landing↔search boundary as well, not just within one of them. */}
+              <div>
+              {viewMode === 'grid' && (
+                /* Grid Mode (Standard Cards) — the home feed's presentation, and now the DEFAULT
+                   everywhere (see the viewMode useState). */
+                <div className="grid grid-cols-2 gap-2 sm:gap-4 sm:grid-cols-3 lg:grid-cols-4">
+                  {deferredListings.map((l, index) => (
+                    <Fragment key={l.id}>
+                      {/* Guest capture (5a #7): one signup card at the point of interest,
+                          after the 8th listing. Renders null once signed in. */}
+                      {index === 8 && <CaptureCard />}
+                      {/* data-feed-card = the back-nav restore ANCHOR. The return-to-feed
+                          effect realigns this exact element, which is what makes "put me
+                          back where I was" survive a page whose height changed while we
+                          were away (the discovery shelves mount lazily). */}
+                      <div
+                        data-feed-card={l.id}
+                        className="flex flex-col h-full"
+                        onMouseEnter={() => prefetchListing(l.id)}
+                        onTouchStart={() => prefetchListing(l.id)}
+                      >
+                        {/* ⚠️ `lcp` IS CONDITIONAL, AND THE CONDITION IS "IS THE PROMO BANNER ON
+                            SCREEN". `lcp` turns on next/image `priority`, i.e. emits a
+                            <link rel=preload>. Measured at 390×844 / 4× CPU / 1.6 Mbps on the
+                            undirected home view, the browser picks `/banners/promo-1.svg` as LCP at
+                            1816 ms — not a card photo — so spending the preload budget on the first
+                            card there both misses AND competes with the element that wins. The
+                            banner preloads itself from promo-banner.tsx. This used to be two
+                            separate call sites in two separate branches that had to be kept
+                            deliberately out of agreement; one tree means one call site and one
+                            predicate.
+                            ⚠️ ON THIS ROUTE THE TRUE BRANCH IS CURRENTLY UNREACHABLE IN THE SERVED
+                            HTML, and pretending otherwise is how the comment above went stale once
+                            already (external reviewer). `/` prerenders ONE variant — the undirected
+                            one, because showExplorer starts false and searchParams are not read —
+                            so even /?q=… ships showDiscovery=true markup and the hint can only ever
+                            be added after hydration, by which point the LCP is long since recorded.
+                            The condition is kept because it states the INVARIANT ("never preload a
+                            card while the banner is on screen"), which is what protects this tree
+                            the day it is server-rendered in a directed state — /c/[slug] is the
+                            obvious candidate. It costs nothing today; it is not buying anything
+                            today either.
+                            ⚠️ `priority` STAYS UNCONDITIONAL. It is a different lever: without
+                            `lcp` it resolves to `loading="eager"` (listing-card.tsx ~435), so the
+                            first card still skips lazy-loading — it just stops claiming the preload. */}
+                        <ListingCard listing={l} onOpen={handleOpen} priority={index === 0} lcp={index === 0 && !showDiscovery} onLocate={locateListing} />
+                      </div>
+                    </Fragment>
                   ))}
                 </div>
-              )
-            )}
+              )}
 
-            {viewMode !== 'video' && !isLoading && shownListings.length === 0 && (queryError ? renderErrorState() : renderEmptyState())}
-
-            {/* ⚠️ THE TRANSITION LIVES OUTSIDE THE CONDITIONAL, AND THE PREDICATE IS `queryFetching`.
-                Both were wrong together, and the pair made this the one motion in the app that lied.
-                · `transition-opacity` used to sit INSIDE the `isLoading &&` string, so the utility was
-                  added and removed WITH the opacity: the dim could fade in, but the recovery — the
-                  moment results actually arrive — was a hard snap. The arrival was never animated.
-                · `isLoading` is `queryLoading || (queryFetching && listings.length === 0)`, and
-                  `placeholderData: (previousData) => previousData` keeps the old rows on screen, so
-                  on a facet or sort tap `listings.length` is never 0 and this was false for the WHOLE
-                  refetch. The only "results are loading" affordance on the surface never fired on the
-                  interaction it exists for.
-                `queryFetching` is true for exactly the window between the tap and the new inventory.
-                The dim is gentler than the old `opacity-60`, which read as DISABLED on results that
-                are still valid and still tappable; pointer-events are left alone for the same reason. */}
-            {viewMode !== 'video' && shownListings.length > 0 && (
-              <div className={cn('transition-opacity duration-200', queryFetching && 'opacity-70')}>
-                {/* ⚠️ NO `key` AND NO ENTRANCE. The key was
-                    `viewMode|activeCategory|activeSubcategory|activeDistrict|sort|verifiedOnly|conditionFilter`,
-                    which forced a full unmount/remount of every card on each filter change: every
-                    <Image placeholder="blur"> re-entered blurred, CardVideo tore down and re-observed,
-                    per-card carousel idx/expanded state reset, the LCP card re-preloaded, and the
-                    memo() on ListingCard was defeated for that commit. All of it paid for a 200ms
-                    `animate-in fade-in slide-in-from-bottom-1` that — because placeholderData holds the
-                    previous rows — animated the OLD results in, then swapped the real ones in silently.
-                    The entrance was literally animating the wrong data. The key was also only a PARTIAL
-                    signature (it omitted priceRange, listingType, brand, model and the query), so it
-                    did not even remount consistently. Cards now update in place, which is what a
-                    continuous surface should do. */}
-                <div>
-                {viewMode === 'grid' && (
-                  /* Grid Mode (Standard Cards) */
-                  <div className="grid grid-cols-2 gap-2 sm:gap-4 sm:grid-cols-3 lg:grid-cols-4">
-                    {deferredListings.map((l, index) => (
-                      <Fragment key={l.id}>
-                        {/* Guest capture (5a #7): one signup card at the point of interest,
-                            after the 8th listing. Renders null once signed in. */}
-                        {index === 8 && <CaptureCard />}
-                        {/* data-feed-card = the back-nav restore anchor (see the landing grid). */}
-                        <div
-                          data-feed-card={l.id}
-                          className="flex flex-col h-full"
-                          onMouseEnter={() => prefetchListing(l.id)}
-                          onTouchStart={() => prefetchListing(l.id)}
-                        >
-                          <ListingCard listing={l} onOpen={handleOpen} priority={index === 0} lcp={index === 0} onLocate={locateListing} />
-                        </div>
-                      </Fragment>
+              {viewMode === 'map' && (
+                /* Airbnb-style split: scrollable list (left) + sticky map (right) */
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+                  {/* Left: narrow single-column result list (its own scroll container on desktop) */}
+                  <div ref={mapListRef} className="min-w-0 lg:col-span-4 lg:h-[calc(100dvh-8rem)] lg:overflow-y-auto lg:pr-1 grid grid-cols-1 gap-4 scroll-thin order-2 lg:order-1">
+                    {mapSortedListings.map((l) => (
+                      <div
+                        key={l.id}
+                        data-lid={l.id}
+                        onMouseEnter={() => setHoveredId(l.id)}
+                        onMouseLeave={() => setHoveredId(null)}
+                        className={cn(
+                          'rounded-xl',
+                          // Highlight the IMAGE only (user-picked 2026-07-14):
+                          // ringing the whole card incl. the text block read badly.
+                          hoveredId === l.id && '[&_[data-protected]]:ring-2 [&_[data-protected]]:ring-inset [&_[data-protected]]:ring-brand/40',
+                        )}
+                      >
+                        <ListingCard listing={l} onOpen={handleOpen} onLocate={locateListing} />
+                      </div>
                     ))}
+                    {/* In-column infinite-scroll sentinel (observed against this column) */}
+                    {!nearby && (
+                      <div ref={mapSentinelRef} className="select-none py-2">
+                        {queryFetching && hasMore && (
+                          <div className="flex items-center justify-center gap-2 text-xs font-semibold text-muted-foreground">
+                            <Spinner size="sm" className="border-border border-t-brand" />
+                            {tr('Loading more…', 'Đang tải thêm…')}
+                          </div>
+                        )}
+                        {!hasMore && totalCount > 24 && (
+                          <p className="text-center text-xs font-semibold text-ink-4">{tr("You've reached the end", 'Bạn đã xem hết')}</p>
+                        )}
+                      </div>
+                    )}
                   </div>
-                )}
+                  {/* Right: big sticky map. On mobile it's a tall-but-not-full 60dvh
+                      so the listings peek below it stays a thumb-scrollable strip (a
+                      full-bleed map would swallow every touch as pan/zoom). scroll-mt
+                      clears the sticky header so locate lands ON the map. */}
+                  <div
+                    ref={mapWrapRef}
+                    className="min-w-0 lg:col-span-8 h-[60dvh] lg:h-[calc(100dvh-8rem)] scroll-mt-[calc(4rem+env(safe-area-inset-top))] lg:scroll-mt-24 lg:sticky lg:top-24 rounded-2xl overflow-hidden order-1 lg:order-2">
+                    <ListingsMap
+                      listings={mapListings}
+                      activeDistrict={activeDistrict}
+                      onOpenListing={handleOpen}
+                      selectedId={hoveredId ?? focusId}
+                      onHover={setHoveredId}
+                      onPinOpen={(id) => {
+                        // Surface the listing's card in the list. WHEN this fires is the
+                        // map's call: desktop = on pin open (the list is a side column, so
+                        // scrolling it is free); touch = only on the first tap of the popup
+                        // card (on mobile the list is BELOW the map, so scrolling on a pin
+                        // tap would drag the page off the map — user decision 2026-07-14).
+                        mapListRef.current?.querySelector(`[data-lid="${id}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+                      }}
+                      onMove={setMapCenter}
+                      focusId={focusId}
+                      nearby={nearby}
+                      areaKey={`${activeProvince?.code ?? ''}|${activeWard?.code ?? ''}|${activeDistrict}`}
+                    />
+                  </div>
+                </div>
+              )}
 
-                {viewMode === 'map' && (
-                  /* Airbnb-style split: scrollable list (left) + sticky map (right) */
-                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-                    {/* Left: narrow single-column result list (its own scroll container on desktop) */}
-                    <div ref={mapListRef} className="min-w-0 lg:col-span-4 lg:h-[calc(100dvh-8rem)] lg:overflow-y-auto lg:pr-1 grid grid-cols-1 gap-4 scroll-thin order-2 lg:order-1">
-                      {mapSortedListings.map((l) => (
-                        <div
-                          key={l.id}
-                          data-lid={l.id}
-                          onMouseEnter={() => setHoveredId(l.id)}
-                          onMouseLeave={() => setHoveredId(null)}
-                          className={cn(
-                            'rounded-xl',
-                            // Highlight the IMAGE only (user-picked 2026-07-14):
-                            // ringing the whole card incl. the text block read badly.
-                            hoveredId === l.id && '[&_[data-protected]]:ring-2 [&_[data-protected]]:ring-inset [&_[data-protected]]:ring-brand/40',
-                          )}
-                        >
-                          <ListingCard listing={l} onOpen={handleOpen} onLocate={locateListing} />
-                        </div>
-                      ))}
-                      {/* In-column infinite-scroll sentinel (observed against this column) */}
-                      {!nearby && (
-                        <div ref={mapSentinelRef} className="select-none py-2">
-                          {queryFetching && hasMore && (
-                            <div className="flex items-center justify-center gap-2 text-xs font-semibold text-muted-foreground">
-                              <Spinner size="sm" className="border-border border-t-brand" />
-                              {tr('Loading more…', 'Đang tải thêm…')}
-                            </div>
-                          )}
-                          {!hasMore && totalCount > 24 && (
-                            <p className="text-center text-xs font-semibold text-ink-4">{tr("You've reached the end", 'Bạn đã xem hết')}</p>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                    {/* Right: big sticky map. On mobile it's a tall-but-not-full 60dvh
-                        so the listings peek below it stays a thumb-scrollable strip (a
-                        full-bleed map would swallow every touch as pan/zoom). scroll-mt
-                        clears the sticky header so locate lands ON the map. */}
-                    <div
-                      ref={mapWrapRef}
-                      className="min-w-0 lg:col-span-8 h-[60dvh] lg:h-[calc(100dvh-8rem)] scroll-mt-[calc(4rem+env(safe-area-inset-top))] lg:scroll-mt-24 lg:sticky lg:top-24 rounded-2xl overflow-hidden order-1 lg:order-2">
-                      <ListingsMap
-                        listings={mapListings}
-                        activeDistrict={activeDistrict}
-                        onOpenListing={handleOpen}
-                        selectedId={hoveredId ?? focusId}
-                        onHover={setHoveredId}
-                        onPinOpen={(id) => {
-                          // Surface the listing's card in the list. WHEN this fires is the
-                          // map's call: desktop = on pin open (the list is a side column, so
-                          // scrolling it is free); touch = only on the first tap of the popup
-                          // card (on mobile the list is BELOW the map, so scrolling on a pin
-                          // tap would drag the page off the map — user decision 2026-07-14).
-                          mapListRef.current?.querySelector(`[data-lid="${id}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
-                        }}
-                        onMove={setMapCenter}
-                        focusId={focusId}
-                        nearby={nearby}
-                        areaKey={`${activeProvince?.code ?? ''}|${activeWard?.code ?? ''}|${activeDistrict}`}
+              {viewMode === 'compact' && (
+                /* Compact Row Mode (bonbanh-style list rows). Two columns on
+                   desktop so the wide row doesn't strand the actions far right
+                   with a big empty middle; single column on mobile.
+                   ⚠️ SEAM FOR THE NEW RESULT LINE (stream C): this is the row it replaces.
+                   <CompactListingRow> is a `ssr:false` dynamic with a geometry-matched
+                   skeleton (compact-listing-row-skeleton.tsx) — a replacement needs the same
+                   pair or the column collapses and rebounds while the chunk arrives. */
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-6 gap-y-1.5">
+                  {deferredListings.map((l, index) => (
+                    /* data-feed-card = the back-nav restore anchor (see the grid above). */
+                    <div key={l.id} data-feed-card={l.id}>
+                      <CompactListingRow
+                        listing={l}
+                        index={index}
+                        onOpen={handleOpen}
+                        onPrefetch={prefetchListing}
+                        onLocate={locateOnMap}
                       />
                     </div>
-                  </div>
-                )}
-
-                {viewMode === 'compact' && (
-                  /* Compact Row Mode (bonbanh-style list rows). Two columns on
-                     desktop so the wide row doesn't strand the actions far right
-                     with a big empty middle; single column on mobile. */
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-6 gap-y-1.5">
-                    {deferredListings.map((l, index) => (
-                      /* data-feed-card = the back-nav restore anchor (see the landing grid). */
-                      <div key={l.id} data-feed-card={l.id}>
-                        <CompactListingRow
-                          listing={l}
-                          index={index}
-                          onOpen={handleOpen}
-                          onPrefetch={prefetchListing}
-                          onLocate={locateOnMap}
-                        />
-                      </div>
-                    ))}
-                  </div>
-                )}
+                  ))}
                 </div>
-
-                {/* Infinite feed — the sentinel triggers the next page as it nears
-                    the viewport (FB-style). "Near you" pulls one broad set, so it's
-                    excluded; once everything is loaded we show an end-cap. Map view
-                    uses its own in-column sentinel above, so skip this one there. */}
-                {!nearby && viewMode !== 'map' && (
-                  <div ref={loadMoreRef} className="mt-6 select-none">
-                    {queryFetching && hasMore && (
-                      <div className="flex items-center justify-center gap-2 border-t border-border pt-5 text-xs font-semibold text-muted-foreground">
-                        <Spinner size="sm" className="border-border border-t-brand" />
-                        {tr('Loading more…', 'Đang tải thêm…')}
-                      </div>
-                    )}
-                    {!hasMore && totalCount > 24 && (
-                      <p className="border-t border-border pt-5 text-center text-xs font-semibold text-ink-4">
-                        {tr("You've reached the end", 'Bạn đã xem hết')}
-                      </p>
-                    )}
-                  </div>
-                )}
+              )}
               </div>
-            )}
-          </div>
+
+              {/* PAGINATION FOOTER — ONE FOOTER FOR BOTH STATES, and the "Browse everything"
+                  button is the whole reason it has to be one.
+                  · Undirected browse is NOT an infinite feed: the sentinel below is inert until
+                    the visitor presses the button (see the IntersectionObserver effect's
+                    `showDiscovery && !feedUnlocked` guard), so the FOOTER stays reachable on the
+                    home page. Pressing it loads page 2 AND unlocks infinite scroll from there on.
+                  · A searched/faceted view auto-paginates immediately, as it always did.
+                  ⚠️ THE SENTINEL DIV MUST NEVER BE `hidden`/display:none. A hidden element is
+                  never intersected, so pagination would die silently — no error, no empty state,
+                  just a feed that stops. It renders whenever there are results and we are not in
+                  the map view (which observes its own in-column sentinel above).
+                  "Near you" is excluded because it pulls one broad set and distance-filters it
+                  client-side: there is no further page to fetch. */}
+              {!nearby && viewMode !== 'map' && (
+                <div ref={loadMoreRef} className="mt-6 select-none">
+                  {showDiscovery && hasMore && !feedUnlocked && !queryFetching && (
+                    <div className="border-t border-border pt-6">
+                      {/* The undirected feed's ONE ending (wow pass, 2026-08-06): a full-width
+                          continuation instead of a small centred "Load more" — on a sparse
+                          catalogue the shelves below may all hide, so the page needs to end on
+                          an invitation, not trail off. */}
+                      <Button
+                        variant="bare"
+                        size="none"
+                        onClick={() => { prefetchNextPage(); setPage((p) => p + 1); setFeedUnlocked(true) }}
+                        className="w-full rounded-xl border border-line-strong px-6 py-3 text-sm font-bold text-foreground transition-colors hover:bg-muted"
+                      >
+                        {tr('Browse everything', 'Xem tất cả tin đăng')}
+                      </Button>
+                    </div>
+                  )}
+                  {queryFetching && hasMore && (
+                    <div className="flex items-center justify-center gap-2 border-t border-border pt-5 text-xs font-semibold text-muted-foreground">
+                      <Spinner size="sm" className="border-border border-t-brand" />
+                      {tr('Loading more…', 'Đang tải thêm…')}
+                    </div>
+                  )}
+                  {!hasMore && totalCount > 24 && (
+                    <p className="border-t border-border pt-5 text-center text-xs font-semibold text-ink-4">
+                      {tr("You've reached the end", 'Bạn đã xem hết')}
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
         </div>
+
+        {/* ── DISCOVERY SHELVES — BELOW THE RESULTS, NOT ABOVE THEM ───────────────────────
+            ⚠️ THIS IS THE ONE THING THE MERGE REORDERED, AND IT IS DELIBERATE. These four rails
+            used to sit between the category tiles and the feed, where they were the landing's
+            content. With a results grid always present they were competing with it for the same
+            vertical space — up to four ~350px rails ahead of the first row of merchandise on a
+            marketplace whose measured problem was already that the first screen contained none
+            (y=983 at 1440×900, 2026-08-09). Below the grid they become the "keep browsing" band
+            a visitor reaches after the first page, which is what they are for.
+            ⚠️ NOT the promo banner and NOT <WhyEno> — those two keep their owner-decided place
+            above (2026-08-05). Only the shelves moved.
+            ⚠️ Each rail self-hides under MIN_RAIL_ITEMS (shelf.tsx) and renders no box when it
+            does, so `space-y-*` adds no gap for an absent one — the band simply disappears on a
+            sparse catalogue. Every listing is still in the grid above, so nothing here is the
+            only route to anything.
+            ⚠️ KNOWN AND ACCEPTED: ONCE THE FEED IS UNLOCKED THESE SIT BELOW AN INFINITE SCROLL,
+            like the site footer does. An external reviewer called it an uncatchable band, and the
+            mechanism is real — the pagination sentinel is above them, so scrolling toward them
+            fetches another page and pushes them down. It is bounded by being the SAME contract
+            the footer has lived under since the "Browse everything" gate was added: in the
+            DEFAULT state the feed stops at one page, so the shelves sit a screen below the button
+            and are trivially reachable; only a visitor who has explicitly asked to browse
+            everything scrolls past them, and burying merchandising shelves under the thing they
+            asked for is the right answer. If that ever stops being true, the fix is the footer's
+            fix too (a page cap or a "back to top" jump), not moving these back above the grid. */}
+        {showDiscovery && (
+          <div className="mt-8 space-y-8 sm:mt-12 sm:space-y-12 lg:mt-8 lg:space-y-8">
+            {/* Recently viewed — the returning buyer's own trail. Self-hides for new visitors. */}
+            <RecentlyViewedRail />
+
+            {/* For You — the trending seed. It LEADS, so it keeps first claim on its cards and
+                the two rails below are deduped against it (see dedupedBusinesses/railExcludeIds). */}
+            <ForYouRail initial={initialTrending} />
+
+            {/* Outstanding businesses — the highest-trust business storefronts. Seeded with the
+                DEDUPED set (see railExcludeIds above) so it never repeats For You card-for-card. */}
+            <BusinessRail initial={dedupedBusinesses} />
+
+            {/* Browse by category — one horizontal rail per category, most-used first.
+                Tapping a heading / "See all" opens that category (same as a tile). */}
+            <DeferredCategoryRails categories={categories} onCategory={handleCategorySelect} excludeIds={railExcludeIds} />
+          </div>
+        )}
       </div>
 
       {/* MOBILE BOTTOM SLIDE-UP DRAWER OVERLAY — mounted on first open (see filtersEverOpened),
