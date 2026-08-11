@@ -6,7 +6,6 @@ import { Avatar } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { TrustScore } from './trust-score'
 import { miniSealWashClass } from './seller-card'
-import { PartnerBadge } from './partner-badge'
 import { RatingValue, CountValue } from './rating-value'
 import { useLanguage } from '@/context/language-context'
 import { cn } from '@/lib/utils'
@@ -69,13 +68,20 @@ export function PdpShopLink({ name, avatarColor, avatarUrl, isBusiness, business
           The avatar is aria-hidden with tabIndex -1: it points at the same place as the name
           beside it, so exposing it would add a duplicate tab stop and a second identical
           announcement for no gain. The NAME carries the accessible link. */}
-      <Link href={href} aria-hidden tabIndex={-1} className="shrink-0 rounded-full">
-        <Avatar name={name} url={avatarUrl} color={avatarColor} size="lg" />
+      {/* `title` here, not on the Link: the Link is aria-hidden, and a tooltip is for the
+          sighted reader who needs the gold ring explained — see the note in seller-card.tsx. */}
+      <Link href={href} aria-hidden tabIndex={-1} className="shrink-0 rounded-full" title={officialPartner ? tr('Official partner', 'Đối tác chính thức') : undefined}>
+        <Avatar name={name} url={avatarUrl} color={avatarColor} size="lg" className={cn(officialPartner && 'partner-ring')} />
       </Link>
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
           <Link href={href} className="truncate text-sm font-bold text-foreground hover:underline">{name}</Link>
-          {officialPartner && <PartnerBadge size="sm" />}
+          {/* ⚠️ THE RING IS DECORATION; THIS IS THE ACTUAL LABEL. The worded badge was removed
+              (owner, 2026-08-11) in favour of the gold ring on the avatar above — but a ring
+              has no accessible name and no meaning to anyone who cannot separate that gold
+              from grey. `sr-only` keeps "Official partner" in the accessibility tree and in
+              the page text, so the status survives the badge it used to live in. */}
+          {officialPartner && <span className="sr-only">{tr('Official partner', 'Đối tác chính thức')}</span>}
           {/* Same ranking as seller-card.tsx: the partner badge absorbs the plain "Business"
               chip (which only restates the account type) but never "Business verified"
               (a document check eno actually ran). Keep the two files in step. */}

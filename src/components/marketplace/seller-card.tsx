@@ -3,7 +3,6 @@
 import Link from 'next/link'
 import { MessageCircle, Store, Building2, Star } from 'lucide-react'
 import { EnoSeal } from './eno-seal'
-import { PartnerBadge } from './partner-badge'
 import { useLanguage } from '@/context/language-context'
 import { TrustScore } from '@/components/marketplace/trust-score'
 import { trustBand } from '@/lib/trust-score'
@@ -125,7 +124,14 @@ export function SellerCard({
   return (
     <div className={cn('flex flex-col gap-3', className)}>
       <div className="flex items-center gap-3">
-        <Avatar name={seller.name} url={seller.avatarUrl} color={seller.avatarColor} size="lg" />
+        {/* ⚠️ `title` IS THE SIGHTED COUNTERPART OF THE sr-only BELOW, not a duplicate of it.
+            With the badge gone the ring is the only thing on screen, and a ring means nothing
+            to someone who has not been told what it is — including everyone who cannot
+            separate this gold from grey. The tooltip is the cheapest way to make the mark
+            self-explaining without reinstating the chip the owner removed. */}
+        <span title={seller.officialPartner ? tr('Official partner', 'Đối tác chính thức') : undefined} className="flex shrink-0">
+          <Avatar name={seller.name} url={seller.avatarUrl} color={seller.avatarColor} size="lg" className={cn(seller.officialPartner && 'partner-ring')} />
+        </span>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
             {/* On the storefront this IS the page's main heading (the listing title owns
@@ -136,7 +142,13 @@ export function SellerCard({
             ) : (
               <span className="truncate text-sm font-bold text-foreground">{seller.name}</span>
             )}
-            {seller.officialPartner && <PartnerBadge size="sm" />}
+            {/* ⚠️ THE RING IS DECORATION; THIS IS THE ACTUAL LABEL. The worded badge was removed
+                (owner, 2026-08-11) in favour of the gold ring on the avatar — but a ring carries
+                no accessible name, and gold-vs-grey is exactly the distinction a red-green
+                colour-blind reader cannot make. On the STOREFRONT this line sits beside the
+                shop's <h1>, so it is also the only place the status appears in the page text at
+                all. sr-only keeps it in the accessibility tree without reinstating the chip. */}
+            {seller.officialPartner && <span className="sr-only">{tr('Official partner', 'Đối tác chính thức')}</span>}
             {/* ⚠️ A PARTNER SUPPRESSES THE PLAIN "Business" CHIP, BUT NOT "Business verified".
                 The two say different things and only one is redundant. "Business" merely reports
                 the account TYPE, which "Official partner" already implies — showing both spends a

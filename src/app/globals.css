@@ -1500,6 +1500,54 @@ html.native-tabs .bottom-nav-spacer {
    also carry `transition-colors`, and if a utility could win there the press would lose its
    spring. VERIFY IN THE BUILT CSS after changing this — a layer mistake is invisible:
      grep -o '@layer components{[^@]*\.press:active{[^}]*}' .next/static/chunks/*.css */
+/* ── Official partner: a foil RING, not a badge (owner, 2026-08-11) ──────────────────
+   The worded badge is gone. A partner is now marked by a thin gold ring around their
+   avatar and around their product images.
+
+   ⚠️ THE RING USES --partner-foil-mid, NOT --partner. Those tokens were authored for a
+   DARK pill (`--partner` #f3d894 is a pale foil meant as INK on --partner-ground), and
+   pale-gold-on-white is very nearly invisible — the palest of the three reads as a
+   rendering artefact rather than a mark of status. The mid stop is the one that carries
+   as metal on a light surface. Same palette, different job.
+
+   ⚠️ BOTH RINGS ARE `outline`, NOT `box-shadow`, AND THAT IS TWO BUG FIXES IN ONE CHOICE.
+   The first version drew the avatar ring as a box-shadow with a --card-coloured band to
+   FAKE the gap, and reviewers caught both consequences:
+   · a painted gap is only invisible on the surface it was named after. The same avatar
+     renders on --card, on --background and inside a dialog, so the fake gap showed as a
+     pale stripe wherever the surface was not --card. `outline-offset` leaves a REAL
+     transparent gap and is correct on every background.
+   · box-shadow is DROPPED ENTIRELY in forced-colors mode (Windows High Contrast). Since
+     the ring is now the only visible partner signal, that meant the mark vanished for
+     exactly the users least able to afford losing it. Outlines survive forced-colors and
+     are re-coloured to a system colour.
+   Neither is clipped by the avatar's own `overflow-hidden`, which a border or an inset
+   shadow would be.
+
+   The media ring differs only in sign: a NEGATIVE offset so it sits just inside the
+   corner and paints OVER the photo. (An inset box-shadow could not — it renders beneath
+   child content and the <img> would hide it.) No gap there on purpose: a halo around a
+   feed card reads as a selection state, and the ring has to hug the corner it decorates.
+
+   ⚠️ THE RING IS DECORATION AND MUST NEVER BE THE ONLY SIGNAL. Every call site carries a
+   real accessible name, and the avatar surfaces also carry a `title` so a sighted visitor
+   who cannot read gold — roughly 8% of men see this as a grey-green — can still discover
+   what the ring means. If a future change drops those, this becomes colour-only status. */
+.partner-ring {
+  outline: 1.5px solid var(--partner-foil-mid);
+  outline-offset: 2px;
+}
+/* ⚠️ MEASURED: Chromium ROUNDS outline-width, so this resolves to a 1px hairline, not 1.5.
+   (getComputedStyle on a rendered card returns `rgb(245,197,66) solid 1px`.) Authored at 1.5
+   deliberately anyway — it is the value that lands cleanly on a device-pixel boundary at 2x,
+   and rounding down is the right failure direction for a mark whose brief was "subtle". Do not
+   "fix" it to 2px expecting a small change: that is a doubling of everything anyone can see.
+   Same family as the `border-width: 0.5px` clamp already recorded for the hairline rules. */
+.partner-ring-media {
+  outline: 1.5px solid var(--partner-foil-mid);
+  outline-offset: -1.5px;
+}
+
 .press {
   transition: scale 220ms var(--ease-spring-snappy),
               transform 220ms var(--ease-spring-snappy),

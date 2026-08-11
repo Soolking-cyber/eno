@@ -9,7 +9,6 @@ import { Badge } from '@/components/ui/badge'
 import { IconButton } from '@/components/ui/icon-button'
 import { Tooltip } from '@/components/ui/tooltip'
 import { TrustScore } from './trust-score'
-import { PartnerSeal } from './partner-badge'
 import { CardBadges } from './card-badges'
 import Image from 'next/image'
 import type { SerializedListingCard } from '@/lib/types'
@@ -251,7 +250,15 @@ function ListingCardImpl({
         // listing-card media out by name; that contradiction was resolved 2026-08-09 and the
         // carve-out deleted. Do not "restore" it: at the old xl this was a 9px corner on the
         // most-repeated photo in the product, which is most of why the feed read as generic.
-        className="relative aspect-square w-full overflow-hidden rounded-2xl bg-tint transform-gpu isolate transition-shadow duration-200 group-hover:shadow-[var(--shadow-card)]"
+        // ⚠️ `partner-ring-media` REPLACES THE PARTNER SEAL THAT USED TO SIT IN THE META ROW
+        // (owner, 2026-08-11: ring on the products, remove the badge). It is an outline with a
+        // negative offset, so it hugs this rounded-2xl corner and paints OVER the photo without
+        // taking layout — an inset box-shadow renders beneath child content and the <img> would
+        // hide it. The accessible name moved to the meta row; see the sr-only there.
+        className={cn(
+          'relative aspect-square w-full overflow-hidden rounded-2xl bg-tint transform-gpu isolate transition-shadow duration-200 group-hover:shadow-[var(--shadow-card)]',
+          listing.seller.officialPartner && 'partner-ring-media',
+        )}
         onClick={(e) => {
           // Image-area click → open the listing. It bubbles up from the photo, scrims,
           // badges and dots (none of which stopPropagation); the action buttons DO
@@ -811,13 +818,13 @@ function ListingCardImpl({
               )
             })()}
           </span>
-          {/* Partner outranks and REPLACES the business glyph — this row is icon-only and already
-              carries the trust chip, so a partner's card must not spend two slots saying "company"
-              twice. The worded badge is deliberately not used here; see PartnerSeal's comment. */}
+          {/* ⚠️ THE GLYPH IS GONE, THE NAME MUST NOT BE. The seal was removed in favour of the
+              gold ring on the image above (owner, 2026-08-11). A ring cannot be announced and
+              cannot be seen as gold by every reader, so the status stays here as text — and
+              this row is the only place on a feed card where it can live. Partner still
+              outranks and suppresses the plain Business glyph, exactly as before. */}
           {listing.seller.officialPartner ? (
-            <span role="img" title={tr('Official partner', 'Đối tác chính thức')} aria-label={tr('Official partner', 'Đối tác chính thức')} className="inline-flex shrink-0 items-center">
-              <PartnerSeal size={14} />
-            </span>
+            <span className="sr-only">{tr('Official partner', 'Đối tác chính thức')}</span>
           ) : listing.seller.isBusiness && (
             <span role="img" title={tr('Business', 'Doanh nghiệp')} aria-label={tr('Business', 'Doanh nghiệp')} className="inline-flex shrink-0 items-center">
               <Building2 className="h-3.5 w-3.5" />

@@ -50,9 +50,22 @@ export const SEAL_CHECK = 'M8.5 11.6l2.6 2.6 4.6-5.2'
  *  release. */
 export const SEAL_BAR = SEAL_CHECK
 
-/** The chief — the band under the flat top; the tier badges tint it. */
+/**
+ * The chief — the band under the flat top; the tier badges tint it.
+ *
+ * ⚠️ THE BAND IS 3.3 TALL (y 3.5 → 6.8), AND THE `v` NUMBER IS NOT THAT HEIGHT.
+ * Shortened 30% from 4.7 on 2026-08-11 (owner). The subtlety, because the obvious edit is
+ * wrong: only the STRAIGHT segment is `v`. Above it sits the fixed 2.2 corner arc that carries
+ * the band from y=3.5 down to y=5.7, and that arc cannot scale without breaking the flat
+ * app-icon top the silhouette is built on. So the band's height is 2.2 (arc) + v, and taking
+ * 30% off the BAND means 4.7 → 3.3, i.e. v goes 2.5 → 1.1 — a 56% cut to the number itself.
+ * Scaling `v` by 0.7 instead would have removed only 16% of what anyone can see.
+ *
+ * Both the vertical line and the `V5.7` return must stay in step: the left edge comes back up
+ * to the arc's start, so it is the `v` and the closing `V` that define the two corners.
+ */
 export const SEAL_CHIEF =
-  'M6.7 3.5h10.6a2.2 2.2 0 0 1 2.2 2.2v2.5h-15V5.7a2.2 2.2 0 0 1 2.2-2.2Z'
+  'M6.7 3.5h10.6a2.2 2.2 0 0 1 2.2 2.2v1.1h-15V5.7a2.2 2.2 0 0 1 2.2-2.2Z'
 
 type EnoSealProps = {
   /**
