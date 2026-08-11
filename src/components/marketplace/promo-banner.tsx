@@ -287,7 +287,6 @@ function SlidePanel({ slide, first = false }: { slide: PromoSlide; first?: boole
      * the artwork, and the chip is the only text tying the word "Advertisement" to an advertiser.
      */
     const adWord = tr('Advertisement', 'Quảng cáo')
-    const adDisclosure = `${adWord} · ${slide.art.partner}`
     return (
       <Link
         href={slide.href}
@@ -331,41 +330,16 @@ function SlidePanel({ slide, first = false }: { slide: PromoSlide; first?: boole
             decoding={first ? 'sync' : 'async'}
           />
         </picture>
-        {/* ⚠️ AFTER THE <picture>, AND THAT ORDER IS THE STACKING. Both are positioned with no
-            z-index, so paint order is DOM order — moving this above the image would hide it under
-            the artwork on a slide whose whole job is to be seen.
-            ⚠️ bg-black/60, NOT /40 OR /50. The scrim is the only thing guaranteeing contrast,
-            because the pixels underneath are a partner's artwork that can change without a code
-            change. Worst case (pure white art) 60% black composites to #666 and white text on it
-            measures 5.7:1 — over WCAG AA for this size. At /50 the same case is 4.0:1 and fails.
-            ⚠️ text-2xs (11px, the canon's "chip labels" step), NOT text-3xs. 3xs is authored for
-            counters and micro badges — decoration you may or may not read. A disclosure that is
-            too small to read is not a disclosure, and one step is the difference for free.
-            aria-hidden because the same words are already first in the link's aria-label above;
-            without it a screen reader that ignores aria-label on a link would say them twice.
-            pointer-events-none so the chip cannot become a dead spot in the swipe surface. */}
-        {/* ⛔ BOTTOM-LEFT, NOT TOP-LEFT — THE FIRST VERSION DEFACED THE ADVERTISER IT EXISTS TO NAME.
-            At top-2 this pill sat exactly on the artwork's own lockup on every phone width. Measured
-            on the live slide: at a 390px viewport the mobile cut (732×376) maps 2:1 onto the 366×188
-            panel, so `object-cover` crops nothing and the lockup's ink lands at CSS x31.5–199.5,
-            y5.5–59.5 — the kite mark, the "VietKite" wordmark and "Travel & Visa" all fell inside the
-            chip's x8–145, y8–27 box. Not width-sensitive either: at 360px `object-cover` shifts the
-            lockup 15px further LEFT (deeper under the chip) and at 430px it crops 10px off the top,
-            landing the wordmark at y7–18 — still inside. Only the desktop cut cleared it. A
-            disclosure that hides the brand it discloses is worse than none.
-            ⚠️ BOTTOM-RIGHT IS TAKEN: the slide dots are `absolute inset-x-0 bottom-1 … justify-end
-            pr-3` in the parent, so the right side of this edge is spoken for. Bottom-LEFT is the one
-            free corner, and it is also where an ad label conventionally sits.
-            ⚠️ THIS REMAINS A BET ON ARTWORK WE DO NOT CONTROL — a future partner is free to put their
-            lockup bottom-left. The durable fix is a caption OUTSIDE the image; that costs vertical
-            space on a banner already capped so grid row 1 stays above the fold, which is why it is
-            not taken here. If a second partner slide lands, re-measure rather than assume. */}
-        <span
-          aria-hidden
-          className="pointer-events-none absolute bottom-2 left-2 rounded-full bg-black/60 px-2 py-0.5 text-2xs font-semibold text-white sm:bottom-3 sm:left-3"
-        >
-          {adDisclosure}
-        </span>
+        {/* ⛔ NO VISIBLE "Advertisement" CHIP — REMOVED BY THE OWNER, 2026-08-11, AND NOT AN OVERSIGHT.
+            A pill reading "Quảng cáo · <partner>" was rendered over this artwork and taken out on the
+            owner's instruction. Whether a paid placement is labelled on its face is a commercial and
+            compliance decision that belongs to them, not a styling one, so do not "restore" it as a
+            polish item.
+            ⚠️ THE ATTRIBUTION SURVIVES WHERE IT COSTS NOTHING: the link's accessible name still opens
+            with that word (see the aria-label above), so a screen-reader user is still told this is an
+            ad before they are told what it says. And `art.partner` stays REQUIRED at the type level
+            with its vitest — the point of that guard was never the chip, it was that a slide which
+            deletes both languages must still name who bought it. Dropping it would drop the record. */}
       </Link>
     )
   }
