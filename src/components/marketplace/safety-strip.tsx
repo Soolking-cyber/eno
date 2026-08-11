@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { SEAL_BAR, SEAL_CHIEF, SEAL_OUTLINE } from '@/components/marketplace/eno-seal'
+import { SEAL_CHECK, SEAL_CHIEF, SEAL_OUTLINE } from '@/components/marketplace/eno-seal'
 import { STROKE_UI } from '@/lib/icon-tokens'
 import { useLanguage } from '@/context/language-context'
 import { cn } from '@/lib/utils'
@@ -48,8 +48,17 @@ export function SafetyStrip({ categorySlug, action, protections, className }: { 
       {/* The eno seal replaces lucide ShieldAlert in this first-party safety moment
           (§0b + foundation handoff request: seal-in-chip on the safety strip). On the
           warning tint the chief takes the strip's OWN ink — the trust-chip micro form
-          (tinted chief + line + bar) — never brand blue over amber. Paths imported
-          from eno-seal.tsx, never redrawn (§0b: a seal that drifts is a counterfeit). */}
+          (tinted chief + line + check) — never brand blue over amber. Paths imported
+          from eno-seal.tsx, never redrawn (§0b: a seal that drifts is a counterfeit).
+          This is hand-rolled rather than <EnoSeal> ONLY because the chief must take
+          currentColor (amber) instead of the component's fixed fill-brand-100.
+          ⚠️ THE CHECK CARRIES `strokeLinejoin`, AND THAT IS NOT COSMETIC. This mount
+          was written against the old straight bar, which had no interior vertex, so it
+          set only strokeLinecap. The check HAS a vertex, and with no linejoin SVG
+          defaults to MITER — a sharp spike on the one glyph the icon language forbids
+          it on (§3: round caps, round joins, never restyled). It shipped mitered here
+          while every other seal in the app was round. Keep both attributes in step
+          with <EnoSeal>'s own render. */}
       <svg viewBox="0 0 24 24" aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0 text-warning">
         <path d={SEAL_CHIEF} fill="currentColor" fillOpacity={0.25} />
         <path
@@ -60,7 +69,14 @@ export function SafetyStrip({ categorySlug, action, protections, className }: { 
           strokeLinecap="round"
           strokeLinejoin="round"
         />
-        <path d={SEAL_BAR} fill="none" stroke="currentColor" strokeWidth={STROKE_UI} strokeLinecap="round" />
+        <path
+          d={SEAL_CHECK}
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={STROKE_UI}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
       </svg>
       {/* ⚠️ THE RHYTHM CARRIES THE HIERARCHY. At `space-y-0.5` the three lines — warning,
           protections, actions — sat at the same distance from each other as the words within

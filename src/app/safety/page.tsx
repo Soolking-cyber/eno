@@ -2,11 +2,12 @@ import { IS_SERVICES, SITE_NAME } from '@/lib/edition'
 import type { Metadata } from 'next'
 import type { LucideIcon } from 'lucide-react'
 import {
-  ShieldCheck, Images, MessageSquare, ClipboardCheck,
+  Images, MessageSquare, ClipboardCheck,
   Sun, Users, SearchCheck, Banknote, FileText,
   AlertTriangle, BadgeCheck, ScanLine, Lock, Scale, Flag, Info,
   Landmark, Globe, Receipt, Ban, Upload, Check, X,
 } from 'lucide-react'
+import { EnoSeal } from '@/components/marketplace/eno-seal'
 import { Tr } from '@/context/language-context'
 import { ContentPage, ContentSection } from '@/components/marketplace/content-page'
 import { COMPANY } from '@/lib/site-legal'
@@ -42,11 +43,31 @@ export const metadata: Metadata = {
   alternates: { canonical: '/safety' },
 }
 
-type Tip = [icon: LucideIcon, title: string, body: string]
+// A tip's glyph is a lucide icon OR the eno seal. The seal is bespoke first-party art, not
+// lucide, and icon-language §0b makes it the required mark wherever eno's OWN trust is the
+// subject — so the type has to admit it. Both take the `className`/`strokeWidth` TipGrid
+// passes, so every tip still renders at one size and one weight.
+type TipGlyph = (props: { className?: string; strokeWidth?: number }) => React.ReactNode
+type Tip = [icon: LucideIcon | TipGlyph, title: string, body: string]
+
+// ⚠️ LINE, NOT THE DEFAULT WASH (icon-language §0b echo ladder). This page is four TipGrids
+// of ~22 glyphs, all line-only in one ink at one size — a uniform SET. One brand-100 chief
+// among twenty-two lines is the single filled thing on the page, which is precisely the
+// "reads as a rendering bug" failure the §0 outline-idle law was written to stop. The seal
+// is distinguished by its SILHOUETTE, which is the ownable part of the mark anyway.
+// `aria-hidden` is NOT threaded, and that is safe rather than an oversight: <EnoSeal>
+// hardcodes `aria-hidden="true"` on its own <svg>, so the seal is hidden from assistive
+// tech exactly like its 20-odd lucide neighbours here, which receive it from TipGrid.
+const SealTipGlyph: TipGlyph = ({ className, strokeWidth }) => (
+  <EnoSeal variant="line" className={className} strokeWidth={strokeWidth} />
+)
 
 // Vet the listing + seller before you spend time or travel.
 const before: Tip[] = [
-  [ShieldCheck, 'Prefer trusted sellers',
+  // The eno seal replaces lucide ShieldCheck (§0b): trust badges ARE the first-party trust
+  // signal this whole page is explaining, so the mark beside it must be the one the badges
+  // themselves wear — the same silhouette a reader sees on every card's trust chip.
+  [SealTipGlyph, 'Prefer trusted sellers',
     'Trust badges are earned from real activity — a verified account, genuine reviews, and a clean track record — and they can be lost. A blue Trusted or gold Exceptional badge means real history; a brand-new account selling something valuable far below market deserves extra caution.'],
   [Images, 'Read the whole listing',
     'Check the photos actually match the item and description. Ask for extra photos or a short video of the things that matter — the serial number, the odometer, the room in daylight. Vague answers or recycled stock photos are a warning sign.'],

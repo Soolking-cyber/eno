@@ -128,14 +128,26 @@ export function WhyEno() {
               {/* Bare glyphs, no tile: icon-language §6 reserves the brand-50 coin for the
                   EmptyState badge and the Post chip — never behind inline icons (two blind
                   critics flagged the boxed variant independently). The h-12 band keeps the
-                  row's vertical rhythm. These four are deliberately LINE-ONLY in brand ink;
-                  the seal is the row's single accented mark, so the one first-party claim
-                  is also the row's one visual emphasis. */}
+                  row's vertical rhythm. ALL FIVE are LINE-ONLY in brand ink at the display
+                  stroke — the seal included — so the row reads as one weight. */}
               <span className="flex h-12 shrink-0 items-center justify-center">
-                {/* For the trust reason the line is the eno seal itself (washed chief +
-                    e-bar), so the row's one first-party claim carries the one first-party
-                    mark. */}
-                {Icon ? <Icon aria-hidden className="size-8 text-brand" strokeWidth={1.5} /> : <EnoSeal aria-hidden variant="line" strokeWidth={1.5} className="size-8 text-brand" />}
+                {/* For the trust reason the glyph is the eno seal itself, so the row's one
+                    first-party claim carries the one first-party mark.
+                    ⚠️ `variant="line"` MEANS NO WASH — this call renders the silhouette +
+                    the check in brand ink and NOTHING else; <EnoSeal>'s brand-100 chief
+                    ships only under the default `variant="wash"`. What sets this tile apart
+                    from its four lucide neighbours is therefore the MARK, not a colour or a
+                    fill: same ink, same 1.5 stroke, a shape no other app has. (The comment
+                    here used to claim a "washed chief + e-bar", which was wrong on both
+                    counts — the wash is off, and the interior has been a check since
+                    2026-08-07.) Keep it line: a lone washed glyph in a row of five would
+                    read as a rendering fault, which is exactly the §0 complaint that
+                    produced the outline-idle law. */}
+                {/* The lucide branch needs `aria-hidden`; the seal branch does NOT, and
+                    passing it there was dead code — <EnoSeal> hardcodes aria-hidden="true"
+                    on its own <svg> and spreads nothing, so the attribute never reached
+                    the DOM. Removed so the call site stops implying otherwise. */}
+                {Icon ? <Icon aria-hidden className="size-8 text-brand" strokeWidth={1.5} /> : <EnoSeal variant="line" strokeWidth={1.5} className="size-8 text-brand" />}
               </span>
               {/* The blurb under each title was removed (owner, 2026-08-05) — icon + title only.
                   The two-line min-height floor went with it: its entire job was making the BLURBS

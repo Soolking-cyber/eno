@@ -93,8 +93,11 @@ export function TrustScore({ score, size = 'sm', showLabel = false, variant = 's
         style={fill ? undefined : { color, background: 'color-mix(in srgb, currentColor 10%, transparent)' }}
       >
         {/* The eno seal at micro scale (docs/icon-language.md §0b) — tinted
-            chief + line silhouette + e-bar. Same paths as every other seal in
-            the app; only the tint opacity adapts to the pill's ink. */}
+            chief + line silhouette + CHECK. Same paths as every other seal in
+            the app; only the tint opacity adapts to the pill's ink. This is the
+            one variant small enough that the check and the score sit side by
+            side rather than fighting for the same centre (see the badge note
+            below). */}
         <svg width={11} height={11} viewBox="0 0 24 24" className="shrink-0" aria-hidden="true">
           <path d={SEAL_CHIEF} fill="currentColor" fillOpacity={fill ? 0.55 : 0.3} />
           <path
@@ -197,8 +200,12 @@ export function TrustScore({ score, size = 'sm', showLabel = false, variant = 's
           <>
             {/* Vivid gradient badge on the eno seal (§0b): the chief becomes the
                 glassy highlight (static — shine without motion; reduced-motion
-                safe by construction) and the e-bar renders in the tier's text
-                ink, so the signature reads even on gold/violet. */}
+                safe by construction) and the SCORE renders in the tier's text
+                ink, so the signature reads even on gold/violet.
+                (This comment used to say "the e-bar renders in the tier's text
+                ink" — wrong twice over: the interior has been a check, not a
+                bar, since 2026-08-07, and this variant draws no interior mark at
+                all. The `text` below is the only thing wearing `grad.text`.) */}
             <path
               d={SEAL_OUTLINE}
               fill={`url(#${gradId})`}

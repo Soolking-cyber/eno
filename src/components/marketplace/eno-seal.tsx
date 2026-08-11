@@ -21,10 +21,11 @@ import { cn } from '@/lib/utils'
  * never the bar, it is the SILHOUETTE — a flat 2.2-radius top falling into a
  * keel, which no stock shield has. Do not reintroduce the bar.
  *
- * It survives every scale: at 10px the keel + bar still read; at 48px all
+ * It survives every scale: at 10px the keel + check still read; at 48px all
  * three moves are visible. That is what makes it echoable — the same mark
  * appears as the trust chip on cards, inline beside fee/price lines, and as
- * the TrustScore badge (which imports these paths and adds tier fills).
+ * the TrustScore badge (which imports these paths and adds tier fills — and
+ * deliberately draws NO check, because there the numeral owns the centre).
  *
  * NEVER redraw the seal locally — a seal that drifts is a counterfeit. Import
  * the paths, or render <EnoSeal>. Meaning is reserved too: the seal marks
@@ -45,10 +46,19 @@ export const SEAL_OUTLINE =
  */
 export const SEAL_CHECK = 'M8.5 11.6l2.6 2.6 4.6-5.2'
 
-/** @deprecated The minus-reading bar. Kept only so an old import cannot crash a
- *  build mid-deploy; it renders nothing anyone should ship. Remove after one
- *  release. */
-export const SEAL_BAR = SEAL_CHECK
+/* ⛔ `SEAL_BAR` IS GONE (deleted 2026-08-11) AND MUST NOT COME BACK. It was a
+ * one-release deprecation alias pointing at SEAL_CHECK so an in-flight import
+ * could not crash a build; its last importer (safety-strip.tsx) moved to
+ * SEAL_CHECK, so the alias has no callers. Do not re-add it as a convenience —
+ * an alias named "bar" is what kept five comments describing a minus sign that
+ * the code has not drawn since 2026-08-07.
+ *
+ * ⚠️ A HAND-ROLLED COPY OF THE CHECK NEEDS `strokeLinejoin="round"`, NOT JUST
+ * `strokeLinecap`. The bar was a single straight segment with no interior
+ * vertex, so a missing linejoin was invisible; the check HAS a vertex, and
+ * without the join SVG falls back to a MITER — a sharp spike where the icon
+ * language (§3) requires a round join. That drift shipped in safety-strip.tsx
+ * for four days. Prefer <EnoSeal>, which cannot get this wrong. */
 
 /**
  * The chief — the band under the flat top; the tier badges tint it.

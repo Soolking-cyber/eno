@@ -4,7 +4,8 @@ import Link from 'next/link'
 import { Tr } from '@/context/language-context'
 import { ContentPage, ContentSection } from '@/components/marketplace/content-page'
 import { Button } from '@/components/ui/button'
-import { Search, Tag, Plus, BadgeCheck, Bell, Heart, Globe, ShieldCheck, ChevronRight } from 'lucide-react'
+import { Search, Tag, Plus, BadgeCheck, Bell, Heart, Globe, ChevronRight } from 'lucide-react'
+import { EnoSeal } from '@/components/marketplace/eno-seal'
 
 export const metadata: Metadata = {
   title: `How ${SITE_NAME} works — Guide | ${SITE_NAME}`,
@@ -27,13 +28,35 @@ const SELLER_STEPS: { title: string; body: string }[] = [
   { title: 'Reply & sell', body: 'Buyers message you in-app; you get a notification for every reply and offer. Share your number in chat when ready.' },
 ]
 
-const FEATURES: { Icon: typeof Search; id?: string; title: string; body: string }[] = [
+// `Icon` is a lucide glyph OR the eno seal — the seal is not lucide, and icon-language §0b
+// makes it the REQUIRED mark in any first-party trust/safety moment, which the safe-trading
+// row is. Both render from the same `className` the grid passes, so the row stays one size.
+// `strokeWidth` is threaded even though the grid does not pass one today (both lucide and
+// <EnoSeal> default to 2, so the row is already one weight): if the grid ever starts
+// re-tiering its stroke, a glyph that cannot take the prop must fail tsc rather than
+// silently render at a different weight than its neighbours. Same shape as safety/page's.
+type FeatureGlyph = (props: { className?: string; strokeWidth?: number }) => React.ReactNode
+// ⚠️ LINE, NOT THE DEFAULT WASH — this list is a uniform SET (icon-language §0b echo
+// ladder). Six bullets, one grid, every glyph the same ink at the same size; a single
+// brand-100 chief among them is the one filled thing on the page, which is exactly the
+// "reads as a rendering bug" failure the §0 outline-idle law exists to prevent. The seal
+// still stands out, by being a shape no other app has — that is the whole point of the
+// silhouette being the ownable part. (protections-row.tsx is the contrasting sanctioned
+// case: a short mixed sheet where the seal IS the one accent.)
+// No `aria-hidden` to thread here (the grid does not pass one) and none is needed:
+// <EnoSeal> hardcodes `aria-hidden="true"` on its own <svg>.
+const SealGlyph: FeatureGlyph = ({ className, strokeWidth }) => (
+  <EnoSeal variant="line" className={className} strokeWidth={strokeWidth} />
+)
+const FEATURES: { Icon: typeof Search | FeatureGlyph; id?: string; title: string; body: string }[] = [
   { Icon: BadgeCheck, id: 'verification', title: 'Trust & reputation', body: 'Listings publish instantly and run automated checks (phone verified, no contact details in the text, at least one real photo). Every seller has a public trust score that rises with good service and falls when buyers report problems — the blue Trusted and gold Exceptional badges are earned, not given. A score is a signal, not a guarantee; always inspect before you pay.' },
   { Icon: Tag, title: 'Messaging & offers', body: 'All contact happens in-app: tap Message to chat, or Make an offer to send a price the seller can accept or counter. Phone/Zalo is exchanged inside the chat, never published on the listing — which keeps spam out.' },
   { Icon: Bell, title: 'Notifications', body: 'The bell at the top-right alerts you to new messages and offers in real time, on desktop and mobile. Each notification links straight to the conversation.' },
   { Icon: Heart, title: 'Saving listings', body: 'Tap the heart on any card or listing to save it. Your saved items live in the Saved tab — handy for comparing places or items before you decide.' },
   { Icon: Globe, title: 'Languages', body: 'The whole app and every listing auto-translate into 11 languages. We default to your device language; change it anytime in Account → Language.' },
-  { Icon: ShieldCheck, title: 'Safe trading', body: 'Meet in public, inspect before paying, and never send a deposit through a link — eno.vn never asks for one. Report anything suspicious with the Report button.' },
+  // The eno seal, not lucide ShieldCheck (§0b law): this bullet is eno telling a visitor
+  // how eno keeps them safe. See SealGlyph above for why it renders line, not wash.
+  { Icon: SealGlyph, title: 'Safe trading', body: 'Meet in public, inspect before paying, and never send a deposit through a link — eno.vn never asks for one. Report anything suspicious with the Report button.' },
 ]
 
 export default function GuidePage() {

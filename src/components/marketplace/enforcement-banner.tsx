@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { AlertTriangle, ShieldAlert, Loader2, Scale, ChevronRight } from 'lucide-react'
+import { AlertTriangle, Loader2, OctagonAlert, Scale, ChevronRight } from 'lucide-react'
 import { toast } from 'sonner'
 import { useLanguage } from '@/context/language-context'
 import { cn } from '@/lib/utils'
@@ -57,7 +57,18 @@ function ReportAlert({ report }: { report: EnforcementInfo['openReports'][number
       className="block rounded-xl bg-card/70 p-3 transition-colors hover:bg-card"
     >
       <div className="flex items-start gap-3">
-        <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-warning/15"><Scale className="h-4 w-4 text-warning" /></span>
+        {/* The FAULT coin (icon-language §6 amendment, 2026-08-11): a NEUTRAL `bg-secondary`
+            disc with the fault ink on the glyph — the same recipe ui/empty-state's
+            `variant="fault"` uses, at this row's smaller scale. It was `bg-warning/15`,
+            the app's only third coin recipe, which is precisely why the canon now names
+            two and only two. Neutral disc + warning ink, because the INK carries the
+            fault: an amber halo AND amber ink inside an already amber-tinted panel
+            (`bg-warning/10`) stacked three tints of the same hue.
+            ⚠️ `bg-secondary`, NOT `bg-tint`. This row is `bg-card/70 hover:bg-card`, and
+            `--tint #f5f5f5` against `--card #fafafa` is a ~2% step — on hover the disc
+            would have BEEN the surface. `--secondary` (#e5e5e5 / #303030) holds in both
+            states and both themes. */}
+        <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-secondary"><Scale className="h-4 w-4 text-warning" /></span>
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold text-foreground">
             {tr('A buyer reported', 'Một người mua đã báo cáo')} {reportReasonLabel(tr, report.reason)}
@@ -219,7 +230,6 @@ export function EnforcementBanner({ enforcement, onChanged }: { enforcement: Enf
 
   const severe = state === 'held' || state === 'suspended'
   const expiry = action?.expiresAt ?? enforcement.until
-  const Icon = severe ? ShieldAlert : AlertTriangle
 
   return (
     <section
@@ -227,7 +237,26 @@ export function EnforcementBanner({ enforcement, onChanged }: { enforcement: Enf
       aria-live="polite"
     >
       <div className="flex items-start gap-3">
-        <Icon className={cn('mt-0.5 h-5 w-5 shrink-0', severe ? 'text-destructive' : 'text-warning')} />
+        {/* ⚠️ NEITHER A lucide `Shield*` NOR THE SEAL — AN ENFORCEMENT STATE IS §0b's OWN
+            CARVE-OUT, and this took two passes to get right. The obvious reading of the
+            §0b law ("the seal replaces Shield* wherever eno is the trust claim") puts the
+            seal here, and that is what the first draft shipped. It is wrong: the seal's
+            interior is a CHECK and the check MEANS VERIFIED, so a seal leading "your
+            account is suspended" says trusted and untrusted with the same mark, separated
+            only by ink — which does not survive being read without colour, and which §0b's
+            "meaning is reserved… a seal in the wrong moment devalues every real one"
+            exists to forbid. The law's own escape hatch names this exact case: lucide is
+            correct for "concepts that are genuinely not eno trust (e.g. an admin
+            quarantine state)", and a hold/suspension is a quarantine.
+            But not `ShieldAlert` either — a stock shield sitting where our shield would
+            go is the worst of both, a counterfeit silhouette beside the real one. So the
+            severe lead escalates the non-severe lead's own family instead: triangle →
+            octagon, caution → stop. Same shape language, honest meaning, no trust claim.
+            The non-severe lead stays AlertTriangle: "a buyer reported a problem" is a
+            caution about someone else's claim. */}
+        {severe
+          ? <OctagonAlert className="mt-0.5 h-5 w-5 shrink-0 text-destructive" />
+          : <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-warning" />}
         <div className="min-w-0 flex-1 space-y-1">
           <h2 className="text-sm font-bold text-foreground">{what}</h2>
           <p className="text-sm text-body">{means}</p>

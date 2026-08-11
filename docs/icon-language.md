@@ -18,15 +18,21 @@ without a single raster tile, gradient, or second hue. Active states are the sam
 idea turned up: **more wash, same line** — and the fully-saturated `fill-brand` is
 reserved for *user-state* (saved, unread), never for mere location.
 
-**How much of the glyph the wash fills depends on the tier, and there are exactly
-two answers** (owner ruling, 2026-08-07 — see the §0/§6/§7 addendum at the foot of
-this file):
+**⚠️ THE WASH IS A STATE, NOT A STYLE — OUTLINE-IDLE / FILLED-ACTIVE IS THE LAW**
+(owner, 2026-08-07: *"use icons filling only when selected, not as default"*). Every
+artwork/nav glyph renders as a PURE INK LINE at rest and takes its fill only when it
+is the selected one. The always-on duotone that shipped earlier the same day is
+HISTORY — see the §0/§6/§7 addendum at the foot of this file for what was on screen
+and why it was reversed. Read that addendum before implementing anything from the
+table below; it is the authority, and this table is its summary.
 
-| Tier | Wash | Why |
+**How much of the glyph the fill covers then depends on the tier:**
+
+| Tier | Fill | Why |
 |---|---|---|
-| **Category artwork** — tiles, chips, pickers, card placeholders (everything through `CategoryIcon`) | the **whole silhouette**: a tinted body layer under the ink line | a grid is read as a SET. One curated region per glyph made neighbours disagree — some tinted, some hollow, some tinted in half their body — and side by side that reads as a rendering bug, not restraint |
-| **Chrome + inline marks** — the seal's chief, EmptyState badges | **one closed region** (`SEAL_CHIEF`) | these are marks, not artwork: the chief IS the seal's design |
-| **Location-active nav + rail glyphs** | **full duotone, on selection only** | owner ruling 2026-08-07 — "vehicle icon all should be filled in dashboard too", "help icon, storefront icons on select should be filled". A rail row is a selection, and a half-tinted selected row read as a rendering fault. It stays distinguishable from user-state because user-state is SOLID `fill-brand` (§5) while this is the pale `brand-100` body under the ink line |
+| **Category artwork** — tiles, chips, pickers, card placeholders (everything through `CategoryIcon`) | **nothing at rest; the whole silhouette when SELECTED** — a tinted body layer under the ink line | a grid is read as a SET. One curated region per glyph made neighbours disagree — some tinted, some hollow, some tinted in half their body — and side by side that reads as a rendering bug, not restraint. So when it fills, it fills completely |
+| **Location-active nav + rail glyphs** | the same grammar: **pure line at rest, full duotone on selection** | owner ruling 2026-08-07 — "vehicle icon all should be filled in dashboard too", "help icon, storefront icons on select should be filled". A rail row is a selection, and a half-tinted selected row read as a rendering fault. It stays distinguishable from user-state because user-state is SOLID `fill-brand` (§5) while this is the pale `brand-100` body under the ink line |
+| **Chrome + inline marks** — the seal's chief, EmptyState badges | **one closed region, always on** (`SEAL_CHIEF`) | the only tier with no idle/active grammar, because these are marks, not artwork: the chief IS the seal's design, and a mark has no "selected" state to earn a fill with |
 
 Why this wins the A/B: Chợ Tốt's grid is playful 3D raster tiles — loud, busy,
 un-themable. Carousell/Vinted win on restraint. eno takes the restraint (one line
@@ -43,21 +49,38 @@ The one glyph BUILT from these moves — and owned outright — is the eno seal
 ## 0b. The eno seal — the one proprietary glyph
 
 > **One mark is ours alone: the app icon's rounded square melting into a
-> shield keel, carrying the wordmark's e-bar under a washed chief.**
+> shield keel, with a check inside it under a washed chief.**
 
-Everything else we draw is lucide; the seal is authored, and every part of it
-quotes the brand, which is why it could belong to no other app:
+Everything else we draw is lucide; the seal is authored. **The OWNABLE part is
+the SILHOUETTE** — a flat 2.2-radius top falling into a keel, which no stock
+shield has — and **the CHECK is what the mark MEANS**:
 
 - the **flat top with 2.2-radius corners** is the eno app icon's rounded square,
 - the sides fall into a **shield keel** — the mascots' silhouette family,
-- the **bar** is the crossbar of the wordmark's lowercase "e",
-- the **chief** (the one closed region above the bar) takes the §0 wash.
+- the **check** is the meaning: verified. It is drawn to the shield's OPTICAL
+  centre (apex y≈8.6, vertex y≈14.2), because the keel drags visual weight down,
+- the **chief** (the closed band under the flat top) takes the §0 wash.
+
+⚠️ **THE INTERIOR WAS A BARE HORIZONTAL BAR UNTIL 2026-08-07 AND IT IS NOT COMING
+BACK.** The bar was meant to quote the crossbar of the wordmark's lowercase "e",
+but with no letterform around it a viewer sees a MINUS SIGN inside a shield —
+at 6x it reads "no entry", the opposite of trust (owner: "the new trust icons are
+not good"). A check is unambiguous in every market and at every size, and the
+identity never lived in the bar anyway. Any doc, comment or ticket still saying
+"bar"/"e-bar" of the seal's interior is stale — it means the check.
 
 Geometry lives ONCE, in `src/components/marketplace/eno-seal.tsx` — three
-exported paths (`SEAL_OUTLINE`, `SEAL_BAR`, `SEAL_CHIEF`) plus the `<EnoSeal>`
-renderer (variants `wash` | `line`, stroke via an icon-tokens constant). Never
-redraw or trace it locally: a seal that drifts is a counterfeit, and the whole
-point of a signature is that it is identical everywhere it appears.
+exported paths (`SEAL_OUTLINE`, `SEAL_CHECK`, `SEAL_CHIEF`) plus the `<EnoSeal>`
+renderer (variants `wash` | `line`, stroke via an icon-tokens constant). The
+`SEAL_BAR` deprecated alias is GONE (deleted 2026-08-11 with its last importer,
+safety-strip.tsx) — import `SEAL_CHECK`. Never redraw or trace the seal locally:
+a seal that drifts is a counterfeit, and the whole point of a signature is that
+it is identical everywhere it appears.
+
+⚠️ **A HAND-ROLLED SEAL MUST CARRY `strokeLinejoin="round"` ON THE CHECK.** The
+check has an interior vertex; the bar had none, so the call sites that predate it
+set only `strokeLinecap` and inherited SVG's default MITER join — a sharp spike
+where §3 requires a round one. `<EnoSeal>` gets this right; copies must too.
 
 **Meaning is reserved.** The seal marks *first-party trust*: trust score,
 protections, fee safety, verification. It is not decoration — a seal stamped on
@@ -67,11 +90,29 @@ random chrome devalues every real one.
 
 | Scale | Where | Form |
 |---|---|---|
-| micro 10–12 | trust chips on cards / seller strips (`TrustScore` mini) | tinted chief + line + bar |
+| micro 10–12 | trust chips on cards / seller strips (`TrustScore` mini) | tinted chief + line + check |
 | inline 14–16 | beside price/fee lines, safety bullets — `<EnoSeal className={ICON_SIZE.sm}>` | wash |
 | chip 16–20 | fee/protection pills (safety strip, protections row) | wash |
-| badge 28–48 | the `TrustScore` seal (tier gradients keep their fills; the chief becomes the gloss, the bar renders in the tier's text ink) | bespoke, in trust-score.tsx, from the same paths |
+| **any scale, inside a uniform SET** | a row/grid where every neighbour is the same ink at the same size and stroke: /guide's feature grid, /safety's TipGrids, the home page's WhyEno band | **`variant="line"`** |
+| **any scale, on a NON-NEUTRAL surface** | a tinted or coloured panel where the ink already carries the meaning: disputes' "under review" in warning ink, a selected brand pill | **`variant="line"`** — a brand-100 chief over amber or red puts the invitation blue on the one panel that is not an invitation. (`safety-strip` is the third option: hand-rolled so the chief takes the STRIP's own ink at low opacity.) |
+| badge 28–48 | the `TrustScore` seal (tier gradients keep their fills; the chief becomes the gloss, and the SCORE renders in the tier's text ink) | bespoke, in trust-score.tsx, from the same paths |
 | display | the shield mascots — already this silhouette family, same line language | currentColor mask |
+
+⚠️ **THE SET ROW IS NOT AN EXCEPTION TO THE WASH — IT IS THE §0 LAW APPLIED.** A single
+filled glyph in a row of otherwise-line glyphs is the "some tinted, some hollow → reads as
+a rendering bug" failure the outline-idle law was written to stop, and the seal is not
+exempt from it just because the seal is ours. Judge by the NEIGHBOURS, not by the size:
+`protections-row.tsx` is the contrasting sanctioned wash — a short mixed sheet where the
+seal is deliberately the one accent — while `why-eno.tsx`, `/guide` and `/safety` are
+uniform sets and take the line. In a set the mark still stands out, by being a SILHOUETTE
+no other app has; that is the entire reason the silhouette, not the fill, is the ownable
+part.
+
+⚠️ **THE BADGE TIER DRAWS NO CHECK, DELIBERATELY.** The check and the numeral both
+want the shield's optical centre, and drawn together they overlap into an
+unreadable smudge (owner, 2026-08-07: "maybe not tickmark here"). In the badge the
+NUMBER is the content and the silhouette + chief carry the identity; the check
+belongs to the seal wherever it stands alone.
 
 **Law:** in any first-party trust/safety/verification moment, the seal replaces
 lucide `Shield` / `ShieldCheck` / `ShieldAlert` / `ShieldQuestion`. New code
@@ -80,6 +121,31 @@ starts on `<EnoSeal>`; existing call sites migrate inside their own pieces
 chips → trust-safety). Lucide shields remain acceptable only for concepts that
 are genuinely not eno trust (e.g. an admin quarantine state) — when in doubt,
 it is the seal.
+
+⚠️ **THE CARVE-OUT IS BIGGER THAN "ADMIN", AND THE TEST IS THE CHECK, NOT THE VOICE
+(ruling, 2026-08-11).** "Is eno speaking?" is the WRONG test — eno speaks in a
+suspension notice too. The right test is: **would "verified" be true here?** The seal's
+interior is a check and the check means verified (§0b), so a seal leading *"your account
+is held/suspended"* asserts trusted and untrusted with one mark, separated only by ink —
+which does not survive being read without colour. An ENFORCEMENT / quarantine state is
+therefore the carve-out whether the reader is an admin or the penalised seller
+(`enforcement-banner`'s severe lead, `admin-denied`, the admin enforcement + moderation
+rails). It shipped as a seal for one draft and two independent reviewers caught it.
+
+**But the carve-out is not a licence to reach for `ShieldAlert` either** — a stock shield
+standing exactly where ours would stand is a counterfeit silhouette beside the real one.
+Escalate the surface's own glyph family instead: `enforcement-banner` goes
+`AlertTriangle` → `OctagonAlert` (caution → stop), which claims nothing about trust.
+Reserve `Shield*` for surfaces that already use it and are unambiguously admin
+(`admin-denied`, the admin enforcement + moderation empties, the `/admin/enforcement`
+rail row).
+
+**Still owed the seal** (consumer/seller surfaces holding a lucide `Shield*` as of
+2026-08-11, listed so the sweep can be finished rather than re-discovered):
+`dashboard/visa/cases-client.tsx` (the APPLICANT's "Approve for official prefill" — the
+consent copy around it is second-person, so this is not an admin screen),
+`developers-panel.tsx` ×2 (the API key security notes) and `visa-cards.tsx` (the
+success-ink check on a visa card). Each lives in a file owned by another piece.
 
 ## 1. Base set and rendering
 
@@ -169,29 +235,71 @@ fills for counts — the counter Badge carries the number.
 
 ## 6. Accent & duotone policy — when blue appears inside an icon
 
-- The wash (`fill-brand-100`) appears **inside artwork tiers only**: category
-  glyphs (baked into `CategoryIcon` — call-sites get it for free) and location-
-  active nav glyphs. **Category artwork washes the WHOLE silhouette** (§7); a
-  location-active chrome glyph washes ONE closed region (`WASH_ACTIVE` — the
-  first path, the body on all five nav glyphs).
+- The wash (`fill-brand-100`) appears **inside artwork tiers only, and only when
+  that glyph is SELECTED** (§0): category glyphs (baked into `CategoryIcon` —
+  call-sites get it for free) and location-active nav/rail glyphs. When it does
+  appear it fills the **WHOLE silhouette**, for BOTH (§7). At rest both are pure
+  ink line.
+  ⚠️ **NAV/RAIL IS NO LONGER A ONE-REGION EXCEPTION — this bullet said so until
+  2026-08-11 and the code had already moved.** Measured: `mobile-nav.tsx`'s
+  `TabBody` fills at the SVG level (`[&_svg:not([class*=fill-])]:fill-brand-100`,
+  which inherits into every child), and its Compass tab plus every dashboard rail
+  row render through `<CategoryGlyphArt selected>` — the same two-layer duotone the
+  tiles use. `WASH_ACTIVE` / `WASH_ACTIVE_TWIN` survive only for one-off chrome
+  mounts that are NOT location (onboarding step glyphs, the help feedback
+  mode toggle, the concierge sparkle), where washing one region is the design.
 - ⛔ **There is no per-key wash map any more, and re-introducing one is a
   regression.** `WASH_MAP` in `category-icons.tsx` (35 curated selectors against
   ~100 keys) was deleted on 2026-08-07. Every selector was a guess about lucide's
   child ORDER, keys with no separable region rendered pure line, and the result
   was three densities in one row.
-- The chrome coin (`fill`-equivalent as `bg-brand-50` on a rounded-full span)
-  backs a glyph only where the component owns a real container: EmptyState's
-  badge, the bottom-nav Post chip. Never behind inline icons.
+- **There are exactly TWO sanctioned coins** (a `rounded-full` span behind a
+  glyph, where the component owns a real container — EmptyState's badge, the
+  bottom-nav Post chip, the enforcement banner's report lead). Never behind inline
+  icons, and never a third recipe:
+  | Coin | Recipe | When |
+  |---|---|---|
+  | **chrome** | `bg-brand-50` disc + `text-brand` glyph | the ordinary case: an empty list, a "nothing here yet", the Post chip |
+  | **fault** | `bg-secondary` (NEUTRAL) disc + the fault ink on the glyph — `text-destructive` for a failure, `text-warning` for a caution | something went wrong or needs the user's attention |
+
+  The two inks are NOT a per-call-site choice: `<EmptyState variant="fault">` only ever
+  renders a failure, so it fixes its ink at `text-destructive` and exposes no tone prop —
+  a caution never reaches that primitive. `text-warning` on the same neutral disc belongs
+  to banner-scale coins (`enforcement-banner`'s buyer-report lead). If you find yourself
+  wanting a warning EmptyState, the copy is probably a caution banner, not an empty state.
+  ⚠️ **WHY A SECOND COIN EXISTS (amendment, 2026-08-11).** The chrome coin is the
+  foundation's *warm-empty* move, and an error painted on it renders the failure in
+  the brand's own invitation blue — a fetch that just failed looks like a cheerful
+  nothing. But the disc stays NEUTRAL rather than going `bg-destructive/10`: the
+  ink is what carries the fault, and a red halo behind a retryable network error
+  shouts louder than the error deserves. One disc shape, two inks, no third recipe.
+  ⚠️ **THE FAULT DISC IS `--secondary`, AND `--tint` WAS TRIED AND MEASURED FIRST.** The
+  first draft used `bg-tint`; a reviewer called it low-contrast and was right. Light
+  `--tint #f5f5f5` against `--card`/`--background #fafafa` is a ~2% step, so on a card —
+  or on a row that hovers to solid card, which is exactly enforcement-banner's report
+  lead — the disc BECOMES the surface and the coin stops being a container. `--secondary`
+  is #e5e5e5 light / #303030 dark: a firm step against canvas AND card, in both themes,
+  and already an established filled-surface token (the account rail's active pill, the
+  secondary button). A fault should read as a definite object, not a whisper.
+  The INK on that disc was measured too, because a reviewer estimated it at ~3:1 and that
+  estimate was wrong: `--warning` on `--secondary` is **5.63:1** light (#92400e on #e5e5e5)
+  and **7.91:1** dark (#fbbf24 on #303030); `--destructive` is **5.14:1** light (#b91c1c)
+  and **4.17:1** dark (#f0616b). All clear the 3:1 that WCAG 1.4.11 asks of a non-text
+  graphic. Re-measure if either token moves — do not re-estimate.
+  **And no mascot on a fault** — the mascots are the warm-empty voice; on a failure
+  they read as the product being pleased with itself.
 - `fill-brand` solid = user-state only (§5). `text-brand` line-only = links,
   interactive affordances. Everything else inherits surface ink (`currentColor`).
 - Multicolor stays reserved for allowlisted third-party marks (Google, Zalo,
   WhatsApp, Maps pin). First-party marks render as currentColor/bespoke per canon.
 
-**DO** let a *chrome* glyph lose its wash gracefully — a nav glyph with no closed
-body renders pure line and still belongs to the family.
-**DON'T** let a *category* glyph do that — artwork is never line-only (§7), and
+**DO** let a glyph sit unfilled — that is the RESTING state for artwork and nav
+alike (§0), and a nav glyph with no closed body renders pure line in both states
+and still belongs to the family.
 **DON'T** wash chrome (header/nav idle icons, carets, ✕) — chrome is line-only, or
-the wash stops meaning "artwork/active".
+the fill stops meaning "selected".
+**DON'T** half-fill an artwork glyph that IS selected — when it fills, it fills
+completely (§7).
 
 ## 7. Category-tile art direction
 
@@ -202,28 +310,49 @@ the wash stops meaning "artwork/active".
   `CategoryGlyphArt`, the same renderer minus the lookup. **Nothing draws
   category artwork as a bare lucide svg**; that is how a tile ends up rendering a
   different density from the tile beside it.
-- **The tile glyph is a full duotone: one tinted body under one ink line.**
-  Mechanically, `CategoryIcon` draws the glyph twice inside one box — a body
-  layer (`fill-brand-100 stroke-brand-100`, stroke fattened by
-  `WASH_UNDERLAY_BLEED`) and the ink line on top at the display tier (1.5).
-  Ordering is the whole design: the tint can never paint over the line or over
-  interior detail, so lucide's arbitrary child order stops mattering, and the fat
-  tint stroke gives open-path glyphs (crossed cutlery, a bolt, three dots) a body
-  they do not have — which is what makes every key read at the same density.
+- **THE TILE GLYPH IS A PURE INK LINE AT REST, AND A FULL DUOTONE WHEN SELECTED —
+  outline-idle / filled-active (§0). Fill is a STATE, not a style.** The always-on
+  duotone shipped and was reversed the same day (owner, 2026-08-07: *"use icons
+  filling only when selected, not as default"*); a filled magnifier or filled
+  cutlery is defensible as a deliberate "you are here" and never as a resting
+  state. Mechanically, `CategoryIcon`/`CategoryGlyphArt` take a `selected` prop
+  (default `false`) and draw the glyph twice inside one box — a body layer
+  (`fill-brand-100 stroke-brand-100`), rendered ONLY when `selected`, and the ink
+  line on top at the display tier (1.5), which is the only layer at rest.
+  ⚠️ **The tint stroke matches the ink stroke EXACTLY — it must never be fatter.**
+  A fattened underlay (the deleted `WASH_UNDERLAY_BLEED`) painted tint OUTSIDE the
+  ink line, so every glyph wore a pale halo and read as an OUTLINED icon rather
+  than a filled one (owner: "make sure icons dont have outline, fill only inside").
+  At equal width the opaque ink line covers the tint stroke completely. Ordering is
+  the rest of the design: the tint can never paint over the line or over interior
+  detail, so lucide's arbitrary child order stops mattering, and the FILL is what
+  welds open-path glyphs (a bolt, three dots, a sofa back) into one body — SVG
+  implicitly closes a filled subpath — which is what makes every key read at the
+  same density when it lights up. The exception is a child `FILL_EXCLUDE` names as
+  decoration, where that same implicit close would turn a line into a blob: those
+  stay hollow ON PURPOSE even when the glyph is selected (UtensilsCrossed fills its
+  knife blade and not its fork tines — the owner asked for exactly that, twice).
+- The one per-key table that survives is `FILL_EXCLUDE` in `category-icons.tsx`,
+  and it is the INVERSE of the deleted `WASH_MAP`: it names children that are
+  DECORATION, where a fill would close an open line into a blob (Layers' lower
+  sheets, UtensilsCrossed' fork tines, UsersRound's rear figure). Add an entry ONLY
+  from a rendered screenshot, never from reading the path data — "fill only the
+  subpaths that close" was tried and left half of every glyph hollow.
 - Small mounts re-tier the INK line with the `stroke` prop
   (`<CategoryIcon stroke={STROKE_UI}>`), never with a `stroke-width` class: the
   glyph is two layers now, and a class would either miss them or flatten the tint
   into the line.
 - Tiles: label `font-bold`, glyph inherits tile ink (`text-body`) and takes the
   category hover color from the call-site. No tile backgrounds, no borders — the
-  flat canon's "lines, not boxes" holds; the wash carries the color, the canvas
-  carries the tile.
-- The wash is *always brand blue*, even where a category has an accent hue —
+  flat canon's "lines, not boxes" holds; the INK carries the color at rest, the
+  fill carries it on selection, and the canvas carries the tile.
+- The fill is *always brand blue*, even where a category has an accent hue —
   hover/active text may go `var(--cat)`, the interior stays brand. One blue. On a
   selected brand pill the glyph goes pure line by redefining the variable
   (`[--color-brand-100:transparent]`), which inherits into both layers.
 - New key? Register the lucide component. That is the entire procedure — the
-  duotone is a rule, not a per-key decision. Check both light and dark.
+  duotone is a rule, not a per-key decision. Check both light and dark, idle
+  and selected.
 
 **DON'T** clone Chợ Tốt: no 3D tiles, no colored circles behind every glyph, no
 per-category fill hues.
@@ -286,33 +415,45 @@ one 28px glyph.
 
 1. Which tier (§2)? Import the constant.
 2. Which size step (§4)? Class on the svg.
-3. Is it artwork or chrome (§6)? Artwork → through `CategoryIcon` or add a wash;
-   chrome → line only.
-4. Does it have an active state? Location → wash; user-state → solid (§5).
+3. Is it artwork or chrome (§6)? Artwork → through `CategoryIcon`; chrome → line
+   only. Either way it is a PURE LINE at rest — fill is a state, not a style (§0).
+4. Does it have an active state? Location → fill on selection; user-state → solid (§5).
+   Is it a first-party trust/safety/verification moment? → `<EnoSeal>`, not a
+   lucide `Shield*` (§0b).
+   Does it sit on a coin? → chrome or fault, and nothing else (§6).
 5. Icon-only tap target → `<IconButton>`. Popup from an icon → ui/popover family.
 6. Copy near it → `tr(en, vi)`. Colors → tokens. Then run the design-lint hook.
 
 ### §0b addendum — earned-tier vividness is law, not drift (lead ruling, 2026-08-07)
-The micro seal chip has two sanctioned states: BUILDING tiers = tinted chief + line + bar;
+The micro seal chip has two sanctioned states: BUILDING tiers = tinted chief + line + check;
 EARNED tiers (Trusted/Exceptional/Elite) = vivid tier-gradient chief on the same seal geometry
 (owner decision 2026-07-13, preserved through the foundation restyle). A vivid earned chip beside
 tinted building chips on one card row is correct rendering of real rank data — do not "fix" it,
 and critics should read mixed vividness on one surface as information, not inconsistency.
 
-### ⛔ §0/§6/§7 REVERSAL — category artwork is a FULL duotone (owner mandate, 2026-08-07)
-**The owner looked at the live category grid and said: _"make sure your icons are fully filled,
-i see some are half filled in categories."_ They were right, and this OVERRIDES the
-one-closed-region law FOR CATEGORY TILE ARTWORK **and for location-active nav/rail glyphs**
-(owner, 2026-08-07). Only the seal's chief and EmptyState badges keep the one-region rule — they
-are marks whose design IS the region, not artwork being filled.
+### ⛔ §0/§6/§7 REVERSAL — category artwork is a FULL duotone, ON SELECTION ONLY (owner, 2026-08-07)
+**THIS ADDENDUM IS THE AUTHORITY ON FILL. §0, §6 and §7 are its summary — if any of them ever
+disagrees, this wins and that section is stale.** It landed in two owner rulings on one day, and
+BOTH have to be read together or you will implement the half that was superseded:
 
-⚠️ **AND FILL IS A STATE, NOT A STYLE (owner, 2026-08-07: "use icons filling only when selected,
-not as default").** Every glyph in this family renders as a PURE INK LINE at rest; the duotone
-appears only on the selected/active one. That is the outline-idle / filled-active grammar iOS and
-Carousell use, and it is why the always-on tint had to go: a filled magnifier, filled brackets and
-filled cutlery are defensible as a deliberate "you are here" and never as a resting state. Glyphs
-with no colourable interior (crossed cutlery, magnifier, brackets — the `NO_FILL` set in
-category-icons.tsx) stay line in BOTH states and let ink colour plus the pill carry selection.
+**Ruling 1 — when a glyph fills, it fills COMPLETELY.** The owner looked at the live category grid
+and said: _"make sure your icons are fully filled, i see some are half filled in categories."_
+They were right, and this OVERRIDES the one-closed-region law FOR CATEGORY TILE ARTWORK **and for
+location-active nav/rail glyphs**. Only the seal's chief and EmptyState badges keep the one-region
+rule — they are marks whose design IS the region, not artwork being filled.
+
+**Ruling 2 (the same day, and it supersedes the always-on tint Ruling 1 first shipped) — FILL IS A
+STATE, NOT A STYLE** (owner: *"use icons filling only when selected, not as default"*). Every glyph
+in this family renders as a PURE INK LINE at rest; the duotone appears only on the selected/active
+one. That is the outline-idle / filled-active grammar iOS and Carousell use, and it is why the
+always-on tint had to go: a filled magnifier, filled brackets and filled cutlery are defensible as a
+deliberate "you are here" and never as a resting state.
+
+⚠️ **HISTORY, so nobody re-implements it from an old paragraph:** for a few hours on 2026-08-07 the
+duotone was unconditional — the body layer rendered on every mount, so a resting category grid was
+a wall of tinted glyphs. That build is DEAD. There is no glyph-level opt-out list either: no
+`NO_FILL` set exists (it never shipped), and a glyph with no fillable body simply resolves no tint
+layer and stays line in both states, letting ink colour plus the pill carry selection.
 
 What was actually on screen: `WASH_MAP` tinted one curated region per key, so a single row showed
 tinted glyphs (House), hollow ones (Plane, Users, Ellipsis — no separable closed region, the old
@@ -320,14 +461,16 @@ tinted glyphs (House), hollow ones (Plane, Users, Ellipsis — no separable clos
 SET they read as a rendering bug. A rule nobody can state by looking at the screen is not
 restraint.
 
-What ships instead: `<CategoryIcon>` draws the glyph twice — a `fill-brand-100 stroke-brand-100`
-body layer at `ink + WASH_UNDERLAY_BLEED`, then the ink line on top. One rule, ~100 keys, zero
-per-key entries; `WASH_MAP` and `CHIP_CATEGORY_ICON_STROKE` are DELETED and must not return. Every
-key was walked at 3x in both themes (`eno-icons-gauntlet/scripts/fv2-glyph-sheet.mjs` renders the
-whole registry from the source of truth) — no hollow glyph, no half-filled glyph, uniform density
-from h-3.5 to h-12.
+What ships instead: `<CategoryIcon selected>` draws the glyph twice — a `fill-brand-100
+stroke-brand-100` body layer at the SAME stroke width as the ink, then the ink line on top; without
+`selected` only the ink line renders. One rule, ~100 keys, zero per-key entries. `WASH_MAP`,
+`CHIP_CATEGORY_ICON_STROKE` and `WASH_UNDERLAY_BLEED` (the fat underlay that haloed every glyph)
+are ALL DELETED and must not return — the only per-key table left is `FILL_EXCLUDE`, which names
+decoration children a selected glyph must not fill. Every key was walked at 3x in both themes
+(`eno-icons-gauntlet/scripts/fv2-glyph-sheet.mjs` renders the whole registry from the source of
+truth) — no hollow glyph, no half-filled glyph, uniform density from h-3.5 to h-12.
 
-The twin-pair ruling below is now MOOT for category artwork (the whole silhouette washes, so twins
+The twin-pair ruling below is now MOOT for category artwork (the whole silhouette fills, so twins
 are trivially both filled). It still governs chrome: the dashboard rail's Scale row.
 
 ### §0/§6 addendum — symmetric twin regions count as ONE wash move (lead ruling, 2026-08-07)
@@ -349,4 +492,39 @@ rails keep the pill; nothing else gets either.
 ### §6 addendum — EmptyState glyphs are brand-toned by design (lead ruling, 2026-08-07)
 The EmptyState badge renders its glyph in text-brand on the brand-50 coin deliberately (the
 foundation's warm-empty move) — this is a sanctioned exception to "brand-line = interactive";
-it applies ONLY inside ui/empty-state's badge.
+it applies ONLY inside ui/empty-state's badge, and ONLY for the empty case (see below).
+
+### §6 AMENDMENT — the fault coin: an ERROR is not an empty (2026-08-11)
+**§6 sanctioned exactly ONE coin and that was a bug in the canon, not just in the code.**
+`ui/empty-state.tsx` hardcoded `bg-brand-50` + `text-brand`, and EmptyState is the shared
+primitive for BOTH "nothing here yet" AND "this failed, retry" — so a failed fetch rendered in
+the brand's warm invitation blue, at the one moment the product had let the user down. §6 now
+sanctions TWO coins, and no third:
+
+- **chrome coin** — `bg-brand-50` disc + `text-brand` glyph. The empty case. Unchanged.
+- **fault coin** — **NEUTRAL** `bg-secondary` disc + the fault ink on the glyph
+  (`text-destructive` for a failure, `text-warning` for a caution). ⚠️ NOT `bg-tint`: that
+  was the first draft and it measured as a ~2% step against `--card`, i.e. invisible on a
+  card or a hovered row. See the measurement note in §6.
+
+Two decisions inside that, both deliberate:
+1. **The disc is neutral, not `bg-destructive/10`.** The INK carries the fault; the disc only
+   gives the glyph a home. A red halo behind a retryable network error shouts louder than the
+   error deserves, and the canon's flat "lines, not boxes" rule already distrusts tinted boxes.
+2. **No mascot on a fault.** The mascots are the warm-empty voice; on a failure they read as the
+   product being pleased with itself. `<EmptyState variant="fault">` therefore renders the coin
+   even if a caller passes `media`.
+
+Surface: `<EmptyState variant="fault" icon={…}>` — `icon` is REQUIRED there by the props union,
+because the fault branch refuses `media` and would otherwise have nothing to draw. The
+pre-existing non-brand coin in `enforcement-banner.tsx` (the buyer-report lead) was the only other
+coin in the app and it used a third recipe — `bg-warning/15` + `text-warning`. It now takes the
+fault coin at its own scale (neutral disc, warning ink), so there is one coin shape and two inks
+app-wide.
+
+⚠️ **ADOPTION IS OPT-IN AND STILL PENDING — the law is ahead of the call sites, deliberately.**
+`variant` defaults to `'empty'`, so every existing failed-fetch EmptyState still renders the
+chrome coin until its owning file migrates. This section describes what a fault state MUST look
+like, not what every screen looks like today. Migrating them is follow-up work (they live across
+~20 files owned by other pieces); do not read a brand-blue error on some screen as evidence that
+this rule is optional.
