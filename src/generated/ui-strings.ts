@@ -611,7 +611,6 @@ export const UI_STRINGS: string[] = [
   "Forgot it? Use a code instead",
   "Forgot it? Use a code or link instead",
   "Format",
-  "Found",
   "Free",
   "Free & Giveaways",
   "Free forever · no spam · 10 seconds",
