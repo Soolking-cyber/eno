@@ -51,7 +51,13 @@ export default function HomeLoading() {
                 for a 232px banner — a 68px collapse on every cold desktop load, taking CLS from
                 0.002 to roughly 0.14 on the one page deliberately tuned to 0.002. The banner's own
                 comment names this file as the other half of the change. Either both move or neither. */}
-            <Skeleton className="min-h-[188px] w-full rounded-2xl sm:min-h-[212px] lg:min-h-[232px]" />
+            {/* ⚠️ THE SAME ASPECT LADDER AS THE REAL BANNER, and it has to move with it — the
+                banner's own comment names this file as the other half. It is no longer a fixed
+                188/212/232: the banner now matches a PRODUCT IMAGE's height, which is one feed
+                column (aspect-square), so it is an aspect ratio of N·W/(W−(N−1)·gap) — 2.04 / 3.14
+                / 4.16 at 2 / 3 / 4 columns. A skeleton on the old ladder would under-reserve by
+                ~60px at desktop and hand this page back the CLS it paid 0.142 → 0.002 to lose. */}
+            <Skeleton className="aspect-[2.04] min-h-[150px] w-full rounded-2xl sm:aspect-[3.14] lg:aspect-[4.16]" />
 
             {/* THE CATEGORY RAIL — ONE ROW, which is the whole point of the 2026-08-12 layout.
                 ⚠️ THIS FILE IS HALF OF THE PAGE'S CLS BUDGET, so it had to change with the layout

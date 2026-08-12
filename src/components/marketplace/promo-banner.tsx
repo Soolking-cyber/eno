@@ -383,8 +383,23 @@ function SlidePanel({ slide, first = false }: { slide: PromoSlide; first?: boole
         // ⚠️ THE TWO LADDERS MUST STAY CHARACTER-IDENTICAL. Because the carousel takes the MAX, a
         // ladder that drifts on one branch does not misalign that slide — it silently raises the
         // floor for ALL of them, and the cap below stops applying with nothing failing loudly.
-        // 232 at lg is a measured floor; the SlidePanel doc comment above has the crop arithmetic.
-        className="group relative block min-h-[188px] overflow-hidden sm:min-h-[212px] lg:min-h-[232px]"
+        // ⚠️ THE HEIGHT IS NOW THE PRODUCT IMAGE'S HEIGHT (owner, 2026-08-12: "make banner the same
+        // height as product image heights"), which is why it is an ASPECT RATIO and not the old
+        // min-h ladder of 188/212/232.
+        //
+        // A listing card's image is `aspect-square w-full`, so its height IS one feed column:
+        // (W − (N−1)·gap) / N, for the grid `grid-cols-2 gap-2 sm:grid-cols-3 sm:gap-4
+        // lg:grid-cols-4`. That tracks the viewport continuously, so no fixed pixel ladder can
+        // follow it — measured on the live page, the card was 179 / 229 / 228 / 292 px at
+        // 390 / 768 / 1024 / 1440 while the banner sat at a flat 188 / 212 / 232.
+        //
+        // The banner spans the FULL container, so matching one column means an aspect ratio of
+        // N·W/(W − (N−1)·gap): 2.04 at 2 columns, 3.14 at 3, 4.16 at 4. Those are constants while
+        // the true ratio drifts a little across a breakpoint's range — measured worst case ~3px,
+        // and it is EXACT above 1344px where max-w-7xl caps the container.
+        // `min-h-[150px]` is a content floor, not a design value: it is what the heading, the
+        // subline and the CTA need before they start colliding at the narrowest phone.
+        className="group relative block aspect-[2.04] min-h-[150px] sm:aspect-[3.14] lg:aspect-[4.16] overflow-hidden"
       >
         <picture>
           {/* ⚠️ THE SWITCH IS AT lg (1024), NOT sm. The two cuts are 4.27:1 (desktop) and 1.95:1
@@ -501,7 +516,7 @@ function SlidePanel({ slide, first = false }: { slide: PromoSlide; first?: boole
         // an earlier revision of this line.
         // If this ever needs tap feedback, it has to be gated on a real tap (pointerup without
         // movement), not on `:active`.
-        'relative flex min-h-[188px] flex-col justify-center overflow-hidden px-3 py-3 text-white sm:min-h-[212px] sm:px-4 lg:min-h-[232px] lg:px-7 pc:px-14',
+        'relative flex aspect-[2.04] min-h-[150px] sm:aspect-[3.14] lg:aspect-[4.16] flex-col justify-center overflow-hidden px-3 py-3 text-white sm:px-4 lg:px-7 pc:px-14',
         slide.surface,
       )}
     >
