@@ -26,9 +26,32 @@ import { SaleConfirmPrompt } from './sale-confirm-prompt'
  */
 afterEach(cleanup)
 
-/** ⚠️ The language is switched through the CONTEXT, not localStorage — under this jsdom
- *  environment `localStorage.setItem` is not a function, LanguageProvider swallows the throw by
- *  design, and the provider would quietly stay English (see zero-results.test.tsx). */
+/**
+ * ⛔ AND THE PERSISTED LANGUAGE GOES WITH THE RENDER. This is what turned CI red on 2026-08-12
+ * while every local run stayed green, and the bug was in the assumption directly below.
+ *
+ * `ForceLang` calls `setLang('vi')`, and the provider persists that choice —
+ * `safeSetItem('lang', newLang)` in language-context.tsx. Every LATER test in this file renders
+ * with the DEFAULT language, and the provider's mount effect reads `safeGetItem('lang')` before
+ * it falls back to English. So one Vietnamese test at the top silently makes every English
+ * assertion after it read Vietnamese.
+ *
+ * It survived because the comment below is TRUE on a developer machine and FALSE on the runner:
+ * where `localStorage.setItem` throws, `safeSetItem` swallows it and nothing persists. Where it
+ * works, everything does. Two tests failed in CI — "counts for both of you" came back as "Đã xác
+ * nhận…", and "0 VND" as "0 đ" — and neither could be reproduced locally at any worker count.
+ *
+ * Clearing between tests makes the file say what it means in BOTH environments. It is guarded
+ * because the whole point is that this API is not dependable here.
+ */
+afterEach(() => {
+  try { localStorage.clear() } catch { /* storage unavailable — which is the case this defends */ }
+})
+
+/** ⚠️ The language is switched through the CONTEXT, not localStorage — where storage is
+ *  unavailable `localStorage.setItem` throws, LanguageProvider swallows it by design, and the
+ *  provider would quietly stay English (see zero-results.test.tsx). ⚠️ Where storage DOES work it
+ *  persists, which is what the afterEach above exists to undo — read that note before removing it. */
 function ForceLang({ to }: { to: Language }) {
   const { lang, setLang } = useLanguage()
   React.useEffect(() => {

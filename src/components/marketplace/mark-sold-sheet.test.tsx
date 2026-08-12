@@ -25,6 +25,19 @@ import { MarkSoldSheet, type MarkSoldBuyer, type MarkSoldSubmission } from './ma
 afterEach(cleanup)
 
 /**
+ * ⛔ AND THE PERSISTED LANGUAGE GOES WITH THE RENDER — the same leak that turned CI red on
+ * 2026-08-12 in sale-confirm-prompt.test.tsx, which carries the long version of this note.
+ * In short: `ForceLang` calls `setLang('vi')` (line ~183), the provider persists it with
+ * `safeSetItem('lang', …)`, and every later test that renders with the DEFAULT language reads it
+ * back on mount. It is invisible wherever `localStorage.setItem` throws — which is every
+ * developer machine here — and it is 44 failures on a runner where storage works. Measured both
+ * ways before this line was written.
+ */
+afterEach(() => {
+  try { localStorage.clear() } catch { /* storage unavailable — which is the case this defends */ }
+})
+
+/**
  * ⚠️ jsdom HAS NO ResizeObserver, AND Base UI's Drawer CONSTRUCTS ONE. Without this the sheet
  * throws on mount and every assertion below fails for a reason that has nothing to do with the
  * component. `getAnimations` is the same class of gap: the popup asks the platform whether it is
@@ -58,8 +71,8 @@ beforeAll(() => {
   }
 })
 
-/** ⚠️ Language through the CONTEXT, not localStorage — see zero-results.test.tsx: under this jsdom
- *  environment `localStorage.setItem` is not a function and LanguageProvider swallows the throw by
+/** ⚠️ Language through the CONTEXT, not localStorage — see zero-results.test.tsx: where storage is
+ *  unavailable `localStorage.setItem` throws and LanguageProvider swallows it by
  *  design, so a seeded preference silently stays English. */
 function ForceLang({ to }: { to: Language }) {
   const { lang, setLang } = useLanguage()
