@@ -26,7 +26,6 @@ import { RecentlyViewedRail } from './recently-viewed-rail'
 import { useNearViewport } from '@/hooks/use-near-viewport'
 import { BusinessRail } from './business-rail'
 import { PromoBanner } from './promo-banner'
-import { WhyEno } from './why-eno'
 import { MIN_RAIL_ITEMS, SECTION_HEADER_ROW, SECTION_TITLE, railEdgeMask } from './shelf'
 import { DISTRICTS } from './listings-explorer.constants'
 import { type Nearby, type Geo } from './area-filter'
@@ -2342,16 +2341,17 @@ export function ListingsExplorer({
             preloads itself from promo-banner.tsx, and it is the single biggest thing standing
             between the fold and the first row of merchandise. */}
         {showDiscovery && (
-          // ⚠️ pb-8/12/8 REPRODUCES THE OLD SPACE-Y STEP, IT IS NOT A SEPARATE CHOICE. All of
-          // this used to be one space-y-8 sm:space-y-12 lg:space-y-8 column, so the gap under
-          // <WhyEno/> was 32/48/32. Its parent here is a plain wrapper with NO space-y (the
-          // zero-height hero div above is exactly why — a space-y container whose first child
-          // renders nothing collapses its gap upward, which is how the banner ended up 84.5px
-          // below the search bar with 48px under it). So this block's own padding is the entire
-          // gap to the ladder, and it has to restate the step or the rhythm silently tightens.
-          <div className="space-y-8 pb-8 sm:space-y-12 sm:pb-12 lg:space-y-8 lg:pb-8">
+          // ⛔ <WhyEno /> IS GONE (owner, 2026-08-12) — the five-item "Free to post / Trust scores
+          // you can check / Your number stays private / Prices in Đ and $ / Real dispute
+          // resolution" strip that sat between the banner and the ladder. It was value-prop copy
+          // on a surface whose measured problem is that the first screen contains no merchandise
+          // (y=983 at 1440×900), and it cost a full row to say what the trust badge, the price
+          // and the dispute centre already say in context.
+          // ⚠️ The padding below is NOT decoration: this block used to be a space-y column whose
+          // step set the gap down to the ladder. With one child left the step never fires, so the
+          // gap has to be stated here or the banner sits flush against the category rail.
+          <div className="pb-8 sm:pb-12 lg:pb-8">
             <PromoBanner />
-            <WhyEno />
           </div>
         )}
 
@@ -2385,146 +2385,38 @@ export function ListingsExplorer({
               ⚠️ They are alternatives, never both: two category ladders on one screen is the
               duplication the merge exists to remove. The swap costs ~150px of height and happens
               on a tap, so it is a user-initiated reflow, not layout shift. */}
-          {showDiscovery ? (
-            <div className="relative">
-            {/* railEdgeMask: the row used to cut a tile mid-label at the container edge — a
-                stray clipped word that read as a bug. The mask fades only the side(s) with
-                more to scroll (canLeft/canRight), pairing with the ← / → arrows outside the
-                scroller, and vanishes entirely when the row fits. A mask, not a fill — the
-                flat canon stays intact. */}
-            <div ref={catScrollerRef} style={railEdgeMask(catCanLeft, catCanRight)} className="mx-auto grid w-fit max-w-full grid-rows-2 grid-flow-col auto-cols-[7rem] sm:auto-cols-[9rem] gap-x-4 gap-y-6 sm:gap-x-6 sm:gap-y-8 lg:gap-y-5 overflow-x-auto scrollbar-none snap-x px-3">
-              {/* ⚠️ eno's OWN TWO PRODUCTS, PINNED AHEAD OF THE DEMAND ORDER. Measured 2026-07-28:
-                  `/` took 570 page views in a week and `/vietnam-evisa` took ZERO. They were never
-                  unreachable — this grid is demand-ordered and `services` already sat SECOND — they
-                  were just unnamed, because nobody scanning tiles reads "Services" as "Vietnam
-                  e-Visa", and the trip planner had no tile at all.
+          {/* ⚠️ ONE REPRESENTATION, ALWAYS — the two-row tile grid is GONE (owner, 2026-08-12,
+              with a layout mock: "look at the homepage layout this what i was asking about").
+              The grid could only ever show fifteen closed doors; this rail shows the same doors
+              on ONE line and rolls the ACTIVE category's subcategories out beside it, which is
+              the whole ladder (category → subcategory → brand → model) in the space the grid
+              used for its first row.
 
-                  ⚠️ THIS IS A MERCHANDISING BET AND IT IS ONE ARRAY MOVE TO UNDO. Two of roughly six
-                  above-the-fold tile slots now belong to eno rather than to third-party supply, which
-                  pushes Electronics (the largest real category, 8 of 32 listings) to column 2. To
-                  reverse: move this block AFTER {categories.map(...)} and the tiles fall to the end
-                  of the scroller; delete it and the grid is exactly today's order.
+              ⚠️ THE PINNED eno TILES SURVIVED THE SWAP, WHICH IS THE PART THAT WAS EASY TO LOSE.
+              The grid's own comment warned that replacing it with this rail "would have deleted
+              the bet silently" — two of roughly six above-the-fold slots belong to eno's own
+              products after a measurement showing /vietnam-evisa took ZERO page views in a week.
+              CategoryRail grew a `shortcuts` slot for exactly that, and they keep their position
+              ahead of the demand order rather than being appended at the tail.
 
-                  ⚠️ AND THIS IS THE ONLY PLACE THESE TWO TILES EXIST. <CategoryRail> — the strip
-                  that replaces this grid the moment a category is picked — has no desk-shortcut
-                  slot, so replacing the grid with the rail everywhere would have deleted the bet
-                  silently. That is why the swap is conditional rather than a straight substitution.
-
-                  Byte-identical to the INTENT_SHORTCUTS tile below on purpose — same Button, same
-                  CategoryIcon sizing, same label span. Only the onClick differs. It is a <Button>
-                  rather than <Button asChild><Link>, like every other tile here: asChild
-                  CONCATENATES the child's className without tailwind-merge, so the Button base
-                  `inline-flex` would beat a child `flex flex-col` and the base
-                  `[&_svg:not([class*='size-'])]:size-4` would shrink the 44px icon. Crawlability for
-                  these two destinations is bought in the footer instead, where they are real
-                  anchors. */}
-              {DESK_SHORTCUTS.map((s) => (
-                <Button
-                  variant="bare"
-                  size="none"
-                  key={s.key}
-                  onClick={() => { if (s.kind === 'filter') applyUrl(s.href); else router.push(s.href) }}
-                  // ⚠️ snap-start, unlike the INTENT_SHORTCUTS tile this is otherwise copied from.
-                  // That one sits at the TAIL of the scroller where it is never the snap target;
-                  // these are the FIRST two columns, so without it `snap-x` has nothing to catch at
-                  // the very start of the scroll and the pinned tiles drift under a swipe. The
-                  // category tiles below carry it for the same reason. Caught by a reviewer.
-                  // `lg:gap-1.5 lg:p-1`: a tile measured 112px tall to hold a 48px icon and a
-                  // 20px label — 44px of padding per row, twice over, directly above the feed.
-                  // Trimmed on desktop only; the touch target is unaffected because this is the
-                  // lg breakpoint, where there is no thumb.
-                  className="press group flex snap-start flex-col items-center justify-center gap-2 lg:gap-1.5 whitespace-normal p-2 lg:p-1 text-center cursor-pointer"
-                >
-                  <CategoryIcon
-                    name={s.icon}
-                    className="h-11 w-11 sm:h-12 sm:w-12 text-body transition-colors duration-200 group-hover:text-brand"
-                  />
-                  <span className="text-sm sm:text-base font-bold text-foreground leading-tight transition-colors group-hover:text-brand">
-                    <Tr text={lang === 'vi' ? s.nameVi : s.name} />
-                  </span>
-                </Button>
-              ))}
-              {categories.map((cat) => {
-                const cc = CATEGORY_COLOR_CLASSES[cat.color] ?? CATEGORY_COLOR_CLASSES.brand
-                const hex = cc.text.match(/#[0-9a-fA-F]{6}/)?.[0] ?? 'var(--brand)'
-                return (
-                  <Button
-                    variant="bare"
-                    size="none"
-                    key={cat.id}
-                    onClick={() => handleCategorySelect(cat.slug)}
-                    style={{ '--cat': hex } as CSSProperties}
-                    // No hand-rolled active:scale here (removed 2026-08-06): ui/button's base
-                    // already presses every tile at 0.97, and the extra 0.96 + its
-                    // transition-transform (which tailwind-merge let REPLACE the base
-                    // transition-all) made these tiles press differently from the pinned and
-                    // intent tiles beside them. One press feel per row — which is now `.press`
-                    // on EVERY tile in the row (icon-language §8): same 0.97 depth (the base
-                    // utility still wins the scale), but the canon's asymmetric spring on the
-                    // release instead of a linear 100ms, so a tapped tile settles like the rest
-                    // of the app. `.press` is the shared utility; it is not a second scale.
-                    // `lg:gap-1.5 lg:p-1` — the desktop padding trim explained on the first tile
-                    // above. These two tiles are byte-identical by design (see the note there), so
-                    // the classes have to move together.
-                    className="press group flex snap-start flex-col items-center justify-center gap-2 lg:gap-1.5 whitespace-normal p-2 lg:p-1 text-center cursor-pointer"
-                  >
-                    <CategoryTileGlyph
-                      slug={cat.slug}
-                      icon={cat.icon}
-                      className="h-11 w-11 sm:h-12 sm:w-12 text-body transition-colors duration-200 group-hover:text-[var(--cat)]"
-                    />
-                    <span className="text-sm sm:text-base font-bold text-foreground leading-tight transition-colors group-hover:text-[var(--cat)]">
-                      <Tr text={lang === 'vi' ? cat.nameVi : cat.name} />
-                    </span>
-                    {/* Social proof cuts both ways: a small count reads as a dead
-                        category, so show it only once it's actually impressive. */}
-                    {(cat.verifiedCount || 0) >= 20 && (
-                      <span className="text-2xs sm:text-xs text-body select-none font-semibold">
-                        {cat.verifiedCount} {tr('listings', 'tin')}
-                      </span>
-                    )}
-                  </Button>
-                )
-              })}
-              {/* Free & Wanted — intent tiles (filter across all categories) */}
-              {INTENT_SHORTCUTS.map((s) => (
-                <Button
-                  variant="bare"
-                  size="none"
-                  key={s.type}
-                  onClick={() => browseIntent(s.type)}
-                  className="press group flex flex-col items-center justify-center gap-2 whitespace-normal p-2 text-center cursor-pointer"
-                >
-                  <CategoryTileGlyph
-                    slug={s.type}
-                    icon={s.icon}
-                    className="h-11 w-11 sm:h-12 sm:w-12 text-body transition-colors duration-200 group-hover:text-brand"
-                  />
-                  <span className="text-sm sm:text-base font-bold text-foreground leading-tight transition-colors group-hover:text-brand">
-                    <Tr text={lang === 'vi' ? s.nameVi : s.name} />
-                  </span>
-                </Button>
-              ))}
-            </div>
-            <ScrollArrows canLeft={catCanLeft} canRight={catCanRight} page={catPage} tight />
-            </div>
-          ) : (
-            /* Line 1 of the search header (square logo + name); tap to expand subcategories */
-            <CategoryRail
-              categories={categories}
-              activeCategory={activeCategory}
-              activeSubcategory={activeSubcategory}
-              subcategoryCounts={subcategoryCounts}
-              facets={facetCounts}
-              onCategory={handleCategorySelect}
-              onSubcategory={setActiveSubcategory}
-              // Free / Wanted shortcuts — same tiles the home grid shows, so nothing's
-              // missing when the grid swaps to this rail. Toggle the listingType filter.
-              intents={INTENT_SHORTCUTS}
-              activeType={listingType}
-              onIntent={(type) => setListingType(listingType === type ? 'all' : type)}
-            />
-          )}
+              ⚠️ NOTHING UNMOUNTS ON A FILTER ANY MORE. The old pair swapped one ladder for
+              another on the first tap — a user-initiated reflow of ~150px that this removes
+              outright, because there is now only one component to render in either state. */}
+          <CategoryRail
+            categories={categories}
+            activeCategory={activeCategory}
+            activeSubcategory={activeSubcategory}
+            subcategoryCounts={subcategoryCounts}
+            facets={facetCounts}
+            onCategory={handleCategorySelect}
+            onSubcategory={setActiveSubcategory}
+            shortcuts={DESK_SHORTCUTS}
+            onShortcut={(sc) => { if (sc.kind === 'filter') applyUrl(sc.href); else router.push(sc.href) }}
+            // Free / Wanted shortcuts — the intent tiles, at the tail.
+            intents={INTENT_SHORTCUTS}
+            activeType={listingType}
+            onIntent={(type) => setListingType(listingType === type ? 'all' : type)}
+          />
 
           {/* Brand rail — brands present in this category + subcategory (logo +
               name), tap to filter + expand the brand's models. Brand categories — and

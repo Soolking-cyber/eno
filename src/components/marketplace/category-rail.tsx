@@ -38,6 +38,8 @@ export function CategoryRail({
   intents,
   activeType,
   onIntent,
+  shortcuts,
+  onShortcut,
 }: {
   categories: SerializedCategory[]
   activeCategory: string
@@ -79,6 +81,18 @@ export function CategoryRail({
   // Intent shortcuts (Free / Wanted) — appended after the categories so the results
   // rail matches the home grid, which shows these tiles alongside the categories.
   // They filter the listingType axis (not the category), highlighting when active.
+  /**
+   * eno's OWN products, pinned immediately after "All".
+   *
+   * ⚠️ THIS SLOT EXISTS SO THE RAIL CAN REPLACE THE TILE GRID WITHOUT SILENTLY DELETING A
+   * MERCHANDISING BET. The grid pinned two tiles ahead of the demand order after a measurement
+   * on 2026-07-28: `/` took 570 page views in a week and `/vietnam-evisa` took ZERO — they were
+   * never unreachable, just unnamed. The grid's own comment warned that swapping it for this
+   * rail "would have deleted the bet silently", which is exactly what a rail with no such slot
+   * would have done. Position is preserved: ahead of the categories, not appended at the tail.
+   */
+  shortcuts?: { key: string; href: string; kind?: string; name: string; nameVi: string; icon: string }[]
+  onShortcut?: (s: { key: string; href: string; kind?: string }) => void
   intents?: { type: string; name: string; nameVi: string; icon: string }[]
   activeType?: string
   onIntent?: (type: string) => void
@@ -249,6 +263,21 @@ export function CategoryRail({
           <CountChip count={catDim?.all} />
         </span>
       </Button>
+
+      {/* eno's own products — see the `shortcuts` prop note. A plain <Button>, like every other
+          tile here: <Button asChild><Link> CONCATENATES the child's className without
+          tailwind-merge, so the base `inline-flex` would beat `flex flex-col` and the base
+          `[&_svg:not([class*='size-'])]:size-4` would shrink the 44px glyph. */}
+      {shortcuts?.map((sc) => (
+        <Button key={sc.key} variant="bare" size="none" data-shortcut={sc.key} onClick={() => onShortcut?.(sc)} className={cn('whitespace-normal', tileCls)}>
+          <span className="flex h-11 items-center justify-center">
+            <CategoryIcon name={sc.icon} className={iconCls(false)} />
+          </span>
+          <span className="flex w-full flex-col items-center gap-0.5">
+            <span className={nameCls(false)}><Tr text={lang === 'vi' ? sc.nameVi : sc.name} /></span>
+          </span>
+        </Button>
+      ))}
 
       {categories.map((cat) => {
         const isActive = activeCategory === cat.slug

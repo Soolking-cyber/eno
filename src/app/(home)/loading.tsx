@@ -12,8 +12,7 @@ import { ListingCardSkeleton } from '@/components/marketplace/listing-card-skele
  *     ├ hero  — an sr-only <h1> only: ZERO height, so nothing is drawn for it here
  *     └ `space-y-8 sm:space-y-12`
  *         ├ <PromoBanner/>   189.5 / 232      (min-h-[188px] sm:212 lg:232, rounded-2xl)
- *         ├ <WhyEno/>        122   / 108.3    (border-t + pt-8 + h-12 glyph band + label)
- *         ├ category grid    230   / 256      (2 rows × 103/112px tiles)
+ *         ├ category rail     ~86  / ~86      (ONE row of w-[4.75rem] tiles: 44px glyph + 2 lines)
  *         └ feed             header 28 + mb-3 + the 2/3/4-col grid
  *
  * ⚠️ THREE THINGS THIS FILE USED TO DRAW THAT THE PAGE DOES NOT HAVE, and they are the
@@ -54,41 +53,27 @@ export default function HomeLoading() {
                 comment names this file as the other half of the change. Either both move or neither. */}
             <Skeleton className="min-h-[188px] w-full rounded-2xl sm:min-h-[212px] lg:min-h-[232px]" />
 
-            {/* WHY eno — hairline + a row of five bare glyphs with a label under each.
-                -mx-3/px-3 is COUPLED to the page frame's px-3, same as the real band. */}
-            <div className="border-t border-border pt-8">
-              <div className="-mx-3 flex gap-3 px-3 sm:mx-0 sm:gap-4 sm:px-0">
-                {Array.from({ length: 5 }).map((_, i) => (
-                  <div key={i} className="flex w-24 shrink-0 flex-col items-center sm:w-auto sm:flex-1">
-                    {/* h-12 band holds the row's vertical rhythm; the glyph itself is size-8 */}
-                    <span className="flex h-12 shrink-0 items-center justify-center">
-                      <Skeleton className="size-8 rounded-lg" />
-                    </span>
-                    <Skeleton className="mt-2 h-4 w-16 sm:h-[19px] sm:w-24" />
-                    {/* The titles wrap to two lines on a phone and one line from sm up. */}
-                    <Skeleton className="mt-0.5 h-4 w-12 sm:hidden" />
+            {/* THE CATEGORY RAIL — ONE ROW, which is the whole point of the 2026-08-12 layout.
+                ⚠️ THIS FILE IS HALF OF THE PAGE'S CLS BUDGET, so it had to change with the layout
+                or it becomes the shift. It used to draw TWO blocks that no longer exist: the
+                five-item "Why eno" band (~122px) and a 16-tile TWO-ROW category grid (~230px) —
+                about 350px of skeleton that would now never fill, on the one page tuned to
+                CLS 0.002.
+                The real rail is a single horizontal strip of `w-[4.75rem]` tiles: a 44px glyph,
+                gap-1.5, then a name that clamps to two lines (text-xs/leading-tight). Twelve are
+                drawn because that is roughly what fits before the edge mask at desktop width; the
+                strip is a scroller, so drawing too few costs nothing and too many costs nothing. */}
+            <div className="relative">
+              <div className="flex gap-4 overflow-hidden px-3">
+                {Array.from({ length: 12 }).map((_, i) => (
+                  <div key={i} className="flex w-[4.75rem] shrink-0 flex-col items-center gap-1.5 py-1">
+                    <Skeleton className="h-11 w-11 rounded-lg" />
+                    <div className="flex w-full flex-col items-center gap-0.5">
+                      <Skeleton className="h-[15px] w-14" />
+                      <Skeleton className="h-[15px] w-9" />
+                    </div>
                   </div>
                 ))}
-              </div>
-            </div>
-
-            {/* CATEGORY GRID — two fixed rows, horizontally scrolled. 16 tiles:
-                15 demand-ordered categories + the one intent tile (Free & Giveaways). */}
-            <div className="space-y-4">
-              <div className="relative">
-                <div className="mx-auto grid w-fit max-w-full grid-rows-2 grid-flow-col auto-cols-[7rem] sm:auto-cols-[9rem] gap-x-4 gap-y-6 sm:gap-x-6 sm:gap-y-8 overflow-hidden px-3">
-                  {Array.from({ length: 16 }).map((_, i) => (
-                    <div key={i} className="flex flex-col items-center justify-center gap-2 p-2">
-                      <Skeleton className="h-11 w-11 rounded-full sm:h-12 sm:w-12" />
-                      {/* Label: text-sm/leading-tight on a phone, text-base from sm — two
-                          lines either way, which is what sets the 103/112px tile height. */}
-                      <div className="flex w-full flex-col items-center">
-                        <Skeleton className="h-[17px] w-16 sm:h-5 sm:w-20" />
-                        <Skeleton className="mt-0.5 h-[17px] w-10 sm:mt-0 sm:h-5 sm:w-12" />
-                      </div>
-                    </div>
-                  ))}
-                </div>
               </div>
             </div>
 
