@@ -1,10 +1,18 @@
 /**
  * CATEGORY ARTWORK — which top-level tiles have a Solar SVG, and where it lives.
  *
- * The files themselves are generated: `node scripts/gen-category-icons.mjs` reads the Solar set and
- * writes `public/icons/rest/<slug>.svg` and `public/icons/selected/<slug>.svg`. This module is the
- * only thing a renderer needs to know about them — a slug in, a public path out, `null` when there
- * is no artwork for that slug.
+ * The files themselves are generated: `npm run icons` (scripts/gen-icons.mjs) reads the official
+ * Solar v2 set and writes `public/icons/rest/<slug>.svg` and `public/icons/selected/<slug>.svg`.
+ * This module is the only thing a renderer needs to know about them — a slug in, a public path
+ * out, `null` when there is no artwork for that slug.
+ *
+ * ⚠️ THE TWO STATES ARE TWO SOLAR WEIGHTS, NOT ONE GLYPH PAINTED TWICE. `rest` is Outline and
+ * `selected` is Bold, both drawn by Solar. An earlier revision built the selected state here — the
+ * same paths twice, a tint layer under an ink layer, lit by a `.cat-art-body` CSS rule — because a
+ * line glyph has no filled form to switch to. It never shipped: filling an OPEN path implicitly
+ * closes it, so `food-drink`'s toque and `property`'s wings came out half-filled, and the CSS rule
+ * was never added. Bold has no open path to close, so that whole mechanism (the two classes, the
+ * `fillExclude` pins, the forced-colors guard) is DELETED and must not come back.
  *
  * ⚠️ `null` IS THE POINT, NOT AN OVERSIGHT. This covers SEVENTEEN tiles and the app has far more
  * glyphs than that: `category-icons.tsx` registers 98 immutable keys (`Category.icon`, mirrored in
@@ -31,66 +39,9 @@
  * fine — an `<img>` or a CSS `background-image` is not.
  */
 
-/** `rest` = the idle outline. `selected` = the same glyph with a tintable body layer beneath it. */
+/** `rest` = the Solar Outline weight, the idle tile. `selected` = the Solar Bold weight, a
+ *  separately drawn filled glyph rather than a filled copy of the line. */
 export type CategoryArtState = 'rest' | 'selected'
-
-/**
- * ⚠️ THE SELECTED VARIANT SHIPS UNTINTED AND NEEDS ONE CSS RULE TO LIGHT UP.
- *
- * `selected/<slug>.svg` draws the glyph twice: a body layer carrying only this class, then the ink
- * line on top. The body layer's own attributes are `fill="none" stroke="none"`, so until a
- * stylesheet claims the class a selected glyph renders identically to its resting twin — the
- * failure mode is "no tint yet", never a blob.
- *
- * The rule to add (globals.css), which beats the presentation attributes and inherits into the
- * layer's children:
- *
- *     @media not (forced-colors: active) {
- *       .cat-art-body { fill: var(--color-brand-100); stroke: var(--color-brand-100); }
- *     }
- *
- * ⚠️ THE `forced-colors` GUARD IS NOT OPTIONAL, AND LEAVING IT OFF BREAKS THE ONE GROUP THAT NEEDS
- * THE GLYPH MOST. `fill` and `stroke` are both forced properties: in Windows High Contrast the
- * browser overrides the tint AND the ink to the same system colour, the body's fill swallows the
- * line it sits under, and every selected tile collapses into the solid silhouette this artwork was
- * designed twice-over to avoid. Inside the guard the rule simply does not apply there, the body
- * layer keeps its `fill="none" stroke="none"`, and a selected tile degrades to the resting outline
- * — legible, if less emphatic. Raised by an external reviewer; the mechanism is in CSS Color
- * Adjust §3, and it costs two lines to be right about.
- *
- * ⚠️ THE TINT IS A CLASS RATHER THAN A COLOUR IN THE FILE BECAUSE THE BRAND TINT IS THEME-DEPENDENT
- * — `--brand-100` is `#cfe3f5` in light and `#2b5983` in dark. A hex baked into 17 generated files
- * would be wrong in one theme forever, in files nobody re-reads.
- *
- * ⚠️ `--color-brand-100` IS THE RIGHT NAME AND IT EXISTS — globals.css:121 defines it as
- * `var(--brand-100)`, which is what re-themes it at :186 (light) and :442 (dark). Stated with the
- * line number because a reviewer flagged it twice as possibly-undefined, and the failure would be
- * silent: an unresolvable `var()` makes the declaration invalid at computed-value time, `fill` and
- * `stroke` then inherit the root `<svg fill="none">`, and the tint simply never appears — which
- * looks exactly like "the rule has not been added yet".
- */
-/**
- * ⛔ DO NOT ADD THE `.cat-art-body` TINT RULE TO globals.css UNTIL TWO GLYPHS ARE REDRAWN.
- *
- * The selected variants are currently INERT — with no rule for this class they render identically
- * to their rest counterparts, which is a deliberate fail-safe (never a blob) and the reason this
- * wave could land at all. The moment the rule exists, two of the seventeen light up wrong, and an
- * adversarial review caught both on the shipped bytes rather than in theory:
- *   · food-drink — the chef hat gets a hard-edged white trapezoid punched through its crown
- *   · property   — both side wings stay untinted except for a thin diagonal sliver
- * Both are HALF-FILLED glyphs, which docs/icon-language.md forbids outright: a partly-tinted glyph
- * reads as a rendering fault, not as a state. Fix the two source paths (or exclude them from the
- * tint the way the other two exclusions are pinned) BEFORE adding:
- *   @media not (forced-colors: active) {
- *     .cat-art-body { fill: var(--color-brand-100); stroke: var(--color-brand-100); }
- *   }
- * ⚠️ The forced-colors guard is not optional — without it the tint fights the user's own palette.
- */
-export const CATEGORY_ART_BODY_CLASS = 'cat-art-body'
-
-/** The ink line — `stroke="currentColor"`, painted over the body. Exported so a renderer that
- *  post-processes the markup (a sprite builder, a sanitiser) can find the layer by name. */
-export const CATEGORY_ART_INK_CLASS = 'cat-art-ink'
 
 /**
  * Every slug with artwork: the 15 taxonomy categories in `TAXONOMY` order, then the two tiles that

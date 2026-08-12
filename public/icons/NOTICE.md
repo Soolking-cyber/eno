@@ -1,87 +1,39 @@
-# Third-party artwork notice — `public/icons/`
+# Icon attribution
 
-Every SVG under `public/icons/rest/` and `public/icons/selected/` is derived from the **Solar**
-icon set.
+The SVGs under `public/icons/` are GENERATED — do not hand-edit them, run `npm run icons`.
 
-| | |
-|---|---|
-| Set | Solar |
-| Author | 480 Design |
-| Source | <https://www.figma.com/community/file/1166831539721848736> |
-| Distributed as | Iconify `@iconify-json/solar` |
-| Licence | **CC BY 4.0** (`CC-BY-4.0`) |
-| Licence text | <https://creativecommons.org/licenses/by/4.0/> |
+## Credit
 
-## Provenance
+**[Solar Icons](https://solar-icons.vercel.app/)** by **480 Design**, licensed
+**CC BY 4.0** — https://creativecommons.org/licenses/by/4.0/
+Obtained through the `@solar-icons/static` package (version 2.0.0), whose packaging
+code is MIT. The icon artwork itself is CC BY 4.0 and that is the licence these files carry.
 
-The set JSON these files were derived from is deliberately **not** committed — it is ~6 MB against
-the ~40 KB it produces — so the block below is the record of which bytes were used. It is
-**rewritten by the generator on every run**, so it cannot drift from the artwork: regenerating from
-a different Solar release changes these lines in the same commit as the SVGs.
+## Changes made
+
+These files are **modified** copies of the originals. `scripts/gen-icons.mjs` renames each
+glyph to an app-facing name, removes Solar's own `class="solar solar-<name>-<style>"` and the
+inert root `stroke-width`, and collapses whitespace between elements. No geometry and no colour
+is altered — every path keeps its original `d` and its `fill="currentColor"`.
+
+## What is used
+
+Two of Solar's six styles, carrying the app's idle/active grammar:
+
+| directory | Solar style | used for |
+|---|---|---|
+| `rest/` | Outline | a category tile at rest |
+| `selected/` | Bold | a category tile selected |
+| `ui/rest/` | Outline | a UI control at rest |
+| `ui/selected/` | Bold | a UI control active |
+
+Every file paints with `currentColor` and carries no baked colour, so the ink follows the
+element's own colour in both themes. `scripts/gen-icons.mjs` holds the name mapping and the
+reasoning behind each choice.
 
 <!-- provenance:begin -->
-<!-- ⚠️ WRITTEN BY scripts/gen-category-icons.mjs ON EVERY RUN — edit the generator, not this. -->
-
-```
-set          Solar — CC BY 4.0 (CC-BY-4.0)
-author       480 Design
-licence      https://creativecommons.org/licenses/by/4.0/
-icons        7627 in file (info.total 7476)
-sha256       7a517b459acfd403c3c030893479890e7e07171a25cca0e249450ce277656b18
-```
+    source   @solar-icons/static@2.0.0
+    styles   outline, bold
+    glyphs   17 category tiles + 40 UI glyphs
+    sha256   0ede5a92075bf04bd2801984d52369acfb1de6a69aa08c47ded99de5529228a5
 <!-- provenance:end -->
-
-The generator's mapping table names the upstream icon behind every slug, so each file can be traced
-back to one named glyph in that source.
-
-## What the licence requires of us
-
-CC BY 4.0 is permissive — it allows commercial use, redistribution and modification, including in a
-closed-source product — in exchange for **attribution**. Specifically, when we share the material
-(and shipping these files to a browser is sharing it) we must:
-
-1. **Credit the creator** — 480 Design, named above.
-2. **Link to the licence** — the URL above.
-3. **State that changes were made**, and ideally what they were. See the next section.
-4. **Not imply endorsement** by 480 Design of eno.vn, and
-5. **Not add restrictions** — we may not apply legal terms or technical measures that stop anyone
-   else doing what the licence permits with the original set.
-
-There is no share-alike obligation: eno.vn's own code and design work around these glyphs stay
-under whatever terms it chooses.
-
-Points 1–3 may be satisfied "in any reasonable manner based on the medium, means, and context"
-(§3(a)(2)), which expressly includes "providing a URI or hyperlink to a resource that includes the
-required information". This document is that resource, and it is served alongside the artwork at
-`/icons/NOTICE.md`.
-
-## Changes we made
-
-The files here are **not** the upstream glyphs verbatim. `scripts/gen-category-icons.mjs` derives
-each one from the Solar `line-duotone` style and:
-
-- **strips every `opacity` / `fill-opacity` / `stroke-opacity` attribute**, which is what makes the
-  Line Duotone artwork monotone — the second tone in that style is encoded purely as opacity;
-- emits `stroke="currentColor"` so the glyph takes the colour of the tile that renders it, rather
-  than any colour Solar or we chose;
-- for the `selected/` variant, draws the same paths **twice** in one 24×24 box — an unpainted body
-  layer (`class="cat-art-body"`, for a stylesheet to tint) beneath the untouched ink line
-  (`class="cat-art-ink"`);
-- **omits one or two paths from that body layer** on two glyphs (`vehicles`, `community-events`),
-  where filling an open stroke would close it into a shape the original does not draw;
-- renames each file after the eno category slug it serves, so the Solar name survives only in the
-  generator's mapping table.
-
-The generator's table records the upstream name behind every slug, which is the honest record of
-what was taken.
-
-## Where this credit is maintained
-
-This document is the credit for the Solar artwork, and it travels with it: it sits in the same
-directory as the files it covers, it is served at the same origin, and the generator that produces
-those files will not run without it. If eno.vn later publishes a combined licences or credits page,
-this entry belongs there too.
-
-The credit is deliberately **not** rendered beside an individual icon in the interface. A line of
-attribution under a category tile tells a shopper nothing, and placing a creator's name inside a
-commercial product's chrome risks implying the endorsement that point 4 above rules out.
