@@ -497,11 +497,12 @@ export function ListingsExplorer({
     )
   }, [showExplorer, activeCategory, activeDistrict, activeSubcategory, activeProvince, activeWard, nearby, customFilters])
 
-  // Is the undirected-browse chrome (promo banner, value strip, big category tiles, discovery
-  // shelves) on screen? Everything isLandingMode asks, plus: the map and video views are
+  // Is the undirected-browse chrome (the discovery shelves and the "Browse everything" unlock —
+  // the "big category tiles" this used to list went with the tile grid, and the promo banner left
+  // for `showBanner` below) on screen? Everything isLandingMode asks, plus: the map and video are
   // results surfaces in their own right — the map is a 60dvh/full-column takeover and the
-  // video feed is a fixed-inset one — so an ad and three merchandising rails around them
-  // would be decorating a view the visitor explicitly asked for.
+  // video feed is a fixed-inset one — so merchandising rails around them would be decorating a
+  // view the visitor explicitly asked for.
   // ⚠️ THE viewMode HALF IS NOT COSMETIC — THE PAGINATION GATE READS THIS, NOT isLandingMode.
   // The merge put the view toggles on the home page, which created a state nobody had ever been
   // in: map view with showExplorer still false. Gate pagination on isLandingMode there and the
@@ -510,6 +511,38 @@ export function ListingsExplorer({
   // with nothing to click and no error. Reading showDiscovery instead means opening a takeover
   // view counts as directing the feed, which is what it is.
   const showDiscovery = isLandingMode && viewMode !== 'map' && viewMode !== 'video'
+
+  /**
+   * ⚠️ THE BANNER IS HOME-PAGE FURNITURE, NOT DISCOVERY CHROME — AND THIS IS THE ONE PREDICATE
+   * THAT DELIBERATELY DOES **NOT** READ isLandingMode (owner, 2026-08-12: "when i click on
+   * categories on home page it opens like this — make open there on spot in home page, we dont
+   * need any page change ... all search will be available from home page").
+   *
+   * It used to be gated on showDiscovery, and that is what the owner was looking at. Measured at
+   * 1440×900, tapping Electronics:
+   *   before   banner top=135 h=292 · category rail top=459 · document 3822px
+   *   after    banner UNMOUNTED     · category rail top=135 · document 2639px
+   * i.e. the rail jumped 324px — the banner's 292px plus its 32px `pb-8` — and every control
+   * below it came with. Nothing navigated (`window.__marker` survives the tap; it is a
+   * pushState), so there was no page change to see: the page RECOMPOSED around the tap, which
+   * from the far side of the screen is indistinguishable from one. Keeping this mounted pins the
+   * ladder at a fixed y in every browse state, and removes the jump in BOTH directions — the old
+   * gate lurched back down again when you deselected the category.
+   *
+   * ⚠️ IT STILL STANDS DOWN FOR THE TAKEOVERS, and that is the whole remaining condition. The map
+   * is a 60dvh/full-column surface and the video feed is fixed-inset; neither has a page column
+   * left to hold a banner, so this is not a placement judgement like the one above — there is
+   * nowhere to put it.
+   *
+   * ⚠️ IT DELIBERATELY SURVIVES A TYPED QUERY TOO, WHICH IS THE ARGUABLE HALF. An ad above
+   * results the visitor explicitly asked for is the placement both external reviewers objected to
+   * back when this tree had two branches, and on a phone it is ~191px of advertising above the
+   * first result. It is kept because the alternative re-creates the exact defect the owner
+   * reported, one action to the left: the frame would still tear itself down, just on typing
+   * instead of on tapping. One stable frame, results changing inside it. If this is ever revisited
+   * the axis to argue is the banner's HEIGHT on directed views, not its presence.
+   */
+  const showBanner = viewMode !== 'map' && viewMode !== 'video'
 
   // ⚠️ THE SORT STRIP IS THE ONE CONTROL THE PREDICATES ABOVE DO NOT SEE, AND ALL THREE
   // REVIEWERS FOUND IT. Measured: the showExplorer sync effect covers category, query, district,
@@ -2167,8 +2200,15 @@ export function ListingsExplorer({
   // home, browse and search have always been the same route.
   //
   // Now: the ladder (category row → facets → toolbar → sort) and the results are ALWAYS mounted;
-  // `showDiscovery` only decides whether the undirected-browse chrome (ad, value strip, big
-  // category tiles, discovery shelves) is also on screen. Typing filters the grid in place.
+  // `showDiscovery` only decides whether the undirected-browse chrome (the discovery shelves and
+  // the "Browse everything" unlock) is also on screen. Typing filters the grid in place.
+  // ⚠️ THE PROMO BANNER LEFT THAT LIST ON 2026-08-12 and is now on `showBanner`, which asks a
+  // different question — see the predicate. Its unmount was the last thing above the fold that
+  // still recomposed the page ON A FILTER, i.e. the last survivor of the two-branch layout.
+  // ⚠️ NOT "on any tap" — an earlier draft of this line said that and codex was right to call it
+  // false. Switching to the map or video view still removes the banner's whole height. That is a
+  // takeover the visitor explicitly asked for, replacing the grid rather than re-laying it out, so
+  // it is a view change and reads as one; a category chip is not.
   return (
     // overflow-x-CLIP (not hidden): hidden would make this section the sort strip's
     // scroll box and position:sticky would never pin; clip contains the horizontal
@@ -2326,21 +2366,30 @@ export function ListingsExplorer({
               categories scroller"). */}
         </div>
 
-        {/* ⚠️ ADVERTISING + VALUE STRIP — UNDIRECTED BROWSE ONLY, AND THE ORDER IS AN OWNER
-            DECISION. banner-then-why-eno is owner, 2026-08-05 ("move this under banner"), taken
-            against both external reviewers' advice and recorded as such: stacking an ad and a
-            pitch above the feed pushes real listings down on a phone, and the reference's
-            equivalent row is navigation rather than a pitch. Vertical COST is fair game; the
-            SEQUENCE is not — do not swap these two, and do not put either between the ladder and
-            the grid.
-            ⚠️ `showDiscovery`, not `isLandingMode`: a visitor who searched, faceted, or opened the
-            map/video view is being shown results they asked for, and an ad above those is the one
-            placement the old two-branch layout was careful never to make. Keep it that way.
+        {/* ⚠️ ADVERTISING — PRESENT IN EVERY BROWSE STATE, AND `showBanner` IS NOT A SYNONYM FOR
+            `showDiscovery`. Read the predicate's own comment before changing this line: it is
+            gated on the VIEW (map/video takeovers have no page column) and deliberately not on
+            whether the visitor has directed the feed, because gating it on that is what made a
+            category tap lift the whole ladder 324px and read as a page change.
+            ⛔ THE NOTE THAT SAT HERE — "a visitor who searched or faceted is being shown results
+            they asked for, and an ad above those is the one placement the old two-branch layout
+            was careful never to make" — IS OVERRULED (owner, 2026-08-12), not forgotten. It is
+            still the strongest argument against this line and codex restated it on review; it
+            lost to the fact that honouring it re-creates the reported defect one action to the
+            left. The counter-argument now lives with the predicate so it survives this comment.
+            ⚠️ ITS POSITION IS STILL FIXED, THOUGH, AND THAT HALF WAS NEARLY LOST WITH IT (opus, on
+            review). The old note ended "do not put either between the ladder and the grid"; the
+            "either" was the banner and the deleted <WhyEno /> strip, so half the sentence died with
+            <WhyEno /> and half did not. The surviving half: the banner goes ABOVE the category
+            ladder or nowhere. Between the ladder and the results is the one placement that puts an
+            ad inside the path from "I picked a category" to "here is what you get".
             ⚠️ THE BANNER'S HEIGHT DECIDES THIS PAGE'S LCP. It is the element the browser picks
-            (measured at 390×844 / 4× CPU / 1.6 Mbps: /banners/promo-1.svg at 1816 ms), it
-            preloads itself from promo-banner.tsx, and it is the single biggest thing standing
-            between the fold and the first row of merchandise. */}
-        {showDiscovery && (
+            (measured at 390×844 / 4× CPU / 1.6 Mbps: /banners/promo-1.svg at 1816 ms) and it is
+            the single biggest thing standing between the fold and the first row of merchandise —
+            and NOTHING PRELOADS IT (see the lcp note at the grid; promo-banner.tsx tried and
+            reverted, because the tag leaked across soft navigations). Now that it is on screen in
+            every browse state, its height is a cost every visitor pays, not only a cold one. */}
+        {showBanner && (
           // ⛔ <WhyEno /> IS GONE (owner, 2026-08-12) — the five-item "Free to post / Trust scores
           // you can check / Your number stays private / Prices in Đ and $ / Real dispute
           // resolution" strip that sat between the banner and the ladder. It was value-prop copy
@@ -2726,16 +2775,30 @@ export function ListingsExplorer({
                             <link rel=preload>. Measured at 390×844 / 4× CPU / 1.6 Mbps on the
                             undirected home view, the browser picks `/banners/promo-1.svg` as LCP at
                             1816 ms — not a card photo — so spending the preload budget on the first
-                            card there both misses AND competes with the element that wins. The
-                            banner preloads itself from promo-banner.tsx. This used to be two
-                            separate call sites in two separate branches that had to be kept
-                            deliberately out of agreement; one tree means one call site and one
-                            predicate.
+                            card there both misses AND competes with the element that wins. This
+                            used to be two separate call sites in two separate branches that had to
+                            be kept deliberately out of agreement; one tree means one call site and
+                            one predicate.
+                            ⛔ "THE BANNER PRELOADS ITSELF FROM promo-banner.tsx" USED TO BE THE
+                            NEXT SENTENCE HERE AND IT IS FALSE. Measured 2026-08-12 on the built
+                            page: the only `link[rel=preload][as=image]` entries are
+                            `/logo-mark.svg` and one rail thumbnail — no `/banners/promo-*`.
+                            promo-banner.tsx says so itself in its own header ("nothing preloads
+                            it"), having tried `preload()` and reverted it because the tag LEAKED
+                            across soft navigations. So the banner wins LCP UNPRELOADED, which
+                            makes not spending the budget against it more important, not less.
+                            ⚠️ IT READS `showBanner`, NOT `showDiscovery`, AND THAT IS THE WHOLE
+                            POINT OF THE RENAME. The condition was written as `!showDiscovery` back
+                            when the two were the same thing; the moment the banner stopped
+                            unmounting on a filter (2026-08-12) that spelling would have preloaded
+                            a card WHILE THE BANNER WAS ON SCREEN — the one arrangement this line
+                            exists to prevent. The invariant was already stated in words directly
+                            above; now the code says it too.
                             ⚠️ ON THIS ROUTE THE TRUE BRANCH IS CURRENTLY UNREACHABLE IN THE SERVED
                             HTML, and pretending otherwise is how the comment above went stale once
                             already (external reviewer). `/` prerenders ONE variant — the undirected
                             one, because showExplorer starts false and searchParams are not read —
-                            so even /?q=… ships showDiscovery=true markup and the hint can only ever
+                            so even /?q=… ships banner-present markup and the hint can only ever
                             be added after hydration, by which point the LCP is long since recorded.
                             The condition is kept because it states the INVARIANT ("never preload a
                             card while the banner is on screen"), which is what protects this tree
@@ -2745,7 +2808,7 @@ export function ListingsExplorer({
                             ⚠️ `priority` STAYS UNCONDITIONAL. It is a different lever: without
                             `lcp` it resolves to `loading="eager"` (listing-card.tsx ~435), so the
                             first card still skips lazy-loading — it just stops claiming the preload. */}
-                        <ListingCard listing={l} onOpen={handleOpen} priority={index === 0} lcp={index === 0 && !showDiscovery} onLocate={locateListing} />
+                        <ListingCard listing={l} onOpen={handleOpen} priority={index === 0} lcp={index === 0 && !showBanner} onLocate={locateListing} />
                       </div>
                     </Fragment>
                   ))}
