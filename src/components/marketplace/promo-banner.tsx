@@ -251,9 +251,13 @@ export function PromoBanner() {
  * ⚠️ AND STATE THE RESULT HONESTLY: THIS DOES NOT, ON ITS OWN, CLEAR THE FOLD. 983 - 900 = 83px of
  * overshoot; 300→232 removes 68 of it and leaves the first grid row at y≈915, still ~15px under a
  * 900px viewport. It clears on a taller one (a 1080p screen with less browser chrome, ≥950px), and
- * the remaining ~15px has to come from the blocks BELOW this one (WhyEno, the category grid) or
- * from a shorter partner cut — not from this ladder, which is already at its floor. An earlier
- * draft of this comment asserted the fold was cleared; it was not, and three reviewers caught it.
+ * the remaining ~15px had to come from the blocks BELOW this one or from a shorter partner cut —
+ * not from this ladder, which is already at its floor. An earlier draft of this comment asserted
+ * the fold was cleared; it was not, and three reviewers caught it.
+ * ⚠️ THE TWO BLOCKS THAT SENTENCE NAMED ARE BOTH GONE (owner, 2026-08-12): the <WhyEno /> strip
+ * was deleted and the two-row category tile grid became a one-line rail, which together took far
+ * more than the 15px this was still looking for. The arithmetic above is kept as the record of how
+ * this banner's own floor was derived; do not read it as a live shortfall.
  *
  * The binding case is the WIDEST panel: max-w-7xl caps at 1280px, so from a 1344px viewport up the
  * art slide paints /banners/vietkite-desktop.webp (1280x300) at scale 1.0 and `object-cover` crops
