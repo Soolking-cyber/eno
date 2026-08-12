@@ -278,29 +278,17 @@ export function BrandRail({
                   className={cn('transition-transform duration-200 group-hover:scale-110', isActive ? '!text-accent-foreground' : '!text-body group-hover:!text-accent-foreground')}
                 />
               </span>
-              {/* ⚠️ OWN LINE UNDER THE NAME, NOT APPENDED INSIDE IT — `nameCls` carries
-                  line-clamp-2, so an inline number would be clipped off exactly the wordmarks
-                  that already wrap ("Mercedes-Benz"). The wrapper is inert without a count: a
-                  one-child flex column renders like the bare span it replaces.
-                  Height, stated because this rail has no two-line floor tile the way the category
-                  strip does: a count line makes each tile one text line taller, so the strip grows
-                  once, when the counts first land. ⚠️ AND THAT IS NOT NECESSARILY THE SAME BEAT AS
-                  THE RAIL APPEARING — an earlier draft claimed it was, and a reviewer caught the
-                  contradiction with the note above: the tiles come from /api/brands (one round
-                  trip) while the counts ride the feed response, which can lag it by up to the 2.5s
-                  semanticRank is allowed. On a plain browse the two land together and nothing
-                  moves; with a text query active the strip can grow a line a beat later and push
-                  the grid down. Accepted rather than reserved, because an always-present empty row
-                  is not the countless appearance this rail is required to degrade to; closing it
-                  properly means the counts arriving with the tiles, which is a route change.
-                  ⚠️ NO FALLBACK TO `b.count` HERE, unlike the model chips below. A brand tile has
-                  never carried a number, so "no facets" must mean "no number" — falling back
-                  would introduce an UNCONDITIONAL count on a rail whose whole point is that the
-                  figure matches the tap. */}
-              <span className="flex w-full flex-col items-center gap-0.5">
-                <span className={nameCls(isActive)}>{b.name}</span>
-                <CountChip count={optionCount(brandDim, b.slug)} />
-              </span>
+              {/* ⛔ NO COUNT UNDER THE BRAND NAME (owner, 2026-08-12: "remove counters under
+                  categories and brands"). The paragraphs that stood here argued the cost of one:
+                  the tiles arrive from /api/brands in one round trip while the counts ride the
+                  feed response, so with a text query active the strip could grow a text line a
+                  beat AFTER the rail appeared and push the grid down. That whole class of shift
+                  is gone with the line. The category rail lost the same second line for the same
+                  instruction; the two rails are meant to read identically.
+                  ⚠️ THE MODEL CHIPS BELOW KEEP THEIR INLINE COUNTS, including their `b.count`
+                  fallback — see their own note. The instruction is about the figure UNDER a tile
+                  name, and a chip's count reads as part of the chip. */}
+              <span className={nameCls(isActive)}>{b.name}</span>
             </Button>
 
             {/* Models roll out to the right of the active brand */}

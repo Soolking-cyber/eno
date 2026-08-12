@@ -238,30 +238,19 @@ export function CategoryRail({
               if the tile reads as chosen, its glyph fills; otherwise it is pure ink line. */}
           <CategoryTileGlyph slug="all" icon="Layers" className={iconCls(activeCategory === 'all')} selected={activeCategory === 'all'} />
         </span>
-        {/* ⚠️ THE COUNT SITS ON ITS OWN LINE UNDER THE NAME, NOT APPENDED INSIDE IT. `nameCls`
-            carries line-clamp-2, so an inline number would be clipped away on exactly the tiles
-            whose label already wraps — and a count that disappears for long words is worse than
-            no count. The extra wrapper is inert when there is no count: a one-child flex column
-            renders byte-for-byte like the bare span it replaces.
-            Height: the strip is `items-center`, so its height is the TALLEST tile, and in the app
-            that is already a TWO-line tile — the intent shortcut reading "Free & Giveaways" /
-            "Cho tặng miễn phí", which listings-explorer passes on every render of this rail. So a
-            category tile that goes from one line of name to name-plus-count lands at the same two
-            lines and the strip does not grow. Note that `intents` is an OPTIONAL prop: the
-            no-growth property belongs to the caller that passes it, not to this component, and a
-            caller that omits it pays the one line described below.
-            What was actually counted, in both languages, off the 15 top-level entries in
-            src/lib/taxonomy.ts: every English name is a single word (longest "Electronics"), and
-            every Vietnamese one is at most two short words ("Thời trang", "Cộng đồng", "Nhà đất"
-            — there is no long one; the category is "Nhà đất", not a spelled-out phrase). What is
-            NOT measured here is the exact wrap point of a 4.75rem tile at the viewer's text-size
-            preference, which the app lets the OS scale between 85% and 150%. So the honest claim
-            is bounded rather than absolute: at the default size no name needs a second line, and
-            in the worst case counts cost this strip ONE text line, once, when they first land. */}
-        <span className="flex w-full flex-col items-center gap-0.5">
-          <span className={nameCls(activeCategory === 'all')}>{tr('All', 'Tất cả')}</span>
-          <CountChip count={catDim?.all} />
-        </span>
+        {/* ⛔ NO COUNT UNDER THE TILE NAME (owner, 2026-08-12: "remove counters under categories
+            and brands"). It used to be a second line here and on every category tile below —
+            `<span className="flex w-full flex-col items-center gap-0.5">` wrapping the name and a
+            <CountChip>. The wrapper goes with it: a one-child flex column is not free, it is a
+            line of markup claiming to arrange something.
+            ⚠️ WHAT THE REMOVAL BUYS BACK IS A TEXT LINE ON THE TALLEST TILE, and the note that
+            stood here spent twenty lines proving it cost one. The strip is `items-center`, so its
+            height is the tallest tile; counts pushed single-line names to two.
+            ⚠️ THE INLINE CHIP COUNTS INSIDE THE ROLLED-OUT PANELS STAY — "All 9", "Phones 3" — and
+            that is the literal reading of the instruction, which is about the number UNDER a tile
+            name. They read as part of the chip rather than as a second line, and they are what
+            tells a visitor which subcategory is worth opening. */}
+        <span className={nameCls(activeCategory === 'all')}>{tr('All', 'Tất cả')}</span>
       </Button>
 
       {/* eno's own products — see the `shortcuts` prop note. A plain <Button>, like every other
@@ -323,12 +312,7 @@ export function CategoryRail({
               <span className="flex h-11 items-center justify-center">
                 <CategoryTileGlyph slug={cat.slug} icon={cat.icon} className={iconCls(isActive)} selected={isActive} />
               </span>
-              {/* Own line under the name — see the "All" tile above for why, and for the
-                  height measurement. */}
-              <span className="flex w-full flex-col items-center gap-0.5">
-                <span className={nameCls(isActive)}><Tr text={lang === 'vi' ? cat.nameVi : cat.name} /></span>
-                <CountChip count={optionCount(catDim, cat.slug)} />
-              </span>
+              <span className={nameCls(isActive)}><Tr text={lang === 'vi' ? cat.nameVi : cat.name} /></span>
             </Button>
 
             {/* Subcategories roll out to the right of the active category */}

@@ -376,7 +376,7 @@ describe('<CategoryRail> — counts at the call site', () => {
   beforeEach(() => installRailGlobals())
   afterEach(restoreRailGlobals)
 
-  it('puts a count on every tile, on "All", and an honest 0 on an empty subcategory', () => {
+  it('counts the SUBCATEGORY chips — the tiles carry none — with an honest 0 on an empty one', () => {
     renderIn(
       'en',
       <CategoryRail
@@ -392,11 +392,16 @@ describe('<CategoryRail> — counts at the call site', () => {
         onSubcategory={() => {}}
       />,
     )
-    // The rail's own "All" tile is the released dimension, not a sum of the tiles beside it.
-    expect(screen.getByRole('button', { name: /^All\s*,\s*2,418 listings$/ })).toBeTruthy()
-    expect(screen.getByRole('button', { name: /Vehicles\s*,\s*40 listings/ })).toBeTruthy()
-    expect(screen.getByRole('button', { name: /Electronics\s*,\s*9 listings/ })).toBeTruthy()
-    // The subcategory grid's own "All" — same number as the category tile, different question.
+    // ⛔ THE TILES CARRY NO NUMBER (owner, 2026-08-12: "remove counters under categories and
+    // brands"). The `category` dimension is still handed to this rail — the route sends it and
+    // the facet bar reads it — so this asserts the tiles render as BARE NAMES rather than that
+    // the payload is absent. That is the assertion that fails if the second line ever returns.
+    expect(screen.getByRole('button', { name: /^Vehicles$/ })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /^Electronics$/ })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /Vehicles\s*,\s*40 listings/ })).toBeNull()
+    expect(screen.queryByRole('button', { name: /2,418 listings/ })).toBeNull()
+    // The subcategory grid's own "All" DOES keep its count — it is an inline chip, not a line
+    // under a tile name, and it is what tells a visitor which rung is worth opening.
     expect(screen.getAllByRole('button', { name: /All\s*,\s*40 listings/ }).length).toBe(1)
     expect(screen.getByRole('button', { name: /Motorbike\s*,\s*12 listings/ })).toBeTruthy()
     // ⚠️ A ZERO IS INFORMATION: the chip stays, carrying its 0, rather than vanishing.
@@ -424,9 +429,10 @@ describe('<CategoryRail> — counts at the call site', () => {
     // The subcategory chips carry no number at all — the pre-counts appearance…
     expect(screen.getByRole('button', { name: /^Motorbike$/ })).toBeTruthy()
     expect(screen.queryByRole('button', { name: /Motorbike\s*,\s*0 listings/ })).toBeNull()
-    // …while the CATEGORY tiles keep theirs, because that dimension releases the whole category
-    // cascade and therefore reads the same before and after the tap.
-    expect(screen.getByRole('button', { name: /Vehicles\s*,\s*40 listings/ })).toBeTruthy()
+    // …and the CATEGORY tiles have no number to be stale in the first place: they are bare names
+    // now (see the test above). Before 2026-08-12 this asserted they kept theirs through the tap.
+    expect(screen.getByRole('button', { name: /^Vehicles$/ })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /Vehicles\s*,\s*40 listings/ })).toBeNull()
   })
 
   it('a payload that is stale AND empty does not zero the grid either', () => {
@@ -480,7 +486,7 @@ describe('<BrandRail> — counts at the call site', () => {
   })
   afterEach(restoreRailGlobals)
 
-  it('shows the CONDITIONAL count on brands and models, and 0 where the filters exclude one', async () => {
+  it('shows the CONDITIONAL count on MODELS, and 0 where the filters exclude one', async () => {
     renderIn(
       'en',
       <BrandRail
@@ -493,10 +499,18 @@ describe('<BrandRail> — counts at the call site', () => {
         onPickModel={() => {}}
       />,
     )
-    await screen.findByRole('button', { name: /Honda\s*,\s*12 listings/ }, WAIT)
-    // Yamaha is missing from a PRESENT dimension → 0, not "no number". The rail is warning that
-    // this tap dead-ends under the current filters.
-    expect(screen.getByRole('button', { name: /Yamaha\s*,\s*0 listings/ })).toBeTruthy()
+    // ⛔ THE BRAND TILES CARRY NO NUMBER (owner, 2026-08-12: "remove counters under categories
+    // and brands"). The `brand` dimension is still passed and still consumed — it decides which
+    // models the panel offers — so this asserts the tile renders as a BARE NAME, which is the
+    // assertion that fails if the second line ever returns. Yamaha used to prove an honest 0 on a
+    // dead-end brand; that behaviour now has its only rendered home on the model chips below.
+    // Found by TEXT, not by accessible name: a brand tile's name is composed with its logo's
+    // alt text, so `{ name: /^Honda$/ }` does not match it — the sibling test below uses
+    // findByText for the same reason.
+    await screen.findByText('Honda', undefined, WAIT)
+    expect(screen.queryByRole('button', { name: /Honda\s*,\s*12 listings/ })).toBeNull()
+    expect(screen.getByText('Yamaha')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: /Yamaha\s*,\s*0 listings/ })).toBeNull()
     // The model rail's own "All": the chosen brand's total, not a sum of the model chips.
     expect(screen.getByRole('button', { name: /All\s*,\s*12 listings/ })).toBeTruthy()
     // 7, not the 30 /api/brands reports — the directory count answers a different question.
@@ -520,9 +534,10 @@ describe('<BrandRail> — counts at the call site', () => {
       />,
     )
     await screen.findByText('Honda', undefined, WAIT)
-    // Nothing on the rail grew a number: not the tiles, and not the model chips either — the
-    // /api/brands directory figure is no longer used as a fallback, precisely so a suppressed
-    // dimension cannot put an UNCONDITIONAL number beside a conditional one in the same type.
+    // Nothing on the rail grew a number: not the tiles (which no longer carry one at all), and
+    // not the model chips either — the /api/brands directory figure is no longer used as a
+    // fallback, precisely so a suppressed dimension cannot put an UNCONDITIONAL number beside a
+    // conditional one in the same type.
     expect(screen.queryByRole('button', { name: /Honda\s*,/ })).toBeNull()
     expect(screen.getByRole('button', { name: /^Vision$/ })).toBeTruthy()
     expect(screen.queryByRole('button', { name: /Vision\s*,\s*30 listings/ })).toBeNull()

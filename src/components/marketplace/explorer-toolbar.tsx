@@ -205,16 +205,52 @@ export function SortStrip({
         // Swapping `top` (vs transform) is a no-op while still in normal flow, so it never
         // jolts the layout above — it only glides once actually stuck.
         'sticky z-30 border-b border-border bg-background/95 backdrop-blur transition-[top] duration-[250ms] ease-out motion-reduce:transition-none',
-        // ⚠️ The hidden-header offset is NOT top-0. Once the header slides away this strip is
-        // the TOP-MOST element on the app's primary surface, and the native WebView is
-        // edge-to-edge (capacitor.config ios.contentInset:'never') — at top-0 the sort tabs
-        // sit under the Dynamic Island / notch. It has to reclaim the inset itself, exactly
-        // as the header does when it pins at y=0 (see globals.css "Safe-area top").
-        // max(env(), var()) is the same dual-path inset as `html.native #app-header`: env()
-        // on iOS + Android WebView ≥ 140, Capacitor's injected custom property on older
-        // Android WebViews. Both operands are 0 on the web, so this is a no-op in a browser.
+        // ⚠️ THIS BAR LEAVES WITH THE HEADER NOW, IT DOES NOT TAKE ITS PLACE (owner, 2026-08-12:
+        // "on mobile and desktop when scroll up make these disappear and appear together with top
+        // navbar" … "otherwise it should be there on home screen"). It used to swap `top` between
+        // 4rem and 0 — so scrolling down replaced one pinned bar with another and the sort strip
+        // followed you down the whole page. Both are chrome; both go.
+        //
+        // ⛔ IT IS DONE WITH `top` ALONE. NOT opacity, NOT transform — BOTH WERE TRIED AND BOTH ARE
+        // WRONG, and the reason is the whole subtlety of this element. **A sticky element's `top`
+        // is a no-op until it actually sticks**, which is exactly the property needed here:
+        // `headerHidden` flips after ~80px of scroll, but this bar does not pin until the rails
+        // above it have scrolled past — around 570px on the home page. `opacity-0` in that window
+        // does not hide a pinned bar, it blanks a bar sitting IN FLOW halfway down the page.
+        // Measured on the built preview at 1440×900: at scrollY 150 the strip was at viewport
+        // y=372 with opacity 0 — a 49px hole between the rails and the grid, flickering back on
+        // every change of direction. All three reviewers caught the class of bug; opus named this
+        // instance. A negative `top` cannot do it: while unstuck it changes nothing at all, and
+        // once stuck it parks the bar above the viewport.
+        //
+        // ⚠️ AND `top` IS THE ONLY PROPERTY IN THE TRANSITION FOR A SECOND REASON. The first draft
+        // animated `top`, `transform` and `opacity` off one class flip and a comment claiming the
+        // `top` change happened "while the bar is already translated out of sight". One flip is
+        // one duration: they interpolate CONCURRENTLY, so mid-animation the bar was ~2rem down,
+        // ~24px up and half-opaque — crossing the returning header in plain sight (agy, opus).
+        // With one property there is no sequencing claim left to be wrong about.
+        //
+        // ⚠️ -9rem IS A MEASURED CLEARANCE, NOT A ROUND NUMBER. The bar is 49px tall on desktop
+        // and 90px on a phone — and 90px is also what it measures at 320px wide with a category,
+        // subcategory, brand, condition and type all applied, i.e. the widest this bar gets is
+        // two rows, not three. 144px is a ~60% margin over that worst case. It was -6rem for one
+        // round, which cleared 90px by six pixels; opus was right that a bar one wrapped row
+        // taller would have peeked back into view. If this bar ever grows a third row, re-measure
+        // rather than assuming this still clears.
+        // It does NOT need the safe-area inset — that inset exists to keep a bar out from under
+        // the Dynamic Island, and this position is off-screen. The VISIBLE pin still carries it:
+        // max(env(), var()) is the dual-path inset from `html.native #app-header`, env() on iOS
+        // and Android WebView ≥ 140, Capacitor's injected custom property on older Android. Both
+        // are 0 on the web, so it is a no-op in a browser.
+        //
+        // ⚠️ `focus-within:` PUTS IT BACK, AND IT PINS AT THE INSET — **NOT** at inset+4rem. That
+        // is the branch where the header is HIDDEN, so 4rem would reserve a 64px void for a bar
+        // that is not on screen and show page content sliding through it (agy, opus). It is not
+        // only a keyboard path either: clicking a sort tab focuses it, so a pointer user who
+        // clicks and then scrolls down lands in exactly this state. Tabbing into a bar parked
+        // 9rem above the viewport would otherwise move focus somewhere the user cannot see.
         headerHidden
-          ? 'top-[max(env(safe-area-inset-top),var(--safe-area-inset-top,0px))]'
+          ? 'top-[-9rem] focus-within:top-[max(env(safe-area-inset-top),var(--safe-area-inset-top,0px))]'
           : 'top-[calc(max(env(safe-area-inset-top),var(--safe-area-inset-top,0px))+4rem)]',
         // Edge bleed coupled to the page gutter (max-w-7xl px-3 sm:px-6 lg:px-8).
         '-mx-3 px-3 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8',

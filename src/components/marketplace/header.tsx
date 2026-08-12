@@ -57,8 +57,12 @@ export function Header() {
   const { open: railOpen } = useAccountPanel()
   const pathname = usePathname()
   const router = useRouter()
-  // Roll the bar up on scroll-down, back down on scroll-up (mobile only — desktop
-  // stays pinned via lg:translate-y-0).
+  // Roll the bar up on scroll-down, back down on scroll-up — at EVERY width. The parenthetical
+  // that used to sit here ("mobile only — desktop stays pinned via lg:translate-y-0") described a
+  // class this file does not contain and has not for some time; the className below applies the
+  // transform unconditionally, and its own comment says so. Corrected 2026-08-12 while wiring the
+  // explorer's sort bar to this same state, where believing the stale version would have meant
+  // building a desktop branch for a difference that does not exist.
   const hidden = useHideOnScroll()
 
   // Notch/Dynamic-Island handling for the installed PWA (and any web target with a real
