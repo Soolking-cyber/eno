@@ -346,8 +346,20 @@ export function ResultLine({
   }, [chipKeySignature])
 
   return (
-    <div data-slot="result-line" className={cn('flex flex-col gap-2', className)}>
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+    /* ⚠️ ONE LINE, SPLIT IN HALF — NOT A COLUMN (owner, 2026-08-12: "the selection line and chips
+       are on top of each other rather than this put them in one line. divide available space into
+       2 and give each half if overflow make it scrollable").
+       Each half is `flex-1 basis-1/2`, so with both present they share the row evenly and with
+       only one present it takes the whole width — a breadcrumb should not sit in half a row when
+       there are no chips beside it.
+       ⚠️ EACH HALF SCROLLS INSTEAD OF WRAPPING, which is what keeps this to one line at any
+       length. That needs THREE things together and they are easy to half-apply: `flex-nowrap` so
+       items stay on the line, `overflow-x-auto` so the overflow is reachable rather than clipped,
+       and `min-w-0` because a flex item defaults to min-content width — without it the half
+       refuses to shrink, pushes its sibling out, and the page gains a horizontal scrollbar
+       instead of the half gaining one. */
+    <div data-slot="result-line" className={cn('flex items-center gap-x-3', className)}>
+      <div className="flex min-w-0 flex-1 basis-1/2 flex-nowrap items-center gap-x-3 overflow-x-auto overscroll-x-contain scrollbar-none whitespace-nowrap">
         {/* The count changes on every tap and the change is the whole feedback loop, so it is
             announced. `polite` — it must never interrupt what a screen reader is reading; the
             user is mid-gesture and will hear it at the next pause.
@@ -396,7 +408,7 @@ export function ResultLine({
       </div>
 
       {(filters.length > 0 || saveSearch || clearAll) && (
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+        <div className="flex min-w-0 flex-1 basis-1/2 flex-nowrap items-center gap-x-3 overflow-x-auto overscroll-x-contain scrollbar-none">
           {filters.length > 0 && (
             // ⚠️ THE LIST HOLDS FILTERS AND NOTHING ELSE. "Clear all" and "Save search" used to
             // be <li>s in here, which made two filters announce as "Filters, list, 4 items" and
@@ -414,7 +426,9 @@ export function ResultLine({
               ref={listRef}
               role="list"
               aria-label={tr('Filters', 'Bộ lọc')}
-              className="flex min-w-0 flex-wrap items-center gap-1.5"
+              // flex-nowrap: the row scrolls (see the half's note); wrapping here would put the
+              // chips back on a second line, which is the layout this replaced.
+              className="flex min-w-0 flex-nowrap items-center gap-1.5"
             >
               {filters.map((f, i) => (
                 // ⚠️ `min-w-0` IS LOAD-BEARING, NOT TIDINESS. A flex item defaults to
@@ -434,7 +448,11 @@ export function ResultLine({
                 // whole row. That costs a repaint of some stateless spans. The thing it buys is
                 // that a caller keying by facet cannot make React remove the WRONG filter —
                 // silent data loss beats a repaint, so the composite wins.
-                <li key={chipKey(f)} className="min-w-0 max-w-full">
+                // ⚠️ `shrink-0` NOW THAT THE ROW SCROLLS. While this wrapped, letting a chip
+                // shrink and ellipsise was right. In a scroller it is not: every chip would
+                // squeeze toward zero instead of overflowing, and the scrollbar the half now
+                // provides would never appear. Width comes from the label; the half scrolls.
+                <li key={chipKey(f)} className="shrink-0">
                   <RemovableBadge
                     label={f.label}
                     removeLabel={removeFilterLabel(f.label, tr)}

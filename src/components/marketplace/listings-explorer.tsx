@@ -2450,31 +2450,6 @@ export function ListingsExplorer({
               one `flex items-center` row (flex-nowrap + overflow-x-auto on mobile, so it can
               never wrap there). It can wrap to a second row on a narrow DESKTOP window, which
               costs one late row of shift; re-measure here if that becomes visible. */}
-          <div className="min-h-12">
-            <FacetBar
-              facetCounts={facetCounts}
-              activeCategory={activeCategory}
-              activeSubcategory={activeSubcategory}
-              setActiveSubcategory={setActiveSubcategory}
-              province={activeProvince}
-              setProvince={setActiveProvince}
-              ward={activeWard}
-              setWard={setActiveWard}
-              nearby={nearby}
-              setNearby={setNearby}
-              priceRange={priceRange}
-              setPriceRange={setPriceRange}
-              conditionFilter={conditionFilter}
-              setConditionFilter={setConditionFilter}
-              listingType={listingType}
-              setListingType={setListingType}
-              customFilters={customFilters}
-              setCustomFilters={setCustomFilters}
-              verifiedOnly={verifiedOnly}
-              setVerifiedOnly={setVerifiedOnly}
-              histogramQuery={histogramQuery}
-            />
-          </div>
 
           {/* Save-search box — the applied-filter chips plus "Save search". Desktop gets the
               compact one-line version, mobile the stacked one; both return NULL when nothing is
@@ -2495,7 +2470,44 @@ export function ListingsExplorer({
               twice. The function itself is retained for the mobile-drawer caller. */}
 
           {/* One-row sort strip — sticks under the header while the results scroll. */}
-          <SortStrip sort={sort} onPickSort={pickSort} headerHidden={headerHidden} />
+          {/* ⛔ ONE LINE: FILTERS LEFT, SORT RIGHT (owner, 2026-08-12: "clean 2 lines fit all").
+              The facet bar is passed INTO the sort strip rather than rendered above it, because
+              the strip is the sticky bar and its top offsets carry the safe-area / Capacitor /
+              edge-bleed behaviour — see the `leading` prop's note. `min-h-12` rides along: the
+              FacetBar is a ssr:false dynamic, so without a reserved row the grid below shifts on
+              every cold load, which is the CLS class this page paid 0.142 → 0.002 to remove. */}
+          <SortStrip
+            sort={sort}
+            onPickSort={pickSort}
+            headerHidden={headerHidden}
+            leading={
+              <div className="min-h-12">
+                <FacetBar
+                  facetCounts={facetCounts}
+                  activeCategory={activeCategory}
+                  activeSubcategory={activeSubcategory}
+                  setActiveSubcategory={setActiveSubcategory}
+                  province={activeProvince}
+                  setProvince={setActiveProvince}
+                  ward={activeWard}
+                  setWard={setActiveWard}
+                  nearby={nearby}
+                  setNearby={setNearby}
+                  priceRange={priceRange}
+                  setPriceRange={setPriceRange}
+                  conditionFilter={conditionFilter}
+                  setConditionFilter={setConditionFilter}
+                  listingType={listingType}
+                  setListingType={setListingType}
+                  customFilters={customFilters}
+                  setCustomFilters={setCustomFilters}
+                  verifiedOnly={verifiedOnly}
+                  setVerifiedOnly={setVerifiedOnly}
+                  histogramQuery={histogramQuery}
+                />
+              </div>
+            }
+          />
 
           {/* THE RESULTS HEADER — one row that serves both states, which is the point.
               Undirected it is the feed's section heading, styled like every other home section
@@ -2557,14 +2569,29 @@ export function ListingsExplorer({
                 offer to save nothing (see shouldOfferSaveSearch in result-line.tsx), so it renders
                 null on the undirected home view and costs no width there. */}
             <div className="flex shrink-0 items-center gap-1">
-              {shouldOfferSaveSearch(resultFilters.length) && (
+              {/* ⚠️ THE LADDER COUNTS AS FILTERS HERE, AND LEAVING IT OUT HID THIS BUTTON ON THE
+                  SEARCHES MOST WORTH SAVING. `resultFilters` deliberately EXCLUDES the ladder
+                  levels because the breadcrumb beside it already names them — printing "Honda"
+                  as a crumb and again as a chip is the duplication that list exists to avoid.
+                  But "how many constraints are applied" is a different question from "what should
+                  this line print", and using the display list for both meant Vehicles › Manual ›
+                  Honda › Vision — four taps deep, and exactly the search in the owner's wireframe
+                  — counted as ZERO and offered no save. Raised by two reviewers; confirmed on the
+                  page by drilling category + brand and watching the button never appear. */}
+              {shouldOfferSaveSearch(resultFilters.length + ladderCrumbs.length) && (
                 <Button
                   onClick={saveSearch}
                   variant="bare"
                   size="none"
-                  className="hidden shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold text-accent-foreground transition-colors hover:bg-accent sm:inline-flex"
+                  // ⚠️ NOT `hidden sm:inline-flex`. It was, and that put the one control for
+                  // "tell me when something like this appears" out of reach on a phone — the
+                  // device most of this marketplace is browsed on. The label hides under sm, the
+                  // button does not.
+                  className="inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold text-accent-foreground transition-colors hover:bg-accent"
                 >
-                  <Bookmark className="h-4 w-4" aria-hidden /> {tr('Save search', 'Lưu tìm kiếm')}
+                  <Bookmark className="h-4 w-4" aria-hidden />
+                  <span className="hidden sm:inline">{tr('Save search', 'Lưu tìm kiếm')}</span>
+                  <span className="sr-only sm:hidden">{tr('Save search', 'Lưu tìm kiếm')}</span>
                 </Button>
               )}
               <ViewToggles viewMode={viewMode} onViewMode={changeView} showVideo={showVideoView} />

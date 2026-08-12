@@ -74,10 +74,30 @@ export function SortStrip({
   sort,
   onPickSort,
   headerHidden,
+  leading,
 }: {
   sort: SortKey
   onPickSort: (s: SortKey) => void
   headerHidden: boolean
+  /**
+   * The filter controls, rendered on the LEFT of this same row.
+   *
+   * ⚠️ A SLOT RATHER THAN A SIBLING ROW, AND THE STICKY IS THE WHOLE REASON. The wireframe puts
+   * filters and sort on ONE line (owner, 2026-08-12: "clean 2 lines fit all"). The obvious way to
+   * get that is to wrap both in a flex row in the caller — but this component IS the sticky bar
+   * under the header, and its `top` offsets carry behaviour that took real incidents to get
+   * right: the safe-area inset so the tabs do not sit under the Dynamic Island once the header
+   * slides away, the dual env()/custom-property path for older Android WebViews, and the negative
+   * margins that bleed its background to the page gutter. Moving the sticky up to a wrapper would
+   * have re-derived all of it blind. Passing the filters IN keeps every one of those properties
+   * untouched and still produces one line.
+   *
+   * ⚠️ IT WRAPS BELOW sm ON PURPOSE. The tab strip is a snap scroller on a phone (touch-pan-x —
+   * see the list below), and a filter bar beside it would leave both too narrow to scroll
+   * sensibly. `basis-full sm:basis-auto` gives the filters their own line on mobile and shares
+   * the row from sm up, which is where the wireframe's layout applies.
+   */
+  leading?: React.ReactNode
 }) {
   const { tr } = useLanguage()
   const priceSortActive = sort === 'price-low' || sort === 'price-high'
@@ -200,6 +220,8 @@ export function SortStrip({
         '-mx-3 px-3 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8',
       )}
     >
+      <div className="flex flex-wrap items-center justify-between gap-x-4">
+      {leading ? <div className="min-w-0 basis-full sm:flex-1 sm:basis-auto">{leading}</div> : null}
       <TabsList
         // variant=line: the default variant paints a bg-muted pill behind the strip.
         variant="line"
@@ -209,7 +231,9 @@ export function SortStrip({
           // and the horizontal list's fixed h-8, which would squash the 40px tabs and clip the
           // underline. group-data-horizontal/tabs:h-auto matches the base's modifier verbatim so
           // tailwind-merge removes h-8 rather than racing it on specificity.
-          'flex w-full justify-start p-0 group-data-horizontal/tabs:h-auto',
+          // w-full/justify-start on mobile (own line); from sm it shrinks and sits at the
+          // row's right edge beside the filters — the wireframe's arrangement.
+          'flex w-full justify-start p-0 group-data-horizontal/tabs:h-auto sm:w-auto sm:shrink-0 sm:justify-end',
           // HORIZONTAL RAIL, NOT A DRAGGABLE OBJECT. Three things are load-bearing here:
           //
           //   touch-pan-x   The one that actually fixes it. overflow-x-auto forces overflow-y to
@@ -264,6 +288,7 @@ export function SortStrip({
           )}
         </TabsTrigger>
       </TabsList>
+      </div>
     </Tabs>
   )
 }
