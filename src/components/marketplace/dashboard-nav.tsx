@@ -3,7 +3,7 @@
 // (account-panel.tsx) is the only consumer today, but any future surface (native shell, forum
 // mirror) must read these groups rather than re-declaring routes — one source of truth for
 // hrefs, labels, icons, badges, and role visibility. DATA + TYPES ONLY: no UI components here
-// (the VerificationSeal adapter below is icon DATA — a first-party glyph wearing the same
+// (icon DATA only — the components that render these live in the rail and the account hub)
 // contract as the lucide imports beside it, not rail UI).
 //
 // Roles: 'all' renders for everyone signed-in; 'business' requires dash.tier === 'business';
@@ -48,9 +48,7 @@ import {
   Store, SquareArrowOutUpRight, MessageSquare, Heart, Scale, Upload, Plug,
   CircleHelp, FileCheck2, Route,
   Flag, ShieldAlert, ClipboardList, Tags, Star, Stamp, Gavel, Filter,
-  type LucideIcon,
-} from '@/components/ui/icons'
-import { EnoSeal } from './eno-seal'
+  type LucideIcon, ShieldCheck } from '@/components/ui/icons'
 import { cn } from '@/lib/utils'
 
 export type NavRole = 'all' | 'business' | 'seller' | 'admin'
@@ -67,25 +65,16 @@ export type NavRole = 'all' | 'business' | 'seller' | 'admin'
  *  rule cover the rail instead of a second, rail-local mechanism. */
 export type NavIcon = LucideIcon | ComponentType<SVGProps<SVGSVGElement>>
 
-// Business verification renders THE SEAL, not lucide BadgeCheck (R2 critic; icon-language
-// §0b: a first-party verification queue is a trust moment, and "when in doubt, it is the
-// seal"). `line` variant — the rail is chrome and idle chrome is line-only (§6); the washed
-// chief belongs to artwork/trust-chip mounts.
-// ⚠️ `fill-none` + the paths' own `fill="none"` attributes are what make the seal DEGRADE
-// GRACEFULLY under the rail's selected-state duotone: the tint layer paints `fill` on the
-// <svg>, and fill is an inherited property that any child's own declaration beats — so the
-// seal keeps its line even on the active row. That is the §6 sanctioned fallback and the
-// right answer here, because the seal's fillable region is its whole silhouette, and a
-// full-silhouette flood is exactly what §0 forbids for this mark.
-// strokeWidth arrives as SVG's `string | number`; EnoSeal takes the §2 numeric tier, so a
-// non-numeric value falls back to the seal's own default rather than being coerced.
-const VerificationSeal = ({ className, strokeWidth }: SVGProps<SVGSVGElement>) => (
-  <EnoSeal
-    variant="line"
-    strokeWidth={typeof strokeWidth === 'number' ? strokeWidth : undefined}
-    className={cn('fill-none', className)}
-  />
-)
+// ⚠️ BUSINESS VERIFICATION USES SOLAR'S `shield-check`, NOT THE eno SEAL (owner, 2026-08-12:
+// "admin dashboard business verification still uses old icon make it solar v2").
+//
+// It used to mount EnoSeal through an adapter, on the reasoning that a first-party verification
+// queue is a trust moment and "when in doubt, it is the seal". The seal is the BRAND MARK — it
+// belongs on the logo, the watermark and the favicon — and putting it in a nav rail made one row
+// wear the company's signature while its neighbours wore stock glyphs. Solar already draws a
+// shield with a tick, which is what this row means, and it inherits the app-wide outline/bold
+// pressed grammar for free; the adapter existed only to force the seal to degrade under that
+// grammar, so it goes with it.
 
 /**
  * ⚠️ THE SERVICES ROWS ARE CONDITIONALLY *CONSTRUCTED*, NOT JUST FILTERED, AND THEIR COPY LIVES IN
@@ -156,7 +145,7 @@ export type NavItem = {
    * nothing to allowlist, and one rule shared with the category tiles.
    *
    * The one row that still degrades to line-only is Business verification, and that is now
-   * a property of the SEAL (see VerificationSeal above), not of a list kept over here. */
+   * a property of the GLYPH itself, not of a list kept over here. */
 }
 
 export type NavGroup = {
@@ -265,7 +254,7 @@ export const DASHBOARD_NAV: NavGroup[] = [
       { href: '/admin/brands', en: 'Brands', icon: Tags },
       { href: '/admin/feedback', en: 'Feedback', icon: Star },
       ...(IS_SERVICES ? [{ ...SERVICES_NAV_ADMIN_QUEUE, icon: Stamp, servicesOnly: true }] : []),
-      { href: '/admin/business-verification', en: 'Business verification', icon: VerificationSeal },
+      { href: '/admin/business-verification', en: 'Business verification', icon: ShieldCheck },
     ],
   },
 ]

@@ -62,28 +62,21 @@
 
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-inter-vn), var(--font-blinker, ui-sans-serif), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-open-runde, ui-sans-serif), ui-sans-serif, system-ui, sans-serif;
 
-  /* ⚠️ `font-medium` EMITS 600, NOT 500, BECAUSE BLINKER HAS NO 500 — AND THIS IS ONE TOKEN
-     RATHER THAN 94 EDITS.
-
-     Blinker (the UI face since 2026-08-12) ships static cuts at 100/200/300/400/600/700/800/900.
-     There is no medium: `https://fonts.googleapis.com/css2?family=Blinker:wght@500` answers
-     HTTP 400. Inter was VARIABLE, so `font-medium` used to be free and exact; under Blinker the
-     CSS font-matching algorithm resolves a missing 500 DOWNWARDS to 400, which quietly flattens
-     every button, label and chip in the app to regular — 94 call sites, none of which look wrong
-     in isolation.
-
-     Retargeting the token moves all 94 at once and keeps the class name honest: `font-medium`
-     still means "one step above body", it is just spelled 600 in this family. The alternative —
-     sweeping `font-medium` to `font-semibold` — edits 94 files to say the same thing, and leaves
-     the next person to rediscover why.
-
-     ⚠️ SO `font-medium` AND `font-semibold` ARE NOW THE SAME WEIGHT. That is a real flattening of
-     the type scale, and it is the family's constraint rather than a choice. If the two tiers need
-     to be visually distinct again, the fix is a different face — not synthesis, which is the
-     smeared faux-bold this codebase avoids elsewhere. */
-  --font-weight-medium: 600;
+  /* ⚠️ 800 AND 900 PAINT AT 700, BECAUSE OPEN RUNDE HAS NO CUT ABOVE BOLD.
+     The family is four static weights — 400/500/600/700 — and is not variable, so a request for
+     800 or 900 resolves to the nearest available, which is 700. Retargeting the tokens keeps the
+     class name honest: `font-extrabold` still means "the heaviest tier", it is just spelled 700
+     in this family, and the number in the file is the weight that paints.
+     ⚠️ SO font-bold, font-extrabold AND font-black ARE NOW THE SAME WEIGHT. That is a real
+     flattening of the top of the scale and it is the family's constraint, not a choice. If those
+     tiers need to be distinct again the fix is a different face, never synthesis — a faux-bold
+     smears a rounded terminal worse than it does a flat one.
+     (`--font-weight-medium` is deliberately NOT overridden here: Open Runde HAS a 500, unlike
+     Blinker, so the default scale is correct again and medium/semibold are distinct.) */
+  --font-weight-extrabold: 700;
+  --font-weight-black: 700;
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
   --color-ring: var(--ring);
   --color-input: var(--input);
@@ -573,12 +566,15 @@
        an undefined var() makes the whole declaration invalid at computed-value time and the
        later list items never get a turn. That is precisely how Inter went missing for months
        (see the comment on the font import in layout.tsx). */
-    font-family: var(--font-inter-vn), var(--font-blinker, ui-sans-serif), ui-sans-serif, system-ui, sans-serif;
-    /* Inter opt-in features: cv01 serifed-1 · cv11 single-storey a · ss01/ss03 contextual
-       alternates · zero slashed-0 — disambiguates 0/O and 1/l in prices, phone numbers and IDs.
-       These predate 2026-08-05 and were correct all along; they had simply never taken effect,
-       because Inter itself never applied (see the font import in layout.tsx). */
-    font-feature-settings: "cv01", "cv11", "ss01", "ss03", "zero";
+    font-family: var(--font-open-runde, ui-sans-serif), ui-sans-serif, system-ui, sans-serif;
+    /* ⚠️ `normal` — AND FOUR OF THE FIVE FEATURES THAT USED TO BE HERE NEVER EXISTED IN THIS FACE.
+       The line read `"cv01", "cv11", "ss01", "ss03", "zero"`, which are INTER's character variants.
+       Open Runde's GSUB carries only `aalt case frac locl ordn zero` (read out of the shipped
+       woff2), so cv01/cv11/ss01/ss03 were silently doing nothing — and `zero` was doing something
+       nobody wanted: it maps `zero` → `zero.zero`, the SLASHED nought. The plain 0 is this font's
+       default; the feature is what put the slash through it.
+       Owner, 2026-08-12: "the 0 of open runde make across all app ... without / inside 0". */
+    font-feature-settings: normal;
     /* ⛔ NO `font-variation-settings: "opsz" …` HERE — AND THAT IS THE WHOLE POINT.
        This line used to read `"opsz" 32`, which was a no-op for its entire life because the
        axis was never shipped (see `axes: ["opsz"]` in layout.tsx). Shipping the axis was the
@@ -609,7 +605,11 @@
      Inter-specific; Be Vietnam Pro is a static family with axes:null, and leaving Inter's values
      inherited would ask a font for axes it does not have. */
   html[lang="vi"] body {
-    font-family: var(--font-be-vietnam-pro, ui-sans-serif), ui-sans-serif, system-ui, sans-serif;
+    /* ⚠️ NO LONGER A SEPARATE FACE. Be Vietnam Pro existed because the Latin face could not
+       draw Vietnamese; Open Runde can (verified per-glyph via CDP), so both languages now
+       share one family and this rule keeps the stack rather than switching it. Reinstating a
+       second family here would reintroduce the multi-face stack the Arial bug lived in. */
+    font-family: var(--font-open-runde, ui-sans-serif), ui-sans-serif, system-ui, sans-serif;
     font-feature-settings: normal;
     font-variation-settings: normal;
   }
@@ -689,9 +689,9 @@
 .h-greeting {
   font-size: var(--text-display);
   line-height: 1.15;
-  /* ⚠️ WAS 450, WHICH ONLY EXISTED BECAUSE INTER WAS VARIABLE. Blinker is a static family, so a
-     450 request resolves to the nearest cut anyway — 400. Pinned to 400 so the number in the file
-     is the weight that paints, and so nobody reads 450 as a tuned value they can nudge. */
+  /* ⚠️ WAS 450, WHICH ONLY EXISTED BECAUSE INTER WAS VARIABLE. Open Runde is four static cuts
+     (400/500/600/700), so a 450 request resolves to the nearest — 400 — anyway. Pinned so the
+     number in the file is the weight that paints, and so nobody reads 450 as a tuned value. */
   font-weight: 400;
   letter-spacing: -0.02em;
 }

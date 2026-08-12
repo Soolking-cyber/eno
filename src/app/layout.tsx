@@ -1,5 +1,4 @@
 import type { Metadata, Viewport } from "next";
-import { Be_Vietnam_Pro, Blinker } from "next/font/google";
 import localFont from "next/font/local";
 import "./globals.css";
 import { AnalyticsTags } from "@/components/marketplace/analytics-tags";
@@ -33,7 +32,7 @@ const SITE_ORIGIN = process.env.NEXT_PUBLIC_APP_URL || "https://eno.vn";
  * ⚠️ THE VARIABLE CLASS GOES ON <html>, NOT <body>. THIS IS THE WHOLE BUG THAT USED TO BE HERE.
  *
  * Tailwind v4's preflight styles `html,:host { font-family: var(--default-font-family, <system stack>) }`,
- * and our `@theme inline` compiles `--default-font-family` down to `var(--font-be-vietnam-pro), …`.
+ * and our `@theme inline` compiles `--default-font-family` down to `var(--font-open-runde), …`.
  * next/font defines that variable on the class it hands back — so if the class sits on <body>, the
  * variable does not exist on <html>, `var()` is undefined there, the whole declaration is invalid at
  * computed-value time, and font-family falls back to the SYSTEM STACK. <body> then inherits that
@@ -95,115 +94,47 @@ const SITE_ORIGIN = process.env.NEXT_PUBLIC_APP_URL || "https://eno.vn";
  * font-size continuously and for free. The ⛔ block in globals.css is still correct as written.
  */
 /**
- * ⚠️ BLINKER REPLACED INTER AS THE LATIN UI FACE (owner, 2026-08-12).
+ * ONE FACE FOR THE WHOLE APP — Open Runde, self-hosted.
  *
- * ⚠️ BLINKER IS NOT VARIABLE AND HAS NO 500. Inter was variable, so every weight was free and
- * `font-medium` cost nothing. Blinker ships static cuts at 100/200/300/400/600/700/800/900 —
- * there is no 500 — so CSS font matching resolves `font-medium` DOWN to 400. That is the one
- * visible consequence of this swap and it is app-wide, since `font-medium` is the default weight
- * on buttons and labels. If medium text now reads too light, the fix is to move those call sites
- * to `font-semibold` (600), not to fake 500 with synthesis.
+ * Owner, 2026-08-12: *"try this font instead the current font is not good lets adapt universal
+ * 1 font can it be this"*. It can, and the reason is coverage: Open Runde is a rounded cut of
+ * Inter, so it inherits Inter's character set. VERIFIED rather than assumed — rendered through
+ * Chrome's CDP `CSS.getPlatformFontsForNode`, which reports the font actually rasterised, every
+ * Vietnamese diacritic (ệ ộ ỡ ữ ằ ẳ ẵ ặ ầ ẩ ẫ ậ đ Đ ơ Ơ ư Ư), the ₫ dong sign and plain Latin all
+ * came back **Open Runde** with nothing falling through.
  *
- * ⚠️ ONLY THE FIVE WEIGHTS THE APP ACTUALLY USES, BECAUSE EACH ONE IS A SEPARATE FILE. Blinker is
- * static, so a weight is a download rather than a free interpolation along an axis. Listing all
- * eight put EIGHT woff2 files on first paint — measured — in a codebase whose font comments
- * already record a bug where THREE Inter files (140.6 KiB) was the thing being fixed.
- * Counted across src/: font-normal 29, font-medium 99 (now 600), font-semibold 478, font-bold
- * 390, font-extrabold 17, font-black 4 — and ZERO uses of thin, extralight or light. So 100/200/
- * 300 are dropped; adding one back is a one-line change if a design ever calls for it.
+ * ⚠️ THAT COVERAGE IS WHAT DELETES THREE FACES AND A WHOLE CLASS OF BUG. The app used to run
+ * Blinker (latin) + a self-hosted Inter Vietnamese cut (unicode-range scoped) + Be Vietnam Pro
+ * (under html[lang="vi"]). That arrangement is exactly what let an adjusted `local(Arial)`
+ * companion face sit first in the stack and swallow every Latin glyph — the app rendered in
+ * ARIAL for months and no weight written anywhere could change it. One family, no unicode-range,
+ * no language split: there is no longer a stack for a fallback to win.
+ *
+ * ⚠️ FOUR STATIC WEIGHTS, AND 700 IS THE CEILING. Open Runde ships Regular/Medium/Semibold/Bold
+ * and is NOT variable ("Can you make it a variable font? -> Probably not" — the author). So
+ * `font-extrabold` (800) and `font-black` (900) have nothing to resolve to; globals.css retargets
+ * both to 700 so the number in the file is the weight that paints. Prices are 700 by the owner's
+ * call on the same day, which is the ceiling anyway.
+ *
+ * ⚠️ SUBSET TO LATIN + VIETNAMESE, WHICH IS 62% OF THE BYTES. The upstream release ships the full
+ * charset at ~155 KB per weight — 620 KB for four. Subset with pyftsubset to
+ * U+0000-024F, U+0300-036F, U+1E00-1EFF (the Vietnamese block) plus punctuation and currency,
+ * they are 236 KB total, and the coverage check above was re-run ON THE SUBSET to prove nothing
+ * was dropped. Regenerate with scripts/gen-fonts.sh if the upstream release moves.
+ *
+ * Licence: OFL-1.1, same as Inter (src/fonts/OFL-OpenRunde.txt).
  */
-const blinker = Blinker({
-  variable: "--font-blinker",
-  // ⚠️ "latin" ONLY — the vietnamese subset is served by interVietnamese below, and preloading
-  // BOTH put a file on the critical path that never got used. See the note on interVietnamese.
-  subsets: ["latin"],
-  weight: ["400", "600", "700", "800", "900"],
-  display: "swap",
-});
-
-/**
- * ⚠️ THE VIETNAMESE CUT OF INTER, SELF-HOSTED, AND IT SAVES 83 KiB ON AN ENGLISH VISIT.
- *
- * The bug it fixes: an English mobile homepage downloaded THREE Inter files (140.6 KiB), and the
- * biggest — 85,272 bytes of `latin-ext` — was fetched for exactly four characters: đ ư Đ ă, from
- * the prelaunch banner, "Prices in Đ and $", and the company name in the footer. Every one of
- * those glyphs is also in the 10,280-byte vietnamese file we were ALREADY preloading. The browser
- * picked the wrong one because Google's generated @font-face blocks overlap on those codepoints
- * and `latin-ext` is declared LAST, so it wins — and the declaration order is not ours to change.
- *
- * The fix is to stop arguing about @font-face order and use FAMILY order, which is evaluated per
- * character and IS ours: this face goes first in the font-family list (globals.css), so any glyph
- * in its unicode-range is served from 10 KB and never reaches Next's latin-ext face at all.
- *
- * Fails safe by construction: a latin-ext codepoint OUTSIDE this range — Polish ł, Turkish ş in a
- * user-submitted listing title — simply falls through to Next's own latin-ext face exactly as it
- * does today. Nothing is routed to a system fallback that would not already have been used.
- *
- * The file is the exact artifact Next itself emitted for the vietnamese subset, committed verbatim
- * (10,280 bytes) with Inter's OFL licence beside it. Regenerate by pulling
- * `_next/static/media/*-s.p.*.woff2` whose unicode-range matches the one below.
- */
-const interVietnamese = localFont({
-  src: "../fonts/inter-vietnamese.woff2",
-  variable: "--font-inter-vn",
-  weight: "100 900",
+const openRunde = localFont({
+  src: [
+    { path: "../fonts/open-runde-regular.woff2", weight: "400", style: "normal" },
+    { path: "../fonts/open-runde-medium.woff2", weight: "500", style: "normal" },
+    { path: "../fonts/open-runde-semibold.woff2", weight: "600", style: "normal" },
+    { path: "../fonts/open-runde-bold.woff2", weight: "700", style: "normal" },
+  ],
+  variable: "--font-open-runde",
   display: "swap",
   preload: true,
-  /**
-   * ⛔ `adjustFontFallback: false` IS LOAD-BEARING AND REMOVING IT PUTS THE WHOLE APP BACK IN ARIAL.
-   *
-   * By default next/font emits a COMPANION face beside this one — `"interVietnamese Fallback"`,
-   * a `local(Arial)` with `size-adjust` — and injects it into the same CSS variable, so
-   * `var(--font-inter-vn)` expands to `interVietnamese, "interVietnamese Fallback"`.
-   *
-   * ⚠️ THAT COMPANION CARRIES NO `unicode-range`. This face is deliberately FIRST in --font-sans
-   * so its 10 KB Vietnamese cut serves đ/ư/ă cheaply (see the note above) — but the companion
-   * inherits the position without inheriting the range, so it matches EVERY Latin character and
-   * wins before the UI face is ever consulted.
-   *
-   * Measured 2026-08-12 via CDP `CSS.getPlatformFontsForNode`, which reports the font Chrome
-   * actually rasterised with: price, heading and body all came back **Arial**. Not Blinker, not
-   * Inter. The app had been rendering in a system fallback, and because Arial has no 900,
-   * `font-black` on every price collapsed to Arial Bold — which is exactly the "prices are still
-   * not bold" the owner reported repeatedly and which no amount of raising the weight could fix.
-   *
-   * Turning the companion off costs nothing here: this face exists only to serve a handful of
-   * Vietnamese codepoints, and the UI face right behind it brings its own adjusted fallback for
-   * the swap window.
-   */
-  adjustFontFallback: false,
-  // Copied verbatim from the @font-face Next generates for Inter's vietnamese subset — this is
-  // the contract that keeps the two faces from fighting. Widening it would start stealing glyphs
-  // from the latin face; narrowing it hands them back to the 85 KB latin-ext one.
-  declarations: [{
-    prop: "unicode-range",
-    value: "U+102-103,U+110-111,U+128-129,U+168-169,U+1A0-1A1,U+1AF-1B0,U+300-301,U+303-304,U+308-309,U+323,U+329,U+1EA0-1EF9,U+20AB",
-  }],
-});
-
-/**
- * ⚠️ `preload: false` IS DELIBERATE AND LOAD-BEARING. This face is used only under `html[lang="vi"]`,
- * which is a client-set attribute, so preloading it would push ~87KB of woff2 onto the critical path
- * of every English visitor to fetch a font their page never references. Without preload the browser
- * fetches it lazily, when a rule actually matches. Do not "fix" this by turning preload on.
- */
-const beVietnamPro = Be_Vietnam_Pro({
-  variable: "--font-be-vietnam-pro",
-  subsets: ["latin", "vietnamese"],
-  // ⚠️ 900 IS BACK, AND IT IS LOAD-BEARING RATHER THAN A LEFTOVER (owner, 2026-08-11, fourth
-  // report of "prices arent bold"). It was dropped as unused when the weight list was trimmed,
-  // which is what forced <Price> down to 800: `font-black` rendered 900 on Inter and CLAMPED to
-  // 800 on this face, so the same price looked different in English and Vietnamese, and "use 800
-  // for both" was the correct call GIVEN THAT CONSTRAINT. Adding the cut removes the constraint
-  // instead of living with it — both faces now have a real 900, so the price is heavier in every
-  // language rather than heavier in one. Rendered side by side at 18px, 800→900 is a clearly
-  // visible step where 700→800 was not, which is why three "it is applied" answers did not
-  // satisfy the request.
-  // The cost is bounded by `preload: false` below: these files are fetched only when a rule under
-  // html[lang="vi"] actually matches, so an English visitor never downloads the added weight.
-  weight: ["400", "500", "600", "700", "800", "900"],
-  display: "swap",
-  preload: false,
+  fallback: ["ui-sans-serif", "system-ui", "sans-serif"],
 });
 
 const OG_IMAGE = { url: "/listings/hero-market.png", width: 1344, height: 768, alt: `${SITE_NAME} — trusted marketplace` };
@@ -292,7 +223,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${blinker.variable} ${interVietnamese.variable} ${beVietnamPro.variable}`} suppressHydrationWarning>
+    <html lang="en" className={`${openRunde.variable}`} suppressHydrationWarning>
       <head>
         {/* Set the theme class BEFORE paint to avoid a flash of the wrong scheme —
             reads the persisted System/Light/Dark choice + the OS preference. Kept

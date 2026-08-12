@@ -122,9 +122,11 @@ export function Price({ price, currency, priceUnit, compact = false, dual = true
     // was never reached. Arial has no 900 — `font-black` collapsed to Arial Bold, and no weight
     // written here could ever have made a difference. The fix is `adjustFontFallback: false` in
     // layout.tsx; see the block there.
-    // With the real face rendering, Blinker's 900 is genuinely heavy — too heavy at price size
-    // (owner, 2026-08-12: "too bold try 800"). 800 it is.
-    <span className={cn('tabular-nums font-extrabold', className)}>
+    // With the real face rendering the weight finally mattered: 900 read too heavy at price size
+    // ("too bold try 800"), then the app moved to Open Runde, whose ceiling IS 700 — four static
+    // cuts, no variable axis — and the owner settled on 700 ("make prices 700"). So this is Bold,
+    // the heaviest the family has, and globals.css retargets 800/900 to 700 for the same reason.
+    <span className={cn('tabular-nums font-bold', className)}>
       {amount}
       {/* The bare text node is kept for the default (always-on) case so the other
           call sites' DOM is byte-identical to before; only the 'sm' variant needs a
