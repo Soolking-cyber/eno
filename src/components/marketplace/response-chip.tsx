@@ -1,6 +1,6 @@
 'use client'
 
-import { Clock } from 'lucide-react'
+import { Clock } from '@/components/ui/icons'
 import { useLanguage } from '@/context/language-context'
 import { useMounted } from '@/hooks/use-mounted'
 import { Badge } from '@/components/ui/badge'

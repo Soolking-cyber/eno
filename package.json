@@ -13,11 +13,11 @@
     "not dead"
   ],
   "scripts": {
-    "dev": "next dev -p 3000 2>&1 | tee dev.log",
-    "dev:vn": "NEXT_PUBLIC_ENO_EDITION=marketplace NEXT_PUBLIC_APP_URL=https://eno.vn next dev -p 3000",
-    "dev:forum": "NEXT_PUBLIC_ENO_EDITION=services NEXT_PUBLIC_APP_URL=https://www.eno.forum next dev -p 3001",
-    "postinstall": "prisma generate",
-    "build": "node scripts/design-lint.mjs && node scripts/edition-lint.mjs && prisma generate && next build && { [ -d .next/standalone ] && cp -r .next/static .next/standalone/.next/ && cp -r public .next/standalone/ || true; }",
+    "dev": "node scripts/gen-icons.mjs && next dev -p 3000 2>&1 | tee dev.log",
+    "dev:vn": "node scripts/gen-icons.mjs && NEXT_PUBLIC_ENO_EDITION=marketplace NEXT_PUBLIC_APP_URL=https://eno.vn next dev -p 3000",
+    "dev:forum": "node scripts/gen-icons.mjs && NEXT_PUBLIC_ENO_EDITION=services NEXT_PUBLIC_APP_URL=https://www.eno.forum next dev -p 3001",
+    "postinstall": "prisma generate && (node scripts/gen-icons.mjs || echo \"icons: scripts/ not present yet — regenerated at build\")",
+    "build": "node scripts/gen-icons.mjs && node scripts/design-lint.mjs && node scripts/edition-lint.mjs && prisma generate && next build && { [ -d .next/standalone ] && cp -r .next/static .next/standalone/.next/ && cp -r public .next/standalone/ || true; }",
     "start": "NODE_ENV=production node .next/standalone/server.js 2>&1 | tee server.log",
     "preview:vn": "node scripts/preview.mjs vn",
     "preview:forum": "node scripts/preview.mjs forum",

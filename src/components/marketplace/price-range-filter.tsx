@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { ChevronDown } from 'lucide-react'
+import { ChevronDown } from '@/components/ui/icons'
 import { useLanguage } from '@/context/language-context'
 import { useCurrency } from '@/context/currency-context'
 import { compactPrice, moneyLocale } from '@/lib/vnd'

@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { MessageCircle, Store, Building2, Star } from 'lucide-react'
+import { MessageCircle, Store, Building2, Star } from '@/components/ui/icons'
 import { EnoSeal } from './eno-seal'
 import { useLanguage } from '@/context/language-context'
 import { TrustScore } from '@/components/marketplace/trust-score'

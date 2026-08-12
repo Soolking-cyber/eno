@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { ArrowRight, ArrowUpRight, Info } from 'lucide-react'
+import { ArrowRight, ArrowUpRight, Info } from '@/components/ui/icons'
 import { SITE_NAME } from '@/lib/edition'
 import { AFFILIATION } from '@/lib/site-legal'
 import { CROSS_SITE_REL, MARKETPLACE_LINKS } from '@/lib/cross-site-links'

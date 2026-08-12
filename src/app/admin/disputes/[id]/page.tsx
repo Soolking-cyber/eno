@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { ChevronLeft } from 'lucide-react'
+import { ChevronLeft } from '@/components/ui/icons'
 import { STROKE_NAV } from '@/lib/icon-tokens'
 import { db } from '@/lib/db'
 import { getAdmin } from '@/lib/admin'

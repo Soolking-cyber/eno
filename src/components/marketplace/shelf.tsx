@@ -2,8 +2,8 @@
 
 import Link from 'next/link'
 import type { CSSProperties } from 'react'
-import { ChevronRight } from 'lucide-react'
-import type { LucideIcon } from 'lucide-react'
+import { ChevronRight } from '@/components/ui/icons'
+import type { LucideIcon } from '@/components/ui/icons'
 import { useLanguage } from '@/context/language-context'
 import { Button } from '@/components/ui/button'
 import { useScrollArrows, ScrollArrows } from '@/hooks/use-scroll-arrows'

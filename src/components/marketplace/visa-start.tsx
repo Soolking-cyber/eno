@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { Clock, Loader2, Stamp } from 'lucide-react'
+import { Clock, Loader2, Stamp } from '@/components/ui/icons'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import { Badge } from '@/components/ui/badge'

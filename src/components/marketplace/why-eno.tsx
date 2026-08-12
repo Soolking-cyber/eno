@@ -1,7 +1,7 @@
 'use client'
 
-import { Coins, Gavel, LockKeyhole, Megaphone } from 'lucide-react'
-import type { LucideIcon } from 'lucide-react'
+import { Coins, Gavel, LockKeyhole, Megaphone } from '@/components/ui/icons'
+import type { LucideIcon } from '@/components/ui/icons'
 import { useLanguage } from '@/context/language-context'
 import { SITE_NAME } from '@/lib/edition'
 import { EnoSeal } from './eno-seal'

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { History } from 'lucide-react'
+import { History } from '@/components/ui/icons'
 import type { SerializedListingCard } from '@/lib/types'
 import { ListingCard } from './listing-card'
 import { Shelf, RAIL_CARD_W } from './shelf'

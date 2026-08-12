@@ -1,7 +1,7 @@
 'use client'
 
 import { useId, useRef, useState, type Dispatch, type SetStateAction, type ReactNode } from 'react'
-import { MapPin, ChevronDown, SlidersHorizontal, X } from 'lucide-react'
+import { MapPin, ChevronDown, SlidersHorizontal, X } from '@/components/ui/icons'
 import { CustomSelect } from './custom-select'
 import { PriceRangeFilter } from './price-range-filter'
 import { RangeFacetControl } from './range-facet-control'

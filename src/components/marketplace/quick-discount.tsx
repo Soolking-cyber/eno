@@ -2,7 +2,7 @@
 
 import { useId, useState } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { TrendingDown, Loader2, Sparkles } from 'lucide-react'
+import { TrendingDown, Loader2, Sparkles } from '@/components/ui/icons'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Field, FieldLabel, FieldControl, FieldError } from '@/components/ui/field'

@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Map as MapIcon, X } from 'lucide-react'
+import { Map as MapIcon, X } from '@/components/ui/icons'
 import { useLanguage } from '@/context/language-context'
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'

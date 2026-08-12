@@ -3,7 +3,7 @@
 import { Suspense, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { MessageSquare, Flag, ArrowLeft } from 'lucide-react'
+import { MessageSquare, Flag, ArrowLeft } from '@/components/ui/icons'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import { SignInForm } from '@/components/marketplace/sign-in-form'

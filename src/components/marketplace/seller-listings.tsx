@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Search, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react'
+import { Search, ArrowUp, ArrowDown, ArrowUpDown } from '@/components/ui/icons'
 import type { SerializedListingCard } from '@/lib/types'
 import { ListingCard } from './listing-card'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'

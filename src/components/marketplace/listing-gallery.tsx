@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import Image from 'next/image'
-import { X, ChevronLeft, ChevronRight, Images, Play, Volume2, VolumeX } from 'lucide-react'
+import { X, ChevronLeft, ChevronRight, Images, Play, Volume2, VolumeX } from '@/components/ui/icons'
 import { STROKE_FLOAT } from '@/lib/icon-tokens'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'

@@ -2,7 +2,7 @@
 
 import { Children, isValidElement, useState, type ReactElement, type ReactNode } from 'react'
 import { Menu } from '@base-ui/react/menu'
-import { ChevronDown } from 'lucide-react'
+import { ChevronDown } from '@/components/ui/icons'
 import { useLanguage } from '@/context/language-context'
 import { Button } from '@/components/ui/button'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'

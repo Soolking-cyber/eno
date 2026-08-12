@@ -3,7 +3,7 @@
 import { useId, useState } from 'react'
 import { Select as SelectPrimitive } from '@base-ui/react/select'
 import { Combobox as ComboboxPrimitive } from '@base-ui/react/combobox'
-import { ChevronsUpDown, Check, Search } from 'lucide-react'
+import { ChevronsUpDown, Check, Search } from '@/components/ui/icons'
 import { Button } from '@/components/ui/button'
 import { useLanguage } from '@/context/language-context'
 import { cn } from '@/lib/utils'

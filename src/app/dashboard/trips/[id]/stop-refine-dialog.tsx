@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Loader2, MapPinOff, Sparkles, Trash2, Wallet, Clock, Footprints } from 'lucide-react'
+import { Loader2, MapPinOff, Sparkles, Trash2, Wallet, Clock, Footprints } from '@/components/ui/icons'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Field, FieldLabel, FieldControl } from '@/components/ui/field'

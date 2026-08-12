@@ -3,7 +3,7 @@
 import Image from 'next/image'
 import { isMockImageUrl } from '@/lib/listing-image'
 import { useEffect, useRef, useState } from 'react'
-import { Heart } from 'lucide-react'
+import { Heart } from '@/components/ui/icons'
 import { TrustScore } from './trust-score'
 import { MapTravel, MapsDirectionsButton } from './map-travel'
 import type { LatLng } from '@/lib/travel'

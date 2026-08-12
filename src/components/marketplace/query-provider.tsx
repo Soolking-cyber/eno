@@ -3,7 +3,7 @@
 import { QueryClient, QueryClientProvider, onlineManager } from '@tanstack/react-query'
 import { experimental_createQueryPersister } from '@tanstack/react-query-persist-client'
 import { useEffect, useState } from 'react'
-import { WifiOff, X } from 'lucide-react'
+import { WifiOff, X } from '@/components/ui/icons'
 import { useLanguage } from '@/context/language-context'
 import { Alert } from '@/components/ui/alert'
 import { IconButton } from '@/components/ui/icon-button'

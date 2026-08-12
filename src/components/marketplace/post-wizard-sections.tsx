@@ -17,7 +17,7 @@
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { toast } from 'sonner'
-import { ImagePlus, X, MapPin, ChevronDown, Check, Sparkles, Loader2, LocateFixed, Zap, Video, SquarePlay, Camera, Crop } from 'lucide-react'
+import { ImagePlus, X, MapPin, ChevronDown, Check, Sparkles, Loader2, LocateFixed, Zap, Video, SquarePlay, Camera, Crop } from '@/components/ui/icons'
 import { cn } from '@/lib/utils'
 import { captureNativePhoto, nativePhotoCaptureAvailable } from '@/lib/native-photos'
 import { Button } from '@/components/ui/button'

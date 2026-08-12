@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
-import { Loader2, MessageSquare, ExternalLink, Gavel, Clock, ShieldQuestion, Flag } from 'lucide-react'
+import { Loader2, MessageSquare, ExternalLink, Gavel, Clock, ShieldQuestion, Flag } from '@/components/ui/icons'
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription,
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { CheckCircle2, AlertCircle, Copy, Check } from 'lucide-react'
+import { CheckCircle2, AlertCircle, Copy, Check } from '@/components/ui/icons'
 import { STROKE_DISPLAY } from '@/lib/icon-tokens'
 import { Button } from '@/components/ui/button'
 import { useLanguage } from '@/context/language-context'

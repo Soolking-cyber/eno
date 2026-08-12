@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { Search, Bell, BellOff, Trash2 } from 'lucide-react'
+import { Search, Bell, BellOff, Trash2 } from '@/components/ui/icons'
 import { useLanguage } from '@/context/language-context'
 import { useAuth } from '@/context/auth-context'
 import { Button } from '@/components/ui/button'

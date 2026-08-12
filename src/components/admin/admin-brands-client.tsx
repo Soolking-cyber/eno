@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
-import { Loader2, Search, Check, Sparkles, Upload } from 'lucide-react'
+import { Loader2, Search, Check, Sparkles, Upload } from '@/components/ui/icons'
 import { BrandLogo } from '@/components/marketplace/brand-logo'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'

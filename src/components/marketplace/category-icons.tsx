@@ -98,7 +98,7 @@ import {
   Zap,
   HelpCircle,
   type LucideIcon,
-} from 'lucide-react'
+} from '@/components/ui/icons'
 import type { ComponentType, SVGProps } from 'react'
 import { cn } from '@/lib/utils'
 import { STROKE_DISPLAY } from '@/lib/icon-tokens'

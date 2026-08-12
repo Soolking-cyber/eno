@@ -1,6 +1,6 @@
 'use client'
 
-import { Sun, Moon } from 'lucide-react'
+import { Sun, Moon } from '@/components/ui/icons'
 import { useLanguage, LANGUAGES } from '@/context/language-context'
 import { useCurrency } from '@/context/currency-context'
 import { useTheme } from '@/context/theme-context'

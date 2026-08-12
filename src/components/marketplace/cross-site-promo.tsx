@@ -1,6 +1,6 @@
 'use client'
 
-import { ArrowUpRight } from 'lucide-react'
+import { ArrowUpRight } from '@/components/ui/icons'
 import { useId } from 'react'
 import { Row, Rows } from '@/components/ui/rows'
 import { useLanguage } from '@/context/language-context'

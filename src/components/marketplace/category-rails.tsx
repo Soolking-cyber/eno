@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { ChevronRight } from 'lucide-react'
+import { ChevronRight } from '@/components/ui/icons'
 import type { SerializedCategory, SerializedListingCard } from '@/lib/types'
 import { ListingCard } from './listing-card'
 import { CategoryIcon } from './category-icons'

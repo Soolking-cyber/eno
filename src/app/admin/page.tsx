@@ -4,7 +4,7 @@ import { getAdmin } from '@/lib/admin'
 import { ModerationClient, type ModCase } from '@/components/admin/moderation-client'
 import { reportContext, reportTargetKey, targetContext, type RawReport } from '@/lib/admin-reports'
 import { EmptyState } from '@/components/ui/empty-state'
-import { Monitor } from 'lucide-react'
+import { Monitor } from '@/components/ui/icons'
 import type { Metadata } from 'next'
 
 export const dynamic = 'force-dynamic'

@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef, memo } from 'react'
 import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
-import { Heart, Building2, MapPin, MessageCircle, Tag, Play, ArrowRight } from 'lucide-react'
+import { Heart, Building2, MapPin, MessageCircle, Tag, Play, ArrowRight } from '@/components/ui/icons'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { IconButton } from '@/components/ui/icon-button'

@@ -6,7 +6,7 @@
 // these subtrees). No behaviour change from the in-file versions.
 
 import { useId } from 'react'
-import { Cog, Ellipsis, ImagePlus } from 'lucide-react'
+import { Cog, Ellipsis, ImagePlus } from '@/components/ui/icons'
 import { cn } from '@/lib/utils'
 import { STROKE_DISPLAY, STROKE_UI } from '@/lib/icon-tokens'
 import { Button } from '@/components/ui/button'

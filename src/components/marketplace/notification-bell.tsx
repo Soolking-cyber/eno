@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { Bell, MessageSquare, Tag, Clock, Search, Sparkles, Scale, X, TrendingDown } from 'lucide-react'
+import { Bell, MessageSquare, Tag, Clock, Search, Sparkles, Scale, X, TrendingDown } from '@/components/ui/icons'
 import { EnoSeal } from './eno-seal'
 import { STROKE_NAV } from '@/lib/icon-tokens'
 import { useNotifications } from '@/context/notifications-context'

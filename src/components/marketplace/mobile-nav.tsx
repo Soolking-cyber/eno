@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import Link, { useLinkStatus } from 'next/link'
-import { Compass, Heart, Plus, User, MessageSquare } from 'lucide-react'
+import { Compass, Heart, Plus, User, MessageSquare } from '@/components/ui/icons'
 import { useFavorites } from '@/context/favorites-context'
 import { useLanguage } from '@/context/language-context'
 import { useAuth } from '@/context/auth-context'

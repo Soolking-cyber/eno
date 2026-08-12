@@ -22,7 +22,7 @@ import {
   Eye,
   Tag,
   Zap,
-} from 'lucide-react'
+} from '@/components/ui/icons'
 import { RelatedListings } from '@/components/marketplace/related-listings'
 import { RecentlyViewedRail } from '@/components/marketplace/recently-viewed-rail'
 import { CATEGORY_COLOR_CLASSES } from '@/lib/types'

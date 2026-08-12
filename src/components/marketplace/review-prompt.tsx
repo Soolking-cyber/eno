@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { X, Star, Loader2 } from 'lucide-react'
+import { X, Star, Loader2 } from '@/components/ui/icons'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'

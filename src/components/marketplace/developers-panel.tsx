@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
-import { KeyRound, Plus, Copy, Check, Trash2, Loader2, ShieldAlert, BookOpen, Webhook, Bot, Pause, Play, AlertTriangle } from 'lucide-react'
+import { KeyRound, Plus, Copy, Check, Trash2, Loader2, ShieldAlert, BookOpen, Webhook, Bot, Pause, Play, AlertTriangle } from '@/components/ui/icons'
 import { useLanguage } from '@/context/language-context'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'

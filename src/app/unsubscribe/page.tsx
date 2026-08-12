@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { useLanguage } from '@/context/language-context'
-import { Mail, Check, ArrowLeft } from 'lucide-react'
+import { Mail, Check, ArrowLeft } from '@/components/ui/icons'
 
 // Public, token-scoped email-preference page (no login). The visible footer link in the
 // digest lands here; a click POSTs to /api/unsubscribe so a link scanner's GET never

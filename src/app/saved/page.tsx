@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { AlertTriangle } from 'lucide-react'
+import { AlertTriangle } from '@/components/ui/icons'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Header } from '@/components/marketplace/header'

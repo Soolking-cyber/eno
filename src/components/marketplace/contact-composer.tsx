@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Tag, Send, MessageCircle, Route, Loader2 } from 'lucide-react'
+import { Tag, Send, MessageCircle, Route, Loader2 } from '@/components/ui/icons'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import { formatMoneyFull, moneyLocale } from '@/lib/vnd'

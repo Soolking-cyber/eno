@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Share2, Check, Link2, Mail, MoreHorizontal, MessageCircle } from 'lucide-react'
+import { Share2, Check, Link2, Mail, MoreHorizontal, MessageCircle } from '@/components/ui/icons'
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'

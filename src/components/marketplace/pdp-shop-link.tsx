@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { ChevronRight, Building2, BadgeCheck, Star } from 'lucide-react'
+import { ChevronRight, Building2, BadgeCheck, Star } from '@/components/ui/icons'
 import { Avatar } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { TrustScore } from './trust-score'

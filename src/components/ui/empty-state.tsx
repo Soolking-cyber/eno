@@ -1,4 +1,4 @@
-import type { LucideIcon } from 'lucide-react'
+import type { LucideIcon } from '@/components/ui/icons'
 import { cn } from '@/lib/utils'
 import { STROKE_DISPLAY } from '@/lib/icon-tokens'
 

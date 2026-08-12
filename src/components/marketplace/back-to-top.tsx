@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { usePathname } from 'next/navigation'
-import { ChevronUp } from 'lucide-react'
+import { ChevronUp } from '@/components/ui/icons'
 import { STROKE_FLOAT } from '@/lib/icon-tokens'
 import { useAccountPanel } from './account-panel'
 import { Button } from '@/components/ui/button'

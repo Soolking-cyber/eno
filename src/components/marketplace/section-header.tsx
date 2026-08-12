@@ -1,6 +1,6 @@
 'use client'
 
-import { ChevronLeft } from 'lucide-react'
+import { ChevronLeft } from '@/components/ui/icons'
 import { useLanguage } from '@/context/language-context'
 import { useHideOnScroll } from '@/hooks/use-hide-on-scroll'
 import { useSafeBack } from '@/lib/safe-back'

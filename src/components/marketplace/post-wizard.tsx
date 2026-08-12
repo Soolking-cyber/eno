@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ChevronLeft, Check, Sparkles, Loader2 } from 'lucide-react'
+import { ChevronLeft, Check, Sparkles, Loader2 } from '@/components/ui/icons'
 import { toast } from 'sonner'
 import type { SerializedCategory } from '@/lib/types'
 import { hasRealCoords } from '@/lib/geo'

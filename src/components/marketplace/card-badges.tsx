@@ -1,6 +1,6 @@
 'use client'
 
-import { Zap } from 'lucide-react'
+import { Zap } from '@/components/ui/icons'
 import { useLanguage } from '@/context/language-context'
 import { dropPercent } from '@/lib/vnd'
 import { cn } from '@/lib/utils'

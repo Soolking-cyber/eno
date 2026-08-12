@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils"
 import { Tr } from "@/context/language-context"
 import { Button } from "@/components/ui/button"
 import { useVirtualKeyboard } from "@/hooks/use-virtual-keyboard"
-import { XIcon } from "lucide-react"
+import { XIcon } from "@/components/ui/icons"
 
 function Dialog({ ...props }: DialogPrimitive.Root.Props) {
   return <DialogPrimitive.Root data-slot="dialog" {...props} />

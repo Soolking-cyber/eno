@@ -1,6 +1,6 @@
 'use client'
 
-import { UserPlus } from 'lucide-react'
+import { UserPlus } from '@/components/ui/icons'
 import { useLanguage } from '@/context/language-context'
 import { Badge } from '@/components/ui/badge'
 import { TrustScore } from '@/components/marketplace/trust-score'

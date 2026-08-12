@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react'
 import Link from 'next/link'
-import { AlertTriangle, RotateCw, Home } from 'lucide-react'
+import { AlertTriangle, RotateCw, Home } from '@/components/ui/icons'
 import { useLanguage } from '@/context/language-context'
 import { Button } from '@/components/ui/button'
 

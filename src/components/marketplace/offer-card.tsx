@@ -1,7 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import { Check, Clock, Tag, Undo2, X } from 'lucide-react'
+import { Check, Clock, Tag, Undo2, X } from '@/components/ui/icons'
 
 import { Button } from '@/components/ui/button'
 import { OfferAcceptedNote } from '@/components/marketplace/chat-safety-note'

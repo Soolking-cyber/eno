@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Mail, Phone, Loader2, ExternalLink } from 'lucide-react'
+import { Mail, Phone, Loader2, ExternalLink } from '@/components/ui/icons'
 import { STROKE_DISPLAY } from '@/lib/icon-tokens'
 import { useLanguage } from '@/context/language-context'
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp'

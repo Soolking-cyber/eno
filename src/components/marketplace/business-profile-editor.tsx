@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Loader2, Check, Plus, LocateFixed } from 'lucide-react'
+import { Loader2, Check, Plus, LocateFixed } from '@/components/ui/icons'
 import { useLanguage } from '@/context/language-context'
 import { WardPicker, findUnit, type Geo } from './area-filter'
 import { Button } from '@/components/ui/button'

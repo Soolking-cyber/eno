@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { Check, Clock, Download, FileCheck2, Loader2, LockKeyhole, MessagesSquare, Pencil, ShieldCheck, Stamp, Trash2 } from 'lucide-react'
+import { Check, Clock, Download, FileCheck2, Loader2, LockKeyhole, MessagesSquare, Pencil, ShieldCheck, Stamp, Trash2 } from '@/components/ui/icons'
 import { toast } from 'sonner'
 import { useAuth } from '@/context/auth-context'
 import { useDashboard } from '@/hooks/use-dashboard'

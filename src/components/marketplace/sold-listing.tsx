@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { Store, ArrowRight, Home } from 'lucide-react'
+import { Store, ArrowRight, Home } from '@/components/ui/icons'
 import { Header } from './header'
 import { Footer } from './footer'
 import { Mascot } from './mascot'

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { CheckCircle2, MessageSquareText, Wrench } from 'lucide-react'
+import { CheckCircle2, MessageSquareText, Wrench } from '@/components/ui/icons'
 import { useLanguage } from '@/context/language-context'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'

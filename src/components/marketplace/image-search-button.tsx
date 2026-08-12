@@ -1,7 +1,7 @@
 'use client'
 
 import { useRef, useState } from 'react'
-import { Camera, Loader2 } from 'lucide-react'
+import { Camera, Loader2 } from '@/components/ui/icons'
 import { useLanguage } from '@/context/language-context'
 import { runVisualSearch } from '@/lib/visual-search'
 import { IconButton } from '@/components/ui/icon-button'

@@ -1,7 +1,7 @@
 'use client'
 
 import { Fragment, useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
-import { X } from 'lucide-react'
+import { X } from '@/components/ui/icons'
 
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'

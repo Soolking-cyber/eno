@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { Cookie } from 'lucide-react'
+import { Cookie } from '@/components/ui/icons'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'

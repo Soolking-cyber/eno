@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Clock, Footprints, Loader2, MapPinOff, Navigation, Route, Search, Sparkles, Trash2, Wallet, Info } from 'lucide-react'
+import { Clock, Footprints, Loader2, MapPinOff, Navigation, Route, Search, Sparkles, Trash2, Wallet, Info } from '@/components/ui/icons'
 import { useLanguage } from '@/context/language-context'
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'

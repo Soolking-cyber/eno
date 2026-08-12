@@ -1,7 +1,7 @@
 'use client'
 
 import type { ReactNode } from 'react'
-import type { LucideIcon } from 'lucide-react'
+import type { LucideIcon } from '@/components/ui/icons'
 import { useLanguage } from '@/context/language-context'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'

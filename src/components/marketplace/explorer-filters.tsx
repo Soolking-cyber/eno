@@ -2,7 +2,7 @@
 
 import { useId } from 'react'
 import type { Dispatch, SetStateAction } from 'react'
-import { Check, X } from 'lucide-react'
+import { Check, X } from '@/components/ui/icons'
 import { CustomSelect } from './custom-select'
 import { RangeFacetControl } from './range-facet-control'
 import { CategoryIcon } from './category-icons'

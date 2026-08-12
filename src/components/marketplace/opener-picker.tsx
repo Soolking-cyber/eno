@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { Clock } from 'lucide-react'
+import { Clock } from '@/components/ui/icons'
 import { Alert } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { useLanguage } from '@/context/language-context'

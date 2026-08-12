@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { ArrowLeft, FileText, Lock, MessageSquare } from 'lucide-react'
+import { ArrowLeft, FileText, Lock, MessageSquare } from '@/components/ui/icons'
 import { getAdmin } from '@/lib/admin'
 import { AdminDenied } from '@/components/admin/admin-denied'
 import { loadVisaAdminCase, signVisaDocumentUrl, type VisaDocumentRow } from '@/lib/visa-admin'

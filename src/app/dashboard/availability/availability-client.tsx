@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Search, Loader2, Check, X } from 'lucide-react'
+import { Search, Loader2, Check, X } from '@/components/ui/icons'
 import { Dialog as DialogPrimitive } from '@base-ui/react/dialog'
 import { Price } from '@/components/marketplace/price'
 import { Mascot } from '@/components/marketplace/mascot'

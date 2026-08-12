@@ -1,6 +1,6 @@
 import { SITE_NAME } from '@/lib/edition'
 import type { Metadata } from 'next'
-import { Home, MapPin, Bike, Armchair, Tag, Building2, Briefcase, ShoppingBag, KeyRound, Search } from 'lucide-react'
+import { Home, MapPin, Bike, Armchair, Tag, Building2, Briefcase, ShoppingBag, KeyRound, Search } from '@/components/ui/icons'
 import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
 import { Mascot } from '@/components/marketplace/mascot'

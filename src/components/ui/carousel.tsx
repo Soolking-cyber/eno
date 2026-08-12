@@ -8,7 +8,7 @@ import useEmblaCarousel, {
 import { Tr } from "@/context/language-context"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
-import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react"
+import { ChevronLeftIcon, ChevronRightIcon } from "@/components/ui/icons"
 import { STROKE_FLOAT_MAX } from "@/lib/icon-tokens"
 
 type CarouselApi = UseEmblaCarouselType[1]

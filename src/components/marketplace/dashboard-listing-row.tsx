@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
-import { Eye, MessageSquare, CheckCircle2, RotateCcw, Trash2, ExternalLink, Pencil, Heart, Check, MoreHorizontal, Link2 } from 'lucide-react'
+import { Eye, MessageSquare, CheckCircle2, RotateCcw, Trash2, ExternalLink, Pencil, Heart, Check, MoreHorizontal, Link2 } from '@/components/ui/icons'
 import { STROKE_MARK } from '@/lib/icon-tokens'
 import type { SerializedListing } from '@/lib/types'
 import { Price } from './price'

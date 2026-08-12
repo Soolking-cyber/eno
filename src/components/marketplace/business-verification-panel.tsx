@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Loader2, Upload } from 'lucide-react'
+import { Loader2, Upload } from '@/components/ui/icons'
 import { toast } from 'sonner'
 import { useLanguage } from '@/context/language-context'
 import { Button } from '@/components/ui/button'

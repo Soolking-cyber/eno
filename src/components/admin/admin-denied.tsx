@@ -1,4 +1,4 @@
-import { ShieldAlert } from 'lucide-react'
+import { ShieldAlert } from '@/components/ui/icons'
 import { Button } from '@/components/ui/button'
 
 // The one access-denied state for every admin page (rendered inside admin/layout.tsx,

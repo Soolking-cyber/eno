@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import Cropper, { type Area } from 'react-easy-crop'
 import 'react-easy-crop/react-easy-crop.css'
-import { Loader2 } from 'lucide-react'
+import { Loader2 } from '@/components/ui/icons'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { EnoSlider } from '@/components/ui/slider'

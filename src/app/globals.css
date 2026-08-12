@@ -62,7 +62,28 @@
 
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-inter-vn), var(--font-inter, ui-sans-serif), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-inter-vn), var(--font-blinker, ui-sans-serif), ui-sans-serif, system-ui, sans-serif;
+
+  /* ⚠️ `font-medium` EMITS 600, NOT 500, BECAUSE BLINKER HAS NO 500 — AND THIS IS ONE TOKEN
+     RATHER THAN 94 EDITS.
+
+     Blinker (the UI face since 2026-08-12) ships static cuts at 100/200/300/400/600/700/800/900.
+     There is no medium: `https://fonts.googleapis.com/css2?family=Blinker:wght@500` answers
+     HTTP 400. Inter was VARIABLE, so `font-medium` used to be free and exact; under Blinker the
+     CSS font-matching algorithm resolves a missing 500 DOWNWARDS to 400, which quietly flattens
+     every button, label and chip in the app to regular — 94 call sites, none of which look wrong
+     in isolation.
+
+     Retargeting the token moves all 94 at once and keeps the class name honest: `font-medium`
+     still means "one step above body", it is just spelled 600 in this family. The alternative —
+     sweeping `font-medium` to `font-semibold` — edits 94 files to say the same thing, and leaves
+     the next person to rediscover why.
+
+     ⚠️ SO `font-medium` AND `font-semibold` ARE NOW THE SAME WEIGHT. That is a real flattening of
+     the type scale, and it is the family's constraint rather than a choice. If the two tiers need
+     to be visually distinct again, the fix is a different face — not synthesis, which is the
+     smeared faux-bold this codebase avoids elsewhere. */
+  --font-weight-medium: 600;
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
   --color-ring: var(--ring);
   --color-input: var(--input);
@@ -552,7 +573,7 @@
        an undefined var() makes the whole declaration invalid at computed-value time and the
        later list items never get a turn. That is precisely how Inter went missing for months
        (see the comment on the font import in layout.tsx). */
-    font-family: var(--font-inter-vn), var(--font-inter, ui-sans-serif), ui-sans-serif, system-ui, sans-serif;
+    font-family: var(--font-inter-vn), var(--font-blinker, ui-sans-serif), ui-sans-serif, system-ui, sans-serif;
     /* Inter opt-in features: cv01 serifed-1 · cv11 single-storey a · ss01/ss03 contextual
        alternates · zero slashed-0 — disambiguates 0/O and 1/l in prices, phone numbers and IDs.
        These predate 2026-08-05 and were correct all along; they had simply never taken effect,
@@ -668,7 +689,10 @@
 .h-greeting {
   font-size: var(--text-display);
   line-height: 1.15;
-  font-weight: 450;
+  /* ⚠️ WAS 450, WHICH ONLY EXISTED BECAUSE INTER WAS VARIABLE. Blinker is a static family, so a
+     450 request resolves to the nearest cut anyway — 400. Pinned to 400 so the number in the file
+     is the weight that paints, and so nobody reads 450 as a tuned value they can nudge. */
+  font-weight: 400;
   letter-spacing: -0.02em;
 }
 
@@ -1986,3 +2010,51 @@ html.native-tabs .bottom-nav-spacer {
 .duo-x6 > *:nth-child(6),
 .duo-x7 > *:nth-child(7),
 .duo-x8 > *:nth-child(8) { fill: none; }
+
+/* ══════════════════════════════════════════════════════════════════════════════════════════════
+   SOLAR'S TWO WEIGHTS, SWITCHED BY STATE — Outline at rest, Bold while pressed.
+
+   Owner, 2026-08-12: "all across the app with new icons the button pressed state is bold and
+   unpressed outline version". Same grammar the category tiles already use, and the same one the
+   owner set on 2026-08-07 ("use icons filling only when selected, not as default").
+
+   ⚠️ IT IS CSS, NOT A PROP, AND THAT IS WHY IT COULD LAND AT ALL. Every icon from
+   src/components/ui/icons.tsx renders BOTH weights as two <g> layers; these two rules pick one.
+   Threading an "active" prop instead would mean editing ~800 call sites and knowing at each which
+   boolean means "pressed" — a migration nobody finishes. A control with no pressed state simply
+   never matches, and pays nothing.
+
+   ⚠️ THE STATE LIST IS DELIBERATELY BROAD BECAUSE THE APP SPELLS "PRESSED" SIX WAYS: :active is
+   the finger-down moment; aria-pressed / aria-selected / aria-checked come from Base UI's toggles,
+   tabs and options; data-state=on/open/checked is Base UI's own attribute; aria-current marks the
+   active nav item. Missing one shows an outline glyph on a filled control, which reads as a bug.
+
+   ⚠️ SCOPED TO INTERACTIVE ANCESTORS ON PURPOSE. Without the leading :is(), any :active anywhere —
+   a card, a row, the body during a drag — would flip every icon inside it.
+   ══════════════════════════════════════════════════════════════════════════════════════════════ */
+.i-on { display: none; }
+
+:is(button, a, label, summary, [role='button'], [role='tab'], [role='option'], [role='menuitem'],
+    [role='switch'], [role='checkbox'], [role='radio'], [role='menuitemradio'], [role='menuitemcheckbox']):is(
+    :active,
+    [aria-pressed='true'], [aria-selected='true'], [aria-checked='true'], [aria-expanded='true'],
+    [data-state='on'], [data-state='open'], [data-state='checked'], [data-state='active'],
+    [data-active='true'], [aria-current]:not([aria-current='false'])
+  ) .i-rest { display: none; }
+
+:is(button, a, label, summary, [role='button'], [role='tab'], [role='option'], [role='menuitem'],
+    [role='switch'], [role='checkbox'], [role='radio'], [role='menuitemradio'], [role='menuitemcheckbox']):is(
+    :active,
+    [aria-pressed='true'], [aria-selected='true'], [aria-checked='true'], [aria-expanded='true'],
+    [data-state='on'], [data-state='open'], [data-state='checked'], [data-state='active'],
+    [data-active='true'], [aria-current]:not([aria-current='false'])
+  ) .i-on {
+    display: inline;
+    /* ⚠️ PRESSED IS BLUE, NOT GREY (owner, 2026-08-12: "all pressed states should be blue no
+       gray"). The colour rides on the BOLD layer rather than on the <svg>, so it applies exactly
+       when the filled weight is showing and never fights a control that paints its own icon —
+       a destructive action keeps its red, because that rule targets the svg and this one does not.
+       --accent-foreground re-themes itself (#0a66c2 light, #74b3f2 dark), so this is one token
+       rather than two rules. `currentColor` on every Solar path resolves against it. */
+    color: var(--color-accent-foreground);
+  }

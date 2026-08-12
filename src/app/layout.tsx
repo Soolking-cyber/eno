@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Be_Vietnam_Pro, Inter } from "next/font/google";
+import { Be_Vietnam_Pro, Blinker } from "next/font/google";
 import localFont from "next/font/local";
 import "./globals.css";
 import { AnalyticsTags } from "@/components/marketplace/analytics-tags";
@@ -94,11 +94,30 @@ const SITE_ORIGIN = process.env.NEXT_PUBLIC_APP_URL || "https://eno.vn";
  * it PINS a single cut and defeats `font-optical-sizing: auto`, which maps opsz to computed
  * font-size continuously and for free. The ⛔ block in globals.css is still correct as written.
  */
-const inter = Inter({
-  variable: "--font-inter",
+/**
+ * ⚠️ BLINKER REPLACED INTER AS THE LATIN UI FACE (owner, 2026-08-12).
+ *
+ * ⚠️ BLINKER IS NOT VARIABLE AND HAS NO 500. Inter was variable, so every weight was free and
+ * `font-medium` cost nothing. Blinker ships static cuts at 100/200/300/400/600/700/800/900 —
+ * there is no 500 — so CSS font matching resolves `font-medium` DOWN to 400. That is the one
+ * visible consequence of this swap and it is app-wide, since `font-medium` is the default weight
+ * on buttons and labels. If medium text now reads too light, the fix is to move those call sites
+ * to `font-semibold` (600), not to fake 500 with synthesis.
+ *
+ * ⚠️ ONLY THE FIVE WEIGHTS THE APP ACTUALLY USES, BECAUSE EACH ONE IS A SEPARATE FILE. Blinker is
+ * static, so a weight is a download rather than a free interpolation along an axis. Listing all
+ * eight put EIGHT woff2 files on first paint — measured — in a codebase whose font comments
+ * already record a bug where THREE Inter files (140.6 KiB) was the thing being fixed.
+ * Counted across src/: font-normal 29, font-medium 99 (now 600), font-semibold 478, font-bold
+ * 390, font-extrabold 17, font-black 4 — and ZERO uses of thin, extralight or light. So 100/200/
+ * 300 are dropped; adding one back is a one-line change if a design ever calls for it.
+ */
+const blinker = Blinker({
+  variable: "--font-blinker",
   // ⚠️ "latin" ONLY — the vietnamese subset is served by interVietnamese below, and preloading
   // BOTH put a file on the critical path that never got used. See the note on interVietnamese.
   subsets: ["latin"],
+  weight: ["400", "600", "700", "800", "900"],
   display: "swap",
 });
 
@@ -250,7 +269,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${inter.variable} ${interVietnamese.variable} ${beVietnamPro.variable}`} suppressHydrationWarning>
+    <html lang="en" className={`${blinker.variable} ${interVietnamese.variable} ${beVietnamPro.variable}`} suppressHydrationWarning>
       <head>
         {/* Set the theme class BEFORE paint to avoid a flash of the wrong scheme —
             reads the persisted System/Light/Dark choice + the OS preference. Kept

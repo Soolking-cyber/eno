@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Send } from 'lucide-react'
+import { Send } from '@/components/ui/icons'
 import { IconButton } from '@/components/ui/icon-button'
 import { Button } from '@/components/ui/button'
 import { contactLinksFor, extractPhoneNumber } from '@/lib/phone'

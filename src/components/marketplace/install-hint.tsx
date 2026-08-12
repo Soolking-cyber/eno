@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Image from 'next/image'
-import { X } from 'lucide-react'
+import { X } from '@/components/ui/icons'
 import { useLanguage } from '@/context/language-context'
 import { isIOS } from '@/lib/in-app-browser'
 import { Button } from '@/components/ui/button'

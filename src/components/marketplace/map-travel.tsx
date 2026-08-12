@@ -1,6 +1,6 @@
 'use client'
 
-import { Navigation, Loader2 } from 'lucide-react'
+import { Navigation, Loader2 } from '@/components/ui/icons'
 import { useLanguage } from '@/context/language-context'
 import { Button } from '@/components/ui/button'
 import { estimateTravel, formatTravel, type LatLng } from '@/lib/travel'

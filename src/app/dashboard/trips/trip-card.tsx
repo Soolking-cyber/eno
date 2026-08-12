@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { CalendarDays, Download, Loader2, Pencil, Trash2, TriangleAlert } from 'lucide-react'
+import { CalendarDays, Download, Loader2, Pencil, Trash2, TriangleAlert } from '@/components/ui/icons'
 import { toast } from 'sonner'
 import { useLanguage } from '@/context/language-context'
 import { Badge } from '@/components/ui/badge'

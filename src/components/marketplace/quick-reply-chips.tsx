@@ -1,7 +1,7 @@
 'use client'
 
 import { useRef, useState } from 'react'
-import { Check, Loader2, LocateFixed, PartyPopper, X } from 'lucide-react'
+import { Check, Loader2, LocateFixed, PartyPopper, X } from '@/components/ui/icons'
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
 import { toast } from 'sonner'

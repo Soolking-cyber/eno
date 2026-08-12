@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { MessageSquareText, Wrench, CheckCircle2, RotateCcw, Mail, ExternalLink } from 'lucide-react'
+import { MessageSquareText, Wrench, CheckCircle2, RotateCcw, Mail, ExternalLink } from '@/components/ui/icons'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'

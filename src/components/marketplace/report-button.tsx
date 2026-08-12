@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Flag, Loader2, CheckCircle2 } from 'lucide-react'
+import { Flag, Loader2, CheckCircle2 } from '@/components/ui/icons'
 import { STROKE_DISPLAY } from '@/lib/icon-tokens'
 import { useLanguage } from '@/context/language-context'
 import { useAuth } from '@/context/auth-context'

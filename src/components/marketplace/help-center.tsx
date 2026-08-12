@@ -16,8 +16,8 @@ import {
   Tag,
   UserRoundCog,
   UsersRound,
-} from 'lucide-react'
-import type { LucideIcon } from 'lucide-react'
+} from '@/components/ui/icons'
+import type { LucideIcon } from '@/components/ui/icons'
 import { Tr, useLanguage, useTr } from '@/context/language-context'
 import { STROKE_UI } from '@/lib/icon-tokens'
 import { CategoryGlyphArt } from '@/components/marketplace/category-icons'

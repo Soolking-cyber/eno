@@ -4,7 +4,7 @@ import { Fragment, useCallback, useDeferredValue, useEffect, useLayoutEffect, us
 // Only the glyphs this file actually renders — the vestigial hero-search set
 // (Search/MapPin/Phone/Sliders/Map/TrendingUp) died with the hero bar and was
 // still being imported (icon-gauntlet cleanup, 2026-08-06).
-import { Inbox, AlertTriangle, X, Clock, Bookmark } from 'lucide-react'
+import { Inbox, AlertTriangle, X, Clock, Bookmark } from '@/components/ui/icons'
 import { toast } from 'sonner'
 import type { SerializedListingCard, SerializedCategory } from '@/lib/types'
 // ⚠️ TYPE-ONLY, AND IT MUST STAY THAT WAY. src/lib/facet-counts.ts is `server-only` and pulls the
@@ -14,6 +14,7 @@ import type { FacetCounts } from '@/lib/facet-counts'
 import { CATEGORY_COLOR_CLASSES, timeAgo } from '@/lib/types'
 import { IS_MARKETPLACE, SITE_NAME } from '@/lib/edition'
 import { CategoryIcon } from './category-icons'
+import { CategoryTileGlyph } from './category-art'
 import { ListingCard } from './listing-card'
 import { CompactListingRowSkeleton, COMPACT_LIST_GRID } from './compact-listing-row-skeleton'
 import { CaptureCard } from './capture-card'
@@ -31,6 +32,7 @@ import { DISTRICTS } from './listings-explorer.constants'
 import { type Nearby, type Geo } from './area-filter'
 import { useSearchShortcuts, useSearchHistory, useSaveSearch } from './use-explorer'
 import { ViewToggles, SortStrip } from './explorer-toolbar'
+import { ResultLine, shouldOfferSaveSearch } from './result-line'
 import { Spinner } from '@/components/ui/spinner'
 import { getListingCoordinates, haversineKm } from '@/lib/geo'
 import { trackSearch } from '@/lib/analytics'
@@ -1780,6 +1782,50 @@ export function ListingsExplorer({
   const heroListOpen = showSuggestions && landingQuery.trim().length >= 2
   const heroActiveOptionId = activeSuggestOptionId(SUGGEST_ID, heroListOpen, heroActiveIdx, heroSuggestItems.length)
 
+  /**
+   * THE LADDER PATH, AS THE BREADCRUMB ON THE INFO LINE — "Vehicles › Manual › Honda › Vision".
+   *
+   * ⚠️ IT NAMES THE TAPS, NOT THE FILTERS, and that is why it is separate from the chips beside
+   * it. A crumb is a level of the one ladder the whole product walks (category → subcategory →
+   * brand → model); a chip is anything else the visitor applied (an area, a price ceiling, a
+   * condition). Rendering the ladder as chips too would print "Honda" twice on the same line.
+   * ⚠️ Each crumb TRUNCATES BACK TO ITS OWN LEVEL rather than clearing everything: tapping
+   * "Manual" should drop the brand and the model and keep the subcategory, which is what someone
+   * reaching back up a path means. That is why they carry their own handlers instead of reusing
+   * the chips' onClear.
+   */
+  const ladderCrumbs = useMemo(() => {
+    const crumbs: { label: string; onSelect?: () => void }[] = []
+    if (activeCategory !== 'all') {
+      const cat = categories.find((c) => c.slug === activeCategory)
+      crumbs.push({
+        label: cat ? (lang === 'vi' ? cat.nameVi : cat.name) : activeCategory,
+        onSelect: () => { setActiveSubcategory('all'); setActiveBrand('all'); setActiveModel('all') },
+      })
+    }
+    if (activeSubcategory !== 'all') {
+      const sub = SUBCATEGORIES[activeCategory]?.find((s) => s.slug === activeSubcategory)
+      crumbs.push({
+        label: sub ? (lang === 'vi' ? sub.nameVi : sub.name) : activeSubcategory,
+        onSelect: () => { setActiveBrand('all'); setActiveModel('all') },
+      })
+    }
+    if (activeBrand !== 'all') {
+      crumbs.push({ label: prettyBrand(activeBrand), onSelect: () => setActiveModel('all') })
+    }
+    // The deepest crumb is where you already are, so it gets no handler — a control that does
+    // nothing is worse than plain text, and ResultLine renders a handler-less crumb as text.
+    if (activeModel !== 'all') crumbs.push({ label: activeModel })
+    return crumbs
+  }, [activeCategory, activeSubcategory, activeBrand, activeModel, categories, lang])
+
+  /**
+   * The applied chips in the shape <ResultLine> takes. The ladder levels are dropped because the
+   * BREADCRUMB above already names them — the subcategory and the brand+model chips would
+   * otherwise print the same words twice on one line.
+   * ⚠️ The id is the label rather than an index: ResultLine keys on it to know when a removal has
+   * landed, and an index shifts under every neighbouring removal.
+   */
   // Active applied-filter chips — shared by the persistent results bar AND the
   // empty state so the two never drift. Brand+model collapse into one chip.
   const getActiveChips = (): { label: string; onClear: () => void }[] => {
@@ -1818,6 +1864,22 @@ export function ListingsExplorer({
     )
     return chips
   }
+
+  // The labels the breadcrumb already shows. A chip carrying one of these would print the same
+  // word twice on one line, which is what made the old two-row layout read as noise.
+  const ladderChipLabels = useMemo(
+    () => new Set(ladderCrumbs.map((c) => c.label)),
+    [ladderCrumbs],
+  )
+
+  const resultFilters = useMemo(
+    () => getActiveChips()
+      .filter((c) => !ladderChipLabels.has(c.label))
+      .map((c) => ({ id: c.label, label: c.label, onRemove: c.onClear })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [debouncedQuery, activeSubcategory, activeBrand, activeModel, activeDistrict, activeProvince, activeWard, conditionFilter, listingType, priceRange, customFilters, verifiedOnly, nearby, lang],
+  )
+
 
   const clearAllFilters = () => {
     setQuery('')
@@ -2406,8 +2468,9 @@ export function ListingsExplorer({
                     // the classes have to move together.
                     className="press group flex snap-start flex-col items-center justify-center gap-2 lg:gap-1.5 whitespace-normal p-2 lg:p-1 text-center cursor-pointer"
                   >
-                    <CategoryIcon
-                      name={cat.icon}
+                    <CategoryTileGlyph
+                      slug={cat.slug}
+                      icon={cat.icon}
                       className="h-11 w-11 sm:h-12 sm:w-12 text-body transition-colors duration-200 group-hover:text-[var(--cat)]"
                     />
                     <span className="text-sm sm:text-base font-bold text-foreground leading-tight transition-colors group-hover:text-[var(--cat)]">
@@ -2432,8 +2495,9 @@ export function ListingsExplorer({
                   onClick={() => browseIntent(s.type)}
                   className="press group flex flex-col items-center justify-center gap-2 whitespace-normal p-2 text-center cursor-pointer"
                 >
-                  <CategoryIcon
-                    name={s.icon}
+                  <CategoryTileGlyph
+                    slug={s.type}
+                    icon={s.icon}
                     className="h-11 w-11 sm:h-12 sm:w-12 text-body transition-colors duration-200 group-hover:text-brand"
                   />
                   <span className="text-sm sm:text-base font-bold text-foreground leading-tight transition-colors group-hover:text-brand">
@@ -2531,8 +2595,12 @@ export function ListingsExplorer({
               gap) sitting between the ad and the first listing. The toggles moved to the results
               header row below, which already carried them on mobile and had spare width on the
               right at every size. One row, one place, ~56px of fold recovered on desktop. */}
-          {renderSaveBox(true, 'hidden min-w-0 lg:flex')}
-          {renderSaveBox(false, 'lg:hidden')}
+          {/* ⛔ THE SAVE BOX IS GONE — ITS CONTENTS MOVED INTO THE ONE INFO LINE BELOW (owner,
+              2026-08-12, from the wireframe). The applied-filter chips, the result count, the
+              ladder breadcrumb and "Save search" were three separate rows stacked above the feed;
+              they are now a single line under a hairline, with Save search and the four view modes
+              sharing its right edge. Rendering `renderSaveBox` here as well would print every chip
+              twice. The function itself is retained for the mobile-drawer caller. */}
 
           {/* One-row sort strip — sticks under the header while the results scroll. */}
           <SortStrip sort={sort} onPickSort={pickSort} headerHidden={headerHidden} />
@@ -2564,23 +2632,51 @@ export function ListingsExplorer({
                    "Found 32 listings" it says the same word twice. */
                 <h2 className="sr-only">{tr('Marketplace listings', 'Tin đăng')}</h2>
               )}
-              {/* ⚠️ ONE LIVE REGION, MOUNTED IN BOTH STATES — the count is the only thing on this
-                  row that changes, so it is the only thing that should be announced, and the NODE
-                  has to survive the state flip. An earlier draft put an aria-live <span> in the
-                  discovery branch and an aria-live <p> in the other; swapping element TYPES at the
-                  same position remounts the region, and a live region that is destroyed and
-                  recreated announces nothing — the reader has no previous contents to diff
-                  against. Caught by an external reviewer. Only the "Found" prefix is conditional
-                  now; the element, its position and its attributes are fixed. */}
-              <p aria-live="polite" aria-atomic="true" className="min-w-0 text-xs font-normal text-muted-foreground">
-                {!feedInDefaultOrder && <>{tr('Found', 'Tìm thấy')}{' '}</>}
-                <strong className="font-semibold text-foreground">{nearby ? shownListings.length : totalCount}</strong>{' '}
-                {tr('listings', 'tin đăng')}
-              </p>
+              {/* ⛔ THE COUNT MOVED INTO <ResultLine> — DO NOT PUT A SECOND ONE BACK HERE.
+                  A local aria-live <p> used to print it, and mounting ResultLine beside it printed
+                  the figure TWICE on one line ("Found 0 listings  0 listings") — caught on the
+                  rendered page, not in review. ResultLine's own count is the better of the two: it
+                  is `polite`, it carries a tabIndex={-1} focus target so removing the last chip
+                  lands the reader somewhere real, and it is the layout the wireframe asks for
+                  (count, then the ladder path, then the chips).
+                  ⚠️ Two live regions announcing the same number is worse than none — they
+                  interleave, and a reader cannot tell which is authoritative. */}
+              {/* ⛔ THE LADDER PATH AND THE APPLIED CHIPS LIVE ON THIS LINE (owner, 2026-08-12).
+                  They were two rows above the feed; the wireframe puts count → breadcrumb → chips
+                  on ONE line, with Save search and the view modes sharing its right edge.
+                  <ResultLine> was built for exactly this in wave 1 and shipped unmounted; this is
+                  the mount. It renders NOTHING of its own count — `count={-1}` would be a lie and
+                  the live region above already owns the number and its announcement, so the line
+                  is handed only the crumbs and the chips. Two elements announcing the same figure
+                  is how a live region becomes noise. */}
+              <ResultLine
+                count={nearby ? shownListings.length : totalCount}
+                crumbs={ladderCrumbs}
+                filters={resultFilters}
+                onClearAll={resultFilters.length > 1 ? clearAllFilters : undefined}
+                className="min-w-0"
+              />
             </div>
-            {/* View toggles — every breakpoint now (see the save-box note above), right-aligned
-                by this row's justify-between. */}
-            <div className="flex shrink-0 items-center gap-1"><ViewToggles viewMode={viewMode} onViewMode={changeView} showVideo={showVideoView} /></div>
+            {/* ⛔ SAVE SEARCH SITS LEFT OF THE VIEW MODES, ON THE SAME LINE — owner, 2026-08-12,
+                and the order is the instruction, not a preference. Both are right-aligned by this
+                row's justify-between, so the count and the path own the left and these two own the
+                right regardless of how long the breadcrumb gets.
+                ⚠️ Save search is OFFERED, NOT ALWAYS SHOWN: below two applied filters it is an
+                offer to save nothing (see shouldOfferSaveSearch in result-line.tsx), so it renders
+                null on the undirected home view and costs no width there. */}
+            <div className="flex shrink-0 items-center gap-1">
+              {shouldOfferSaveSearch(resultFilters.length) && (
+                <Button
+                  onClick={saveSearch}
+                  variant="bare"
+                  size="none"
+                  className="hidden shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold text-accent-foreground transition-colors hover:bg-accent sm:inline-flex"
+                >
+                  <Bookmark className="h-4 w-4" aria-hidden /> {tr('Save search', 'Lưu tìm kiếm')}
+                </Button>
+              )}
+              <ViewToggles viewMode={viewMode} onViewMode={changeView} showVideo={showVideoView} />
+            </div>
           </div>
 
           {/* Video view (4th mode): its own vertical clip feed with a self-contained

@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { FileCheck2 } from 'lucide-react'
+import { FileCheck2 } from '@/components/ui/icons'
 import { getAdmin } from '@/lib/admin'
 import { AdminDenied } from '@/components/admin/admin-denied'
 import { listVisaAdminCases, type VisaQueueRow, type VisaDocumentRow } from '@/lib/visa-admin'

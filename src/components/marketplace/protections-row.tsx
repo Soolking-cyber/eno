@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { BadgeCheck, Scale, Flag, Wallet, ChevronRight } from 'lucide-react'
+import { BadgeCheck, Scale, Flag, Wallet, ChevronRight } from '@/components/ui/icons'
 import { EnoSeal } from '@/components/marketplace/eno-seal'
 import { ICON_SIZE } from '@/lib/icon-tokens'
 import { cn } from '@/lib/utils'

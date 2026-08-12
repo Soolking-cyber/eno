@@ -49,7 +49,7 @@ import {
   CircleHelp, FileCheck2, Route,
   Flag, ShieldAlert, ClipboardList, Tags, Star, Stamp, Gavel, Filter,
   type LucideIcon,
-} from 'lucide-react'
+} from '@/components/ui/icons'
 import { EnoSeal } from './eno-seal'
 import { cn } from '@/lib/utils'
 

@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { Tr } from '@/context/language-context'
 import { ContentPage, ContentSection } from '@/components/marketplace/content-page'
 import { Button } from '@/components/ui/button'
-import { Search, Tag, Plus, BadgeCheck, Bell, Heart, Globe, ChevronRight } from 'lucide-react'
+import { Search, Tag, Plus, BadgeCheck, Bell, Heart, Globe, ChevronRight } from '@/components/ui/icons'
 import { EnoSeal } from '@/components/marketplace/eno-seal'
 
 export const metadata: Metadata = {

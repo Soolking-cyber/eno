@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { ChevronLeft, ChevronRight } from '@/components/ui/icons'
 import { Button } from '@/components/ui/button'
 import { useLanguage } from '@/context/language-context'
 import { STROKE_FLOAT_MAX } from '@/lib/icon-tokens'

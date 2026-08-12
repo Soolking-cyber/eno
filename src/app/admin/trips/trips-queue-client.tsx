@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ExternalLink, Loader2, MessageSquare } from 'lucide-react'
+import { ExternalLink, Loader2, MessageSquare } from '@/components/ui/icons'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'

@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { ArrowBigUp } from 'lucide-react'
+import { ArrowBigUp } from '@/components/ui/icons'
 import { toast } from 'sonner'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Award } from 'lucide-react'
+import { Award } from '@/components/ui/icons'
 import type { SerializedListingCard } from '@/lib/types'
 import { ListingCard } from './listing-card'
 import { Shelf, RAIL_CARD_W, MIN_RAIL_ITEMS, RAIL_SKELETON_COUNT } from './shelf'

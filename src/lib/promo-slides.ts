@@ -1,5 +1,5 @@
-import type { LucideIcon } from 'lucide-react'
-import { BadgeCheck, Coins, Megaphone } from 'lucide-react'
+import type { LucideIcon } from '@/components/ui/icons'
+import { BadgeCheck, Coins, Megaphone } from '@/components/ui/icons'
 
 /**
  * THE HOME BANNER'S CONTENT, AS DATA — so copy can be iterated in one file rather than in JSX.

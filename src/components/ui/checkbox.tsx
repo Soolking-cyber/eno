@@ -1,7 +1,7 @@
 'use client'
 
 import { Checkbox as BaseCheckbox } from '@base-ui/react/checkbox'
-import { Check, Minus } from 'lucide-react'
+import { Check, Minus } from '@/components/ui/icons'
 import { cn } from '@/lib/utils'
 import { STROKE_MARK } from '@/lib/icon-tokens'
 

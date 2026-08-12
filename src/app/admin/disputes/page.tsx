@@ -3,8 +3,8 @@ import Link from 'next/link'
 import {
   ArrowRight, Ban, CircleEllipsis, Copy, Copyright, ImageOff, Info,
   MessageSquareWarning, PackageCheck, TriangleAlert,
-} from 'lucide-react'
-import type { LucideIcon } from 'lucide-react'
+} from '@/components/ui/icons'
+import type { LucideIcon } from '@/components/ui/icons'
 import { db } from '@/lib/db'
 import { getAdmin } from '@/lib/admin'
 import { AdminDenied } from '@/components/admin/admin-denied'

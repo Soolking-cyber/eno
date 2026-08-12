@@ -2,7 +2,7 @@
 
 import Image from 'next/image'
 import { isMockImageUrl } from '@/lib/listing-image'
-import { Search, Tag } from 'lucide-react'
+import { Search, Tag } from '@/components/ui/icons'
 import { useLanguage } from '@/context/language-context'
 import { Button } from '@/components/ui/button'
 import { Price } from './price'

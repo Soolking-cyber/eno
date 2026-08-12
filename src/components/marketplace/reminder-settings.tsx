@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Bell, BellOff, Loader2, Mail } from 'lucide-react'
+import { Bell, BellOff, Loader2, Mail } from '@/components/ui/icons'
 import { useLanguage } from '@/context/language-context'
 import { Button } from '@/components/ui/button'
 import { Switch } from '@/components/ui/switch'

@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter } from 'next/navigation'
-import { MessageCircle } from 'lucide-react'
+import { MessageCircle } from '@/components/ui/icons'
 import { Button } from '@/components/ui/button'
 import { useLanguage } from '@/context/language-context'
 

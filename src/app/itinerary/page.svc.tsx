@@ -1,7 +1,7 @@
 import { SITE_NAME } from '@/lib/edition'
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { CalendarDays, Map as MapIcon, MessageSquare, Wallet } from 'lucide-react'
+import { CalendarDays, Map as MapIcon, MessageSquare, Wallet } from '@/components/ui/icons'
 import { Tr } from '@/context/language-context'
 import { ContentPage, ContentSection } from '@/components/marketplace/content-page'
 import { Button } from '@/components/ui/button'

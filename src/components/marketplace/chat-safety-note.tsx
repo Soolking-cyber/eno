@@ -1,6 +1,6 @@
 'use client'
 
-import { TriangleAlert } from 'lucide-react'
+import { TriangleAlert } from '@/components/ui/icons'
 import { Alert } from '@/components/ui/alert'
 import { useLanguage } from '@/context/language-context'
 

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type RefObject } from 'react'
 import { Popover as PopoverPrimitive } from '@base-ui/react/popover'
-import { LocateFixed, Loader2, Check, ChevronsUpDown } from 'lucide-react'
+import { LocateFixed, Loader2, Check, ChevronsUpDown } from '@/components/ui/icons'
 import { useLanguage } from '@/context/language-context'
 import { CustomSelect } from './custom-select'
 import { EnoSlider } from './eno-slider'

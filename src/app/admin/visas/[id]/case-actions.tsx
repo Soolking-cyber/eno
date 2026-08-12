@@ -2,7 +2,7 @@
 
 import { useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { CheckCircle2, Download, Headset, Loader2, Sparkles, Upload } from 'lucide-react'
+import { CheckCircle2, Download, Headset, Loader2, Sparkles, Upload } from '@/components/ui/icons'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { transitionVisaStatus } from './actions'

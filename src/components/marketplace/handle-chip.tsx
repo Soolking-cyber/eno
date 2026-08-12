@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { AtSign, Check } from 'lucide-react'
+import { AtSign, Check } from '@/components/ui/icons'
 import { useLanguage } from '@/context/language-context'
 import { Button } from '@/components/ui/button'
 import { Tooltip } from '@/components/ui/tooltip'

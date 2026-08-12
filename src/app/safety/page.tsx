@@ -1,12 +1,12 @@
 import { IS_SERVICES, SITE_NAME } from '@/lib/edition'
 import type { Metadata } from 'next'
-import type { LucideIcon } from 'lucide-react'
+import type { LucideIcon } from '@/components/ui/icons'
 import {
   Images, MessageSquare, ClipboardCheck,
   Sun, Users, SearchCheck, Banknote, FileText,
   AlertTriangle, BadgeCheck, ScanLine, Lock, Scale, Flag, Info,
   Landmark, Globe, Receipt, Ban, Upload, Check, X,
-} from 'lucide-react'
+} from '@/components/ui/icons'
 import { EnoSeal } from '@/components/marketplace/eno-seal'
 import { Tr } from '@/context/language-context'
 import { ContentPage, ContentSection } from '@/components/marketplace/content-page'

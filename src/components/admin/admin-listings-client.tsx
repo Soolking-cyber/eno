@@ -6,7 +6,7 @@ import { Tooltip } from '@/components/ui/tooltip'
 import {
   ColumnDef, flexRender, getCoreRowModel, getSortedRowModel, SortingState, useReactTable,
 } from '@tanstack/react-table'
-import { ArrowUpDown, Loader2, MoreHorizontal, Search, Trash2, EyeOff, Eye, Star, Check } from 'lucide-react'
+import { ArrowUpDown, Loader2, MoreHorizontal, Search, Trash2, EyeOff, Eye, Star, Check } from '@/components/ui/icons'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import {

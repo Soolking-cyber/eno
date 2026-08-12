@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useId, useRef, useState } from 'react'
-import { Loader2, UserRound } from 'lucide-react'
+import { Loader2, UserRound } from '@/components/ui/icons'
 import {
   Drawer,
   DrawerContent,

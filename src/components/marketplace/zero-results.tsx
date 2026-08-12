@@ -1,8 +1,8 @@
 'use client'
 
 import * as React from 'react'
-import type { LucideIcon } from 'lucide-react'
-import { SearchX, Bookmark, BookmarkCheck, Bell, BellRing } from 'lucide-react'
+import type { LucideIcon } from '@/components/ui/icons'
+import { SearchX, Bookmark, BookmarkCheck, Bell, BellRing } from '@/components/ui/icons'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/empty-state'
 import { useLanguage } from '@/context/language-context'

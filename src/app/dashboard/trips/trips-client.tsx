@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState, useRef, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { Loader2, RefreshCw, Route, Sparkles } from 'lucide-react'
+import { Loader2, RefreshCw, Route, Sparkles } from '@/components/ui/icons'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import { Button } from '@/components/ui/button'

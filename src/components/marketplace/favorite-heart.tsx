@@ -1,6 +1,6 @@
 'use client'
 
-import { Heart } from 'lucide-react'
+import { Heart } from '@/components/ui/icons'
 import { IconButton } from '@/components/ui/icon-button'
 import { useFavorites } from '@/context/favorites-context'
 import { useLanguage } from '@/context/language-context'

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import Papa from 'papaparse'
-import { Upload, Download, FileText, Loader2, Check, CheckCircle2, AlertTriangle } from 'lucide-react'
+import { Upload, Download, FileText, Loader2, Check, CheckCircle2, AlertTriangle } from '@/components/ui/icons'
 import { STROKE_DISPLAY } from '@/lib/icon-tokens'
 import { useLanguage } from '@/context/language-context'
 import { containsPhoneNumber } from '@/lib/phone'

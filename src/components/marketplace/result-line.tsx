@@ -1,7 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import { Bookmark } from 'lucide-react'
+import { Bookmark } from '@/components/ui/icons'
 
 import { RemovableBadge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'

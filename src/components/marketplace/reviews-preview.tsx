@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { Star, ChevronRight } from 'lucide-react'
+import { Star, ChevronRight } from '@/components/ui/icons'
 import { EnoSeal } from './eno-seal'
 import { useLanguage, Tr } from '@/context/language-context'
 import { Badge } from '@/components/ui/badge'

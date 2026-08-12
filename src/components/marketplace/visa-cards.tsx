@@ -5,7 +5,7 @@ import Link from 'next/link'
 import {
   AlertTriangle, ArrowRight, Check, ChevronDown, CreditCard, Download, FileImage, FileText, Loader2,
   LockKeyhole, PencilLine, RotateCcw, ShieldCheck, Sparkles, Upload, UserRound, Wallet,
-} from 'lucide-react'
+} from '@/components/ui/icons'
 import { useLanguage } from '@/context/language-context'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'

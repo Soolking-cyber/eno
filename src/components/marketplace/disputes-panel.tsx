@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
-import { Scale, ChevronRight } from 'lucide-react'
+import { Scale, ChevronRight } from '@/components/ui/icons'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import { SignInPrompt } from '@/components/marketplace/account-actions'

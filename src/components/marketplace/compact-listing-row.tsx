@@ -3,7 +3,7 @@
 import { memo, useState } from 'react'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
-import { ArrowRight, MapPin, MessageCircle, Tag, Zap } from 'lucide-react'
+import { ArrowRight, MapPin, MessageCircle, Tag, Zap } from '@/components/ui/icons'
 import { TrustScore } from './trust-score'
 import { Badge } from './card-badges'
 import { Price } from './price'

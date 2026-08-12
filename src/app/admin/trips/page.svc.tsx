@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { Map } from 'lucide-react'
+import { Map } from '@/components/ui/icons'
 import { getAdmin } from '@/lib/admin'
 import { AdminDenied } from '@/components/admin/admin-denied'
 import { db } from '@/lib/db'

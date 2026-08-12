@@ -11,7 +11,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Fingerprint, IdCard } from 'lucide-react'
+import { Fingerprint, IdCard } from '@/components/ui/icons'
 import { EnoSeal } from '@/components/marketplace/eno-seal'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'

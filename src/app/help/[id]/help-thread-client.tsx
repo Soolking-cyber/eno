@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, CheckCircle2, MessageCircle } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, MessageCircle } from '@/components/ui/icons'
 import { toast } from 'sonner'
 import { useAuth } from '@/context/auth-context'
 import { Tr, useLanguage, useTr } from '@/context/language-context'

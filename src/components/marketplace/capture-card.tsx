@@ -1,6 +1,6 @@
 'use client'
 
-import { Heart, MessageCircle, Bell } from 'lucide-react'
+import { Heart, MessageCircle, Bell } from '@/components/ui/icons'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import { Button } from '@/components/ui/button'

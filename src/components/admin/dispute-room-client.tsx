@@ -3,7 +3,7 @@
 import { useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Check, Clock, Loader2, Sparkles } from 'lucide-react'
+import { Check, Clock, Loader2, Sparkles } from '@/components/ui/icons'
 import { EnoSeal } from '@/components/marketplace/eno-seal'
 import { STROKE_MARK } from '@/lib/icon-tokens'
 import type { TargetInfo } from '@/lib/admin-reports'

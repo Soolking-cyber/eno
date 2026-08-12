@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
-import { CalendarCheck, Check, ChevronDown, FolderOpen, Loader2, MapPinned, Sparkles, UserRound, X } from 'lucide-react'
+import { CalendarCheck, Check, ChevronDown, FolderOpen, Loader2, MapPinned, Sparkles, UserRound, X } from '@/components/ui/icons'
 import { useLanguage } from '@/context/language-context'
 import { useCurrency, vndPerUsd } from '@/context/currency-context'
 import { Badge } from '@/components/ui/badge'

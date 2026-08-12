@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ChevronLeft, Sparkles, Loader2 } from 'lucide-react'
+import { ChevronLeft, Sparkles, Loader2 } from '@/components/ui/icons'
 import { STROKE_NAV } from '@/lib/icon-tokens'
 import { ChatSendButton, MessageBubble } from '@/components/marketplace/chat-parts'
 import { ImageSearchButton } from '@/components/marketplace/image-search-button'

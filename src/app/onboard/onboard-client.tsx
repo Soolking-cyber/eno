@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { User, Store, Loader2, Check } from 'lucide-react'
+import { User, Store, Loader2, Check } from '@/components/ui/icons'
 import { STROKE_UI, WASH_ACTIVE } from '@/lib/icon-tokens'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'

@@ -1,6 +1,6 @@
 'use client'
 
-import { Rows3, LayoutGrid, Map, Play, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react'
+import { Rows3, LayoutGrid, Map, Play, ArrowUp, ArrowDown, ArrowUpDown } from '@/components/ui/icons'
 import { Button } from '@/components/ui/button'
 import { Tooltip } from '@/components/ui/tooltip'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'

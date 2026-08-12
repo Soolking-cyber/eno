@@ -8,7 +8,7 @@
 import { Fragment, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { LogOut } from 'lucide-react'
+import { LogOut } from '@/components/ui/icons'
 import { ICON_SIZE, STROKE_NAV, STROKE_UI } from '@/lib/icon-tokens'
 import { CategoryGlyphArt } from './category-icons'
 import { Tooltip } from '@/components/ui/tooltip'

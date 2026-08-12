@@ -1,6 +1,6 @@
 'use client'
 
-import { LogOut, LogIn } from 'lucide-react'
+import { LogOut, LogIn } from '@/components/ui/icons'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import { Button } from '@/components/ui/button'

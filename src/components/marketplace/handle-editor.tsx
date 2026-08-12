@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { AtSign, Check, Copy, Loader2, X } from 'lucide-react'
+import { AtSign, Check, Copy, Loader2, X } from '@/components/ui/icons'
 import { useLanguage } from '@/context/language-context'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'

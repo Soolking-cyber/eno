@@ -1,7 +1,7 @@
 'use client'
 
 import { useId, useState } from 'react'
-import { BadgeCheck, Handshake, Loader2 } from 'lucide-react'
+import { BadgeCheck, Handshake, Loader2 } from '@/components/ui/icons'
 import { Button } from '@/components/ui/button'
 import { useLanguage } from '@/context/language-context'
 import { formatMoneyFull, moneyLocale } from '@/lib/vnd'

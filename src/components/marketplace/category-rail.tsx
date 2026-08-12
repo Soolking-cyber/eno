@@ -1,9 +1,9 @@
 'use client'
 
 import { Fragment, useEffect, useRef } from 'react'
-import { Layers } from 'lucide-react'
 import { useLanguage, Tr } from '@/context/language-context'
-import { CategoryIcon, CategoryGlyphArt } from './category-icons'
+import { CategoryIcon } from './category-icons'
+import { CategoryTileGlyph } from './category-art'
 import { SUBCATEGORIES } from '@/lib/subcategories'
 import { CountChip, optionCount, railDimension } from './count-chip'
 import { MoreOverflow } from './more-overflow'
@@ -213,17 +213,16 @@ export function CategoryRail({
       {/* All */}
       <Button variant="bare" size="none" data-cat="all" onClick={() => onCategory('all')} className={cn('whitespace-normal', tileCls)}>
         <span className="flex h-11 items-center justify-center">
-          {/* 'Layers' has no registry key (keys mirror DB Category.icon rows and are
-              immutable), so it mounts through CategoryGlyphArt — the registry's duotone
-              renderer minus the key lookup. It used to be a bare lucide svg with a
-              locally-restated wash on ONE path, which is precisely how a tile ends up
-              reading a different density from the tiles beside it. */}
+          {/* 'all' is a filter reset, not a category — it has no taxonomy row and no registry
+              key (keys mirror DB Category.icon rows and are immutable). It has Solar artwork
+              under that slug all the same, so it resolves like every other tile; the 'Layers'
+              key is the lucide fallback that now never fires. */}
           {/* ⚠️ FILL IS THE SELECTION, NOT A STYLE (owner, 2026-08-07: "use icons filling only
               when selected, not as default"). Every glyph on this rail takes `selected` from the
               SAME boolean that already paints its label accent — `activeCategory === 'all'` here,
               `isActive` / `subActive` / the intent's `active` below. No new state was introduced:
               if the tile reads as chosen, its glyph fills; otherwise it is pure ink line. */}
-          <CategoryGlyphArt Icon={Layers} name="Layers" className={iconCls(activeCategory === 'all')} selected={activeCategory === 'all'} />
+          <CategoryTileGlyph slug="all" icon="Layers" className={iconCls(activeCategory === 'all')} selected={activeCategory === 'all'} />
         </span>
         {/* ⚠️ THE COUNT SITS ON ITS OWN LINE UNDER THE NAME, NOT APPENDED INSIDE IT. `nameCls`
             carries line-clamp-2, so an inline number would be clipped away on exactly the tiles
@@ -293,7 +292,7 @@ export function CategoryRail({
           <Fragment key={cat.id}>
             <Button variant="bare" size="none" data-cat={cat.slug} onClick={() => onCategory(isActive ? 'all' : cat.slug)} className={cn('whitespace-normal', tileCls)}>
               <span className="flex h-11 items-center justify-center">
-                <CategoryIcon name={cat.icon} className={iconCls(isActive)} selected={isActive} />
+                <CategoryTileGlyph slug={cat.slug} icon={cat.icon} className={iconCls(isActive)} selected={isActive} />
               </span>
               {/* Own line under the name — see the "All" tile above for why, and for the
                   height measurement. */}
@@ -370,7 +369,7 @@ export function CategoryRail({
             return (
               <Button key={s.type} variant="bare" size="none" data-intent={s.type} onClick={() => onIntent?.(s.type)} className={cn('whitespace-normal', tileCls)}>
                 <span className="flex h-11 items-center justify-center">
-                  <CategoryIcon name={s.icon} className={iconCls(active)} selected={active} />
+                  <CategoryTileGlyph slug={s.type} icon={s.icon} className={iconCls(active)} selected={active} />
                 </span>
                 <span className={nameCls(active)}><Tr text={lang === 'vi' ? s.nameVi : s.name} /></span>
               </Button>

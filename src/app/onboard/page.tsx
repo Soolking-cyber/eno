@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation'
 import { SITE_NAME } from '@/lib/edition'
 import { Suspense } from 'react'
-import { Loader2 } from 'lucide-react'
+import { Loader2 } from '@/components/ui/icons'
 import type { Metadata } from 'next'
 import { getCurrentProfile } from '@/lib/admin'
 import { safeNextPath } from '@/lib/url'

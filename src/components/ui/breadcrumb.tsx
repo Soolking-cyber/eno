@@ -4,7 +4,7 @@ import { useRender } from "@base-ui/react/use-render"
 
 import { Tr } from "@/context/language-context"
 import { cn } from "@/lib/utils"
-import { ChevronRightIcon, MoreHorizontalIcon } from "lucide-react"
+import { ChevronRightIcon, MoreHorizontalIcon } from "@/components/ui/icons"
 
 function Breadcrumb({ className, ...props }: React.ComponentProps<"nav">) {
   return (

@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { AlertTriangle, Loader2, OctagonAlert, Scale, ChevronRight } from 'lucide-react'
+import { AlertTriangle, Loader2, OctagonAlert, Scale, ChevronRight } from '@/components/ui/icons'
 import { toast } from 'sonner'
 import { useLanguage } from '@/context/language-context'
 import { cn } from '@/lib/utils'

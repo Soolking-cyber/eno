@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Sparkles, TrendingUp } from 'lucide-react'
+import { Sparkles, TrendingUp } from '@/components/ui/icons'
 import type { SerializedListingCard } from '@/lib/types'
 import { ListingCard } from './listing-card'
 import { Shelf, RAIL_CARD_W, MIN_RAIL_ITEMS, RAIL_SKELETON_COUNT } from './shelf'
