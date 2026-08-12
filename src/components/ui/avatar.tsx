@@ -50,9 +50,12 @@ export function Avatar({
     >
       {getInitials(name)}
       {/* keyed on the url so a freshly uploaded photo clears a previous failure instead of
-          inheriting the old element's `failed` state and staying invisible. The colour is
-          handed down so the photo can paint itself opaque over the initials — see AvatarImage. */}
-      {url && <AvatarImage key={url} src={url} color={bg} />}
+          inheriting the old element's `failed` state and staying invisible.
+          ⚠️ THE COLOUR IS NOT HANDED DOWN ANY MORE. It used to be, so the photo could paint itself
+          opaque over the initials — but painting the IDENTITY colour there made every transparent
+          pixel of a logo come out brand blue (owner, 2026-08-12). The photo plates itself on the
+          neutral surface instead; `bg` below still owns the initials, which is its actual job. */}
+      {url && <AvatarImage key={url} src={url} />}
     </span>
   )
 }

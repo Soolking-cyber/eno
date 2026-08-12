@@ -52,11 +52,13 @@ const SELLER = {
   // to make the bio shorter — it is the line that keeps eno's position accurate.
   bio: 'Licensed Vietnamese travel and visa company. VietKite is the provider of record for e-visa services under its own licence; eno introduces VietKite and does not perform or guarantee the service.',
   avatarUrl: '/vietkite-logo.png',
-  // ⚠️ WHITE, NOT THE SCHEMA'S RED DEFAULT (#dc2626). ui/avatar paints avatarColor BEHIND the
-  // photo so a transparent logo cannot show the initials through its gaps — which means for a
-  // transparent PNG this colour IS the logo's background. VietKite's mark is an orange wordmark
-  // and a green kite drawn on white; on the red default every transparent pixel rendered red and
-  // the storefront looked like a different company. Any partner logo with alpha needs this set.
+  // ⚠️ WHITE, NOT THE SCHEMA'S RED DEFAULT (#dc2626) — but this is now BELT, NOT BRACES. It used
+  // to be the only thing standing between a transparent partner logo and a coloured disc, because
+  // ui/avatar painted avatarColor behind the photo. It no longer does (2026-08-12): a photo plates
+  // itself on the neutral surface, and avatarColor is back to meaning what it says — the ground
+  // under the INITIALS, i.e. what shows if the logo ever fails to load. White is still right for
+  // this seller for that fallback; it is no longer load-bearing for the logo itself, and a future
+  // partner whose row forgets it can no longer end up looking like a different company.
   avatarColor: '#ffffff',
   // ⚠️ Both stay FALSE. These badges mean eno verified something and nobody has run that check.
   // A trust signal granted by a seed script is exactly what the trust system exists to prevent.
@@ -124,10 +126,22 @@ try {
     [userId, EMAIL, SELLER.name],
   )
   const s = await c.query(
-    `insert into "Seller" (id, "ownerId", name, "legalName", bio, "avatarUrl", verified, "verifiedSeller", "memberSince", "claimedAt")
-     values (gen_random_uuid()::text, $1::uuid, $2, $3, $4, $5, $8, $6, $7, now(), now())
+    // ⚠️ THIS STATEMENT WAS BROKEN AND COULD NOT HAVE RUN AS WRITTEN (found 2026-08-12 while
+    // chasing "vietkite avatar background is blue"). It listed TEN columns and supplied ELEVEN
+    // values — Postgres answers that with `INSERT has more expressions than target columns` — and
+    // `avatarColor` was in the values but in NO column, wedged in at $8 where `verified` belongs.
+    // Column list and values are now aligned and in the same order, which is the only arrangement
+    // a reader can check by eye.
+    // ⚠️ THE LIVE ROW IS FINE — CHECKED, NOT ASSUMED. An earlier draft of this note claimed it
+    // "carries no avatarColor at all"; measuring the rendered storefront says otherwise, the
+    // avatar's plate computes to rgb(255,255,255), i.e. the seller row really does hold #ffffff.
+    // It was set some other way. So this is a latent bug in a script that cannot currently run,
+    // not a repair of live data — and it stays worth fixing, because the next person to run this
+    // for a second partner would hit `INSERT has more expressions than target columns`.
+    `insert into "Seller" (id, "ownerId", name, "legalName", bio, "avatarUrl", "avatarColor", verified, "verifiedSeller", "memberSince", "claimedAt")
+     values (gen_random_uuid()::text, $1::uuid, $2, $3, $4, $5, $6, $7, $8, now(), now())
      returning id`,
-    [userId, SELLER.name, SELLER.legalName, SELLER.bio, SELLER.avatarUrl, SELLER.verified, SELLER.verifiedSeller, SELLER.avatarColor],
+    [userId, SELLER.name, SELLER.legalName, SELLER.bio, SELLER.avatarUrl, SELLER.avatarColor, SELLER.verified, SELLER.verifiedSeller],
   )
   const sellerId = s.rows[0].id
   await c.query(`insert into "Handle" (handle, "sellerId", "createdAt") values ($1, $2, now())`, [HANDLE, sellerId])

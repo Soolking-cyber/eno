@@ -31,7 +31,7 @@ import { useState } from 'react'
 // genuinely gone, and the fallback is the person's own initials rather than an error state, so
 // the cost of being wrong is low. It self-heals on the next navigation, and a changed `src`
 // remounts via the key in <Avatar>.
-export function AvatarImage({ src, color }: { src: string; color: string }) {
+export function AvatarImage({ src }: { src: string }) {
   const [failed, setFailed] = useState(false)
   if (failed) return null
   return (
@@ -46,11 +46,29 @@ export function AvatarImage({ src, color }: { src: string; color: string }) {
       // ⚠️ THE IMAGE IS OPAQUE, so a photo with transparency does not show the initials through
       // itself. The initials sit directly behind this element (that is the whole fallback), and
       // a transparent PNG — a storefront logo, most likely — would otherwise render letters
-      // showing through the gaps in the artwork. Painting the avatar's own colour behind the
-      // photo keeps the failure path intact while making the success path opaque. Caught by
-      // codex at the commit gate; the old either/or markup could not have this problem because
-      // nothing was ever behind the photo.
-      style={{ backgroundColor: color }}
+      // showing through the gaps in the artwork.
+      //
+      // ⚠️ BUT THE PLATE IS A FIXED LIGHT GROUND, **NOT** THE AVATAR'S IDENTITY COLOUR, and that
+      // distinction is the whole bug (owner, 2026-08-12: "fix vietkite avatar image in messages
+      // background is blue"). This used to paint `avatarColor` here, which is the colour chosen to
+      // sit behind INITIALS — so every transparent pixel of a partner's logo came out in that
+      // colour, and a seller with no colour set fell through to BRAND_BLUE. VietKite's mark is an
+      // orange wordmark and a green kite drawn for a light ground; it shipped on a blue disc.
+      // The failure path is untouched: the element removes itself, revealing the coloured initials.
+      //
+      // ⚠️ `bg-white`, NOT `bg-card`, AND THE DIFFERENCE IS DARK MODE. `bg-card` was the first
+      // answer — a theme-aware neutral, which sounds obviously right — and all three reviewers
+      // rejected it independently. Measured: `--card` is `#fafafa` in light and `#1b1b1b` in dark
+      // (globals.css), so a dark-mode viewer would have got the same bug in a different colour, on
+      // a near-black disc.
+      //
+      // The reason a FIXED light ground is correct rather than a compromise: this plate is only
+      // ever VISIBLE through transparent pixels. An ordinary photo is opaque and covers it
+      // completely, in either theme — so the plate's colour is, by construction, a decision about
+      // artwork with alpha. Artwork with alpha in an avatar slot is a logo, and logos are drawn
+      // for a light ground. Theme-matching a surface nobody can see, at the cost of the one case
+      // that can, is the trade `bg-card` was making.
+      className="absolute inset-0 h-full w-full bg-white object-cover"
       // ⚠️ onError ALONE IS NOT ENOUGH, because this element is server-rendered: the browser
       // starts fetching from the HTML, long before React hydrates and attaches the handler. A
       // 404 that resolves in that window fires its error event into the void, and the broken
@@ -60,7 +78,6 @@ export function AvatarImage({ src, color }: { src: string; color: string }) {
       // codex; measured before and after, since a race you cannot reproduce is not a fix.
       ref={(el) => { if (el && el.complete && el.naturalWidth === 0) setFailed(true) }}
       onError={() => setFailed(true)}
-      className="absolute inset-0 h-full w-full object-cover"
     />
   )
 }
