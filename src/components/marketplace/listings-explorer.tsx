@@ -2570,14 +2570,45 @@ export function ListingsExplorer({
               `total` field of the /api/listings response, or `shownListings.length` when "near
               you" is on (that path distance-filters client-side, so the server total is wrong by
               construction). A per-facet counts endpoint plugs in HERE and nowhere else. */}
-          <div className={cn(SECTION_HEADER_ROW, 'select-none')}>
-            {/* ⚠️ `flex-1` IS WHAT MAKES THE HALVES MEAN ANYTHING. Without it this wrapper is
-                content-sized — measured at 203px on a 1440px viewport — so ResultLine's two
-                `basis-1/2` halves split 203px between them and the row shows a cramped left
-                cluster with ~900px of dead space before "Save search". The halves are relative to
-                THIS box, so it has to claim the row first. `min-w-0` stays: it is what lets the
-                box shrink below its content so the halves' own scrollers take over. */}
-            <div className="flex min-w-0 flex-1 items-center gap-2">
+          {/* ⚠️ ON A PHONE THE META LINE DROPS TO ITS OWN ROW, DIRECTLY ABOVE THE GRID (owner,
+              2026-08-12: "move this line below right above products but thinner"). Measured at
+              390px before this: the row held the count, ONE truncated chip, Save search and four
+              view toggles in 366px, and the breadcrumb — the thing that says where you are — was
+              scrolled out of sight entirely. Splitting gives it the full width and puts it where a
+              caption belongs, touching the merchandise it describes.
+              ⚠️ ORDER CLASSES, NOT A SECOND <ResultLine>. It owns an `aria-live` region and a
+              focus-restore target, so rendering a phone copy beside a desktop one would announce
+              every count twice and give the chip ✕ two possible destinations. One node, moved.
+              ⚠️ KNOWN, AND STATED RATHER THAN GLOSSED: `order` MOVES THE PAINT, NOT THE DOM, so
+              under sm the tab order is path → chips → controls while the eye sees chips →
+              controls → path (codex). It cannot be made to agree here: the chrome is a SIBLING
+              between the two halves visually, and the halves are adjacent children of one
+              component, so no DOM arrangement produces both. The displaced element is the count
+              (a non-focusable <p>) plus the breadcrumb rungs, and both readings — "where you are,
+              then what you filtered" and "what you filtered, then where you are" — are coherent,
+              so this is a deviation rather than a trap. Closing it properly means splitting the
+              line into two exported slots the caller places itself.
+              ⚠️ UNCONDITIONAL ON A PHONE — IT IS NOT WORTH MAKING CONDITIONAL, AND THE FIRST DRAFT
+              PROVED IT. That draft split the line out only when it had crumbs or chips, to spare
+              the home feed ~22px on the surface whose measured problem is that the first screen
+              holds no merchandise. Measuring the other branch killed it: on the mobile HOME view
+              the line shares the row with a 146px section title and 172px of view toggles, which
+              leaves it 32px to print a 62px string — "33 listings" was CLIPPED, and had been
+              before this change too, invisibly, because the half is an `overflow-x-auto` scroller
+              and a scroller does not look broken, it just shows less. A legible count is worth
+              22px, and one rule that always holds is worth more than two that each hold sometimes. */}
+          <div className={cn(SECTION_HEADER_ROW, 'select-none max-sm:flex-wrap max-sm:gap-y-1.5')}>
+            {/* ⚠️ THE HEADING NO LONGER WRAPS <ResultLine>, WHICH IS WHAT LETS IT MOVE. They were
+                nested — heading and line inside one `flex-1` box — and a nested child cannot
+                reorder past its parent's SIBLING, so the line could never get below the toggles.
+                They are siblings now, ordered explicitly.
+                ⚠️ THE `flex-1` MOVED WITH IT, TO <ResultLine>, AND IT IS STILL THE THING THAT
+                MAKES THE HALVES MEAN ANYTHING. Without it the line is content-sized — measured at
+                203px on a 1440px viewport — so its two `basis-1/2` halves split 203px and the row
+                shows a cramped left cluster with ~900px of dead space before "Save search". This
+                box now takes its content width instead: "Latest listings" on the undirected feed,
+                and zero on a directed one where the heading is sr-only. */}
+            <div className="order-1 flex min-w-0 shrink-0 items-center gap-2">
               {feedInDefaultOrder ? (
                 <>
                   <Clock className="h-4 w-4 shrink-0 text-accent-foreground" aria-hidden />
@@ -2591,7 +2622,9 @@ export function ListingsExplorer({
                    "Found 32 listings" it says the same word twice. */
                 <h2 className="sr-only">{tr('Marketplace listings', 'Tin đăng')}</h2>
               )}
-              {/* ⛔ THE COUNT MOVED INTO <ResultLine> — DO NOT PUT A SECOND ONE BACK HERE.
+            </div>
+
+            {/* ⛔ THE COUNT MOVED INTO <ResultLine> — DO NOT PUT A SECOND ONE BACK HERE.
                   A local aria-live <p> used to print it, and mounting ResultLine beside it printed
                   the figure TWICE on one line ("Found 0 listings  0 listings") — caught on the
                   rendered page, not in review. ResultLine's own count is the better of the two: it
@@ -2608,18 +2641,26 @@ export function ListingsExplorer({
                   the live region above already owns the number and its announcement, so the line
                   is handed only the crumbs and the chips. Two elements announcing the same figure
                   is how a live region becomes noise. */}
-              <ResultLine
-                count={nearby ? shownListings.length : totalCount}
-                crumbs={ladderCrumbs}
-                filters={resultFilters}
-                onClearAll={resultFilters.length > 1 ? clearAllFilters : undefined}
-                // ⚠️ `flex-1` HERE TOO, AND FOR A SECOND REASON. Making the WRAPPER flex was not
-                // enough: ResultLine is itself a flex item, so it still sized to its content
-                // (measured 203px inside a 919px parent) and its two `basis-1/2` halves split
-                // that 203px. Both boxes have to claim the row before the halves can divide it.
-                className="min-w-0 flex-1"
-              />
-            </div>
+            <ResultLine
+              count={nearby ? shownListings.length : totalCount}
+              crumbs={ladderCrumbs}
+              filters={resultFilters}
+              onClearAll={resultFilters.length > 1 ? clearAllFilters : undefined}
+              // Turns on the two-row phone layout; `max-sm:contents` below is what lets the halves
+              // reach past this row's other children. Both are needed — see the prop's own note.
+              splitOnMobile
+              // ⚠️ `flex-1` IS WHAT LETS THE TWO HALVES DIVIDE ANYTHING — see the note on the
+              // heading box above.
+              // ⚠️ `max-sm:contents` DISSOLVES THIS BOX ON A PHONE, DELIBERATELY, and it is the
+              // whole mechanism behind the two-row phone layout (owner, 2026-08-12: "put the chips
+              // to the empty space to the left of save search on mobile"). The halves have to land
+              // on DIFFERENT rows — chips beside Save search, count and path against the grid —
+              // and a nested child cannot order past its parent's siblings. `display: contents`
+              // removes this wrapper from the box tree so both halves become flex items of the row
+              // itself, where their own `max-sm:order-*` (see result-line.tsx) can place them.
+              // It stays a real flex box at sm+, where one row is the right answer.
+              className="order-2 min-w-0 flex-1 max-sm:contents"
+            />
             {/* ⛔ SAVE SEARCH SITS LEFT OF THE VIEW MODES, ON THE SAME LINE — owner, 2026-08-12,
                 and the order is the instruction, not a preference. Both are right-aligned by this
                 row's justify-between, so the count and the path own the left and these two own the
@@ -2627,7 +2668,17 @@ export function ListingsExplorer({
                 ⚠️ Save search is OFFERED, NOT ALWAYS SHOWN: below two applied filters it is an
                 offer to save nothing (see shouldOfferSaveSearch in result-line.tsx), so it renders
                 null on the undirected home view and costs no width there. */}
-            <div className="flex shrink-0 items-center gap-1">
+            {/* ⚠️ `order-3` AT EVERY BREAKPOINT, AND IT HAS TO STAY AHEAD OF THE COUNT HALF. On a
+                phone the row reads heading(1) → chips(2) → this(3) → count+path(last), so Save
+                search keeps the chips on its left and the caption still lands under all of it.
+                ⚠️ `max-sm:ml-auto` IS FOR THE LINE THIS LANDS ON WHEN THE CHIPS PUSH IT OFF THE
+                FIRST ONE (owner, 2026-08-12: "when chips overflow the line the view selector box
+                goes to next lines right side not left"). The row's `justify-between` only governs
+                a line with two or more items — alone on a wrapped line this cluster is a single
+                item and packs to the START, i.e. hard left under the chips, which reads as a
+                different control group rather than the same one displaced. `ml-auto` pins it to
+                the right edge on that line and changes nothing on a line it shares. */}
+            <div className="order-3 flex shrink-0 items-center gap-1 max-sm:ml-auto">
               {/* ⚠️ THE LADDER COUNTS AS FILTERS HERE, AND LEAVING IT OUT HID THIS BUTTON ON THE
                   SEARCHES MOST WORTH SAVING. `resultFilters` deliberately EXCLUDES the ladder
                   levels because the breadcrumb beside it already names them — printing "Honda"
@@ -3014,7 +3065,6 @@ export function ListingsExplorer({
         activeCategory={activeCategory}
         handleCategorySelect={handleCategorySelect}
         activeSubcategory={activeSubcategory}
-        setActiveSubcategory={setActiveSubcategory}
         verifiedOnly={verifiedOnly}
         setVerifiedOnly={setVerifiedOnly}
         activeDistrict={activeDistrict}

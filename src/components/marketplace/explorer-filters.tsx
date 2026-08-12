@@ -20,7 +20,6 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from '@/components/ui/drawer'
-import { SUBCATEGORIES } from '@/lib/subcategories'
 import { facetsFor } from '@/lib/taxonomy'
 import type { SerializedCategory } from '@/lib/types'
 
@@ -30,7 +29,6 @@ type Props = {
   activeCategory: string
   handleCategorySelect: (slug: string) => void
   activeSubcategory: string
-  setActiveSubcategory: Dispatch<SetStateAction<string>>
   verifiedOnly: boolean
   setVerifiedOnly: Dispatch<SetStateAction<boolean>>
   activeDistrict: string
@@ -50,7 +48,6 @@ export function ExplorerFilters({
   activeCategory,
   handleCategorySelect,
   activeSubcategory,
-  setActiveSubcategory,
   verifiedOnly,
   setVerifiedOnly,
   activeDistrict,
@@ -191,52 +188,16 @@ export function ExplorerFilters({
         </div>
       )}
 
-      {/* Subcategories Selection for Mobile Drawer */}
-      {isMobile && activeCategory !== 'all' && SUBCATEGORIES[activeCategory] && (
-        <div className="space-y-1.5 animate-in fade-in slide-in-from-top-1 duration-75">
-          <label id={`${uid}-subcategory-label`} className="text-2xs font-bold text-muted-foreground uppercase tracking-wider">
-            {tr('Subcategory', 'Danh mục con')}
-          </label>
-          <div role="group" aria-labelledby={`${uid}-subcategory-label`} className="flex flex-wrap gap-1.5">
-            <Button
-              variant="bare"
-              size="none"
-              onClick={() => setActiveSubcategory('all')}
-              className={cn(
-                'rounded-lg px-2.5 py-1 text-xs font-bold transition-colors cursor-pointer',
-                activeSubcategory === 'all'
-                  ? 'text-accent-foreground'
-                  : 'text-body hover:bg-muted'
-              )}
-            >
-              {tr('All', 'Tất cả')}
-            </Button>
-            {SUBCATEGORIES[activeCategory].map((sub) => {
-              const isSubActive = activeSubcategory === sub.slug
-              return (
-                <Button
-                  key={sub.slug}
-                  variant="bare"
-                  size="none"
-                  onClick={() => setActiveSubcategory(sub.slug)}
-                  className={cn(
-                    'flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-bold transition-colors cursor-pointer',
-                    isSubActive
-                      ? 'text-accent-foreground'
-                      : 'text-body hover:bg-muted'
-                  )}
-                >
-                  {/* Same two rules as the category chips above: the UI-tier stroke as a PROP
-                      (the old `stroke-2` class could not reach the layers), and the fill driven
-                      by this row's existing `isSubActive`. */}
-                  <CategoryIcon name={sub.icon} stroke={STROKE_UI} selected={isSubActive} className="h-3.5 w-3.5 shrink-0" />
-                  <Tr text={lang === 'vi' ? sub.nameVi : sub.name} />
-                </Button>
-              )
-            })}
-          </div>
-        </div>
-      )}
+      {/* ⛔ NO SUBCATEGORY GROUP IN THIS DRAWER (owner, 2026-08-12: "filter shouldnt have
+          subcategories as chip remove subcats from filter"). It was a second copy of the same
+          picker the desktop panel carried — see the note on `hasAdvanced` in facet-bar.tsx for the
+          reasoning and for what the CategoryRail now owns. Removing it in only one of the two
+          would have left the control on exactly the surface the owner was looking at.
+          ⚠️ `activeSubcategory` STAYS A PROP; `setActiveSubcategory` DID NOT. The value still
+          gates which advanced facets this drawer offers (`facetsFor(category, subcategory)`
+          above) — that was never the duplication. The SETTER had exactly one caller, this group,
+          so it left with it; dropping the category's subcategory when the category changes is
+          `handleCategorySelect`'s job in the explorer, not the drawer's. */}
       {/* Verified Filter Switch */}
       <div className="flex items-center justify-between py-2.5 bg-card/50 border border-border/60 rounded-xl px-3 shadow-xs select-none">
         <span className="text-2xs font-bold text-muted-foreground uppercase tracking-wider">

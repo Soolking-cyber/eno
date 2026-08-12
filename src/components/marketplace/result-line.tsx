@@ -84,6 +84,24 @@ export type ResultLineProps = {
   onSaveSearch?: () => void
   /** Optional: renders "Clear all" beside the chips, only when there is more than one to clear. */
   onClearAll?: () => void
+  /**
+   * Below `sm`, put the two halves on DIFFERENT rows: the chips stay on the toolbar row and the
+   * count + path drop to a full-width caption under it.
+   *
+   * ⚠️ IT IS AN OPT-IN PROP RATHER THAN A CLASS THE CALLER PASSES IN, AND THAT DISTINCTION IS A
+   * REVIEW FINDING. The first version put the `max-sm:order-*` / `max-sm:w-full` classes on
+   * unconditionally and argued they were inert unless the caller also set the root to
+   * `display: contents`. Only the REORDERING PAST A SIBLING needs `contents`; `order`, `w-full`
+   * and `flex-none` apply to any flex child — so a second call site would silently render the
+   * chips BEFORE the count under 640px, with half one at 100% width shoving the other into
+   * page-level horizontal overflow (opus). There is exactly one call site today, which is why it
+   * was invisible; a prop makes the behaviour travel with the intent instead of with a class name.
+   *
+   * ⚠️ THE CALLER STILL OWES `max-sm:contents` ON `className` for the split to reach across its
+   * siblings — see the mount in listings-explorer.tsx. This prop turns the classes on; that one
+   * dissolves the box they need to escape.
+   */
+  splitOnMobile?: boolean
   className?: string
 }
 
@@ -179,6 +197,7 @@ export function ResultLine({
   showSaveSearch = false,
   onSaveSearch,
   onClearAll,
+  splitOnMobile = false,
   className,
 }: ResultLineProps) {
   const { lang, tr } = useLanguage()
@@ -357,15 +376,40 @@ export function ResultLine({
        items stay on the line, `overflow-x-auto` so the overflow is reachable rather than clipped,
        and `min-w-0` because a flex item defaults to min-content width — without it the half
        refuses to shrink, pushes its sibling out, and the page gains a horizontal scrollbar
-       instead of the half gaining one. */
-    <div data-slot="result-line" className={cn('flex items-center gap-x-3', className)}>
-      <div className="flex min-w-0 flex-1 basis-1/2 flex-nowrap items-center gap-x-3 overflow-x-auto overscroll-x-contain scrollbar-none whitespace-nowrap">
+       instead of the half gaining one.
+       ⚠️ IT IS DELIBERATELY THINNER ON A PHONE (owner, 2026-08-12: "move this line below right
+       above products but thinner make sure it has good harmony"). At 390px this line is a CAPTION
+       over the grid, not a control row: the count drops to `text-xs` so it sits in the same tier
+       as the crumbs beside it rather than shouting over them, and the gaps tighten by 4px. At sm+
+       nothing changes — there the line shares a row with the section heading and the view modes,
+       and `text-sm` is what keeps it level with them.
+
+       ⚠️ ON A PHONE THE TWO HALVES GO TO DIFFERENT ROWS, AND THE `max-sm:*` CLASSES BELOW ARE
+       INERT UNTIL A CALLER ASKS FOR IT (owner, 2026-08-12: "put the chips to the empty space to
+       the left of save search on mobile"). A phone cannot fit both halves side by side — measured
+       at 390px they were 179px each, which is one truncated chip and a breadcrumb scrolled out of
+       sight — so the CHIPS ride the toolbar row, in the gap the sr-only heading leaves beside Save
+       search, and the count + path drop to a full-width caption against the grid.
+
+       The caller opts in by setting this root to `display: contents` under sm (listings-explorer
+       passes `max-sm:contents`), which dissolves this box so the halves become flex items of the
+       ROW and the `max-sm:order-*` below can place them independently. Without that they are
+       ordinary children of this flex box and every `max-sm:` class here is a no-op — which is why
+       they are scoped to `max-sm` rather than left unprefixed: an unscoped `order-2` on the second
+       half would REVERSE the two at desktop, where DOM order is the layout. */
+    <div data-slot="result-line" className={cn('flex items-center gap-x-2 sm:gap-x-3', className)}>
+      <div
+        className={cn(
+          'flex min-w-0 flex-1 basis-1/2 flex-nowrap items-center gap-x-2 overflow-x-auto overscroll-x-contain scrollbar-none whitespace-nowrap sm:gap-x-3',
+          splitOnMobile && 'max-sm:order-last max-sm:w-full max-sm:flex-none max-sm:basis-auto',
+        )}
+      >
         {/* The count changes on every tap and the change is the whole feedback loop, so it is
             announced. `polite` — it must never interrupt what a screen reader is reading; the
             user is mid-gesture and will hear it at the next pause.
             `tabIndex={-1}` makes it a programmatic focus destination only (never in the tab
             order) for the last-chip-removed case above. */}
-        <p ref={countRef} tabIndex={-1} aria-live="polite" className="text-sm font-bold text-ink">
+        <p ref={countRef} tabIndex={-1} aria-live="polite" className="text-xs font-bold text-ink sm:text-sm">
           {resultCountLabel(count, lang, tr)}
         </p>
 
@@ -413,7 +457,29 @@ export function ResultLine({
       </div>
 
       {(filters.length > 0 || saveSearch || clearAll) && (
-        <div className="flex min-w-0 flex-1 basis-1/2 flex-nowrap items-center gap-x-3 overflow-x-auto overscroll-x-contain scrollbar-none">
+        // ⚠️ THE SCROLLER MOVED OFF THIS HALF AND ONTO THE <ul> INSIDE IT (owner, 2026-08-12:
+        // "chips shouldnt overflow clear all button"). While the HALF scrolled, "Clear all" and
+        // "Save search" were inside the scrolling content — so a run of chips wide enough to
+        // overflow pushed the control for GETTING RID OF THEM off-screen, reachable only by
+        // scrolling past the very thing you wanted to clear. Now the chips scroll and the two
+        // buttons are pinned siblings; see the <ul> and the `shrink-0` on each button below.
+        //
+        // ⚠️ `basis-auto` ON A PHONE, DELIBERATELY, AND IT WAS `basis-0` FOR ONE ROUND. From zero
+        // this half always laid out beside Save search and the view modes and squeezed itself into
+        // whatever they left (~178px of a 366px row). The owner asked for the opposite once the
+        // chips no longer fit — "when chips overflow the line the view selector box goes to next
+        // lines right side" — and `auto` is what does it: a wrapping flex line is packed from
+        // flex-BASIS, so a chip run wider than the space left over breaks the line and takes the
+        // whole width, and the cluster drops to the next line (right-aligned by its own `ml-auto`
+        // in listings-explorer.tsx). Short runs still share the row.
+        // (A `{/* … */}` here would be a SYNTAX ERROR, not a comment — this is expression
+        //  position, inside a `&&`, and a JSX comment is only valid as a child.)
+        <div
+          className={cn(
+            'flex min-w-0 flex-1 basis-1/2 flex-nowrap items-center gap-x-2 sm:gap-x-3',
+            splitOnMobile && 'max-sm:order-2 max-sm:basis-auto',
+          )}
+        >
           {filters.length > 0 && (
             // ⚠️ THE LIST HOLDS FILTERS AND NOTHING ELSE. "Clear all" and "Save search" used to
             // be <li>s in here, which made two filters announce as "Filters, list, 4 items" and
@@ -431,9 +497,12 @@ export function ResultLine({
               ref={listRef}
               role="list"
               aria-label={tr('Filters', 'Bộ lọc')}
-              // flex-nowrap: the row scrolls (see the half's note); wrapping here would put the
-              // chips back on a second line, which is the layout this replaced.
-              className="flex min-w-0 flex-nowrap items-center gap-1.5"
+              // ⚠️ THIS IS THE SCROLLER, NOT THE HALF AROUND IT — that is what keeps "Clear all"
+              // and "Save search" on screen no matter how many chips there are (see the half's
+              // note). flex-nowrap keeps the chips on one line inside it; `flex-1 min-w-0` lets
+              // the list shrink below its content so the overflow becomes ITS scrollbar rather
+              // than the page's.
+              className="flex min-w-0 flex-1 flex-nowrap items-center gap-1.5 overflow-x-auto overscroll-x-contain scrollbar-none"
             >
               {filters.map((f, i) => (
                 // ⚠️ `min-w-0` IS LOAD-BEARING, NOT TIDINESS. A flex item defaults to
@@ -490,7 +559,9 @@ export function ResultLine({
                 }
                 onClearAll?.()
               }}
-              className="rounded-full px-2 py-1 text-xs font-semibold text-body underline-offset-2 hover:underline"
+              // ⚠️ `shrink-0` — it is a SIBLING of the chip scroller now, not inside it, and this
+              // is what stops it being squeezed to nothing by a long chip run.
+              className="shrink-0 rounded-full px-2 py-1 text-xs font-semibold text-body underline-offset-2 hover:underline"
             >
               {tr('Clear all', 'Xóa tất cả')}
             </Button>
@@ -505,7 +576,7 @@ export function ResultLine({
             // page (docs/design-language.md; the brand-CTA rule). A dismissible offer sitting in
             // the filter row is by definition not that — on a results page the primary action is
             // opening a listing, and a solid brand button here competes with every card below it.
-            <Button type="button" variant="outline" size="sm" onClick={onSaveSearch} className="gap-1.5">
+            <Button type="button" variant="outline" size="sm" onClick={onSaveSearch} className="shrink-0 gap-1.5">
               <Bookmark className="h-4 w-4" />
               {tr('Save search', 'Lưu tìm kiếm')}
             </Button>

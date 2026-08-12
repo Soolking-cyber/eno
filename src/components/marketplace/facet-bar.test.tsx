@@ -117,11 +117,24 @@ function props(over: Partial<FacetBarProps> = {}): FacetBarProps {
  * Three properties are deliberate:
  *   · `subcategory.all` (1200) is far larger than the sum of its buckets (899) — rows with no
  *     subcategorySlug are in "All" and in no chip.
- *   · `accessories` is MISSING from `values` although the taxonomy offers it → an honest 0.
- *   · `legacy-not-in-taxonomy` carries 99 → the payload reports it, the rail must not render it.
+ *   · `legacy-not-in-taxonomy` carries 99 → the payload reports it, the group must not render it.
+ *   · `used` is 1200 so the COMPACT formatter has something to compact — the en/vi decimal
+ *     separator split ("1.2k" vs "1,2k") is invisible below a thousand.
+ *
+ * ⚠️ THE PANEL COUNTS EXACTLY ONE GROUP NOW: `condition`. `facetDimension()` maps that key and no
+ * other, and the subcategory rail — which had its own lookup, an "All" chip and seven chips — left
+ * the panel on 2026-08-12 (owner: "filter shouldnt have subcategories as chip"; see the note on
+ * `hasAdvanced` in facet-bar.tsx). So the component-level assertions below moved onto `condition`,
+ * and the two behaviours it cannot show — `allCount` ("All" is `all`, never the sum) and the
+ * compact "All" label — are covered where they always also were, in the `chipCount / allCount` and
+ * `labelWithCount` unit blocks above. They are NOT dropped, they are just no longer reachable
+ * through a rendered panel, and pretending otherwise would need a group the panel does not draw.
+ *
+ * `subcategory` STAYS in this fixture ON PURPOSE: it is what the route still sends, and the panel
+ * must now ignore it completely — which the first test below asserts directly.
  */
 const COUNTS: FacetCounts = Object.freeze({
-  condition: Object.freeze({ all: 1200, values: Object.freeze({ new: 340, used: 860 }) }),
+  condition: Object.freeze({ all: 1400, values: Object.freeze({ new: 340, used: 1200, 'legacy-not-in-taxonomy': 99 }) }),
   type: Object.freeze({ all: 1200, values: Object.freeze({ sell: 1180, free: 20 }) }),
   subcategory: Object.freeze({
     all: 1200,
@@ -234,30 +247,28 @@ describe('labelWithCount — the string-option path', () => {
 })
 
 describe('<FacetBar> — the panel chips carry their counts', () => {
-  it('puts a count on every condition chip and on the subcategory group’s All', async () => {
+  it('puts a count on every condition chip, and ignores the subcategory dimension entirely', async () => {
     const user = userEvent.setup()
     renderIn('en', <FacetBar {...props({ facetCounts: COUNTS })} />)
     const panel = await openPanel(user)
 
     expect(shown(screen.getByRole('button', { name: /^New \/ Like new/ }))).toBe('New / Like new340')
-    expect(shown(screen.getByRole('button', { name: /^Used/ }))).toBe('Used860')
+    // Compact once it passes a thousand — a chip has room for four characters.
+    expect(shown(screen.getByRole('button', { name: /^Used/ }))).toBe('Used1.2k')
 
-    // …and what is ANNOUNCED is the exact figure with its noun, not the compact glyph. Measured:
-    // accessible names concatenate inline text with no separator, hence the comma.
-    expect(screen.getByRole('button', { name: 'Used, 860 listings' })).toBeDefined()
+    // …and what is ANNOUNCED is the exact figure with its noun, not the compact glyph ("1.2k"
+    // comes out as "one point two k"). Measured: accessible names concatenate inline text with no
+    // separator, hence the comma.
+    expect(screen.getByRole('button', { name: 'Used, 1,200 listings' })).toBeDefined()
 
-    // ⚠️ THE "All" CHIP IS `all`, NOT THE SUM. The buckets in this payload add up to 899 (and the
-    // chips the taxonomy renders to 800); "All" is 1200 because 301 rows carry no subcategory and
-    // tapping All returns them. If someone ever "fixes" this by summing, these three fail.
-    const all = screen.getByRole('button', { name: /^All/, pressed: true })
-    expect(shown(all)).toBe('All1.2k')
-    expect(shown(all)).not.toContain('899')
-    expect(shown(all)).not.toContain('800')
-    // The spoken form is the UNROUNDED figure — "1.2k" would be read out as "one point two k".
-    expect(all.getAttribute('aria-pressed')).toBe('true')
-    expect(screen.getByRole('button', { name: 'All, 1,200 listings' })).toBeDefined()
-
-    expect(panel.textContent).toContain('Phones')
+    // ⛔ AND THE SUBCATEGORY RAIL IS NOT IN THIS PANEL AT ALL. The payload still carries the
+    // dimension — the route sends it and the CategoryRail draws it — so this is the assertion that
+    // fails if the picker is ever quietly restored here. `1,4k` is `condition.all`, which no
+    // rendered element in this panel shows: a toggle group has no "All" of its own.
+    expect(panel.textContent).not.toContain('Phones')
+    expect(panel.textContent).not.toContain('Laptops')
+    expect(screen.queryByRole('group', { name: 'Type' })).toBeNull()
+    expect(panel.textContent).not.toContain('1.4k')
   })
 
   it('renders the chips from the TAXONOMY and only indexes into `values`', async () => {
@@ -265,22 +276,22 @@ describe('<FacetBar> — the panel chips carry their counts', () => {
     renderIn('en', <FacetBar {...props({ facetCounts: COUNTS })} />)
     const panel = await openPanel(user)
 
-    // A taxonomy chip the payload does not mention is an honest 0 — it must not vanish.
-    expect(shown(screen.getByRole('button', { name: /^Accessories/ }))).toBe('Accessories0')
 
     // …and a value the payload DOES carry but the taxonomy does not offer grows no chip at all.
     // (The payload reports it honestly — a legacy row that chip would genuinely return — but which
     // chips exist is a product decision that lives in taxonomy.ts.)
     //
-    // Scoped to the subcategory GROUP, not to the whole panel: a bare `not.toContain('99')` over a
+    // Scoped to the CONDITION group, not to the whole panel: a bare `not.toContain('99')` over a
     // panel whose option labels are full of digits ("64 GB", "27–32\"") is one taxonomy edit away
-    // from a false pass or a false failure. This asks the only question that matters — did the rail
-    // that indexes into `values` grow a chip from it — and pins the chip count while it is there.
-    const group = screen.getByRole('group', { name: 'Type' })
+    // from a false pass or a false failure. This asks the only question that matters — did the
+    // group that indexes into `values` grow a chip from it — and pins the chip count while it is
+    // there.
+    const group = screen.getByRole('group', { name: 'Condition' })
     expect(group.textContent).not.toContain('legacy-not-in-taxonomy')
     expect(group.textContent).not.toContain('99')
-    // 7 electronics subcategories + the group's own "All", and nothing the payload invented.
-    expect(within(group).getAllByRole('button')).toHaveLength(8)
+    // The taxonomy offers exactly two condition options, and nothing the payload invented. A
+    // toggle group has no "All" of its own, which is why this is 2 and not 3.
+    expect(within(group).getAllByRole('button')).toHaveLength(2)
     // Plain DOM containment: this suite registers no jest-dom matchers (there is no vitest setup
     // file), so `toContainElement` would be undefined at runtime.
     expect(panel.contains(group)).toBe(true)
@@ -294,12 +305,12 @@ describe('<FacetBar> — the panel chips carry their counts', () => {
      * brand blue is unreadable, so the counter switches to `text-white/80` exactly here.
      */
     const user = userEvent.setup()
-    renderIn('en', <FacetBar {...props({ conditionFilter: 'used', activeSubcategory: 'phones-tablets', facetCounts: COUNTS })} />)
+    renderIn('en', <FacetBar {...props({ conditionFilter: 'used', facetCounts: COUNTS })} />)
     await openPanel(user)
 
     const used = screen.getByRole('button', { name: /^Used/ })
     expect(used.getAttribute('aria-pressed')).toBe('true')
-    expect(shown(used)).toBe('Used860')
+    expect(shown(used)).toBe('Used1.2k')
     expect(used.querySelector('[aria-hidden="true"]')?.className).toContain('text-white/80')
 
     // The unselected sibling keeps the muted ink, and its count is still there.
@@ -307,22 +318,23 @@ describe('<FacetBar> — the panel chips carry their counts', () => {
     expect(fresh.getAttribute('aria-pressed')).toBe('false')
     expect(fresh.querySelector('[aria-hidden="true"]')?.className).toContain('text-ink-4')
 
-    // Same for the subcategory rail: the picked chip carries its own count, not the group's.
-    const phones = screen.getByRole('button', { name: /^Phones/ })
-    expect(phones.getAttribute('aria-pressed')).toBe('true')
-    expect(shown(phones)).toBe('Phones500')
-    expect(shown(screen.getByRole('button', { name: /^All/ }))).toBe('All1.2k')
+    // …and the picked chip carries its OWN bucket, never the group's total: `condition.all` is
+    // 1400 here and nothing on this chip says so.
+    expect(shown(used)).not.toContain('1.4k')
   })
 
   it('leaves a facet with no counted dimension exactly as countless as it was', async () => {
     const user = userEvent.setup()
-    renderIn('en', <FacetBar {...props({ facetCounts: COUNTS })} />)
+    // `storage` is an attr_* facet src/lib/facet-counts.ts does not count, and it is gated behind a
+    // subcategory — so this renders with one chosen. (The chooser is the CategoryRail now; the
+    // panel still READS `activeSubcategory` to decide which facets it offers, which is exactly the
+    // half that survived the picker's removal.) Showing 0 on these would claim, falsely, that the
+    // category holds nothing at any capacity.
+    renderIn('en', <FacetBar {...props({ activeSubcategory: 'phones-tablets', facetCounts: COUNTS })} />)
     await openPanel(user)
 
-    // `warranty` is an attr_* facet src/lib/facet-counts.ts does not count. Showing 0 there would
-    // claim, falsely, that nothing in the category is under warranty.
-    expect(screen.getByRole('button', { name: 'In warranty' }).textContent).toBe('In warranty')
-    expect(screen.getByRole('button', { name: 'No warranty' }).textContent).toBe('No warranty')
+    expect(screen.getByRole('button', { name: '64 GB' }).textContent).toBe('64 GB')
+    expect(screen.getByRole('button', { name: '256 GB' }).textContent).toBe('256 GB')
   })
 
   it('formats the counts for a Vietnamese reader (comma decimal, no plural)', async () => {
@@ -331,12 +343,15 @@ describe('<FacetBar> — the panel chips carry their counts', () => {
     await user.click(await screen.findByRole('button', { name: /^Bộ lọc/ }))
     const panel = await screen.findByRole('dialog', { name: 'Bộ lọc' })
 
+    // vi groups the decimal with a COMMA, which is the whole point of routing the compact
+    // formatter through moneyLocale().
     expect(panel.textContent).toContain('1,2k')
     expect(panel.textContent).not.toContain('1.2k')
-    expect(shown(screen.getByRole('button', { name: /^Đã dùng/ }))).toBe('Đã dùng860')
-    // "tin đăng" for one listing and for 860 — Vietnamese takes no plural -s, which is exactly why
-    // the spoken phrase goes through resultCountLabel instead of being built here.
-    expect(screen.getByRole('button', { name: 'Đã dùng, 860 tin đăng' })).toBeDefined()
+    expect(shown(screen.getByRole('button', { name: /^Đã dùng/ }))).toBe('Đã dùng1,2k')
+    // "tin đăng" for one listing and for 1200 — Vietnamese takes no plural -s, which is exactly why
+    // the spoken phrase goes through resultCountLabel instead of being built here. And the exact
+    // figure groups its THOUSANDS with a dot in vi, the mirror of the decimal comma above.
+    expect(screen.getByRole('button', { name: 'Đã dùng, 1.200 tin đăng' })).toBeDefined()
   })
 
   it('never writes to the deep-frozen payload', async () => {
@@ -394,12 +409,14 @@ describe('<FacetBar> — degradation when the dimension is absent', () => {
      */
     const user = userEvent.setup()
     // `fashion-beauty` is the destination because it shares a `condition` facet with the fixture
-    // category and shares NOT ONE subcategory slug with it — which is exactly the split being
-    // tested: one rail is stale, the other is not.
+    // category and shares NOT ONE per-category facet key with it.
     renderIn('en', <FacetBar {...props({ activeCategory: 'fashion-beauty', facetCounts: COUNTS })} />)
     await openPanel(user)
 
-    const group = screen.getByRole('group', { name: 'Type' })
+    // `gender` ("For") is fashion-beauty's own ungated toggle group, and the Electronics payload
+    // shares NOT ONE of its keys — which is exactly the split being tested: one group is stale,
+    // the other is not.
+    const group = screen.getByRole('group', { name: 'For' })
     expect(group.textContent).toContain('Women')
     // Not one digit on the rail — neither a bucket count nor the group's "All".
     expect(group.textContent).not.toMatch(/\d/)
@@ -409,11 +426,11 @@ describe('<FacetBar> — degradation when the dimension is absent', () => {
      * new/used in EVERY category, so its keys still match and the rail still renders — with
      * Electronics numbers on a Fashion panel until the next response lands. That is a stale count,
      * not a correct one; this assertion records the behaviour so nobody reads railDimension() as a
-     * complete defence. It cannot be one: no key comparison can tell a right 860 from a stale 860.
+     * complete defence. It cannot be one: no key comparison can tell a right 1200 from a stale one.
      * Closing it needs a query identity the payload does not carry, which is why the `facetCounts`
      * prop doc puts that half of the contract on the producer. (opus, round 5.)
      */
-    expect(shown(screen.getByRole('button', { name: /^Used/ }))).toBe('Used860')
+    expect(shown(screen.getByRole('button', { name: /^Used/ }))).toBe('Used1.2k')
   })
 
   it('shows counts for the dimensions it HAS and nothing for the ones it lacks', async () => {
@@ -421,14 +438,18 @@ describe('<FacetBar> — degradation when the dimension is absent', () => {
     // omits `year`/`brand` unless the category has that rail. One present dimension must not
     // fabricate the others.
     const user = userEvent.setup()
-    const partial = Object.freeze({ condition: Object.freeze({ all: 12, values: Object.freeze({ new: 5, used: 7 }) }) }) as FacetCounts
+    const partial = Object.freeze({ condition: Object.freeze({ all: 12, values: Object.freeze({ new: 5 }) }) }) as FacetCounts
     renderIn('en', <FacetBar {...props({ facetCounts: partial })} />)
     await openPanel(user)
 
     expect(shown(screen.getByRole('button', { name: /^New \/ Like new/ }))).toBe('New / Like new5')
-    // The subcategory rail has no dimension in this payload → countless, not zeroed.
-    expect(screen.getByRole('button', { name: 'Phones' }).textContent).toBe('Phones')
-    expect(screen.getByRole('button', { name: 'All' }).textContent).toBe('All')
+    // ⚠️ THE HONEST-ZERO CASE, WHICH LIVES HERE NOW. `used` is missing from a dimension that IS
+    // present, so the taxonomy's chip must render a real 0 rather than vanish or go countless —
+    // "present dimension, absent key" is the one shape that means "genuinely none".
+    expect(shown(screen.getByRole('button', { name: /^Used/ }))).toBe('Used0')
+    // The warranty group has no dimension AT ALL in this payload → countless, not zeroed.
+    expect(screen.getByRole('button', { name: 'In warranty' }).textContent).toBe('In warranty')
+    expect(screen.getByRole('button', { name: 'No warranty' }).textContent).toBe('No warranty')
   })
 })
 

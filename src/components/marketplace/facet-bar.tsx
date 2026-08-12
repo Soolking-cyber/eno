@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { useLanguage } from '@/context/language-context'
-import { facetsFor, subcategoriesFor, typesFor, LISTING_TYPES, type ListingType, type FacetDef } from '@/lib/taxonomy'
+import { facetsFor, typesFor, LISTING_TYPES, type ListingType, type FacetDef } from '@/lib/taxonomy'
 import { cn } from '@/lib/utils'
 import { formatCount, moneyLocale } from '@/lib/vnd'
 // The chip counter's SPOKEN form. Reused rather than re-worded: this helper already groups per
@@ -169,7 +169,10 @@ function ChipCount({ n, selected }: { n: number | null; selected: boolean }) {
 export type FacetBarProps = {
   activeCategory: string
   activeSubcategory: string // drives subcategory-specific facets (e.g. cc vs L engine)
-  setActiveSubcategory: Dispatch<SetStateAction<string>> // picker in the panel unlocks the deeper facets
+  /** ⚠️ NO LONGER A PICKER — the panel's subcategory chips were removed on 2026-08-12 (see
+   *  `hasAdvanced`). The one caller left is the bar's own "Clear" reset; `activeSubcategory`
+   *  above is still read, because it decides which advanced facets the panel offers. */
+  setActiveSubcategory: Dispatch<SetStateAction<string>>
   province: Geo | null
   setProvince: Dispatch<SetStateAction<Geo | null>>
   ward: Geo | null
@@ -375,18 +378,30 @@ export function FacetBar({
   // All category facets live in the advanced "Filter" panel — a real per-category
   // form (condition + the per-category fields). The quick bar keeps area/type/price.
   const advFacets = facetsFor(activeCategory, activeSubcategory === 'all' ? null : activeSubcategory)
-  // Subcategory picker inside the panel: many facets (transmission, engine cc, bike
-  // type, fuel, origin…) are gated behind a chosen subcategory, so a brand/keyword
-  // search with no subcategory would otherwise only surface the generic year/mileage/
-  // color. Letting the user pick the subcategory here unlocks the full, detailed set.
-  const subcats = subcategoriesFor(activeCategory)
-  // Guarded: a payload still describing the PREVIOUS category shares none of these slugs, and must
-  // render countless rather than stamping 0 on every chip. See railDimension().
-  const subcatCounts = railDimension(facetCounts.subcategory, subcats.map((s) => s.slug))
-  const hasAdvanced = advFacets.length > 0 || subcats.length > 0
+  /**
+   * ⛔ THE SUBCATEGORY PICKER IS GONE FROM THIS PANEL (owner, 2026-08-12: "filter shouldnt have
+   * subcategories as chip remove subcats from filter"), AND `activeSubcategory` IS STILL A PROP —
+   * it drives `advFacets` one line above, which is the half that was never the duplication.
+   *
+   * What it used to be: a "Type" chip group at the top of the panel, with counts, that SET the
+   * subcategory. Its stated job was to unlock the subcategory-gated facets (transmission, engine
+   * cc, bike type, fuel, origin…) for someone who arrived by brand or keyword with no subcategory
+   * chosen. That reasoning was sound when the panel was the only place to choose one — but as of
+   * the home-page merge the CategoryRail rolls the active category's subcategories out inline, on
+   * every browse state, directly above this bar. Two controls for one value, six inches apart, and
+   * the rail is the one the ladder and the breadcrumb agree with.
+   *
+   * ⚠️ SO A DEEP FACET IS NOW REACHED BY THE RAIL, NOT BY THIS PANEL, and that is the one real
+   * cost: pick the subcategory above, and the gated facets appear here. Do not "restore" the
+   * picker to shorten that path — put the affordance in the rail instead.
+   *
+   * ⚠️ AND IT LEFT `activeAdvCount` WITH IT. The badge counts what this panel can CLEAR; leaving
+   * the subcategory in it would print "Filters · 2" for a rail tap the panel no longer shows and
+   * whose chip is not in here to remove. Same reason it left the panel's own "Clear all" below.
+   */
+  const hasAdvanced = advFacets.length > 0
   const activeAdvCount =
     (conditionFilter !== 'all' ? 1 : 0) +
-    (activeSubcategory !== 'all' ? 1 : 0) +
     advFacets.filter((f) => f.key !== 'condition' && customFilters[f.key]).length
 
   const hasActive =
@@ -477,37 +492,10 @@ export function FacetBar({
                 </IconButton>
               </div>
               <div className="space-y-3.5">
-                {/* Subcategory picker — unlocks the subcategory-specific facets below
-                    (e.g. Motorbike → bike type / engine cc / origin). */}
-                {subcats.length > 0 && (
-                  <div className="flex flex-col gap-1.5 sm:flex-row sm:items-start sm:gap-3">
-                    {/* A <label> with no htmlFor and no control inside names NOTHING. It stays a
-                        <label> visually, but the chips it heads are now a real role="group" that
-                        points back at it — so the group is announced as "Type", not as a bare run of
-                        buttons. */}
-                    <label id={`${uid}-subcat-label`} className="text-2xs font-bold uppercase tracking-wider text-muted-foreground sm:w-24 sm:shrink-0 sm:pt-1.5">{tr('Type', 'Phân loại')}</label>
-                    {/* ⚠️ THE SUBCATEGORY COUNTS COME FROM `facetCounts.subcategory` AND NOTHING
-                        ELSE — deliberately NOT from the legacy top-level `subcategoryCounts` /
-                        `categoryTotal` keys that the category rail still renders. They cannot
-                        disagree: the route builds `facets.subcategory` out of those exact two
-                        values (`subcategoryDimension(category, categoryTotal, subcategoryCounts)`),
-                        over the identical facet base. Reading the unified shape here means this
-                        panel gets the seeded-zeros treatment for free and there is one prop to
-                        wire, not three. The legacy keys are left untouched for the rail. */}
-                    <div role="group" aria-labelledby={`${uid}-subcat-label`} className="flex flex-1 flex-wrap gap-1.5">
-                      <Button variant="bare" size="none" type="button" aria-pressed={activeSubcategory === 'all'} onClick={() => setActiveSubcategory('all')} className={segBtn(activeSubcategory === 'all')}>
-                        {tr('All', 'Tất cả')}
-                        <ChipCount n={allCount(subcatCounts)} selected={activeSubcategory === 'all'} />
-                      </Button>
-                      {subcats.map((s) => (
-                        <Button key={s.slug} variant="bare" size="none" type="button" aria-pressed={activeSubcategory === s.slug} onClick={() => setActiveSubcategory(activeSubcategory === s.slug ? 'all' : s.slug)} className={segBtn(activeSubcategory === s.slug)}>
-                          {tr(s.name, s.nameVi)}
-                          <ChipCount n={chipCount(subcatCounts, s.slug)} selected={activeSubcategory === s.slug} />
-                        </Button>
-                      ))}
-                    </div>
-                  </div>
-                )}
+                {/* ⛔ NO SUBCATEGORY GROUP HERE — see the note on `hasAdvanced` above for why it
+                    was removed and what the rail now owns. The `facetCounts.subcategory`
+                    dimension it read is still produced by the route and still consumed by the
+                    CategoryRail; nothing about the payload changed. */}
                 {advFacets.map((f) => {
                   const value = facetValue(f)
                   const dim = facetDimension(f)
@@ -561,7 +549,11 @@ export function FacetBar({
                 <Button
                   variant="bare"
                   size="none"
-                  onClick={() => { setConditionFilter('all'); setActiveSubcategory('all'); setCustomFilters({}) }}
+                  // ⛔ NO `setActiveSubcategory('all')` — this button clears THIS PANEL, and the
+                  // subcategory is not in it any more (see `hasAdvanced`). Resetting a rail
+                  // selection from a panel that never showed it would look like the category
+                  // ladder collapsing on its own; the rail's own "All" chip is the way back.
+                  onClick={() => { setConditionFilter('all'); setCustomFilters({}) }}
                   className="mt-3.5 text-xs font-semibold text-accent-foreground hover:underline cursor-pointer"
                 >
                   {tr('Clear all', 'Xóa tất cả')}
