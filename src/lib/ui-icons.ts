@@ -17,12 +17,17 @@
  * colour drive the ink in both themes and through hover/active/disabled. An `<img>` or a CSS
  * `background-image` isolates the file from the page's colour and all of that disappears.
  *
- * ⚠️ TWO GLYPHS WHOSE BOLD CHANGES THE MEANING, NOT JUST THE WEIGHT. `back` and `forward` are
- * chevrons at rest and SOLID TRIANGLES in Bold, which read as play/rewind rather than as
- * navigation. Use `rest` for those at every state; the selected file exists only because the
- * generator emits both weights for every row.
+ * ⚠️ THREE GLYPHS WHOSE BOLD CHANGES THE MEANING, NOT JUST THE WEIGHT — `back`, `forward` AND
+ * `chevron-down`. All three are chevrons at rest and SOLID TRIANGLES in Bold. On `back`/`forward`
+ * that reads as play/rewind rather than navigation; on `chevron-down` a filled ▼ is a fine
+ * dropdown caret in isolation, but a trigger written the obvious way —
+ * `uiIconPath('chevron-down', open ? 'selected' : 'rest')` — swaps the mark's shape on open
+ * rather than rotating it, which reads as a different control.
+ *
+ * Use `rest` for all three at every state. The `selected` files exist only because the generator
+ * emits both weights for every row, and nothing enforces this: the paths resolve, and the suite
+ * asserts only that the two weights DIFFER — which is exactly what lets these through.
  */
-
 /** `rest` = Solar Outline, the idle control. `selected` = Solar Bold, the active one. */
 export type UiIconState = 'rest' | 'selected'
 
@@ -85,6 +90,10 @@ export const UI_ICON_NAMES = [
 
 export type UiIconName = (typeof UI_ICON_NAMES)[number]
 
+/** The three whose Bold changes the MARK rather than its weight — see the header. Exported
+ *  so a renderer that swaps weights by state can refuse to do it for these. */
+export const REST_ONLY_ICONS: readonly UiIconName[] = ['back', 'forward', 'chevron-down']
+
 const NAMES: ReadonlySet<string> = new Set(UI_ICON_NAMES)
 
 /** Narrowing guard — `true` when this name has generated artwork. */
@@ -98,5 +107,14 @@ export function hasUiIcon(name: string): name is UiIconName {
  * `categoryArtPath`, and for the same reason: a broken `<img>` is worse than the old glyph.
  */
 export function uiIconPath(name: string, state: UiIconState): string | null {
-  return hasUiIcon(name) ? `/icons/ui/${state}/${name}.svg` : null
+  if (!hasUiIcon(name)) return null
+  // ⚠️ THE THREE CHEVRONS ARE COERCED TO `rest`, DELIBERATELY. Their Bold is a solid triangle —
+  // a different MARK, not a heavier one — so the natural generic renderer,
+  // `uiIconPath(name, active ? 'selected' : 'rest')`, would swap a back arrow for a rewind
+  // button and a dropdown caret for a play button. Writing that down in a comment and exporting
+  // a list did not stop it; all three reviewers pointed out that nothing enforced it. Coercing
+  // here makes the generic renderer correct for all forty names, which is the whole point of
+  // having one. Signal the active state on these with rotation or colour, as a chevron expects.
+  const resolved = REST_ONLY_ICONS.includes(name) ? 'rest' : state
+  return `/icons/ui/${resolved}/${name}.svg`
 }

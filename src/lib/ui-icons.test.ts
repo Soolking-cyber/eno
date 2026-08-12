@@ -2,7 +2,7 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { UI_ICON_NAMES, hasUiIcon, uiIconPath } from '@/lib/ui-icons'
+import { REST_ONLY_ICONS, UI_ICON_NAMES, hasUiIcon, uiIconPath } from '@/lib/ui-icons'
 
 /**
  * THE CHECK THAT KEEPS THE UI GLYPHS USABLE.
@@ -33,11 +33,33 @@ describe('the UI glyph set is complete', () => {
     expect(uiIconPath('search', 'selected')).toBe('/icons/ui/selected/search.svg')
   })
 
-  it.each(STATES)('%s: every declared name has a file', (state) => {
+  it('coerces the three chevrons to rest, even when selected is asked for', () => {
+    // ⚠️ THE GATE, NOT THE COMMENT. `back`, `forward` and `chevron-down` are chevrons at rest and
+    // SOLID TRIANGLES in Bold — a different mark, not a heavier one. The natural generic renderer
+    // is `uiIconPath(name, active ? 'selected' : 'rest')`, and for these three that swaps a back
+    // arrow for a rewind button and a caret for a play button. An exported list plus a comment
+    // did not prevent that; resolving it here does.
+    for (const name of REST_ONLY_ICONS) {
+      expect(uiIconPath(name, 'selected'), `${name} must not resolve to its Bold triangle`).toBe(
+        `/icons/ui/rest/${name}.svg`
+      )
+      expect(uiIconPath(name, 'rest')).toBe(`/icons/ui/rest/${name}.svg`)
+    }
+    // …and every other name still honours what it was asked for.
     for (const name of UI_ICON_NAMES) {
-      expect(uiIconPath(name, state)).toBe(`/icons/ui/${state}/${name}.svg`)
+      if (REST_ONLY_ICONS.includes(name)) continue
+      expect(uiIconPath(name, 'selected')).toBe(`/icons/ui/selected/${name}.svg`)
+    }
+  })
+
+  it.each(STATES)('%s: every declared name has a file, and resolves to one', (state) => {
+    for (const name of UI_ICON_NAMES) {
+      // BOTH weights exist on disk for every name — the generator emits them unconditionally.
       // Re-run `npm run icons` if this fails.
       expect(existsSync(join(DIR, state, `${name}.svg`)), `missing ui/${state}/${name}.svg`).toBe(true)
+      // What the resolver HANDS BACK differs for the three coerced chevrons; see the gate above.
+      const expected = REST_ONLY_ICONS.includes(name) ? 'rest' : state
+      expect(uiIconPath(name, state)).toBe(`/icons/ui/${expected}/${name}.svg`)
     }
   })
 

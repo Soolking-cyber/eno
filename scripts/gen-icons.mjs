@@ -343,6 +343,7 @@ for (const p of plan) {
 }
 const keep = new Map()
 for (const p of plan) keep.set(p.dir, (keep.get(p.dir) ?? new Set()).add(p.file))
+keep.set(OUT, keep.get(OUT) ?? new Set())
 for (const [dir, files] of keep) {
   for (const f of readdirSync(dir)) {
     // `.tmp` is ours and must never survive — everything under public/ is site-root-addressable.
@@ -371,8 +372,14 @@ for (const style of Object.values(STYLE)) {
   }
 }
 
+// Atomic for the same reason as the SVGs: CC BY 4.0 obliges the attribution to travel WITH
+// the artwork, so a truncated NOTICE beside 114 fresh icons is a licensing problem rather
+// than a cosmetic one. ⚠️ This removes the TORN-WRITE case only: the SVGs are written first, so
+// an interruption between the two phases still leaves fresh icons beside the previous notice.
+// That window is one process tick and self-heals on the next run; a torn file does not.
+const noticePath = join(OUT, 'NOTICE.md')
 writeFileSync(
-  join(OUT, 'NOTICE.md'),
+  noticePath + '.tmp',
   `# Icon attribution
 
 The SVGs under \`public/icons/\` are GENERATED — do not hand-edit them, run \`npm run icons\`.
@@ -414,6 +421,7 @@ reasoning behind each choice.
 <!-- provenance:end -->
 `
 )
+renameSync(noticePath + '.tmp', noticePath)
 
 console.log(`✓ wrote ${written} SVGs (${CATEGORIES.length} category tiles + ${UI.length} UI glyphs, x2 weights)`)
 console.log(`  ${OUT}/{rest,selected}/            category tiles`)
