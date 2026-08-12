@@ -2032,7 +2032,29 @@ html.native-tabs .bottom-nav-spacer {
    ⚠️ SCOPED TO INTERACTIVE ANCESTORS ON PURPOSE. Without the leading :is(), any :active anywhere —
    a card, a row, the body during a drag — would flip every icon inside it.
    ══════════════════════════════════════════════════════════════════════════════════════════════ */
-.i-on { display: none; }
+/* ⚠️ IT CROSS-FADES, IT DOES NOT SWAP — `display` WAS THE BUG (owner, 2026-08-12: "when i click
+   on icons it jumps many times ... one continous transition outline click bold ... no jumping").
+
+   The first version toggled `display` between the two layers. MEASURED on one click of a
+   dashboard nav row: FOUR state changes in ~260ms — outline, bold at +124ms, back to outline at
+   +246ms, gone at +377ms when the route changed. `display` cannot be transitioned, so each of
+   those is an instant cut, and because Outline and Bold are separately drawn glyphs with
+   different optical weight the cut reads as the icon JUMPING rather than thickening.
+
+   Opacity fixes it for free: both layers already occupy the same coordinates in the same
+   viewBox, so nothing moves and nothing reflows — the line simply gains weight. The two
+   durations are deliberately asymmetric: going bold is snappy (it answers the finger), coming
+   back is slower, so releasing a press eases out instead of snapping and a click that navigates
+   away never shows a hard revert.
+
+   ⚠️ NO `display: none` ANYWHERE HERE. Re-adding it to "save paint" reintroduces exactly the
+   jump this replaced — an opacity-0 layer costs nothing measurable and is what makes the
+   transition continuous. */
+.i-rest,
+.i-on {
+  transition: opacity 200ms var(--ease-spring, ease-out);
+}
+.i-on { opacity: 0; }
 
 :is(button, a, label, summary, [role='button'], [role='tab'], [role='option'], [role='menuitem'],
     [role='switch'], [role='checkbox'], [role='radio'], [role='menuitemradio'], [role='menuitemcheckbox']):is(
@@ -2040,7 +2062,10 @@ html.native-tabs .bottom-nav-spacer {
     [aria-pressed='true'], [aria-selected='true'], [aria-checked='true'], [aria-expanded='true'],
     [data-state='on'], [data-state='open'], [data-state='checked'], [data-state='active'],
     [data-active='true'], [aria-current]:not([aria-current='false'])
-  ) .i-rest { display: none; }
+  ) .i-rest {
+  opacity: 0;
+  transition-duration: 130ms;
+}
 
 :is(button, a, label, summary, [role='button'], [role='tab'], [role='option'], [role='menuitem'],
     [role='switch'], [role='checkbox'], [role='radio'], [role='menuitemradio'], [role='menuitemcheckbox']):is(
@@ -2049,12 +2074,20 @@ html.native-tabs .bottom-nav-spacer {
     [data-state='on'], [data-state='open'], [data-state='checked'], [data-state='active'],
     [data-active='true'], [aria-current]:not([aria-current='false'])
   ) .i-on {
-    display: inline;
-    /* ⚠️ PRESSED IS BLUE, NOT GREY (owner, 2026-08-12: "all pressed states should be blue no
-       gray"). The colour rides on the BOLD layer rather than on the <svg>, so it applies exactly
-       when the filled weight is showing and never fights a control that paints its own icon —
-       a destructive action keeps its red, because that rule targets the svg and this one does not.
-       --accent-foreground re-themes itself (#0a66c2 light, #74b3f2 dark), so this is one token
-       rather than two rules. `currentColor` on every Solar path resolves against it. */
-    color: var(--color-accent-foreground);
-  }
+  opacity: 1;
+  transition-duration: 130ms;
+  /* ⚠️ PRESSED IS BLUE, NOT GREY (owner: "all pressed states should be blue no gray"). The colour
+     rides on the BOLD layer rather than on the <svg>, so it applies exactly when the filled
+     weight is showing and never fights a control that paints its own icon — a destructive action
+     keeps its red, because that rule targets the svg and this one does not. --accent-foreground
+     re-themes itself (#0a66c2 light, #74b3f2 dark), so this is one token rather than two rules. */
+  color: var(--color-accent-foreground);
+}
+
+/* The house rule: motion is an enhancement, never the thing that conveys the state. With motion
+   reduced the weights still swap — instantly, which is what someone asking for less motion wants
+   — because the opacity VALUES above are unchanged, only their transition is dropped. */
+@media (prefers-reduced-motion: reduce) {
+  .i-rest,
+  .i-on { transition: none; }
+}

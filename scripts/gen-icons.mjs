@@ -179,6 +179,20 @@ const UI = [
   { name: 'theme-light', icon: 'sun' },
   { name: 'time', icon: 'clock-circle' },
   { name: 'verified', icon: 'verified-check' },
+
+  // ── the shield family, for trust ──────────────────────────────────────────────────────────
+  // Owner, 2026-08-12: "trust badge use solar pack minimalistic shield no custom icons across
+  // the app ... for different types of shiel with tick or other shields seach from solar icon
+  // pack already exists". Solar carries thirteen shields; these are the ones trust surfaces
+  // need. `trust-shield` is the SCORE badge — the numeral is drawn over it, which is why it is
+  // the plain minimalistic silhouette and not one that already has a mark in its centre.
+  { name: 'trust-shield', icon: 'shield-minimalistic',
+    why: 'The score badge. Deliberately EMPTY inside: trust-score.tsx draws the number at the ' +
+         'optical centre, and any shield carrying its own tick/star/user would collide with it.' },
+  { name: 'shield-verified', icon: 'shield-check', why: 'A verified/approved shield — the tick variant.' },
+  { name: 'shield-warning', icon: 'shield-warning', why: 'A flagged or at-risk shield.' },
+  { name: 'shield-star', icon: 'shield-star', why: 'A distinguished / top-tier shield.' },
+  { name: 'shield-user', icon: 'shield-user', why: 'Identity-verified — a person inside the shield.' },
   { name: 'views', icon: 'eye' },
 ]
 

@@ -105,20 +105,26 @@ export function Price({ price, currency, priceUnit, compact = false, dual = true
     // the PDP and the card is deliberately light — a heavy strikethrough competes with the
     // price that actually applies. Those pass an explicit weight, and cn()'s tailwind-merge
     // makes the later class win. Do not "tidy" those away.
-    // ⚠️ 900, AND THE PRECONDITION IS ALREADY MET — Be Vietnam Pro NOW SHIPS A 900 CUT.
-    // The history matters because this value moved three times. The app ships two faces: Inter
-    // (variable, `100 900`) and Be Vietnam Pro (static, enumerated weights). While that second
-    // list stopped at 800, `font-black` rendered 900 in English and CLAMPED to 800 in Vietnamese
-    // — the same price looking different in the two languages — which is why the owner said "use
-    // 800 for both", and 800 was right for as long as 900 did not exist on both faces.
-    // ⚠️ THE HONEST PART: 800 was ALSO the weight every call site already had before the "make
-    // prices bolder" pass, so that pass changed nothing anyone could see, which is exactly what
-    // was reported back, three times. Rendering the four weights side by side at 18px settled it:
-    // 700→800 is marginal, 800→900 is plainly visible. Adding the missing cut in layout.tsx
-    // removed the constraint rather than working around it.
-    // ⚠️ So this now depends on layout.tsx listing "900" for Be Vietnam Pro. Removing it there
-    // silently reintroduces the cross-language clamp — the two files have to move together.
-    <span className={cn('tabular-nums font-black', className)}>
+    // ⚠️ 800, AND THE REASON IT LOOKED WRONG FOR SO LONG WAS NEVER THE NUMBER.
+    // This value moved four times. The history is worth keeping because three of those moves
+    // were chasing a symptom:
+    //   · 800 originally, at eight call sites, with a ninth on 600 and two omitting it.
+    //   · centralised here, still 800 — which changed nothing anyone could see, reported back
+    //     three times as "prices are still not bold".
+    //   · raised to 900, with a matching Be Vietnam Pro 900 cut added in layout.tsx — which ALSO
+    //     changed nothing anyone could see, and was reported back again.
+    //   · 800 (here), once the real cause was found and fixed.
+    // ⚠️ THE REAL CAUSE WAS THAT NONE OF IT WAS RENDERING. Measured 2026-08-12 with CDP
+    // `CSS.getPlatformFontsForNode`, which reports the font Chrome actually rasterised with:
+    // price, heading and body all came back **Arial**. next/font's localFont had injected an
+    // adjusted `local(Arial)` companion face into --font-inter-vn WITHOUT a unicode-range, and
+    // that face sits first in --font-sans, so it matched every Latin character and the UI face
+    // was never reached. Arial has no 900 — `font-black` collapsed to Arial Bold, and no weight
+    // written here could ever have made a difference. The fix is `adjustFontFallback: false` in
+    // layout.tsx; see the block there.
+    // With the real face rendering, Blinker's 900 is genuinely heavy — too heavy at price size
+    // (owner, 2026-08-12: "too bold try 800"). 800 it is.
+    <span className={cn('tabular-nums font-extrabold', className)}>
       {amount}
       {/* The bare text node is kept for the default (always-on) case so the other
           call sites' DOM is byte-identical to before; only the 'sm' variant needs a

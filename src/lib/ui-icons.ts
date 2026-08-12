@@ -72,6 +72,15 @@ export const UI_ICON_NAMES = [
   'offer',
   'rating',
   'verified',
+  // trust — Solar's shield family (owner, 2026-08-12: "trust badge use solar pack minimalistic
+  // shield ... for different types of shiel with tick or other shields seach from solar icon pack
+  // already exists"). `trust-shield` is deliberately EMPTY inside: trust-score.tsx draws the
+  // score at its optical centre, so a shield carrying its own tick would collide with the numeral.
+  'trust-shield',
+  'shield-verified',
+  'shield-warning',
+  'shield-star',
+  'shield-user',
   // messaging + contact
   'messages',
   'send',

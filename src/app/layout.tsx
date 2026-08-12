@@ -149,6 +149,29 @@ const interVietnamese = localFont({
   weight: "100 900",
   display: "swap",
   preload: true,
+  /**
+   * ⛔ `adjustFontFallback: false` IS LOAD-BEARING AND REMOVING IT PUTS THE WHOLE APP BACK IN ARIAL.
+   *
+   * By default next/font emits a COMPANION face beside this one — `"interVietnamese Fallback"`,
+   * a `local(Arial)` with `size-adjust` — and injects it into the same CSS variable, so
+   * `var(--font-inter-vn)` expands to `interVietnamese, "interVietnamese Fallback"`.
+   *
+   * ⚠️ THAT COMPANION CARRIES NO `unicode-range`. This face is deliberately FIRST in --font-sans
+   * so its 10 KB Vietnamese cut serves đ/ư/ă cheaply (see the note above) — but the companion
+   * inherits the position without inheriting the range, so it matches EVERY Latin character and
+   * wins before the UI face is ever consulted.
+   *
+   * Measured 2026-08-12 via CDP `CSS.getPlatformFontsForNode`, which reports the font Chrome
+   * actually rasterised with: price, heading and body all came back **Arial**. Not Blinker, not
+   * Inter. The app had been rendering in a system fallback, and because Arial has no 900,
+   * `font-black` on every price collapsed to Arial Bold — which is exactly the "prices are still
+   * not bold" the owner reported repeatedly and which no amount of raising the weight could fix.
+   *
+   * Turning the companion off costs nothing here: this face exists only to serve a handful of
+   * Vietnamese codepoints, and the UI face right behind it brings its own adjusted fallback for
+   * the swap window.
+   */
+  adjustFontFallback: false,
   // Copied verbatim from the @font-face Next generates for Inter's vietnamese subset — this is
   // the contract that keeps the two faces from fighting. Widening it would start stealing glyphs
   // from the latin face; narrowing it hands them back to the 85 KB latin-ext one.

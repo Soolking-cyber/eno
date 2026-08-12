@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { Tooltip } from '@/components/ui/tooltip'
 import { useLanguage } from '@/context/language-context'
 import { trustScoreColor, trustFillClass } from '@/lib/trust-score'
-import { SEAL_OUTLINE, SEAL_CHECK, SEAL_CHIEF } from '@/components/marketplace/eno-seal'
+import { UI_ART } from '@/generated/icon-paths'
 import { cn } from '@/lib/utils'
 
 type Props = {
@@ -92,23 +92,24 @@ export function TrustScore({ score, size = 'sm', showLabel = false, variant = 's
         )}
         style={fill ? undefined : { color, background: 'color-mix(in srgb, currentColor 10%, transparent)' }}
       >
-        {/* The eno seal at micro scale (docs/icon-language.md §0b) — tinted
-            chief + line silhouette + CHECK. Same paths as every other seal in
-            the app; only the tint opacity adapts to the pill's ink. This is the
-            one variant small enough that the check and the score sit side by
-            side rather than fighting for the same centre (see the badge note
-            below). */}
+        {/* ⚠️ SOLAR'S `shield-check`, NOT THE eno SEAL. This is the one variant where the tick
+            belongs: the score sits BESIDE the shield as text, so nothing competes for the
+            shield's centre and the mark can carry its own mark. Solar already draws exactly this
+            (owner, 2026-08-12: "for different types of shiel with tick or other shields seach
+            from solar icon pack already exists"), so there is nothing to hand-draw.
+
+            Painted with `fill`, not `stroke` — Solar's Outline weight is a filled ring, which
+            holds its exact weight at 11px where a stroked path would thin out. */}
         <svg width={11} height={11} viewBox="0 0 24 24" className="shrink-0" aria-hidden="true">
-          <path d={SEAL_CHIEF} fill="currentColor" fillOpacity={fill ? 0.55 : 0.3} />
-          <path
-            d={SEAL_OUTLINE}
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.4"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-          <path d={SEAL_CHECK} fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" />
+          {UI_ART['shield-verified'].rest.map((p, i) => (
+            <path
+              key={i}
+              d={p.d}
+              fill="currentColor"
+              fillRule={p.evenOdd ? 'evenodd' : undefined}
+              clipRule={p.evenOdd ? 'evenodd' : undefined}
+            />
+          ))}
         </svg>
         {n}
       </span>,
@@ -125,13 +126,13 @@ export function TrustScore({ score, size = 'sm', showLabel = false, variant = 's
   }
 
   const px = PX[size]
-  // ⚠️ THE NUMERAL IS ANCHORED TO THE SEAL'S OPTICAL CENTRE, NOT THE VIEWBOX'S.
-  // `SEAL_CHECK` already declares where the seal's content belongs — its mass sits
-  // around y≈12, deliberately ABOVE the geometric middle, because the keel drags
-  // visual weight downward (see the note on the path in eno-seal.tsx). The score is
-  // this variant's content, so it takes the check's place exactly; it used to sit at
-  // y=13.1, which pushed the digits into the taper and left a dead band under the
-  // chief.
+  // ⚠️ THE NUMERAL IS ANCHORED TO THE SHIELD'S OPTICAL CENTRE, NOT THE VIEWBOX'S.
+  // MEASURED, not guessed: Solar's Bold `shield-minimalistic` has a bbox of y 2..22, so its
+  // GEOMETRIC centre is 12 — but the shield tapers to a point, so its AREA centroid (sampled by
+  // hit-testing the fill row by row) is y=11.5. `dominantBaseline="central"` centres the digits
+  // on that coordinate, so 11.5 puts them on the shield's visual mass. 12.6 was an eyeballed
+  // first guess and sat 1.1 units into the taper. (This note used to cite the eno seal's SEAL_CHECK — that mark is the
+  // BRAND logo and no longer appears in this component; the shield is stock Solar now.)
   //
   // ⚠️ `y` LANDS THE DIGIT INK CENTRE — VERIFIED, BECAUSE IT WAS DISPUTED. A reviewer argued
   // `dominantBaseline="central"` is a FONT baseline (halfway between ascender and descender),
@@ -206,20 +207,29 @@ export function TrustScore({ score, size = 'sm', showLabel = false, variant = 's
                 ink" — wrong twice over: the interior has been a check, not a
                 bar, since 2026-08-07, and this variant draws no interior mark at
                 all. The `text` below is the only thing wearing `grad.text`.) */}
-            <path
-              d={SEAL_OUTLINE}
-              fill={`url(#${gradId})`}
-              strokeWidth="1"
-              strokeLinejoin="round"
-              style={{ stroke: grad.to }}
-            />
-            <path d={SEAL_CHIEF} fill="#ffffff" fillOpacity="0.25" />
-            {/* ⚠️ NO CHECK IN A BADGE THAT CARRIES THE SCORE. The seal's check and the
-                numeral both want the shield's optical centre, and drawn together they
-                overlap into an unreadable smudge (owner, 2026-08-07: "maybe not tickmark
-                here"). The NUMBER is this variant's content; the silhouette + chief carry
-                the identity. The check belongs to the seal wherever it stands alone. */}
-            <text x="12" y="12.1" textAnchor="middle" dominantBaseline="central" fontSize={fontSize} fontWeight="800" fontFamily="inherit" fill={grad.text}>
+            {/* ⚠️ THE SHIELD IS SOLAR'S `shield-minimalistic`, NOT THE eno SEAL (owner, 2026-08-12:
+                "trust badge use solar pack minimalistic shield no custom icons across the app").
+                The seal is the BRAND MARK — it belongs on the logo, the watermark and the favicon,
+                not on a data badge. Borrowing it here made a score look like a certification.
+
+                ⚠️ THE BOLD WEIGHT CARRIES THE GRADIENT, AND THAT IS THE WHOLE REASON THIS TIER
+                WORKS. Solar's Bold shield is a solid silhouette, so a gradient fill reads as one
+                object; the Outline weight is a hollow ring and a gradient inside it would show
+                through to the page. Same outline/bold grammar as every other icon in the app.
+
+                ⚠️ NO TICK IN A BADGE THAT CARRIES THE SCORE — the numeral owns the optical centre
+                (owner, 2026-08-07: "maybe not tickmark here"). `shield-verified` / `shield-star`
+                exist in UI_ART for surfaces where a shield stands alone with no number. */}
+            {UI_ART['trust-shield'].selected.map((p, i) => (
+              <path
+                key={i}
+                d={p.d}
+                fill={`url(#${gradId})`}
+                fillRule={p.evenOdd ? 'evenodd' : undefined}
+                clipRule={p.evenOdd ? 'evenodd' : undefined}
+              />
+            ))}
+            <text x="12" y="11.5" textAnchor="middle" dominantBaseline="central" fontSize={fontSize} fontWeight="800" fontFamily="inherit" fill={grad.text}>
               {n}
             </text>
           </>
@@ -227,16 +237,20 @@ export function TrustScore({ score, size = 'sm', showLabel = false, variant = 's
           <>
             {/* Quiet tiers: line seal with a tinted chief (fill/stroke via style
                 so the CSS var resolves — SVG attrs don't take var()). */}
-            <path d={SEAL_CHIEF} fillOpacity="0.16" style={{ fill: color }} />
-            <path
-              d={SEAL_OUTLINE}
-              fill="none"
-              strokeWidth="1.5"
-              strokeLinejoin="round"
-              style={{ stroke: color }}
-            />
-            {/* No check here either — see the note above: the numeral owns the centre. */}
-            <text x="12" y="12.1" textAnchor="middle" dominantBaseline="central" fontSize={fontSize} fontWeight="800" fontFamily="inherit" style={{ fill: color }}>
+            {/* Quiet tiers: the same Solar shield at its Outline weight. Solar draws an outline
+                as a FILLED ring rather than a stroke, so this paints with `fill`, not `stroke`
+                — and it means the ring keeps its exact weight at every size instead of thinning
+                as the badge shrinks, which a stroked path would do. */}
+            {UI_ART['trust-shield'].rest.map((p, i) => (
+              <path
+                key={i}
+                d={p.d}
+                fillRule={p.evenOdd ? 'evenodd' : undefined}
+                clipRule={p.evenOdd ? 'evenodd' : undefined}
+                style={{ fill: color }}
+              />
+            ))}
+            <text x="12" y="11.5" textAnchor="middle" dominantBaseline="central" fontSize={fontSize} fontWeight="800" fontFamily="inherit" style={{ fill: color }}>
               {n}
             </text>
           </>
