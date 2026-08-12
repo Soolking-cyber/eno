@@ -332,20 +332,38 @@ class TestResizeObserver {
  * until something in the same file quietly depends on a stub. Restore what was there.
  */
 type Globals = { fetch?: unknown; ResizeObserver?: unknown }
-const saved: { fetch?: unknown; ro?: unknown; scrollTo?: unknown } = {}
+
+/**
+ * ⚠️ ResizeObserver IS INSTALLED ONCE FOR THE WHOLE FILE AND NEVER TORN DOWN — DO NOT "FIX" THIS
+ * BACK INTO install/restore. It used to be saved and restored per describe like the other two, and
+ * that made the suite ORDER-DEPENDENT in a way that only showed up under load:
+ *
+ * `restoreRailGlobals` ran in `afterEach` and assigned `undefined` — which leaves the name DEFINED
+ * and not constructible, hence "ResizeObserver is not a constructor" rather than "is not defined".
+ * The BrandRail specs are `async`, so under a full-suite run a React passive effect from a render
+ * that had not finished settling fired AFTER the restore, hit `new ResizeObserver()` in
+ * use-scroll-arrows, and threw. Measured 2026-08-12: green in isolation and green as 168 files,
+ * red as 169 — adding an unrelated test file was enough to move the timing. That is a flake that
+ * blames whoever touches the suite next.
+ *
+ * Keeping a no-op observer installed for the file's lifetime costs nothing: jsdom never provides
+ * one, vitest isolates per FILE so it cannot reach another spec, and no test here asserts on its
+ * absence (the file that DOES test the no-ResizeObserver branch, sticky-action-bar.test.tsx,
+ * stubs the absence explicitly and restores it in a `finally`).
+ */
+;(globalThis as Globals).ResizeObserver = TestResizeObserver
+
+const saved: { fetch?: unknown; scrollTo?: unknown } = {}
 function installRailGlobals(fetchImpl?: unknown) {
   const g = globalThis as Globals
   saved.fetch = g.fetch
-  saved.ro = g.ResizeObserver
   saved.scrollTo = HTMLElement.prototype.scrollTo
-  g.ResizeObserver = TestResizeObserver
   HTMLElement.prototype.scrollTo = () => {}
   if (fetchImpl) g.fetch = fetchImpl
 }
 function restoreRailGlobals() {
   const g = globalThis as Globals
   g.fetch = saved.fetch
-  g.ResizeObserver = saved.ro
   HTMLElement.prototype.scrollTo = saved.scrollTo as typeof HTMLElement.prototype.scrollTo
 }
 
