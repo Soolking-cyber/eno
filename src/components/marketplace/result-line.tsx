@@ -378,7 +378,12 @@ export function ResultLine({
           // filters. (ui/breadcrumb hardcodes an untranslated aria-label="breadcrumb", which is
           // why this is passed at all rather than left to the primitive.)
           <Breadcrumb aria-label={tr('Category', 'Danh mục')}>
-            <BreadcrumbList className="gap-1 text-xs">
+            {/* ⚠️ `flex-nowrap` OVERRIDES THE PRIMITIVE, WHICH SHIPS `flex-wrap`. ui/breadcrumb
+                is built to wrap a long path onto a second line; this line must not — its half is
+                a scroller, and a wrapping crumb pushed "MacBook" under "Electronics › Apple" and
+                doubled the row's height. Verified against the computed style, not assumed:
+                getComputedStyle(list).flexWrap read "wrap" before this. */}
+            <BreadcrumbList className="flex-nowrap gap-1 text-xs">
               {ladder.map((c, i) => {
                 // The LAST rung is where you are standing: always inert, always
                 // `aria-current="page"` (BreadcrumbPage), whatever the caller passed — a link

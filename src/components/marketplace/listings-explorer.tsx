@@ -2522,7 +2522,13 @@ export function ListingsExplorer({
               you" is on (that path distance-filters client-side, so the server total is wrong by
               construction). A per-facet counts endpoint plugs in HERE and nowhere else. */}
           <div className={cn(SECTION_HEADER_ROW, 'select-none')}>
-            <div className="flex min-w-0 items-center gap-2">
+            {/* ⚠️ `flex-1` IS WHAT MAKES THE HALVES MEAN ANYTHING. Without it this wrapper is
+                content-sized — measured at 203px on a 1440px viewport — so ResultLine's two
+                `basis-1/2` halves split 203px between them and the row shows a cramped left
+                cluster with ~900px of dead space before "Save search". The halves are relative to
+                THIS box, so it has to claim the row first. `min-w-0` stays: it is what lets the
+                box shrink below its content so the halves' own scrollers take over. */}
+            <div className="flex min-w-0 flex-1 items-center gap-2">
               {feedInDefaultOrder ? (
                 <>
                   <Clock className="h-4 w-4 shrink-0 text-accent-foreground" aria-hidden />
@@ -2558,7 +2564,11 @@ export function ListingsExplorer({
                 crumbs={ladderCrumbs}
                 filters={resultFilters}
                 onClearAll={resultFilters.length > 1 ? clearAllFilters : undefined}
-                className="min-w-0"
+                // ⚠️ `flex-1` HERE TOO, AND FOR A SECOND REASON. Making the WRAPPER flex was not
+                // enough: ResultLine is itself a flex item, so it still sized to its content
+                // (measured 203px inside a 919px parent) and its two `basis-1/2` halves split
+                // that 203px. Both boxes have to claim the row before the halves can divide it.
+                className="min-w-0 flex-1"
               />
             </div>
             {/* ⛔ SAVE SEARCH SITS LEFT OF THE VIEW MODES, ON THE SAME LINE — owner, 2026-08-12,
