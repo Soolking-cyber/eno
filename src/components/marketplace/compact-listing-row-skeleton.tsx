@@ -7,17 +7,24 @@ import { Skeleton } from '@/components/ui/skeleton'
  *  loading state — and until 2026-08-07 those were two hand-rolled copies in one file
  *  that had already drifted apart (`p-2` around an unrounded `h-16 w-20` thumb plus a
  *  phantom right-hand block, against the real row's `p-1.5 pr-1` and `h-14 w-16
- *  rounded-lg`). It cannot live in compact-listing-row.tsx: importing it from there
+ *  rounded-lg` AS IT WAS THEN — see the ⚠️ below for what those two numbers are now).
+ *  It cannot live in compact-listing-row.tsx: importing it from there
  *  would pull the real row's chunk in eagerly and defeat the lazy split it stands in for.
  *
  *  Geometry, measured against a rendered row (68px tall at every breakpoint):
  *    p-1.5 (6+6) + a 56px thumbnail, which is what sets the height — the text column
  *    is shorter (19px title + mt-0.5 + a 24px text-base price line = 45px). The action
- *    cluster on the right is chrome, not content, and never affects the row box. */
+ *    cluster on the right is chrome, not content, and never affects the row box.
+ *
+ *  ⚠️ THE THUMB IS SQUARE AND THAT IS THE THIRD TIME THESE TWO NUMBERS HAVE MOVED. It was
+ *  `w-16` here and in the real row until 2026-08-12, when the owner asked for every product
+ *  image to be square; the width came down to match the height so the row stayed 68px. The
+ *  drift this file exists to prevent is CLS, so a width that disagrees with the real row is
+ *  exactly the bug — copy the real row's two classes, do not re-derive them. */
 export function CompactListingRowSkeleton() {
   return (
     <div className="flex items-center gap-3 rounded-xl p-1.5 pr-1">
-      <Skeleton className="h-14 w-16 shrink-0 rounded-lg" />
+      <Skeleton className="h-14 w-14 shrink-0 rounded-lg" />
       <div className="min-w-0 flex-1">
         {/* title — truncate text-sm/leading-snug, one 19px line */}
         <Skeleton className="h-[19px] w-3/4" />

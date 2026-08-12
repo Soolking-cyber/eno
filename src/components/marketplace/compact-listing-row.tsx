@@ -57,7 +57,18 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
       onTouchStart={() => onPrefetch(l.id)}
       className="group flex items-center gap-3 rounded-xl p-1.5 pr-1 text-left transition-[background-color,transform] duration-100 hover:bg-muted active:scale-[0.99] cursor-pointer"
     >
-      {/* Thumbnail — small, square-ish so the row reads as one line.
+      {/* Thumbnail — SQUARE, small enough that the row reads as one line.
+          ⚠️ IT WAS `h-14 w-16` — 64×56 — AND IT WAS THE ONLY NON-SQUARE PRODUCT PHOTO LEFT IN THE
+          APP (owner, 2026-08-12: "make sure all product images are square"). Every other surface
+          is square, and the post wizard CROPS UPLOADS TO SQUARE (square-crop-dialog.tsx), so a 7:8
+          box does not letterbox a square source — `object-cover` SHAVES IT, ~12% off the top and
+          bottom of every thumbnail in the default browse view. The width came down rather than the
+          height going up: the thumb sets the row height (measured 68px = 56 + the 12px of `p-1.5`,
+          against a 45px text column and 36px actions), so `w-14` keeps the list at exactly the
+          density it has today and hands the 8px to the title, which on a 390pt phone is a 162px
+          column. `h-16 w-16` was the alternative and costs 8px on every row.
+          ⚠️ compact-listing-row-skeleton.tsx CARRIES THE SAME TWO NUMBERS and its own header
+          records that the pair has drifted apart once already. Change both or neither.
           ⚠️ THE PARTNER RING BELONGS HERE TOO, AND ITS ABSENCE IS WHY THE FEATURE READ AS BROKEN.
           The gold ring shipped on <ListingCard> only — the GRID view — while `viewMode` defaults
           to 'compact' (listings-explorer.tsx), so the default browse feed showed no ring at all
@@ -73,7 +84,7 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
         // not reliably exposed.
         title={l.seller.officialPartner ? tr('Official partner', 'Đối tác chính thức') : undefined}
         className={cn(
-          'relative h-14 w-16 shrink-0 overflow-hidden rounded-lg bg-tint',
+          'relative h-14 w-14 shrink-0 overflow-hidden rounded-lg bg-tint',
           l.seller.officialPartner && 'partner-ring-media',
         )}
       >
@@ -82,7 +93,7 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
             src={cover}
             alt={displayTitle}
             fill
-            sizes="64px"
+            sizes="56px"
             className="object-cover transition-transform duration-200 group-hover:scale-105"
             loading={index < 6 ? 'eager' : 'lazy'}
 
