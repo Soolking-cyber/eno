@@ -116,7 +116,11 @@ vi.mock('@/lib/visa/payments', () => ({
 }))
 vi.mock('@/lib/visa/records', () => ({ recordVisaEvent: () => Promise.resolve() }))
 
-import { POST } from './route.svc'
+// ⚠️ `.forum.svc`, not `.svc` — this route is FORUM-ONLY at any flag setting (owner, 2026-08-13:
+// "remove paypal checkout from eno.vn only on eno.forum"). Running the checkout would make eno.vn
+// the merchant of record for a service it is not licensed to sell, so unlike the rest of the visa
+// flow it is never compiled into the marketplace image. See FORUM_ONLY_EXTENSIONS in next.config.ts.
+import { POST } from './route.forum.svc'
 
 const APP_ID = '11111111-1111-4111-8111-111111111111'
 

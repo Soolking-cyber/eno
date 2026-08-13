@@ -6,6 +6,7 @@ import {
   AlertTriangle, ArrowRight, Check, ChevronDown, CreditCard, Download, FileImage, FileText, Loader2,
   LockKeyhole, PencilLine, RotateCcw, ShieldCheck, Sparkles, Upload, UserRound, Wallet,
 } from '@/components/ui/icons'
+import { IS_SERVICES } from '@/lib/edition'
 import { useLanguage } from '@/context/language-context'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -253,7 +254,23 @@ export function parseVisaThreadInfo(value: unknown): VisaThreadInfo | null {
       }
       : null,
     quote,
-    providers: Array.isArray(value.providers)
+    /**
+     * ⛔ NO PAYMENT PROVIDERS OUTSIDE THE SERVICES EDITION (owner, 2026-08-13: "remove paypal
+     * checkout from eno.vn only on eno.forum"). eno.vn may host a partner's visa CHAT — that is
+     * intermediation — but running the checkout would make the licensed marketplace the merchant of
+     * record for a service it is not licensed to sell.
+     *
+     * ⚠️ THIS IS THE UI HALF OF A TWO-PART GUARANTEE, AND IT IS THE WEAKER HALF ON PURPOSE. The
+     * real one is build-time: the checkout and payment-confirm routes carry the `.forum.svc.` infix
+     * (see FORUM_ONLY_EXTENSIONS in next.config.ts) and are not compiled into ANY marketplace image,
+     * at any flag setting. Without this line the buttons would still render there and 404 on tap —
+     * a dead control on a money surface, which reads as a broken payment rather than an absent one.
+     * Emptying the list at the ONE parse every checkout card goes through kills both buttons
+     * together; gating each button would leave the next provider to be added ungated.
+     * `IS_SERVICES` is a build-time constant, so on eno.vn this folds to `[]` and the branches
+     * minify away.
+     */
+    providers: IS_SERVICES && Array.isArray(value.providers)
       ? value.providers.filter((p): p is 'stripe' | 'paypal' => p === 'stripe' || p === 'paypal')
       : [],
   }

@@ -125,10 +125,37 @@ const MARKETPLACE_HOSTS_SERVICES =
 
 const SVC_EXTENSIONS = ["svc.ts", "svc.tsx", "svc.js", "svc.jsx"];
 
+/**
+ * ⛔ FORUM-ONLY, AT ANY FLAG SETTING — THE SECOND TIER, AND PAYMENTS ARE WHY IT EXISTS.
+ *
+ * `.forum.svc.` marks a services route that eno.vn must NEVER compile, not even with
+ * MARKETPLACE_HOSTS_SERVICES on. Owner, 2026-08-13: "remove paypal checkout from eno.vn only on
+ * eno.forum". Taking money for the service is the one thing the licensed marketplace genuinely
+ * cannot do — hosting a partner's chat flow is intermediation, but running the CHECKOUT makes eno.vn
+ * the merchant of record for a service it is not licensed to sell. So the two PayPal routes
+ * (visa checkout, payment confirm) get an infix that no marketplace build lists, and the guarantee
+ * is the same build-time one as the original `.svc.` fold: the route does not exist rather than
+ * being blocked at runtime.
+ *
+ * ⚠️ THE INFIX DELIBERATELY STILL CONTAINS `.svc.` so scripts/edition-lint.mjs Rule B and Rule C,
+ * which match that substring, keep recognising these as services files. A cleverer name like
+ * `.fsvc.` would have quietly dropped them out of both rules — the failure being that the guard
+ * stops watching the most sensitive routes in the tree.
+ *
+ * ⚠️ NEXT MATCHES `${name}.${ext}`, so `route.forum.svc.ts` is name `route` + ext `forum.svc.ts`.
+ * It does NOT also match ext `svc.ts` (that would need a file called literally `route.svc.ts`), so
+ * listing the plain SVC extensions on a marketplace build cannot pull these in by accident.
+ */
+const FORUM_ONLY_EXTENSIONS = [
+  "forum.svc.ts", "forum.svc.tsx", "forum.svc.js", "forum.svc.jsx",
+];
+
 const PAGE_EXTENSIONS =
-  EDITION_ENV === "marketplace" && !MARKETPLACE_HOSTS_SERVICES
-    ? ["ts", "tsx", "js", "jsx"]
-    : ["ts", "tsx", "js", "jsx", ...SVC_EXTENSIONS];
+  EDITION_ENV === "marketplace"
+    ? MARKETPLACE_HOSTS_SERVICES
+      ? ["ts", "tsx", "js", "jsx", ...SVC_EXTENSIONS] // partner-hosted services, but never payments
+      : ["ts", "tsx", "js", "jsx"]
+    : ["ts", "tsx", "js", "jsx", ...SVC_EXTENSIONS, ...FORUM_ONLY_EXTENSIONS];
 
 const nextConfig: NextConfig = {
   pageExtensions: PAGE_EXTENSIONS,

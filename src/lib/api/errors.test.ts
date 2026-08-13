@@ -34,7 +34,13 @@ const HARVEST = String.raw`(?:error: '|ApiError\('|apiFail\(')([A-Za-z0-9_.-]+)'
 
 /** Every `{ error: '…' }` literal in a first-party (non-/api/v1) route handler. */
 function codesOnTheWire(): Set<string> {
-  const files = execFileSync('git', ['ls-files', 'src/app/api/**/route.ts', 'src/app/api/**/route.svc.ts'], {
+  // ⚠️ `route.forum.svc.ts` IS IN THE HARVEST TOO. Two routes carry that stricter infix — the visa
+  // checkout and payment-confirm — because eno.vn must never compile them at any flag setting
+  // (owner: "remove paypal checkout from eno.vn only on eno.forum"; see FORUM_ONLY_EXTENSIONS in
+  // next.config.ts). They are still live routes on eno.forum and still emit codes, so leaving them
+  // out of this glob made 11 codes look unemitted — including `checkout_failed` — and this suite
+  // would have told the next reader to DELETE them from the type.
+  const files = execFileSync('git', ['ls-files', 'src/app/api/**/route.ts', 'src/app/api/**/route.svc.ts', 'src/app/api/**/route.forum.svc.ts'], {
     encoding: 'utf8',
   })
     .trim()
