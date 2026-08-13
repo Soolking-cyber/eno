@@ -2084,6 +2084,36 @@ html.native-tabs .bottom-nav-spacer {
   color: var(--color-accent-foreground);
 }
 
+/* ⚠️ A CHECKBOX / RADIO KEEPS ITS OWN INK, AND THE RULE ABOVE TOOK IT AWAY. Both selector lists
+   include [role='checkbox'] and [role='radio'] with [aria-checked='true'] — which is not a press,
+   it is the control's RESTING selected state — so the accent colour above applied permanently to
+   every mark inside one, beating the colour the control itself had set. It is beaten because the
+   declaration lands on the .i-on <g>, an ancestor of the paths, while the control's colour merely
+   INHERITS in from the root; a matched rule on a descendant always wins over inheritance.
+
+   Two live regressions, both measured in a browser before this rule was written:
+     · a CHECKED checkbox — the mark went accent-blue on the box's own brand-blue fill, i.e.
+       invisible. Owner, 2026-08-13: the tick "fills up all box". Computed .i-on color was
+       rgb(10,102,194) against a rgb(10,102,194) fill, with data-checked:text-white overridden.
+     · a SELECTED rating star (review-prompt.tsx, role="radio") — painted fill measured
+       rgb(10,102,194) instead of its text-warning gold.
+
+   ⚠️ THIS RESTORES THE COLOUR ONLY, NOT THE WEIGHT. The opacity swap above still runs, so a
+   selected star still gains Solar's Bold star and a segmented item still thickens — that part was
+   never wrong. Deny-listing these two roles from the rule ITSELF was the alternative and it
+   overshoots: it would take the bold weight off every selected radio in the app.
+
+   `inherit`, not a token: the point is to hand the colour back to whatever the control set —
+   text-white on a filled checkbox, text-warning on a star — which no single value can name. */
+:is([role='checkbox'], [role='radio']):is(
+    :active,
+    [aria-pressed='true'], [aria-selected='true'], [aria-checked='true'], [aria-expanded='true'],
+    [data-state='on'], [data-state='open'], [data-state='checked'], [data-state='active'],
+    [data-active='true'], [aria-current]:not([aria-current='false'])
+  ) .i-on {
+  color: inherit;
+}
+
 /* The house rule: motion is an enhancement, never the thing that conveys the state. With motion
    reduced the weights still swap — instantly, which is what someone asking for less motion wants
    — because the opacity VALUES above are unchanged, only their transition is dropped. */

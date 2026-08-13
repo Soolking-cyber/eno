@@ -53,7 +53,7 @@ import { createHash } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { LUCIDE_TO_SOLAR } from './lucide-solar-map.mjs'
+import { BARE_MARKS, LUCIDE_TO_SOLAR } from './lucide-solar-map.mjs'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const SRC = join(ROOT, 'node_modules/@solar-icons/static/dist/icons')
@@ -558,8 +558,63 @@ const layer = (solar, style) => {
   return inner
 }
 
+/**
+ * One BARE MARK: a single shape lifted out of an enclosed glyph, centred, and used for BOTH
+ * weights. See `BARE_MARKS` in lucide-solar-map.mjs for why the set exists and how `dx` was
+ * measured — this function is only the extraction, and every guard below protects `dx`.
+ */
+const bareMark = (lucide, spec) => {
+  const { from, shape, shapes, dx, sha } = spec
+  if (!available.outline.has(from)) fail(`bare mark ${lucide} -> solar "${from}" is not in the outline style`)
+
+  // Guard on the RAW file, before normalise/quantise rewrites the numbers: `sha` was taken from
+  // Solar's own bytes, and comparing anything else would drift the moment the generator changes.
+  const raw = readFileSync(join(SRC, 'outline', `${from}.svg`), 'utf8')
+  const rawShapes = raw.match(/<(?:path|circle|rect|ellipse|line|polyline|polygon)\b[^>]*>/g) ?? []
+  if (rawShapes.length !== shapes) {
+    fail(`bare mark ${lucide}: solar outline/${from} now has ${rawShapes.length} shapes, expected ${shapes}.\n` +
+         `  The shape index and dx were measured against the old drawing — re-measure both.`)
+  }
+  /**
+   * ⚠️ THE WHOLE TAG, NOT JUST `d`. Hashing the path data alone leaves the rest of the shape
+   * unpinned — the element type, `fillRule`/`clipRule`, any attribute Solar adds — so a redraw
+   * that changed how the mark FILLS while keeping its outline would sail past the guard. Both
+   * reviewers found this independently. It also drops the assumption that a bare mark is a
+   * `<path>`: a future `<circle>` or `<rect>` row hashes the same way instead of failing on a
+   * missing `d`.
+   */
+  const raw0 = rawShapes[shape]
+  if (!raw0) fail(`bare mark ${lucide}: solar outline/${from} has no shape at index ${shape}`)
+  const got = createHash('sha256').update(raw0).digest('hex').slice(0, 16)
+  if (got !== sha) {
+    fail(`bare mark ${lucide}: solar outline/${from} shape ${shape} was redrawn (sha ${got}, expected ${sha}).\n` +
+         `  dx=${dx} was measured against the OLD geometry and is now meaningless. Re-measure the\n` +
+         `  shape's getBBox() centre in a browser, then update dx AND sha together — never sha alone.`)
+  }
+
+  // Take the SANITISED shape, so a bare mark gets the same colour/markup checks as every other
+  // glyph — matched by index against the raw list the guards above just verified.
+  const inner = layer(from, 'outline')
+  const clean = inner.match(/<(?:path|circle|rect|ellipse|line|polyline|polygon)\b[^>]*>/g) ?? []
+  if (clean.length !== shapes) fail(`bare mark ${lucide}: normalise() changed the shape count of outline/${from}`)
+  const mark = dx === 0 ? clean[shape] : `<g transform="translate(${dx},0)">${clean[shape]}</g>`
+
+  return (
+    `/** Solar \`${from}\` #${shape} — a BARE mark (${spec.why}) Same drawing at rest and pressed. */\n` +
+    `export const ${lucide} = (p: IconProps) => <Glyph {...p}>` +
+    `<g className="i-rest">${mark}</g>` +
+    `<g className="i-on">${mark}</g>` +
+    `</Glyph>`
+  )
+}
+
+for (const name of Object.keys(BARE_MARKS)) {
+  if (!(name in LUCIDE_TO_SOLAR)) fail(`BARE_MARKS has "${name}", which is not a row in LUCIDE_TO_SOLAR`)
+}
+
 const shimBody = shimRows
   .map(([lucide, solar]) => {
+    if (BARE_MARKS[lucide]) return bareMark(lucide, BARE_MARKS[lucide])
     for (const style of ['outline', 'bold']) {
       if (!available[style].has(solar)) fail(`lucide ${lucide} -> solar "${solar}" is not in the ${style} style`)
     }

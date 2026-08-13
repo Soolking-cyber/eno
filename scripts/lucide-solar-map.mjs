@@ -268,6 +268,65 @@ export const LUCIDE_TO_SOLAR = {
 }
 
 /**
+ * BARE MARKS — the rows above that must NOT be drawn enclosed, and the geometry they borrow.
+ *
+ * ⚠️ SOLAR HAS NO STANDALONE TICK AND NO STANDALONE DASH. Every mark in the set is enclosed in a
+ * circle or a square, exactly as `close` is (see the map note: "Solar has no bare X — every close
+ * mark is enclosed"). That is fine for a status glyph and WRONG for a mark that is already inside
+ * a box of its own: `Check` was `check-circle`, so a 16px checkbox painted a 12px white RING that
+ * exactly filled its own content area, with a cramped tick inside it. The owner's words for it
+ * were "it fills up all box instead having graceful tick".
+ *
+ * So each row here names a source glyph and ONE shape index within its OUTLINE weight — the tick
+ * out of `check-read`, the bar out of `minus-circle` — and the generator emits that shape alone.
+ *
+ * ⚠️ `dx` IS MEASURED WITH getBBox() IN A REAL BROWSER, NOT COMPUTED. The tick shares its source
+ * box with a second tick, so it sits left of centre and has to be nudged back. A first draft had
+ * the generator derive this by scanning path coordinates; it was dropped because that is not a
+ * bbox — a cubic's control points overstate its extent, and the scan additionally mis-parsed the
+ * bar's `H` command and put its centre at 12.375 instead of 12.0. Measured, in the 24-unit box:
+ *     check-read#0   x 3.25 w 12.50  centre  9.50  -> dx +2.5
+ *     minus-circle#0 x 8.25 w  7.50  centre 12.00  -> dx  0
+ *
+ * ⚠️ `sha` PINS THE GEOMETRY THOSE NUMBERS WERE MEASURED AGAINST — sha256 of the raw source
+ * shape TAG (not just its `d`), first 16 hex. A Solar bump that redraws either glyph invalidates
+ * `dx` silently, and a mark 2.5 units off centre in a 16px box is visible. The build fails
+ * instead; the fix is to re-measure with getBBox and update `dx` AND `sha` together, never `sha`
+ * alone. The whole tag rather than `d` because a redraw can change how a mark FILLS — the element
+ * type, `fill-rule`, `clip-rule` — while leaving its outline path identical.
+ *
+ * ⚠️ ONE DRAWING SERVES BOTH WEIGHTS. Solar ships no heavier bare tick — bold `check-read` is a
+ * filled rounded SQUARE with the ticks as negative space, and bold `minus-circle` is a solid disc,
+ * so neither can be the pressed layer. That is not a workaround: the generator's own identical-pair
+ * guard documents that ~55 Solar glyphs are drawn IDENTICALLY in Outline and Bold precisely
+ * because they are line-only marks with no interior to fill. A bare tick is that kind of mark.
+ *
+ * ⚠️ THE COST, STATED: two identical layers cross-fade, and two opaque copies at 0.5 composite to
+ * 0.75, so the mark dips ~25% at the midpoint of the ~130ms swap. Both reviewers raised it. It is
+ * NOT introduced here — six shim icons already ship identical weights for the same reason
+ * (`Code`, `History`, `Link2`, `ListChecks`, `Undo2`, `Webhook`), measured on the generated file.
+ * Emitting the mark once, unclassed, would remove the dip AND the pressed recolour — but it would
+ * also make these four the only glyphs in the shim with no weight layers, and would silently drop
+ * the accent tint that a selected dropdown row's tick is supposed to get. Not worth it for 65ms.
+ */
+export const BARE_MARKS = {
+  Check: { from: 'check-read', shape: 0, shapes: 2, dx: 2.5, sha: 'c4c2f8ec1e702a15',
+    why: 'The app\'s bare tick — checkbox, dropdown selected-marks, "copied" confirmations, wizard steps.' },
+  CheckIcon: { from: 'check-read', shape: 0, shapes: 2, dx: 2.5, sha: 'c4c2f8ec1e702a15',
+    why: 'lucide\'s CheckIcon is the same bare tick as Check; it marks the selected row in select/combobox/dropdown-menu.' },
+  Minus: { from: 'minus-circle', shape: 0, shapes: 2, dx: 0, sha: '09fec1411a24c650',
+    why: 'The checkbox INDETERMINATE dash. Already centred in its source box, hence dx 0.' },
+  MinusIcon: { from: 'minus-circle', shape: 0, shapes: 2, dx: 0, sha: '09fec1411a24c650',
+    why: 'The separator between OTP groups (ui/input-otp) — a dash, never a circled minus.' },
+}
+
+/**
+ * ⚠️ `CheckCircle2` IS DELIBERATELY NOT A BARE MARK. It means an ENCLOSED tick in lucide and every
+ * call site uses it that way — a success state, a resolved report, a completed case — so it keeps
+ * the whole `check-circle` glyph. Do not "fix" it to match Check.
+ */
+
+/**
  * ⚠️ THE SUBSTITUTIONS, CALLED OUT SO THEY GET REVIEWED RATHER THAN DISCOVERED.
  * Solar has no equivalent for these; each is the closest mark that survives at tile size.
  */
