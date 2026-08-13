@@ -12,8 +12,9 @@ import { KeyboardViewportSync } from "@/components/marketplace/keyboard-viewport
 import { BackToTop } from "@/components/marketplace/back-to-top";
 import { SkipLink } from "@/components/marketplace/skip-link";
 import { Toaster as SonnerToaster } from "@/components/ui/sonner";
-import { AmbientChrome } from "@/components/marketplace/ambient-chrome";
 import { SaveSignupSheet } from "@/components/marketplace/save-signup-sheet";
+import { CookieConsent } from "@/components/marketplace/cookie-consent";
+import { InstallHint } from "@/components/marketplace/install-hint";
 import { ImageShield } from "@/components/marketplace/image-shield";
 import { PrelaunchNotice } from "@/components/marketplace/prelaunch-notice";
 import { AccountPanelShell } from "@/components/marketplace/account-panel";
@@ -89,24 +90,32 @@ export function Providers({ children }: { children: React.ReactNode }) {
                     <BottomNavSpacer />
                     <KeyboardViewportSync />
                     <MobileNav />
-                    {/* ⚠️ THESE STAY EAGER, AND THAT IS A CORRECTION RATHER THAN AN OVERSIGHT.
-                        Both were briefly moved into <AmbientChrome> below and moved straight back:
-                        each exists to answer the visitor's FIRST gesture — the save sheet catches a
-                        guest's first heart tap, the shield catches the first right-click on a photo
-                        — and a `next/dynamic` boundary cannot mount in time to hear the very event
-                        that woke it. All three external reviewers caught it. They are 60 and 80
-                        lines with no heavy imports, so deferring them bought almost nothing.
-                        The full reasoning is in ambient-chrome.tsx; read it before moving them. */}
+                    {/* ⛔ THE LAZY-LOADED <AmbientChrome> BOUNDARY THAT USED TO WRAP THESE IS GONE.
+                        Owner, 2026-08-13: "lazyload whats not important" — and this WAS the honest
+                        attempt at it: the cookie banner, the install hint, the save-signup sheet,
+                        the image shield and sonner's <Toaster> all render nothing at first paint,
+                        so deferring them behind next/dynamic looked free. It was not, and it cost
+                        two separate regressions before it was measured properly:
+                          1. Waking the group on the first pointerdown meant a visitor's first click
+                             anywhere summoned the cookie-consent dialog on the spot.
+                          2. Worse, and the reason the whole idea is reverted: while the deferred
+                             chunk was still landing, QueryProvider's window online/offline listeners
+                             stopped responding. e2e/guest/offline.spec.ts caught it — a dismissed
+                             offline banner never returned on the next drop. Isolated by measurement:
+                             with no settle the re-arm failed 3/3, with a 4s settle it passed 3/3,
+                             on a route (/about) that this work never touched. An ancestor provider
+                             losing its event listeners because a DESCENDANT suspends is not a
+                             trade worth ~380 lines of deferred component.
+                        ⚠️ Anything mounted here is global chrome that other code talks to through
+                        window events and context. Do not wrap this group in a Suspense/lazy boundary
+                        again without re-running e2e/guest/offline.spec.ts against the BUILT app —
+                        it is the only gate that saw either failure, and both were invisible to tsc,
+                        lint and the unit suite. The load-speed wins that survived (two font weights,
+                        the carousel's load gate, the off-screen banner art) are all elsewhere. */}
                     <SaveSignupSheet />
                     <ImageShield />
-                    {/* ⚠️ THE PASSIVE CHROME, DEFERRED (owner, 2026-08-13: "lazyload whats not
-                        important"). The cookie banner and the install hint render nothing at first
-                        paint, yet used to be parsed, evaluated and hydrated on every route before
-                        the visitor could read the page. They now load on the first of load+idle or
-                        any interaction. Why the toaster and the two above it are NOT in there — and
-                        the consent check that makes deferring the banner safe — are documented in
-                        ambient-chrome.tsx. */}
-                    <AmbientChrome />
+                    <CookieConsent />
+                    <InstallHint />
                     </TooltipProvider>
                   </QueryProvider>
                 </FavoritesProvider>
