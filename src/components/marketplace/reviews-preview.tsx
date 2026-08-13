@@ -1,8 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { Star, ChevronRight } from '@/components/ui/icons'
-import { EnoSeal } from './eno-seal'
+import { Star, ChevronRight, ShieldCheck } from "@/components/ui/icons"
 import { useLanguage, Tr } from '@/context/language-context'
 import { Badge } from '@/components/ui/badge'
 import { getInitials } from '@/lib/utils'
@@ -61,7 +60,7 @@ export function ReviewsPreview({
                     size="sm"
                     className="gap-0.5 px-1.5 font-medium text-accent-foreground"
                   >
-                    <EnoSeal aria-hidden className="h-3 w-3" />
+                    <ShieldCheck aria-hidden className="h-3 w-3" />
                     {tr('Verified buyer', 'Đã mua')}
                   </Badge>
                 )}

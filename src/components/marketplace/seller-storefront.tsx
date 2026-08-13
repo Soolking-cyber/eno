@@ -2,8 +2,7 @@ import { IS_MARKETPLACE } from '@/lib/edition'
 import { deskSellerIds, scopedListingWhere } from '@/lib/edition-scope'
 import { cache } from 'react'
 import { notFound } from 'next/navigation'
-import { AlertTriangle, Star } from '@/components/ui/icons'
-import { EnoSeal } from './eno-seal'
+import { AlertTriangle, Star, ShieldCheck } from "@/components/ui/icons"
 import { db } from '@/lib/db'
 import { Button } from '@/components/ui/button'
 import { serializeListing } from '@/lib/serialize'
@@ -209,7 +208,7 @@ export async function SellerStorefront({ id }: { id: string }) {
                     place: a storefront now shows a badge or it shows nothing, and the badge
                     means eno checked a document. */}
                 {cardSeller.businessVerified && (
-                  <Badge variant="success" size="md"><EnoSeal aria-hidden className="h-3.5 w-3.5" /> <Tr text="Business verified" /></Badge>
+                  <Badge variant="success" size="md"><ShieldCheck aria-hidden className="h-3.5 w-3.5" /> <Tr text="Business verified" /></Badge>
                 )}
                 {/* Report rides the END of this line. It is a rare, secondary action — as its
                     own red block under the CTA it read as loud as "Chat now". */}
@@ -268,7 +267,7 @@ export async function SellerStorefront({ id }: { id: string }) {
                         surfaces are one click apart and must read as one hand. */}
                     {r.verified && (
                       <Badge variant="neutral" size="sm" className="gap-0.5 px-1.5 font-medium text-accent-foreground">
-                        <EnoSeal aria-hidden className="h-3 w-3" /> <Tr text="Verified buyer" />
+                        <ShieldCheck aria-hidden className="h-3 w-3" /> <Tr text="Verified buyer" />
                       </Badge>
                     )}
                     {/* Rating + date: pushed right when the row fits, but a plain LEFT-aligned

@@ -686,7 +686,7 @@ function ListingCardImpl({
               user-state — the line stays white because it sits over media); heart-pop
               on save. h-5 = the ladder's 20px step, same as the quick-action glyphs,
               so the whole photo-overlay cluster shares ONE optical size. */}
-          <span onAnimationEnd={() => setBurst(false)} className={cn('inline-flex', burst && 'animate-heart-pop')}>
+          <span onAnimationEnd={(e) => { if (e.animationName === 'heart-pop') setBurst(false) }} className={cn('inline-flex', burst && 'animate-heart-pop')}>
             {/* ⚠️ SAVED = RED, THE SAME RED AS THE COUNTERS (owner, 2026-08-13: "clicking on heart
                 on products make it red similar to notif message counter red"), i.e. --destructive,
                 the token the counter badge uses. It was `fill-brand text-white`.

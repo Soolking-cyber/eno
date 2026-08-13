@@ -17,7 +17,7 @@
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { toast } from 'sonner'
-import { ImagePlus, X, MapPin, ChevronDown, Check, Sparkles, Loader2, LocateFixed, Zap, Video, SquarePlay, Camera, Crop } from '@/components/ui/icons'
+import { ImagePlus, X, MapPin, ChevronDown, Check, Sparkles, Loader2, LocateFixed, Zap, Video, SquarePlay, Camera, Crop, ShieldCheck } from "@/components/ui/icons"
 import { cn } from '@/lib/utils'
 import { captureNativePhoto, nativePhotoCaptureAvailable } from '@/lib/native-photos'
 import { Button } from '@/components/ui/button'
@@ -29,7 +29,6 @@ import { moneyLocale, compactPrice } from '@/lib/vnd'
 import type { PostMedia } from '@/hooks/use-post-media'
 import { Section, Field } from './post-wizard-parts'
 import { VndInput } from './vnd-input'
-import { EnoSeal } from './eno-seal'
 import { Mascot } from './mascot'
 import { ShareButton } from './share-button'
 import { SquareCropDialog } from './square-crop-dialog'
@@ -149,7 +148,7 @@ export function MediaSection({
             key={i}
             {...bindPhoto(i)}
             className={cn(
-              'group relative aspect-square cursor-move select-none overflow-hidden rounded-xl bg-tint transition-[transform,box-shadow]',
+              'group relative aspect-square cursor-move select-none overflow-hidden rounded-xl bg-tint transition-[scale,box-shadow]',
               // Lifted (mid-drag) affordance: the grabbed tile rises above the grid.
               draggingPhoto === i && 'z-10 scale-105 shadow-xl ring-2 ring-brand/50',
             )}
@@ -585,7 +584,7 @@ export function ContactSection({
             <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
               {/* First-party verification moment ("posting as <registered business>") →
                   the eno seal replaces lucide ShieldCheck (icon-language §0b law). */}
-              <EnoSeal className="h-4 w-4 shrink-0 text-accent-foreground" />
+              <ShieldCheck className="h-4 w-4 shrink-0 text-accent-foreground" />
               {t('Đăng với tư cách', 'Posting as')} <span className="font-semibold text-foreground">{postingAs}</span>
             </p>
           )}

@@ -4,8 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { useParams } from 'next/navigation'
-import { ArrowLeft, ArrowRight, Check, CheckCircle2, Clock, ImagePlus, Info, Loader2, Scale, X, XCircle } from '@/components/ui/icons'
-import { EnoSeal } from '@/components/marketplace/eno-seal'
+import { ArrowLeft, ArrowRight, Check, CheckCircle2, Clock, ImagePlus, Info, Loader2, Scale, X, XCircle, ShieldCheck } from "@/components/ui/icons"
 import { ICON_SIZE, STROKE_DISPLAY, STROKE_MARK } from '@/lib/icon-tokens'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
@@ -282,7 +281,7 @@ export default function DisputeRoomPage() {
               <p className="mt-4 flex items-center gap-1.5 text-sm font-semibold text-warning">
                 {/* §0b: the eno team reviewing IS first-party trust — the seal replaces
                     lucide Shield. Line variant: the warning ink already carries meaning. */}
-                <EnoSeal variant="line" className={ICON_SIZE.md} />
+                <ShieldCheck className={ICON_SIZE.md} />
                 {t('Under review — the eno.vn team is deciding. Reviews typically finish within 48 hours.', 'Đang xem xét — đội ngũ eno.vn sẽ quyết định, thường trong vòng 48 giờ.')}
               </p>
             )}
@@ -350,7 +349,7 @@ export default function DisputeRoomPage() {
                       {item.role === 'admin' && (
                         // The seal marks the first-party voice in the room (§0b micro scale);
                         // line variant on the accent-tinted bubble — the ink is the meaning.
-                        <p className="mb-1 flex items-center gap-1 text-2xs font-bold text-accent-foreground"><EnoSeal variant="line" className={ICON_SIZE.xs} /> eno.vn</p>
+                        <p className="mb-1 flex items-center gap-1 text-2xs font-bold text-accent-foreground"><ShieldCheck className={ICON_SIZE.xs} /> eno.vn</p>
                       )}
                       {item.body && <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">{item.body}</p>}
                       {item.images.length > 0 && (

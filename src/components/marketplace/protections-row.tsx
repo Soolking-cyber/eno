@@ -1,8 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { BadgeCheck, Scale, Flag, Wallet, ChevronRight } from '@/components/ui/icons'
-import { EnoSeal } from '@/components/marketplace/eno-seal'
+import { BadgeCheck, Scale, Flag, Wallet, ChevronRight, ShieldCheck } from '@/components/ui/icons'
 import { ICON_SIZE } from '@/lib/icon-tokens'
 import { cn } from '@/lib/utils'
 import { useLanguage } from '@/context/language-context'
@@ -39,10 +38,10 @@ export function ProtectionsRow({ inline = false }: {
   const { tr } = useLanguage()
 
   // Item leads are LINE-ONLY in surface ink (§6 — brand line is reserved for
-  // interactive affordances; a static list glyph fits no brand bucket). The one
-  // wash in the sheet is the eno seal on the Trust-score item: §0b replaces
-  // lucide ShieldCheck with the seal in first-party trust moments, and its
-  // brand-100 chief is the single color move the icon language allows here.
+  // interactive affordances; a static list glyph fits no brand bucket). There is no wash in
+  // this sheet any more: the Trust-score item used to carry the eno seal with its brand-100
+  // chief as the one colour move, and the seal was replaced app-wide with Solar (owner,
+  // 2026-08-13). All five leads are now the same weight in the same ink.
   const items: { icon: React.ReactNode; title: string; body: string }[] = [
     {
       icon: <BadgeCheck className={`${ICON_SIZE.lg} text-body`} aria-hidden />,
@@ -53,7 +52,14 @@ export function ProtectionsRow({ inline = false }: {
       ),
     },
     {
-      icon: <EnoSeal className={`${ICON_SIZE.lg} text-body`} />,
+      // ⚠️ SOLAR, NOT THE eno SEAL (owner, 2026-08-13, pointing at this glyph on a PDP: "sill old
+      // icons … use solar"). This is one row of four topic icons — BadgeCheck, this, Scale, Lock —
+      // and the other three are Solar. A hand-drawn shield with a brand-100 chief sitting among
+      // them was the one glyph at a different weight and the only filled thing in the row, which
+      // reads as a rendering fault rather than as a signature. The seal stays where it is a CLAIM
+      // (the dialog's own header below, "Business verified", the trust chips); here it was
+      // labelling a paragraph about how the Trust score is computed.
+      icon: <ShieldCheck className={`${ICON_SIZE.lg} text-body`} aria-hidden />,
       title: tr('Evidence-based Trust score', 'Điểm uy tín dựa trên bằng chứng'),
       body: tr(
         "Every seller's Trust score is computed from real activity — verified reviews, response record and dispute history — not paid badges.",
@@ -123,10 +129,9 @@ export function ProtectionsRow({ inline = false }: {
           )}
         />
       }>
-          {/* The eno seal — §0b's protection-chip echo (foundation handoff request):
-              ink line + brand-100 chief, the signature carrying the trust claim.
-              Suppressed when inline: the safety strip already stamps this block once. */}
-          {!inline && <EnoSeal className={ICON_SIZE.lg} />}
+          {/* The block's mark. Suppressed when inline: the safety strip already stamps this
+              block once, and two shields in one box devalues both. */}
+          {!inline && <ShieldCheck className={ICON_SIZE.lg} />}
           <span className={cn('min-w-0 text-xs leading-snug text-body', !inline && 'flex-1')}>
             <span className="font-bold text-foreground">{tr('ENO protects you', 'ENO bảo vệ bạn')}</span>
             {' — '}
@@ -145,7 +150,7 @@ export function ProtectionsRow({ inline = false }: {
       >
         <div className="px-5 pt-5 pb-4">
           <div className="flex items-center gap-2">
-            <EnoSeal className={ICON_SIZE.lg} />
+            <ShieldCheck className={ICON_SIZE.lg} />
             <DialogTitle className="text-lg font-bold text-foreground">
               {tr('How ENO protects you', 'ENO bảo vệ bạn thế nào')}
             </DialogTitle>

@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import { Heart } from '@/components/ui/icons'
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
@@ -17,6 +18,14 @@ export function SaveListingButton({ id, compact = false, className }: { id: stri
   const { tr } = useLanguage()
   const saved = isFavorite(id)
   const label = saved ? tr('Saved', 'Đã lưu') : tr('Save', 'Lưu')
+  // ⚠️ THE POP IS DRIVEN BY THE CLICK, NOT BY `saved`. Both spans below used
+  // `key={saved ? 'on' : 'off'}`, which remounts on ANY change to that boolean — and the favourites
+  // Set is hydrated from localStorage AFTER first paint. So opening the PDP of a listing you had
+  // ALREADY saved played the 0.42s pop and its expanding red ring every single time, celebrating a
+  // decision made on some earlier visit. Same one-shot flag listing-card.tsx uses; the `if (!saved)`
+  // guard below preserves the rule this file already states — an unsave is not a celebration.
+  const [burst, setBurst] = useState(false)
+  const onToggle = () => { if (!saved) setBurst(true); toggle(id) }
 
   if (compact) {
     // Over-media treatment via the shared shell: <IconButton variant="overlay"> IS the
@@ -29,16 +38,19 @@ export function SaveListingButton({ id, compact = false, className }: { id: stri
       <IconButton
         size="md"
         variant="overlay"
-        onClick={() => toggle(id)}
+        onClick={onToggle}
         aria-pressed={saved}
         aria-label={label}
         className={cn('press', className)}
       >
-        {/* §5 user-state + §8 motion: the same key-remount pop the grid card and the row heart
-            use (`key` flips → the span remounts → the CSS one-shot re-runs). The PDP was the
-            one save surface with no confirmation at all, which made the loudest state change in
-            the system the quietest moment. Only ever on SAVE — an unsave is not a celebration. */}
-        <span key={saved ? 'on' : 'off'} className={cn('inline-flex', saved && 'animate-heart-pop')}>
+        {/* §5 user-state + §8 motion: the same one-shot pop the grid card and the row heart use.
+            ⚠️ IT IS NO LONGER A KEY REMOUNT — this comment used to describe `key` flipping so the
+            span remounts and the CSS animation re-runs, which is exactly the mechanism that made it
+            fire unprompted on load (see the note on `burst`). The pop now rides on a flag set in the
+            click handler. The PDP was the one save surface with no confirmation at all, which made
+            the loudest state change in the system the quietest moment; that is still the point.
+            Only ever on SAVE — an unsave is not a celebration. */}
+        <span onAnimationEnd={(e) => { if (e.animationName === 'heart-pop') setBurst(false) }} className={cn('inline-flex', burst && 'animate-heart-pop')}>
           <Heart className={cn('icon-own-ink h-5 w-5', saved ? 'fill-current text-destructive' : 'fill-black/25')} />
         </span>
       </IconButton>
@@ -50,7 +62,7 @@ export function SaveListingButton({ id, compact = false, className }: { id: stri
       variant="bare"
       size="none"
       type="button"
-      onClick={() => toggle(id)}
+      onClick={onToggle}
       aria-pressed={saved}
       aria-label={label}
       className={cn(
@@ -62,7 +74,7 @@ export function SaveListingButton({ id, compact = false, className }: { id: stri
       {/* Saved = solid RED (--destructive), the same pair FavoriteHeart uses. ⚠️ The colour rides on
           text-*, never fill-*: these glyphs paint every path with fill="currentColor", so a `fill:`
           set on the <svg> never reaches the ink (that bug made both states render white). */}
-      <span key={saved ? 'on' : 'off'} className={cn('inline-flex', saved && 'animate-heart-pop')}>
+      <span onAnimationEnd={(e) => { if (e.animationName === 'heart-pop') setBurst(false) }} className={cn('inline-flex', burst && 'animate-heart-pop')}>
         <Heart className={cn('icon-own-ink h-4 w-4', saved && 'fill-current text-destructive')} />
       </span>
       <span className="hidden sm:inline">{label}</span>

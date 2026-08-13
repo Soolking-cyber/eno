@@ -79,6 +79,26 @@ export function PromoBanner() {
   const paused = useRef(false)
   const hold = useCallback((v: boolean) => { paused.current = v }, [])
 
+  /**
+   * ONE "the page has finished loading" SIGNAL, SERVING TWO PURPOSES: it releases the off-screen
+   * slides' artwork, and it starts autoplay. They are deliberately the same flag — art must never
+   * arrive later than the movement that reveals it, and coupling them makes that impossible to get
+   * wrong by editing one of them.
+   *
+   * ⚠️ readyState FIRST, NOT A BARE addEventListener. On a soft navigation back into `/` the load
+   * event fired long ago and will never fire again, so a listener alone would leave the carousel
+   * frozen with three slides showing no artwork — the owner's autoplay silently dead on every
+   * route change into the home page, and only there, which is the kind of bug that survives a
+   * hard-refresh spot check.
+   */
+  const [artReady, setArtReady] = useState(false)
+  useEffect(() => {
+    if (document.readyState === 'complete') { setArtReady(true); return }
+    const on = () => setArtReady(true)
+    window.addEventListener('load', on, { once: true })
+    return () => window.removeEventListener('load', on)
+  }, [])
+
   useEffect(() => {
     if (!api) return
     const sync = () => setSelected(api.selectedScrollSnap())
@@ -100,6 +120,21 @@ export function PromoBanner() {
   // tear down and rebuild the interval on every pointer enter/leave, and the timer would restart
   // from zero each time, so a visitor sweeping the pointer across the banner would freeze it
   // indefinitely without ever meaning to.
+  //
+  // ⚠️ A FIFTH PAUSE CONDITION, AND IT IS A PERFORMANCE ONE: NOTHING MOVES UNTIL THE PAGE HAS
+  // LOADED. This banner is the home page's LCP element, and the timer used to start on mount — so
+  // on a mid-range phone the first advance landed while the page was still loading. Two things go
+  // wrong at once, and Lighthouse against production showed both: Speed Index was 6.9s because
+  // Speed Index scores how quickly the viewport stops CHANGING, and a carousel that swaps a
+  // full-width raster every 5s never lets it settle (this is invisible to CLS, which was 0.001 —
+  // nothing is moving, the pixels are simply being replaced). And LCP does not stop updating at
+  // `load`: both external reviewers confirmed it runs until the first user interaction, so every
+  // slide that paints before a tap is a fresh LCP candidate, each one later than the last.
+  //
+  // Waiting for `load` costs the visitor nothing — the first slide is the one they are reading —
+  // and it lets the metric settle on the paint that actually matters. The owner's decision to keep
+  // autoplay (2026-08-05, over both reviewers) is untouched: this changes when the timer starts,
+  // never whether it runs.
   useEffect(() => {
     if (!api) return
     // Reduced motion is a hard opt-out, not a slower interval: the whole point is no unrequested
@@ -107,6 +142,8 @@ export function PromoBanner() {
     // mid-session gets it on the next mount, which is a fair trade for not re-subscribing.
     const rm = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
     if (rm) return
+
+    if (!artReady) return // `artReady` IS the "page has loaded" signal — see the effect that sets it.
 
     const id = setInterval(() => {
       // ⚠️ document.hidden is checked INSIDE the tick, not via a visibilitychange listener. A
@@ -117,7 +154,7 @@ export function PromoBanner() {
       api.scrollNext()
     }, 5000)
     return () => clearInterval(id)
-  }, [api])
+  }, [api, artReady])
 
   // ⚠️ NO MARGIN OF ITS OWN. The landing wrapper in listings-explorer.tsx owns vertical rhythm via
   // `space-y-8 sm:space-y-12`; an `mb-*` here ADDS to that gap rather than replacing it, and the
@@ -137,6 +174,15 @@ export function PromoBanner() {
         {/* The pause surface. onFocus/onBlur use the REACT synthetic events, which bubble from any
             descendant — so tabbing to a dot or the CTA inside a slide stops the rotation, which is
             the keyboard equivalent of hovering. Plain DOM focus/blur do not bubble; these do. */}
+        {/* ⚠️ A SECOND WAY TO RELEASE THE ARTWORK, AND IT CLOSES THE ONE HOLE IN GATING ON `load`.
+            Holding the off-screen rasters until load is safe against AUTOPLAY, because the same flag
+            starts it — but it is not safe against a HAND. A visitor who swipes (or arrows, or tabs
+            to a dot) in the second before load would land on a partner slide whose <img> had not
+            been rendered yet: the panel keeps its height, so nothing jumps, but the artwork IS the
+            slide, so they would arrive at an empty box. Capture-phase, so it runs before embla's own
+            pointer handling begins the drag, which means the <img> is already in the DOM by the time
+            the slide travels. onKeyDownCapture covers the arrows and the dots for keyboard users,
+            who would otherwise be the only people who could still hit it. */}
         <Carousel
           opts={{ loop: true }}
           setApi={setApi}
@@ -145,6 +191,8 @@ export function PromoBanner() {
           onMouseLeave={() => hold(false)}
           onFocus={() => hold(true)}
           onBlur={() => hold(false)}
+          onPointerDownCapture={() => setArtReady(true)}
+          onKeyDownCapture={() => setArtReady(true)}
         >
           {/* ⚠️ THE PRIMITIVE'S GUTTER IS CANCELLED HERE, ON BOTH HALVES TOGETHER. ui/carousel pairs
               a -ml-4 on the track with a pl-4 on every item, which is right for a multi-card shelf
@@ -172,7 +220,18 @@ export function PromoBanner() {
                   aria-hidden={!current}
                   aria-label={tr(`Slide ${i + 1} of ${PROMO_SLIDES.length}`, `Trang ${i + 1} trên ${PROMO_SLIDES.length}`)}
                 >
-                  <SlidePanel slide={slide} first={i === 0} />
+                  {/* ⚠️ `artReady` HOLDS BACK THE OFF-SCREEN ARTWORK UNTIL THE PAGE HAS LOADED, and
+                      it is a bandwidth fix rather than a bytes-total one. Measured on production:
+                      the second slide's raster (gmbr-mobile.webp, 45 KB — the LARGEST image on the
+                      home page) was being fetched at priority HIGH, ahead of listing thumbnails and
+                      alongside the LCP element it sits behind. The markup was already correct —
+                      `loading="lazy" fetchPriority="auto"` — so this is not a bug being fixed:
+                      Chrome loads a lazy image once it is within the viewport's lazy threshold, and
+                      an off-screen carousel slide sits well inside it, after which the in-viewport
+                      priority boost promotes it. An attribute cannot argue with that; not rendering
+                      the <img> can. It comes back on `load`, i.e. before the same gate lets autoplay
+                      move anything, so no slide can ever be reached while its art is still absent. */}
+                  <SlidePanel slide={slide} first={i === 0} artReady={i === 0 || artReady} />
                 </CarouselItem>
               )
             })}
@@ -185,11 +244,11 @@ export function PromoBanner() {
               to stylesheet order. Pointer-only: on touch the swipe is the gesture. */}
           <CarouselPrevious
             variant="bare"
-            className="left-2 hidden text-white/80 opacity-0 transition-[opacity,color,transform] hover:text-white active:scale-[0.96] group-hover/carousel:opacity-100 focus-visible:opacity-100 pc:flex"
+            className="left-2 hidden text-white/80 opacity-0 transition-[opacity,color,scale] hover:text-white active:scale-[0.96] group-hover/carousel:opacity-100 focus-visible:opacity-100 pc:flex"
           />
           <CarouselNext
             variant="bare"
-            className="right-2 hidden text-white/80 opacity-0 transition-[opacity,color,transform] hover:text-white active:scale-[0.96] group-hover/carousel:opacity-100 focus-visible:opacity-100 pc:flex"
+            className="right-2 hidden text-white/80 opacity-0 transition-[opacity,color,scale] hover:text-white active:scale-[0.96] group-hover/carousel:opacity-100 focus-visible:opacity-100 pc:flex"
           />
 
           {/* Dots. Real <Button>s with labels, not decorative spans: they are the only slide control
@@ -330,7 +389,7 @@ export function PromoBanner() {
  * component's min-h exists to prevent. That file is owned by another stream in this wave; if it
  * still reads lg:min-h-[300px], this cap has shipped a regression and that is the fix.
  */
-function SlidePanel({ slide, first = false }: { slide: PromoSlide; first?: boolean }) {
+function SlidePanel({ slide, first = false, artReady = true }: { slide: PromoSlide; first?: boolean; /** False while an off-screen slide's raster is still held back — see the call site. Defaults true so any other caller renders art as before. */ artReady?: boolean }) {
   const { tr } = useLanguage()
   const Icon = slide.icon
 
@@ -405,7 +464,12 @@ function SlidePanel({ slide, first = false }: { slide: PromoSlide; first?: boole
         // subline and the CTA need before they start colliding at the narrowest phone.
         className="group relative block aspect-[2.04] min-h-[150px] sm:aspect-[3.14] lg:aspect-[4.16] overflow-hidden"
       >
-        <picture>
+        {/* ⚠️ CLS IS UNAFFECTED BY THE HOLD, AND THAT IS STRUCTURAL RATHER THAN LUCKY. The box above
+            owns its height through `aspect-[…]` + `min-h`, and the <img> is `absolute inset-0` — it
+            fills the box, it never defines it. So the panel is exactly as tall with the art missing
+            as with it present, which is the same reason this component already measured CLS 0 while
+            the bytes were in flight. Rendering nothing here for a moment is a no-op on layout. */}
+        {artReady && <picture>
           {/* ⚠️ THE SWITCH IS AT lg (1024), NOT sm. The two cuts are 4.27:1 (desktop) and 1.95:1
               (mobile). Serving the wide cut from 640px put a 4.27:1 image into a ~2.8:1 box, which
               `object-cover` then had to crop by a third — taking the lockup off the left and the
@@ -462,7 +526,7 @@ function SlidePanel({ slide, first = false }: { slide: PromoSlide; first?: boole
             loading={first ? 'eager' : 'lazy'}
             decoding={first ? 'sync' : 'async'}
           />
-        </picture>
+        </picture>}
         {/* ⛔ NO VISIBLE "Advertisement" CHIP — REMOVED BY THE OWNER, 2026-08-11, AND NOT AN OVERSIGHT.
             A pill reading "Quảng cáo · <partner>" was rendered over this artwork and taken out on the
             owner's instruction. Whether a paid placement is labelled on its face is a commercial and

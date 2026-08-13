@@ -3,11 +3,10 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, CheckCircle2, MessageCircle } from '@/components/ui/icons'
+import { ArrowLeft, CheckCircle2, MessageCircle, ShieldCheck } from "@/components/ui/icons"
 import { toast } from 'sonner'
 import { useAuth } from '@/context/auth-context'
 import { Tr, useLanguage, useTr } from '@/context/language-context'
-import { EnoSeal } from '@/components/marketplace/eno-seal'
 import { HelpTopicIcon } from '@/components/marketplace/help-center'
 import { HelpVote } from '@/components/marketplace/help-vote'
 import { Avatar } from '@/components/ui/avatar'
@@ -175,7 +174,7 @@ export function HelpThreadClient({ post, comments: initial }: { post: HelpPost; 
                 brand-100 chief still reads one step deeper than the badge's bg-accent
                 in both themes. 14px sits on the header row beside the topic chip's
                 14px glyph. */}
-            <EnoSeal className="size-3.5" />
+            <ShieldCheck className="size-3.5" />
             <Tr text="From the eno team" />
           </Badge>
         )}

@@ -3,12 +3,11 @@
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { ChevronLeft, Check, Sparkles, Loader2 } from '@/components/ui/icons'
+import { ChevronLeft, Check, Sparkles, Loader2, ShieldCheck } from "@/components/ui/icons"
 import { toast } from 'sonner'
 import type { SerializedCategory } from '@/lib/types'
 import { hasRealCoords } from '@/lib/geo'
 import { CategoryIcon } from './category-icons'
-import { EnoSeal } from './eno-seal'
 // Small-mount CategoryIcon re-tier (icon-language §2): the registry bakes the
 // display stroke (1.5) for h-11+ tiles; at the picker's h-4/h-3.5 that scales to
 // <1px of ink, so the picker passes the UI weight explicitly.
@@ -1156,7 +1155,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
                 not a generic lucide lock: §0b reserves exactly this moment for the
                 signature, at the inline 14px echo tier. */}
             <p className="flex items-start gap-1.5 pt-1 text-2xs leading-relaxed text-ink-4">
-              <EnoSeal className="mt-px h-3.5 w-3.5" />
+              <ShieldCheck className="mt-px h-3.5 w-3.5" />
               {t('Tin hiển thị ngay. Số của bạn được giữ kín.', 'Goes live instantly. Your number stays private.')}
             </p>
           </div>

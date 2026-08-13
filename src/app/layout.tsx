@@ -110,16 +110,27 @@ const SITE_ORIGIN = process.env.NEXT_PUBLIC_APP_URL || "https://eno.vn";
  * ARIAL for months and no weight written anywhere could change it. One family, no unicode-range,
  * no language split: there is no longer a stack for a fallback to win.
  *
- * ⚠️ FOUR STATIC WEIGHTS, AND 700 IS THE CEILING. Open Runde ships Regular/Medium/Semibold/Bold
- * and is NOT variable ("Can you make it a variable font? -> Probably not" — the author). So
- * `font-extrabold` (800) and `font-black` (900) have nothing to resolve to; globals.css retargets
- * both to 700 so the number in the file is the weight that paints. Prices are 700 by the owner's
- * call on the same day, which is the ceiling anyway.
+ * ⚠️ TWO STATIC WEIGHTS — 400 AND 700 — AND THAT IS A PERFORMANCE DECISION, NOT A TASTE ONE.
+ * Owner, 2026-08-13: *"drop font weights to 2 bold for prices and bold parts and normal else"*.
+ * Open Runde is NOT variable ("Can you make it a variable font? -> Probably not" — the author), so
+ * every weight is its own ~64 KB file. `preload: true` puts each one on a
+ * `<link rel="preload" as="font">`, which the browser fetches at priority HIGH — the same band as
+ * the LCP image, and issued earlier. Lighthouse against production caught exactly that: four fonts
+ * (257 KB) occupying High while the promo banner's 33 KB webp — the LCP element — waited behind
+ * them. Two weights halve that queue.
+ *
+ * ⚠️ 500 AND 600 DID NOT DISAPPEAR, THEY WERE REMAPPED. globals.css `@theme` retargets
+ * `--font-weight-medium` to 400 and `--font-weight-semibold` to 700 (joining extrabold/black, which
+ * were already 700 because the family has no cut above Bold). So all ~470 `font-semibold` and ~90
+ * `font-medium` call sites keep their class — the class still names the TIER the author meant — and
+ * the tier now spells itself with a weight that ships. The retarget is load-bearing rather than
+ * cosmetic: the note in globals.css shows why CSS font-matching alone would have moved 500 down and
+ * 600 up, i.e. by accident instead of by decision.
  *
  * ⚠️ SUBSET TO LATIN + VIETNAMESE, WHICH IS 62% OF THE BYTES. The upstream release ships the full
- * charset at ~155 KB per weight — 620 KB for four. Subset with pyftsubset to
+ * charset at ~155 KB per weight — 310 KB for two. Subset with pyftsubset to
  * U+0000-024F, U+0300-036F, U+1E00-1EFF (the Vietnamese block) plus punctuation and currency,
- * they are 236 KB total, and the coverage check above was re-run ON THE SUBSET to prove nothing
+ * they are 124 KB total, and the coverage check above was re-run ON THE SUBSET to prove nothing
  * was dropped. Regenerate with scripts/gen-fonts.sh if the upstream release moves.
  *
  * Licence: OFL-1.1, same as Inter (src/fonts/OFL-OpenRunde.txt).
@@ -127,8 +138,6 @@ const SITE_ORIGIN = process.env.NEXT_PUBLIC_APP_URL || "https://eno.vn";
 const openRunde = localFont({
   src: [
     { path: "../fonts/open-runde-regular.woff2", weight: "400", style: "normal" },
-    { path: "../fonts/open-runde-medium.woff2", weight: "500", style: "normal" },
-    { path: "../fonts/open-runde-semibold.woff2", weight: "600", style: "normal" },
     { path: "../fonts/open-runde-bold.woff2", weight: "700", style: "normal" },
   ],
   variable: "--font-open-runde",

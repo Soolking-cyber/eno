@@ -308,7 +308,16 @@ export function MobileNav() {
         // it. 1px is within the slack of everything that clears this bar (the `.kb-*` contract
         // and `--nav-h` both use 4.5rem = 72px), but if something ever measures the bar at
         // runtime, it is now 72.
-        'mobile-nav lg:hidden fixed inset-x-0 bottom-0 z-40 hairline-t bg-card pb-[env(safe-area-inset-bottom)] transition-[transform,opacity] duration-[250ms] ease-out [will-change:transform,opacity] motion-reduce:transition-none',
+        // ⚠️ BOTH `translate` AND `transform`, AND THE PAIR IS NOT REDUNDANT — the bar is moved by
+        // two different mechanisms. Tailwind's `translate-y-full` / `translate-y-0` compile to the
+        // standalone `translate` property in v4 (see the note on #app-header), so naming only
+        // `transform` meant the 72px tab bar — the most-looked-at edge on mobile — teleported in a
+        // single frame on every scroll reversal while its opacity faded over 250ms. But
+        // `html.kb-open .mobile-nav` in globals.css retracts it with a real
+        // `transform: translateY(100%)` when the keyboard opens, so dropping `transform` here would
+        // trade one snap for another. Listing both is what makes every route into and out of this
+        // bar continuous.
+        'mobile-nav lg:hidden fixed inset-x-0 bottom-0 z-40 hairline-t bg-card pb-[env(safe-area-inset-bottom)] transition-[translate,transform,opacity] duration-[250ms] ease-out [will-change:translate,transform,opacity] motion-reduce:transition-none',
         // Reveal-on-focus: if a keyboard user tabs into the (scroll-hidden) bar, :focus-within
         // out-specificities the retract below and slides it back into view — never an invisible,
         // focused control. (Harmless while docked; a no-op when inert during keyboard-up.)

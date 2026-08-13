@@ -56,7 +56,7 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
       onClick={() => onOpen(l)}
       onMouseEnter={() => onPrefetch(l.id)}
       onTouchStart={() => onPrefetch(l.id)}
-      className="group flex items-center gap-3 rounded-xl p-1.5 pr-1 text-left transition-[background-color,transform] duration-100 hover:bg-muted active:scale-[0.99] cursor-pointer"
+      className="group flex items-center gap-3 rounded-xl p-1.5 pr-1 text-left transition-[background-color,scale] duration-100 hover:bg-muted active:scale-[0.99] cursor-pointer"
     >
       {/* Thumbnail — SQUARE, small enough that the row reads as one line.
           ⚠️ IT WAS `h-14 w-16` — 64×56 — AND IT WAS THE ONLY NON-SQUARE PRODUCT PHOTO LEFT IN THE

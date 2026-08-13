@@ -362,7 +362,7 @@ export function FacetBar({
       onClick={() => setAreaOpen((o) => !o)}
       className={cn(
         // h-12 (48px) — kid-friendly tap target; flat, borderless (bg-muted only on hover).
-        'flex min-h-12 shrink-0 items-center justify-between gap-1.5 rounded-xl px-4 text-sm font-semibold transition-[background-color,color,transform] duration-100 active:scale-[0.96] cursor-pointer',
+        'flex min-h-12 shrink-0 items-center justify-between gap-1.5 rounded-xl px-4 text-sm font-semibold transition-[background-color,color,scale] duration-100 active:scale-[0.96] cursor-pointer',
         wrap,
         areaOpen ? 'text-foreground' : areaActive ? active : 'text-body hover:bg-muted',
       )}
@@ -460,7 +460,7 @@ export function FacetBar({
                   type="button"
                   className={cn(
                     // h-12 (48px) to match the Area pill — flat, borderless.
-                    'flex min-h-12 shrink-0 items-center justify-start gap-1.5 rounded-xl px-4 text-sm font-semibold transition-[background-color,color,transform] duration-100 active:scale-[0.96] cursor-pointer',
+                    'flex min-h-12 shrink-0 items-center justify-start gap-1.5 rounded-xl px-4 text-sm font-semibold transition-[background-color,color,scale] duration-100 active:scale-[0.96] cursor-pointer',
                     advOpen || activeAdvCount > 0 ? active : 'text-body hover:bg-muted',
                   )}
                 >

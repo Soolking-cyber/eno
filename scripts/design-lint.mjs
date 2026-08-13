@@ -243,6 +243,145 @@ function checkMoney(rel, codeLines, rawLines) {
   return n
 }
 
+/**
+ * ⚠️ THE APP SHIPS TWO FONT FILES — 400 AND 700 — SO A RAW 500 OR 600 REQUESTS A FACE THAT IS NOT
+ * THERE (owner, 2026-08-13: "drop font weights to 2 bold for prices and bold parts and normal
+ * else"). It does not fail visibly: CSS font-matching quietly resolves 500 down to 400 and 600 up
+ * to 700, so the glyphs look plausible and only the computed style disagrees with the file. That is
+ * the worst shape a regression can take — a number in the source that is not the number that
+ * paints. globals.css `@theme` maps the two tiers ON PURPOSE (`--font-weight-medium: 400`,
+ * `--font-weight-semibold: 700`); this refuses any OTHER site from re-deciding it by hand.
+ *
+ * The Tailwind CLASSES stay legal — `font-medium` and `font-semibold` are exactly how a call site
+ * should name the tier, and they now resolve through the retargeted tokens. Only a hardcoded
+ * numeric weight is refused, in CSS (`font-weight: 600`) and in JSX (`fontWeight: 600`,
+ * `fontWeight="600"` — SVG <text> takes it as an attribute).
+ *
+ * If a middle weight is genuinely wanted again, add the woff2 back in scripts/gen-fonts.sh AND
+ * src/app/layout.tsx AND drop its retarget — then this rule can go. Do not silence it alone; that
+ * only restores the mismatch it exists to catch.
+ */
+const SHIPPED_FONT_WEIGHTS = new Set(['400', '700'])
+// ⚠️ `(?!\d)` — WITHOUT IT, `font-weight: 1000` MATCHES ITS FIRST THREE DIGITS and gets reported as
+// a bogus "font-weight 100". Caught reviewing the rule; 1000 is a legal CSS value even though this
+// app has none.
+const FONT_WEIGHT_RE = /font-weight:\s*(\d{3})(?!\d)|fontWeight[:=]\s*["'{]?\s*(\d{3})(?!\d)/g
+
+/**
+ * ⚠️ EMAIL IS NOT THE APP, AND THIS EXEMPTION IS THE WHOLE REASON THE RULE IS SAFE TO TURN ON.
+ * `src/lib/emails/*` builds HTML for Gmail, Outlook and Apple Mail. Those clients never load
+ * eno's webfont — a mail template cannot preload a woff2 and would not be allowed to — so they
+ * render in the recipient's own stack, where 600 and 800 are ordinary requests that the client
+ * matches or synthesises itself. Linting them against what eno.vn ships would be flagging a value
+ * for a constraint that does not exist there, and the only way to "fix" it would be to make the
+ * emails worse. Caught by the rule's own first run: 8 of its 10 initial hits were mail templates.
+ */
+const FONT_WEIGHT_ALLOW_RE = /^src\/lib\/emails\//
+
+function checkFontWeights(rel, codeLines, rawLines) {
+  if (FONT_WEIGHT_ALLOW_RE.test(rel)) return 0
+  let n = 0
+  codeLines.forEach((line, i) => {
+    if (rawLines[i]?.includes('design-lint-allow')) return
+    for (const m of line.matchAll(FONT_WEIGHT_RE)) {
+      const w = m[1] ?? m[2]
+      if (SHIPPED_FONT_WEIGHTS.has(w)) continue
+      n++
+      console.error(
+        `${rel}:${i + 1}  font-weight ${w}  — the app ships only 400 and 700 (Open Runde is not a ` +
+          `variable font, so each weight is a separate ~64 KB preload). ${w} silently resolves to ` +
+          `${Number(w) < 500 || w === '500' ? '400' : '700'} instead. Use the font-normal/font-bold ` +
+          `classes, or the retargeted font-medium/font-semibold, so the tier is named rather than ` +
+          `numbered. See the @theme note in src/app/globals.css.`,
+      )
+    }
+  })
+  return n
+}
+
+/**
+ * ⚠️ TAILWIND v4 SPLIT `transform` INTO `translate` / `scale` / `rotate`, AND A HAND-WRITTEN
+ * TRANSITION LIST THAT STILL SAYS `transform` ANIMATES NOTHING.
+ *
+ * `-translate-y-full` compiles to `translate: var(--tw-translate-x) var(--tw-translate-y)` and
+ * `active:scale-[0.96]` to `scale: …` — the standalone properties, NOT the `transform` shorthand
+ * (verified in the built CSS, not inferred). So `transition-[transform,opacity]` on an element that
+ * moves via those utilities subscribes to a property nothing ever writes: the movement lands in ONE
+ * frame while whatever else is in the list tweens normally. It does not throw, it does not look like
+ * a bug in review, and it reads on screen as the element snapping or jittering.
+ *
+ * This was not hypothetical — a multi-agent sweep found it on TEN call sites at once, including the
+ * sticky header and the mobile tab bar, i.e. the two largest surfaces on the site, on every
+ * scroll-direction reversal. The repo already documented the trap in four separate comments
+ * (ui/button.tsx, ui/sticky-action-bar.tsx, pdp-shop-link.tsx, globals.css §motion) and it kept
+ * happening anyway, which is the definition of something that needs a gate rather than a note.
+ *
+ * The rule is deliberately narrow: it fires only when a line names `transform` inside a
+ * `transition-[…]` AND uses a `scale-`/`translate-` utility on that same line, and only when the
+ * list does NOT already name the matching property. Prefer `.press` or the primitive's own
+ * transition over hand-writing a list at all.
+ */
+const TRANSITION_LIST_RE = /transition-\[([^\]]*)\]/
+// ⚠️ GLOBAL, AND EVERY MATCH IS CHECKED — NOT JUST THE FIRST. agy caught this on the review of the
+// rule itself: `transition-[transform,scale] scale-95 translate-y-4` used to match `scale`, find
+// `scale` in the list and return, silently passing a line where `translate` is still unanimated.
+// ⚠️ `rotate` IS IN THE SET TOO. The doc comment above always named all three properties v4 split
+// out; the first version of this regex only hunted two of them, which opus caught.
+// (opus also reported that `group-hover:-translate-y-0.5` escapes this pattern. Measured against
+// the actual regex: it does NOT — the leading character class includes `:`, so the match can begin
+// at the variant's own colon and the `-?` then takes the minus. Left as-is on the evidence.)
+const MOVES_VIA_SPLIT_RE = /(?:^|[\s:'"`])-?(?:group-hover:|hover:|focus:|focus-visible:|active:|data-\[[^\]]*\]:|[a-z]+:)*(scale|translate|rotate)-/g
+
+/**
+ * ⚠️ IT SCANS A WINDOW, NOT ONE LINE, AND THE FLAGSHIP CASE IS WHY. The first version required the
+ * `transition-[…]` and the `scale-`/`translate-` utility on the SAME physical line — and opus
+ * pointed out, correctly, that neither of the two worst real offenders looks like that. In
+ * header.tsx and mobile-nav.tsx the transition sits on one argument of a `cn()` call and the
+ * movement on the next:
+ *     'sticky top-0 … transition-[translate,opacity] …',
+ *     hidden ? '-translate-y-full opacity-0' : 'translate-y-0 opacity-100',
+ * A gate that cannot see its own motivating case is theatre. The window is the rest of the class
+ * expression, bounded: from the transition line to whichever comes first of a closing `)` at the
+ * `cn(` indent, a blank line, or WINDOW lines. That is a heuristic — a `cn()` describing two
+ * different elements could pair a transition with an unrelated sibling's translate — so the escape
+ * hatch is the usual trailing `design-lint-allow` on the offending line.
+ */
+const TRANSITION_WINDOW = 12
+
+function checkTransitionProps(rel, codeLines, rawLines) {
+  let n = 0
+  codeLines.forEach((line, i) => {
+    if (rawLines[i]?.includes('design-lint-allow')) return
+    const list = line.match(TRANSITION_LIST_RE)
+    if (!list || !list[1].includes('transform')) return
+    // Gather the movement utilities on this line AND the following few, stopping at a blank line
+    // so the scan cannot wander out of the class expression into unrelated JSX.
+    let scanned = line
+    for (let j = i + 1; j < Math.min(codeLines.length, i + TRANSITION_WINDOW); j++) {
+      if (!codeLines[j].trim()) break
+      // A new top-level declaration or a new capitalised JSX element means we have left this
+      // element's class expression; without this the window bled into the NEXT component and
+      // reported its utilities against this one's transition (seen while testing the rule).
+      if (/^\s*(export|const|function|class|return)\b|^\s*<[A-Z]/.test(codeLines[j])) break
+      if (rawLines[j]?.includes('design-lint-allow')) continue
+      scanned += '\n' + codeLines[j]
+      if (/^\s*\)/.test(codeLines[j])) break
+    }
+    const missing = [...new Set([...scanned.matchAll(MOVES_VIA_SPLIT_RE)].map((m) => m[1]))]
+      .filter((prop) => !list[1].includes(prop))
+    for (const prop of missing) {
+      n++
+      console.error(
+        `${rel}:${i + 1}  transition-[${list[1]}] with a \`${prop}-\` utility  — Tailwind v4 compiles ` +
+          `\`${prop}-*\` to the standalone \`${prop}\` property, NOT \`transform\`, so this transition ` +
+          `subscribes to something nothing writes and the movement happens in one frame. Name ` +
+          `\`${prop}\` in the list (or drop the hand-written list and use \`.press\`).`,
+      )
+    }
+  })
+  return n
+}
+
 // Files allowed to use a raw Tailwind palette colour. Keep this list SHORT and justified —
 // every entry is a surface that will not adapt in dark mode.
 const PALETTE_ALLOW = new Set([])
@@ -402,7 +541,12 @@ for (const file of walk(SRC)) {
   // The money gate runs on BOTH extensions — it is about values, not markup. Everything after
   // the guard below is markup-only and must not see a .ts file (see the note on walk()).
   violations += checkMoney(rel, lines, rawLines)
+  // Same reasoning: a hardcoded weight is about a VALUE, so it is checked on .ts too (SVG <text>
+  // and inline styles both live outside .tsx in places). The stylesheet is swept separately below
+  // — walk() yields only .tsx?, and widening it would hand every markup rule a CSS file.
+  violations += checkFontWeights(rel, lines, rawLines)
   if (!isMarkupFile(file)) continue
+  violations += checkTransitionProps(rel, lines, rawLines)
   violations += checkRawControls(rel, lines, rawLines)
   violations += checkPortals(rel, lines, rawLines)
   for (const rule of RULES) {
@@ -427,6 +571,27 @@ for (const file of walk(SRC)) {
       console.error(`${rel}:${i + 1}  ${hits.join(' ')}  — ${rule.name}`)
     })
   }
+}
+
+// ── the stylesheet ───────────────────────────────────────────────────────────────────────────
+// Swept on its own rather than through walk(): walk() yields .tsx? because every rule above reads
+// markup, and widening it to .css would hand a stylesheet to the raw-control, portal and JSX-comment
+// gates. Only the value-shaped check applies here. Globbed rather than hardcoded to globals.css so
+// a second stylesheet is covered the day it appears instead of the day someone remembers.
+function* walkCss(dir) {
+  for (const name of readdirSync(dir)) {
+    const p = join(dir, name)
+    if (statSync(p).isDirectory()) { if (!SKIP_DIRS.has(relative(ROOT, p))) yield* walkCss(p) }
+    else if (name.endsWith('.css')) yield p
+  }
+}
+for (const file of walkCss(SRC)) {
+  const rel = relative(ROOT, file)
+  const raw = readFileSync(file, 'utf8')
+  const rawLines = raw.split('\n')
+  // ⚠️ stripComments() is written for // and /* */ in TS; a CSS file has only the block form and
+  // the same helper handles it, so the @theme note explaining the retarget does not trip its own rule.
+  violations += checkFontWeights(rel, stripComments(raw).split('\n'), rawLines)
 }
 
 if (violations) {

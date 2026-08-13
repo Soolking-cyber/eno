@@ -1,13 +1,12 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Loader2, Upload } from '@/components/ui/icons'
+import { Loader2, Upload, ShieldCheck } from "@/components/ui/icons"
 import { toast } from 'sonner'
 import { useLanguage } from '@/context/language-context'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Checkbox } from '@/components/ui/checkbox'
-import { EnoSeal } from './eno-seal'
 
 // The seller's own "get verified" surface (mounts under the business profile editor).
 // One badge, granted after >=2 channels: the tax-registry check (Channel 1, automatic,
@@ -105,14 +104,14 @@ export function BusinessVerificationPanel() {
       {/* text-foreground on the WRAPPER so the seal's line inherits the heading ink (§0 —
           the wash in the chief is the brand note; a blue outline is §6's link signal). */}
       <div className="flex items-center gap-2 text-foreground">
-        <EnoSeal className="h-4 w-4" />
+        <ShieldCheck className="h-4 w-4" />
         <h3 className="text-sm font-bold text-foreground">{tr('Get your business verified', 'Xác minh doanh nghiệp')}</h3>
       </div>
 
       {isVerified ? (
         <p className="mt-2 flex items-center gap-1.5 text-sm font-semibold text-success">
           {/* Success ink on the line, brand wash in the chief — §0's "same line, one wash". */}
-          <EnoSeal className="h-4 w-4" /> {tr('Your business is verified.', 'Doanh nghiệp của bạn đã được xác minh.')}
+          <ShieldCheck className="h-4 w-4" /> {tr('Your business is verified.', 'Doanh nghiệp của bạn đã được xác minh.')}
         </p>
       ) : isPending ? (
         <p className="mt-2 text-sm text-body">
@@ -158,7 +157,7 @@ export function BusinessVerificationPanel() {
           <div className="mt-3">
             <Button variant="cta" size="sm" disabled={busy || !hasId || !hasBank || !consent} onClick={() => void submit()}>
               {/* line variant: on the solid brand CTA the ink already carries the meaning (§0b). */}
-              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <EnoSeal variant="line" className="h-4 w-4" />}
+              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
               {tr('Submit for verification', 'Gửi để xác minh')}
             </Button>
           </div>

@@ -2,8 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { Bell, MessageSquare, Tag, Clock, Search, Sparkles, Scale, X, TrendingDown } from '@/components/ui/icons'
-import { EnoSeal } from './eno-seal'
+import { Bell, MessageSquare, Tag, Clock, Search, Sparkles, Scale, X, TrendingDown, ShieldCheck } from "@/components/ui/icons"
 import { STROKE_NAV } from '@/lib/icon-tokens'
 import { useNotifications } from '@/context/notifications-context'
 import { Badge } from '@/components/ui/badge'
@@ -61,7 +60,7 @@ export function NotificationBell() {
             // active:scale-[0.96] is safe on this popover anchor: Base UI opens on `click` (fires after
             // pointerup, i.e. after :active releases), so floating-ui measures the rect at scale-100
             // and autoUpdate never re-reads on a transform — the panel is never placed off a pressed rect.
-            className="text-body transition-[background-color,color,transform] duration-100 hover:bg-accent hover:text-accent-foreground active:scale-[0.96]"
+            className="text-body transition-[background-color,color,scale] duration-100 hover:bg-accent hover:text-accent-foreground active:scale-[0.96]"
           >
             {/* 28px everywhere — matches the bottom-nav icons on mobile and the
                 Saved/Messages action icons on desktop (one consistent nav scale).
@@ -145,7 +144,7 @@ export function NotificationBell() {
               // 'system' = an official admin→user message, i.e. eno itself speaking — a genuine
               // first-party moment, so it carries the eno seal (icon-language §0b: the signature
               // echo, reserved for first-party trust; every other type keeps its lucide verb).
-              const Icon = n.type === 'system' ? EnoSeal : n.type === 'offer' ? Tag : n.type === 'price_drop' ? TrendingDown : n.type === 'reminder' ? Clock : n.type === 'saved_search' ? Search : n.type === 'milestone' ? Sparkles : n.type === 'dispute' ? Scale : MessageSquare
+              const Icon = n.type === 'system' ? ShieldCheck : n.type === 'offer' ? Tag : n.type === 'price_drop' ? TrendingDown : n.type === 'reminder' ? Clock : n.type === 'saved_search' ? Search : n.type === 'milestone' ? Sparkles : n.type === 'dispute' ? Scale : MessageSquare
               return (
                 // Unread = brand-tinted with a dot; read = plain. Opening a notification marks
                 // just it read (so it sinks below on next view).

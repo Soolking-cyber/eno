@@ -10,8 +10,7 @@ import { compressImageFile } from '@/lib/normalize-image'
 import { SignInPrompt } from '@/components/marketplace/account-actions'
 import { Header } from '@/components/marketplace/header'
 import { Footer } from '@/components/marketplace/footer'
-import { Loader2, ImagePlus, CheckCircle2, X } from '@/components/ui/icons'
-import { EnoSeal } from '@/components/marketplace/eno-seal'
+import { Loader2, ImagePlus, CheckCircle2, X, ShieldCheck } from "@/components/ui/icons"
 import { STROKE_DISPLAY } from '@/lib/icon-tokens'
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
@@ -70,7 +69,7 @@ export default function AppealPage() {
             {/* §0b: appealing an eno moderation decision is a first-party trust moment —
                 the seal replaces lucide ShieldQuestion. Display stroke at 40px (§2);
                 muted line, the brand-100 chief carries the signature. */}
-            <EnoSeal strokeWidth={STROKE_DISPLAY} className="mx-auto h-10 w-10 text-ink-4" />
+            <ShieldCheck strokeWidth={STROKE_DISPLAY} className="mx-auto h-10 w-10 text-ink-4" />
             <p className="mt-3 text-sm text-muted-foreground">{t('Sign in to appeal a decision on your account.', 'Đăng nhập để khiếu nại quyết định trên tài khoản của bạn.')}</p>
             <div className="mt-4"><SignInPrompt /></div>
           </div>

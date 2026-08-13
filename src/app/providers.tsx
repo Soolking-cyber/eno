@@ -1,4 +1,3 @@
-import { Toaster as SonnerToaster } from "@/components/ui/sonner";
 import { ThemeProvider } from "@/context/theme-context";
 import { LanguageProvider } from "@/context/language-context";
 import { CurrencyProvider } from "@/context/currency-context";
@@ -12,8 +11,8 @@ import { BottomNavSpacer } from "@/components/marketplace/bottom-nav-spacer";
 import { KeyboardViewportSync } from "@/components/marketplace/keyboard-viewport-sync";
 import { BackToTop } from "@/components/marketplace/back-to-top";
 import { SkipLink } from "@/components/marketplace/skip-link";
-import { CookieConsent } from "@/components/marketplace/cookie-consent";
-import { InstallHint } from "@/components/marketplace/install-hint";
+import { Toaster as SonnerToaster } from "@/components/ui/sonner";
+import { AmbientChrome } from "@/components/marketplace/ambient-chrome";
 import { SaveSignupSheet } from "@/components/marketplace/save-signup-sheet";
 import { ImageShield } from "@/components/marketplace/image-shield";
 import { PrelaunchNotice } from "@/components/marketplace/prelaunch-notice";
@@ -90,10 +89,24 @@ export function Providers({ children }: { children: React.ReactNode }) {
                     <BottomNavSpacer />
                     <KeyboardViewportSync />
                     <MobileNav />
-                    <CookieConsent />
-                    <InstallHint />
+                    {/* ⚠️ THESE STAY EAGER, AND THAT IS A CORRECTION RATHER THAN AN OVERSIGHT.
+                        Both were briefly moved into <AmbientChrome> below and moved straight back:
+                        each exists to answer the visitor's FIRST gesture — the save sheet catches a
+                        guest's first heart tap, the shield catches the first right-click on a photo
+                        — and a `next/dynamic` boundary cannot mount in time to hear the very event
+                        that woke it. All three external reviewers caught it. They are 60 and 80
+                        lines with no heavy imports, so deferring them bought almost nothing.
+                        The full reasoning is in ambient-chrome.tsx; read it before moving them. */}
                     <SaveSignupSheet />
                     <ImageShield />
+                    {/* ⚠️ THE PASSIVE CHROME, DEFERRED (owner, 2026-08-13: "lazyload whats not
+                        important"). The cookie banner and the install hint render nothing at first
+                        paint, yet used to be parsed, evaluated and hydrated on every route before
+                        the visitor could read the page. They now load on the first of load+idle or
+                        any interaction. Why the toaster and the two above it are NOT in there — and
+                        the consent check that makes deferring the banner safe — are documented in
+                        ambient-chrome.tsx. */}
+                    <AmbientChrome />
                     </TooltipProvider>
                   </QueryProvider>
                 </FavoritesProvider>
@@ -102,7 +115,10 @@ export function Providers({ children }: { children: React.ReactNode }) {
           </AuthProvider>
           </CurrencyProvider>
         </LanguageProvider>
-        {/* Inside ThemeProvider so toasts follow the in-app theme toggle. */}
+        {/* Inside ThemeProvider so toasts follow the in-app theme toggle.
+            ⚠️ IT WAS DEFERRED FOR ~66 KB AND PUT BACK, on measurement rather than principle: sonner
+            drops any toast published before this subscribes, and `load` on this app under 4x CPU +
+            slow 4G lands at 6.8–8.5s — seconds after the page is interactive. See ambient-chrome.tsx. */}
         <SonnerToaster position="top-center" closeButton />
       </ThemeProvider>
     </>

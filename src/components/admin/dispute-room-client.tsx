@@ -3,8 +3,7 @@
 import { useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Check, Clock, Loader2, Sparkles } from '@/components/ui/icons'
-import { EnoSeal } from '@/components/marketplace/eno-seal'
+import { Check, Clock, Loader2, Sparkles, ShieldCheck } from "@/components/ui/icons"
 import { STROKE_MARK } from '@/lib/icon-tokens'
 import type { TargetInfo } from '@/lib/admin-reports'
 import { cn } from '@/lib/utils'
@@ -306,7 +305,7 @@ export function DisputeRoomAdmin({ data }: { data: AdminCase }) {
                 {/* First-party voice = the eno seal, not a generic lucide shield (§0b:
                     the seal replaces Shield* wherever eno itself is the trust claim).
                     Micro scale → tinted chief + line + bar, ink from the label. */}
-                {isAdmin && <p className="mb-1 flex items-center gap-1 text-2xs font-bold text-accent-foreground"><EnoSeal className="h-3 w-3" /> eno.vn</p>}
+                {isAdmin && <p className="mb-1 flex items-center gap-1 text-2xs font-bold text-accent-foreground"><ShieldCheck className="h-3 w-3" /> eno.vn</p>}
                 {item.body && <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">{item.body}</p>}
                 {item.images.length > 0 && (
                   <div className={cn('flex flex-wrap gap-2', item.body && 'mt-2')}>

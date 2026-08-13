@@ -1,8 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { MessageCircle, Store, Building2, Star } from '@/components/ui/icons'
-import { EnoSeal } from './eno-seal'
+import { MessageCircle, Store, Building2, Star, ShieldCheck } from "@/components/ui/icons"
 import { useLanguage } from '@/context/language-context'
 import { PartnerBadge } from './partner-badge'
 import { TrustScore } from '@/components/marketplace/trust-score'
@@ -167,7 +166,7 @@ export function SellerCard({
             {seller.isBusiness && (
               seller.businessVerified ? (
                 <Badge variant="success" className="px-1.5 py-0.5 font-semibold">
-                  <EnoSeal aria-hidden className="h-3 w-3" /> {tr('Business verified', 'Doanh nghiệp đã xác minh')}
+                  <ShieldCheck aria-hidden className="h-3 w-3" /> {tr('Business verified', 'Doanh nghiệp đã xác minh')}
                 </Badge>
               ) : !seller.officialPartner ? (
                 <Badge variant="neutral" className="px-1.5 py-0.5 font-semibold text-accent-foreground">

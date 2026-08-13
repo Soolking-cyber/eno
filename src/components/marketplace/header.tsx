@@ -279,7 +279,19 @@ export function Header() {
         //   · `#status-bar-backdrop` — paints the notch strip for the moment this header auto-hides
         //     on scroll-down, and hardcodes var(--background) for the same reason.
         // Change the header's surface and those two are a REQUIRED part of the same change.
-        'sticky top-0 z-40 bg-background pt-[env(safe-area-inset-top)] transition-[transform,opacity] duration-[250ms] ease-out [will-change:transform,opacity] motion-reduce:transition-none',
+        // ⚠️ `translate`, NOT `transform` — AND THE HEADER HAS NEVER ACTUALLY SLID.
+        // Tailwind v4 compiles `-translate-y-full` / `translate-y-0` to the STANDALONE `translate`
+        // property (verified in the built CSS: `--tw-translate-y:-100%; translate:var(--tw-translate-x)
+        // var(--tw-translate-y)`), not to `transform`. So this list subscribed to a property nothing
+        // writes: the 64px bar jumped its whole height in ONE frame on every scroll-direction
+        // reversal while only `opacity` tweened over 250ms. That mismatch is what the owner reported
+        // as jitter, and it is the same v4 trap already documented at pdp-shop-link.tsx:135-137 and
+        // in globals.css §motion — the note there computing a sub-pixel overshoot budget for this
+        // slide was reasoning about an animation that was never running.
+        // ⚠️ `ease-out` STAYS. globals.css explains why: this bar docks flush to the viewport edge,
+        // so an overshooting spring opens a ~0.7px gap that shows the page sliding underneath. Now
+        // that the tween actually happens, that rule finally has something to protect.
+        'sticky top-0 z-40 bg-background pt-[env(safe-area-inset-top)] transition-[translate,opacity] duration-[250ms] ease-out [will-change:translate,opacity] motion-reduce:transition-none',
         // Facebook-style on ALL sizes (incl. desktop): slide UP off-screen + fade out on
         // scroll-down, slide back down + fade in on scroll-up (near the top = always shown).
         hidden ? '-translate-y-full opacity-0' : 'translate-y-0 opacity-100',
@@ -529,7 +541,7 @@ export function Header() {
                     }}
                     aria-label={tr('Map', 'Bản đồ')}
                     title={tr('Map', 'Bản đồ')}
-                    className="relative mr-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-ink-4 tap-48 transition-[color,transform] duration-200 hover:text-accent-foreground active:scale-[0.96] cursor-pointer"
+                    className="relative mr-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-ink-4 tap-48 transition-[color,scale] duration-200 hover:text-accent-foreground active:scale-[0.96] cursor-pointer"
                   >
                     <Map className="h-6 w-6" strokeWidth={STROKE} />
                   </Button>

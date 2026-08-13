@@ -5,9 +5,8 @@ import {
   Images, MessageSquare, ClipboardCheck,
   Sun, Users, SearchCheck, Banknote, FileText,
   AlertTriangle, BadgeCheck, ScanLine, Lock, Scale, Flag, Info,
-  Landmark, Globe, Receipt, Ban, Upload, Check, X,
+  Landmark, Globe, Receipt, Ban, Upload, Check, X, ShieldCheck,
 } from '@/components/ui/icons'
-import { EnoSeal } from '@/components/marketplace/eno-seal'
 import { Tr } from '@/context/language-context'
 import { ContentPage, ContentSection } from '@/components/marketplace/content-page'
 import { COMPANY } from '@/lib/site-legal'
@@ -50,24 +49,24 @@ export const metadata: Metadata = {
 type TipGlyph = (props: { className?: string; strokeWidth?: number }) => React.ReactNode
 type Tip = [icon: LucideIcon | TipGlyph, title: string, body: string]
 
-// ⚠️ LINE, NOT THE DEFAULT WASH (icon-language §0b echo ladder). This page is four TipGrids
-// of ~22 glyphs, all line-only in one ink at one size — a uniform SET. One brand-100 chief
-// among twenty-two lines is the single filled thing on the page, which is precisely the
-// "reads as a rendering bug" failure the §0 outline-idle law was written to stop. The seal
-// is distinguished by its SILHOUETTE, which is the ownable part of the mark anyway.
-// `aria-hidden` is NOT threaded, and that is safe rather than an oversight: <EnoSeal>
-// hardcodes `aria-hidden="true"` on its own <svg>, so the seal is hidden from assistive
-// tech exactly like its 20-odd lucide neighbours here, which receive it from TipGrid.
-const SealTipGlyph: TipGlyph = ({ className, strokeWidth }) => (
-  <EnoSeal variant="line" className={className} strokeWidth={strokeWidth} />
-)
+// ⚠️ SOLAR'S shield-check, NOT THE HAND-DRAWN eno SEAL (owner, 2026-08-13, pointing at this exact
+// glyph on this page: "sill old icons … use solar"). The wrapper that used to sit here rendered
+// <EnoSeal variant="line"> purely to get the seal's silhouette into a grid of ~22 Solar line
+// glyphs — and the note it carried was already arguing itself out of the mark: it chose `line`
+// over the default wash because "one brand-100 chief among twenty-two lines is the single filled
+// thing on the page". Once the fill is gone, what is left is a hand-maintained shield-and-tick
+// standing in for the one the icon set already draws, at a slightly different weight from every
+// neighbour. The seal still means something where it is a CLAIM (a verified badge, eno's own voice
+// in a notification); as a topic glyph beside "Prefer trusted sellers" it was decoration.
+// No wrapper needed either: Solar's shim accepts `strokeWidth` (inert) and hardcodes aria-hidden,
+// so it satisfies TipGlyph's shape directly and TipGrid keeps passing what it always passed.
 
 // Vet the listing + seller before you spend time or travel.
 const before: Tip[] = [
   // The eno seal replaces lucide ShieldCheck (§0b): trust badges ARE the first-party trust
   // signal this whole page is explaining, so the mark beside it must be the one the badges
   // themselves wear — the same silhouette a reader sees on every card's trust chip.
-  [SealTipGlyph, 'Prefer trusted sellers',
+  [ShieldCheck, 'Prefer trusted sellers',
     'Trust badges are earned from real activity — a verified account, genuine reviews, and a clean track record — and they can be lost. A blue Trusted or gold Exceptional badge means real history; a brand-new account selling something valuable far below market deserves extra caution.'],
   [Images, 'Read the whole listing',
     'Check the photos actually match the item and description. Ask for extra photos or a short video of the things that matter — the serial number, the odometer, the room in daylight. Vague answers or recycled stock photos are a warning sign.'],

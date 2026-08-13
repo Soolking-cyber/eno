@@ -3,11 +3,10 @@
 import { Suspense, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { MessageSquare, Flag, ArrowLeft } from '@/components/ui/icons'
+import { MessageSquare, Flag, ArrowLeft, ShieldCheck } from "@/components/ui/icons"
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import { SignInForm } from '@/components/marketplace/sign-in-form'
-import { EnoSeal } from '@/components/marketplace/eno-seal'
 import { Mascot } from '@/components/marketplace/mascot'
 import { safeNextPath } from '@/lib/url'
 import { COMPANY } from '@/lib/site-legal'
@@ -62,31 +61,24 @@ function SignInPageInner() {
           <p className="mt-3 max-w-sm text-base text-blue-100">
             {tr("Vietnam's trusted marketplace for the international community.", 'Chợ uy tín cho cộng đồng quốc tế tại Việt Nam.')}
           </p>
-          {/* Trust bullets — h-5 list leads (icon-language §4), stroke UI-default.
-              · Bullet 1 IS the trust badge the copy describes, so it shows the eno seal —
-                the §0b signature replacing lucide BadgeCheck in a first-party trust moment —
-                and it takes variant="wash": the ladder's own table says safety bullets carry
-                the WASHED chief, and the chief is the one place the signature is authored in.
-                R1 shipped it as variant="line" ("colored surface ⇒ no wash") and the round-2
-                critic cited that as a letter violation — the §6 no-wash rule is about CHROME
-                (carets, ✕, idle nav), not about a trust mark on a brand panel. brand-100 reads
-                as a light tint over the fixed navy — in LIGHT mode. This panel never flips
-                (brand-deep/deeper are theme-fixed, hence the fixed text-blue-* inks around it),
-                but fill-brand-100 DOES flip, to a navy so close to the panel that the chief
-                shipped invisible in dark (measured on the R2 dark shot). So the chief is pinned
-                to a fixed white tint IN BOTH THEMES — the same move as the mascot's
-                white-at-low-opacity: fixed surface ⇒ fixed ink, all the way. R2 pinned only
-                dark:, which left the SAME seal on the SAME never-flipping pixels rendering two
-                ways depending on the viewer's theme — drift by §0b's own definition, and the R3
-                critic caught the dark crops disagreeing mid-round. One selector, no theme
-                prefix, one render. It outranks the chief's own .fill-brand-100 (class+type vs
-                class), which is what lets a call-site adapt the wash without touching the
-                seal's frozen geometry.
-              · Bullet 3 uses Flag, the app-wide report vocabulary (report-button.tsx), not a
-                lucide shield (§0b retires those) and not a second seal — one stamp per panel
-                keeps the signature worth something. */}
+          {/* Trust bullets — h-5 list leads (icon-language §4), one ink, one weight.
+              ⚠️ THE LONG NOTE THAT USED TO SIT HERE IS GONE WITH WHAT IT DESCRIBED. It argued
+              across three review rounds about which variant of <EnoSeal> bullet 1 should wear and
+              how to pin its brand-100 chief to a fixed white tint so it stayed visible in both
+              themes over this never-flipping navy panel. The seal was replaced app-wide with
+              Solar's shield-check (owner, 2026-08-13: "use solar"), which has no chief and takes
+              `currentColor`, so every one of those questions is now moot — keeping the reasoning
+              would have left the next reader hunting for a wash that no longer exists.
+              · Bullet 3 uses Flag, the app-wide report vocabulary (report-button.tsx) — still the
+                right glyph, and still not a second shield. */}
           <ul className="mt-8 space-y-3 text-sm text-blue-50">
-            <li className="flex items-center gap-2.5"><EnoSeal variant="wash" className="h-5 w-5 shrink-0 [&>path:first-of-type]:fill-white/35" /> {tr('Sellers earn a trust badge — reputation you can see', 'Người bán xây dựng uy tín — huy hiệu minh bạch')}</li>
+            {/* ⚠️ THE `[&>path:first-of-type]:fill-white/35` WENT WITH THE SEAL, AND HAD TO. That
+                arbitrary variant reached into <EnoSeal>'s FIRST path — its chief — to re-tint the
+                brand-100 wash to translucent white for this blue panel. Solar's shield-check has no
+                chief; its first path is part of the outline, so the same selector would have
+                painted a slab of the glyph white. The line now matches its two neighbours exactly,
+                which is what this list wanted anyway. */}
+            <li className="flex items-center gap-2.5"><ShieldCheck className="h-5 w-5 shrink-0" /> {tr('Sellers earn a trust badge — reputation you can see', 'Người bán xây dựng uy tín — huy hiệu minh bạch')}</li>
             <li className="flex items-center gap-2.5"><MessageSquare className="h-5 w-5 shrink-0" /> {tr('Message safely in-app — your number stays private', 'Nhắn tin an toàn — số của bạn được giữ kín')}</li>
             <li className="flex items-center gap-2.5"><Flag className="h-5 w-5 shrink-0" /> {tr('Spot something off? Report it in one tap', 'Thấy bất thường? Báo cáo chỉ một chạm')}</li>
           </ul>
@@ -114,7 +106,7 @@ function SignInPageInner() {
               ONE inline seal at the §0b ladder's inline form (14–16 → wash) + one line of copy;
               more would be noise beside the form's single CTA. */}
           <p className="mt-6 flex items-center justify-center gap-2 text-xs font-medium text-muted-foreground md:hidden">
-            <EnoSeal variant="wash" className="h-4 w-4 shrink-0" />
+            <ShieldCheck className="h-4 w-4 shrink-0" />
             {tr('Trusted sellers · your number stays private', 'Người bán uy tín · số của bạn được giữ kín')}
           </p>
           <Link href="/" className="mt-8 inline-flex items-center gap-1.5 text-sm font-semibold text-muted-foreground transition-colors hover:text-accent-foreground">

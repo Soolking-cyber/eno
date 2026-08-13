@@ -16,12 +16,12 @@ import {
   Tag,
   UserRoundCog,
   UsersRound,
+  ShieldCheck,
 } from '@/components/ui/icons'
 import type { LucideIcon } from '@/components/ui/icons'
 import { Tr, useLanguage, useTr } from '@/context/language-context'
 import { STROKE_UI } from '@/lib/icon-tokens'
 import { CategoryGlyphArt } from '@/components/marketplace/category-icons'
-import { EnoSeal } from '@/components/marketplace/eno-seal'
 import { HelpFeedback } from '@/components/marketplace/help-feedback'
 import { HelpVote } from '@/components/marketplace/help-vote'
 import { Accordion, AccordionItem, AccordionPanel, AccordionTrigger } from '@/components/ui/accordion'
@@ -82,12 +82,20 @@ const TOPIC_ICONS: Record<string, LucideIcon> = {
  * under the untouched ink line), which is order-independent, needs no curation, and gives
  * every topic the same density. The idle chip is unchanged: pure line.
  *
- * `selected` is the ONLY thing that fills — including the seal, which swaps to its washed
- * chief rather than taking the duotone (a full-silhouette flood is what §0 forbids for the
- * one first-party mark, and its own `variant` is the sanctioned way to say "active").
+ * `selected` is the ONLY thing that fills.
+ *
+ * ⚠️ TRUST & SAFETY IS THE ONE TOPIC WITH NO SELECTED STATE, AND THAT IS A KNOWN COST OF THE SEAL
+ * SWEEP, not an oversight. It used to render <EnoSeal variant={selected ? 'wash' : 'line'}> — the
+ * seal's own washed chief was how this row said "active" for that chip. The seal was replaced
+ * app-wide with Solar (owner, 2026-08-13: "use solar"), and Solar's bold weight is driven by the
+ * `.i-on` layer, which globals.css switches on an ANCESTOR's aria-selected/aria-current — not on a
+ * React prop. So this branch takes `className` and ignores `selected`. Every other topic still
+ * fills. Flagged to the owner rather than papered over: the fix is either to give the chip a real
+ * aria-selected (which would light the glyph for free, and is the better answer) or to accept one
+ * topic that marks selection by chip background alone.
  */
 export function HelpTopicIcon({ slug, className, selected = false }: { slug: string; className?: string; selected?: boolean }) {
-  if (slug === 'help-trust-safety') return <EnoSeal variant={selected ? 'wash' : 'line'} className={className} />
+  if (slug === 'help-trust-safety') return <ShieldCheck className={className} />
   const Icon = TOPIC_ICONS[slug] ?? UsersRound
   // STROKE_UI, not the duotone's display default: these mount at 14–16px, where the 1.5
   // display tier scales to under a pixel and goes wispy beside its lucide neighbours (§2).
@@ -192,7 +200,7 @@ function ReviewCard({ review }: { review: HelpReview }) {
           {/* First-party verification renders the ONE mark (icon-language §0b: the seal
               replaces lucide badges/shields wherever eno itself vouches) — inline tier,
               wash, on the accent ink the old check used. */}
-          {review.sellerVerified && <EnoSeal className="size-4 shrink-0 text-accent-foreground" />}
+          {review.sellerVerified && <ShieldCheck className="size-4 shrink-0 text-accent-foreground" />}
         </div>
         {/* --rating is a deliberate token, held apart from --warning so a caution
             colour change never repaints review stars (globals.css). */}
@@ -213,7 +221,7 @@ function ReviewCard({ review }: { review: HelpReview }) {
               {/* Micro-tier seal echo (§0b ladder: trust chips on cards carry the mark
                   at 10–12px) — same construction as the PDP reviews-preview pill, so
                   "verified buyer" is one glyph everywhere it is claimed. */}
-              <EnoSeal className="size-3" />
+              <ShieldCheck className="size-3" />
               <Tr text="Verified buyer" />
             </Badge>
           )}

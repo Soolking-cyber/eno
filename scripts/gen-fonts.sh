@@ -2,8 +2,15 @@
 # ─── Re-subset Open Runde from an upstream release ────────────────────────────────────────────
 #
 # The app ships ONE typeface, self-hosted: Open Runde (a rounded cut of Inter), OFL-1.1.
-# Upstream releases the full charset at ~155 KB per weight — 620 KB for the four we use. This
-# subsets to Latin + the Vietnamese block, which is 236 KB total, a 62% saving.
+# Upstream releases the full charset at ~155 KB per weight — 310 KB for the two we use. This
+# subsets to Latin + the Vietnamese block, which is 124 KB total, a 60% saving.
+#
+# ⚠️ TWO WEIGHTS, NOT FOUR (owner, 2026-08-13: "drop font weights to 2 bold for prices and bold
+# parts and normal else"). Open Runde is not variable, so each weight is a whole extra file that
+# next/font preloads at priority High — ahead of the LCP image. Medium and Semibold were dropped
+# and globals.css `@theme` retargets `--font-weight-medium` to 400 and `--font-weight-semibold` to
+# 700, so the ~560 call sites using those classes keep them. If you re-add a weight here you must
+# also drop its retarget in globals.css, or the file will ship and never be requested.
 #
 # ⚠️ VIETNAMESE COVERAGE IS THE WHOLE REASON THIS FONT WAS CHOSEN, so the ranges below are not
 # negotiable and the script VERIFIES the result rather than trusting the flags. eno.vn is a
@@ -44,7 +51,7 @@ WEB="$(find "$TMP" -type d -name web -not -path '*__MACOSX*' | head -1)"
 # only the subset was dropping them, and a missing glyph is invisible until it is on screen.
 UNICODES="U+0000-00FF,U+0100-017F,U+0180-024F,U+0259,U+0300-036F,U+1E00-1EFF,U+2000-206F,U+2070-209F,U+20A0-20BF,U+2100-214F,U+2190-21FF,U+2200-22FF,U+2600-26FF,U+2700-27BF,U+FEFF,U+FFFD"
 
-for W in Regular:regular Medium:medium Semibold:semibold Bold:bold; do
+for W in Regular:regular Bold:bold; do
   SRC="${W%%:*}"; OUT="${W##*:}"
   pyftsubset "$WEB/OpenRunde-$SRC.woff2" \
     --output-file="$DEST/open-runde-$OUT.woff2" \

@@ -229,7 +229,10 @@ export function TrustScore({ score, size = 'sm', showLabel = false, variant = 's
                 clipRule={p.evenOdd ? 'evenodd' : undefined}
               />
             ))}
-            <text x="12" y="11.5" textAnchor="middle" dominantBaseline="central" fontSize={fontSize} fontWeight="800" fontFamily="inherit" fill={grad.text}>
+            {/* ⚠️ 700, NOT 800 — `fontFamily="inherit"` means this numeral is drawn in Open Runde,
+                which ships two cuts (400/700). An 800 here always rasterised at 700 and merely
+                said otherwise; design-lint now refuses the mismatch. The digit is unchanged. */}
+            <text x="12" y="11.5" textAnchor="middle" dominantBaseline="central" fontSize={fontSize} fontWeight="700" fontFamily="inherit" fill={grad.text}>
               {n}
             </text>
           </>
@@ -250,7 +253,8 @@ export function TrustScore({ score, size = 'sm', showLabel = false, variant = 's
                 style={{ fill: color }}
               />
             ))}
-            <text x="12" y="11.5" textAnchor="middle" dominantBaseline="central" fontSize={fontSize} fontWeight="800" fontFamily="inherit" style={{ fill: color }}>
+            {/* 700 for the same reason as the earned-tier numeral above. */}
+            <text x="12" y="11.5" textAnchor="middle" dominantBaseline="central" fontSize={fontSize} fontWeight="700" fontFamily="inherit" style={{ fill: color }}>
               {n}
             </text>
           </>

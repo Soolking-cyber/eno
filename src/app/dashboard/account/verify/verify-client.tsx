@@ -11,8 +11,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Fingerprint, IdCard } from '@/components/ui/icons'
-import { EnoSeal } from '@/components/marketplace/eno-seal'
+import { Fingerprint, IdCard, ShieldCheck } from "@/components/ui/icons"
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import { Button } from '@/components/ui/button'
@@ -90,7 +89,7 @@ export function VerifyClient() {
               inherits the heading's ink (§0) — a blue outline beside a near-black heading would
               spend §6's link-blue on a non-interactive mark. h-8 against the ~40px display
               heading: at h-6 the seal read as a bullet, not a signature (R2 critic). */}
-          <EnoSeal className="h-8 w-8" />
+          <ShieldCheck className="h-8 w-8" />
           {tr('Verify your identity', 'Xác minh danh tính')}
         </h1>
         <p className="text-body">

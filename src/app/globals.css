@@ -64,17 +64,35 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-open-runde, ui-sans-serif), ui-sans-serif, system-ui, sans-serif;
 
-  /* ⚠️ 800 AND 900 PAINT AT 700, BECAUSE OPEN RUNDE HAS NO CUT ABOVE BOLD.
-     The family is four static weights — 400/500/600/700 — and is not variable, so a request for
-     800 or 900 resolves to the nearest available, which is 700. Retargeting the tokens keeps the
-     class name honest: `font-extrabold` still means "the heaviest tier", it is just spelled 700
-     in this family, and the number in the file is the weight that paints.
-     ⚠️ SO font-bold, font-extrabold AND font-black ARE NOW THE SAME WEIGHT. That is a real
-     flattening of the top of the scale and it is the family's constraint, not a choice. If those
-     tiers need to be distinct again the fix is a different face, never synthesis — a faux-bold
-     smears a rounded terminal worse than it does a flat one.
-     (`--font-weight-medium` is deliberately NOT overridden here: Open Runde HAS a 500, unlike
-     Blinker, so the default scale is correct again and medium/semibold are distinct.) */
+  /* ⚠️ THE APP SHIPS TWO WEIGHTS — 400 AND 700 — AND EVERY OTHER TIER IS RETARGETED ONTO THEM.
+     Owner, 2026-08-13: "drop font weights to 2 bold for prices and bold parts and normal else".
+     Open Runde is STATIC cuts, not a variable font, so every weight is a separate ~64 KB file that
+     next/font preloads at priority HIGH — i.e. ahead of the LCP image. Four of them put 257 KB in
+     front of the thing the visitor is waiting to see. Two put 124 KB there.
+
+     ⚠️ THE RETARGET DOES NOT CHANGE WHICH FACE PAINTS — IT MAKES THE FILE SAY SO. Checked with
+     codex at plan time, which refuted the opposite claim this comment first carried: CSS Fonts 4
+     matching against only 400 and 700 lands on exactly these two faces anyway. A requested 500 is
+     inside [400,500], so the algorithm searches that range ascending (nothing), then BELOW it
+     descending → 400. A requested 600 is above 500, so it searches upward first → 700. Identical
+     result. What the retarget buys is that `getComputedStyle` reports 400/700 instead of 500/600,
+     so anyone measuring the app sees the weight that is actually rasterised, and the mapping is a
+     decision recorded in one place rather than an emergent property of a matching algorithm that
+     the next person has to re-derive.
+
+     ⚠️ SO font-medium IS font-normal, AND font-semibold/bold/extrabold/black ARE ALL 700. That is
+     a genuine flattening — a four-step ramp collapsed to two — and it is the point rather than a
+     side effect: two tiers read as a deliberate hierarchy where four adjacent cuts read as mush.
+     The class names stay because they still say which TIER the author meant; only the spelling in
+     this family changed. If a middle tier is ever genuinely needed, the fix is to ship the file
+     again (and pay for it at High priority), never synthesis — a faux-bold smears a rounded
+     terminal worse than it does a flat one.
+
+     ⚠️ A RAW `font-weight: 500` OR `600` ANYWHERE NOW LANDS ON A FACE THAT IS NOT SHIPPED, so it
+     silently resolves by the algorithm above instead of by this table. scripts/design-lint.mjs
+     fails the build on both. */
+  --font-weight-medium: 400;
+  --font-weight-semibold: 700;
   --font-weight-extrabold: 700;
   --font-weight-black: 700;
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
@@ -1942,7 +1960,9 @@ html.native-tabs .bottom-nav-spacer {
   box-shadow: var(--shadow-pop);
   font-family: inherit;
   font-size: 0.875rem;
-  font-weight: 600;
+  /* 700, not 600 — the app ships only 400 and 700 (see the @theme note). A literal 600 here would
+     resolve upward to 700 anyway; writing it out keeps the file honest and keeps design-lint quiet. */
+  font-weight: 700;
 }
 /* Tighten the close button + give it our muted hover. */
 [data-sonner-toast] [data-close-button] {

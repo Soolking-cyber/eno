@@ -88,7 +88,18 @@ export function Radio({
       // no counterpart in the caller's group is a class the caller cannot remove.
       className={cn(
         'inline-flex cursor-pointer items-center justify-center gap-2 whitespace-nowrap outline-none',
-        'transition-all duration-100 active:scale-[0.97]',
+        // ⚠️ `.press`, NOT A `transition-*` UTILITY — AND THE NOTE DIRECTLY ABOVE IS WHY.
+        // This base used to be `transition-all duration-100 active:scale-[0.97]`, which loses twice
+        // over. First, `transition-all` and a caller's `transition-colors` are the same
+        // tailwind-merge group, so EVERY call site that sets its own transition silently DELETED
+        // this one — report-button.tsx, mark-sold-sheet.tsx, post-wizard.tsx and onboard-client.tsx
+        // all do — leaving `active:scale-[0.97]` with nothing to tween, i.e. a ~10px snap on a
+        // full-width sheet row. Second, even where it survived, `transition-all` animates layout
+        // properties by accident.
+        // `.press` is immune to both: it is the app's shared press feel, and globals.css keeps its
+        // two `transition` declarations UNLAYERED specifically so no caller's utility can replace
+        // them. It also carries `touch-action: manipulation`, which this control wanted anyway.
+        'press',
         'focus-visible:ring-[3px] focus-visible:ring-ring/50',
         'data-disabled:cursor-not-allowed data-disabled:opacity-50',
         className,

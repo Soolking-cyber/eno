@@ -4,14 +4,13 @@ import type { ReactNode } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { isMockImageUrl } from '@/lib/listing-image'
-import { ArrowRight, MapPin } from '@/components/ui/icons'
+import { ArrowRight, MapPin, ShieldCheck } from "@/components/ui/icons"
 import { db } from '@/lib/db'
 import { serializeListing } from '@/lib/serialize'
 import { Button } from '@/components/ui/button'
 import { localizeListingTitles } from '@/lib/translate'
 import { Header } from './header'
 import { Footer } from './footer'
-import { EnoSeal } from './eno-seal'
 import { Price } from './price'
 import { seoBrowseHref } from './seo-landing-href'
 import { hasNoInventory } from './seo-landing-inventory'
@@ -309,10 +308,14 @@ export async function SeoLanding({ content, after }: { content: SeoContent; afte
 
         {/* Trust strip */}
         <div className="mt-12 flex max-w-3xl items-start gap-3">
-          {/* The eno seal, not a lucide badge (icon-language §0b): this strip claims the
-              first-party trust score, and that moment is reserved for the signature mark. */}
+          {/* ⚠️ THIS COMMENT USED TO FORBID EXACTLY WHAT THE LINE BELOW NOW DOES — it read "the eno
+              seal, not a lucide badge (icon-language §0b): this strip claims the first-party trust
+              score, and that moment is reserved for the signature mark." The seal was replaced
+              app-wide with Solar's shield-check (owner, 2026-08-13: "use solar"), so the rule it
+              cited no longer holds; leaving the note would have had the file arguing against
+              itself, and the next reader "fixing" it back. Caught by agy on the diff review. */}
           <span className="flex h-5 w-5 shrink-0 text-accent-foreground">
-            <EnoSeal className="h-5 w-5" />
+            <ShieldCheck className="h-5 w-5" />
           </span>
           {/* ⚠️ SITE_NAME, NOT "eno.vn". This component renders on BOTH deployments, so the literal
               had eno.forum's e-visa pages attributing their trust model to the licensed marketplace
