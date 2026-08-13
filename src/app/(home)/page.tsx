@@ -1,4 +1,5 @@
 import { DeskResolutionError, scopedListingWhere } from '@/lib/edition-scope'
+import { diversifyBySeller, FEED_DIVERSITY_WINDOW } from '@/lib/feed-diversity'
 import type { Metadata } from 'next'
 import { db } from '@/lib/db'
 import { serializeListingCard, LISTING_CARD_SELECT } from '@/lib/serialize'
@@ -33,9 +34,14 @@ async function getData(): Promise<{ categories: SerializedCategory[]; listings: 
         // Match /api/listings' default sort EXACTLY (the balanced rankScore blend, id
         // tiebreaker) so this SSR seed doesn't reshuffle on hydration into the client feed.
         orderBy: [{ rankScore: 'desc' }, { id: 'desc' }],
-        // First page of the infinite home feed; it paginates 12 at a time on scroll.
-        // Smaller first page = fewer cards hydrating on first paint (main-thread win).
-        take: 12,
+        // ⚠️ THE DIVERSITY WINDOW, NOT THE PAGE. This used to `take: 12` — the first page exactly.
+        // It now fetches the window that diversifyBySeller() reorders, and the 12 are sliced out of
+        // the RESULT below. Measured on production: one partner's 14 e-visa SKUs held positions 0
+        // through 13, so every card a first-time visitor saw was the same product from the same
+        // seller while 21 different listings sat underneath. /api/listings applies the identical
+        // window and reorder, which is what keeps the SSR seed and the hydrated client feed in
+        // agreement — see the note on the orderBy above, that agreement is load-bearing.
+        take: FEED_DIVERSITY_WINDOW,
         select: LISTING_CARD_SELECT,
       }),
       // MUST match the findMany predicate exactly: this seeds the client explorer's `initialTotal`,
@@ -51,7 +57,10 @@ async function getData(): Promise<{ categories: SerializedCategory[]; listings: 
       trendingRailListings().catch(() => []),
     ])
 
-    const serializedListings: SerializedListingCard[] = await localizeListingTitles(listings.map(serializeListingCard))
+    // Interleave sellers across the window, then take the page. Slicing AFTER the reorder is the
+    // whole point: slicing first would hand the reorder the same monopolised twelve rows.
+    const firstPage = diversifyBySeller(listings).slice(0, 12)
+    const serializedListings: SerializedListingCard[] = await localizeListingTitles(firstPage.map(serializeListingCard))
 
     return { categories: serializedCategories, listings: serializedListings, total, businesses, trending }
   } catch (e) {

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { clientIp } from '@/lib/client-ip'
 import { db } from '@/lib/db'
+import { diversifyBySeller, FEED_DIVERSITY_WINDOW } from '@/lib/feed-diversity'
 import { serializeListingCard, LISTING_CARD_SELECT } from '@/lib/serialize'
 import { normalizePhone, containsPhoneNumber } from '@/lib/phone'
 import { containsContactInfo, findBannedWord, PublishBlockedError } from '@/lib/publish-guard'
@@ -120,13 +121,48 @@ export async function GET(req: NextRequest) {
   ] = [
     semanticListings
       ? Promise.resolve(semanticListings)
-      : db.listing.findMany({
-          where,
-          orderBy,
-          take: limit,
-          skip: offset,
-          select: LISTING_CARD_SELECT,
-        }),
+      /**
+       * ⚠️ INSIDE THE DIVERSITY WINDOW THE PAGE IS SLICED FROM A REORDERED WINDOW, NOT FROM SQL.
+       * One seller's fourteen near-identical e-visa SKUs held positions 0-13 of this feed on
+       * production, so the entire first screen was one catalogue (see src/lib/feed-diversity.ts).
+       * The fix is an ORDERING, applied to a bounded window, and pagination stays coherent because
+       * every page inside the window slices the SAME reordered sequence rather than re-running a
+       * skip/take against a different order.
+       *
+       * ⚠️ IT MUST MATCH `(home)/page.tsx` EXACTLY — same window, same function. That file's comment
+       * explains why: it server-renders the first twelve cards and this route feeds the client
+       * explorer, so any disagreement reshuffles the feed under the reader on hydration.
+       *
+       * ⛔ SEMANTIC RESULTS ARE UNTOUCHED (the branch above). Their order IS the relevance answer;
+       * interleaving it by seller would be overruling the ranking with a merchandising rule.
+       */
+      : offset < FEED_DIVERSITY_WINDOW
+        ? db.listing
+            /**
+             * ⚠️ `max(window, offset+limit)` — A PAGE THAT STRADDLES THE WINDOW EDGE MUST STILL BE
+             * FULL. This fetched exactly FEED_DIVERSITY_WINDOW rows and sliced, so a request like
+             * offset=55&limit=12 came back with FIVE rows even though rows 60-66 exist. A client
+             * reads a short page as "feed exhausted" and stops; one that advances by the requested
+             * limit skips 60-66 entirely. codex caught it on review; the tests only covered
+             * offsets 0/12/24 on a 35-row fixture, where the edge cannot occur.
+             */
+            .findMany({ where, orderBy, take: Math.max(FEED_DIVERSITY_WINDOW, offset + limit), skip: 0, select: LISTING_CARD_SELECT })
+            /**
+             * Diversify the window ONLY, then continue in natural rank order. Reordering past the
+             * window would make the sequence depend on how far the reader had scrolled, and two
+             * readers on different pages would disagree about what row 61 is.
+             */
+            .then((rows) => [
+              ...diversifyBySeller(rows.slice(0, FEED_DIVERSITY_WINDOW)),
+              ...rows.slice(FEED_DIVERSITY_WINDOW),
+            ].slice(offset, offset + limit))
+        : db.listing.findMany({
+            where,
+            orderBy,
+            take: limit,
+            skip: offset,
+            select: LISTING_CARD_SELECT,
+          }),
     semanticListings ? Promise.resolve(semanticTotal) : db.listing.count({ where }),
     undefined
   ]

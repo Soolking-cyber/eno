@@ -130,6 +130,11 @@ export function serializeListing(
 // and dragged searchText/PII through Postgres for nothing. Query with
 // LISTING_CARD_SELECT and serialize with serializeListingCard on every list surface.
 export const LISTING_CARD_SELECT = {
+  // ⚠️ `sellerId` IS SELECTED FOR ORDERING, NOT FOR THE WIRE. src/lib/feed-diversity.ts groups the
+  // browse feed by seller so one catalogue cannot take the whole first screen, and it needs the
+  // owning seller to do it. serializeListingCard maps fields explicitly, so this scalar never
+  // reaches the client payload — the card shape is unchanged.
+  sellerId: true,
   id: true, title: true, titleVi: true, price: true, priceUnit: true, currency: true, negotiable: true,
   previousPrice: true, priceDropAt: true, urgentUntil: true,
   location: true, district: true, city: true, lat: true, lng: true, images: true, video: true,
@@ -139,6 +144,7 @@ export const LISTING_CARD_SELECT = {
 } as const
 
 type ListingCardRow = {
+  sellerId: string
   id: string; title: string; titleVi: string | null; price: number; priceUnit: string
   currency: string; negotiable: boolean; location: string; district: string | null; city: string
   previousPrice: number | null; priceDropAt: Date | null; urgentUntil: Date | null
