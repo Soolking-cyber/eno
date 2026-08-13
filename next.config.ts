@@ -86,10 +86,49 @@ if (EDITION_ENV !== undefined) {
  * holding both page.tsx and page.svc.tsx resolves to the plain one on a services build too — which
  * is what you want if a route is ever deliberately shared.
  */
+/**
+ * ⚠️ THE MARKETPLACE CAN NOW OPT IN TO THE SERVICES ROUTES, AND THE REASON IS A CHANGE IN WHO SELLS
+ * THE SERVICE — not a relaxation of the rule above.
+ *
+ * The default-deny exists because eno.vn, a licensed sàn TMĐT, may not offer e-visa or itinerary
+ * services ITSELF. That is still true and this flag does not touch it. What changed (owner,
+ * 2026-08-13) is that those services on eno.vn are sold by LICENSED THIRD PARTIES with their own
+ * storefronts — VietKite for visa, GMBR for itineraries — with eno.vn in its actual role as the
+ * intermediary. Asked directly whether eno.vn should host the chat flow for them, the owner's
+ * answer was "intended, do it same as eno.forum for Vietkite".
+ *
+ * ⛔ IT IS OFF BY DEFAULT AND MUST BE SET DELIBERATELY, PER DEPLOYMENT. Unset, a marketplace build
+ * is byte-identical to before: the routes match nothing, ship nothing, and do not exist.
+ *
+ * ⚠️ THIS FLAG IS ALL-OR-NOTHING ACROSS BOTH SERVICES, AND THAT IS A PROPERTY OF THE `.svc.` MARKER,
+ * not a decision. One infix marks every services route (32 visa, 22 trip, 3 shared), so extensions
+ * cannot admit one service and refuse the other; per-service control would mean renaming 54 files
+ * to per-service infixes.
+ *
+ * ⛔ AND THE THREAD FLAGS DO NOT MAKE UP THE DIFFERENCE — AN EARLIER VERSION OF THIS NOTE CLAIMED
+ * THEY DID, AND ALL THREE REVIEWERS REFUTED IT. VISA_THREADS_ENABLED / ITINERARY_THREADS_ENABLED
+ * (src/lib/thread-kind.ts) decide whether a conversation is ever LABELLED visa/itinerary, so they
+ * govern what the CHAT offers. They do not gate HTTP. With this flag on, all 57 `.svc.` routes are
+ * compiled and reachable by URL on the licensed marketplace — including the PayPal checkout path —
+ * whatever the thread flags say. Anyone turning this on is turning on BOTH services' endpoints and
+ * must be able to defend that, not rely on a chat surface staying quiet.
+ *
+ * ⚠️ WHAT THIS FLAG DOES COST, STATED PLAINLY: with it on, the e-visa and itinerary VOCABULARY is in
+ * the eno.vn artifact — the routes, their copy, and (with the aliases below correspondingly
+ * relaxed) the card components. The thread flags decide what a visitor can reach; they do not
+ * decide what the image contains. Do not turn this on expecting the words to stay out.
+ * ⚠️ VERIFY IN THE ARTIFACT, NEVER IN THE SOURCE. `rm -rf .next`, build both ways, and grep
+ * `.next/static` — a passing tsc/lint/test run has never once caught an edition leak here.
+ */
+const MARKETPLACE_HOSTS_SERVICES =
+  EDITION_ENV === "marketplace" && process.env.MARKETPLACE_HOSTS_SERVICES === "true";
+
+const SVC_EXTENSIONS = ["svc.ts", "svc.tsx", "svc.js", "svc.jsx"];
+
 const PAGE_EXTENSIONS =
-  EDITION_ENV === "marketplace"
+  EDITION_ENV === "marketplace" && !MARKETPLACE_HOSTS_SERVICES
     ? ["ts", "tsx", "js", "jsx"]
-    : ["ts", "tsx", "js", "jsx", "svc.ts", "svc.tsx", "svc.js", "svc.jsx"];
+    : ["ts", "tsx", "js", "jsx", ...SVC_EXTENSIONS];
 
 const nextConfig: NextConfig = {
   pageExtensions: PAGE_EXTENSIONS,
@@ -200,7 +239,14 @@ const nextConfig: NextConfig = {
      * catches. src/components/marketplace/edition-stubs.test.ts is what makes that safe: it fails
      * the build when the chat page imports a symbol the stub does not export.
      */
-    ...(EDITION_ENV === "marketplace"
+    /**
+     * ⚠️ SKIPPED ENTIRELY WHEN THE MARKETPLACE HOSTS THE SERVICES. The stubs and the `.svc.` fold
+     * are two halves of ONE decision — routes absent, components blanked — and splitting them is
+     * how a build ends up with live services routes whose cards render as null. See the note on
+     * MARKETPLACE_HOSTS_SERVICES above: it is off by default, so this branch is taken exactly as
+     * before unless someone opts in per deployment.
+     */
+    ...(EDITION_ENV === "marketplace" && !MARKETPLACE_HOSTS_SERVICES
       ? {
           resolveAlias: {
             "@/components/marketplace/visa-cards": "./src/components/marketplace/visa-cards.stub.tsx",

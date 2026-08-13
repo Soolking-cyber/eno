@@ -243,3 +243,62 @@ describe.each([
     })
   })
 })
+
+/**
+ * `HIDDEN_DESK_OWNER_EMAILS` — the licensing exclusion list, split out from the two desk-ROUTING
+ * variables it used to share.
+ *
+ * ⚠️ THESE TESTS EXIST BECAUSE THE CONFLATION WAS ONE ENV EDIT AWAY FROM DELETING A PARTNER FROM
+ * THE MARKETPLACE. While "who answers a visa thread" and "who eno.vn must hide" were the same list,
+ * pointing VISA_SHOP_OWNER_EMAIL at VietKite — the intended routing change — would have hidden
+ * their 26 live home-feed listings, 404'd their storefront and every one of their conversations,
+ * and stripped their official-partner exemption. The variables are separate now; these pin that
+ * they stay separate, and that the default is still the old behaviour.
+ *
+ * The module reads the variable at import time, so each case re-imports with `resetModules` rather
+ * than mutating a already-bound constant.
+ */
+describe('HIDDEN_DESK_OWNER_EMAILS', () => {
+  const load = async (value: string | undefined) => {
+    vi.resetModules()
+    const prev = process.env.HIDDEN_DESK_OWNER_EMAILS
+    if (value === undefined) delete process.env.HIDDEN_DESK_OWNER_EMAILS
+    else process.env.HIDDEN_DESK_OWNER_EMAILS = value
+    try {
+      return await import('./edition-scope')
+    } finally {
+      if (prev === undefined) delete process.env.HIDDEN_DESK_OWNER_EMAILS
+      else process.env.HIDDEN_DESK_OWNER_EMAILS = prev
+    }
+  }
+
+  it('UNSET falls back to the historical union, so the split is a no-op until someone opts in', async () => {
+    const m = await load(undefined)
+    // The two mocked desk lists, deduped: shared@eno.vn appears in both.
+    expect([...m.HIDDEN_DESK_OWNER_EMAILS].sort()).toEqual(['shared@eno.vn', 'trips@eno.vn', 'visa@eno.vn'])
+  })
+
+  it('SET replaces the union entirely — a desk address is not implicitly hidden any more', async () => {
+    const m = await load('support@eno.forum')
+    expect([...m.HIDDEN_DESK_OWNER_EMAILS]).toEqual(['support@eno.forum'])
+    // The routing addresses are NOT dragged along.
+    expect(m.HIDDEN_DESK_OWNER_EMAILS).not.toContain('visa@eno.vn')
+    expect(m.HIDDEN_DESK_OWNER_EMAILS).not.toContain('trips@eno.vn')
+  })
+
+  it('normalises case and whitespace, so a stray space cannot silently un-hide a desk', async () => {
+    const m = await load('  Support@Eno.Forum , ops@eno.vn ')
+    expect([...m.HIDDEN_DESK_OWNER_EMAILS]).toEqual(['support@eno.forum', 'ops@eno.vn'])
+  })
+
+  it('EMPTY means "this edition hides nobody" and never reaches the database', async () => {
+    const m = await load('')
+    expect([...m.HIDDEN_DESK_OWNER_EMAILS]).toEqual([])
+    h.lastWhere = null
+    h.sellers = [{ id: 'should-not-be-returned' }]
+    // ⚠️ The query is SKIPPED, not sent with `in: []` — Prisma answers that with a match-nothing
+    // predicate, which happens to be right here but would hide the bug if the semantics changed.
+    await expect(m.deskSellerIds()).resolves.toEqual([])
+    expect(h.lastWhere).toBeNull()
+  })
+})

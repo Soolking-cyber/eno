@@ -65,9 +65,62 @@ export class DeskResolutionError extends Error {
  * support account owns exactly one storefront and both features hang off it, distinguished only by
  * an anchor listing. So a ONE-row result is normal and correct, not a partial failure — which is
  * exactly why "require two rows" would be the wrong rule and would take the marketplace down.
+ *
+ * ══════════════════════════════════════════════════════════════════════════════════════════════
+ * ⚠️ "WHO RUNS A DESK" AND "WHO eno.vn MUST HIDE" ARE NO LONGER THE SAME QUESTION, AND CONFLATING
+ * THEM WAS ONE ENV EDIT AWAY FROM DELETING A PARTNER FROM THE MARKETPLACE.
+ *
+ * This function used to read VISA_SHOP_OWNER_EMAILS ∪ TRIP_DESK_OWNER_EMAILS directly. Those two
+ * variables answer "which account is the seller side of a visa / itinerary conversation" — and here
+ * their union was also serving as the licensing EXCLUSION list, applied to browse, search, rails,
+ * sitemap, the Google/Meta feeds, the inbox, thread-open, storefront pages, the catalogue-seller
+ * exemption and Vertex indexing.
+ *
+ * That is fine while the desk is eno's own support account. It stops being fine the moment a desk
+ * is run by a LICENSED PARTNER selling on eno.vn — which is now the direction (owner, 2026-08-13:
+ * visa is "by vietkite in eno.vn", itinerary by GMBR, "intended, do it same as eno.forum for
+ * Vietkite"). VietKite already owns 26 of the 28 cards on the eno.vn home feed. Pointing
+ * VISA_SHOP_OWNER_EMAIL at them would have hidden every one of those listings, 404'd /vietkite and
+ * every VietKite conversation, and stripped their official-partner exemption — the exact opposite
+ * of the intent, from an env edit that looks like a routing change. Four independent code sweeps
+ * reached that conclusion before a line was written.
+ *
+ * So the hide-list gets its own input, `HIDDEN_DESK_OWNER_EMAILS`.
+ *
+ * ⚠️ THE FALLBACK IS THE OLD UNION, DELIBERATELY. Unset, this behaves exactly as before — no
+ * migration, no flag day, and eno.vn keeps excluding eno's own desk on day one. Set, it means
+ * precisely "the accounts eno.vn may not surface", which for a partner-run desk is nobody.
+ *
+ * ⛔ NEVER PUT A PARTNER'S ADDRESS IN `HIDDEN_DESK_OWNER_EMAILS`. It is a licensing control, not a
+ * routing one: an address here disappears that seller from the licensed marketplace. The addresses
+ * that belong here are eno's own service accounts (support@eno.forum), never VietKite's or GMBR's.
+ * ══════════════════════════════════════════════════════════════════════════════════════════════
  */
+export const HIDDEN_DESK_OWNER_EMAILS: readonly string[] = [
+  ...new Set(
+    (
+      process.env.HIDDEN_DESK_OWNER_EMAILS
+        // Unset → the historical union, so this change is a no-op until someone opts in.
+        ?? [...VISA_SHOP_OWNER_EMAILS, ...TRIP_DESK_OWNER_EMAILS].join(',')
+    )
+      .split(',')
+      .map((e) => e.trim().toLowerCase())
+      .filter(Boolean),
+  ),
+  // ⚠️ DEDUPED HERE, NOT ONLY AT THE QUERY. One address commonly appears in BOTH desk lists — the
+  // support account runs visa and trips off one storefront — so the fallback used to emit it twice.
+  // `deskSellerIds` happened to hide that behind its own Set, which is exactly why it is worth
+  // fixing at the source: this constant is exported, and the next reader to use it for anything
+  // other than a database `in:` (a log line, a length check, an admin screen) would inherit the
+  // duplicate. Caught by its own test.
+]
+
 export const deskSellerIds = cache(async (): Promise<string[]> => {
-  const emails = [...new Set([...VISA_SHOP_OWNER_EMAILS, ...TRIP_DESK_OWNER_EMAILS])]
+  const emails = [...new Set(HIDDEN_DESK_OWNER_EMAILS)]
+  // An explicitly EMPTY list is a legitimate configuration — it says "this edition hides nobody",
+  // which is what a marketplace whose desks are all partner-run wants. Skip the query rather than
+  // sending `in: []`, which Prisma answers with every row excluded by nothing.
+  if (!emails.length) return []
   const sellers = await db.seller.findMany({
     where: { owner: { email: { in: emails } } },
     select: { id: true },

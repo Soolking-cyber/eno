@@ -18,17 +18,23 @@ const h = vi.hoisted(() => ({
   tripAnchorId: null as string | null,
   visaListings: [] as { id: string }[],
   throwOnLookup: false,
+  // ⚠️ PER-RESOLVER throws, added alongside the shared flag. The shared `throwOnLookup` cannot
+  // express "the DISABLED desk is broken while the ENABLED one is fine", which is the exact
+  // condition the cross-service regression lives in — and a test that cannot express it silently
+  // passed against the bug.
+  throwOnTrip: false,
+  throwOnVisa: false,
 }))
 
 vi.mock('./trips/dm-thread', () => ({
   getTripAssistanceListingId: async () => {
-    if (h.throwOnLookup) throw new Error('desk lookup down')
+    if (h.throwOnLookup || h.throwOnTrip) throw new Error('desk lookup down')
     return h.tripAnchorId
   },
 }))
 vi.mock('./visa-shop', () => ({
   getVisaShopListings: async () => {
-    if (h.throwOnLookup) throw new Error('catalogue lookup down')
+    if (h.throwOnLookup || h.throwOnVisa) throw new Error('catalogue lookup down')
     return h.visaListings
   },
 }))
@@ -105,5 +111,95 @@ describe('the answer is a function of the ANCHOR alone', () => {
     for (const key of ['toString', '__proto__', 'constructor']) {
       expect(await threadKind(convo(key))).toBe('listing')
     }
+  })
+})
+
+/**
+ * THE MARKETPLACE EDITION, PER SERVICE.
+ *
+ * ⚠️ EVERY TEST ABOVE RUNS AS THE SERVICES EDITION — `NEXT_PUBLIC_ENO_EDITION` is unset under
+ * vitest and `edition.ts` defaults to 'services'. So the branch that governs the LICENSED
+ * marketplace, the one whose failure mode is a legal problem rather than a cosmetic one, had no
+ * coverage at all. These cases drive the real `edition.ts` by setting the variable before import,
+ * rather than mocking it, so the default that ships is the default under test.
+ *
+ * What they pin: the flags are INDEPENDENT. "itinerary on eno.vn, visa not" is the shape the
+ * rollout needs (itineraries are GMBR's, visa is VietKite's, and they arrive separately), and a
+ * single edition boolean could not express it.
+ */
+describe('marketplace edition — one flag per service', () => {
+  const load = async (env: Record<string, string | undefined>) => {
+    vi.resetModules()
+    const keys = ['NEXT_PUBLIC_ENO_EDITION', 'VISA_THREADS_ENABLED', 'ITINERARY_THREADS_ENABLED']
+    const prev: Record<string, string | undefined> = {}
+    for (const k of keys) { prev[k] = process.env[k]; if (env[k] === undefined) delete process.env[k]; else process.env[k] = env[k] }
+    try {
+      return await import('./thread-kind')
+    } finally {
+      for (const k of keys) { if (prev[k] === undefined) delete process.env[k]; else process.env[k] = prev[k] }
+    }
+  }
+  const MARKET = { NEXT_PUBLIC_ENO_EDITION: 'marketplace' } as Record<string, string | undefined>
+
+  beforeEach(() => {
+    h.tripAnchorId = 'trip-anchor'
+    h.visaListings = [{ id: 'visa-1' }]
+    h.throwOnLookup = false
+    h.throwOnTrip = false
+    h.throwOnVisa = false
+  })
+
+  it('withholds BOTH kinds by default — the change ships as a no-op on eno.vn', async () => {
+    const m = await load(MARKET)
+    expect(m.VISA_THREADS_ENABLED).toBe(false)
+    expect(m.ITINERARY_THREADS_ENABLED).toBe(false)
+    await expect(m.threadKind(convo('visa-1'))).resolves.toBe('listing')
+    await expect(m.threadKind(convo('trip-anchor'))).resolves.toBe('listing')
+  })
+
+  it('visa on, itinerary off: the visa anchor answers visa and the trip anchor still does not', async () => {
+    const m = await load({ ...MARKET, VISA_THREADS_ENABLED: 'true' })
+    await expect(m.threadKind(convo('visa-1'))).resolves.toBe('visa')
+    await expect(m.threadKind(convo('trip-anchor'))).resolves.toBe('listing')
+  })
+
+  it('itinerary on, visa off: the mirror image — the two flags do not leak into each other', async () => {
+    const m = await load({ ...MARKET, ITINERARY_THREADS_ENABLED: 'true' })
+    await expect(m.threadKind(convo('trip-anchor'))).resolves.toBe('itinerary')
+    await expect(m.threadKind(convo('visa-1'))).resolves.toBe('listing')
+  })
+
+  it('only the exact string "true" enables a service — a stray value fails CLOSED', async () => {
+    const m = await load({ ...MARKET, VISA_THREADS_ENABLED: '1' })
+    expect(m.VISA_THREADS_ENABLED).toBe(false)
+    await expect(m.threadKind(convo('visa-1'))).resolves.toBe('listing')
+  })
+
+  /**
+   * ⚠️ THE REGRESSION ALL THREE REVIEWERS CAUGHT, PINNED. The first draft awaited both desks in one
+   * `Promise.all` and applied the flags afterwards, so a throw from the DISABLED service rejected
+   * the pair and the catch returned 'listing' — the ENABLED service silently dead. This is the
+   * exact eno.vn rollout shape: itineraries on, visa off, VISA_SHOP_OWNER_EMAIL still pointing at a
+   * desk that deployment never resolves.
+   */
+  it('a DISABLED service that throws cannot kill the ENABLED one', async () => {
+    const m = await load({ ...MARKET, ITINERARY_THREADS_ENABLED: 'true' })
+    h.throwOnVisa = true // the DISABLED desk is broken; the enabled one is healthy
+    // Visa is off, so its resolver is never called and its failure cannot reach the catch.
+    await expect(m.threadKind(convo('trip-anchor'))).resolves.toBe('itinerary')
+  })
+
+  it('the enabled service still fails CLOSED when its OWN lookup throws', async () => {
+    const m = await load({ ...MARKET, ITINERARY_THREADS_ENABLED: 'true' })
+    h.throwOnTrip = true // the ENABLED desk is the broken one
+    await expect(m.threadKind(convo('trip-anchor'))).resolves.toBe('listing')
+  })
+
+  it('the services edition still enables both without any flag set', async () => {
+    const m = await load({ NEXT_PUBLIC_ENO_EDITION: 'services' })
+    expect(m.VISA_THREADS_ENABLED).toBe(true)
+    expect(m.ITINERARY_THREADS_ENABLED).toBe(true)
+    await expect(m.threadKind(convo('visa-1'))).resolves.toBe('visa')
+    await expect(m.threadKind(convo('trip-anchor'))).resolves.toBe('itinerary')
   })
 })
