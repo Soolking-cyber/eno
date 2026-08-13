@@ -924,8 +924,11 @@ export function VisaCasesClient({ threads }: {
               </CardHeader>
               <CardContent>
                 <ol className="space-y-4">
+                  {/* ⚠️ NO LEFT ACCENT RULE on these rows (owner, 2026-08-13, app-wide). They
+                      carried `border-l-2 border-brand/30`; the pl-3 indent stays, so the timeline
+                      keeps its shape without the tinted bar. */}
                   {milestones.map(({ e, m }) => (
-                    <li key={e.id} className="flex items-start justify-between gap-4 border-l-2 border-brand/30 pl-3">
+                    <li key={e.id} className="flex items-start justify-between gap-4 pl-3">
                       <span className="text-sm font-medium text-foreground">{tr(m.en, m.vi)}</span>
                       <time className="shrink-0 text-xs text-ink-4">{new Date(e.createdAt).toLocaleDateString()}</time>
                     </li>

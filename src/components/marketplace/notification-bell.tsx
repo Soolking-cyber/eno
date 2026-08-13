@@ -147,10 +147,17 @@ export function NotificationBell() {
               // echo, reserved for first-party trust; every other type keeps its lucide verb).
               const Icon = n.type === 'system' ? EnoSeal : n.type === 'offer' ? Tag : n.type === 'price_drop' ? TrendingDown : n.type === 'reminder' ? Clock : n.type === 'saved_search' ? Search : n.type === 'milestone' ? Sparkles : n.type === 'dispute' ? Scale : MessageSquare
               return (
-                // Unread = brand-tinted with a left rail + dot; read = plain. Opening
-                // a notification marks just it read (so it sinks below on next view).
+                // Unread = brand-tinted with a dot; read = plain. Opening a notification marks
+                // just it read (so it sinks below on next view).
+                //
+                // ⚠️ THE LEFT RAIL IS GONE ON PURPOSE (owner, 2026-08-13: "remove this blue line on
+                // notif dropdown") — it was a `w-1 bg-accent-foreground` bar down the row's left
+                // edge. Unread is still carried twice over, by the row's `bg-accent/60` tint and by
+                // the dot beside the title, so removing the third mark costs no signal: a full-bleed
+                // saturated bar is simply louder than "you have not read this yet" needs to be, and
+                // it fought the tint it sat on. `relative` stays — the row still positions the
+                // dismiss control at `pr-10`.
                 <div key={n.id} className={cn('group relative transition-colors', n.read ? 'hover:bg-muted' : 'bg-accent/60 hover:bg-accent')}>
-                  {!n.read && <span aria-hidden className="absolute inset-y-0 left-0 w-1 bg-accent-foreground" />}
                   <Link
                     href={href}
                     onClick={() => {

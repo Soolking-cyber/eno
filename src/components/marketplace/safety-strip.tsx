@@ -30,21 +30,23 @@ export function SafetyStrip({ categorySlug, action, protections, className }: { 
           )
 
   return (
-    // ⚠️ THE LEFT RULE AND THE INK ARE THE POINT — this strip carries the one sentence that can
-    // stop a buyer losing money on a marketplace where deposit-link fraud is THE loss mode, and
-    // it was rendering as decoration. At `bg-warning/10` with neutral `text-foreground` it read
-    // as a tinted note, and on the PDP it sits directly beneath the "ENO protects you" panel —
-    // same rounded shape, same padding, near-identical value — so the informational box and the
-    // scam warning formed one grey blob. A design review flagged it as having less visual weight
-    // than the price.
-    // `border-l-2 border-warning` is the smallest thing that restores hierarchy without breaking
-    // the flat-canvas canon (§3b): it is an accent RULE, not a second box, and it distinguishes
-    // this strip from every neutral panel around it at a glance. The line itself goes
-    // `font-semibold text-warning` so the warning speaks in the warning's own voice.
+    // ⚠️ THE INK IS THE POINT — this strip carries the one sentence that can stop a buyer losing
+    // money on a marketplace where deposit-link fraud is THE loss mode, and it once rendered as
+    // decoration: at `bg-warning/10` with neutral `text-foreground` it read as a tinted note, and
+    // on the PDP it sits directly beneath the "ENO protects you" panel — same rounded shape, same
+    // padding, near-identical value — so the informational box and the scam warning formed one
+    // grey blob. A design review flagged it as carrying less visual weight than the price.
+    //
+    // ⚠️ IT USED TO ANSWER THAT WITH A LEFT RULE, AND THE RULE IS NOW GONE (owner, 2026-08-13:
+    // "remove accent line on left, look all across the app if any section have it remove").
+    // What holds the hierarchy without it: the `bg-warning/10` tint, the amber seal, and the first
+    // line's own `font-semibold text-warning` ink. The warning still speaks in the warning's voice,
+    // it just no longer wears a bar. If this ever reads as a grey note again, the fix is ink and
+    // weight — do not put the rule back.
     // ⚠️ `--warning` is amber-800 (#92400e) in light and amber-400 in dark, both chosen for
     // contrast as TEXT (see the token note in globals.css) — so this is safe as ink, which is
     // exactly why the token exists rather than a raw amber.
-    <div className={cn('flex items-start gap-2.5 rounded-xl border-l-2 border-warning bg-warning/10 px-3 py-2.5 text-xs leading-relaxed', className)}>
+    <div className={cn('flex items-start gap-2.5 rounded-xl bg-warning/10 px-3 py-2.5 text-xs leading-relaxed', className)}>
       {/* The eno seal replaces lucide ShieldAlert in this first-party safety moment
           (§0b + foundation handoff request: seal-in-chip on the safety strip). On the
           warning tint the chief takes the strip's OWN ink — the trust-chip micro form
