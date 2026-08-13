@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { IconButton } from '@/components/ui/icon-button'
 import { Tooltip } from '@/components/ui/tooltip'
+import { PartnerBadge } from './partner-badge'
 import { TrustScore } from './trust-score'
 import { CardBadges } from './card-badges'
 import Image from 'next/image'
@@ -940,8 +941,14 @@ function ListingCardImpl({
               <Building2 className="h-3.5 w-3.5" />
             </span>
           )}
+          {/* ⚠️ PARTNER REPLACES TRUST HERE (owner, 2026-08-13). An official partner shows the gold
+              partner badge INSTEAD of a trust score — the partner claim is the stronger of the two
+              and showing both spends two chips on one point. Same swap in seller-card,
+              pdp-shop-link and compact-listing-row, so a partner reads identically everywhere. */}
           {/* Mini chip (glyph + number) — display only; the card itself is the button. */}
-          <TrustScore score={listing.seller.trustScore} variant="mini" className="shrink-0" />
+          {listing.seller.officialPartner
+            ? <PartnerBadge className="shrink-0" />
+            : <TrustScore score={listing.seller.trustScore} variant="mini" className="shrink-0" />}
         </div>
       </div>
     </div>

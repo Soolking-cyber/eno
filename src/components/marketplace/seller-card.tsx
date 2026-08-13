@@ -175,7 +175,15 @@ export function SellerCard({
                 </Badge>
               ) : null
             )}
-            <TrustScore score={trustScore} variant="mini" size="sm" href="/trust" className={miniSealWashClass(trustScore)} />
+            {/* ⚠️ AN OFFICIAL PARTNER SHOWS NO TRUST SCORE (owner, 2026-08-13: "wherever the trust
+                badge is replace with partner badge, official partners wont need trust score badge
+                shown"). The two say different things and the partner claim is the stronger one: a
+                trust score is EARNED behaviour, the partner badge is a company eno went and vetted,
+                and showing both spends two chips to make one point. The badge renders above in the
+                same row, so this branch simply withholds the second. */}
+            {!seller.officialPartner && (
+              <TrustScore score={trustScore} variant="mini" size="sm" href="/trust" className={miniSealWashClass(trustScore)} />
+            )}
           </div>
           {strip.length > 0 && (
             <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-muted-foreground">

@@ -4,6 +4,7 @@ import { memo, useState } from 'react'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { ArrowRight, MapPin, MessageCircle, Tag, Zap } from '@/components/ui/icons'
+import { PartnerBadge } from './partner-badge'
 import { TrustScore } from './trust-score'
 import { Badge } from './card-badges'
 import { Price } from './price'
@@ -125,15 +126,20 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
               view, which is this one. `<ListingCard>` has carried this same sr-only line since
               the seal was removed; the compact row was simply missed when the ring was added.
               Zero-width by construction, so it costs the one-line layout nothing. */}
-          {l.seller.officialPartner && (
-            <span className="sr-only">{tr('Official partner', 'Đối tác chính thức')}</span>
+          {/* ⚠️ PARTNER REPLACES TRUST (owner, 2026-08-13), and the sr-only line goes with it: it
+              existed only because the gold avatar ring carries no accessible name, and the badge
+              now says the words on screen. An official partner shows no trust score anywhere —
+              same rule in seller-card, pdp-shop-link and listing-card. */}
+          {l.seller.officialPartner ? (
+            <PartnerBadge className={cn('ml-auto shrink-0 sm:hidden', offer !== null && 'hidden')} />
+          ) : (
+            <TrustScore
+              score={l.seller.trustScore}
+              variant="mini"
+              size="sm"
+              className={cn('ml-auto shrink-0 sm:hidden', offer !== null && 'hidden')}
+            />
           )}
-          <TrustScore
-            score={l.seller.trustScore}
-            variant="mini"
-            size="sm"
-            className={cn('ml-auto shrink-0 sm:hidden', offer !== null && 'hidden')}
-          />
         </div>
         {/* min-w-0 is load-bearing: without it this flex row can never shrink below
             its content, so a wide price (shrink-0, and it must stay shrink-0 — a
@@ -185,7 +191,11 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
               {tr(`${formatCount(l.contactCount, moneyLocale(lang))} contacted`, `Đã liên hệ ${formatCount(l.contactCount, moneyLocale(lang))}`)}
             </span>
           )}
-          <TrustScore score={l.seller.trustScore} variant="mini" size="sm" className={cn('ml-auto hidden shrink-0 sm:flex', offer !== null && 'sm:hidden')} />
+          {l.seller.officialPartner ? (
+            <PartnerBadge className={cn('ml-auto hidden shrink-0 sm:flex', offer !== null && 'sm:hidden')} />
+          ) : (
+            <TrustScore score={l.seller.trustScore} variant="mini" size="sm" className={cn('ml-auto hidden shrink-0 sm:flex', offer !== null && 'sm:hidden')} />
+          )}
         </div>
       </div>
 

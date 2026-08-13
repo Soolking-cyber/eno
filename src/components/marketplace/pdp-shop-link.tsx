@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { ChevronRight, Building2, BadgeCheck, Star } from '@/components/ui/icons'
 import { Avatar } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
+import { PartnerBadge } from './partner-badge'
 import { TrustScore } from './trust-score'
 import { miniSealWashClass } from './seller-card'
 import { RatingValue, CountValue } from './rating-value'
@@ -99,7 +100,13 @@ export function PdpShopLink({ name, avatarColor, avatarUrl, isBusiness, business
           {/* Building-band chips get the brand-100 chief wash from the call site —
               the §0 signature at micro scale; see miniSealWashClass in seller-card.tsx
               (stopgap pending the foundation fix inside trust-score.tsx). */}
-          <TrustScore score={trustScore} variant="mini" size="sm" href="/trust" className={miniSealWashClass(trustScore)} />
+          {/* ⚠️ PARTNER REPLACES TRUST HERE (owner, 2026-08-13). An official partner shows the gold
+              partner badge INSTEAD of a trust score — the partner claim is the stronger of the two
+              and showing both spends two chips on one point. Same swap in seller-card,
+              pdp-shop-link and compact-listing-row, so a partner reads identically everywhere. */}
+          {officialPartner
+            ? <PartnerBadge />
+            : <TrustScore score={trustScore} variant="mini" size="sm" href="/trust" className={miniSealWashClass(trustScore)} />}
         </div>
         {strip.length > 0 && (
           <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-muted-foreground">
