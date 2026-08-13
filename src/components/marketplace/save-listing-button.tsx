@@ -39,7 +39,7 @@ export function SaveListingButton({ id, compact = false, className }: { id: stri
             one save surface with no confirmation at all, which made the loudest state change in
             the system the quietest moment. Only ever on SAVE — an unsave is not a celebration. */}
         <span key={saved ? 'on' : 'off'} className={cn('inline-flex', saved && 'animate-heart-pop')}>
-          <Heart className={cn('h-5 w-5', saved ? 'fill-brand text-white' : 'fill-black/25')} />
+          <Heart className={cn('h-5 w-5', saved ? 'fill-current text-destructive' : 'fill-black/25')} />
         </span>
       </IconButton>
     )
@@ -59,9 +59,11 @@ export function SaveListingButton({ id, compact = false, className }: { id: stri
         className,
       )}
     >
-      {/* Saved = fill-brand + text-brand line — the exact §5 user-state pair FavoriteHeart uses. */}
+      {/* Saved = solid RED (--destructive), the same pair FavoriteHeart uses. ⚠️ The colour rides on
+          text-*, never fill-*: these glyphs paint every path with fill="currentColor", so a `fill:`
+          set on the <svg> never reaches the ink (that bug made both states render white). */}
       <span key={saved ? 'on' : 'off'} className={cn('inline-flex', saved && 'animate-heart-pop')}>
-        <Heart className={cn('h-4 w-4', saved && 'fill-brand text-brand')} />
+        <Heart className={cn('h-4 w-4', saved && 'fill-current text-destructive')} />
       </span>
       <span className="hidden sm:inline">{label}</span>
     </Button>

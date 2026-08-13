@@ -2141,9 +2141,20 @@ html.native-tabs .bottom-nav-spacer {
 }
 .i-on { opacity: 0; }
 
+/* ⚠️ SELECTED, NOT PRESSED — `:active` IS DELIBERATELY ABSENT (owner, 2026-08-13: "fix icons
+   outline and bold state not on click but when button is selected change state").
+   The weight swap used to fire on `:active` as well, i.e. for the ~100ms a finger is down on ANY
+   button in the app, including buttons that have no selected state at all and never keep the bold.
+   That made the grammar say two different things with one mark: "you are touching this" and "you
+   are on this". Only the second is information — the first is already reported by the press
+   animation and the ripple. So the trigger list is now selection and disclosure state only:
+   aria-pressed / aria-selected / aria-checked / aria-expanded, the data-state family, and
+   aria-current. An icon goes bold when its control IS something, and stays outline otherwise.
+   ⚠️ The 130ms transition-duration override below was written for the press case (snappy on the
+   way in, slower back). It still reads correctly for a selection change, so it stays — but it is
+   no longer answering a finger. */
 :is(button, a, label, summary, [role='button'], [role='tab'], [role='option'], [role='menuitem'],
     [role='switch'], [role='checkbox'], [role='radio'], [role='menuitemradio'], [role='menuitemcheckbox']):is(
-    :active,
     [aria-pressed='true'], [aria-selected='true'], [aria-checked='true'], [aria-expanded='true'],
     [data-state='on'], [data-state='open'], [data-state='checked'], [data-state='active'],
     [data-active='true'], [aria-current]:not([aria-current='false'])
@@ -2154,7 +2165,6 @@ html.native-tabs .bottom-nav-spacer {
 
 :is(button, a, label, summary, [role='button'], [role='tab'], [role='option'], [role='menuitem'],
     [role='switch'], [role='checkbox'], [role='radio'], [role='menuitemradio'], [role='menuitemcheckbox']):is(
-    :active,
     [aria-pressed='true'], [aria-selected='true'], [aria-checked='true'], [aria-expanded='true'],
     [data-state='on'], [data-state='open'], [data-state='checked'], [data-state='active'],
     [data-active='true'], [aria-current]:not([aria-current='false'])
@@ -2191,7 +2201,6 @@ html.native-tabs .bottom-nav-spacer {
    `inherit`, not a token: the point is to hand the colour back to whatever the control set —
    text-white on a filled checkbox, text-warning on a star — which no single value can name. */
 :is([role='checkbox'], [role='radio']):is(
-    :active,
     [aria-pressed='true'], [aria-selected='true'], [aria-checked='true'], [aria-expanded='true'],
     [data-state='on'], [data-state='open'], [data-state='checked'], [data-state='active'],
     [data-active='true'], [aria-current]:not([aria-current='false'])

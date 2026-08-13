@@ -17,7 +17,9 @@ import { cn } from '@/lib/utils'
 //                        close/mute, video-feed rail). White ink + a baked drop-shadow so the
 //                        glyph reads on ANY image, and NO hover fill (a hover chip over a photo
 //                        looks like a bug). Fill-state (a filled heart) stays on the icon child:
-//                        <Heart className={favorited ? 'fill-brand text-white' : 'fill-black/25'} />.
+//                        <Heart className={favorited ? 'fill-current text-destructive' : 'fill-black/25'} />.
+//                        (saved is RED app-wide since 2026-08-13; the colour rides on text-*
+//                        because these glyphs paint every path with fill="currentColor".)
 //                        ⚠️ POSITIONING IS THE CALLER'S. The primitive owns no absolute/inset —
 //                        pass `absolute right-2 top-2` (or fixed/z-*) in className. That works
 //                        because className is the LAST arg to cn(): tailwind-merge resolves the

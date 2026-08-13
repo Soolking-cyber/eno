@@ -23,11 +23,11 @@ export function FavoriteHeart({ id, className }: { id: string; className?: strin
       className={cn('transition-colors hover:bg-accent', className)}
     >
       {/* key remounts on toggle → re-runs the CSS pop (same as the grid card).
-          Saved = fill-brand + text-brand line — the exact user-state pair the icon
+          Saved = solid RED (--destructive), the app-wide saved colour since 2026-08-13 — the pair the icon
           language reserves its loudest treatment for (§5); h-5 keeps the heart on
           the same 20px step as the row's Tag/Chat/Pin neighbours. */}
       <span key={fav ? 'on' : 'off'} className={cn('inline-flex', fav && 'animate-heart-pop')}>
-        <Heart className={cn('h-5 w-5 transition-colors', fav ? 'fill-brand text-brand' : 'text-foreground')} />
+        <Heart className={cn('h-5 w-5 transition-colors', fav ? 'fill-current text-destructive' : 'text-foreground')} />
       </span>
     </IconButton>
   )
