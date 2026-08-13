@@ -1,6 +1,14 @@
 import 'server-only'
 import { db } from '../db'
 import { getAdmin, getCurrentProfile } from '../admin'
+// ⚠️ THE TRIP DESK'S OWN OPERATOR, not a site admin. Every gate below used getAdmin(), which on
+// eno.vn would have meant putting GMBR — a third-party company — into ADMIN_EMAILS to let them
+// quote the itineraries they sell, handing them every dispute room and every applicant's documents
+// along with it. getTripDeskOperator() still accepts an admin, so nothing an operator could do
+// before is lost; it merely also accepts the account that OWNS this deployment's trip desk.
+// See src/lib/desk-operator.ts for why the entitlement is derived from the desk rather than a
+// second allowlist.
+import { getTripDeskOperator } from '../desk-operator'
 import { adminCanTake, applyTripTransition, canTransition, openStatuses, travellerCanTake, type TripActorType } from './status'
 // The DM layer. Imported for its two card senders only; it never calls back into this file, so
 // the dependency is one-way (assistance -> dm-flow -> dm-thread/messages).
@@ -160,7 +168,7 @@ export async function viewAssistance(input: { requestId: string }): Promise<{ ok
   // The cost is that a traveller whose own case was deleted sees 'forbidden' rather than a precise
   // 404. That is the correct trade: they have one case id, and the difference tells them nothing
   // they need, while the distinction tells an attacker everything.
-  if (!request || (!mine && !(await getAdmin()))) return { ok: false, error: 'forbidden' }
+  if (!request || (!mine && !(await getTripDeskOperator()))) return { ok: false, error: 'forbidden' }
   return {
     ok: true,
     data: {
@@ -187,7 +195,7 @@ export async function viewAssistance(input: { requestId: string }): Promise<{ ok
  * Resolves its OWN admin, like everything else here — an operator identity is never an argument.
  */
 export async function moveAssistanceAsAdmin(input: { requestId: string; next: string }): Promise<AssistanceResult> {
-  const admin = await getAdmin()
+  const admin = await getTripDeskOperator()
   if (!admin) return { ok: false, error: 'forbidden' }
   return transitionAsAdmin(input.requestId, input.next, admin)
 }
@@ -195,7 +203,7 @@ export async function moveAssistanceAsAdmin(input: { requestId: string; next: st
 /** An operator picks the case up: requested → reviewing. A named shorthand for the common first
  *  move; moveAssistanceAsAdmin covers the rest of the machine. */
 export async function startReview(input: { requestId: string }): Promise<AssistanceResult> {
-  const admin = await getAdmin()
+  const admin = await getTripDeskOperator()
   if (!admin) return { ok: false, error: 'forbidden' }
   return transitionAsAdmin(input.requestId, 'reviewing', admin)
 }
@@ -219,7 +227,7 @@ export async function startReview(input: { requestId: string }): Promise<Assista
  * path, not a second definition of the workflow.
  */
 export async function quoteAssistance(input: { requestId: string; supplierTotalVnd: number; feeVnd: number }): Promise<AssistanceResult> {
-  const admin = await getAdmin()
+  const admin = await getTripDeskOperator()
   if (!admin) return { ok: false, error: 'forbidden' }
   const { requestId, supplierTotalVnd, feeVnd } = input
   // Both numbers, or the request is malformed — a quote is never half-typed. The DDL enforces

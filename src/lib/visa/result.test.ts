@@ -88,6 +88,18 @@ vi.mock('next/server', () => ({
       }),
   },
 }))
+
+// ⚠️ THE DESK OPERATOR GATE, MOCKED TO THE SAME `h.state.admin` THESE TESTS ALREADY DRIVE.
+// The production gate moved from getAdmin() to the SCOPED desk operator (src/lib/desk-operator.ts)
+// so a partner running one desk does not need ADMIN_EMAILS — which would have granted them every
+// dispute room and every other applicant's documents. Every assertion in this file is about the
+// operator/non-operator distinction, not about which env names the operator, so pointing the new
+// helper at the same flag keeps them meaningful. The entitlement itself — visa operator refused on
+// trips and vice versa — is pinned in src/lib/desk-operator.test.ts.
+vi.mock('@/lib/desk-operator', () => ({
+  getVisaDeskOperator: async () => h.state.admin,
+  getTripDeskOperator: async () => h.state.admin,
+}))
 vi.mock('@/lib/admin', () => ({
   getAdmin: async () => h.state.admin,
   getCurrentProfileId: async () => h.state.profileId,

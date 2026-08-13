@@ -1,6 +1,7 @@
 import 'server-only'
 import { db } from '../db'
 import { getAdmin } from '../admin'
+import { getTripDeskOperator } from '../desk-operator'
 import { insertMessage } from '../messages'
 import { findTripThread, tripDeskMode } from './dm-thread'
 
@@ -67,7 +68,7 @@ export type SentCard = { messageId: string } | null
  * NOT gated on desk mode — this IS the human operator acting, so there is nobody to post over.
  */
 export async function sendTripQuoteCard(input: { requestId: string }): Promise<SentCard> {
-  if (!(await getAdmin())) return null
+  if (!(await getTripDeskOperator())) return null // the desk's operator, not a site admin — see desk-operator.ts
   return postCard(input.requestId, 'trip_quote', { v: 1, requestId: input.requestId }, TRIP_QUOTE_PREVIEW)
 }
 

@@ -14,6 +14,12 @@ const h = vi.hoisted(() => ({
   },
 }))
 
+// The gate moved to the SCOPED desk operator (see src/lib/desk-operator.ts) so a partner running
+// the trip desk does not need ADMIN_EMAILS. Same flag, same assertions.
+vi.mock('../desk-operator', () => ({
+  getTripDeskOperator: async () => h.state.admin,
+  getVisaDeskOperator: async () => h.state.admin,
+}))
 vi.mock('../admin', () => ({ getAdmin: async () => h.state.admin }))
 vi.mock('./dm-thread', () => ({
   findTripThread: async () => h.state.thread,

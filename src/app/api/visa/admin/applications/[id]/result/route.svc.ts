@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getAdmin } from '@/lib/admin'
+import { getVisaDeskOperator } from '@/lib/desk-operator'
 import { rateLimit } from '@/lib/ratelimit'
 import { getVisaDb } from '@/lib/visa/db'
 import { recordVisaEvent } from '@/lib/visa/records'
@@ -91,7 +92,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   // or written before it passes; result.test.ts drives a non-admin request with every data
   // call counted and asserts all the counters stay at zero, so deleting this turns the
   // suite red rather than quietly opening the upload.
-  const admin = await getAdmin()
+  // ⚠️ THE VISA DESK'S OPERATOR, NOT A SITE ADMIN. This was getAdmin(), which on eno.vn would have
+  // required putting VietKite into ADMIN_EMAILS to let them do the job they are paid for — filing
+  // the visas they sell — and that grants every dispute room, every report and every OTHER
+  // applicant's documents along with it. getVisaDeskOperator() still accepts an admin, so eno's own
+  // support account is unaffected; it also accepts the account that owns THIS deployment's visa
+  // storefront, and only that desk. See src/lib/desk-operator.ts.
+  const admin = await getVisaDeskOperator()
   if (!admin) return refuse('forbidden', 403)
   // Fails OPEN (no `strict`), like the sibling admin routes: the caller is already an admin,
   // so a limiter outage must not lock the desk out of delivering a visa.

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getAdmin } from '@/lib/admin'
+import { getVisaDeskOperator } from '@/lib/desk-operator'
 import { rateLimit } from '@/lib/ratelimit'
 import { loadVisaAdminCase, VISA_BUCKET, type VisaDocumentRow } from '@/lib/visa-admin'
 import { decryptVisaPayload, visaCryptoReady } from '@/lib/visa/crypto'
@@ -116,7 +117,13 @@ const refuse = (error: string, status: number) =>
 //     the wrapper cannot produce — `auth:'admin'` leaves `userId` null, so it would key on
 //     `clientIp(req)` and pool the whole desk behind one office IP.
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const admin = await getAdmin()
+  // ⚠️ THE VISA DESK'S OPERATOR, NOT A SITE ADMIN. This was getAdmin(), which on eno.vn would have
+  // required putting VietKite into ADMIN_EMAILS to let them do the job they are paid for — filing
+  // the visas they sell — and that grants every dispute room, every report and every OTHER
+  // applicant's documents along with it. getVisaDeskOperator() still accepts an admin, so eno's own
+  // support account is unaffected; it also accepts the account that owns THIS deployment's visa
+  // storefront, and only that desk. See src/lib/desk-operator.ts.
+  const admin = await getVisaDeskOperator()
   if (!admin) return refuse('forbidden', 403)
   // Fails OPEN (no `strict`), like the takeover route: the caller is already an admin, so a
   // limiter outage must not lock the desk out of its own queue. The cap is here because
