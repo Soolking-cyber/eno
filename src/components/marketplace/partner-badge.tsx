@@ -1,7 +1,6 @@
 'use client'
 
 import Link from 'next/link'
-import { Badge } from '@/components/ui/badge'
 import { Tooltip } from '@/components/ui/tooltip'
 import { ShieldCheck } from '@/components/ui/icons'
 import { useLanguage } from '@/context/language-context'
@@ -50,26 +49,31 @@ export function PartnerBadge({ size = 'sm', className }: { size?: 'sm' | 'md'; c
         aria-label={`${full} — ${tr('how eno chooses partners', 'eno chọn đối tác thế nào')}`}
         className="inline-flex shrink-0 cursor-pointer rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
       >
-        <Badge
-          variant="partner"
-          size={size === 'md' ? 'sm' : 'count'}
-          className={cn(
-            'partner-fill gap-1 font-bold',
-            size === 'md' ? 'px-2 py-0.5 text-xs' : 'px-1.5 py-0.5 text-2xs',
-            className,
-          )}
-        >
+        {/* ⚠️ A PLAIN <span> WITH THE TRUST CHIP'S EXACT CLASS STRING, NOT <Badge>. Owner,
+            2026-08-13: "height is still taller than other trust pills" — it measured 18.8px against
+            the trust chip's ~16px even though both were given px-1.5 py-0.5 text-2xs leading-none.
+            The cause is the trap CLAUDE.md names: `text-2xs` is a Tailwind text utility, so it sets
+            font-size AND line-height, and whether it or `leading-none` wins is decided by
+            STYLESHEET ORDER, not by which class was passed last. Through ui/badge the size class
+            arrived from the variant and the override from the caller, and the line-height came out
+            of the size. Copying trust-score.tsx's own string verbatim removes the question: the two
+            chips are the same box because they are the same declaration, and any future drift shows
+            up in one place. `.partner-fill` supplies the ground and the ink. */}
+        <span className={cn(
+          'inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-2xs font-bold leading-none',
+          'partner-fill',
+          className,
+        )}>
           {/* Solar's shield-check, the same family the trust chip uses for its seal. Deliberately
               NOT the eno seal: the seal means "eno verified this account", and a partnership is a
               commercial agreement rather than a verification outcome. */}
-          <ShieldCheck aria-hidden className={size === 'md' ? 'h-3.5 w-3.5' : 'h-3 w-3'} />
+          {/* ⚠️ 11px, MATCHING trust-score.tsx's mini glyph EXACTLY (`width={11} height={11}`).
+              This is the last pixel of the height match the owner asked for: at h-3 (12px) the
+              glyph, not the text, set the box and the pill measured 16px against the trust chip's
+              15px. The icon is the tallest child, so its size IS the chip's height. */}
+          <ShieldCheck aria-hidden size={11} className="shrink-0" />
           {word}
-          {/* ⚠️ NO sr-only TWIN HERE, AND THE FIRST DRAFT HAD ONE. `aria-label` on the <Link>
-              REPLACES its whole subtree for assistive tech, so an sr-only span inside it is never
-              announced — it is dead markup that reads as accessibility work. (Same rule that makes
-              the rail's counter badges safe to `aria-hidden`: their link's aria-label already
-              carries the number.) The full phrase lives in that aria-label instead. */}
-        </Badge>
+        </span>
       </Link>
     </Tooltip>
   )

@@ -320,23 +320,24 @@
   --partner-foil-from: #fde68a;
   --partner-foil-mid:  #f5c542;
   --partner-foil-to:   #c98a17;
-  /* ── The WORDED partner pill: deep gold ground, bright gold rim, white label ──────
-     Owner, 2026-08-13: "gold outline similar to trust badge, short precise partner in
-     white inside golden pill". The obvious reading — white on the foil above — is
-     unreadable, and that is measured, not felt: white on --partner-foil-mid #f5c542 is
-     1.62:1 and on --partner-foil-to #c98a17 is 2.94:1, against the 4.5:1 a 10px bold
-     label needs (it is not "large text" at any weight).
-     So the GROUND goes deep and the RIM stays bright. White on #9a6207 is 5.09:1 and on
-     #7c4f04 is 7.05:1 — the whole gradient passes, worst stop first. It still reads as
-     gold because the rim is --partner-foil-mid, which is the same bright foil the avatar
-     ring already uses.
-     ⚠️ THIS IS ALSO WHAT KEEPS IT OFF .trust-fill-exceptional. That chip is LIGHT gold with
-     dark ink and carries a NUMBER; this one is DARK gold with white ink and carries a WORD.
-     The earlier decision to invert the chip (gold-on-dark) existed for exactly this reason
-     and it survives here — the ground simply moved from near-black to deep gold, so the
-     badge reads as metal rather than as a dark chip, without ever looking like a trust tier. */
-  --partner-solid-from: #9a6207;
-  --partner-solid-to:   #7c4f04;
+  /* ── The partner mark: ONE flat green, shared by the pill and both rings ────────
+     Owner, 2026-08-13, after walking the gold through bright/dark/gradient: "try to use bright
+     green which is equivalent for our red and blue for partner pill and ring". So it leaves the
+     gold family entirely and joins the semantic set — #15803d (green-700) is the sibling of
+     --destructive #b91c1c and --primary #0a66c2, and lands in the same brightness band: white ink
+     measures 5.02:1 here against 6.47:1 on the red and 5.69:1 on the blue.
+     ⚠️ green-700 IS THE BRIGHTEST GREEN THAT KEEPS WHITE INK. green-600 (#16a34a) is 3.30:1 and
+     green-500 (#22c55e) is 2.28:1, both under the 4.5:1 a 10px bold label needs. So "bright green"
+     stops here; anything brighter means giving up the white the owner asked for.
+     ⚠️ NOT --success, DELIBERATELY, even though it is the neighbouring token. --success means "this
+     went well" — a completed sale, a passed check — and it re-themes to #4ade80 in dark, where
+     white ink fails outright. A partnership is an identity, not an outcome, so it takes its own
+     token and its own value in both themes.
+     ⚠️ LEAVING GOLD ALSO ENDS THE .trust-fill-exceptional COLLISION for good: the Exceptional trust
+     tier is gold, this is green, and the two can no longer be confused at a glance even in a mixed
+     feed. The --partner / --partner-ground / --partner-foil-* tokens above are now used only by the
+     dark inverted chip and are kept for it. */
+  --partner-solid: #15803d;
 
   /* Semantic — used ONLY to carry meaning, never decoration.
      verified/trust folds into the brand blue; amber = caution; red = destructive. */
@@ -533,14 +534,9 @@
   --partner-foil-from: #fef0c3;
   --partner-foil-mid:  #f7d268;
   --partner-foil-to:   #d99a28;
-  /* Dark mode lifts the ground a step — the near-black end of the light ramp would sink into a
-     dark page — but NOT past the contrast bar. An earlier value here was #a86a10, whose white
-     contrast is 4.44:1: under the 4.5:1 a 10px bold label needs, while the comment beside it
-     claimed "above 4.5:1 on both stops". All three reviewers caught the arithmetic contradicting
-     its own sentence. Measured: #96610d = 5.23:1 and #7f5300 = 6.69:1, so the whole ramp passes
-     with the lightest stop first. The rim rides --partner-foil-mid as in light. */
-  --partner-solid-from: #96610d;
-  --partner-solid-to:   #7f5300;
+  /* Dark mode keeps the same green rather than lifting it: the lifted step (green-600) drops white
+     to 3.30:1, and a partner mark that is legible in one theme only is not a mark. 5.02:1 in both. */
+  --partner-solid: #15803d;
 
   /* Deepen elevation so surfaces still read on the dark canvas */
   --shadow-pop: 0 8px 30px rgba(0, 0, 0, 0.45);
@@ -1600,7 +1596,9 @@ html.native-tabs .bottom-nav-spacer {
    which made partner status colour-only on the DEFAULT browse view. Adding the class without
    the name is the whole failure mode. */
 .partner-ring {
-  outline: 1.5px solid var(--partner-foil-mid);
+  /* ⚠️ --partner-solid, NOT the bright foil (owner, 2026-08-13: "make ring and badge dark
+     gold"). Ring and pill are one mark in two places and must not drift apart. */
+  outline: 1.5px solid var(--partner-solid);
   outline-offset: 2px;
 }
 /* ⚠️ MEASURED: Chromium ROUNDS outline-width, so 1.5 resolves to a 1px hairline.
@@ -1712,7 +1710,8 @@ html.native-tabs .bottom-nav-spacer {
      real work rather than decoration: gold on a pale photo has almost no contrast on its own,
      so a hairline of black underneath guarantees an edge on any artwork. Together they read as
      a foil rim rather than a stray border. */
-  border: 2px solid var(--partner-foil-mid);
+  /* Dark gold, same token as the avatar ring and the pill — see .partner-ring. */
+  border: 2px solid var(--partner-solid);
   box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.18);
 }
 /* ⚠️ FORCED COLORS KEEPS THE RING, EXPLICITLY. Both external reviewers raised this against the
@@ -2046,15 +2045,11 @@ html.native-tabs .bottom-nav-spacer {
 }
 
 .partner-fill {
-  /* ⚠️ NO RIM (owner, 2026-08-13: "no gold outline but the badge itself gold with white in tick and
-     writing similar to trust badge"). It carried an inset 1.5px --partner-foil-mid ring; the pill
-     is now the gold, the way .trust-fill-exceptional is the gold on a trust chip.
-     ⚠️ AND THIS IS THE BRIGHTEST GOLD THE BRIEF ALLOWS, not a conservative pick. White ink caps
-     how light the ground can go: measured, white needs 4.5:1 for a 10px bold label, and #9a6207 is
-     5.09:1 while the next step lighter (#a86a10) is 4.44:1 and already under. So the ramp starts at
-     the ceiling. Going brighter means giving up white ink, which is the half of the brief that
-     cannot bend — a gold chip with dark ink is .trust-fill-exceptional, i.e. the trust tier. */
-  background-image: linear-gradient(135deg, var(--partner-solid-from) 0%, var(--partner-solid-to) 100%);
+  /* ⚠️ NO RIM AND NO GRADIENT (owner: "no gold outline but the badge itself gold", then "make the
+     pill 1 bright gold same as outline no gradient"). One flat --partner-solid, dark ink. The
+     measurements and the reason this may now look like the Exceptional trust chip are on the
+     --partner-solid block above; do not re-add a ramp or a ring without reading it. */
+  background-color: var(--partner-solid);
   color: #fff;
 }
 

@@ -34,7 +34,7 @@ export function SaveSignupSheet() {
   return (
     <DialogPrimitive.Root open={true} onOpenChange={(open) => { if (!open) setOpen(false) }}>
       <DialogPrimitive.Portal>
-        <DialogPrimitive.Backdrop className="fixed inset-0 z-[130] bg-black/40 backdrop-blur-[2px] data-open:animate-in data-open:fade-in data-closed:animate-out data-closed:fade-out" />
+        <DialogPrimitive.Backdrop className="overlay-scrim fixed inset-0 z-[130] data-open:animate-in data-open:fade-in data-closed:animate-out data-closed:fade-out" />
         <div className="fixed inset-0 z-[130] flex flex-col justify-end">
           <DialogPrimitive.Popup aria-label={tr('Keep your saved items', 'Giữ tin đã lưu')} className="relative mx-auto w-full max-w-md rounded-t-2xl bg-card px-6 pb-[calc(2rem+env(safe-area-inset-bottom))] pt-3 shadow-overlay outline-none animate-in slide-in-from-bottom-4 duration-250 data-closed:animate-out data-closed:slide-out-to-bottom-4">
             <div aria-hidden className="mx-auto h-1 w-10 rounded-full bg-line-strong" />

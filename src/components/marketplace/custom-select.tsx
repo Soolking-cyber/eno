@@ -81,7 +81,12 @@ function itemClassName(isActive: boolean) {
 // portals its panel at z-[100] over a z-[99] scrim and facet-bar's advanced panel at
 // z-[1100] over z-[1099], so a menu opened from inside either one has to clear both or it
 // renders UNDERNEATH the scrim that owns the click. Both variants use this same stack.
-const BACKDROP_Z = 'fixed inset-0 z-[1200]'
+/* ⚠️ NOW PAINTS, VIA THE SHARED SCRIM. These two backdrops existed purely to own a z-layer and
+   absorb the dismissing tap; they rendered nothing, so a CustomSelect opened over a page left it
+   undimmed while every other overlay scrimmed it. `.overlay-scrim` is the one definition (see
+   globals.css); the z-[1200] stays because this control opens INSIDE other overlays and has to
+   clear them. */
+const BACKDROP_Z = 'overlay-scrim fixed inset-0 z-[1200]'
 const POSITIONER_Z = 'z-[1201]'
 // ⚠️ min-w-64 + max-w, NOT the plain w-(--anchor-width) the plain variant uses. The
 // searchable card holds a search field AND long labels ("Phường Bến Nghé, Quận 1"), and

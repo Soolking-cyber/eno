@@ -239,7 +239,13 @@ export function AreaFilter({
     // scrim so a CustomSelect opened inside (its own backdrop at z-[1200]) still layers on top.
     <PopoverPrimitive.Root open={open} onOpenChange={(next) => { if (!next) onClose() }}>
       <PopoverPrimitive.Portal>
-        <PopoverPrimitive.Backdrop className="fixed inset-0 z-[99] bg-black/25 animate-in fade-in duration-150" />
+        {/* ⚠️ `.overlay-scrim`, NOT A HAND-ROLLED TINT (owner, 2026-08-13: "area dropdown still doesnt
+            have blur instead darkens background"). This rendered its own `bg-black/25` with no blur,
+            which is exactly the inconsistency the shared scrim was introduced to end — and twice as
+            dark as every other overlay. It bypasses ui/popover (it drives PopoverPrimitive directly
+            for the z-layering described above), so it has to opt into the class by name. Keep the
+            z-[99]: the panel sits at z-[100] and a CustomSelect opened inside it goes higher still. */}
+        <PopoverPrimitive.Backdrop className="overlay-scrim fixed inset-0 z-[99] animate-in fade-in duration-150" />
         <PopoverPrimitive.Positioner
           anchor={anchorRef}
           side="bottom"

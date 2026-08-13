@@ -688,7 +688,16 @@ function ListingCardImpl({
               on save. h-5 = the ladder's 20px step, same as the quick-action glyphs,
               so the whole photo-overlay cluster shares ONE optical size. */}
           <span onAnimationEnd={() => setBurst(false)} className={cn('inline-flex', burst && 'animate-heart-pop')}>
-            <Heart className={cn('h-5 w-5 transition-colors [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.5))]', favorited ? 'fill-brand text-white' : 'fill-black/25 text-white')} />
+            {/* ⚠️ SAVED = RED, THE SAME RED AS THE COUNTERS (owner, 2026-08-13: "clicking on heart
+                on products make it red similar to notif message counter red"), i.e. --destructive,
+                the token the counter badge uses. It was `fill-brand text-white`.
+                ⚠️ THE COLOUR HAS TO RIDE ON `text-*`, NOT `fill-*`, AND THAT IS WHY THE OLD PAIR
+                LOOKED IDENTICAL IN BOTH STATES. These glyphs are generated with `fill="currentColor"`
+                on each <path>, and a presentation attribute on the path beats a `fill:` inherited
+                from the <svg> — so `fill-brand` never reached the ink and both states painted
+                `text-white`. Setting `color` is what the paths actually follow. `fill-current` is
+                kept so the shape stays solid rather than falling back to the unset default. */}
+            <Heart className={cn('h-5 w-5 transition-colors [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.5))]', favorited ? 'fill-current text-destructive' : 'fill-black/25 text-white')} />
           </span>
         </IconButton>
 
