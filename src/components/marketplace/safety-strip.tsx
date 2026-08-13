@@ -1,8 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { SEAL_CHECK, SEAL_CHIEF, SEAL_OUTLINE } from '@/components/marketplace/eno-seal'
-import { STROKE_UI } from '@/lib/icon-tokens'
+import { ShieldCheck } from '@/components/ui/icons'
 import { useLanguage } from '@/context/language-context'
 import { cn } from '@/lib/utils'
 
@@ -39,7 +38,7 @@ export function SafetyStrip({ categorySlug, action, protections, className }: { 
     //
     // ⚠️ IT USED TO ANSWER THAT WITH A LEFT RULE, AND THE RULE IS NOW GONE (owner, 2026-08-13:
     // "remove accent line on left, look all across the app if any section have it remove").
-    // What holds the hierarchy without it: the `bg-warning/10` tint, the amber seal, and the first
+    // What holds the hierarchy without it: the `bg-warning/10` tint, the amber shield glyph, and the first
     // line's own `font-semibold text-warning` ink. The warning still speaks in the warning's voice,
     // it just no longer wears a bar. If this ever reads as a grey note again, the fix is ink and
     // weight — do not put the rule back.
@@ -47,39 +46,15 @@ export function SafetyStrip({ categorySlug, action, protections, className }: { 
     // contrast as TEXT (see the token note in globals.css) — so this is safe as ink, which is
     // exactly why the token exists rather than a raw amber.
     <div className={cn('flex items-start gap-2.5 rounded-xl bg-warning/10 px-3 py-2.5 text-xs leading-relaxed', className)}>
-      {/* The eno seal replaces lucide ShieldAlert in this first-party safety moment
-          (§0b + foundation handoff request: seal-in-chip on the safety strip). On the
-          warning tint the chief takes the strip's OWN ink — the trust-chip micro form
-          (tinted chief + line + check) — never brand blue over amber. Paths imported
-          from eno-seal.tsx, never redrawn (§0b: a seal that drifts is a counterfeit).
-          This is hand-rolled rather than <EnoSeal> ONLY because the chief must take
-          currentColor (amber) instead of the component's fixed fill-brand-100.
-          ⚠️ THE CHECK CARRIES `strokeLinejoin`, AND THAT IS NOT COSMETIC. This mount
-          was written against the old straight bar, which had no interior vertex, so it
-          set only strokeLinecap. The check HAS a vertex, and with no linejoin SVG
-          defaults to MITER — a sharp spike on the one glyph the icon language forbids
-          it on (§3: round caps, round joins, never restyled). It shipped mitered here
-          while every other seal in the app was round. Keep both attributes in step
-          with <EnoSeal>'s own render. */}
-      <svg viewBox="0 0 24 24" aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0 text-warning">
-        <path d={SEAL_CHIEF} fill="currentColor" fillOpacity={0.25} />
-        <path
-          d={SEAL_OUTLINE}
-          fill="none"
-          stroke="currentColor"
-          strokeWidth={STROKE_UI}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-        <path
-          d={SEAL_CHECK}
-          fill="none"
-          stroke="currentColor"
-          strokeWidth={STROKE_UI}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      </svg>
+      {/* ⚠️ SOLAR, NOT THE HAND-DRAWN SEAL (owner, 2026-08-13: "old icon make sure all icons are
+          solar"). This mount used to re-draw the eno seal inline — SEAL_CHIEF + SEAL_OUTLINE +
+          SEAL_CHECK stroked by hand — purely so the chief could take the strip's amber ink instead
+          of <EnoSeal>'s fixed fill-brand-100. That is three hand-maintained paths, a strokeLinejoin
+          that had already shipped mitered here while every other seal was round, and a glyph that
+          drifts from the icon set the rest of the app draws from.
+          `shield-check` is the same idea in the shared vocabulary: it takes `currentColor`, so the
+          amber comes for free, and it gains the outline/bold weights every other icon has. */}
+      <ShieldCheck aria-hidden className="mt-0.5 h-5 w-5 shrink-0 text-warning" />
       {/* ⚠️ THE RHYTHM CARRIES THE HIERARCHY. At `space-y-0.5` the three lines — warning,
           protections, actions — sat at the same distance from each other as the words within
           them, so the block read as a pile of links rather than one statement with a footnote.
