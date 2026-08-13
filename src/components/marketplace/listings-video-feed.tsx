@@ -401,7 +401,7 @@ function VideoFeedItem({
               nav chrome, and h-8 sat off the ladder. Saved keeps the §5 user-state pair
               (fill-brand + brand line). */}
           <RailButton label={favorited ? tr('Saved', 'Đã lưu') : tr('Save', 'Lưu')} onClick={() => toggle(listing.id)}>
-            <Heart strokeWidth={STROKE_NAV} className={cn('h-7 w-7 transition-colors [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.6))]', favorited ? 'fill-current text-destructive' : 'text-white')} />
+            <Heart strokeWidth={STROKE_NAV} className={cn('icon-own-ink h-7 w-7 transition-colors [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.6))]', favorited ? 'fill-current text-destructive' : 'text-white')} />
           </RailButton>
           <RailButton label={tr('Chat with seller', 'Nhắn tin')} onClick={chat}>
             <MessageCircle strokeWidth={STROKE_NAV} className="h-7 w-7 [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.6))]" />

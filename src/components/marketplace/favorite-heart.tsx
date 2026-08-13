@@ -27,7 +27,7 @@ export function FavoriteHeart({ id, className }: { id: string; className?: strin
           language reserves its loudest treatment for (§5); h-5 keeps the heart on
           the same 20px step as the row's Tag/Chat/Pin neighbours. */}
       <span key={fav ? 'on' : 'off'} className={cn('inline-flex', fav && 'animate-heart-pop')}>
-        <Heart className={cn('h-5 w-5 transition-colors', fav ? 'fill-current text-destructive' : 'text-foreground')} />
+        <Heart className={cn('icon-own-ink h-5 w-5 transition-colors', fav ? 'fill-current text-destructive' : 'text-foreground')} />
       </span>
     </IconButton>
   )

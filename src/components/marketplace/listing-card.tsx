@@ -281,7 +281,6 @@ function ListingCardImpl({
         // The accessible name moved to the meta row; see the sr-only there.
         className={cn(
           'relative aspect-square w-full overflow-hidden rounded-2xl bg-tint transform-gpu isolate transition-shadow duration-200 group-hover:shadow-[var(--shadow-card)]',
-          listing.seller.officialPartner && 'partner-ring-media',
         )}
         onClick={(e) => {
           // Image-area click → open the listing. It bubbles up from the photo, scrims,
@@ -697,7 +696,7 @@ function ListingCardImpl({
                 from the <svg> — so `fill-brand` never reached the ink and both states painted
                 `text-white`. Setting `color` is what the paths actually follow. `fill-current` is
                 kept so the shape stays solid rather than falling back to the unset default. */}
-            <Heart className={cn('h-5 w-5 transition-colors [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.5))]', favorited ? 'fill-current text-destructive' : 'fill-black/25 text-white')} />
+            <Heart className={cn('icon-own-ink h-5 w-5 transition-colors [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.5))]', favorited ? 'fill-current text-destructive' : 'fill-black/25 text-white')} />
           </span>
         </IconButton>
 

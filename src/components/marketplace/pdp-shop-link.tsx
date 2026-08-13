@@ -72,7 +72,7 @@ export function PdpShopLink({ name, avatarColor, avatarUrl, isBusiness, business
       {/* `title` here, not on the Link: the Link is aria-hidden, and a tooltip is for the
           sighted reader who needs the gold ring explained — see the note in seller-card.tsx. */}
       <Link href={href} aria-hidden tabIndex={-1} className="shrink-0 rounded-full" title={officialPartner ? tr('Official partner', 'Đối tác chính thức') : undefined}>
-        <Avatar name={name} url={avatarUrl} color={avatarColor} size="lg" className={cn(officialPartner && 'partner-ring')} />
+        <Avatar name={name} url={avatarUrl} color={avatarColor} size="lg"  />
       </Link>
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">

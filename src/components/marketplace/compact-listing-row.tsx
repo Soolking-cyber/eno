@@ -86,7 +86,6 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
         title={l.seller.officialPartner ? tr('Official partner', 'Đối tác chính thức') : undefined}
         className={cn(
           'relative h-14 w-14 shrink-0 overflow-hidden rounded-lg bg-tint',
-          l.seller.officialPartner && 'partner-ring-media',
         )}
       >
         {cover ? (

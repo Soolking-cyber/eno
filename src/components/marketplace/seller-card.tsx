@@ -131,7 +131,7 @@ export function SellerCard({
             separate this gold from grey. The tooltip is the cheapest way to make the mark
             self-explaining without reinstating the chip the owner removed. */}
         <span title={seller.officialPartner ? tr('Official partner', 'Đối tác chính thức') : undefined} className="flex shrink-0">
-          <Avatar name={seller.name} url={seller.avatarUrl} color={seller.avatarColor} size="lg" className={cn(seller.officialPartner && 'partner-ring')} />
+          <Avatar name={seller.name} url={seller.avatarUrl} color={seller.avatarColor} size="lg"  />
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">

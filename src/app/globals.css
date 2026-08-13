@@ -1505,7 +1505,10 @@ html.native-tabs .bottom-nav-spacer {
   position: absolute;
   inset: -2px;
   border-radius: 9999px;
-  border: 2px solid var(--brand);
+  /* ⚠️ RED, MATCHING THE HEART IT RINGS (owner, 2026-08-13: "when save heart pressed subtle wavy
+     animation still blue"). It was var(--brand) from when a saved heart was brand blue; the heart
+     is --destructive now, and a blue ring expanding out of a red heart reads as two events. */
+  border: 2px solid var(--destructive);
   opacity: 0;
   pointer-events: none;
   animation: heart-ring 0.35s ease-out;
@@ -2200,6 +2203,30 @@ html.native-tabs .bottom-nav-spacer {
 
    `inherit`, not a token: the point is to hand the colour back to whatever the control set —
    text-white on a filled checkbox, text-warning on a star — which no single value can name. */
+/* ⚠️ AN ICON THAT PAINTS ITS OWN INK OPTS OUT OF THE ACCENT RECOLOUR ABOVE.
+   This is the THIRD victim of the same rule, so it gets a name instead of a third one-off: the
+   checked checkbox went accent-blue on its own blue fill (invisible), the selected rating star went
+   blue instead of gold, and the SAVED HEART went blue instead of red — measured on a live card,
+   `.i-on` computing rgb(10,102,194) while the <svg> it lives in was correctly rgb(185,28,28). The
+   pattern is always the same: a control whose icon colour ENCODES something sets that colour at the
+   call site, then this rule overrides it because the declaration lands on the .i-on <g>, a
+   descendant, and a matched rule beats inheritance.
+   `color: inherit` hands the colour back to whatever the call site set — which no single token can
+   name, since it is red here, gold on a star and white on a checkbox.
+   ⚠️ SPECIFICITY IS WHY THE FULL SELECTOR LIST IS REPEATED. The rule being corrected is (0,4,0);
+   a bare `.icon-own-ink .i-on` is (0,2,0) and would silently lose. Repeating the list and adding
+   the class makes this (0,5,0), so it wins on weight rather than on source order.
+   ⚠️ IT DOES NOT TOUCH THE WEIGHT SWAP — an opted-out icon still goes Bold when selected, which is
+   the grammar the owner asked for. Only the colour is handed back. */
+:is(button, a, label, summary, [role='button'], [role='tab'], [role='option'], [role='menuitem'],
+    [role='switch'], [role='checkbox'], [role='radio'], [role='menuitemradio'], [role='menuitemcheckbox']):is(
+    [aria-pressed='true'], [aria-selected='true'], [aria-checked='true'], [aria-expanded='true'],
+    [data-state='on'], [data-state='open'], [data-state='checked'], [data-state='active'],
+    [data-active='true'], [aria-current]:not([aria-current='false'])
+  ) .icon-own-ink .i-on {
+  color: inherit;
+}
+
 :is([role='checkbox'], [role='radio']):is(
     [aria-pressed='true'], [aria-selected='true'], [aria-checked='true'], [aria-expanded='true'],
     [data-state='on'], [data-state='open'], [data-state='checked'], [data-state='active'],

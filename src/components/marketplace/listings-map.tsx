@@ -626,7 +626,7 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
                   >
                     {/* h-5 + the same overlay fill pair as the grid card's heart — one
                         save affordance, byte-identical across grid / map (icon ladder §4). */}
-                    <Heart className={cn('h-5 w-5 transition-colors [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.5))]', isFavorite(card.id) ? 'fill-current text-destructive' : 'fill-black/25 text-white')} />
+                    <Heart className={cn('icon-own-ink h-5 w-5 transition-colors [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.5))]', isFavorite(card.id) ? 'fill-current text-destructive' : 'fill-black/25 text-white')} />
                   </IconButton>
                 </div>
                 <Button variant="bare" size="none" onClick={() => activateCard(card)} className="block w-full whitespace-normal text-left font-normal cursor-pointer active:scale-100">
