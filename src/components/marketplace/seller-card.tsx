@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { MessageCircle, Store, Building2, Star } from '@/components/ui/icons'
 import { EnoSeal } from './eno-seal'
 import { useLanguage } from '@/context/language-context'
+import { PartnerBadge } from './partner-badge'
 import { TrustScore } from '@/components/marketplace/trust-score'
 import { trustBand } from '@/lib/trust-score'
 import { RatingValue, CountValue } from '@/components/marketplace/rating-value'
@@ -148,7 +149,14 @@ export function SellerCard({
                 colour-blind reader cannot make. On the STOREFRONT this line sits beside the
                 shop's <h1>, so it is also the only place the status appears in the page text at
                 all. sr-only keeps it in the accessibility tree without reinstating the chip. */}
-            {seller.officialPartner && <span className="sr-only">{tr('Official partner', 'Đối tác chính thức')}</span>}
+            {/* ⚠️ THE WORDED BADGE IS BACK (owner, 2026-08-13), AND IT ANSWERS THE NOTE ABOVE
+                RATHER THAN IGNORING IT. The chip was dropped on 2026-08-11 for the ring, and the
+                ring then needed this `sr-only` span precisely because it carries no accessible
+                name and gold-vs-grey is invisible to a colour-blind reader. A word fixes both, so
+                the sr-only crutch goes with it — <PartnerBadge> announces "Official partner"
+                itself. The ring stays: it is the glance, this is the claim, and unlike the ring
+                this one is tappable and explains what a partner actually is. */}
+            {seller.officialPartner && <PartnerBadge />}
             {/* ⚠️ A PARTNER SUPPRESSES THE PLAIN "Business" CHIP, BUT NOT "Business verified".
                 The two say different things and only one is redundant. "Business" merely reports
                 the account TYPE, which "Official partner" already implies — showing both spends a

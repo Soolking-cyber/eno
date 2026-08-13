@@ -4,7 +4,7 @@
 // instead of dozens of lazy /api/translate round-trips. Re-run when UI copy
 // changes:  node scripts/gen-ui-strings.mjs
 
-import { readFileSync, readdirSync, statSync, writeFileSync, mkdirSync } from 'fs'
+import { existsSync, readFileSync, readdirSync, statSync, writeFileSync, mkdirSync } from 'fs'
 import { join, dirname } from 'path'
 
 function walk(dir) {
@@ -149,9 +149,23 @@ const VARIABLE_RENDERED_COPY = [
   // Taxonomy display copy — rendered via <Tr text={variable}> / tr(label, labelVi).
   ['src/lib/taxonomy.ts', ['name', 'label']],
   ['src/lib/visa/speed.ts', ['name', 'label']],
-  // The home page's "Why eno" row — see the note above on why `titleEn` is here.
-  ['src/components/marketplace/why-eno.tsx', ['titleEn']],
+  // ⚠️ why-eno.tsx WAS HERE AND THE FILE IS GONE (deleted 2026-08-13, commit 357c1c27, as an
+  // orphaned component with zero importers). Its row stayed behind and made this generator throw
+  // ENOENT on every run — which matters more than a dead row, because the PostToolUse hook that
+  // keeps src/generated/ui-strings.ts in sync IS this script. A crashing generator stops
+  // regenerating silently, and the drift only surfaces later as a red CI drift-guard on a file
+  // nobody edited (CLAUDE.md documents that failure mode).
+  // The `titleEn` note above is kept: it records why a bare field name is in the alternation at
+  // all, and the next file that renders copy through a variable will need the same treatment.
 ]
+// Every path above must exist — a stale entry here is a silently-stopped generator, not a no-op.
+for (const [path] of VARIABLE_RENDERED_COPY) {
+  if (!existsSync(path)) {
+    console.error(`\n✗ gen-ui-strings: VARIABLE_RENDERED_COPY lists "${path}", which does not exist.\n` +
+      `  Remove the row, or restore the file. Leaving it makes this script throw on every run.\n`)
+    process.exit(1)
+  }
+}
 for (const [path, fields] of VARIABLE_RENDERED_COPY) {
   const tax = readFileSync(path, 'utf8')
   const f = fields.join('|')

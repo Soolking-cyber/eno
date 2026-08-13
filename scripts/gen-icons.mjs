@@ -597,7 +597,28 @@ const bareMark = (lucide, spec) => {
   const inner = layer(from, 'outline')
   const clean = inner.match(/<(?:path|circle|rect|ellipse|line|polyline|polygon)\b[^>]*>/g) ?? []
   if (clean.length !== shapes) fail(`bare mark ${lucide}: normalise() changed the shape count of outline/${from}`)
-  const mark = dx === 0 ? clean[shape] : `<g transform="translate(${dx},0)">${clean[shape]}</g>`
+  /**
+   * ⚠️ `bold` FATTENS THE MARK BY STROKING ITS OWN OUTLINE, which is the only way to add weight
+   * to Solar geometry — the shim's `strokeWidth` prop is INERT (these are filled outlines, not
+   * strokes), and there is no heavier bare tick in the set to swap to. Owner, 2026-08-13: the
+   * tick is "very thin make it bold much bolder so it will be seen inside the blue box" — at
+   * h-3/4 of a 16px checkbox the mark renders 12px wide, where Solar's Outline weight is a
+   * hairline against a saturated fill.
+   * Stroking a FILLED path grows it evenly on both sides of its edge, so the letterform keeps its
+   * shape and only gains mass; round join/cap keep the tick's corner from spiking. Measured at
+   * 12px against 0 / 0.75 / 1.25 / 2.0: 1.25 is the first weight that reads as bold rather than
+   * as a hairline, and 2.0 starts to close the tick's inner angle into a blob.
+   */
+  // ⚠️ FAIL RATHER THAN SILENTLY SKIP THE WEIGHT. This rewrite assumes a self-closing tag; a
+  // `<path …>` with a separate closing tag would leave `.replace` a no-op and ship a hairline
+  // mark that looks like nobody applied the setting. Every other invariant in this function
+  // calls fail(); this one used to degrade quietly, which reviewers caught.
+  let stroked = clean[shape]
+  if (spec.bold) {
+    if (!stroked.endsWith('/>')) fail(`bare mark ${lucide}: shape ${shape} is not self-closing, so \`bold\` cannot be applied: ${stroked.slice(0, 80)}`)
+    stroked = stroked.replace(/\/>$/, ` stroke="currentColor" stroke-width="${spec.bold}" stroke-linejoin="round" stroke-linecap="round"/>`)
+  }
+  const mark = dx === 0 ? stroked : `<g transform="translate(${dx},0)">${stroked}</g>`
 
   return (
     `/** Solar \`${from}\` #${shape} — a BARE mark (${spec.why}) Same drawing at rest and pressed. */\n` +

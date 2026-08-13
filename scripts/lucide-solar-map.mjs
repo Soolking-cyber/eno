@@ -310,13 +310,18 @@ export const LUCIDE_TO_SOLAR = {
  * the accent tint that a selected dropdown row's tick is supposed to get. Not worth it for 65ms.
  */
 export const BARE_MARKS = {
-  Check: { from: 'check-read', shape: 0, shapes: 2, dx: 2.5, sha: 'c4c2f8ec1e702a15',
+  Check: { from: 'check-read', shape: 0, shapes: 2, dx: 2.5, bold: 1.25, sha: 'c4c2f8ec1e702a15',
     why: 'The app\'s bare tick — checkbox, dropdown selected-marks, "copied" confirmations, wizard steps.' },
-  CheckIcon: { from: 'check-read', shape: 0, shapes: 2, dx: 2.5, sha: 'c4c2f8ec1e702a15',
+  CheckIcon: { from: 'check-read', shape: 0, shapes: 2, dx: 2.5, bold: 1.25, sha: 'c4c2f8ec1e702a15',
     why: 'lucide\'s CheckIcon is the same bare tick as Check; it marks the selected row in select/combobox/dropdown-menu.' },
-  Minus: { from: 'minus-circle', shape: 0, shapes: 2, dx: 0, sha: '09fec1411a24c650',
+  Minus: { from: 'minus-circle', shape: 0, shapes: 2, dx: 0, bold: 1.25, sha: '09fec1411a24c650',
     why: 'The checkbox INDETERMINATE dash. Already centred in its source box, hence dx 0.' },
   MinusIcon: { from: 'minus-circle', shape: 0, shapes: 2, dx: 0, sha: '09fec1411a24c650',
+    // ⚠️ NO `bold` HERE, UNLIKE `Minus`. The 1.25 weight was measured on a TICK at 12px inside a
+    // saturated 16px box, where a hairline disappears. This dash is the separator between OTP
+    // groups: it sits on the page surface at normal size, where the same stroke makes it 83%
+    // thicker than the glyphs around it for no reason anyone asked for. Same source shape,
+    // different job, different weight.
     why: 'The separator between OTP groups (ui/input-otp) — a dash, never a circled minus.' },
 }
 
