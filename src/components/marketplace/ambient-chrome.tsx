@@ -48,9 +48,15 @@ import { useEffect, useState } from 'react'
  * event, so with no stored consent it loads zero third-party JS no matter when — or whether — the
  * banner renders. The banner is the UI for granting consent; it is not the gate.
  *
- * The gate itself opens on the first of load+idle or any interaction. The interaction term is no
- * longer load-bearing for correctness (nothing here answers a gesture any more); it just means a
- * visitor who scrolls immediately gets the banner without waiting for idle.
+ * ⛔ THE GATE IS load+idle ONLY. IT USED TO ALSO OPEN ON ANY INTERACTION, AND THAT WAS A REAL BUG.
+ * Once the three gesture-answering components moved out, the interaction term bought nothing — and
+ * it cost something: a capture-phase pointerdown on `window` meant the visitor's FIRST click
+ * anywhere on the page summoned the cookie-consent dialog on the spot. Tapping a listing, dismissing
+ * an offline banner, pressing anything at all — and a consent modal appeared over it. Caught by
+ * e2e/guest/offline.spec.ts, which passed against production and failed against this build:
+ * the dismiss click woke the group and the consent dialog covered the assertion that followed.
+ * Idle after load is the whole gate now. Do not add interaction back without a component here that
+ * genuinely needs it — and re-read the note above about why such a component cannot live here.
  */
 
 // `ssr: false` on both: none renders anything at first paint anyway (the banner is gated on
@@ -70,18 +76,11 @@ export function AmbientChrome() {
       setAwake(true)
       cleanup()
     }
-
-    // ⚠️ `{ once: true }` IS NOT ENOUGH ON ITS OWN — there are five listeners and only one of them
-    // fires, so the other four have to be removed by hand or they outlive the component.
-    // `capture: true` so a handler that stops propagation (the image shield's own contextmenu
-    // guard, once it exists) cannot prevent the wake that mounts it.
-    const EVENTS = ['pointerdown', 'keydown', 'scroll', 'touchstart', 'wheel'] as const
     // ⚠️ THE HANDLE CARRIES ITS OWN KIND. An idle handle and a timeout handle are both numbers and
     // are NOT interchangeable — cancelling one with the other's canceller is a silent no-op that
     // leaves a callback armed after unmount.
     let pending: { kind: 'idle' | 'timeout'; id: number } | undefined
     const cleanup = () => {
-      for (const e of EVENTS) window.removeEventListener(e, wake, { capture: true })
       window.removeEventListener('load', onLoad)
       if (pending?.kind === 'idle') window.cancelIdleCallback?.(pending.id)
       else if (pending) window.clearTimeout(pending.id)
@@ -99,11 +98,9 @@ export function AmbientChrome() {
         : { kind: 'timeout', id: window.setTimeout(wake, 200) }
     }
 
-    for (const e of EVENTS) window.addEventListener(e, wake, { capture: true, passive: true })
     // `load` has usually ALREADY fired by the time a client component's effect runs on a soft nav,
     // and a listener added afterwards never fires — hence the readyState check rather than a bare
-    // addEventListener, which would leave the whole group waiting on an interaction that may
-    // never come.
+    // addEventListener, which would leave the whole group waiting forever.
     if (document.readyState === 'complete') onLoad()
     else window.addEventListener('load', onLoad)
 

@@ -796,9 +796,22 @@ function ListingCardImpl({
           work, not a tidy-up. */}
       <div className="flex flex-1 flex-col gap-0.5 px-0.5 pt-2.5">
         {/* PRIMARY — price. The card's single blue accent, bold and a step larger than
-            everything else so the eye lands here first. Deal chips sit INLINE (baseline
-            row) so "was"/"Good price" add no vertical bulk. */}
-        <span className="flex items-baseline gap-1.5">
+            everything else so the eye lands here first.
+            ⚠️ `flex-wrap`, AND THE COMMENT ABOVE IT USED TO CLAIM THE OPPOSITE ("deal chips sit
+            INLINE … so 'was'/'Good price' add no vertical bulk"). That held only while the current
+            price fitted on one line. Owner, 2026-08-13, pointing at a 2-up rail card: "the discount
+            price is off … it doesnt look nice and cohesive". Measured at 390px, where the price
+            column is 175px: "1,800,000 VND ≈ $68" already needs TWO lines, and because this was a
+            non-wrapping baseline row the struck-through anchor stayed pinned to the FIRST baseline
+            and `truncate` clipped it mid-number — "2,000,000…" floating to the right of a wrapped
+            price, with its own ≈ conversion cut off entirely.
+            Wrapping lets the anchor take its own line, complete and left-aligned under the price it
+            refers to. It costs 21px on a discounted card (45px → 66px, measured) and nothing on any
+            other card — the row only wraps when there is genuinely no room. That is the honest
+            price of showing a complete number, and a clipped one was not worth the 21px it saved.
+            ⚠️ listing-card-skeleton.tsx reserves the TWO-line case (23+1+21=45px) and is correct to:
+            it cannot know which listings carry a drop, and most do not. */}
+        <span className="flex flex-wrap items-baseline gap-x-1.5">
           {/* ⛔ `text-lg` IS THE CEILING HERE — `text-xl` WAS TRIED AND REVERTED IN THE SAME PASS.
               Context, because "make the prices bolder" keeps coming back: the WEIGHT lever is
               already spent. Every feed price was ALREADY `font-extrabold` (800) before that
@@ -820,9 +833,18 @@ function ListingCardImpl({
               is now a single winner (card-badges.tsx), so an urgent listing that also dropped
               shows no "-24%" chip — and this struck price is then the ONLY place the card states
               the drop. `hasDrop` is computed here, from prevPrice, exactly so this line survives
-              a badge the overlay chose not to render. */}
+              a badge the overlay chose not to render.
+              ⚠️ `whitespace-nowrap`, NOT `truncate`, AND THE ≈ CONVERSION STAYS. `truncate` is what
+              produced "2,000,000…" — an anchor price is a NUMBER, and half a number is worse than no
+              number, because a shopper reads the fragment as the real figure. Now that the row above
+              wraps there is a full line for it, so it never needs clipping.
+              ⛔ Do NOT "simplify" this by passing `dual={false}` to shorten it. It was tried and
+              rejected on the same pass: for a viewer whose display currency is USD, <Price>'s first
+              slot is the CONVERTED dollar figure and this second one holds the stored đồng price
+              (price.tsx documents it) — so dropping the dual would leave a USD-only struck price,
+              which ND 340/2025 makes sanctionable for a licensed Vietnamese marketplace. */}
           {hasDrop && (
-            <Price price={listing.prevPrice!} currency={listing.currency} priceUnit="VND" compact className="truncate text-2xs font-medium text-ink-4 line-through" />
+            <Price price={listing.prevPrice!} currency={listing.currency} priceUnit="VND" compact className="whitespace-nowrap text-2xs font-medium text-ink-4 line-through" />
           )}
           {/* Below the market band (< P25) → a quiet "Good price" cue tied to the price.
               Deal-positive only; yields to a live price-drop so the two cheapness signals

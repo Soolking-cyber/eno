@@ -204,7 +204,14 @@ export function SortStrip({
         'block',
         // Swapping `top` (vs transform) is a no-op while still in normal flow, so it never
         // jolts the layout above — it only glides once actually stuck.
-        'sticky z-30 border-b border-border bg-background/95 backdrop-blur transition-[top] duration-[250ms] ease-out motion-reduce:transition-none',
+        // ⚠️ NO `border-b` HERE — IT MOVED TO THE INNER ROW, AND THE TWO ARE NOT THE SAME WIDTH.
+        // This element deliberately bleeds past the page gutter (`-mx-3 sm:-mx-6 lg:-mx-8` below)
+        // so its frosted background covers the full viewport once stuck. The hairline was riding on
+        // that same box, so it ran one gutter wider than the content on each side — 12px at phone
+        // sizes, 32px at lg — and read as a rule that missed the banner and cards it was supposed to
+        // sit under (owner, 2026-08-13: "shorten this hairline to match the banner length").
+        // The BACKGROUND still bleeds; only the line is inset. Keep them separate.
+        'sticky z-30 bg-background/95 backdrop-blur transition-[top] duration-[250ms] ease-out motion-reduce:transition-none',
         // ⚠️ THIS BAR LEAVES WITH THE HEADER NOW, IT DOES NOT TAKE ITS PLACE (owner, 2026-08-12:
         // "on mobile and desktop when scroll up make these disappear and appear together with top
         // navbar" … "otherwise it should be there on home screen"). It used to swap `top` between
@@ -256,7 +263,10 @@ export function SortStrip({
         '-mx-3 px-3 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8',
       )}
     >
-      <div className="flex flex-wrap items-center justify-between gap-x-4">
+      {/* The hairline lives on THIS row, not on the bled wrapper — see the note above. It lands at
+          the content's own left/right edges, so it lines up with the promo banner and the card grid
+          beneath it instead of overshooting into the gutter. */}
+      <div className="flex flex-wrap items-center justify-between gap-x-4 border-b border-border">
       {leading ? <div className="min-w-0 basis-full sm:flex-1 sm:basis-auto">{leading}</div> : null}
       <TabsList
         // variant=line: the default variant paints a bg-muted pill behind the strip.
