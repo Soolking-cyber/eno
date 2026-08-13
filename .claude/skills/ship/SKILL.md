@@ -39,8 +39,19 @@ node scripts/design-lint.mjs
 ## 2. Build
 
 ```bash
-npm run build
+NEXT_PUBLIC_ENO_EDITION=marketplace NEXT_PUBLIC_APP_URL=https://eno.vn npm run build
 ```
+
+⚠️ **A BARE `npm run build` BUILDS THE *SERVICES* EDITION, AND IT LOOKS FINE.** `src/lib/edition.ts`
+reads `EDITION = process.env.NEXT_PUBLIC_ENO_EDITION === 'marketplace' ? 'marketplace' : 'services'`
+— so with the variable unset it silently defaults to **services**, i.e. eno.forum. Cost on
+2026-08-13: the artifact served locally had `/visa` and `/itinerary` live, the dashboard rail wore
+eno.forum's "eno" wordmark instead of "eno.vn" (reported as a bug that did not exist), and the guest
+suite's visa + trip specs passed for the wrong reason. Nothing errors; the edition is simply wrong.
+`npm run preview:vn` sets both variables itself, which is why the difference is invisible until you
+call `npm run build` directly — as this step used to.
+⚠️ `NEXT_PUBLIC_APP_URL` must be the PRODUCTION url even locally: next.config.ts refuses to build a
+marketplace edition pointed at localhost.
 
 This re-runs design-lint, `prisma generate`, and `next build`. A build failure that mentions a missing table is almost never a code bug — check `DATABASE_URL` in the deployed env (it has been clobbered by another project before; see `scripts/db-identity.mjs`).
 
@@ -88,17 +99,23 @@ Then `git push`. The user's standing instruction is to push without asking.
 
 ## 5. Wait for the deploy
 
-**Primary (GCP, since 2026-07-19):** the push fires Cloud Build triggers `eno-vn-deploy` /
-`eno-forum-deploy` (forum only when `apps/forum/**` changed), which build and auto-deploy the
-Cloud Run services in asia-southeast1. Watch:
+**Primary (GCP):** the push fires ONE trigger — `eno-vn-deploy-asia`, **in `asia-southeast1`** —
+which builds and auto-deploys the Cloud Run service. Watch:
 
 ```bash
-gcloud builds list --region=europe-west1 --limit=2 \
-  --format="table(status,substitutions._TAG)" --project=speedy-victory-500106-h8
+gcloud builds list --region=asia-southeast1 --limit=4 --project=speedy-victory-500106-h8 \
+  --format="table(status,substitutions.SHORT_SHA,createTime.date('%H:%M'))"
 ```
 
-Poll until the build(s) tagged with your commit show `SUCCESS` (~6–12 min on default machines).
-`FAILURE` → `gcloud builds log <id> --region=europe-west1`, fix, restart at step 1. Then confirm
+⚠️ **THE REGION USED TO SAY `europe-west1` HERE AND THAT IS WRONG — IT REPORTS A DEPLOY THAT
+NEVER HAPPENED.** `europe-west1` still returns rows, because it holds the build HISTORY of the
+deleted `eno-vn-deploy` / `eno-forum-deploy` triggers. So the command appeared to work and simply
+never showed the new commit. On 2026-08-13 that cost ~10 minutes of polling a region with no
+trigger in it while the real build had already gone green in asia-southeast1. Match on
+`substitutions.SHORT_SHA`, not on `_TAG` (the old triggers' field), and confirm the SHA is YOURS.
+
+Poll until the row for your commit shows `SUCCESS` (~6–12 min).
+`FAILURE` → `gcloud builds log <id> --region=asia-southeast1`, fix, restart at step 1. Then confirm
 the new revision serves **via the domain** (ingress is locked — direct run.app URLs 404):
 `curl -s -o /dev/null -w '%{http_code}' https://eno.vn`.
 

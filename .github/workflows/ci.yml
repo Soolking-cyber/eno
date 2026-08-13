@@ -58,6 +58,20 @@ jobs:
       - name: Generate Prisma client
         run: npx prisma generate
 
+      # ⚠️ EXPLICIT, BECAUSE postinstall DOES NOT RUN ON A CACHE HIT — AND THAT MADE THIS WORKFLOW
+      # PASS OR FAIL ON THE STATE OF A CACHE RATHER THAN THE STATE OF THE CODE.
+      # src/components/ui/icons.tsx and src/generated/icon-paths.ts are GENERATED and gitignored;
+      # the only thing that produced them in CI was package.json's `postinstall`. The install step
+      # above is skipped whenever the node_modules cache hits (its key is just the package-lock
+      # hash), so on a warm cache neither file existed and `tsc` failed with ~200 x
+      # "Cannot find module '@/components/ui/icons'" — in files the commit never touched. It went
+      # unnoticed for as long as it did because a lockfile change, or a cache eviction, quietly
+      # made the next run pass again.
+      # Cheap (it reads @solar-icons/static and writes two files) and idempotent, so running it
+      # unconditionally costs nothing and removes the cache from the correctness path entirely.
+      - name: Generate icons
+        run: node scripts/gen-icons.mjs
+
       - name: Typecheck
         run: npx tsc --noEmit
 
