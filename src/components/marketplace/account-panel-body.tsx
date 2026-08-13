@@ -349,8 +349,16 @@ export function AccountPanel({ open, onClose }: { open: boolean; onClose: () => 
             src={IS_MARKETPLACE ? '/logo-dotvn.svg' : '/logo.svg'}
             alt=""
             aria-hidden
-            width={IS_MARKETPLACE ? 1431 : 823}
-            height={300}
+            // ⚠️ THESE ARE THE ASSETS' OWN viewBox NUMBERS AND THEY MUST TRACK IT. They only
+            // supply the intrinsic ratio the browser reserves before the SVG loads; a stale pair
+            // reserves the wrong width and the rail twitches on first paint. eno.vn's wordmark was
+            // re-set in Open Runde Bold (2026-08-13) and its box changed from 1431x300 to
+            // 9357x2069. Its VERTICAL padding is matched to the old asset (ink fills 76.7% of the
+            // box in both), so `h-7` still puts 21.5px-tall letters on screen; measured, the whole
+            // element renders 126.6px wide against the old 133.6px — narrower, and clear of the
+            // 160px max-width above. /logo.svg (eno.forum) is still the hand-drawn one.
+            width={IS_MARKETPLACE ? 9357 : 823}
+            height={IS_MARKETPLACE ? 2069 : 300}
             className="h-7 w-auto max-w-none"
           />
         </span>

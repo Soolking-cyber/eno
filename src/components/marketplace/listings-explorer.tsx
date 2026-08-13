@@ -2324,7 +2324,9 @@ export function ListingsExplorer({
                 nothing             → "name does not match"
                 img + visible text  → shipped ~1h, no verdict received before this removal
               An `alt` attribute does not substitute: alt is never painted, and /logo-dotvn.svg is
-              3 <path> elements with 0 <text>, so a text extractor finds no glyph anywhere.
+              a single <path> with 0 <text>, so a text extractor finds no glyph anywhere. (It was
+              3 paths until the wordmark was re-set in Open Runde Bold on 2026-08-13; converted
+              font outlines are still outlines, so the point stands unchanged.)
 
               So if brand review answers "the app name … does not match the app name on your home
               page" again, THIS is the cause, and the fix is a painted text node containing
