@@ -43,7 +43,7 @@ function PopoverContent({
     <PopoverPrimitive.Portal>
       {backdrop && (
         // z-40: above the sticky facet bar (z-30) and the grid, below the Positioner's popup (z-50).
-        <PopoverPrimitive.Backdrop className={cn("fixed inset-0 z-40", backdropClassName)} />
+        <PopoverPrimitive.Backdrop className={cn("overlay-scrim fixed inset-0 z-40", backdropClassName)} />
       )}
       <PopoverPrimitive.Positioner
         align={align}

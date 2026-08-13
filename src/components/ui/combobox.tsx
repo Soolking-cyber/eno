@@ -74,6 +74,21 @@ function ComboboxContent({
 }: ComboboxPrimitive.Popup.Props & Pick<ComboboxPrimitive.Positioner.Props, "align" | "side" | "sideOffset">) {
   return (
     <ComboboxPrimitive.Portal>
+      {/* ⚠️ THE SCRIM IS PART OF THE FLOATING LAYER, NOT DECORATION ON THE MODAL ONES ONLY.
+          Owner, 2026-08-13: dropdowns and popups must read the same as the dialogs. `.overlay-scrim`
+          is the single definition all five overlay primitives share — see globals.css for why it is
+          a class and not four copies, and why tooltips are excluded.
+          ⚠️ pointer-events-none, AND THAT IS THE DIFFERENCE BETWEEN A SCRIM AND A MODAL. These
+          three primitives had NO backdrop before, so adding a `fixed inset-0` element put a
+          hit-testing surface over the whole page: measured with Playwright, clicking any other
+          control while a menu was open TIMED OUT because the backdrop covered it — every dropdown
+          would have started behaving like a modal, needing a dismiss tap before the page responded
+          again. Base UI does outside-press dismissal with its own listeners rather than through
+          this element, so making it pointer-transparent keeps the paint and drops the trap.
+          (ui/popover is deliberately NOT given this: its backdrop pre-dates this change and its
+          own comment records that absorbing the dismissing tap is its whole job.)
+          z-40: under the Positioner's own z-50 popup, above the sticky facet bar (z-30). */}
+      <ComboboxPrimitive.Backdrop className="overlay-scrim pointer-events-none fixed inset-0 z-40" />
       <ComboboxPrimitive.Positioner side={side} sideOffset={sideOffset} align={align} className="isolate z-50">
         {/* `shadow-pop` — the ELEVATION TOKEN, not one of Tailwind's stock t-shirt shadow
             utilities (what this carried until 2026-08-11). The combobox list is the same kind of

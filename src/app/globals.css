@@ -2003,6 +2003,48 @@ html.native-tabs .bottom-nav-spacer {
    ⚠️ FORCED COLORS: the gradient and the shadow are both dropped, so the pill reduces to the
    UA's own button colours and the LABEL still says "Official partner". That is the whole
    reason this badge carries a word rather than only a ring — the ring had no fallback. */
+/* ── THE ONE OVERLAY SCRIM ────────────────────────────────────────────────────────────────────
+   Owner, 2026-08-13: "look at the background blur and popup emphasis apply similar style for all
+   popups and dropdowns now its inconsistent we need consistency throughout the app".
+
+   ⚠️ IT IS A CLASS BECAUSE FOUR HAND-COPIES ARE WHAT PRODUCED THE INCONSISTENCY. Measured before
+   this landed: dialog, sheet, drawer and alert-dialog each re-typed `bg-black/10` +
+   `supports-backdrop-filter:backdrop-blur-xs` in their own file; popover rendered a backdrop that
+   was deliberately TRANSPARENT (it exists to absorb the dismissing outside-tap, not to paint); and
+   dropdown-menu, select and combobox had no backdrop at all. So the same "layer above the page"
+   read four different ways depending on which primitive opened it. One definition, five callers.
+
+   ⚠️ `supports-backdrop-filter:` IS LOAD-BEARING, not belt-and-braces. Where backdrop-filter is
+   unsupported the declaration is skipped and the tint alone carries the separation; without the
+   guard, engines that parse the property but cannot composite it paint an opaque grey plate over
+   the page. The tint is deliberately light — this scrim sits under DROPDOWNS as well as modals,
+   and a menu that dims the page as hard as a modal reads heavier than it is.
+
+   ⚠️ TOOLTIPS DELIBERATELY DO NOT GET IT. A tooltip is a hint attached to a control, not a layer
+   that takes over the page: scrimming the page behind a hover hint would dim the app every time a
+   cursor rests on an icon. The rule is "does this take control away from the page underneath",
+   and a tooltip never does. */
+.overlay-scrim {
+  background-color: rgb(0 0 0 / 0.10);
+  /* ⚠️ ANIMATED, because these scrims are added to primitives that previously had none and would
+     otherwise POP in while every dialog fades. Base UI sets data-starting-style/data-ending-style
+     on the backdrop, so one rule covers open and close for all five. */
+  transition: opacity 150ms ease-out;
+}
+.overlay-scrim[data-starting-style],
+.overlay-scrim[data-ending-style] { opacity: 0; }
+/* ⚠️ BOTH SPELLINGS, AND THE UNPREFIXED ONE ALONE IS A REGRESSION. The utility this replaced
+   (`supports-backdrop-filter:backdrop-blur-xs`) compiled to -webkit-backdrop-filter AND
+   backdrop-filter; iOS Safari before 18 only understands the prefixed one, so declaring just the
+   standard property silently drops the blur on a large share of this app's phone traffic. The
+   @supports test accepts either, for the same reason. */
+@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .overlay-scrim {
+    -webkit-backdrop-filter: blur(2px);
+    backdrop-filter: blur(2px);
+  }
+}
+
 .partner-fill {
   background-image: linear-gradient(135deg, var(--partner-solid-from) 0%, var(--partner-solid-to) 100%);
   color: #fff;
