@@ -12,6 +12,7 @@ import { LogOut } from '@/components/ui/icons'
 import { ICON_SIZE, STROKE_NAV, STROKE_UI } from '@/lib/icon-tokens'
 import { CategoryGlyphArt } from './category-icons'
 import { Tooltip } from '@/components/ui/tooltip'
+import { Badge } from '@/components/ui/badge'
 import { useAuth } from '@/context/auth-context'
 import { useLanguage } from '@/context/language-context'
 import { IS_MARKETPLACE, SITE_NAME } from '@/lib/edition'
@@ -180,14 +181,26 @@ export function AccountPanel({ open, onClose }: { open: boolean; onClose: () => 
           <CategoryGlyphArt Icon={Icon} selected={isOn} stroke={STROKE_NAV} className={cn(ICON_SIZE.xl, 'shrink-0')} />
           {/* Collapsed desktop rail (icon-only): the count overlaps the icon's corner like the bottom
               nav — so Messages/Saved counters stay visible without expanding. Hidden on mobile + when
-              expanded, where the inline pill below shows instead. */}
+              expanded, where the inline pill below shows instead.
+              ⚠️ RED, VIA THE PRIMITIVE — owner, 2026-08-13: "make the saved and message counters red
+              on desktop dashboard". These two bubbles were the ONE place in the app that hand-rolled
+              a counter in `bg-primary` blue; the mobile bottom nav (mobile-nav.tsx) and the header
+              bell already render `variant="counter"`, which is the destructive token. So this closes
+              a divergence rather than expressing a colour preference — and it goes through ui/badge
+              instead of swapping the utility, so the next tone change lands in one place.
+              `hidden`/`lg:flex` ride on className: Badge's base is inline-flex and its own cn() puts
+              the caller's className last, so the display toggle merges cleanly. */}
           {badgeLabel && (
-            <span className={cn('absolute -right-1.5 -top-1.5 hidden h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-3xs font-bold text-white', expanded ? 'lg:hidden' : 'lg:flex')}>{badgeLabel}</span>
+            <Badge aria-hidden variant="counter" size="count" className={cn('pointer-events-none absolute -right-1.5 -top-1.5 hidden', expanded ? 'lg:hidden' : 'lg:flex')}>{badgeLabel}</Badge>
           )}
         </span>
         <span className={labelCls}>{it.label}</span>
+        {/* The expanded-rail pill: same counter, bigger box. h-5/min-w-5/px-1.5/text-2xs are the
+            override ui/badge's `count` size documents for exactly this case ("callers that want a
+            bigger bubble pass a hard height"), so the geometry is unchanged from the span this
+            replaces — only the tone moves from brand blue to the destructive token. */}
         {badgeLabel && (
-          <span className={cn('ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-2xs font-bold text-white', expanded ? 'lg:flex' : 'lg:hidden')}>{badgeLabel}</span>
+          <Badge aria-hidden variant="counter" size="count" className={cn('ml-auto h-5 min-w-5 px-1.5 text-2xs', expanded ? 'lg:flex' : 'lg:hidden')}>{badgeLabel}</Badge>
         )}
       </>
     )

@@ -1,5 +1,5 @@
 import type { LucideIcon } from '@/components/ui/icons'
-import { BadgeCheck, Coins, Megaphone } from '@/components/ui/icons'
+import { BadgeCheck, Coins, Megaphone, Plane } from '@/components/ui/icons'
 
 /**
  * THE HOME BANNER'S CONTENT, AS DATA — so copy can be iterated in one file rather than in JSX.
@@ -140,6 +140,46 @@ export const PROMO_SLIDES: PromoSlide[] = [
       // Alt carries the WHOLE message because it replaces baked-in text, not decoration.
       alt: 'VietKite — Vietnam E-Visa, your way. Single and multiple entry options. View e-visa options.',
       altVi: 'VietKite — Thị thực điện tử Việt Nam. Lựa chọn nhập cảnh một lần hoặc nhiều lần. Xem các lựa chọn thị thực.',
+    },
+  },
+  {
+    // The second official partner (owner, 2026-08-13). Same shape as VietKite above: a partner
+    // brand asset with the message BAKED IN, so it takes the `art` branch rather than the DOM-copy
+    // one, and it carries the same "Quảng cáo · <partner>" disclosure.
+    key: 'gmbr-travel',
+    // Not rendered for an `art` slide — kept populated so removing `art` (or receiving localised
+    // artwork) restores a working bilingual slide with no migration. Same contract as VietKite.
+    eyebrowEn: 'Travel booking', eyebrowVi: 'Đặt chỗ du lịch',
+    titleEn: 'Everything You Need to Book', titleVi: 'Mọi thứ bạn cần để đặt chỗ',
+    bodyEn: 'Flights, hotels, travel insurance and attraction tickets, handled by our partner GMBR.',
+    bodyVi: 'Vé máy bay, khách sạn, bảo hiểm du lịch và vé tham quan, do đối tác GMBR thực hiện.',
+    ctaEn: 'View booking options', ctaVi: 'Xem các lựa chọn đặt chỗ',
+    // ⚠️ THE PARTNER'S STOREFRONT, NOT THEIR CHECKOUT — the same rule the VietKite slide states:
+    // never point a marketing banner straight at a purchase. This resolves through the Handle row
+    // that scripts/register-partner-seller.mjs creates, so the slide is DEAD until that has been
+    // run with --apply. Ship the two together.
+    href: '/gmbr',
+    icon: Plane,
+    image: '/banners/promo-1.svg',
+    surface: 'bg-brand-deep',
+    art: {
+      // ⚠️ THE MOBILE FILE IS AN UPSCALE, AND THAT IS DELIBERATE. GMBR supplied only a 1x
+      // 366x188 export where VietKite's is 2x 732x376. Shipping the 1x would have been soft on
+      // every retina phone AND — because both slides sit in one carousel — a different intrinsic
+      // size from its neighbour. So it is resampled to 732x376 (lanczos3 + a mild unsharp mask,
+      // sigma 0.6/m1 0.8, webp q84 -> 44KB against VietKite's 32KB). Compared against the plain
+      // resample and a stronger sharpen at 2.6x zoom: mild is crisp, strong haloes the logo edge.
+      // Upscaling adds no real detail, so a genuine 732x376 export from the partner is still
+      // better — swap the file, no code change. The DESKTOP art is native 1280x300, same as
+      // VietKite; a 2x desktop would triple the weight of the home page's LCP image.
+      mobile: '/banners/gmbr-mobile.webp',
+      desktop: '/banners/gmbr-desktop.webp',
+      partner: 'GMBR',
+      // Alt carries the WHOLE message — it replaces baked-in text, and it is all a screen reader
+      // gets. The badges in the artwork ("600+ airlines", "10+ years") are the partner's claims,
+      // not eno's, so they stay attributed to GMBR in the sentence rather than stated as fact.
+      alt: 'GMBR — everything you need to book. Flights, hotels, travel insurance and attraction tickets. View booking options.',
+      altVi: 'GMBR — mọi thứ bạn cần để đặt chỗ. Vé máy bay, khách sạn, bảo hiểm du lịch và vé tham quan. Xem các lựa chọn đặt chỗ.',
     },
   },
   {
