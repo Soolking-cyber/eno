@@ -10,7 +10,9 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { LogOut } from '@/components/ui/icons'
 import { ICON_SIZE, STROKE_NAV, STROKE_UI } from '@/lib/icon-tokens'
-import { CategoryGlyphArt } from './category-icons'
+// ⚠️ FROM category-glyph, NOT category-icons — importing the renderer from the registry file
+// drags its 99-icon map into this route's chunk (see category-glyph.tsx's header).
+import { CategoryGlyphArt } from './category-glyph'
 import { Tooltip } from '@/components/ui/tooltip'
 import { Badge } from '@/components/ui/badge'
 import { useAuth } from '@/context/auth-context'

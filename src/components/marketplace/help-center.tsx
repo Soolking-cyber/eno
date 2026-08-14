@@ -21,7 +21,9 @@ import {
 import type { LucideIcon } from '@/components/ui/icons'
 import { Tr, useLanguage, useTr } from '@/context/language-context'
 import { STROKE_UI } from '@/lib/icon-tokens'
-import { CategoryGlyphArt } from '@/components/marketplace/category-icons'
+// ⚠️ FROM category-glyph, NOT category-icons — importing the renderer from the registry file
+// drags its 99-icon map into this route's chunk (see category-glyph.tsx's header).
+import { CategoryGlyphArt } from '@/components/marketplace/category-glyph'
 import { HelpFeedback } from '@/components/marketplace/help-feedback'
 import { HelpVote } from '@/components/marketplace/help-vote'
 import { Accordion, AccordionItem, AccordionPanel, AccordionTrigger } from '@/components/ui/accordion'

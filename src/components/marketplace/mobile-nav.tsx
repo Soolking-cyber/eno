@@ -15,7 +15,9 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { hapticTap } from '@/lib/haptics'
 import { STROKE_NAV } from '@/lib/icon-tokens'
-import { CategoryGlyphArt } from './category-icons'
+// ⚠️ FROM category-glyph, NOT category-icons — importing the renderer from the registry file
+// drags its 99-icon map into this route's chunk (see category-glyph.tsx's header).
+import { CategoryGlyphArt } from './category-glyph'
 
 // One uniform lucide stroke across the whole bar. A slightly thicker, identical weight on
 // every icon reads softer and keeps all five tabs at the same visual weight (symmetry).

@@ -17,7 +17,10 @@ import {
   FieldError,
 } from '@/components/ui/field'
 import { useLanguage } from '@/context/language-context'
-import { CategoryIcon, CategoryGlyphArt } from './category-icons'
+// CategoryIcon needs the registry; CategoryGlyphArt does not — take each from where it lives so
+// a route that only draws glyphs never pulls the 99-icon map (see category-glyph.tsx).
+import { CategoryIcon } from './category-icons'
+import { CategoryGlyphArt } from './category-glyph'
 import { formatMoneyFull, moneyLocale } from '@/lib/vnd'
 
 export function PublishButton({
