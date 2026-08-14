@@ -31,7 +31,7 @@ import { join } from 'node:path'
 const ROOT = execFileSync('git', ['rev-parse', '--show-toplevel'], { encoding: 'utf8' }).trim()
 const RECEIPTS = join(ROOT, '.second-opinion')
 // Declared up here because `--status` validates receipts long before REVIEWERS is built below.
-const REVIEWER_NAMES = ['codex', 'agy', 'opus']
+const REVIEWER_NAMES = ['codex', 'agy', 'fable']
 
 /** The exact content being committed. `--cached` so it matches what the hook will see. */
 export function stagedHash() {
@@ -86,7 +86,7 @@ if (!diff.trim()) {
 
 // ⚠️ SCAN FOR SECRETS BEFORE SHIPPING THE DIFF TO THREE THIRD PARTIES. qwen raised this reviewing
 // the gate itself, and it is the sharpest finding against it: this script sends the ENTIRE staged
-// diff to OpenAI (codex), Google (agy) and Anthropic (opus). Sending our SOURCE to them is already
+// diff to OpenAI (codex), Google (agy) and Anthropic (fable). Sending our SOURCE to them is already
 // standing policy — CLAUDE.md mandates these reviewers — but a CREDENTIAL is categorically
 // different: it cannot be un-sent, and it would land in three vendors' logs simultaneously.
 // The realistic path is not malice, it is a slip: `.env` is gitignored, but a key pasted into a
@@ -108,7 +108,7 @@ if (process.env.SECOND_OPINION_SKIP_SECRET_SCAN !== '1') {
   const hits = SECRET_PATTERNS.filter(([re]) => re.test(diff)).map(([, label]) => label)
   if (hits.length) {
     console.error(`⛔ REFUSING TO SEND THIS DIFF TO EXTERNAL REVIEWERS — it looks like it contains: ${hits.join(', ')}.`)
-    console.error('   codex, agy and opus are third-party services; a credential sent to them cannot be recalled.')
+    console.error('   codex, agy and fable are third-party services; a credential sent to them cannot be recalled.')
     console.error('   Remove the value from the staged content (git reset the file, move it to Secret Manager via')
     console.error('   scripts/secret-set.sh), then re-run. If this is a FALSE POSITIVE — a fixture, a public key, a')
     console.error('   sample in documentation — re-run with SECOND_OPINION_SKIP_SECRET_SCAN=1 and say so out loud.')
@@ -178,7 +178,7 @@ process.on('SIGTERM', () => process.exit(143))
 // that only saw the first 180KB would still have its verdict certify bytes it never read. On a
 // codebase where the failure mode is a visa/PayPal surface leaking onto the licensed marketplace,
 // "reviewed" must mean the reviewer saw the licensing-relevant hunk — which, in a big diff, is as
-// likely to be at the end as the start. codex and opus BOTH take the prompt on stdin and so both
+// likely to be at the end as the start. codex and fable BOTH take the prompt on stdin and so both
 // get the whole thing, which is what keeps the quorum reachable; agy's truncated verdict is
 // recorded but deliberately not counted.
 const AGY_LIMIT = 180_000
@@ -198,31 +198,54 @@ const REVIEWERS = [
     // 400s keeps it under the 420s harness bound ON PURPOSE: agy gets to report its own failure
     // before we SIGKILL the process group, which is the difference between a diagnosable error and
     // silence. Whenever TIMEOUT_MS changes, this must stay below it.
-    args: ['-p', agyTruncated ? prompt.slice(0, AGY_LIMIT) + '\n\n[DIFF TRUNCATED at 180KB for argv limits — judge only what is shown]' : prompt, '--model', 'Gemini 3.1 Pro (High)', '--dangerously-skip-permissions', '--print-timeout', '400s'],
+    args: ['-p', agyTruncated ? prompt.slice(0, AGY_LIMIT) + '\n\n[DIFF TRUNCATED at 180KB for argv limits — judge only what is shown]' : prompt, '--model', 'Gemini 3.7 Flash (High)', '--dangerously-skip-permissions', '--print-timeout', '400s'],
   },
   /**
-   * ⚠️ REPLACED qwen ON 2026-08-06 (owner). qwen had been returning HTTP 403 —
-   * "The free quota has been exhausted" — on every run for a full day, so every review in that
-   * period was 2/3 rather than 3/3. A reviewer that cannot answer is not a reviewer; the gate was
-   * correctly refusing to count it, which meant the quorum sat permanently at its minimum.
+   * ⛔ THE THIRD SEAT'S HISTORY, KEPT BECAUSE IT IS THE ARGUMENT FOR THE CURRENT PANEL.
    *
-   * ⚠️ AND IT IS ANTHROPIC-LINEAGE, WHICH IS A REAL TRADE-OFF, NOT A FREE UPGRADE. CLAUDE.md's
-   * reviewer policy exists because "an Opus review of Opus code shares its blind spots" — the whole
-   * point of codex (OpenAI) and agy (Google) is that they fail differently from the main thread.
-   * This third seat is now the SAME family as the author, so the diversity of the panel is
-   * genuinely lower than it was when qwen worked. Two things reduce that, and neither eliminates it:
-   * it runs in a FRESH context with no memory of why the code was written, and it is prompted
-   * adversarially to refute rather than to review. Treat a unanimous 3/3 CONFIRMED with slightly
-   * more suspicion than before, and reach for `fable-reviewer` when a change is genuinely
-   * irreversible.
+   * qwen held it until 2026-08-06, when it began returning HTTP 403 — "The free quota has been
+   * exhausted" — on every run for a full day. Every review in that period was 2/3 rather than 3/3:
+   * a reviewer that cannot answer is not a reviewer, and the gate was correctly refusing to count
+   * it, which pinned the quorum at its minimum. It was replaced by `opus`.
    *
-   * `--effort max` is the point of using it at all. `--permission-mode plan` keeps it read-only:
+   * `opus` then held it until 2026-08-14 and was removed when `fable` arrived (owner: "remove opus
+   * since we added fable"). That is the right call and it RESTORES something the opus seat had
+   * cost: opus is the same family as the author of the code under review, so the panel had been
+   * OpenAI + Google + Anthropic-reviewing-Anthropic. CLAUDE.md's reviewer policy exists precisely
+   * because "an Opus review of Opus code shares its blind spots". Swapping it for fable rather than
+   * ADDING fable keeps three seats and three distinct families.
+   *
+   * ⚠️ FABLE IS STILL ANTHROPIC-LINEAGE. The shared-blind-spot concern is reduced, not eliminated —
+   * a different model, but not a different lab. It runs in a FRESH context with no memory of why
+   * the code was written and is prompted adversarially to refute rather than review, which is what
+   * makes it useful at all. Treat a unanimous 3/3 with a little more suspicion than you would if
+   * this seat were a third lab.
+   */
+  /**
+   * FOURTH SEAT (owner, 2026-08-14). The owner first asked for `freebuff` here; it was measured and
+   * rejected on three grounds, recorded so nobody re-tries it: it has no non-interactive mode (its
+   * only flags are `login`, `--continue`, `--cwd`), piping a prompt to it returns a full-screen
+   * ANSI TUI rather than text, and it refuses to start twice — "only one freebuff instance is
+   * allowed at a time" — which a panel that runs its members IN PARALLEL cannot satisfy. A reviewer
+   * that cannot answer is not a reviewer, and this gate is built to treat silence as a failure, so
+   * adding it would have quietly lowered the quorum. (It was also ad-supported with training
+   * retention, which is a different data posture from the other three for a script that ships our
+   * source to third parties.) freebuff was uninstalled the same day.
+   *
+   * ⚠️ IT REPLACED opus RATHER THAN JOINING IT (owner, same day), which is why the panel is three
+   * seats and not four — see the note on the seat above for why that is the better shape.
+   * `--effort max` is the point of using it at all; `--permission-mode plan` keeps it read-only, so
    * it answers from the pasted diff and cannot edit, run or commit anything.
+   *
+   * ⚠️ BUDGET-LIMITED, per CLAUDE.md — and that now matters more than it did as a fourth seat. With
+   * three reviewers a silent fable drops the panel to codex + agy, which is the quorum MINIMUM.
+   * If fable starts failing the way qwen did, do not leave it in place: that is exactly the failure
+   * this file has already lived through once.
    */
   {
-    name: 'opus',
+    name: 'fable',
     cmd: 'claude',
-    args: ['-p', '--model', 'opus', '--effort', 'max', '--permission-mode', 'plan'],
+    args: ['-p', '--model', 'claude-fable-5', '--effort', 'max', '--permission-mode', 'plan'],
     stdin: true,
   },
 ]

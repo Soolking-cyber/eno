@@ -10,18 +10,23 @@ import { GoogleGenAI } from '@google/genai'
 //                                (required in speedy-victory-500106-h8, which forbids SA keys)
 // Lazy singleton; returns null when unconfigured so the AI routes degrade gracefully.
 
-// ALL AI paths run gemini-3.6-flash (image classify, description polish, concierge,
+// ALL AI paths run gemini-3.7-flash (image classify, description polish, concierge,
 // visual-search, brands, admin review) — one constant, imported by all 6 paths.
 // HARD REQUIREMENT: the 3.x flash line is served from the GLOBAL Vertex endpoint ONLY — it 404s
 // on regional endpoints (us-central1, etc.), which broke post-wizard AI on 2026-07-06
 // when GEMINI_LOCATION was us-central1. So GEMINI_LOCATION MUST be `global` in prod.
-// Verified 2026-07-23 (owner: swap 3.5→3.6 app-wide) via a direct Vertex generateContent
-// probe on the live project (GEMINI_LOCATION=global): gemini-3.6-flash → "ok" ~2.4s. If AI ever
-// 404s again, hit ai-health: a regional GEMINI_LOCATION is the usual cause — fix is
+// Verified 2026-08-14 (owner: swap 3.6→3.7 app-wide) the same way the 3.5→3.6 swap was: a direct
+// Vertex generateContent probe against the LIVE project on the global endpoint, run three times —
+// gemini-3.7-flash → "ok", HTTP 200 on all three. Worth knowing that the first probe of that
+// session returned 404 for BOTH 3.7 and the then-current 3.6; a 404 here is not proof a model is
+// absent, and a single failed probe nearly retired a model that works. Repeat before concluding.
+// If AI ever 404s again, hit ai-health: a regional GEMINI_LOCATION is the usual cause — fix is
 // GEMINI_LOCATION=global (or drop to the region-robust fallback below).
-export const GEMINI_MODEL = 'gemini-3.6-flash'
+export const GEMINI_MODEL = 'gemini-3.7-flash'
 // Region-robust (works on global AND regional endpoints) — used for high-stakes
-// retries (admin review) and as the safe manual downgrade if 3.6 has an incident.
+// retries (admin review) and as the safe manual downgrade if 3.7 has an incident.
+// ⚠️ DELIBERATELY NOT ALSO 3.7 — a fallback identical to the primary is not a fallback. It stays
+// on the older, region-robust line precisely so it survives an incident that takes 3.7 out.
 export const GEMINI_MODEL_FALLBACK = 'gemini-2.5-flash'
 
 let client: GoogleGenAI | null | undefined
