@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
-import { getAdmin } from '@/lib/admin'
+import { getTripDeskScope, tripRequestInScope } from '@/lib/desk-operator'
 import { moveAssistanceAsAdmin } from '@/lib/trips/assistance'
 
 /**
@@ -37,9 +37,19 @@ const bodySchema = z.object({ next: z.string().min(1).max(32) }).strict()
 // is meaningless without `body:`. All four options empty.
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const admin = await getAdmin()
-  // 404, not 403: an operator surface should not confirm to a non-admin that it exists.
-  if (!admin) return NextResponse.json({ error: 'not_found' }, { status: 404 })
+  /**
+   * ⛔ SCOPE, NOT JUST IDENTITY. This route mutates a request's lifecycle and its quoted amounts, and
+   * `TripAssistanceRequest` is shared by both deployments — so proving the caller runs A trip desk is
+   * not proving the request is theirs. Same split as the visa routes: entitlement, then ownership.
+   */
+  const scope = await getTripDeskScope()
+  // 404, not 403: an operator surface should not confirm to a non-operator that it exists — the
+  // contract this route already documents above, kept unchanged by the scoping.
+  if (!scope) return NextResponse.json({ error: 'not_found' }, { status: 404 })
+  // ⛔ AND THIS REQUEST MUST BE THIS DESK'S — entitlement is not ownership. Same 404, so a partner
+  // cannot use this route to discover that another deployment's request exists.
+  if (!(await tripRequestInScope(id, scope))) return NextResponse.json({ error: 'not_found' }, { status: 404 })
+  const admin = scope.operator
 
   let body: unknown
   try {

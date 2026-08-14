@@ -2262,3 +2262,59 @@ html.native-tabs .bottom-nav-spacer {
   .i-rest,
   .i-on { transition: none; }
 }
+
+/* ── FEED WINDOWING — the browser's own virtual scrolling ──────────────────────────────────────
+   ⛔ THIS IS THE VIRTUALISATION, AND IT IS CSS RATHER THAN JAVASCRIPT ON PURPOSE. A JS virtualiser
+   (react-window, TanStack Virtual) UNMOUNTS off-screen rows, and in this feed three things depend
+   on the cards staying mounted:
+     · `data-feed-card` is the back-nav restore ANCHOR — the return-to-feed effect realigns that
+       exact element, so unmounting it breaks "put me back where I was" on the one journey a
+       marketplace cannot afford to break;
+     · the pagination sentinel sits below the grid and is already documented as fragile — a feed
+       that stops paginating fails silently;
+     · the grid is SERVER-RENDERED, and removing cards from the SSR HTML costs crawl coverage on
+       the most-crawled page on the site.
+   `content-visibility: auto` gets the win those cost: the browser SKIPS layout, paint and
+   compositing for off-screen cards while leaving them in the DOM. Every one of the three concerns
+   above is untouched, and there is no JS to run, no scroll listener, and no measurement loop.
+
+   ⚠️ `contain-intrinsic-size: auto <fallback>` IS NOT OPTIONAL. Without it a skipped card reports
+   zero height, the page collapses, and the scrollbar jumps as cards enter the viewport. The `auto`
+   keyword tells the browser to REMEMBER each card's last rendered size, so the fallback is only
+   used before a card has ever been rendered — which is exactly the first-paint case. 320px is the
+   measured median card height in the 2-column mobile grid; being wrong here costs a small scroll
+   correction, not a broken layout.
+
+   ⚠️ IT DOES NOT REDUCE DOM NODE COUNT, and that is fine: the PageSpeed "Optimize DOM size" audit
+   scores 1 at 1,830 elements — there are no points available there. What it reduces is Style &
+   Layout, measured at 23% of main-thread time, and that cost grows with every page the infinite
+   feed appends while node count grows with it.
+
+   ⚠️ SCOPED TO THE FEED CARD, not to a generic utility. Applying this broadly is how you get
+   find-in-page missing content and anchor links landing in the wrong place.
+
+   ⛔⛔ UNVERIFIED — THE PROPERTY IS APPLIED AND NO SKIPPING HAS EVER BEEN OBSERVED. Measured
+   2026-08-14 on the production build: `content-visibility` computes to `auto` on every card past
+   the first twelve and `contain-intrinsic-size` to `auto 320px`, exactly as written — and with the
+   grid cloned to 202 cards, `checkVisibility({ contentVisibilityAuto: true })` reported **0 of 202
+   skipped**. Cards 11, 12, 50 and 201 all rendered. Either headless Chromium never demotes cloned
+   nodes, or the viewport-proximity heuristic is wider than expected, or this does nothing here.
+   It is kept because it is six lines, inert, and correct in principle — NOT because it was shown
+   to work. Do not cite it as a performance win, and do not build on it, until someone reproduces
+   skipping on a real feed with real inventory. Today the grid holds 12 cards against 35 listings,
+   so it cannot trigger at all: the "first 12 stay visible" rule below covers the entire grid.
+   ⚠️ For context on why the bar is a measurement: PageSpeed's `dom-size-insight` already scores 1
+   at 1,830 elements, so there are no audit points here either way. The only thing this could ever
+   buy is Style & Layout time on a feed several pages deep. */
+[data-feed-card] {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 320px;
+}
+
+/* The first screen must never be skipped: a card that has not been rendered yet has no remembered
+   size, so letting the LCP row start as a 320px guess would move the fold on first paint. Twelve
+   is two full rows at the widest breakpoint plus the guest-capture card. */
+.feed-grid > *:nth-child(-n + 12) [data-feed-card],
+.feed-grid > *:nth-child(-n + 12)[data-feed-card] {
+  content-visibility: visible;
+}

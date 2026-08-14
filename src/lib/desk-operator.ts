@@ -148,3 +148,61 @@ export async function getVisaDeskScope(): Promise<VisaDeskScope | null> {
 export async function getTripDeskOperator(): Promise<string | null> {
   return operatorFor(TRIP_DESK_OWNER_EMAILS)
 }
+
+/**
+ * ⛔ THE TRIP DESK'S SCOPE — the same identity-is-not-authorisation split as `getVisaDeskScope()`,
+ * and it exists for the same measured reason.
+ *
+ * `TripAssistanceRequest` is a Prisma table in the SAME database both deployments read, so the
+ * operator queue selecting `orderBy updatedAt take 200` with no owner predicate hands whichever
+ * desk is looking every OTHER deployment's travellers — their names, emails, itineraries and the
+ * amounts quoted to them. That was safe while eno ran the desk itself; it stops being safe the day
+ * GMBR does (owner, 2026-08-14: "Eno plans it. GMBR books it").
+ *
+ * ⚠️ A REQUEST BELONGS TO THE DESK THAT ANSWERS ITS CONVERSATION, exactly as a visa case does —
+ * `TripAssistanceRequest.conversationId` → `Conversation.sellerProfileId`. There is no desk column,
+ * and adding one would be a second source of truth for a fact the thread already carries.
+ *
+ * ⚠️ ADMINS KEEP EVERYTHING, which is what leaves eno.forum's own queue untouched, including legacy
+ * requests whose conversation was never bound. Fails closed everywhere else.
+ */
+export type TripDeskScope =
+  | { operator: string; all: true }
+  | { operator: string; all: false; deskProfileId: string }
+
+export async function getTripDeskScope(): Promise<TripDeskScope | null> {
+  const email = await sessionEmail()
+  if (!email) return null
+  // See the note on ADMIN_EMAILS in getVisaDeskScope — the same coupling applies here.
+  if (isAdminEmail(email)) return { operator: email, all: true }
+  if (!TRIP_DESK_OWNER_EMAILS.includes(email)) return null
+  const { getTripDesk } = await import('@/lib/trips/dm-thread')
+  const deskProfileId = (await getTripDesk())?.ownerId
+  if (!deskProfileId) return null
+  return { operator: email, all: false, deskProfileId }
+}
+
+/**
+ * ⛔ IS THIS TRIP REQUEST ANSWERED BY THIS DESK? The trip twin of `visaCaseInScope`, and the second
+ * half of the check — `getTripDeskScope()` proves the caller runs A desk, this proves the request
+ * is theirs. Both deployments read one `TripAssistanceRequest` table, so without this a partner
+ * operator could advance, quote or close any request by naming its id.
+ *
+ * ⚠️ Fails CLOSED: unknown id, no conversation, or a lookup error → false. An unbound request is
+ * invisible to a partner and visible to an admin, the same direction as the visa predicate.
+ */
+export async function tripRequestInScope(requestId: string, scope: TripDeskScope): Promise<boolean> {
+  if (scope.all) return true
+  if (!requestId) return false
+  const { db } = await import('@/lib/db')
+  const found = await db.tripAssistanceRequest.findFirst({
+    where: { id: requestId, conversationId: { not: null } },
+    select: { conversationId: true },
+  })
+  if (!found?.conversationId) return false
+  const mine = await db.conversation.findFirst({
+    where: { id: found.conversationId, sellerProfileId: scope.deskProfileId },
+    select: { id: true },
+  })
+  return !!mine
+}

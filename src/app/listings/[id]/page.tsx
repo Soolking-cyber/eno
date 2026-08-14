@@ -44,7 +44,7 @@ import { ContactComposer } from '@/components/marketplace/contact-composer'
 import { VisaStart, VISA_START_AVAILABLE } from '@/components/marketplace/visa-start'
 import { isVisaShopListing } from '@/lib/visa-shop'
 // The one switch that means "this deployment runs the visa chat" — see the gate on isVisaProduct.
-import { VISA_THREADS_ENABLED } from '@/lib/thread-kind'
+import { ITINERARY_THREADS_ENABLED, VISA_THREADS_ENABLED } from '@/lib/thread-kind'
 import { getTripAssistanceListingId } from '@/lib/trips/dm-thread'
 import { TrackView } from '@/components/marketplace/track-view'
 import { ScrollToTop } from '@/components/marketplace/scroll-to-top'
@@ -225,7 +225,20 @@ export default async function ListingPage({ params }: Props) {
   // server-side from (seller, externalId) on the desk that owns the row, never from the title or
   // the category, which another seller could imitate. `cache()`d, so this costs one query per
   // render at most and returns null (→ false) whenever the desk or its listing is not seeded.
-  const tripListingId = await getTripAssistanceListingId()
+  /**
+   * ⛔ GATED ON `ITINERARY_THREADS_ENABLED` FOR THE SAME REASON THE VISA BRANCH IS GATED ON
+   * `VISA_THREADS_ENABLED` — repointing the desk env must be inert until a build that can actually
+   * serve the flow is live.
+   *
+   * `isTripProduct` flips ContactComposer into `intent='plan'`, which offers to build an itinerary
+   * in chat. That flow needs the `.svc.` trip routes compiled (MARKETPLACE_HOSTS_SERVICES) — and
+   * TRIP_DESK_OWNER_EMAIL is a RUNTIME variable while the routes are a BUILD flag, so the two can
+   * drift. Without this gate, pointing the env at GMBR before the build lands would put a planner
+   * CTA on their listing whose endpoints answer 404.
+   * ⚠️ Ungated, this also fires on eno's OWN legacy anchor, which is still hidden on the support
+   * account and still resolvable — so the branch could turn on for a listing nobody meant to enable.
+   */
+  const tripListingId = ITINERARY_THREADS_ENABLED ? await getTripAssistanceListingId() : null
   const isTripProduct = tripListingId !== null && tripListingId === listing.id
   // Embed the PRE-WARMED translations of the user-authored content so the H1/description/
   // location render in the visitor's language instantly (no flash, no per-request translate).

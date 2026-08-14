@@ -2807,7 +2807,7 @@ export function ListingsExplorer({
               {viewMode === 'grid' && (
                 /* Grid Mode (Standard Cards) — the home feed's presentation, and now the DEFAULT
                    everywhere (see the viewMode useState). */
-                <div className="grid grid-cols-2 gap-2 sm:gap-4 sm:grid-cols-3 lg:grid-cols-4">
+                <div className="feed-grid grid grid-cols-2 gap-2 sm:gap-4 sm:grid-cols-3 lg:grid-cols-4">
                   {deferredListings.map((l, index) => (
                     <Fragment key={l.id}>
                       {/* Guest capture (5a #7): one signup card at the point of interest,

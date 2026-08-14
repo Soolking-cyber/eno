@@ -7,7 +7,7 @@ import { Providers } from "./providers";
 import { IS_SERVICES, SITE_NAME } from "@/lib/edition";
 // The content-hashed sprite URL, from the generated shim — never a literal here, or a glyph edit
 // would preload a file that no longer exists while every icon silently fetched the new one.
-import { ICON_SPRITE_URL } from "@/components/ui/icons";
+import { ICON_SPRITE_CORE } from "@/components/ui/icons";
 /**
  * ⚠️ THE SERVICES-EDITION SENTENCES ARE IMPORTED, NOT WRITTEN HERE, AND THAT IS THE WHOLE POINT.
  * This file compiles on BOTH editions, so a services literal sitting in an `IS_SERVICES ? … : …`
@@ -301,6 +301,20 @@ export default function RootLayout({
             **transferSize 0** — a cache hit against the 186KB the preload already pulled. One
             download. Do not "fix" this to `as="fetch"`: that mismatches the real fetch and earns the
             "preloaded but not used" warning this shape avoids.
+            ⛔ THE CORE FILE ONLY — 27.6 KB gzip of the 39 glyphs the busiest routes paint on
+            arrival, NOT the 185 KB of all 243. The single-file version of this was a regression:
+            an external <use> target loads at Low priority, so on a 1.6 Mbps phone it finished at
+            5.9-7.3s and at 2.2s there were 310 <use> elements with a zero-size box — the tab bar
+            was five bare labels while text and photos were fully painted.
+            ⛔ `fetchPriority="high"` IS THE HALF THAT ACTUALLY MATTERS, AND SPLITTING THE FILE
+            WITHOUT IT BARELY MOVED ANYTHING. An external `<use>` target is fetched at Chrome's Low
+            priority, and `as="image"` does not change that — a non-LCP image preload is still Low.
+            Measured on the 1.6 Mbps / 4x-CPU profile: after the split, 27 KB still did not finish
+            until 6,471 ms, because it sat behind ~1.2 MB of higher-priority work. At 200 KB/s the
+            bytes themselves are ~135 ms. The queue was the problem, not the size.
+            ⚠️ DO NOT ADD A PRELOAD FOR THE DEFERRED FILE. The browser fetches it on demand when a
+            glyph from it first renders, which on most pages is never; preloading it "to be safe"
+            puts the whole 185 KB back on the critical path and undoes this entirely.
             ⚠️ THE PATH IS STABLE AND THE HASH RIDES IN A QUERY (`glyphs.svg?v=<hash>`), which is
             neither an oversight nor belt-and-braces — each half closes a different hole. A hashed
             FILENAME 404s out of edge-cached HTML after a deploy, and a `<use>` whose target 404s
@@ -309,7 +323,7 @@ export default function RootLayout({
             is not part of the path, so the file always answers, while a changed query is a new
             browser cache key. (Three surfaces disagreed about this URL mid-change and a reviewer
             caught it — gen-icons.mjs is the source of truth.) */}
-        <link rel="preload" as="image" type="image/svg+xml" href={ICON_SPRITE_URL} />
+        <link rel="preload" as="image" type="image/svg+xml" href={ICON_SPRITE_CORE} fetchPriority="high" />
         {/* Supabase preconnect REMOVED (perf Phase 1, measured): every above-the-fold
             image is served through same-origin /_next/image (the optimizer fetches
             Supabase server-side), auth is lazy and realtime is authed-only — nothing

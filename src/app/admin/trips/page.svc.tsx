@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import { Map } from '@/components/ui/icons'
-import { getAdmin } from '@/lib/admin'
+import { getTripDeskScope } from '@/lib/desk-operator'
 import { AdminDenied } from '@/components/admin/admin-denied'
 import { db } from '@/lib/db'
 import { adminNextStatuses, isTerminalStatus } from '@/lib/trips/status'
@@ -20,13 +20,35 @@ export const metadata: Metadata = { title: 'Trip assistance queue — eno.vn adm
 // the money columns — and this page only READS the two amounts to show what was quoted.
 
 export default async function AdminTripsPage() {
-  const admin = await getAdmin()
-  if (!admin) return <AdminDenied />
+  /**
+   * ⚠️ THE DESK SCOPE, NOT `getAdmin()` — a partner desk needs a queue to work from, and handing
+   * GMBR ADMIN_EMAILS would grant every dispute room, report and other traveller's data with it.
+   * `getTripDeskScope()` returns `{ all: true }` for an eno admin, so eno.forum is unchanged.
+   */
+  const scope = await getTripDeskScope()
+  if (!scope) return <AdminDenied />
 
   // Ordered by last desk activity, which is what `updatedAt` means on this table: every transition
   // stamps it, and a card posted into the thread bumps it too. So the case somebody touched most
   // recently is the case an operator is most likely still working.
+  /**
+   * ⛔ THE DESK PREDICATE GOES IN THE QUERY, BEFORE THE LIMIT. `TripAssistanceRequest` lives in the
+   * database BOTH deployments read, so an unscoped `take: 200` hands whichever desk is looking the
+   * other deployment's travellers — names, emails, itineraries and quoted amounts. And filtering
+   * AFTER the limit is the starvation bug three reviewers caught on the visa queue: let the other
+   * deployment update 200 requests and this desk's own queue renders empty, with no error.
+   * ⚠️ A request with no `conversationId` is invisible to a partner. Fail-closed: an unbound request
+   * is one this desk is demonstrably not answering. Admins still see everything.
+   */
+  const deskConversationIds = scope.all ? null : (await db.conversation.findMany({
+    where: { sellerProfileId: scope.deskProfileId },
+    select: { id: true },
+  })).map((c) => c.id)
+
+  // An empty id list means this desk answers no threads yet; `in: []` matches nothing, which is the
+  // answer we want — an empty queue rather than an unfiltered one.
   const cases = await db.tripAssistanceRequest.findMany({
+    where: deskConversationIds ? { conversationId: { in: deskConversationIds } } : undefined,
     orderBy: { updatedAt: 'desc' },
     take: 200,
     select: {
@@ -68,7 +90,7 @@ export default async function AdminTripsPage() {
         <div className="mb-5">
           <h1 className="h-title text-foreground">Trip assistance queue</h1>
           <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
-            Signed in as {admin}. Move a case through the lifecycle; quote the fee in the traveller&apos;s thread, not here. eno arranges only — the traveller pays suppliers directly, so nothing on this page charges anyone.
+            Signed in as {scope.operator}. Move a case through the lifecycle; quote the fee in the traveller&apos;s thread, not here. eno arranges only — the traveller pays suppliers directly, so nothing on this page charges anyone.
           </p>
         </div>
 

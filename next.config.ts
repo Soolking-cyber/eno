@@ -574,16 +574,32 @@ const nextConfig: NextConfig = {
          *
          * ⚠️ NOT `immutable`, AND NOT HASHED IN THE URL EITHER, which is the unusual half. The
          * filename is deliberately stable (see scripts/gen-icons.mjs): eno.vn edge-caches its HTML,
-         * so a hashed name means post-deploy cached HTML points at a file the new image does not
+         * so a hashed NAME means post-deploy cached HTML points at a file the new image does not
          * contain, and a `<use>` whose target 404s draws NOTHING — the entire site loses its icons
-         * until the HTML cache turns over. A stable name cannot 404; the cost is that a glyph edit
-         * can be up to an hour stale, which `stale-while-revalidate` then repairs in the background
-         * without ever making a visitor wait. The standing post-deploy Cloudflare `purge_everything`
-         * collapses that window to zero anyway.
+         * until the HTML cache turns over. A stable name cannot 404.
+         *
+         * ⚠️ `immutable` IS NEVERTHELESS CORRECT, AND THE QUERY STAMP IS WHY. The href every glyph
+         * renders is `/icons/glyphs.svg?v=<content-hash>`, so a changed sprite is a changed URL and
+         * therefore a different browser cache key — the same guarantee a hashed filename gives,
+         * without the 404. Old HTML asking for `?v=<old>` still gets a real file, and gets it from
+         * its own cache, which is exactly right: that HTML references the glyph names that sprite
+         * contains.
+         *
+         * ⛔ THE SHORT TTL THIS REPLACED WAS COSTING THE TOP PAGESPEED ITEM. Measured on production
+         * 2026-08-14: every JS chunk served `max-age=31536000, immutable` while this one file served
+         * `max-age=14400`, and PageSpeed's "Use efficient cache lifetimes" flagged ~163 KiB — the
+         * sprite, essentially alone. It is fetched by every page on the site, so a 4-hour TTL meant
+         * repeat visitors re-validated the largest single asset in the app several times a day for
+         * no reason. One year, immutable, busted by the query.
+         *
+         * ⚠️ MATCHES BOTH FILES. The sprite is split into `glyphs-core.svg` (39 glyphs, preloaded)
+         * and `glyphs-rest.svg` (204, fetched on demand) — see scripts/critical-icons.mjs. They
+         * hash INDEPENDENTLY, so editing a deferred glyph does not bust the core file every page
+         * preloads, and both need the same immutable treatment.
          */
-        source: "/icons/glyphs.svg",
+        source: "/icons/glyphs-:slug.svg",
         headers: [
-          { key: "Cache-Control", value: "public, max-age=3600, stale-while-revalidate=86400" },
+          { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
         ],
       },
       // ⚠️ THESE FOUR ROUTES WERE INDEXABLE, AND robots.txt SAYS THEY ARE NOT.

@@ -1,194 +1,140 @@
 #!/usr/bin/env node
-// Seed the trip desk's listing — the marketed product AND the chat anchor, deliberately ONE row.
-//
-// WHY ONE ROW: a Conversation requires a listing (Conversation.listingId is NOT NULL) and the
-// table carries @@unique([listingId, buyerProfileId]) — one thread per buyer per listing.
-// bindTripThread() looks the thread up by exactly that composite. So if the listing a traveller
-// MESSAGES is the same row the assistance flow anchors to, their marketing enquiry and their
-// assistance case land in the SAME thread. Two rows would mean two threads and a traveller
-// wondering why the quote arrived somewhere else. The row is found by
-// externalId='trip-assistance-anchor' (src/lib/trips/dm-thread.ts), which has no status filter,
-// so the same marker serves whether the listing is live or hidden.
-//
-// ⚠️ NOTHING HERE IS RE-IMPLEMENTED. The publish gate, the searchText recipe and the rankScore
-// formula are imported from the app, exactly as scripts/seed-visa-shop.mjs does. A seed that
-// writes rows the app itself would reject is how a storefront ends up with listings that cannot
-// be edited, or that never surface because their search text was built by a different recipe.
-//
-// ⚠️ THE OWNER IS RESOLVED BY EMAIL, the way the app resolves it. Verified against the live
-// database: support@eno.forum HAS a Profile and owns the storefront; support@eno.vn has NO
-// Profile row. The .vn address is the visa ADMIN AUTH identity — a different thing — and
-// pointing the desk at it reproduces the 2026-07-22 outage where the visa surface went silently
-// dead while its products sat published.
-//
-// Idempotent: upserts on (sellerId, externalId).
-//
-//   node --env-file=.env scripts/seed-trip-desk.mjs [--dry-run] [--hidden] [--image=<url>]
+/**
+ * THE TRIP DESK'S ANCHOR LISTING — one hidden, free listing that every itinerary conversation
+ * hangs off.
+ *
+ * ⚠️ AN ITINERARY IS NOT A PRODUCT, AND THIS ROW IS NOT ONE EITHER. `getTripAssistanceListingId()`
+ * (src/lib/trips/dm-thread.ts) resolves the desk by `(seller, externalId)` and every trip thread is
+ * anchored on the listing it returns. The row exists so a conversation has a truthful listing to
+ * sit on — the same shape the visa desk uses. It is `status='hidden'` and `price=0` by design, so
+ * it can never be browsed, never be charged, and never appear in a feed, a rail or the sitemap.
+ *
+ * ⛔ WHY IT MOVES TO GMBR (owner, 2026-08-14). The anchor has lived on eno's own support account
+ * since the trip service was eno's. It is now GMBR's — "Eno plans it. GMBR books it" — so the
+ * anchor belongs on GMBR's storefront, exactly as the e-visa catalogue moved to VietKite. Anchoring
+ * a partner's conversations on eno's own listing would make eno the counterparty to a service a
+ * licensed partner is providing.
+ *
+ * ⚠️ THE ENV MUST FOLLOW, AND IN ONE WRITE. Creating this row changes nothing on its own:
+ * `getTripDesk()` reads TRIP_DESK_OWNER_EMAIL, which still says support@eno.forum. Repoint it in
+ * the same change, and check HIDDEN_DESK_OWNER_EMAILS first — that variable is the LICENSING
+ * hide-list, and putting a partner's address in it deletes their storefront from the marketplace.
+ * See the note at the head of src/lib/edition-scope.ts. GMBR has no other listings today, so the
+ * blast radius is smaller than VietKite's was — but the rule is the rule.
+ *
+ * Idempotent: `@@unique([sellerId, externalId])` means a second run updates rather than duplicates.
+ * DRY RUN BY DEFAULT.
+ *
+ *   node scripts/seed-trip-desk.mjs                # plan only
+ *   node scripts/seed-trip-desk.mjs --execute      # create/update the anchor
+ */
+import fs from 'node:fs'
+import pg from 'pg'
 
-import { Client } from 'pg'
-import { buildSearchText } from '../src/lib/fold.ts'
-import { rankScoreExprSql } from '../src/lib/ranking-formula.ts'
-// publish-guard is imported LAZILY and may be unavailable: it reaches its neighbours without
-// file extensions, which plain Node ESM cannot resolve, so the gate only runs under a TS loader
-// (`npx tsx scripts/seed-trip-desk.mjs`). Same handling as seed-visa-shop.mjs:454-465 — the check
-// is SKIPPED and said out loud, never faked. Re-implementing the gate here is the drift this repo
-// keeps getting bitten by.
+const EXECUTE = process.argv.includes('--execute')
+const env = Object.fromEntries(
+  fs.readFileSync('.env', 'utf8').split('\n').filter((l) => /^[A-Z_]+=/.test(l))
+    .map((l) => { const i = l.indexOf('='); return [l.slice(0, i), l.slice(i + 1).replace(/^["']|["']$/g, '')] }),
+)
 
-const argv = process.argv.slice(2)
-const DRY = argv.includes('--dry-run')
-const HIDDEN = argv.includes('--hidden')
-const IMAGE_ARG = argv.find((a) => a.startsWith('--image='))?.slice('--image='.length)
+/** ⚠️ MUST match TRIP_ASSISTANCE_LISTING_EXTERNAL_ID in src/lib/trips/dm-thread.ts, or the desk
+ *  resolves to null and every trip thread fails to bind. It is the join key, not a label. */
+const EXTERNAL_ID = 'trip-assistance-anchor'
+const DESK_EMAIL = 'info@giacmobayre.com'
 
-const MARKER = 'trip-assistance-anchor'
-const CATEGORY_SLUG = 'services'
-// No travel/tours subcategory exists in the taxonomy (services holds visa-legal, airport-transfer,
-// cleaning, photography, … and service-other). service-other is the honest home rather than
-// mislabelling this as visa-legal. ⚠️ Discoverability cost: a dedicated `travel-planning`
-// subcategory would market better — that is a taxonomy change (scripts/sync-categories.ts), not
-// something to smuggle in here.
-const SUBCATEGORY_SLUG = 'service-other'
-// Same administrative unit the desk's other listings carry, so one storefront reads consistently.
-// The gate rejects a listing with no district (location_required) even when the service is online.
-const CITY = 'Hồ Chí Minh'
-const DISTRICT = 'An Khánh'
-const EMAILS = (process.env.TRIP_DESK_OWNER_EMAIL || 'support@eno.forum')
-  .split(',').map((e) => e.trim().toLowerCase()).filter(Boolean)
+const db = new pg.Client({ connectionString: env.DIRECT_URL || env.DATABASE_URL, connectionTimeoutMillis: 15000 })
+await db.connect()
 
-const TITLE = 'Vietnam trip planning — free itinerary, and we can book it for you'
-const TITLE_VI = 'Lên lịch trình Việt Nam — miễn phí, và chúng tôi có thể đặt giúp bạn'
-// ⚠️ The 10% is disclosed in the copy itself, not only in chat. eno arranges; the traveller pays
-// each supplier directly — the fee wording must keep those two facts together, because that
-// separation is what keeps this an assistance service rather than a travel agency sale.
-const DESCRIPTION = [
-  'Tell us where you want to go and we build you a day-by-day Vietnam itinerary — free, in minutes, with every stop on a map.',
-  '',
-  'Want it booked? Message us here and our local team arranges the stays, transport and tours on your plan, and stays on the other end of this chat while you travel.',
-  '',
-  'How the fee works: planning is free. If you ask us to arrange bookings we charge 10% of the total, quoted in writing in this chat before anything is booked. You pay each hotel, driver and guide directly at their own price — we are not a travel agency and we do not take payment for the travel itself.',
-].join('\n')
-const DESCRIPTION_VI = [
-  'Cho chúng tôi biết bạn muốn đi đâu, chúng tôi sẽ lên lịch trình Việt Nam theo từng ngày — miễn phí, trong vài phút, kèm bản đồ đầy đủ các điểm dừng.',
-  '',
-  'Muốn đặt luôn? Nhắn tin tại đây, đội ngũ địa phương của chúng tôi sẽ sắp xếp chỗ ở, di chuyển và tour theo lịch trình của bạn, và luôn sẵn sàng trong khung chat này suốt chuyến đi.',
-  '',
-  'Về phí dịch vụ: lên lịch trình là miễn phí. Nếu bạn nhờ chúng tôi sắp xếp đặt chỗ, phí dịch vụ là 10% tổng chi phí, được báo bằng văn bản trong khung chat này trước khi đặt bất kỳ dịch vụ nào. Bạn thanh toán trực tiếp cho từng khách sạn, tài xế và hướng dẫn viên theo giá của họ — chúng tôi không phải công ty lữ hành và không thu tiền cho phần dịch vụ du lịch.',
-].join('\n')
-
-const client = new Client({ connectionString: process.env.DIRECT_URL })
-await client.connect()
-const q = async (sql, params = []) => (await client.query(sql, params)).rows
-
-try {
-  const [seller] = await q(
-    `select s.id, s.name, s."trustScore", p.email
-       from "Seller" s join "Profile" p on p.id = s."ownerId"
-      where lower(p.email) = any($1::text[])
-      order by s."memberSince" asc limit 1`,
-    [EMAILS],
-  )
-  if (!seller) { console.error(`✗ no Seller owned by any of: ${EMAILS.join(', ')}`); process.exit(1) }
-
-  const [category] = await q(`select id, name, "nameVi" from "Category" where slug = $1`, [CATEGORY_SLUG])
-  if (!category) { console.error(`✗ category "${CATEGORY_SLUG}" not found`); process.exit(1) }
-
-  const [existing] = await q(
-    `select id, images, status from "Listing" where "sellerId" = $1 and "externalId" = $2`,
-    [seller.id, MARKER],
-  )
-
-  // Image: an explicit --image wins; otherwise keep whatever the row already has; otherwise
-  // borrow one from the desk's own storefront. ⚠️ Borrowing is the OWNER'S CHOICE (asked and
-  // answered 2026-07-25) — the e-Visa artwork says E-VISA on it, so it reads oddly on a
-  // trip-planning card. Swap it any time with:
-  //   node --env-file=.env scripts/seed-trip-desk.mjs --image=<supabase-url>
-  let images = existing?.images && JSON.parse(existing.images).length ? JSON.parse(existing.images) : []
-  if (IMAGE_ARG) images = [IMAGE_ARG]
-  if (!images.length) {
-    const [donor] = await q(
-      `select images from "Listing" where "sellerId" = $1 and status = 'active' and images <> '[]'
-       order by "createdAt" asc limit 1`, [seller.id],
-    )
-    const urls = donor ? JSON.parse(donor.images) : []
-    if (urls[0]) images = [urls[0]]
-  }
-
-  // THE APP'S OWN GATE, before any write. A row this rejects must never reach the table.
-  let guard
-  try { guard = await import('../src/lib/publish-guard.ts') } catch { /* see the import note */ }
-  if (guard) {
-    try {
-      guard.assertPublishable({
-        trustTier: 'standard',
-        images,
-        texts: [TITLE, DESCRIPTION, TITLE_VI],
-        categorySlug: CATEGORY_SLUG,
-        // ⚠️ district is REQUIRED (location_required) even for an online service — the gate
-        // wants a real administrative unit, not just a city string. Mirrors the desk's other
-        // listings so the storefront reads consistently.
-        district: DISTRICT,
-      })
-      guard.assertCleanTexts([TITLE, DESCRIPTION, TITLE_VI, DESCRIPTION_VI])
-      console.log('  publish gate: PASSED')
-    } catch (e) {
-      console.error(`✗ publish gate refused this listing: ${e?.code || e?.message || e}`)
-      console.error(`  (images=${images.length}, district=${DISTRICT}, category=${CATEGORY_SLUG})`)
-      process.exit(1)
-    }
-  } else {
-    console.log('  ⚠️ publish-gate self-check SKIPPED — re-run under `npx tsx` to enable it')
-  }
-
-  const searchText = buildSearchText([TITLE, DESCRIPTION, null, category.name, category.nameVi, null, null])
-  const status = HIDDEN ? 'hidden' : 'active'
-  const fields = [
-    // ⚠️ Listing has titleVi but NO descriptionVi column — the Vietnamese description comes from
-    // the app's translation layer at render time, not from a stored column. DESCRIPTION_VI is
-    // still written above and run through the banned-word gate, so the wording is reviewed and
-    // ready if a column is ever added; it is deliberately NOT inserted.
-    ['title', TITLE], ['titleVi', TITLE_VI],
-    ['description', DESCRIPTION],
-    // Planning is free and the 10% has no fixed đồng amount, so the card carries no price.
-    // priceUnit stays empty: <Price> appends " / <unit>" for anything else.
-    ['price', 0], ['priceUnit', ''], ['currency', '₫'],
-    ['location', DISTRICT], ['district', DISTRICT], ['city', CITY],
-    ['images', JSON.stringify(images)],
-    ['categoryId', category.id], ['subcategorySlug', SUBCATEGORY_SLUG], ['listingType', 'service'],
-    ['attributes', JSON.stringify({ serviceLocation: 'online', providerType: 'business' })],
-    ['searchText', searchText],
-    ['sellerTrustScore', seller.trustScore],
-    ['status', status],
-    ['externalId', MARKER],
-  ]
-
-  if (DRY) {
-    console.log(`dry run — would ${existing ? 'update' : 'create'} on ${seller.name}`)
-    console.log(`  status=${status} price=0 images=${images.length} subcat=${SUBCATEGORY_SLUG}`)
-    process.exit(0)
-  }
-
-  let id
-  if (existing) {
-    const setSql = fields.map(([c], i) => `"${c}" = $${i + 1}`).join(', ')
-    // negotiable=false: there is no price to haggle over, and an offer on a fixed-price listing
-    // is rejected server-side (409) and docks the buyer's trust, so the offer UI must stay hidden.
-    await q(`UPDATE "Listing" SET ${setSql}, negotiable = false, verified = true, "updatedAt" = now()
-             WHERE id = $${fields.length + 1}`, [...fields.map(([, v]) => v), existing.id])
-    id = existing.id
-    console.log(`✓ updated ${id} (was ${existing.status} → ${status})`)
-  } else {
-    const all = [...fields, ['sellerId', seller.id]]
-    await q(
-      `INSERT INTO "Listing" (id, ${all.map(([c]) => `"${c}"`).join(', ')}, negotiable, verified, "rankScore", "postedAt", "createdAt", "updatedAt")
-       VALUES (gen_random_uuid()::text, ${all.map((_, i) => `$${i + 1}`).join(', ')}, false, true, 0, now(), now(), now())
-       RETURNING id`, all.map(([, v]) => v),
-    )
-    ;[{ id }] = await q(`select id from "Listing" where "sellerId" = $1 and "externalId" = $2`, [seller.id, MARKER])
-    console.log(`✓ created ${id} (status=${status})`)
-  }
-
-  // rankScore from the ONE shared formula, never re-typed here.
-  await q(`UPDATE "Listing" SET "rankScore" = ${rankScoreExprSql()} WHERE id = $1`, [id])
-  console.log(`  storefront: ${seller.name} · https://eno.vn/listings/${id}`)
-} finally {
-  await client.end()
+const seller = (await db.query(
+  `select s.id, s.name, p.email from "Seller" s join "Profile" p on p.id = s."ownerId" where p.email = $1`,
+  [DESK_EMAIL],
+)).rows[0]
+if (!seller) {
+  console.error(`\n✗ No storefront owned by ${DESK_EMAIL}. The desk must have a Seller row first.`)
+  process.exit(1)
 }
+
+const existing = (await db.query(
+  `select id, title, status, price, "sellerId" from "Listing" where "externalId" = $1`, [EXTERNAL_ID],
+)).rows
+
+console.log(`\n══ TRIP DESK ANCHOR ${EXECUTE ? '(EXECUTING)' : '(DRY RUN)'}`)
+console.log(`desk storefront : ${seller.name} <${seller.email}>  id=${seller.id}`)
+console.log(`external id     : ${EXTERNAL_ID}`)
+if (existing.length) {
+  console.log('\nexisting anchor rows:')
+  console.table(existing.map((r) => ({ id: r.id, title: r.title.slice(0, 40), status: r.status, price: r.price, onThisDesk: r.sellerId === seller.id })))
+} else {
+  console.log('\nno anchor row exists yet')
+}
+
+const CATEGORY = (await db.query(`select id from "Category" where slug = 'services' limit 1`)).rows[0]
+if (!CATEGORY) { console.error('✗ no "services" category'); process.exit(1) }
+
+if (!EXECUTE) {
+  console.log('\nWould create/move the anchor onto this desk, hidden and free.')
+  console.log('Re-run with --execute. Then set, in ONE secret version:')
+  console.log(`  TRIP_DESK_OWNER_EMAIL=${DESK_EMAIL}`)
+  console.log('  ITINERARY_THREADS_ENABLED=true      # only once a build with the .svc. routes is serving')
+  await db.end(); process.exit(0)
+}
+
+const onThisDesk = existing.find((r) => r.sellerId === seller.id)
+if (onThisDesk) {
+  await db.query(`update "Listing" set status='hidden', price=0, verified=true, "updatedAt"=now() where id=$1`, [onThisDesk.id])
+  console.log(`\n✓ anchor already on this desk — normalised (hidden, free, verified): ${onThisDesk.id}`)
+} else {
+  /**
+   * ⛔ CLONED FROM THE EXISTING ANCHOR, NOT HAND-WRITTEN — a reviewer caught the first version
+   * inventing a row and getting it wrong. A Listing carries invariants that are invisible until
+   * something breaks: `priceUnit` must be '' and NOT 'total', because <Price> appends "/ <unit>"
+   * and a free listing would read "0 ₫ / total"; `searchText` feeds the trigram index; `rankScore`
+   * feeds ordering; `location`/`city`/`district` are read by surfaces that assume they exist. The
+   * live row already satisfies every one of them, so copying it is strictly safer than restating
+   * them and hoping the list is complete.
+   *
+   * ⚠️ THREE COLUMNS ARE OVERRIDDEN RATHER THAN INHERITED, and a reviewer caught each one:
+   *   · `negotiable = false` — the Counter/offer control gates on `negotiable !== false`, so an
+   *     inherited default would grow an offer UI on a hidden ₫0 anchor in every GMBR thread, and an
+   *     offer on a fixed-price listing 409s server-side and docks the buyer's trust score.
+   *   · `titleVi = NULL` — the source row's Vietnamese title still says "we can book it for you",
+   *     which is eno's old first-person framing and wrong for a partner-run desk. Null renders the
+   *     English title rather than a contradicting translation.
+   *   · `searchText` is set from the new title, not inherited, so it cannot describe the old copy.
+   *     (It is a hidden row that no search reaches — corrected because a stale index entry is the
+   *     kind of thing that surfaces years later, not because it costs anything today.)
+   *
+   * ⚠️ A NEW ROW, not a re-parent. eno's own anchor keeps eno.forum's existing trip threads
+   * resolvable; moving it would strand every conversation already bound to it.
+   */
+  const src = existing[0]
+  if (!src) {
+    console.error('\n✗ No anchor row exists anywhere to clone from. Seed the trip desk on eno.forum first.')
+    process.exit(1)
+  }
+  const r = await db.query(
+    `insert into "Listing" (
+       id, "sellerId", "externalId", title, "titleVi", description, price, currency, "priceUnit",
+       images, "categoryId", "subcategorySlug", "listingType", location, city, district,
+       "rankScore", "searchText", negotiable, attributes, status, verified, "postedAt", "updatedAt")
+     select gen_random_uuid()::text, $1, "externalId", $2, NULL, $3, 0, currency, "priceUnit",
+       images, "categoryId", "subcategorySlug", "listingType", location, city, district,
+       "rankScore", $2, false, attributes, 'hidden', true, now(), now()
+     from "Listing" where id = $4
+     returning id, "priceUnit", location, "rankScore"`,
+    [
+      seller.id,
+      'Vietnam trip planning — free itinerary, arranged in chat',
+      'Tell us your dates, budget and interests in chat and a day-by-day itinerary is built with you. '
+      + 'Planning is free. Flights, hotels, insurance and tickets are booked by GMBR, who quote you directly.',
+      src.id,
+    ],
+  )
+  console.log(`\n✓ anchor cloned onto ${seller.name}: ${r.rows[0].id}`)
+  console.log('  inherited:', JSON.stringify({ priceUnit: r.rows[0].priceUnit, location: r.rows[0].location, rankScore: r.rows[0].rankScore }))
+}
+
+console.log('\nNext, in ONE secret version (order matters — see the header):')
+console.log(`  TRIP_DESK_OWNER_EMAIL=${DESK_EMAIL}`)
+console.log('  ITINERARY_THREADS_ENABLED=true       # only after a build carrying the .svc. trip routes is live')
+await db.end()

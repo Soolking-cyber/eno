@@ -71,6 +71,8 @@ Deployment-*/
 # name 404s out of edge-cached HTML after a deploy and a `<use>` whose target 404s draws NOTHING.
 # The reasoning is in scripts/gen-icons.mjs; do not "improve" it by adding the hash back.
 /public/icons/glyphs.svg
+/public/icons/glyphs-core.svg
+/public/icons/glyphs-rest.svg
 
 # Playwright
 e2e/.auth/
