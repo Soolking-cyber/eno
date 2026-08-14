@@ -57,6 +57,9 @@ import { submissionGate } from '@/lib/visa/eta'
 //     product — renders <VisaStart /> (button + picker dialog) or <VisaStartPicker /> to
 //     embed the list inline.
 
+/** The real module — see the note in visa-start.stub.tsx for why this constant exists. */
+export const VISA_START_AVAILABLE = true
+
 /** A catalogue row as GET /api/visa/applications?catalogue=1 ships it, narrowed for display. */
 export type VisaStartProduct = {
   listingId: string

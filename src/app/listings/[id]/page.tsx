@@ -41,7 +41,7 @@ import { sellerMetrics, topSellerReviews, sameSellerListings } from '@/lib/selle
 import { ListingDetailMap } from '@/components/marketplace/listing-detail-map'
 import { ReportButton } from '@/components/marketplace/report-button'
 import { ContactComposer } from '@/components/marketplace/contact-composer'
-import { VisaStart } from '@/components/marketplace/visa-start'
+import { VisaStart, VISA_START_AVAILABLE } from '@/components/marketplace/visa-start'
 import { isVisaShopListing } from '@/lib/visa-shop'
 // The one switch that means "this deployment runs the visa chat" — see the gate on isVisaProduct.
 import { VISA_THREADS_ENABLED } from '@/lib/thread-kind'
@@ -213,7 +213,14 @@ export default async function ListingPage({ params }: Props) {
    * entry point, ordinary ContactComposer. It also collapses four order-sensitive env vars into
    * one: the desk addresses become inert until this flag is on.
    */
-  const isVisaProduct = VISA_THREADS_ENABLED && (await isVisaShopListing(listing.id))
+  /**
+   * ⚠️ `VISA_START_AVAILABLE &&` closes the gate's other direction. VISA_THREADS_ENABLED is a
+   * RUNTIME secret and the module below is chosen by a BUILD flag, so the two can disagree — and one
+   * disagreement is silent: a stub build under a live runtime flag answers "visa product" and then
+   * draws nothing where the contact control belongs. A rollback does exactly that. The constant is a
+   * build-time literal on both sides of the alias, so this folds away and cannot cost a render.
+   */
+  const isVisaProduct = VISA_THREADS_ENABLED && VISA_START_AVAILABLE && (await isVisaShopListing(listing.id))
   // Is this the trip desk's own listing? Same trust shape as the visa check above — resolved
   // server-side from (seller, externalId) on the desk that owns the row, never from the title or
   // the category, which another seller could imitate. `cache()`d, so this costs one query per

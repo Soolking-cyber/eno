@@ -28,6 +28,23 @@
  * edition-stubs.test.ts, which derives the alias map from next.config.ts.
  */
 
+/**
+ * ⛔ THE STUB SAYS SO IN CODE, SO A ROLLBACK CANNOT SILENTLY BREAK THE PDP.
+ *
+ * `VISA_THREADS_ENABLED` is a RUNTIME secret; which of these two modules is compiled is a BUILD
+ * flag. Those can desynchronise in both directions, and one of them is silent: a build without
+ * MARKETPLACE_HOSTS_SERVICES (this stub) serving while the runtime flag IS set makes the product
+ * page decide "this is a visa product" and then render nothing at all where the Chat button
+ * belongs — on every one of the partner's live listings, with no error anywhere. That is what a
+ * `gcloud run services rollback` during an incident, or a revert of the cloudbuild line, produces.
+ *
+ * Two reviewers independently called the original mitigation what it was: a comment telling a human
+ * to unset the runtime flag first. This is the same rule as a build-time constant instead. Both
+ * modules export it, the aliaser picks one, and the branch folds away — so the page cannot offer a
+ * visa entry point that this build has no code to render.
+ */
+export const VISA_START_AVAILABLE = false
+
 /** Mirror of the real module's product shape. Structural only — nothing here constructs one. */
 export type VisaStartProduct = {
   listingId: string

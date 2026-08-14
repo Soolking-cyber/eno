@@ -44,12 +44,33 @@ steps:
         # It admits eno.vn to the partner-run visa CHAT (VietKite's `.svc.` routes and cards). It
         # never admits payments or eno's own e-visa marketing — those carry the stricter
         # `.forum.svc.` infix that no marketplace build lists, whatever this says.
-        # ⚠️ COMMENTED OUT UNTIL THE DESK ENV LANDS. Turning this on while VISA_SHOP_OWNER_EMAIL
-        # still points at support@eno.forum would paint eno's OWN e-visa conversations onto the
-        # licensed marketplace, and turning it on without HIDDEN_DESK_OWNER_EMAILS in the SAME write
-        # silently deletes all 14 VietKite listings from browse, search, sitemap and the feeds. The
-        # order is: desk env first, verify the catalogue resolves to VietKite, then uncomment this.
-        # printf '\nMARKETPLACE_HOSTS_SERVICES=true\n' >> /workspace/buildenv.env
+        # ⚠️ ARMED 2026-08-14, AND THE ORDER IT WAITED FOR IS DONE: eno-root-env v22 repointed
+        # VISA_SHOP_OWNER_EMAIL to info@vietkite.com.vn and set HIDDEN_DESK_OWNER_EMAILS to
+        # support@eno.forum in ONE version, and all 14 VietKite listings were verified still present
+        # in the feed, their storefront and their PDPs afterwards. Turning this on before that would
+        # have painted eno's own e-visa conversations onto the licensed marketplace; splitting that
+        # write would have deleted VietKite from browse, search, sitemap and the feeds with nothing
+        # thrown.
+        # ⚠️ THIS COMPILES THE PARTNER'S VISA CHAT ONTO eno.vn — the `.svc.` routes and cards. It
+        # does NOT compile payments or eno's own e-visa marketing: those carry `.forum.svc.`, which
+        # no marketplace build lists whatever this says.
+        # ⚠️ VISA_THREADS_ENABLED IS STILL ABSENT AND MUST STAY ABSENT UNTIL THIS REVISION SERVES.
+        # It is the runtime switch the PDP gates on; set it against a build without this flag and
+        # `isVisaProduct` goes true while VisaStart is still the stub, so the Chat button renders as
+        # nothing on 14 live listings.
+        # ⛔ AND THE SAME TRAP RUNS BACKWARDS — A ROLLBACK IS NOT SAFE ON ITS OWN (reviewer, 2026-08-14).
+        # The real invariant is not "until this revision serves" but "while ANY serving revision lacks
+        # this flag". Rolling Cloud Run back to a pre-flag revision, or reverting this line, while
+        # VISA_THREADS_ENABLED is set in the secret puts a stub build under a live runtime flag and
+        # reproduces exactly the broken PDPs above. UNSET THE RUNTIME FLAG FIRST, THEN ROLL BACK.
+        # ⚠️ LEGACY FORUM THREADS WERE CHECKED, NOT ASSUMED. 5 conversations carrying 147 visa cards
+        # exist in the shared database, ALL owned by the Eno desk (support@eno.forum) — measured
+        # 2026-08-14. Compiling the cards in does not surface them on eno.vn, and two independent
+        # things stop it: deskSellerIds() still resolves that desk from HIDDEN_DESK_OWNER_EMAILS, so
+        # the inbox and thread-open exclude them (api/conversations/route.ts, [id]/route.ts:160); and
+        # their anchor listings are Eno's, not VietKite's, so threadKind() answers 'listing' even if
+        # one were reached. Belt and braces, and neither is this flag.
+        printf '\nMARKETPLACE_HOSTS_SERVICES=true\n' >> /workspace/buildenv.env
         export DOCKER_BUILDKIT=1
         docker build \
           --secret id=buildenv,src=/workspace/buildenv.env \
