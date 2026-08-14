@@ -195,9 +195,20 @@ const eslintConfig = [...nextCoreWebVitals, ...nextTypescript, {
     "src/components/marketplace/developers-panel.tsx",
     "src/components/marketplace/seo-landing.tsx",
     "src/components/marketplace/seo-article.tsx",
-    "src/app/moving-to-vietnam/page.svc.tsx",
-    "src/app/first-month-in-vietnam/page.svc.tsx",
-    "src/app/vietnam-evisa/official-process/page.svc.tsx",
+    // ⚠️ `.forum.svc.` — THESE THREE MOVED TIERS AND THE EXEMPTION DID NOT FOLLOW, WHICH TURNED CI
+    // RED WHILE Cloud Build STAYED GREEN (Cloud Build never runs eslint). Renaming them to the
+    // forum-only infix left these paths matching nothing, and 136 jsx-no-literals errors came back
+    // on prose that was exempt five minutes earlier. The paths are written out rather than globbed
+    // on purpose — see the note above — and that is exactly what makes a rename a silent breakage.
+    // If any of these moves again, this list moves with it.
+    // ⚠️ WHY THEY ARE FORUM-ONLY, STATED SO NOBODY OVER-READS IT: only `official-process` is e-visa
+    // marketing. The two arrival guides are ORDINARY expat content — they are on the stricter tier
+    // because their prose NAMES the e-visa, evisa.gov.vn and the licensed partner (the same reason
+    // scripts/edition-lint.mjs lists them), not because a marketplace may not publish a guide about
+    // moving to Vietnam. If that vocabulary ever comes out of them, they can come back to eno.vn.
+    "src/app/moving-to-vietnam/page.forum.svc.tsx",
+    "src/app/first-month-in-vietnam/page.forum.svc.tsx",
+    "src/app/vietnam-evisa/official-process/page.forum.svc.tsx",
     "src/app/admin/**",
     "src/components/admin/**",
   ],
