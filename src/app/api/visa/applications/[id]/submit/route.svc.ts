@@ -5,6 +5,8 @@ import { rateLimit } from '@/lib/ratelimit'
 import { decryptVisaPayload, visaApplicantSnapshotHash, visaCryptoReady } from '@/lib/visa/crypto'
 import { getVisaDb } from '@/lib/visa/db'
 import { canonicalVisaListingId } from '@/lib/visa/dm-flow'
+import { IS_SERVICES } from '@/lib/edition'
+import { visaCaseOnLocalDesk } from '@/lib/visa-admin'
 import { visaPaymentsConfig } from '@/lib/visa/payments'
 import { recordVisaEvent, serializeVisa, type VisaApplicationRow, type VisaDocumentRow } from '@/lib/visa/records'
 import { VISA_AUTHORIZATION_VERSION, VISA_DECLARATION_VERSION, validateVisaForReview } from '@/lib/visa/schema'
@@ -97,7 +99,54 @@ export const POST = route({ auth: 'userId' }, async ({ req, params, userId }) =>
     // checkout route + server-side handoff on confirmation, and this direct action only
     // serves ALREADY-paid cases (e.g. consent voided by a post-checkout edit, or a
     // needs_changes resubmit — both already paid). Dormant (no env) keeps today's flow.
-    if (visaPaymentsConfig() && !app.paid_at) {
+    /**
+     * ⛔ `IS_SERVICES &&` — WITHOUT IT THIS 402s ON eno.vn TODAY, AND THE MEASUREMENT IS WHY IT IS
+     * HERE RATHER THAN LEFT TO ENV HYGIENE.
+     *
+     * The gate asks "is this case paid?" only when payments are configured. That reads as "only
+     * where we charge" — but `visaPaymentsConfig()` is a pure env check, and eno.vn's deployed
+     * secret was measured on 2026-08-14 carrying `VISA_SERVICE_FEE_USD=25` plus live PAYPAL_*
+     * values, inherited from when one deployment did everything. So on the licensed marketplace —
+     * which cannot charge at all, whose checkout route is `.forum.svc.` and does not exist — this
+     * would have refused every handoff with `payment_required_first`, and the "Send to the desk"
+     * button that finishes the partner flow would fail on its only action.
+     *
+     * The edition is the honest question: eno.forum charges and must keep the pay-before-review
+     * gate exactly as it is; eno.vn intermediates and takes no money, so a fee it never asked for
+     * cannot block a submission. Fixing it here rather than by deleting env vars means it stays
+     * correct even if those variables come back — and they are shared with a deployment that needs
+     * them.
+     */
+    /**
+     * ⛔ TWO REFUSALS, NOT ONE — AND THE MISSING SECOND ONE WAS A PAYMENT BYPASS THAT TWO REVIEWERS
+     * FOUND. Guarding only `IS_SERVICES && visaPaymentsConfig() && !paid_at` means that when
+     * eno.forum LOSES its payment env, `visaPaymentsConfig()` is null, the whole condition is false,
+     * and an unpaid `send_for_review` is ACCEPTED into the operator queue. The guard I added to keep
+     * eno.vn working had quietly re-opened the hole on the deployment that charges — the same
+     * fail-open shape, moved one clause to the left.
+     *
+     * On a services build, "payments are not configured" is a BROKEN deployment, never a free pass:
+     * it refuses outright. On the marketplace, which takes no money and whose checkout route does
+     * not exist, neither refusal applies and the handoff proceeds.
+     */
+    if (IS_SERVICES && !visaPaymentsConfig()) {
+      return NextResponse.json({ error: 'payments_not_configured' }, { status: 503 })
+    }
+    if (IS_SERVICES && !app.paid_at) {
+      return NextResponse.json({ error: 'payment_required_first' }, { status: 402 })
+    }
+    /**
+     * ⛔ AND THE FEE-FREE PATH IS ONLY FOR *THIS* DEPLOYMENT'S OWN DESK — closing a cross-edition
+     * bypass. The two gates above are edition-local while the DATA is shared: eno.vn and eno.forum
+     * read one `visa_applications` table with one auth system. So "this deployment does not charge"
+     * must not become "any case reachable from this deployment does not have to pay". A case opened
+     * on eno.forum, which does charge and is unpaid, would otherwise be handed to the desk from
+     * eno.vn — the forum's own pay-before-review gate defeated through the other edition.
+     * ⚠️ It happens to be unreachable today because the hidden desk makes eno.vn 404 that thread —
+     * but that is a LICENSING control in another module doing an authorisation job by accident, and
+     * one env edit from stopping. The rule lives with the money decision instead.
+     */
+    if (!IS_SERVICES && !(await visaCaseOnLocalDesk(id))) {
       return NextResponse.json({ error: 'payment_required_first' }, { status: 402 })
     }
     const sfr = await db.from('visa_applications').update({

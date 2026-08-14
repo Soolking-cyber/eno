@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { ArrowLeft, FileText, Lock, MessageSquare } from '@/components/ui/icons'
-import { getAdmin } from '@/lib/admin'
+import { getVisaDeskScope } from '@/lib/desk-operator'
 import { AdminDenied } from '@/components/admin/admin-denied'
 import { loadVisaAdminCase, signVisaDocumentUrl, type VisaDocumentRow } from '@/lib/visa-admin'
 import { findVisaThread, getVisaThreadMode, type VisaThreadMode } from '@/lib/visa/dm-thread'
@@ -46,11 +46,14 @@ const THREAD_MODE_COPY: Record<VisaThreadMode, { label: string; variant: 'neutra
 }
 
 export default async function AdminVisaCasePage({ params }: { params: Promise<{ id: string }> }) {
-  const admin = await getAdmin()
-  if (!admin) return <AdminDenied />
+  // The desk scope, for the same reason as the queue page — and here it also decides WHICH cases
+  // resolve: a case outside the scope answers `not-found` below, never a 403, so a partner desk
+  // cannot use this page to discover that another deployment's case exists.
+  const scope = await getVisaDeskScope()
+  if (!scope) return <AdminDenied />
   const { id } = await params
 
-  const result = await loadVisaAdminCase(id)
+  const result = await loadVisaAdminCase(id, scope)
   if (result.state === 'not-found') notFound()
   if (result.state === 'unavailable') {
     return (

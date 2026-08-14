@@ -29,11 +29,11 @@ describe('expat guides registry', () => {
     expect(EXPAT_GUIDE_PATHS.length).toBe(EXPAT_GUIDES.length)
   })
 
-  it.each(EXPAT_GUIDES.map((g) => [g.slug]))('%s is a SERVICES-ONLY route (page.svc.tsx)', (slug) => {
+  it.each(EXPAT_GUIDES.map((g) => [g.slug]))('%s is a FORUM-ONLY route (page.forum.svc.tsx)', (slug) => {
     const dir = `src/app/${slug}`
     expect(
-      existsSync(`${dir}/page.svc.tsx`),
-      `${dir}/page.svc.tsx does not exist — the guide is in the registry and in the sitemap, but there is no route`,
+      existsSync(`${dir}/page.forum.svc.tsx`),
+      `${dir}/page.forum.svc.tsx does not exist — the guide is in the registry and in the sitemap, but there is no route`,
     ).toBe(true)
     expect(
       existsSync(`${dir}/page.tsx`),

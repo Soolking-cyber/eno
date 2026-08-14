@@ -175,6 +175,12 @@ const SERVICES_TREES = [
   'src/app/api/trips/',
   'src/app/api/itineraries/',
   'src/app/api/admin/trips/',
+  // ⚠️ THE PAYMENTS TREE WAS NEVER IN THIS LIST, so Rule B never once looked at it — and the Stripe
+  // webhook sat there as `route.svc.ts` where a rename to `route.ts` would have passed lint and put
+  // a payments endpoint in the licensed image. Taking money for the service is the one thing eno.vn
+  // genuinely cannot do (owner, 2026-08-13), so its routes are the LAST place the naming rule should
+  // have been unenforced. Both PayPal routes and the Stripe webhook now carry `.forum.svc.`.
+  'src/app/api/payments/',
 ]
 
 /**
@@ -224,8 +230,37 @@ function aliasedSpecifiers() {
   const cfg = readFileSync(join(ROOT, 'next.config.ts'), 'utf8')
   const at = cfg.indexOf('resolveAlias: {')
   if (at === -1) return null // config restructured — Rule C reports that rather than passing silently
-  return new Set([...cfg.slice(at).matchAll(/"(@\/[^"]+)"\s*:/g)].map((m) => m[1]))
+  const all = new Set([...cfg.slice(at).matchAll(/"(@\/[^"]+)"\s*:/g)].map((m) => m[1]))
+  /**
+   * ⛔ THE FLAG CHANGES WHICH ALIASES APPLY, AND THIS FUNCTION USED TO BE BLIND TO IT — SO RULE C
+   * WOULD HAVE REPORTED CLEAN WHILE THE EXEMPTION IT RELIES ON NO LONGER EXISTED.
+   *
+   * `resolveAlias` is not one flat map any more (next.config.ts): three specifiers — the visa cards,
+   * the PDP start button and the services error vocabulary — are stubbed ONLY while
+   * MARKETPLACE_HOSTS_SERVICES is off, because a deployment hosting a partner's visa chat needs the
+   * real modules. This function reads the config as TEXT, so it saw all of them regardless, and
+   * `ALIASED_REAL_FILES` below would have kept exempting files that a flag-on build genuinely
+   * compiles. That is precisely the failure this file's own header warns about: "a stale entry here
+   * marks an import 'aliased' when the alias has been removed".
+   *
+   * Reading the same env the config reads keeps the two halves honest with each other.
+   */
+  if (process.env.MARKETPLACE_HOSTS_SERVICES === 'true') {
+    for (const spec of FLAG_UNSTUBBED) all.delete(spec)
+  }
+  return all
 }
+/**
+ * The three specifiers whose stubs are skipped when the marketplace hosts a partner's services.
+ * ⚠️ KEEP IN SYNC WITH THE CONDITIONAL BLOCK IN next.config.ts. It is a short list on purpose —
+ * if it grows, the split has stopped being "the visa chat and nothing else" and this comment is
+ * the place that should make that obvious.
+ */
+const FLAG_UNSTUBBED = [
+  '@/components/marketplace/visa-cards',
+  '@/components/marketplace/visa-start',
+  '@/lib/api/errors-services',
+]
 const ALIASED = aliasedSpecifiers()
 
 /**

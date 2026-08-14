@@ -1,7 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { FileCheck2 } from '@/components/ui/icons'
-import { getAdmin } from '@/lib/admin'
+import { getVisaDeskScope } from '@/lib/desk-operator'
 import { AdminDenied } from '@/components/admin/admin-denied'
 import { listVisaAdminCases, type VisaQueueRow, type VisaDocumentRow } from '@/lib/visa-admin'
 import { visaStatusLabel, visaStatusVariant } from './visa-status'
@@ -20,10 +20,19 @@ export const metadata: Metadata = { title: 'Visa queue — eno.vn admin', robots
 const ACTIVE_EXCLUDED = ['draft', 'needs_changes', 'approved', 'rejected', 'cancelled']
 
 export default async function AdminVisasPage() {
-  const admin = await getAdmin()
-  if (!admin) return <AdminDenied />
+  /**
+   * ⚠️ THE DESK SCOPE, NOT `getAdmin()` — AND IT IS SAFE TO WIDEN THIS ONLY BECAUSE THE DATA LAYER
+   * NOW ENFORCES THE SCOPE. This page was admin-only, which meant a partner desk (VietKite on
+   * eno.vn) had API entitlement and no queue to work from. Handing them `getAdmin()` instead was
+   * never an option: that grants every dispute room, report and other applicant's documents.
+   * `getVisaDeskScope()` returns `{ all: true }` for an eno admin — unchanged behaviour, including
+   * on eno.forum — and a desk-narrowed scope for a partner, which `listVisaAdminCases` applies as a
+   * predicate rather than trusting the caller to filter. See src/lib/visa-admin.ts.
+   */
+  const scope = await getVisaDeskScope()
+  if (!scope) return <AdminDenied />
 
-  const data = await listVisaAdminCases()
+  const data = await listVisaAdminCases(scope)
 
   const shell = (children: React.ReactNode) => (
     <div className="flex flex-1 flex-col bg-background">
@@ -31,7 +40,7 @@ export default async function AdminVisasPage() {
         <div className="mb-5">
           <h1 className="h-title text-foreground">Visa queue</h1>
           <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
-            Signed in as {admin}. Private review queue. Never invent an answer, accept a declaration, solve a challenge, pay, or submit without the applicant&apos;s recorded approval and a human review of the live official form.
+            Signed in as {scope.operator}. Private review queue. Never invent an answer, accept a declaration, solve a challenge, pay, or submit without the applicant&apos;s recorded approval and a human review of the live official form.
           </p>
         </div>
         {children}

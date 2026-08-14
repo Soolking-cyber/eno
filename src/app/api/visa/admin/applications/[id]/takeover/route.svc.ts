@@ -1,7 +1,8 @@
 import { z } from 'zod'
 import { NextResponse } from 'next/server'
 import { getAdmin } from '@/lib/admin'
-import { getVisaDeskOperator } from '@/lib/desk-operator'
+import { getVisaDeskScope } from '@/lib/desk-operator'
+import { visaCaseInScope } from '@/lib/visa-admin'
 import { rateLimit } from '@/lib/ratelimit'
 import { getVisaDb } from '@/lib/visa/db'
 import { visaDmFailureFor } from '@/lib/visa/dm-flow'
@@ -51,8 +52,12 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   // applicant's documents along with it. getVisaDeskOperator() still accepts an admin, so eno's own
   // support account is unaffected; it also accepts the account that owns THIS deployment's visa
   // storefront, and only that desk. See src/lib/desk-operator.ts.
-  const admin = await getVisaDeskOperator()
-  if (!admin) return NextResponse.json({ error: 'forbidden' }, { status: 403 })
+  // ⛔ ENTITLEMENT IS NOT AUTHORISATION. getVisaDeskOperator() proves this session runs A visa desk;
+  // it says nothing about WHICH cases are that desk's, and eno.vn and eno.forum share one
+  // `visa_applications` table. Without the scope check below, a partner desk could name any uuid.
+  const scope = await getVisaDeskScope()
+  if (!scope) return NextResponse.json({ error: 'forbidden' }, { status: 403 })
+  const admin = scope.operator
   // Fails OPEN (no `strict`): this route is already admin-gated, so a limiter outage must
   // not be able to lock the desk out of a conversation it is trying to rescue.
   const limit = await rateLimit('visa-dm-takeover', admin, 120, '1 h')
@@ -61,6 +66,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (!parsed.success) return NextResponse.json({ error: 'invalid_request' }, { status: 400 })
   const { id } = await params
   if (!UUID_RE.test(id)) return NextResponse.json({ error: 'not_found' }, { status: 404 })
+  // ⛔ AND THIS CASE MUST BE THIS DESK'S. The read below is `from('visa_applications').eq('id', id)`
+  // with no owner predicate — correct while eno's support account was the only operator, and a
+  // cross-tenant hole the moment a partner runs the desk. `not_found`, never `forbidden`: an
+  // operator who may not touch a case must not learn that it exists.
+  if (!(await visaCaseInScope(id, scope))) return NextResponse.json({ error: 'not_found' }, { status: 404 })
 
   try {
     // The case must exist before an event is written against it — visa_events has no FK to

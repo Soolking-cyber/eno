@@ -95,13 +95,21 @@ export function Footer() {
            into every prerendered file down to _not-found.html. `IS_SERVICES` is a build-time
            constant, so on a marketplace build the minifier deletes the entry outright rather
            than rendering nothing. */
-        ...SERVICES_FOOTER_LINKS.popular.slice(0, 1).map((l) => ({ label: tr(l.labelEn, l.labelVi), href: l.href })),
+        /* ⛔ `IS_SERVICES &&` IS NEW, AND ITS ABSENCE WAS THE HIGHEST-FREQUENCY LEAK IN THE REPO.
+           Every comment around these spreads asserted an `IS_SERVICES` gate that was never written:
+           the ONLY thing emptying them was the `@/lib/edition-services-copy` alias in next.config.ts,
+           and that alias is skipped whenever MARKETPLACE_HOSTS_SERVICES is on. So enabling a
+           partner's visa CHAT would have baked crawlable <a href> anchors to /vietnam-evisa and
+           /itinerary into ~250 prerendered files in both languages — the exact leak these comments
+           describe defending against. A gate decides what renders; an alias decides what ships. Keep
+           BOTH. */
+        ...(IS_SERVICES ? SERVICES_FOOTER_LINKS.popular.slice(0, 1).map((l) => ({ label: tr(l.labelEn, l.labelVi), href: l.href })) : []),
         // ⚠️ THE WHOLE SEO HALF OF THE FIX, IN ONE LINE. `grep -rn "vietnam-evisa" src` returned
         // exactly ONE inbound internal link — from /services-for-expats-vietnam, which is itself
         // only reachable from this same column. So the 6-page e-Visa cluster sat TWO footer hops
         // from anywhere, on a site Googlebot visited 15 times in two days. This puts it one hop
         // from every page. A real <a href>, unlike the home tiles, which are Buttons.
-        ...SERVICES_FOOTER_LINKS.popular.slice(1).map((l) => ({ label: tr(l.labelEn, l.labelVi), href: l.href })),
+        ...(IS_SERVICES ? SERVICES_FOOTER_LINKS.popular.slice(1).map((l) => ({ label: tr(l.labelEn, l.labelVi), href: l.href })) : []),
       ],
     },
     {
@@ -147,7 +155,7 @@ export function Footer() {
         // greps a comment, they trust it. On the SERVICES edition these are same-origin, so they
         // must NOT carry forumPath — routing a same-origin link through the SSO handoff would
         // bounce the visitor through /auth/bridge to fetch a session they already have.
-        ...SERVICES_FOOTER_LINKS.explore.map((l) => ({ label: tr(l.labelEn, l.labelVi), href: l.href })),
+        ...(IS_SERVICES ? SERVICES_FOOTER_LINKS.explore.map((l) => ({ label: tr(l.labelEn, l.labelVi), href: l.href })) : []),
         // ⚠️ SERVICES EDITION ONLY, AND THIS COMMENT ONCE SAID THE OPPOSITE — two lines below the
         // block above that exists to warn about exactly this. It read "e-Visa lives on eno.vn now
         // (ownership row, 2026-07-21): the desk's storefront is where a visitor applies". True when
@@ -161,7 +169,7 @@ export function Footer() {
         // rank; the storefront holds 14 of the 34 live listings and nothing reachable pointed at it.
         // `/eno_vietnam` is 301'd in next.config.ts rather than simply dropped, because Bing has it
         // indexed under the title "Eno Visa" — deleting it would strip a real inbound path.
-        ...SERVICES_FOOTER_LINKS.help.map((l) => ({ label: tr(l.labelEn, l.labelVi), href: l.href })),
+        ...(IS_SERVICES ? SERVICES_FOOTER_LINKS.help.map((l) => ({ label: tr(l.labelEn, l.labelVi), href: l.href })) : []),
       ],
     },
     /**
@@ -177,7 +185,7 @@ export function Footer() {
      * FIRST_PARTY_HOSTS) — the WebView is allowed to navigate there directly. Adding forumPath here
      * would send a reader who tapped "Housing in Vietnam" to the forum's auth bridge instead.
      */
-    ...SERVICES_FOOTER_GROUPS.map((g) => ({
+    ...(IS_SERVICES ? SERVICES_FOOTER_GROUPS : []).map((g) => ({
       title: tr(g.titleEn, g.titleVi),
       links: g.links.map((l) => ({ label: tr(l.labelEn, l.labelVi), href: l.href, rel: l.rel })),
     })),

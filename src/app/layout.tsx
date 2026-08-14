@@ -5,6 +5,9 @@ import { AnalyticsTags } from "@/components/marketplace/analytics-tags";
 import { AttributionCapture } from "@/components/marketplace/attribution-capture";
 import { Providers } from "./providers";
 import { IS_SERVICES, SITE_NAME } from "@/lib/edition";
+// The content-hashed sprite URL, from the generated shim — never a literal here, or a glyph edit
+// would preload a file that no longer exists while every icon silently fetched the new one.
+import { ICON_SPRITE_URL } from "@/components/ui/icons";
 /**
  * ⚠️ THE SERVICES-EDITION SENTENCES ARE IMPORTED, NOT WRITTEN HERE, AND THAT IS THE WHOLE POINT.
  * This file compiles on BOTH editions, so a services literal sitting in an `IS_SERVICES ? … : …`
@@ -286,6 +289,27 @@ export default function RootLayout({
             __html: `(function(){try{var t=localStorage.getItem('eno-theme');if(t==='dark'||((!t||t==='system')&&matchMedia('(prefers-color-scheme: dark)').matches))document.documentElement.classList.add('dark');var l=localStorage.getItem('lang');if(l)document.documentElement.lang=l;}catch(e){}try{var dc=document.documentElement.classList;var C=window.Capacitor;if(C&&C.isNativePlatform&&C.isNativePlatform()){dc.add('native');dc.add('native-'+(C.getPlatform?C.getPlatform():'ios'));(function(){var done=false;var lift=function(){if(done)return;try{var r=C.nativePromise('SplashScreen','hide',{fadeOutDuration:200});done=true;if(r&&typeof r.catch==='function')r.catch(function(){done=false;});}catch(e){}};var po=null;try{po=new PerformanceObserver(function(list){for(var i=0,e=list.getEntries();i<e.length;i++){if(e[i].name==='first-contentful-paint'){po.disconnect();requestAnimationFrame(lift);return;}}});po.observe({type:'paint',buffered:true});}catch(e){po=null;}if(!po){var dcl=function(){requestAnimationFrame(function(){requestAnimationFrame(lift);});};if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',dcl,{once:true});else dcl();}setTimeout(lift,4000);})();}else if(navigator.userAgent.indexOf('EnoNativeTabs')>-1){dc.add('native');dc.add('native-ios');dc.add('native-tabs');}else if(!window.scrollY){dc.add('page-at-top');}}catch(e){}})();`,
           }}
         />
+        {/* ⚠️ THE ICON SPRITE — ONE REQUEST THAT EVERY PAGE NEEDS, AND THE ONLY THING THE PRELOAD
+            SCANNER CANNOT FIND ON ITS OWN. Every glyph in the app renders as two `<use href>` into
+            this file (see scripts/gen-icons.mjs), and a `<use>` reference is invisible to the
+            scanner — it is discovered only when React paints the first icon, which on a cold cache
+            is a visible pop-in across the whole header and tab bar at once.
+            ⚠️ `as="image"` and no `crossOrigin` — MEASURED, because a reviewer argued (reasonably)
+            that an external `<use>` fetches in `same-origin` mode, would not match a no-cors image
+            preload, and would therefore download the sprite TWICE. Checked in Resource Timing on the
+            built app: two entries appear, and the second is `initiatorType: "other"` with
+            **transferSize 0** — a cache hit against the 186KB the preload already pulled. One
+            download. Do not "fix" this to `as="fetch"`: that mismatches the real fetch and earns the
+            "preloaded but not used" warning this shape avoids.
+            ⚠️ THE PATH IS STABLE AND THE HASH RIDES IN A QUERY (`glyphs.svg?v=<hash>`), which is
+            neither an oversight nor belt-and-braces — each half closes a different hole. A hashed
+            FILENAME 404s out of edge-cached HTML after a deploy, and a `<use>` whose target 404s
+            draws nothing; a bare stable name is held in the BROWSER cache past a deploy, so a glyph
+            added in this build would resolve against yesterday's sprite and render empty. A query
+            is not part of the path, so the file always answers, while a changed query is a new
+            browser cache key. (Three surfaces disagreed about this URL mid-change and a reviewer
+            caught it — gen-icons.mjs is the source of truth.) */}
+        <link rel="preload" as="image" type="image/svg+xml" href={ICON_SPRITE_URL} />
         {/* Supabase preconnect REMOVED (perf Phase 1, measured): every above-the-fold
             image is served through same-origin /_next/image (the optimizer fetches
             Supabase server-side), auth is lazy and realtime is authed-only — nothing

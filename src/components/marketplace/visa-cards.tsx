@@ -1940,6 +1940,15 @@ export type VisaCheckoutCardProps = {
   /** Re-post the last form step so the applicant can correct something before paying. Optional so
    *  the desk's read-only render of this card carries no escape hatch it should not offer. */
   onReview?: () => void | Promise<void>
+  /**
+   * ⛔ THE ONLY WAY A FINISHED APPLICATION REACHES THE DESK WHEN NOBODY IS TAKING MONEY HERE.
+   * On eno.vn the visa desk is a licensed PARTNER and the marketplace is not merchant of record, so
+   * `providers` is empty and the two pay buttons never render. Without this the card was a dead end
+   * with a consent tick and nothing to press: the case stayed `draft`, and `listVisaAdminCases`
+   * excludes drafts, so the desk never saw an application the applicant had fully completed.
+   * Applicant-only, like `onReview`.
+   */
+  onSendToDesk?: () => void | Promise<void>
 }
 
 /**
@@ -1951,7 +1960,7 @@ export type VisaCheckoutCardProps = {
  * server could not issue a quote (FX down), the card SAYS SO and pays nothing — there is no
  * fallback rate on this surface and there must never be one.
  */
-export function VisaCheckoutCard({ meta, info, kase, live, busy, onPay, onReview }: VisaCheckoutCardProps) {
+export function VisaCheckoutCard({ meta, info, kase, live, busy, onPay, onReview, onSendToDesk }: VisaCheckoutCardProps) {
   const { tr, lang } = useLanguage()
   const locale = moneyLocale(lang)
   // ONE consent tick covering both legal acts (see the label below); the server still
@@ -2074,7 +2083,7 @@ export function VisaCheckoutCard({ meta, info, kase, live, busy, onPay, onReview
       )}
       {live && !providers.length && (
         <p className="mt-2 rounded-xl bg-tint p-2.5 text-2xs leading-relaxed text-body">
-          {tr('Paying in chat is not switched on yet — ask us and we will take it from here.', 'Thanh toán trong tin nhắn chưa được bật — hãy nhắn cho chúng tôi để được hỗ trợ.')}
+          {tr('Paying in chat is not switched on yet — send this to the desk and they will arrange payment with you here.', 'Thanh toán trong tin nhắn chưa được bật — hãy gửi hồ sơ cho bộ phận hỗ trợ, họ sẽ sắp xếp thanh toán với bạn tại đây.')}
         </p>
       )}
 
@@ -2118,6 +2127,29 @@ export function VisaCheckoutCard({ meta, info, kase, live, busy, onPay, onReview
               >
                 {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : <Wallet className="h-3.5 w-3.5" aria-hidden />}
                 {tr('Pay with PayPal', 'Thanh toán bằng PayPal')}
+              </Button>
+            )}
+            {/* ⚠️ THE HANDOFF, and it is the ONLY action on this card when nobody is charging here.
+                Same consent gate as a payment: `send_for_review` is what freezes the applicant's
+                answers and hands them to the desk, so it needs the same declaration + prefill
+                authorisation a paid submission does — the server records both versions either way.
+                Rendered only when there is no provider, so a paying deployment never shows a way to
+                skip the fee. */}
+            {/* ⚠️ `live &&` — the descriptive banner above has it and this button did not, which a
+                reviewer caught: a thread's HISTORY can hold superseded checkout cards, and without
+                the gate each one kept an active Send-to-desk button an applicant could scroll back
+                to and press. `live` means "this is the CURRENT unpaid card AND you are the
+                applicant" — exactly the condition under which a handoff is meaningful. */}
+            {live && !providers.length && onSendToDesk && (
+              <Button
+                variant="cta"
+                size="none"
+                disabled={busy || !consented || unpromisable}
+                onClick={() => void onSendToDesk()}
+                className="rounded-xl px-3.5 py-2.5 text-xs"
+              >
+                {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : null}
+                {tr('Send to the desk', 'Gửi cho bộ phận hỗ trợ')}
               </Button>
             )}
             {providers.includes('stripe') && (

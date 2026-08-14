@@ -69,11 +69,18 @@ vi.mock('next/server', () => ({
 vi.mock('@/lib/desk-operator', () => ({
   getVisaDeskOperator: async () => h.state.admin,
   getTripDeskOperator: async () => h.state.admin,
+  // ⚠️ THE SCOPE, resolved from the same flag. An `all: true` scope is what an eno ADMIN gets, so
+  // these tests keep exercising the operator/non-operator distinction they were written for. The
+  // narrow partner scope — and the cross-tenant refusal it produces — is pinned separately, in
+  // src/lib/visa-admin.scope.test.ts, against the real predicate rather than a mock of it.
+  getVisaDeskScope: async () => (h.state.admin ? { operator: h.state.admin, all: true } : null),
 }))
 vi.mock('@/lib/admin', () => ({ getAdmin: async () => h.state.admin }))
 vi.mock('@/lib/ratelimit', () => ({ rateLimit: async () => ({ success: true, remaining: 9 }) }))
 vi.mock('@/lib/visa-admin', () => ({
   VISA_BUCKET: 'visa-documents',
+  // Scope satisfied — these tests are about the ROUTE's behaviour once the case is in scope.
+  visaCaseInScope: async () => true,
   loadVisaAdminCase: async () => {
     h.state.loads += 1
     if (h.state.caseState !== 'ok') return { state: h.state.caseState }

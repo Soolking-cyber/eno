@@ -98,7 +98,7 @@ function walk(dir: string): string[] {
     // services-for-expats-vietnam — which quietly dropped this guard from 5 pages to 4 and tripped
     // the "not an empty suite" floor below. The guarantee it enforces (a landing page browses into
     // a category that exists) applies to BOTH editions, so both filenames belong here.
-    else if (entry.name === 'page.tsx' || entry.name === 'page.svc.tsx') out.push(full)
+    else if (entry.name === 'page.tsx' || entry.name === 'page.svc.tsx' || entry.name === 'page.forum.svc.tsx') out.push(full)
   }
   return out
 }

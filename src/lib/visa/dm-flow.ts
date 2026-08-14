@@ -33,6 +33,8 @@ import {
 } from './dm-thread'
 import { quoteVisaUsd, type VisaQuote } from './fx'
 import { visaPaymentsConfig } from './payments'
+// The edition flag, so a deployment that is SUPPOSED to charge still fails closed.
+import { IS_SERVICES } from '../edition'
 import { recordVisaEvent, type VisaApplicationRow, type VisaDocumentRow } from './records'
 import { emptyVisaPayload, visaPayloadSchema, visaStatuses, type VisaPayload } from './schema'
 
@@ -729,6 +731,22 @@ async function emitVisaCheckoutCard(kase: VisaDmCase, conversationId: string): P
     return { ok: true, step: 5, messageId: existing?.id ?? null, complete: true }
   }
 
+  /**
+   * ⛔ FAIL CLOSED WHERE MONEY IS EXPECTED. Removing the dormant-payments refusal was right for
+   * eno.vn — a licensed marketplace that is not merchant of record — and WRONG as a blanket rule,
+   * which two reviewers caught: on eno.forum, which genuinely charges, "payments not configured"
+   * stopped meaning "misconfigured" and started meaning "hand it over unpaid". A lost or mistyped
+   * PAYPAL_* / VISA_SERVICE_FEE_USD would silently mint a providerless card inviting "Send to the
+   * desk", and `/submit`'s 402 keys on the SAME env, so the submission would be accepted. Dormancy
+   * and breakage became indistinguishable on the one deployment where the difference is money.
+   *
+   * The edition is what tells them apart: a services build is supposed to charge, so an
+   * unconfigured one is broken and must refuse exactly as before. A marketplace build is supposed
+   * NOT to charge, so dormant is correct there and the flow continues.
+   */
+  if (IS_SERVICES && !visaPaymentsConfig()) {
+    return fail('payments_not_configured', 503, { step: 5, complete: true })
+  }
   const priced = await priceVisaCheckout(applicationId)
   if (isFailure(priced)) return { ...priced, step: 5, complete: true }
 
@@ -761,9 +779,24 @@ async function priceVisaCheckout(applicationId: string): Promise<{ quote: VisaQu
   const product = await chargeableVisaProduct(listingId)
   if (isFailure(product)) return product
 
-  // Dormant deployment (no fee/provider env): sendVisaCheckoutCard would answer null and
-  // the applicant would sit on a finished form with no way to pay and no reason given.
-  if (!visaPaymentsConfig()) return fail('payments_not_configured', 503, { step: 5, complete: true })
+  /**
+   * ⛔ DORMANT PAYMENTS ARE NO LONGER A FAILURE — THIS `fail()` WAS THE DEAD END AT THE END OF THE
+   * WHOLE FLOW. It returned `payments_not_configured` 503, so an applicant who answered every
+   * question got a red toast instead of a card, and the case could never leave the flow. That was
+   * correct when the only deployment WAS the payer; it stopped being correct when eno.vn started
+   * hosting a partner's desk, because the licensed marketplace may not take the money at all (the
+   * PayPal routes carry the `.forum.svc.` infix and are never compiled here). Dormant is the
+   * INTENDED steady state on eno.vn, not a misconfiguration.
+   *
+   * ⚠️ NOTHING ABOUT eno.forum CHANGES. There `visaPaymentsConfig()` is non-null, so this branch
+   * never fired and its removal is unobservable.
+   *
+   * Pricing does not depend on payments being switched on: the đồng price is the desk's own listing
+   * and the dollar quote is an FX read. So the card is emitted either way, and the CARD decides what
+   * it offers — with no providers it shows the amount, "ask us and we will take it from here", and a
+   * Send-to-desk action. `fx_unavailable` below still fails, because a card that cannot state a
+   * price honestly is worse than no card.
+   */
 
   const quote = await quoteVisaUsd({ listingId: product.listingId, priceVnd: product.priceVnd })
   if (!quote) {
@@ -900,7 +933,17 @@ export async function resendVisaDmCard(input: {
     // than a new one: dm-thread exempts the checkout card from the mode gate because an
     // admin who stepped in still needs the applicant to pay, and the thread page never
     // silences the live pay card either. Re-sending it is the desk finishing its own job.
-    if (!visaPaymentsConfig()) return fail('payments_not_configured', 503, { step: 5, complete: true })
+    // ⚠️ THE THIRD COPY OF THE DORMANT GATE, AND IT HAD TO GO WITH THE OTHER TWO. The resend chip
+    // ("send the form again") reaches the pay card by its own path, so leaving this behind would
+    // have left exactly one route back into the 503 the other two removals fixed — the one an
+    // applicant reaches by asking for help, which is the worst place to keep a dead end. Same
+    // reasoning as emitVisaCheckoutCard above: on eno.vn the desk is a licensed partner and the
+    // marketplace is not merchant of record, so dormant is the intended state, not a fault.
+    // ⚠️ …BUT THE SERVICES EDITION STILL FAILS CLOSED, and the first cut of this put that guard in
+    // the WRONG BLOCK — inside the finished-case early return above, where it would have 503'd a
+    // case that was already paid and under review, while leaving THIS path, the one that actually
+    // re-posts a pay card, ungated. Two reviewers caught the gap; the misplacement was mine.
+    if (IS_SERVICES && !visaPaymentsConfig()) return fail('payments_not_configured', 503, { step: 5, complete: true })
     const existing = await newestVisaCheckoutCard(conversationId, input.applicationId)
     // ⚠️ THE AMOUNT IS COPIED FROM THE LIVE CARD. A re-send must not become a re-quote:
     // the buyer is looking at a price, and the chip's job is to move that card, not to

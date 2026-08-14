@@ -1,4 +1,7 @@
 import { SERVICES_DESK_TILES } from '@/lib/edition-services-copy'
+// The edition flag itself — import-free by design so client components can read it and have the
+// dead branch minified away. See the note on DESK_SHORTCUTS below for why the gate is load-bearing.
+import { IS_SERVICES } from '@/lib/edition'
 // ─────────────────────────────────────────────────────────────────────────────
 // CANONICAL TAXONOMY — single source of truth for categories, subcategories,
 // listing types (intent), and per-category facets.
@@ -198,12 +201,23 @@ export function isVisaProductSlot(categorySlug: string, subcategorySlug?: string
  * a fact with a short shelf life. It also keeps the change out of listings-explorer.tsx, a landmine
  * file whose pagination sentinel must never be touched incidentally.
  *
- * `IS_SERVICES` is a build-time constant, so on a marketplace build this is a literal `[]` and the
- * strings never enter the bundle.
+ * ⛔ THE SENTENCE THAT USED TO BE HERE WAS FALSE, AND IT WAS ONE ENV FLIP FROM PUTTING A TRIP
+ * PLANNER ON eno.vn'S HOME PAGE. It claimed "`IS_SERVICES` is a build-time constant, so on a
+ * marketplace build this is a literal `[]`" — but there was no `IS_SERVICES` in the expression at
+ * all. The only thing emptying this was the `@/lib/edition-services-copy` ALIAS in next.config.ts,
+ * and that alias is skipped whenever `MARKETPLACE_HOSTS_SERVICES` is on. The render site
+ * (category-rail.tsx, via listings-explorer.tsx) is ungated too, so turning the flag on to host a
+ * partner's visa CHAT would also have shipped "Vietnam e-Visa" and "Trip planner" tiles above the
+ * fold on the most-crawled page on the site — the second while itineraries are deliberately off.
+ *
+ * ⚠️ A GATE DECIDES WHAT RENDERS; AN ALIAS DECIDES WHAT SHIPS. Both are wanted, and they are not
+ * substitutes: the alias keeps the words out of the artifact, this keeps the tiles off the page
+ * even in a build where the alias is not applied. The repo has been bitten by treating either one
+ * as sufficient — see the note on the visa-start alias in next.config.ts.
  */
 export const DESK_SHORTCUTS: {
   key: string; name: string; nameVi: string; icon: string; kind: 'filter' | 'route'; href: string
-}[] = SERVICES_DESK_TILES
+}[] = IS_SERVICES ? SERVICES_DESK_TILES : []
 
 // Entry-type copy. The VALUES and their order come from VISA_ENTRY_TYPES (the engine's
 // own union), so a new entry type is a TYPE ERROR here instead of a chip that silently

@@ -273,11 +273,66 @@ const nextConfig: NextConfig = {
      * MARKETPLACE_HOSTS_SERVICES above: it is off by default, so this branch is taken exactly as
      * before unless someone opts in per deployment.
      */
-    ...(EDITION_ENV === "marketplace" && !MARKETPLACE_HOSTS_SERVICES
+    /**
+     * ⛔ TWO TIERS OF STUB, BECAUSE `MARKETPLACE_HOSTS_SERVICES` USED TO BE ALL-OR-NOTHING OVER THIS
+     * WHOLE OBJECT — AND THAT WAS ITS WORST PROPERTY.
+     *
+     * The flag exists to let eno.vn host a licensed PARTNER's visa chat (owner, 2026-08-13). Exactly
+     * three modules are needed for that: the PDP's start button, the chat cards, and the shared API
+     * error vocabulary they branch on. Skipping the entire block also un-stubbed nine others —
+     * `edition-services-copy` (the footer links and home desk tiles), `visa-provider` (the partner's
+     * name and the "eno.forum operates the platform" disclosure, on the SHARED legal pages),
+     * `cross-site-promo` (which would render an "Already in Vietnam? … on eno.vn" promo TO a reader
+     * already on eno.vn), `trip-cards`, `ui-strings.services` (~337 strings, which the language
+     * context then POSTs to paid Google Translate for third-language visitors), and the three
+     * privacy/terms/prohibited copy modules. None of that is wanted, and two of them had no
+     * call-site gate at all, so they would have RENDERED rather than merely shipped.
+     *
+     * ⚠️ VERIFIED SAFE TO SPLIT: neither visa-cards.tsx nor visa-start.tsx imports any of the nine
+     * that stay stubbed, so the three below have no edge into the rest.
+     *
+     * ⚠️ WHAT STAYS STUBBED IS A DELIBERATE PRODUCT TRADE, NOT AN OVERSIGHT: keeping
+     * `ui-strings.services` stubbed means the visa card copy is en/vi only for a third-language
+     * visitor on eno.vn. That is preferred to shipping passport vocabulary into the licensed
+     * domain's bundle and paying to machine-translate it.
+     */
+    ...(EDITION_ENV === "marketplace"
       ? {
           resolveAlias: {
-            "@/components/marketplace/visa-cards": "./src/components/marketplace/visa-cards.stub.tsx",
+            // ── Always stubbed on the marketplace, flag or no flag ──────────────────────────
             "@/components/marketplace/trip-cards": "./src/components/marketplace/trip-cards.stub.tsx",
+
+            /**
+             * ── The THREE that a partner-hosted visa desk needs, stubbed ONLY while the flag is off ──
+             *
+             * ⚠️ `visa-start` IS THE ONE THAT WAS MISSING FOR A MONTH, AND IT SAT ON THE BUSIEST PAGE
+             * ON THE SITE. src/app/listings/[id]/page.tsx — the product detail page — imports it at
+             * module top level, and both editions compile that page. A clean marketplace build was
+             * measured shipping EIGHT distinct e-Visa sentences in a 61KB chunk every eno.vn listing
+             * page downloads. The call site's `isVisaProduct` gate was correct and useless: a gate
+             * decides what renders, an alias decides what ships. It escaped every guard because it is
+             * neither a route (so pageExtensions and the `.svc.` convention miss it) nor inside a
+             * services TREE (so edition-lint Rule C, which matches directories, misses it too).
+             * scripts/gen-ui-strings.mjs had ALREADY classified it as a services source — hence the
+             * rule: anything listed there needs a line here.
+             *
+             * ⚠️ WITH THE FLAG ON, THESE THREE ARE THE REAL MODULES AND THE WORDS ARE IN THE ARTIFACT.
+             * That is the deliberate cost of hosting the partner's chat: the passport/e-Visa
+             * vocabulary ships. What does NOT come with it is anything eno.vn would be SAYING in its
+             * own voice — the footer links, the home tiles, the provider disclosure and the SEO pages
+             * all stay out, by the entries above and by the `.forum.svc.` tier.
+             */
+            ...(MARKETPLACE_HOSTS_SERVICES
+              ? {}
+              : {
+                  "@/components/marketplace/visa-cards": "./src/components/marketplace/visa-cards.stub.tsx",
+                  "@/components/marketplace/visa-start": "./src/components/marketplace/visa-start.stub.tsx",
+                  // The visa/itinerary half of the API error vocabulary. errors.ts holds a RUNTIME
+                  // array imported by api/client.ts, i.e. on a path into client chunks, and eight of
+                  // its entries name a surface eno.vn may not mention. The TYPE union is not split —
+                  // types are erased, so a whole ApiErrorCode costs the marketplace nothing.
+                  "@/lib/api/errors-services": "./src/lib/api/errors-services.stub.ts",
+                }),
             // ⚠️ THE ONE THAT WAS MISSING, AND IT SAT ON THE BUSIEST PAGE ON THE SITE.
             // src/app/listings/[id]/page.tsx — the product detail page — imports VisaStart at module
             // top level, and both editions compile that page. A clean marketplace build was
@@ -289,7 +344,6 @@ const nextConfig: NextConfig = {
             // matches directories, misses it too). scripts/gen-ui-strings.mjs had ALREADY classified
             // it as a services source — the rule that follows: anything listed there needs a line
             // here.
-            "@/components/marketplace/visa-start": "./src/components/marketplace/visa-start.stub.tsx",
             // The services translation catalogue — ~337 strings, including the e-Visa and passport
             // vocabulary, lazily loaded for third-language visitors. Aliased to an empty array so
             // eno.vn never ships the words at all.
@@ -316,7 +370,6 @@ const nextConfig: NextConfig = {
             // ⚠️ THE TYPE UNION IS NOT SPLIT, ON PURPOSE — types are erased, so a whole
             // `ApiErrorCode` costs the marketplace nothing and keeps one vocabulary for the
             // compile-time subset assertions. Only the runtime array is edition-scoped.
-            "@/lib/api/errors-services": "./src/lib/api/errors-services.stub.ts",
             // The cross-site backlink surface: the canonical eno.vn destinations eno.forum links
             // to, and the promo section that introduces them. Aliased for a reason that reads
             // backwards until you say it out loud — the copy is about eno.vn, and eno.vn is
@@ -512,6 +565,25 @@ const nextConfig: NextConfig = {
           // per-page robots metadata (auth/dashboard/admin noindex) is the only
           // robots control now. See src/app/sitemap.xml/route.ts (un-gated the
           // same day).
+        ],
+      },
+      {
+        /**
+         * The icon sprite — every glyph on the site is a `<use>` into this one file, so it is on the
+         * critical path of every page and is worth caching hard.
+         *
+         * ⚠️ NOT `immutable`, AND NOT HASHED IN THE URL EITHER, which is the unusual half. The
+         * filename is deliberately stable (see scripts/gen-icons.mjs): eno.vn edge-caches its HTML,
+         * so a hashed name means post-deploy cached HTML points at a file the new image does not
+         * contain, and a `<use>` whose target 404s draws NOTHING — the entire site loses its icons
+         * until the HTML cache turns over. A stable name cannot 404; the cost is that a glyph edit
+         * can be up to an hour stale, which `stale-while-revalidate` then repairs in the background
+         * without ever making a visitor wait. The standing post-deploy Cloudflare `purge_everything`
+         * collapses that window to zero anyway.
+         */
+        source: "/icons/glyphs.svg",
+        headers: [
+          { key: "Cache-Control", value: "public, max-age=3600, stale-while-revalidate=86400" },
         ],
       },
       // ⚠️ THESE FOUR ROUTES WERE INDEXABLE, AND robots.txt SAYS THEY ARE NOT.

@@ -76,6 +76,70 @@ export async function getVisaDeskOperator(): Promise<string | null> {
 }
 
 /**
+ * ⛔⛔ IDENTITY IS NOT AUTHORISATION, AND THIS IS THE GAP THAT NEARLY SHIPPED A CROSS-TENANT PII LEAK.
+ *
+ * `getVisaDeskOperator()` above answers "is this session a visa-desk operator". It does NOT answer
+ * "may this session read THIS case", and every caller was treating the first answer as the second —
+ * because while the only operator was eno's own support account the two were the same question.
+ *
+ * They stop being the same question the moment a PARTNER runs the desk. eno.vn and eno.forum share
+ * ONE Supabase project, so `visa_applications` holds BOTH deployments' cases in one table, and
+ * `listVisaAdminCases()` / `loadVisaAdminCase()` select from it with no owner predicate at all.
+ * Repoint VISA_SHOP_OWNER_EMAIL at VietKite and they become an operator — at which point
+ * `GET /api/visa/admin/applications/<any-uuid>/bundle` hands them any eno.forum applicant's
+ * decrypted dossier and passport scans. The bundle route's own header predicted this in writing.
+ *
+ * ⚠️ THE OWNER OF A CASE IS ITS CONVERSATION'S SELLER, because that is the only link that exists.
+ * `visa_applications` carries no desk column; what it carries is `conversation_id`, and a
+ * Conversation carries `sellerProfileId`. A case belongs to the desk that is answering it.
+ *
+ * ⚠️ AN ADMIN KEEPS EVERYTHING, AND THAT IS WHAT MAKES THIS SAFE TO SHIP TO eno.forum UNCHANGED.
+ * Scoping every operator would have hidden legacy cases whose `conversation_id` was never
+ * backfilled (the column post-dates the feature — see visa/dm-thread.ts) from eno's own queue: a
+ * silent regression on the working deployment, in the name of securing the other one. So `all` is
+ * the admin answer and the narrow scope applies only to a non-admin desk operator, who by
+ * definition has no legacy cases to lose.
+ *
+ * ⚠️ FAILS CLOSED in every direction: no session → null; a desk that cannot be resolved → null; a
+ * case with no conversation → invisible to a partner (visible to an admin). Never the reverse.
+ */
+export type VisaDeskScope =
+  /** An eno admin: every case, both deployments. */
+  | { operator: string; all: true }
+  /** A partner desk: only cases whose conversation this desk answers. */
+  | { operator: string; all: false; deskProfileId: string }
+
+export async function getVisaDeskScope(): Promise<VisaDeskScope | null> {
+  const email = await sessionEmail()
+  if (!email) return null
+  /**
+   * ⛔ ADMIN_EMAILS IS LOAD-BEARING FOR eno.forum's QUEUE, AND THAT COUPLING IS NOT OBVIOUS FROM
+   * EITHER SIDE — read this before editing that variable.
+   *
+   * This line is the ONLY route to the wide scope. eno.forum's working desk identity is
+   * `support@eno.forum`, which is also the default VISA_SHOP_OWNER_EMAIL — so it reaches this
+   * function as BOTH an admin and a desk owner, and it is the admin half that keeps it wide. Drop
+   * that address from ADMIN_EMAILS and nothing errors: it silently falls through to the narrow desk
+   * branch below, and every legacy case whose `conversation_id` was never backfilled disappears from
+   * the forum's own queue on the next deploy. The damage would be done in an env file, nowhere near
+   * this code, and would look like data loss rather than a config change.
+   *
+   * ⚠️ A UNIT TEST CANNOT CATCH THIS — vitest does not load the deployed env, so an assertion about
+   * the real value would only ever be testing whether a local `.env` happened to exist.
+   * src/lib/visa-admin.scope.test.ts pins the MECHANISM and says so; this comment is the guard for
+   * the value.
+   */
+  if (isAdminEmail(email)) return { operator: email, all: true }
+  if (!VISA_SHOP_OWNER_EMAILS.includes(email)) return null
+  // The desk's own Profile id — the `sellerProfileId` its conversations carry. A desk that does not
+  // resolve (no storefront row yet) grants nothing rather than falling back to an unscoped read.
+  const { getVisaShopSeller } = await import('@/lib/visa-shop')
+  const deskProfileId = (await getVisaShopSeller())?.ownerId
+  if (!deskProfileId) return null
+  return { operator: email, all: false, deskProfileId }
+}
+
+/**
  * May this session act on ITINERARY / trip-assistance cases — quote a request, advance its state?
  *
  * True for an eno admin, or for the account that owns the trip desk on this deployment

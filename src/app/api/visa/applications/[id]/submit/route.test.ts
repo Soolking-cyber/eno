@@ -76,6 +76,17 @@ const h = vi.hoisted(() => ({
     /** What `validateVisaForReview` reports. */
     issues: [] as string[],
     paymentsConfigured: false,
+    /**
+     * Which deployment answers. Services CHARGES; the marketplace intermediates.
+     * ⚠️ DEFAULTS TO THE MARKETPLACE, and the reason is that most of this file is about the CAS,
+     * the consent stamp and the auth shape — mechanics that need the submission to be ALLOWED. On
+     * the services edition an unpaid `send_for_review` is refused by design, so a services default
+     * would make every mechanics test assert a 402/503 instead of the thing it was written for.
+     * The three tests that are actually about the fee gate set this to true themselves.
+     */
+    isServices: false,
+    /** Is this case answered by THIS deployment's visa desk? See the cross-edition guard. */
+    caseOnLocalDesk: true,
     canonicalListingId: 'listing-1' as string | null,
     /** A racing writer moved the row: the CAS'd UPDATE matches nothing. */
     updateCasMiss: false,
@@ -197,6 +208,14 @@ vi.mock('@/lib/visa/crypto', () => ({
   encryptVisaPayload: () => 'cipher',
   visaApplicantSnapshotHash: () => 'snapshot-hash',
 }))
+// ⚠️ THE EDITION IS PART OF THE PAY GATE NOW. vitest pins NEXT_PUBLIC_ENO_EDITION to 'services'
+// for the whole run, so without this every case here asserts only the CHARGING deployment's answer
+// — and the marketplace's "takes no money, so a fee cannot block a handoff" path would go untested.
+vi.mock('@/lib/edition', () => ({ get IS_SERVICES() { return h.state.isServices } }))
+// ⚠️ THE CROSS-EDITION GUARD. On the marketplace the fee-free handoff is allowed only for a case
+// this deployment's OWN desk answers — otherwise an unpaid eno.forum case could be handed over from
+// eno.vn, defeating the forum's pay-before-review gate through the other edition.
+vi.mock('@/lib/visa-admin', () => ({ visaCaseOnLocalDesk: async () => h.state.caseOnLocalDesk }))
 vi.mock('@/lib/visa/payments', () => ({
   visaPaymentsConfig: () => (h.state.paymentsConfigured ? { provider: 'stripe' } : null),
 }))
@@ -295,6 +314,12 @@ afterAll(() => { vi.useRealTimers() })
 
 beforeEach(() => {
   const s = h.state
+  // ⚠️ RESET THE EDITION. This hook re-seeds fields one by one rather than replacing the object, so
+  // a test that opts into the services edition leaks it into every test after it — which is exactly
+  // what happened: the two fee-gate cases turned it on and the CAS/consent tests below then asserted
+  // a 503 they were never about.
+  s.isServices = false
+  s.caseOnLocalDesk = true
   s.userId = 'user-1'
   s.cryptoReady = true
   s.rateOk = true
@@ -499,6 +524,7 @@ describe('submit — send_for_review', () => {
    * a government form they have not paid for.
    */
   it('payments configured + unpaid → 402 {"error":"payment_required_first"} — the status survives the wrapper', async () => {
+    h.state.isServices = true // the fee gate only exists where the deployment charges
     h.state.paymentsConfigured = true
     const r = await submit(SEND)
     expect(r.status).toBe(402)
@@ -508,6 +534,7 @@ describe('submit — send_for_review', () => {
   })
 
   it('payments configured + already paid → proceeds (needs_changes resubmit, consent re-stamp)', async () => {
+    h.state.isServices = true // the fee gate only exists where the deployment charges
     h.state.paymentsConfigured = true
     h.state.application = app({ status: 'needs_changes', paid_at: '2026-08-02T00:00:00.000Z' })
     const r = await submit(SEND)
@@ -529,8 +556,41 @@ describe('submit — send_for_review', () => {
     ])
   })
 
-  it('payments DORMANT + unpaid → proceeds, unchanged', async () => {
+  /**
+   * ⛔ DORMANT MEANS TWO DIFFERENT THINGS AND THE EDITION IS WHAT TELLS THEM APART — this test used
+   * to assert only the first half, and that gap was a payment bypass two reviewers found.
+   * On the MARKETPLACE there is no fee to owe: the checkout route is `.forum.svc.` and does not
+   * exist, so an unpaid handoff is the normal, only path.
+   */
+  it('marketplace + payments dormant + unpaid → proceeds; there is no fee to owe', async () => {
+    h.state.isServices = false
     expect((await submit(SEND)).status).toBe(200)
+  })
+
+  /**
+   * On the SERVICES edition the same state means the deployment that charges has LOST its payment
+   * env — broken, not free. Before this, `IS_SERVICES && visaPaymentsConfig() && !paid_at` skipped
+   * the whole check when the config was null and accepted unpaid applications into the queue.
+   */
+  /**
+   * ⛔ THE CROSS-EDITION BYPASS, PINNED. eno.vn and eno.forum share one `visa_applications` table
+   * and one auth system, so "this deployment does not charge" must not generalise into "any case
+   * reachable from here is free". A forum case handed over from the marketplace would defeat the
+   * forum's own pay-before-review gate.
+   */
+  it('marketplace + a case that is NOT this desk\u2019s → 402, not a free handoff', async () => {
+    h.state.isServices = false
+    h.state.caseOnLocalDesk = false
+    const r = await submit(SEND)
+    expect(r.status).toBe(402)
+    expect(json(r)).toEqual({ error: 'payment_required_first' })
+  })
+
+  it('services + payments dormant → 503, never a free submission', async () => {
+    h.state.isServices = true
+    const r = await submit(SEND)
+    expect(r.status).toBe(503)
+    expect(json(r)).toEqual({ error: 'payments_not_configured' })
   })
 
   it('success → 200 {application}, consent stamped under a CAS on status + updated_at', async () => {

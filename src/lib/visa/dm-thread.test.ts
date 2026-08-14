@@ -679,9 +679,21 @@ describe('sendVisaStepCard', () => {
 describe('sendVisaCheckoutCard', () => {
   beforeEach(() => { h.state.conversations = [convoRow({ visaApplicationId: APP_ID })] })
 
-  it('is null while payments are dormant', async () => {
-    expect(await sendVisaCheckoutCard({ conversationId: 'convo-1', applicationId: APP_ID, amountUsd: 25 })).toBeNull()
-    expect(h.state.inserted).toEqual([])
+  /**
+   * ⚠️ INVERTED 2026-08-14, DELIBERATELY. This pinned "is null while payments are dormant", which
+   * made the card unwritable on any deployment that does not itself take the money — and eno.vn,
+   * hosting a licensed partner's desk, is exactly that: the PayPal routes carry `.forum.svc.` and
+   * are never compiled there. The old behaviour meant a completed application had nowhere to go.
+   * ⚠️ A dormant host still cannot CHARGE: the pay buttons render per resolved provider (none here)
+   * and the checkout route does not exist in that build. What the card gains is a handoff, not a
+   * payment.
+   */
+  it('MINTS the card while payments are dormant — the card is the handoff, not the charge', async () => {
+    const result = await sendVisaCheckoutCard({ conversationId: 'convo-1', applicationId: APP_ID, amountUsd: 25 })
+    expect(result).toEqual({ messageId: 'message-1' })
+    expect(h.state.inserted).toHaveLength(1)
+    // Still minted UNPAID and still authored by the desk — dormancy changes neither.
+    expect(h.state.inserted[0].senderId).toBe(SHOP_OWNER)
   })
 
   it('mints an UNPAID card at the price the ROUTE resolved, not at the legacy flat fee', async () => {

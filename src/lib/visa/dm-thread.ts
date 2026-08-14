@@ -492,8 +492,14 @@ export async function sendVisaCheckoutCard(input: {
   const { conversationId, applicationId } = input
   if (!UUID_RE.test(applicationId)) return null
 
-  const config = visaPaymentsConfig()
-  if (!config) return null
+  // ⚠️ NO `visaPaymentsConfig()` GATE. It used to return null here, which is the second half of the
+  // dead end described in dm-flow.ts's emitVisaCheckoutCard: with payments dormant the card was
+  // never written, so the applicant's finished application had nowhere to go. On eno.vn dormant is
+  // the intended state — the marketplace may not be merchant of record — and the card is the
+  // handoff to the desk rather than a payment prompt. On eno.forum payments are configured, so this
+  // gate never fired there and removing it changes nothing.
+  // ⚠️ The card still cannot CHARGE anything on a dormant host: the pay buttons render only for
+  // providers the client resolves, and the checkout route itself is `.forum.svc.` and absent here.
   // SHAPE, not value: with per-product pricing the only thing this layer can honestly
   // assert about the amount is that it is money. Math.round() absorbs float noise
   // (79.99 * 100 === 7998.999999999999) while the epsilon comparison still refuses a

@@ -70,7 +70,7 @@ describe('⚠️ the shared-desk gate — SOURCE-LEVEL, because losing it is a c
 
   it.each([
     ['lib/trips/concierge.ts'],
-    ['app/api/trips/help/route.svc.ts'],
+    ['app/api/trips/help/route.forum.svc.ts'],
   ])('%s gates on the ANCHOR LISTING, not just the seller', (rel) => {
     // ⚠️ WHY THIS EXISTS. `Seller.ownerId` is @unique, so the e-Visa desk and the trip desk are ONE
     // storefront sharing one sellerProfileId. A `sellerProfileId === desk.ownerId` check therefore
@@ -108,7 +108,7 @@ describe('⚠️ the person/AI toggle must work in BOTH directions', () => {
     // ⚠️ MATCHES CODE, NOT PROSE. The comment explaining the removal names the lock, so a bare
     // /pg_advisory_xact_lock/ fails on its own documentation — the third time this session a
     // source-level test tripped over the words it was written to justify.
-    const route = read2('app/api/trips/help/route.svc.ts')
+    const route = read2('app/api/trips/help/route.forum.svc.ts')
     expect(route).not.toMatch(/\$executeRaw/)
     expect(route).not.toMatch(/SELECT pg_advisory/)
     expect(route).toMatch(/NOT ATOMIC/)
@@ -276,7 +276,7 @@ describe('⚠️ a rejected generate must never be a dead end, whatever the caus
   })
 
   it('the route records WHICH field failed, never its value', () => {
-    const route = readSrc('app/api/itineraries/generate/route.svc.ts')
+    const route = readSrc('app/api/itineraries/generate/route.forum.svc.ts')
     expect(route).toMatch(/paths: parsed\.error\.issues\.map/)
     // The traveller's cities, dates and free-text notes must not reach a log line.
     expect(route).not.toMatch(/console\.error\('\[itinerary-generate\] rejected', \{[^}]*issues[,:]/)

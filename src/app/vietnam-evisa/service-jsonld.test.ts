@@ -163,9 +163,9 @@ describe('e-visa Service JSON-LD', () => {
     // service is offered — the hub, the official-process guide, and the services landing page — and
     // each must pass it through to its renderer. A new e-visa page that forgets is the gap.
     for (const file of [
-      'src/app/vietnam-evisa/page.svc.tsx',
-      'src/app/vietnam-evisa/official-process/page.svc.tsx',
-      'src/app/services-for-expats-vietnam/page.svc.tsx',
+      'src/app/vietnam-evisa/page.forum.svc.tsx',
+      'src/app/vietnam-evisa/official-process/page.forum.svc.tsx',
+      'src/app/services-for-expats-vietnam/page.forum.svc.tsx',
     ]) {
       expect(readFileSync(file, 'utf8'), `${file} does not emit the provider/broker Service node`).toMatch(
         /jsonLd:\s*\[visaServiceLd\(\)\]/,

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getAdmin } from '@/lib/admin'
-import { getVisaDeskOperator } from '@/lib/desk-operator'
+import { getVisaDeskScope } from '@/lib/desk-operator'
 import { rateLimit } from '@/lib/ratelimit'
 import { loadVisaAdminCase, VISA_BUCKET, type VisaDocumentRow } from '@/lib/visa-admin'
 import { decryptVisaPayload, visaCryptoReady } from '@/lib/visa/crypto'
@@ -123,8 +123,12 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   // applicant's documents along with it. getVisaDeskOperator() still accepts an admin, so eno's own
   // support account is unaffected; it also accepts the account that owns THIS deployment's visa
   // storefront, and only that desk. See src/lib/desk-operator.ts.
-  const admin = await getVisaDeskOperator()
-  if (!admin) return refuse('forbidden', 403)
+  // ⛔ ENTITLEMENT IS NOT AUTHORISATION. getVisaDeskOperator() proves this session runs A visa desk;
+  // it says nothing about WHICH cases are that desk's, and eno.vn and eno.forum share one
+  // `visa_applications` table. Without the scope check below, a partner desk could name any uuid.
+  const scope = await getVisaDeskScope()
+  if (!scope) return refuse('forbidden', 403)
+  const admin = scope.operator
   // Fails OPEN (no `strict`), like the takeover route: the caller is already an admin, so a
   // limiter outage must not lock the desk out of its own queue. The cap is here because
   // each call decrypts a dossier and pulls two images — worth a ceiling per operator.
@@ -137,7 +141,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   if (!visaCryptoReady()) return refuse('visa_encryption_not_configured', 503)
 
   try {
-    const loaded = await loadVisaAdminCase(id)
+    const loaded = await loadVisaAdminCase(id, scope)
     if (loaded.state === 'not-found') return refuse('not_found', 404)
     if (loaded.state === 'unavailable') return refuse('visa_database_not_configured', 503)
     const { application, documents, events } = loaded

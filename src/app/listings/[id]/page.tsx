@@ -43,6 +43,8 @@ import { ReportButton } from '@/components/marketplace/report-button'
 import { ContactComposer } from '@/components/marketplace/contact-composer'
 import { VisaStart } from '@/components/marketplace/visa-start'
 import { isVisaShopListing } from '@/lib/visa-shop'
+// The one switch that means "this deployment runs the visa chat" — see the gate on isVisaProduct.
+import { VISA_THREADS_ENABLED } from '@/lib/thread-kind'
 import { getTripAssistanceListingId } from '@/lib/trips/dm-thread'
 import { TrackView } from '@/components/marketplace/track-view'
 import { ScrollToTop } from '@/components/marketplace/scroll-to-top'
@@ -193,7 +195,25 @@ export default async function ListingPage({ params }: Props) {
   // ordinary chat or STARTS the e-Visa case (see the #contact block). Resolved server-side
   // from the storefront that owns the row — not from the title, the category or the
   // externalId marker, any of which another seller could imitate.
-  const isVisaProduct = await isVisaShopListing(listing.id)
+  /**
+   * ⛔ `VISA_THREADS_ENABLED &&` IS WHAT MAKES THE DESK ENV SAFE TO SET IN ANY ORDER — and without
+   * it, repointing VISA_SHOP_OWNER_EMAIL AT ALL would have blanked the Chat button on 14 live
+   * listings.
+   *
+   * The branch below is `isVisaProduct ? <VisaStart/> : <ContactComposer/>`, and on a deployment
+   * that does not host the visa chat `VisaStart` resolves to the STUB, which renders null. So the
+   * moment that env named VietKite, all 14 of their e-visa PDPs would answer "this is a visa
+   * product" and then draw NOTHING where the contact control belongs — no error, no fallback, a
+   * dead product page on the busiest listings on the site. The ordering rule that was supposed to
+   * prevent it ("repoint the desk only in the same breath as the build") is exactly the kind of
+   * rule that gets followed four times and forgotten once.
+   *
+   * `VISA_THREADS_ENABLED` already means "this deployment runs the visa chat" — the same switch
+   * thread-kind.ts keys on — so gating here makes the two agree by construction: no chat, no visa
+   * entry point, ordinary ContactComposer. It also collapses four order-sensitive env vars into
+   * one: the desk addresses become inert until this flag is on.
+   */
+  const isVisaProduct = VISA_THREADS_ENABLED && (await isVisaShopListing(listing.id))
   // Is this the trip desk's own listing? Same trust shape as the visa check above — resolved
   // server-side from (seller, externalId) on the desk that owns the row, never from the title or
   // the category, which another seller could imitate. `cache()`d, so this costs one query per
@@ -409,7 +429,27 @@ export default async function ListingPage({ params }: Props) {
 
           {/* 1 — Breadcrumb (subdued, full width). Leaf crumb hidden on mobile (it duplicates
               the H1); the BreadcrumbList JSON-LD still carries all 3 levels. */}
-          <nav aria-label="Breadcrumb" className="order-1 truncate text-sm text-muted-foreground lg:col-span-12">
+          {/* ⚠️ `order-7` ON MOBILE — BELOW THE CTA, NOT ABOVE THE PHOTO. MEASURED, NOT PREFERRED.
+              On a 390x844 phone the fixed tab bar takes the bottom 72px, so the usable fold is 772px.
+              Everything above the gallery used to cost 270px of that — 35% of the fold spent before a
+              single product pixel — and `#contact` landed at y=808: 36px BELOW the top of the tab bar,
+              i.e. the "Chat now" CTA was never once visible without scrolling. The breadcrumb is 20px
+              of subdued nav text plus a 24px gap, and nobody navigates a phone by breadcrumb; moving
+              it under the CTA buys 44px of that back at no cost to the reader.
+              ⚠️ `order-7` — IMMEDIATELY AFTER THE CTA, NOT `order-last`, AND THAT IS A FOCUS-ORDER FIX
+              BOTH EXTERNAL REVIEWERS RAISED INDEPENDENTLY. `order-*` moves the PAINTED position and
+              leaves DOM order alone, so this nav stays first in the tab sequence however it looks.
+              With `order-last` it painted ~1,100px down the page: a sighted keyboard user tabbing out
+              of the header would send the viewport to the bottom of the document and then back up —
+              a WCAG 2.4.3 focus-order failure that no typecheck, unit test or e2e run can see. One
+              slot below `#contact` it lands just under the fold, so focus moves a little instead of
+              teleporting, and the 44px is still recovered. It deliberately SHARES slot 7 with the
+              shop link below: equal `order` falls back to DOM order, so the two stack in source
+              order with no third number to find.
+              ⚠️ `lg:order-1` keeps it FIRST on desktop, where it sits full-width above the grid and
+              the fold problem does not exist. And the BreadcrumbList JSON-LD is emitted separately, so
+              the position here is presentation only — Google still gets all three levels. */}
+          <nav aria-label="Breadcrumb" className="order-7 truncate text-sm text-muted-foreground md:order-1 lg:col-span-12">
             {/* prefetch={false} on both crumbs: they sit above the fold on every PDP, so auto
                 prefetch fires two extra RSC requests per listing view for links most visitors
                 never take (the way back is the tab bar or the browser's back button). */}
@@ -420,10 +460,30 @@ export default async function ListingPage({ params }: Props) {
             <span className="hidden font-medium text-foreground md:inline"><LocalizedTitle title={listing.title} titleVi={listing.titleVi} i18n={i18n[listing.title]} /></span>
           </nav>
 
-          {/* Shop-on-top (Shopee): compact storefront link directly above the media, MOBILE.
-              order-2 (same slot as the gallery) + placed first in source so it sits just above it;
-              md:hidden — the desktop twin lives in the left column. */}
-          <div className="order-2 md:hidden">
+          {/* The compact storefront link, MOBILE. `md:hidden` — the desktop twin lives in the left
+              column, above the media, and is unchanged.
+              ⚠️ IT MOVED OUT FROM ABOVE THE MEDIA (`order-2`) TO JUST ABOVE THE CTA (`order-5`), AND
+              THE CITED REFERENCE IS THE REASON, NOT AN ARGUMENT AGAINST IT. This block was labelled
+              "Shop-on-top (Shopee)" — but Shopee's phone PDP opens on the image carousel at the very
+              top of the page and puts the shop row well below the price. What was here was the
+              opposite: 58px of seller identity plus a 24px gap between the header and the first
+              product pixel.
+              Measured on a 390x844 phone: that stack cost 82px of a 772px usable fold (the tab bar
+              owns the bottom 72), and it was the single largest reason `#contact` rendered at y=808 —
+              below the fold entirely.
+              ⚠️ `order-7`, i.e. AFTER `#contact` (order-6), NOT BEFORE IT — AND THE FIRST ATTEMPT AT
+              THIS GOT IT WRONG IN A WAY THE PIXELS CAUGHT AND THE REASONING DID NOT. Moving it to
+              order-5 put it between the price block and the CTA: still ahead of `#contact`, so it
+              still pushed the CTA down by its own 82px and the button landed at y=764 against a tab
+              bar at 772 — eight visible pixels. Only the breadcrumb's 44px had actually been
+              recovered. A block "moved down" only buys the CTA anything if it moves BELOW it.
+              Seller identity under the Chat button is also the marketplace convention (Shopee, Chợ
+              Tốt): the buy action leads, provenance supports it.
+              ⛔ DO NOT "RESTORE" THIS ABOVE THE GALLERY. The gallery is square and full-bleed by the
+              owner's decision (2026-07-23/24) and is the hero; anything stacked on top of it is spent
+              from the same 772px budget, and this page has no sticky mobile CTA to fall back on —
+              `PdpMobileBar` was deleted deliberately and must not come back. */}
+          <div className="order-7 md:hidden">
             <PdpShopLink name={listing.seller.name} avatarColor={listing.seller.avatarColor} avatarUrl={listing.seller.avatarUrl} isBusiness={listing.seller.isBusiness} businessVerified={sellerBusinessVerified} officialPartner={listing.seller.officialPartner} href={sellerHref} metrics={sellerMetricsBundle} />
           </div>
 

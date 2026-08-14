@@ -1167,6 +1167,37 @@ export default function ThreadPage() {
   // Pay. The body names a PRODUCT and echoes the quote that was on screen — never an amount:
   // the server re-resolves the listing's đồng price, re-issues its own dollar quote, refuses
   // if the two disagree, and charges its own number.
+  /**
+   * ⛔ HAND THE FINISHED APPLICATION TO THE DESK when this deployment is not the one taking money.
+   * eno.vn hosts a licensed partner's visa desk and is not merchant of record, so the checkout card
+   * offers no provider — and without this the applicant had a completed form, a consent tick and
+   * nothing to press, while the case stayed `draft` and never entered the desk's queue.
+   *
+   * ⚠️ IT IS THE SAME `/submit` THE PAID PATH REACHES, not a bypass. That route re-checks the
+   * pay-before-review gate itself (`visaPaymentsConfig() && !paid_at` → 402), so on a deployment
+   * that DOES charge, this cannot skip the fee — it is refused server-side. Both consents ride
+   * along because `send_for_review` freezes the applicant's answers exactly as a paid submission
+   * does, and the server records both versions.
+   */
+  const sendVisaToDesk = async () => {
+    const applicationId = visaInfo?.applicationId
+    if (!applicationId || visaBusy) return
+    setVisaBusy(true)
+    try {
+      const res = await visaPost(`/api/visa/applications/${applicationId}/submit`, {
+        action: 'send_for_review', declarationAccepted: true, prefillAuthorized: true,
+      })
+      if (!res.ok) { toast.error(visaErrorCopy(res.error, tr)); return }
+      haptic()
+      // Re-read both sides: the case status moved, and the desk's acknowledgement lands in the thread.
+      await Promise.all([load(), reloadVisaCase()])
+      requestAnimationFrame(() => { scrollBottom(true); setNewBelow(false) })
+      refreshUnread(); refreshConvos()
+    } finally {
+      setVisaBusy(false)
+    }
+  }
+
   const payVisa = async (provider: 'stripe' | 'paypal', quote: VisaQuoteWire) => {
     const applicationId = visaInfo?.applicationId
     const listingId = visaInfo?.product?.listingId
@@ -1616,6 +1647,9 @@ export default function ThreadPage() {
                     // Applicant only: the desk reads this card, it does not need an escape hatch
                     // out of somebody else's checkout.
                     onReview={iAmApplicant ? () => resendVisaCard('review') : undefined}
+                    // Applicant only, same as onReview — the desk reads this card, it does not
+                    // submit on the applicant's behalf.
+                    onSendToDesk={iAmApplicant ? sendVisaToDesk : undefined}
                   />
                 ) : visaResultMeta ? (
                   // The finished visa. No `live` flag: it is never a prompt and never

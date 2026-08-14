@@ -37,6 +37,19 @@ steps:
         # and next.config.ts still cross-checks it against NEXT_PUBLIC_APP_URL, so a secret pointing
         # at the wrong host fails the build rather than shipping mislabelled.
         printf '\nNEXT_PUBLIC_ENO_EDITION=marketplace\n' >> /workspace/buildenv.env
+        # ⛔ BUILD-TIME, AND THERE IS NOWHERE ELSE IT CAN GO. MARKETPLACE_HOSTS_SERVICES is read by
+        # next.config.ts, which runs inside `docker build` — so it has to be in THIS file (or in the
+        # secret it appends to), and a `gcloud run services update --set-env-vars` would be a silent
+        # no-op: the routes are decided at compile time by `pageExtensions`, not at request time.
+        # It admits eno.vn to the partner-run visa CHAT (VietKite's `.svc.` routes and cards). It
+        # never admits payments or eno's own e-visa marketing — those carry the stricter
+        # `.forum.svc.` infix that no marketplace build lists, whatever this says.
+        # ⚠️ COMMENTED OUT UNTIL THE DESK ENV LANDS. Turning this on while VISA_SHOP_OWNER_EMAIL
+        # still points at support@eno.forum would paint eno's OWN e-visa conversations onto the
+        # licensed marketplace, and turning it on without HIDDEN_DESK_OWNER_EMAILS in the SAME write
+        # silently deletes all 14 VietKite listings from browse, search, sitemap and the feeds. The
+        # order is: desk env first, verify the catalogue resolves to VietKite, then uncomment this.
+        # printf '\nMARKETPLACE_HOSTS_SERVICES=true\n' >> /workspace/buildenv.env
         export DOCKER_BUILDKIT=1
         docker build \
           --secret id=buildenv,src=/workspace/buildenv.env \

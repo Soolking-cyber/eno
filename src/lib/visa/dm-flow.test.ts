@@ -35,6 +35,8 @@ const h = vi.hoisted(() => ({
     /** fx + payments. */
     quote: null as null | Row,
     payments: { providers: ['paypal'], feeCents: 100, currency: 'USD' } as null | Row,
+    /** Which deployment is answering. Services CHARGES; the marketplace intermediates. */
+    isServices: true,
     cryptoReady: true,
     /** Fault injection: a concurrent writer lands between the case READ and the CAS write. */
     raceAfterLoad: false,
@@ -189,6 +191,11 @@ vi.mock('./crypto', () => ({
 
 vi.mock('./fx', () => ({ quoteVisaUsd: async () => h.state.quote }))
 vi.mock('./payments', () => ({ visaPaymentsConfig: () => h.state.payments }))
+// ⚠️ THE EDITION IS NOW PART OF THE PAY-CARD RULE, so the suite has to be able to move it.
+// vitest.config.ts pins NEXT_PUBLIC_ENO_EDITION to 'services' for the whole run, which is the
+// right default (it is the deployment that charges) — but it made every dormant-payments case
+// assert the forum's answer only. Mocked here so both editions are exercised explicitly.
+vi.mock('../edition', () => ({ get IS_SERVICES() { return h.state.isServices } }))
 vi.mock('./records', () => ({
   recordVisaEvent: vi.fn(async (applicationId: string, actorType: string, event: string, _ref?: string, metadata: any = {}) => {
     h.state.events.push({ applicationId, actorType, event, metadata })
@@ -221,7 +228,10 @@ vi.mock('./dm-thread', () => ({
     return { messageId: id }
   }),
   sendVisaCheckoutCard: vi.fn(async (input: any) => {
-    if (!h.state.payments) return null
+    // ⚠️ NO DORMANT-PAYMENTS REFUSAL — the real sendVisaCheckoutCard dropped its
+    // `visaPaymentsConfig()` gate on 2026-08-14, and a mock that keeps a gate the production code
+    // no longer has does not test the production code. That mismatch is what made two tests here
+    // still fail after the fix: the flow posted the card, and the FAKE refused it.
     h.state.checkoutCards.push(input)
     const id = `msg-pay-${++h.state.seq}`
     h.state.messages.push({
@@ -309,6 +319,10 @@ function seedProductChoice(listingId = 'listing-1') {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  // ⚠️ RESET THE EDITION TOO. It defaults to the services build — the deployment that charges, and
+  // the one vitest.config.ts pins — so a test that flips it to marketplace cannot leak that into
+  // the next one and silently relax a fail-closed assertion somewhere else in the file.
+  h.state.isServices = true
   h.state.tables = {}
   h.state.dbError = null
   h.state.messages = []
@@ -649,13 +663,22 @@ describe('resending the pay card cannot re-price it', () => {
     expect(dmThread.sendVisaStepCard).not.toHaveBeenCalled()
   })
 
-  it('refuses while payments are dormant instead of posting a card nobody can pay', async () => {
+  /**
+   * ⚠️ THIS ASSERTION IS INVERTED FROM WHAT IT SAID BEFORE 2026-08-14, AND THE INVERSION IS THE
+   * POINT. It used to pin "refuses while payments are dormant instead of posting a card nobody can
+   * pay". That was right while the deployment that ran the desk was also the one taking the money.
+   * eno.vn now hosts a licensed PARTNER's desk and is not merchant of record — the PayPal routes
+   * carry `.forum.svc.` and are never compiled here — so dormant is the intended steady state, and
+   * refusing meant an applicant who answered every question got a 503 and the case died there.
+   */
+  it('re-posts the pay card while payments are dormant — dormant is a valid deployment, not a fault', async () => {
     seedCase({ payload: completePayload(), documents: PASSED_DOCUMENTS })
     seedProductChoice()
     h.state.payments = null
+    h.state.isServices = false
     const result = await resendVisaDmCard({ applicationId: APPLICATION, actorId: BUYER })
-    expect(result).toMatchObject({ ok: false, error: 'payments_not_configured', status: 503 })
-    expect(dmThread.sendVisaCheckoutCard).not.toHaveBeenCalled()
+    expect(result).toMatchObject({ ok: true })
+    expect(dmThread.sendVisaCheckoutCard).toHaveBeenCalled()
   })
 })
 
@@ -852,12 +875,49 @@ describe('the pay card fails closed', () => {
     expect(dmThread.sendVisaCheckoutCard).not.toHaveBeenCalled()
   })
 
-  it('refuses while payments are dormant', async () => {
+  /**
+   * ⛔ THE END OF THE FLOW ON A DEPLOYMENT THAT DOES NOT TAKE THE MONEY — the case this whole
+   * feature turns on for eno.vn. The card IS posted, priced, and marked complete; what it offers is
+   * the card's decision (no providers → "send this to the desk"), not this layer's.
+   * ⚠️ Note it still says `complete: true`: the flow is finished, which is what stops the wizard
+   * re-asking step 5 forever.
+   */
+  it('POSTS the pay card while payments are dormant ON THE MARKETPLACE, and completes', async () => {
     seedCase({ payload: completePayload(), documents: PASSED_DOCUMENTS })
     seedProductChoice()
     h.state.payments = null
+    h.state.isServices = false // eno.vn: a licensed partner's desk, eno is not merchant of record
+    const result = await advanceVisaDmFlow({ applicationId: APPLICATION, userId: BUYER })
+    expect(result).toMatchObject({ ok: true, step: 5, complete: true })
+    expect(dmThread.sendVisaCheckoutCard).toHaveBeenCalled()
+  })
+
+  /**
+   * ⛔ THE OTHER HALF OF THE SAME RULE, AND THE ONE TWO REVIEWERS ASKED FOR. Dropping the dormant
+   * refusal everywhere would have made "payment env is missing" indistinguishable from "this
+   * deployment does not charge" — on eno.forum, which does. A lost PAYPAL_* would have quietly
+   * accepted unpaid applications instead of failing.
+   */
+  it('STILL refuses on the SERVICES edition — there, dormant means broken', async () => {
+    seedCase({ payload: completePayload(), documents: PASSED_DOCUMENTS })
+    seedProductChoice()
+    h.state.payments = null
+    h.state.isServices = true
     const result = await advanceVisaDmFlow({ applicationId: APPLICATION, userId: BUYER })
     expect(result).toMatchObject({ ok: false, error: 'payments_not_configured', status: 503 })
+    expect(dmThread.sendVisaCheckoutCard).not.toHaveBeenCalled()
+  })
+
+  /** FX is a different thing from payments, and it must STILL fail — a card that cannot state a
+   *  price honestly is worse than no card. Guards against the fix above being over-applied. */
+  it('still refuses when FX is unavailable, even with payments dormant', async () => {
+    seedCase({ payload: completePayload(), documents: PASSED_DOCUMENTS })
+    seedProductChoice()
+    h.state.payments = null
+    h.state.isServices = false
+    h.state.quote = null
+    const result = await advanceVisaDmFlow({ applicationId: APPLICATION, userId: BUYER })
+    expect(result).toMatchObject({ ok: false, error: 'fx_unavailable', status: 503 })
     expect(dmThread.sendVisaCheckoutCard).not.toHaveBeenCalled()
   })
 

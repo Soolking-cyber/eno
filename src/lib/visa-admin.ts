@@ -1,6 +1,10 @@
 import 'server-only'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { getSupabaseAdmin } from '@/lib/supabase-admin'
+// Prisma, for the ONE thing Supabase cannot answer: which desk a case's conversation belongs to.
+// Named `db2` because `db` is already this module's Supabase handle (`visaDb()`).
+import { db as db2 } from '@/lib/db'
+import type { VisaDeskScope } from '@/lib/desk-operator'
 
 // VISA OPERATOR QUEUE data layer — the eno.vn side of the one-dashboard port
 // (apps/forum/docs/CLAUDE_ONE_DASHBOARD_PROMPT.md item 6). The visa tables
@@ -92,21 +96,173 @@ export type VisaQueueData = { applications: VisaQueueRow[]; documents: VisaDocum
  *  withheld (consent hash voided by a late edit, or a payment/selection mismatch) leaves
  *  the case paid but still 'draft' — money taken, and under the plain status filter the
  *  desk would never see it. Paid cases are ALWAYS visible, whatever their status. */
-export async function listVisaAdminCases(): Promise<VisaQueueData | null> {
-  const db = visaDb()
-  if (!db) return null
-  const apps = await db.from('visa_applications').select(QUEUE_COLUMNS).or('status.neq.draft,paid_at.not.is.null').order('updated_at', { ascending: false }).limit(200)
-  if (tableMissing(apps.error)) return null
-  if (apps.error) throw new Error(`visa_queue_failed:${apps.error.message}`)
-  // Documents scoped to the fetched cases — an unfiltered read walks the WHOLE table
-  // and silently truncates at PostgREST's max-rows once the product grows.
-  const ids = (apps.data ?? []).map((a) => (a as { id: string }).id)
-  const docs = ids.length
-    ? await db.from('visa_documents').select('*').in('application_id', ids).order('created_at')
-    : { data: [], error: null }
+/** The documents for a fetched page of cases. Shared by both queue paths so the chunked branch
+ *  cannot drift from the plain one. Scoped to the ids on screen — an unfiltered read walks the
+ *  WHOLE table and silently truncates at PostgREST's max-rows once the product grows. */
+async function queueDocuments(db: SupabaseClient, ids: string[]): Promise<VisaDocumentRow[] | null> {
+  if (!ids.length) return []
+  const docs = await db.from('visa_documents').select('*').in('application_id', ids).order('created_at')
+  /**
+   * ⚠️ `null` FOR A MISSING TABLE, AND EXTRACTING THIS HELPER LOST THAT ONCE — a reviewer caught it.
+   * `visa_documents` can legitimately be absent on a half-provisioned deployment (that is the whole
+   * reason `tableMissing` exists), and the caller answers `null` with the "section unavailable"
+   * screen. Throwing instead turns that into a 500 on the operator queue. Any OTHER error is still a
+   * real failure and must surface.
+   */
   if (tableMissing(docs.error)) return null
   if (docs.error) throw new Error(`visa_queue_failed:${docs.error.message}`)
-  return { applications: (apps.data ?? []) as unknown as VisaQueueRow[], documents: (docs.data ?? []) as VisaDocumentRow[] }
+  return (docs.data ?? []) as VisaDocumentRow[]
+}
+
+/**
+ * ⛔ THE SCOPE ARGUMENT IS A SECURITY BOUNDARY, NOT A FILTER — see `getVisaDeskScope()` in
+ * src/lib/desk-operator.ts for why it exists. `visa_applications` is ONE table shared by eno.vn and
+ * eno.forum, so an unscoped read hands a partner desk the other deployment's applicants. It is
+ * REQUIRED rather than optional precisely so a new call site cannot omit it and silently get
+ * everything; `{ all: true }` is what an admin passes, and it has to be written down.
+ */
+export async function listVisaAdminCases(scope: VisaDeskScope): Promise<VisaQueueData | null> {
+  const db = visaDb()
+  if (!db) return null
+
+  /**
+   * ⛔ THE DESK PREDICATE GOES IN THE QUERY, NOT AFTER IT — AND THE FIRST CUT OF THIS GOT IT
+   * BACKWARDS, WHICH ALL THREE EXTERNAL REVIEWERS CAUGHT INDEPENDENTLY.
+   *
+   * That version fetched the 200 most-recently-updated rows of the SHARED `visa_applications`
+   * table and then filtered them to the desk. It is correct only while the table is small: let
+   * eno.forum update 200 cases in a stretch and every one of VietKite's falls outside the window,
+   * so the partner's queue renders EMPTY, with no error and no clue — and the "paid cases are
+   * ALWAYS visible" invariant silently fails for exactly the tenant this scoping exists to serve.
+   * A limit applied before a tenant filter is a starvation bug wearing a pagination costume.
+   *
+   * ⚠️ SO THE ID LIST IS FETCHED FIRST, and the earlier objection to that ("unbounded") was the
+   * wrong trade: it is bounded by ONE DESK's own conversations, which is the desk's own workload,
+   * whereas the other ordering is bounded by the whole SHARED table's activity — something this
+   * deployment does not control. A desk with more threads than PostgREST can take in an `in()` has
+   * a queue that needs real pagination anyway; silently showing nothing is not the failure mode to
+   * choose.
+   *
+   * ⚠️ An admin still takes the unfiltered path — no id list, one query, exactly as before.
+   */
+  let query = db.from('visa_applications').select(QUEUE_COLUMNS).or('status.neq.draft,paid_at.not.is.null')
+  if (!scope.all) {
+    /**
+     * ⚠️ `sellerProfileId` ALONE — deliberately NOT also `visaApplicationId: { not: null }`, which
+     * is the narrowing that looks like an optimisation and is the repo's own documented stranding
+     * bug. `Conversation.visaApplicationId` is the LIVE binding and holds at most ONE case per
+     * thread, so a repeat applicant's second case REBINDS it; filtering on it would drop every
+     * thread whose pointer had moved on, taking the earlier cases with it (src/lib/visa/dm-thread.ts
+     * records exactly this failure for result delivery). The question here is "which threads are
+     * this desk's", and the answer is the seller, full stop. Non-visa threads in the list cost
+     * nothing — no case's `conversation_id` matches them.
+     */
+    const mine = await db2.conversation.findMany({
+      where: { sellerProfileId: scope.deskProfileId },
+      select: { id: true },
+    })
+    // No threads yet → no cases. Return early rather than sending `in.()`, which PostgREST reads as
+    // "match nothing" only by luck of syntax; an explicit empty result cannot be misparsed.
+    if (!mine.length) return { applications: [], documents: [] }
+    /**
+     * ⚠️ CHUNKED, BECAUSE A SINGLE `.in()` OF EVERY CONVERSATION IS A URL, NOT A BIND PARAMETER.
+     * PostgREST puts the list in the query string, so a desk with enough threads stops getting a
+     * queue and starts getting a request-too-large error — the reviewer's point, and the honest
+     * cost of moving the predicate into the query (which was still the right move: the alternative
+     * silently returned an EMPTY queue instead of an error).
+     * 300 ids is roughly 11KB of URL, comfortably inside every proxy default. Beyond that the desk
+     * is queried in slices and the rows are merged, so the answer is the same shape at any size —
+     * and the `updated_at` ordering is re-applied below rather than trusted per slice.
+     */
+    const CHUNK = 300
+    const ids = mine.map((c) => c.id)
+    if (ids.length <= CHUNK) {
+      query = query.in('conversation_id', ids)
+    } else {
+      const slices: string[][] = []
+      for (let i = 0; i < ids.length; i += CHUNK) slices.push(ids.slice(i, i + CHUNK))
+      const parts = await Promise.all(slices.map((slice) =>
+        db.from('visa_applications').select(QUEUE_COLUMNS).or('status.neq.draft,paid_at.not.is.null')
+          .in('conversation_id', slice).order('updated_at', { ascending: false }).limit(200)))
+      const failed = parts.find((r) => r.error)
+      if (failed && tableMissing(failed.error)) return null
+      if (failed?.error) throw new Error(`visa_queue_failed:${failed.error.message}`)
+      const merged = (parts.flatMap((r) => r.data ?? []) as unknown as VisaQueueRow[])
+        .sort((a, b) => (a.updated_at < b.updated_at ? 1 : a.updated_at > b.updated_at ? -1 : 0))
+        .slice(0, 200)
+      const mergedDocs = await queueDocuments(db, merged.map((r) => r.id))
+      if (mergedDocs === null) return null
+      return { applications: merged, documents: mergedDocs }
+    }
+  }
+  const apps = await query.order('updated_at', { ascending: false }).limit(200)
+  if (tableMissing(apps.error)) return null
+  if (apps.error) throw new Error(`visa_queue_failed:${apps.error.message}`)
+  const rows = (apps.data ?? []) as unknown as VisaQueueRow[]
+  const documents = await queueDocuments(db, rows.map((a) => a.id))
+  if (documents === null) return null
+  return { applications: rows, documents }
+}
+
+/**
+ * ⛔ THE ONE PREDICATE FOR "MAY THIS OPERATOR TOUCH THIS CASE". Every entitled surface calls it —
+ * the queue's case load, the bundle download, the result upload, the chat takeover, the status
+ * transition — because each of those was written as its own query and three of them read
+ * `visa_applications` directly by id with no owner predicate at all.
+ *
+ * ⚠️ ENTITLEMENT AND SCOPE ARE TWO SEPARATE CHECKS AND BOTH ARE REQUIRED. `getVisaDeskScope()` says
+ * "you operate a visa desk"; this says "and this case is yours". A route that does only the first
+ * is exactly the cross-tenant hole this pair exists to close: eno.vn and eno.forum share one
+ * `visa_applications` table, so a partner desk with only the first check can name any uuid.
+ *
+ * ⚠️ THE LINK IS THE CONVERSATION'S SELLER, because it is the only link that exists — the table has
+ * no desk column. An unbound case (`conversation_id` null) is NOT in a partner's scope: it is a case
+ * this desk is demonstrably not answering. Admins are unaffected, which is what keeps eno.forum's
+ * queue — including legacy cases whose conversation was never backfilled — working exactly as before.
+ */
+export async function visaCaseInScope(applicationId: string, scope: VisaDeskScope): Promise<boolean> {
+  if (scope.all) return true
+  if (!UUID_RE.test(applicationId)) return false
+  const db = visaDb()
+  if (!db) return false
+  const { data, error } = await db
+    .from('visa_applications').select('conversation_id').eq('id', applicationId).maybeSingle()
+  // ⚠️ A LOOKUP ERROR IS NOT "OUT OF SCOPE" AND NOT "IN SCOPE" — it is a failure, and the only safe
+  // answer for an authorisation predicate is to refuse. Returning false here degrades a transient
+  // Supabase hiccup into a 404 for a legitimate operator, which is the direction we want.
+  if (error || !data) return false
+  const convoId = (data as { conversation_id?: string | null }).conversation_id
+  if (!convoId) return false
+  const mine = await db2.conversation.findFirst({
+    where: { id: convoId, sellerProfileId: scope.deskProfileId },
+    select: { id: true },
+  })
+  return !!mine
+}
+
+/**
+ * ⛔ IS THIS CASE ANSWERED BY *THIS DEPLOYMENT'S* VISA DESK? — the applicant-side twin of
+ * `visaCaseInScope`, and the guard that closes a CROSS-EDITION FEE BYPASS a reviewer found.
+ *
+ * `visa_applications`, auth and the messages surface are all shared between eno.vn and eno.forum.
+ * The pay-before-review gate in `/submit` is edition-local ("this deployment does not charge"), so
+ * without this a case created on eno.forum — which DOES charge and is unpaid — could be handed to
+ * the desk from eno.vn, where the fee check does not apply. eno.forum's own gate, bypassed through
+ * the other edition.
+ *
+ * ⚠️ IT IS DEFENDED TODAY BY SOMETHING ELSE ENTIRELY, WHICH IS EXACTLY WHY IT NEEDS ITS OWN GUARD.
+ * A forum visa thread is owned by the hidden desk seller, so `HIDDEN_DESK_OWNER_EMAILS` makes
+ * eno.vn 404 the conversation and the applicant never reaches the button. That is a licensing
+ * control in a different module doing an authorisation job by accident — one env edit away from
+ * silently ceasing to. The rule belongs where the money decision is made.
+ *
+ * Fails CLOSED: no desk, no conversation, or a lookup error → false.
+ */
+export async function visaCaseOnLocalDesk(applicationId: string): Promise<boolean> {
+  const { getVisaShopSeller } = await import('@/lib/visa-shop')
+  const deskProfileId = (await getVisaShopSeller())?.ownerId
+  if (!deskProfileId) return false
+  return visaCaseInScope(applicationId, { operator: 'local-desk', all: false, deskProfileId })
 }
 
 export type VisaCaseResult =
@@ -116,7 +272,14 @@ export type VisaCaseResult =
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
-export async function loadVisaAdminCase(id: string): Promise<VisaCaseResult> {
+/**
+ * ⛔ SCOPED, FOR THE SAME REASON AS THE QUEUE — and this is the more dangerous of the two, because
+ * it is what `GET /api/visa/admin/applications/[id]/bundle` loads before decrypting a dossier and
+ * signing URLs for the applicant's passport and portrait. Unscoped, any uuid worked for any
+ * operator across BOTH deployments. A case outside the scope answers `not-found`, never
+ * `forbidden`: an operator who may not see a case must not learn that it exists.
+ */
+export async function loadVisaAdminCase(id: string, scope: VisaDeskScope): Promise<VisaCaseResult> {
   // A non-uuid path segment would 400 at the uuid column, not 404 — pre-empt it.
   if (!UUID_RE.test(id)) return { state: 'not-found' }
   const db = visaDb()
@@ -131,6 +294,8 @@ export async function loadVisaAdminCase(id: string): Promise<VisaCaseResult> {
   if (docs.error) throw new Error(`visa_case_failed:${docs.error.message}`)
   if (events.error) throw new Error(`visa_case_failed:${events.error.message}`)
   if (!app.data) return { state: 'not-found' }
+  // ⚠️ `not-found`, never `forbidden` — an operator who may not see a case must not learn it exists.
+  if (!(await visaCaseInScope(id, scope))) return { state: 'not-found' }
   return {
     state: 'ok',
     application: app.data as VisaApplicationRow,
@@ -203,10 +368,13 @@ export type VisaTransitionResult = { ok: true } | { ok: false; error: VisaTransi
  * the payload on every PATCH, which needs VISA_DATA_ENCRYPTION_KEY (absent here
  * — see the module TODO), so `encrypted_payload` is left byte-identical.
  */
-export async function transitionVisaCase(id: string, next: string, admin: string): Promise<VisaTransitionResult> {
+export async function transitionVisaCase(id: string, next: string, admin: string, scope: VisaDeskScope): Promise<VisaTransitionResult> {
   const db = visaDb()
   if (!db) return { ok: false, error: 'visa_database_not_configured' }
-  const loaded = await loadVisaAdminCase(id)
+  // ⚠️ The scope travels all the way down rather than being checked only at the action. This
+  // function reads the case, its documents and its events, and it is exported — a future caller
+  // that gates on entitlement alone would otherwise reintroduce the cross-tenant read here.
+  const loaded = await loadVisaAdminCase(id, scope)
   if (loaded.state === 'unavailable') return { ok: false, error: 'visa_database_not_configured' }
   if (loaded.state === 'not-found') return { ok: false, error: 'not_found' }
   const app = loaded.application

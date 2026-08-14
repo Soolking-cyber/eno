@@ -551,10 +551,17 @@ const shimRows = Object.entries(LUCIDE_TO_SOLAR).sort(([a], [b]) => a.localeComp
  */
 const JSX_ATTR = { 'fill-rule': 'fillRule', 'clip-rule': 'clipRule', 'stroke-width': 'strokeWidth',
   'stroke-linecap': 'strokeLinecap', 'stroke-linejoin': 'strokeLinejoin' }
-const layer = (solar, style) => {
+/**
+ * ⚠️ `jsx: false` FOR THE SPRITE, AND THE DISTINCTION IS NOT COSMETIC. The shim used to inline this
+ * markup into TSX, where React demands `fillRule`; the sprite is a real `.svg` document parsed by
+ * the SVG parser, where `fillRule` is an unknown attribute and the shape renders with the WRONG
+ * fill rule — a glyph with a counter (the `0` in a zero, the hole in a `p`) fills solid instead of
+ * showing its hole. Same bytes, two grammars, and only one of them is checked by a compiler.
+ */
+const layer = (solar, style, { jsx = true } = {}) => {
   const svg = normalise(readFileSync(join(SRC, style, `${solar}.svg`), 'utf8'), { name: solar, style })
   let inner = svg.replace(/^<svg[^>]*>/, '').replace(/<\/svg>\s*$/, '')
-  for (const [a, j] of Object.entries(JSX_ATTR)) inner = inner.split(a + '=').join(j + '=')
+  if (jsx) for (const [a, j] of Object.entries(JSX_ATTR)) inner = inner.split(a + '=').join(j + '=')
   return inner
 }
 
@@ -563,7 +570,7 @@ const layer = (solar, style) => {
  * weights. See `BARE_MARKS` in lucide-solar-map.mjs for why the set exists and how `dx` was
  * measured — this function is only the extraction, and every guard below protects `dx`.
  */
-const bareMark = (lucide, spec) => {
+const bareMark = (lucide, spec, { jsx = true } = {}) => {
   const { from, shape, shapes, dx, sha } = spec
   if (!available.outline.has(from)) fail(`bare mark ${lucide} -> solar "${from}" is not in the outline style`)
 
@@ -594,7 +601,7 @@ const bareMark = (lucide, spec) => {
 
   // Take the SANITISED shape, so a bare mark gets the same colour/markup checks as every other
   // glyph — matched by index against the raw list the guards above just verified.
-  const inner = layer(from, 'outline')
+  const inner = layer(from, 'outline', { jsx })
   const clean = inner.match(/<(?:path|circle|rect|ellipse|line|polyline|polygon)\b[^>]*>/g) ?? []
   if (clean.length !== shapes) fail(`bare mark ${lucide}: normalise() changed the shape count of outline/${from}`)
   /**
@@ -620,33 +627,133 @@ const bareMark = (lucide, spec) => {
   }
   const mark = dx === 0 ? stroked : `<g transform="translate(${dx},0)">${stroked}</g>`
 
-  return (
-    `/** Solar \`${from}\` #${shape} — a BARE mark (${spec.why}) Same drawing at rest and pressed. */\n` +
-    `export const ${lucide} = (p: IconProps) => <Glyph {...p}>` +
-    `<g className="i-rest">${mark}</g>` +
-    `<g className="i-on">${mark}</g>` +
-    `</Glyph>`
-  )
+  // ⚠️ THE SAME DRAWING FOR BOTH WEIGHTS — that is what "bare mark" means. The two symbols are
+  // still emitted separately so every glyph in the sprite has the identical `-r` / `-o` pair and
+  // the shim never needs to know which kind it is rendering.
+  return { rest: mark, on: mark, why: `Solar \`${from}\` #${shape} — a BARE mark (${spec.why}) Same drawing at rest and pressed.` }
 }
 
 for (const name of Object.keys(BARE_MARKS)) {
   if (!(name in LUCIDE_TO_SOLAR)) fail(`BARE_MARKS has "${name}", which is not a row in LUCIDE_TO_SOLAR`)
 }
 
-const shimBody = shimRows
-  .map(([lucide, solar]) => {
-    if (BARE_MARKS[lucide]) return bareMark(lucide, BARE_MARKS[lucide])
-    for (const style of ['outline', 'bold']) {
-      if (!available[style].has(solar)) fail(`lucide ${lucide} -> solar "${solar}" is not in the ${style} style`)
-    }
-    return (
-      `/** Solar \`${solar}\` — Outline at rest, Bold while pressed. */\n` +
-      `export const ${lucide} = (p: IconProps) => <Glyph {...p}>` +
-      `<g className="i-rest">${layer(solar, 'outline')}</g>` +
-      `<g className="i-on">${layer(solar, 'bold')}</g>` +
-      `</Glyph>`
-    )
-  })
+/**
+ * ══════════════════════════════════════════════════════════════════════════════════════════════
+ * ⚠️ THE GLYPHS ARE A SPRITE NOW, NOT 243 INLINED COMPONENTS — AND EVERY NUMBER BELOW WAS
+ * MEASURED ON A CLEAN MARKETPLACE BUILD (2026-08-14), NOT REASONED ABOUT.
+ *
+ * What the inlined shim actually cost, measured rather than assumed:
+ *   · ONE chunk, `.next/static/chunks/28_*.js`, **626,434 bytes raw / 169,651 encoded** — the
+ *     largest on the site by 2.3x, and `<script async>` on EVERY prerendered route.
+ *   · The home page paints **43 distinct glyphs**. The PDP paints 27. `/about` paints **13**.
+ *     All three download all **243**. So 82% of that chunk is waste on the busiest page and 95%
+ *     on the quietest.
+ *   · And the app pays for icons TWICE: 154 glyph bodies are ALSO server-rendered inline into
+ *     `index.html` (874KB raw / 115KB gzip), because these are leaf components inside client
+ *     components. The JS copy exists only so React can hydrate what the HTML already drew.
+ *
+ * ⚠️ THREE STRUCTURAL FIXES WERE TRIED FIRST AND ALL THREE FAILED, WHICH IS WHY THIS IS A SPRITE
+ * AND NOT A CLEVERER MODULE LAYOUT. Splitting the file into 243 per-glyph modules behind a
+ * re-export barrel: still one chunk, 630,855 bytes (+4KB). Adding the barrel to
+ * `optimizePackageImports`: byte-identical. Tree shaking removes unused EXPORTS; it does not
+ * decide CHUNK boundaries, and the chunker put this shared dependency in one common chunk every
+ * time. The lever does not exist at the module level. Do not spend another day looking for it.
+ *
+ * ⚠️ WHY `<use>` KEEPS THE WEIGHT GRAMMAR WORKING, which is the thing that had to be true before
+ * any of this was possible. The two weights are switched by `.i-rest` / `.i-on` rules in
+ * globals.css, keyed off the ANCESTOR control's aria/data state. Host-document CSS cannot reach
+ * inside a `<use>` shadow tree — so the classes go on the two `<use>` ELEMENTS themselves, which
+ * are ordinary nodes in the host DOM. Every existing selector matches unchanged, `opacity`
+ * animates on them exactly as before, and `currentColor` inherits THROUGH the shadow boundary so
+ * `fill="currentColor"` in the symbol still follows the control's ink. Nothing in globals.css
+ * needed editing.
+ *
+ * ⚠️ THE FILENAME IS STABLE AND THE HASH RIDES IN A QUERY STRING — see the block above the write
+ * for why a hashed FILENAME blanks the site after a deploy. (This paragraph said the opposite
+ * until 2026-08-14; a reviewer caught the generated file arguing with its own code.) `public/` is
+ * served with a revalidating
+ * cache header, and this file is fetched by every page on the site; an immutable name is what
+ * lets the edge and the browser keep it forever and makes the second page view free. It also
+ * means a glyph edit busts the URL — a stale sprite would silently draw the OLD icon set with no
+ * error anywhere.
+ * ══════════════════════════════════════════════════════════════════════════════════════════════
+ */
+const spriteGlyphs = shimRows.map(([lucide, solar]) => {
+  if (BARE_MARKS[lucide]) {
+    const { rest, on, why } = bareMark(lucide, BARE_MARKS[lucide], { jsx: false })
+    return { name: lucide, rest, on, why }
+  }
+  for (const style of ['outline', 'bold']) {
+    if (!available[style].has(solar)) fail(`lucide ${lucide} -> solar "${solar}" is not in the ${style} style`)
+  }
+  return {
+    name: lucide,
+    rest: layer(solar, 'outline', { jsx: false }),
+    on: layer(solar, 'bold', { jsx: false }),
+    why: `Solar \`${solar}\` — Outline at rest, Bold while pressed.`,
+  }
+})
+
+/**
+ * ⚠️ `<symbol>` CARRIES ITS OWN `viewBox`, AND OMITTING IT IS THE CLASSIC SPRITE BUG. A `<use>`
+ * of a symbol without one inherits the HOST svg's coordinate system, which happens to be the same
+ * `0 0 24 24` here — so it would look correct today and silently break the first time a call site
+ * renders at a different box. Stated because "it works" is not evidence in a generated file.
+ */
+const spriteSvg =
+  `<svg xmlns="http://www.w3.org/2000/svg">` +
+  `<!-- GENERATED by scripts/gen-icons.mjs — do not edit. Solar Icons by 480 Design, CC BY 4.0; see NOTICE.md. -->` +
+  spriteGlyphs
+    .map((g) =>
+      `<symbol id="${g.name}-r" viewBox="0 0 24 24">${g.rest}</symbol>` +
+      `<symbol id="${g.name}-o" viewBox="0 0 24 24">${g.on}</symbol>`)
+    .join('') +
+  `</svg>`
+
+/**
+ * ⛔ A STABLE FILENAME, NOT A CONTENT HASH — AND THE FIRST CUT OF THIS HAD THE HASH, WHICH WOULD
+ * HAVE BLANKED EVERY ICON ON THE SITE FOR UP TO SIX HOURS AFTER A DEPLOY. Caught by codex on the
+ * diff; it is worth spelling out because "hash the asset" is normally the right instinct.
+ *
+ * eno.vn edge-caches its HTML at Cloudflare (the Cache Rule on `/` and the legal pages), so after a
+ * deploy the edge keeps serving the PREVIOUS HTML for a while. That HTML carries the previous
+ * sprite URL. A fresh `docker build` starts from a clean checkout, so the previous hashed file does
+ * not exist in the new image — every `<use href>` in that cached HTML 404s, and a failed `<use>`
+ * target does not degrade, it draws NOTHING. The whole site loses its icons at once, with a green
+ * build and no error anywhere, until the HTML cache turns over.
+ *
+ * A stable name cannot 404: cached HTML and fresh HTML ask for the same path, and whatever the
+ * image holds answers. The failure mode inverts from "no icons" to "briefly the previous glyphs",
+ * which is invisible in practice — glyph edits are rare, and the standing post-deploy rule is a
+ * Cloudflare `purge_everything` anyway.
+ *
+ * The hash survives as a CONTENT STAMP inside the file (and in the NOTICE provenance block), so
+ * "which sprite is this" is still answerable without it being in the URL.
+ */
+const spriteHash = createHash('sha256').update(spriteSvg).digest('hex').slice(0, 12)
+/**
+ * ⚠️ STABLE PATH + A HASH IN THE QUERY, which is what makes both failure modes impossible at once —
+ * a reviewer found the second one and it is real.
+ *   · A hashed FILENAME 404s out of edge-cached HTML after a deploy → `<use>` draws NOTHING.
+ *   · A bare stable name is cached by the BROWSER for up to max-age, so fresh HTML naming a glyph
+ *     added in this build would resolve against yesterday's sprite and that ONE icon would be blank.
+ *     A Cloudflare purge does not reach a browser cache.
+ * A query string is not part of the file path, so the server answers it from the same file — cached
+ * HTML asking for `?v=<old>` still gets a real sprite — while a CHANGED query is a different cache
+ * key in the browser, so a new glyph is fetched immediately. Neither hole is open.
+ */
+const spriteUrl = `/icons/glyphs.svg?v=${spriteHash}`
+
+// Sweep any hashed sprite left by an older revision of this script, so a stale one cannot sit in
+// public/ pretending to be current.
+for (const f of readdirSync(OUT)) {
+  if (/^glyphs\.[0-9a-f]+\.svg$/.test(f)) rmSync(join(OUT, f))
+}
+writeFileSync(join(OUT, 'glyphs.svg'), spriteSvg.replace('<svg xmlns="http://www.w3.org/2000/svg">',
+  `<svg xmlns="http://www.w3.org/2000/svg"><!-- content ${spriteHash} -->`))
+
+const shimBody = spriteGlyphs
+  .map((g) => `/** ${g.why} */\nexport const ${g.name} = (p: IconProps) => <Glyph {...p} n="${g.name}" />`)
   .join('\n')
 
 writeFileSync(
@@ -673,7 +780,27 @@ export type IconProps = Omit<SVGProps<SVGSVGElement>, 'ref'> & {
 /** The type lucide exports for "a component that renders an icon", used where icons are passed around. */
 export type LucideIcon = (props: IconProps) => React.ReactElement
 
-function Glyph({ size = 24, strokeWidth: _sw, absoluteStrokeWidth: _asw, children, ...rest }: IconProps) {
+/**
+ * The sprite every glyph draws from. Content-hashed, so it is safe to cache forever.
+ *
+ * Exported so \`src/app/layout.tsx\` can \`<link rel="preload">\` it: it is one request that every
+ * page needs, and without the hint the browser only discovers it after hydration paints the first
+ * \`<use>\`, which is a visible pop-in on a cold cache.
+ */
+export const ICON_SPRITE_URL = '${spriteUrl}'
+
+/**
+ * ⚠️ TWO \`<use>\` ELEMENTS, NOT ONE, AND THE CLASSES MUST STAY ON THEM.
+ *
+ * \`.i-rest\` / \`.i-on\` are switched by globals.css from the ANCESTOR control's aria/data state.
+ * Host CSS cannot cross into a \`<use>\` shadow tree, so the two weights have to be two real nodes
+ * in the host document — which these are. Collapsing this to a single \`<use>\` and swapping
+ * \`href\` would need JavaScript per state change and would lose the opacity crossfade entirely.
+ *
+ * \`fill="none"\` on the host \`<svg>\` and \`fill="currentColor"\` inside each symbol: colour
+ * inherits through the shadow boundary, so an icon still takes its ink from the control.
+ */
+function Glyph({ size = 24, strokeWidth: _sw, absoluteStrokeWidth: _asw, n, ...rest }: IconProps & { n: string }) {
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
@@ -684,7 +811,8 @@ function Glyph({ size = 24, strokeWidth: _sw, absoluteStrokeWidth: _asw, childre
       aria-hidden="true"
       {...rest}
     >
-      {children}
+      <use className="i-rest" href={\`\${ICON_SPRITE_URL}#\${n}-r\`} />
+      <use className="i-on" href={\`\${ICON_SPRITE_URL}#\${n}-o\`} />
     </svg>
   )
 }
