@@ -1,11 +1,16 @@
 'use client'
 
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 import { usePathname, useRouter } from 'next/navigation'
 import type { User } from '@supabase/supabase-js'
 import { trackSignUp } from '@/lib/analytics'
 import { mayGateOnboarding } from '@/lib/onboarding-gate'
+/**
+ * ⚠️ THE IDENTITY RULES LIVE IN A PURE MODULE — see auth-identity.ts for why (they shipped wrong
+ * once, and testing them must not drag next/navigation and the Supabase browser client along).
+ */
+import { acceptedIdentity, identityIsCurrent, ownAccountType, ownStorefrontId, stampAccountType, type FetchedIdentity, type MeResponse } from './auth-identity'
 
 // Fire the sign_up / CompleteRegistration conversion exactly once for a genuinely
 // NEW account. Supabase's auth events don't flag new-vs-returning, so we treat a
@@ -52,6 +57,10 @@ type AuthCtx = {
    * `listing.sellerId === sellerId`, and both sides are already public facts about the listing.
    * ⚠️ Gate on `identityLoaded` like `accountType`: null means BOTH "no storefront" and "not asked
    * yet", and an owner-only control that flashes in on hydration is worse than one that waits.
+   *
+   * ⛔ NOT ITS OWN STATE — derived in render from a stamp carrying the user it was fetched for. The
+   * rules, and the leak that forced them, are in auth-identity.ts; read it before changing how this
+   * is produced.
    */
   sellerId: string | null
   /**
@@ -64,6 +73,11 @@ type AuthCtx = {
    * the SESSION's flag and says nothing about the identity fetch, so a consumer gating on it alone
    * renders the card too early — and a click in that window POSTs a fresh account type over a real
    * one. Any consumer branching on `accountType` must gate on this too.
+   *
+   * ⚠️ SINCE 2026-08-15 IT ALSO CANNOT BE STALE-TRUE. It is derived, not stored: it means "we hold
+   * an answer AND that answer is about the user signed in right now", evaluated in the same render.
+   * The older wording — "has /api/me answered yet" — was true of a flag that could stay true across
+   * an account switch, which is exactly how it once failed. See auth-identity.ts.
    */
   identityLoaded: boolean
   signOut: () => Promise<void>
@@ -78,9 +92,51 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true)
   const [signInOpen, setSignInOpen] = useState(false)
   const [signInCtx, setSignInCtx] = useState<SignInContext | null>(null)
-  const [accountType, setAccountType] = useState<string | null>(null)
-  const [sellerId, setSellerId] = useState<string | null>(null)
-  const [identityLoaded, setIdentityLoaded] = useState(false)
+  /**
+   * ⛔ THE VIEWER'S STOREFRONT ID IS STORED WITH THE USER IT WAS FETCHED FOR — NEVER ON ITS OWN.
+   * `sellerId` below is DERIVED from this during render, and that is the entire point.
+   *
+   * The first cut kept a bare `sellerId` state and cleared it in the identity effect. That is one
+   * commit too late: when `user` flips to a different account, React renders the new `user` with
+   * the OLD `sellerId` still in state and only then runs the effect. For the width of that frame
+   * the previous account's ownership answer is live, so an Edit pencil could paint on a listing
+   * belonging to the person who just signed out. `signOut()` happens to be safe (it clears both in
+   * one batched handler), but a session change arriving through `onAuthStateChange` — a sign-out in
+   * another tab, a session swap — does not go through it. Caught by external review (codex) after
+   * the bare-state version had already shipped.
+   *
+   * ⚠️ Pairing the id with `userId` makes the stale frame unrepresentable rather than merely short:
+   * the comparison happens in the SAME render that sees the new user, so a mismatch reads null
+   * instead of reading someone else's answer. Do not "simplify" this back to a plain string.
+   */
+  const [identity, setIdentity] = useState<FetchedIdentity | null>(null)
+  /**
+   * ⚠️ BUMPED BY EVERY LOCAL WRITE TO THE STAMP, SO A SLOWER SERVER ANSWER CANNOT UNDO A NEWER ONE.
+   * The case both external reviewers found: an onboarding-pending user picks their account type
+   * while the identity fetch is still in flight; the response then lands carrying the PRE-choice
+   * `accountType: null` and overwrites it, and the gate bounces them back to /onboard. `cancelled`
+   * cannot help — nothing about the user changed, only the data did.
+   */
+  const localWrites = useRef(0)
+  /**
+   * ⚠️ DERIVED FROM THE SAME STAMP, NOT ITS OWN useState — so it cannot be stale-TRUE.
+   * It used to be independent state cleared in the identity effect, which meant that on an account
+   * switch the first render carried `identityLoaded=true` belonging to the PREVIOUS user. That is
+   * the failure the flag exists to prevent, one identity removed: every consumer is told to gate on
+   * it, so a confidently-true flag over another account's answer is worse than no flag. Deriving it
+   * makes "we have an answer" and "the answer is about the current user" the same statement, in the
+   * same render. Raised by all three reviewers on the sellerId fix; this is the general form.
+   */
+  /**
+   * ⛔ ALL THREE DERIVED FROM THE ONE STAMP, IN RENDER — retain, clear and discard are a single
+   * rule, so these can never disagree about whose answer they are holding. `accountType` was the
+   * last value left as bare state; all three reviewers named it, because a stale account type under
+   * a true `identityLoaded` is how /onboard shows its chooser to an already-onboarded account and a
+   * click overwrites a real answer.
+   */
+  const identityLoaded = identityIsCurrent(identity, user?.id)
+  const sellerId = ownStorefrontId(identity, user?.id)
+  const accountType = ownAccountType(identity, user?.id)
   const router = useRouter()
   const pathname = usePathname()
 
@@ -182,35 +238,136 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // still pending. Separate from the Supabase boot so it also covers phone OTP,
   // which has no server callback to gate on.
   useEffect(() => {
-    // ⚠️ sellerId resets WITH accountType. Leaving it behind means the previous user's
-    // storefront id survives a sign-out or an account switch, and the owner-only Edit
-    // control would then render on a stranger's listing.
-    if (!user) { setAccountType(null); setSellerId(null); setIdentityLoaded(false); return }
-    // ⚠️ RESET BEFORE EVERY FETCH, NOT ONLY ON SIGN-OUT. This effect re-runs whenever `user`
-    // changes — including a switch to a DIFFERENT account and a token/metadata refresh, neither of
-    // which passes through a falsy `user`. Without this line `identityLoaded` stayed true across
-    // that gap while `accountType` still held the PREVIOUS user's answer, so a consumer gating on
-    // `identityLoaded` (which is the whole point of exposing it) would read a confidently stale
-    // value. If the stale value was null and the incoming user is onboarded, /onboard renders its
-    // chooser and a click overwrites a real account type — the exact bug this flag was added to
-    // prevent, one identity removed. Caught by external review after the first fix shipped.
-    setIdentityLoaded(false)
-    // ⚠️ AND CLEAR sellerId WITH IT, even though `identityLoaded=false` already makes every correct
-    // consumer stand down. The two differ in what they cost when someone gets it wrong: a stale
-    // accountType behind a false flag is inert, but a stale sellerId is an OWNERSHIP answer, so the
-    // first consumer that reads it without the flag renders an Edit control on a stranger's listing
-    // for the width of one fetch. Clearing it makes the wrong answer unavailable rather than merely
-    // unread. (Raised by external review as a leak; it is not one today — this is the cheap guard
-    // that keeps it from becoming one.)
-    setSellerId(null)
+    // Signed out: nothing is known about anyone. One clear drops accountType, sellerId and
+    // identityLoaded together, because since 2026-08-15 all three ARE the stamp (auth-identity.ts).
+    if (!user) { setIdentity(null); return }
+    /**
+     * ⚠️ DROP THE HELD ANSWER — UNLESS IT IS PROVABLY STILL ABOUT THIS USER.
+     *
+     * ⛔ THIS SUPERSEDES THE OLD "RESET BEFORE EVERY FETCH, NOT ONLY ON SIGN-OUT" RULE, AND THE
+     * REASON THAT RULE EXISTED IS NOW HANDLED SOMEWHERE BETTER. It was added because this effect
+     * re-runs on every `user` change — an account switch AND a plain token/metadata refresh, neither
+     * passing through a falsy `user` — and without a reset `identityLoaded` stayed true while the
+     * values underneath still described the PREVIOUS account. If that stale accountType was null and
+     * the incoming user was already onboarded, /onboard rendered its chooser and a click overwrote a
+     * real account type. A reset here could only ever narrow that window, never close it: an effect
+     * runs AFTER the render that already had the new user.
+     *
+     * What closes it is the stamp being compared IN RENDER (see the derivations at the top of this
+     * component). A mismatched answer is unreadable the instant `user` changes, with no effect
+     * involved — so this line no longer has to be a blunt reset, and being blunt cost something
+     * real: clearing on every token refresh flapped `identityLoaded` false→true and unmounted the
+     * owner-only controls and the onboarding gate for the width of a fetch, to re-learn what we
+     * already knew. Keep a same-user answer; drop anything else.
+     */
+    setIdentity((prev) => (prev && prev.userId === user.id ? prev : null))
     let cancelled = false
+    const writesAtStart = localWrites.current
     fetch('/api/me')
-      .then((r) => r.json())
-      .then((d) => { if (!cancelled) { setAccountType(d.user?.accountType ?? null); setSellerId(d.user?.sellerId ?? null); setIdentityLoaded(true) } })
+      /**
+       * ⚠️ `r.ok` FIRST — A NON-2xx BODY IS NOT AN ANSWER. Without this, a 401/500 JSON error body
+       * parses fine, carries no `user`, and would be read as a statement about this viewer. Routing
+       * it to the `.catch` below is what makes the documented fail-open contract actually hold: no
+       * stamp, so `identityLoaded` stays false and every gate stands down, instead of a transient
+       * API blip telling an onboarded user they have no account type. Raised independently by two
+       * reviewers; the pre-existing code had the same gap.
+       */
+      .then((r) => (r.ok ? r.json() : Promise.reject(Object.assign(new Error(`/api/me ${r.status}`), { status: r.status }))))
+      /**
+       * ⛔ STAMPED WITH THE SUBJECT THE SERVER NAMED, NOT THE ONE WE ASKED FOR — AND DISCARDED
+       * ENTIRELY ON A MISMATCH. `cancelled` only covers an unmount or a `user` change this tab has
+       * already seen; it cannot cover the window where the SESSION changed but this tab's auth
+       * event has not landed. The request carries whatever cookies exist when the server reads
+       * them, so a sign-in in another tab mid-fetch answers about the NEW account while this page
+       * still renders the old one — and the payload carries `sellerId`, so believing it would
+       * attribute one person's storefront to another. Comparing `d.user.id` makes the stamp a
+       * server assertion instead of our own guess.
+       *
+       * ⚠️ AND `{ user: null }` IS NOT AN ANSWER ABOUT ANYONE — IT MEANS THE SESSION IS GONE.
+       * Checked rather than assumed: `getCurrentProfile()` LAZILY PROVISIONS a Profile row
+       * (src/lib/admin.ts — `if (!existing) return ensureProfile(...)`), so an authenticated caller
+       * always gets a payload back. A null body therefore only ever means unauthenticated — never
+       * "signed in but not onboarded". That matters because the earlier cut of this accepted a null
+       * body as a valid answer, which would let a sign-out in another tab mid-fetch stamp THIS
+       * viewer as `identityLoaded=true, accountType=null` and hand them the /onboard chooser the
+       * flag exists to keep away from an onboarded account. Onboarding is unaffected: it keys off
+       * `accountType === null` on a FULL payload, which carries an id.
+       */
+      .then((d: MeResponse) => {
+        if (cancelled) return
+        const accepted = acceptedIdentity(d, user.id)
+        /**
+         * ⛔ A DISCARDED ANSWER CLEARS THE STAMP — IT DOES NOT LEAVE THE OLD ONE STANDING.
+         * Reaching here with `accepted === null` means the server just told us this browser's
+         * session is not the user this tab is rendering (a sign-out or a sign-in in another tab,
+         * whose auth event has not arrived yet). Retaining the previous answer through that would
+         * keep owner-only controls and the onboarding gate live on the strength of a session the
+         * server has already contradicted. Clearing is fail-CLOSED: `identityLoaded` goes false,
+         * every gate stands down, and the auth event sorts it out a moment later.
+         */
+        if (!accepted) {
+          /**
+           * ⚠️ SAY SO IN DEV. Discarding is correct, but its failure mode is silence: if this ever
+           * fired for a legitimate answer — say `Profile.id` stopped matching the Supabase user id —
+           * that viewer would simply never get an Edit control or an onboarding gate, with nothing
+           * anywhere saying why. (Measured 2026-08-15: 0 of 20 Profile rows lack a matching
+           * auth.users row, so the assumption holds today; this is the tripwire for the day it
+           * does not.) Dev-only — a discarded answer is normal during a real account switch.
+           *
+           * ⚠️ AND THIS CLEARS EVEN OVER A NEWER LOCAL WRITE, DELIBERATELY — the `localWrites` guard
+           * below covers accepted answers only. A reviewer read that as losing the user's onboarding
+           * choice, and it can; it is still the right way round. `markOnboarded` mirrors a write that
+           * ALREADY PERSISTED server-side, so a lost mirror is restored by the next successful fetch.
+           * A retained ownership claim after the server has refused our session is not self-healing
+           * in the safe direction. Recoverable beats plausible.
+           */
+          if (process.env.NODE_ENV !== 'production') {
+            console.warn('[auth] /api/me answer discarded — it did not name the signed-in user', { askedFor: user.id })
+          }
+          setIdentity(null)
+          return
+        }
+        // A local write landed while this was in flight → it is the newer truth about accountType.
+        // Everything else in the response is still the freshest we have, so only that field is kept.
+        setIdentity((prev) => (localWrites.current !== writesAtStart && prev && prev.userId === user.id
+          ? { ...accepted, accountType: prev.accountType }
+          : accepted))
+      })
       // Fail OPEN: on a transient /api/me failure leave identityLoaded=false so
       // the onboarding gate stays inert — never trap a real user in /onboard
       // because identity couldn't be read.
-      .catch(() => { /* keep identityLoaded=false */ })
+      /**
+       * ⛔ A FAILED REQUEST IS NOT A STATEMENT ABOUT WHO THE VIEWER IS — SO IT DOES NOT CLEAR.
+       *
+       * ⚠️ TWO REVIEWERS PULLED IN OPPOSITE DIRECTIONS HERE AND THE SPLIT IS WHO SPOKE. One argued
+       * that retaining an answer through a failure leaves ownership state live on a session the
+       * server may have revoked; the other, that clearing on a transient blip yanks the Edit
+       * controls out from under a perfectly valid session with nothing scheduled to put them back —
+       * and nothing retries, so `identityLoaded` would sit false until the next `user` change. Both
+       * are right about their own case, and the distinction that separates them is whether the
+       * SERVER answered: a 5xx or a dropped connection means we could not ASK, so the last answer we
+       * have is still the best one we have. A 200 that names a different subject — handled above —
+       * IS the server contradicting us, and that one clears.
+       *
+       * ⚠️ Note /api/me never 401s: a guest gets 200 `{ user: null }`, which the accept rule already
+       * treats as "session gone" and clears on. So the revoked-session case lands in the branch
+       * above, not here, and this branch really is only "the network let us down".
+       */
+      .catch((e: { status?: number }) => {
+        if (cancelled) return
+        /**
+         * ⛔ 401/403 IS THE SERVER REFUSING THIS SESSION — CLEAR. Everything else means we could not
+         * ASK, so the last answer we have is still the best one we have and we keep it.
+         *
+         * ⚠️ The route itself answers 200 `{ user: null }` for a guest and never 401s — but the
+         * route is not the only thing that can reply. Cloudflare, the load balancer or a WAF rule
+         * sits in front of it and can, and treating one of those as "just a blip" would keep owner
+         * controls alive on a session that has already been refused. Two reviewers made this exact
+         * point; the earlier version of this branch asserted the 401 could not happen, which was
+         * true of the handler and not of the path in front of it.
+         */
+        if (e?.status === 401 || e?.status === 403) setIdentity(null)
+      })
     return () => { cancelled = true }
   }, [user])
 
@@ -249,9 +406,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { createSupabaseBrowser } = await import('@/lib/supabase/browser')
     await createSupabaseBrowser().auth.signOut()
     setUser(null)
-    setAccountType(null)
-    setSellerId(null)
-    setIdentityLoaded(false)
+    setIdentity(null)
     // Clear the per-user functional caches (inbox, threads, saved) so the next
     // account on this device starts clean.
     try {
@@ -264,7 +419,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch {}
   }, [])
 
-  const markOnboarded = useCallback((type: string) => setAccountType(type), [])
+  /**
+   * The user just chose their account type. Writes it into the stamp, ALWAYS for the user signed in
+   * now — patching a held answer when it is theirs, minting one when it is not or when none exists.
+   *
+   * ⛔ AN EARLIER COMMENT HERE SAID THE OPPOSITE — that minting would be "asserting an answer we
+   * never received", so a null `prev` should do nothing. That is wrong, and it is wrong in the
+   * expensive direction: this is not a guess about the server's answer, it is a local mirror of a
+   * write the user JUST MADE and that already persisted. Dropping it strands them in the /onboard
+   * loop the gate exists to end. The rule and both failure directions live in
+   * `stampAccountType` (auth-identity.ts), which is where the tests are.
+   */
+  /**
+   * ⚠️ MINTS A STAMP IF THERE ISN'T ONE. Patching `prev` alone silently DROPPED the user's choice
+   * whenever the identity fetch was still in flight or had failed — and the dropped write is the
+   * one that tells the onboarding gate to stop redirecting, so the user bounces back to /onboard
+   * forever. Reviewer-caught. `sellerId: null` is honest here: onboarding precedes any storefront,
+   * and the next /api/me overwrites it either way.
+   */
+  const markOnboarded = useCallback((type: string) => {
+    if (!user) return
+    localWrites.current += 1
+    setIdentity((prev) => stampAccountType(prev, user.id, type))
+  }, [user])
   const openSignIn = useCallback((ctx?: SignInContext | null) => { setSignInCtx(ctx ?? null); setSignInOpen(true) }, [])
   // Memoized: opening/closing the sign-in dialog is signInOpen state on THIS
   // provider — without useMemo every useAuth consumer re-rendered on each toggle.

@@ -26,6 +26,17 @@ export async function GET() {
   const shopHandle = handles.find((h) => !h.profileId)?.handle ?? null
   return NextResponse.json({
     user: {
+      /**
+       * ⚠️ WHO THIS ANSWER IS ABOUT — the client compares it against the user it MEANT to ask for,
+       * and discards the whole payload on a mismatch. Without it the client can only stamp the
+       * response with the id it believed it was asking for, which is a guess: the request carries
+       * whatever cookies exist when the server reads them, so a sign-in in ANOTHER TAB mid-fetch
+       * returns the new account's identity to a page still rendering the old one. Since this payload
+       * carries `sellerId`, that mis-attribution is an OWNERSHIP answer about the wrong person.
+       * `Profile.id` IS `auth.users.id` (see the schema comment), so this compares directly against
+       * the Supabase session user. It is the viewer's own id, returned only to them.
+       */
+      id: profile.id,
       displayName: profile.displayName,
       email: profile.email,
       phone: profile.phone ?? null,
