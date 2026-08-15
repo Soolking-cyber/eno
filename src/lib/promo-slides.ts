@@ -99,7 +99,18 @@ export type PromoSlide = {
    * artwork exists solely to carry a partner's lockup. The day a slide is sold without artwork,
    * this field moves up to PromoSlide and the disclosure stops keying off `art`.
    */
-  art?: { mobile: string; desktop: string; alt: string; altVi: string; partner: string }
+  /**
+   * ⚠️ `avif` IS ONE OPTIONAL PAIR, NOT TWO OPTIONAL FIELDS, AND THAT SHAPE IS THE SAFETY.
+   * The WebP stays required; the <picture> offers AVIF first and falls back, so a slide with no
+   * AVIF cut serves exactly what it always did.
+   *
+   * ⛔ THE FIRST CUT HAD `avifMobile?` / `avifDesktop?` SEPARATELY AND AN EXTERNAL REVIEWER BROKE
+   * IT: the mobile <source> deliberately carries no `media` (it is the catch-all, mirroring the
+   * <img> fallback), so a slide with a mobile cut but no desktop one would hand a DESKTOP browser
+   * the 732px mobile image — a wrong-size LCP that no gate would catch, on the home page. Making
+   * the pair atomic makes that state unrepresentable instead of merely undocumented.
+   */
+  art?: { mobile: string; desktop: string; avif?: { mobile: string; desktop: string }; alt: string; altVi: string; partner: string }
 }
 
 /**
@@ -132,6 +143,8 @@ export const PROMO_SLIDES: PromoSlide[] = [
     art: {
       mobile: '/banners/vietkite-mobile.webp',
       desktop: '/banners/vietkite-desktop.webp',
+      // Measured 2026-08-14: 32,324 -> 18,018 B mobile, 70,222 -> 31,913 B desktop (q50).
+      avif: { mobile: '/banners/vietkite-mobile.avif', desktop: '/banners/vietkite-desktop.avif' },
       // The advertiser, rendered on the panel as the "Quảng cáo · VietKite" disclosure chip and
       // spoken FIRST in the link's accessible name. Not a duplicate of the alt string: alt is the
       // artwork's message, this is the attribution, and the two are separated so the disclosure
@@ -174,6 +187,8 @@ export const PROMO_SLIDES: PromoSlide[] = [
       // VietKite; a 2x desktop would triple the weight of the home page's LCP image.
       mobile: '/banners/gmbr-mobile.webp',
       desktop: '/banners/gmbr-desktop.webp',
+      // 44,388 -> 20,618 B mobile, 87,504 -> 38,323 B desktop (q50).
+      avif: { mobile: '/banners/gmbr-mobile.avif', desktop: '/banners/gmbr-desktop.avif' },
       partner: 'GMBR',
       // Alt carries the WHOLE message — it replaces baked-in text, and it is all a screen reader
       // gets. The badges in the artwork ("600+ airlines", "10+ years") are the partner's claims,

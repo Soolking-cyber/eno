@@ -491,6 +491,21 @@ function SlidePanel({ slide, first = false, artReady = true }: { slide: PromoSli
               they supplied a separate mobile cut at all), and making the art slide aspect-ratio'd
               instead of min-h'd breaks the shared-ladder invariant documented above. The real fix
               is a third cut sized for the 600-1023 band, i.e. a promo-slides.ts change. */}
+          {/* ⛔ AVIF FIRST, AND ORDER IS THE WHOLE MECHANISM — a browser takes the FIRST <source>
+              it can decode, so these must precede the WebP ones or they are dead markup. Measured
+              2026-08-14: the desktop cut falls 70,222 -> 31,913 B and the mobile 32,324 -> 18,018 B
+              at q50, on the element the home page picks as its LCP.
+              ⚠️ THE PAIR IS ALL-OR-NOTHING BY TYPE (promo-slides.ts), and these two lines are why:
+              the mobile source carries NO `media` — it is the catch-all, mirroring the <img>
+              fallback below — so a desktop-cut-less pair would serve a desktop browser the 732px
+              mobile art. `slide.art.avif &&` guards both together; never split it back into two
+              independent checks. A slide with no AVIF at all skips both and serves the WebP. */}
+          {slide.art.avif && (
+            <>
+              <source media="(min-width: 1024px)" type="image/avif" srcSet={slide.art.avif.desktop} width={1280} height={300} />
+              <source type="image/avif" srcSet={slide.art.avif.mobile} width={732} height={376} />
+            </>
+          )}
           <source media="(min-width: 1024px)" srcSet={slide.art.desktop} width={1280} height={300} />
           {/* A plain <img>, deliberately: next/image defers discovery behind its own runtime and
               this element is the LCP, so what the preload scanner can act on at parse time is

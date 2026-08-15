@@ -47,6 +47,14 @@ type AuthCtx = {
   loading: boolean
   accountType: string | null
   /**
+   * The viewer's OWN storefront id, or null if they have none. Used to answer "is this listing
+   * mine?" without ever putting a seller's owner id into a public card payload — the comparison is
+   * `listing.sellerId === sellerId`, and both sides are already public facts about the listing.
+   * ⚠️ Gate on `identityLoaded` like `accountType`: null means BOTH "no storefront" and "not asked
+   * yet", and an owner-only control that flashes in on hydration is worse than one that waits.
+   */
+  sellerId: string | null
+  /**
    * Has `/api/me` answered yet? EXPOSED BECAUSE `accountType === null` IS AMBIGUOUS: it means both
    * "this user has not onboarded" and "we have not asked yet", and those need opposite handling.
    *
@@ -71,6 +79,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [signInOpen, setSignInOpen] = useState(false)
   const [signInCtx, setSignInCtx] = useState<SignInContext | null>(null)
   const [accountType, setAccountType] = useState<string | null>(null)
+  const [sellerId, setSellerId] = useState<string | null>(null)
   const [identityLoaded, setIdentityLoaded] = useState(false)
   const router = useRouter()
   const pathname = usePathname()
@@ -173,7 +182,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // still pending. Separate from the Supabase boot so it also covers phone OTP,
   // which has no server callback to gate on.
   useEffect(() => {
-    if (!user) { setAccountType(null); setIdentityLoaded(false); return }
+    // ⚠️ sellerId resets WITH accountType. Leaving it behind means the previous user's
+    // storefront id survives a sign-out or an account switch, and the owner-only Edit
+    // control would then render on a stranger's listing.
+    if (!user) { setAccountType(null); setSellerId(null); setIdentityLoaded(false); return }
     // ⚠️ RESET BEFORE EVERY FETCH, NOT ONLY ON SIGN-OUT. This effect re-runs whenever `user`
     // changes — including a switch to a DIFFERENT account and a token/metadata refresh, neither of
     // which passes through a falsy `user`. Without this line `identityLoaded` stayed true across
@@ -183,10 +195,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // chooser and a click overwrites a real account type — the exact bug this flag was added to
     // prevent, one identity removed. Caught by external review after the first fix shipped.
     setIdentityLoaded(false)
+    // ⚠️ AND CLEAR sellerId WITH IT, even though `identityLoaded=false` already makes every correct
+    // consumer stand down. The two differ in what they cost when someone gets it wrong: a stale
+    // accountType behind a false flag is inert, but a stale sellerId is an OWNERSHIP answer, so the
+    // first consumer that reads it without the flag renders an Edit control on a stranger's listing
+    // for the width of one fetch. Clearing it makes the wrong answer unavailable rather than merely
+    // unread. (Raised by external review as a leak; it is not one today — this is the cheap guard
+    // that keeps it from becoming one.)
+    setSellerId(null)
     let cancelled = false
     fetch('/api/me')
       .then((r) => r.json())
-      .then((d) => { if (!cancelled) { setAccountType(d.user?.accountType ?? null); setIdentityLoaded(true) } })
+      .then((d) => { if (!cancelled) { setAccountType(d.user?.accountType ?? null); setSellerId(d.user?.sellerId ?? null); setIdentityLoaded(true) } })
       // Fail OPEN: on a transient /api/me failure leave identityLoaded=false so
       // the onboarding gate stays inert — never trap a real user in /onboard
       // because identity couldn't be read.
@@ -230,6 +250,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await createSupabaseBrowser().auth.signOut()
     setUser(null)
     setAccountType(null)
+    setSellerId(null)
     setIdentityLoaded(false)
     // Clear the per-user functional caches (inbox, threads, saved) so the next
     // account on this device starts clean.
@@ -247,7 +268,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const openSignIn = useCallback((ctx?: SignInContext | null) => { setSignInCtx(ctx ?? null); setSignInOpen(true) }, [])
   // Memoized: opening/closing the sign-in dialog is signInOpen state on THIS
   // provider — without useMemo every useAuth consumer re-rendered on each toggle.
-  const value = useMemo(() => ({ user, loading, accountType, identityLoaded, signOut, openSignIn, markOnboarded }), [user, loading, accountType, identityLoaded, signOut, openSignIn, markOnboarded])
+  const value = useMemo(() => ({ user, loading, accountType, sellerId, identityLoaded, signOut, openSignIn, markOnboarded }), [user, loading, accountType, sellerId, identityLoaded, signOut, openSignIn, markOnboarded])
 
   return (
     <AuthContext.Provider value={value}>

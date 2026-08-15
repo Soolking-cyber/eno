@@ -130,10 +130,11 @@ export function serializeListing(
 // and dragged searchText/PII through Postgres for nothing. Query with
 // LISTING_CARD_SELECT and serialize with serializeListingCard on every list surface.
 export const LISTING_CARD_SELECT = {
-  // ⚠️ `sellerId` IS SELECTED FOR ORDERING, NOT FOR THE WIRE. src/lib/feed-diversity.ts groups the
-  // browse feed by seller so one catalogue cannot take the whole first screen, and it needs the
-  // owning seller to do it. serializeListingCard maps fields explicitly, so this scalar never
-  // reaches the client payload — the card shape is unchanged.
+  // ⚠️ `sellerId` IS SELECTED FOR TWO THINGS NOW. src/lib/feed-diversity.ts groups the browse feed
+  // by seller so one catalogue cannot take the whole first screen — and since 2026-08-14 it ALSO
+  // reaches the client, so a seller meeting their own listing gets an Edit control. The note here
+  // used to say it never left the server; that changed deliberately and the cost was measured at
+  // 62 bytes gzipped across a 35-card feed. See serializeListingCard.
   sellerId: true,
   id: true, title: true, titleVi: true, price: true, priceUnit: true, currency: true, negotiable: true,
   previousPrice: true, priceDropAt: true, urgentUntil: true,
@@ -157,6 +158,21 @@ type ListingCardRow = {
 export function serializeListingCard(l: ListingCardRow): SerializedListingCard {
   return {
     id: l.id,
+    /**
+     * ⚠️ `sellerId` NOW REACHES THE WIRE, AND THE NOTE ON LISTING_CARD_SELECT USED TO SAY IT DOES
+     * NOT — this is a deliberate reversal, priced before it was made.
+     *
+     * It exists so a seller meeting their OWN listing anywhere on the site gets an Edit control
+     * (owner, 2026-08-14; see owner-edit-button.tsx). Ownership is `card.sellerId === my sellerId`,
+     * and the alternative — the seller's `ownerId` against the session user — would publish an
+     * ACCOUNT UUID for a real person in every card payload on the site. A storefront id is already
+     * public: it is in storefront URLs and /api/sellers/[id].
+     *
+     * MEASURED before adding it, because the note it overrides was about payload weight: the live
+     * 35-card feed goes 66,228 -> 68,048 raw, and **11,335 -> 11,397 gzipped — 62 bytes**. Repeated
+     * UUIDs compress almost to nothing. That is the whole cost.
+     */
+    sellerId: l.sellerId,
     title: l.title,
     titleVi: l.titleVi,
     price: l.price,

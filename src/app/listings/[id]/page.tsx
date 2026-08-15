@@ -49,6 +49,7 @@ import { getTripAssistanceListingId } from '@/lib/trips/dm-thread'
 import { TrackView } from '@/components/marketplace/track-view'
 import { ScrollToTop } from '@/components/marketplace/scroll-to-top'
 import { SaveListingButton } from '@/components/marketplace/save-listing-button'
+import { OwnerEditButton } from '@/components/marketplace/owner-edit-button'
 import { ShareButton } from '@/components/marketplace/share-button'
 import { currencyCode } from '@/lib/analytics'
 import { getEnforcement } from '@/lib/enforcement'
@@ -516,6 +517,10 @@ export default async function ListingPage({ params }: Props) {
             <div className="absolute right-3 top-3 z-10 flex items-center gap-2">
               <ShareButton url={canonicalUrl} title={displayTitle} price={listing.price} currency={listing.currency} compact />
               <SaveListingButton id={listing.id} compact />
+              {/* Owner-only, and it renders nothing for everyone else — see owner-edit-button.tsx.
+                  Sits AFTER Save so the control order is identical for every viewer and the shared
+                  actions never move because a third one appeared. */}
+              <OwnerEditButton listingId={listing.id} sellerId={listing.seller.id} compact />
             </div>
           </div>
 
@@ -711,6 +716,10 @@ export default async function ListingPage({ params }: Props) {
               <div className="absolute right-3 top-3 z-10 flex items-center gap-2">
                 <ShareButton url={canonicalUrl} title={displayTitle} price={listing.price} currency={listing.currency} compact />
                 <SaveListingButton id={listing.id} compact />
+                {/* Owner-only, and it renders nothing for everyone else — see owner-edit-button.tsx.
+                    Sits AFTER Save so the control order is identical for every viewer and the shared
+                    actions never move because a third one appeared. */}
+                <OwnerEditButton listingId={listing.id} sellerId={listing.seller.id} compact />
               </div>
             </div>
 

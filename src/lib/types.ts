@@ -19,6 +19,16 @@ export type SerializedCategory = {
 // superset, so a full listing is always assignable where a card is expected.
 export type SerializedListingCard = {
   id: string
+  /**
+   * The owning STOREFRONT's id — already public (storefront URLs, /api/sellers/[id]).
+   *
+   * ⚠️ On the wire since 2026-08-14 so a seller meeting their own listing anywhere gets an Edit
+   * control (owner-edit-button.tsx compares it against the viewer's own sellerId from /api/me).
+   * The alternative was publishing the seller's `ownerId` — a real person's account UUID — in every
+   * card payload on the site, to decide whether one button renders. Cost measured before adding it:
+   * 62 bytes gzipped across a live 35-card feed.
+   */
+  sellerId: string
   title: string
   titleVi: string | null
   titleI18n?: Record<string, string>

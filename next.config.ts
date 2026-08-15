@@ -569,6 +569,41 @@ const nextConfig: NextConfig = {
       },
       {
         /**
+         * ⛔ THE UNSTAMPED STATIC ASSETS — MEASURED `cf-cache-status: REVALIDATED` ON EVERY REQUEST.
+         *
+         * Checked on production 2026-08-14: `/banners/vietkite-mobile.webp` (32 KB),
+         * `/banners/vietkite-desktop.webp` (70 KB), `/logo-mark.svg`, `/watermark.svg` and
+         * `/vietkite-logo.png` (80 KB) all served `max-age=14400` and every one came back
+         * REVALIDATED — the edge held a copy and asked the origin about it anyway, ~47 ms each, on
+         * files that had not changed in weeks. The banner is the home page's LCP element, so that
+         * round-trip sits directly in front of first paint.
+         *
+         * ⚠️ THE LONG TTL IS `s-maxage` (THE EDGE), NOT `max-age` (THE BROWSER) — AND THE SPLIT IS
+         * THE WHOLE POINT. The measured problem was an EDGE-to-ORIGIN round-trip, so the edge is
+         * what needs the 30 days; the browser does not, and giving it 30 days would be a liability.
+         * These URLs carry no content stamp (the icon sprite below earns `immutable` because its
+         * href carries `?v=<hash>`; these paths do not). Replace `vietkite-logo.png` in place and a
+         * month-long browser cache pins the old bytes on every device that ever saw it, with no way
+         * to bust it short of renaming the file — a Cloudflare purge cannot reach into a browser.
+         * `s-maxage` is shared-cache-only, so browsers ignore it and honour the 1 hour instead.
+         *
+         * ⛔ AND `stale-while-revalidate` DOES NOT SHORTEN A LONG `max-age` — I had this backwards
+         * in the first cut of this rule and an external reviewer caught it. SWR extends freshness
+         * PAST expiry (RFC 5861); it does not cause revalidation during it. So `max-age=2592000,
+         * stale-while-revalidate=86400` does not "converge within a day" — it means no browser
+         * revalidates for a month, then serves stale for a day more. The short `max-age` here is
+         * what does the converging; SWR only keeps the 1-hour boundary off the critical path.
+         *
+         * ⚠️ If one of these ever gains a content stamp in its URL, move it to the immutable rule
+         * below rather than widening this one.
+         */
+        source: "/:path(banners/.*|logo-mark\\.svg|logo-dotvn\\.svg|watermark\\.svg|vietkite-logo\\.png)",
+        headers: [
+          { key: "Cache-Control", value: "public, max-age=3600, s-maxage=2592000, stale-while-revalidate=86400" },
+        ],
+      },
+      {
+        /**
          * The icon sprite — every glyph on the site is a `<use>` into this one file, so it is on the
          * critical path of every page and is worth caching hard.
          *

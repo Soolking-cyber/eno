@@ -4,6 +4,7 @@ import { useEffect, useState, useRef, memo } from 'react'
 import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
 import { Heart, Building2, MapPin, MessageCircle, Tag, Play, ArrowRight } from '@/components/ui/icons'
+import { OwnerEditButton } from '@/components/marketplace/owner-edit-button'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { IconButton } from '@/components/ui/icon-button'
@@ -666,6 +667,21 @@ function ListingCardImpl({
               </IconButton>
             </Tooltip>
           )}
+          {/* ⚠️ FOURTH AND OUTERMOST, AND IT RENDERS FOR NOBODY BUT THE SELLER WHO OWNS THIS LISTING.
+              The row is `flex-row-reverse`, so the LAST child lays out furthest from the heart —
+              which is where an owner-only action belongs: it never displaces chat, offer or locate,
+              and for the ~everyone who does not own the listing the row is unchanged, same three
+              glyphs at the same three positions.
+              `delay-200` continues the existing stagger (chat 0, offer 0, locate 150) so it fans out
+              last rather than arriving with the group.
+              Owner, 2026-08-14: "when they see their own products ... add there as 4th one to edit". */}
+          <OwnerEditButton
+            listingId={listing.id}
+            sellerId={listing.sellerId}
+            compact
+            dense
+            className="pointer-events-auto translate-x-3 opacity-0 transition-all delay-200 duration-200 hover:scale-110 active:scale-[0.96] group-hover:translate-x-0 group-hover:opacity-100 group-hover:delay-200 focus-visible:translate-x-0 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+          />
         </span>
 
         {/* Save (Heart) — pinned top-right on EVERY platform (the only control left on the

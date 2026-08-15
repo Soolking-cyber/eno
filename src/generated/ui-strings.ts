@@ -522,6 +522,7 @@ export const UI_STRINGS: string[] = [
   "East",
   "Edit",
   "Edit in Settings",
+  "Edit listing",
   "Edit price",
   "Electric",
   "Electronics",
