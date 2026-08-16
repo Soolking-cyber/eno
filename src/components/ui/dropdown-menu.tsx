@@ -5,9 +5,64 @@ import { Menu as MenuPrimitive } from "@base-ui/react/menu"
 
 import { cn } from "@/lib/utils"
 import { ChevronRightIcon, CheckIcon } from "@/components/ui/icons"
+import { useScrollDismissedRoot } from "@/components/ui/use-dismiss-on-user-scroll"
 
-function DropdownMenu({ ...props }: MenuPrimitive.Root.Props) {
-  return <MenuPrimitive.Root data-slot="dropdown-menu" {...props} />
+/**
+ * `closeOnScroll` matters most on the one call site that opts out of modality: `more-overflow.tsx`
+ * passes `modal={false}` for the "…" menu on the category and brand rails, and that menu DOES ride
+ * the page as it scrolls. Wiring the primitive rather than that call site means the next
+ * `modal={false}` menu is fixed before it is written.
+ *
+ * ⛔ IT APPLIES ONLY WHEN `modal` IS EXPLICITLY FALSE, AND THE ROUTE TO THAT RULE IS WORTH KEEPING.
+ * The first version wired every menu, on the theory that a modal menu locks page scroll and so
+ * would never see a gesture. A reviewer refuted the theory — scroll locking does not stop `wheel`
+ * or `touchmove` from reaching the document — which meant every modal menu in the app (the account
+ * menu, the dashboard row menus) had quietly changed behaviour, with no test touching any of them.
+ * A second reviewer then named the consequence: a small wheel over a short modal menu would close
+ * it, where it used to do nothing.
+ *
+ * Gating on `modal === false` collapses that blast radius to the one call site that actually has
+ * the bug — `more-overflow.tsx`, whose "…" rail menu opts out of modality and does ride the page —
+ * while leaving every other menu byte-identical to before. A locked page cannot scroll, so there is
+ * nothing to dismiss for; that is now enforced rather than assumed.
+ *
+ * See use-dismiss-on-user-scroll.ts, and the `actionsRef` note in ui/popover.tsx — including why it
+ * must be destructured at runtime and not merely omitted from the type. Both apply here identically.
+ */
+function DropdownMenu({
+  closeOnScroll = true,
+  open,
+  defaultOpen,
+  onOpenChange,
+  modal,
+  actionsRef: _ownedInternally,
+  ...props
+}: Omit<MenuPrimitive.Root.Props, "actionsRef"> & {
+  closeOnScroll?: boolean
+  /** Never passed — declared only so the runtime destructure above can strip it. @deprecated */
+  actionsRef?: never
+}) {
+  const { actionsRef, handleOpenChange } = useScrollDismissedRoot<
+    MenuPrimitive.Root.Actions,
+    MenuPrimitive.Root.ChangeEventDetails
+  >({ closeOnScroll: closeOnScroll && modal === false, open, defaultOpen, onOpenChange })
+
+  return (
+    <MenuPrimitive.Root
+      data-slot="dropdown-menu"
+      actionsRef={actionsRef}
+      open={open}
+      defaultOpen={defaultOpen}
+      onOpenChange={handleOpenChange}
+      /* ⚠️ FORWARDED BACK DELIBERATELY. `modal` is destructured above so the gate can read it, which
+         also removes it from `...props` — leaving this line out would drop `more-overflow`'s
+         `modal={false}` on the floor and turn a deliberately non-modal rail menu into a
+         scroll-locking one. Undefined here is not the same as absent: Base UI applies its own
+         `modal = true` default for undefined, which is the pre-existing behaviour. */
+      modal={modal}
+      {...props}
+    />
+  )
 }
 
 function DropdownMenuPortal({ ...props }: MenuPrimitive.Portal.Props) {

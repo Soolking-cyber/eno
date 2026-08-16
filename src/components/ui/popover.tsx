@@ -4,9 +4,69 @@ import * as React from "react"
 import { Popover as PopoverPrimitive } from "@base-ui/react/popover"
 
 import { cn } from "@/lib/utils"
+import { useScrollDismissedRoot } from "@/components/ui/use-dismiss-on-user-scroll"
 
-function Popover({ ...props }: PopoverPrimitive.Root.Props) {
-  return <PopoverPrimitive.Root data-slot="popover" {...props} />
+/**
+ * ⚠️ THIS IS THE PRIMITIVE THE "STUCK DROPDOWN" REPORT WAS ABOUT. Popover is the one floating layer
+ * we use that defaults to `modal = false`, so the page scrolls freely underneath it while Base UI's
+ * Positioner merely re-anchors the popup — measured at /?category=vehicles, the Price panel stayed
+ * mounted through a 450px scroll. `closeOnScroll` (default ON) dismisses it on a user scroll
+ * gesture; see use-dismiss-on-user-scroll.ts for why the trigger is `wheel`/`touchmove` and not
+ * `scroll`, and why Select and Combobox are deliberately not given the same treatment.
+ *
+ * ⚠️ `actionsRef` IS OWNED BY THIS WRAPPER and omitted from the public props on purpose — closing
+ * imperatively is how the dismissal keeps controlled call sites in sync, and a caller-supplied ref
+ * would silently replace it. No call site passes one (swept 2026-08-16); a future one that needs
+ * `unmount()` should extend this wrapper rather than route around it, and will get a tsc error
+ * here rather than a dropdown that stopped closing.
+ *
+ * ⛔ AND IT IS DESTRUCTURED AWAY AT RUNTIME, NOT JUST OMITTED FROM THE TYPE. Both reviewers landed
+ * on this independently: `Omit<…, "actionsRef">` is erased at compile time, so a caller reaching
+ * through `any`, plain JS, or a spread of a wider object would still put `actionsRef` into
+ * `...props` — and because the spread trails the explicit prop, it would win and silently detach
+ * the close mechanism. Pulling it out of the object is the only thing that actually stops that.
+ */
+function Popover({
+  closeOnScroll = true,
+  open,
+  defaultOpen,
+  onOpenChange,
+  modal,
+  actionsRef: _ownedInternally,
+  ...props
+}: Omit<PopoverPrimitive.Root.Props, "actionsRef"> & {
+  closeOnScroll?: boolean
+  /** Never passed — declared only so the runtime destructure above can strip it. @deprecated */
+  actionsRef?: never
+}) {
+  /**
+   * ⚠️ `modal !== true`, THE MIRROR OF ui/dropdown-menu's `modal === false` — and the asymmetry is
+   * the defaults, not an inconsistency. Popover's `modal` defaults to FALSE, which is precisely the
+   * scrollable case this exists for, so the gate must let `undefined` through; Menu's defaults to
+   * TRUE, so its gate must not. Both express one rule: dismiss only when the page can actually
+   * scroll. No call site passes `modal` to a Popover today (swept 2026-08-16), so this changes
+   * nothing now and stops a future `<Popover modal>` inheriting a behaviour that makes no sense
+   * behind a locked page.
+   */
+  const { actionsRef, handleOpenChange } = useScrollDismissedRoot<
+    PopoverPrimitive.Root.Actions,
+    PopoverPrimitive.Root.ChangeEventDetails
+  >({ closeOnScroll: closeOnScroll && modal !== true, open, defaultOpen, onOpenChange })
+
+  return (
+    <PopoverPrimitive.Root
+      data-slot="popover"
+      actionsRef={actionsRef}
+      open={open}
+      defaultOpen={defaultOpen}
+      onOpenChange={handleOpenChange}
+      /* Forwarded back: destructuring `modal` for the gate above also removed it from `...props`,
+         and dropping it would silently change modality for any call site that sets it. Same trap,
+         and same fix, as ui/dropdown-menu. */
+      modal={modal}
+      {...props}
+    />
+  )
 }
 
 function PopoverTrigger({ ...props }: PopoverPrimitive.Trigger.Props) {

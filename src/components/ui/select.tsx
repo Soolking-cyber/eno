@@ -6,6 +6,15 @@ import { Select as SelectPrimitive } from "@base-ui/react/select"
 import { cn } from "@/lib/utils"
 import { ChevronDownIcon, CheckIcon, ChevronUpIcon } from "@/components/ui/icons"
 
+/**
+ * ⚠️ DELIBERATELY NOT GIVEN THE close-on-scroll BEHAVIOUR ui/popover and ui/dropdown-menu carry.
+ * Two independent reasons, both measured in Base UI 1.6 rather than assumed: SelectRoot defaults to
+ * `modal = true`, so the page cannot scroll while the list is open and there is no gesture to react
+ * to (no call site overrides it — swept 2026-08-16); and `SelectRootActions` is `{ unmount() }` with
+ * no `close()`, so dismissing one imperatively would mean this wrapper seizing the `open` prop from
+ * every call site to serve a case that cannot arise. If a call site ever passes `modal={false}`,
+ * that is the moment to revisit — see use-dismiss-on-user-scroll.ts.
+ */
 const Select = SelectPrimitive.Root
 
 function SelectGroup({ className, ...props }: SelectPrimitive.Group.Props) {
