@@ -1395,6 +1395,7 @@ export const UI_STRINGS: string[] = [
   "That email address doesn’t look right.",
   "That handle is already taken.",
   "That is already your email.",
+  "That is already your password — nothing to change. Pick a different one to replace it.",
   "That is very different from your asking price — check the zeros.",
   "That link didn't work",
   "That name is reserved.",

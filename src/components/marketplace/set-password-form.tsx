@@ -107,7 +107,27 @@ export function SetPasswordForm({ signInEnabled = false }: {
         // for something the user cannot fix by choosing a better one.
         const weak = error.code === 'weak_password' || /weak|at least|too short|characters/i.test(error.message || '')
         const stale = error.code === 'reauthentication_needed' || /reauth|recent login|session/i.test(error.message || '')
-        if (weak) {
+        /**
+         * ⛔ THE THIRD REAL OUTCOME, AND IT WAS FALLING INTO "Try again." — WHICH IS ADVICE THAT
+         * CANNOT WORK. GoTrue refuses a password identical to the current one with
+         * `same_password`. Only `weak_password` and `reauthentication_needed` were matched here, so
+         * a user re-entering the password they already have was told the save FAILED and to retry —
+         * and retrying reproduces it forever. The owner hit exactly this on 2026-08-16 with an
+         * account that already had a password set (verified in auth.users: encrypted_password
+         * present), which is the one case where the true answer is "nothing is wrong".
+         *
+         * ⚠️ It is a FIELD error, not an attempt error: the fix is to change the value in the box,
+         * so it belongs on the control that announces as invalid — same split as the weak branch.
+         */
+        // ⚠️ THE FALLBACK REQUIRES THE WORD "password" TOO. A bare /should be different/ matches any
+        // message containing that phrase, and this branch makes a CLAIM about what the user typed —
+        // telling someone "that is already your password" over an unrelated failure is worse than
+        // the generic message it replaces. Same trap the comment above records for the weak branch,
+        // where a loose /password/i test swallowed unrelated errors. Reviewer-caught, again.
+        const same = error.code === 'same_password' || /password.*(should be different|already)|same password/i.test(error.message || '')
+        if (same) {
+          setFieldErr(tr('That is already your password — nothing to change. Pick a different one to replace it.', 'Đó đã là mật khẩu hiện tại của bạn — không có gì thay đổi. Hãy chọn mật khẩu khác nếu muốn thay.'))
+        } else if (weak) {
           setFieldErr(tr('That password is too easy to guess. Try a longer one, or add a few unrelated words.', 'Mật khẩu quá dễ đoán. Hãy dùng mật khẩu dài hơn, hoặc thêm vài từ không liên quan.'))
         } else {
           // A session too old for a credential change is the other realistic failure, and it
