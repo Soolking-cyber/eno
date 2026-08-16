@@ -18,3 +18,4 @@ export const TripQuoteCard = Nothing
 export const TripStatusCard = Nothing
 export const TripWizardCard = Nothing
 export const TripWizardLauncher = Nothing
+export const TripRequestCard = Nothing

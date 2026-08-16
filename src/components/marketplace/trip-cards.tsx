@@ -1178,3 +1178,160 @@ export function TripWizardLauncher({
     </>
   )
 }
+
+/** What /api/trips/assistance/[id]/itinerary answers. Mirrors TripRequestView in request-view.ts. */
+type TripRequestView = {
+  requestId: string
+  status: string
+  mine: boolean
+  itinerary: {
+    title: string
+    days: number
+    destination: string
+    destinationVi: string | null
+    airports: string[]
+    estimatedBudget: number | null
+    currency: string
+    dayPlans: {
+      dayNumber: number
+      area: string; areaVi: string | null
+      title: string; titleVi: string | null
+      morning: string; morningVi: string | null
+      afternoon: string; afternoonVi: string | null
+      evening: string; eveningVi: string | null
+    }[]
+  } | null
+}
+
+/**
+ * THE BOOKING REQUEST, AS THE DESK SEES IT — the traveller's whole plan, ready to book from.
+ *
+ * Owner, 2026-08-16: "make it obvious when someone requests itinerary booking" and "booker should
+ * receive full itinerary to help booking easily". Both were the same gap: requestAssistance opened
+ * a case and told the thread nothing, so the desk had a notification and an unchanged inbox row.
+ *
+ * ⚠️ IT RE-READS THE ITINERARY RATHER THAN CARRYING IT. The message row holds only a requestId (see
+ * TripRequestMeta), so a traveller who fixes a day before the desk opens the thread is booked on
+ * the corrected plan — and the card can never be a channel for smuggling free text into a thread.
+ *
+ * ⚠️ BOTH PARTIES SEE THIS CARD, so it says nothing the traveller should not read about themselves
+ * and offers no operator action; quoting stays on the quote card, which already owns that flow.
+ */
+export function TripRequestCard({ requestId }: { requestId: string }) {
+  const { tr, lang } = useLanguage()
+  const [view, setView] = useState<TripRequestView | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [open, setOpen] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res = await fetch(`/api/trips/assistance/${encodeURIComponent(requestId)}/itinerary`, { cache: 'no-store' })
+        if (!cancelled) setView(res.ok ? await res.json() : null)
+      } catch {
+        // A card that cannot read its case renders as unavailable, never as a broken bubble.
+        if (!cancelled) setView(null)
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    })()
+    return () => { cancelled = true }
+  }, [requestId])
+
+  const heading = tr('Trip booking requested', 'Đã yêu cầu đặt chuyến đi')
+
+  /**
+   * ⛔ THE BADGE READS THE CASE, IT DOES NOT ASSERT ONE. It hard-coded "Awaiting the desk" in the
+   * first cut, which made this card lie for every case that had moved on: a traveller who
+   * cancelled, or a desk that had already quoted, still saw a thread claiming the request was
+   * waiting — on a card whose own comment says it re-reads live precisely so it cannot go stale.
+   * Reviewer-caught. Anything not in the map falls back to the raw status rather than to a
+   * confident wrong word.
+   */
+  const statusLabel = (status: string): string => {
+    switch (status) {
+      case 'requested': return tr('Awaiting the desk', 'Chờ bộ phận hỗ trợ')
+      case 'reviewing': return tr('Desk is reviewing', 'Đang xem xét')
+      case 'quoted': return tr('Quoted', 'Đã báo giá')
+      case 'arranging': return tr('Arranging', 'Đang sắp xếp')
+      case 'confirmed': return tr('Confirmed', 'Đã xác nhận')
+      case 'cancelled': return tr('Cancelled', 'Đã huỷ')
+      case 'declined': return tr('Declined', 'Đã từ chối')
+      default: return status
+    }
+  }
+
+  if (loading) {
+    return (
+      <ChatCard eyebrow={tr('Trip', 'Chuyến đi')} icon={CalendarCheck} title={heading}>
+        <Skeleton className="h-4 w-40" />
+      </ChatCard>
+    )
+  }
+
+  const it = view?.itinerary ?? null
+  // ⚠️ `?? field` on every Vietnamese column: they are nullable and an untranslated day must show
+  // the source text, not an empty row in the middle of someone's trip.
+  const pick = (en: string, vi: string | null) => (lang === 'vi' ? (vi ?? en) : en)
+
+  return (
+    <ChatCard
+      eyebrow={tr('Trip', 'Chuyến đi')}
+      icon={CalendarCheck}
+      title={heading}
+      right={view ? <Badge variant="neutral">{statusLabel(view.status)}</Badge> : undefined}
+    >
+      {!it ? (
+        <p className="text-sm text-ink-3">
+          {/* ⚠️ TWO DIFFERENT FACTS, TWO SENTENCES. `view` present with a null itinerary means the
+              plan really is gone; no `view` at all means this reader could not READ it (403, 429,
+              offline) — saying "no longer available" there tells the desk a trip was deleted when
+              it was not. */}
+          {view
+            ? tr('This trip plan is no longer available.', 'Kế hoạch chuyến đi này không còn khả dụng.')
+            : tr('This booking request could not be loaded.', 'Không tải được yêu cầu đặt chỗ này.')}
+        </p>
+      ) : (
+        <div className="flex flex-col gap-2">
+          <p className="text-sm font-semibold text-ink-1">{it.title}</p>
+          <p className="text-xs text-ink-3">
+            {it.days} {tr('days', 'ngày')} · {pick(it.destination, it.destinationVi)}
+            {it.airports.length > 0 && ` · ${it.airports.join(' / ')}`}
+          </p>
+          {it.dayPlans.length > 0 && (
+            <>
+              <Button
+                variant="bare"
+                size="none"
+                onClick={() => setOpen((v) => !v)}
+                aria-expanded={open}
+                className="flex items-center gap-1 self-start text-xs font-semibold text-brand"
+              >
+                {open ? tr('Hide the day-by-day', 'Ẩn lịch trình từng ngày') : tr('Show the day-by-day', 'Xem lịch trình từng ngày')}
+                <ChevronDown className={cn('h-3.5 w-3.5 transition-transform', open && 'rotate-180')} aria-hidden />
+              </Button>
+              {open && (
+                <ol className="flex flex-col gap-2.5">
+                  {it.dayPlans.map((d) => (
+                    <li key={d.dayNumber} className="rounded-lg bg-muted/60 p-2.5">
+                      <p className="text-xs font-bold text-ink-1">
+                        {tr('Day', 'Ngày')} {d.dayNumber} · {pick(d.area, d.areaVi)}
+                      </p>
+                      <p className="text-xs font-semibold text-ink-2">{pick(d.title, d.titleVi)}</p>
+                      <dl className="mt-1 flex flex-col gap-0.5 text-xs text-ink-3">
+                        <div><dt className="inline font-semibold">{tr('Morning', 'Sáng')}: </dt><dd className="inline">{pick(d.morning, d.morningVi)}</dd></div>
+                        <div><dt className="inline font-semibold">{tr('Afternoon', 'Chiều')}: </dt><dd className="inline">{pick(d.afternoon, d.afternoonVi)}</dd></div>
+                        <div><dt className="inline font-semibold">{tr('Evening', 'Tối')}: </dt><dd className="inline">{pick(d.evening, d.eveningVi)}</dd></div>
+                      </dl>
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </>
+          )}
+        </div>
+      )}
+    </ChatCard>
+  )
+}

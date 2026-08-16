@@ -37,7 +37,7 @@ import {
   EDITABLE_VISA_STATUSES,
   type VisaQuoteWire,
 } from '@/components/marketplace/visa-cards'
-import { TripAssistChips, TripQuoteCard, TripStatusCard, TripWizardCard, TripWizardLauncher } from '@/components/marketplace/trip-cards'
+import { TripAssistChips, TripQuoteCard, TripRequestCard, TripStatusCard, TripWizardCard, TripWizardLauncher } from '@/components/marketplace/trip-cards'
 import { Avatar } from '@/components/ui/avatar'
 import { Checkbox } from '@/components/ui/checkbox'
 import { LANGUAGES } from '@/lib/i18n/langs'
@@ -1514,7 +1514,7 @@ export default function ThreadPage() {
                * tested. (The chips above the composer use the opposite gate for the opposite
                * reason: there, showing something wrongly is the harm.)
                */
-              if (thread.kind === 'visa' && (m.kind === 'trip_step' || m.kind === 'trip_quote' || m.kind === 'trip_status')) return null
+              if (thread.kind === 'visa' && (m.kind === 'trip_step' || m.kind === 'trip_quote' || m.kind === 'trip_status' || m.kind === 'trip_request')) return null
               const prev = arr[i - 1]
               const showDay = !prev || dayKey(prev.createdAt) !== dayKey(m.createdAt)
               const dk = dayKey(m.createdAt)
@@ -1667,6 +1667,11 @@ export default function ThreadPage() {
                 ) : m.kind === 'trip_quote' && tripField(m.meta, 'requestId') ? (
                   // LIVE: the row carries only a requestId, so the card reads the amounts itself.
                   <TripQuoteCard requestId={tripField(m.meta, 'requestId')!} />
+                ) : m.kind === 'trip_request' && tripField(m.meta, 'requestId') ? (
+                  // The traveller's booking request. LIVE like the quote — the row carries only a
+                  // requestId and the card reads the itinerary itself, so a plan corrected after
+                  // the ask is the plan the desk books.
+                  <TripRequestCard requestId={tripField(m.meta, 'requestId')!} />
                 ) : m.kind === 'trip_status' && tripField(m.meta, 'status') ? (
                   // HISTORICAL: rendered from meta, never re-read — see trip-cards.tsx.
                   <TripStatusCard status={tripField(m.meta, 'status')!} />
@@ -1682,7 +1687,7 @@ export default function ThreadPage() {
                       itineraryId: tripField(m.meta, 'itineraryId') ?? undefined,
                     }}
                   />
-                ) : m.kind === 'trip_quote' || m.kind === 'trip_status' || m.kind === 'trip_step' ? (
+                ) : m.kind === 'trip_quote' || m.kind === 'trip_status' || m.kind === 'trip_step' || m.kind === 'trip_request' ? (
                   // A trip card whose meta this build cannot read. Its body is empty by design, so
                   // it must NOT fall through to an empty bubble.
                   <MessageBubble mine={m.mine} className="max-w-[78%] text-ink-4">

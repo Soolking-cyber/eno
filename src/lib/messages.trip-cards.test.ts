@@ -79,6 +79,7 @@ const REQ = 'ckrequest0000000000000001'
 const convo = { id: 'convo-1', buyerProfileId: 'traveller', sellerProfileId: 'desk', listingId: 'L', visaApplicationId: null }
 const quoteCard = (requestId = REQ) => ({ kind: 'trip_quote' as const, meta: { v: 1 as const, requestId }, preview: 'x' })
 const statusCard = (status: string, requestId = REQ) => ({ kind: 'trip_status' as const, meta: { v: 1 as const, requestId, status }, preview: 'x' })
+const requestCard = (requestId = REQ) => ({ kind: 'trip_request' as const, meta: { v: 1 as const, requestId }, preview: 'x' })
 
 beforeEach(() => {
   h.state.requests = { [REQ]: { id: REQ, conversationId: 'convo-1', profileId: 'traveller', status: 'quoted' } }
@@ -131,6 +132,53 @@ describe('trip card authorship', () => {
 
   it('REFUSES a case that does not exist', async () => {
     await expect(insertMessage(convo, 'desk', '', quoteCard('ckmissing000000000000001'))).rejects.toThrow('trip_card_request_not_found')
+  })
+})
+
+/**
+ * `trip_request` INVERTS THE AUTHORSHIP RULE, AND IT IS THE ONLY KIND THAT DOES.
+ *
+ * A booking request is the one thing in this feature the traveller is the author OF, so the desk
+ * must not be able to mint one on their behalf. Everything that makes that safe is the case
+ * binding, not the author check — so the binding is pinned here as hard as it is for the quote.
+ * If someone ever "tidies" the authorship gate back into one desk-only line, the first test fails.
+ */
+describe('trip_request is the traveller’s card', () => {
+  it('ACCEPTS the traveller as author on their own bound case', async () => {
+    await insertMessage(convo, 'traveller', '', requestCard())
+    expect(h.state.created).toHaveLength(1)
+    expect(h.state.created[0].kind).toBe('trip_request')
+    expect(h.state.created[0].conversationId).toBe('convo-1')
+  })
+
+  it('⛔ REFUSES THE DESK as author — it must not raise a booking request for someone', async () => {
+    await expect(insertMessage(convo, 'desk', '', requestCard())).rejects.toThrow('trip_card_author_forbidden')
+    expect(h.state.created).toHaveLength(0)
+  })
+
+  it('REFUSES a case bound to a DIFFERENT thread, even from the traveller', async () => {
+    // The check that makes traveller authorship safe: without it, a traveller could post a card
+    // naming any case id into their own thread.
+    h.state.requests[REQ].conversationId = 'someone-elses-convo'
+    await expect(insertMessage(convo, 'traveller', '', requestCard())).rejects.toThrow('trip_card_conversation_mismatch')
+    expect(h.state.created).toHaveLength(0)
+  })
+
+  it('REFUSES a case whose traveller is not this thread’s buyer', async () => {
+    h.state.requests[REQ].profileId = 'someone-else'
+    await expect(insertMessage(convo, 'traveller', '', requestCard())).rejects.toThrow('trip_card_traveller_mismatch')
+  })
+
+  it('REFUSES a case that does not exist', async () => {
+    await expect(insertMessage(convo, 'traveller', '', requestCard('ckmissing000000000000001'))).rejects.toThrow('trip_card_request_not_found')
+  })
+
+  it('posts with NO status guard — a request claims no case state, so it cannot go stale', async () => {
+    // The quote/status arm compare-and-sets on status; this one must not, or a request would be
+    // refused for the ordinary reason that the case moved on while the traveller was typing.
+    h.state.requests[REQ].status = 'arranging'
+    await insertMessage(convo, 'traveller', '', requestCard())
+    expect(h.state.created).toHaveLength(1)
   })
 })
 

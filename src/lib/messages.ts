@@ -38,6 +38,11 @@ export const MESSAGE_KINDS = [
   'text', 'offer',
   'visa_step', 'visa_checkout', 'visa_result', 'visa_picker',
   'trip_quote', 'trip_status', 'trip_step',
+  // ⚠️ THE ONLY TRIP CARD THE TRAVELLER AUTHORS — see the authorship gate in buildTripCardMeta.
+  // It marks the moment a traveller asks the desk to BOOK the itinerary they built, which before
+  // 2026-08-16 left no trace in the thread at all: requestAssistance opened a case row and the
+  // desk's inbox showed nothing new.
+  'trip_request',
   // ⚠️ `trip_help` IS DELIBERATELY NOT A CARD — it is absent from TRIP_CARD_KINDS below, so it
   // carries no metaJson and renders as ordinary text. It exists so "the traveller asked for a
   // person" is a FACT IN THE TIMELINE rather than a column: the trip concierge refuses to speak
@@ -58,8 +63,8 @@ export type VisaCardKind = 'visa_step' | 'visa_checkout' | 'visa_result' | 'visa
 const VISA_CARD_KINDS = new Set<string>(['visa_step', 'visa_checkout', 'visa_result', 'visa_picker'])
 export const isVisaCardKind = (kind: string): kind is VisaCardKind => VISA_CARD_KINDS.has(kind)
 
-export type TripCardKind = 'trip_quote' | 'trip_status' | 'trip_step'
-const TRIP_CARD_KINDS = new Set<string>(['trip_quote', 'trip_status', 'trip_step'])
+export type TripCardKind = 'trip_quote' | 'trip_status' | 'trip_step' | 'trip_request'
+const TRIP_CARD_KINDS = new Set<string>(['trip_quote', 'trip_status', 'trip_step', 'trip_request'])
 export const isTripCardKind = (kind: string): kind is TripCardKind => TRIP_CARD_KINDS.has(kind)
 
 /**
@@ -145,6 +150,21 @@ export type TripQuoteMeta = {
   requestId: string
 }
 /**
+ * The traveller asking the desk to book the itinerary they built.
+ *
+ * ⚠️ THE ONLY TRIP CARD NOT AUTHORED BY THE DESK, and the shape is what makes that safe: it
+ * carries the case id and nothing else, so a traveller cannot state a price, a status, or any
+ * free text through it. Everything the desk reads is fetched through the case, whose ownership
+ * the write path proves. Like the quote and unlike the status announcement, it re-reads live —
+ * a booking request is a standing ASK, not a historical fact, so an itinerary the traveller
+ * corrects before the desk opens it must show corrected.
+ */
+export type TripRequestMeta = {
+  v: 1
+  /** TripAssistanceRequest.id — a cuid, NOT a uuid (see TRIP_ID_RE). */
+  requestId: string
+}
+/**
  * A status announcement in the thread.
  *
  * Unlike the quote, this one DOES carry its status, and the asymmetry is the point: an
@@ -212,6 +232,7 @@ type MetaForKind = {
   trip_quote: TripQuoteMeta
   trip_status: TripStatusMeta
   trip_step: TripStepMeta
+  trip_request: TripRequestMeta
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -294,6 +315,15 @@ const tripRequestId = z.string().regex(TRIP_ID_RE)
 const tripQuoteMetaSchema = z
   .object({ v: z.literal(1), requestId: tripRequestId })
   .strict()
+/**
+ * The traveller's booking request. ⚠️ IT CARRIES ONLY THE CASE ID — no destination, no dates, no
+ * note. The desk renders the itinerary by READING it through the case, which means the card can
+ * never be a channel for smuggling free text into a thread, and an itinerary edited after the
+ * request is shown as it is now rather than frozen wrong in a blob nobody can correct.
+ */
+const tripRequestMetaSchema = z
+  .object({ v: z.literal(1), requestId: tripRequestId })
+  .strict()
 const tripStatusMetaSchema = z
   .object({
     v: z.literal(1),
@@ -348,6 +378,7 @@ const META_SCHEMAS: { [K in CardKind]: z.ZodType<MetaForKind[K]> } = {
   trip_quote: tripQuoteMetaSchema,
   trip_status: tripStatusMetaSchema,
   trip_step: tripStepMetaSchema,
+  trip_request: tripRequestMetaSchema,
 }
 const metaSchemaFor = (kind: CardKind): z.ZodType => META_SCHEMAS[kind]
 
@@ -557,8 +588,24 @@ type TripCardBuild =
   | { bind: 'thread'; json: string }
 
 async function buildTripCardMeta(kind: TripCardKind, convo: ConvoForSend, senderId: string, meta: MessageMeta | undefined): Promise<TripCardBuild> {
-  // (1) desk-side authorship — every trip card, whatever it binds to.
-  if (!convo.sellerProfileId || convo.sellerProfileId !== senderId) throw new Error('trip_card_author_forbidden')
+  /**
+   * (1) AUTHORSHIP.
+   *
+   * ⛔ EVERY TRIP CARD IS DESK-AUTHORED EXCEPT `trip_request`, WHICH ONLY THE TRAVELLER MAY POST.
+   * The exception is narrow on purpose and it is not a relaxation: a booking request is the one
+   * thing in this feature the traveller is the author OF, and routing it through the desk would
+   * have meant the desk fabricating a request on someone's behalf — the exact confusion of voices
+   * this gate exists to prevent, just pointed the other way.
+   *
+   * ⚠️ WHAT STOPS A TRAVELLER FORGING ONE IS NOT THIS LINE — it is the case binding below. The
+   * card carries only a requestId, and the `trip_request` arm re-reads that case and refuses
+   * unless it is bound to THIS conversation and owned by THIS conversation's buyer. So the worst a
+   * malicious traveller can do is post a card about their own case in their own thread, which is
+   * what the button does anyway. A card with no such binding must never join this branch.
+   */
+  const travellerAuthored = kind === 'trip_request'
+  const requiredAuthor = travellerAuthored ? convo.buyerProfileId : convo.sellerProfileId
+  if (!requiredAuthor || requiredAuthor !== senderId) throw new Error('trip_card_author_forbidden')
   // (4) shape — first, so any binding check below has trusted values.
   const parsed = metaSchemaFor(kind).safeParse(meta)
   if (!parsed.success) throw new Error('trip_card_meta_invalid')
@@ -574,6 +621,25 @@ async function buildTripCardMeta(kind: TripCardKind, convo: ConvoForSend, sender
       // to another traveller, and nothing to cross-reference. An itineraryId, when present, names a
       // row the traveller is about to be sent to; it is not read back as an authorisation.
       return { bind: 'thread', json }
+    }
+    case 'trip_request': {
+      // CASE-BOUND, and the checks are the same two the quote/status arm runs — deliberately, not
+      // by reuse: this is the arm where the AUTHOR is the traveller, so the binding is the only
+      // thing proving the card is about their own case in their own thread.
+      const caseMeta = data as TripRequestMeta
+      const request = await db.tripAssistanceRequest.findUnique({
+        where: { id: caseMeta.requestId },
+        select: { id: true, conversationId: true, profileId: true },
+      })
+      if (!request) throw new Error('trip_card_request_not_found')
+      if (request.conversationId !== convo.id) throw new Error('trip_card_conversation_mismatch')
+      // ⚠️ AGAINST buyerProfileId, WHICH IS ALSO THE SENDER HERE. Both are checked rather than one
+      // inferred from the other: gate (1) proved sender === buyer, this proves the CASE is that
+      // buyer's, and a thread whose buyer somehow differs from the case owner must not post.
+      if (request.profileId !== convo.buyerProfileId) throw new Error('trip_card_traveller_mismatch')
+      // No status predicate: unlike an announcement this card claims no case state, so there is
+      // nothing for a compare-and-set to keep honest. It says "I asked", which cannot go stale.
+      return { bind: 'case', json, requestId: request.id, guard: {} }
     }
     case 'trip_quote':
     case 'trip_status': {

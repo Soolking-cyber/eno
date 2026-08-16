@@ -54,6 +54,12 @@ const TRIP_STATUS_PREVIEW: Record<string, string> = {
   cancelled: 'Đã huỷ yêu cầu · Request cancelled',
 }
 const TRIP_QUOTE_PREVIEW = 'Báo giá chuyến đi của bạn · Your trip quote'
+/**
+ * ⚠️ PII-FREE AND CONSTANT, like every preview here. Conversation.lastMessageText is plaintext,
+ * BOTH parties read it, and it is what makes the desk's inbox row say something — so it names the
+ * ACT ("a booking was requested") and never the trip. No city, no date, no traveller name.
+ */
+const TRIP_REQUEST_PREVIEW = 'Yêu cầu đặt chuyến đi · Trip booking requested'
 
 export type SentCard = { messageId: string } | null
 
@@ -100,11 +106,72 @@ export async function announceTripStatus(input: { requestId: string; status: str
  * here — a second copy of "is this case bound to this thread?" is a second thing to drift. What
  * this function owns is only: find the thread, and pass the desk's own id as the sender.
  */
+/**
+ * The traveller's booking request, posted into the desk thread.
+ *
+ * ⛔ THIS IS THE CARD THAT MAKES A BOOKING REQUEST VISIBLE AT ALL. Before 2026-08-16
+ * requestAssistance opened a case row and appended an event, and touched the Conversation not at
+ * all — so the desk's inbox showed no new message, no unread count and no changed preview. The
+ * owner's report was exactly that: "itinerary landed in messages but it doesnt show new message
+ * for seller, only notif". A case in a queue is not a message; this is the message.
+ *
+ * ⚠️ AUTHORED BY THE TRAVELLER, WHICH IS ALSO WHAT BUMPS THE RIGHT COUNTER. insertMessage
+ * increments the COUNTERPARTY (`iAmBuyer ? sellerUnread : buyerUnread`), so posting as the buyer
+ * gives the desk its unread for free and in the same write — no second update, and no way for the
+ * counter to disagree with the message that caused it. Posting as the desk would have bumped the
+ * traveller's own unread for a message the traveller sent.
+ *
+ * ⚠️ BEST-EFFORT BY DESIGN — returns null instead of throwing, exactly like the other senders. The
+ * case already exists by the time this runs; a refused or failed card must not undo it. The
+ * traveller has still asked, and the desk still has the case in its queue.
+ */
+export async function sendTripRequestCard(input: { requestId: string }): Promise<SentCard> {
+  /**
+   * ⚠️ IDEMPOTENT ON THE CARD, NOT ON "did this call open the case". The first cut posted only when
+   * requestAssistance had just opened a case, which made the send unretryable: one transient
+   * failure and the traveller had a committed case the desk could never see, because every later
+   * call returns the existing case with `opened === false` and skipped the post entirely. Keying
+   * on whether the CARD exists means a repeat request repairs the thread instead of silently
+   * confirming the damage — and still cannot double-post.
+   *
+   * ⚠️ Matched on requestId inside metaJson, not on (conversation, kind): one traveller can have
+   * several itineraries, so a thread legitimately carries one request card PER case.
+   */
+  /**
+   * ⚠️ BEST-EFFORT DEDUPE — CHECK-THEN-ACT, AND IT IS NOT ATOMIC. Stated plainly because the
+   * previous version of this comment claimed it was: I wrapped the check in a transaction taking
+   * `pg_advisory_xact_lock`, which releases ON COMMIT — i.e. before postCard's own insert — so the
+   * lock serialised the READ and nothing else. Two concurrent calls could still both find nothing
+   * and both post. A reviewer caught the claim; a lock that protects the wrong statement is worse
+   * than none, because the next reader trusts it.
+   *
+   * What this DOES stop is the common case, which is the one that matters here: a retry minutes
+   * later after a failed send, and a traveller pressing the button again. What it does not stop is
+   * a genuine double-tap racing itself.
+   *
+   * ⛔ THE REAL FIX IS A PARTIAL UNIQUE INDEX on Message (kind, requestId-from-metaJson) — deliberately
+   * NOT done here: it is DDL on a live table, this repo's schema flow requires the migrate-diff
+   * review path, and the failure it prevents is a duplicate CARD, not a duplicate case. The case
+   * itself is already serialised by its own advisory lock inside requestAssistance's transaction,
+   * where the lock and the insert genuinely do share one transaction. So the worst outcome here is
+   * two identical request cards in a thread, which reads as noise rather than as a wrong booking.
+   */
+  const already = await db.message.findFirst({
+    where: { kind: 'trip_request', metaJson: { contains: input.requestId } },
+    select: { id: true },
+  })
+  if (already) return { messageId: already.id }
+  return postCard(input.requestId, 'trip_request', { v: 1, requestId: input.requestId }, TRIP_REQUEST_PREVIEW, 'traveller')
+}
+
 async function postCard(
   requestId: string,
-  kind: 'trip_quote' | 'trip_status',
+  kind: 'trip_quote' | 'trip_status' | 'trip_request',
   meta: { v: 1; requestId: string; status?: string },
   preview: string,
+  /** Whose voice the card is in. Everything the DESK says defaults; only a booking request is the
+   *  traveller's own, and buildTripCardMeta enforces the same split on the write side. */
+  author: 'desk' | 'traveller' = 'desk',
 ): Promise<SentCard> {
   try {
     const thread = await findTripThread(requestId)
@@ -113,7 +180,12 @@ async function postCard(
     // sellerProfileId is the DESK. findTripThread already refuses a thread without one, so this
     // is a type narrowing rather than a real branch — but it is checked, not asserted.
     if (!convo?.sellerProfileId) return null
-    const message = await insertMessage(convo, convo.sellerProfileId, '', { kind, meta, preview })
+    // ⚠️ The traveller side is `buyerProfileId`, and it is checked rather than assumed: a thread
+    // without one cannot carry a request card, and insertMessage would otherwise author as the
+    // desk and bump the wrong counter.
+    const senderId = author === 'traveller' ? convo.buyerProfileId : convo.sellerProfileId
+    if (!senderId) return null
+    const message = await insertMessage(convo, senderId, '', { kind, meta, preview })
     return { messageId: message.id }
   } catch (e) {
     // The gates throw by design (trip_card_conversation_mismatch, trip_card_traveller_mismatch,

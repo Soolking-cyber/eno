@@ -10,6 +10,8 @@ import { getAdmin, getCurrentProfile } from '../admin'
 // second allowlist.
 import { getTripDeskOperator } from '../desk-operator'
 import { adminCanTake, applyTripTransition, canTransition, openStatuses, travellerCanTake, type TripActorType } from './status'
+import { bindTripThread } from './dm-thread'
+import { sendTripRequestCard } from './dm-flow'
 // The DM layer. Imported for its two card senders only; it never calls back into this file, so
 // the dependency is one-way (assistance -> dm-flow -> dm-thread/messages).
 import { announceTripStatus, sendTripQuoteCard } from './dm-flow'
@@ -129,6 +131,32 @@ export async function requestAssistance(input: { itineraryId: string }): Promise
   // event insert would abort the transaction and lose the case — the opposite of the
   // best-effort behaviour every other event append in this feature has.
   if (outcome.opened) await recordEvent(outcome.id, 'traveller', profile.id, 'requested')
+
+  /**
+   * ⛔ AND TELL THE DESK, IN THE THREAD. Until 2026-08-16 this function ended one line above:
+   * a case row and an event, and nothing the desk could SEE. The owner reported it as "itinerary
+   * landed in messages but it doesnt show new message for seller, only notif" — the thread was
+   * there from the wizard, but with sellerUnread 0 and a preview still reading "Planning your
+   * trip", so a booking request was indistinguishable from a plan somebody abandoned.
+     *
+   * ⚠️ RUN ON EVERY CALL, NOT ONLY WHEN THE CASE WAS JUST OPENED — sendTripRequestCard is
+   * idempotent on whether the CARD exists. Gating this on `opened` (the first cut) made the send
+   * unretryable: one transient failure left a committed case the desk could never see, because
+   * every later call returns the existing case with `opened === false`. Two reviewers caught it.
+   * Now a traveller who asks again repairs the thread, and still cannot double-post.
+     *
+   * ⚠️ BIND FIRST. The thread may not exist yet (a traveller can build an itinerary outside the
+   * chat), and bindTripThread creates or re-verifies it; the card cannot be posted into a thread
+   * that has not been resolved. Both are best-effort: the case is already committed, and a
+   * traveller who has asked must not be told their request failed because a message did.
+   */
+  try {
+    const bound = await bindTripThread({ requestId: outcome.id, buyerProfileId: profile.id })
+    if (bound.ok) await sendTripRequestCard({ requestId: outcome.id })
+    else console.error('[trips] request card skipped — thread not bound', { requestId: outcome.id, error: bound.error })
+  } catch (e) {
+    console.error('[trips] request card failed', { requestId: outcome.id, error: (e as Error)?.message })
+  }
   return { ok: true, requestId: outcome.id }
 }
 
