@@ -33,10 +33,54 @@ const RECEIPTS = join(ROOT, '.second-opinion')
 // Declared up here because `--status` validates receipts long before REVIEWERS is built below.
 const REVIEWER_NAMES = ['codex', 'agy', 'fable']
 
+/**
+ * ⛔ GENERATED ASSETS ARE EXCLUDED FROM WHAT REVIEWERS *READ*, NEVER FROM WHAT IS *HASHED*.
+ * The distinction is the whole safety of this change, so read it before touching either half.
+ *
+ * The problem it fixes, measured 2026-08-16: staging 47 Lottie emoji animations produced a diff of
+ * 1,459 lines but 2,666KB, because minified JSON is ONE line per file — up to 229KB each. Every
+ * reviewer CLI rejected it on input size and exited within seconds, so the run scored 0/3 and no
+ * receipt could be written. The guard was not refusing a bad change; it was unable to read any
+ * change that happened to sit next to a generated asset, which would have pushed the author toward
+ * committing outside the session — the one outcome this guard exists to prevent.
+ *
+ * ⚠️ THE RECEIPT STILL COVERS THE FULL STAGED DIFF. `hash` is computed over the COMPLETE
+ * `git diff --cached`, exactly as before, so adding, removing or altering an excluded asset still
+ * moves the hash and still invalidates the receipt. Only the TEXT SENT TO THE REVIEWERS is trimmed.
+ * A reviewer cannot meaningfully audit 2.6MB of minified animation coordinates anyway — there is no
+ * logic in it — so nothing that was previously reviewed has stopped being reviewed.
+ *
+ * ⚠️ KEEP THIS LIST NARROW AND MACHINE-GENERATED-ONLY. Every path here is one a human never hand
+ * edits and a reviewer could never judge. Do not add source directories to make a big refactor
+ * easier to land — that IS the bypass this file's header warns about.
+ */
+const UNREVIEWABLE = [
+  ':(exclude)public/emoji/*.json',
+]
+
+/**
+ * ⛔ `package-lock.json` WAS ON THIS LIST FOR ONE RUN AND WAS TAKEN OFF. Two reviewers independently
+ * called it a blind spot — a hostile dependency could collect a valid receipt without anyone seeing
+ * it — and a third then PROVED the cost by reporting a missing `lottie-web` lock entry that was
+ * present all along, purely because the exclusion hid it. A lockfile is line-oriented, diffs
+ * readably, and is exactly the kind of supply-chain change a second opinion exists to catch.
+ * Excluding it optimised for a smaller prompt at the price of the thing being guarded.
+ *
+ * ⚠️ THE SAME EXCLUSION ALSO MADE A REVIEWER CONCLUDE THE 47 EMOJI FILES WERE MISSING FROM THE
+ * COMMIT. They were staged; the reviewer simply could not see them. That is the honest cost of
+ * trimming ANY path: a reviewer reasons from what it is shown, so absence reads as omission. Keep
+ * this list to files where that trade is unambiguous — generated binary-like blobs with no logic —
+ * and expect the occasional "you forgot X" about the excluded paths.
+ */
+
 /** The exact content being committed. `--cached` so it matches what the hook will see. */
 export function stagedHash() {
   const diff = execFileSync('git', ['diff', '--cached'], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })
-  return { diff, hash: createHash('sha256').update(diff).digest('hex').slice(0, 16) }
+  const reviewable = execFileSync('git', ['diff', '--cached', '--', '.', ...UNREVIEWABLE], {
+    encoding: 'utf8',
+    maxBuffer: 64 * 1024 * 1024,
+  })
+  return { diff: reviewable, hash: createHash('sha256').update(diff).digest('hex').slice(0, 16) }
 }
 
 const { diff, hash } = stagedHash()

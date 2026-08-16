@@ -81,6 +81,7 @@ model Profile {
   buyerConversations      Conversation[]          @relation("BuyerConversations")
   sellerConversations     Conversation[]          @relation("SellerConversations")
   sentMessages            Message[]
+  messageReactions        MessageReaction[]
   notifications           Notification[]          @relation("RecipientNotifications")
   trustEvents             TrustEvent[]            @relation("SubjectTrustEvents")
   pushSubscriptions       PushSubscription[]
@@ -974,11 +975,43 @@ model Message {
   metaJson        String?
   createdAt       DateTime     @default(now())
 
+  reactions       MessageReaction[]
+
   @@index([conversationId, createdAt])
   // Covering index for the senderProfileId FK (joins + cascade-delete checks); was
   // flagged unindexed by Supabase's performance advisor. Applied to prod via migration
   // add_message_senderprofileid_index (matching Prisma's default index name).
   @@index([senderProfileId])
+}
+
+/// One person's one reaction to one message — the Zalo-style tap-back.
+///
+/// ⚠️ `emoji` IS THE UNICODE SEQUENCE, NOT A NAME OR AN ID. Storing "❤️" rather than "heart"
+/// means the reaction still renders if the Lottie art is ever dropped, retimed or renamed: the
+/// animation is a presentation layer over a character that stands on its own. It also makes the
+/// global tally below a plain GROUP BY with nothing to join.
+///
+/// ⚠️ VALIDATED ON WRITE AGAINST A CLOSED ALLOW-LIST (src/lib/reactions.ts). This column is
+/// user-controlled text on a shared table, so an open column would let anyone store arbitrary
+/// strings that every participant then renders.
+model MessageReaction {
+  id        String   @id @default(cuid())
+  messageId String
+  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  profileId String   @db.Uuid
+  profile   Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  emoji     String
+  createdAt DateTime @default(now())
+
+  // One reaction per person per emoji per message — a second tap REMOVES rather than duplicates,
+  // so the database enforces what the toggle promises even if two taps race.
+  @@unique([messageId, profileId, emoji])
+  // The thread read fetches reactions for a page of messages at a time.
+  @@index([messageId])
+  // Covering index for the profileId FK, per the note on Message.senderProfileId above.
+  @@index([profileId])
+  // Feeds the global top-5 tally (see scripts/reaction-tally.mjs): a recent-window GROUP BY.
+  @@index([createdAt])
 }
 
 // In-app notification for a recipient (new message, offer, system). Created
