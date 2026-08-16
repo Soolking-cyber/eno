@@ -137,7 +137,13 @@ export function ConversationList() {
                   // replaced the tint with `bg-muted` — so the one state that is supposed to
                   // survive being looked at was cleared by looking at it. Only accepting, declining
                   // or countering may clear it.
-                  c.lastOffer?.status === 'pending'
+                  // ⚠️ INCOMING ONLY — `!mine`. Owner, 2026-08-16: "when someone sent you offer but
+                  // you didnt click any options accept decline or counter". The first cut keyed on
+                  // status alone, which a reviewer had already flagged: a person who SENT an offer
+                  // and is waiting on the other side saw the same urgent tint as someone sitting on
+                  // an unanswered one. Only the recipient can clear this state, so only the
+                  // recipient should carry it.
+                  c.lastOffer?.status === 'pending' && !c.lastOffer.mine
                     ? 'bg-warning/15 hover:bg-warning/20'
                     : activeId === c.id
                       ? 'text-accent-foreground bg-muted'
