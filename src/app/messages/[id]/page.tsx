@@ -2,6 +2,7 @@
 
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState, useCallback } from 'react'
 import { ReactionPicker, ReactionPills, longPressHandlers, cancelLongPress } from '@/components/marketplace/message-reactions'
+import { PRIMARY_REACTION } from '@/lib/reactions'
 import Link from 'next/link'
 
 import { useParams, useRouter } from 'next/navigation'
@@ -1624,6 +1625,20 @@ export default function ThreadPage() {
                 <div
                   data-mid={m.id}
                   {...longPressProps(m.id)}
+                  /**
+                   * DESKTOP: hovering the MESSAGE pops the bar — the Zalo behaviour the owner
+                   * referenced, rather than making the visitor find a 24px heart first.
+                   * ⚠️ Mouse only. On touch, `pointerenter` fires on tap and would open the bar on
+                   * every message anyone poked, which is what long-press exists to avoid.
+                   *
+                   * ⛔ THERE IS DELIBERATELY NO `onPointerLeave`. Both reviewers caught the trap: the
+                   * "+" grid is a Popover and renders through a PORTAL, so it is not a DOM child of
+                   * this row — moving the cursor from the bubble toward it fires leave on the row,
+                   * which would close the bar before a single emoji could be clicked. Entering
+                   * another message already reassigns `pickerFor`, and the picker's own
+                   * outside-pointerdown listener dismisses it, so nothing is left hanging.
+                   */
+                  onPointerEnter={(e) => { if (e.pointerType === 'mouse') setPickerFor(m.id) }}
                   className={`flex flex-col ${m.mine ? 'items-end' : 'items-start'} ${i === arr.length - 1 && !enteredIds.current.has(m.id) ? 'bubble-in' : ''} ${m.id === revealedId ? 'rounded-2xl ring-2 ring-brand/60 transition-shadow' : ''}`}
                 >
                 {m.kind === 'offer' ? (
@@ -1836,6 +1851,7 @@ export default function ThreadPage() {
                         open={pickerFor === m.id}
                         onOpenChange={(next) => setPickerFor(next ? m.id : null)}
                         align={m.mine ? 'end' : 'start'}
+                        active={(m.reactions ?? []).some((r) => r.emoji === PRIMARY_REACTION && r.mine)}
                         onPick={(emoji) => toggleReaction(m.id, emoji)}
                       />
                       <ReactionPills

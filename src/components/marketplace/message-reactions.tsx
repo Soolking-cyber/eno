@@ -4,7 +4,7 @@ import * as React from 'react'
 
 import { useLanguage } from '@/context/language-context'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { Plus } from '@/components/ui/icons'
+import { Plus, Heart } from '@/components/ui/icons'
 import { LottieEmoji } from '@/components/marketplace/lottie-emoji'
 import { hapticTap } from '@/lib/haptics'
 import { cn } from '@/lib/utils'
@@ -102,6 +102,7 @@ export function ReactionPicker({
   open,
   onOpenChange,
   align = 'start',
+  active = false,
 }: {
   onPick: (emoji: string) => void
   measuredTop?: readonly string[]
@@ -109,6 +110,8 @@ export function ReactionPicker({
   open: boolean
   onOpenChange: (open: boolean) => void
   align?: 'start' | 'end'
+  /** The viewer has already left the primary reaction — the resting heart shows it filled. */
+  active?: boolean
 }) {
   const { tr } = useLanguage()
   const [allOpen, setAllOpen] = React.useState(false)
@@ -163,15 +166,36 @@ export function ReactionPicker({
         if (e.pointerType === 'mouse' && !allOpen) onOpenChange(false)
       }}
     >
-      {/* AT REST: one heart. Owner's words, and the whole point of the design — the common case is
-          a single tap on a single emoji, and it must not require a hover, a menu or a decision. */}
+      {/**
+        * AT REST: A SUBTLE OUTLINE HEART, filling red once you have used it.
+        *
+        * ⛔ AN ICON, NOT THE ❤️ GLYPH. Owner, 2026-08-16: "the heart indicator should be subtle
+        * outline on bottom right corner of the message on press it lights up red". The emoji
+        * character is always full-colour red — there is no outline form of it — so an
+        * always-present emoji reads as a reaction that has already been left, on every message in
+        * the thread. A stroked icon can be quiet at rest and loud once pressed, which is the whole
+        * distinction the owner is asking for. The reaction it SENDS is still the ❤️ character; only
+        * the affordance is drawn.
+        *
+        * ⚠️ `aria-pressed` carries the state, not colour alone — filled-vs-outline is invisible to
+        * a screen reader and to anyone who cannot separate red from grey.
+        */}
       <button
         type="button"
         onClick={() => pick(PRIMARY_REACTION)}
+        /* ⚠️ NO long-press HANDLERS HERE. The message row already carries them and pointer events
+           bubble from this button up to it, so attaching a second set would arm two presses against
+           the same module-level slot — reviewer-caught. The row's press opens this same bar. */
+        aria-pressed={active}
         aria-label={tr('React with love', 'Thả tim')}
-        className="press tap-44 flex size-7 items-center justify-center rounded-full border border-border bg-card text-sm shadow-pop transition-colors hover:bg-tint"
+        className={cn(
+          'press flex size-6 items-center justify-center rounded-full border transition-colors',
+          active
+            ? 'border-destructive/30 bg-destructive/10 text-destructive'
+            : 'border-line-strong bg-card/80 text-ink-4 opacity-60 backdrop-blur-[2px] hover:opacity-100 hover:text-destructive',
+        )}
       >
-        <span aria-hidden="true">{PRIMARY_REACTION}</span>
+        <Heart className={cn('size-3.5', active && 'fill-current')} />
       </button>
 
       {/* ON HOVER / LONG-PRESS: the top five plus the door to the rest. `aria-hidden` and
