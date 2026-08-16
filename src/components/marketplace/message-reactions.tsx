@@ -186,11 +186,31 @@ export function ReactionPicker({
         */}
       <button
         type="button"
+        onClick={() => pick(top[0])}
         onFocus={() => onOpenChange(true)}
-        aria-label={tr('React to this message', 'Bày tỏ cảm xúc')}
-        className="press sr-only rounded-full border border-line-strong bg-card p-1 text-ink-4 focus:not-sr-only focus:relative focus:z-10"
+        /* ⚠️ NAMES THE ACTION, NOT JUST THE GLYPH. Reviewer-caught: "Heart, button" does not tell
+           anyone what pressing it does. `top` is never empty — topReactions() tops up from
+           DEFAULT_TOP_REACTIONS and a unit test asserts a full bar — so top[0] is always a
+           catalogue member. */
+        aria-label={tr(`React with ${reactionFor(top[0])?.label ?? top[0]}`, `Bày tỏ ${reactionFor(top[0])?.labelVi ?? top[0]}`)}
+        className={cn(
+          'press flex size-5 items-center justify-center rounded-full text-xs leading-none transition-[opacity,filter,scale] duration-200 ease-out',
+          // ⛔ "OUTLINED" FOR AN EMOJI MEANS DESATURATED, NOT A STROKE. Owner: "user can use quick
+          // outlined frequent used 1 emoji". There is no outline form of a colour emoji glyph, and
+          // the previous attempt at this used a Heart ICON — which cannot represent whichever emoji
+          // the tally says is most used. Greyscale at low opacity reads as the same "available but
+          // not yet used" state, works for any glyph, and costs nothing to render.
+          // ⚠️ ONE opacity CLASS, NOT TWO. Written first as a conditional `opacity-0/100` PLUS a
+          // base `opacity-45`, which twMerge collapses to whichever came last — so the resting
+          // glyph would never have hidden when the bar opened, and would have sat under it.
+          'grayscale-[0.9] hover:grayscale-0 hover:scale-125',
+          // ⚠️ STAYS VISIBLE WHILE FOCUSED. Reviewer-caught: tabbing here opens the bar, and the
+          // `open` branch then set opacity-0 on the very control holding focus — so a keyboard user
+          // lost the focus ring at the exact moment they opened it.
+          open ? 'pointer-events-none opacity-0 focus-visible:pointer-events-auto focus-visible:opacity-100' : 'opacity-45 hover:opacity-100',
+        )}
       >
-        <Plus className="size-3.5" />
+        <span aria-hidden="true">{top[0]}</span>
       </button>
 
       {/* ON HOVER / LONG-PRESS: the top five plus the door to the rest. `aria-hidden` and
@@ -203,9 +223,18 @@ export function ReactionPicker({
           // resting heart that used to anchor it — which put ~200px of bar to the RIGHT of a
           // control already at the screen edge on an outgoing message. With the heart gone the
           // anchor is a zero-width point, so the bar hangs off the row edge and `align` picks which.
-          'absolute z-10 flex items-center gap-0.5 rounded-full border border-border bg-popover p-1 shadow-pop ring-1 ring-foreground/10 transition-[opacity,scale] duration-150 ease-out',
-          align === 'end' ? 'right-0' : 'left-0',
-          open ? 'pointer-events-auto scale-100 opacity-100' : 'pointer-events-none scale-95 opacity-0',
+          // ⛔ ABOVE THE BUBBLE, NOT BESIDE IT. Owner: "on desktop only on hover above the bubble
+          // not outside open more options". `bottom-full` lifts the bar over the message it belongs
+          // to, so it reads as attached to that bubble instead of floating in the gutter — which is
+          // also what the Zalo reference does. `align` still picks the side so it cannot run off a
+          // right-aligned outgoing message.
+          'absolute bottom-full z-20 mb-1 flex items-center gap-0.5 rounded-full border border-border bg-popover p-1 shadow-pop ring-1 ring-foreground/10 transition-[opacity,scale,translate] duration-200',
+          align === 'end' ? 'right-0 origin-bottom-right' : 'left-0 origin-bottom-left',
+          // ⚠️ It RISES as it appears — translate plus scale, not opacity alone. A bar that only
+          // fades in reads as a tooltip; one that lifts off the bubble reads as belonging to it.
+          open
+            ? 'pointer-events-auto translate-y-0 scale-100 opacity-100'
+            : 'pointer-events-none translate-y-1 scale-90 opacity-0',
         )}
         style={{ transitionTimingFunction: 'var(--ease-spring)' }}
       >
@@ -222,7 +251,12 @@ export function ReactionPicker({
               onFocus={() => setHovered(emoji)}
               onBlur={() => setHovered((h) => (h === emoji ? null : h))}
               aria-label={entry ? tr(entry.label, entry.labelVi) : emoji}
-              className="press flex size-8 items-center justify-center rounded-full transition-transform hover:scale-125 focus-visible:scale-125"
+              className="press flex size-8 items-center justify-center rounded-full transition-[scale,background-color] duration-150 hover:scale-[1.35] hover:bg-tint focus-visible:scale-[1.35]"
+              // ⛔ NO transitionDelay HERE, THOUGH A STAGGER WAS TRIED. An inline delay keyed on
+              // `open` stays applied for as long as the bar is open, so it does not only stagger the
+              // entrance — it delays every subsequent hover scale by up to 80ms on the last glyph,
+              // making the bar feel laggy exactly while being used. Reviewer-caught. The bar's own
+              // rise-and-scale already reads as motion; a stagger is not worth a sticky hover.
             >
               {/* Animates only while pointed at: at most one player runs at a time. */}
               <LottieEmoji emoji={emoji} play={open && hovered === emoji} size={22} />
