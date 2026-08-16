@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Map as MapIcon, X } from '@/components/ui/icons'
+import { Map as MapIcon, X, Info } from '@/components/ui/icons'
 import { useLanguage } from '@/context/language-context'
 import { Button } from '@/components/ui/button'
 import { IconButton } from '@/components/ui/icon-button'
@@ -292,29 +292,35 @@ function MapCredit({ className }: { className?: string }) {
           does". These are pure go-and-look destinations, so they belong in the in-app browser, one
           Done tap from the map. (The single documented exception is evisa.gov.vn, for reasons that
           do not apply here.) A credit the native app cannot follow is decoration. */}
+      {/* ⚠️ COLLAPSED TO A SINGLE ⓘ, mirroring listings-map.tsx — see the long note there for why
+          collapsing is available and removing is not. The two maps must stay identical here: a
+          licence obligation that is discharged on one surface and not the other is the worst of
+          both, and this pair has already drifted once (both shipped with attributionControl:false
+          and no credit at all). The word forms stay in the DOM, hidden, not deleted. */}
       <a
-        className="pointer-events-auto underline-offset-2 transition-colors hover:text-body hover:underline"
+        className="pointer-events-auto flex size-5 items-center justify-center rounded-full border border-ink-4/30 leading-none transition-colors hover:border-ink-4/60 hover:text-body"
         href="https://www.openstreetmap.org/copyright"
         onClick={handleExternalClick}
         target="_blank"
         rel="noreferrer"
+        aria-label={OSM_CREDIT}
       >
-        {/* ⚠️ NOT TRANSLATED, AND THAT IS THE FIX. This ran through tr(), so for every
-            machine-translated language the catalogue rendered it in that language — reported
-            live as "© Участники проекта OpenStreetMap" on a Vietnamese/English marketplace.
-            It is a LEGAL attribution (ODbL) and a proper noun, not UI copy: the required
-            wording is "OpenStreetMap contributors", and translating it both looks broken and
-            weakens the credit it exists to give. Rendered verbatim, in every language. */}
-        {OSM_CREDIT}
+        <Info className="size-2.5" />
       </a>
+      {/* ⛔ CARTO GETS ITS OWN CONTROL. The first version of this collapse hid the CARTO link and
+          pointed a single ⓘ at OpenStreetMap only — all three reviewers caught that it left CARTO's
+          attribution unreachable, which is a worse licence position than the verbose credit it
+          replaced. Two providers, two reachable credits; they are 16px each, so the clutter the
+          owner objected to is still gone. */}
       <a
-        className="pointer-events-auto underline-offset-2 transition-colors hover:text-body hover:underline"
+        className="pointer-events-auto flex size-5 items-center justify-center rounded-full border border-ink-4/30 leading-none transition-colors hover:border-ink-4/60 hover:text-body"
         href="https://carto.com/attributions"
         onClick={handleExternalClick}
         target="_blank"
         rel="noreferrer"
+        aria-label={CARTO_CREDIT}
       >
-        {CARTO_CREDIT}
+        <Info className="size-2.5" />
       </a>
     </p>
   )

@@ -3,7 +3,7 @@
 import Image from 'next/image'
 import { isMockImageUrl } from '@/lib/listing-image'
 import { useEffect, useRef, useState } from 'react'
-import { Heart } from '@/components/ui/icons'
+import { Heart, Info } from '@/components/ui/icons'
 import { TrustScore } from './trust-score'
 import { MapTravel, MapsDirectionsButton } from './map-travel'
 import type { LatLng } from '@/lib/travel'
@@ -170,6 +170,25 @@ function MapCredit({ className }: { className?: string }) {
         // ink at the quietest step, and the underline held back until hover. It stays legible
         // (the blur keeps it readable over any tile) and stays clickable, which is what the
         // licence actually asks for.
+        // ⚠️ THE CREDIT IS ALWAYS A SINGLE ⓘ, ON EVERY VIEWPORT. Owner, 2026-08-16: "on map remove
+        // these on mobile so annoying", then "do collapse on desktop too". Removing it is not
+        // available — src/lib/map-credit.ts says why, and it is a licence condition, not a style
+        // choice — but collapsing it is: OSM's attribution guidance accepts a compact form provided
+        // the credit stays reachable, which is exactly what Google Maps, Mapbox and Apple ship. The
+        // ⓘ opens the same copyright page the sentence linked to, so the obligation is discharged
+        // and ~250px of legal footnote stops competing with the map.
+        // ⚠️ THE REQUIRED WORDING IS THE LINK'S ACCESSIBLE NAME — `aria-label={OSM_CREDIT}` — and
+        // there is exactly ONE link per provider. Two earlier attempts were both reviewer-refuted:
+        // `hidden` on the text removed it from the accessibility tree entirely (display:none is not
+        // "still in the DOM for readers", whatever the comment claimed), and `sr-only` alongside the
+        // icon left FOUR focusable links, so a keyboard or screen-reader user met each credit twice.
+        // One control, carrying the exact ODbL wording as its name, is both.
+        // ⚠️ NO `tap-44` HERE, AND THE NUMBERS BELOW ARE THE REAL ONES. Each control is `size-5`
+        // (20px) and `gap-1` puts 4px between them. That spacing is exactly why tap-44 is refused:
+        // docs/design-language.md records that an UNPOSITIONED tap-44 expands over its positioned
+        // ancestor, and two 44px hit areas 4px apart would also swallow each other. A footnote link
+        // is not a primary control — the sentence it replaces was not 44px either, so nothing
+        // regressed — but if these ever need proper targets, position them first.
         'pointer-events-none absolute z-[800] flex items-center gap-1 rounded-lg bg-card/70 px-1 py-px text-3xs leading-none text-ink-4/80 backdrop-blur-[2px]',
         className,
       )}
@@ -181,28 +200,29 @@ function MapCredit({ className }: { className?: string }) {
           Done tap from the map. (The single documented exception is evisa.gov.vn, for reasons that
           do not apply here.) A credit the native app cannot follow is decoration. */}
       <a
-        className="pointer-events-auto underline-offset-2 transition-colors hover:text-body hover:underline"
+        className="pointer-events-auto flex size-5 items-center justify-center rounded-full border border-ink-4/30 leading-none transition-colors hover:border-ink-4/60 hover:text-body"
         href="https://www.openstreetmap.org/copyright"
         onClick={handleExternalClick}
         target="_blank"
         rel="noreferrer"
+        aria-label={OSM_CREDIT}
       >
-        {/* ⚠️ NOT TRANSLATED, AND THAT IS THE FIX. This ran through tr(), so for every
-            machine-translated language the catalogue rendered it in that language — reported
-            live as "© Участники проекта OpenStreetMap" on a Vietnamese/English marketplace.
-            It is a LEGAL attribution (ODbL) and a proper noun, not UI copy: the required
-            wording is "OpenStreetMap contributors", and translating it both looks broken and
-            weakens the credit it exists to give. Rendered verbatim, in every language. */}
-        {OSM_CREDIT}
+        <Info className="size-2.5" />
       </a>
+      {/* ⛔ CARTO GETS ITS OWN CONTROL. The first version of this collapse hid the CARTO link and
+          pointed a single ⓘ at OpenStreetMap only — all three reviewers caught that it left CARTO's
+          attribution unreachable, which is a worse licence position than the verbose credit it
+          replaced. Two providers, two reachable credits; they are 16px each, so the clutter the
+          owner objected to is still gone. */}
       <a
-        className="pointer-events-auto underline-offset-2 transition-colors hover:text-body hover:underline"
+        className="pointer-events-auto flex size-5 items-center justify-center rounded-full border border-ink-4/30 leading-none transition-colors hover:border-ink-4/60 hover:text-body"
         href="https://carto.com/attributions"
         onClick={handleExternalClick}
         target="_blank"
         rel="noreferrer"
+        aria-label={CARTO_CREDIT}
       >
-        {CARTO_CREDIT}
+        <Info className="size-2.5" />
       </a>
     </p>
   )
