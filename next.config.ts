@@ -299,11 +299,64 @@ const nextConfig: NextConfig = {
     ...(EDITION_ENV === "marketplace"
       ? {
           resolveAlias: {
-            // ── Always stubbed on the marketplace, flag or no flag ──────────────────────────
-            "@/components/marketplace/trip-cards": "./src/components/marketplace/trip-cards.stub.tsx",
-
             /**
-             * ── The THREE that a partner-hosted visa desk needs, stubbed ONLY while the flag is off ──
+             * ── The FOUR that a partner-hosted services desk needs, stubbed ONLY while the flag is off ──
+             *
+             * ⛔ `trip-cards` MOVED HERE ON 2026-08-15, OUT OF THE "always stubbed, flag or no flag"
+             * GROUP ABOVE — AND ITS OLD PLACEMENT IS WHY GMBR'S ITINERARY BUILDER WAS UNREACHABLE FOR
+             * A DAY. It was put in the always-stubbed list in 629e53e0, when the trip desk lived on
+             * eno.forum and "none of that is wanted" on the marketplace was simply true. 6d7855f2 then
+             * moved the desk to a LICENSED PARTNER (GMBR, `TRIP_DESK_OWNER_EMAIL`) and armed the flag
+             * — and did not revisit this line. So eno.vn shipped every trip API and every trip route
+             * while `TripWizardLauncher`, `TripWizardCard`, `TripAssistChips`, `TripQuoteCard` and
+             * `TripStatusCard` all resolved to `() => null`. The owner found it the only way anyone
+             * could: the product was not there. Stale intent, not an oversight — which is exactly the
+             * kind that survives review, because the comment explaining it still reads as correct.
+             *
+             * ⚠️ ALL THREE REVIEWERS CALLED THIS A NEW LICENSING HOLE — "one flag now un-stubs both
+             * desks, so a deployment licensed for only one ships the other". The concern is right and
+             * the attribution is wrong: read the flag's own header above. The routes were ALREADY
+             * all-or-nothing, because one `.svc.` infix marks all 57 of them and extensions cannot
+             * admit one service and refuse the other. eno.vn has been compiling and serving all 22
+             * trip routes since the flag was armed. This line only stops the COMPONENTS from
+             * disagreeing with the routes that were already live — it does not widen the flag's
+             * blast radius, it removes an inconsistency inside it.
+             *
+             * MEASURED, because the claim deserved better than an argument: baseline flag-on build
+             * (trip-cards stubbed) vs this one, grepping `.next/static` — `paypal` 2 chunks both
+             * ways, `PayPal` 1 both, `eno.forum` 20 both. The only delta is the trip UI itself
+             * ("Continue planning" 0 -> 5). Un-stubbing this ships no payment vocabulary and no
+             * forum vocabulary that the flag was not already shipping.
+             *
+             * ⚠️ AND FOR THESE COMPONENTS — UNLIKE THE ROUTES — PER-DESK CONTROL DOES EXIST, AT
+             * RUNTIME. Do not read this as the claim the header above demolishes: that claim was that
+             * the thread flags gate HTTP, and they do not. They do, however, gate THIS. The chat page
+             * derives `tripAssistAvailable` from `thread.kind === 'itinerary'`, and threadKind()
+             * returns 'itinerary' only when ITINERARY_THREADS_ENABLED is on and the GMBR anchor
+             * resolves via TRIP_DESK_OWNER_EMAIL (src/lib/thread-kind.ts:81,101). So a visa-only
+             * deployment turns that one variable off and no trip surface renders — it ships unused
+             * bytes, which is a bundle cost, not an exposed surface. The distinction is the whole
+             * reason this alias can be flag-shared while the licensing stays per-desk.
+             * ⛔ AND THE GUARANTEE STOPS AT THE ENTRY POINT — I CLAIMED MORE THAN THAT AND ALL THREE
+             * REVIEWERS TOOK IT APART, CORRECTLY. What ITINERARY_THREADS_ENABLED gates is the LAUNCHER
+             * and the assist chips. TripWizardCard deliberately does NOT require kind === 'itinerary'
+             * (messages/[id]/page.tsx:1511), and an earlier draft of this note waved that away with
+             * "reaching that state still needs the launcher". That is false HERE of all places: the
+             * two editions SHARE ONE DATABASE, so a thread carrying wizard messages written by
+             * eno.forum — or written before the variable was flipped — already exists and would still
+             * render its card. So: turning the variable off stops anyone STARTING a plan, not every
+             * trip pixel from ever appearing. Honest version of the claim, and still enough for the
+             * licensing question, because the desk a card belongs to is decided by data, not bundling.
+             *
+             * ⚠️ WHAT REMAINS TRUE: if one partner ever leaves, this flag is the wrong shape and the
+             * failure is silent. That is the pre-existing property the header prices at "renaming 54
+             * files to per-service infixes" — not a debt this line created, and not one it pays off.
+             *
+             * ⚠️ VERIFIED SAFE TO SPLIT, on the same test the visa pair had to pass: trip-cards'
+             * ENTIRE import closure is chat-card-shell, ui/* primitives, currency/language context,
+             * lib/itinerary-data, lib/trips/itinerary-wizard, lib/utils, lib/vnd. It reaches NONE of
+             * the modules that stay stubbed below — no edition-services-copy, no ui-strings.services,
+             * no visa-provider, no cross-site-promo. Un-stubbing it ships the trip UI and nothing else.
              *
              * ⚠️ `visa-start` IS THE ONE THAT WAS MISSING FOR A MONTH, AND IT SAT ON THE BUSIEST PAGE
              * ON THE SITE. src/app/listings/[id]/page.tsx — the product detail page — imports it at
@@ -325,6 +378,7 @@ const nextConfig: NextConfig = {
             ...(MARKETPLACE_HOSTS_SERVICES
               ? {}
               : {
+                  "@/components/marketplace/trip-cards": "./src/components/marketplace/trip-cards.stub.tsx",
                   "@/components/marketplace/visa-cards": "./src/components/marketplace/visa-cards.stub.tsx",
                   "@/components/marketplace/visa-start": "./src/components/marketplace/visa-start.stub.tsx",
                   // The visa/itinerary half of the API error vocabulary. errors.ts holds a RUNTIME

@@ -251,12 +251,19 @@ function aliasedSpecifiers() {
   return all
 }
 /**
- * The three specifiers whose stubs are skipped when the marketplace hosts a partner's services.
- * ⚠️ KEEP IN SYNC WITH THE CONDITIONAL BLOCK IN next.config.ts. It is a short list on purpose —
- * if it grows, the split has stopped being "the visa chat and nothing else" and this comment is
- * the place that should make that obvious.
+ * The specifiers whose stubs are skipped when the marketplace hosts a partner's services.
+ * ⚠️ KEEP IN SYNC WITH THE CONDITIONAL BLOCK IN next.config.ts.
+ *
+ * ⚠️ IT IS FOUR NOW, NOT THREE, AND THE COMMENT THAT SAID "the visa chat and nothing else" WAS
+ * ASKING TO BE RE-READ ON EXACTLY THIS CHANGE. `trip-cards` joined on 2026-08-15: the itinerary
+ * desk moved to a licensed partner (GMBR) and the trip UI had been left in the always-stubbed
+ * group, so every trip surface on eno.vn rendered `() => null` while its APIs and routes shipped.
+ * The list growing is the signal the old comment wanted flagged — so, flagged: eno.vn now hosts
+ * TWO partner desks, visa and trips, and this list is the record of what that costs in bundle.
+ * If it grows again, ask whether the edition split is still buying anything.
  */
 const FLAG_UNSTUBBED = [
+  '@/components/marketplace/trip-cards',
   '@/components/marketplace/visa-cards',
   '@/components/marketplace/visa-start',
   '@/lib/api/errors-services',
