@@ -60,12 +60,27 @@ export function MessageBubble({
   failed,
   pending,
   className,
+  quote,
+  meta,
   children,
 }: {
   mine?: boolean
   failed?: boolean
   pending?: boolean
   className?: string
+  /**
+   * The quoted message this one replies to, rendered ABOVE the text inside the same bubble.
+   */
+  quote?: React.ReactNode
+  /**
+   * The timestamp / "Sending…" / "Not sent" line, rendered INSIDE the bubble under the text.
+   * Owner, 2026-08-16: "the timer is inside chat bubble at same place under text".
+   *
+   * ⚠️ A NODE, NOT A STRING, because the three states are not interchangeable: two of them carry a
+   * spinner or a retry button and one of them is wrapped in `role="alert"`. The bubble positions
+   * and tints; the thread decides what the line says.
+   */
+  meta?: React.ReactNode
   children: React.ReactNode
 }) {
   return (
@@ -81,8 +96,31 @@ export function MessageBubble({
         className,
       )}
     >
+      {quote}
       {children}
       {typeof children === 'string' ? <ContactChips text={children} mine={mine} /> : null}
+      {meta ? (
+        /**
+         * ⚠️ THE TINT IS PER SIDE AND IT IS NOT COSMETIC. Outside the bubble this line sat on the
+         * page and wore `text-ink-4`; inside a `bg-primary` sent bubble that grey is ~1.9:1 against
+         * white-on-blue and effectively invisible. `text-white/70` is the sent-bubble equivalent.
+         * ⚠️ `justify-end` on BOTH sides. It is the trailing corner of the bubble in either
+         * alignment, which is where every chat app puts a timestamp — mirroring it to the left on
+         * received messages would put it under the start of the text instead.
+         */
+        <div
+          className={cn(
+            // ⚠️ `pe-5` CLEARS THE QUICK-REACT GLYPH. It sits sunk into the bubble's bottom-RIGHT
+            // corner, 18px wide and inset 8px, so a timestamp running to the padding edge sits
+            // under it. Twenty pixels of trailing space is the whole fix, and it costs nothing on
+            // a message that has no glyph.
+            'mt-0.5 flex items-center justify-end gap-1 pe-5 text-3xs leading-none',
+            failed ? 'text-destructive' : mine ? 'text-white/70' : 'text-ink-4',
+          )}
+        >
+          {meta}
+        </div>
+      ) : null}
     </div>
   )
 }

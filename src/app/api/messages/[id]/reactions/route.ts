@@ -51,47 +51,79 @@ export const POST = route(
 
     const message = await db.message.findUnique({
       where: { id: messageId },
-      select: { id: true, conversation: { select: { buyerProfileId: true, sellerProfileId: true } } },
+      select: { id: true, deletedAt: true, conversation: { select: { buyerProfileId: true, sellerProfileId: true } } },
     })
     const convo = message?.conversation
     const isParticipant = !!convo && (convo.buyerProfileId === profile.id || convo.sellerProfileId === profile.id)
-    // One answer for missing and forbidden — see the oracle note in the header.
-    if (!isParticipant) throw new ApiError('forbidden', 403)
+    /**
+     * ⚠️ A RECALLED MESSAGE JOINS THE SAME ANSWER, and it belongs here rather than in its own
+     * branch. Recalling deletes the existing tallies (see the recall route), so a reaction landing
+     * afterwards would resurrect a count under a tombstone — and a distinct status code would tell
+     * the caller "this message exists but was taken back", which is precisely the fact a recall
+     * removes. Missing, forbidden and recalled are one 403.
+     */
+    if (!isParticipant || message?.deletedAt) throw new ApiError('forbidden', 403)
 
     /**
+     * ⛔ THE RECALL RACE — AND THE FIRST FIX FOR IT WAS ALSO WRONG. The `deletedAt` read above runs
+     * before the write, so a recall committing in between left a reaction attached to a recalled
+     * message: it survives the recall's own cleanup, resurfaces under a tombstone, and feeds the
+     * global top-5 with a reaction to text nobody can read.
+     *
+     * The first attempt guarded it with a bare `updateMany` outside any transaction — which a
+     * reviewer correctly refuted: that statement is its own autocommitted transaction, so the row
+     * lock it takes is RELEASED the instant it returns, before the insert below ever runs. It read
+     * like a lock and was a no-op. The guard only works inside the same transaction as the write.
+     *
+     * ⚠️ WRITING `deletedAt: null` BACK TO NULL IS THE POINT, AND IT IS NOT A NO-OP. A findFirst
+     * would not lock the row under READ COMMITTED — it would re-read the same pre-recall snapshot
+     * and prove nothing. An UPDATE is a real row write, so it takes a genuine lock held to COMMIT,
+     * and the WHERE clause becomes a compare-and-set: if the recall got there first this matches
+     * zero rows and the reaction is refused. This repo learned the read-does-not-lock lesson the
+     * expensive way in the visa capture race; the trip-card insert uses the same idiom.
+     *
+     * ⚠️ NO COLUMN CHANGES VALUE, so nothing that watches the row is disturbed: Message has no
+     * @updatedAt and nothing keys off it.
+     *
      * ⚠️ KNOWN AND ACCEPTED — TWO SIMULTANEOUS TAPS FROM AN EMPTY STATE LEAVE ONE ROW, not zero.
-     * Both requests delete nothing, one insert wins and the other hits P2002, so the pair of
-     * toggles nets to "on" rather than back to "off". Reviewer-derived and correct. Fixing it means
-     * serialising per (message, profile) in a transaction to buy strict parity on a double-tap
-     * nobody performs deliberately, and the result — the reaction is on — is the one the user's
-     * first tap asked for. The counts returned are always read after the write, so the client
-     * converges on the truth either way.
+     * Both delete nothing, one insert wins and the other hits P2002, so the pair of toggles nets to
+     * "on" rather than back to "off". The result is the one the user's first tap asked for, and the
+     * counts are always read after the write, so the client converges either way.
      *
      * ⚠️ DELETE-THEN-COUNT, AND THE `count` IS WHAT DECIDES. `deleteMany` returns how many rows it
-     * removed, so one round trip answers "did they already have this?" without a separate read that
-     * a concurrent tap could invalidate between the two. A `findFirst` + branch would be the race
-     * the unique index exists to catch.
+     * removed, so one round trip answers "did they already have this?" without a separate read a
+     * concurrent tap could invalidate between the two.
      */
-    const removed = await db.messageReaction.deleteMany({
-      where: { messageId, profileId: profile.id, emoji: body.emoji },
-    })
+    try {
+      await db.$transaction(async (tx) => {
+        const alive = await tx.message.updateMany({ where: { id: messageId, deletedAt: null }, data: { deletedAt: null } })
+        if (alive.count !== 1) throw new ApiError('forbidden', 403)
 
-    if (removed.count === 0) {
-      try {
-        await db.messageReaction.create({
-          data: { messageId, profileId: profile.id, emoji: body.emoji },
+        const removed = await tx.messageReaction.deleteMany({
+          where: { messageId, profileId: profile.id, emoji: body.emoji },
         })
-      } catch (err) {
-        /**
-         * ⛔ ONLY THE UNIQUENESS RACE IS SWALLOWED. The first version caught EVERYTHING, which a
-         * reviewer correctly called overbroad: a foreign-key violation, a dead connection or a
-         * failing database would all have been reported to the client as a successful reaction.
-         * P2002 is Prisma's unique-constraint code, and it means the same person's second tap
-         * landed first — the reaction they wanted exists, so the fresh counts below are the honest
-         * answer. Everything else is a real failure and must surface.
-         */
-        if ((err as { code?: string })?.code !== 'P2002') throw err
-      }
+        if (removed.count === 0) {
+          await tx.messageReaction.create({
+            data: { messageId, profileId: profile.id, emoji: body.emoji },
+          })
+        }
+      })
+    } catch (err) {
+      /**
+       * ⛔ THE P2002 CATCH HAD TO MOVE OUT HERE, AND THAT IS A CONSEQUENCE OF THE TRANSACTION, NOT
+       * a style choice. Postgres aborts the WHOLE transaction on a constraint violation — catching
+       * P2002 inside and carrying on would make every following statement fail with "current
+       * transaction is aborted". Out here the transaction has already rolled back (including the
+       * no-op guard write, which changed nothing), and the state the caller wanted — their reaction
+       * exists, inserted by their own racing request — is already true.
+       *
+       * ⛔ ONLY THE UNIQUENESS RACE IS SWALLOWED. An earlier version caught EVERYTHING, which a
+       * reviewer called overbroad: a foreign-key violation, a dead connection or a failing database
+       * would all have been reported to the client as a successful reaction. ApiError is re-thrown
+       * so the 403 above still reaches the caller.
+       */
+      if (err instanceof ApiError) throw err
+      if ((err as { code?: string })?.code !== 'P2002') throw err
     }
 
     return { reactions: await readReactions(messageId, profile.id) }

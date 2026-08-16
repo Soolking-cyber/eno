@@ -12,7 +12,26 @@ import { RadioGroup, Radio, RadioDot } from '@/components/ui/radio-group'
 import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 
-type Props = { listingId?: string; sellerId?: string; conversationId?: string; className?: string }
+type Props = {
+  listingId?: string
+  sellerId?: string
+  conversationId?: string
+  className?: string
+  /**
+   * CONTROLLED, TRIGGERLESS MODE — the dialog with no button of its own.
+   *
+   * ⛔ WHY NOT JUST RENDER A SECOND <ReportButton> PER MESSAGE. The chat thread's per-message
+   * "Report" is one of four icons in a floating action row, so it cannot use the flag-and-label
+   * button below; and a thread renders up to 200 messages, so mounting 200 dialogs to have one
+   * available would be 200 subscriptions to Base UI's dismiss machinery. The thread keeps ONE
+   * instance and points it at whichever message was reported.
+   *
+   * ⚠️ THE PAIR IS ALL-OR-NOTHING. Passing `open` without `onOpenChange` gives a dialog nothing
+   * can close, so the trigger is hidden only when BOTH are supplied.
+   */
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
+}
 
 const REASONS: { value: string; vi: string; en: string }[] = [
   { value: 'scam', vi: 'Lừa đảo', en: 'Scam' },
@@ -26,12 +45,15 @@ const REASONS: { value: string; vi: string; en: string }[] = [
 // A chat report is about the person/exchange, not a listing — only these reasons apply.
 const CHAT_REASON_VALUES = new Set(['scam', 'offensive', 'other'])
 
-export function ReportButton({ listingId, sellerId, conversationId, className }: Props) {
+export function ReportButton({ listingId, sellerId, conversationId, className, open: openProp, onOpenChange }: Props) {
   const { tr } = useLanguage()
   const t = (en: string, vi: string) => tr(en, vi)
   const { openSignIn } = useAuth()
 
-  const [open, setOpen] = useState(false)
+  const controlled = openProp !== undefined && onOpenChange !== undefined
+  const [openState, setOpenState] = useState(false)
+  const open = controlled ? openProp : openState
+  const setOpen = controlled ? onOpenChange : setOpenState
   const [reason, setReason] = useState('')
   const [detail, setDetail] = useState('')
   const [loading, setLoading] = useState(false)
@@ -109,18 +131,20 @@ export function ReportButton({ listingId, sellerId, conversationId, className }:
           blue "Safe trading tips" link; colour fills in only on hover. font-semibold + red
           keep it findable without a box. text-destructive passes AA on the bg-destructive/10
           hover tint (it carries its own dark value — no dark: twin). */}
-      <Button
-        type="button"
-        variant="bare"
-        size="none"
-        onClick={() => setOpen(true)}
-        className={cn(
-          'gap-1.5 rounded-full px-2.5 py-1.5 text-xs font-semibold text-destructive transition-colors hover:bg-destructive/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive/40 tap-44 relative',
-          className,
-        )}
-      >
-        <Flag className="h-3.5 w-3.5" /> {t('Report', 'Báo cáo')}
-      </Button>
+      {!controlled && (
+        <Button
+          type="button"
+          variant="bare"
+          size="none"
+          onClick={() => setOpen(true)}
+          className={cn(
+            'gap-1.5 rounded-full px-2.5 py-1.5 text-xs font-semibold text-destructive transition-colors hover:bg-destructive/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive/40 tap-44 relative',
+            className,
+          )}
+        >
+          <Flag className="h-3.5 w-3.5" /> {t('Report', 'Báo cáo')}
+        </Button>
+      )}
 
       <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) reset() }}>
         <DialogContent className="bg-popover rounded-2xl shadow-overlay w-full max-w-sm p-6 gap-0">

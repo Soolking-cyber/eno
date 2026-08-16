@@ -1,7 +1,7 @@
 'use client'
 
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState, useCallback } from 'react'
-import { ReactionPicker, ReactionPills, longPressHandlers, cancelLongPress } from '@/components/marketplace/message-reactions'
+import { BubbleChrome, ReactionPills, longPressHandlers, cancelLongPress } from '@/components/marketplace/message-reactions'
 import Link from 'next/link'
 
 import { useParams, useRouter } from 'next/navigation'
@@ -15,6 +15,7 @@ import { ChevronLeft, Phone, Loader2, Tag, RotateCcw, Sparkles, UserRound, Alert
 import { STROKE_NAV } from '@/lib/icon-tokens'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { ChatSendButton, MessageBubble } from '@/components/marketplace/chat-parts'
+import { ChatCardMetaProvider } from '@/components/marketplace/chat-card-shell'
 import { toast } from 'sonner'
 import { haptic } from '@/lib/haptics'
 import { formatMoneyFull, groupVnd, moneyLocale } from '@/lib/vnd'
@@ -213,6 +214,22 @@ function VisaAssistChips({
  * parseMessageMeta, so this is the last mile — enough to hand a typed prop to the card, and it
  * degrades to the "could not be shown" bubble instead of rendering a card with undefined in it.
  */
+/**
+ * The message kinds that render as a STRUCTURED CARD rather than a text bubble.
+ *
+ * ⚠️ IT DECIDES ONE THING: whether the timestamp goes inside the bubble or under the card. It is
+ * deliberately NOT the gate for anything else — the reply/copy/delete gates each ask their own
+ * question (is there a body? is it mine? is it text?), because a card kind this build cannot read
+ * still falls back to a bubble and the answers diverge there.
+ * ⚠️ 'trip_help' IS ABSENT ON PURPOSE: it is a state marker with a plain body and renders as an
+ * ordinary bubble.
+ */
+const CARD_KINDS = new Set([
+  'offer',
+  'visa_step', 'visa_checkout', 'visa_result', 'visa_picker',
+  'trip_step', 'trip_quote', 'trip_status', 'trip_request',
+])
+
 function tripStepNumber(meta: unknown): number | null {
   if (!meta || typeof meta !== 'object') return null
   const value = (meta as Record<string, unknown>).step
@@ -228,7 +245,25 @@ function tripField(meta: unknown, key: 'requestId' | 'status' | 'state' | 'itine
 type Msg ={ id: string; mine: boolean; body: string; createdAt: string; pending?: boolean; failed?: boolean; kind?: string; offerAmount?: number | null; offerStatus?: string | null; meta?: unknown
   // Optional because the localStorage thread cache predates reactions: a thread written by an
   // older build has no such field, and the picker must render against it rather than crash.
-  reactions?: { emoji: string; count: number; mine: boolean }[] }
+  reactions?: { emoji: string; count: number; mine: boolean }[]
+  /**
+   * Recalled by its sender. The server has already redacted `body` to '' (serializeMessage) —
+   * this flag exists so the bubble can say WHY it is empty instead of rendering a blank one.
+   * ⚠️ Optional for the same cache reason as `reactions`.
+   */
+  deleted?: boolean
+  /** The message this one replies to. `body` is '' when that message was itself recalled. */
+  replyTo?: { id: string; body: string; mine: boolean; deleted: boolean } | null }
+
+/**
+ * What the composer holds while a reply is armed — and what a retry re-attaches.
+ *
+ * ⚠️ IT IS NOT `Msg['replyTo']`. That type carries `deleted`, which is a fact about the message
+ * being quoted at RENDER time; an armed quote has no such state (a quote whose target is recalled
+ * mid-compose is refused by the server, not shown as a tombstone in the composer). Reusing the
+ * render type here would have forced a meaningless `deleted: false` at every construction site.
+ */
+type ReplyTarget = { id: string; body: string; mine: boolean }
 type Thread = {
   id: string
   me: string // current user's profile id — to tell my messages from incoming
@@ -267,6 +302,12 @@ type Thread = {
     trust?: { trustScore: number; trustTier: string; memberSinceYear: number; isNew: boolean; lastSeenDay?: string | null } | null
   }
   messages: Msg[]
+  /**
+   * The site-wide most-used reactions, newest-first, from the server's hourly aggregate. Optional
+   * because a cached thread predates it; `topReactions()` tops any short list up from the fallback
+   * set, so an absent field simply means the bar shows the defaults.
+   */
+  topReactions?: string[]
 }
 
 export default function ThreadPage() {
@@ -290,6 +331,69 @@ export default function ThreadPage() {
    * stale one has no pointer to leave and dismiss it.
    */
   const [pickerFor, setPickerFor] = useState<string | null>(null)
+
+  /**
+   * TRUE WHILE THE "＋" EMOJI GRID IS OPEN, so pointer-leave on the row does not dismiss it.
+   *
+   * ⛔ IT IS WHY THE ROW CAN CLOSE ON LEAVE AT ALL. The grid is a Popover rendering through a
+   * PORTAL — not a DOM child of the row — so moving the cursor from the bar into the grid fires
+   * `pointerleave` on the row. That trap is the reason the row previously had NO leave handler,
+   * which a reviewer then correctly called out as the opposite bug: the bar and the action row
+   * stayed floating over the thread until something else was hovered or clicked. This flag lets
+   * both be true — leave dismisses, except into the one thing that portals away.
+   */
+  const [pickerLocked, setPickerLocked] = useState(false)
+
+  /**
+   * THE GRACE DELAY THAT LETS A MOUSE REACH THE FLOATING CHROME.
+   *
+   * ⛔ WITHOUT IT THE WHOLE DESKTOP INTERACTION IS DEAD, and it was — measured, not theorised, after
+   * a reviewer predicted it: the emoji bar sits 10px above the bubble and the action row 6px below,
+   * and the bubble owns the hover, so a pointer walking into either crosses a gap where neither is
+   * hovered. `pointerleave` fires mid-flight, the bar goes `pointer-events-none` and opacity-0, and
+   * the click lands on nothing. A stepped mouse traverse showed the bar closing every time.
+   *
+   * ⚠️ THE CANCEL LIVES ON THE WRAPPER, NOT THE BUBBLE. The bar, the action row and the glyph are
+   * all DOM descendants of the wrapper even though they are painted outside its box, so entering any
+   * of them fires `pointerenter` on the wrapper — which is exactly the signal "the pointer is still
+   * with this message". The bubble keeps the OPEN, the wrapper keeps the KEEP-OPEN, and the glyph
+   * overrides with an immediate close of its own.
+   */
+  /**
+   * The quick-action row's target — a SECOND layer with a SECOND trigger. Owner, 2026-08-16, from
+   * the Zalo reference: the emoji bar belongs to the faded glyph, the action row belongs to the
+   * bubble. One shared boolean could not express that, and trying to made the bar unreachable.
+   */
+  const [actionsFor, setActionsFor] = useState<string | null>(null)
+
+  const chromeCloseTimer = useRef<number | null>(null)
+  /** Owner: "quick actions appear with same slight delay". Same 500ms the bar uses. */
+  const actionsOpenTimer = useRef<number | null>(null)
+  const cancelChromeClose = useCallback(() => {
+    if (chromeCloseTimer.current !== null) { window.clearTimeout(chromeCloseTimer.current); chromeCloseTimer.current = null }
+  }, [])
+  const cancelActionsOpen = useCallback(() => {
+    if (actionsOpenTimer.current !== null) { window.clearTimeout(actionsOpenTimer.current); actionsOpenTimer.current = null }
+  }, [])
+  const scheduleChromeClose = useCallback((messageId: string) => {
+    cancelChromeClose()
+    cancelActionsOpen()
+    // 160ms: longer than the hand takes to cross the 8px gap, shorter than a deliberate move away.
+    chromeCloseTimer.current = window.setTimeout(() => {
+      chromeCloseTimer.current = null
+      setPickerFor((cur) => (cur === messageId ? null : cur))
+      setActionsFor((cur) => (cur === messageId ? null : cur))
+    }, 160)
+  }, [cancelChromeClose, cancelActionsOpen])
+  const scheduleActionsOpen = useCallback((messageId: string) => {
+    cancelActionsOpen()
+    actionsOpenTimer.current = window.setTimeout(() => {
+      actionsOpenTimer.current = null
+      setActionsFor(messageId)
+    }, 500)
+  }, [cancelActionsOpen])
+  // A pending timer must not fire into an unmounted thread.
+  useEffect(() => () => { cancelChromeClose(); cancelActionsOpen() }, [cancelChromeClose, cancelActionsOpen])
 
   /**
    * Toggle a reaction, optimistically.
@@ -346,12 +450,44 @@ export default function ThreadPage() {
     }
   }, [])
 
+  /**
+   * THE MESSAGE BEING REPLIED TO, held while the composer is armed. A snapshot rather than an id:
+   * the chip has to keep saying what it is quoting even if a poll rewrites the thread underneath,
+   * and it must survive the quoted message being recalled mid-compose (the send is then refused
+   * server-side and the reply goes out unquoted, which is the honest outcome).
+   */
+  const [replyTo, setReplyTo] = useState<ReplyTarget | null>(null)
+
+  /** Which message the per-message report dialog is open for. Null = closed. */
+  const [reportFor, setReportFor] = useState<string | null>(null)
+
+  /**
+   * COPY ONE MESSAGE.
+   *
+   * ⚠️ `navigator.clipboard` IS NOT ALWAYS THERE. It is undefined on a non-secure origin and its
+   * write can reject when the document is not focused — both are real on a phone, and an unhandled
+   * rejection here would be a silent no-op that looks like a broken button. The failure gets its
+   * own words instead.
+   */
+  const copyMessage = useCallback(async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text)
+      toast.success(tr('Copied', 'Đã sao chép'))
+    } catch {
+      toast.error(tr('Could not copy', 'Không sao chép được'))
+    }
+  }, [tr])
+
+
   // A press armed on a bubble must not outlive the thread — see cancelLongPress.
   useEffect(() => cancelLongPress, [])
 
   /** Long-press opens the same bar hover does — see message-reactions.tsx on why they differ. */
   const longPressProps = useCallback(
-    (messageId: string) => longPressHandlers(() => setPickerFor(messageId)),
+    // ⚠️ TOUCH GETS BOTH LAYERS AT ONCE. There is no hover to separate them on a phone, and a
+    // long-press that revealed only reactions would leave reply/copy/delete/report unreachable
+    // there entirely.
+    (messageId: string) => longPressHandlers(() => { setPickerFor(messageId); setActionsFor(messageId) }),
     [],
   )
 
@@ -427,6 +563,85 @@ export default function ThreadPage() {
       return pending.length ? { ...data, messages: [...data.messages, ...pending] } : data
     })
   }, [id, cacheThread])
+
+  /**
+   * RECALL ONE OF MY MESSAGES.
+   *
+   * ⛔ IT IS A RECALL, NOT AN ERASURE, AND THE COPY MUST NOT PROMISE OTHERWISE. The row survives so
+   * an admin can still read the thread when adjudicating a dispute (see the route). Telling someone
+   * their message is "deleted" when a moderator can still read it would be a lie in the one place
+   * it matters, so the confirm says what actually happens.
+   *
+   * ⚠️ OPTIMISTIC, WITH A SNAPSHOT REVERT — the same discipline as toggleReaction, and for the same
+   * reason: this thread polls, so re-deriving the old value on failure could restore whatever a
+   * refetch left behind rather than what was there.
+   */
+  const deleteMessage = useCallback(async (messageId: string) => {
+    if (!window.confirm(tr(
+      'Remove this message for both of you? It stays available to eno.vn support if this conversation is ever reported.',
+      'Gỡ tin nhắn này với cả hai bên? Tin nhắn vẫn được giữ cho bộ phận hỗ trợ eno.vn nếu cuộc trò chuyện bị báo cáo.',
+    ))) return
+
+    /**
+     * ⚠️ CAPTURED THROUGH AN UPDATER because `thread` is not in this callback's deps and would be
+     * stale — the same idiom, for the same reason, as toggleReaction. A reviewer read the queued
+     * updater as possibly not having run by the time `catch` fires; in React 18 these setState
+     * calls are batched with the click handler and flush before the first `await`, so `before` is
+     * assigned. The catch path does not rely on it being right either way: it refetches
+     * unconditionally, so a missed snapshot costs a round trip rather than a wrong screen.
+     */
+    /**
+     * ⚠️ THE WHOLE LIST, NOT THE ONE MESSAGE. Reviewer-caught: the optimistic edit below also
+     * redacts the quote in every OTHER message that replied to this one, so restoring only the
+     * target left those quotes blanked out as tombstones for messages that were never recalled.
+     */
+    let before: Msg[] | undefined
+    setThread((t) => {
+      before = t?.messages
+      return t
+    })
+    /**
+     * ⛔ THE RECALL HAS TO REACH EVERY QUOTE OF THE MESSAGE, NOT JUST THE MESSAGE. Reviewer-caught,
+     * and it is the same leak the server was carefully built to avoid: a reply rendered further
+     * down the thread holds its own copy of the quoted text in `replyTo.body`, so redacting only
+     * the recalled bubble left the recalled sentence sitting in every reply that quoted it — on
+     * screen, until the next poll happened to land. The server already answers this correctly
+     * (serializeMessage reads the quote live); this is the optimistic path catching up with it.
+     */
+    setThread((t) => (t ? {
+      ...t,
+      messages: t.messages.map((x) => {
+        const quoteRedacted = x.replyTo?.id === messageId
+          ? { ...x, replyTo: { ...x.replyTo, body: '', deleted: true } }
+          : x
+        return x.id === messageId
+          ? { ...quoteRedacted, body: '', deleted: true, reactions: [] }
+          : quoteRedacted
+      }),
+    } : t))
+    // A reply chip pointing at the message just recalled would keep showing its text in the
+    // composer — the one place the recall has not reached yet.
+    setReplyTo((r) => (r?.id === messageId ? null : r))
+
+    try {
+      const res = await fetch(`/api/conversations/${id}/messages/${messageId}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error(String(res.status))
+      // The inbox row's preview line is denormalized server-side and has just changed.
+      refreshConvos()
+    } catch {
+      setThread((t) => (t && before ? { ...t, messages: before } : t))
+      toast.error(tr('Could not remove that message', 'Không gỡ được tin nhắn'))
+      /**
+       * ⛔ AND THEN ASK THE SERVER, BECAUSE THE REVERT MIGHT BE THE LIE. Reviewer-caught: on VN
+       * mobile networks the RESPONSE to a committed request is routinely dropped — the same failure
+       * the send path's idempotency ledger exists for. The recall would have landed, and this catch
+       * would put the plaintext back on screen for a message that is already gone for the other
+       * party. The revert still runs first (a genuine 4xx must restore the message immediately),
+       * and the refetch overwrites it with whatever actually happened.
+       */
+      void load()
+    }
+  }, [id, tr, refreshConvos, load])
 
   // Realtime: subscribe to this conversation's PRIVATE channel so an incoming
   // message paints the instant it's sent (the same socket the old widget used).
@@ -678,26 +893,42 @@ export default function ThreadPage() {
   // flips the bubble to retry — the retry reuses the id and the server replays the
   // original message instead of inserting a duplicate.
   const sendClientIds = useRef(new Map<string, string>())
+  /** Same idea as sendClientIds, for the quote — so a retry re-attaches the message it replied to. */
+  const sendReplyTargets = useRef(new Map<string, ReplyTarget>())
   /** Message ids that must NOT play the `.bubble-in` entrance because the reader already
    *  watched them arrive. Only ever holds the REAL id of a message that replaced one of my
    *  own optimistic bubbles — see the swap in send(). */
   const enteredIds = useRef(new Set<string>())
-  const send = async (override?: string, reuseClientId?: string) => {
+  const send = async (override?: string, reuseClientId?: string, reuseReplyTo?: ReplyTarget | null) => {
     const body = (override ?? text).trim()
     if (!body) return
+    /**
+     * ⚠️ THE QUOTE IS CAPTURED AND CLEARED IN THE SAME BREATH. Read at the top so an await later in
+     * this function cannot see a `replyTo` the user has since changed, and cleared immediately so a
+     * second message typed while the first is in flight is not silently sent as another reply to
+     * the same thing. A RETRY passes its own — see retry().
+     */
+    const quoted = reuseReplyTo !== undefined ? reuseReplyTo : replyTo
+    if (reuseReplyTo === undefined) setReplyTo(null)
     // Optimistic: show the bubble the instant Send is tapped — the POST swaps in the
     // real message; realtime ignores my own echo, so the UI never waits on the DB.
     const tempId = `temp-${Date.now()}`
     const clientId = reuseClientId ?? crypto.randomUUID()
     sendClientIds.current.set(tempId, clientId)
-    const optimistic: Msg = { id: tempId, mine: true, body, createdAt: new Date().toISOString(), pending: true }
+    if (quoted) sendReplyTargets.current.set(tempId, quoted)
+    const optimistic: Msg = {
+      id: tempId, mine: true, body, createdAt: new Date().toISOString(), pending: true,
+      // The quoted strip draws from the optimistic bubble too, so a reply looks like a reply the
+      // instant it is sent rather than after the POST returns.
+      replyTo: quoted ? { ...quoted, deleted: false } : null,
+    }
     setText('')
     composerRef.current?.clear() // empty the contenteditable DOM immediately (no 1-frame lag)
     haptic()
     setThread((t) => (t ? { ...t, messages: [...t.messages, optimistic] } : t))
     try {
       const res = await fetch(`/api/conversations/${id}/messages`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ body, clientId }),
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ body, clientId, replyToId: quoted?.id }),
       })
       if (res.ok) {
         const m = (await res.json()) as Msg
@@ -711,6 +942,7 @@ export default function ThreadPage() {
         // other side are untouched — they still animate, because they genuinely are new.
         enteredIds.current.add(m.id)
         sendClientIds.current.delete(tempId)
+        sendReplyTargets.current.delete(tempId)
         setThread((t) => {
           if (!t) return t
           const without = t.messages.filter((x) => x.id !== tempId)
@@ -733,9 +965,18 @@ export default function ThreadPage() {
 
   const retry = (m: Msg) => {
     const clientId = sendClientIds.current.get(m.id)
+    /**
+     * ⚠️ THE RETRY MUST CARRY THE ORIGINAL QUOTE, NOT WHATEVER THE COMPOSER IS ARMED WITH NOW.
+     * `send()` defaults to the live `replyTo`, so a failed reply retried while a NEW quote sits in
+     * the composer would go out attached to the wrong message. `?? null` (never `undefined`) is
+     * what tells send() this is a retry with no quote rather than "use the composer's".
+     */
+    const quoted: ReplyTarget | null = sendReplyTargets.current.get(m.id)
+      ?? (m.replyTo ? { id: m.replyTo.id, body: m.replyTo.body, mine: m.replyTo.mine } : null)
     sendClientIds.current.delete(m.id)
+    sendReplyTargets.current.delete(m.id)
     setThread((t) => (t ? { ...t, messages: t.messages.filter((x) => x.id !== m.id) } : t))
-    void send(m.body, clientId)
+    void send(m.body, clientId, quoted)
   }
 
   // Reveal the seller's number + Zalo on request (login-gated + rate-limited +
@@ -1382,7 +1623,10 @@ export default function ThreadPage() {
 
   // Opening the offer composer disarms the concierge — one composer, one meaning (the
   // mirror of toggleConcierge closing the offer composer).
-  const toggleOffer = () => { setShowOffer((s) => !s); setOfferInput(''); setOfferPct(10); setCounterMode(false); setConciergeArmed(false) }
+  // ⚠️ DROPS AN ARMED REPLY. An offer is a structured message with no place for a quote, and the
+  // chip is hidden in offer mode — leaving it armed would silently re-attach it to the next TEXT
+  // message the user sent, long after they had forgotten about it.
+  const toggleOffer = () => { setShowOffer((s) => !s); setOfferInput(''); setOfferPct(10); setCounterMode(false); setConciergeArmed(false); setReplyTo(null) }
 
   // Quick-reply chip → INSERT into the composer (never auto-send), cursor at the
   // end so partial templates ("Can meet in ") are completed in one motion.
@@ -1607,6 +1851,119 @@ export default function ThreadPage() {
               const visaCheckoutMeta = parseVisaCheckoutMeta(m.kind, m.meta)
               const visaResultMeta = parseVisaResultMeta(m.kind, m.meta)
               const visaPickerMeta = parseVisaPickerMeta(m.kind, m.meta)
+
+              /**
+               * DOES THIS MESSAGE RENDER AS A STRUCTURED CARD, OR AS A TEXT BUBBLE?
+               *
+               * ⚠️ A KIND CHECK, NOT A RE-EVALUATION OF THE DISPATCH CHAIN BELOW. Mirroring that
+               * chain of ternaries in a boolean would be a second copy of it that drifts the first
+               * time a kind is added — and the only thing this decides is where the timestamp goes,
+               * so the coarse answer is the right one. A card whose meta this build cannot read
+               * falls back to a bubble but keeps its card kind, and keeps the timestamp outside
+               * with the rest of the cards, which is consistent rather than wrong.
+               */
+              const isCard = !!m.kind && CARD_KINDS.has(m.kind)
+              /**
+               * A card drawn by the shared ChatCard shell — everything except the offer card, which
+               * is inline JSX below. ⚠️ IT DECIDES THE WRAPPER'S WIDTH: the shell used to size
+               * itself `w-[92%] max-w-md`, and that percentage had to move OUT to the wrapper when
+               * the wrapper became `relative` and shrink-to-fit. See chat-card-shell.tsx.
+               */
+              const isShellCard = isCard && m.kind !== 'offer'
+
+              /**
+               * THE TIMESTAMP / SENDING / FAILED LINE. Owner, 2026-08-16: "the timer is inside chat
+               * bubble at same place under text" — so a text bubble takes it as MessageBubble's
+               * `meta`, and a card, which has its own internal layout, keeps it underneath.
+               */
+              const metaNode = m.mine && m.failed ? (
+                // A send that FAILED must be spoken, not just reddened. The scroller above is
+                // role="log" aria-relevant="additions", so a pending bubble FLIPPING to failed is a
+                // text change it never announces. role="alert" goes on this WRAPPER, never on the
+                // Button — overriding a button's role would strip its button semantics and lose the
+                // retry affordance.
+                <span role="alert">
+                  <Button variant="bare" size="none" onClick={() => retry(m)} className="gap-1 px-0 text-3xs font-semibold text-destructive hover:underline cursor-pointer">
+                    <RotateCcw className="h-3 w-3" aria-hidden /> {tr('Not sent — tap to retry', 'Chưa gửi — chạm để thử lại')}
+                  </Button>
+                </span>
+              ) : m.mine && m.pending ? (
+                <><Loader2 className="h-3 w-3 animate-spin" aria-hidden /> {tr('Sending…', 'Đang gửi…')}</>
+              ) : (
+                <>{fmtTime(m.createdAt)}</>
+              )
+
+              /**
+               * THE QUOTED STRIP, inside the bubble above the text. Tapping it scrolls to the
+               * original — the same `revealMessage` anchor the trip chips use.
+               *
+               * ⚠️ THE TOMBSTONE IS NOT COSMETIC. `replyTo.body` is '' when the quoted message was
+               * recalled (the server redacts it — see serializeMessage), so without this branch a
+               * reply to a recalled message would render an empty quote box with no explanation.
+               */
+              const quoteNode = m.replyTo ? (
+                <button
+                  type="button"
+                  onClick={() => revealMessage(m.replyTo!.id)}
+                  className={cn(
+                    // ⛔ NO LEFT STRIPE. Owner, 2026-08-16: "remove gipsy stripe to the left of this
+                    // reply bubble have another way to show its a reply maybe solar icon or a line
+                    // but not this ai slop". A `border-l-2` quote block is the house style of every
+                    // generated chat UI; the reply ARROW says the same thing in this app's own icon
+                    // language, and it is the same glyph the quick-action row uses for Reply — so
+                    // the mark and the control that made it speak once.
+                    'mb-1 flex w-full items-start gap-1.5 rounded-lg px-2 py-1 text-left transition-colors',
+                    // On a sent bubble the quote sits on brand blue, so it borrows white at reduced
+                    // opacity; on a received one it sits on `tint` and uses the ordinary inks.
+                    m.mine ? 'bg-white/10 hover:bg-white/15' : 'bg-foreground/5 hover:bg-foreground/10',
+                  )}
+                >
+                  <Undo2 className={cn('mt-0.5 h-3 w-3 shrink-0', m.mine ? 'text-white/70' : 'text-ink-4')} aria-hidden />
+                  <span className="flex min-w-0 flex-col gap-0.5">
+                  <span className={cn('text-2xs font-bold', m.mine ? 'text-white/85' : 'text-accent-foreground')}>
+                    {/* ⚠️ `replyTo.mine` IS ABOUT THE QUOTED MESSAGE, NOT THIS ONE. Reviewer-caught:
+                        comparing it against `m.mine` labelled the counterpart's reply to YOUR
+                        message with THEIR name, and their reply to their own message with "You".
+                        The quote names whoever wrote the quoted line, full stop. */}
+                    {m.replyTo.mine ? tr('You', 'Bạn') : thread.counterpart.name}
+                  </span>
+                  <span className={cn('line-clamp-2 text-2xs', m.mine ? 'text-white/70' : 'text-ink-4', m.replyTo.deleted && 'italic')}>
+                    {m.replyTo.deleted ? tr('Message removed', 'Tin nhắn đã gỡ') : m.replyTo.body}
+                  </span>
+                  </span>
+                </button>
+              ) : null
+
+              /**
+               * WHAT THIS MESSAGE LETS YOU DO. Every gate is a real constraint, not a preference:
+               *  · reply  — needs text to quote, so every card (empty body by design) is out.
+               *  · copy   — same.
+               *  · delete — yours, and text only. The recall route refuses an offer or a wizard card
+               *             (409 not_recallable) because hiding one strands a live flow; offering
+               *             the button anyway would just be a button that always fails.
+               *  · report — theirs. Reporting your own message is not a thing.
+               * ⛔ PENDING **AND FAILED** BOTH DROP THE CHROME, and leaving `failed` out was a real
+               * bug both reviewers found independently. A failed send keeps its `temp-…` client id,
+               * which no server row matches: reacting 403s, recalling 404s — and the recall's own
+               * error path then RESURRECTS the bubble it just hid, so the message became impossible
+               * to dismiss. A failed message has exactly one affordance and it is the retry link
+               * already in its meta line.
+               * ⚠️ A RECALLED message has nothing left to act on either.
+               */
+              const chromeLive = !m.pending && !m.failed && !m.deleted
+              const messageActions = {
+                onReply: m.body ? () => { setShowOffer(false); setReplyTo({ id: m.id, body: m.body.slice(0, 160), mine: m.mine }); composerRef.current?.focus() } : undefined,
+                /* ⚠️ COPIES WHAT IS ON SCREEN, NOT THE STORED BODY. Reviewer-caught: with live
+                   translation on, `m.body` is the counterpart's original language while the bubble
+                   shows the translation — so Copy handed over text the user could not read and had
+                   not asked for. Same expression the bubble renders from. */
+                onCopy: m.body
+                  ? () => copyMessage((translate.translationFor(m.id) && !revealOriginal.has(m.id) ? translate.translationFor(m.id) : m.body) || m.body)
+                  : undefined,
+                onDelete: m.mine && (m.kind ?? 'text') === 'text' ? () => deleteMessage(m.id) : undefined,
+                onReport: !m.mine ? () => setReportFor(m.id) : undefined,
+              }
+
               return (
               <Fragment key={m.id}>
                 {showDay && (
@@ -1623,25 +1980,107 @@ export default function ThreadPage() {
                     scroll maths needs one predictable box per message. */}
                 <div
                   data-mid={m.id}
-                  {...longPressProps(m.id)}
-                  /**
-                   * DESKTOP: hovering the MESSAGE pops the bar — the Zalo behaviour the owner
-                   * referenced, rather than making the visitor find a 24px heart first.
-                   * ⚠️ Mouse only. On touch, `pointerenter` fires on tap and would open the bar on
-                   * every message anyone poked, which is what long-press exists to avoid.
-                   *
-                   * ⛔ THERE IS DELIBERATELY NO `onPointerLeave`. Both reviewers caught the trap: the
-                   * "+" grid is a Popover and renders through a PORTAL, so it is not a DOM child of
-                   * this row — moving the cursor from the bubble toward it fires leave on the row,
-                   * which would close the bar before a single emoji could be clicked. Entering
-                   * another message already reassigns `pickerFor`, and the picker's own
-                   * outside-pointerdown listener dismisses it, so nothing is left hanging.
-                   */
-                  onPointerEnter={(e) => { if (e.pointerType === 'mouse') setPickerFor(m.id) }}
-                  className={`flex flex-col ${m.mine ? 'items-end' : 'items-start'} ${i === arr.length - 1 && !enteredIds.current.has(m.id) ? 'bubble-in' : ''} ${m.id === revealedId ? 'rounded-2xl ring-2 ring-brand/60 transition-shadow' : ''}`}
+                  /* ⚠️ `pb-4` IS GEOMETRY, NOT RHYTHM. The glyph AND the reaction tallies share a
+                     line that hangs ~70% below the bubble's bottom edge — ~16px for a pill — and the
+                     scroller's gap between messages is only 8px. Without this they would overlap the
+                     message underneath and steal its taps. If the +70% offset or the pill height
+                     changes in message-reactions.tsx, this changes with it. */
+                  className={`flex flex-col pb-4 ${m.mine ? 'items-end' : 'items-start'} ${i === arr.length - 1 && !enteredIds.current.has(m.id) ? 'bubble-in' : ''} ${m.id === revealedId ? 'rounded-2xl ring-2 ring-brand/60 transition-shadow' : ''}`}
                 >
-                {m.kind === 'offer' ? (
-                  <div className={`allow-select max-w-[80%] rounded-2xl border px-3 py-2.5 ${m.mine ? 'border-brand/30 bg-primary/5' : 'border-border bg-tint'}`}>
+                {/* ⛔ THE `relative` WRAPPER IS WHAT THE FLOATING CHROME MEASURES AGAINST. BubbleChrome
+                    is `absolute inset-0`, so it takes the size of THIS box — and as a flex child of
+                    an items-start/items-end column, this box shrinks to exactly the bubble's width.
+                    Move the chrome outside it and the glyph anchors to the full thread width
+                    instead, landing in the gutter on every short message. */}
+                {/**
+                  * ⛔ THE WRAPPER CARRIES THE WIDTH, NOT THE BUBBLE — and this cost a rendered-page
+                  * measurement to find. BubbleChrome('sunk') is `absolute inset-0`, so it needs a
+                  * `relative` parent; but a shrink-to-fit parent resolves a child's PERCENTAGE
+                  * max-width against its own max-content width, not the row's. With `max-w-[78%]`
+                  * left on the bubble, every text message rendered 214px wide instead of 275px —
+                  * 22% narrower, on every message in the app, and invisible to every gate.
+                  * So the constraint lives here (a definite percentage of the ROW) and the bubble
+                  * takes `max-w-full`. ⚠️ Do not move it back.
+                  *
+                  * ⚠️ A CARD IS NOT WRAPPED THIS WAY. Card shells are `w-[92%] max-w-md`, which the
+                  * same rule would shrink by 8% — so they keep their old zero-size anchor. See the
+                  * `variant` prop.
+                  */}
+                <div
+                  className={cn('relative', isShellCard ? 'w-[92%] max-w-md' : 'max-w-[80%]')}
+                  /**
+                   * ⚠️ `onPointerOver`, NOT `onPointerEnter`, AND THE DIFFERENCE IS THE WHOLE POINT.
+                   * `enter` does not bubble and fires only when the pointer crosses INTO this box —
+                   * so moving from the bubble to the bar, both descendants, never fired it and the
+                   * pending close ran anyway. `over` bubbles, so touching ANY part of this message
+                   * (bubble, bar, action row, glyph, hover bridge) reaches here and cancels.
+                   */
+                  onPointerOver={(e) => { if (e.pointerType === 'mouse') cancelChromeClose() }}
+                  onPointerLeave={(e) => {
+                    /* ⚠️ NEVER WHILE THE "＋" GRID IS OPEN — it is a Popover rendered through a
+                       PORTAL, i.e. NOT a descendant of this wrapper, so moving the cursor into it
+                       fires leave here. See pickerLocked. */
+                    if (e.pointerType !== 'mouse' || pickerLocked) return
+                    scheduleChromeClose(m.id)
+                  }}
+                >
+                {/**
+                  * ⛔ THE HOVER TARGET IS THE BUBBLE, NOT THE ROW, AND NOT THIS WRAPPER'S CHROME.
+                  * Owner, 2026-08-16: "popup with more options only when hover on actial bubble not
+                  * the space around or empty space to the right or left of the chat bubble", and
+                  * then "hover on the defaulet faded emoji no popup … give chance for user to use
+                  * default without tricky popup opening".
+                  *
+                  * Both fall out of one structural choice: this box wraps ONLY the bubble, and the
+                  * quick-react glyph is a SIBLING of it (inside BubbleChrome), not a child. So
+                  * hovering the empty gutter beside a short message does nothing, and moving the
+                  * pointer onto the glyph fires `pointerleave` here — the bar closes and the glyph
+                  * becomes clickable, which is exactly the escape the owner asked for.
+                  *
+                  * ⚠️ LONG-PRESS MOVED HERE FOR THE SAME REASON. Pressing the empty space beside a
+                  * message is not a gesture aimed at that message.
+                  */}
+                <ChatCardMetaProvider meta={isShellCard ? metaNode : null}>
+                <div
+                  {...longPressProps(m.id)}
+                  /* ⚠️ Mouse only. On touch, `pointerenter` fires on tap and would open the bar on
+                     every message anyone poked — which is what long-press exists to avoid. */
+                  /* ⚠️ THE BUBBLE OWNS THE ACTION ROW, NOT THE EMOJI BAR. The bar belongs to the
+                     faded glyph and opens from there (see BubbleChrome) — which is what removed the
+                     unreachable-gap bug, because the pointer is already on its anchor. */
+                  onPointerEnter={(e) => {
+                    if (e.pointerType !== 'mouse') return
+                    cancelChromeClose()
+                    /* ⚠️ NOT WHILE THE EMOJI BAR IS UP FOR THIS MESSAGE. The bar covers the bubble
+                       (owner's call), so a pointer inside it is over the bubble too — without this
+                       guard, opening the reactions would arm the action row as a side effect. One
+                       layer at a time, like the reference. */
+                    if (pickerFor === m.id) return
+                    scheduleActionsOpen(m.id)
+                  }}
+                  /* Leaving the BUBBLE only schedules the close — the wrapper above cancels it if
+                     the pointer is on its way to the action row or the glyph. */
+                  onPointerLeave={(e) => {
+                    if (e.pointerType !== 'mouse' || pickerLocked) return
+                    scheduleChromeClose(m.id)
+                  }}
+                >
+                {m.deleted ? (
+                  /**
+                   * THE TOMBSTONE. The server sent no body (serializeMessage redacts it), so this is
+                   * all there is to render — and it MUST render, rather than the row disappearing:
+                   * a message that silently vanishes from the middle of a thread reads as a bug to
+                   * the person who did not delete it, and hides the fact that something was said.
+                   */
+                  <MessageBubble
+                    mine={m.mine}
+                    className={cn('max-w-full italic', m.mine ? 'text-white/70' : 'text-ink-4')}
+                    meta={metaNode}
+                  >
+                    {tr('Message removed', 'Tin nhắn đã gỡ')}
+                  </MessageBubble>
+                ) : m.kind === 'offer' ? (
+                  <div className={`allow-select w-full rounded-2xl border px-3 py-2.5 ${m.mine ? 'border-brand/30 bg-primary/5' : 'border-border bg-tint'}`}>
                     {/* Offer line is DERIVED from the structured offerAmount (tr'd + money
                         format) — never from the stored body. Legacy messages still carry a
                         baked "💰 Offered …₫" body: skip it (rendering it too would double up).
@@ -1715,6 +2154,12 @@ export default function ThreadPage() {
                     {thread?.iAmSeller && m.id === justAcceptedId && m.offerStatus === 'accepted' && (
                       <MarkSoldPrompt listingId={thread.listing.id} listingTitle={thread.listing.title} />
                     )}
+                    {/* Owner, 2026-08-16: "timestamp is inside box for all other in chat elements
+                        too like offers etc". The shell cards get the same line from
+                        ChatCardMetaProvider; this card is inline JSX, so it carries its own. */}
+                    <div className={cn('mt-1.5 flex items-center justify-end gap-1 text-3xs leading-none', m.failed ? 'text-destructive' : 'text-ink-4')}>
+                      {metaNode}
+                    </div>
                   </div>
                 ) : visaStepMeta ? (
                   <VisaStepCard
@@ -1803,8 +2248,37 @@ export default function ThreadPage() {
                   // scanner still runs (it only fires for string children).
                   const translated = translate.translationFor(m.id)
                   const shown = translated && !revealOriginal.has(m.id) ? translated : m.body
-                  return <MessageBubble mine={m.mine} failed={m.failed} pending={m.pending} className="max-w-[78%]">{shown}</MessageBubble>
+                  // `quote` and `meta` are siblings of the text INSIDE the bubble. The child stays a
+                  // bare string so ContactChips' scanner still runs — it only fires for a string
+                  // child, and wrapping the text to add the timestamp would have silently disabled
+                  // the Zalo/WhatsApp chips on every message in the thread.
+                  return <MessageBubble mine={m.mine} failed={m.failed} pending={m.pending} className="max-w-full" quote={quoteNode} meta={metaNode}>{shown}</MessageBubble>
                 })()}
+                </div>
+                </ChatCardMetaProvider>
+                {/* THE FLOATING CHROME: quick-react glyph sunk into the bubble's bottom-right edge,
+                    emoji bar above the bubble, actions row below it. A SIBLING of the hover target
+                    above — see the note there — and inside the `relative` wrapper so every offset
+                    measures the bubble rather than the thread's full width.
+                    ⚠️ NOT ON A PENDING, FAILED OR RECALLED MESSAGE — see chromeLive. */}
+                {chromeLive && (
+                  <BubbleChrome
+                    barOpen={pickerFor === m.id}
+                    onBarOpenChange={(next) => setPickerFor(next ? m.id : null)}
+                    actionsOpen={actionsFor === m.id}
+                    onActionsOpenChange={(next) => setActionsFor(next ? m.id : null)}
+                    align={m.mine ? 'end' : 'start'}
+                    measuredTop={thread.topReactions}
+                    reactions={m.reactions ?? []}
+                    onToggle={(emoji) => toggleReaction(m.id, emoji)}
+                    onPick={(emoji) => toggleReaction(m.id, emoji)}
+                    onRemove={(emoji) => toggleReaction(m.id, emoji)}
+                    myReaction={(m.reactions ?? []).find((r) => r.mine)?.emoji ?? null}
+                    actions={messageActions}
+                    onLockChange={setPickerLocked}
+                  />
+                )}
+                </div>
                 {/* Reveal the original / re-hide it — only on an incoming message we translated. */}
                 {!m.mine && translate.translationFor(m.id) && (
                   <button
@@ -1815,49 +2289,13 @@ export default function ThreadPage() {
                     {revealOriginal.has(m.id) ? tr('Show translation', 'Xem bản dịch') : tr('Show original', 'Xem bản gốc')}
                   </button>
                 )}
-                  {m.mine && m.failed ? (
-                    // A send that FAILED must be spoken, not just reddened. The scroller
-                    // above is role="log" aria-relevant="additions", so a pending bubble
-                    // FLIPPING to failed is a text change it never announces. role="alert"
-                    // goes on this WRAPPER, never on the Button — overriding a button's
-                    // role would strip its button semantics and lose the retry affordance.
-                    <div role="alert" className="mt-0.5">
-                      <Button variant="bare" size="none" onClick={() => retry(m)} className="gap-1 px-1 text-3xs font-semibold text-destructive hover:underline cursor-pointer">
-                        <RotateCcw className="h-3 w-3" aria-hidden /> {tr('Not sent — tap to retry', 'Chưa gửi — chạm để thử lại')}
-                      </Button>
-                    </div>
-                  ) : m.mine && m.pending ? (
-                    <span className="mt-0.5 flex items-center gap-1 px-1 text-3xs text-ink-4"><Loader2 className="h-3 w-3 animate-spin" aria-hidden /> {tr('Sending…', 'Đang gửi…')}</span>
-                  ) : (
-                    <span className="mt-0.5 px-1 text-3xs text-ink-4">{fmtTime(m.createdAt)}</span>
-                  )}
                   {/**
-                   * REACTIONS. The tallies always render; the picker is revealed by hover on a
-                   * pointer device and by long-press on a touch one (see message-reactions.tsx for
-                   * why those are two different interactions rather than one with different CSS).
-                   *
-                   * ⚠️ `align` FOLLOWS THE BUBBLE. An outgoing message sits at the right edge, so a
-                   * bar anchored to the trigger's left would run off-screen — the picker flips
-                   * sides on this prop and it must keep matching `m.mine`.
-                   *
-                   * ⚠️ NOT RENDERED ON A PENDING MESSAGE. Until the server answers, `m.id` is a
-                   * temporary client id that no MessageReaction row can reference, so a tap would
-                   * 403 on a message the database has never heard of.
+                   * ⚠️ THE TALLIES ARE NO LONGER RENDERED HERE. Owner, 2026-08-16: "emojis
+                   * themselves land in the same row of the default emoji line the 30% onto bubble".
+                   * They now sit on the bubble's bottom edge beside the faded glyph, inside
+                   * BubbleChrome — which is why this row carries `pb-4` rather than reserving
+                   * height for them here.
                    */}
-                  {!m.pending && (
-                    <div className={`flex items-center gap-1 ${m.mine ? 'flex-row-reverse' : ''}`}>
-                      <ReactionPicker
-                        open={pickerFor === m.id}
-                        onOpenChange={(next) => setPickerFor(next ? m.id : null)}
-                        align={m.mine ? 'end' : 'start'}
-                        onPick={(emoji) => toggleReaction(m.id, emoji)}
-                      />
-                      <ReactionPills
-                        reactions={m.reactions ?? []}
-                        onToggle={(emoji) => toggleReaction(m.id, emoji)}
-                      />
-                    </div>
-                  )}
                 </div>
                 {m.id === offPlatformWarnId && <OffPlatformWarning />}
               </Fragment>
@@ -2000,6 +2438,57 @@ export default function ThreadPage() {
               onSend={(t) => send(t)}
               composerText={text}
               className="px-4 pt-1.5"
+            />
+          )}
+
+          {/**
+            * THE ARMED REPLY. Sits directly above the composer so the quote and the field you are
+            * typing into read as one thing.
+            *
+            * ⚠️ IT IS NOT SHOWN IN OFFER MODE. The offer field sends a structured offer, and an
+            * offer quoting a text message is a shape the card renderer has no place for — arming a
+            * reply and then switching to an offer would otherwise leave a chip promising something
+            * the send cannot honour. Switching modes drops the quote (see toggleOffer).
+            */}
+          {replyTo && !showOffer && (
+            <div className="flex items-center gap-2 bg-tint px-4 py-1.5">
+              {/* Same mark as the quoted strip inside a bubble — see the note there on why the
+                  left stripe is gone. */}
+              <Undo2 className="h-3.5 w-3.5 shrink-0 text-accent-foreground" aria-hidden />
+              <div className="min-w-0 flex-1">
+                <div className="text-2xs font-bold text-accent-foreground">
+                  {replyTo.mine ? tr('Replying to yourself', 'Trả lời chính bạn') : tr('Replying to', 'Trả lời')} {replyTo.mine ? '' : thread?.counterpart.name}
+                </div>
+                <div className="truncate text-xs text-ink-4">{replyTo.body}</div>
+              </div>
+              <IconButton
+                size="sm"
+                onClick={() => setReplyTo(null)}
+                aria-label={tr('Cancel reply', 'Hủy trả lời')}
+                className="shrink-0 text-ink-4 hover:bg-muted"
+              >
+                <X className="h-4 w-4" aria-hidden />
+              </IconButton>
+            </div>
+          )}
+
+          {/**
+            * THE PER-MESSAGE REPORT DIALOG — ONE INSTANCE, POINTED AT WHICHEVER MESSAGE.
+            *
+            * ⛔ NOT ONE PER BUBBLE. A thread renders up to 200 messages, and a dialog per message
+            * would be 200 Base UI roots each subscribing to the dismiss/focus machinery, for a
+            * control at most one of them will ever open.
+            *
+            * ⚠️ IT REPORTS THE CONVERSATION, NOT THE SINGLE MESSAGE, AND THE COPY SAYS SO — the
+            * Report model has a `conversationId` but no `messageId`, and inventing one here would
+            * mean a column the admin queue does not read. The action's value is that it is reachable
+            * from the message that prompted it; the case an admin opens is the thread either way.
+            */}
+          {thread && (
+            <ReportButton
+              conversationId={thread.id}
+              open={reportFor !== null}
+              onOpenChange={(o) => setReportFor(o ? reportFor : null)}
             />
           )}
 

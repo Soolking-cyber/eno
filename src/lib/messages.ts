@@ -419,6 +419,19 @@ export const MESSAGE_ROW_SELECT = {
    * reactions the other left, which is not what a count is.
    */
   reactions: { select: { emoji: true, profileId: true } },
+  /**
+   * RECALL. Non-null = the sender took it back; `body` still holds the text in the row and MUST NOT
+   * reach either participant — `serializeMessage` below is what redacts it, and it is the only
+   * function allowed to build a wire message for that reason.
+   */
+  deletedAt: true,
+  /**
+   * THE QUOTED MESSAGE, JOINED — NOT SNAPSHOTTED AT SEND TIME. Both reviewers landed on the same
+   * point from opposite directions: a body copied into the reply at send time survives the original
+   * being recalled, so the recall leaks straight back out through every reply that quoted it.
+   * Reading the target live means one recall redacts every quote of it in the same breath.
+   */
+  replyTo: { select: { id: true, body: true, senderProfileId: true, kind: true, deletedAt: true } },
 } as const
 
 /** One emoji's tally on one message, from the asking viewer's point of view. */
@@ -444,11 +457,63 @@ export function foldReactions(
   return [...byEmoji.values()].sort((a, b) => b.count - a.count || a.emoji.localeCompare(b.emoji))
 }
 
+/** The quoted strip above a reply. `body` is '' when the quoted message was itself recalled. */
+export type SerializedReplyTo = { id: string; body: string; mine: boolean; deleted: boolean }
+
 export type SerializedMessage = {
-  id: string; mine: true; body: string; createdAt: string; kind: string
+  id: string; mine: boolean; body: string; createdAt: string; kind: string
   offerAmount: number | null; offerStatus: string | null
   meta: MessageMeta | null
   reactions: SerializedReaction[]
+  /** Recalled by its sender. `body` is '' — the client renders a tombstone, never the text. */
+  deleted?: boolean
+  replyTo?: SerializedReplyTo | null
+}
+
+/**
+ * ⛔ THE ONLY WAY A MESSAGE ROW BECOMES A WIRE MESSAGE. Redaction is easy to forget at a call site
+ * and impossible to notice when forgotten — the thread looks correct, because the client is hiding
+ * a body it was nevertheless handed. Both reviewers made the same point about the same class of
+ * bug, so the redaction lives HERE, once, and every reader goes through it.
+ *
+ * ⚠️ REACTIONS ARE DROPPED ON A RECALLED MESSAGE, not just its body. A tombstone carrying "❤️ 3" is
+ * a fossil of the text it is meant to have removed — and the pills would have nothing to sit under.
+ */
+export function serializeMessage(
+  row: {
+    id: string; senderProfileId: string; body: string; createdAt: Date; kind: string
+    offerAmount: number | null; offerStatus: string | null; metaJson: string | null
+    deletedAt: Date | null
+    reactions: readonly { emoji: string; profileId: string }[]
+    replyTo: { id: string; body: string; senderProfileId: string; kind: string; deletedAt: Date | null } | null
+  },
+  viewerProfileId: string,
+): SerializedMessage {
+  const deleted = !!row.deletedAt
+  const quoted = row.replyTo
+  return {
+    id: row.id,
+    mine: row.senderProfileId === viewerProfileId,
+    body: deleted ? '' : row.body,
+    createdAt: row.createdAt.toISOString(),
+    kind: row.kind,
+    // A recalled message keeps its `kind` so the client can still tell a text row from a card, but
+    // every payload a card would render from is withheld.
+    offerAmount: deleted ? null : row.offerAmount,
+    offerStatus: deleted ? null : row.offerStatus,
+    meta: deleted ? null : parseMessageMeta(row.kind, row.metaJson),
+    reactions: deleted ? [] : foldReactions(row.reactions, viewerProfileId),
+    deleted,
+    replyTo: quoted
+      ? {
+          id: quoted.id,
+          // The recall of the QUOTED message redacts the quote — see MESSAGE_ROW_SELECT.
+          body: quoted.deletedAt ? '' : quoted.body.slice(0, 160),
+          mine: quoted.senderProfileId === viewerProfileId,
+          deleted: !!quoted.deletedAt,
+        }
+      : null,
+  }
 }
 
 type ConvoForSend = {
@@ -477,6 +542,16 @@ export type SendOpts = {
    * plaintext Conversation.lastMessageText column that both parties' inboxes read.
    */
   preview?: string
+  /**
+   * The message this one quotes. VALIDATED HERE, not by the caller and not by the FK.
+   * ⛔ A SELF-FK ONLY PROVES THE TARGET EXISTS. Without the same-conversation check below, a
+   * participant could quote ANY message id on the site and have the server render its body back to
+   * them in the reply strip — an oracle over every private thread on eno.vn, reachable from a
+   * one-field addition to an ordinary send. An unusable id is DROPPED rather than 400'd: the reply
+   * still says what the sender typed, and failing their message because a quote went stale is the
+   * worse outcome.
+   */
+  replyToId?: string
 }
 
 // ---------------------------------------------------------------------------
@@ -737,6 +812,21 @@ export async function insertMessage(convo: ConvoForSend, senderId: string, text:
   // caller-supplied bilingual preview so the inbox row isn't blank. Unchanged for
   // 'text'/'offer': preview is ignored there.
   const previewText = isCard && !text ? (opts?.preview ?? '') : text
+
+  /**
+   * THE QUOTE GATE. See SendOpts.replyToId for why this cannot be left to the FK.
+   * ⚠️ `deletedAt: null` IS PART OF THE PREDICATE, not a nicety. Quoting a message that was already
+   * recalled would re-publish it: the reply strip reads the target live, so the row would come back
+   * redacted — but a client that could pick a recalled id would still learn one existed. Cheaper to
+   * refuse the pointer than to reason about what leaks through it.
+   */
+  const replyToId = opts?.replyToId
+    ? (await db.message.findFirst({
+        where: { id: opts.replyToId, conversationId: convo.id, deletedAt: null },
+        select: { id: true },
+      }))?.id ?? null
+    : null
+
   const createArgs = {
     data: {
       conversationId: convo.id,
@@ -746,10 +836,16 @@ export async function insertMessage(convo: ConvoForSend, senderId: string, text:
       offerAmount: isOffer ? opts?.offerAmount ?? null : null,
       offerStatus: isOffer ? 'pending' : null,
       metaJson: card?.json ?? tripCard?.json ?? null,
+      replyToId,
     },
     // `as const` (not a plain literal): Prisma derives the row type from `true`
     // literals — a widened `boolean` here collapses the inferred payload.
-    select: { id: true, body: true, createdAt: true, kind: true, offerAmount: true, offerStatus: true, metaJson: true } as const,
+    select: {
+      id: true, body: true, createdAt: true, kind: true, offerAmount: true, offerStatus: true, metaJson: true,
+      // The reply strip is rendered from the SENDER's response too, so the quote has to come back
+      // with the insert — otherwise their own reply shows an unquoted bubble until the next poll.
+      replyTo: { select: { id: true, body: true, senderProfileId: true, deletedAt: true } },
+    } as const,
   }
   const convoUpdate = {
     lastMessageAt: new Date(),
@@ -757,7 +853,11 @@ export async function insertMessage(convo: ConvoForSend, senderId: string, text:
     ...(iAmBuyer ? { sellerUnread: { increment: 1 } } : { buyerUnread: { increment: 1 } }),
   }
 
-  type MessageRow = { id: string; body: string; createdAt: Date; kind: string; offerAmount: number | null; offerStatus: string | null; metaJson: string | null }
+  type MessageRow = {
+    id: string; body: string; createdAt: Date; kind: string; offerAmount: number | null
+    offerStatus: string | null; metaJson: string | null
+    replyTo: { id: string; body: string; senderProfileId: string; deletedAt: Date | null } | null
+  }
   let message: MessageRow
   if (card) {
     // ATOMIC GUARD — the WHERE depends on HOW buildCardMeta proved the binding (external
@@ -885,6 +985,20 @@ export async function insertMessage(convo: ConvoForSend, senderId: string, text:
     // the client never has to branch on "is this field here", which is how optional-array fields
     // turn into `undefined.map` at the one call site nobody tested.
     reactions: [],
+    // Nor can it have been recalled — but the field is stated rather than omitted, for the same
+    // reason as `reactions`.
+    deleted: false,
+    replyTo: message.replyTo
+      ? {
+          id: message.replyTo.id,
+          // `deletedAt: null` was a condition of accepting the pointer above, so this branch is
+          // unreachable today. It is written anyway because the redaction rule must not depend on
+          // which path built the object — that is exactly how a leak gets reintroduced.
+          body: message.replyTo.deletedAt ? '' : message.replyTo.body.slice(0, 160),
+          mine: message.replyTo.senderProfileId === senderId,
+          deleted: !!message.replyTo.deletedAt,
+        }
+      : null,
   }
 }
 

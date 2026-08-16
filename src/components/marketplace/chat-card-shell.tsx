@@ -1,5 +1,6 @@
 'use client'
 
+import * as React from 'react'
 import type { ReactNode } from 'react'
 import type { IconComponent } from '@/components/ui/icons'
 import { useLanguage } from '@/context/language-context'
@@ -54,6 +55,25 @@ const TONE: Record<ChatCardTone, { frame: string; accent: string; title: string 
   settled: { frame: 'border-border bg-card/70', accent: 'text-ink-4', title: 'text-body' },
 }
 
+/**
+ * THE TIMESTAMP LINE A CARD SHOWS AT ITS BOTTOM-RIGHT.
+ *
+ * ⛔ A CONTEXT, NOT A PROP, AND THE REASON IS THE CALL SITES. Owner, 2026-08-16: "timestamp is
+ * inside box for all other in chat elements too like offers etc". Twelve ChatCards are rendered by
+ * eight components (VisaStepCard, TripWizardCard, …), none of which has any business knowing when
+ * its message was sent — threading a `meta` prop through all eight, plus their edition stubs, would
+ * be eight signature changes to carry one string that the message row already has. The row provides
+ * it once around the whole card branch; the shell reads it.
+ *
+ * ⚠️ Undefined outside a message row, which is correct: a card rendered anywhere else has no
+ * timestamp and simply shows none.
+ */
+const ChatCardMetaContext = React.createContext<React.ReactNode>(null)
+
+export function ChatCardMetaProvider({ meta, children }: { meta: React.ReactNode; children: React.ReactNode }) {
+  return <ChatCardMetaContext.Provider value={meta}>{children}</ChatCardMetaContext.Provider>
+}
+
 export function ChatCard({
   eyebrow, icon: Icon, title, step, right, tone = 'live', className, children,
 }: {
@@ -82,7 +102,14 @@ export function ChatCard({
       className={cn(
         // `allow-select`: the thread suppresses text selection, and a card is content people
         // legitimately want to copy — an amount, a reference, a place name.
-        'allow-select w-[92%] max-w-md rounded-2xl border px-3.5 py-3',
+        // ⚠️ `w-full`, NOT `w-[92%] max-w-md` — THE SIZE MOVED TO THE ROW WRAPPER. The message row
+        // wraps every card in a `relative` box so the floating chrome (quick-react glyph, emoji
+        // bar, action row) can be positioned against the CARD rather than the full thread width.
+        // A percentage width on a child of a shrink-to-fit wrapper resolves against that wrapper's
+        // max-content, not the row — measured at 22% too narrow on text bubbles before the same
+        // fix. The wrapper now carries `w-[92%] max-w-md` verbatim, so the rendered size is
+        // unchanged; do not put a percentage width back here.
+        'allow-select w-full rounded-2xl border px-3.5 py-3',
         t.frame,
         className,
       )}
@@ -103,8 +130,21 @@ export function ChatCard({
       </div>
       {title ? <h3 className={cn('mt-1.5 text-sm font-bold', t.title)}>{title}</h3> : null}
       {children}
+      <ChatCardMeta />
     </div>
   )
+}
+
+/**
+ * The message timestamp, at the card's bottom-right, INSIDE its border — the same place a text
+ * bubble puts it. Renders nothing outside a message row.
+ */
+function ChatCardMeta() {
+  const meta = React.useContext(ChatCardMetaContext)
+  if (!meta) return null
+  // `pe-5` for the same reason as the text bubble's line — the quick-react glyph is sunk into the
+  // card's bottom-right corner and would sit over a timestamp that ran to the padding edge.
+  return <div className="mt-1.5 flex items-center justify-end gap-1 pe-5 text-3xs leading-none text-ink-4">{meta}</div>
 }
 
 /**

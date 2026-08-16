@@ -187,6 +187,7 @@ export type NicheApiErrorCode =
   | 'not_negotiable'
   | 'not_paid'
   | 'not_participant'
+  | 'not_recallable'                    // added 2026-08-16 — chat recall refuses offers + wizard cards
   | 'not_transacted'
   | 'not_your_card'
   | 'own_listing'
@@ -507,6 +508,7 @@ const ALL = [
   'not_found',
   'not_negotiable',
   'not_participant',
+  'not_recallable',
   'not_signed_in',
   'not_transacted',
   'origin_not_allowed',

@@ -1,7 +1,8 @@
 import { NextResponse, after } from 'next/server'
 import { db } from '@/lib/db'
 import { ApiError, route } from '@/lib/api/handler'
-import { MESSAGE_ROW_SELECT, parseMessageMeta, foldReactions } from '@/lib/messages'
+import { MESSAGE_ROW_SELECT, serializeMessage } from '@/lib/messages'
+import { globalTopReactions } from '@/lib/reaction-tally'
 import { maskEmailHandle } from '@/lib/utils'
 import { threadKind } from '@/lib/thread-kind'
 import { IS_MARKETPLACE } from '@/lib/edition'
@@ -286,13 +287,14 @@ export const GET = route({ auth: 'userId' }, async ({ req, params, userId: meId 
     // zod parse that is tolerant on read): a row that predates the column, was written by
     // hand, or carries a version this build does not understand arrives as null and renders
     // as an inert bubble instead of a live prompt.
-    messages: [...convo.messages].reverse().map((m) => ({
-      id: m.id, mine: m.senderProfileId === meId, body: m.body, createdAt: m.createdAt.toISOString(),
-      kind: m.kind, offerAmount: m.offerAmount, offerStatus: m.offerStatus,
-      meta: parseMessageMeta(m.kind, m.metaJson),
-      // Folded per viewer — `mine` is derived here and the raw profileIds never leave the server.
-      reactions: foldReactions(m.reactions, meId),
-    })),
+    // ⛔ THROUGH serializeMessage, NEVER HAND-BUILT. It is what redacts a recalled message's body
+    //    (the row keeps it for dispute review — see prisma/schema.prisma) and what folds reactions
+    //    per viewer so the raw profileIds never leave the server. Both are invisible when missed:
+    //    the thread renders correctly while having been handed the text it is hiding.
+    messages: [...convo.messages].reverse().map((m) => serializeMessage(m, meId)),
+    // The site-wide top five, so the quick reaction bar shows what people actually use rather than
+    // five glyphs picked in a constant. Cached for an hour per instance — see reaction-tally.ts.
+    topReactions: await globalTopReactions(),
   }
 })
 

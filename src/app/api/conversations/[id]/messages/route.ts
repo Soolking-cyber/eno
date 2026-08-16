@@ -58,7 +58,7 @@ export const POST = route(
     const gate = await messagingGate(meId)
     if (gate) return NextResponse.json(gate, { status: 403 })
 
-    let body: { body?: string; offerAmount?: number; clientId?: string }
+    let body: { body?: string; offerAmount?: number; clientId?: string; replyToId?: string }
     try { body = await req.json() } catch { throw new ApiError('bad_request', 400) }
 
     // Idempotency claim BEFORE any work. A replayed clientId returns the original
@@ -90,6 +90,11 @@ export const POST = route(
     const offerAmount = isOffer ? rounded : undefined
     const text = String(body.body || '').trim().slice(0, MAX_LEN)
     if (!text && !isOffer) { await release(); throw new ApiError('empty', 400) }
+
+    // The quoted message, if this is a reply. Shape only here — WHETHER it may be quoted (same
+    // conversation, not recalled) is decided inside insertMessage, in the same query that reads it,
+    // so no route can forget the check. See SendOpts.replyToId.
+    const replyToId = typeof body.replyToId === 'string' ? body.replyToId.trim().slice(0, 64) || undefined : undefined
 
     const convo = await db.conversation.findUnique({
       where: { id },
@@ -130,7 +135,7 @@ export const POST = route(
         { id, buyerProfileId: convo.buyerProfileId, sellerProfileId: convo.sellerProfileId, listingId: convo.listing.id },
         meId,
         text,
-        isOffer ? { kind: 'offer', offerAmount } : undefined,
+        isOffer ? { kind: 'offer', offerAmount, replyToId } : replyToId ? { replyToId } : undefined,
       )
     } catch (e) {
       await release() // the insert did NOT commit — the retry must be allowed to run

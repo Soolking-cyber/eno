@@ -973,11 +973,29 @@ model Message {
   // FIELD NAMES only. The applicant's answers stay in the encrypted
   // visa_applications payload and are fetched per-render.
   metaJson        String?
+  /// RECALL, NOT ERASURE — the message stays in the row and only the participants stop seeing it.
+  /// A marketplace with a dispute center cannot let one party destroy the evidence the other party
+  /// is about to file a report about: Report.conversationId exists precisely so an admin can read
+  /// the thread when adjudicating a scam or harassment case. So "Delete" hides the body from both
+  /// inboxes and both threads, and leaves it readable to admin.
+  /// ⛔ ONLY 'text' MAY BE RECALLED. An 'offer' carries live accept/decline/counter state the UI
+  /// and the offer routes read, and every card kind is a step in a wizard — hiding either would
+  /// strand a flow, not tidy a conversation.
+  deletedAt       DateTime?
+  /// The message this one replies to, in the SAME conversation (enforced on write — a self-FK
+  /// cannot express "same parent"). SetNull rather than Cascade: a quoted message that is hard-
+  /// deleted must not take the reply with it.
+  replyToId       String?
+  replyTo         Message?     @relation("MessageReplies", fields: [replyToId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  replies         Message[]    @relation("MessageReplies")
   createdAt       DateTime     @default(now())
 
   reactions       MessageReaction[]
 
   @@index([conversationId, createdAt])
+  /// Covering index for the self-FK — the same unindexed-FK class Supabase's performance advisor
+  /// flagged on senderProfileId, and it is what makes the SetNull sweep on a hard delete cheap.
+  @@index([replyToId])
   // Covering index for the senderProfileId FK (joins + cascade-delete checks); was
   // flagged unindexed by Supabase's performance advisor. Applied to prod via migration
   // add_message_senderprofileid_index (matching Prisma's default index name).
