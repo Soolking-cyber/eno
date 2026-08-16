@@ -1,7 +1,7 @@
 // PURE resolution of the dashboard nav config (dashboard-nav.tsx, data-only) into concrete
 // rail rows: role gating, per-seller storefront URL, label localization, live badge binding.
 // Extracted from account-panel.tsx so the gating branches are unit-testable without React or
-// the authed e2e harness — keep this module free of React imports (LucideIcon below is a
+// the authed e2e harness — keep this module free of React imports (IconComponent below is a
 // type-only pass-through). account-panel.tsx is the renderer; any future surface (native
 // shell, forum mirror) can call resolveNavGroups() with its own ctx.
 

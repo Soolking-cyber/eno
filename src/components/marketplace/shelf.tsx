@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import type { CSSProperties } from 'react'
 import { ChevronRight } from '@/components/ui/icons'
-import type { LucideIcon } from '@/components/ui/icons'
+import type { IconComponent } from '@/components/ui/icons'
 import { useLanguage } from '@/context/language-context'
 import { Button } from '@/components/ui/button'
 import { useScrollArrows, ScrollArrows } from '@/hooks/use-scroll-arrows'
@@ -82,7 +82,7 @@ export function Shelf({
   children,
 }: {
   title: React.ReactNode
-  icon?: LucideIcon
+  icon?: IconComponent
   /** "See all" as a link (storefront/seller rails) … */
   seeAllHref?: string
   /** … or as an action (category rails that push a filter). */

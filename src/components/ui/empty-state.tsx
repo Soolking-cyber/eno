@@ -1,4 +1,4 @@
-import type { LucideIcon } from '@/components/ui/icons'
+import type { IconComponent } from '@/components/ui/icons'
 import { cn } from '@/lib/utils'
 import { STROKE_DISPLAY } from '@/lib/icon-tokens'
 
@@ -63,8 +63,8 @@ export function EmptyState({
    * the first draft. `media?: never` and a required `icon` make them unrepresentable,
    * which is cheaper than a comment asking every call site to remember.
    */
-  | { variant?: 'empty'; icon?: LucideIcon }
-  | { variant: 'fault'; icon: LucideIcon; media?: never }
+  | { variant?: 'empty'; icon?: IconComponent }
+  | { variant: 'fault'; icon: IconComponent; media?: never }
 )) {
   return (
     <div

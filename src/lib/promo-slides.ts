@@ -1,4 +1,4 @@
-import type { LucideIcon } from '@/components/ui/icons'
+import type { IconComponent } from '@/components/ui/icons'
 import { BadgeCheck, Coins, Megaphone, Plane } from '@/components/ui/icons'
 
 /**
@@ -38,7 +38,7 @@ export type PromoSlide = {
   ctaEn: string
   ctaVi: string
   href: string
-  icon: LucideIcon
+  icon: IconComponent
   /**
    * Mock banner artwork, drawn as a CSS background-image over `surface`.
    *

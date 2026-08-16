@@ -4,7 +4,7 @@ import {
   ArrowRight, Ban, CircleEllipsis, Copy, Copyright, ImageOff, Info,
   MessageSquareWarning, PackageCheck, TriangleAlert,
 } from '@/components/ui/icons'
-import type { LucideIcon } from '@/components/ui/icons'
+import type { IconComponent } from '@/components/ui/icons'
 import { db } from '@/lib/db'
 import { getAdmin } from '@/lib/admin'
 import { AdminDenied } from '@/components/admin/admin-denied'
@@ -25,7 +25,7 @@ export const metadata: Metadata = { title: 'Disputes — eno.vn admin', robots: 
 // inline icon, §6 forbids, and carried zero information row to row). Vocabulary matches
 // the queue's REASON_LABEL set in moderation-client.tsx; CircleEllipsis is the
 // 'other'/unknown fallback. All chrome: line-only, STROKE_UI (lucide default 2).
-const REASON_GLYPH: Record<string, LucideIcon> = {
+const REASON_GLYPH: Record<string, IconComponent> = {
   scam: TriangleAlert, counterfeit: Copyright, sold: PackageCheck, 'wrong-info': Info,
   duplicate: Copy, offensive: MessageSquareWarning, prohibited: Ban,
   stolen_photos: ImageOff, other: CircleEllipsis,

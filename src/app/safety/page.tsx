@@ -1,6 +1,6 @@
 import { IS_SERVICES, SITE_NAME } from '@/lib/edition'
 import type { Metadata } from 'next'
-import type { LucideIcon } from '@/components/ui/icons'
+import type { IconComponent } from '@/components/ui/icons'
 import {
   Images, MessageSquare, ClipboardCheck,
   Sun, Users, SearchCheck, Banknote, FileText,
@@ -47,7 +47,7 @@ export const metadata: Metadata = {
 // subject — so the type has to admit it. Both take the `className`/`strokeWidth` TipGrid
 // passes, so every tip still renders at one size and one weight.
 type TipGlyph = (props: { className?: string; strokeWidth?: number }) => React.ReactNode
-type Tip = [icon: LucideIcon | TipGlyph, title: string, body: string]
+type Tip = [icon: IconComponent | TipGlyph, title: string, body: string]
 
 // ⚠️ SOLAR'S shield-check, NOT THE HAND-DRAWN eno SEAL (owner, 2026-08-13, pointing at this exact
 // glyph on this page: "sill old icons … use solar"). The wrapper that used to sit here rendered
@@ -140,7 +140,7 @@ const recovery: [title: string, body: string][] = [
 
 // Icon NAMES come from the aliased services module (a module of copy may not import
 // components), so they are resolved here. Unknown name → Info rather than a crash.
-const SERVICES_ICONS: Record<string, LucideIcon> = { Landmark, Globe, Receipt, Ban, Upload, SearchCheck }
+const SERVICES_ICONS: Record<string, IconComponent> = { Landmark, Globe, Receipt, Ban, Upload, SearchCheck }
 const servicesTips: Tip[] = SERVICES_SAFETY.tips.map((t) => [SERVICES_ICONS[t.icon] ?? Info, t.title, t.body])
 
 function TipGrid({ tips, danger = false }: { tips: Tip[]; danger?: boolean }) {

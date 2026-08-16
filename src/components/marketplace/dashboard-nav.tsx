@@ -48,14 +48,14 @@ import {
   Store, SquareArrowOutUpRight, MessageSquare, Heart, Scale, Upload, Plug,
   CircleHelp, FileCheck2, Route,
   Flag, ShieldAlert, ClipboardList, Tags, Star, Stamp, Gavel, Filter,
-  type LucideIcon, ShieldCheck } from '@/components/ui/icons'
+  type IconComponent, ShieldCheck } from '@/components/ui/icons'
 import { cn } from '@/lib/utils'
 
 export type NavRole = 'all' | 'business' | 'seller' | 'admin'
 
 /** The minimal contract every rail/hub renderer actually uses. Lucide glyphs satisfy it,
  *  and so does the one first-party mark (the eno seal adapter below) — widened from
- *  `LucideIcon` so a trust moment is not forced to wear a lucide glyph (§0b).
+ *  `IconComponent` so a trust moment is not forced to wear a lucide glyph (§0b).
  *
  *  ⚠️ THIS IS DELIBERATELY THE SAME SHAPE AS category-icons' `CategoryGlyph`, because the
  *  rail now renders its rows THROUGH `<CategoryGlyphArt selected>` (owner, 2026-08-07:
@@ -63,7 +63,7 @@ export type NavRole = 'all' | 'business' | 'seller' | 'admin'
  *  A narrower hand-written prop bag (the old `{ className?; strokeWidth?: number }`) is not
  *  assignable to that component's `Icon` prop, and widening it here is what lets ONE fill
  *  rule cover the rail instead of a second, rail-local mechanism. */
-export type NavIcon = LucideIcon | ComponentType<SVGProps<SVGSVGElement>>
+export type NavIcon = IconComponent | ComponentType<SVGProps<SVGSVGElement>>
 
 // ⚠️ BUSINESS VERIFICATION USES SOLAR'S `shield-check`, NOT THE eno SEAL (owner, 2026-08-12:
 // "admin dashboard business verification still uses old icon make it solar v2").

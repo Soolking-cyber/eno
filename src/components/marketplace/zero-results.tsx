@@ -1,7 +1,7 @@
 'use client'
 
 import * as React from 'react'
-import type { LucideIcon } from '@/components/ui/icons'
+import type { IconComponent } from '@/components/ui/icons'
 import { SearchX, Bookmark, BookmarkCheck, Bell, BellRing } from '@/components/ui/icons'
 import { Button } from '@/components/ui/button'
 import { EmptyState } from '@/components/ui/empty-state'
@@ -126,8 +126,8 @@ function ActionButton({
   variant: 'outline' | 'cta'
   idleLabel: string
   doneLabel: string
-  idleIcon: LucideIcon
-  doneIcon: LucideIcon
+  idleIcon: IconComponent
+  doneIcon: IconComponent
   /**
    * ⚠️ POINTS AT THE VISIBLE ERROR LINE, and it is not redundant with the live region. The region
    * announces ONCE, at the moment of failure. A user who tabs away and comes back — or who arrives

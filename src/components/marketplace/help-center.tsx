@@ -18,7 +18,7 @@ import {
   UsersRound,
   ShieldCheck,
 } from '@/components/ui/icons'
-import type { LucideIcon } from '@/components/ui/icons'
+import type { IconComponent } from '@/components/ui/icons'
 import { Tr, useLanguage, useTr } from '@/context/language-context'
 import { STROKE_UI } from '@/lib/icon-tokens'
 // ⚠️ FROM category-glyph, NOT category-icons — importing the renderer from the registry file
@@ -60,7 +60,7 @@ import { cn } from '@/lib/utils'
 // 'help-trust-safety' is absent on purpose: first-party trust renders the eno seal, not
 // a lucide shield (icon-language §0b), via <HelpTopicIcon> below. 'eno-service-help'
 // (services edition only) gets a deliberate entry so it never falls back to UsersRound.
-const TOPIC_ICONS: Record<string, LucideIcon> = {
+const TOPIC_ICONS: Record<string, IconComponent> = {
   'help-getting-started': Rocket,
   'help-buying': ShoppingBag,
   'help-selling': Tag,

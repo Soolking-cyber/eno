@@ -1,7 +1,7 @@
 'use client'
 
 import type { ReactNode } from 'react'
-import type { LucideIcon } from '@/components/ui/icons'
+import type { IconComponent } from '@/components/ui/icons'
 import { useLanguage } from '@/context/language-context'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
@@ -59,7 +59,7 @@ export function ChatCard({
 }: {
   /** The family label — "e-Visa", "Trip". Small, uppercase, and the one constant across cards. */
   eyebrow: string
-  icon: LucideIcon
+  icon: IconComponent
   title?: string
   /** Renders the standard "Step 2 of 5" badge. Ignored when `right` is supplied. */
   step?: { current: number; total: number } | null

@@ -1,5 +1,5 @@
 import type { ComponentType, SVGProps } from 'react'
-import type { LucideIcon } from '@/components/ui/icons'
+import type { IconComponent } from '@/components/ui/icons'
 import { STROKE_DISPLAY } from '@/lib/icon-tokens'
 import { cn } from '@/lib/utils'
 
@@ -23,7 +23,7 @@ import { cn } from '@/lib/utils'
  */
 
 /** A glyph component: a shim icon, or bespoke artwork drawn to the same 24-grid contract. */
-export type CategoryGlyph = LucideIcon | ComponentType<SVGProps<SVGSVGElement>>
+export type CategoryGlyph = IconComponent | ComponentType<SVGProps<SVGSVGElement>>
 
 /**
  * THE CATEGORY DUOTONE — one rule, every key (docs/icon-language.md §0/§7,
@@ -122,12 +122,24 @@ export function DuotoneGlyph({
   // default"): the resting glyph is a pure ink line, exactly the outline-idle /
   // filled-active grammar iOS and Carousell use. A glyph with no fillable body simply
   // has no tint layer to render — no special-casing needed.
-  // ⚠️ RESOLVE THE FILL KEY FROM THE COMPONENT when no name is passed. Every lucide
-  // component carries `displayName` = its PascalCase name (createLucideIcon sets it), and
-  // that is exactly the key the fill map is generated under. Without this fallback every
-  // <CategoryGlyphArt> mount — the rail's "All" tile, the whole dashboard rail, the
-  // wizard's slug-fixed glyphs — would resolve no body and stay hollow when selected,
-  // which is the "some are filled, some are not" defect the owner rejected.
+  /**
+   * ⚠️ THIS FALLBACK IS INERT TODAY, AND THE COMMENT THAT USED TO SIT HERE HID THAT.
+   * It said every glyph "carries `displayName` = its PascalCase name (createLucideIcon sets it)".
+   * lucide has not drawn an icon in this app since 2026-08-12 and is not a dependency; the Solar
+   * shim emits `export const Search = (p) => <Glyph … />`, an arrow function with a `.name` but NO
+   * `.displayName`. So for a nameless mount this resolves to `undefined`.
+   *
+   * ⚠️ WHAT THAT ACTUALLY COSTS IS SMALL, WHICH IS WHY IT WENT UNNOTICED — and worth stating
+   * exactly, because I first read it as a live bug. `key` feeds FILL_EXCLUDE only, a three-entry
+   * EXCLUSION map (Layers, UtensilsCrossed, UsersRound). `undefined` yields `[]`, i.e. no
+   * exclusions — which is the correct answer for every glyph except those three. Nothing stays
+   * hollow; a nameless mount of one of those three would simply fill a sub-shape it should not.
+   *
+   * ⛔ SO DO NOT "FIX" THIS BY READING `.name`: it survives dev and is mangled by the production
+   * minifier, which would make the behaviour differ between the build you test and the one you
+   * ship. The real fix, if a nameless mount of an excluded glyph ever appears, is to pass `name`
+   * at that call site — or to have gen-icons.mjs emit displayName, at ~243 assignments of bundle.
+   */
   const key = name ?? (Icon as { displayName?: string }).displayName
   return (
     // The caller's className lands HERE, on the box: size (h-11 w-11 …), ink

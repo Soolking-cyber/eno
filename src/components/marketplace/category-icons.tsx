@@ -97,7 +97,7 @@ import {
   Wrench,
   Zap,
   HelpCircle,
-  type LucideIcon,
+  type IconComponent,
 } from '@/components/ui/icons'
 // ⚠️ THE RENDERER LIVES IN A MAP-FREE LEAF NOW — see the header of category-glyph.tsx. Anything
 // that only needs to DRAW a glyph must import from there, not from here, or it drags this file's

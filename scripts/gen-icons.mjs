@@ -826,8 +826,25 @@ export type IconProps = Omit<SVGProps<SVGSVGElement>, 'ref'> & {
   absoluteStrokeWidth?: boolean
 }
 
-/** The type lucide exports for "a component that renders an icon", used where icons are passed around. */
-export type LucideIcon = (props: IconProps) => React.ReactElement
+/**
+ * "A component that renders an icon", used wherever icons are passed around.
+ *
+ * ⚠️ NAMED IconComponent SINCE 2026-08-16, NOT LucideIcon. It never rendered a lucide glyph —
+ * this app moved to official Solar v2 on 2026-08-12 and lucide-react is not a dependency — but the
+ * type kept the old vendor's name, so every signature in the app claimed a library that is not
+ * installed. Owner: "remove all lucide icons we use solar only". There were none left to remove;
+ * this is the vocabulary catching up with the drawings.
+ *
+ * ⛔ RENAMED HERE, IN THE GENERATOR, BECAUSE src/components/ui/icons.tsx IS GENERATED AND
+ * GITIGNORED. Editing the emitted file renames it only until the next build regenerates the old
+ * name and breaks tsc across every file that imports it. A generated file can only be changed
+ * through its generator — this repo has been bitten by exactly that before.
+ *
+ * ⚠️ NO BACKTICKS ANYWHERE IN THIS COMMENT. It lives INSIDE the template literal that emits the
+ * shim, so one backtick ends the literal and the generator dies with "missing ) after argument
+ * list" — which is precisely how the first version of this note failed.
+ */
+export type IconComponent = (props: IconProps) => React.ReactElement
 
 /**
  * The two sprites every glyph draws from. Both content-stamped, both safe to cache for a year.
