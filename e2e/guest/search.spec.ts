@@ -8,8 +8,19 @@ import { test, expect } from '../helpers'
 // ⚠️ NOT /Marketplace listings/ — that is an UNCONDITIONAL sr-only <h1>
 // (listings-explorer.tsx:2011) that renders whether or not a single listing came back.
 // Proven vacuous: with every /api/listings response stubbed empty, the old assertion still
-// passed. Only the COUNT heading is evidence that a search actually resolved.
-const RESULTS_HEADING = /Found \d+ listing/i
+// passed. Only the COUNT is evidence that a search actually resolved.
+//
+// ⛔ THIS USED TO MATCH /Found \d+ listing/ AS A HEADING, AND IT HAD BEEN FAILING ON PRODUCTION.
+// Two things moved and neither was noticed, because the failure was hidden by a truncated log:
+// the word "Found" was deliberately deleted (listings-explorer.tsx says it "says the same word
+// twice" beside the sr-only "Marketplace listings" heading), and the count moved into
+// <ResultLine>, where it is a `<p aria-live="polite">` rather than a heading. So the locator was
+// wrong on BOTH the text and the role, and no amount of waiting was going to find it.
+//
+// ⚠️ THE INTENT IS UNCHANGED AND MUST STAY THAT WAY: assert the COUNT, because a results view
+// that resolved to nothing still renders chrome. The count now reads "32 listings" / "1 listing"
+// (resultCountLabel), so the pattern below is the same claim with the dead word removed.
+const RESULTS_COUNT = /\d+\s+listing/i
 
 test.describe('Guest · search', () => {
   test('a query resolves to a results view with facet params', async ({ page }) => {
@@ -20,8 +31,8 @@ test.describe('Guest · search', () => {
     await box.fill('iphone')
     await box.press('Enter')
     await expect(page).toHaveURL(/[?&](category|brand|model|q|search)=/i)
-    await expect(page.getByRole('heading', { name: RESULTS_HEADING }).first()).toBeVisible()
-    // And that the count is REAL — "Found 0 listings" renders on a dead API too.
+    await expect(page.getByText(RESULTS_COUNT).first()).toBeVisible()
+    // And that the count is REAL — "0 listings" renders on a dead API too.
     await expect(page.getByRole('button', { name: 'Add favorite' }).first()).toBeVisible()
   })
 
@@ -32,7 +43,7 @@ test.describe('Guest · search', () => {
     const box = page.locator('input[placeholder*="Find products"]:visible').first()
     await box.fill('honda')
     await box.press('Enter')
-    await expect(page.getByRole('heading', { name: RESULTS_HEADING }).first()).toBeVisible()
+    await expect(page.getByText(RESULTS_COUNT).first()).toBeVisible()
     await expect(page.getByRole('button', { name: 'Add favorite' }).first()).toBeVisible()
   })
 })

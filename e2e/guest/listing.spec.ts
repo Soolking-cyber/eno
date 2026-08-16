@@ -49,10 +49,35 @@ test.describe('Guest · listing detail (first live listing)', () => {
     // full-width swipe carousel opens it by tapping the photo itself. Either way it
     // must open a modal that FREEZES the page behind it so swipes don't scroll the
     // background.
-    await expect(page.getByRole('heading', { level: 1, name: TITLE_RE })).toBeVisible()
-    const viewAll = page.getByRole('button', { name: /View all photos/i })
-    if (await viewAll.isVisible()) await viewAll.click()
-    else await page.getByRole('button', { name: /photo 1/i }).first().click()
+    //
+    // ⛔ THIS TEST PICKS ITS OWN LISTING, AND THAT IS THE FIX FOR WHY IT WENT RED. The suite's
+    // shared `LISTING` is simply the FIRST card on the home feed, and the feed's first card is now
+    // a partner SERVICE (an e-Visa product, and since 2026-08-16 the free trip-planning listing)
+    // which carries ONE photo. A single-photo gallery correctly offers no lightbox, so the test
+    // was failing on a listing that had nothing to open — a fixture problem wearing the costume of
+    // a product bug. It had been red on production for days behind a truncated log.
+    //
+    // ⚠️ It still FAILS if no listing on the first screen has a gallery: the affordance is what is
+    // under test, so "found none" must be a failure and never a silent skip.
+    await page.goto('/')
+    const cards = page.locator('a[data-card-link]')
+    await cards.first().waitFor({ timeout: 20_000 })
+    // Absolute app paths already ("/listings/…"), so they are used as-is — resolving each against
+    // `page.url()` while that url CHANGES inside the loop is a trap a reviewer rightly flagged,
+    // even though same-origin absolute paths happen to survive it.
+    const hrefs = (await cards.evaluateAll((as) => as.map((a) => (a as HTMLAnchorElement).getAttribute('href'))))
+      .filter((h): h is string => !!h && h.startsWith('/listings/'))
+      .slice(0, 8)
+    expect(hrefs.length, 'no listing cards on the home feed to test a gallery with').toBeGreaterThan(0)
+    let opened = false
+    for (const href of hrefs) {
+      await page.goto(href)
+      const viewAllHere = page.getByRole('button', { name: /View all photos/i })
+      const photoHere = page.getByRole('button', { name: /photo 1/i }).first()
+      if (await viewAllHere.isVisible().catch(() => false)) { await viewAllHere.click(); opened = true; break }
+      if (await photoHere.isVisible().catch(() => false)) { await photoHere.click(); opened = true; break }
+    }
+    expect(opened, 'no listing on the first screen offered a gallery to open — every one is single-photo?').toBe(true)
     const dialog = page.getByRole('dialog')
     await expect(dialog).toBeVisible()
     // Background is scroll-locked while open…
@@ -64,10 +89,27 @@ test.describe('Guest · listing detail (first live listing)', () => {
   })
 
   test('contact is gated for guests', async ({ page }) => {
-    // The contact CTA reads "Chat now" (desktop seller card) / "Chat" (mobile sticky bar);
-    // the sign-in gate lives IN the click handler rather than in the button copy. A guest who
-    // taps it must get the sign-in dialog — never a live thread / the seller's contact.
-    const chat = page.getByRole('button', { name: /^(Chat now|Chat)$/i }).first()
+    // The sign-in gate lives IN the click handler rather than in the button copy. A guest who taps
+    // the contact CTA must get the sign-in dialog — never a live thread / the seller's contact.
+    //
+    // ⛔ THE CTA'S COPY IS PRODUCT-DEPENDENT NOW, WHICH IS WHY /^(Chat now|Chat)$/ WENT RED ON
+    // PRODUCTION. This spec opens the FIRST live listing, and the top of the feed is now a licensed
+    // partner's service: an e-Visa product renders <VisaStart> ("Apply in chat") and the trip desk
+    // renders <ContactComposer intent="plan"> ("Plan my trip in chat"). Neither is "Chat now", so
+    // the locator found nothing on a page where the gate was working perfectly well.
+    //
+    // ⚠️ AND THOSE SURFACES ON eno.vn ARE INTENDED, NOT A LEAK — stated here because all three
+    // reviewers read this list as a test quietly blessing one. eno.vn does not SELL visa or
+    // itinerary services; it hosts the chat for LICENSED PARTNERS who do (VietKite, owner
+    // 2026-08-13 "intended, do it same as eno.forum for Vietkite"; GMBR, owner 2026-08-16). Their
+    // products are ordinary Listing rows on their own storefronts. What would be a leak is eno.vn
+    // offering them in its OWN voice — the footer links, the desk tiles and the SEO pages — and
+    // that is enforced by the resolveAlias block in next.config.ts, not by this file.
+    //
+    // ⚠️ NAMED IN FULL RATHER THAN LOOSENED TO /chat/i. A substring match would also catch
+    // "Opening chat…" — the BUSY label of this very button — and a test that passes on a spinner
+    // is how a broken gate ships. Each entry is a real CTA; add one when a new product adds one.
+    const chat = page.getByRole('button', { name: /^(Chat now|Chat|Apply in chat|Plan my trip in chat)$/i }).first()
     await expect(chat).toBeVisible()
     const dialog = page.getByRole('dialog')
     // A click that lands while useAuth is still resolving is buffered by ContactComposer

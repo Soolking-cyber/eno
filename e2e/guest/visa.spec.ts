@@ -34,7 +34,25 @@ test.describe('Guest · e-Visa', () => {
   // been renamed to `Eno Visa` / `@eno_visa`; the page 404'd and the assertion failed on the
   // LINK COUNT, which reads like "the desk has no products" and cost a real misdiagnosis (the
   // 14 products were live the whole time). So resolve the page first and say so plainly.
-  const VISA_DESK_HANDLE = 'eno_visa'
+  /**
+   * ⛔ `vietkite`, NOT `eno_visa` — THE DESK MOVED TO THE LICENSED PARTNER AND THIS DID NOT.
+   * eno.vn's visa products are sold by VietKite (VISA_SHOP_OWNER_EMAIL=info@vietkite.com.vn), and
+   * their storefront answers at /vietkite; /eno_visa has been a 404 since the repoint, so this
+   * test has been red on production ever since — unnoticed, because the run was read through a
+   * truncated log that printed the pass count and hid the failure line.
+   *
+   * ⚠️ A VISA STOREFRONT ON eno.vn IS INTENDED. eno.vn does not sell visa services; it hosts a
+   * LICENSED PARTNER'S products as ordinary listings (owner, 2026-08-13). This test asserting that
+   * they render to a guest is asserting the authorised state, not normalising a leak — the leak
+   * this repo actually guards is eno.vn speaking about visas in its OWN voice, which the
+   * resolveAlias block in next.config.ts enforces and edition-lint checks.
+   *
+   * ⚠️ The failure message below is the thing that made this a two-minute fix rather than a hunt,
+   * and it was written by a past version of this test for exactly this event. Keep it: when the
+   * desk moves again, it tells the next person what to change and, just as importantly, that a
+   * 404 here is NOT evidence the desk has no products.
+   */
+  const VISA_DESK_HANDLE = 'vietkite'
 
   test('the visa storefront renders its products to a guest', async ({ page }) => {
     const res = await page.goto(`/${VISA_DESK_HANDLE}`)

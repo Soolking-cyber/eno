@@ -20,12 +20,20 @@ test.describe('Guest · icon sprite', () => {
     await page.goto('/')
     const href = await page.locator('use').first().getAttribute('href')
     /**
-     * ⚠️ THE HREF CARRIES A CACHE-BUSTING QUERY: `/icons/glyphs.svg?v=<hash>#Name-r`. The first
-     * version of this test asserted `#` immediately after `.svg` and would have gone red on its
-     * first CI run — the query stamp was added later in the same change, and two reviewers caught
-     * the contract drifting apart across three files. Assert the FILE and allow the stamp.
+     * ⚠️ THE HREF CARRIES A CACHE-BUSTING QUERY: `/icons/glyphs-core.svg?v=<hash>#Name-r`. The
+     * first version of this test asserted `#` immediately after `.svg` and would have gone red on
+     * its first CI run — the query stamp was added later in the same change, and two reviewers
+     * caught the contract drifting apart across three files. Assert the FILE and allow the stamp.
+     *
+     * ⛔ AND THE FILE IS `glyphs-core`, NOT `glyphs`, SINCE THE SPRITE WAS SPLIT (2026-08-14).
+     * One file became two — `glyphs-core.svg` for the 39 glyphs measured on first paint and
+     * `glyphs-rest.svg` for the other 204 — and this assertion was not updated with it. It has
+     * been failing on production ever since, unnoticed, because the run was being read through a
+     * truncated log that showed the pass count and hid the failure line. The transitional
+     * `glyphs.svg` still exists for edge-cached HTML, so the OLD pattern would still have found a
+     * live file: this test could only ever have caught the rename by asserting the name.
      */
-    expect(href, 'a glyph should reference the sprite').toMatch(/^\/icons\/glyphs\.svg(\?[^#]*)?#/)
+    expect(href, 'a glyph should reference the sprite').toMatch(/^\/icons\/glyphs-(core|rest)\.svg(\?[^#]*)?#/)
     const res = await page.request.get(href!.split('#')[0]!)
     expect(res.status(), 'the sprite must exist — a 404 here blanks every icon on the site').toBe(200)
     expect(res.headers()['content-type']).toContain('svg')
