@@ -2,7 +2,6 @@
 
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState, useCallback } from 'react'
 import { ReactionPicker, ReactionPills, longPressHandlers, cancelLongPress } from '@/components/marketplace/message-reactions'
-import { PRIMARY_REACTION } from '@/lib/reactions'
 import Link from 'next/link'
 
 import { useParams, useRouter } from 'next/navigation'
@@ -1851,7 +1850,6 @@ export default function ThreadPage() {
                         open={pickerFor === m.id}
                         onOpenChange={(next) => setPickerFor(next ? m.id : null)}
                         align={m.mine ? 'end' : 'start'}
-                        active={(m.reactions ?? []).some((r) => r.emoji === PRIMARY_REACTION && r.mine)}
                         onPick={(emoji) => toggleReaction(m.id, emoji)}
                       />
                       <ReactionPills

@@ -4,11 +4,11 @@ import * as React from 'react'
 
 import { useLanguage } from '@/context/language-context'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { Plus, Heart } from '@/components/ui/icons'
+import { Plus } from '@/components/ui/icons'
 import { LottieEmoji } from '@/components/marketplace/lottie-emoji'
 import { hapticTap } from '@/lib/haptics'
 import { cn } from '@/lib/utils'
-import { PRIMARY_REACTION, REACTIONS, reactionFor, topReactions } from '@/lib/reactions'
+import { REACTIONS, reactionFor, topReactions } from '@/lib/reactions'
 
 /**
  * CHAT MESSAGE REACTIONS — the Zalo tap-back, on eno.vn's terms.
@@ -91,7 +91,17 @@ export function ReactionPills({
 }
 
 /**
- * The affordance beside a bubble: a heart at rest, the top five on hover, everything behind "＋".
+ * The reaction bar: the top five plus everything behind "＋". Nothing at rest.
+ *
+ * ⛔ THERE IS NO RESTING CONTROL, BY INSTRUCTION. Owner, 2026-08-16, on the outline heart that used
+ * to live here: "remove this overall only reveal emojis on hover and long press or on press on
+ * mobile". It is revealed by hovering the message on a pointer device and by long-pressing it on a
+ * touch one — the message itself is the affordance, which is also why the touch target is the whole
+ * bubble rather than a 24px circle.
+ *
+ * ⚠️ THE COST, ACCEPTED: nothing on screen advertises that reactions exist. On desktop hover finds
+ * it by accident, but a phone user who never long-presses a message will never discover the
+ * feature. That is the owner's call and it is the same bet iMessage makes.
  *
  * ⚠️ `measuredTop` IS THE GLOBAL TALLY and may be empty for weeks — `topReactions()` tops it up
  * from the fallback set so the bar is always five wide. See src/lib/reactions.ts.
@@ -102,7 +112,6 @@ export function ReactionPicker({
   open,
   onOpenChange,
   align = 'start',
-  active = false,
 }: {
   onPick: (emoji: string) => void
   measuredTop?: readonly string[]
@@ -110,8 +119,6 @@ export function ReactionPicker({
   open: boolean
   onOpenChange: (open: boolean) => void
   align?: 'start' | 'end'
-  /** The viewer has already left the primary reaction — the resting heart shows it filled. */
-  active?: boolean
 }) {
   const { tr } = useLanguage()
   const [allOpen, setAllOpen] = React.useState(false)
@@ -160,42 +167,30 @@ export function ReactionPicker({
       onBlur={(e) => {
         if (!allOpen && !e.currentTarget.contains(e.relatedTarget as Node | null)) onOpenChange(false)
       }}
-      onPointerLeave={(e) => {
-        // ⚠️ Only the POINTER leaving closes it, and only when the full grid is not open — otherwise
-        // moving the mouse from the bar into the popover it just opened would close both.
-        if (e.pointerType === 'mouse' && !allOpen) onOpenChange(false)
-      }}
+      /* ⚠️ NO `onPointerLeave` — a survivor of the previous design that an earlier edit only
+         half-removed. The message row owns hover now, and this wrapper collapsed to 0×0 when the
+         resting heart went, so a leave firing off the absolutely-positioned bar would close it
+         while the pointer was still on the message that opened it. */
     >
+
       {/**
-        * AT REST: A SUBTLE OUTLINE HEART, filling red once you have used it.
+        * ⛔ A FOCUSABLE OPENER THAT IS INVISIBLE UNTIL FOCUSED. Removing the resting heart removed
+        * the ONLY focusable element in this control — both reviewers caught that a keyboard or
+        * screen-reader user was then left with no way to reach reactions at all, because the bar
+        * below is `aria-hidden` and `tabIndex={-1}` while closed, and hover and long-press are both
+        * unavailable to them.
         *
-        * ⛔ AN ICON, NOT THE ❤️ GLYPH. Owner, 2026-08-16: "the heart indicator should be subtle
-        * outline on bottom right corner of the message on press it lights up red". The emoji
-        * character is always full-colour red — there is no outline form of it — so an
-        * always-present emoji reads as a reaction that has already been left, on every message in
-        * the thread. A stroked icon can be quiet at rest and loud once pressed, which is the whole
-        * distinction the owner is asking for. The reaction it SENDS is still the ❤️ character; only
-        * the affordance is drawn.
-        *
-        * ⚠️ `aria-pressed` carries the state, not colour alone — filled-vs-outline is invisible to
-        * a screen reader and to anyone who cannot separate red from grey.
+        * `sr-only` keeps it out of the layout and off the screen exactly as the owner asked, while
+        * `focus:not-sr-only` materialises it the moment it is tabbed to — the same pattern a skip
+        * link uses. Nothing is drawn at rest, and nobody is locked out.
         */}
       <button
         type="button"
-        onClick={() => pick(PRIMARY_REACTION)}
-        /* ⚠️ NO long-press HANDLERS HERE. The message row already carries them and pointer events
-           bubble from this button up to it, so attaching a second set would arm two presses against
-           the same module-level slot — reviewer-caught. The row's press opens this same bar. */
-        aria-pressed={active}
-        aria-label={tr('React with love', 'Thả tim')}
-        className={cn(
-          'press flex size-6 items-center justify-center rounded-full border transition-colors',
-          active
-            ? 'border-destructive/30 bg-destructive/10 text-destructive'
-            : 'border-line-strong bg-card/80 text-ink-4 opacity-60 backdrop-blur-[2px] hover:opacity-100 hover:text-destructive',
-        )}
+        onFocus={() => onOpenChange(true)}
+        aria-label={tr('React to this message', 'Bày tỏ cảm xúc')}
+        className="press sr-only rounded-full border border-line-strong bg-card p-1 text-ink-4 focus:not-sr-only focus:relative focus:z-10"
       >
-        <Heart className={cn('size-3.5', active && 'fill-current')} />
+        <Plus className="size-3.5" />
       </button>
 
       {/* ON HOVER / LONG-PRESS: the top five plus the door to the rest. `aria-hidden` and
@@ -204,12 +199,12 @@ export function ReactionPicker({
       <div
         aria-hidden={!open}
         className={cn(
-          // ⚠️ THE BAR FLIPS SIDES WITH THE BUBBLE. It was hardcoded `left-8`, which put ~200px of
-          // bar to the RIGHT of a trigger that itself sits at the right edge on an outgoing
-          // message — off-screen, or clipped by an overflow-hidden ancestor. Reviewer-caught.
-          // `align` already described which side the message is on; it now actually steers the bar.
+          // ⚠️ THE BAR FLIPS SIDES WITH THE BUBBLE. It was hardcoded `left-8` — 32px right of the
+          // resting heart that used to anchor it — which put ~200px of bar to the RIGHT of a
+          // control already at the screen edge on an outgoing message. With the heart gone the
+          // anchor is a zero-width point, so the bar hangs off the row edge and `align` picks which.
           'absolute z-10 flex items-center gap-0.5 rounded-full border border-border bg-popover p-1 shadow-pop ring-1 ring-foreground/10 transition-[opacity,scale] duration-150 ease-out',
-          align === 'end' ? 'right-8' : 'left-8',
+          align === 'end' ? 'right-0' : 'left-0',
           open ? 'pointer-events-auto scale-100 opacity-100' : 'pointer-events-none scale-95 opacity-0',
         )}
         style={{ transitionTimingFunction: 'var(--ease-spring)' }}
