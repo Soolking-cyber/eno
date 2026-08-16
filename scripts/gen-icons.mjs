@@ -121,9 +121,20 @@ const CATEGORIES = [
          'half-filled. That constraint died with the tint layer, so plain `chef-hat` is now a ' +
          'live option — a deliberate art-direction call, not a silent swap.' },
   { slug: 'free', icon: 'gift', lucide: 'Gift',
-    why: 'The `free` INTENT SHORTCUT (INTENT_SHORTCUTS, length 1) — same idea as lucide Gift. ' +
-         'There is no `wanted` tile in the app; the spec that asked for one described something ' +
-         'that does not exist.' },
+    why: 'The `free` INTENT SHORTCUT — same idea as lucide Gift. ⚠️ This note used to end "there ' +
+         'is no `wanted` tile in the app; the spec that asked for one described something that ' +
+         'does not exist." It exists now (2026-08-16) and is drawn below, along with wholesale.' },
+  { slug: 'wanted', icon: 'cart-large-minimalistic', lucide: 'PackageSearch',
+    why: 'The `wanted` INTENT SHORTCUT — a poster looking to BUY. Solar has no "wanted" idea, and ' +
+         'the two obvious readings both mislead: `magnifer` is the search field\'s glyph and would ' +
+         'make the tile look like a second search entry point, while `bag`/`bag-smile` is what a ' +
+         'SELLER hands over. An empty cart is the buyer\'s own object and the one that says "I am ' +
+         'here to acquire something", which is precisely what this intent reverses.' },
+  { slug: 'wholesale', icon: 'box', lucide: 'Boxes',
+    why: 'The `wholesale` INTENT SHORTCUT — quantity, not a single item. `box` over ' +
+         '`box-minimalistic` because the minimal cut loses the lid seam that reads as a SEALED ' +
+         'carton at 24px, and a carton is the whole idea. ⚠️ Not `layers`/`widget`: both are ' +
+         'already taken by the browse rail\'s "all" tile and the app\'s grid affordances.' },
   { slug: 'all', icon: 'layers', lucide: 'Layers',
     why: 'The browse rail\'s leading tile (data-cat="all"), which renders lucide Layers today. ' +
          'Kept 1:1 so the swap changes the artwork source and nothing else.' },

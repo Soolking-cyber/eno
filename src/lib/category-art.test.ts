@@ -47,10 +47,10 @@ describe('category art covers the taxonomy', () => {
     for (const c of NAV_CATEGORIES) expect(hasCategoryArt(c.slug)).toBe(true)
   })
 
-  it('adds exactly the two tiles that are not categories, and nothing else', () => {
+  it('adds exactly the tiles that are not categories, and nothing else', () => {
     const taxonomySlugs = new Set(TAXONOMY.map((c) => c.slug))
     const extra = CATEGORY_ART_SLUGS.filter((s) => !taxonomySlugs.has(s))
-    // 'free' is the one INTENT_SHORTCUTS entry; 'all' is the browse rail's filter-reset tile.
+    // free/wanted/wholesale are the INTENT_SHORTCUTS entries; 'all' is the browse rail's reset tile.
     // Anything else here is artwork no tile can reach, or a typo for a real slug.
     expect(extra).toEqual([...CATEGORY_ART_NON_TAXONOMY_SLUGS])
   })

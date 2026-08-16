@@ -44,11 +44,14 @@
 export type CategoryArtState = 'rest' | 'selected'
 
 /**
- * Every slug with artwork: the 15 taxonomy categories in `TAXONOMY` order, then the two tiles that
- * are NOT categories.
+ * Every slug with artwork: the 15 taxonomy categories in `TAXONOMY` order, then the four tiles that
+ * are NOT categories (three intent shortcuts + the browse rail's reset).
  *
- * ⚠️ `free` IS THE ONLY INTENT TILE. `INTENT_SHORTCUTS` in taxonomy.ts is length 1; several
- * comments in the app still say "Free & Wanted", and there is no Wanted tile behind them.
+ * ⚠️ `free` IS THE ONLY INTENT TILE WITH ARTWORK, AND IT IS NO LONGER THE ONLY INTENT TILE.
+ * `INTENT_SHORTCUTS` gained Wanted and Wholesale on 2026-08-16 — the "Free & Wanted" the older
+ * comments in this app kept referring to finally exists. Both are drawn in Solar
+ * here, so no tile in the grid falls through to the lucide fallback in CategoryTileGlyph — which
+ * matters because that fallback is the last place a lucide glyph would still reach a tile.
  * ⚠️ `all` IS THE BROWSE RAIL'S LEADING TILE (`data-cat="all"` in category-rail.tsx), which is a
  * filter reset rather than a category — it has no taxonomy row and never will.
  */
@@ -69,6 +72,8 @@ export const CATEGORY_ART_SLUGS = [
   'tickets-travel',
   'food-drink',
   'free',
+  'wanted',
+  'wholesale',
   'all',
 ] as const
 
@@ -76,7 +81,7 @@ export type CategoryArtSlug = (typeof CATEGORY_ART_SLUGS)[number]
 
 /** The two slugs above that are tiles rather than categories. Named so the test can assert that
  *  nothing ELSE quietly joins them — an unknown slug here means artwork nobody can reach. */
-export const CATEGORY_ART_NON_TAXONOMY_SLUGS: readonly CategoryArtSlug[] = ['free', 'all']
+export const CATEGORY_ART_NON_TAXONOMY_SLUGS: readonly CategoryArtSlug[] = ['free', 'wanted', 'wholesale', 'all']
 
 const SLUGS: ReadonlySet<string> = new Set(CATEGORY_ART_SLUGS)
 

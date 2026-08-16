@@ -26,12 +26,17 @@ import type { CategoryColor } from './types'
 import { VISA_ENTRY_TYPES, VISA_SPEED_CODES, VISA_SPEED_SPECS } from './visa/speed'
 
 // ── Intent axis ──────────────────────────────────────────────────────────────
-export type ListingType = 'sell' | 'rent' | 'free' | 'service' | 'job' | 'event'
+export type ListingType = 'sell' | 'rent' | 'free' | 'wanted' | 'wholesale' | 'service' | 'job' | 'event'
 
 export const LISTING_TYPES: { value: ListingType; label: string; labelVi: string; icon: string }[] = [
   { value: 'sell', label: 'For sale', labelVi: 'Cần bán', icon: 'Tag' },
   { value: 'rent', label: 'For rent', labelVi: 'Cho thuê', icon: 'KeyRound' },
   { value: 'free', label: 'Free', labelVi: 'Cho tặng', icon: 'Gift' },
+  // ⚠️ `wanted` REVERSES THE DIRECTION OF A LISTING — it is the only intent where the poster is the
+  // BUYER. Anything that reads listingType to decide who does what (contact copy, offers, the
+  // price line) has to account for that; a "price" on a wanted post is a budget, not an ask.
+  { value: 'wanted', label: 'Wanted', labelVi: 'Cần mua', icon: 'PackageSearch' },
+  { value: 'wholesale', label: 'Wholesale', labelVi: 'Bán sỉ', icon: 'Boxes' },
   { value: 'service', label: 'Service', labelVi: 'Dịch vụ', icon: 'Wrench' },
   { value: 'job', label: 'Job', labelVi: 'Việc làm', icon: 'Briefcase' },
   { value: 'event', label: 'Event', labelVi: 'Sự kiện', icon: 'CalendarDays' },
@@ -45,6 +50,12 @@ export const LISTING_TYPE_LABEL: Record<ListingType, { en: string; vi: string }>
 // to a listingType filter across all categories).
 export const INTENT_SHORTCUTS: { type: ListingType; name: string; nameVi: string; icon: string }[] = [
   { type: 'free', name: 'Free & Giveaways', nameVi: 'Cho tặng miễn phí', icon: 'Gift' },
+  // Owner, 2026-08-16: "cant we have both, wanted chip and the category renders all wanted
+  // products". Both is what this list IS — an intent tile sits in the category grid and browses
+  // like a category, while the data underneath stays one taxonomy. A wanted motorbike is still a
+  // motorbike in Vehicles; it does not get a second Motorbike subcategory to drift out of sync.
+  { type: 'wanted', name: 'Wanted', nameVi: 'Cần mua', icon: 'PackageSearch' },
+  { type: 'wholesale', name: 'Wholesale', nameVi: 'Bán sỉ', icon: 'Boxes' },
 ]
 
 // ── Facets (per-category structured attributes) ──────────────────────────────
@@ -266,7 +277,7 @@ export const TAXONOMY: CategoryDef[] = [
     icon: 'CarFront',
     color: 'sky',
     description: 'Buy or sell motorbikes, bicycles, cars, e-bikes, parts & gear. (To rent, see the Rentals category.)',
-    types: ['sell'],
+    types: ['sell', 'wanted', 'wholesale'],
     subcategories: [
       { slug: 'motorbike', name: 'Motorbike', nameVi: 'Xe máy', icon: 'Gauge', keywords: ['motorbike', 'scooter', 'vision', 'airblade', 'air blade', 'lead', 'sh', 'vespa', 'xe ga', 'tay ga', 'manual', 'wave', 'sirius', 'exciter', 'winner', 'xe máy', 'xe số', 'côn tay'] },
       { slug: 'bicycle', name: 'Bicycle', nameVi: 'Xe đạp', icon: 'Bike', keywords: ['bicycle', 'bike', 'mountain bike', 'road bike', 'xe đạp'] },
@@ -341,7 +352,7 @@ export const TAXONOMY: CategoryDef[] = [
     icon: 'KeyRound',
     color: 'sky',
     description: 'Rent — never buy. Motorbikes, cars, bicycles, e-bikes, plus apartments, houses, rooms, hotels & serviced stays. By the day, week or month. Built for tourists & expats.',
-    types: ['rent'],
+    types: ['rent', 'wanted'],
     subcategories: [
       // Transport rentals
       { slug: 'motorbike-rental', name: 'Motorbike', nameVi: 'Xe máy', icon: 'Gauge', keywords: ['motorbike rental', 'scooter rental', 'rent a bike', 'bike rental', 'rent motorbike', 'vision', 'airblade', 'air blade', 'wave', 'monthly bike', 'thuê xe máy', 'thuê xe ga', 'thuê xe số'] },
@@ -419,7 +430,7 @@ export const TAXONOMY: CategoryDef[] = [
     icon: 'Building2',
     color: 'teal',
     description: 'Apartments, houses, land, offices & retail — to buy or sell. (To rent a home, see the Rentals category.)',
-    types: ['sell'],
+    types: ['sell', 'wanted'],
     subcategories: [
       { slug: 'apartment', name: 'Apartment', nameVi: 'Căn hộ', icon: 'Building', keywords: ['apartment', 'condo', 'buy apartment', 'căn hộ', 'chung cư', 'mua căn hộ'] },
       { slug: 'house', name: 'House', nameVi: 'Nhà', icon: 'House', keywords: ['house', 'villa', 'townhouse', 'buy house', 'nhà nguyên căn', 'nhà phố', 'biệt thự', 'mua nhà'] },
@@ -520,7 +531,7 @@ export const TAXONOMY: CategoryDef[] = [
     icon: 'Sofa',
     color: 'indigo',
     description: 'Sofas, beds, tables, storage, lighting, fridges, washers, ACs, plants & garden.',
-    types: ['sell', 'free'],
+    types: ['sell', 'free', 'wanted', 'wholesale'],
     subcategories: [
       { slug: 'sofa-seating', name: 'Sofa', nameVi: 'Sofa', icon: 'Sofa', keywords: ['sofa', 'couch', 'armchair', 'chair', 'ghế', 'sofa'] },
       { slug: 'tables-desks', name: 'Tables', nameVi: 'Bàn', icon: 'Table', keywords: ['table', 'desk', 'dining', 'bàn', 'bàn làm việc'] },
@@ -552,7 +563,7 @@ export const TAXONOMY: CategoryDef[] = [
     icon: 'Smartphone',
     color: 'indigo',
     description: 'Phones, laptops, TVs, audio, cameras, gaming, accessories & components.',
-    types: ['sell', 'free'],
+    types: ['sell', 'free', 'wanted', 'wholesale'],
     subcategories: [
       { slug: 'phones-tablets', name: 'Phones', nameVi: 'Điện thoại', icon: 'TabletSmartphone', keywords: ['iphone', 'ipad', 'phone', 'tablet', 'samsung', 'điện thoại', 'máy tính bảng'] },
       { slug: 'laptops-pcs', name: 'Laptops', nameVi: 'Laptop', icon: 'Laptop', keywords: ['macbook', 'laptop', 'pc', 'computer', 'dell', 'asus', 'thinkpad', 'máy tính'] },
@@ -608,7 +619,7 @@ export const TAXONOMY: CategoryDef[] = [
     icon: 'Shirt',
     color: 'violet',
     description: "Women's & men's clothing, shoes, bags, watches, jewelry and cosmetics.",
-    types: ['sell'],
+    types: ['sell', 'wanted', 'wholesale'],
     subcategories: [
       { slug: 'womens', name: 'Women', nameVi: 'Nữ', icon: 'Venus', keywords: ['dress', 'women', 'skirt', 'đầm', 'váy', 'nữ'] },
       { slug: 'mens', name: 'Men', nameVi: 'Nam', icon: 'Mars', keywords: ['men', 'shirt', 'jacket', 'áo', 'quần', 'nam'] },
@@ -656,7 +667,7 @@ export const TAXONOMY: CategoryDef[] = [
     icon: 'Baby',
     color: 'cyan',
     description: 'Strollers, car seats, baby gear, toys, kids clothing and maternity.',
-    types: ['sell', 'free'],
+    types: ['sell', 'free', 'wanted', 'wholesale'],
     subcategories: [
       { slug: 'strollers-seats', name: 'Strollers', nameVi: 'Xe đẩy', icon: 'Baby', keywords: ['stroller', 'pram', 'car seat', 'xe đẩy', 'ghế ô tô'] },
       { slug: 'baby-gear', name: 'Gear', nameVi: 'Đồ dùng', icon: 'Milk', keywords: ['crib', 'cot', 'high chair', 'baby', 'cũi', 'nôi', 'ghế ăn'] },
@@ -692,7 +703,7 @@ export const TAXONOMY: CategoryDef[] = [
     icon: 'Dumbbell',
     color: 'sky',
     description: 'Fitness gear, instruments, English books, board games, collectibles, camping & outdoors.',
-    types: ['sell', 'free'],
+    types: ['sell', 'free', 'wanted', 'wholesale'],
     subcategories: [
       { slug: 'fitness', name: 'Sports', nameVi: 'Thể thao', icon: 'Dumbbell', keywords: ['dumbbell', 'weights', 'yoga', 'gym', 'treadmill', 'tạ', 'thể thao'] },
       { slug: 'instruments', name: 'Instruments', nameVi: 'Nhạc cụ', icon: 'Guitar', keywords: ['guitar', 'piano', 'keyboard', 'instrument', 'đàn', 'nhạc cụ'] },
@@ -721,7 +732,7 @@ export const TAXONOMY: CategoryDef[] = [
     icon: 'PawPrint',
     color: 'teal',
     description: 'Dogs, cats, adoption & rehoming, supplies, birds, fish and more.',
-    types: ['sell', 'free'],
+    types: ['sell', 'free', 'wanted'],
     subcategories: [
       { slug: 'dogs', name: 'Dogs', nameVi: 'Chó', icon: 'Dog', keywords: ['dog', 'puppy', 'chó', 'cún'] },
       { slug: 'cats', name: 'Cats', nameVi: 'Mèo', icon: 'Cat', keywords: ['cat', 'kitten', 'mèo'] },
@@ -759,7 +770,7 @@ export const TAXONOMY: CategoryDef[] = [
     icon: 'Briefcase',
     color: 'violet',
     description: 'Teaching, hospitality, IT, sales, marketing, admin, healthcare, trades, remote & internships.',
-    types: ['job'],
+    types: ['job', 'wanted'],
     subcategories: [
       { slug: 'teaching', name: 'Teaching', nameVi: 'Giảng dạy', icon: 'GraduationCap', keywords: ['teacher', 'teaching', 'english', 'tutor', 'esl', 'giáo viên', 'gia sư'] },
       { slug: 'hospitality', name: 'Hospitality', nameVi: 'Nhà hàng', icon: 'ConciergeBell', keywords: ['barista', 'waiter', 'chef', 'hotel', 'f&b', 'phục vụ', 'pha chế'] },
@@ -811,7 +822,7 @@ export const TAXONOMY: CategoryDef[] = [
     icon: 'Wrench',
     color: 'cyan',
     description: 'Visa & legal, language lessons, cleaning, moving, repairs, beauty, fitness, photography, childcare & more.',
-    types: ['service'],
+    types: ['service', 'wanted'],
     subcategories: [
       { slug: 'visa-legal', name: 'Visa', nameVi: 'Visa', icon: 'Stamp', keywords: ['visa', 'work permit', 'legal', 'tax', 'permit', 'giấy tờ', 'thuế', 'pháp lý'] },
       { slug: 'language-lessons', name: 'Languages', nameVi: 'Ngoại ngữ', icon: 'Languages', keywords: ['vietnamese lesson', 'english class', 'language', 'học tiếng việt', 'dạy tiếng', 'ngoại ngữ'] },
@@ -912,7 +923,7 @@ export const TAXONOMY: CategoryDef[] = [
     icon: 'Plane',
     color: 'sky',
     description: 'Event tickets, tours & experiences, transport, and visa runs.',
-    types: ['sell', 'service'],
+    types: ['sell', 'service', 'wanted'],
     subcategories: [
       { slug: 'event-tickets', name: 'Tickets', nameVi: 'Vé', icon: 'Ticket', keywords: ['ticket', 'concert', 'show', 'vé', 'vé sự kiện'] },
       { slug: 'tours', name: 'Tours', nameVi: 'Tour', icon: 'Map', keywords: ['tour', 'experience', 'trip', 'du lịch', 'trải nghiệm'] },
@@ -944,7 +955,7 @@ export const TAXONOMY: CategoryDef[] = [
     icon: 'UtensilsCrossed',
     color: 'brand',
     description: 'Home bakers & cooks, imported groceries, meal prep, catering, coffee & tea.',
-    types: ['sell', 'service'],
+    types: ['sell', 'service', 'wanted', 'wholesale'],
     subcategories: [
       { slug: 'home-baking', name: 'Homemade', nameVi: 'Nhà làm', icon: 'Cookie', keywords: ['baking', 'cake', 'homemade', 'bánh', 'nhà làm'] },
       { slug: 'groceries', name: 'Groceries', nameVi: 'Thực phẩm', icon: 'ShoppingBasket', keywords: ['groceries', 'imported', 'cheese', 'thực phẩm', 'nhập khẩu'] },

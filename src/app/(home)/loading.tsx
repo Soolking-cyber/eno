@@ -21,8 +21,9 @@ import { ListingCardSkeleton } from '@/components/marketplace/listing-card-skele
  *      2026-08-03 and listings-explorer.tsx says in capitals that THE HERO SEARCH BAR IS
  *      GONE — IT LIVES IN THE HEADER NOW. Because this file renders the real <Header/>,
  *      the old skeleton showed a real header search bar AND a fake hero pill at once.
- *   2. 17 category tiles ("15 categories + 2 intent tiles"). INTENT_SHORTCUTS is length 1
- *      and DESK_SHORTCUTS is [] on the marketplace edition — the live grid is 16 tiles.
+ *   2. 17 category tiles ("15 categories + 2 intent tiles"). INTENT_SHORTCUTS was length 1 when
+ *      that was written; it is 3 since 2026-08-16 (free, wanted, wholesale) and DESK_SHORTCUTS is
+ *      [] on the marketplace edition — the live grid is 18 tiles.
  *   3. A third bar per tile for the listing count. The real tile renders that span only
  *      when `cat.verifiedCount >= 20`, and the intent tile never does.
  * And the tile icon is a BARE duotone <CategoryIcon> glyph — there is no tile chrome

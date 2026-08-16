@@ -452,6 +452,19 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
   // (listingMoneyFor in @/lib/taxonomy); this is only its translated shorthand.
   // Currency is not a variable here — every listing is composed and stored in ₫.
   const priceUnit = listingType === 'rent' || listingType === 'job' ? t('/ tháng', '/ month') : listingType === 'service' ? t('/ dịch vụ', '/ service') : ''
+  /**
+   * ⚠️ ON A `wanted` POST THE AMOUNT IS A BUDGET, NOT AN ASK — the poster is the BUYER, which is
+   * the one intent that reverses the direction of a listing. Heading it "Price" asks someone what
+   * they are charging for a thing they are trying to acquire, which reads as a mistake on the
+   * first screen of the flow. `wholesale` keeps "Price" but says what it is priced BY, since a
+   * bulk listing is quoted per unit far more often than per lot.
+   */
+  const priceHeading = listingType === 'wanted' ? t('Ngân sách', 'Budget') : t('Giá', 'Price')
+  const priceHint = listingType === 'wanted'
+    ? t('Bạn sẵn sàng trả bao nhiêu', 'What you are willing to pay')
+    : listingType === 'wholesale'
+      ? t('Giá mỗi sản phẩm', 'Price per unit')
+      : ''
 
   // Required-field checklist (drives the Publish button + the "what's left" hint).
   const checks = [
@@ -1093,11 +1106,24 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
             priceErr={priceErr}
             priceBand={priceBand}
             priceUnit={priceUnit}
+            priceHeading={priceHeading}
+            priceHint={priceHint}
             negotiable={negotiable}
             setNegotiable={setNegotiable}
             urgent={urgent}
             setUrgent={setUrgent}
-            fixedPriceOnly={categorySlug === 'services'}
+            /**
+             * ⛔ AND ON A `wanted` POST, BECAUSE THE OFFER MECHANIC IS SELLER-SIDE AND THIS POSTER
+             * IS THE BUYER. "Accept offers" invites strangers to haggle DOWN a budget its author
+             * is offering to PAY, and "Bán gấp"/urgent announces a seller in a hurry on a post with
+             * nothing to sell. Both are the direction reversal this intent introduces, and both
+             * were shipped unhandled in the first cut — the comment beside LISTING_TYPES said
+             * anything reading listingType "has to account for that" and then only the price
+             * heading did. Two reviewers called that out; this is the rest of it.
+             * ⚠️ Reuses the SERVICES lever rather than adding a second one: services already sell
+             * at a stated price with no offers and no urgency, which is exactly the shape wanted.
+             */
+            fixedPriceOnly={categorySlug === 'services' || listingType === 'wanted'}
             t={t}
           />
 

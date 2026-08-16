@@ -37,7 +37,6 @@ export const UI_STRINGS_SERVICES: string[] = [
   "Being reviewed",
   "Booking, transport, visa, community, maps, and every link from this itinerary are collected here for quick access.",
   "Breakfast and a first walk",
-  "Budget",
   "Budget and route",
   "Budget estimate",
   "Build my plan",

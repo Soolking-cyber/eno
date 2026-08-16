@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Prisma } from '@/generated/prisma/client'
-import { CATEGORY_BY_SLUG, rangeFacetsFor } from '@/lib/taxonomy'
+import { CATEGORY_BY_SLUG, rangeFacetsFor, typesFor } from '@/lib/taxonomy'
 
 /**
  * Live chip counts.
@@ -458,9 +458,15 @@ describe('computeFacetCounts', () => {
 
   it('narrows the intent SEED to the category’s own types', async () => {
     h.groups.listingType = [{ listingType: 'sell', _count: { _all: 7 } }]
-    // Vehicles is buy-sell-only since rentals became its own category.
     const out = await run({ category: 'vehicles' }, ['type'])
-    expect(Object.keys(out.type!.values)).toEqual(['sell'])
+    // ⚠️ ASSERTED AGAINST typesFor, NOT A HARDCODED LIST. This used to read `toEqual(['sell'])`,
+    // which pinned the CONTENTS of Vehicles rather than the behaviour under test — so adding the
+    // Wanted and Wholesale intents in 2026-08 failed it for the one reason it was never about.
+    // Derived, it still fails the moment the seed stops following the category.
+    expect(Object.keys(out.type!.values).sort()).toEqual([...typesFor('vehicles')].sort())
+    // ⛔ AND THE INVARIANT THE OLD ASSERTION WAS REALLY PROTECTING, now stated outright: Vehicles
+    // is BUY-SELL-ONLY since rentals became its own category, so `rent` must never be seeded here.
+    expect(Object.keys(out.type!.values)).not.toContain('rent')
   })
 
   it('still reports a stray intent the category no longer offers, rather than hiding the rows', async () => {
@@ -473,7 +479,12 @@ describe('computeFacetCounts', () => {
       { listingType: 'rent', _count: { _all: 2 } },
     ]
     const out = await run({ category: 'vehicles' }, ['type'])
-    expect(out.type).toEqual({ all: 9, values: { sell: 7, rent: 2 } })
+    expect(out.type!.all).toBe(9)
+    // The stray row is REPORTED, which is the whole point — asserted on the two keys that carry
+    // the claim rather than on the whole object, so a new seeded intent (which lands at 0) cannot
+    // fail a test about legacy rows.
+    expect(out.type!.values.sell).toBe(7)
+    expect(out.type!.values.rent).toBe(2)
   })
 
   it('buckets years into the chips and leaves year-less rows out of every band', async () => {

@@ -341,6 +341,8 @@ export function PriceSection({
   setNegotiable,
   urgent,
   setUrgent,
+  priceHeading,
+  priceHint,
   t,
 }: {
   /** Services sell at a stated price: no offers, no urgency (owner, 2026-07-22). */
@@ -356,10 +358,16 @@ export function PriceSection({
   setNegotiable: (v: boolean) => void
   urgent: boolean
   setUrgent: (v: boolean) => void
+  /** The section heading. Supplied because only the wizard knows the INTENT, and a `wanted` post
+   *  is asking for a budget rather than a price — see the note where these are derived. */
+  priceHeading?: string
+  /** One line under the field naming what the amount means, when the intent needs saying. */
+  priceHint?: string
   t: T
 }) {
+  const heading = priceHeading ?? t('Giá', 'Price')
   return (
-    <Section id="pw-price" title={t('Giá', 'Price')}>
+    <Section id="pw-price" title={heading}>
       <div onBlur={() => touch('price')}>
         <div className="flex max-w-xs items-center gap-2">
           {/* VndInput renders a <div> (input + VND suffix + preset chips), so it is not a
@@ -375,12 +383,13 @@ export function PriceSection({
               onChange={setPrice}
               placeholder={t('Nhập giá', 'Enter price')}
               invalid={errPrice}
-              aria-label={t('Giá', 'Price')}
+              aria-label={heading}
               aria-describedby={priceErr ? 'pw-price-error' : undefined}
             />
           </div>
           {priceUnit && <span className="shrink-0 text-sm font-semibold text-ink-4">{priceUnit}</span>}
         </div>
+        {priceHint && <p className="mt-1 text-xs text-ink-4">{priceHint}</p>}
         {priceErr && <p id="pw-price-error" role="alert" className="mt-1.5 text-xs font-semibold text-destructive">{priceErr}</p>}
         {priceBand && Number(price) > 0 && <PriceGuidance price={Number(price)} band={priceBand} />}
         {/* Negotiable vs fixed — a fixed price hides the offer UI so buyers just
