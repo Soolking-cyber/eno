@@ -1,7 +1,7 @@
 import { NextResponse, after } from 'next/server'
 import { db } from '@/lib/db'
 import { ApiError, route } from '@/lib/api/handler'
-import { MESSAGE_ROW_SELECT, parseMessageMeta } from '@/lib/messages'
+import { MESSAGE_ROW_SELECT, parseMessageMeta, foldReactions } from '@/lib/messages'
 import { maskEmailHandle } from '@/lib/utils'
 import { threadKind } from '@/lib/thread-kind'
 import { IS_MARKETPLACE } from '@/lib/edition'
@@ -290,6 +290,8 @@ export const GET = route({ auth: 'userId' }, async ({ req, params, userId: meId 
       id: m.id, mine: m.senderProfileId === meId, body: m.body, createdAt: m.createdAt.toISOString(),
       kind: m.kind, offerAmount: m.offerAmount, offerStatus: m.offerStatus,
       meta: parseMessageMeta(m.kind, m.metaJson),
+      // Folded per viewer — `mine` is derived here and the raw profileIds never leave the server.
+      reactions: foldReactions(m.reactions, meId),
     })),
   }
 })

@@ -106,7 +106,45 @@ export function ConversationList() {
                 key={c.id}
                 onMouseEnter={() => prefetchThread(c.id)}
                 onTouchStart={() => prefetchThread(c.id)}
-                className={cn('group relative flex items-center gap-1 rounded-xl transition-colors', activeId === c.id ? 'text-accent-foreground bg-muted' : c.unread > 0 ? 'bg-accent hover:bg-accent' : 'hover:bg-muted')}
+                /**
+                 * ⛔ A STANDING OFFER IS A DISTINCT ROW STATE, NOT A SHADE OF UNREAD. Owner,
+                 * 2026-08-16: "for unanswered offers have some state on left messages panel where
+                 * user can clearly see if they have standing offer … have same or another color
+                 * background when offer is not accepted countered or declined".
+                 *
+                 * The two states answer different questions and must not share a colour. Unread
+                 * asks "has something arrived?" and is cleared by looking. A pending offer asks
+                 * "does someone owe an answer?" and is cleared only by accepting, declining or
+                 * countering — it survives being read, and it is the one that costs money to
+                 * forget. So it gets a warning tint, sitting ABOVE unread in the cascade: a thread
+                 * that is both is shown as the offer, because that is the state with a deadline.
+                 *
+                 * ⚠️ `bg-warning/15`, AND THAT EXACT UTILITY FOR A REASON. The first attempt wrote
+                 * `bg-warning-soft`, which does not exist anywhere in this codebase — Tailwind emits
+                 * nothing for it, so the row would have rendered with NO background while tsc,
+                 * eslint and design-lint all passed. The established pair here is `bg-warning/10`
+                 * (27 uses) and `/15`; the stronger one is used because this row competes with
+                 * `bg-accent` unread rows for attention and must win.
+                 *
+                 * ⚠️ `pending` IS THE ONLY STATUS THAT QUALIFIES. accepted / declined / countered
+                 * are all resolved — a countered offer has already been answered, and the counter
+                 * itself becomes the new last message with its own pending status if it is live.
+                 */
+                className={cn(
+                  'group relative flex items-center gap-1 rounded-xl transition-colors',
+                  // ⚠️ PENDING OUTRANKS ACTIVE, and that ordering is the owner's requirement, not a
+                  // detail. Reviewer-caught: with `activeId` first, merely OPENING the thread
+                  // replaced the tint with `bg-muted` — so the one state that is supposed to
+                  // survive being looked at was cleared by looking at it. Only accepting, declining
+                  // or countering may clear it.
+                  c.lastOffer?.status === 'pending'
+                    ? 'bg-warning/15 hover:bg-warning/20'
+                    : activeId === c.id
+                      ? 'text-accent-foreground bg-muted'
+                      : c.unread > 0
+                        ? 'bg-accent hover:bg-accent'
+                        : 'hover:bg-muted',
+                )}
               >
                 {/* Unread → clear blue left rail so the new thread to reply to stands out. */}
                 {c.unread > 0 && activeId !== c.id && (

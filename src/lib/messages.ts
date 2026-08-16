@@ -410,12 +410,45 @@ export function parseMessageMeta<K extends string>(
 export const MESSAGE_ROW_SELECT = {
   id: true, senderProfileId: true, body: true, createdAt: true,
   kind: true, offerAmount: true, offerStatus: true, metaJson: true,
+  /**
+   * ⚠️ FETCHED WITH THE ROW, NOT PER MESSAGE. A thread takes 200 messages, so a per-bubble read
+   * would be 200 round trips to draw one screen. Prisma turns this into a single extra query over
+   * the covering index on MessageReaction(messageId).
+   * ⚠️ `profileId` COMES BACK BUT MUST NOT GO OUT — the serializer folds it into a per-viewer
+   * `mine` boolean and drops it. Sending the raw ids would tell each participant exactly which
+   * reactions the other left, which is not what a count is.
+   */
+  reactions: { select: { emoji: true, profileId: true } },
 } as const
+
+/** One emoji's tally on one message, from the asking viewer's point of view. */
+export type SerializedReaction = { emoji: string; count: number; mine: boolean }
+
+/**
+ * Fold raw reaction rows into per-emoji counts for one viewer.
+ *
+ * ⚠️ SORTED BY COUNT THEN GLYPH so two equal tallies never swap places between renders and make
+ * the row appear to shuffle itself while the user is looking at it.
+ */
+export function foldReactions(
+  rows: readonly { emoji: string; profileId: string }[],
+  viewerProfileId: string,
+): SerializedReaction[] {
+  const byEmoji = new Map<string, SerializedReaction>()
+  for (const row of rows) {
+    const entry = byEmoji.get(row.emoji) ?? { emoji: row.emoji, count: 0, mine: false }
+    entry.count += 1
+    if (row.profileId === viewerProfileId) entry.mine = true
+    byEmoji.set(row.emoji, entry)
+  }
+  return [...byEmoji.values()].sort((a, b) => b.count - a.count || a.emoji.localeCompare(b.emoji))
+}
 
 export type SerializedMessage = {
   id: string; mine: true; body: string; createdAt: string; kind: string
   offerAmount: number | null; offerStatus: string | null
   meta: MessageMeta | null
+  reactions: SerializedReaction[]
 }
 
 type ConvoForSend = {
@@ -848,6 +881,10 @@ export async function insertMessage(convo: ConvoForSend, senderId: string, text:
     id: message.id, mine: true, body: message.body, createdAt: message.createdAt.toISOString(),
     kind: message.kind, offerAmount: message.offerAmount, offerStatus: message.offerStatus,
     meta: parseMessageMeta(message.kind, message.metaJson),
+    // A message that was just sent cannot have been reacted to yet. Empty rather than omitted so
+    // the client never has to branch on "is this field here", which is how optional-array fields
+    // turn into `undefined.map` at the one call site nobody tested.
+    reactions: [],
   }
 }
 

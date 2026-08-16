@@ -1,6 +1,7 @@
 'use client'
 
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState, useCallback } from 'react'
+import { ReactionPicker, ReactionPills, longPressHandlers, cancelLongPress } from '@/components/marketplace/message-reactions'
 import Link from 'next/link'
 
 import { useParams, useRouter } from 'next/navigation'
@@ -224,7 +225,10 @@ function tripField(meta: unknown, key: 'requestId' | 'status' | 'state' | 'itine
   return typeof value === 'string' && value ? value : null
 }
 
-type Msg ={ id: string; mine: boolean; body: string; createdAt: string; pending?: boolean; failed?: boolean; kind?: string; offerAmount?: number | null; offerStatus?: string | null; meta?: unknown }
+type Msg ={ id: string; mine: boolean; body: string; createdAt: string; pending?: boolean; failed?: boolean; kind?: string; offerAmount?: number | null; offerStatus?: string | null; meta?: unknown
+  // Optional because the localStorage thread cache predates reactions: a thread written by an
+  // older build has no such field, and the picker must render against it rather than crash.
+  reactions?: { emoji: string; count: number; mine: boolean }[] }
 type Thread = {
   id: string
   me: string // current user's profile id — to tell my messages from incoming
@@ -277,6 +281,80 @@ export default function ThreadPage() {
   // Paint instantly from the cached thread (e.g. one the offer/Message action just
   // seeded) and revalidate in the background — no blank "loading" flash on open.
   const [thread, setThread] = useState<Thread | null>(() => (getCachedThread(id) as Thread | null) ?? null)
+
+  /**
+   * Which message currently has its reaction bar open — one at a time, thread-wide.
+   *
+   * ⚠️ HELD HERE RATHER THAN PER BUBBLE so opening a second bar closes the first. Per-row state
+   * would let a hover and a long-press leave two bars floating over each other, and on a phone the
+   * stale one has no pointer to leave and dismiss it.
+   */
+  const [pickerFor, setPickerFor] = useState<string | null>(null)
+
+  /**
+   * Toggle a reaction, optimistically.
+   *
+   * ⛔ THE OPTIMISTIC EDIT MUST BE A TOGGLE, NOT AN ADD. The server flips the row, so a client that
+   * only ever appends would disagree with it the moment someone taps twice — and the disagreement
+   * would survive until a refetch, because the response overwrites with the truth either way.
+   *
+   * ⚠️ ON FAILURE IT SILENTLY REVERTS AND SAYS NOTHING. A reaction is decoration: a red banner
+   * because a heart did not stick would be louder than the thing that failed. The revert is the
+   * message.
+   */
+  const toggleReaction = useCallback(async (messageId: string, emoji: string) => {
+    const apply = (list: { emoji: string; count: number; mine: boolean }[] | undefined) => {
+      const rows = list ?? []
+      const existing = rows.find((r) => r.emoji === emoji)
+      if (existing?.mine) {
+        return rows
+          .map((r) => (r.emoji === emoji ? { ...r, count: r.count - 1, mine: false } : r))
+          .filter((r) => r.count > 0)
+      }
+      if (existing) return rows.map((r) => (r.emoji === emoji ? { ...r, count: r.count + 1, mine: true } : r))
+      return [...rows, { emoji, count: 1, mine: true }]
+    }
+    const edit = (fn: typeof apply) =>
+      setThread((t) => (t ? { ...t, messages: t.messages.map((x) => (x.id === messageId ? { ...x, reactions: fn(x.reactions) } : x)) } : t))
+
+    /**
+     * ⛔ THE REVERT IS A SNAPSHOT, NOT A SECOND TOGGLE. Reviewer-caught: re-applying `apply` on
+     * failure only undoes the edit if nothing else changed the row meanwhile — and this thread
+     * polls, so a refetch landing mid-flight would make the "undo" toggle the emoji in the wrong
+     * direction against newer data. Restoring the exact list we replaced cannot drift.
+     */
+    let before: { emoji: string; count: number; mine: boolean }[] | undefined
+    setThread((t) => {
+      before = t?.messages.find((x) => x.id === messageId)?.reactions
+      return t
+    })
+
+    edit(apply)
+    try {
+      const res = await fetch(`/api/messages/${messageId}/reactions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ emoji }),
+      })
+      if (!res.ok) throw new Error(String(res.status))
+      const data = await res.json()
+      // The server's count is authoritative — it also carries the other party's reactions, which
+      // the optimistic edit above could not know about.
+      setThread((t) => (t ? { ...t, messages: t.messages.map((x) => (x.id === messageId ? { ...x, reactions: data.reactions } : x)) } : t))
+    } catch {
+      setThread((t) => (t ? { ...t, messages: t.messages.map((x) => (x.id === messageId ? { ...x, reactions: before } : x)) } : t))
+    }
+  }, [])
+
+  // A press armed on a bubble must not outlive the thread — see cancelLongPress.
+  useEffect(() => cancelLongPress, [])
+
+  /** Long-press opens the same bar hover does — see message-reactions.tsx on why they differ. */
+  const longPressProps = useCallback(
+    (messageId: string) => longPressHandlers(() => setPickerFor(messageId)),
+    [],
+  )
+
   // Live translation of the COUNTERPART's messages into the viewer's language. Server does
   // the by-id, membership-checked, ephemeral translation; this owns the toggle + rendering.
   const translate = useChatTranslation({
@@ -1545,6 +1623,7 @@ export default function ThreadPage() {
                     scroll maths needs one predictable box per message. */}
                 <div
                   data-mid={m.id}
+                  {...longPressProps(m.id)}
                   className={`flex flex-col ${m.mine ? 'items-end' : 'items-start'} ${i === arr.length - 1 && !enteredIds.current.has(m.id) ? 'bubble-in' : ''} ${m.id === revealedId ? 'rounded-2xl ring-2 ring-brand/60 transition-shadow' : ''}`}
                 >
                 {m.kind === 'offer' ? (
@@ -1737,6 +1816,33 @@ export default function ThreadPage() {
                     <span className="mt-0.5 flex items-center gap-1 px-1 text-3xs text-ink-4"><Loader2 className="h-3 w-3 animate-spin" aria-hidden /> {tr('Sending…', 'Đang gửi…')}</span>
                   ) : (
                     <span className="mt-0.5 px-1 text-3xs text-ink-4">{fmtTime(m.createdAt)}</span>
+                  )}
+                  {/**
+                   * REACTIONS. The tallies always render; the picker is revealed by hover on a
+                   * pointer device and by long-press on a touch one (see message-reactions.tsx for
+                   * why those are two different interactions rather than one with different CSS).
+                   *
+                   * ⚠️ `align` FOLLOWS THE BUBBLE. An outgoing message sits at the right edge, so a
+                   * bar anchored to the trigger's left would run off-screen — the picker flips
+                   * sides on this prop and it must keep matching `m.mine`.
+                   *
+                   * ⚠️ NOT RENDERED ON A PENDING MESSAGE. Until the server answers, `m.id` is a
+                   * temporary client id that no MessageReaction row can reference, so a tap would
+                   * 403 on a message the database has never heard of.
+                   */}
+                  {!m.pending && (
+                    <div className={`flex items-center gap-1 ${m.mine ? 'flex-row-reverse' : ''}`}>
+                      <ReactionPicker
+                        open={pickerFor === m.id}
+                        onOpenChange={(next) => setPickerFor(next ? m.id : null)}
+                        align={m.mine ? 'end' : 'start'}
+                        onPick={(emoji) => toggleReaction(m.id, emoji)}
+                      />
+                      <ReactionPills
+                        reactions={m.reactions ?? []}
+                        onToggle={(emoji) => toggleReaction(m.id, emoji)}
+                      />
+                    </div>
                   )}
                 </div>
                 {m.id === offPlatformWarnId && <OffPlatformWarning />}

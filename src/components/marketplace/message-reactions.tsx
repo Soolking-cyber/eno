@@ -113,7 +113,27 @@ export function ReactionPicker({
   const { tr } = useLanguage()
   const [allOpen, setAllOpen] = React.useState(false)
   const [hovered, setHovered] = React.useState<string | null>(null)
+  const root = React.useRef<HTMLDivElement | null>(null)
   const top = React.useMemo(() => topReactions(measuredTop), [measuredTop])
+
+  /**
+   * ⛔ A TOUCH USER COULD NOT CLOSE THE BAR. Reviewer-caught, and it was the worst of the three:
+   * long-press opens it, but every dismissal path was gated on `pointerType === 'mouse'`, and there
+   * is no backdrop — so on a phone the bar stayed open over the thread until an emoji was tapped.
+   * The only way out was to react, which is precisely the trap a reaction picker must not be.
+   *
+   * ⚠️ Listens in the CAPTURE phase, so a tap on a message bubble underneath dismisses the bar
+   * rather than being swallowed by it, and `pointerdown` rather than `click` so the bar is gone
+   * before the underlying element acts on the same gesture.
+   */
+  React.useEffect(() => {
+    if (!open || allOpen) return
+    function onOutside(event: PointerEvent) {
+      if (!root.current?.contains(event.target as Node | null)) onOpenChange(false)
+    }
+    document.addEventListener('pointerdown', onOutside, true)
+    return () => document.removeEventListener('pointerdown', onOutside, true)
+  }, [open, allOpen, onOpenChange])
 
   function pick(emoji: string) {
     hapticTap()
@@ -124,8 +144,19 @@ export function ReactionPicker({
 
   return (
     <div
+      ref={root}
       className="relative flex items-center"
       onPointerEnter={(e) => { if (e.pointerType === 'mouse') onOpenChange(true) }}
+      /**
+       * ⛔ KEYBOARD PARITY. Reviewer-caught: opening was wired to pointerenter and long-press only,
+       * so a keyboard user could tab to the heart and press it — and that was the entire feature.
+       * Focus entering the group opens the bar exactly as hover does, and focus leaving it closes,
+       * which also gives the mouse path a way out when the pointer never technically "leaves".
+       */
+      onFocus={() => onOpenChange(true)}
+      onBlur={(e) => {
+        if (!allOpen && !e.currentTarget.contains(e.relatedTarget as Node | null)) onOpenChange(false)
+      }}
       onPointerLeave={(e) => {
         // ⚠️ Only the POINTER leaving closes it, and only when the full grid is not open — otherwise
         // moving the mouse from the bar into the popover it just opened would close both.
@@ -149,7 +180,12 @@ export function ReactionPicker({
       <div
         aria-hidden={!open}
         className={cn(
-          'absolute left-8 z-10 flex items-center gap-0.5 rounded-full border border-border bg-popover p-1 shadow-pop ring-1 ring-foreground/10 transition-[opacity,scale] duration-150 ease-out',
+          // ⚠️ THE BAR FLIPS SIDES WITH THE BUBBLE. It was hardcoded `left-8`, which put ~200px of
+          // bar to the RIGHT of a trigger that itself sits at the right edge on an outgoing
+          // message — off-screen, or clipped by an overflow-hidden ancestor. Reviewer-caught.
+          // `align` already described which side the message is on; it now actually steers the bar.
+          'absolute z-10 flex items-center gap-0.5 rounded-full border border-border bg-popover p-1 shadow-pop ring-1 ring-foreground/10 transition-[opacity,scale] duration-150 ease-out',
+          align === 'end' ? 'right-8' : 'left-8',
           open ? 'pointer-events-auto scale-100 opacity-100' : 'pointer-events-none scale-95 opacity-0',
         )}
         style={{ transitionTimingFunction: 'var(--ease-spring)' }}
@@ -232,36 +268,53 @@ export function ReactionPicker({
  * people use to lift phone numbers and addresses from a thread. The timer is cancelled by movement
  * instead, so a scroll or a selection drag simply never becomes a press.
  */
-export function useLongPress(onLongPress: () => void) {
-  const timer = React.useRef<number | null>(null)
-  const origin = React.useRef<{ x: number; y: number } | null>(null)
+/**
+ * ⛔ A FACTORY, NOT A HOOK, AND THE REASON IS THE CALL SITE. A thread renders up to 200 bubbles and
+ * each needs its own long-press handlers, which a hook cannot supply — hooks cannot be called in a
+ * loop or inside a callback. `useLongPress` was exactly that shape and could never have been
+ * mounted; this is the same behaviour as a plain function.
+ *
+ * ⚠️ THE IN-FLIGHT PRESS IS MODULE STATE, deliberately. A finger is singular: only one press can be
+ * pending at a time across the whole thread, so one shared slot is not a shortcut but the accurate
+ * model. It also means a press begun on one bubble is cancelled by a press begun on another, which
+ * is what a user dragging across a list expects.
+ */
+let pendingPress: { timer: number; x: number; y: number } | null = null
 
-  const clear = React.useCallback(() => {
-    if (timer.current !== null) window.clearTimeout(timer.current)
-    timer.current = null
-    origin.current = null
-  }, [])
+function cancelPress() {
+  if (pendingPress) window.clearTimeout(pendingPress.timer)
+  pendingPress = null
+}
 
-  // Any unmount mid-press must not leave a timer that fires into a dead component.
-  React.useEffect(() => clear, [clear])
+/**
+ * ⛔ CALL THIS ON UNMOUNT. `pendingPress` is module state, so a press armed on a bubble that then
+ * navigates away would fire `hapticTap` and a stale callback into nothing — reviewer-caught, and
+ * the cost of trading the hook for a factory. Any component mounting these handlers owns the
+ * teardown: `React.useEffect(() => cancelLongPress, [])`.
+ */
+export const cancelLongPress = cancelPress
 
+export function longPressHandlers(onLongPress: () => void) {
   return {
     onPointerDown: (e: React.PointerEvent) => {
       // Mouse users have hover; a long mouse-press would fight click-to-select.
       if (e.pointerType === 'mouse') return
-      origin.current = { x: e.clientX, y: e.clientY }
-      timer.current = window.setTimeout(() => {
-        hapticTap(18)
-        onLongPress()
-        clear()
-      }, LONG_PRESS_MS)
+      cancelPress()
+      pendingPress = {
+        x: e.clientX,
+        y: e.clientY,
+        timer: window.setTimeout(() => {
+          hapticTap(18)
+          onLongPress()
+          pendingPress = null
+        }, LONG_PRESS_MS),
+      }
     },
     onPointerMove: (e: React.PointerEvent) => {
-      const start = origin.current
-      if (!start) return
-      if (Math.abs(e.clientX - start.x) > PRESS_SLOP_PX || Math.abs(e.clientY - start.y) > PRESS_SLOP_PX) clear()
+      if (!pendingPress) return
+      if (Math.abs(e.clientX - pendingPress.x) > PRESS_SLOP_PX || Math.abs(e.clientY - pendingPress.y) > PRESS_SLOP_PX) cancelPress()
     },
-    onPointerUp: clear,
-    onPointerCancel: clear,
+    onPointerUp: cancelPress,
+    onPointerCancel: cancelPress,
   }
 }
