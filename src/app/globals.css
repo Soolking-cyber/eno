@@ -1191,6 +1191,32 @@ body:has(.dashboard-canvas) #status-bar-backdrop {
   user-select: none;
   -webkit-touch-callout: none;
 }
+/* ⛔ THE ONE-FRAME THEME FREEZE — see apply() in src/context/theme-context.tsx.
+   Toggling `.dark` repaints the page at once, but 269 colour-animating utilities across this app
+   would each ease to their new colour over their own duration instead, so the theme arrives in
+   pieces. This kills motion for the single frame the flip happens in, which makes the switch
+   atomic and instant rather than a staggered fade.
+
+   ⚠️ `!important` AND THE UNIVERSAL SELECTOR ARE BOTH DELIBERATE, AND BOTH ARE SAFE ONLY BECAUSE
+   THIS CLASS LIVES FOR ~2 FRAMES. It has to beat per-element utilities that state their own
+   duration, and it has to reach elements this stylesheet knows nothing about. theme-context
+   removes it on a double rAF with a 120ms timer behind it, because a backgrounded tab never runs
+   rAF and a stuck class here would disable every transition on the site.
+
+   ⚠️ NOT `transition: none` ALONE — a keyframed animation mid-flight (`.bubble-in`, `.reveal-on-
+   scroll`, a spinner) would keep running and be the one moving thing on a frozen page, which is
+   the tearing again with fewer participants.
+   ⚠️ `paused`, NOT `none`: a paused animation RESUMES from where it was two frames later, so an
+   opening dialog or a spinner is delayed, never reset. A reviewer read this as cancelling in-flight
+   UI; it does not, and the distinction is the reason this property was chosen over `animation:
+   none`, which would snap a half-open modal back to its start. */
+:root.theme-switching *,
+:root.theme-switching *::before,
+:root.theme-switching *::after {
+  transition: none !important;
+  animation-play-state: paused !important;
+}
+
 .img-watermark {
   position: absolute;
   inset: 0;

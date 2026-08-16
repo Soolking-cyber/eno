@@ -14,6 +14,39 @@ type ThemeCtx = {
 
 const ThemeContext = createContext<ThemeCtx | undefined>(undefined)
 
+/**
+ * Drop the freeze once the themed paint has happened.
+ *
+ * ⚠️ TWO FRAMES, THEN A TIMER AS A BACKSTOP. One rAF fires BEFORE the paint it is scheduled
+ * against, so removing the class there can re-enable transitions in time for the very frame being
+ * painted. Two clears the paint. The timer exists because a backgrounded tab does not run rAF at
+ * all: without it a tab switched away mid-toggle could keep `theme-switching` forever, and that
+ * class disables every transition on the site — a far worse bug than the one being fixed.
+ */
+let freezeGeneration = 0
+
+function releaseThemeFreeze(root: HTMLElement): void {
+  /**
+   * ⚠️ GENERATION-GUARDED, BECAUSE TWO FLIPS CAN OVERLAP. Rapid toggling — or a system
+   * `prefers-color-scheme` event landing on top of a user tap — starts a second freeze while the
+   * first one's rAF and timer are still pending. Without this token the FIRST release lands during
+   * the SECOND flip, drops the class mid-change and re-enables 807 transitions on exactly the
+   * repaint they were suppressed for: the segmented fade, back again, for the one user who toggles
+   * quickly. All three reviewers flagged it. Only the newest generation may release.
+   */
+  const mine = ++freezeGeneration
+  const release = () => {
+    if (mine !== freezeGeneration) return
+    root.classList.remove('theme-switching')
+  }
+  if (typeof requestAnimationFrame === 'function') {
+    requestAnimationFrame(() => requestAnimationFrame(release))
+  }
+  // Backstop: a backgrounded tab never runs rAF, and a stuck `theme-switching` disables every
+  // transition on the site — a worse bug than the one being fixed.
+  setTimeout(release, 120)
+}
+
 const systemPrefersDark = () =>
   typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches
 
@@ -21,7 +54,34 @@ const systemPrefersDark = () =>
 // layout so the class set pre-hydration stays consistent.
 function apply(theme: Theme): 'light' | 'dark' {
   const dark = theme === 'dark' || (theme === 'system' && systemPrefersDark())
-  document.documentElement.classList.toggle('dark', dark)
+  const root = document.documentElement
+  /**
+   * ⛔ FREEZE TRANSITIONS ACROSS THE FLIP, OR THE THEME CHANGE TEARS.
+   *
+   * Owner, 2026-08-16: "the transition between dark and light mode is jittery and segmented, looks
+   * so unprofessional". It was, and the cause is not that the switch is slow — it is that it is
+   * PARTIAL. Measured: 269 colour-animating utilities across 105 files (247 `transition-colors`,
+   * 22 `transition-all`). Toggling `.dark` repaints the whole page at once, but every one of those
+   * elements instead eases to its new colour over its own duration while everything around it has
+   * already arrived. The page changes theme in visible pieces — which is exactly "segmented".
+   *
+   * ⚠️ THE FIX IS TO REMOVE MOTION, NOT TO ADD IT. The instinct is a global colour transition so
+   * the whole page fades together; that is the wrong direction on both counts the owner named —
+   * it is SLOWER (a theme switch is a mode change, not an animation, and 200ms of dip reads as
+   * lag), and it makes every colour change on the site pay for a property nothing else needs.
+   * Suppressing transitions for one frame costs one class and one CSS rule, ships no JS, and makes
+   * the switch atomic: one paint, no tearing.
+   *
+   * ⚠️ THE REFLOW READ IS BELT-AND-BRACES, NOT LOAD-BEARING — an earlier version of this comment
+   * marked it ⛔ and a reviewer was right to push back. Even coalesced into ONE recalculation, the
+   * freeze and `.dark` apply together, so at the moment the colours change the transition duration
+   * is already 0 and nothing starts easing. The read only removes any doubt about ordering, which
+   * on a rule this cheap is worth keeping — but it is not the thing making this work.
+   */
+  root.classList.add('theme-switching')
+  void root.offsetHeight // force the suppression to land BEFORE the colours change
+  root.classList.toggle('dark', dark)
+  releaseThemeFreeze(root)
   // Native shell mirror (Phase 2 M1): persist the RESOLVED scheme into native
   // Preferences so the instant local shell can paint the same theme on the next
   // cold launch (the shell is a different origin — it can't read our localStorage).
