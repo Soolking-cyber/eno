@@ -23,7 +23,24 @@ export async function lookupTaxCode(mst: string): Promise<TaxLookup> {
   // encodeURIComponent is belt-and-suspenders, not an escape hatch for junk.
   try {
     const res = await fetch(`https://api.vietqr.io/v2/business/${encodeURIComponent(mst)}`, {
-      signal: AbortSignal.timeout(4000),
+      /**
+       * ⛔ 12s, NOT 4s — AND THE OLD CAP MADE THIS FEATURE UNABLE TO SUCCEED. Measured against the
+       * live endpoint on 2026-08-17, four consecutive calls: 5.40s, 5.41s, 1.49s, 6.10s. The cap
+       * was 4000ms, so most calls aborted, `lookupTaxCode` returned null ("could not look"),
+       * `taxCheckedAt` stayed null, and `taxVerdict` answered `unchecked` — which BLOCKS approval
+       * in business-verification-service.ts. The next save retried and lost the same race, so a
+       * seller could never get past Channel 1 no matter how many times they saved.
+       *
+       * ⚠️ IT FAILED IN THE SHAPE THAT HIDES: a timeout is indistinguishable from a network blip,
+       * so the three-state contract below did exactly what it promises — stored nothing and left it
+       * to "self-heal on the next save". The design was right; the number was wrong, and a
+       * self-healing retry against a permanently-too-short cap heals nothing.
+       *
+       * ⚠️ THE COST IS A SLOWER SAVE, AND IT IS ACCEPTED. This runs inline so the facts land
+       * atomically with the code they describe (see the caller). Editing a tax code is a rare,
+       * deliberate action; 12s of worst case on it beats a badge nobody can ever earn.
+       */
+      signal: AbortSignal.timeout(12_000),
       headers: { accept: 'application/json' },
     })
     if (!res.ok) return null // 429/5xx = could not look, not "unknown code"
