@@ -5,7 +5,6 @@ import { Dialog as SheetPrimitive } from "@base-ui/react/dialog"
 
 import { cn } from "@/lib/utils"
 import { Tr } from "@/context/language-context"
-import { Button } from "@/components/ui/button"
 import { XIcon } from "@/components/ui/icons"
 
 function Sheet({ ...props }: SheetPrimitive.Root.Props) {
@@ -82,16 +81,20 @@ function SheetContent({
         {showCloseButton && (
           <SheetPrimitive.Close
             data-slot="sheet-close"
-            render={
-              <Button
-                variant="ghost"
-                className="absolute top-3 right-3"
-                size="icon-sm"
-              />
-            }
+            /**
+             * ⚠️ THE SAME MARK AS THE DIALOG'S — see the long note there for why the glyph's own
+             * ring is the control and there is no chip. This one had a THIRD shape on top of that
+             * problem: `<Button variant="ghost" size="icon-sm">` paints a rounded-SQUARE hover
+             * behind a round glyph, so the sheet's close looked like a different control from the
+             * dialog's while doing the same job. One close, one shape.
+             */
+            // ⚠️ `z-50` MIRRORS THE DIALOG'S. A sheet with a sticky header or a positioned banner
+            // creates a stacking context that paints over an un-z-indexed close, and the result is
+            // a sheet that cannot be dismissed by tapping. It was missing here before this change
+            // too — reviewer-caught while comparing the two primitives side by side.
+            className="ring-offset-background focus:ring-ring tap-44 absolute top-3 right-3 z-50 rounded-full text-ink-4 hover:text-foreground transition-all hover:scale-105 active:scale-[0.96] focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none cursor-pointer"
           >
-            <XIcon
-            />
+            <XIcon className="size-6" />
             <span className="sr-only"><Tr text="Close" /></span>
           </SheetPrimitive.Close>
         )}

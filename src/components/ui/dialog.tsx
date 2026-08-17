@@ -112,9 +112,36 @@ function DialogContent({
         {showCloseButton && (
           <DialogPrimitive.Close
             data-slot="dialog-close"
-            className="ring-offset-background focus:ring-ring absolute top-3.5 right-3.5 rounded-full bg-card/90 hover:bg-card p-1.5 text-muted-foreground shadow-xs border border-border/30 transition-all hover:scale-105 active:scale-[0.96] z-50 focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 cursor-pointer"
+            /**
+             * ⛔ THE GLYPH'S OWN RING IS THE CONTROL — THERE IS NO CHIP. Owner, 2026-08-17: "the x
+             * with circle either make it large so circle is the outline of icon or remove and
+             * replace with just x whichever is better since now its too small circle with tiny x".
+             *
+             * It was drawing TWO rings. The app's `XIcon` maps to Solar `close-circle`
+             * (scripts/lucide-solar-map.mjs:267) — the ring is part of the GLYPH — and this button
+             * wrapped it in a second `rounded-full` chip with its own border and shadow. At
+             * 16px inside a 28px chip the actual cross was ~8px: the ring you saw was the chip, and
+             * the mark inside it was the smallest thing in the dialog.
+             *
+             * ⚠️ 24px, AND THE SIZE MUST BE ON THE GLYPH. The parent carries
+             * `[&_svg:not([class*='size-'])]:size-4`, so an unsized icon is forced back to 16px —
+             * the explicit `size-6` is what opts out of it, not decoration.
+             *
+             * ⚠️ `tap-44` REPLACES THE PADDING THE CHIP USED TO PROVIDE. Dropping `p-1.5` took the
+             * box from 28px to 24px, which is under the touch minimum; the pseudo-element hit area
+             * restores it without painting anything. It is safe HERE specifically because this
+             * element is `absolute` — an unpositioned `tap-44` anchors to the nearest positioned
+             * ancestor and swallows taps meant for it.
+             *
+             * ⚠️ IT KEEPS THE SPRITE, rather than becoming an inline bare cross. Solar ships no
+             * circle-free close, so a bare mark means hand-drawn SVG — which would opt out of the
+             * `.i-rest`/`.i-on` weight swap, and out of `scripts/critical-icons.mjs`, where `X` is
+             * a measured member of the critical partition. design-lint has no `<svg>` rule, so
+             * nothing would have caught it either.
+             */
+            className="ring-offset-background focus:ring-ring tap-44 absolute top-3.5 right-3.5 rounded-full text-ink-4 hover:text-foreground transition-all hover:scale-105 active:scale-[0.96] z-50 focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 cursor-pointer"
           >
-            <XIcon />
+            <XIcon className="size-6" />
             <span className="sr-only"><Tr text="Close" /></span>
           </DialogPrimitive.Close>
         )}
