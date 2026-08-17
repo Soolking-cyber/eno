@@ -203,11 +203,36 @@ playwright/vitest configs) — a docs-only push to main does NOT deploy, so thos
 ```bash
 npm run dev:vn          # marketplace, :3000   — fast iteration, hot reload
 npm run dev:forum       # services,    :3001   — ⚠️ NOT at the same time, see below
-npm run preview:vn      # marketplace, :3100   — PRODUCTION build, the real artifact
+npm run preview:vn      # marketplace, :3000   — PRODUCTION build, the real artifact
 npm run preview:forum   # services,    :3101   — CAN run alongside a dev server
-npm run verify:local    # unit + tsc + smoke + seo + content + sec-probe vs :3100
-E2E_BASE=http://localhost:3100 npm run e2e:guest
+npm run verify:local    # unit + tsc + smoke + seo + content + sec-probe vs :3000
+E2E_BASE=http://localhost:3000 npm run e2e:guest
 ```
+
+⚠️ **THE MARKETPLACE LIVES ON :3000 AND NOTHING ELSE (owner, 2026-08-17: "kill 3000 and 3100
+use only 3000 from now on").** `dev:vn` and `preview:vn` deliberately share the port — you
+are meant to run ONE of them, and `preview.mjs` kills whatever holds :3000 before binding.
+The old split (dev on 3000, preview on 3100) existed to dodge a squatting `next-server`, and
+it cost more than it saved: two ports meant two things to check, and on 2026-08-17 a
+**three-day-old** server on :3000 served stale code that read as a live bug, while the real
+build sat on :3100. One port, force-claimed, so "what is on :3000" has exactly one answer.
+⚠️ A server that loses the bind does NOT fail loudly — Node exits with EADDRINUSE and the OLD
+process keeps answering 200 (`next dev` is worse: it silently moves to :3001). `preview.mjs`
+and `dev:vn` both free the port BEFORE building, via `scripts/free-port.mjs`, which aborts
+rather than continuing if it cannot take it.
+⛔ **So wait for the `── serving` line, never for the port to answer 200.** The port is free
+for the whole build, so a 200 in that window is by definition another server — polling for one
+runs your suite against the wrong build and then loses it mid-run when the real one binds.
+`preview.mjs` emits that line only after confirming the child it spawned is alive AND holding
+the port. ⚠️ **Bound the wait and watch the process** (`kill -0 $!`): a build failure never
+writes the marker, so a bare `until grep` turns a RED gate into a silent hang. The recipe is
+in the `ship` skill — copy it rather than improvising one.
+
+⚠️ **:3000 no longer implies "production build" — that is the accepted cost of one port.**
+`dev:vn` and `preview:vn` both live there, so `verify:local` / `e2e:guest` pointed at :3000
+while a dev server is up will happily test `next dev`, which does not exercise prerendered ISR
+HTML, inlined `NEXT_PUBLIC_*`, or edition exclusion. Start the preview yourself and wait for
+its marker; do not inherit whatever is already running.
 
 **`preview` is a clean production build, not `next dev`, and the difference is the point.**
 Three bug classes are invisible in dev and have each reached prod: prerendered ISR HTML (the
@@ -319,7 +344,7 @@ reported the relevant forum gates green, include those files in the same commit;
 their readiness is unclear, rerun the forum gates or stop and report the exact files.
 Never push while silently leaving validated Codex work under `apps/forum/**` unstaged.
 
-`/ship` runs the shipping ritual — the gates, their order and the port-3100 trap are in the `ship` skill; load it rather than reconstructing them. Stop at the first red gate. If a push breaks prod, revert to the last known-good commit and pause — don't stack fix-on-fix.
+`/ship` runs the shipping ritual — the gates, their order and the E2E_BASE trap are in the `ship` skill; load it rather than reconstructing them. Stop at the first red gate. If a push breaks prod, revert to the last known-good commit and pause — don't stack fix-on-fix.
 
 ⚠️ **A GREEN DEPLOY IS NOT A GREEN PIPELINE — read `gh run list --limit 3` after every push.**
 GitHub Actions is a **separate gate** from Cloud Build: Cloud Build only builds and deploys, while

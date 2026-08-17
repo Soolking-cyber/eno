@@ -13,10 +13,10 @@ import { existsSync } from 'node:fs'
 // ⚠️ NO silent default (audit Phase 0): the old `|| 'https://eno.vn'` made a bare
 // `npx playwright test` run the whole suite against PROD — green while never loading
 // your build (fail-open verification). The target must now be EXPLICIT every time:
-// local  → E2E_BASE=http://localhost:3100
+// local  → E2E_BASE=http://localhost:3000
 // prod   → E2E_BASE=https://eno.vn   (the /ship post-deploy pass sets it deliberately)
 if (!process.env.E2E_BASE && !process.env.E2E_AUTHED_BASE) {
-  throw new Error('Set E2E_BASE explicitly (http://localhost:3100 for your build, https://eno.vn for the deliberate prod pass) — there is no default.')
+  throw new Error('Set E2E_BASE explicitly (http://localhost:3000 for your build, https://eno.vn for the deliberate prod pass) — there is no default.')
 }
 const GUEST_BASE = (process.env.E2E_BASE || 'https://eno.vn').replace(/\/$/, '')
 const AUTHED_BASE = process.env.E2E_AUTHED_BASE?.replace(/\/$/, '') || ''

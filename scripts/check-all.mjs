@@ -15,7 +15,12 @@ import { spawnSync } from 'node:child_process'
 
 const args = process.argv.slice(2)
 const offline = args.includes('--offline')
-const BASE = (args.find((a) => !a.startsWith('--')) || process.env.PROBE_BASE || 'https://eno.vn').replace(/\/$/, '')
+// ⚠️ findLast, NOT find. npm APPENDS `-- <arg>` to the script's own arguments rather than
+// replacing them, so `npm run verify:local -- http://localhost:3101` arrives here as
+// ['http://localhost:3000', 'http://localhost:3101'] — and taking the FIRST silently probed
+// the marketplace while you believed you were checking the forum edition. Last wins, so an
+// explicit target always beats the baked-in default.
+const BASE = (args.findLast((a) => !a.startsWith('--')) || process.env.PROBE_BASE || 'https://eno.vn').replace(/\/$/, '')
 
 const run = (label, cmd, cmdArgs) => {
   console.log(`\n\x1b[1m── ${label} ─────────────────────────────────────────\x1b[0m`)

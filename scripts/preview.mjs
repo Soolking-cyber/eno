@@ -5,9 +5,22 @@
 // can be reviewed and probed WITHOUT deploying. Once eno.vn is launched, prod stops being
 // a place to test — this is the replacement.
 //
-//   node scripts/preview.mjs vn          # marketplace edition → http://localhost:3100
+//   node scripts/preview.mjs vn          # marketplace edition → http://localhost:3000
+//
+// ⚠️ WAIT FOR THE `── serving` LINE, NEVER FOR THE PORT TO ANSWER 200. The port is freed
+// before the build, so a 200 during those minutes can only be something else — and once the
+// build finishes there is nothing else left. "It answers" is not "it is mine".
 //   node scripts/preview.mjs forum       # services edition    → http://localhost:3101
 //   node scripts/preview.mjs vn --serve  # skip the build, serve what is already in .next
+//
+// ⚠️ THE MARKETPLACE PREVIEW IS ON :3000, AND IT TAKES THE PORT BY FORCE (owner, 2026-08-17:
+// "kill 3000 and 3100 use only 3000 from now on"). It used to sit on :3100 to dodge an
+// unrelated next-server that had squatted :3000 — but that workaround cost more than it
+// saved: it left TWO ports to reason about, and on 2026-08-17 a THREE-DAY-OLD next-server
+// on :3000 served stale code that read as a live bug for several minutes, while a bare
+// `npx playwright test` pointed at neither and silently ran against production.
+// ONE port, and this script frees it before binding, so "what is on :3000" always has
+// exactly one answer: the last thing you previewed.
 //
 // ⚠️ WHY A PRODUCTION BUILD AND NOT `next dev`. Three classes of bug in this repo are
 // invisible in dev and have each reached prod: prerendered HTML (the home page is ISR and
@@ -24,6 +37,7 @@
 import { spawnSync, spawn } from 'node:child_process'
 import { cpSync, existsSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
+import { freePort, listening } from './free-port.mjs'
 
 const ROOT = process.cwd()
 
@@ -34,7 +48,7 @@ const ROOT = process.cwd()
 // in this preview point at the real domain. That is correct for reviewing THE ARTIFACT; it
 // means you cannot click an OG link and stay local.
 const EDITIONS = {
-  vn:    { edition: 'marketplace', url: 'https://eno.vn',        port: 3100, label: 'eno.vn (marketplace)' },
+  vn:    { edition: 'marketplace', url: 'https://eno.vn',        port: 3000, label: 'eno.vn (marketplace)' },
   forum: { edition: 'services',    url: 'https://www.eno.forum', port: 3101, label: 'eno.forum (services)' },
 }
 
@@ -63,6 +77,13 @@ const env = {
   NEXT_PUBLIC_LOCAL_AUTH: '1',
   LOCAL_AUTH: '1',
 }
+
+// ⚠️ FREE THE PORT BEFORE THE BUILD, NOT BEFORE THE BIND. A clean build takes minutes, and a
+// stale server answers 200 for every one of them — so anything waiting for :3000 to "answer"
+// latches onto the OLD process, runs against it, and then dies when the new server binds.
+// Freeing here also stops a live `next dev` writing into the `.next` we are about to wipe.
+// See scripts/free-port.mjs: it aborts rather than continuing if the port cannot be taken.
+freePort(cfg.port)
 
 if (!serveOnly) {
   // ⚠️ WIPE .next FIRST. The two editions differ by which files were COMPILED, so a stale
@@ -93,9 +114,12 @@ if (!existsSync(standalone)) {
 cpSync(join(ROOT, '.next', 'static'), join(standalone, '.next', 'static'), { recursive: true })
 cpSync(join(ROOT, 'public'), join(standalone, 'public'), { recursive: true })
 
-console.log(`\n\x1b[1m── serving ${cfg.label} → http://localhost:${cfg.port}\x1b[0m`)
-console.log(`   verify:  npm run verify:local -- http://localhost:${cfg.port}`)
-console.log(`   e2e:     E2E_BASE=http://localhost:${cfg.port} npm run e2e:guest\n`)
+// ⚠️ FREE IT AGAIN, IMMEDIATELY BEFORE THE BIND. The first free ran minutes ago, before the
+// build, and the port was unguarded the whole time — a `dev:vn` started in another terminal
+// during the build finds nothing to kill and takes :3000 quite legitimately. Without this
+// second pass our own server would lose the bind, exit, and leave the DEV server answering on
+// the port a suite is about to trust. Freeing twice is the price of not reserving a socket.
+freePort(cfg.port)
 
 const srv = spawn('node', [join(standalone, 'server.js')], {
   stdio: 'inherit',
@@ -106,3 +130,34 @@ const stop = () => { srv.kill('SIGTERM'); process.exit(0) }
 process.on('SIGINT', stop)
 process.on('SIGTERM', stop)
 srv.on('exit', (code) => process.exit(code ?? 0))
+// ⚠️ NEVER LEAVE AN OWNERLESS SERVER HOLDING THE PORT. Several paths below can end this
+// process without going through `stop` — the readiness check's own `process.exit(1)`, and
+// `listeners()` aborting if lsof breaks. Without this hook the child survives its parent,
+// keeps :3000, and answers 200 with no marker ever printed: an anonymous server, which is
+// the precise condition this whole commit exists to make impossible.
+process.on('exit', () => { try { srv.kill('SIGKILL') } catch { /* already gone */ } })
+
+// ⛔ `── serving` IS THE HANDSHAKE EVERY CALLER WAITS ON, SO IT MUST NOT BE A GUESS.
+// It used to print just before `spawn`, i.e. before anything was listening — which made the
+// two e2e skills release their suite at the moment the server was least ready, and, worse,
+// would have announced success even if OUR server had lost the bind and some other process
+// were answering. It is now emitted only after this child is confirmed to be both ALIVE and
+// LISTENING. Nothing downstream should poll the port itself; that cannot tell whose it is.
+const settled = await (async () => {
+  for (let i = 0; i < 120; i++) {
+    if (srv.exitCode !== null) return false
+    if (listening(cfg.port).includes(String(srv.pid))) return true
+    await new Promise((r) => setTimeout(r, 500))
+  }
+  return false
+})()
+
+if (!settled) {
+  console.error(`\n\x1b[31m✗ the preview server never took :${cfg.port} — not printing the ready marker.\x1b[0m`)
+  srv.kill('SIGTERM')
+  process.exit(1)
+}
+
+console.log(`\n\x1b[1m── serving ${cfg.label} → http://localhost:${cfg.port}\x1b[0m`)
+console.log(`   verify:  npm run verify:local -- http://localhost:${cfg.port}`)
+console.log(`   e2e:     E2E_BASE=http://localhost:${cfg.port} npm run e2e:guest\n`)

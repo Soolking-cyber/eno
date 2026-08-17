@@ -14,7 +14,7 @@
   ],
   "scripts": {
     "dev": "node scripts/gen-icons.mjs && next dev -p 3000 2>&1 | tee dev.log",
-    "dev:vn": "node scripts/gen-icons.mjs && NEXT_PUBLIC_ENO_EDITION=marketplace NEXT_PUBLIC_APP_URL=https://eno.vn next dev -p 3000",
+    "dev:vn": "node scripts/free-port.mjs 3000 && node scripts/gen-icons.mjs && NEXT_PUBLIC_ENO_EDITION=marketplace NEXT_PUBLIC_APP_URL=https://eno.vn next dev -p 3000",
     "dev:forum": "node scripts/gen-icons.mjs && NEXT_PUBLIC_ENO_EDITION=services NEXT_PUBLIC_APP_URL=https://www.eno.forum next dev -p 3001",
     "postinstall": "prisma generate && (node scripts/gen-icons.mjs || echo \"icons: scripts/ not present yet — regenerated at build\")",
     "build": "node scripts/gen-icons.mjs && node scripts/design-lint.mjs && node scripts/edition-lint.mjs && prisma generate && next build && { [ -d .next/standalone ] && cp -r .next/static .next/standalone/.next/ && cp -r public .next/standalone/ || true; }",
@@ -32,7 +32,7 @@
     "sec:probe": "node scripts/sec-probe.mjs",
     "verify": "node scripts/check-all.mjs",
     "verify:offline": "node scripts/check-all.mjs --offline",
-    "verify:local": "node scripts/check-all.mjs http://localhost:3100",
+    "verify:local": "node scripts/check-all.mjs http://localhost:3000",
     "e2e": "playwright test",
     "e2e:guest": "playwright test --project=guest-desktop --project=guest-mobile",
     "e2e:seed": "node --env-file=.env scripts/e2e-seed.mjs",

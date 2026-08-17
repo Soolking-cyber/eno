@@ -33,18 +33,46 @@ copy to `.mts` first if you must run it.
 
 Why a Seller row: the seller dashboard resolves the storefront by `ownerId` and 404s without it. Why `email_confirm: true`: no inbox round-trip.
 
-## 2. Start the app on a port nothing else owns
+## 2. Start the app on :3000
 
 ```bash
-npm run build && PORT=3100 npm start
+rm -f /tmp/preview.log
+node scripts/preview.mjs vn > /tmp/preview.log 2>&1 &
+PREV=$!
+# ⛔ BOUNDED, AND IT WATCHES THE PROCESS — not just the log. A build failure, a red design-lint
+# or free-port's own abort never write the marker, so `until grep …` alone spins forever and a
+# RED gate goes silent. `rm -f` first: the redirection truncates in the child AFTER fork, so the
+# first grep can otherwise match a PREVIOUS run's marker.
+# ⚠️ KILL IT ON TIMEOUT. A cold build that merely runs long would otherwise leave the preview
+# alive after the gate went red — and minutes later its second freePort takes :3000 from
+# whatever you started meanwhile, unannounced. 240x5s = 20 min, generous for a clean build.
+for i in $(seq 1 240); do
+  grep -q '── serving' /tmp/preview.log && break
+  kill -0 $PREV 2>/dev/null || { echo "preview exited before serving:"; tail -30 /tmp/preview.log; exit 1; }
+  sleep 5
+done
+grep -q '── serving' /tmp/preview.log || { echo "preview timed out"; kill $PREV 2>/dev/null; tail -30 /tmp/preview.log; exit 1; }
 ```
 
-Use **3100**, not 3000 — another project's `next-server` has squatted 3000 and served phantom 404s into a test run. Wait until it answers on `http://localhost:3100`.
+Use **3000** — the one port the marketplace runs on (owner, 2026-08-17). `preview.mjs` kills
+whatever already holds it BEFORE it builds, and aborts if it cannot, so a stale server cannot
+silently serve the suite old code.
+
+⛔ **Wait for the `── serving` line, NOT for the port to answer.** The port is free for the
+whole multi-minute build, so a 200 in that window is by definition somebody else's server —
+polling for one would run the entire authed suite against the wrong build and then lose the
+server mid-run.
+
+⚠️ This replaced `npm run build && PORT=3100 npm start`, and the difference is not only the
+port: `preview.mjs` also sets `NEXT_PUBLIC_LOCAL_AUTH=1`, which is what keeps a local sign-in
+local (without it, auth pins its return host to `NEXT_PUBLIC_APP_URL` and the seeded seller is
+sent to production to complete the login). The authed suite has NOT been re-run under this
+recipe since the switch — if it behaves oddly at the sign-in step, suspect this first.
 
 ## 3. Run the suite
 
 ```bash
-E2E_AUTHED_BASE=http://localhost:3100 \
+E2E_AUTHED_BASE=http://localhost:3000 \
 E2E_SELLER_EMAIL=e2e-seller@eno.vn \
 E2E_ADMIN_EMAIL=e2e-admin@eno.vn \
 ADMIN_EMAILS=e2e-admin@eno.vn \
@@ -81,7 +109,7 @@ set -a; . ./.env; set +a
 node scripts/e2e-cleanup.mjs
 ```
 
-Removes the fixtures, the Seller row, the Profiles, and the auth users. Also stop the server on 3100. Leaving the users behind is not dangerous (they own no public listings), but the suite is designed to be hermetic — leave it that way.
+Removes the fixtures, the Seller row, the Profiles, and the auth users. Also stop the server on 3000. Leaving the users behind is not dangerous (they own no public listings), but the suite is designed to be hermetic — leave it that way.
 
 > ⚠️ **NOT `seed-users.ts --cleanup`** — that is this skill's own older script and it now **fails**,
 > which cost a detour on 2026-07-27. It knows about the listing and the conversation but not the

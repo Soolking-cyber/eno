@@ -10,7 +10,7 @@ effort: medium
 
 Run these in order. **Stop at the first failure** and report it — never push through a red gate, and never "fix forward" twice in a row on prod (if a push breaks prod, revert to the last known-good commit and pause).
 
-Work from `/Users/mk1e3/eno.vn`. Use absolute paths for anything that starts a server — another project's `next-server` has stolen port 3000 before, producing phantom 404s.
+Work from `/Users/mk1e3/eno.vn`. Use absolute paths for anything that starts a server.
 
 ## 0. Pick up the Codex handoff
 
@@ -60,9 +60,26 @@ This re-runs design-lint, `prisma generate`, and `next build`. A build failure t
 Start the standalone server and run the guest suite against it:
 
 ```bash
-PORT=3100 npm start &             # :3000 is SQUATTED by another project's next-server
-# wait for it to answer, then:
-E2E_BASE=http://localhost:3100 npx playwright test --project=guest-desktop --project=guest-mobile
+rm -f /tmp/preview.log
+node scripts/preview.mjs vn > /tmp/preview.log 2>&1 &
+PREV=$!
+# ⛔ BOUNDED, AND IT WATCHES THE PROCESS — not just the log. A build failure, a red design-lint
+# or free-port's own abort never write the marker, so `until grep …` alone spins forever and a
+# RED gate goes silent. `rm -f` first: the redirection truncates in the child AFTER fork, so the
+# first grep can otherwise match a PREVIOUS run's marker.
+# ⚠️ KILL IT ON TIMEOUT. A cold build that merely runs long would otherwise leave the preview
+# alive after the gate went red — and minutes later its second freePort takes :3000 from
+# whatever you started meanwhile, unannounced. 240x5s = 20 min, generous for a clean build.
+for i in $(seq 1 240); do
+  grep -q '── serving' /tmp/preview.log && break
+  kill -0 $PREV 2>/dev/null || { echo "preview exited before serving:"; tail -30 /tmp/preview.log; exit 1; }
+  sleep 5
+done
+grep -q '── serving' /tmp/preview.log || { echo "preview timed out"; kill $PREV 2>/dev/null; tail -30 /tmp/preview.log; exit 1; }
+```
+
+```bash
+E2E_BASE=http://localhost:3000 npx playwright test --project=guest-desktop --project=guest-mobile
 ```
 
 ⚠️ **`E2E_BASE` is not optional, and forgetting it fails OPEN.** `playwright.config.ts:13` defaults
@@ -70,11 +87,18 @@ E2E_BASE=http://localhost:3100 npx playwright test --project=guest-desktop --pro
 PRODUCTION and passes, while never once loading the build you are about to ship. It looks exactly
 like a green local gate. (This bit me on 2026-07-14: a suite reported 44/44 "locally" against prod
 while the local build sat untested.) Two ways to be sure you tested the right thing: the run must be
-`E2E_BASE=http://localhost:3100`, and a brand-new test for the feature you just built must FAIL
+`E2E_BASE=http://localhost:3000`, and a brand-new test for the feature you just built must FAIL
 against prod and PASS locally. If a new test passes against both, you are not testing what you think.
 
-Port must be 3100, not 3000 — 3000 is occupied by an unrelated `next-server`, so a suite pointed
-there tests a different application entirely.
+⛔ **NEVER POLL FOR A 200 — THAT IS ITS OWN FAIL-OPEN, AND IT IS THE SUBTLER ONE.** A stale
+server does not lose the race for :3000, it WINS it: Node prints EADDRINUSE and exits, the OLD
+process keeps serving, and the URL keeps answering 200 with whatever code it was started with —
+indistinguishable from "my change did nothing". On 2026-08-17 a three-day-old server cost real
+time exactly that way. `preview.mjs` now kills the holder BEFORE it builds (and aborts if it
+cannot), which closes that window — but it also means a 200 during the multi-minute build can
+only be some OTHER server, so "wait until it answers" would latch onto precisely the wrong one
+and then die mid-suite when the real server binds. **`── serving` is the only line that means
+the port is yours.**
 
 Kill the server when done. The suite is 48 tests (desktop + mobile). It's read-only — no auth, no
 writes. `retries: 1` is configured because post-deploy ISR regeneration transiently trips the a11y
