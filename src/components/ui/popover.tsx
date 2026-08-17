@@ -79,13 +79,30 @@ function PopoverContent({
   alignOffset = 0,
   side = "bottom",
   sideOffset = 4,
+  /**
+   * ⚠️ POSITIONER PROPS, AND THEY HAVE TO BE NAMED HERE TO REACH IT. Everything not destructured
+   * falls into `...props` and lands on the POPUP, which silently ignores it — so a call site that
+   * passed `collisionPadding` got no error, no warning, and no collision handling. Two more from
+   * the same family, added 2026-08-17 for the chat reaction bar:
+   *
+   * · `collisionPadding` — keep the popup inside the viewport by this many px. This is the reason
+   *   the primitive is being used at all there: a floating bar anchored to a mark near the screen
+   *   edge cannot be kept on screen by any CSS anchor, because a mid-width bubble has neither the
+   *   bar's width to its left nor to its right. Measured three times before reaching for this.
+   * · `anchor` — position against an element that is NOT the trigger. The reaction bar's trigger is
+   *   a long press on the message; what it must hang off is the small react mark at the bubble's
+   *   corner. Without this the two would have to be the same element, and making the mark the
+   *   trigger swallows its own one-tap action.
+   */
+  collisionPadding,
+  anchor,
   backdrop = false,
   backdropClassName,
   ...props
 }: PopoverPrimitive.Popup.Props &
   Pick<
     PopoverPrimitive.Positioner.Props,
-    "align" | "alignOffset" | "side" | "sideOffset"
+    "align" | "alignOffset" | "side" | "sideOffset" | "collisionPadding" | "anchor"
   > & {
     /**
      * Render a transparent full-screen Backdrop that ABSORBS the outside tap which dismisses the
@@ -110,6 +127,8 @@ function PopoverContent({
         alignOffset={alignOffset}
         side={side}
         sideOffset={sideOffset}
+        collisionPadding={collisionPadding}
+        anchor={anchor}
         className="isolate z-50"
       >
         {/* `shadow-pop` — the ELEVATION TOKEN, not one of Tailwind's stock t-shirt shadow

@@ -72,6 +72,35 @@ const PRESS_SLOP_PX = 10
 const OPEN_DELAY_MS = 500
 
 /**
+ * IS THIS A TOUCH POINTER? Answered AFTER hydration, on purpose.
+ *
+ * ⛔ THE COARSE/FINE SPLIT IS CSS EVERYWHERE ELSE IN THIS FILE, AND HERE IT CANNOT BE. The touch bar
+ * is positioned by Base UI, which needs a real element and real measurements — that is a rendering
+ * decision, not a paint one, and no media query can make a component mount.
+ *
+ * ⚠️ SO WHY THIS IS NOT A HYDRATION BUG: the server has no pointer type, so it renders the FINE
+ * branch, and the fine branch's bar is `opacity-0 pointer-events-none` until something opens it.
+ * Nothing can open it before hydration — the triggers are a hover and a long press, both of which
+ * require JS. By the time either fires, this state has settled. The first paint is identical either
+ * way because both branches paint nothing.
+ *
+ * ⚠️ `change` IS SUBSCRIBED, not just read once. A tablet with a trackpad attached, or a phone in a
+ * desktop-mode webview, flips this at runtime; reading `matchMedia` a single time on mount leaves
+ * such a device on whichever branch it happened to boot with.
+ */
+function usePointerCoarse(): boolean {
+  const [coarse, setCoarse] = React.useState(false)
+  React.useEffect(() => {
+    const mq = window.matchMedia('(pointer: coarse)')
+    const sync = () => setCoarse(mq.matches)
+    sync()
+    mq.addEventListener('change', sync)
+    return () => mq.removeEventListener('change', sync)
+  }, [])
+  return coarse
+}
+
+/**
  * The row of tallies under a bubble. Renders nothing at all when there are no reactions — an empty
  * element here would add a gap to every message in the thread.
  */
@@ -248,7 +277,13 @@ export function BubbleChrome({
   const { tr } = useLanguage()
   const [allOpen, setAllOpen] = React.useState(false)
   const [hovered, setHovered] = React.useState<string | null>(null)
+  const coarse = usePointerCoarse()
   const root = React.useRef<HTMLDivElement | null>(null)
+  /**
+   * The react mark itself, so the touch bar can hang off IT rather than off the bubble.
+   * See `usePointerCoarse` and the popover branch below for why that matters.
+   */
+  const markAnchor = React.useRef<HTMLDivElement | null>(null)
   const top = React.useMemo(() => topReactions(measuredTop), [measuredTop])
   /** The reaction just sent from this chrome, so its TALLY can play — see ReactionPills.burstEmoji. */
   const [sent, setSent] = React.useState<string | null>(null)
@@ -342,6 +377,124 @@ export function BubbleChrome({
     </button>
   ))
 
+
+  /**
+   * THE BAR'S CONTENTS — the top five, the door to the rest, and the ✕ when there is one to clear.
+   *
+   * ⚠️ EXTRACTED SO ONE DEFINITION SERVES BOTH POINTERS. With a mouse it goes inside a pill that is
+   * a DOM DESCENDANT of the react mark (the only thing that keeps it reachable — see the anchor's
+   * note). With a finger it goes inside a Base UI popup that is PORTALLED to the body, because that
+   * is what can be kept on screen. Same buttons, two very different homes; duplicating them would
+   * guarantee they drift.
+   */
+  const barContent = (
+    <>
+      {top.map((emoji) => {
+        const entry = reactionFor(emoji)
+        return (
+          <button
+            key={emoji}
+            type="button"
+            tabIndex={barOpen ? 0 : -1}
+            onClick={() => pick(emoji)}
+            onPointerEnter={() => setHovered(emoji)}
+            onPointerLeave={() => setHovered((h) => (h === emoji ? null : h))}
+            onFocus={() => setHovered(emoji)}
+            onBlur={() => setHovered((h) => (h === emoji ? null : h))}
+            aria-label={entry ? tr(entry.label, entry.labelVi) : emoji}
+            aria-pressed={myReaction === emoji}
+            className={cn(
+              'press flex size-8 items-center justify-center rounded-full transition-[scale,background-color] duration-150 hover:scale-[1.35] hover:bg-tint focus-visible:scale-[1.35]',
+              myReaction === emoji && 'bg-primary/10',
+            )}
+            // ⛔ NO transitionDelay HERE, THOUGH A STAGGER WAS TRIED. An inline delay keyed on
+            // the open state stays applied for as long as the bar is open, so it does not only
+            // stagger the entrance — it delays every subsequent hover scale by up to 80ms on the
+            // last glyph, making the bar feel laggy exactly while being used.
+          >
+            {/* Animates only while pointed at: at most one player runs at a time. */}
+            <LottieEmoji emoji={emoji} play={barOpen && hovered === emoji} size={22} />
+          </button>
+        )
+      })}
+
+      {/**
+        * ⚠️ CLOSING THE GRID MUST ALSO RETIRE THE BAR. The pointer-leave guard deliberately
+        * ignores a leave while `allOpen` is true (so moving from the bar INTO the popover does
+        * not dismiss both) — which means dismissing the popover with an outside click, once the
+        * pointer has already wandered off, would leave the bar stranded open with no pointer
+        * over it and no event coming to close it.
+        */}
+      <Popover
+        open={allOpen}
+        onOpenChange={(next) => {
+          setAllOpen(next)
+          onLockChange?.(next)
+          if (!next) onBarOpenChange(false)
+        }}
+      >
+        <PopoverTrigger
+          render={
+            <button
+              type="button"
+              tabIndex={barOpen ? 0 : -1}
+              aria-label={tr('More reactions', 'Thêm biểu cảm')}
+              // ⚠️ NO `rounded-full` FILL. The ring was the second of the two circles the owner
+              // asked to remove; the mark carries no ring of its own now either.
+              className="press flex size-8 items-center justify-center text-ink-4 transition-colors hover:text-foreground"
+            >
+              <BareMark kind="plus" className="size-4" />
+            </button>
+          }
+        />
+        {/* ⚠️ THE GRID FOLLOWS THE BAR. Hardcoded `align="end"`, the 280px panel ran off the same
+            edge as the bar did, for the same reason — reviewer-caught alongside it. */}
+        <PopoverContent align={align === 'end' ? 'end' : 'start'} side="top" className="w-[17.5rem] p-2">
+          <div className="grid max-h-64 grid-cols-7 gap-0.5 overflow-y-auto">
+            {REACTIONS.map((r) => (
+              <button
+                key={r.emoji}
+                type="button"
+                onClick={() => pick(r.emoji)}
+                onPointerEnter={() => setHovered(r.emoji)}
+                onPointerLeave={() => setHovered((h) => (h === r.emoji ? null : h))}
+                aria-label={tr(r.label, r.labelVi)}
+                className="press flex size-9 items-center justify-center rounded-lg transition-colors hover:bg-tint"
+              >
+                {/* ⚠️ Static in the grid. 47 simultaneous players would jank the scroll; only the
+                    one under the pointer is upgraded, which is also the only one being looked at. */}
+                <LottieEmoji emoji={r.emoji} play={hovered === r.emoji} size={24} />
+              </button>
+            ))}
+          </div>
+        </PopoverContent>
+      </Popover>
+
+      {/**
+        * THE "✕". Owner: "with x added if there is already pressed emoji to quick delete it".
+        *
+        * ⚠️ IT ONLY EXISTS WHEN THERE IS SOMETHING TO CLEAR, which is also why it cannot simply
+        * be a sixth permanent button: an ✕ on a message you never reacted to reads as "dismiss
+        * this bar", and dismissing is what moving the pointer away already does.
+        */}
+      {myReaction && (
+        <>
+          <span aria-hidden className="mx-0.5 h-5 w-px shrink-0 bg-border" />
+          <button
+            type="button"
+            tabIndex={barOpen ? 0 : -1}
+            onClick={() => { hapticTap(); onRemove(myReaction); onBarOpenChange(false) }}
+            aria-label={tr('Remove my reaction', 'Bỏ biểu cảm của tôi')}
+            title={tr('Remove my reaction', 'Bỏ biểu cảm của tôi')}
+            className="press flex size-8 items-center justify-center text-ink-4 transition-colors hover:text-destructive"
+          >
+            <BareMark kind="cross" className="size-4" />
+          </button>
+        </>
+      )}
+    </>
+  )
+
   return (
     <div ref={root} className="pointer-events-none absolute inset-0 z-20">
 
@@ -359,7 +512,7 @@ export function BubbleChrome({
         * the bridge inside the row and it inherited the row's width, which a pointer approaching
         * from the bubble's centre missed entirely.
         */}
-      {actionList.length > 0 && (
+      {actionList.length > 0 && !coarse && (
         <div
           aria-hidden={!actionsOpen}
           onPointerEnter={() => clearOpenTimer()}
@@ -375,7 +528,7 @@ export function BubbleChrome({
             // mouse. On a phone there is no gutter, so this pill and the reaction bar were drawn on
             // top of each other (owner, 2026-08-17, with a screenshot). The phone gets the stacked
             // copy inside the glyph's anchor instead — see MOBILE ACTIONS below.
-            'absolute top-1/2 z-30 pointer-coarse:hidden flex -translate-y-1/2 items-center gap-0.5 rounded-2xl border border-border bg-popover p-0.5 shadow-pop transition-[opacity,scale,translate] duration-200',
+            'absolute top-1/2 z-30 flex -translate-y-1/2 items-center gap-0.5 rounded-2xl border border-border bg-popover p-0.5 shadow-pop transition-[opacity,scale,translate] duration-200',
             'before:absolute before:inset-y-0 before:w-3 before:content-[""]',
             align === 'end'
               ? 'right-full mr-2 origin-right before:left-full'
@@ -402,6 +555,7 @@ export function BubbleChrome({
         * which is what the row's `pb-1.5` and the pills' `mt-3.5` are sized against.
         */}
       <div
+        ref={markAnchor}
         className="pointer-events-auto absolute bottom-0 right-2 flex translate-y-[70%] items-center gap-1"
         onPointerEnter={(e) => {
           if (e.pointerType !== 'mouse') return
@@ -469,227 +623,99 @@ export function BubbleChrome({
         </button>
 
         {/**
-          * ⛔ ON A PHONE THE BAR AND THE ACTIONS ARE ONE STACK, BAR ON TOP. Owner, 2026-08-17:
-          * "on mobile the bar and quick actions overlap, pin quick actions bar below the emoji bar".
-          * Beside-the-bubble has nowhere to go on a 390px screen, so the two were drawn over each
-          * other. This column owns the vertical order; `sm:contents` dissolves it above the
-          * breakpoint so the bar goes back to positioning itself and the desktop pill keeps its
-          * gutter.
-          *
-          * ⚠️ IT GROWS UPWARD, WHICH IS WHY THE ACTIONS CAN SIT UNDER THE BAR WITHOUT MEASURING IT.
-          * The column is pinned by its BOTTOM (`bottom-full` = the glyph's top edge), so adding the
-          * second row pushes the bar up rather than pushing the actions down over the glyph.
-          *
-          * ⚠️ RESERVED SPACE IS NOT A PROBLEM HERE, and that is a fact about the trigger rather than
-          * luck: on touch there is no hover, so a long press opens BOTH at once (page.tsx:490 sets
-          * pickerFor and actionsFor together). Neither row is ever the only one open, so neither
-          * ever holds an empty gap. If a touch path is ever added that opens just one, this column
-          * needs a collapsing height — check that before changing the trigger.
-          */}
-        <div
-          className={cn(
-            'absolute bottom-full z-30 mb-1.5 flex flex-col gap-1.5 pointer-fine:contents',
-            align === 'end' ? 'right-0 items-end' : 'left-0 items-start',
-          )}
-        >
         {/**
-          * ⚠️ EACH ROW COLLAPSES TO ZERO HEIGHT WHEN CLOSED, and this grid is how. `opacity-0` hides
-          * a flex child but keeps its box, so a closed row would hold ~38px of nothing and float the
-          * OTHER row that far off the glyph. It is reachable: a long press opens both, then tapping
-          * an emoji closes the bar and leaves the actions hanging under an invisible band. The
-          * `grid-rows-[0fr]` → `[1fr]` pair animates height (which `height:auto` cannot) and takes no
-          * space at 0fr, so the stack is always exactly as tall as what is showing.
-          * ⚠️ `pointer-fine:contents` on BOTH this and its child — with a mouse the bar must go back
-          * to positioning itself against the glyph's anchor, and a wrapper with a `display` of its
-          * own would become that anchor instead.
+          * ⛔ TWO HOMES FOR ONE BAR, CHOSEN BY POINTER TYPE — and this is the fourth attempt at the
+          * owner's "make it screen acnostic so it wont happen". The three before it were CSS
+          * anchors, and the write-up of why they cannot work is worth keeping:
+          *
+          *  · `align`-based: a WIDE incoming card takes `left-0`, but the mark it hangs off is at
+          *    the bubble's bottom-RIGHT for incoming and outgoing alike, so the bar began near the
+          *    screen's right edge and ran off it. That was the reported bug.
+          *  · `right-0` always: fixes that, breaks the mirror — a 91px incoming bubble at the left
+          *    wall put the bar at x = -151 (measured, 390px viewport, 246px bar).
+          *  · a container query picking the better side: still fails in the MIDDLE. A 200px incoming
+          *    bubble has neither 246px to its left nor to its right, so there is no side to choose.
+          *
+          * The bar is simply wider than the space some bubbles offer, so NO bubble-relative anchor
+          * can be right. It has to be positioned against the viewport, which needs measurement —
+          * and measuring floating layers is what Base UI's positioner already does. CLAUDE.md's
+          * standing rule is that floating layers come from Base UI rather than hand-rolled
+          * positioning; three failed attempts is what ignoring it costs.
+          *
+          * ⛔ TOUCH ONLY. The mouse bar MUST stay a DOM descendant of the mark — a portal breaks
+          * `pointerleave` and the bar closes under the cursor on the way to it (see the anchor's
+          * note). Touch has no hover, so portalling is free there.
+          *
+          * ⚠️ ONE CARD, NOT TWO PILLS. The popup itself is the container, so the emoji row and the
+          * quick actions sit in one rounded surface — which is also what "pin quick actions bar
+          * below the emoji bar" asked for, and it means the collision maths runs once over the
+          * whole stack rather than twice over two layers that could disagree.
           */}
-        <div
-          className={cn(
-            'grid transition-[grid-template-rows] duration-200 pointer-fine:contents',
-            align === 'end' ? 'justify-items-end' : 'justify-items-start',
-            barOpen ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]',
-          )}
-          style={{ transitionTimingFunction: 'var(--ease-spring)' }}
-        >
-        <div className="min-h-0 overflow-hidden pointer-fine:contents">
-        {/* THE BAR: the top five, the door to the rest, and the ✕ when there is one to clear.
-            `aria-hidden` + `tabIndex={-1}` while closed so a collapsed bar is neither tabbable nor
-            clickable — a hidden-by-opacity control that still takes clicks is an invisible target. */}
-        <div
-          aria-hidden={!barOpen}
-          className={cn(
-            // `pointer-coarse:static` hands positioning to the column above; with a fine pointer it
-            // is absolute against the glyph's anchor exactly as before.
-            'absolute pointer-coarse:static pointer-coarse:mb-0 bottom-full z-30 mb-1.5 flex items-center gap-0.5 rounded-full border border-border bg-popover p-1 shadow-pop ring-1 ring-foreground/10 transition-[opacity,scale,translate] duration-200',
-            // ⛔ IT RISES FROM THE GLYPH AND MAY COVER THE BUBBLE — owner's call, 2026-08-16: "its
-            // okay let it cover the bubble". Nested in the glyph's anchor it is also a DOM descendant
-            // of the control that opened it, so the pointer never leaves that subtree on the way up.
-            // The 6px bridge to the glyph below — see the anchor's note.
-            'before:absolute before:inset-x-0 before:top-full before:h-2 before:content-[""]',
-            /**
-             * ⛔ IT HANGS OFF THE GLYPH'S OUTER EDGE AND GROWS INWARD, AND HARDCODING ONE SIDE IS THE
-             * BUG THE OWNER SHOUTED ABOUT: "BRO NOO … IT OVERFOWS TO THE SIDE TO LEFT SIDE MAKE SURE
-             * IT RESPECTS BORDERS". A ~212px bar pinned `right-0` to a short INCOMING bubble — "Yes,
-             * still available" is ~150px — starts at that bubble's right edge and runs ~60px past the
-             * left wall of the message pane. Anchored outward instead, it can only ever grow toward
-             * the middle of a thread that is at least as wide as the bar.
-             *
-             * ⚠️ MY OWN OVERFLOW TEST PASSED ON THIS BUG. It swept every message in the seeded thread
-             * and reported zero overflow — because every bubble there happens to be WIDER than the
-             * bar, so the clipping case was never exercised. A reviewer read it out of the class list
-             * instead. Any test for this has to use a bubble narrower than 212px.
-             */
-            align === 'end' ? 'right-0 origin-bottom-right' : 'left-0 origin-bottom-left',
-            barOpen
-              ? 'pointer-events-auto translate-y-0 scale-100 opacity-100'
-              : 'pointer-events-none translate-y-1 scale-90 opacity-0',
-          )}
-          style={{ transitionTimingFunction: 'var(--ease-spring)' }}
-        >
-          {top.map((emoji) => {
-            const entry = reactionFor(emoji)
-            return (
-              <button
-                key={emoji}
-                type="button"
-                tabIndex={barOpen ? 0 : -1}
-                onClick={() => pick(emoji)}
-                onPointerEnter={() => setHovered(emoji)}
-                onPointerLeave={() => setHovered((h) => (h === emoji ? null : h))}
-                onFocus={() => setHovered(emoji)}
-                onBlur={() => setHovered((h) => (h === emoji ? null : h))}
-                aria-label={entry ? tr(entry.label, entry.labelVi) : emoji}
-                aria-pressed={myReaction === emoji}
-                className={cn(
-                  'press flex size-8 items-center justify-center rounded-full transition-[scale,background-color] duration-150 hover:scale-[1.35] hover:bg-tint focus-visible:scale-[1.35]',
-                  myReaction === emoji && 'bg-primary/10',
-                )}
-                // ⛔ NO transitionDelay HERE, THOUGH A STAGGER WAS TRIED. An inline delay keyed on
-                // the open state stays applied for as long as the bar is open, so it does not only
-                // stagger the entrance — it delays every subsequent hover scale by up to 80ms on the
-                // last glyph, making the bar feel laggy exactly while being used.
-              >
-                {/* Animates only while pointed at: at most one player runs at a time. */}
-                <LottieEmoji emoji={emoji} play={barOpen && hovered === emoji} size={22} />
-              </button>
-            )
-          })}
-
-          {/**
-            * ⚠️ CLOSING THE GRID MUST ALSO RETIRE THE BAR. The pointer-leave guard deliberately
-            * ignores a leave while `allOpen` is true (so moving from the bar INTO the popover does
-            * not dismiss both) — which means dismissing the popover with an outside click, once the
-            * pointer has already wandered off, would leave the bar stranded open with no pointer
-            * over it and no event coming to close it.
-            */}
+        {coarse ? (
           <Popover
-            open={allOpen}
-            onOpenChange={(next) => {
-              setAllOpen(next)
-              onLockChange?.(next)
-              if (!next) onBarOpenChange(false)
-            }}
+            open={barOpen || actionsOpen}
+            onOpenChange={(next) => { if (!next) { onBarOpenChange(false); onActionsOpenChange(false) } }}
           >
-            <PopoverTrigger
-              render={
-                <button
-                  type="button"
-                  tabIndex={barOpen ? 0 : -1}
-                  aria-label={tr('More reactions', 'Thêm biểu cảm')}
-                  // ⚠️ NO `rounded-full` FILL. The ring was the second of the two circles the owner
-                  // asked to remove; the mark carries no ring of its own now either.
-                  className="press flex size-8 items-center justify-center text-ink-4 transition-colors hover:text-foreground"
-                >
-                  <BareMark kind="plus" className="size-4" />
-                </button>
-              }
-            />
-            {/* ⚠️ THE GRID FOLLOWS THE BAR. Hardcoded `align="end"`, the 280px panel ran off the same
-                edge as the bar did, for the same reason — reviewer-caught alongside it. */}
-            <PopoverContent align={align === 'end' ? 'end' : 'start'} side="top" className="w-[17.5rem] p-2">
-              <div className="grid max-h-64 grid-cols-7 gap-0.5 overflow-y-auto">
-                {REACTIONS.map((r) => (
-                  <button
-                    key={r.emoji}
-                    type="button"
-                    onClick={() => pick(r.emoji)}
-                    onPointerEnter={() => setHovered(r.emoji)}
-                    onPointerLeave={() => setHovered((h) => (h === r.emoji ? null : h))}
-                    aria-label={tr(r.label, r.labelVi)}
-                    className="press flex size-9 items-center justify-center rounded-lg transition-colors hover:bg-tint"
-                  >
-                    {/* ⚠️ Static in the grid. 47 simultaneous players would jank the scroll; only the
-                        one under the pointer is upgraded, which is also the only one being looked at. */}
-                    <LottieEmoji emoji={r.emoji} play={hovered === r.emoji} size={24} />
-                  </button>
-                ))}
-              </div>
+            <PopoverContent
+              anchor={markAnchor}
+              side="top"
+              align={align === 'end' ? 'end' : 'start'}
+              sideOffset={6}
+              /* ⚠️ THE ONE LINE THE WHOLE REWRITE EXISTS FOR: keep it 12px inside the viewport,
+                 whatever the bubble's width or position. */
+              collisionPadding={12}
+              /* `w-auto` beats the primitive's `w-72` through twMerge; the padding tightens the
+                 card around two rows of controls. The shadow and ring are the primitive's own and
+                 are deliberately kept — this IS a floating card. */
+              className="w-auto max-w-[calc(100vw-1.5rem)] gap-1.5 p-1.5"
+            >
+              {/**
+                * ⚠️ `barOpen &&`, NOT ALWAYS — the popup is open on `barOpen || actionsOpen`, and the
+                * two come apart in ordinary use: a long press opens both, then tapping an emoji (or
+                * the ✕, or dismissing the grid) clears `barOpen` alone. Rendered unconditionally,
+                * the emoji row then sat there VISIBLE with `tabIndex={-1}` — controls you can see,
+                * can click, and cannot reach with a keyboard. The previous attempt collapsed that
+                * row to zero height with a grid animation; a conditional is the same guarantee
+                * without the machinery, because the popup is portalled and re-measures on resize.
+                */}
+              {barOpen && (
+                <div className="flex items-center gap-0.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&>*]:shrink-0">
+                  {barContent}
+                </div>
+              )}
+              {actionList.length > 0 && actionsOpen && (
+                // The divider only means anything when there is a row above it to divide from.
+                <div className={cn('flex items-center gap-0.5', barOpen && 'border-t border-border/60 pt-1.5', align === 'end' ? 'justify-end' : 'justify-start')}>
+                  {actionButtons}
+                </div>
+              )}
             </PopoverContent>
           </Popover>
-
-          {/**
-            * THE "✕". Owner: "with x added if there is already pressed emoji to quick delete it".
-            *
-            * ⚠️ IT ONLY EXISTS WHEN THERE IS SOMETHING TO CLEAR, which is also why it cannot simply
-            * be a sixth permanent button: an ✕ on a message you never reacted to reads as "dismiss
-            * this bar", and dismissing is what moving the pointer away already does.
-            */}
-          {myReaction && (
-            <>
-              <span aria-hidden className="mx-0.5 h-5 w-px shrink-0 bg-border" />
-              <button
-                type="button"
-                tabIndex={barOpen ? 0 : -1}
-                onClick={() => { hapticTap(); onRemove(myReaction); onBarOpenChange(false) }}
-                aria-label={tr('Remove my reaction', 'Bỏ biểu cảm của tôi')}
-                title={tr('Remove my reaction', 'Bỏ biểu cảm của tôi')}
-                className="press flex size-8 items-center justify-center text-ink-4 transition-colors hover:text-destructive"
-              >
-                <BareMark kind="cross" className="size-4" />
-              </button>
-            </>
-          )}
-        </div>
-
-        </div>
-        </div>
-
-        {/**
-          * MOBILE ACTIONS — the same toolbar as the desktop pill, stacked directly under the bar.
-          * `sm:hidden` and the desktop copy's `max-sm:hidden` are exclusive, so exactly one is in
-          * the layout and only one is ever focusable.
-          *
-          * ⚠️ `self-*`, NOT `right-0/left-0`: this is a flex child of the column now, so it aligns
-          * to the same outer edge the bar hangs off rather than being positioned. That keeps the
-          * "grows inward, never past the pane wall" property the bar's own note describes — a pill
-          * pinned to the wrong edge is the overflow bug the owner already shouted about once.
-          */}
-        {actionList.length > 0 && (
+        ) : (
+          /* THE MOUSE BAR — a descendant of the mark, positioned by CSS, exactly as before.
+             `aria-hidden` + `tabIndex={-1}` while closed so a collapsed bar is neither tabbable nor
+             clickable — a hidden-by-opacity control that still takes clicks is an invisible target. */
           <div
+            aria-hidden={!barOpen}
             className={cn(
-              // Same collapsing row as the bar above — see its note.
-              'grid transition-[grid-template-rows] duration-200 pointer-fine:hidden',
-              align === 'end' ? 'justify-items-end' : 'justify-items-start',
-              actionsOpen ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]',
+              'absolute bottom-full z-30 mb-1.5 flex items-center gap-0.5 rounded-full border border-border bg-popover p-1 shadow-pop ring-1 ring-foreground/10 transition-[opacity,scale,translate] duration-200',
+              // ⛔ IT RISES FROM THE MARK AND MAY COVER THE BUBBLE — owner's call, 2026-08-16: "its
+              // okay let it cover the bubble". Nested in the mark's anchor it is also a DOM
+              // descendant of the control that opened it, so the pointer never leaves that subtree
+              // on the way up. The 6px bridge to the glyph below — see the anchor's note.
+              'before:absolute before:inset-x-0 before:top-full before:h-2 before:content-[""]',
+              // A mouse pointer has a gutter to hover in, so the old side rule is right HERE and
+              // only here: hang off the outer edge and grow inward.
+              align === 'end' ? 'right-0 origin-bottom-right' : 'left-0 origin-bottom-left',
+              barOpen
+                ? 'pointer-events-auto translate-y-0 scale-100 opacity-100'
+                : 'pointer-events-none translate-y-1 scale-90 opacity-0',
             )}
             style={{ transitionTimingFunction: 'var(--ease-spring)' }}
           >
-            <div className="min-h-0 overflow-hidden">
-              <div
-                aria-hidden={!actionsOpen}
-                className={cn(
-                  'z-30 flex items-center gap-0.5 rounded-2xl border border-border bg-popover p-0.5 shadow-pop transition-[opacity,scale] duration-200',
-                  align === 'end' ? 'origin-top-right' : 'origin-top-left',
-                  actionsOpen ? 'pointer-events-auto scale-100 opacity-100' : 'pointer-events-none scale-90 opacity-0',
-                )}
-                style={{ transitionTimingFunction: 'var(--ease-spring)' }}
-              >
-                {actionButtons}
-              </div>
-            </div>
+            {barContent}
           </div>
         )}
-        </div>
       </div>
     </div>
   )
