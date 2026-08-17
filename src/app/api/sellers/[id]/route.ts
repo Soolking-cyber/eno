@@ -1,5 +1,5 @@
 import { IS_MARKETPLACE } from '@/lib/edition'
-import { deskSellerIds, scopedListingWhere } from '@/lib/edition-scope'
+import { editionHiddenSellerIds, scopedListingWhere } from '@/lib/edition-scope'
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { serializeListing } from '@/lib/serialize'
@@ -32,7 +32,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
    * the desk's storefront header, metrics and reviews to anyone who asks — the worst single leak in
    * its batch. deskSellerIds() resolves to [] on the services edition, so eno.forum is unaffected.
    */
-  if (IS_MARKETPLACE && (await deskSellerIds()).includes(id)) {
+  // ⚠️ `editionHiddenSellerIds()`, NOT `IS_MARKETPLACE && deskSellerIds()`. The old shape
+  // existed because deskSellerIds() is edition-BLIND — it always answers "who may eno.vn not
+  // surface" — so without the test eno.forum would have 404'd its OWN desk. The list is now
+  // chosen per edition, which makes the guard unnecessary AND would have made the forum's own
+  // exclusions (owner, 2026-08-17: hide VietKite and GMBR there) never apply. See
+  // src/lib/edition-scope.ts.
+  if ((await editionHiddenSellerIds()).includes(id)) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
   }
   const seller = await db.seller.findUnique({

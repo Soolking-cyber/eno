@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 // The predicate that keeps the visa/trip desk's listings off the licensed marketplace.
 //
@@ -300,5 +300,74 @@ describe('HIDDEN_DESK_OWNER_EMAILS', () => {
     // predicate, which happens to be right here but would hide the bug if the semantics changed.
     await expect(m.deskSellerIds()).resolves.toEqual([])
     expect(h.lastWhere).toBeNull()
+  })
+})
+
+/**
+ * THE SERVICES EDITION'S OWN HIDE-LIST (owner, 2026-08-17: hide VietKite and GMBR on eno.forum).
+ *
+ * ⚠️ RE-IMPORTED PER CASE, because `SERVICES_HIDDEN_OWNER_EMAILS` is resolved at MODULE SCOPE — the
+ * same shape as HIDDEN_DESK_OWNER_EMAILS above. Setting process.env after the import would test
+ * nothing, and would pass while doing so.
+ */
+describe('the services edition hide-list', () => {
+  const load = async (value?: string) => {
+    vi.resetModules()
+    if (value === undefined) delete process.env.SERVICES_HIDDEN_OWNER_EMAILS
+    else process.env.SERVICES_HIDDEN_OWNER_EMAILS = value
+    return import('./edition-scope')
+  }
+  // ⚠️ CLEARED ON BOTH SIDES. `beforeEach` alone leaves the LAST case's value in process.env for
+  // whatever runs next in this worker — reviewer-caught, and exactly the kind of cross-test
+  // contamination that makes an unrelated suite fail somewhere else.
+  const clear = () => { delete process.env.SERVICES_HIDDEN_OWNER_EMAILS }
+  beforeEach(clear)
+  afterEach(() => { clear(); vi.resetModules() })
+
+  it('is unset by default, so eno.forum hides nobody and pays no AND wrapper', async () => {
+    const m = await load(undefined)
+    h.services = true
+    expect(await m.marketplaceListingScope()).toEqual({})
+    expect(await m.scopedListingWhere({ status: 'active' })).toEqual({ status: 'active' })
+  })
+
+  it('excludes the configured sellers on the services edition', async () => {
+    const m = await load('info@vietkite.com.vn, info@giacmobayre.com')
+    h.services = true
+    h.sellers = [{ id: 'vietkite' }, { id: 'gmbr' }]
+    expect(await m.marketplaceListingScope()).toEqual({ sellerId: { notIn: ['vietkite', 'gmbr'] } })
+    expect(h.lastWhere).toEqual({ owner: { email: { in: ['info@vietkite.com.vn', 'info@giacmobayre.com'] } } })
+  })
+
+  it('does NOT apply the services list on the marketplace edition', async () => {
+    const m = await load('info@vietkite.com.vn')
+    h.services = false
+    h.sellers = [{ id: 'eno-desk' }]
+    await m.marketplaceListingScope()
+    // The marketplace still asks for ITS OWN list — the partner address must never reach this query.
+    expect(JSON.stringify(h.lastWhere)).not.toContain('vietkite')
+  })
+
+  /**
+   * ⛔ THE ONE THAT PROTECTS THE SHARED SEARCH INDEX. Both editions write into ONE Vertex datastore
+   * that eno.vn's concierge reads, so the ingest helpers must keep meaning "who may eno.vn not
+   * surface" no matter which build is running. If `deskSellerIds()` ever became edition-dependent,
+   * eno.forum's promotional exclusions would start DELETING VietKite's documents out of eno.vn's
+   * index — a preference on one site censoring a partner on the other, with no error anywhere.
+   */
+  it('keeps deskSellerIds pinned to the MARKETPLACE list even on the services edition', async () => {
+    const m = await load('info@vietkite.com.vn')
+    h.services = true
+    await m.deskSellerIds()
+    expect(h.lastWhere).toEqual({ owner: { email: { in: ['visa@eno.vn', 'shared@eno.vn', 'trips@eno.vn'] } } })
+  })
+
+  it('fails SOFT on the services edition — a preference must not take the site down', async () => {
+    const m = await load('nobody@example.com')
+    h.services = true
+    h.sellers = []
+    // No DeskResolutionError: an address that resolves to no seller hides nobody and serves the page.
+    // The marketplace twin throws in this situation on purpose; see the note on the constant.
+    await expect(m.marketplaceListingScope()).resolves.toEqual({})
   })
 })

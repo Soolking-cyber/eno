@@ -1,5 +1,4 @@
-import { IS_MARKETPLACE } from '@/lib/edition'
-import { deskSellerIds } from '@/lib/edition-scope'
+import { editionHiddenSellerIds } from '@/lib/edition-scope'
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getCurrentProfileId } from '@/lib/admin'
@@ -28,7 +27,8 @@ export async function GET() {
 
   // ⚠️ BOTH aggregates, or the badge counts threads the inbox refuses to show — a permanent phantom
   // that somebody eventually "fixes" by un-hiding the thread.
-  const hiddenSellerIds = IS_MARKETPLACE ? await deskSellerIds() : []
+  // Per-edition now — see the note in src/lib/edition-scope.ts on editionHiddenSellerIds.
+  const hiddenSellerIds = await editionHiddenSellerIds()
   const notDesk = hiddenSellerIds.length ? { sellerId: { notIn: hiddenSellerIds } } : {}
   const [asBuyer, asSeller] = await Promise.all([
     db.conversation.aggregate({ where: { buyerProfileId: meId, ...notDesk }, _sum: { buyerUnread: true } }),

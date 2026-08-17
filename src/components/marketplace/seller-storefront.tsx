@@ -1,5 +1,4 @@
-import { IS_MARKETPLACE } from '@/lib/edition'
-import { deskSellerIds, scopedListingWhere } from '@/lib/edition-scope'
+import { editionHiddenSellerIds, scopedListingWhere } from '@/lib/edition-scope'
 import { cache } from 'react'
 import { notFound } from 'next/navigation'
 import { AlertTriangle, Star, ShieldCheck } from "@/components/ui/icons"
@@ -43,7 +42,13 @@ export const loadSeller = cache(async (id: string) => {
    *
    * Returning null must reach a real 404: both routes notFound() on a null seller.
    */
-  if (IS_MARKETPLACE && (await deskSellerIds()).includes(id)) return null
+  // ⚠️ `editionHiddenSellerIds()`, NOT `IS_MARKETPLACE && deskSellerIds()`. The old shape
+  // existed because deskSellerIds() is edition-BLIND — it always answers "who may eno.vn not
+  // surface" — so without the test eno.forum would have 404'd its OWN desk. The list is now
+  // chosen per edition, which makes the guard unnecessary AND would have made the forum's own
+  // exclusions (owner, 2026-08-17: hide VietKite and GMBR there) never apply. See
+  // src/lib/edition-scope.ts.
+  if ((await editionHiddenSellerIds()).includes(id)) return null
   return db.seller.findUnique({
     where: { id },
     include: {

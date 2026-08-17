@@ -200,7 +200,13 @@ const READ_RE = /\b(?:db|tx|client)\.(listing|seller)\.(findMany|findFirst|findU
  * "this deliberately does not use marketplaceListingScope". Found by review; it made the rule
  * trivially and accidentally defeatable.
  */
-const SCOPE_HINTS = ['marketplaceListingScope', 'scopedListingWhere', 'deskSellerIds']
+// ⚠️ `editionHiddenSellerIds` COUNTS AS A GUARD, and omitting it turned a correct refactor red.
+// It is the per-edition seller-level hide-list added 2026-08-17 so eno.forum can hide the
+// partner storefronts it does not promote; the six call sites that used to read
+// `IS_MARKETPLACE && deskSellerIds()` now read it instead. Rule A counts MENTIONS of these
+// names against listing/seller reads, so renaming a guard without adding it here reads as a
+// file that lost its scope.
+const SCOPE_HINTS = ['marketplaceListingScope', 'scopedListingWhere', 'deskSellerIds', 'editionHiddenSellerIds']
 
 /** The one-off escape hatch, which IS meant to be a comment — same shape as design-lint's. */
 const INLINE_ALLOW = 'edition-lint-allow'

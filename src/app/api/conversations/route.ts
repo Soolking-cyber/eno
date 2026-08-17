@@ -1,4 +1,4 @@
-import { deskSellerIds, scopedListingWhere } from '@/lib/edition-scope'
+import { editionHiddenSellerIds, scopedListingWhere } from '@/lib/edition-scope'
 import { IS_MARKETPLACE } from '@/lib/edition'
 import { NextResponse } from 'next/server'
 import { after } from 'next/server'
@@ -474,7 +474,13 @@ export const GET = route({ auth: 'userId' }, async ({ userId: meId }) => {
    * deskSellerIds() is edition-blind, so the IS_MARKETPLACE test is what keeps eno.forum's own desk
    * threads visible where they belong.
    */
-  const hiddenSellerIds = IS_MARKETPLACE ? await deskSellerIds() : []
+  // ⚠️ `editionHiddenSellerIds()`, NOT `IS_MARKETPLACE && deskSellerIds()`. The old shape
+  // existed because deskSellerIds() is edition-BLIND — it always answers "who may eno.vn not
+  // surface" — so without the test eno.forum would have 404'd its OWN desk. The list is now
+  // chosen per edition, which makes the guard unnecessary AND would have made the forum's own
+  // exclusions (owner, 2026-08-17: hide VietKite and GMBR there) never apply. See
+  // src/lib/edition-scope.ts.
+  const hiddenSellerIds = await editionHiddenSellerIds()
   const rows = await db.conversation.findMany({
     where: {
       OR: [{ buyerProfileId: meId }, { sellerProfileId: meId }],

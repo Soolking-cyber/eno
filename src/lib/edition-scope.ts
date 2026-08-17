@@ -115,6 +115,80 @@ export const HIDDEN_DESK_OWNER_EMAILS: readonly string[] = [
   // duplicate. Caught by its own test.
 ]
 
+/**
+ * ⛔ THE SERVICES EDITION'S OWN HIDE-LIST — AND IT IS A SEPARATE VARIABLE, NOT THE ONE ABOVE.
+ *
+ * Owner, 2026-08-17: "in eno.forum vietkite and gmbr shouldnt be seen since we promote from our own
+ * storefront eno and vice versa on eno.vn our own visa and itinerary services shouldnt be seen".
+ * The second half already worked — `HIDDEN_DESK_OWNER_EMAILS=support@eno.forum` keeps eno's own 15
+ * listings off the marketplace. The first half had no code path at all: every listing filter
+ * early-returned on the services edition and every seller-level gate was written `IS_MARKETPLACE &&`.
+ *
+ * ⛔ IT IS NOT `HIDDEN_DESK_OWNER_EMAILS` UNDER A DIFFERENT SECRET, AND THAT IS THE WHOLE REASON
+ * THIS CONSTANT EXISTS. That name is read by `deskSellerIds()`, which the SHARED-VERTEX helpers at
+ * the bottom of this file use — and those are edition-INDEPENDENT on purpose, because eno.vn's
+ * concierge reads the one datastore both editions write. Overloading the name per deployment would
+ * have made the forum's promotional exclusions start deleting VietKite's documents out of eno.vn's
+ * search index: a business preference on one site silently censoring a partner on the other. Two
+ * questions, two variables. The ⛔ rule above — never a partner's address in
+ * HIDDEN_DESK_OWNER_EMAILS — is unchanged and still absolute.
+ *
+ * ⚠️ IT DEFAULTS TO EMPTY, WHICH IS TODAY'S BEHAVIOUR. Unset, the forum hides nobody and this whole
+ * change is inert; it becomes live only when an operator sets the variable in `eno-services-env`.
+ * That is deliberate — shipping the code and arming it are separate acts, and the arming one is a
+ * secret edit this session cannot make.
+ *
+ * ⚠️ AND IT FAILS SOFT, UNLIKE ITS MARKETPLACE TWIN. Hiding eno's desk from eno.vn is a LICENSING
+ * control and must fail closed — a 500 beats an unfiltered feed. Hiding a partner from eno.forum is
+ * a PROMOTIONAL choice: failing closed there would take the whole services site down over a
+ * preference about which storefront to feature. Wrong on the forum is a partner staying visible;
+ * wrong on the marketplace is a licence.
+ */
+export const SERVICES_HIDDEN_OWNER_EMAILS: readonly string[] = [
+  ...new Set(
+    (process.env.SERVICES_HIDDEN_OWNER_EMAILS ?? '')
+      .split(',')
+      .map((e) => e.trim().toLowerCase())
+      .filter(Boolean),
+  ),
+]
+
+/**
+ * The hide-list THIS deployment applies to its own pages.
+ *
+ * ⚠️ `deskSellerIds()` BELOW IS NOT THIS, and the two must not be merged. That one always answers
+ * "which sellers may eno.vn not surface", on both editions, because the shared Vertex index needs
+ * that answer regardless of who is writing. This one answers "which sellers does the site I am
+ * serving right now decline to show", which is a different question with a different failure mode.
+ */
+const editionHiddenEmails = (): readonly string[] =>
+  IS_SERVICES ? SERVICES_HIDDEN_OWNER_EMAILS : HIDDEN_DESK_OWNER_EMAILS
+
+const sellerIdsForEmails = async (emails: readonly string[]): Promise<string[]> => {
+  const list = [...new Set(emails)]
+  // An explicitly EMPTY list is a legitimate configuration — it says "this edition hides nobody".
+  // Skip the query rather than sending `in: []`, which Prisma answers with every row excluded by
+  // nothing.
+  if (!list.length) return []
+  const sellers = await db.seller.findMany({
+    where: { owner: { email: { in: list } } },
+    select: { id: true },
+  })
+  return [...new Set(sellers.map((s) => s.id))]
+}
+
+/**
+ * The seller ids the CURRENT edition hides from its own surfaces.
+ *
+ * Use this for seller-level gates (storefront 404s, the inbox, unread counts). It replaces the
+ * `IS_MARKETPLACE && deskSellerIds()` shape those call sites used to carry: that test existed
+ * because `deskSellerIds()` is edition-blind and would otherwise have made eno.forum 404 its OWN
+ * storefront and its own threads. With the list chosen per edition the guard is no longer needed —
+ * and leaving it in would have kept the forum's new exclusions from ever applying.
+ */
+export const editionHiddenSellerIds = cache(async (): Promise<string[]> =>
+  sellerIdsForEmails(editionHiddenEmails()))
+
 export const deskSellerIds = cache(async (): Promise<string[]> => {
   const emails = [...new Set(HIDDEN_DESK_OWNER_EMAILS)]
   // An explicitly EMPTY list is a legitimate configuration — it says "this edition hides nobody",
@@ -152,7 +226,24 @@ export const deskSellerIds = cache(async (): Promise<string[]> => {
  * licensing breach nobody notices. Fail loud.
  */
 export async function marketplaceListingScope(): Promise<{ sellerId?: { notIn: string[] } }> {
-  if (IS_SERVICES) return {}
+  /**
+   * ⛔ THE SERVICES BRANCH IS NO LONGER AN UNCONDITIONAL NO-OP. It used to be
+   * `if (IS_SERVICES) return {}` — the forum showed everyone — which is why the owner's request to
+   * hide VietKite and GMBR on eno.forum was not a config change but a missing code path.
+   *
+   * ⚠️ IT STILL RETURNS `{}` WHEN THE LIST IS EMPTY, so an unset `SERVICES_HIDDEN_OWNER_EMAILS`
+   * leaves eno.forum paying exactly nothing — not even an `AND` wrapper — which is what the
+   * comment on `scopedListingWhere` promises and what every existing services test asserts.
+   *
+   * ⚠️ AND IT DOES NOT GO THROUGH `requiredDeskSellerIds`, i.e. it does not throw. See the note on
+   * SERVICES_HIDDEN_OWNER_EMAILS: on the marketplace an unresolvable desk is a licensing failure
+   * and must fail closed; on the forum it is a preference about which storefront to promote, and
+   * taking the site down over that would be the worse outcome by a distance.
+   */
+  if (IS_SERVICES) {
+    const hidden = await editionHiddenSellerIds()
+    return hidden.length ? { sellerId: { notIn: hidden } } : {}
+  }
   return { sellerId: { notIn: await requiredDeskSellerIds() } }
 }
 

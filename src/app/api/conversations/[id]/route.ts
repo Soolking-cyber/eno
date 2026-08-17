@@ -5,8 +5,7 @@ import { MESSAGE_ROW_SELECT, serializeMessage } from '@/lib/messages'
 import { globalTopReactions } from '@/lib/reaction-tally'
 import { maskEmailHandle } from '@/lib/utils'
 import { threadKind } from '@/lib/thread-kind'
-import { IS_MARKETPLACE } from '@/lib/edition'
-import { deskSellerIds } from '@/lib/edition-scope'
+import { editionHiddenSellerIds } from '@/lib/edition-scope'
 import { syncBadgeToProfile } from '@/lib/native-push'
 import { dayCoarse } from '@/lib/last-seen'
 
@@ -157,8 +156,9 @@ export const GET = route({ auth: 'userId' }, async ({ req, params, userId: meId 
    * Deliberately indistinguishable from a thread that does not exist — the same answer a stranger's
    * conversation id gets, so this cannot be used to confirm that a visa service exists.
    */
-  if (IS_MARKETPLACE && convo.listing?.id) {
-    const deskIds = await deskSellerIds()
+  // Per-edition now — see the note in src/lib/edition-scope.ts on editionHiddenSellerIds.
+  if (convo.listing?.id) {
+    const deskIds = await editionHiddenSellerIds()
     if (deskIds.length && convo.seller?.id && deskIds.includes(convo.seller.id)) {
       throw new ApiError('not_found', 404)
     }
