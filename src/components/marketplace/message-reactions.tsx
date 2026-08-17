@@ -140,14 +140,18 @@ export function ReactionPills({
               // meant to read as a control.
               // ⚠️ The COUNT still needs to be legible, and `mine` still needs to be visible at a
               // glance; that now comes from the ink alone (§5's brand pair without its container).
-              'press flex items-center gap-0.5 rounded-full px-0.5 text-xs tabular-nums transition-transform hover:scale-110',
+              // ⚠️ SIZED TO THE BAR, NOT TO THE TEXT AROUND IT. Owner, 2026-08-17: "make emojis
+              // and default selector larger like 30-50% larger same size like in the bar". A tally
+              // that renders smaller than the glyph you pressed to create it reads as a different,
+              // lesser object; matching the bar's 22px makes the two obviously the same thing.
+              'press flex items-center gap-0.5 rounded-full px-0.5 text-sm tabular-nums transition-transform hover:scale-110',
               r.mine ? 'text-brand' : 'text-body',
             )}
           >
             {/* Renders the plain glyph until this one is pressed, then plays the animation once —
                 LottieEmoji paints the Unicode character first and always, so there is no blank
                 frame and no fetch on a thread nobody has interacted with. */}
-            <LottieEmoji emoji={r.emoji} play={playing === r.emoji} size={16} />
+            <LottieEmoji emoji={r.emoji} play={playing === r.emoji} size={22} />
             {/* One reaction needs no "1" beside it — the glyph already says it. */}
             {r.count > 1 && <span aria-hidden="true">{r.count}</span>}
           </button>
@@ -434,7 +438,11 @@ export function BubbleChrome({
              DEFAULT_TOP_REACTIONS and a unit test asserts a full bar. */
           aria-label={tr(`React with ${reactionFor(PRIMARY_REACTION)?.label ?? PRIMARY_REACTION}`, `Bày tỏ ${reactionFor(PRIMARY_REACTION)?.labelVi ?? PRIMARY_REACTION}`)}
           className={cn(
-            'press flex size-[18px] shrink-0 items-center justify-center rounded-full bg-popover text-xs leading-none shadow-sm ring-1 ring-border transition-[opacity,filter,scale] duration-200 ease-out',
+            // ⚠️ 26px, UP FROM 18 (+44%) — owner, 2026-08-17, same note as the tallies. At 18px
+            // this was a smudge rather than a control: it is the ONE-TAP shortcut, the most-used
+            // affordance on a message, and it was the smallest thing on the row. Its hit area was
+            // always larger than its paint; now the paint agrees with it.
+            'press flex size-[26px] shrink-0 items-center justify-center rounded-full bg-popover text-xs leading-none shadow-sm ring-1 ring-border transition-[opacity,filter,scale] duration-200 ease-out',
             // ⛔ "OUTLINED" FOR AN EMOJI MEANS DESATURATED. There is no stroke form of a colour
             // emoji glyph. ⚠️ 0.55, not 0.9 — measured on the rendered page, at 0.9 an 18px ❤️ is a
             // grey smudge that stops reading as an emoji at all, which defeats showing WHICH emoji
@@ -457,7 +465,7 @@ export function BubbleChrome({
             * quietly posts 😂 because that is this week's most-used glyph is the worst kind of
             * surprise. It swaps to the full-colour animation for the moment it plays.
             */}
-          <Heart className="size-3" aria-hidden />
+          <Heart className="size-4" aria-hidden />
         </button>
 
         {/**
@@ -706,10 +714,22 @@ export function BubbleChrome({
  * model. It also means a press begun on one bubble is cancelled by a press begun on another, which
  * is what a user dragging across a list expects.
  */
-let pendingPress: { timer: number; x: number; y: number } | null = null
+/**
+ * ⚠️ `el` AND ITS TWO SAVED STYLES ARE PART OF THE PRESS, not bookkeeping. The gesture SUPPRESSES
+ * text selection while it is in flight and has to put it back on every exit path — including the
+ * ones that are not a clean pointerup (a scroll that cancels it, a component that unmounts
+ * mid-press). Leaving `user-select: none` behind on a bubble would silently make that message
+ * uncopyable forever, which is a worse bug than the one being fixed.
+ */
+let pendingPress: { timer: number; x: number; y: number; el: HTMLElement; select: string; callout: string } | null = null
 
 function cancelPress() {
-  if (pendingPress) window.clearTimeout(pendingPress.timer)
+  if (pendingPress) {
+    window.clearTimeout(pendingPress.timer)
+    pendingPress.el.style.userSelect = pendingPress.select
+    pendingPress.el.style.setProperty('-webkit-user-select', pendingPress.select)
+    pendingPress.el.style.setProperty('-webkit-touch-callout', pendingPress.callout)
+  }
   pendingPress = null
 }
 
@@ -727,13 +747,67 @@ export function longPressHandlers(onLongPress: () => void) {
       // Mouse users have hover; a long mouse-press would fight click-to-select.
       if (e.pointerType === 'mouse') return
       cancelPress()
+      const el = e.currentTarget as HTMLElement
+      /**
+       * ⛔ SELECTION IS SUPPRESSED FOR THE DURATION OF THE PRESS, AND THIS REVERSES THE RULE THAT
+       * USED TO BE WRITTEN HERE. Owner, 2026-08-17: "on mobile the long press also selects the
+       * neares text inside the bubble, annoying". Holding a bubble fired BOTH gestures — iOS began
+       * its own selection and callout at roughly the same moment our timer opened the reaction
+       * chrome, so the reader got a blue selection and a magnifier on top of the bar they asked
+       * for.
+       *
+       * ⚠️ IT MUST BE SET AT POINTERDOWN, NOT WHEN THE TIMER FIRES. The platform starts selecting
+       * on its own schedule, near enough to ours that flipping `user-select` at 450ms is a race —
+       * and one that loses on a slow frame. Setting it up front and restoring on EVERY exit path
+       * (up, cancel, the movement check below, unmount) makes it deterministic.
+       *
+       * ⚠️ `-webkit-touch-callout` TOO, and it is not redundant: `user-select: none` alone still
+       * lets iOS raise the callout menu over a long-pressed element.
+       *
+       * ⛔ THIS DOES COST TAP-AND-HOLD-TO-SELECT INSIDE A BUBBLE, which an older comment here
+       * defended for lifting phone numbers and addresses out of a thread. That reason is no longer
+       * load-bearing: the gesture now opens a toolbar whose second button is COPY, so the text is
+       * one deliberate tap away instead of one accidental drag. Selection outside bubbles is
+       * untouched.
+       */
+      const select = el.style.userSelect
+      const callout = el.style.getPropertyValue('-webkit-touch-callout')
+      el.style.userSelect = 'none'
+      // ⚠️ THE PREFIX IS NOT REDUNDANT ON THE ONE BROWSER THIS IS FOR. Reviewer-caught: mobile
+      // WebKit honours `-webkit-user-select` for suppressing the native selection, and iOS Safari
+      // is the platform whose selection this exists to stop. Setting only the unprefixed property
+      // would have been a fix that reads correctly and does nothing where it matters.
+      el.style.setProperty('-webkit-user-select', 'none')
+      el.style.setProperty('-webkit-touch-callout', 'none')
       pendingPress = {
         x: e.clientX,
         y: e.clientY,
+        el,
+        select,
+        callout,
         timer: window.setTimeout(() => {
+          /**
+           * ⛔ RESTORE FIRST, FIRE SECOND. Both reviewers caught the original order and were right:
+           * `onLongPress()` opens the chrome, which sets state, which can re-render or unmount this
+           * bubble — and if it throws, nothing after it runs. Either way the inline
+           * `user-select: none` would have been left on the message PERMANENTLY, making its text
+           * uncopyable for the rest of the session. The cleanup must not depend on the callback
+           * returning.
+           * ⚠️ `cancelPress()` is the restore path, so this cannot drift from the other three exits.
+           */
+          const el = pendingPress?.el
+          cancelPress()
+          /**
+           * ⚠️ ONLY THIS BUBBLE'S SELECTION, NOT THE DOCUMENT'S. `removeAllRanges()` on its own
+           * wipes whatever the reader had highlighted anywhere on the page — including in the
+           * composer they were mid-edit in — which is a bigger theft than the one being fixed.
+           * Clearing is for the highlight the platform started INSIDE the pressed bubble before we
+           * won the race, so it is conditional on the selection actually living there.
+           */
+          const sel = window.getSelection()
+          if (el && sel && sel.anchorNode && el.contains(sel.anchorNode)) sel.removeAllRanges()
           hapticTap(18)
           onLongPress()
-          pendingPress = null
         }, LONG_PRESS_MS),
       }
     },
