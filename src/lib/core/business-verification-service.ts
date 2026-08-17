@@ -17,6 +17,114 @@ import {
   type VerificationDocKind,
 } from '@/lib/business-verification-store'
 import { taxVerdict } from '@/lib/tax-lookup'
+import { after } from 'next/server'
+import { SITE_NAME } from '@/lib/edition'
+import { sendPushToProfile } from '@/lib/push'
+import { sendMail } from '@/lib/mail'
+import { renderVerificationOutcomeEmail } from '@/lib/emails/business-verification'
+
+/**
+ * TELL THE SELLER WHAT HAPPENED — bell, push and email.
+ *
+ * ⛔ THIS DID NOT EXIST, AND ITS ABSENCE WAS THE WHOLE BUG. Owner, 2026-08-17: "when business
+ * registration documents sent and rejected or approved seller doesnt get noticification".
+ * The review wrote a status to the database and told nobody; the panel showed the outcome only
+ * the next time the seller happened to open Settings, and nothing invited them to. A REJECTION is
+ * the worse half, because it asks them to do something ("a specialist asked for a change: tax
+ * code") and they cannot act on a message they never receive.
+ *
+ * ⚠️ IT LIVES IN THE SERVICE, NOT IN THE SERVER ACTION. The action is one caller; a future admin
+ * API, a bulk tool or a script would each have to remember. Putting it beside the transition means
+ * "the status changed" and "the seller was told" cannot come apart.
+ *
+ * ⚠️ CALLED ONLY AFTER A CONFIRMED TRANSITION. Both reviews are compare-and-set `updateMany`s on
+ * `status: 'pending'`; this runs only where `count === 1`, so two admins clicking at once produce
+ * one state change and exactly one notification, not two.
+ *
+ * ⚠️ BEST-EFFORT, AND IT MUST STAY THAT WAY. A review that succeeded must never be reported as
+ * failed because a push endpoint 410'd or SMTP was briefly down — the seller's badge is already
+ * live. Everything here is wrapped, and the email rides `after()` so it cannot delay the admin's
+ * response.
+ */
+async function notifyVerificationOutcome(
+  sellerId: string,
+  outcome: 'approved' | 'rejected',
+  note: string | null,
+): Promise<void> {
+  try {
+    const seller = await db.seller.findUnique({
+      where: { id: sellerId },
+      select: { ownerId: true, owner: { select: { email: true, locale: true } } },
+    })
+    // A seller row whose owner was removed is unreachable, not an error — the same shape the
+    // dispute flow treats a guest storefront as.
+    const ownerId = seller?.ownerId
+    if (!ownerId) return
+    const lang: 'en' | 'vi' = seller.owner?.locale?.startsWith('vi') ? 'vi' : 'en'
+    const approved = outcome === 'approved'
+
+    const title = approved
+      ? (lang === 'vi' ? 'Doanh nghiệp đã được xác minh' : 'Your business is verified')
+      : (lang === 'vi' ? 'Xác minh cần chỉnh sửa' : 'Verification needs a change')
+    /** In-app body: behind auth, so the operator's note — the actionable part — belongs here. */
+    const bellBody = approved
+      ? (lang === 'vi' ? 'Huy hiệu đã xác minh đang hiển thị trên gian hàng của bạn.' : 'The verified badge is now live on your storefront.')
+      : (note?.slice(0, 140) || (lang === 'vi' ? 'Chuyên viên yêu cầu chỉnh sửa.' : 'A specialist asked for a change.'))
+    /**
+     * ⛔ THE PUSH BODY NEVER CARRIES THE NOTE — reviewer-caught, and it is the same rule the email
+     * subject already followed. A push is rendered on a LOCK SCREEN: a phone face-up on a café
+     * table, and every notification bridge that logs it. The operator's note is free text and can
+     * name a tax code, a licence number or a bank account holder. "A specialist asked for a change"
+     * says enough to make someone open the app, which is all a push has to do.
+     */
+    const pushBody = approved
+      ? (lang === 'vi' ? 'Gian hàng của bạn đã được xác minh.' : 'Your storefront is now verified.')
+      : (lang === 'vi' ? 'Chuyên viên yêu cầu chỉnh sửa. Mở cài đặt để xem.' : 'A specialist asked for a change. Open settings to see it.')
+
+    /**
+     * ⚠️ THREE INDEPENDENT CHANNELS, NOT ONE CHAIN — reviewer-caught. These were all inside one
+     * try, so a transient failure writing the bell row skipped the push AND the email, leaving a
+     * seller told nothing while the admin saw `{ ok: true }` and the transition had already
+     * committed. Each channel now fails alone.
+     */
+    try {
+      await db.notification.create({
+        data: { recipientId: ownerId, type: 'system', title, body: bellBody, actorName: SITE_NAME, url: '/dashboard/settings' },
+      })
+    } catch (e) {
+      console.error('[verification] bell', (e as Error).message)
+    }
+
+    const to = seller.owner?.email
+    const deliver = async () => {
+      try {
+        await sendPushToProfile(ownerId, { title, body: pushBody, url: '/dashboard/settings', tag: `verification-${sellerId}` })
+      } catch { /* a dead push subscription is not a review failure */ }
+      if (!to) return
+      try {
+        const origin = process.env.NEXT_PUBLIC_APP_URL || `https://${SITE_NAME}`
+        const mail = renderVerificationOutcomeEmail({ outcome, note, lang, origin, siteName: SITE_NAME })
+        await sendMail({ to, subject: mail.subject, html: mail.html, text: mail.text })
+      } catch (e) {
+        console.error('[verification] outcome email', (e as Error).message)
+      }
+    }
+
+    /**
+     * ⚠️ `after()` THROWS OUTSIDE A REQUEST SCOPE, and this service is deliberately callable from
+     * places that have none — a script, a cron, a bulk tool. Reviewer-caught. In a request we defer
+     * so the admin's response is not held up by SMTP; outside one we simply await, because a
+     * background hook with no request to attach to is not a reason to skip the email.
+     */
+    try {
+      after(deliver)
+    } catch {
+      await deliver()
+    }
+  } catch (e) {
+    console.error('[verification] notify', outcome, (e as Error).message)
+  }
+}
 
 // The Prisma writes for the business-verification case, with the concurrency guards the
 // external review demanded. The CASE state machine: draft (uploading, mutable) → pending
@@ -229,7 +337,10 @@ export async function approveVerification(caseId: string, adminEmail: string): P
       })
       return 'ok' as const
     })
-    return outcome === 'ok' ? { ok: true } : { ok: false, error: 'not_pending' }
+    if (outcome !== 'ok') return { ok: false, error: 'not_pending' }
+    // Only here: the transaction committed, so the badge is live and the seller can be told.
+    await notifyVerificationOutcome(row.sellerId, 'approved', null)
+    return { ok: true }
   } catch (e) {
     if ((e as { code?: string })?.code === 'P2002') return { ok: false, error: 'duplicate_tax' }
     throw e
@@ -246,7 +357,11 @@ export async function rejectVerification(caseId: string, adminEmail: string, not
       retentionUntil: new Date(now.getTime() + VERIFICATION_DOC_RETENTION_MS),
     },
   })
-  return upd.count === 1 ? { ok: true } : { ok: false, error: 'not_pending' }
+  if (upd.count !== 1) return { ok: false, error: 'not_pending' }
+  // The note is what the seller must act on, so it travels with the notification.
+  const row = await db.sellerVerification.findUnique({ where: { id: caseId }, select: { sellerId: true } })
+  if (row) await notifyVerificationOutcome(row.sellerId, 'rejected', note)
+  return { ok: true }
 }
 
 /** The admin review queue — pending cases, newest first, with the seller's public identity. */
