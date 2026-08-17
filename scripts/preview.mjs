@@ -6,12 +6,12 @@
 // a place to test — this is the replacement.
 //
 //   node scripts/preview.mjs vn          # marketplace edition → http://localhost:3000
+//   node scripts/preview.mjs forum       # services edition    → http://localhost:3101
+//   node scripts/preview.mjs vn --serve  # skip the build, serve what is already in .next
 //
 // ⚠️ WAIT FOR THE `── serving` LINE, NEVER FOR THE PORT TO ANSWER 200. The port is freed
 // before the build, so a 200 during those minutes can only be something else — and once the
 // build finishes there is nothing else left. "It answers" is not "it is mine".
-//   node scripts/preview.mjs forum       # services edition    → http://localhost:3101
-//   node scripts/preview.mjs vn --serve  # skip the build, serve what is already in .next
 //
 // ⚠️ THE MARKETPLACE PREVIEW IS ON :3000, AND IT TAKES THE PORT BY FORCE (owner, 2026-08-17:
 // "kill 3000 and 3100 use only 3000 from now on"). It used to sit on :3100 to dodge an
@@ -64,6 +64,21 @@ const env = {
   ...process.env,
   NEXT_PUBLIC_ENO_EDITION: cfg.edition,
   NEXT_PUBLIC_APP_URL: cfg.url,
+  // ⛔ MIRRORS cloudbuild.yaml, AND WITHOUT IT THIS PREVIEW IS NOT THE ARTIFACT. Cloud Build
+  // appends MARKETPLACE_HOSTS_SERVICES=true to the marketplace build (armed 2026-08-14) — it
+  // admits eno.vn to the PARTNER's visa chat, the `.svc.` routes, while payments and eno's own
+  // e-visa keep the stricter `.forum.svc.` infix that no marketplace build lists. It is read by
+  // next.config.ts to pick `pageExtensions`, so it decides which routes EXIST; there is no
+  // runtime equivalent.
+  // ⚠️ Its absence here made the local guest suite fail 45 specs that pass against production —
+  // `/api/trips/*` and `/api/visa/*` answered 404 locally and 401 on prod, because locally those
+  // routes were never compiled. That reads as "the app is broken", and it is really "the preview
+  // built a different edition than the one that ships". The forum edition needs nothing: its
+  // extension list already includes both tiers.
+  // ⚠️ KEEP THE TWO IN STEP. If cloudbuild.yaml ever turns this off, turn it off here in the same
+  // commit — a preview that is MORE permissive than production is the worse direction, because a
+  // leak would pass locally and only appear once deployed.
+  ...(cfg.edition === 'marketplace' ? { MARKETPLACE_HOSTS_SERVICES: 'true' } : {}),
   NODE_ENV: 'production',
   // ⚠️ THE ONE THING THAT MAKES SIGN-IN USABLE LOCALLY, and it is set HERE and nowhere else.
   // Auth pins its return host to NEXT_PUBLIC_APP_URL (a real security control — see
