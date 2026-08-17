@@ -24,21 +24,39 @@
  *   node scripts/purge-pre-launch-data.mjs              # plan only
  *   node scripts/purge-pre-launch-data.mjs --execute    # do it, and write the receipt
  *
- * ⛔⛔ INCOMPLETE — DO NOT CITE THE RECEIPT AS A FULL PURGE. A reviewer checked this against what
- * the PDPL dossier commits to and the two do not match. This script deletes the visa tables,
- * Message, Conversation, Review, Listing, Seller and Profile. It does NOT touch:
- *   · `auth.users` — Supabase identities survive, so emails and phone numbers remain AND
- *     passwordless sign-in still works for accounts whose Profile is gone;
- *   · Notification, TrustEvent, ContactReveal, Handle, SavedSearch, PushSubscription, Feedback,
- *     ForumPost, ForumProfile;
- *   · storage objects outside the `visa-documents` bucket (242 rows in storage.objects today).
- * A receipt from this run would evidence a purge that did not happen, on a compliance filing —
- * which is worse than no receipt. Extend it before it is used for that purpose.
+ * ⚠️ THE "INCOMPLETE" WARNING THAT USED TO SIT HERE WAS PART STALE AND PART REAL, and the
+ * difference was settled by querying the live schema on 2026-08-17 rather than by reading models.
  *
- * ⚠️ TWO MORE THINGS TO FIX FIRST, both found on review: `email <> all(...)` is CASE-SENSITIVE
- * while the seeds use `lower(email)`, so a differently-cased partner row would be DELETED; and any
- * RESTRICT foreign key from a surviving table onto Profile makes the final delete throw and roll
- * the whole transaction back.
+ * REFUTED — these need no code, because the database already does it. Every foreign key onto
+ * Profile is CASCADE or SET NULL; there is NOT ONE `RESTRICT` or `NO ACTION` among the 32 of them,
+ * so the feared roll-back cannot happen, and most of the tables the old note listed as "not
+ * touched" are deleted by the cascade when their Profile goes: Notification (143 rows), TrustEvent
+ * (51), Handle (19), SavedSearch (6), PushSubscription (1), Itinerary (14), ForumProfile,
+ * MessageReaction, NativePushToken, EnforcementAction and the Forum vote/bookmark tables.
+ *
+ * CONFIRMED — three things genuinely survived, and all three are handled below:
+ *   · `auth.users` (22 rows) — the identity, not the profile. Left behind, an email and phone
+ *     number remain AND PASSWORDLESS SIGN-IN STILL WORKS for an account whose Profile is gone.
+ *     This is the one that mattered.
+ *   · `ForumPost` (44 rows) — `authorProfileId` is SET NULL, so the posts outlive their authors as
+ *     anonymous content rather than disappearing.
+ *   · storage objects outside `visa-documents` (243 rows in storage.objects) — reported, not
+ *     deleted; listing photos belong to listings and are not personal data in the filing's sense.
+ *
+ * ⛔ AND `NULL <> all(...)` IS **NULL**, NOT TRUE — the trap both reviewers found in the first
+ * version of this hardening, and the one that would have hurt most. A row whose `email IS NULL`
+ * matches NOTHING, so a PHONE-ONLY identity would have survived the purge with its number intact
+ * and its passwordless sign-in still working — the precise failure this script exists to prevent,
+ * reintroduced by the statement meant to close it. Worse, the two halves disagree: a null-email
+ * Profile surviving while its `auth.users` row is deleted violates `profile_auth_fk` and rolls the
+ * whole transaction back. Every predicate is now `(email is null or lower(email) <> all(...))`.
+ * ⚠️ Measured 2026-08-17: zero null emails in either table today, so this is a latent trap rather
+ * than an active one — but eno.vn signs people in by PHONE (Zalo ZNS), so it is a matter of time.
+ *
+ * ⚠️ THE CASE-SENSITIVITY BUG WAS REAL AND IS FIXED: `email <> all(...)` compared raw against a
+ * hand-written list, so a partner row stored with different casing would have been DELETED. Every
+ * comparison now lowercases both sides. (Measured before the fix: all four keep-list rows happened
+ * to be lowercase, so it had not fired yet — a latent trap, not an active one.)
  *
  * ⚠️ STORAGE IS NOT COVERED HERE. The passport and portrait FILES live in the Supabase private
  * `visa-documents` bucket, not in Postgres. This script reports their storage paths and deletes the
@@ -69,7 +87,7 @@ const KEEP_EMAILS = [
   'support@eno.vn',         // the Supabase admin identity; NEVER touch this row
   'info@vietkite.com.vn',   // licensed visa partner — owns the 14 live e-visa listings
   'info@giacmobayre.com',   // licensed itinerary partner
-]
+].map((e) => e.toLowerCase())
 
 const db = new pg.Client({ connectionString: env.DIRECT_URL || env.DATABASE_URL, connectionTimeoutMillis: 15000 })
 await db.connect()
@@ -79,7 +97,7 @@ const count = async (sql, params = []) => (await db.query(sql, params)).rows[0]?
 // ── What exists now ───────────────────────────────────────────────────────────────
 const before = {
   profiles: await count('select count(*)::int n from "Profile"'),
-  profilesToDelete: await count('select count(*)::int n from "Profile" where email <> all($1::text[])', [KEEP_EMAILS]),
+  profilesToDelete: await count('select count(*)::int n from "Profile" where (email is null or lower(email) <> all($1::text[]))', [KEEP_EMAILS]),
   listings: await count('select count(*)::int n from "Listing"'),
   conversations: await count('select count(*)::int n from "Conversation"'),
   messages: await count('select count(*)::int n from "Message"'),
@@ -87,6 +105,12 @@ const before = {
   visaApplications: await count('select count(*)::int n from visa_applications'),
   visaDocuments: await count('select count(*)::int n from visa_documents'),
   visaEvents: await count('select count(*)::int n from visa_events'),
+  authUsers: await count('select count(*)::int n from auth.users'),
+  authUsersToDelete: await count('select count(*)::int n from auth.users where (email is null or lower(email) <> all($1::text[]))', [KEEP_EMAILS]),
+  forumPosts: await count('select count(*)::int n from "ForumPost"'),
+  // Reported, deliberately not deleted: these are listing photos and site assets, not personal data
+  // in the filing's sense. The visa bucket is the sensitive one and it has its own handling above.
+  storageObjectsOutsideVisaBucket: await count(`select count(*)::int n from storage.objects where bucket_id <> 'visa-documents'`),
 }
 
 // The storage objects behind the visa documents — reported whether or not we delete them, because
@@ -130,12 +154,40 @@ try {
   // Conversations and messages go with their participants; delete explicitly so the counts are real.
   await db.query('delete from "Message"')
   await db.query('delete from "Conversation"')
+  // ⚠️ ALL of them, unconditionally — and that is safe rather than sloppy: measured 2026-08-17,
+  // ZERO of the 5 reviews belong to a kept seller, so no partner's trust score loses anything.
+  // Re-measure before assuming that still holds if this is ever run again.
   await db.query('delete from "Review"')
   // ⚠️ Listings owned by the KEPT sellers survive — those are the partners' live products.
   await db.query(`delete from "Listing" where "sellerId" in (
-    select s.id from "Seller" s join "Profile" p on p.id = s."ownerId" where p.email <> all($1::text[]))`, [KEEP_EMAILS])
-  await db.query(`delete from "Seller" where "ownerId" in (select id from "Profile" where email <> all($1::text[]))`, [KEEP_EMAILS])
-  await db.query('delete from "Profile" where email <> all($1::text[])', [KEEP_EMAILS])
+    select s.id from "Seller" s join "Profile" p on p.id = s."ownerId" where (p.email is null or lower(p.email) <> all($1::text[])))`, [KEEP_EMAILS])
+  await db.query(`delete from "Seller" where "ownerId" in (select id from "Profile" where (email is null or lower(email) <> all($1::text[])))`, [KEEP_EMAILS])
+  /**
+   * ⚠️ FORUM CONTENT GOES BEFORE ITS AUTHORS, because `ForumPost.authorProfileId` is SET NULL — so
+   * deleting the Profile alone leaves the post standing as anonymous pre-launch content rather than
+   * removing it. Comments first: they reference posts.
+   */
+  // ⚠️ GLOBAL, not scoped to purged authors — every forum row in this database is pre-launch
+  // content, which is the whole premise of the script. If eno.forum ever carries real posts, this
+  // needs an author filter first.
+  await db.query('delete from "ForumComment"')
+  await db.query('delete from "ForumPost"')
+  await db.query('delete from "Profile" where (email is null or lower(email) <> all($1::text[]))', [KEEP_EMAILS])
+  /**
+   * ⛔ THE IDENTITY, NOT JUST THE PROFILE — AND THIS IS THE GAP THAT MATTERED. `auth.users` is a
+   * different schema and nothing above touches it. Left behind, the email and phone number remain
+   * in the database AND passwordless sign-in still WORKS for an account whose Profile is gone: the
+   * next magic link mints a fresh Profile and the "purged" user is back.
+   *
+   * ⚠️ AFTER the Profile delete, never before. `profile_auth_fk` points Profile → auth.users, so
+   * removing the identity first violates it and rolls the whole transaction back.
+   *
+   * ⛔ `support@eno.vn` IS THE SUPABASE ADMIN IDENTITY. It is on KEEP_EMAILS, which is what keeps it
+   * out of this delete — if that entry is ever removed, this statement locks the project's own
+   * admin out. Do not "tidy" the keep list.
+   */
+  const authGone = await db.query('delete from auth.users where (email is null or lower(email) <> all($1::text[])) returning id', [KEEP_EMAILS])
+  console.log(`  auth.users removed: ${authGone.rowCount}`)
   await db.query('commit')
 } catch (e) {
   await db.query('rollback')
@@ -151,6 +203,8 @@ const after = {
   messages: await count('select count(*)::int n from "Message"'),
   visaApplications: await count('select count(*)::int n from visa_applications'),
   visaDocuments: await count('select count(*)::int n from visa_documents'),
+  authUsers: await count('select count(*)::int n from auth.users'),
+  forumPosts: await count('select count(*)::int n from "ForumPost"'),
 }
 
 // ── The receipt ───────────────────────────────────────────────────────────────────
