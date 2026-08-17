@@ -14,6 +14,17 @@
  * ⚠️ THE LIST IS MEASURED, NOT CURATED. It is the union of every `#symbol` id referenced by the
  * initial DOM of the four highest-traffic routes — home, a listing page, a category page and a
  * search result — on a 412x915 mobile viewport, 2.5 s after DOMContentLoaded. 39 glyphs of 243.
+ *
+ * ⛔ AND THE DERIVATION MUST COVER **BOTH EDITIONS**, WHICH IT DID NOT UNTIL 2026-08-17. The four
+ * routes above were all measured on eno.vn, and one sprite partition serves both deployments — so
+ * anything above the fold ONLY on eno.forum was invisible to the measurement and silently landed in
+ * the deferred file. The desk tiles are exactly that case: `DESK_SHORTCUTS` is
+ * `IS_SERVICES ? SERVICES_DESK_TILES : []` (src/lib/taxonomy.ts), so on the marketplace the two
+ * tiles do not exist to be measured. Owner, 2026-08-17: "in categories icon essential pack add
+ * evisa and trip planner icons so they dont load late".
+ * ⚠️ Re-measured on the LIVE eno.forum home, 412x915, 2.5 s after load: 27 glyphs in the initial
+ * DOM, of which EXACTLY TWO came from the deferred file — `Stamp` and `CalendarDays`. Everything
+ * else that page paints was already critical, so this is the whole gap, not a sample of it.
  * Re-derive it rather than editing it by hand; a guessed list drifts and the drift is invisible
  * until someone profiles again:
  *
@@ -38,6 +49,12 @@ export const CRITICAL_GLYPHS = [
   'LayoutGrid', 'Map', 'MapPin', 'Megaphone', 'MessageCircle', 'MessageSquare', 'Play',
   'Plus', 'Rows3', 'Search', 'Share2', 'ShieldCheck', 'Sparkles', 'Star', 'Tag',
   'TrendingUp', 'User', 'VolumeX', 'X', 'Zap',
+  // ⛔ SERVICES EDITION, ABOVE THE FOLD — see the note on both-edition derivation above. These are
+  // the two `DESK_SHORTCUTS` tiles on eno.forum's home page (`Stamp` = e-Visa, `CalendarDays` =
+  // Trip planner, src/lib/edition-services-copy.ts). They cost eno.vn bytes it does not paint,
+  // which is the accepted price of one shared partition across two deployments — and it is small:
+  // two glyphs against the 5.9-7.3s late-arrival this file exists to prevent.
+  'Stamp', 'CalendarDays',
 ]
 
 /** Measured 2026-08-14 so a later reader can tell whether the split still earns its complexity. */
