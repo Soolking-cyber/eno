@@ -241,6 +241,33 @@ const nextConfig: NextConfig = {
      * semantics, so it is a deliberate follow-up rather than something to bundle into a version bump.
      */
     turbopackFileSystemCacheForBuild: false,
+    /**
+     * ⛔ OFF, AND THIS IS THE LINE THAT BROKE THE FIRST 16.3.1 DEPLOY — both editions' Cloud Builds
+     * failed on it. 16.3 flips `useTypeScriptCli` to `true`, which makes `next build` shell out to
+     * the project's own `tsc` and check EVERYTHING the tsconfig selects, TEST FILES INCLUDED. The
+     * previous checker only walked the app/pages graph.
+     *
+     * The file that fails is `src/lib/forum-safe-next.test.ts`, which imports
+     * `../../apps/forum/src/lib/safe-next` on purpose — the forum has no unit runner, so the root
+     * suite covers its sync-critical security helper. `.dockerignore` line 6 excludes `apps`,
+     * because the forum is a separate image with its own context. So the import resolves locally
+     * and CANNOT resolve in the container: `error TS2307: Cannot find module`.
+     *
+     * ⚠️ AND `npx tsc --noEmit` IS GREEN LOCALLY, which is exactly why this reached Cloud Build.
+     * The type error is not in the code; it is in the CONTAINER'S VIEW of the code. No local gate
+     * can see it — the same shape as the repo's standing warning that a green build is not a green
+     * runtime.
+     *
+     * ⚠️ THIS DOES NOT WEAKEN TYPE SAFETY. `typescript.ignoreBuildErrors` stays false, the app
+     * graph is still fully checked at build time, and `npx tsc --noEmit` over the WHOLE project
+     * (tests and scripts included) still runs in CI and in every local gate. What is turned off is
+     * only 16.3's new habit of type-checking files that are not part of the deployed artifact.
+     *
+     * ⚠️ THE ALTERNATIVES WERE WORSE: excluding tests from tsconfig would stop checking them
+     * anywhere, and copying `apps/` into the marketplace image would put the forum's source into
+     * the licensed marketplace's build context for one test file.
+     */
+    useTypeScriptCli: false,
     // ⚠️ NO `staleTimes` here, and that is a DECISION, not an omission (2026-07-21) — the
     // obvious "make navigation instant" lever is the wrong one for this app:
     //   · It does NOT affect back/forward. Browser back/forward always replays the client
