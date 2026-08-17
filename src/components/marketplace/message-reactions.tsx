@@ -315,6 +315,29 @@ export function BubbleChrome({
     ].filter(Boolean) as { key: string; icon: typeof Copy; label: string; run: () => void; danger: boolean }[]
   }, [actions, tr])
 
+  // ⚠️ ONE DEFINITION, RENDERED INTO TWO PILLS — the desktop one beside the bubble and the phone
+  // one stacked under the reaction bar. They are genuinely different POSITIONS of the same
+  // toolbar, not two toolbars, and the alternative (one element re-positioned by breakpoint) does
+  // not work here: the two live in different anchors, because "beside the bubble" is measured from
+  // the bubble and "under the bar" is measured from the glyph. Only one is ever in the layout —
+  // the other is `display:none`, so it is not tabbable and not clickable.
+  const actionButtons = actionList.map((a) => (
+    <button
+      key={a.key}
+      type="button"
+      tabIndex={actionsOpen ? 0 : -1}
+      onClick={() => { hapticTap(); onActionsOpenChange(false); a.run() }}
+      aria-label={a.label}
+      title={a.label}
+      className={cn(
+        'press flex size-7 items-center justify-center rounded-xl transition-colors',
+        a.danger ? 'text-destructive hover:bg-destructive/10' : 'text-body hover:bg-tint hover:text-foreground',
+      )}
+    >
+      <a.icon className="size-3.5" aria-hidden />
+    </button>
+  ))
+
   return (
     <div ref={root} className="pointer-events-none absolute inset-0 z-20">
 
@@ -342,7 +365,13 @@ export function BubbleChrome({
             // read as three unrelated controls floating beside the message; one container with the
             // bubble's own `rounded-2xl` reads as the message's own toolbar. The border, fill and
             // shadow live here now — the buttons inside carry only their hover.
-            'absolute top-1/2 z-30 flex -translate-y-1/2 items-center gap-0.5 rounded-2xl border border-border bg-popover p-0.5 shadow-pop transition-[opacity,scale,translate] duration-200',
+            //
+            // ⛔ DESKTOP ONLY — `max-sm:hidden`. Beside the bubble is a POINTER placement: it needs a
+            // gutter to sit in, and the hover bridge either side of it only means anything to a
+            // mouse. On a phone there is no gutter, so this pill and the reaction bar were drawn on
+            // top of each other (owner, 2026-08-17, with a screenshot). The phone gets the stacked
+            // copy inside the glyph's anchor instead — see MOBILE ACTIONS below.
+            'absolute top-1/2 z-30 pointer-coarse:hidden flex -translate-y-1/2 items-center gap-0.5 rounded-2xl border border-border bg-popover p-0.5 shadow-pop transition-[opacity,scale,translate] duration-200',
             'before:absolute before:inset-y-0 before:w-3 before:content-[""]',
             align === 'end'
               ? 'right-full mr-2 origin-right before:left-full'
@@ -353,22 +382,7 @@ export function BubbleChrome({
           )}
           style={{ transitionTimingFunction: 'var(--ease-spring)' }}
         >
-          {actionList.map((a) => (
-            <button
-              key={a.key}
-              type="button"
-              tabIndex={actionsOpen ? 0 : -1}
-              onClick={() => { hapticTap(); onActionsOpenChange(false); a.run() }}
-              aria-label={a.label}
-              title={a.label}
-              className={cn(
-                'press flex size-7 items-center justify-center rounded-xl transition-colors',
-                a.danger ? 'text-destructive hover:bg-destructive/10' : 'text-body hover:bg-tint hover:text-foreground',
-              )}
-            >
-              <a.icon className="size-3.5" aria-hidden />
-            </button>
-          ))}
+          {actionButtons}
         </div>
       )}
 
@@ -446,13 +460,59 @@ export function BubbleChrome({
           <Heart className="size-3" aria-hidden />
         </button>
 
+        {/**
+          * ⛔ ON A PHONE THE BAR AND THE ACTIONS ARE ONE STACK, BAR ON TOP. Owner, 2026-08-17:
+          * "on mobile the bar and quick actions overlap, pin quick actions bar below the emoji bar".
+          * Beside-the-bubble has nowhere to go on a 390px screen, so the two were drawn over each
+          * other. This column owns the vertical order; `sm:contents` dissolves it above the
+          * breakpoint so the bar goes back to positioning itself and the desktop pill keeps its
+          * gutter.
+          *
+          * ⚠️ IT GROWS UPWARD, WHICH IS WHY THE ACTIONS CAN SIT UNDER THE BAR WITHOUT MEASURING IT.
+          * The column is pinned by its BOTTOM (`bottom-full` = the glyph's top edge), so adding the
+          * second row pushes the bar up rather than pushing the actions down over the glyph.
+          *
+          * ⚠️ RESERVED SPACE IS NOT A PROBLEM HERE, and that is a fact about the trigger rather than
+          * luck: on touch there is no hover, so a long press opens BOTH at once (page.tsx:490 sets
+          * pickerFor and actionsFor together). Neither row is ever the only one open, so neither
+          * ever holds an empty gap. If a touch path is ever added that opens just one, this column
+          * needs a collapsing height — check that before changing the trigger.
+          */}
+        <div
+          className={cn(
+            'absolute bottom-full z-30 mb-1.5 flex flex-col gap-1.5 pointer-fine:contents',
+            align === 'end' ? 'right-0 items-end' : 'left-0 items-start',
+          )}
+        >
+        {/**
+          * ⚠️ EACH ROW COLLAPSES TO ZERO HEIGHT WHEN CLOSED, and this grid is how. `opacity-0` hides
+          * a flex child but keeps its box, so a closed row would hold ~38px of nothing and float the
+          * OTHER row that far off the glyph. It is reachable: a long press opens both, then tapping
+          * an emoji closes the bar and leaves the actions hanging under an invisible band. The
+          * `grid-rows-[0fr]` → `[1fr]` pair animates height (which `height:auto` cannot) and takes no
+          * space at 0fr, so the stack is always exactly as tall as what is showing.
+          * ⚠️ `pointer-fine:contents` on BOTH this and its child — with a mouse the bar must go back
+          * to positioning itself against the glyph's anchor, and a wrapper with a `display` of its
+          * own would become that anchor instead.
+          */}
+        <div
+          className={cn(
+            'grid transition-[grid-template-rows] duration-200 pointer-fine:contents',
+            align === 'end' ? 'justify-items-end' : 'justify-items-start',
+            barOpen ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]',
+          )}
+          style={{ transitionTimingFunction: 'var(--ease-spring)' }}
+        >
+        <div className="min-h-0 overflow-hidden pointer-fine:contents">
         {/* THE BAR: the top five, the door to the rest, and the ✕ when there is one to clear.
             `aria-hidden` + `tabIndex={-1}` while closed so a collapsed bar is neither tabbable nor
             clickable — a hidden-by-opacity control that still takes clicks is an invisible target. */}
         <div
           aria-hidden={!barOpen}
           className={cn(
-            'absolute bottom-full z-30 mb-1.5 flex items-center gap-0.5 rounded-full border border-border bg-popover p-1 shadow-pop ring-1 ring-foreground/10 transition-[opacity,scale,translate] duration-200',
+            // `pointer-coarse:static` hands positioning to the column above; with a fine pointer it
+            // is absolute against the glyph's anchor exactly as before.
+            'absolute pointer-coarse:static pointer-coarse:mb-0 bottom-full z-30 mb-1.5 flex items-center gap-0.5 rounded-full border border-border bg-popover p-1 shadow-pop ring-1 ring-foreground/10 transition-[opacity,scale,translate] duration-200',
             // ⛔ IT RISES FROM THE GLYPH AND MAY COVER THE BUBBLE — owner's call, 2026-08-16: "its
             // okay let it cover the bubble". Nested in the glyph's anchor it is also a DOM descendant
             // of the control that opened it, so the pointer never leaves that subtree on the way up.
@@ -581,6 +641,46 @@ export function BubbleChrome({
               </button>
             </>
           )}
+        </div>
+
+        </div>
+        </div>
+
+        {/**
+          * MOBILE ACTIONS — the same toolbar as the desktop pill, stacked directly under the bar.
+          * `sm:hidden` and the desktop copy's `max-sm:hidden` are exclusive, so exactly one is in
+          * the layout and only one is ever focusable.
+          *
+          * ⚠️ `self-*`, NOT `right-0/left-0`: this is a flex child of the column now, so it aligns
+          * to the same outer edge the bar hangs off rather than being positioned. That keeps the
+          * "grows inward, never past the pane wall" property the bar's own note describes — a pill
+          * pinned to the wrong edge is the overflow bug the owner already shouted about once.
+          */}
+        {actionList.length > 0 && (
+          <div
+            className={cn(
+              // Same collapsing row as the bar above — see its note.
+              'grid transition-[grid-template-rows] duration-200 pointer-fine:hidden',
+              align === 'end' ? 'justify-items-end' : 'justify-items-start',
+              actionsOpen ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]',
+            )}
+            style={{ transitionTimingFunction: 'var(--ease-spring)' }}
+          >
+            <div className="min-h-0 overflow-hidden">
+              <div
+                aria-hidden={!actionsOpen}
+                className={cn(
+                  'z-30 flex items-center gap-0.5 rounded-2xl border border-border bg-popover p-0.5 shadow-pop transition-[opacity,scale] duration-200',
+                  align === 'end' ? 'origin-top-right' : 'origin-top-left',
+                  actionsOpen ? 'pointer-events-auto scale-100 opacity-100' : 'pointer-events-none scale-90 opacity-0',
+                )}
+                style={{ transitionTimingFunction: 'var(--ease-spring)' }}
+              >
+                {actionButtons}
+              </div>
+            </div>
+          </div>
+        )}
         </div>
       </div>
     </div>
