@@ -218,9 +218,29 @@ const nextConfig: NextConfig = {
   // every SUBSEQUENT navigation stops re-downloading the whole stylesheet.
   experimental: {
     inlineCss: false,
-    // Tree-shake barrel-export packages so only the icons/primitives actually used
-    // are bundled (lucide-react is imported across ~68 files) — trims first-party JS.
-    optimizePackageImports: ["lucide-react"],
+    /**
+     * ⛔ `optimizePackageImports: ["lucide-react"]` WAS DELETED HERE (2026-08-17) BECAUSE THE
+     * PACKAGE IS NOT INSTALLED. Its comment claimed "lucide-react is imported across ~68 files";
+     * the real count is ZERO — the icons moved to an external `<use>` sprite (see
+     * src/components/ui/icons.tsx and scripts/gen-icons.mjs), and the option outlived the
+     * dependency it optimised. It cost nothing at runtime, which is exactly why it survived: dead
+     * config is invisible until someone reads it and believes it.
+     * ⚠️ Do not re-add it for `@base-ui/react`. That is a real dependency, but the option's win is
+     * on BARREL files, and this app imports Base UI through per-component paths already.
+     */
+    /**
+     * ⛔ TURBOPACK'S BUILD CACHE IS WRITTEN AND NEVER READ IN OUR CONTAINER, so it is pure cost.
+     * 16.3 flipped this default to `true`, and Next's own docs name this exact case: "If your build
+     * environment never preserves `.next/cache`, set turbopackFileSystemCacheForBuild: false."
+     * Our Dockerfile builder is `FROM node:24-slim` + `COPY . .` with no BuildKit cache mount and
+     * no restored `.next/cache`, so every Cloud Build run would serialise a cache that the next run
+     * starts without.
+     * ⚠️ THE ALTERNATIVE IS BETTER IF SOMEONE WANTS IT: add
+     * `--mount=type=cache,target=/app/.next/cache` to the builder's RUN and flip this back to true —
+     * Vercel measures 1.4x–5.5x on repeat builds. That is a Dockerfile change with its own cache-key
+     * semantics, so it is a deliberate follow-up rather than something to bundle into a version bump.
+     */
+    turbopackFileSystemCacheForBuild: false,
     // ⚠️ NO `staleTimes` here, and that is a DECISION, not an omission (2026-07-21) — the
     // obvious "make navigation instant" lever is the wrong one for this app:
     //   · It does NOT affect back/forward. Browser back/forward always replays the client

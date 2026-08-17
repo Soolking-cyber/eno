@@ -18,7 +18,10 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { DECLARATIONS, CURRENT_DECLARATION } from '@/lib/compliance/declaration'
+// ⛔ `declaration-text`, NOT `declaration` — the latter imports node:crypto, and a 'use client'
+// file importing it drags the whole Node crypto polyfill into the browser (measured: 435 KB
+// raw / 130 KB gzip, 44% of this route's JS). The text module exists for exactly this import.
+import { DECLARATIONS, CURRENT_DECLARATION } from '@/lib/compliance/declaration-text'
 import { LEGAL_BASIS } from '@/lib/compliance/legal-basis'
 
 export function VerifyClient() {
