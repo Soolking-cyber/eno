@@ -4,11 +4,11 @@ import * as React from 'react'
 
 import { useLanguage } from '@/context/language-context'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { Copy, Trash2, Flag, Undo2 } from '@/components/ui/icons'
+import { Copy, Trash2, Flag, Undo2, Heart } from '@/components/ui/icons'
 import { LottieEmoji } from '@/components/marketplace/lottie-emoji'
 import { hapticTap } from '@/lib/haptics'
 import { cn } from '@/lib/utils'
-import { REACTIONS, reactionFor, topReactions } from '@/lib/reactions'
+import { PRIMARY_REACTION, REACTIONS, reactionFor, topReactions } from '@/lib/reactions'
 
 /**
  * CHAT MESSAGE REACTIONS — the Zalo tap-back, on eno.vn's terms.
@@ -79,10 +79,20 @@ export function ReactionPills({
   reactions,
   onToggle,
   className,
+  burstEmoji = null,
 }: {
   reactions: MessageReaction[]
   onToggle: (emoji: string) => void
   className?: string
+  /**
+   * An emoji whose tally should play RIGHT NOW, set by whoever caused the reaction from outside
+   * this component — the bar and the one-tap heart both do.
+   *
+   * ⛔ THE ANIMATION BELONGS TO THE TALLY, NOT THE BUTTON THAT SENT IT. Owner, 2026-08-16, pointing
+   * at a tally: "this should be animation not the grey button animation". The grey one-tap mark is
+   * meant to recede; the thing worth animating is the reaction that actually landed on the message.
+   */
+  burstEmoji?: string | null
 }) {
   const { tr } = useLanguage()
   /**
@@ -104,6 +114,9 @@ export function ReactionPills({
     // running behind a thread the reader has scrolled away from.
     playTimer.current = window.setTimeout(() => { playTimer.current = null; setPlaying(null) }, 2000)
   }, [])
+
+  // A reaction sent from the bar or the one-tap mark plays here, on the tally it produced.
+  React.useEffect(() => { if (burstEmoji) burst(burstEmoji) }, [burstEmoji, burst])
 
   if (!reactions.length) return null
 
@@ -233,12 +246,8 @@ export function BubbleChrome({
   const [hovered, setHovered] = React.useState<string | null>(null)
   const root = React.useRef<HTMLDivElement | null>(null)
   const top = React.useMemo(() => topReactions(measuredTop), [measuredTop])
-  const [glyphPlaying, setGlyphPlaying] = React.useState(false)
-  React.useEffect(() => {
-    if (!glyphPlaying) return
-    const t = window.setTimeout(() => setGlyphPlaying(false), 2000)
-    return () => window.clearTimeout(t)
-  }, [glyphPlaying])
+  /** The reaction just sent from this chrome, so its TALLY can play — see ReactionPills.burstEmoji. */
+  const [sent, setSent] = React.useState<string | null>(null)
 
   /**
    * THE OPEN DELAY. Owner: "after short delay like 500 milli seconds … meaningful delays".
@@ -281,6 +290,9 @@ export function BubbleChrome({
 
   function pick(emoji: string) {
     hapticTap()
+    // Re-set through null so pressing the same emoji twice in a row still re-triggers the play.
+    setSent(null)
+    window.setTimeout(() => setSent(emoji), 0)
     onPick(emoji)
     setAllOpen(false)
     onLockChange?.(false)
@@ -325,7 +337,12 @@ export function BubbleChrome({
           aria-hidden={!actionsOpen}
           onPointerEnter={() => clearOpenTimer()}
           className={cn(
-            'absolute top-1/2 z-30 flex -translate-y-1/2 items-center gap-1 transition-[opacity,scale,translate] duration-200',
+            // ⛔ ONE PILL, NOT THREE COINS. Owner, 2026-08-16: "remove circles around these make them
+            // one pill have squircle outline around similar to bubble box". Three bordered circles
+            // read as three unrelated controls floating beside the message; one container with the
+            // bubble's own `rounded-2xl` reads as the message's own toolbar. The border, fill and
+            // shadow live here now — the buttons inside carry only their hover.
+            'absolute top-1/2 z-30 flex -translate-y-1/2 items-center gap-0.5 rounded-2xl border border-border bg-popover p-0.5 shadow-pop transition-[opacity,scale,translate] duration-200',
             'before:absolute before:inset-y-0 before:w-3 before:content-[""]',
             align === 'end'
               ? 'right-full mr-2 origin-right before:left-full'
@@ -345,7 +362,7 @@ export function BubbleChrome({
               aria-label={a.label}
               title={a.label}
               className={cn(
-                'press flex size-7 items-center justify-center rounded-full border border-border bg-popover shadow-pop transition-colors',
+                'press flex size-7 items-center justify-center rounded-xl transition-colors',
                 a.danger ? 'text-destructive hover:bg-destructive/10' : 'text-body hover:bg-tint hover:text-foreground',
               )}
             >
@@ -392,32 +409,41 @@ export function BubbleChrome({
           * ⚠️ NOT IN THE ROW'S FLOW ANY MORE. They used to sit under the bubble and reserve their own
           * height; here they hang off it, which is why the message row carries `pb-4`.
           */}
-        <ReactionPills reactions={reactions} onToggle={onToggle} className="mt-0" />
+        <ReactionPills reactions={reactions} onToggle={onToggle} burstEmoji={sent} className="mt-0" />
 
         <button
           type="button"
-          onClick={() => { setGlyphPlaying(true); pick(top[0]) }}
+          onClick={() => pick(PRIMARY_REACTION)}
           onFocus={() => onBarOpenChange(true)}
           /* ⚠️ NAMES THE ACTION, NOT JUST THE GLYPH. "Heart, button" does not tell anyone what
              pressing it does. `top` is never empty — topReactions() tops up from
              DEFAULT_TOP_REACTIONS and a unit test asserts a full bar. */
-          aria-label={tr(`React with ${reactionFor(top[0])?.label ?? top[0]}`, `Bày tỏ ${reactionFor(top[0])?.labelVi ?? top[0]}`)}
+          aria-label={tr(`React with ${reactionFor(PRIMARY_REACTION)?.label ?? PRIMARY_REACTION}`, `Bày tỏ ${reactionFor(PRIMARY_REACTION)?.labelVi ?? PRIMARY_REACTION}`)}
           className={cn(
             'press flex size-[18px] shrink-0 items-center justify-center rounded-full bg-popover text-xs leading-none shadow-sm ring-1 ring-border transition-[opacity,filter,scale] duration-200 ease-out',
             // ⛔ "OUTLINED" FOR AN EMOJI MEANS DESATURATED. There is no stroke form of a colour
             // emoji glyph. ⚠️ 0.55, not 0.9 — measured on the rendered page, at 0.9 an 18px ❤️ is a
             // grey smudge that stops reading as an emoji at all, which defeats showing WHICH emoji
             // the site uses most.
-            'grayscale-[0.55] hover:grayscale-0 hover:scale-110',
+            'text-ink-4 hover:text-destructive hover:scale-110',
             // ⚠️ IT STAYS PUT WHILE THE BAR IS OPEN. The bar now opens ABOVE it rather than over it,
             // so there is nothing to hide from — and hiding the control the pointer is resting on is
             // how the previous version made itself unreachable.
             'opacity-60 hover:opacity-100',
           )}
         >
-          {/* The one-tap react animates on press, same as a tally — this is the control most people
-              will use, so it is the one that must feel alive. */}
-          <LottieEmoji emoji={top[0]} play={glyphPlaying} size={14} />
+          {/**
+            * ⛔ A SOLAR OUTLINE HEART, NOT THE MEASURED TOP EMOJI. Owner, 2026-08-16: "this should be
+            * only the outline in gray to not stand out use solar heart outlined". An earlier pass
+            * argued the opposite — a heart cannot express whichever glyph the tally says is most
+            * used — and the owner's answer is that the resting mark should recede, not inform. The
+            * BAR still shows the measured top five; only this one-tap shortcut is fixed.
+            *
+            * ⚠️ SO THE TAP SENDS ❤️, NOT top[0]. The icon and the action have to agree: a heart that
+            * quietly posts 😂 because that is this week's most-used glyph is the worst kind of
+            * surprise. It swaps to the full-colour animation for the moment it plays.
+            */}
+          <Heart className="size-3" aria-hidden />
         </button>
 
         {/* THE BAR: the top five, the door to the rest, and the ✕ when there is one to clear.
