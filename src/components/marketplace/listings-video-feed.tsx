@@ -398,9 +398,12 @@ function VideoFeedItem({
             black) on desktop. */}
         <div className="absolute bottom-[calc(env(safe-area-inset-bottom)+1.5rem)] right-2.5 z-10 flex flex-col items-center gap-5 text-white sm:bottom-10 sm:left-full sm:right-auto sm:ml-5">
           {/* h-7 @ STROKE_NAV — the bottom-nav tier (§2/§4): this rail IS the takeover's
-              nav chrome, and h-8 sat off the ladder. Saved keeps the §5 user-state pair
-              (fill-brand + brand line). */}
-          <RailButton label={favorited ? tr('Saved', 'Đã lưu') : tr('Save', 'Lưu')} onClick={() => toggle(listing.id)}>
+              nav chrome, and h-8 sat off the ladder. Saved is `fill-current text-destructive`,
+              the same red as the grid card and the counter badge — the old note here still
+              said "fill-brand + brand line", which the app moved off on 2026-08-13.
+              `pressed` drives the Outline→Bold swap — see RailButton. Without it the saved
+              heart paints red OUTLINE here while the grid card paints red BOLD. */}
+          <RailButton label={favorited ? tr('Remove favorite', 'Bỏ lưu') : tr('Add favorite', 'Lưu tin')} pressed={favorited} onClick={() => toggle(listing.id)}>
             <Heart strokeWidth={STROKE_NAV} className={cn('icon-own-ink h-7 w-7 transition-colors [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.6))]', favorited ? 'fill-current text-destructive' : 'text-white')} />
           </RailButton>
           <RailButton label={tr('Chat with seller', 'Nhắn tin')} onClick={chat}>
@@ -418,11 +421,16 @@ function VideoFeedItem({
   )
 }
 
-function RailButton({ label, onClick, children }: { label: string; onClick: () => void; children: React.ReactNode }) {
+// ⚠️ `pressed` is OPTIONAL BY DESIGN — only a button with a real on/off state passes it. The
+// globals.css icon rule keyed on `[aria-pressed='true']` is what swaps a glyph from Outline to
+// Bold, so omitting it on a stateless action (Chat, Share) is correct, and omitting it on the
+// SAVE heart was the bug: it painted red Outline where every other card paints red Bold.
+function RailButton({ label, pressed, onClick, children }: { label: string; pressed?: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
     <IconButton
       size="sm"
       aria-label={label}
+      aria-pressed={pressed}
       title={label}
       onClick={(e) => { e.stopPropagation(); onClick() }}
       // `relative` is REQUIRED with tap-44: its absolute ::before hit-area anchors to the

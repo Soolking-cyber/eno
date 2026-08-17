@@ -641,11 +641,20 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
                     size="sm"
                     tapTarget={false}
                     onClick={(e) => { e.stopPropagation(); toggle(card.id) }}
-                    aria-label={isFavorite(card.id) ? tr('Saved', 'Đã lưu') : tr('Save', 'Lưu')}
+                    aria-label={isFavorite(card.id) ? tr('Remove favorite', 'Bỏ lưu') : tr('Add favorite', 'Lưu tin')}
+                    aria-pressed={isFavorite(card.id)}
                     className="transition-transform hover:scale-110 active:scale-[0.96]"
                   >
                     {/* h-5 + the same overlay fill pair as the grid card's heart — one
-                        save affordance, byte-identical across grid / map (icon ladder §4). */}
+                        save affordance, byte-identical across grid / map (icon ladder §4).
+                        ⚠️ `aria-pressed` IS LOAD-BEARING, NOT JUST A11Y. The saved heart here used
+                        to paint RED OUTLINE while every other card painted RED BOLD, on a
+                        byte-identical className — because the Outline→Bold swap is a CSS rule in
+                        globals.css keyed on the ANCESTOR control's selection state, and this button
+                        declared none. So `.i-on` (the Bold layer) stayed at opacity 0 and
+                        `text-destructive` merely recoloured the Outline layer underneath. The label
+                        moved from state wording ("Saved") to action wording to match the other
+                        hearts: with aria-pressed set, a state label reads as "Saved, pressed". */}
                     <Heart className={cn('icon-own-ink h-5 w-5 transition-colors [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.5))]', isFavorite(card.id) ? 'fill-current text-destructive' : 'fill-black/25 text-white')} />
                   </IconButton>
                 </div>
