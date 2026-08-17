@@ -4,7 +4,7 @@ import * as React from 'react'
 
 import { useLanguage } from '@/context/language-context'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { Plus, Copy, Trash2, Flag, Undo2, X } from '@/components/ui/icons'
+import { Copy, Trash2, Flag, Undo2 } from '@/components/ui/icons'
 import { LottieEmoji } from '@/components/marketplace/lottie-emoji'
 import { hapticTap } from '@/lib/haptics'
 import { cn } from '@/lib/utils'
@@ -38,6 +38,28 @@ import { REACTIONS, reactionFor, topReactions } from '@/lib/reactions'
 
 export type MessageReaction = { emoji: string; count: number; mine: boolean }
 
+/**
+ * BARE "＋" AND "✕" MARKS — TWO STROKES EACH, NO RING.
+ *
+ * ⛔ NOT `ui/icons`, AND THE REASON IS THE ICON SET ITSELF. Owner, 2026-08-16: "too many circles
+ * around like x has circle + has circle remove those". The app's `Plus` and `X` map to Solar's
+ * `add-circle` and `close-circle` (scripts/lucide-solar-map.mjs) — the ring is drawn INTO the
+ * glyph — and each sat inside a `rounded-full` button that drew a second one. Solar v2 ships no
+ * circle-free variant of either (only `-circle` and `-square`), so there is nothing in the sprite
+ * to swap to: measured against the package, not assumed.
+ *
+ * ⚠️ THIS IS THE DOCUMENTED EXCEPTION, NOT A PRECEDENT. Two line segments are not an icon worth a
+ * sprite entry, and every other glyph in this file still comes from `ui/icons`. If Solar ever adds
+ * a bare `add`/`close`, delete these and use it.
+ */
+function BareMark({ kind, className }: { kind: 'plus' | 'cross'; className?: string }) {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" aria-hidden className={className}>
+      {kind === 'plus' ? <path d="M8 3.5v9M3.5 8h9" /> : <path d="M4.5 4.5l7 7M11.5 4.5l-7 7" />}
+    </svg>
+  )
+}
+
 /** Long enough not to fire while scrolling, short enough not to feel broken. Matches iOS. */
 const LONG_PRESS_MS = 450
 /** A finger that travels this far was scrolling, not pressing. */
@@ -63,6 +85,26 @@ export function ReactionPills({
   className?: string
 }) {
   const { tr } = useLanguage()
+  /**
+   * WHICH TALLY IS MID-ANIMATION. Owner, 2026-08-16: "play animation when emoji pressed thats whole
+   * purpose why we got dotlottie files make it super interactive fun to use".
+   *
+   * ⛔ ONE AT A TIME, AND ONLY ON PRESS — the perf rule at the top of this file has not changed. A
+   * busy thread shows dozens of tallies, and dozens of concurrent Lottie players drops frames on the
+   * mid-range Androids most of this audience uses. So a tally is a static glyph until someone taps
+   * it, plays once, and goes back to being static.
+   */
+  const [playing, setPlaying] = React.useState<string | null>(null)
+  const playTimer = React.useRef<number | null>(null)
+  React.useEffect(() => () => { if (playTimer.current !== null) window.clearTimeout(playTimer.current) }, [])
+  const burst = React.useCallback((emoji: string) => {
+    if (playTimer.current !== null) window.clearTimeout(playTimer.current)
+    setPlaying(emoji)
+    // Long enough for the longest animation in the pack, short enough that a player is never left
+    // running behind a thread the reader has scrolled away from.
+    playTimer.current = window.setTimeout(() => { playTimer.current = null; setPlaying(null) }, 2000)
+  }, [])
+
   if (!reactions.length) return null
 
   return (
@@ -74,19 +116,25 @@ export function ReactionPills({
           <button
             key={r.emoji}
             type="button"
-            onClick={() => onToggle(r.emoji)}
+            onClick={() => { burst(r.emoji); onToggle(r.emoji) }}
             aria-pressed={r.mine}
             aria-label={tr(`${name}, ${r.count}`, `${name}, ${r.count}`)}
             className={cn(
-              'press flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-xs tabular-nums transition-colors',
-              // `mine` is a live user-state, so it wears the brand pair — the same law the saved
-              // heart and a pending offer follow (docs/design-language.md §5).
-              r.mine
-                ? 'border-brand/40 bg-primary/10 text-brand'
-                : 'border-border bg-tint text-body hover:bg-muted',
+              // ⛔ NO PILL, NO BORDER, NO FILL. Owner, 2026-08-16: "around gray default emoji leave
+              // the circle but when pressed activated emojis to the left of it no circles". A
+              // reacted emoji is already the loud thing on the line — it is in full colour beside a
+              // desaturated glyph — so a ring around it only competed with the one circle that is
+              // meant to read as a control.
+              // ⚠️ The COUNT still needs to be legible, and `mine` still needs to be visible at a
+              // glance; that now comes from the ink alone (§5's brand pair without its container).
+              'press flex items-center gap-0.5 rounded-full px-0.5 text-xs tabular-nums transition-transform hover:scale-110',
+              r.mine ? 'text-brand' : 'text-body',
             )}
           >
-            <span aria-hidden="true" className="text-sm leading-none">{r.emoji}</span>
+            {/* Renders the plain glyph until this one is pressed, then plays the animation once —
+                LottieEmoji paints the Unicode character first and always, so there is no blank
+                frame and no fetch on a thread nobody has interacted with. */}
+            <LottieEmoji emoji={r.emoji} play={playing === r.emoji} size={16} />
             {/* One reaction needs no "1" beside it — the glyph already says it. */}
             {r.count > 1 && <span aria-hidden="true">{r.count}</span>}
           </button>
@@ -185,6 +233,12 @@ export function BubbleChrome({
   const [hovered, setHovered] = React.useState<string | null>(null)
   const root = React.useRef<HTMLDivElement | null>(null)
   const top = React.useMemo(() => topReactions(measuredTop), [measuredTop])
+  const [glyphPlaying, setGlyphPlaying] = React.useState(false)
+  React.useEffect(() => {
+    if (!glyphPlaying) return
+    const t = window.setTimeout(() => setGlyphPlaying(false), 2000)
+    return () => window.clearTimeout(t)
+  }, [glyphPlaying])
 
   /**
    * THE OPEN DELAY. Owner: "after short delay like 500 milli seconds … meaningful delays".
@@ -342,7 +396,7 @@ export function BubbleChrome({
 
         <button
           type="button"
-          onClick={() => pick(top[0])}
+          onClick={() => { setGlyphPlaying(true); pick(top[0]) }}
           onFocus={() => onBarOpenChange(true)}
           /* ⚠️ NAMES THE ACTION, NOT JUST THE GLYPH. "Heart, button" does not tell anyone what
              pressing it does. `top` is never empty — topReactions() tops up from
@@ -361,7 +415,9 @@ export function BubbleChrome({
             'opacity-60 hover:opacity-100',
           )}
         >
-          <span aria-hidden="true">{top[0]}</span>
+          {/* The one-tap react animates on press, same as a tally — this is the control most people
+              will use, so it is the one that must feel alive. */}
+          <LottieEmoji emoji={top[0]} play={glyphPlaying} size={14} />
         </button>
 
         {/* THE BAR: the top five, the door to the rest, and the ✕ when there is one to clear.
@@ -446,9 +502,11 @@ export function BubbleChrome({
                   type="button"
                   tabIndex={barOpen ? 0 : -1}
                   aria-label={tr('More reactions', 'Thêm biểu cảm')}
-                  className="press flex size-8 items-center justify-center rounded-full text-body transition-colors hover:bg-tint hover:text-foreground"
+                  // ⚠️ NO `rounded-full` FILL. The ring was the second of the two circles the owner
+                  // asked to remove; the mark carries no ring of its own now either.
+                  className="press flex size-8 items-center justify-center text-ink-4 transition-colors hover:text-foreground"
                 >
-                  <Plus className="size-4" />
+                  <BareMark kind="plus" className="size-4" />
                 </button>
               }
             />
@@ -491,9 +549,9 @@ export function BubbleChrome({
                 onClick={() => { hapticTap(); onRemove(myReaction); onBarOpenChange(false) }}
                 aria-label={tr('Remove my reaction', 'Bỏ biểu cảm của tôi')}
                 title={tr('Remove my reaction', 'Bỏ biểu cảm của tôi')}
-                className="press flex size-8 items-center justify-center rounded-full text-body transition-colors hover:bg-destructive/10 hover:text-destructive"
+                className="press flex size-8 items-center justify-center text-ink-4 transition-colors hover:text-destructive"
               >
-                <X className="size-4" />
+                <BareMark kind="cross" className="size-4" />
               </button>
             </>
           )}
