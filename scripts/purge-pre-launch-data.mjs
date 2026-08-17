@@ -136,15 +136,6 @@ if (!EXECUTE) {
 // removal is the part the filing turns on, so it must be explicit and countable rather than a side
 // effect of deleting a Profile row.
 const removedStorage = []
-if (WITH_STORAGE) {
-  const { createClient } = await import('@supabase/supabase-js')
-  const sb = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SECRET_KEY)
-  for (const d of docs) {
-    const { error } = await sb.storage.from('visa-documents').remove([d.storage_path])
-    removedStorage.push({ path: d.storage_path, kind: d.kind, ok: !error, error: error?.message ?? null })
-  }
-  console.log(`\nStorage objects removed: ${removedStorage.filter((r) => r.ok).length}/${docs.length}`)
-}
 
 await db.query('begin')
 try {
@@ -167,6 +158,23 @@ try {
    * deleting the Profile alone leaves the post standing as anonymous pre-launch content rather than
    * removing it. Comments first: they reference posts.
    */
+  /**
+   * ⛔ THE MODERATION ROWS GO FIRST, AND THIS IS THE ONE THAT ACTUALLY BIT — the 2026-08-17 run
+   * rolled back on `ForumReport_target_check`.
+   *
+   * `ForumReport` and `ForumModerationAction` each carry a CHECK of the form "at least one of
+   * postId / commentId / targetProfileId is not null", and every one of those three columns is a
+   * SET NULL foreign key. So deleting the post nulls one, deleting the profile nulls another, and
+   * the row that referenced BOTH ends up with all three null — which is not a constraint the
+   * delete can see coming, because nothing is deleting THAT row. Postgres reports it as "new row
+   * ... violates check constraint" on a table nobody touched, and the whole transaction unwinds.
+   *
+   * ⚠️ These are the ONLY two tables in the database with that shape — checked against
+   * pg_constraint rather than guessed, so this is a complete fix and not a patch for the row that
+   * happened to fail.
+   */
+  await db.query('delete from "ForumReport"')
+  await db.query('delete from "ForumModerationAction"')
   // ⚠️ GLOBAL, not scoped to purged authors — every forum row in this database is pre-launch
   // content, which is the whole premise of the script. If eno.forum ever carries real posts, this
   // needs an author filter first.
@@ -194,6 +202,29 @@ try {
   console.error('\n✗ ROLLED BACK — nothing was deleted:', e.message)
   await db.end()
   process.exit(1)
+}
+
+/**
+ * ⛔ STORAGE COMES AFTER THE COMMIT, AND IT USED TO COME BEFORE. The 2026-08-17 run is why: the
+ * transaction rolled back on a constraint, and the console read "Storage objects removed: 4/4" —
+ * so four passport and portrait IMAGES were destroyed while every row pointing at them survived.
+ * That is the worst of both worlds this file's own header warns about, produced by the file itself.
+ *
+ * A rollback must leave the world untouched, and the only ordering that gives that is: prove the
+ * database delete first, then remove the bytes. The reverse is unrecoverable — rows can be
+ * re-deleted, a deleted image cannot be un-deleted.
+ *
+ * ⚠️ The residual risk is now the harmless direction: a crash between COMMIT and here leaves
+ * orphaned FILES with no rows. Re-running reports them as already-gone.
+ */
+if (WITH_STORAGE) {
+  const { createClient } = await import('@supabase/supabase-js')
+  const sb = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SECRET_KEY)
+  for (const d of docs) {
+    const { error } = await sb.storage.from('visa-documents').remove([d.storage_path])
+    removedStorage.push({ path: d.storage_path, kind: d.kind, ok: !error, error: error?.message ?? null })
+  }
+  console.log(`\nStorage objects removed: ${removedStorage.filter((r) => r.ok).length}/${docs.length}`)
 }
 
 const after = {
