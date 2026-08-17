@@ -403,7 +403,7 @@ function VideoFeedItem({
               said "fill-brand + brand line", which the app moved off on 2026-08-13.
               `pressed` drives the Outline→Bold swap — see RailButton. Without it the saved
               heart paints red OUTLINE here while the grid card paints red BOLD. */}
-          <RailButton label={favorited ? tr('Remove favorite', 'Bỏ lưu') : tr('Add favorite', 'Lưu tin')} pressed={favorited} onClick={() => toggle(listing.id)}>
+          <RailButton label={tr('Save listing', 'Lưu tin')} pressed={favorited} onClick={() => toggle(listing.id)}>
             <Heart strokeWidth={STROKE_NAV} className={cn('icon-own-ink h-7 w-7 transition-colors [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.6))]', favorited ? 'fill-current text-destructive' : 'text-white')} />
           </RailButton>
           <RailButton label={tr('Chat with seller', 'Nhắn tin')} onClick={chat}>
@@ -425,6 +425,13 @@ function VideoFeedItem({
 // globals.css icon rule keyed on `[aria-pressed='true']` is what swaps a glyph from Outline to
 // Bold, so omitting it on a stateless action (Chat, Share) is correct, and omitting it on the
 // SAVE heart was the bug: it painted red Outline where every other card paints red Bold.
+//
+// ⚠️ A CALLER THAT PASSES `pressed` MUST KEEP `label` CONSTANT, and that is why Save now says
+// "Save listing" in both states while Mute still flips to "Unmute". The two are different ARIA
+// patterns, not an inconsistency: Save is a TOGGLE (constant name, state in aria-pressed), Mute
+// is an ACTION whose name describes what the next press does (no aria-pressed, so nothing
+// contradicts it). Pairing a flipping name WITH aria-pressed is the combination to avoid — it
+// announces "Remove favorite, pressed", i.e. that removal is the state you are in.
 function RailButton({ label, pressed, onClick, children }: { label: string; pressed?: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
     <IconButton

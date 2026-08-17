@@ -119,8 +119,41 @@ test.describe('Guest · listing detail (first live listing)', () => {
   })
 
   test('exposes Save / Share / Report controls', async ({ page }) => {
-    await expect(page.getByRole('button', { name: /^Save$/i })).toBeVisible()
+    // "Save listing", not "Save" — the heart is an ARIA toggle, so its name is CONSTANT and
+    // `aria-pressed` carries the saved state. It used to flip Save/Saved, which is the pairing
+    // that announces "Saved, pressed".
+    // ⚠️ SCOPED TO THE ACTION CLUSTER, NOT `.first()`. Every card heart on this page — the
+    // similar-listings rail, the seller's other listings — now answers to the SAME name, so a
+    // bare `.first()` would happily pass off a card while the PDP's own Save button was gone.
+    // The pair with Share is what makes this cluster the detail page's: cards have no Share.
+    // ⚠️ `:visible`, NOT `.first()` — the page carries TWO of these clusters, one per gallery
+    // (`md:hidden` mobile, desktop), so whichever comes first in the DOM is the hidden one at
+    // one of the two viewports this spec runs at.
+    const actions = page.locator('div:has(> button[aria-label="Share"]):visible')
+    await expect(actions.getByRole('button', { name: /^Save listing$/i })).toBeVisible()
     await expect(page.getByRole('button', { name: /^Share$/i })).toBeVisible()
     await expect(page.getByRole('button', { name: /^Report$/i })).toBeVisible()
+  })
+
+  // ⚠️ THE ASSERTION NO OTHER GATE CAN MAKE. `aria-pressed` on the save heart is load-bearing
+  // TWICE: it reports the state to a screen reader, and it is what globals.css keys the
+  // Outline→Bold glyph swap on. Delete it as "redundant with the label" and the saved heart
+  // silently reverts to a red OUTLINE while tsc, design-lint and 3773 unit tests stay green —
+  // which is exactly how it shipped on the map card and the video rail (fixed 102ce1ea).
+  // The NAME must not move with the state either: a toggle that renames itself announces
+  // "Remove favorite, pressed", i.e. that removal is the state you are in.
+  // Favourites are localStorage-only, so this writes nothing to the server and stays guest-safe.
+  test('the save heart is a real ARIA toggle — pressed flips, the name does not', async ({ page }) => {
+    // ⚠️ A CSS LOCATOR, NOT getByRole — and that is not a style preference. Saving as a guest
+    // opens the "Saved! Now keep it" sign-up sheet, and a modal marks the background
+    // `aria-hidden`, which takes the heart out of the ACCESSIBILITY TREE the moment it is
+    // pressed. getByRole then reports "element(s) not found" for a button that is right there
+    // and working — a failure that reads like the toggle broke. CSS ignores the a11y tree.
+    const heart = page.locator('div:has(> button[aria-label="Share"]):visible button[aria-label="Save listing"]')
+    await expect(heart).toHaveAttribute('aria-pressed', 'false')
+    await heart.click()
+    await expect(heart).toHaveAttribute('aria-pressed', 'true')
+    // The name must NOT have moved with the state — that is the whole point of the toggle.
+    await expect(heart).toHaveAttribute('aria-label', 'Save listing')
   })
 })

@@ -33,7 +33,7 @@ test.describe('Guest · search', () => {
     await expect(page).toHaveURL(/[?&](category|brand|model|q|search)=/i)
     await expect(page.getByText(RESULTS_COUNT).first()).toBeVisible()
     // And that the count is REAL — "0 listings" renders on a dead API too.
-    await expect(page.getByRole('button', { name: 'Add favorite' }).first()).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Save listing' }).first()).toBeVisible()
   })
 
   test('a second query also returns a results view', async ({ page }) => {
@@ -44,6 +44,6 @@ test.describe('Guest · search', () => {
     await box.fill('honda')
     await box.press('Enter')
     await expect(page.getByText(RESULTS_COUNT).first()).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Add favorite' }).first()).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Save listing' }).first()).toBeVisible()
   })
 })

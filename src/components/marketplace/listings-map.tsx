@@ -641,7 +641,9 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
                     size="sm"
                     tapTarget={false}
                     onClick={(e) => { e.stopPropagation(); toggle(card.id) }}
-                    aria-label={isFavorite(card.id) ? tr('Remove favorite', 'Bỏ lưu') : tr('Add favorite', 'Lưu tin')}
+                    // Constant name + `aria-pressed` = the ARIA toggle pattern; see the note on
+                    // listing-card.tsx's heart for why the label used to flip and no longer does.
+                    aria-label={tr('Save listing', 'Lưu tin')}
                     aria-pressed={isFavorite(card.id)}
                     className="transition-transform hover:scale-110 active:scale-[0.96]"
                   >

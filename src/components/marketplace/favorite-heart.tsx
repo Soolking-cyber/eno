@@ -27,7 +27,9 @@ export function FavoriteHeart({ id, className }: { id: string; className?: strin
       size="md"
       onClick={(e) => { e.stopPropagation(); if (!fav) setBurst(true); toggle(id) }}
       aria-pressed={fav}
-      aria-label={fav ? tr('Remove favorite', 'Bỏ lưu') : tr('Add favorite', 'Lưu tin')}
+      // A toggle's NAME stays put while `aria-pressed` carries the state — see the note on
+      // listing-card.tsx's heart for why the flipping label was worse than redundant.
+      aria-label={tr('Save listing', 'Lưu tin')}
       className={cn('transition-colors hover:bg-accent', className)}
     >
       {/* The pop is driven by `burst` — no `key`, so nothing remounts (see the note on the flag).

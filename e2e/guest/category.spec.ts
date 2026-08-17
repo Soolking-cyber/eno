@@ -9,7 +9,7 @@ test.describe('Guest · category (/c/electronics)', () => {
 
   test('renders the category with listings', async ({ page }) => {
     await expect(page.getByRole('heading', { level: 1, name: /Electronics in Vietnam/i })).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Add favorite' }).first()).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Save listing' }).first()).toBeVisible()
   })
 
   test('exposes district facets', async ({ page }) => {
@@ -24,7 +24,7 @@ test.describe('Guest · category (/c/electronics)', () => {
   })
 
   test('clicking a card opens the listing detail (client routing)', async ({ page }) => {
-    await expect(page.getByRole('button', { name: 'Add favorite' }).first()).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Save listing' }).first()).toBeVisible()
     // Two things to assert: (1) the card exposes a real stretched anchor with the listing href
     // (SEO + open-in-new-tab, which the old div[role=button] never had); (2) clicking the photo —
     // the dominant tap area — navigates client-side. The photo sits ABOVE the anchor and carries

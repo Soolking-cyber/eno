@@ -40,7 +40,10 @@ export function SaveListingButton({ id, compact = false, className }: { id: stri
         variant="overlay"
         onClick={onToggle}
         aria-pressed={saved}
-        aria-label={label}
+        // Icon-only, so nothing visible pins the name: it stays CONSTANT and `aria-pressed`
+        // reports the state, which is the ARIA toggle pattern the other four hearts now use.
+        // ⚠️ The TEXT variant below deliberately does NOT do this — see the note there.
+        aria-label={tr('Save listing', 'Lưu tin')}
         className={cn('press', className)}
       >
         {/* §5 user-state + §8 motion: the same one-shot pop the grid card and the row heart use.
@@ -64,6 +67,18 @@ export function SaveListingButton({ id, compact = false, className }: { id: stri
       type="button"
       onClick={onToggle}
       aria-pressed={saved}
+      // ⚠️ THE ONE HEART WHOSE NAME STILL CHANGES, AND IT IS NOT AN OVERSIGHT — but note first
+      // that THIS BRANCH HAS NO CALL SITES TODAY (grepped 2026-08-17: both `<SaveListingButton>`
+      // usages on the PDP pass `compact`). So it is the rule for whoever renders it next, not a
+      // pattern the app currently ships.
+      // Every heart that DOES render is icon-only and takes a constant name (the ARIA toggle
+      // pattern). This one renders `label` as visible text, and WCAG 2.5.3 Label in Name wants
+      // the accessible name to contain what is on screen — pinning it to "Save listing" while
+      // the button reads "Saved" would break speech control ("click Saved" matching nothing).
+      // The pairing that is actually harmful is a name describing the next ACTION ("Remove
+      // favorite") next to aria-pressed; "Saved" + pressed is merely redundant, never wrong.
+      // ⚠️ The text is `hidden sm:inline`, so below `sm` this is icon-only and aria-label is the
+      // whole name — which is why it cannot simply be dropped in favour of the visible text.
       aria-label={label}
       className={cn(
         'press flex gap-1.5 rounded-xl border px-3.5 py-2 font-semibold transition-colors',

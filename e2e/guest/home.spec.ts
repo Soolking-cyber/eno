@@ -36,13 +36,13 @@ test.describe('Guest · homepage', () => {
     const trending = page.getByRole('heading', { name: /Trending now/i })
     const latest = page.getByRole('heading', { name: /Latest listings/i })
     await expect(trending.or(latest).first()).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Add favorite' }).first()).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Save listing' }).first()).toBeVisible()
   })
 
   test('content images decode (no broken cards)', async ({ page }) => {
     // Wait for a card to render, then measure the largest VISIBLE image — a broken image
     // reports naturalWidth === 0 even though the <img> exists.
-    await expect(page.getByRole('button', { name: 'Add favorite' }).first()).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Save listing' }).first()).toBeVisible()
     const naturalWidth = await page.evaluate(() => {
       const vis = [...document.querySelectorAll('img')].filter((i) => { const r = i.getBoundingClientRect(); return r.width > 60 && r.height > 60 })
       if (!vis.length) return -1

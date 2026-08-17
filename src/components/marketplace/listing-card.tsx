@@ -692,7 +692,12 @@ function ListingCardImpl({
             (a quiet native action row); desktop keeps its on-hover unfurl above. */}
         <IconButton
           size="sm"
-          aria-label={favorited ? tr('Remove favorite', 'Bỏ lưu') : tr('Add favorite', 'Lưu tin')}
+          // ⚠️ THE NAME IS CONSTANT ON PURPOSE — `aria-pressed` is what reports the state, and a
+          // toggle button whose NAME also flips says the same thing twice, in contradictory
+          // words: "Remove favorite" + pressed announces as though REMOVAL were the active state,
+          // when what is active is the save. (ARIA APG, Button-Toggle: the label does not change
+          // when the state does.) The pair to read is "Save listing, pressed".
+          aria-label={tr('Save listing', 'Lưu tin')}
           aria-pressed={favorited}
           onClick={(e) => { e.stopPropagation(); if (!favorited) setBurst(true); toggle(listing.id) }}
           className="absolute right-2 top-2 z-10 transition-transform hover:scale-110 active:scale-[0.96]"
