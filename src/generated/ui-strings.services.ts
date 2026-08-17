@@ -293,7 +293,6 @@ export const UI_STRINGS_SERVICES: string[] = [
   "Updated",
   "Use this one",
   "Useful links",
-  "Verified",
   "Vietnam itinerary",
   "Vietnam time",
   "View property",
