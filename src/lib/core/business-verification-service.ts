@@ -378,6 +378,58 @@ export async function listPendingVerifications(limit = 100) {
   return rows
 }
 
+/**
+ * DECIDED CASES — the operator's history, searchable.
+ *
+ * Owner, 2026-08-17: "have verified businesses history with search in business verification page".
+ * The queue only ever showed PENDING work, so once a case was decided it vanished: an operator
+ * could not answer "did we already verify this company", "what did we tell them", or "who approved
+ * this and when" without going to the database.
+ *
+ * ⚠️ THE SEARCH IS SERVER-SIDE AND INSENSITIVE, over the three things an operator actually has in
+ * hand: the storefront name, the registered legal name, and the tax code. A client-side filter over
+ * a `take`-limited page would search only what happened to be on screen — which looks identical
+ * until the answer is on page 2, and then quietly says "no results" for a company you verified.
+ *
+ * ⚠️ THE RESULT IS STILL CAPPED, AND THE UI SAYS SO WHEN IT IS. Searching in the query means every
+ * decided case is CONSIDERED; it does not mean every match is RETURNED. A reviewer rightly read an
+ * earlier version of this comment as claiming both. There is no pagination yet — narrowing the
+ * search is the way to reach older rows — and the page renders a warning line when the list is
+ * full, so a truncated view cannot be mistaken for a complete one.
+ *
+ * ⚠️ IT LISTS approved AND rejected. A rejection is the half an operator most often needs to look
+ * up ("what change did we ask for?"), and `note` carries it. Filtering to approvals only would hide
+ * exactly the rows that generate follow-up questions.
+ */
+/** How many decided cases one page shows. Exported so the UI can SAY so when it truncates. */
+export const HISTORY_LIMIT = 200
+
+export async function listDecidedVerifications(q = '', limit = HISTORY_LIMIT) {
+  const term = q.trim()
+  // ⚠️ `mode: 'insensitive'` on the two free-text fields but NOT on the tax code: an MST is digits,
+  // so a case-insensitive match buys nothing and only costs the index.
+  const search = term
+    ? {
+        OR: [
+          { seller: { name: { contains: term, mode: 'insensitive' as const } } },
+          { seller: { legalName: { contains: term, mode: 'insensitive' as const } } },
+          { seller: { taxCode: { contains: term } } },
+        ],
+      }
+    : {}
+  return db.sellerVerification.findMany({
+    where: { status: { in: ['approved', 'rejected'] }, ...search },
+    // Most recently decided first — the operator's question is nearly always about recent work.
+    orderBy: { reviewedAt: 'desc' },
+    take: limit,
+    select: {
+      id: true, sellerId: true, status: true, submittedAt: true, reviewedAt: true, reviewedBy: true,
+      note: true,
+      seller: { select: { name: true, legalName: true, taxCode: true } },
+    },
+  })
+}
+
 /** One case for the detail page, with its documents and the live Channel-1 verdict. */
 export async function loadVerificationForReview(caseId: string) {
   const row = await db.sellerVerification.findUnique({
