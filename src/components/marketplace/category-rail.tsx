@@ -1,7 +1,8 @@
 'use client'
 
 import { Fragment, useEffect, useRef } from 'react'
-import { useLanguage, Tr } from '@/context/language-context'
+import { useLanguage, Tr, useTr } from '@/context/language-context'
+import { detectContentLang } from '@/lib/detect-lang'
 import { CategoryIcon } from './category-icons'
 import { CategoryTileGlyph } from './category-art'
 import { SUBCATEGORIES } from '@/lib/subcategories'
@@ -18,6 +19,40 @@ import type { SerializedCategory } from '@/lib/types'
 // Prisma/`server-only` chain. It is imported rather than restated so the rail's prop and the
 // payload the route ships are literally the same type.
 import type { FacetCounts } from '@/lib/facet-counts'
+
+/**
+ * A TILE LABEL, WHICH IS `Tr` PLUS ONE SUBSTITUTION: ASCII hyphens become NON-BREAKING ones.
+ *
+ * ⚠️ A HYPHEN IS A LINE-BREAK OPPORTUNITY, AND IN A 4.75rem COLUMN IT IS USUALLY THE WRONG ONE.
+ * Owner, 2026-08-17, on the "Vietnam e-Visa" tile: "move e below vietnam on top and e-Visa below".
+ * It broke as "Vietnam e-" / "Visa", because the browser takes the LAST opportunity that fits and
+ * the hyphen sits further along the line than the space. U+2011 is not an opportunity at all, so
+ * the space becomes the only place to wrap — the reading the owner asked for, and the right one for
+ * any hyphenated label rather than for this one string.
+ *
+ * ⛔ THE SUBSTITUTION HAPPENS AFTER TRANSLATION, NOT BEFORE, AND THE ORDER IS THE WHOLE POINT.
+ * `Tr` looks the string up in the machine-translation dictionary BY ITS TEXT. Feeding it a label
+ * that already contains U+2011 would miss every prewarmed entry, so every hyphenated category name
+ * would silently lose its translation in the nine languages that are not en/vi — trading a wrap
+ * nobody dies from for a content regression. Translate first, then adjust the glyph.
+ *
+ * ⚠️ THE TAXONOMY KEEPS A PLAIN ASCII HYPHEN. The data still matches what anyone would type or
+ * search for, and a U+2011 — invisible in a diff, easy to "correct" back — never has to survive in
+ * a source file someone edits. This is presentation, so it lives at the render site.
+ *
+ * ⚠️ IT DOES NOT TOUCH `break-words` on the label, which stays for the case it was added for: a
+ * single token longer than the tile. The two coexist. Wrapping each word in `whitespace-nowrap`
+ * would have been the obvious alternative and it suppresses that fallback entirely.
+ *
+ * The `lang` wrapper mirrors `Tr` (WCAG 3.1.2) — an untranslated Vietnamese label on an English
+ * page still gets voiced correctly.
+ */
+function TileLabel({ text }: { text?: string | null }) {
+  const { lang } = useLanguage()
+  const out = useTr(text).replace(/-/g, '\u2011')
+  const cl = detectContentLang(out)
+  return cl && cl !== lang ? <span lang={cl}>{out}</span> : <>{out}</>
+}
 
 // Line 1 of the search header. Large, flat category tiles (icon + name + live count, on the
 // canvas — no background fill, matching the home grid) in one horizontally
@@ -209,6 +244,8 @@ export function CategoryRail({
   const nameCls = (active: boolean) =>
     cn('line-clamp-2 w-full break-words text-xs font-bold leading-tight transition-colors', active ? 'text-accent-foreground' : 'text-foreground group-hover:text-accent-foreground')
 
+
+
   const subChip = (active: boolean) =>
     cn('w-full shrink-0 whitespace-nowrap rounded-lg px-2.5 py-1 text-left text-sm font-semibold transition-colors cursor-pointer', active ? 'bg-card text-accent-foreground shadow-sm' : 'text-body hover:bg-card/70 hover:text-accent-foreground')
 
@@ -263,7 +300,7 @@ export function CategoryRail({
             <CategoryIcon name={sc.icon} className={iconCls(false)} />
           </span>
           <span className="flex w-full flex-col items-center gap-0.5">
-            <span className={nameCls(false)}><Tr text={lang === 'vi' ? sc.nameVi : sc.name} /></span>
+            <span className={nameCls(false)}><TileLabel text={lang === 'vi' ? sc.nameVi : sc.name} /></span>
           </span>
         </Button>
       ))}
@@ -312,7 +349,7 @@ export function CategoryRail({
               <span className="flex h-11 items-center justify-center">
                 <CategoryTileGlyph slug={cat.slug} icon={cat.icon} className={iconCls(isActive)} selected={isActive} />
               </span>
-              <span className={nameCls(isActive)}><Tr text={lang === 'vi' ? cat.nameVi : cat.name} /></span>
+              <span className={nameCls(isActive)}><TileLabel text={lang === 'vi' ? cat.nameVi : cat.name} /></span>
             </Button>
 
             {/* Subcategories roll out to the right of the active category */}
@@ -384,7 +421,7 @@ export function CategoryRail({
                 <span className="flex h-11 items-center justify-center">
                   <CategoryTileGlyph slug={s.type} icon={s.icon} className={iconCls(active)} selected={active} />
                 </span>
-                <span className={nameCls(active)}><Tr text={lang === 'vi' ? s.nameVi : s.name} /></span>
+                <span className={nameCls(active)}><TileLabel text={lang === 'vi' ? s.nameVi : s.name} /></span>
               </Button>
             )
           })}
