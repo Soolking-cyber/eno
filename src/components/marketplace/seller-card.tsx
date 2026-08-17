@@ -1,8 +1,9 @@
 'use client'
 
 import Link from 'next/link'
-import { MessageCircle, Store, Building2, Star, ShieldCheck } from "@/components/ui/icons"
+import { MessageCircle, Store, Star } from "@/components/ui/icons"
 import { useLanguage } from '@/context/language-context'
+import { BusinessVerifiedBadge } from '@/components/marketplace/business-verified-badge'
 import { PartnerBadge } from './partner-badge'
 import { TrustScore } from '@/components/marketplace/trust-score'
 import { trustBand } from '@/lib/trust-score'
@@ -163,16 +164,36 @@ export function SellerCard({
                 something they just read. "Business verified" is a document check eno actually
                 performed, so it survives: a partner who has ALSO cleared verification has earned
                 two distinct claims and should show both. */}
-            {seller.isBusiness && (
-              seller.businessVerified ? (
-                <Badge variant="success" className="px-1.5 py-0.5 font-semibold">
-                  <ShieldCheck aria-hidden className="h-3 w-3" /> {tr('Business verified', 'Doanh nghiệp đã xác minh')}
-                </Badge>
-              ) : !seller.officialPartner ? (
-                <Badge variant="neutral" className="px-1.5 py-0.5 font-semibold text-accent-foreground">
-                  <Building2 className="h-3 w-3" /> {tr('Business', 'Doanh nghiệp')}
-                </Badge>
-              ) : null
+            {/**
+              * ⛔ NOT ON THE STOREFRONT — IT IS ALREADY THERE, 40px LOWER. Owner, 2026-08-17:
+              * "on storefront remove top business verified badge". The storefront renders its own
+              * `size="md"` "Business verified" chip in the row beneath this card (see
+              * seller-storefront.tsx), so this small copy said the same thing twice in one header,
+              * which is exactly what the one-badge rule (owner, 2026-07-23) exists to prevent.
+              *
+              * ⚠️ SUPPRESSED BY `variant`, NOT DELETED. This component is a shared primitive and
+              * the badge is a real claim — a document check eno actually performed. The PDP variant
+              * has no chip row of its own, so removing it outright would silently drop the claim
+              * from the surface that still needs it. The variant already encodes which context we
+              * are in; a new prop would only restate it.
+              *
+              * ⚠️ THE PLAIN "Business" CHIP BELOW IS UNAFFECTED — it has no duplicate downstairs,
+              * and it reports the account TYPE rather than a verification.
+              */}
+            {/**
+              * ⛔ VERIFIED OR NOTHING. Owner, 2026-08-17: "dont show business badge anywhere if
+              * businesses are not verified". The old `else` branch rendered a neutral "Business"
+              * chip — the account TYPE, chosen at signup and checked by nobody — at the same size,
+              * in the same row, as claims eno actually verified. That is the one confusion the
+              * one-badge rule exists to prevent.
+              *
+              * ⛔ AND NOT ON THE STOREFRONT, WHERE IT IS ALREADY THERE 40px LOWER (owner, same day:
+              * "on storefront remove top business verified badge"). The storefront renders its own
+              * `size="md"` chip in the row beneath this card. Suppressed by `variant` rather than
+              * deleted, because the PDP variant has no such row and still needs the claim.
+              */}
+            {seller.isBusiness && seller.businessVerified && variant !== 'storefront' && (
+              <BusinessVerifiedBadge />
             )}
             {/* ⚠️ AN OFFICIAL PARTNER SHOWS NO TRUST SCORE (owner, 2026-08-13: "wherever the trust
                 badge is replace with partner badge, official partners wont need trust score badge

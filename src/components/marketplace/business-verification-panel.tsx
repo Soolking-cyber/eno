@@ -103,13 +103,24 @@ export function BusinessVerificationPanel() {
           lucide ShieldCheck + BadgeCheck here — this panel claims eno's own trust, not a generic one. */}
       {/* text-foreground on the WRAPPER so the seal's line inherits the heading ink (§0 —
           the wash in the chief is the brand note; a blue outline is §6's link signal). */}
-      <div className="flex items-center gap-2 text-foreground">
-        <ShieldCheck className="h-4 w-4" />
-        <h3 className="text-sm font-bold text-foreground">{tr('Get your business verified', 'Xác minh doanh nghiệp')}</h3>
-      </div>
+      {/**
+        * ⛔ THE INVITATION DISAPPEARS ONCE IT HAS BEEN ACCEPTED. Owner, 2026-08-17: "once verified
+        * remove the get your ....". This heading was unconditional, so a verified seller read
+        * "Get your business verified" directly above "Your business is verified." — an instruction
+        * to do a thing they had already done, in bolder type than the confirmation.
+        * A panel in a terminal state should state that state, not keep advertising the journey.
+        */}
+      {!isVerified && (
+        <div className="flex items-center gap-2 text-foreground">
+          <ShieldCheck className="h-4 w-4" />
+          <h3 className="text-sm font-bold text-foreground">{tr('Get your business verified', 'Xác minh doanh nghiệp')}</h3>
+        </div>
+      )}
 
       {isVerified ? (
-        <p className="mt-2 flex items-center gap-1.5 text-sm font-semibold text-success">
+        /* ⚠️ NO `mt-2` HERE ANY MORE — it was spacing this line BELOW the heading that is now gone,
+           so keeping it would leave a gap at the top of the card with nothing above it. */
+        <p className="flex items-center gap-1.5 text-sm font-semibold text-success">
           {/* Success ink on the line, brand wash in the chief — §0's "same line, one wash". */}
           <ShieldCheck className="h-4 w-4" /> {tr('Your business is verified.', 'Doanh nghiệp của bạn đã được xác minh.')}
         </p>

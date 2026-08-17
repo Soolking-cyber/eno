@@ -1,13 +1,14 @@
 'use client'
 
 import Link from 'next/link'
-import { ChevronRight, Building2, BadgeCheck, Star } from '@/components/ui/icons'
+import { ChevronRight, Star } from '@/components/ui/icons'
 import { Avatar } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { PartnerBadge } from './partner-badge'
 import { TrustScore } from './trust-score'
 import { miniSealWashClass } from './seller-card'
 import { RatingValue, CountValue } from './rating-value'
+import { BusinessVerifiedBadge } from '@/components/marketplace/business-verified-badge'
 import { useLanguage } from '@/context/language-context'
 import { cn } from '@/lib/utils'
 import { lastSeenBucket } from '@/lib/last-seen'
@@ -83,20 +84,18 @@ export function PdpShopLink({ name, avatarColor, avatarUrl, isBusiness, business
               from grey. `sr-only` keeps "Official partner" in the accessibility tree and in
               the page text, so the status survives the badge it used to live in. */}
           {officialPartner && <span className="sr-only">{tr('Official partner', 'Đối tác chính thức')}</span>}
-          {/* Same ranking as seller-card.tsx: the partner badge absorbs the plain "Business"
-              chip (which only restates the account type) but never "Business verified"
-              (a document check eno actually ran). Keep the two files in step. */}
-          {isBusiness && (
-            businessVerified ? (
-              <Badge variant="success" className="px-1.5 py-0.5 font-semibold">
-                <BadgeCheck className="h-3 w-3" /> {tr('Business verified', 'Doanh nghiệp đã xác minh')}
-              </Badge>
-            ) : !officialPartner ? (
-              <Badge variant="neutral" className="px-1.5 py-0.5 font-semibold text-accent-foreground">
-                <Building2 className="h-3 w-3" /> {tr('Business', 'Doanh nghiệp')}
-              </Badge>
-            ) : null
-          )}
+          {/**
+            * ⛔ VERIFIED OR NOTHING — and this is the chip the owner pointed at (2026-08-17): the
+            * PDP shop line was showing a neutral "Business" pill for an UNVERIFIED seller, which
+            * reports the account TYPE nobody checked, in the same row and at the same weight as a
+            * document check eno actually ran.
+            *
+            * ⚠️ THE SHARED COMPONENT REPLACES A "keep the two files in step" COMMENT that used to
+            * live here. seller-card.tsx carried the same chip and the same instruction; an
+            * instruction only holds until someone does not read it, so there is now one component
+            * and nothing to keep in step.
+            */}
+          {isBusiness && businessVerified && <BusinessVerifiedBadge />}
           {/* Building-band chips get the brand-100 chief wash from the call site —
               the §0 signature at micro scale; see miniSealWashClass in seller-card.tsx
               (stopgap pending the foundation fix inside trust-score.tsx). */}
