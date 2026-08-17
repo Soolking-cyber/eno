@@ -1901,6 +1901,14 @@ export default function ThreadPage() {
                * recalled (the server redacts it — see serializeMessage), so without this branch a
                * reply to a recalled message would render an empty quote box with no explanation.
                */
+              /**
+               * ⚠️ A FAILED BUBBLE IS NOT A "MINE" BUBBLE FOR COLOUR PURPOSES. It swaps its brand-blue
+               * fill for a pale `bg-destructive/10`, so every ink chosen by `m.mine` — the quote's
+               * white-on-blue set — lands white on pink and disappears. Owner sent a screenshot of
+               * exactly that. The failed state paints its own inks, so the quote follows the
+               * received-bubble palette there.
+               */
+              const quoteOnBrand = m.mine && !m.failed
               const quoteNode = m.replyTo ? (
                 <button
                   type="button"
@@ -1915,19 +1923,19 @@ export default function ThreadPage() {
                     'mb-1 flex w-full items-start gap-1.5 rounded-lg px-2 py-1 text-left transition-colors',
                     // On a sent bubble the quote sits on brand blue, so it borrows white at reduced
                     // opacity; on a received one it sits on `tint` and uses the ordinary inks.
-                    m.mine ? 'bg-white/10 hover:bg-white/15' : 'bg-foreground/5 hover:bg-foreground/10',
+                    quoteOnBrand ? 'bg-white/10 hover:bg-white/15' : 'bg-foreground/5 hover:bg-foreground/10',
                   )}
                 >
-                  <Undo2 className={cn('mt-0.5 h-3 w-3 shrink-0', m.mine ? 'text-white/70' : 'text-ink-4')} aria-hidden />
+                  <Undo2 className={cn('mt-0.5 h-3 w-3 shrink-0', quoteOnBrand ? 'text-white/70' : 'text-ink-4')} aria-hidden />
                   <span className="flex min-w-0 flex-col gap-0.5">
-                  <span className={cn('text-2xs font-bold', m.mine ? 'text-white/85' : 'text-accent-foreground')}>
+                  <span className={cn('text-2xs font-bold', quoteOnBrand ? 'text-white/85' : 'text-accent-foreground')}>
                     {/* ⚠️ `replyTo.mine` IS ABOUT THE QUOTED MESSAGE, NOT THIS ONE. Reviewer-caught:
                         comparing it against `m.mine` labelled the counterpart's reply to YOUR
                         message with THEIR name, and their reply to their own message with "You".
                         The quote names whoever wrote the quoted line, full stop. */}
                     {m.replyTo.mine ? tr('You', 'Bạn') : thread.counterpart.name}
                   </span>
-                  <span className={cn('line-clamp-2 text-2xs', m.mine ? 'text-white/70' : 'text-ink-4', m.replyTo.deleted && 'italic')}>
+                  <span className={cn('line-clamp-2 text-2xs', quoteOnBrand ? 'text-white/70' : 'text-ink-4', m.replyTo.deleted && 'italic')}>
                     {m.replyTo.deleted ? tr('Message removed', 'Tin nhắn đã gỡ') : m.replyTo.body}
                   </span>
                   </span>
