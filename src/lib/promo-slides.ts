@@ -197,49 +197,19 @@ export const PROMO_SLIDES: PromoSlide[] = [
       altVi: 'GMBR — mọi thứ bạn cần để đặt chỗ. Vé máy bay, khách sạn, bảo hiểm du lịch và vé tham quan. Xem các lựa chọn đặt chỗ.',
     },
   },
-  {
-    key: 'post-free',
-    image: '/banners/promo-1.svg',
-    eyebrowEn: 'Free to post',
-    eyebrowVi: 'Đăng tin miễn phí',
-    titleEn: 'Sell it in 60 seconds',
-    titleVi: 'Bán trong 60 giây',
-    bodyEn: 'Photos, a price, done. No listing fee, no commission, no paid bumps.',
-    bodyVi: 'Vài tấm ảnh, một mức giá là xong. Không phí đăng tin, không hoa hồng, không trả tiền đẩy tin.',
-    ctaEn: 'Post an ad',
-    ctaVi: 'Đăng tin ngay',
-    href: '/post',
-    icon: Megaphone,
-    surface: 'bg-gradient-to-br from-brand-deep to-brand-deeper',
-  },
-  {
-    key: 'trust',
-    image: '/banners/promo-2.svg',
-    eyebrowEn: 'Know who you deal with',
-    eyebrowVi: 'Biết rõ người bán',
-    titleEn: 'Every seller has a trust score',
-    titleVi: 'Mỗi người bán đều có điểm tin cậy',
-    bodyEn: 'Built from real trades and resolved reports — not from stars anyone can buy.',
-    bodyVi: 'Dựa trên giao dịch thật và báo cáo đã xử lý — không phải sao đánh giá ai cũng mua được.',
-    ctaEn: 'How trust works',
-    ctaVi: 'Cách tính điểm tin cậy',
-    href: '/trust',
-    icon: BadgeCheck,
-    surface: 'bg-gradient-to-br from-brand to-brand-deep',
-  },
-  {
-    key: 'dual-currency',
-    image: '/banners/promo-3.svg',
-    eyebrowEn: 'Made for expats',
-    eyebrowVi: 'Dành cho người nước ngoài',
-    titleEn: 'Prices in VND and $, side by side',
-    titleVi: 'Giá hiển thị cả đ và $',
-    bodyEn: 'Every listing shows both, so you always know what you are actually paying.',
-    bodyVi: 'Mọi tin đăng đều hiện cả hai, để bạn luôn biết mình thực sự trả bao nhiêu.',
-    ctaEn: 'Browse listings',
-    ctaVi: 'Xem tin đăng',
-    href: '/?sort=newest',
-    icon: Coins,
-    surface: 'bg-gradient-to-br from-brand-deeper via-brand-deep to-brand',
-  },
+  /**
+   * ⛔ THREE GENERIC SLIDES WERE REMOVED HERE ON 2026-08-17, and they are not coming back yet.
+   * Owner: "eno.vn keeps vietkite gmbr banners remove else".
+   *
+   * They were `post-free` ("Sell it in 60 seconds"), `trust` and `dual-currency` — house copy
+   * promoting the marketplace itself. They stopped being true for the moment the site is in: new
+   * sellers and new products are cut off until the Ministry of Industry and Trade registration is
+   * issued, so a banner inviting anyone to post an ad advertises a door that is deliberately shut,
+   * directly under a PRELAUNCH bar that says the site is not operating yet.
+   *
+   * ⚠️ RESTORE THEM WITH THE ALLOW-LIST, NOT BEFORE. When `MARKETPLACE_ALLOWED_OWNER_EMAILS` is
+   * unset again (see src/lib/edition-scope.ts) the marketplace is open to everyone, and that is the
+   * moment "Sell it in 60 seconds" becomes honest copy again. They are in git history at this
+   * commit; recover them rather than rewriting them.
+   */
 ]

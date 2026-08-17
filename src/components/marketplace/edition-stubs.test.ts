@@ -85,6 +85,10 @@ describe.each([
   ['terms-services-copy', 'src/lib/terms-services-copy.ts', 'src/lib/terms-services-copy.stub.ts'],
   ['prohibited-services-copy', 'src/lib/prohibited-services-copy.ts', 'src/lib/prohibited-services-copy.stub.ts'],
   ['cross-site-links', 'src/lib/cross-site-links.ts', 'src/lib/cross-site-links.stub.ts'],
+  // eno.forum's home banner (2026-08-17). It is imported at module top level by promo-banner.tsx,
+  // which renders ABOVE THE FOLD on the home page of BOTH editions — so a drifted export is not a
+  // subtle regression, it is eno.vn's landing page failing to render.
+  ['promo-slides-services', 'src/lib/promo-slides-services.ts', 'src/lib/promo-slides-services.stub.ts'],
   // A COMPONENT in a list of libs, deliberately. The card stubs above are pinned against the chat
   // page because it is their only consumer; this one is imported by two `.svc.` landing pages and
   // will be imported by more, so "does the stub export what the real module exports" is the check
@@ -156,6 +160,7 @@ describe('alias coverage', () => {
     'src/lib/terms-services-copy.ts',
     'src/lib/prohibited-services-copy.ts',
     'src/lib/cross-site-links.ts',
+    'src/lib/promo-slides-services.ts',
     'src/components/marketplace/cross-site-promo.tsx',
     'src/components/marketplace/visa-start.tsx',
     'src/generated/ui-strings.services.ts',

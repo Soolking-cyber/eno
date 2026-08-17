@@ -38,6 +38,11 @@ const SERVICES_SOURCES = [
   'src/lib/visa/', 'src/lib/trips/', 'src/lib/itinerary-',
   'src/components/marketplace/visa-cards', 'src/components/marketplace/trip-cards',
   'src/components/itinerary/', 'src/components/marketplace/visa-start',
+  // eno.forum's home banner. Same trap as cross-site-promo below: the PATH looks shared
+  // (`src/lib/promo-slides-*`, right beside the marketplace's own slides) while the copy is
+  // services-only. Without this line its strings are harvested into ui-strings.ts, which eno.vn
+  // ships to every browser and pays Google to translate.
+  'src/lib/promo-slides-services',
   /**
    * ⚠️ THE CROSS-SITE PROMO IS SERVICES-ONLY EVEN THOUGH ITS PATH LOOKS SHARED, and this line is
    * the only thing that says so. Every other entry above is recognisably a visa/trip surface;

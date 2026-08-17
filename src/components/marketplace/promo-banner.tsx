@@ -14,7 +14,24 @@ import {
 import { useLanguage } from '@/context/language-context'
 import { STROKE_DISPLAY } from '@/lib/icon-tokens'
 import { PROMO_SLIDES, type PromoSlide } from '@/lib/promo-slides'
+import { SERVICES_PROMO_SLIDES } from '@/lib/promo-slides-services'
+import { IS_SERVICES } from '@/lib/edition'
+
 import { cn } from '@/lib/utils'
+
+/**
+ * WHICH BANNER THIS DEPLOYMENT SHOWS.
+ *
+ * ⛔ THE TWO EDITIONS PROMOTE DIFFERENT THINGS AND MUST NOT SHARE A SLIDE. eno.vn shows the two
+ * licensed partners it is allowed to surface; eno.forum shows its own visa and booking desk and
+ * deliberately does NOT promote those partners (owner, 2026-08-17: "in eno.forum vietkite and gmbr
+ * shouldnt be seen since we promote from our own storefront"). So this is a swap, not a merge.
+ *
+ * ⚠️ `IS_SERVICES` FOLDS AT BUILD TIME, and the services module is aliased to an empty stub on the
+ * marketplace build — so eno.vn's bundle contains neither the branch nor the words. The flag alone
+ * would only decide what renders.
+ */
+const SLIDES: PromoSlide[] = IS_SERVICES ? SERVICES_PROMO_SLIDES : PROMO_SLIDES
 
 /**
  * ⛔ DO NOT ADD `preload(PROMO_SLIDES[0].image)` HERE — IT WAS TRIED AND IT LEAKS.
@@ -201,7 +218,7 @@ export function PromoBanner() {
               edge. Cancel BOTH or neither — killing only one makes every slide a gutter-width too
               wide and clips the last one. */}
           <CarouselContent className="ml-0" viewportClassName="rounded-2xl">
-            {PROMO_SLIDES.map((slide, i) => {
+            {SLIDES.map((slide, i) => {
               const current = i === selected
               return (
                 <CarouselItem
@@ -218,7 +235,7 @@ export function PromoBanner() {
                   className="pl-0"
                   inert={!current}
                   aria-hidden={!current}
-                  aria-label={tr(`Slide ${i + 1} of ${PROMO_SLIDES.length}`, `Trang ${i + 1} trên ${PROMO_SLIDES.length}`)}
+                  aria-label={tr(`Slide ${i + 1} of ${SLIDES.length}`, `Trang ${i + 1} trên ${SLIDES.length}`)}
                 >
                   {/* ⚠️ `artReady` HOLDS BACK THE OFF-SCREEN ARTWORK UNTIL THE PAGE HAS LOADED, and
                       it is a bandwidth fix rather than a bytes-total one. Measured on production:
@@ -264,7 +281,7 @@ export function PromoBanner() {
               corner separates the two horizontally, so no vertical overlap can matter. Verified with
               elementFromPoint over both controls; if this row is ever re-centred, re-verify that. */}
           <div className="pointer-events-none absolute inset-x-0 bottom-1 flex justify-end gap-1 pr-3 sm:pr-5">
-            {PROMO_SLIDES.map((slide, i) => (
+            {SLIDES.map((slide, i) => (
               <Button
                 key={slide.key}
                 variant="bare"

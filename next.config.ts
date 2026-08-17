@@ -439,6 +439,13 @@ const nextConfig: NextConfig = {
             // green. Aliasing each module on its own makes the guarantee local to the module.
             "@/lib/cross-site-links": "./src/lib/cross-site-links.stub.ts",
             "@/components/marketplace/cross-site-promo": "./src/components/marketplace/cross-site-promo.stub.tsx",
+            /**
+             * eno.forum's HOME BANNER (2026-08-17). Its copy names visa and booking services, so it
+             * is stubbed to an empty array here rather than gated at the render site — the promo
+             * banner is above the fold on the most-crawled page of the site, and a gate would keep
+             * the words in the bundle where a grep of .next/static finds them.
+             */
+            "@/lib/promo-slides-services": "./src/lib/promo-slides-services.stub.ts",
             // The services-only paragraphs of /privacy — applicant identity documents, the
             // sensitive-data consent, the handover to the provider. Same shared-page problem as
             // visa-provider above: a privacy policy cannot 404 on the licensed marketplace, so a
