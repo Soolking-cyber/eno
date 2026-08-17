@@ -4,6 +4,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 
 import { useEffect, useState } from 'react'
 import { useLanguage } from '@/context/language-context'
+import { SITE_NAME } from '@/lib/edition'
 import { HandleEditor } from './handle-editor'
 
 // Dashboard → Settings section for the account's ONE public handle. When the account
@@ -35,9 +36,11 @@ export function HandleSettings() {
   return (
     <div className="space-y-5">
       <p className="text-sm leading-relaxed text-body">
+        {/* ⚠️ INTERPOLATED, NOT TYPED OUT — this sentence named eno.vn to every eno.forum seller.
+            See the note on the SITE_NAME import in handle-editor.tsx. */}
         {tr(
-          'Your handle is your public link — share eno.vn/you anywhere and people land on your page.',
-          'Tên định danh là liên kết công khai của bạn — chia sẻ eno.vn/ban ở bất cứ đâu.',
+          `Your handle is your public link — share ${SITE_NAME}/you anywhere and people land on your page.`,
+          `Tên định danh là liên kết công khai của bạn — chia sẻ ${SITE_NAME}/ban ở bất cứ đâu.`,
         )}
       </p>
       {/* One handle per account: the shop's for a business, else personal. */}

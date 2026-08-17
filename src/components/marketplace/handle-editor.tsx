@@ -8,13 +8,18 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Field, FieldControl, FieldDescription, FieldError, FieldLabel } from '@/components/ui/field'
 import { HANDLE_RE } from '@/lib/handle-format'
+// ⚠️ THE HOST IS PER-EDITION AND MUST NEVER BE TYPED OUT. One codebase is deployed twice, so a
+// literal 'eno.vn' here told every eno.forum seller their public link was on the OTHER site
+// (owner, 2026-08-17, screenshot). SITE_NAME is inlined at build from NEXT_PUBLIC_ENO_EDITION,
+// so each artifact carries its own name and there is nothing to keep in sync.
+import { SITE_NAME } from '@/lib/edition'
 import { useLatestRequest } from '@/hooks/use-latest-request'
 
 // Telegram-style @handle editor — shared by the user handle (Dashboard → Settings)
 // and the shop handle (business profile editor) via `target`. Live availability
 // check (debounced 400ms against /api/handle/check), save via POST /api/handle
 // (owner-scoped server-side — no ids travel from the client), and a copy chip for
-// the shareable eno.vn/name URL (clean, no "@").
+// the shareable {SITE_NAME}/name URL (clean, no "@").
 
 export function HandleEditor({ target, initial, label }: { target: 'profile' | 'seller'; initial: string | null; label?: string }) {
   const { tr } = useLanguage()
@@ -84,7 +89,7 @@ export function HandleEditor({ target, initial, label }: { target: 'profile' | '
 
   const copy = async () => {
     try {
-      await navigator.clipboard.writeText(`https://eno.vn/${current}`)
+      await navigator.clipboard.writeText(`https://${SITE_NAME}/${current}`)
       setCopied(true); setTimeout(() => setCopied(false), 1500)
     } catch {}
   }
@@ -172,7 +177,7 @@ export function HandleEditor({ target, initial, label }: { target: 'profile' | '
         {hint?.kind === 'ok' && <FieldDescription className="font-semibold text-success">{hint.text}</FieldDescription>}
       </div>
       {current && !dirty && (
-        <p className="text-xs text-muted-foreground">eno.vn/<span className="font-semibold text-body">{current}</span></p>
+        <p className="text-xs text-muted-foreground">{SITE_NAME}/<span className="font-semibold text-body">{current}</span></p>
       )}
       {/* Save failed — a verdict on the ATTEMPT (incl. rate limits), so it is announced, not described. */}
       {error && <p role="alert" className="mt-1 text-xs font-semibold text-destructive">{error}</p>}

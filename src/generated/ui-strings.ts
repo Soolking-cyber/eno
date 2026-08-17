@@ -1767,7 +1767,6 @@ export const UI_STRINGS: string[] = [
   "Your feedback",
   "Your first listing is live! 🎉",
   "Your handle",
-  "Your handle is your public link — share eno.vn/you anywhere and people land on your page.",
   "Your images are sent to VNPT eKYC to be checked, and are processed under their retention policy as a licensed provider. eno.vn deletes its own copy as soon as the check finishes: we keep only the result, the document expiry date, and a one-way fingerprint that lets us spot duplicate accounts — never the document number itself.",
   "Your listing goes live in minutes and reaches buyers across Vietnam.",
   "Your listing is live!",
