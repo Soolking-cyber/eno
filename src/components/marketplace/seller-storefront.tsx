@@ -1,4 +1,4 @@
-import { editionHiddenSellerIds, scopedListingWhere } from '@/lib/edition-scope'
+import { isSellerHiddenHere, scopedListingWhere } from '@/lib/edition-scope'
 import { cache } from 'react'
 import { notFound } from 'next/navigation'
 import { AlertTriangle, Star, ShieldCheck } from "@/components/ui/icons"
@@ -48,7 +48,7 @@ export const loadSeller = cache(async (id: string) => {
   // chosen per edition, which makes the guard unnecessary AND would have made the forum's own
   // exclusions (owner, 2026-08-17: hide VietKite and GMBR there) never apply. See
   // src/lib/edition-scope.ts.
-  if ((await editionHiddenSellerIds()).includes(id)) return null
+  if (await isSellerHiddenHere(id)) return null
   return db.seller.findUnique({
     where: { id },
     include: {

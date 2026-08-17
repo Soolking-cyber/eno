@@ -5,7 +5,7 @@ import { MESSAGE_ROW_SELECT, serializeMessage } from '@/lib/messages'
 import { globalTopReactions } from '@/lib/reaction-tally'
 import { maskEmailHandle } from '@/lib/utils'
 import { threadKind } from '@/lib/thread-kind'
-import { editionHiddenSellerIds } from '@/lib/edition-scope'
+import { isSellerHiddenHere } from '@/lib/edition-scope'
 import { syncBadgeToProfile } from '@/lib/native-push'
 import { dayCoarse } from '@/lib/last-seen'
 
@@ -165,8 +165,7 @@ export const GET = route({ auth: 'userId' }, async ({ req, params, userId: meId 
    * decided this; it was incidental to the query that fetched it.
    */
   // Per-edition — see the note in src/lib/edition-scope.ts on editionHiddenSellerIds.
-  const hiddenIds = await editionHiddenSellerIds()
-  if (hiddenIds.length && convo.seller?.id && hiddenIds.includes(convo.seller.id)) {
+  if (await isSellerHiddenHere(convo.seller?.id)) {
     throw new ApiError('not_found', 404)
   }
 

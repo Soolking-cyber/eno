@@ -1,4 +1,4 @@
-import { editionHiddenSellerIds } from '@/lib/edition-scope'
+import { editionSellerScope } from '@/lib/edition-scope'
 import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getCurrentProfileId } from '@/lib/admin'
@@ -28,8 +28,8 @@ export async function GET() {
   // ⚠️ BOTH aggregates, or the badge counts threads the inbox refuses to show — a permanent phantom
   // that somebody eventually "fixes" by un-hiding the thread.
   // Per-edition now — see the note in src/lib/edition-scope.ts on editionHiddenSellerIds.
-  const hiddenSellerIds = await editionHiddenSellerIds()
-  const notDesk = hiddenSellerIds.length ? { sellerId: { notIn: hiddenSellerIds } } : {}
+  // One rule for both the hide-list and the allow-list — see editionSellerScope.
+  const notDesk = await editionSellerScope()
   const [asBuyer, asSeller] = await Promise.all([
     db.conversation.aggregate({ where: { buyerProfileId: meId, ...notDesk }, _sum: { buyerUnread: true } }),
     db.conversation.aggregate({ where: { sellerProfileId: meId, ...notDesk }, _sum: { sellerUnread: true } }),

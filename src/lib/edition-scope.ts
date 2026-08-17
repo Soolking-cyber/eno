@@ -164,6 +164,102 @@ export const SERVICES_HIDDEN_OWNER_EMAILS: readonly string[] = [
 const editionHiddenEmails = (): readonly string[] =>
   IS_SERVICES ? SERVICES_HIDDEN_OWNER_EMAILS : HIDDEN_DESK_OWNER_EMAILS
 
+/**
+ * ⛔ THE ALLOW-LIST: THE ONLY SELLERS eno.vn MAY SURFACE AT ALL.
+ *
+ * Owner, 2026-08-17: "make sure no new added products sellers show up in eno.vn" — until the MOIT
+ * e-commerce registration is issued, the licensed marketplace shows the licensed partners and
+ * NOBODY ELSE, and new signups accumulate invisibly rather than being blocked.
+ *
+ * ⛔ A DENY-LIST CANNOT EXPRESS THIS, AND THAT IS THE WHOLE REASON THIS EXISTS. Everything else in
+ * this file names who to HIDE, which is a list that has to be updated every time somebody new
+ * appears — so the default for an unknown seller is VISIBLE, and the failure mode is "a stranger's
+ * listing was live on the licensed marketplace for however long nobody noticed". Inverted, the
+ * default for an unknown seller is invisible and the list only changes when a partner is
+ * deliberately added. The safe direction is the one where forgetting does nothing.
+ *
+ * ⚠️ EMPTY MEANS OFF, NOT "SHOW NOBODY". An unset variable has to keep today's behaviour, or the
+ * first deploy after this lands empties the marketplace. The switch is the PRESENCE of the
+ * variable; there is deliberately no way to express "allow nobody" here, because that is what
+ * taking the site down looks like and it should not be one typo away.
+ *
+ * ⚠️ AND IT FAILS CLOSED ONCE ARMED. If the variable names addresses that resolve to no seller —
+ * a typo, a reseed, a partner row deleted — the query throws rather than falling back to "allow
+ * everyone". Same reasoning as the desk exclusion above: on a licensing control, a visible 500 is
+ * recoverable in ten minutes and a silently unfiltered feed is not.
+ *
+ * ⚠️ MARKETPLACE ONLY. eno.forum is not the licensed entity and adds sellers freely; it has its own
+ * deny-list (SERVICES_HIDDEN_OWNER_EMAILS) for the partners it does not promote.
+ */
+export const MARKETPLACE_ALLOWED_OWNER_EMAILS: readonly string[] = [
+  ...new Set(
+    (process.env.MARKETPLACE_ALLOWED_OWNER_EMAILS ?? '')
+      .split(',')
+      .map((e) => e.trim().toLowerCase())
+      .filter(Boolean),
+  ),
+]
+
+/**
+ * The seller ids eno.vn is allowed to show, or `null` when the allow-list is not configured.
+ * `null` and `[]` mean opposite things here, which is why this cannot return a bare array:
+ * `null` = "no allow-list, show everyone", `[]` = "configured but nothing resolved" — and the
+ * second one throws rather than being handed to a query.
+ */
+export const editionAllowedSellerIds = cache(async (): Promise<string[] | null> => {
+  if (IS_SERVICES || !MARKETPLACE_ALLOWED_OWNER_EMAILS.length) return null
+  const ids = await sellerIdsForEmails(MARKETPLACE_ALLOWED_OWNER_EMAILS)
+  /**
+   * ⚠️ PARTIAL RESOLUTION THROWS TOO, not just total failure — reviewer-caught, and the partial
+   * case is the likelier one. With two partners configured and one address mistyped, renamed or
+   * its Seller row missing, resolving "some of them" would QUIETLY delete that partner from the
+   * marketplace: their listings, their storefront and their conversations, with no error anywhere
+   * and a feed that still looks populated because the other partner is fine. An allow-list is an
+   * explicit statement about a small, known set; anything less than all of it is a configuration
+   * error, and on a licensing control those are worth a loud failure.
+   */
+  if (ids.length < MARKETPLACE_ALLOWED_OWNER_EMAILS.length) {
+    throw new DeskResolutionError(
+      `MARKETPLACE_ALLOWED_OWNER_EMAILS names ${MARKETPLACE_ALLOWED_OWNER_EMAILS.length} address(es) but only ${ids.length} resolved to a seller`,
+    )
+  }
+  return ids
+})
+
+/**
+ * The one question every seller-level gate asks: may THIS edition show this seller?
+ *
+ * ⚠️ IT EXISTS SO THE ALLOW-LIST CANNOT BE ADDED TO THE FEED AND FORGOTTEN AT THE STOREFRONT.
+ * There are five seller-level call sites (storefront, seller API, inbox, unread, thread-open) and
+ * they used to each spell out their own test; one of them missing a new rule is invisible until
+ * somebody browses to it. Now they all ask this.
+ */
+/**
+ * The same rule as `isSellerHiddenHere`, shaped as a Prisma `where` fragment for the surfaces that
+ * FILTER A LIST rather than test one id — the inbox and the unread badge, both of which key on
+ * `Conversation.sellerId`.
+ *
+ * ⚠️ `{}` WHEN NEITHER RULE APPLIES, so a deployment with no allow-list and no hide-list spreads
+ * nothing and pays nothing — the property the services edition has always relied on.
+ */
+export async function editionSellerScope(): Promise<{ sellerId?: { in?: string[]; notIn?: string[] } }> {
+  const [hidden, allowed] = await Promise.all([editionHiddenSellerIds(), editionAllowedSellerIds()])
+  if (!hidden.length && allowed === null) return {}
+  return {
+    sellerId: {
+      ...(allowed ? { in: allowed } : {}),
+      ...(hidden.length ? { notIn: hidden } : {}),
+    },
+  }
+}
+
+export async function isSellerHiddenHere(sellerId: string | null | undefined): Promise<boolean> {
+  if (!sellerId) return false
+  const [hidden, allowed] = await Promise.all([editionHiddenSellerIds(), editionAllowedSellerIds()])
+  if (hidden.includes(sellerId)) return true
+  return allowed !== null && !allowed.includes(sellerId)
+}
+
 const sellerIdsForEmails = async (emails: readonly string[]): Promise<string[]> => {
   const list = [...new Set(emails)]
   // An explicitly EMPTY list is a legitimate configuration — it says "this edition hides nobody".
@@ -225,7 +321,7 @@ export const deskSellerIds = cache(async (): Promise<string[]> => {
  * So: a visible 500 on a rail is recoverable in ten minutes. A silently unfiltered feed is a
  * licensing breach nobody notices. Fail loud.
  */
-export async function marketplaceListingScope(): Promise<{ sellerId?: { notIn: string[] } }> {
+export async function marketplaceListingScope(): Promise<{ sellerId?: { in?: string[]; notIn: string[] } }> {
   /**
    * ⛔ THE SERVICES BRANCH IS NO LONGER AN UNCONDITIONAL NO-OP. It used to be
    * `if (IS_SERVICES) return {}` — the forum showed everyone — which is why the owner's request to
@@ -244,7 +340,13 @@ export async function marketplaceListingScope(): Promise<{ sellerId?: { notIn: s
     const hidden = await editionHiddenSellerIds()
     return hidden.length ? { sellerId: { notIn: hidden } } : {}
   }
-  return { sellerId: { notIn: await requiredDeskSellerIds() } }
+  const notIn = await requiredDeskSellerIds()
+  const allowed = await editionAllowedSellerIds()
+  // ⚠️ BOTH IN ONE FILTER, not two spread objects — Prisma reads `{ in, notIn }` as a conjunction,
+  // and the two answer different questions: `notIn` is the licensing exclusion that must always
+  // apply, `in` is the "only these partners until MOIT" gate. Composing them as separate top-level
+  // `sellerId` keys would silently drop one, which is the exact trap `scopedListingWhere` documents.
+  return allowed ? { sellerId: { in: allowed, notIn } } : { sellerId: { notIn } }
 }
 
 /**

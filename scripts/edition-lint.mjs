@@ -206,7 +206,12 @@ const READ_RE = /\b(?:db|tx|client)\.(listing|seller)\.(findMany|findFirst|findU
 // `IS_MARKETPLACE && deskSellerIds()` now read it instead. Rule A counts MENTIONS of these
 // names against listing/seller reads, so renaming a guard without adding it here reads as a
 // file that lost its scope.
-const SCOPE_HINTS = ['marketplaceListingScope', 'scopedListingWhere', 'deskSellerIds', 'editionHiddenSellerIds']
+// ⚠️ EVERY GUARD NAME BELONGS HERE, and adding one without updating this list turns a correct
+// refactor red. Rule A counts MENTIONS of these against listing/seller reads, so a file that
+// swapped one guard for a better one reads as a file that lost its scope. `isSellerHiddenHere`
+// and `editionSellerScope` (2026-08-17) are the seller-level pair that also carries the
+// marketplace ALLOW-list — the rule that keeps a brand-new seller off eno.vn until MOIT.
+const SCOPE_HINTS = ['marketplaceListingScope', 'scopedListingWhere', 'deskSellerIds', 'editionHiddenSellerIds', 'isSellerHiddenHere', 'editionSellerScope']
 
 /** The one-off escape hatch, which IS meant to be a comment — same shape as design-lint's. */
 const INLINE_ALLOW = 'edition-lint-allow'

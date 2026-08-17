@@ -1,5 +1,5 @@
 import { IS_MARKETPLACE } from '@/lib/edition'
-import { editionHiddenSellerIds, scopedListingWhere } from '@/lib/edition-scope'
+import { isSellerHiddenHere, scopedListingWhere } from '@/lib/edition-scope'
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { serializeListing } from '@/lib/serialize'
@@ -38,7 +38,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   // chosen per edition, which makes the guard unnecessary AND would have made the forum's own
   // exclusions (owner, 2026-08-17: hide VietKite and GMBR there) never apply. See
   // src/lib/edition-scope.ts.
-  if ((await editionHiddenSellerIds()).includes(id)) {
+  if (await isSellerHiddenHere(id)) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
   }
   const seller = await db.seller.findUnique({

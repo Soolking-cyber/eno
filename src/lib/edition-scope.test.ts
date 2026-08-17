@@ -13,6 +13,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const h = vi.hoisted(() => ({
   services: true,
   sellers: [] as Array<{ id: string }>,
+  /**
+   * ⚠️ AN EMAIL-AWARE OVERRIDE, because one fixture is not enough any more. `deskSellerIds()` and
+   * `editionAllowedSellerIds()` query the SAME table with DIFFERENT address lists, and a mock that
+   * answers every query with `h.sellers` makes the hide-list and the allow-list resolve to the same
+   * ids — so an allowed partner also reads as hidden. That is a harness artifact, not a bug, and it
+   * cost one confusing failure before it was noticed.
+   */
+  sellersFor: null as null | ((emails: string[]) => Array<{ id: string }>),
   throwOnQuery: null as null | Error,
   lastWhere: null as unknown,
 }))
@@ -30,7 +38,8 @@ vi.mock('@/lib/db', () => ({
       findMany: async ({ where }: { where: unknown }) => {
         h.lastWhere = where
         if (h.throwOnQuery) throw h.throwOnQuery
-        return h.sellers
+        const emails = (where as { owner?: { email?: { in?: string[] } } })?.owner?.email?.in ?? []
+        return h.sellersFor ? h.sellersFor(emails) : h.sellers
       },
     },
   },
@@ -44,6 +53,7 @@ const { marketplaceListingScope, scopedListingWhere, deskSellerIds, DeskResoluti
 beforeEach(() => {
   h.services = true
   h.sellers = [{ id: 'desk-1' }]
+  h.sellersFor = null
   h.throwOnQuery = null
   h.lastWhere = null
 })
@@ -369,5 +379,82 @@ describe('the services edition hide-list', () => {
     // No DeskResolutionError: an address that resolves to no seller hides nobody and serves the page.
     // The marketplace twin throws in this situation on purpose; see the note on the constant.
     await expect(m.marketplaceListingScope()).resolves.toEqual({})
+  })
+})
+
+/**
+ * THE MARKETPLACE ALLOW-LIST (owner, 2026-08-17: "make sure no new added products sellers show up
+ * in eno.vn"). Same module-scope re-import dance as the services list above, and for the same
+ * reason.
+ */
+describe('the marketplace allow-list', () => {
+  const load = async (value?: string) => {
+    vi.resetModules()
+    if (value === undefined) delete process.env.MARKETPLACE_ALLOWED_OWNER_EMAILS
+    else process.env.MARKETPLACE_ALLOWED_OWNER_EMAILS = value
+    return import('./edition-scope')
+  }
+  const clear = () => { delete process.env.MARKETPLACE_ALLOWED_OWNER_EMAILS }
+  beforeEach(clear)
+  afterEach(() => { clear(); vi.resetModules() })
+
+  it('is off when unset — today\'s behaviour, only the desk exclusion', async () => {
+    const m = await load(undefined)
+    h.services = false
+    h.sellers = [{ id: 'desk-1' }]
+    expect(await m.marketplaceListingScope()).toEqual({ sellerId: { notIn: ['desk-1'] } })
+  })
+
+  /**
+   * ⛔ THE POINT OF THE WHOLE MECHANISM: an unknown seller is invisible by DEFAULT. A deny-list
+   * makes the default VISIBLE, so a new signup is live on the licensed marketplace until somebody
+   * notices and adds them to a list. Inverted, forgetting does nothing.
+   */
+  it('shows ONLY the allowed sellers, so a brand-new seller is invisible without any list edit', async () => {
+    const m = await load('info@vietkite.com.vn,info@giacmobayre.com')
+    h.services = false
+    // The allow-list and the desk hide-list are DIFFERENT queries; answer each with its own rows.
+    h.sellersFor = (emails) => emails.includes('info@vietkite.com.vn')
+      ? [{ id: 'vietkite' }, { id: 'gmbr' }]
+      : [{ id: 'desk-1' }]
+    const scope = await m.marketplaceListingScope()
+    expect(scope.sellerId?.in).toEqual(['vietkite', 'gmbr'])
+    // A seller that is not in the list needs no entry anywhere to be hidden.
+    expect(await m.isSellerHiddenHere('some-new-seller')).toBe(true)
+    expect(await m.isSellerHiddenHere('vietkite')).toBe(false)
+  })
+
+  it('keeps the desk exclusion alongside it — both rules, one filter', async () => {
+    const m = await load('info@vietkite.com.vn')
+    h.services = false
+    h.sellersFor = (emails) => emails.includes('info@vietkite.com.vn') ? [{ id: 'vietkite' }] : [{ id: 'desk-1' }]
+    const scope = await m.marketplaceListingScope()
+    expect(scope.sellerId).toHaveProperty('in')
+    expect(scope.sellerId).toHaveProperty('notIn')
+  })
+
+  it('fails CLOSED when configured but nothing resolves — never falls back to allowing everyone', async () => {
+    const m = await load('typo@nowhere.example')
+    h.services = false
+    h.sellers = []
+    await expect(m.editionAllowedSellerIds()).rejects.toThrow(m.DeskResolutionError)
+  })
+
+  /**
+   * ⚠️ THE LIKELIER FAILURE — one address of two goes bad (a typo, a rename, a missing Seller row).
+   * Resolving "some of them" would quietly delete that partner from the marketplace while the feed
+   * still looked populated, which is worse than an outage because nobody looks for it.
+   */
+  it('throws on PARTIAL resolution, not only when nothing resolves', async () => {
+    const m = await load('info@vietkite.com.vn,typo@nowhere.example')
+    h.services = false
+    h.sellersFor = () => [{ id: 'vietkite' }]
+    await expect(m.editionAllowedSellerIds()).rejects.toThrow(m.DeskResolutionError)
+  })
+
+  it('never applies on the services edition — eno.forum adds sellers freely', async () => {
+    const m = await load('info@vietkite.com.vn')
+    h.services = true
+    expect(await m.editionAllowedSellerIds()).toBeNull()
   })
 })
