@@ -156,12 +156,18 @@ export const GET = route({ auth: 'userId' }, async ({ req, params, userId: meId 
    * Deliberately indistinguishable from a thread that does not exist — the same answer a stranger's
    * conversation id gets, so this cannot be used to confirm that a visa service exists.
    */
-  // Per-edition now — see the note in src/lib/edition-scope.ts on editionHiddenSellerIds.
-  if (convo.listing?.id) {
-    const deskIds = await editionHiddenSellerIds()
-    if (deskIds.length && convo.seller?.id && deskIds.includes(convo.seller.id)) {
-      throw new ApiError('not_found', 404)
-    }
+  /**
+   * ⚠️ THE TEST IS THE SELLER, SO IT MUST NOT BE NESTED UNDER "HAS A LISTING". It used to be
+   * wrapped in `if (convo.listing?.id)`, which let a LISTING-LESS thread with a hidden seller stay
+   * openable by id — while the inbox (api/conversations/route.ts) and the unread badge
+   * (unread/route.ts) both excluded it on `sellerId` alone. The result was a thread you could not
+   * see, could not count, and could still read if you held the link. The listing was never what
+   * decided this; it was incidental to the query that fetched it.
+   */
+  // Per-edition — see the note in src/lib/edition-scope.ts on editionHiddenSellerIds.
+  const hiddenIds = await editionHiddenSellerIds()
+  if (hiddenIds.length && convo.seller?.id && hiddenIds.includes(convo.seller.id)) {
+    throw new ApiError('not_found', 404)
   }
 
   const iAmBuyer = convo.buyerProfileId === meId
