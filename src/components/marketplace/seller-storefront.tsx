@@ -11,6 +11,7 @@ import { Footer } from '@/components/marketplace/footer'
 import { ScrollToTop } from '@/components/marketplace/scroll-to-top'
 import { SellerListings } from '@/components/marketplace/seller-listings'
 import { Tr } from '@/context/language-context'
+import { RichText } from '@/components/marketplace/listing-content'
 import { ReportButton } from '@/components/marketplace/report-button'
 import { HandleChip } from '@/components/marketplace/handle-chip'
 import { Badge } from '@/components/ui/badge'
@@ -220,7 +221,12 @@ export async function SellerStorefront({ id }: { id: string }) {
                 <span className="ml-auto"><ReportButton sellerId={seller.id} /></span>
               </div>
             )}
-            {seller.bio && <p className="max-w-2xl text-sm text-body"><Tr text={seller.bio} /></p>}
+            {/* ⚠️ A <div>, NOT THE <p> THIS WAS. RichText emits <p>/<ul> blocks, and a block inside
+                a <p> is invalid HTML the browser silently re-parents — the server tree and the
+                client tree then differ and React logs a hydration mismatch. The className moves
+                across unchanged; `space-y-2` is what gives the paragraphs air now that there is
+                more than one of them. */}
+            {seller.bio && <RichText text={seller.bio} className="max-w-2xl space-y-2 text-sm text-body" />}
           </div>
         </div>
 
