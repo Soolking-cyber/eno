@@ -16,11 +16,18 @@ const client = () => new PrismaClient({ adapter: new PrismaPg({ connectionString
  * literals, and the unit tests mock fetch rather than the database. It would have failed on the
  * first scheduled run at 02:00 with nobody watching.
  *
- * ⚠️ IT IS READ-ONLY AND SKIPS ITSELF when DATABASE_URL is absent, so CI without a database is green
- * rather than red. It asserts the SHAPE the query returns, never a specific listing — the catalogue
- * changes daily and an assertion about its contents would be a flake generator.
+ * ⚠️ IT IS READ-ONLY AND ASSERTS THE SHAPE the query returns, never a specific listing — the
+ * catalogue changes daily and an assertion about its contents would be a flake generator.
+ *
+ * ⛔ IT OPTS IN ON `LIVE_DB_TESTS=1`, AND *NOT* ON THE PRESENCE OF `DATABASE_URL` — that was the
+ * first version and CI failed on it twice. .github/workflows/ci.yml sets
+ * `DATABASE_URL: postgresql://user:pass@localhost:5432/db`, a DUMMY that exists only so Prisma can
+ * generate, so "the variable is set" is true in exactly the environment that has no database. The
+ * guard has to key on something nothing else sets by accident.
+ *
+ * Run it locally with:  set -a; . ./.env; set +a; LIVE_DB_TESTS=1 npx vitest run src/lib/social
  */
-const live = !!process.env.DATABASE_URL
+const live = process.env.LIVE_DB_TESTS === '1'
 describe.skipIf(!live)('daily selection (live schema)', () => {
   it('selects a postable listing with every field the caption needs', async () => {
     const db = client()
