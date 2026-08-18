@@ -1676,14 +1676,24 @@ html.native-tabs .bottom-nav-spacer {
    family as the UI around it; brightness(1.02) lifts it just off pure white so the card
    surfaces floating over it keep an edge. Anything stronger stops looking like a map and
    starts looking like a filter, which is the failure mode this is trying to avoid. */
-/* ⚠️ THE LIGHT VALUES ARE THE BARE-`:root` DEFAULT, and the dark ones are added only under a
-   real dark signal. The first version inverted under `:root:not([data-theme='light'])`, which is
-   TRUE for the default "system" setting — so every visitor who had never touched the theme
-   toggle got an inverted map on a light page. Same three-state rule the rest of this file
-   follows: define the light palette unconditionally, then override under BOTH
-   `prefers-color-scheme: dark` (guarded so an explicit light choice still wins) and an explicit
-   `[data-theme='dark']`. A colour whose only definition lives inside a media query is a bug
-   waiting for the third state. */
+/* ⛔ THE DARK MAP KEYS OFF `.dark` ON <html> — THE APP'S OWN SIGNAL — AND NOTHING ELSE.
+   Owner, 2026-08-18: "make sure map uses apps dark light configuration and not browsers. if user
+   preferse dark ap make map dark if user prefers light app make map light".
+
+   The previous rules were `@media (prefers-color-scheme: dark) { :root:not([data-theme='light']) }`
+   and `:root[data-theme='dark']`, and BOTH were wrong for the same measured reason: THIS APP NEVER
+   SETS `data-theme` ON ANYTHING. src/context/theme-context.tsx resolves the theme and writes
+   `root.classList.toggle('dark', dark)` — a CLASS. So `[data-theme='dark']` matched nothing ever,
+   and `:not([data-theme='light'])` was ALWAYS true, which left `prefers-color-scheme` as the only
+   thing deciding. A visitor whose OS was dark got an inverted map on a light page, which is exactly
+   what was reported. The old comment above described a careful three-state rule that the selectors
+   did not implement.
+
+   ⚠️ THE TWO SIGNALS ARE NOT INTERCHANGEABLE, WHICH IS THE WHOLE POINT. `prefers-color-scheme` is
+   what the OS wants; `.dark` is what the app RESOLVED — system preference, or the visitor's
+   explicit toggle, which must win. Keying anything visual off the media query re-introduces this
+   bug for every user who overrides the default. If a `data-theme` attribute is ever introduced,
+   add it here as an EXTRA selector; do not swap this one out. */
 .leaflet-tile-pane {
   filter: saturate(0.9) hue-rotate(-6deg) brightness(1.02);
 }
@@ -1693,14 +1703,10 @@ html.native-tabs .bottom-nav-spacer {
    labels stay legible, water and parks keep plausible colours, and the sheet stops being the
    brightest object on a dark page. Still the tile pane only, so the pins keep their real
    colours on top of it. */
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme='light']) .leaflet-tile-pane {
-    filter: invert(0.92) hue-rotate(180deg) saturate(0.75) brightness(0.95);
-  }
-}
-:root[data-theme='dark'] .leaflet-tile-pane {
+html.dark .leaflet-tile-pane {
   filter: invert(0.92) hue-rotate(180deg) saturate(0.75) brightness(0.95);
 }
+
 
 /* ⛔ THIS RING IS AN OVERLAY, NOT AN `outline`, AND THAT IS THE WHOLE FIX — DO NOT "SIMPLIFY"
    IT BACK. Three shipped attempts were invisible on a real card, and the reason was never
