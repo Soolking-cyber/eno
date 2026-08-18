@@ -9,9 +9,9 @@
 export const revalidate = 3600
 
 import type { Metadata } from 'next'
-import { IS_SERVICES, SITE_NAME } from '@/lib/edition'
+import { IS_MARKETPLACE, IS_SERVICES, SITE_NAME } from '@/lib/edition'
 import { ContentPage, ContentSection } from '@/components/marketplace/content-page'
-import { AFFILIATION, COMPANY, OPERATOR_REGISTERED, TOS_VERSION } from '@/lib/site-legal'
+import { AFFILIATION, COMPANY, OPERATOR_REGISTERED, PRELAUNCH, TOS_VERSION } from '@/lib/site-legal'
 import { PROVIDER_OF_RECORD } from '@/lib/visa-provider'
 
 /**
@@ -54,9 +54,20 @@ import { PROVIDER_OF_RECORD } from '@/lib/visa-provider'
  * all — a licensed third party does, with the platform as intermediary. Do not reintroduce either.
  *
  * ⚠️ NO COMPANY NAME, ERC OR LICENCE NUMBER IS TYPED HERE. They come from COMPANY (site-legal.ts)
- * and VISA_PROVIDER (visa-provider.ts), both of which are placeholders until the documents exist.
- * OPERATOR_REGISTERED gates the paragraph that says so out loud, because a field reading
- * "đang cập nhật" does not tell a reader that no company has been incorporated yet.
+ * and VISA_PROVIDER (visa-provider.ts).
+ *
+ * ⚠️ THIS NOTE USED TO SAY BOTH WERE "placeholders until the documents exist". Half of that is now
+ * false and the correction matters, because the two editions differ for the first time:
+ *   · eno.vn — Công ty TNHH ENO is INCORPORATED (ERC 0319679107, 14/08/2026). Every field is real,
+ *     OPERATOR_REGISTERED is true, and the "still being registered" paragraph no longer renders.
+ *   · eno.forum — its operator is still not incorporated, so the placeholders and that paragraph
+ *     remain. It deliberately does NOT borrow the licensed company's identity (see site-legal.ts).
+ *
+ * ⚠️ AND THE COMPANY BEING REGISTERED IS NOT THE PLATFORM BEING REGISTERED. The ERC makes the
+ * company exist; the sàn TMĐT filing with Bộ Công Thương is a SEPARATE, still-pending step tracked
+ * by PRELAUNCH. They were welded into one paragraph behind one gate until 2026-08-18, which meant
+ * the ERC arriving silently deleted the MoIT disclosure from the document MoIT reads. One fact,
+ * one gate — keep it that way.
  */
 
 const S = SITE_NAME
@@ -115,14 +126,56 @@ const ARTICLES: Article[] = [
       },
       // The placeholder fields above read as blanks, not as a statement that no company exists yet.
       // This paragraph says it in words, and disappears on its own the day the ERC is issued.
+      //
+      // ⛔ THE MoIT SENTENCE WAS CUT OUT OF THIS PARAGRAPH — REVIEWER-CAUGHT, AND IT WAS A REAL
+      // LICENSING DEFECT rather than a tidy-up. It used to end "…và sàn chỉ hoạt động chính thức
+      // sau khi hoàn tất thủ tục đăng ký với Bộ Công Thương", welded to the entity fact behind one
+      // gate. This paragraph renders whenever the operator is unincorporated — which, from
+      // 2026-08-18, means it renders ONLY on eno.forum. So the services edition was publishing, in
+      // its own operating regulations, that it will trade once its sàn TMĐT registration with Bộ
+      // Công Thương completes. eno.forum is the site that will NEVER make that filing; it exists
+      // precisely to sit outside that licence. One gate, one fact: the entity half stays here, the
+      // MoIT half lives in the PRELAUNCH-gated paragraph below and reaches eno.vn only.
       ...(OPERATOR_REGISTERED
         ? []
         : [
             {
-              vi: `Tại thời điểm công bố Quy chế này, pháp nhân vận hành sàn đang trong quá trình đăng ký thành lập và sàn đang ở giai đoạn vận hành thử nghiệm trước khi ra mắt chính thức. Các trường thông tin đăng ký chưa được điền ở trên sẽ được cập nhật đầy đủ ngay khi giấy chứng nhận đăng ký doanh nghiệp được cấp, và sàn chỉ hoạt động chính thức sau khi hoàn tất thủ tục đăng ký với Bộ Công Thương. Trong giai đoạn này, mọi liên hệ xin gửi về ${COMPANY.email}.`,
-              en: `At the time these Regulations are published, the operating entity is still being registered and the platform is in pre-launch test operation. The registration fields left blank above will be completed as soon as the enterprise registration certificate is issued, and the platform will operate officially only once its registration with the Ministry of Industry and Trade is complete. Until then, please use ${COMPANY.email} for all contact.`,
+              vi: `Tại thời điểm công bố Quy chế này, pháp nhân vận hành đang trong quá trình đăng ký thành lập và website đang ở giai đoạn vận hành thử nghiệm trước khi ra mắt chính thức. Các trường thông tin đăng ký chưa được điền ở trên sẽ được cập nhật đầy đủ ngay khi giấy chứng nhận đăng ký doanh nghiệp được cấp. Trong giai đoạn này, mọi liên hệ xin gửi về ${COMPANY.email}.`,
+              en: `At the time these Regulations are published, the operating entity is still being registered and the site is in pre-launch test operation. The registration fields left blank above will be completed as soon as the enterprise registration certificate is issued. Until then, please use ${COMPANY.email} for all contact.`,
             },
           ]),
+      /**
+       * ⛔ THE MoIT SENTENCE HAD TO BE RESCUED FROM THE PARAGRAPH ABOVE, AND MISSING THIS WOULD HAVE
+       * BEEN THE REAL DEFECT IN "the company is registered now". That paragraph carried TWO
+       * different facts welded together — the ENTITY was being incorporated, and the SÀN TMĐT
+       * registration with Bộ Công Thương was outstanding — behind ONE gate, `OPERATOR_REGISTERED`.
+       * The ERC arriving on 14/08/2026 flips that gate, which silently deleted the MoIT disclosure
+       * from the document MoIT itself reads, while that filing is still pending.
+       *
+       * ⚠️ THEY ARE TWO SEPARATE FILINGS AND ONLY ONE IS DONE. An enterprise registration
+       * certificate makes the company exist; registering the platform at online.gov.vn is what
+       * lets it trade as a sàn. `PRELAUNCH` is the flag that tracks the second one, so this
+       * paragraph is gated on that and nothing else — it now disappears on the right day rather
+       * than on the day the company was born.
+       */
+      // ⚠️ `IS_MARKETPLACE &&` IS REDUNDANT TODAY AND STAYS ANYWAY — belt and braces, the pattern
+      // this repo already applies to the services copy (a gate decides what renders, an alias
+      // decides what ships; keep BOTH). `PRELAUNCH` is defined as `EDITION === 'marketplace'`, so
+      // this paragraph already could not reach eno.forum — measured on a clean forum build: zero
+      // occurrences. But ALL THREE reviewers read this line as a licensing leak, every one of them
+      // because the gate's edition-scoping is invisible HERE and lives in another file. A gate a
+      // reader cannot verify at the call site is one someone eventually widens: the day PRELAUNCH
+      // is redefined to cover both editions, this sàn TMĐT claim would silently appear on the one
+      // site that will never make that filing. Naming the edition costs nothing and makes the
+      // intent local.
+      ...(IS_MARKETPLACE && PRELAUNCH
+        ? [
+            {
+              vi: `Sàn đang trong giai đoạn vận hành thử nghiệm: thủ tục đăng ký website cung cấp dịch vụ thương mại điện tử với Bộ Công Thương đang được thực hiện và chưa hoàn tất. Sàn chỉ hoạt động chính thức sau khi thủ tục này hoàn tất, và Quy chế này sẽ được cập nhật kèm số đăng ký ngay khi được cấp.`,
+              en: `The platform is in pre-launch test operation: its registration with the Ministry of Industry and Trade as an e-commerce trading platform is in progress and not yet complete. The platform will trade officially only once that registration is finished, and these Regulations will be updated with the registration number as soon as it is issued.`,
+            },
+          ]
+        : []),
       {
         vi: `Địa chỉ liên hệ trên đây đồng thời là đầu mối tiếp nhận yêu cầu của người sử dụng và của cơ quan nhà nước có thẩm quyền (quản lý thị trường, thuế, công an). Yêu cầu gỡ bỏ nội dung vi phạm của cơ quan nhà nước có thẩm quyền được thực hiện trong vòng 24 giờ kể từ khi nhận được yêu cầu.`,
         en: `The contact details above are also the designated point of contact for users and for competent state authorities (market surveillance, tax, public security). A lawful request from a competent authority to remove infringing content is actioned within 24 hours of receipt.`,

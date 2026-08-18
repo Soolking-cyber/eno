@@ -88,20 +88,71 @@ export const APP_STORE_URL = ''
 export const PLAY_STORE_URL = ''
 
 /**
- * The single pending Vietnamese entity behind both domains today.
+ * ✅ THE COMPANY EXISTS. Transcribed from the two certificates the owner supplied on 2026-08-18:
+ * the Giấy chứng nhận đăng ký doanh nghiệp and the Thông báo về cơ quan thuế quản lý trực tiếp,
+ * both issued by Phòng Đăng ký Kinh doanh, Sở Tài chính TP. Hồ Chí Minh on 14/08/2026.
  *
- * ⚠️ Both editions currently point at this. That is a statement of fact, not a shortcut: there is
- * one company being registered, and claiming two would be the invention this file exists to avoid.
+ * ⚠️ EVERY FIELD IS COPIED, NOT COMPOSED. A legal notice is a quotation of a certificate, so the
+ * address keeps the document's own wording and punctuation ("Số 03-05 đường số 7…") rather than a
+ * tidied version, and the Vietnamese name keeps its official casing. If a value here disagrees with
+ * the certificate, the certificate is right.
+ *
+ * ⚠️ THE ISSUING AUTHORITY IS SỞ TÀI CHÍNH, NOT SỞ KẾ HOẠCH & ĐẦU TƯ, and that is not a typo to
+ * "correct". Vietnam's 2025 reform folded the Ministry of Planning & Investment into the Ministry
+ * of Finance, so business registration now sits under Sở Tài chính. Every older template — and
+ * every peer's footer printed before the merger — says Sở KH&ĐT. Ours must match the certificate.
+ *
+ * ⛔ WHAT IS DELIBERATELY NOT IN THIS FILE: the owner's personal identity number and date of birth
+ * appear on the certificate and are NOT transcribed here. They are personal data with no place in a
+ * public operator notice; the disclosure duty is the legal representative's NAME and title.
+ *
+ * ⚠️ `registered: true` IS LOAD-BEARING — it removes the "this company is still being registered"
+ * paragraph from /regulations, /privacy, /about and /terms. It means the ERC is IN HAND, which it
+ * now is. It does NOT mean the MoIT sàn TMĐT registration is done; that is a separate filing, still
+ * pending, and PRELAUNCH below is what tracks it.
  */
-const PENDING_VN_ENTITY: LegalOperator = {
-  name: 'Công ty TNHH ENO (đang đăng ký thành lập)',
-  nameEn: 'ENO Company Limited (registration in progress)',
-  address: 'TP. Hồ Chí Minh, Việt Nam (địa chỉ trụ sở đang cập nhật)',
+const ENO_VN: LegalOperator = {
+  name: 'Công ty TNHH ENO',
+  nameEn: 'ENO Company Limited',
+  address: 'Số 03-05 đường số 7, Phường An Khánh, Thành phố Hồ Chí Minh, Việt Nam',
+  erc: '0319679107',
+  ercIssued: '14/08/2026',
+  ercAuthority: 'Phòng Đăng ký Kinh doanh – Sở Tài chính TP. Hồ Chí Minh',
+  phone: '0772007921',
+  email: 'support@eno.vn',
+  privacyEmail: 'support@eno.vn',
+  legalRep: 'Trần Văn Chương',
+  // The certificate names the same person as owner and as legal representative (Tổng giám đốc), so
+  // he is also who answers for content. Split them the day someone else does.
+  contentManager: 'Trần Văn Chương',
+  registered: true,
+}
+
+/**
+ * eno.forum's operator — STILL NOT INCORPORATED, and that is why this placeholder survives.
+ *
+ * ⛔ DO NOT POINT THIS AT `ENO_VN` "because there is only one company". That was true until
+ * 2026-08-18 and is the single most tempting wrong edit in this file. Công ty TNHH ENO is the
+ * LICENSED Vietnamese sàn TMĐT, and eno.forum exists precisely because that company may not offer
+ * visa, itinerary or PayPal services (owner, 2026-07-31). Naming it as eno.forum's operator would
+ * put the licensed entity's name, ERC and head office on the site that sells exactly what it is not
+ * licensed to sell — the leak the whole edition split exists to prevent, in the one place a
+ * regulator is most likely to read.
+ *
+ * ⚠️ THE FORUM FOOTER NO LONGER PRINTS AN OPERATOR BLOCK AT ALL (owner, 2026-08-17), so today these
+ * placeholder values reach only /terms, /privacy and /regulations on eno.forum, where they read as
+ * "đang cập nhật". That is honest — no second entity exists yet — and it is a gap to close by
+ * incorporating one, never by borrowing this one's identity.
+ */
+const PENDING_SERVICES_ENTITY: LegalOperator = {
+  name: 'Đơn vị vận hành đang đăng ký thành lập',
+  nameEn: 'Operating entity — registration in progress',
+  address: PENDING,
   erc: PENDING,
   ercIssued: PENDING,
   phone: PENDING,
-  email: 'support@eno.vn',
-  privacyEmail: 'support@eno.vn',
+  email: 'support@eno.forum',
+  privacyEmail: 'support@eno.forum',
   legalRep: PENDING,
   ercAuthority: PENDING,
   contentManager: PENDING,
@@ -111,16 +162,17 @@ const PENDING_VN_ENTITY: LegalOperator = {
 /**
  * Operator identity per edition — THE ONE OBJECT TO EDIT.
  *
- * ⚠️ WHEN THE eno.forum ENTITY EXISTS, replace the `services` spread with its real fields and set
- * `registered: true`. Do not touch `marketplace` while doing it, and do not "simplify" the two
- * back into one constant afterwards — the duplication is the point once the entities differ.
+ * ✅ eno.vn's ERC IS ISSUED (14/08/2026) and `marketplace` now carries the real entity. The note
+ * that used to sit here telling the next person to flip `marketplace.registered` when the
+ * certificate arrived has been removed rather than left to rot — it is done.
  *
- * ⚠️ AND WHEN THE eno.vn ERC IS ISSUED, `marketplace.registered` flips to true in the same way.
- * Flipping it is what allows pages to state the company as a fact; leave it false until the
- * certificate is in hand, not when the application is filed.
+ * ⚠️ WHEN THE eno.forum ENTITY EXISTS, replace `services` with its real fields and set
+ * `registered: true`. Do not touch `marketplace` while doing it, and do not collapse the two back
+ * into one constant — from 2026-08-18 they describe genuinely different legal persons, which is the
+ * whole reason this map is keyed by edition.
  */
 export const OPERATORS: Record<Edition, LegalOperator> = {
-  marketplace: { ...PENDING_VN_ENTITY },
+  marketplace: { ...ENO_VN },
   /**
    * ⚠️ THE CONTACT ADDRESSES ARE ALREADY PER-DOMAIN EVEN THOUGH THE ENTITY IS NOT (owner,
    * 2026-08-17: "all references should be eno.forum same for support email"). A visitor on
@@ -151,12 +203,13 @@ export const OPERATORS: Record<Edition, LegalOperator> = {
    * contact exists to remove, and it puts two addresses for one operator on one site. One domain,
    * one inbox, or neither.
    *
-   * The legal NAME/ERC/address deliberately stay the pending Vietnamese entity: there is still
-   * only one company, and inventing a second would be the exact fabrication this file forbids.
-   * The forum footer no longer PRINTS them (see footer.tsx) — that is a display decision; this
-   * object keeps telling the truth about who operates the deployment.
+   * ⛔ AND THE NAME/ERC/ADDRESS STAY UNFILLED ON PURPOSE — this note USED to say "there is still
+   * only one company, and inventing a second would be the exact fabrication this file forbids".
+   * Half of that changed on 2026-08-18: a company now exists. The conclusion did not. Công ty TNHH
+   * ENO is the LICENSED sàn TMĐT that may not offer visa, itinerary or PayPal, so borrowing its
+   * identity for the site that sells them would be worse than a blank field, not better.
    */
-  services: { ...PENDING_VN_ENTITY, email: 'support@eno.forum', privacyEmail: 'support@eno.forum' },
+  services: { ...PENDING_SERVICES_ENTITY },
 }
 
 /**
