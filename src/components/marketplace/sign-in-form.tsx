@@ -16,6 +16,7 @@ import { googleIdentityEnabled, requestGoogleIdToken } from '@/lib/google-identi
 import { useTurnstile } from './turnstile'
 import { canonicalEmail } from '@/lib/email-alias'
 import { isVietnamesePhone, normalizePhoneForRouting } from '@/lib/phone'
+import { clearStalePkceCookies } from '@/lib/auth-pkce'
 import { AUTH_USES_REQUEST_ORIGIN } from '@/lib/auth-origin'
 
 const RESEND_SECONDS = 60
@@ -350,6 +351,9 @@ export function SignInForm({ className }: { className?: string }) {
     void (async () => {
       const sb = await getSupabase()
       if (!sb) return
+      // Same reason as the main OAuth path below — this is also a flow start, so it also has to
+      // begin from a clean slate rather than adding to whatever previous attempts left behind.
+      clearStalePkceCookies()
       const { data, error } = await sb.auth.signInWithOAuth({
         provider: 'google',
         options: { redirectTo: `${authOrigin}/auth/callback?handoff=${encodeURIComponent(nonce)}`, skipBrowserRedirect: true },
@@ -453,6 +457,12 @@ export function SignInForm({ className }: { className?: string }) {
       }
     }
 
+    // ⚠️ IMMEDIATELY BEFORE THE NEW FLOW, NEVER EARLIER. Abandoned attempts leave their PKCE
+    // verifier cookies behind forever and the legacy single key disagrees with them — measured, and
+    // Supabase logged the resulting "code challenge does not match previously saved code verifier"
+    // in production. See src/lib/auth-pkce.ts for the measurement and for why this instant is the
+    // only safe one to clear at.
+    clearStalePkceCookies()
     const { error } = await sb.auth.signInWithOAuth({ provider, options: { redirectTo } })
     // On success supabase-js calls location.assign and this document is going away — leave
     // `loading` set so the button cannot be tapped again during the navigation.
