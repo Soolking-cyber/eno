@@ -19,10 +19,20 @@ import { Plane } from '@/components/ui/icons'
  * ⚠️ Prove it by grepping `.next/static` after a marketplace build, never by reading the code —
  * that is the house rule for this class of change and it exists because reading has been wrong.
  *
- * ⚠️ MOCK COPY, DELIBERATELY. Owner, 2026-08-17: "eno.forum will get 1 new banner for its visa and
- * booking services mock until i change it later". It is honest about what the desk does and makes
- * no claim about price or speed — a placeholder that overpromises is worse than no banner, because
- * the visa tiers have real processing times and a real submission gate behind them.
+ * ✅ NO LONGER A MOCK. Owner supplied the real artwork on 2026-08-18 ("add the banners to eno.forum
+ * optimize sharpen and add as only banner"), so this is an `art` slide now — the message is BAKED
+ * INTO the image, exactly like the VietKite and GMBR slides on eno.vn.
+ *
+ * ⛔ AN `art` SLIDE PUTS THE WHOLE MESSAGE IN `alt`, AND THAT IS NOT A FORMALITY. The DOM copy
+ * below stops rendering the moment `art` exists, so `alt` is the ONLY thing a screen reader, a
+ * crawler, or anyone on a failed image request receives. It therefore carries every line of the
+ * artwork — headline, the three supporting claims, and the call to action — rather than describing
+ * the picture.
+ *
+ * ⚠️ AND IT CARRIES NO `partner` FIELD, UNLIKE ITS TWO SIBLINGS. That property renders a
+ * "Quảng cáo · <partner>" advertising disclosure, which is correct for VietKite and GMBR because
+ * those are third-party ads. This is eno's own service on eno's own site: labelling it as an
+ * advertisement would be a false disclosure, not a cautious one.
  */
 export const SERVICES_PROMO_SLIDES: PromoSlide[] = [
   {
@@ -37,14 +47,38 @@ export const SERVICES_PROMO_SLIDES: PromoSlide[] = [
     ctaVi: 'Xem dịch vụ',
     href: '/vietnam-evisa',
     icon: Plane,
-    /**
-     * ⚠️ THE SAME MOCK ARTWORK THE OTHER SLIDES USE, not a services-specific file. `image` is
-     * required by the type and is DECORATIVE ONLY — no text is baked into it — so reusing the
-     * existing SVG keeps this slide a placeholder in the way the owner asked for, with `surface`
-     * underneath as the floor if it 404s or is still loading. Swap the file when real art arrives;
-     * no code changes.
-     */
+    // `image` stays required by the type and is the decorative floor behind the art; `surface` is
+    // the colour underneath both, so a slow or failed image request shows brand blue rather than a
+    // hole. Neither is what a reader sees once `art` loads.
     image: '/banners/promo-1.svg',
-    surface: 'bg-gradient-to-br from-brand-deeper via-brand to-accent',
+    surface: 'bg-brand-deep',
+    art: {
+      /**
+       * ⚠️ THE MOBILE FILE IS A 2x UPSCALE OF A 1x SOURCE, and the reasoning is the GMBR slide's,
+       * measured again here: the supplied mobile export is 366x188, so shipping it as-is would be
+       * soft on every retina phone. It is resampled to 732x376 (lanczos3 + a MILD unsharp mask,
+       * sigma 0.6 / m1 0.8) by scripts/banner-optimize.mjs. A stronger sharpen haloes the wordmark
+       * edge — this artwork is flat brand shapes and type, which is the worst case for over-
+       * sharpening. Upscaling adds no real detail: a genuine 732x376 export from the designer is
+       * still better, and swapping the file needs no code change.
+       *
+       * ⚠️ THE DESKTOP ART IS NATIVE 1280x300 AND STAYS 1x. It is the home page's LCP image; a 2x
+       * desktop would roughly triple the weight of the one image on the site that must not get
+       * heavier.
+       */
+      mobile: '/banners/evisa-mobile.webp',
+      desktop: '/banners/evisa-desktop.webp',
+      // avif first, webp as the fallback: 33,906 -> 15,630 B desktop and 27,892 -> 13,362 B mobile.
+      avif: { mobile: '/banners/evisa-mobile.avif', desktop: '/banners/evisa-desktop.avif' },
+      /**
+       * ⛔ `null`, NOT A MISSING KEY. The field is required-but-nullable (see promo-slides.ts): the
+       * compiler forces every art slide to state whose message it carries, and `null` is the
+       * explicit answer "eno's own". Writing a partner name here would publish a false advertising
+       * disclosure about eno's own service on eno's own site.
+       */
+      partner: null,
+      alt: 'Vietnam e-Visa, made simple. Clear pricing, reliable processing and real support. Apply now.',
+      altVi: 'e-Visa Việt Nam, thật đơn giản. Giá rõ ràng, xử lý đáng tin cậy và hỗ trợ thật sự. Nộp hồ sơ ngay.',
+    },
   },
 ]

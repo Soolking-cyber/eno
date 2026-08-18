@@ -29,8 +29,27 @@ ENV NEXT_TELEMETRY_DISABLED=1
 # NEXT_PUBLIC_* values are INLINED into the client bundle, and DATABASE_URL is read if
 # any route pre-renders against the DB. A secret mount — unlike --build-arg — never
 # lands in image history or layer metadata, and nothing here reaches the runtime layer.
+# ⛔ THE MARKETPLACE IMAGE MUST NOT CARRY SERVICES ARTWORK, AND `public/` IS THE ONE PLACE THE
+# EDITION SPLIT DOES NOT REACH. Every other mechanism in this repo keys off the bundler — a
+# `.svc.` pageExtension fold, a resolveAlias stub — and none of them touch static files: `public/`
+# is copied verbatim into BOTH images. So eno.forum's baked e-visa banner, which exists only to be
+# rendered by the services edition, was still fetchable at https://eno.vn/banners/evisa-desktop.webp
+# with "Vietnam e-Visa … Apply now" painted into it. Unlinked and unindexed, but the standing rule
+# names SERVING as the failure, not linking, and a licensed sàn TMĐT serving visa marketing from its
+# own origin is the exact thing the split exists to prevent. Two reviewers caught this; a
+# `.next/static` grep cannot, because the file was never in a chunk.
+#
+# ⚠️ IT IS PRUNED HERE, INSIDE THE BUILDER STAGE, AND DELIBERATELY NOT IN `npm run build`. This
+# filesystem is ephemeral; a developer's working tree is not. The same prune in package.json would
+# DELETE these files from the repo the first time anyone ran `node scripts/preview.mjs vn`.
+#
+# ⚠️ The pattern is prefix-based (`evisa-*`), so new services artwork inherits the prune by being
+# named for the surface it belongs to. Name a services asset anything else and it ships to eno.vn.
 RUN --mount=type=secret,id=buildenv \
-    sh -c 'set -a; [ -f /run/secrets/buildenv ] && . /run/secrets/buildenv; set +a; npm run build'
+    sh -c 'set -a; [ -f /run/secrets/buildenv ] && . /run/secrets/buildenv; set +a; npm run build; \
+           if [ "$NEXT_PUBLIC_ENO_EDITION" = "marketplace" ]; then \
+             rm -fv public/banners/evisa-* .next/standalone/public/banners/evisa-* 2>/dev/null || true; \
+           fi'
 
 # ---------- runner: minimal non-root server ----------
 FROM node:24-slim AS runner

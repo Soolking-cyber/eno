@@ -92,6 +92,18 @@ export type PromoSlide = {
    * text names them too (alt is the ONLY thing a screen reader gets from a baked image, and the
    * banner's aria-label DEPENDS on that second assertion — see the note there before deleting it).
    *
+   * ⛔ `partner` IS NULLABLE SINCE 2026-08-18, AND IT IS STILL REQUIRED — THAT COMBINATION IS THE
+   * POINT. eno.forum now carries baked artwork for eno's OWN e-visa desk, so the old invariant
+   * ("artwork exists solely to carry a partner's lockup", below) is no longer true: art no longer
+   * implies bought. The naive fix is `partner?: string`, and it would quietly undo the entire guard
+   * this comment describes — an author who forgot the field would get a partner banner with no
+   * disclosure and no error, which is exactly the failure the nesting was invented to prevent.
+   *
+   * Required-but-nullable keeps the compiler asking the question. You cannot add `art` without
+   * DECIDING whose message it is: a name, or an explicit `null` meaning "this is ours". `null` is
+   * greppable and reads as a decision; a missing key reads as an oversight, and only one of those
+   * is safe to have in this file.
+   *
    * ⚠️ WHAT THIS DOES NOT GUARD, STATED PLAINLY: it ties disclosure to a SHAPE (baked artwork), not
    * to money. A future paid placement written as an ordinary slide — eno's own DOM copy, sold —
    * would carry no `art`, so no `partner`, so no chip, and nothing here would notice. That is
@@ -110,7 +122,7 @@ export type PromoSlide = {
    * the 732px mobile image — a wrong-size LCP that no gate would catch, on the home page. Making
    * the pair atomic makes that state unrepresentable instead of merely undocumented.
    */
-  art?: { mobile: string; desktop: string; avif?: { mobile: string; desktop: string }; alt: string; altVi: string; partner: string }
+  art?: { mobile: string; desktop: string; avif?: { mobile: string; desktop: string }; alt: string; altVi: string; partner: string | null }
 }
 
 /**

@@ -54,7 +54,13 @@ describe('promo slides — partner attribution', () => {
    */
   it('the alt text of an art slide names the partner in both languages', () => {
     for (const slide of withArt) {
-      const { partner = '', alt = '', altVi = '' } = slide.art ?? {}
+      const { partner, alt = '', altVi = '' } = slide.art ?? {}
+      // ⛔ `partner: null` MEANS "THIS IS ENO'S OWN", AND SUCH A SLIDE HAS NOBODY TO ATTRIBUTE.
+      // The assertion below exists so a PAID slide can never lose its attribution; applying it to
+      // an own-brand banner would demand eno name itself as its own advertiser, which is the false
+      // disclosure the null case was added to avoid. Skipped, not weakened — every slide that DOES
+      // name a partner is still checked in both languages.
+      if (partner === null || partner === undefined) continue
       const needle = partner.trim().toLowerCase()
       expect(
         alt.toLowerCase(),

@@ -450,12 +450,24 @@ function SlidePanel({ slide, first = false, artReady = true }: { slide: PromoSli
      * The visible chip keeps the name, because a sighted visitor never receives `alt` — they get
      * the artwork, and the chip is the only text tying the word "Advertisement" to an advertiser.
      */
+    /**
+     * ⛔ THE WORD IS CONDITIONAL SINCE 2026-08-18, BECAUSE eno.forum'S BANNER IS NOT AN AD. The
+     * visible chip is long gone (see the note further down), so this aria-label is the ONLY place
+     * the disclosure still lives — which means an unconditional prefix would announce
+     * "Advertisement — Vietnam e-Visa, made simple…" over eno's own service, to exactly the users
+     * who cannot see the artwork and check. A false disclosure is a worse failure than a missing
+     * one: it tells a screen-reader user this page is selling them someone else's product.
+     *
+     * `art.partner === null` is the explicit "this is ours" the type now forces every art slide to
+     * declare, so the branch keys off a decision rather than off a falsy value.
+     */
+    const isAd = slide.art.partner !== null
     const adWord = tr('Advertisement', 'Quảng cáo')
     return (
       <Link
         href={slide.href}
         prefetch={false}
-        aria-label={`${adWord} — ${tr(slide.art.alt, slide.art.altVi)}`}
+        aria-label={isAd ? `${adWord} — ${tr(slide.art.alt, slide.art.altVi)}` : tr(slide.art.alt, slide.art.altVi)}
         // ⚠️ THE SAME min-h LADDER AS THE DECORATIVE PANELS BELOW, and it is not cosmetic: the
         // carousel sizes its viewport to the tallest slide, so an art slide that computed its own
         // height from the image aspect made the panel change height between slides. Sharing the
@@ -566,9 +578,11 @@ function SlidePanel({ slide, first = false, artReady = true }: { slide: PromoSli
             polish item.
             ⚠️ THE ATTRIBUTION SURVIVES WHERE IT COSTS NOTHING: the link's accessible name still opens
             with that word (see the aria-label above), so a screen-reader user is still told this is an
-            ad before they are told what it says. And `art.partner` stays REQUIRED at the type level
-            with its vitest — the point of that guard was never the chip, it was that a slide which
-            deletes both languages must still name who bought it. Dropping it would drop the record. */}
+            ad before they are told what it says — but ONLY when there is an advertiser (see `isAd`
+            above; eno.forum's own e-visa banner is `partner: null` and is not announced as an ad).
+            And `art.partner` stays REQUIRED at the type level, now as `string | null`, with its
+            vitest — the point of that guard was never the chip, it was that a slide which deletes
+            both languages must still state who bought it, or state that nobody did. */}
       </Link>
     )
   }
