@@ -4,6 +4,8 @@ import { route } from '@/lib/api/handler'
 import { rateLimit } from '@/lib/ratelimit'
 import { visaCryptoReady } from '@/lib/visa/crypto'
 import { startVisaDmFlow, visaDmFailureFor } from '@/lib/visa/dm-flow'
+import { sendMetaCapiEvent, metaUserDataFromHeaders } from '@/lib/meta-capi'
+import { after } from 'next/server'
 
 // ONE TAP → an e-Visa case being filled out inside a chat thread.
 //
@@ -88,6 +90,35 @@ export const POST = route({ auth: 'profile' }, async ({ req, profile }) => {
       allowCreate: async () => (await rateLimit('visa-create', profile.id, 5, '24 h', { strict: true })).success,
     })
     if (!started.ok) return NextResponse.json({ error: started.error }, { status: started.status })
+    /**
+     * META CONVERSION — the e-visa application START. Owner, 2026-08-18: "main event is clicking to
+     * apply for e-visa on eno forum", to train one pixel on a single audience (visa now, bookings
+     * and rentals later — the same person at different moments of one trip).
+     *
+     * ⚠️ FIRED HERE, NOT ON THE BUTTON, AND THAT IS THE DIFFERENCE BETWEEN A SIGNAL AND NOISE. This
+     * app ships NO browser pixel (removed for load time — see analytics-tags.tsx), so every
+     * conversion is server-side anyway; but even with one, a click handler fires on taps that never
+     * become anything. This line is past auth, past the 503 encryption gate, past the rate limiter
+     * and past `allowCreate` — so it means an application really was created, once, for a signed-in
+     * person. Meta optimises toward whatever it is fed; feeding it taps buys taps.
+     *
+     * ⚠️ `InitiateCheckout`, A STANDARD EVENT, NOT A CUSTOM ONE. Meta's optimiser has native
+     * handling for the standard set and treats a custom event as an opaque count, which matters
+     * most at exactly the budget this is starting on. It is the honest mapping too: an application
+     * is started and not yet paid for, which is what InitiateCheckout means.
+     *
+     * ⚠️ INSIDE `after()`, like every other CAPI call here — it must not add a millisecond to the
+     * response, and a Meta outage must never fail a visa application.
+     */
+    after(() =>
+      sendMetaCapiEvent('InitiateCheckout', {
+        eventSourceUrl: req.headers.get('referer') || undefined,
+        // ⚠️ The applicationId is the dedup key, so a retried request cannot double-count.
+        eventId: `visa-start-${started.applicationId}`,
+        userData: metaUserDataFromHeaders(req.headers, { externalId: profile.id }),
+        customData: { content_category: 'evisa', content_name: 'Vietnam e-Visa application' },
+      }),
+    )
     return NextResponse.json({
       applicationId: started.applicationId,
       conversationId: started.conversationId,
