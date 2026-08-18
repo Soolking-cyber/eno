@@ -4,6 +4,7 @@
 import Script from 'next/script'
 import { useEffect, useState } from 'react'
 import { hasAdConsent } from '@/lib/consent'
+import { IS_SERVICES } from '@/lib/edition'
 
 // Google Analytics (GA4) only. The Meta Pixel was removed (heaviest 3rd-party,
 // ~233 KiB; only useful for paid Meta-ad retargeting — re-add if you run Meta ads).
@@ -80,25 +81,43 @@ export function AnalyticsTags() {
     return cleanup
   }, [])
 
-  if (!ready) return null
-
   return (
     <>
       {/**
-        * ⚠️ SAME CONSENT AND SAME FIRST-INTERACTION GATE AS GA — NOT LOADED EAGERLY. PDPL 91/2025
-        * classifies cyberspace behavioural data as SENSITIVE personal data needing explicit opt-in
-        * (compliance audit 2026-07-06), and /privacy publishes that no third-party tracker runs
-        * without the 'all' tier. A container that boots before consent would break that published
-        * promise no matter what the tags inside it do, because the container itself is the tracker.
-        * `ready` additionally holds it until first interaction, so ~100 KiB of tag-manager JS never
-        * competes with hydration or the LCP.
+        * ⛔ ON eno.forum THE CONTAINER LOADS FOR EVERY VISITOR — no consent gate, no interaction
+        * gate. Owner, 2026-08-18: "for eno.forum we dont need compliance outside vietnam", after
+        * GTM's installer reported "Your Google tag wasn't detected". It could not detect it: that
+        * crawler arrives with no consent and never interacts, which is precisely the state the gate
+        * existed to block. Nothing was broken — the detector asks whether the tag fires
+        * unconditionally, and until now the honest answer was no.
+        *
+        * ⛔ IT RENDERS ABOVE THE `ready` GATE ON PURPOSE. This component used to `return null` until
+        * first interaction, so a container placed in the block below would still have been
+        * invisible to any crawler however much consent logic was removed. Moving it out is what
+        * actually changes the answer; deleting the consent check alone would not have.
+        *
+        * ⚠️ I FLAGGED, AND THE OWNER DECIDED, THAT "OUTSIDE VIETNAM" IS NOT "NO CONSENT LAW". A
+        * Vietnam e-visa service draws EU and UK visitors, where GDPR/ePrivacy require opt-in for
+        * non-essential trackers regardless of where the operator sits — so this trades a Vietnamese
+        * rule for a stricter foreign one rather than escaping regulation. Recorded because the next
+        * reader will otherwise assume nobody considered it.
+        *
+        * ⚠️ THE PUBLISHED PROMISE MOVED IN THE SAME COMMIT. /privacy said "Decline and no
+        * third-party tracking runs, server-side included" — false on eno.forum from now on, so that
+        * page says something different there. Code and policy drifting apart is worse than either
+        * choice on its own.
+        *
+        * ⚠️ WHAT DID NOT CHANGE: GA and the server-side Meta CAPI still require the 'all' tier on
+        * BOTH editions, and eno.vn has no container at all (no GTM_ID in its env). Only this
+        * container is unconditional, so the tags inside it are governed in the GTM console — Google
+        * Consent Mode is the right lever there if consent is ever wanted back.
         */}
-      {adConsent && GTM_ID && (
-        <Script id="gtm-init" strategy="lazyOnload">
+      {IS_SERVICES && GTM_ID && (
+        <Script id="gtm-init" strategy="afterInteractive">
           {`(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','${GTM_ID}');`}
         </Script>
       )}
-      {adConsent && GA_ID && (
+      {ready && adConsent && GA_ID && (
         <>
           <Script src={`https://www.googletagmanager.com/gtag/js?id=${GA_ID}`} strategy="lazyOnload" />
           <Script id="ga-init" strategy="lazyOnload">

@@ -138,7 +138,27 @@ const baseSections: PrivacySection[] = [
     [
       'Essential storage keeps you signed in and remembers your language, your currency and your saved listings. It always works, and it tracks nothing about you across other sites.',
       'On-site personalisation — the “For You” row, built from your own activity on this site — is ranked on our own servers and never leaves us. Choosing “Essential only” switches it off.',
-      'Analytics and advertising — Google Analytics, and Meta conversion signals including the ones our server sends — run only if you choose “Allow all”. Decline and no third-party tracking runs, server-side included. You can change your mind at any time with the button at the end of this page; withdrawing consent stops the trackers immediately and does not cost you any part of the service.',
+      /**
+       * ⛔ THIS SENTENCE IS PER-EDITION BECAUSE THE BEHAVIOUR IS. It read "Decline and no
+       * third-party tracking runs, server-side included" on both sites, and that stopped being
+       * true on eno.forum on 2026-08-18: the owner asked for the Google Tag Manager container to
+       * load for every visitor there, so GTM's own installer could detect it. The wording had to
+       * move with the code in the same commit — a privacy policy that describes the previous
+       * build is a worse defect than either behaviour on its own, and it is the one a regulator
+       * reads.
+       *
+       * ⚠️ eno.vn IS UNCHANGED AND MUST STAY UNCHANGED. It carries no container at all (no GTM id
+       * in its environment), it is the licensed sàn TMĐT, and PDPL 91/2025 treats behavioural data
+       * as sensitive personal data needing opt-in. Do not "unify" these two strings.
+       *
+       * ⚠️ THE FORUM WORDING STILL CLAIMS ONLY WHAT IS TRUE: the container loads, and the things
+       * inside it are what a reader is being told about. GA and the server-side Meta conversion
+       * signals genuinely do still wait for “Allow all” on BOTH editions, so that half of the
+       * promise survives verbatim.
+       */
+      IS_SERVICES
+        ? 'Analytics and advertising — Google Analytics, and Meta conversion signals including the ones our server sends — run only if you choose “Allow all”. Decline and neither of those runs, server-side included. One exception, stated plainly: our tag manager (Google Tag Manager) loads for every visitor to this site, and any measurement tag configured inside it may run before you choose. You can change your mind at any time with the button at the end of this page; withdrawing consent stops Google Analytics and the Meta conversion signals immediately and does not cost you any part of the service.'
+        : 'Analytics and advertising — Google Analytics, and Meta conversion signals including the ones our server sends — run only if you choose “Allow all”. Decline and no third-party tracking runs, server-side included. You can change your mind at any time with the button at the end of this page; withdrawing consent stops the trackers immediately and does not cost you any part of the service.',
     ],
   ],
   [
