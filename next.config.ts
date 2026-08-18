@@ -653,13 +653,23 @@ const nextConfig: NextConfig = {
       // SELF-HOSTED (public/vendor/leaflet) and the browser Meta Pixel is REMOVED (server-side
       // CAPI only) — so unpkg.com and the facebook.net/stape/run.app hosts are gone from every
       // directive. (va.vercel-scripts.com dropped with the Vercel→Cloud Run migration.)
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com https://static.cloudflareinsights.com https://challenges.cloudflare.com" + gsiScript,
+      // ⚠️ `connect.facebook.net` IS THE META PIXEL, AND IT IS HERE SO A GTM TAG CAN LOAD IT — the
+      // pixel is NOT in this repo's code. The browser pixel was removed on 2026-07-10 as the
+      // heaviest third party (~233 KiB) and stays removed; what is re-enabled is the ABILITY to
+      // add it as a tag in eno.forum's GTM container, which the owner manages without a deploy.
+      // ⚠️ Widening script-src is the part of GTM that actually costs something: CSP is what stops
+      // a tag added in a web console from shipping an arbitrary new third party onto the site, so
+      // every domain listed here is a permission granted permanently, in a reviewed commit. Add
+      // the next vendor only when a tag genuinely needs it.
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com https://connect.facebook.net https://static.cloudflareinsights.com https://challenges.cloudflare.com" + gsiScript,
       "style-src 'self' 'unsafe-inline'" + gsiStyle,
       // Supabase is PINNED to our exact project host (not *.supabase.co): connect-src is the
       // main post-XSS exfiltration brake, and a wildcard would let stolen data POST to any
       // attacker-owned Supabase project. *.googleusercontent.com = Google account avatars
       // (OAuth sign-in) — without it they render as a broken-image icon.
-      "img-src 'self' capacitor: data: blob: https://xihiryllwmjoouipkyhw.supabase.co https://*.googleusercontent.com https://*.basemaps.cartocdn.com https://www.google-analytics.com https://www.googletagmanager.com",
+      // `www.facebook.com` is the pixel's 1x1 beacon — img-src, not connect-src: the classic pixel
+      // reports by loading an image, and without this the tag runs and every event is dropped.
+      "img-src 'self' capacitor: data: blob: https://xihiryllwmjoouipkyhw.supabase.co https://*.googleusercontent.com https://*.basemaps.cartocdn.com https://www.google-analytics.com https://www.googletagmanager.com https://www.facebook.com",
       // <video> sources for listing videos: our public bucket + blob: (the wizard's
       // client-side preview object URL). Without this, default-src 'self' blocks playback.
       "media-src 'self' blob: https://xihiryllwmjoouipkyhw.supabase.co",
@@ -669,7 +679,7 @@ const nextConfig: NextConfig = {
       // silently killed every picked photo IN-APP on iOS (Android rides the same-origin
       // /_capacitor_file_/ path, hence 'self' sufficed there). Browsers can't reach the
       // scheme, so the web surface is unchanged.
-      "connect-src 'self' capacitor: https://xihiryllwmjoouipkyhw.supabase.co wss://xihiryllwmjoouipkyhw.supabase.co https://www.google-analytics.com https://region1.google-analytics.com https://www.googletagmanager.com https://cloudflareinsights.com https://static.cloudflareinsights.com" + gsiConnect,
+      "connect-src 'self' capacitor: https://xihiryllwmjoouipkyhw.supabase.co wss://xihiryllwmjoouipkyhw.supabase.co https://www.google-analytics.com https://region1.google-analytics.com https://www.googletagmanager.com https://cloudflareinsights.com https://static.cloudflareinsights.com https://connect.facebook.net" + gsiConnect,
       "frame-src 'self' https://td.doubleclick.net https://challenges.cloudflare.com" + gsiFrame,
       "worker-src 'self' blob:",
       "manifest-src 'self'",
