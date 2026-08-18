@@ -325,6 +325,10 @@ export type NicheApiErrorCode =
   | 'send_failed'
   | 'send_in_flight'
   | 'sign_failed'
+  // The daily social poster's precondition: `social_posts` is created by scripts/social-ddl.mjs,
+  // which is run by hand and is NOT part of a deploy — so its absence is a real operational state
+  // the cron route has to be able to report rather than swallow.
+  | 'social_posts_missing'
   | 'store_failed'
   | 'submission_window_closed'
   | 'taken'
@@ -580,6 +584,7 @@ const ALL = [
   'verify_phone_to_claim',
   'vertex_not_configured',
   'window_closed',
+  'social_posts_missing',
 ] as const satisfies readonly ApiErrorCode[]
 
 /**

@@ -1,5 +1,6 @@
 import 'server-only'
 import { formatMoneyFull } from './vnd'
+import { db } from './db'
 
 /**
  * Auto cross-post a newly-published listing to the platform's own social channels.
@@ -74,6 +75,33 @@ async function postFacebookPage(l: SyndicationInput, text: string) {
   if (!res.ok) throw new Error(`facebook ${res.status}: ${await res.text()}`)
 }
 
+/**
+ * ⛔ RECORD THE PUBLISH-TIME POST IN `social_posts` TOO — REVIEWER-CAUGHT DUPLICATE, AND IT WOULD
+ * HAVE HIT THE ONLY LIVE CHANNEL.
+ *
+ * This function and the daily job (src/lib/social/daily.ts) both post to the same Facebook Page,
+ * and until now only the daily job wrote to `social_posts`. The daily selector orders NEWEST FIRST,
+ * so the worst case was also the common one: a seller publishes at 20:00 and the listing goes out
+ * once here, then the 02:00 run picks that very listing — newest, and unclaimed as far as the table
+ * knows — and posts it to the same Page a second time. Two identical posts overnight is what a bot
+ * looks like to both a reader and to Facebook.
+ *
+ * ⚠️ BEST-EFFORT AND NON-BLOCKING. A failure to record must never fail a publish: the listing is
+ * already live and the post already went out. The cost of a missed record is one duplicate, which
+ * is the situation this fixes rather than a new one it creates.
+ */
+async function claimForDaily(listingId: string, channel: string): Promise<void> {
+  try {
+    await db.$executeRaw`
+      insert into social_posts (listing_id, channel, status)
+      values (${listingId}, ${channel}, 'posted')
+      on conflict (listing_id, channel) do nothing
+    `
+  } catch (e) {
+    console.error('[syndicate:claim]', e)
+  }
+}
+
 export async function syndicateListing(l: SyndicationInput): Promise<void> {
   const text = caption(l)
   const channels: [string, () => Promise<void>][] = [
@@ -84,6 +112,9 @@ export async function syndicateListing(l: SyndicationInput): Promise<void> {
     channels.map(async ([name, fn]) => {
       try {
         await fn()
+        // ⚠️ Only `facebook` is shared with the daily job — Telegram is not one of its channels, so
+        // recording it would put rows in the table for a channel that never reads them.
+        if (name === 'facebook') await claimForDaily(l.id, 'facebook')
       } catch (e) {
         console.error(`[syndicate:${name}]`, e)
       }
