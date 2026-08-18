@@ -355,6 +355,16 @@ export function BubbleChrome({
     setAllOpen(false)
     onLockChange?.(false)
     onBarOpenChange(false)
+    /**
+     * ⛔ CLOSE THE QUICK ACTIONS TOO — WITHOUT THIS THE CARD DOES NOT GO AWAY, IT SHRINKS. Owner,
+     * 2026-08-18: "when i select emoji from bar it fires second round of quick action tools reply
+     * copy and delete". The popup is open on `barOpen || actionsOpen`; picking an emoji cleared
+     * only the first, so the emoji row unmounted and the reply/copy/delete row was left floating
+     * over the thread on its own. It reads as a NEW menu appearing in response to the tap, which is
+     * exactly backwards — the tap was the user finishing.
+     * A long press opens both, so anything that completes the interaction has to close both.
+     */
+    onActionsOpenChange(false)
   }
 
   React.useEffect(() => () => onLockChange?.(false), [onLockChange])

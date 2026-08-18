@@ -415,8 +415,24 @@ export default function ThreadPage() {
           .map((r) => (r.emoji === emoji ? { ...r, count: r.count - 1, mine: false } : r))
           .filter((r) => r.count > 0)
       }
-      if (existing) return rows.map((r) => (r.emoji === emoji ? { ...r, count: r.count + 1, mine: true } : r))
-      return [...rows, { emoji, count: 1, mine: true }]
+      /**
+       * ⛔ DROP MY PREVIOUS REACTION FIRST — ONE PER PERSON PER MESSAGE. The optimistic update used
+       * to append, so reacting ❤️ then 👍 showed both as mine and the new one simply arrived at the
+       * end of the row (owner: "new emoji is added from right to left and not swap places with
+       * previously selected emoji"). The server now enforces the swap in one transaction; this
+       * mirrors it so the UI does not flash two of my reactions and then correct itself on the next
+       * poll — an optimistic update that disagrees with the server is worse than none.
+       *
+       * ⚠️ ONLY MY OWN ROWS ARE TOUCHED. Someone else reacting ❤️ keeps their count; the row
+       * survives with `mine: false` and only disappears when its count reaches zero.
+       */
+      const cleared = rows
+        .map((r) => (r.mine && r.emoji !== emoji ? { ...r, count: r.count - 1, mine: false } : r))
+        .filter((r) => r.count > 0)
+      if (cleared.some((r) => r.emoji === emoji)) {
+        return cleared.map((r) => (r.emoji === emoji ? { ...r, count: r.count + 1, mine: true } : r))
+      }
+      return [...cleared, { emoji, count: 1, mine: true }]
     }
     const edit = (fn: typeof apply) =>
       setThread((t) => (t ? { ...t, messages: t.messages.map((x) => (x.id === messageId ? { ...x, reactions: fn(x.reactions) } : x)) } : t))

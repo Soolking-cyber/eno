@@ -103,6 +103,23 @@ export const POST = route(
           where: { messageId, profileId: profile.id, emoji: body.emoji },
         })
         if (removed.count === 0) {
+          /**
+           * ⛔ ONE REACTION PER PERSON PER MESSAGE — A NEW PICK REPLACES THE OLD ONE. Owner,
+           * 2026-08-18: "new emoji is added from right to left and not swap places with previously
+           * selected emoji". Until now this deleted only the SAME emoji before inserting, so
+           * reacting ❤️ and then 👍 left BOTH standing as yours — the Slack model. The picker was
+           * never built for that: it tracks a singular `myReaction` and renders `aria-pressed` from
+           * it, so two of your own reactions made that attribute lie about at least one of them.
+           *
+           * ⚠️ IT IS DELETED INSIDE THE SAME TRANSACTION AS THE INSERT, so a viewer can never
+           * observe the message with zero reactions from this person mid-swap, and a failed insert
+           * rolls the removal back with it.
+           *
+           * ⚠️ TOGGLE-OFF IS UNAFFECTED, AND THAT IS WHY THIS SITS IN THE `removed.count === 0`
+           * BRANCH: tapping the emoji you already have still deletes it above and stops. Only a
+           * pick of a DIFFERENT emoji reaches here and clears the previous one.
+           */
+          await tx.messageReaction.deleteMany({ where: { messageId, profileId: profile.id } })
           await tx.messageReaction.create({
             data: { messageId, profileId: profile.id, emoji: body.emoji },
           })
