@@ -318,6 +318,25 @@ export function BubbleChrome({
    */
   React.useEffect(() => {
     if ((!barOpen && !actionsOpen) || allOpen) return
+    /**
+     * ⛔ SKIPPED ENTIRELY ON TOUCH, AND THIS IS THE FIX FOR "EMOJI DON'T WORK ON CHROME".
+     *
+     * On coarse pointers the bar lives inside a Base UI Popover, which PORTALS to the end of
+     * <body>. `root.current.contains(target)` therefore answers FALSE for the bar's own emoji
+     * buttons — they are not DOM descendants of this component any more. So this listener treated
+     * a tap on an emoji as an OUTSIDE press and closed the bar on `pointerdown`, before the
+     * `click` that calls pick() could fire. Long-press opened the bar and every tap inside it
+     * dismissed it instead of reacting, which is exactly what was reported.
+     *
+     * ⚠️ IT WAS CORRECT WHEN WRITTEN AND THE PORTAL BROKE IT. The containment check predates the
+     * Popover migration, when the touch bar was a plain descendant. That is the hazard with a
+     * hand-rolled outside-press check: it does not fail loudly when the tree moves under it.
+     *
+     * ⚠️ NOTHING IS LOST BY SKIPPING IT — Base UI's Popover already dismisses on an outside press,
+     * and it knows about its own portal. The mouse path keeps this listener because that bar is
+     * still a DOM descendant and has no popup to do the job.
+     */
+    if (coarse) return
     function onOutside(event: PointerEvent) {
       if (root.current?.contains(event.target as Node | null)) return
       onBarOpenChange(false)
@@ -325,7 +344,7 @@ export function BubbleChrome({
     }
     document.addEventListener('pointerdown', onOutside, true)
     return () => document.removeEventListener('pointerdown', onOutside, true)
-  }, [barOpen, actionsOpen, allOpen, onBarOpenChange, onActionsOpenChange])
+  }, [barOpen, actionsOpen, allOpen, coarse, onBarOpenChange, onActionsOpenChange])
 
   function pick(emoji: string) {
     hapticTap()
@@ -369,7 +388,21 @@ export function BubbleChrome({
       aria-label={a.label}
       title={a.label}
       className={cn(
-        'press flex size-7 items-center justify-center rounded-xl transition-colors',
+        /**
+         * ⚠️ `flex-1` + A LEFT HAIRLINE ON EVERY BUTTON BUT THE FIRST — this is the "line between"
+         * the owner asked for, and it is drawn by the BUTTONS rather than by separator elements on
+         * purpose: a `<div role="separator">` between flex children is one more focusable-adjacent
+         * node in a row that is already keyboard-navigated, and it would need its own margin maths
+         * to line up with `items-stretch`. A border on the child is exactly as tall as the child.
+         * ⚠️ `first:border-l-0` NOT `:not(:first-child)` — Tailwind emits the variant, and the
+         * negation form loses to the base `border-l` on specificity ties.
+         *
+         * ⚠️ ON TOUCH THE BUTTON GROWS TO 44px TALL. Same reasoning as the emoji row above: this is
+         * where Delete lives, and a 28px target next to Copy is how a message gets deleted by
+         * accident. Width comes from flex-1, so only the height is set.
+         */
+        'press flex items-center justify-center rounded-xl transition-colors',
+        coarse ? 'h-11 flex-1 border-l border-border/60 first:border-l-0 rounded-none first:rounded-l-xl last:rounded-r-xl' : 'size-7',
         a.danger ? 'text-destructive hover:bg-destructive/10' : 'text-body hover:bg-tint hover:text-foreground',
       )}
     >
@@ -404,7 +437,17 @@ export function BubbleChrome({
             aria-label={entry ? tr(entry.label, entry.labelVi) : emoji}
             aria-pressed={myReaction === emoji}
             className={cn(
-              'press flex size-8 items-center justify-center rounded-full transition-[scale,background-color] duration-150 hover:scale-[1.35] hover:bg-tint focus-visible:scale-[1.35]',
+              /**
+               * ⚠️ size-11 (44px) ON TOUCH, size-8 (32px) WITH A MOUSE — owner, 2026-08-18: "too
+               * small bar make it large". 44px is not a round number picked for looks: it is the
+               * Apple/Google minimum tap target and the same floor `tap-44` enforces elsewhere in
+               * this app. A 32px emoji in a row of eight is a 32px target with 2px between
+               * neighbours, which is how you tap 😂 and send ❤️.
+               * The mouse row stays 32px: a cursor is precise, and a 44px row of eight is 350px of
+               * chrome hanging off a bubble that may be 91px wide.
+               */
+              'press flex items-center justify-center rounded-full transition-[scale,background-color] duration-150 hover:scale-[1.35] hover:bg-tint focus-visible:scale-[1.35]',
+              coarse ? 'size-11' : 'size-8',
               myReaction === emoji && 'bg-primary/10',
             )}
             // ⛔ NO transitionDelay HERE, THOUGH A STAGGER WAS TRIED. An inline delay keyed on
@@ -413,7 +456,7 @@ export function BubbleChrome({
             // last glyph, making the bar feel laggy exactly while being used.
           >
             {/* Animates only while pointed at: at most one player runs at a time. */}
-            <LottieEmoji emoji={emoji} play={barOpen && hovered === emoji} size={22} />
+            <LottieEmoji emoji={emoji} play={barOpen && hovered === emoji} size={coarse ? 30 : 22} />
           </button>
         )
       })}
@@ -684,8 +727,23 @@ export function BubbleChrome({
                 </div>
               )}
               {actionList.length > 0 && actionsOpen && (
-                // The divider only means anything when there is a row above it to divide from.
-                <div className={cn('flex items-center gap-0.5', barOpen && 'border-t border-border/60 pt-1.5', align === 'end' ? 'justify-end' : 'justify-start')}>
+                /**
+                 * ⚠️ THE ACTIONS SPAN THE FULL WIDTH OF THE CARD, SPLIT BY HAIRLINES — owner,
+                 * 2026-08-18: "below 3 quick actions seed acros all lenght of bar with line
+                 * between". `w-full` on the row plus `flex-1` on each child (see actionButtons)
+                 * makes three equal columns however wide the emoji row above made the card, so the
+                 * two rows always agree on width instead of the actions huddling at one end.
+                 *
+                 * ⚠️ THE HORIZONTAL RULE ONLY RENDERS WHEN THERE IS A ROW ABOVE IT. `barOpen` and
+                 * `actionsOpen` come apart in ordinary use — tapping an emoji clears `barOpen` and
+                 * leaves the actions up — and a card whose first element is a top border reads as
+                 * a fragment of something taller.
+                 *
+                 * ⚠️ `align` NO LONGER PICKS justify-start/end. With `w-full` there is nothing left
+                 * to justify: the row is exactly as wide as the card. Keeping the old ternary would
+                 * have been a no-op that looked meaningful.
+                 */
+                <div className={cn('flex w-full items-stretch', barOpen && 'border-t border-border/60 pt-1.5')}>
                   {actionButtons}
                 </div>
               )}
