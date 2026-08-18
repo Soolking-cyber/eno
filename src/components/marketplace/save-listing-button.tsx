@@ -29,11 +29,14 @@ export function SaveListingButton({ id, compact = false, className }: { id: stri
 
   if (compact) {
     // Over-media treatment via the shared shell: <IconButton variant="overlay"> IS the
-    // white-ink + baked-drop-shadow language (no circle chip — a hover chip over a photo
-    // looks like a bug), and it pairs 1:1 with ShareButton's compact trigger beside it.
-    // Heart states are the sanctioned overlay pair from the icon-button header comment:
-    // saved = solid fill-brand (§5 user-state, the loudest mark in the system) on white
-    // line; unsaved = translucent-black interior so the outline reads on bright photos.
+    // white-ink-on-a-dark-scrim language, and it pairs 1:1 with ShareButton's compact trigger
+    // beside it.
+    // saved = solid fill on the destructive red (§5 user-state, the loudest mark in the system).
+    // ⛔ UNSAVED IS NO LONGER `fill-black/25`, AND THE REASON IT EXISTED IS GONE. That translucent
+    // black interior was there "so the outline reads on bright photos" — a job the overlay variant's
+    // own dark scrim now does, and does better. Kept, it would paint a near-black heart interior on
+    // a near-black chip: a muddy blob instead of a crisp white outline. Transparent is right once
+    // the control brings its own background (owner, 2026-08-18).
     return (
       <IconButton
         size="md"
@@ -54,7 +57,7 @@ export function SaveListingButton({ id, compact = false, className }: { id: stri
             the loudest state change in the system the quietest moment; that is still the point.
             Only ever on SAVE — an unsave is not a celebration. */}
         <span onAnimationEnd={(e) => { if (e.animationName === 'heart-pop') setBurst(false) }} className={cn('inline-flex', burst && 'animate-heart-pop')}>
-          <Heart className={cn('icon-own-ink h-5 w-5', saved ? 'fill-current text-destructive' : 'fill-black/25')} />
+          <Heart className={cn('icon-own-ink h-5 w-5', saved ? 'fill-current text-destructive' : 'fill-none')} />
         </span>
       </IconButton>
     )

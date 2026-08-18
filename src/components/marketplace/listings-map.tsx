@@ -199,15 +199,28 @@ function MapCredit({ className }: { className?: string }) {
           does". These are pure go-and-look destinations, so they belong in the in-app browser, one
           Done tap from the map. (The single documented exception is evisa.gov.vn, for reasons that
           do not apply here.) A credit the native app cannot follow is decoration. */}
+      {/* ⛔ THE GLYPH'S OWN CIRCLE IS THE CIRCLE — there is no bordered ring around it any more
+          (owner, 2026-08-18: "any icon with circle around either make them big so outline circle
+          matches the button cirlce or find simple version without circle of icon itslef in solar
+          pack"). These read as TWO concentric rings: a 20px `rounded-full border` box with a 10px
+          ⓘ floating inside it, the glyph's own ring a third of the width of the one around it.
+          ⚠️ THE SECOND OPTION IS NOT AVAILABLE AND I CHECKED BEFORE CHOOSING: Solar v2 Outline ships
+          `info-circle` and `info-square` and no bare "i", so there is no circle-free info glyph to
+          swap to. Growing the glyph to fill the box is the other half of the owner's instruction and
+          it costs nothing — the control is the same 20px, the ring is the same ring, there is just
+          one of it now and it is twice the size.
+          ⚠️ THE CREDITS THEMSELVES ARE UNTOUCHABLE — OSM and CARTO attribution is a licence
+          obligation, never translated, never removed. This is the ring around the link, not the
+          link. */}
       <a
-        className="pointer-events-auto flex size-5 items-center justify-center rounded-full border border-ink-4/30 leading-none transition-colors hover:border-ink-4/60 hover:text-body"
+        className="pointer-events-auto flex size-5 items-center justify-center leading-none transition-colors hover:text-body"
         href="https://www.openstreetmap.org/copyright"
         onClick={handleExternalClick}
         target="_blank"
         rel="noreferrer"
         aria-label={OSM_CREDIT}
       >
-        <Info className="size-2.5" />
+        <Info className="size-5" />
       </a>
       {/* ⛔ CARTO GETS ITS OWN CONTROL. The first version of this collapse hid the CARTO link and
           pointed a single ⓘ at OpenStreetMap only — all three reviewers caught that it left CARTO's
@@ -215,14 +228,14 @@ function MapCredit({ className }: { className?: string }) {
           replaced. Two providers, two reachable credits; they are 16px each, so the clutter the
           owner objected to is still gone. */}
       <a
-        className="pointer-events-auto flex size-5 items-center justify-center rounded-full border border-ink-4/30 leading-none transition-colors hover:border-ink-4/60 hover:text-body"
+        className="pointer-events-auto flex size-5 items-center justify-center leading-none transition-colors hover:text-body"
         href="https://carto.com/attributions"
         onClick={handleExternalClick}
         target="_blank"
         rel="noreferrer"
         aria-label={CARTO_CREDIT}
       >
-        <Info className="size-2.5" />
+        <Info className="size-5" />
       </a>
     </p>
   )

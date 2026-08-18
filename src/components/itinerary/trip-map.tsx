@@ -297,15 +297,22 @@ function MapCredit({ className }: { className?: string }) {
           licence obligation that is discharged on one surface and not the other is the worst of
           both, and this pair has already drifted once (both shipped with attributionControl:false
           and no credit at all). The word forms stay in the DOM, hidden, not deleted. */}
+      {/* ⛔ ONE RING, AND IT IS THE GLYPH'S OWN — identical change to the listings map's credit
+          controls, same reason (owner, 2026-08-18). A 20px `rounded-full border` box around a 10px
+          ⓘ renders two concentric circles, the inner one a third the width of the outer. Solar v2
+          Outline has no circle-free info glyph (`info-circle` and `info-square` only, checked), so
+          the fix is the owner's other option: grow the glyph until its ring IS the control's ring.
+          ⚠️ The OSM/CARTO credits themselves are a licence obligation — never translated, never
+          removed. This restyles the ring around the link, never the link. */}
       <a
-        className="pointer-events-auto flex size-5 items-center justify-center rounded-full border border-ink-4/30 leading-none transition-colors hover:border-ink-4/60 hover:text-body"
+        className="pointer-events-auto flex size-5 items-center justify-center leading-none transition-colors hover:text-body"
         href="https://www.openstreetmap.org/copyright"
         onClick={handleExternalClick}
         target="_blank"
         rel="noreferrer"
         aria-label={OSM_CREDIT}
       >
-        <Info className="size-2.5" />
+        <Info className="size-5" />
       </a>
       {/* ⛔ CARTO GETS ITS OWN CONTROL. The first version of this collapse hid the CARTO link and
           pointed a single ⓘ at OpenStreetMap only — all three reviewers caught that it left CARTO's
@@ -313,14 +320,14 @@ function MapCredit({ className }: { className?: string }) {
           replaced. Two providers, two reachable credits; they are 16px each, so the clutter the
           owner objected to is still gone. */}
       <a
-        className="pointer-events-auto flex size-5 items-center justify-center rounded-full border border-ink-4/30 leading-none transition-colors hover:border-ink-4/60 hover:text-body"
+        className="pointer-events-auto flex size-5 items-center justify-center leading-none transition-colors hover:text-body"
         href="https://carto.com/attributions"
         onClick={handleExternalClick}
         target="_blank"
         rel="noreferrer"
         aria-label={CARTO_CREDIT}
       >
-        <Info className="size-2.5" />
+        <Info className="size-5" />
       </a>
     </p>
   )

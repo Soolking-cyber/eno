@@ -14,10 +14,17 @@ import { cn } from '@/lib/utils'
 // Two opt-ins, both ADDITIVE (defaults reproduce the original shell byte-for-byte):
 //
 //   variant="overlay"  — for controls layered OVER MEDIA (favourite heart on a photo, gallery
-//                        close/mute, video-feed rail). White ink + a baked drop-shadow so the
-//                        glyph reads on ANY image, and NO hover fill (a hover chip over a photo
-//                        looks like a bug). Fill-state (a filled heart) stays on the icon child:
-//                        <Heart className={favorited ? 'fill-current text-destructive' : 'fill-black/25'} />.
+//                        close/mute, video-feed rail). White ink on its OWN translucent dark
+//                        scrim, so the glyph is legible against a white photo, a black photo and a
+//                        saturated graphic alike. ⛔ THIS DESCRIPTION CHANGED ON 2026-08-18 — it
+//                        used to say "white ink + a baked drop-shadow … and NO hover fill (a hover
+//                        chip over a photo looks like a bug)". The hover-chip warning still holds
+//                        and is not what this is: an ALWAYS-present chip reads as a control, a chip
+//                        that appears on hover reads as a glitch. The rest was measured wrong — see
+//                        the note on the variant itself for the three treatments that were rendered
+//                        on a live listing before this one was chosen.
+//                        Fill-state stays on the icon child: <Heart className={favorited ?
+//                        'fill-current text-destructive' : 'fill-none'} />.
 //                        (saved is RED app-wide since 2026-08-13; the colour rides on text-*
 //                        because these glyphs paint every path with fill="currentColor".)
 //                        ⚠️ POSITIONING IS THE CALLER'S. The primitive owns no absolute/inset —
@@ -53,7 +60,42 @@ const VARIANTS = {
   // `ghost` MUST stay the empty string — it is the original shell, and every pre-existing
   // call site relies on the class list being exactly the base + size + its own className.
   ghost: '',
-  overlay: 'text-white [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.55))]',
+  /**
+   * OVER MEDIA — white ink on its OWN dark scrim, so the control is legible against anything.
+   *
+   * ⛔ IT USED TO BE INK + A DROP SHADOW, AND THAT FAILS ON REAL CONTENT. Owner, 2026-08-18, on the
+   * PDP: "make them background agnostic dark on light background and light on dark background for
+   * best visibility". Screenshotted on a live listing whose artwork puts a saturated purple badge
+   * exactly under this cluster: a white glyph with a 1px shadow was close to invisible, and the
+   * share icon sat on top of white label text.
+   *
+   * ⚠️ THREE TREATMENTS WERE RENDERED ON THAT REAL PAGE BEFORE CHOOSING, because this is a
+   * question about pixels and no amount of reasoning settles it:
+   *   A  mix-blend-mode: difference — literally what was asked, ink inverts against the backdrop.
+   *      REJECTED on measurement: over the purple it inverted to a muddy yellow that read no
+   *      better, it goes INVISIBLE on mid-grey (|128−255| ≈ 127, i.e. mid-grey on mid-grey), and
+   *      it would invert the saved heart's red to cyan — a state colour, not decoration.
+   *   C  white fill + a dark `paint-order: stroke` outline. Legible, closest to the old look, but
+   *      still competing with busy artwork directly behind the glyph.
+   *   B  this one. Clearest of the three on every background by a wide margin, and the only one
+   *      that leaves coloured state alone.
+   * The owner picked B from the rendered comparison.
+   *
+   * ⚠️ THE SCRIM IS THE BUTTON'S OWN BACKGROUND, NOT A HOVER FILL. The note this replaces warned
+   * that "a hover chip over a photo looks like a bug", and that is still true — a chip that appears
+   * only on hover reads as a glitch. A chip that is ALWAYS there reads as a control. It is also why
+   * `rounded-full` lives here: the scrim needs a shape of its own, and the size classes already
+   * make the box square.
+   *
+   * ⚠️ THE DROP SHADOW STAYS, WEAKER. The scrim itself needs to separate from a same-dark photo, and
+   * a shadow is what does that; it is no longer carrying legibility on its own.
+   *
+   * ⚠️ COLOURED STATE STILL OVERRIDES, exactly as before: <Heart className="fill-current
+   * text-destructive"> on the icon CHILD wins over `text-white` here, so a saved heart is still red
+   * — now on a dark chip, which is where it reads best anyway.
+   */
+  overlay:
+    'rounded-full bg-black/45 text-white backdrop-blur-[2px] [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.35))]',
 } as const
 
 export function IconButton({
