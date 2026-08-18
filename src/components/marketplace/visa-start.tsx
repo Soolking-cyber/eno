@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { hapticConfirm, hapticTap } from '@/lib/haptics'
+import { pushIntent } from '@/lib/datalayer'
 import { formatMoneyFull, formatUsdCents, moneyLocale } from '@/lib/vnd'
 import {
   parseVisaEntryType,
@@ -497,7 +498,15 @@ export function VisaStart({ listingId, label, className }: {
       size="lg"
       className={className}
       disabled={busy}
-      onClick={() => { hapticTap(); act(listingId) }}
+      /**
+       * ⚠️ THE INTENT PUSH COMES BEFORE `act()`, AND THE ORDER IS THE WHOLE POINT. `act()` branches:
+       * a signed-out visitor is sent to sign-in and never reaches POST
+       * /api/visa/applications/start, where the server-side InitiateCheckout lives. Firing here
+       * means the tap is counted for the visitor an ad actually buys — a first-timer who has not
+       * signed in yet. Put it inside the signed-in branch and the campaign would report almost
+       * nothing while working perfectly.
+       */
+      onClick={() => { hapticTap(); pushIntent('apply_evisa_click', { listing_id: listingId }); act(listingId) }}
     >
       {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Stamp className="h-4 w-4" />}
       {label ?? (listingId
