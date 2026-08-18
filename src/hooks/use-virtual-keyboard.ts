@@ -39,12 +39,58 @@ let rafId = 0
 // Detecting "keyboard open" as a DROP FROM THIS BASELINE is robust where the classic
 // `innerHeight - vv.height` fails: some iOS standalone-PWA/webview contexts shrink
 // innerHeight together with the visual viewport, making their difference ~0 even with
-// the keyboard fully up. The URL bar only moves vv.height by ~60-100px, under the 120px
-// threshold, so it never false-positives.
+// the keyboard fully up.
+// ⛔ THIS COMMENT USED TO END "The URL bar only moves vv.height by ~60-100px, under the 120px
+// threshold, so it never false-positives." That was true of THIS baseline test and false of the
+// `innerHeight` one beside it, and the difference is what made the bottom nav vanish while
+// scrolling. See `keyboardOpen` — both tests now sit behind a focus check.
 let maxVvh = 0
+
+/**
+ * ⛔ A KEYBOARD CANNOT BE OPEN WITHOUT AN EDITABLE ELEMENT FOCUSED, AND THAT IS THE ONLY SIGNAL
+ * THE BROWSER'S OWN CHROME CANNOT IMITATE.
+ *
+ * The height test alone false-positived on ordinary SCROLLING, which is what the owner reported as
+ * "bottom navbar sometimes disappears on scroll up and down" (2026-08-18). The mechanism, and the
+ * comment above `maxVvh` asserts the opposite of it: on iOS Safari `window.innerHeight` stays at the
+ * FULL layout height while `visualViewport.height` shrinks by the top AND bottom toolbars when
+ * scrolling UP re-expands them. `innerHeight - vv.height` is then the height of the visible browser
+ * chrome — which crosses 120px on real devices. Scroll up, bars expand, the app decides a keyboard
+ * opened and hides the nav; scroll down, bars collapse, the nav returns. Intermittent by nature,
+ * because it depends on how far the toolbars happen to be extended.
+ *
+ * The `maxVvh` branch was safe (the URL bar really does move that baseline by less than 120px). The
+ * `innerHeight` branch was not, and it exists for a real reason — some iOS PWA/webview contexts
+ * shrink innerHeight in step with the visual viewport, making the baseline test useless. So neither
+ * test can be deleted; they are gated instead.
+ *
+ * ⚠️ FOCUS IS CHECKED FIRST AND SHORT-CIRCUITS. Scrolling never moves focus into a text field, so a
+ * toolbar animation can no longer be mistaken for a keyboard however large the height delta gets.
+ * The failure mode this trades into is the honest one: if a keyboard were ever open with nothing
+ * focused, the nav would stay visible — which is what it does today for every non-typing user.
+ */
+export function hasEditableFocus(): boolean {
+  const el = document.activeElement as HTMLElement | null
+  if (!el) return false
+  const tag = el.tagName
+  // `readOnly` inputs and `disabled` controls raise no keyboard, so they must not count.
+  if (tag === 'TEXTAREA') return !(el as HTMLTextAreaElement).readOnly && !(el as HTMLTextAreaElement).disabled
+  if (tag === 'INPUT') {
+    const input = el as HTMLInputElement
+    // Non-text inputs (checkbox, radio, button, file…) never summon a soft keyboard.
+    const noKeyboard = ['checkbox', 'radio', 'button', 'submit', 'reset', 'file', 'range', 'color', 'image']
+    return !input.readOnly && !input.disabled && !noKeyboard.includes(input.type)
+  }
+  // ⚠️ `=== true`, NOT the bare property. `isContentEditable` is UNDEFINED in environments that do
+  // not implement it (jsdom, and older webviews), and returning it raw makes this function answer
+  // `undefined` — falsy in an `if`, but it would silently poison anything that compares the result
+  // or stores it as a boolean. Caught by the test on the very first run.
+  return el.isContentEditable === true
+}
 
 function keyboardOpen(vv: VisualViewport): boolean {
   if (vv.height > maxVvh) maxVvh = vv.height
+  if (!hasEditableFocus()) return false
   return window.innerHeight - vv.height > 120 || maxVvh - vv.height > 120
 }
 
