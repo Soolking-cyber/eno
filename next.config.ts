@@ -584,6 +584,30 @@ const nextConfig: NextConfig = {
       // 301 rather than nothing, so that indexed URL and any bookmark land on the real storefront
       // instead of a 404. Keep it: removing it later re-breaks an external link we know exists.
       { source: '/eno_vietnam', destination: '/eno_visa', permanent: true },
+      /**
+       * `/travel` → `/vietnam-evisa`, SERVICES EDITION ONLY.
+       *
+       * Owner posted a LinkedIn campaign on 2026-08-18 pointing at `/travel?utm_source=linkedin…
+       * &utm_content=2026-08-18-vietnam-e-visa`, and no such route exists anywhere — it 404s. This
+       * makes the short, memorable path resolve to the page that actually sells the thing.
+       *
+       * ⛔ IT IS GATED ON THE EDITION, AND THAT IS THE ENTIRE POINT. The campaign URL was written
+       * against eno.vn, which is the licensed sàn TMĐT and may not offer, advertise OR LINK TO visa
+       * services. A redirect is a link: adding this unconditionally would make the licensed company
+       * forward visitors to a visa product, from a path a public LinkedIn post advertises, which is
+       * a worse leak than the artwork pruned from that image this morning because it is linked and
+       * indexable rather than merely fetchable. On a marketplace build this array entry does not
+       * exist, so `eno.vn/travel` keeps returning 404 — the correct answer there.
+       *
+       * ⚠️ QUERY STRINGS SURVIVE A next.config REDIRECT AUTOMATICALLY, so every utm_* parameter
+       * reaches /vietnam-evisa and the campaign stays attributable. Verified after deploy.
+       *
+       * ⚠️ `permanent: false` (307). The destination is a marketing decision that may move, and a
+       * 301 is cached by browsers indefinitely — the one kind of redirect you cannot take back.
+       */
+      ...(EDITION_ENV === "services"
+        ? [{ source: '/travel', destination: '/vietnam-evisa', permanent: false }]
+        : []),
     ];
   },
   async rewrites() {
