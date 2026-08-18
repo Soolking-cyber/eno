@@ -101,11 +101,52 @@ export async function GET(request: Request) {
     })
   }
 
+  /**
+   * ⛔ THE PROVIDER'S OWN ERROR WAS ARRIVING HERE AND BEING THROWN AWAY. This route only ever
+   * looked for `code`; when Google/Supabase came back with `?error=…` instead, execution fell
+   * straight through to the generic `/?auth_error=1` bounce below. Measured in production
+   * (Cloud Run logs, 2026-08-17T10:10:09Z):
+   *
+   *   /auth/callback?error=access_denied&error_code=signup_disabled
+   *                 &error_description=Signups+not+allowed+for+this+instance
+   *
+   * The diagnosis was sitting in the query string and the visitor was shown a home page with a
+   * meaningless flag. ⚠️ AND THE UNDERLYING CAUSE IS A PROJECT SETTING, NOT CODE: the live
+   * Supabase project answers `"disable_signup": true` on /auth/v1/settings, so a Google sign-in
+   * by anyone the project does not already know is refused. That is the first-attempt failure —
+   * it cannot be fixed here, only reported honestly.
+   */
+  const oauthError = url.searchParams.get('error')
+  if (oauthError) {
+    const errorCode = url.searchParams.get('error_code') || ''
+    console.error('[auth] oauth callback error', {
+      error: oauthError,
+      code: errorCode,
+      description: url.searchParams.get('error_description'),
+    })
+    // ⚠️ A CODE, NEVER THE PROVIDER'S PROSE. `error_description` is attacker-influenceable text
+    // arriving in a query string; reflecting it into the page would be a content-injection vector
+    // and would also show a visitor a sentence written for a developer. The client maps this to its
+    // own copy.
+    const known = errorCode === 'signup_disabled' ? 'signup_disabled' : 'oauth'
+    return redirect(`${origin}/?auth_error=${known}`)
+  }
+
   if (code) {
     const supabase = await createSupabaseServer()
     const { data, error } = await supabase.auth.exchangeCodeForSession(code)
     // Profile provisioning + the onboarding hop are shared with /auth/confirm.
     if (!error) return finishSignIn(data.user, origin, next)
+    /**
+     * ⚠️ THIS LOG IS THE POINT OF THE WHOLE CHANGE. A `code` that fails to exchange is the OTHER
+     * half of the owner's "first attempt does not log in, the second does" report, and it happens
+     * in production — three code-bearing callbacks on 2026-08-13 and a pair minutes apart on
+     * 2026-08-18 all ended at /?auth_error=1. Until now NOTHING recorded why: the error was
+     * discarded on this line, so there was no way to tell a used code from a missing PKCE verifier
+     * from a clock skew. Diagnosing it needed a log more than it needed a guess.
+     */
+    console.error('[auth] exchangeCodeForSession failed', { message: error.message, status: error.status })
+    return redirect(`${origin}/?auth_error=exchange`)
   }
   return redirect(`${origin}/?auth_error=1`)
 }

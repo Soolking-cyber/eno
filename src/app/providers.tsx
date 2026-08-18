@@ -1,3 +1,5 @@
+import { Suspense } from "react";
+import { AuthErrorToast } from "@/components/marketplace/auth-error-toast";
 import { ThemeProvider } from "@/context/theme-context";
 import { LanguageProvider } from "@/context/language-context";
 import { CurrencyProvider } from "@/context/currency-context";
@@ -116,6 +118,14 @@ export function Providers({ children }: { children: React.ReactNode }) {
                     <ImageShield />
                     <CookieConsent />
                     <InstallHint />
+                    {/* ⚠️ MOUNTED GLOBALLY BECAUSE THE FAILURE LANDS ON THE HOME PAGE, NOT ON
+                        /signin. /auth/callback redirects a failed sign-in to `/?auth_error=…`, so
+                        the only component that could report it is one that renders on every route.
+                        It renders null and reads one search param. ⚠️ It needs useSearchParams, so
+                        it must sit under a Suspense boundary or it opts every route into dynamic
+                        rendering — the boundary is inside the component's own file's consumer here,
+                        see below. */}
+                    <Suspense fallback={null}><AuthErrorToast /></Suspense>
                     </TooltipProvider>
                   </QueryProvider>
                 </FavoritesProvider>

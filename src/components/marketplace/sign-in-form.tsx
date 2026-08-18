@@ -133,7 +133,21 @@ export function SignInForm({ className }: { className?: string }) {
   const { tr, lang } = useLanguage()
   const t = (en: string, vi: string) => tr(en, vi)
 
-  const [tab, setTab] = useState<'email' | 'phone'>('phone')
+  // ⛔ PHONE OTP IS OFF AND SAYS SO (owner, 2026-08-17: "phone otp login say coming soon only show
+  // google and email magic link login options"). Flip this one constant to bring the whole tab
+  // back — every branch below reads it, nothing was deleted.
+  //
+  // ⚠️ THE PROVIDER AGREES, WHICH IS WHY THIS IS A FIX AND NOT A PREFERENCE. The live Supabase
+  // project answers `"phone": false` in /auth/v1/settings (measured 2026-08-18), and the Zalo ZNS
+  // channel is still blocked on the company registry. The tab was the DEFAULT one — a visitor
+  // landed on the only method that could not work, in front of the two that do.
+  //
+  // ⚠️ DISABLED, NOT REMOVED. Deleting the tab would make the form silently re-flow to a single
+  // method and lose the signal that phone sign-in is coming; a disabled tab that reads "soon" is
+  // the honest version, and it keeps the code path warm rather than rotting behind a deleted UI.
+  const PHONE_OTP_ENABLED = false
+
+  const [tab, setTab] = useState<'email' | 'phone'>(PHONE_OTP_ENABLED ? 'phone' : 'email')
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
   const [code, setCode] = useState('')
@@ -944,11 +958,24 @@ export function SignInForm({ className }: { className?: string }) {
             // (`tab === m` IS Base UI's data-active), and a runtime `data-active:`-prefixed
             // template string would never be seen by Tailwind's scanner. One closed region each,
             // never the whole silhouette (§0).
-            <TabsTrigger key={m} value={m} className="flex h-auto cursor-pointer rounded-full border-0 px-0 py-1.5 text-sm font-semibold outline-none transition-colors duration-100 active:scale-[0.97] text-muted-foreground hover:text-muted-foreground dark:text-muted-foreground dark:hover:text-muted-foreground data-active:bg-popover data-active:text-accent-foreground data-active:shadow-sm dark:data-active:bg-popover dark:data-active:text-accent-foreground">
+            <TabsTrigger key={m} value={m}
+              // ⚠️ `disabled`, WHICH THE PRIMITIVE ALREADY STYLES — ui/tabs carries
+              // `disabled:pointer-events-none disabled:opacity-50`, so the tab dims and stops
+              // responding without a single new class. It also keeps the button focusable-skippable
+              // rather than merely looking dead, which a `pointer-events-none` div would not.
+              disabled={m === 'phone' && !PHONE_OTP_ENABLED}
+              className="flex h-auto cursor-pointer rounded-full border-0 px-0 py-1.5 text-sm font-semibold outline-none transition-colors duration-100 active:scale-[0.97] text-muted-foreground hover:text-muted-foreground dark:text-muted-foreground dark:hover:text-muted-foreground data-active:bg-popover data-active:text-accent-foreground data-active:shadow-sm dark:data-active:bg-popover dark:data-active:text-accent-foreground">
               {m === 'email'
                 ? <Mail className={cn('h-4 w-4', tab === m && '[&>path]:fill-brand-100')} />
                 : <Phone className={cn('h-4 w-4', tab === m && '[&>path]:fill-brand-100')} />}
-              {m === 'email' ? tr('Email') : t('Phone', 'Điện thoại')}
+              {m === 'email'
+                ? tr('Email')
+                : PHONE_OTP_ENABLED
+                  ? t('Phone', 'Điện thoại')
+                  // ⚠️ THE WORD RIDES THE TAB ITSELF, not a tooltip or a line underneath. A
+                  // disabled control with no reason on it reads as broken; "soon" is the whole
+                  // explanation and it fits.
+                  : t('Phone · soon', 'Điện thoại · sắp có')}
             </TabsTrigger>
           ))}
         </TabsList>
