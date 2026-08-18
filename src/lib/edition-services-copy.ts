@@ -16,7 +16,11 @@
  * controls BEHAVIOUR, and a future build without the alias must still not render these.
  */
 
-import { CROSS_SITE_REL, MARKETPLACE_HOME, MARKETPLACE_LINKS } from '@/lib/cross-site-links'
+// ⚠️ ONLY MARKETPLACE_HOME NOW. The footer column stopped being cross-site (see
+// SERVICES_FOOTER_GROUPS below), so CROSS_SITE_REL and MARKETPLACE_LINKS are no longer read here.
+// cross-site-links.ts itself is untouched — it still feeds the /about affiliation promo, which is
+// the DISCLOSURE half and may not be removed.
+import { MARKETPLACE_HOME } from '@/lib/cross-site-links'
 import { VIETNAM_EVISA_PATHS } from '@/app/vietnam-evisa/links'
 
 /**
@@ -61,34 +65,51 @@ export const SERVICES_FOOTER_LINKS: Record<'popular' | 'explore' | 'help', Servi
 }
 
 /**
- * WHOLE FOOTER COLUMNS the services edition adds — today exactly one, for eno.vn.
+ * WHOLE FOOTER COLUMNS the services edition adds — today exactly one.
  *
  * ⚠️ A COLUMN, NOT MORE ENTRIES IN `SERVICES_FOOTER_LINKS`. Those append to columns that already
- * exist ("Popular searches", "Community"), and an eno.vn link dropped in among them would be
- * indistinguishable from a same-origin link to this site's own page — the reader would have no way
- * to tell they were about to leave. A titled column says where the links go before they are
- * clicked, which is the minimum a disclosed affiliation needs from a footer.
+ * exist ("Popular searches", "Community"); a titled column groups these five as one idea instead of
+ * scattering them, which is what makes the footer readable rather than a list of twenty links.
  *
- * ⚠️ EVERY LINK CARRIES `rel: CROSS_SITE_REL` — `noopener`, and specifically NOT `nofollow`. The
- * footer is on every page of eno.forum, so this is the highest-volume set of links in the
- * arrangement and the one most likely to be "made safe" by someone adding nofollow in passing. The
- * argument against that lives on the constant in src/lib/cross-site-links.ts; read it before
- * changing this line.
+ * ⛔ THE THREE WARNINGS THAT USED TO SIT HERE — "every link carries rel: CROSS_SITE_REL", "the
+ * hrefs are absolute and MUST STAY ABSOLUTE", "the reader has no way to tell they were about to
+ * leave" — DESCRIBED THE CROSS-SITE VERSION OF THIS COLUMN AND ARE DELETED, NOT SOFTENED. They were
+ * correct until 2026-08-17 and would now be actively misleading: they instruct the next reader to
+ * restore exactly what the owner asked to remove. A stale comment is the more dangerous half of a
+ * change like this, because nobody greps a comment — they trust it.
  *
- * ⚠️ THE HREFS ARE ABSOLUTE, AND MUST STAY ABSOLUTE. Both deployments are one codebase, so a
- * root-relative `/housing-vietnam-expats` resolves on eno.forum too — the link would keep working
- * and silently stop being a cross-site link at all.
+ * ⛔ THE COLUMN IS SAME-ORIGIN NOW (owner, 2026-08-17, pointing at the rendered column: "also
+ * footer change to eno.forum"). It was "On eno.vn": five ABSOLUTE, dofollow anchors from every page
+ * of eno.forum to the marketplace's keyword landing pages. The owner has now twice asked for the
+ * forum's footer to stop naming eno.vn, and this column was the largest remaining source of it.
+ *
+ * ⚠️ THE LINKS SURVIVE, THE DESTINATION CHANGES. Both deployments are one codebase and all five
+ * paths are plain `page.tsx`, so eno.forum serves its own copy of each — the column keeps working
+ * as internal navigation and nothing 404s. The labels lose the domain name; a reader on eno.forum
+ * being told "the eno.forum marketplace" does not need the brand repeated.
+ *
+ * ⚠️ WHAT THIS COSTS, PLAINLY: the cross-site backlinks are gone. src/lib/cross-site-links.ts
+ * explains at length why they were dofollow and why they were worth having — eno.forum ranks for a
+ * query set eno.vn may not touch, and the equity was being passed deliberately. That file is
+ * UNTOUCHED and still feeds the /about affiliation promo, which is the disclosure half and must not
+ * be removed: the two sites are related and saying otherwise would be false. If the SEO arrangement
+ * is wanted back, restore it there — as a titled column that says where the links go — rather than
+ * by re-adding eno.vn wording here.
+ *
+ * ⚠️ NO `rel` ANY MORE. `noopener` is hygiene for a CROSS-ORIGIN anchor; these are same-origin, and
+ * carrying it would imply a boundary that no longer exists.
  */
 export const SERVICES_FOOTER_GROUPS: ServicesFooterGroup[] = [
   {
-    titleEn: 'On eno.vn',
-    titleVi: 'Trên eno.vn',
-    links: [...(MARKETPLACE_HOME ? [MARKETPLACE_HOME] : []), ...MARKETPLACE_LINKS].map((l) => ({
-      labelEn: l.labelEn,
-      labelVi: l.labelVi,
-      href: l.href,
-      rel: CROSS_SITE_REL,
-    })),
+    titleEn: 'On eno.forum',
+    titleVi: 'Trên eno.forum',
+    links: [
+      { labelEn: 'Browse the marketplace', labelVi: 'Xem chợ', href: '/' },
+      { labelEn: 'Housing and apartment rentals in Vietnam', labelVi: 'Thuê nhà và căn hộ tại Việt Nam', href: '/housing-vietnam-expats' },
+      { labelEn: 'Motorbikes for sale and rent', labelVi: 'Mua bán và thuê xe máy', href: '/motorbikes-for-sale-vietnam' },
+      { labelEn: 'Jobs in Vietnam for internationals', labelVi: 'Việc làm tại Việt Nam cho người nước ngoài', href: '/jobs-vietnam-expats' },
+      { labelEn: 'Moving sales and secondhand furniture', labelVi: 'Thanh lý chuyển nhà và nội thất cũ', href: '/moving-sales-vietnam' },
+    ],
   },
 ]
 

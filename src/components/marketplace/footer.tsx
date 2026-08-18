@@ -2,7 +2,10 @@
 
 import { Button } from '@/components/ui/button'
 import { useLanguage } from '@/context/language-context'
-import { FORUM_URL, goToForum } from '@/lib/forum-nav'
+// ⚠️ FORUM_URL IS GONE FROM THIS FILE, goToForum IS NOT. No footer link crosses origin any more,
+// but the `forumPath` machinery below stays: it is the guard that stops a FUTURE cross-origin link
+// silently becoming a hard exit out of the native shell.
+import { goToForum } from '@/lib/forum-nav'
 import { handleExternalClick } from '@/lib/native-browser'
 import { APP_STORE_URL, COMPANY, PLAY_STORE_URL } from '@/lib/site-legal'
 import { NAV_CATEGORIES } from '@/lib/taxonomy-nav'
@@ -152,7 +155,22 @@ export function Footer() {
         // edition-services-copy.stub.ts on a marketplace build. That is why those entries need no
         // gate at all. It was not done here because this label is not visa/itinerary vocabulary and
         // the move would strand the forumPath/goToForum native-SSO machinery below as dead code.
-        ...(IS_SERVICES ? [{ label: tr('Community forum', 'Diễn đàn cộng đồng'), href: `${FORUM_URL}/`, forumPath: '/' }] : []),
+        // ⛔ THIS POINTED AT THE STANDALONE FORUM, WHICH NO LONGER EXISTS AS A DESTINATION (owner,
+        // 2026-08-17, pointing at the rendered anchor: "linkt this to help page"). The community
+        // content became the DB-backed Help Center at /help; the footer was still sending readers
+        // to a forum home. Locally the href even rendered as `https://eno.vn/` — FORUM_URL falls
+        // back to an env value — so the "Community forum" link on eno.forum pointed at the
+        // marketplace's home page.
+        //
+        // ⚠️ SAME-ORIGIN NOW, SO NO `forumPath` AND NO goToForum. That property routes a click
+        // through the single-use SSO handoff so the NATIVE app arrives signed in on another origin;
+        // /help is on this origin, and sending a same-origin link through /auth/bridge would bounce
+        // the reader through an auth round trip to fetch a session they already hold.
+        //
+        // ⚠️ IT NOW DUPLICATES "Help center" IN THE CUSTOMER SERVICE COLUMN — same destination,
+        // different words, two columns apart. Flagged rather than silently deduped: which of the
+        // two rows should survive is a product call, not a cleanup.
+        ...(IS_SERVICES ? [{ label: tr('Community forum', 'Diễn đàn cộng đồng'), href: '/help' }] : []),
         // ⚠️ THIS COMMENT WAS STALE AND IT MISLED TWO REVIEWERS INTO REPORTING A LICENSING BREACH
         // THAT DOES NOT EXIST. It said (2026-07-25) that the itinerary service had moved TO eno.vn
         // and "/itinerary is a real page here" — true when written, REVERSED by the owner on
