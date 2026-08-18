@@ -1,5 +1,6 @@
 import 'server-only'
 import crypto from 'crypto'
+import { IS_SERVICES } from '@/lib/edition'
 
 // Shared config for the product feeds (Google Merchant Center + Meta/Facebook catalog).
 // Both platforms accept PHYSICAL PRODUCTS only — rentals, jobs, services, events,
@@ -9,6 +10,50 @@ export const FEED_CATEGORIES = [
   'electronics', 'fashion-beauty', 'vehicles', 'furniture-appliances',
   'baby-kids', 'hobbies-sports', 'pets', 'food-drink', 'moving-sale',
 ]
+
+/**
+ * THE CATEGORIES THIS DEPLOYMENT MAY PUT IN AN AD CATALOGUE.
+ *
+ * ⛔ `services` IS ADDED ON eno.forum AND NEVER ON eno.vn, AND THAT ASYMMETRY IS THE WHOLE REASON
+ * THIS FUNCTION EXISTS RATHER THAN A SECOND CONSTANT. The route comments call the omission of
+ * 'services' a licensing guarantee for the licensed sàn TMĐT — "re-categorise ONE product and eno's
+ * e-Visa service enters the licensed company's live Merchant Center / Meta ad catalog" — and that
+ * stays exactly true. eno.forum is the deployment that MAY sell visa and trip services, and the
+ * owner asked for its catalogue (2026-08-18: "we need eno forum catalogue too"), so the same feed
+ * has to answer differently there.
+ *
+ * ⚠️ `IS_SERVICES` IS A BUILD-TIME CONSTANT, so the marketplace artifact folds this to the bare
+ * FEED_CATEGORIES list. The guarantee is not a runtime branch someone can flip with an env var.
+ *
+ * ⚠️ WHAT THIS DOES NOT CHANGE: `scopedListingWhere` still runs on both editions, `verified: true`
+ * and `status: 'active'` still apply, and the marketplace still excludes the desk's seller. Adding
+ * a category widens what eno.forum MAY advertise; it removes none of the other filters.
+ *
+ * ⚠️ AND META/GOOGLE TREAT SERVICES DIFFERENTLY FROM GOODS. The header above is right that both
+ * platforms are built for physical products — a service catalogue is accepted but is the platform's
+ * looser path, so expect more manual review on eno.forum's items than on ordinary retail.
+ */
+export function feedCategories(): string[] {
+  return IS_SERVICES ? [...FEED_CATEGORIES, 'services'] : FEED_CATEGORIES
+}
+
+/**
+ * The `listingType` values this deployment may put in an ad catalogue.
+ *
+ * ⛔ THERE ARE TWO INDEPENDENT GUARDS, NOT ONE, AND MISSING THIS SECOND ONE IS WHY THE FORUM FEED
+ * STAYED EMPTY AFTER `services` WAS ADDED ABOVE. The route comment states both plainly —
+ * "FEED_CATEGORIES omits 'services' AND the desk's rows are listingType 'service'" — and they are
+ * belt and braces: either alone keeps visa products out of eno.vn's catalogue. Widening one and
+ * declaring victory produced a feed that still returned a bare header, which is exactly the kind of
+ * "shipped and silently does nothing" result a 200 response hides.
+ *
+ * ⚠️ eno.vn KEEPS `['sell']` AND ONLY THAT. A service is not a product on either platform, and on
+ * the licensed sàn TMĐT it is also the thing that may not be advertised at all. Both reasons point
+ * the same way, so this list must never grow on the marketplace side.
+ */
+export function feedListingTypes(): string[] {
+  return IS_SERVICES ? ['sell', 'service'] : ['sell']
+}
 
 // Our top-level categories → Google product taxonomy IDs (broad + safe; the platform
 // refines from title/description). Meta's catalog also accepts the Google taxonomy id

@@ -2,7 +2,7 @@ import { scopedListingWhere } from '@/lib/edition-scope'
 import { db } from '@/lib/db'
 import { LISTING_FEED_SELECT, serializeFeedListing } from '@/lib/serialize'
 import { NextResponse } from 'next/server'
-import { FEED_CATEGORIES, GOOGLE_PRODUCT_CATEGORY, isMockImages, feedAuthError, feedCacheHeaders } from '@/lib/product-feed'
+import { feedCategories, feedListingTypes, GOOGLE_PRODUCT_CATEGORY, isMockImages, feedAuthError, feedCacheHeaders } from '@/lib/product-feed'
 
 // Helper to escape XML special characters
 function escapeXml(unsafe: string): string {
@@ -51,8 +51,8 @@ export async function GET(req: Request) {
       where: await scopedListingWhere({
         verified: true,
         status: 'active',
-        listingType: 'sell',
-        category: { slug: { in: FEED_CATEGORIES } },
+        listingType: { in: feedListingTypes() },
+        category: { slug: { in: feedCategories() } },
       }),
       /**
        * ⚠️ `select`, NOT `include`, AND AN EXPLICIT `take`. This was

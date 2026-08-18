@@ -616,6 +616,26 @@ const nextConfig: NextConfig = {
         source: "/.well-known/apple-app-site-association",
         destination: "/api/well-known/aasa",
       },
+      /**
+       * ⛔ META AND GOOGLE JUDGE A FEED URL BY ITS FILE EXTENSION, NOT BY WHAT IT SERVES.
+       * Commerce Manager rejects `https://eno.vn/api/feeds/facebook-catalog` with "URL does not
+       * link to supported file… links to a CSV, TSV or XML (RSS/ATOM) file" even though that URL
+       * already answers 200 with `content-type: text/csv` AND
+       * `content-disposition: attachment; filename=facebook_catalog.csv`. Verified against
+       * production before adding these — the headers were never the problem, the path suffix was.
+       *
+       * ⚠️ REWRITES, NOT REDIRECTS. A scheduled fetcher following a 30x can drop the Basic-auth
+       * header on the hop, which turns a working feed into a silent 401 that only shows up as an
+       * empty catalogue days later. A rewrite is served in place, so the credentials the platform
+       * sends are the credentials the route checks.
+       *
+       * ⚠️ EDITION-NEUTRAL ON PURPOSE. Both deployments expose both paths, and each serves its OWN
+       * scoped feed — eno.vn's stays retail-only, eno.forum's includes its services (see
+       * feedCategories/feedListingTypes in src/lib/product-feed.ts). The safety lives in the query,
+       * not in which URL exists, so there is nothing to gate here.
+       */
+      { source: "/feeds/facebook-catalog.csv", destination: "/api/feeds/facebook-catalog" },
+      { source: "/feeds/google-shopping.xml", destination: "/api/feeds/google-shopping" },
     ];
   },
   // Baseline security headers on every response. CSP is ENFORCING and was TIGHTENED
