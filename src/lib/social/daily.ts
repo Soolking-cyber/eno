@@ -1,6 +1,7 @@
 import 'server-only'
 import { db } from '@/lib/db'
 import { scopedListingWhere } from '@/lib/edition-scope'
+import { logError } from '@/lib/log'
 import { CHANNELS, type ChannelResult } from './channels'
 import type { PostInput } from './caption'
 
@@ -186,7 +187,12 @@ export async function runDailySocial(): Promise<DailyReport[]> {
       out.push({ channel, listingId: listing.id, result })
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e)
-      if (listing) await markFailed(listing.id, channel).catch(() => {})
+      // ⚠️ NOT `.catch(() => {})` — the repo's lint rule forbids it and is right to. This runs at
+      // 04:00 with nobody watching: if marking the row failed too, the listing stays claimed as
+      // 'posted' and is never retried NOR reported, so the channel quietly skips it forever. The
+      // catch still must not rethrow (the outer handler owns the per-channel report), but the
+      // failure has to leave a trace.
+      if (listing) await markFailed(listing.id, channel).catch((err) => logError(err, { op: 'social.markFailed' }))
       console.error(`[social:${channel}]`, message)
       out.push({ channel, listingId: listing?.id ?? null, result: null, error: message.slice(0, 200) })
     }
