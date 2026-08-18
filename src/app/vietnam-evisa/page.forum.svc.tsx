@@ -26,12 +26,36 @@ export const revalidate = 86400
 const CONTENT: SeoContent = {
   eyebrow: 'e-Visa · Vietnam',
   h1: 'Vietnam e-Visa: prices, processing times and how to apply',
-  // ⚠️ "on eno.vn" WAS HERE, ON THE PAGE THAT SELLS THE SERVICE. eno.vn is the licensed sàn TMĐT
-  // that may not offer e-visa services at all, so the sentence named the one company that legally
-  // cannot be selling this — in the intro, above the price cards. It is a `.svc.` file, so nothing
-  // eno.vn serves ever contained it; the damage was on eno.forum, telling every reader and every
-  // crawler the wrong operator. SITE_NAME is the fix everywhere this pattern appears.
-  intro: `A Vietnam e-visa is a 90-day visa issued electronically by the Immigration Department — no embassy visit, no stamp collected on arrival. What varies between providers is how fast the paperwork gets handled and what they charge for the handling. On ${SITE_NAME} each combination is a listing with its own price: single or multiple entry, at seven processing speeds from standard to one hour. The services listed here are provided by a licensed Vietnamese travel company, not by ${SITE_NAME} — compare them below before you talk to anyone.`,
+  // ⚠️ OWNER-AUTHORED COPY, PASTED VERBATIM (2026-08-17). It replaces a definition-first paragraph
+  // about what an e-visa IS with a welcome that leads on the offer. Do not "tidy" it: the em
+  // dashes, the curly apostrophe in "we're", the wave emoji and the tick lines are the author's.
+  //
+  // ⚠️ IT CARRIES MARKDOWN, WHICH THIS FIELD DID NOT USED TO. The intro renders through RichBlock
+  // now (seo-landing.tsx) — **bold** becomes <strong>, the ✓ lines become a list. Through the bare
+  // <p> that was here before, the asterisks would have shown literally and the four tick lines
+  // would have MERGED into one run-on sentence.
+  //
+  // ⛔ WHAT LEFT WITH THE OLD PARAGRAPH, SO NOBODY REDISCOVERS IT LATER: the provider-of-record
+  // disclosure ("provided by a licensed Vietnamese travel company, not by eno.forum") used to sit
+  // in this intro, ABOVE the price cards. It is still on the page — `sections` carries
+  // PROVIDER_OF_RECORD.en under "Who provides these services" — but it is now BELOW the cards, and
+  // the comment on that section says plainly why above was chosen: the reader should see who is
+  // selling before they open a listing. If it should also lead, add it as a line under this intro
+  // rather than rewording it here; the constant is the single source.
+  intro: `Welcome to Eno 👋
+
+Your trusted starting point for Vietnam.
+
+We make essential services simpler for internationals — from **Vietnam e-Visas** with flexible processing options to **free trip planning and booking support**.
+
+✓ Clear options & upfront pricing
+✓ Standard and express e-Visa processing
+✓ Friendly support when you need help
+✓ Built for foreigners navigating Vietnam
+
+Not sure which option is right for you? **Message us before ordering — we’re happy to help.**
+
+**Eno — e-commerce with no drama.**`,
   categorySlug: VISA_CATEGORY_SLUG,
   subcategorySlug: VISA_SUBCATEGORY_SLUG,
   cta: 'See all e-visa options',
@@ -48,9 +72,43 @@ const CONTENT: SeoContent = {
       title: 'How applying works here',
       body: 'Open the listing for the option you want and message the desk. The government form is filled in step by step in that chat — passport details, photo, entry date and port — and your passport scan is checked for readability and data mismatches before anything is submitted, which is where most refusals come from. The desk confirms the price and how to pay before submitting; nothing is charged at the moment you start, and no card details are taken in the chat.',
     },
+    // ⚠️ THIS SECTION NOW CARRIES BOTH HALVES, AND THE SPLIT IS THE POINT (owner, 2026-08-17: "we
+    // fully refund if visa is not accepted change visa info almost guaranteed that our agents will
+    // process visa on time"). The two claims are about DIFFERENT things and only one of them is
+    // ours to make:
+    //   · PROCESSING ON TIME is the agent's own work — a near-guarantee here is a promise about
+    //     something they actually control, and "almost" is doing real work in that sentence.
+    //   · APPROVAL is the Immigration Department's decision. Nothing may promise it, and the
+    //     original wording of this section is kept verbatim for that reason.
+    // The refund is what bridges them: it is how the outcome we cannot promise is made safe.
     {
-      title: 'What an agent cannot do',
-      body: 'No provider can guarantee approval, override the Immigration Department, or issue a visa faster than the department will process it. What faster tiers buy is priority handling of your paperwork, not a different decision. Anyone promising a guaranteed approval is describing something they do not control.',
+      title: 'What is guaranteed, and what is not',
+      // ⚠️ "PREPARED AND SUBMITTED WITHIN THE HANDLING TIME", NOT "PROCESSED ON TIME" — reviewer
+      // fix. Beside price cards that sell "1 hour" and "2 hours", "we process your application on
+      // time" reads as a promise that the VISA arrives in that time, which is the department's
+      // half and cannot be promised. What the agents control is their own turnaround, and saying
+      // exactly that keeps the near-guarantee honest instead of quietly annexing the decision.
+      body: 'Your application is prepared and submitted within the handling time you paid for — that part is our agents’ own work, so a delay there is on them, not on you, and it is as close to a guarantee as this gets. The decision is a different thing: no provider can guarantee approval, override the Immigration Department, or make it decide faster than it does. What faster tiers buy is priority handling of your paperwork, not a different answer, and anyone promising a guaranteed approval is describing something they do not control. If the department refuses you, your money comes back in full — see below.',
+    },
+    // ⚠️ A REFUND PROMISE IS A COMMERCIAL COMMITMENT, NOT MARKETING COPY, AND IT IS PUBLISHED HERE
+    // AND IN THE FAQ IN THE SAME WORDS ON PURPOSE. Two versions of a money promise on one page is
+    // how a dispute starts. ⚠️ Note what it costs: the government fee is genuinely NOT refundable
+    // by the Immigration Department, so "in full" means eno absorbs that fee itself on a refusal —
+    // that is the owner's decision (2026-08-17), and the copy states it plainly rather than
+    // implying the department gives it back.
+    {
+      title: 'Refused? You get a full refund',
+      // ⚠️ "REFUSED", NOT "NOT ACCEPTED", AND THAT IS A REVIEWER FIX. "Not accepted" is broad enough
+      // to be read as covering a withdrawn application, one rejected at intake for missing
+      // documents, or merely a late one — a money promise should not have a vaguer trigger than it
+      // needs. A refusal by the Immigration Department is a specific, checkable event.
+      //
+      // ⚠️ AND IT NAMES WHO OWES IT. eno.forum is the intermediary and a licensed Vietnamese travel
+      // company is the provider of record, so "we refund you" in the same breath as "our agents"
+      // left a reader unable to tell who is on the hook — a reviewer called that out and was right.
+      // This is an eno guarantee sitting ON TOP of the provider's service, which is exactly the kind
+      // of promise a platform can make without becoming the provider.
+      body: 'If the Immigration Department refuses your application, eno refunds everything you paid — including the government fee, which the department does not return to anyone. This is a guarantee from eno as the platform, on top of the service the provider performs, so you do not have to take it up with them: message the desk in the same chat you applied in and it is handled there.',
     },
     // ⚠️ THE DISCLOSURE IS A SECTION, NOT A FOOTNOTE, AND IT COMES FROM src/lib/visa-provider.ts.
     // This is the page that sells the service, so the reader has to be able to see who is selling it
@@ -83,7 +141,16 @@ const CONTENT: SeoContent = {
     },
     {
       q: 'Can I get a refund if I am refused?',
-      a: 'The government fee is not refundable if an application is refused — that is the Immigration Department’s rule, not the agent’s. Ask the desk what happens to the handling fee before you submit.',
+      // ⚠️ THIS ANSWER USED TO SAY THE OPPOSITE — "the government fee is not refundable … ask the
+      // desk what happens to the handling fee". That was accurate about the DEPARTMENT and is now
+      // superseded by an eno policy that covers the difference (owner, 2026-08-17). Kept in the
+      // same words as the section above; a refund promise that is worded twice will eventually be
+      // worded differently.
+      a: 'Yes — in full. If the Immigration Department does not accept your application we refund everything you paid, including the government fee, which the department itself does not return. Message the desk in the chat you applied in.',
+    },
+    {
+      q: 'Will my visa be handled on time?',
+      a: 'Almost always, yes — the handling time is our agents’ own work and they prepare and submit to the tier you paid for, including the express intake cutoffs. What nobody can promise is when the Immigration Department decides, or that it decides in your favour, which is why a refusal is refunded in full.',
     },
   ],
 }

@@ -1,5 +1,6 @@
 import { scopedListingWhere } from '@/lib/edition-scope'
 import { SITE_NAME } from '@/lib/edition'
+import { RichBlock } from '@/components/marketplace/rich-text'
 import type { ReactNode } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
@@ -154,7 +155,15 @@ export async function SeoLanding({ content, after }: { content: SeoContent; afte
         {/* Hero */}
         <p className="eyebrow text-accent-foreground mb-2">{content.eyebrow}</p>
         <h1 className="h-display text-foreground">{content.h1}</h1>
-        <p className="mt-4 max-w-prose text-base leading-relaxed text-body">{content.intro}</p>
+        {/* ⚠️ RichBlock, NOT A BARE <p>. An intro is authored prose and some of these now carry the
+            same light markdown a listing description does — **bold**, blank-line paragraphs, ✓
+            lines. Through a <p> that renders as literal asterisks AND, worse, silently joins the
+            tick lines into one run-on sentence, because HTML collapses newlines. RichBlock is the
+            server half of the formatter (src/components/marketplace/rich-text.tsx): no translation,
+            no client JavaScript, so these ISR pages are byte-identical except for the markup that
+            was always intended. Plain prose is unaffected — a paragraph with no markers formats to
+            exactly one <p>. */}
+        <RichBlock text={content.intro} className="mt-4 max-w-prose space-y-4 text-base leading-relaxed text-body" />
         {/* gap/weight on the BUTTON — see header.tsx: asChild concatenates the child's
             className instead of twMerging it, so overrides there are settled by
             stylesheet order rather than by intent. */}

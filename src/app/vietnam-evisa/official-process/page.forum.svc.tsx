@@ -187,8 +187,21 @@ const CONTENT: ArticleContent = {
         <>
           <P>
             Guarantee an approval. Appeal a refusal — there is no appeal process for an e-visa.
-            Recover the government fee after a refusal. Change what your immigration history says.
+            Get the government fee back out of the state. Change what your immigration history says.
             Issue a visa, or influence the officer deciding one.
+          </P>
+          {/* ⚠️ "RECOVER THE GOVERNMENT FEE" WAS AMBIGUOUS AND HAD BECOME MISLEADING. It is still
+              true that no service can get that money back FROM THE STATE — but eno now refunds a
+              refused applicant in full and absorbs the fee itself (owner, 2026-08-17), so a reader
+              on this page would have concluded the opposite of what /vietnam-evisa promises them.
+              The list keeps the true claim, narrowed to what it always meant, and the distinction
+              is spelled out rather than left for the reader to reconcile. */}
+          <P>
+            A seller refunding you out of its own pocket is a different thing, and worth telling
+            apart: the fee is gone from the state either way, and what varies is whether the seller
+            covers it for you. It is a policy, so ask for it in writing before you pay — on{' '}
+            <HereLink href="/vietnam-evisa">the e-visa page here</HereLink> a refusal is refunded in
+            full, that fee included.
           </P>
           <P>
             A refusal notice is normally issued without reasons, and the department is not obliged to
@@ -286,7 +299,7 @@ const CONTENT: ArticleContent = {
     },
     {
       q: 'How much does the Vietnam e-visa cost officially?',
-      a: 'At the time of writing the government fee is US$25 for single entry and US$50 for multiple entry, paid to the state and not refunded if the application is refused. The portal publishes the current figure. Anything charged above it is a service fee.',
+      a: 'At the time of writing the government fee is US$25 for single entry and US$50 for multiple entry, paid to the state and not returned by the department if the application is refused. The portal publishes the current figure. Anything charged above it is a service fee — and whether a seller refunds you the government fee out of its own pocket after a refusal is that seller’s policy; applying here, it is refunded in full.',
     },
     {
       q: 'Can I apply for a Vietnam e-visa myself?',
@@ -294,7 +307,7 @@ const CONTENT: ArticleContent = {
     },
     {
       q: 'Can an agent guarantee my visa will be approved?',
-      a: 'No. The decision belongs to the Immigration Department, there is no appeal for an e-visa, and no service can influence the outcome or recover the government fee after a refusal. A guarantee of approval is a promise about something the seller does not control.',
+      a: 'No. The decision belongs to the Immigration Department, there is no appeal for an e-visa, and no service can influence the outcome or get the government fee back out of the state. A guarantee of approval is a promise about something the seller does not control — what a seller can promise is its own money back, and applying here a refusal is refunded in full.',
     },
     {
       q: 'How long does the e-visa take?',

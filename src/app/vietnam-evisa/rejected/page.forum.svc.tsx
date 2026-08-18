@@ -51,7 +51,13 @@ const CONTENT: SeoContent = {
     },
     {
       title: 'What a second application costs',
-      body: 'The government fee for a refused application is not returned; a fresh application means a fresh fee. That makes the second attempt the expensive one to get wrong, and it is the reason to have the passport page and the entered details checked before submitting rather than after.',
+      // ⚠️ BOTH FACTS, IN THIS ORDER, BECAUSE ONLY ONE OF THEM IS OURS. The department does not
+      // return the fee — that is unchanged and stays first, because it is what governs a refusal
+      // handled anywhere else. What is new (owner, 2026-08-17) is that eno refunds the applicant in
+      // full anyway and absorbs that fee. Without the second sentence this page tells a reader they
+      // have lost their money while /vietnam-evisa promises them a refund; a cluster that
+      // contradicts itself about money is worse than either version alone.
+      body: 'The government fee for a refused application is not returned by the department, and a fresh application means a fresh fee. Applying through eno, you get your money back in full if you are refused — including that fee, which we absorb. The checks still matter for a different reason: a refund gives you your money back, not your travel date.',
     },
     {
       title: `How ${SITE_NAME} tries to catch this before submission`,
@@ -69,7 +75,7 @@ const CONTENT: SeoContent = {
     },
     {
       q: 'Do I get the fee back if I am refused?',
-      a: 'The government fee is not refundable. Ask the provider what happens to their handling fee before you submit — that part is their policy, not the department’s.',
+      a: 'Applying through eno, yes — in full, including the government fee. The department does not return that fee to anyone; we cover it. Message the desk in the chat you applied in.',
     },
     {
       q: 'Will the department tell me why I was refused?',

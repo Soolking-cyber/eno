@@ -47,7 +47,11 @@ const CONTENT: SeoContent = {
     },
     {
       title: 'What speed does not buy',
-      body: 'A faster tier is priority handling of your paperwork. It is not a different decision, and no provider can guarantee an approval or process faster than the department itself will. If a mistake in the application causes a refusal, the express fee has bought you a faster refusal — which is the real argument for having the passport page checked before submission rather than after.',
+      // ⚠️ "THE EXPRESS FEE HAS BOUGHT YOU A FASTER REFUSAL" WAS THE LINE THAT HAD TO CHANGE — it
+      // told an express buyer the money was gone, which stopped being true on 2026-08-17 when the
+      // owner made a refusal refundable in full. The argument for checking documents first SURVIVES
+      // the refund and is the more honest one anyway: what a refund cannot give back is the flight.
+      body: 'A faster tier is priority handling of your paperwork. It is not a different decision, and no provider can guarantee an approval or process faster than the department itself will. If a mistake in the application causes a refusal you get your money back in full — but not your travel date, which is the real argument for having the passport page checked before submission rather than after.',
     },
   ],
   related: [
