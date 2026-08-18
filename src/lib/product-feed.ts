@@ -95,6 +95,34 @@ export function feedAuthError(req: Request): Response | null {
   const pass = process.env.FEED_PASSWORD
   if (!user || !pass) return null // not configured → open (back-compat)
 
+  /**
+   * ⛔ A `?key=` TOKEN IS ACCEPTED AS WELL AS BASIC AUTH, BECAUSE META'S VALIDATOR NEVER SENDS THE
+   * CREDENTIALS YOU TYPE INTO IT. Measured in Cloud Run's logs while the owner was on the "Add
+   * products" screen with the username and password filled in:
+   *
+   *   13:26:24  401  facebookexternalhit/1.1  /feeds/facebook-catalog.csv
+   *   13:25:16  401  facebookexternalhit/1.1  /feeds/facebook-catalog.csv   (×4)
+   *
+   * Commerce Manager pre-flights the URL ANONYMOUSLY, gets the 401, and reports it as "URL does not
+   * link to supported file" — which reads like a format problem and is an auth problem. The Basic
+   * credentials are only used later, by the scheduled fetch. So a URL that needs a header can never
+   * pass that form, however correct the file is.
+   *
+   * ⚠️ THE TOKEN IS THE SAME SECRET AS FEED_PASSWORD, deliberately: one value to rotate, and it is
+   * already the thing that guards this feed. Compared in constant time like the header path.
+   *
+   * ⚠️ AND A TOKEN IN A URL IS WEAKER THAN A HEADER — it lands in browser history, referrers and
+   * access logs. That is an accepted trade here and NOT a pattern to copy elsewhere: this feed
+   * exposes only product data that is already public on the site, and the alternative is no
+   * catalogue at all. It must never be used for anything carrying PII.
+   */
+  const key = new URL(req.url).searchParams.get('key')
+  if (key) {
+    const a = Buffer.from(key)
+    const b = Buffer.from(pass)
+    if (a.length === b.length && crypto.timingSafeEqual(a, b)) return null
+  }
+
   const hdr = req.headers.get('authorization') || ''
   // Only valid base64 credentials (RFC 7617) — no trailing junk. Buffer.from(base64)
   // never throws, so no try/catch is needed; the length + constant-time compare decide.
