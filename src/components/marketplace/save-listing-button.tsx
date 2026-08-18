@@ -29,14 +29,15 @@ export function SaveListingButton({ id, compact = false, className }: { id: stri
 
   if (compact) {
     // Over-media treatment via the shared shell: <IconButton variant="overlay"> IS the
-    // white-ink-on-a-dark-scrim language, and it pairs 1:1 with ShareButton's compact trigger
-    // beside it.
+    // outlined-white-ink language (no chip — owner, 2026-08-18), and it pairs 1:1 with
+    // ShareButton's compact trigger beside it.
     // saved = solid fill on the destructive red (§5 user-state, the loudest mark in the system).
-    // ⛔ UNSAVED IS NO LONGER `fill-black/25`, AND THE REASON IT EXISTED IS GONE. That translucent
-    // black interior was there "so the outline reads on bright photos" — a job the overlay variant's
-    // own dark scrim now does, and does better. Kept, it would paint a near-black heart interior on
-    // a near-black chip: a muddy blob instead of a crisp white outline. Transparent is right once
-    // the control brings its own background (owner, 2026-08-18).
+    // ⛔ UNSAVED IS `fill-none`, NOT THE OLD `fill-black/25`. That translucent black interior existed
+    // "so the outline reads on bright photos" — a job the overlay variant's own dark STROKE now does
+    // on the glyph itself, and does better. ⚠️ The reason survived a same-day design reversal: it was
+    // first removed because the dark chip made it a muddy blob, and the chip is gone now — but a
+    // filled interior would still fight the outline, which is the thing carrying legibility. Empty
+    // is right in both designs, for two different reasons.
     return (
       <IconButton
         size="md"

@@ -14,15 +14,16 @@ import { cn } from '@/lib/utils'
 // Two opt-ins, both ADDITIVE (defaults reproduce the original shell byte-for-byte):
 //
 //   variant="overlay"  — for controls layered OVER MEDIA (favourite heart on a photo, gallery
-//                        close/mute, video-feed rail). White ink on its OWN translucent dark
-//                        scrim, so the glyph is legible against a white photo, a black photo and a
-//                        saturated graphic alike. ⛔ THIS DESCRIPTION CHANGED ON 2026-08-18 — it
-//                        used to say "white ink + a baked drop-shadow … and NO hover fill (a hover
-//                        chip over a photo looks like a bug)". The hover-chip warning still holds
-//                        and is not what this is: an ALWAYS-present chip reads as a control, a chip
-//                        that appears on hover reads as a glitch. The rest was measured wrong — see
-//                        the note on the variant itself for the three treatments that were rendered
-//                        on a live listing before this one was chosen.
+//                        close/mute, video-feed rail). White ink with a dark OUTLINE on the glyph
+//                        itself, so it reads as a dark icon on a light photo and a white icon on a
+//                        dark one, with NO chip of any kind.
+//                        ⛔ THIS DESCRIPTION HAS CHANGED TWICE ON 2026-08-18. It said "white ink +
+//                        a baked drop-shadow", then "white ink on its own translucent dark scrim"
+//                        — the chip shipped in the morning and the owner reversed it the same day
+//                        ("no circles"). The surviving rule from all three versions is that a
+//                        HOVER chip reads as a glitch; that is not an argument for a permanent one.
+//                        See the note on the variant for the backgrounds each option was rendered
+//                        against before this one was chosen.
 //                        Fill-state stays on the icon child: <Heart className={favorited ?
 //                        'fill-current text-destructive' : 'fill-none'} />.
 //                        (saved is RED app-wide since 2026-08-13; the colour rides on text-*
@@ -61,41 +62,39 @@ const VARIANTS = {
   // call site relies on the class list being exactly the base + size + its own className.
   ghost: '',
   /**
-   * OVER MEDIA — white ink on its OWN dark scrim, so the control is legible against anything.
+   * OVER MEDIA — white ink with a dark OUTLINE, and no chip of any kind.
    *
-   * ⛔ IT USED TO BE INK + A DROP SHADOW, AND THAT FAILS ON REAL CONTENT. Owner, 2026-08-18, on the
-   * PDP: "make them background agnostic dark on light background and light on dark background for
-   * best visibility". Screenshotted on a live listing whose artwork puts a saturated purple badge
-   * exactly under this cluster: a white glyph with a 1px shadow was close to invisible, and the
-   * share icon sat on top of white label text.
+   * ⛔ THE DARK CIRCLE SHIPPED THIS MORNING AND THE OWNER REVERSED IT THE SAME DAY: "remove the
+   * circles around icons on product pages and cards make the icons bolder at least or background
+   * color agnostic no circles". The chip WAS the most legible option and it was chosen from a
+   * rendered comparison — but legibility was never the only requirement, and two solid discs on
+   * every card is a heavier mark than this UI wants. Do not restore it as a fix for contrast.
    *
-   * ⚠️ THREE TREATMENTS WERE RENDERED ON THAT REAL PAGE BEFORE CHOOSING, because this is a
-   * question about pixels and no amount of reasoning settles it:
-   *   A  mix-blend-mode: difference — literally what was asked, ink inverts against the backdrop.
-   *      REJECTED on measurement: over the purple it inverted to a muddy yellow that read no
-   *      better, it goes INVISIBLE on mid-grey (|128−255| ≈ 127, i.e. mid-grey on mid-grey), and
-   *      it would invert the saved heart's red to cyan — a state colour, not decoration.
-   *   C  white fill + a dark `paint-order: stroke` outline. Legible, closest to the old look, but
-   *      still competing with busy artwork directly behind the glyph.
-   *   B  this one. Clearest of the three on every background by a wide margin, and the only one
-   *      that leaves coloured state alone.
-   * The owner picked B from the rendered comparison.
+   * ⚠️ AN OUTLINED GLYPH IS THE ONLY TREATMENT THAT ACTUALLY DELIVERS THE ORIGINAL BRIEF — "dark on
+   * light background and light on dark background". Rendered on the real PDP against three
+   * backgrounds before choosing:
+   *   · white  → the dark stroke carries it; it reads as a dark icon.   ✓
+   *   · black  → the white fill carries it; it reads as a white icon.   ✓
+   *   · mid blue → both halves visible, which is exactly where
+   *     `mix-blend-mode: difference` collapses to invisibility.          ✓
+   * A drop-shadow halo was tested in the same pass and rejected: on pure white it washes out to a
+   * grey smudge, because a white glyph on white has nothing but the halo doing the work.
    *
-   * ⚠️ THE SCRIM IS THE BUTTON'S OWN BACKGROUND, NOT A HOVER FILL. The note this replaces warned
-   * that "a hover chip over a photo looks like a bug", and that is still true — a chip that appears
-   * only on hover reads as a glitch. A chip that is ALWAYS there reads as a control. It is also why
-   * `rounded-full` lives here: the scrim needs a shape of its own, and the size classes already
-   * make the box square.
+   * ⚠️ `paint-order: stroke fill` IS THE LOAD-BEARING PROPERTY. Without it the stroke is painted
+   * OVER the fill and eats the glyph from the inside — a 2px stroke on a 1.5px line leaves a black
+   * blob. Painting the stroke first and the fill on top makes it an outline around the mark, which
+   * is also what makes the glyph read as BOLDER, the other half of what the owner asked for.
    *
-   * ⚠️ THE DROP SHADOW STAYS, WEAKER. The scrim itself needs to separate from a same-dark photo, and
-   * a shadow is what does that; it is no longer carrying legibility on its own.
+   * ⚠️ IT IS APPLIED TO THE `svg` CHILD, NOT THE BUTTON, because these glyphs are `<use>` references
+   * into an external sprite: stroke on the button inherits nowhere useful, and a `filter` on the
+   * button would blur the whole box rather than trace the path.
    *
-   * ⚠️ COLOURED STATE STILL OVERRIDES, exactly as before: <Heart className="fill-current
-   * text-destructive"> on the icon CHILD wins over `text-white` here, so a saved heart is still red
-   * — now on a dark chip, which is where it reads best anyway.
+   * ⚠️ COLOURED STATE STILL OVERRIDES: <Heart className="fill-current text-destructive"> on the icon
+   * CHILD wins over `text-white` here, so a saved heart is still red — now a red heart with a dark
+   * outline, which is more legible on a bright photo than the bare red was.
    */
   overlay:
-    'rounded-full bg-black/45 text-white backdrop-blur-[2px] [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.35))]',
+    'text-white [&_svg]:[paint-order:stroke_fill] [&_svg]:[stroke:rgba(0,0,0,0.78)] [&_svg]:[stroke-width:2px] [&_svg]:[stroke-linejoin:round] [&_svg]:[stroke-linecap:round]',
 } as const
 
 export function IconButton({
