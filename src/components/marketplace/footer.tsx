@@ -7,7 +7,7 @@ import { handleExternalClick } from '@/lib/native-browser'
 import { APP_STORE_URL, COMPANY, PLAY_STORE_URL } from '@/lib/site-legal'
 import { NAV_CATEGORIES } from '@/lib/taxonomy-nav'
 import { SERVICES_FOOTER_GROUPS, SERVICES_FOOTER_LINKS } from '@/lib/edition-services-copy'
-import { IS_SERVICES, SITE_NAME } from '@/lib/edition'
+import { IS_MARKETPLACE, IS_SERVICES, SITE_NAME } from '@/lib/edition'
 
 /**
  * One footer entry.
@@ -60,11 +60,20 @@ export function Footer() {
         // column). It is the disclosure a buyer goes looking for at the worst possible moment, so
         // burying it was the wrong default; /disputes has been live and returning 200 throughout.
         { label: tr('Dispute resolution', 'Giải quyết tranh chấp'), href: '/disputes' },
-        { label: tr('Contact us', 'Liên hệ'), href: 'mailto:support@eno.vn' },
+        // ⚠️ COMPANY.email, NOT A LITERAL. This said `mailto:support@eno.vn` on both editions, so
+        // eno.forum's own "Contact us" handed the reader the marketplace's mailbox on the
+        // marketplace's domain. The address is per-edition in src/lib/site-legal.ts, which is also
+        // where the footer's legal Email row already read it from — the two rows had simply drifted
+        // apart, one constant and one hardcoded.
+        { label: tr('Contact us', 'Liên hệ'), href: `mailto:${COMPANY.email}` },
       ],
     },
     {
-      title: tr('About eno.vn', 'Về eno.vn'),
+      // ⚠️ TWO LITERAL tr() CALLS, NOT `tr(\`About ${SITE_NAME}\`, …)`. scripts/gen-ui-strings.mjs
+      // harvests by matching string LITERALS and silently skips a template expression, so the
+      // interpolated version compiles, renders, and then ships untranslated to every other
+      // language — the same trap the brand tagline below is spelled out to avoid.
+      title: IS_SERVICES ? tr('About eno.forum', 'Về eno.forum') : tr('About eno.vn', 'Về eno.vn'),
       links: [
         { label: tr('About us', 'Giới thiệu'), href: '/about' },
         { label: tr('How it works', 'Cách hoạt động'), href: '/guide' },
@@ -230,10 +239,20 @@ export function Footer() {
                 first icon optically flush with the tagline's left edge. */}
             {/* Mono single-path marks (see the components above) — filled silhouettes on the
                 footer's muted ink, matching share-button's set; h-5 keeps the ~36px targets. */}
+            {/* ⚠️ THE BRAND NAMES THE ACCOUNTS, NOT THE SITE — AND THAT IS A CORRECTION, NOT A
+                SHORTCUT. These said "eno.vn on Facebook" on both editions, so a screen-reader user
+                on eno.forum was told the row belonged to the other site. The obvious fix was a
+                per-edition label like everything else here, and a reviewer refuted it: the hrefs
+                point at ONE set of accounts (`instagram.com/eno.vn`), so "eno.forum on Instagram"
+                would describe that profile as eno.forum's own presence, and `rel="me"` is an
+                explicit identity claim that makes the assertion stronger, not softer.
+                "ENO" is true of both sites AND of the accounts, which is the only name here that is
+                true of all three. The hrefs stay: there is one brand and these are its three live
+                profiles. One literal, so nothing can drift between editions. */}
             <div className="-mx-2 flex items-center gap-1 pt-1">
-              <a href="https://www.facebook.com/profile.php?id=61591370031264" onClick={handleExternalClick} target="_blank" rel="noopener noreferrer me" aria-label={tr('eno.vn on Facebook', 'eno.vn trên Facebook')} className="rounded-full p-2 text-muted-foreground transition-colors hover:text-accent-foreground"><FacebookIcon className="h-5 w-5" /></a>
-              <a href="https://www.instagram.com/eno.vn/" onClick={handleExternalClick} target="_blank" rel="noopener noreferrer me" aria-label={tr('eno.vn on Instagram', 'eno.vn trên Instagram')} className="rounded-full p-2 text-muted-foreground transition-colors hover:text-accent-foreground"><InstagramIcon className="h-5 w-5" /></a>
-              <a href="https://www.youtube.com/@enovietnam" onClick={handleExternalClick} target="_blank" rel="noopener noreferrer me" aria-label={tr('eno.vn on YouTube', 'eno.vn trên YouTube')} className="rounded-full p-2 text-muted-foreground transition-colors hover:text-accent-foreground"><YoutubeIcon className="h-5 w-5" /></a>
+              <a href="https://www.facebook.com/profile.php?id=61591370031264" onClick={handleExternalClick} target="_blank" rel="noopener noreferrer me" aria-label={tr('ENO on Facebook', 'ENO trên Facebook')} className="rounded-full p-2 text-muted-foreground transition-colors hover:text-accent-foreground"><FacebookIcon className="h-5 w-5" /></a>
+              <a href="https://www.instagram.com/eno.vn/" onClick={handleExternalClick} target="_blank" rel="noopener noreferrer me" aria-label={tr('ENO on Instagram', 'ENO trên Instagram')} className="rounded-full p-2 text-muted-foreground transition-colors hover:text-accent-foreground"><InstagramIcon className="h-5 w-5" /></a>
+              <a href="https://www.youtube.com/@enovietnam" onClick={handleExternalClick} target="_blank" rel="noopener noreferrer me" aria-label={tr('ENO on YouTube', 'ENO trên YouTube')} className="rounded-full p-2 text-muted-foreground transition-colors hover:text-accent-foreground"><YoutubeIcon className="h-5 w-5" /></a>
             </div>
           </div>
 
@@ -295,7 +314,24 @@ export function Footer() {
 
         {/* Legal identity of the operator — Decree 52/2013 Đ.36/Đ.29 requires the
             company name, address, ERC and contacts displayed on the site. Values
-            come from src/lib/site-legal.ts (placeholders until the ERC is issued). */}
+            come from src/lib/site-legal.ts (placeholders until the ERC is issued).
+
+            ⛔ MARKETPLACE ONLY (owner, 2026-08-17: "remove Công ty TNHH ENO (đang đăng ký thành
+            lập) … Google Play · coming soon part on eno.forum"). Every field in this block is a
+            statement about the PENDING VIETNAMESE ENTITY registering as eno.vn's sàn TMĐT — its
+            name, head office, ERC, legal representative, and the MoIT registration it has in
+            flight. eno.forum is a different operator by design (see src/lib/site-legal.ts), so
+            printing that entity's registration status there asserted something untrue about a
+            company the notice does not describe. It is the same class of error as eno.forum
+            carrying "© eno.vn", which SITE_NAME already fixed two rows down.
+
+            ⚠️ NOT A LEGAL SIMPLIFICATION, AND WORTH SAYING PLAINLY: Decree 52's operator-disclosure
+            duty attaches to a site by what it does and who it serves, not by which block a
+            component renders. Removing this from eno.forum removes a disclosure about the WRONG
+            entity; it does not discharge any duty eno.forum may have of its own. When the second
+            entity is incorporated, the fix is to fill in `OPERATORS.services` and drop this gate —
+            not to leave the forum with no operator notice indefinitely. */}
+        {IS_MARKETPLACE && (
         <div className="mt-12 space-y-1 border-t border-border/60 pt-6 text-2xs leading-relaxed text-body">
           <p className="font-semibold text-muted-foreground">{COMPANY.name}</p>
           <p>{tr('Head office', 'Trụ sở')}: {COMPANY.address}</p>
@@ -352,6 +388,7 @@ export function Footer() {
             )}
           </div>
         </div>
+        )}
 
         <div className="mt-8 flex flex-col items-center justify-between gap-2 border-t border-border/60 pt-6 text-xs text-body sm:flex-row">
           <p className="flex items-center gap-1.5">

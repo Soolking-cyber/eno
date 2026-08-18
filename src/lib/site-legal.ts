@@ -121,7 +121,42 @@ const PENDING_VN_ENTITY: LegalOperator = {
  */
 export const OPERATORS: Record<Edition, LegalOperator> = {
   marketplace: { ...PENDING_VN_ENTITY },
-  services: { ...PENDING_VN_ENTITY },
+  /**
+   * ⚠️ THE CONTACT ADDRESSES ARE ALREADY PER-DOMAIN EVEN THOUGH THE ENTITY IS NOT (owner,
+   * 2026-08-17: "all references should be eno.forum same for support email"). A visitor on
+   * eno.forum was given `support@eno.vn` to write to, which is the marketplace's mailbox on the
+   * marketplace's domain — it reads as the wrong company answering, and it is the single contact
+   * detail a reader is most likely to act on.
+   *
+   * ⛔ `support@eno.forum` MUST ACTUALLY RECEIVE MAIL BEFORE THIS SHIPS. eno.forum's MX records
+   * point at mx1/mx2.privateemail.com (measured 2026-08-17), so the domain CAN take delivery —
+   * but MX records prove a mail HOST exists, not that this MAILBOX does, and an SMTP RCPT probe
+   * could not settle it (outbound :25 is blocked from here). Verify by sending to it, not by
+   * re-reading DNS.
+   *
+   * ⚠️ AND THE BLAST RADIUS IS WIDER THAN THE FOOTER — a reviewer refuted the first version of
+   * this change on exactly that point, correctly. These two fields are not decoration: on the
+   * services edition they now appear in BINDING published commitments, each with a deadline
+   * attached —
+   *   /regulations  "mọi liên hệ xin gửi về …", plus the 3 / 15 / 30-working-day complaint SLA
+   *   /privacy      the PDPL data-controller contact, "acknowledged within 2 working days"
+   *   /terms        where account-deletion and Terms questions are to be sent
+   *   /about, /safety, /signin
+   * So an unprovisioned mailbox here does not merely lose a support email; it silently voids
+   * promises the site publishes to a regulator's audience.
+   *
+   * ⚠️ WHY BOTH FIELDS MOVE TOGETHER RATHER THAN JUST THE SUPPORT ONE. Splitting them — footer on
+   * eno.forum, privacy requests on eno.vn — was the obvious hedge and it is worse: a data subject
+   * reading one page and writing to the address on another is exactly the confusion the PDPL
+   * contact exists to remove, and it puts two addresses for one operator on one site. One domain,
+   * one inbox, or neither.
+   *
+   * The legal NAME/ERC/address deliberately stay the pending Vietnamese entity: there is still
+   * only one company, and inventing a second would be the exact fabrication this file forbids.
+   * The forum footer no longer PRINTS them (see footer.tsx) — that is a display decision; this
+   * object keeps telling the truth about who operates the deployment.
+   */
+  services: { ...PENDING_VN_ENTITY, email: 'support@eno.forum', privacyEmail: 'support@eno.forum' },
 }
 
 /**
