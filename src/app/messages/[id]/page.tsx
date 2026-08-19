@@ -1101,7 +1101,7 @@ export default function ThreadPage() {
   // Only the APPLICANT drives the wizard: acknowledging a passport is their act, and the
   // act route refuses anyone but the thread's buyer.
   const iAmApplicant = !!visaInfo && !thread?.iAmSeller
-  const { kase: visaCase, unavailable: visaCaseError, reload: reloadVisaCase } = useVisaCase(visaInfo?.applicationId ?? null, iAmApplicant)
+  const { kase: visaCase, unavailable: visaCaseError, missing: visaCaseMissing, reload: reloadVisaCase } = useVisaCase(visaInfo?.applicationId ?? null, iAmApplicant)
   const [visaBusy, setVisaBusy] = useState(false)
 
   // One POST helper for the visa routes. Never throws, and never surfaces anything but a
@@ -1492,6 +1492,49 @@ export default function ThreadPage() {
       // pill, which is the exact problem this chip exists to solve. Take them to it. rAF, not
       // straight after load(): the layout effect that decides "pill or scroll" runs on the
       // commit, and this has to win afterwards.
+      requestAnimationFrame(() => { scrollBottom(true); setNewBelow(false) })
+      refreshUnread(); refreshConvos()
+    } finally {
+      setVisaBusy(false)
+    }
+  }
+
+  /**
+   * BEGIN A FRESH CASE IN A THREAD WHOSE CASE WAS DELETED.
+   *
+   * Owner, 2026-08-19: *"if visa application draft deleted make sure user can apply for new one
+   * from chat"*. Deleting a draft removes the `visa_applications` row but leaves
+   * `Conversation.visaApplicationId` pointing at it — there is no FK between them (measured), and
+   * DELETE does not unbind — so the thread still looks visa-bound and every card action answered
+   * 404 for a case that is gone.
+   *
+   * ⚠️ AN EMPTY BODY IS THE POINT. `/start` with no `listingId` is the storefront's own
+   * "traveller has not chosen a product yet" call: it creates the case, binds it, and posts the
+   * PICKER card, which is where the visa type gets chosen. Sending a listingId from here would
+   * pick on the applicant's behalf.
+   *
+   * ⚠️ AND IT SELF-HEALS THE DANGLING BINDING, which is why no unbind call is needed here:
+   * bindVisaThread rebinds by unbinding first in the SAME transaction (dm-thread.ts), so the dead
+   * id is cleared as it claims the new one. The server hands back the conversation it bound —
+   * normally this one, and we reload rather than navigate to avoid a pointless route change.
+   */
+  const startNewVisaCase = async () => {
+    if (visaBusy) return
+    setVisaBusy(true)
+    setVisaResendError(null)
+    try {
+      const res = await visaPost('/api/visa/applications/start', {})
+      if (!res.ok) { setVisaResendError(res.error ?? 'internal_error'); return }
+      haptic()
+      const nextConversationId = typeof res.data?.conversationId === 'string' ? res.data.conversationId : null
+      if (nextConversationId && nextConversationId !== id) { router.push(`/messages/${nextConversationId}`); return }
+      await load()
+      // ⚠️ RELOAD THE CASE BEFORE RELEASING THE BUTTON. `load()` refreshes the thread, but the
+      // chip's "no case" verdict lives in useVisaCase, which only re-runs once the new
+      // applicationId reaches it. Waiting here closes the window where the button is enabled again
+      // while still believing the case is gone — the double-create two reviewers found, where a
+      // second tap mints a second draft and orphans the first.
+      await reloadVisaCase()
       requestAnimationFrame(() => { scrollBottom(true); setNewBelow(false) })
       refreshUnread(); refreshConvos()
     } finally {
@@ -2439,6 +2482,8 @@ export default function ThreadPage() {
                 onResend={resendVisaCard}
                 otherCases={iAmApplicant ? visaOtherCases : undefined}
                 onSwitchCase={iAmApplicant ? switchVisaCase : undefined}
+                noCase={iAmApplicant && visaCaseMissing}
+                onStartNew={iAmApplicant ? startNewVisaCase : undefined}
                 compact
               />
             </>)}

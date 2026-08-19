@@ -1161,6 +1161,21 @@ export function useVisaCase(applicationId: string | null, enabled: boolean) {
   const [kase, setKase] = useState<VisaCase | null>(null)
   const [loading, setLoading] = useState(false)
   const [unavailable, setUnavailable] = useState<string | null>(null)
+  /**
+   * THE CASE IS GONE — DISTINCT FROM "STILL LOADING", WHICH IT USED TO BE INDISTINGUISHABLE FROM.
+   *
+   * A 404 sets `unavailable` to null on purpose (it is the ordinary answer for the DESK reading an
+   * applicant's thread), so a deleted case and a request in flight both presented as
+   * `kase === null, unavailable === null`. Nothing could tell them apart, which is why deleting a
+   * draft left the thread offering "Send the form again" — a button whose only possible outcome
+   * was the 404 that `loadVisaDmCase` returns for a case that no longer exists.
+   *
+   * ⚠️ `Conversation.visaApplicationId` IS NOT CLEARED BY THE DELETE, and there is no FK to do it
+   * (measured: no foreign key from Conversation to visa_applications). So the thread still looks
+   * visa-bound after a delete and always will — this flag is how the UI learns the binding is
+   * dangling and offers a way out instead of a dead button.
+   */
+  const [missing, setMissing] = useState(false)
   // Latest-wins: an upload and a card action can both refresh, and the older response must
   // not overwrite the newer one.
   const seq = useRef(0)
@@ -1177,12 +1192,14 @@ export function useVisaCase(applicationId: string | null, enabled: boolean) {
         // 404 is the ordinary answer for the DESK looking at an applicant's thread — not an
         // error state, just no values to render.
         setUnavailable(res.status === 404 || res.status === 403 ? null : body?.error || 'internal_error')
+        if (ticket === seq.current) setMissing(res.status === 404)
         setKase(null)
         return
       }
       const application = isRecord(body?.application) ? body.application : null
       if (!application || !isRecord(application.payload)) { setKase(null); return }
       setUnavailable(null)
+      setMissing(false)
       setKase({
         id: String(application.id || applicationId),
         status: typeof application.status === 'string' ? application.status : 'draft',
@@ -1205,11 +1222,18 @@ export function useVisaCase(applicationId: string | null, enabled: boolean) {
   }, [applicationId, enabled])
 
   useEffect(() => {
+    // ⛔ CLEAR `missing` THE MOMENT THE ID CHANGES, BEFORE THE FETCH — otherwise the verdict on the
+    // OLD case survives into the new one's loading window, and two reviewers found the same bug in
+    // it: after starting a replacement application, `missing` stayed true until the GET returned,
+    // so "Choose visa type" was still on screen and still enabled. A second tap POSTed /start
+    // again — a second draft, a second rebind, and the first draft orphaned with no thread.
+    // A freshly-named case has not been judged yet, and this says so.
+    setMissing(false)
     if (!applicationId || !enabled) { setKase(null); return }
     void reload()
   }, [applicationId, enabled, reload])
 
-  return { kase, loading, unavailable, reload }
+  return { kase, loading, unavailable, missing, reload }
 }
 
 /** The step's outstanding issues, computed from the applicant's own case. */
@@ -1818,7 +1842,18 @@ export function VisaStepCard({ meta, info, kase, caseError, live, busy, onAct, o
       )}
 
       {editing && kase && (
-        <div className="mt-3 space-y-4">
+        /**
+         * ⛔ `overflow-x-clip` IS THE BACKSTOP, AND IT IS DELIBERATELY A DIFFERENT KIND OF FIX FROM
+         * THE `min-w-0`s BELOW. Those address the cause I believe in; this one makes the SYMPTOM
+         * impossible whatever the cause turns out to be, which is what "make sure there are no
+         * overflows" actually asks for. A control that still insists on being too wide now gets
+         * clipped at the card instead of drawing over the thread.
+         *
+         * ⚠️ `overflow-x-clip`, NOT `overflow-x-hidden`. `hidden` creates a scroll container, which
+         * would trap the page's vertical scroll inside this block and break `position: sticky` for
+         * anything nested. `clip` cuts the paint without any of that.
+         */
+        <div className="mt-3 min-w-0 space-y-4 overflow-x-clip">
           {/* The dashboard's own prefill sentence, in one line. An answer the applicant never
               gave must not READ like one they did — that is the whole reason these fields are
               on screen at all. */}
@@ -1833,7 +1868,10 @@ export function VisaStepCard({ meta, info, kase, caseError, live, busy, onAct, o
           {editSections.map((section) => (
             // A long step stays navigable by being SECTIONED, never by hiding fields: a
             // collapsed panel is exactly the "never asked" failure this form exists to end.
-            <div key={section.key} className="space-y-3">
+            // ⚠️ `min-w-0` on the section too: min-width:auto has to be cleared at EVERY level
+            // between the control and the bubble, or the one wrapper still holding it re-inflates
+            // the row and the fix below looks like it did nothing.
+            <div key={section.key} className="min-w-0 space-y-3">
               <p className="text-2xs font-bold uppercase tracking-wide text-ink-4">{section.title}</p>
               {section.specs.map((spec) => (
                 <VisaFieldControl
@@ -1849,10 +1887,22 @@ export function VisaStepCard({ meta, info, kase, caseError, live, busy, onAct, o
               ))}
             </div>
           ))}
-          {/* STICKY, because these forms are now long: on a phone the applicant must be able to
-              save from wherever they are in the card rather than scrolling back to the bottom.
-              Pulled to the card's edges so the bar reads as chrome, not as another field. */}
-          <div className="sticky bottom-0 -mx-3.5 flex flex-wrap gap-1.5 border-t border-border bg-card px-3.5 py-2.5">
+          {/* ⛔ NOT STICKY — IT WAS, AND IT PARKED ITSELF IN THE MIDDLE OF THE FORM.
+              `sticky bottom-0` pins to the nearest SCROLLING ancestor, and inside a chat thread
+              that is the thread, not this card. So on a phone the bar sat mid-card with a sliver
+              of the next field visible underneath it, reading as a broken layout rather than as
+              chrome — the owner sent two screenshots of exactly that.
+
+              Owner, 2026-08-19: *"remove that save and continue cancel bar above, user will save
+              once fill all"*. So it is an ordinary footer at the end of the form now. The original
+              reason for sticking it — long forms on a phone — is real but was worth less than a
+              form that looks broken while you fill it in. */}
+          {/* ⚠️ NO `-mx-3.5` BLEED ANY MORE. It pulled the bar to the card's edges so the border read
+              as chrome — but the wrapper above now carries `overflow-x-clip`, which clips at its own
+              box and cut 14px off each end of that border, leaving a rule that stopped short of both
+              edges. A reviewer caught the two fixes fighting. An inset rule is the honest version of
+              the same idea and needs no bleed. */}
+          <div className="flex flex-wrap gap-1.5 border-t border-border pt-2.5">
             <Button variant="cta" size="none" disabled={busy} onClick={submitEdit} className="rounded-xl px-3 py-2 text-xs">
               {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : <Check className="h-3.5 w-3.5" aria-hidden />}
               {tr('Save and continue', 'Lưu và tiếp tục')}
@@ -2012,7 +2062,21 @@ function VisaFieldControl({ spec, value, bounds, onChange }: {
   }
 
   return (
-    <Field className="gap-1">
+    /**
+     * ⚠️ `min-w-0` IS THE ONE THAT MATTERS, AND IT IS HERE BECAUSE A FIELD ESCAPED THE CARD.
+     *
+     * The owner sent a phone screenshot of the date field running past the card's right edge
+     * ("make sure there are no overflows"). I could not reproduce it in isolation — a native
+     * `input[type=date]` shrank obediently in WebKit at 300/240/200/160 px and under en-US, en-GB
+     * and vi-VN — so the cause is something about the real thread's nesting that a standalone page
+     * does not recreate, and I am not going to keep guessing at it from a screenshot.
+     *
+     * `min-w-0` is the fix for the whole CLASS regardless of which control triggers it: a flex item
+     * defaults to `min-width: auto`, which refuses to shrink below its content, and every wrapper
+     * between this control and the bubble is a flex column. One field with an unshrinkable
+     * intrinsic width then widens the row and pushes past the card. Costs nothing when unneeded.
+     */
+    <Field className="min-w-0 gap-1">
       <FieldLabel className="text-xs font-semibold text-foreground">{label}</FieldLabel>
       {note}
       {spec.hints.map((hint) => <span key={hint} className="text-2xs text-warning">{hint}</span>)}
@@ -2489,6 +2553,18 @@ export type VisaResendChipProps = {
   /** Switch the thread to another case (rebind + bring its form down). */
   onSwitchCase?: (applicationId: string) => void | Promise<void>
   /**
+   * The bound case no longer exists — the applicant deleted their draft.
+   *
+   * The thread stays visa-bound after a delete (nothing clears
+   * `Conversation.visaApplicationId`, and no FK does it either), so this chip kept offering
+   * "Send the form again" for a case the resend route can only answer with 404. Owner,
+   * 2026-08-19: *"if visa application draft deleted make sure user can apply for new one from
+   * chat — if no saved application send form again button turns into choose visa type"*.
+   */
+  noCase?: boolean
+  /** Begin a fresh application in THIS thread. Only meaningful with `noCase`. */
+  onStartNew?: () => void | Promise<void>
+  /**
    * Render the BUTTON ALONE, for a caller that owns the row and the explanatory line.
    *
    * The owner asked for the chips "in one neat row". Three labelled buttons, each carrying
@@ -2521,7 +2597,7 @@ export type VisaResendChipProps = {
  * ⚠️ NO PII, as everywhere on this surface: this component renders a verb, a mode and an error
  * code. It never touches the case.
  */
-export function VisaResendChip({ info, isDesk, busy, error, onResend, otherCases, onSwitchCase, compact, className }: VisaResendChipProps) {
+export function VisaResendChip({ info, isDesk, busy, error, onResend, otherCases, onSwitchCase, noCase, onStartNew, compact, className }: VisaResendChipProps) {
   const { tr } = useLanguage()
   // An admin takeover pauses the guided form for the APPLICANT — dm-thread refuses to author
   // a step card in 'admin' mode, so a tap could only come back as a 409 — and the chip says
@@ -2544,7 +2620,29 @@ export function VisaResendChip({ info, isDesk, busy, error, onResend, otherCases
             chip IS the dropdown: it opens UPWARD (side="top", it sits above the composer) to resend
             THIS form, or bring a different application's form down. With no other case (the common
             single-case applicant), it stays a plain one-tap button. */}
-        {!paused && !!otherCases?.length && onSwitchCase ? (
+        {/* ⛔ NO CASE → THE ONLY HONEST VERB IS "START ONE", NOT "SEND IT AGAIN". Deleting a draft
+            left this thread bound to a row that no longer exists, so every other branch below
+            resolves to a button whose single possible outcome is a 404. This one calls
+            /api/visa/applications/start with an EMPTY body, which is the same call the storefront
+            makes when the traveller has not picked a product yet: the server creates the case,
+            rebinds this conversation to it (bindVisaThread unbinds-then-claims in one transaction,
+            so the dangling id is cleaned up as a side effect) and posts the picker card. Choosing
+            the type then happens in the thread, where it always has. */}
+        {noCase && !isDesk && !paused && !otherCases?.length && onStartNew ? (
+          <Button
+            variant="soft"
+            size="none"
+            disabled={busy}
+            onClick={() => void onStartNew()}
+            title={tr('Start a new e-Visa application in this chat', 'Bắt đầu hồ sơ E-Visa mới trong cuộc trò chuyện này')}
+            className="relative tap-44 shrink-0 gap-1.5 rounded-full border border-line-strong px-3 py-1.5 text-2xs font-bold text-foreground"
+          >
+            {busy
+              ? <Loader2 className="size-3.5 shrink-0 animate-spin" aria-hidden />
+              : <Sparkles className="size-3.5 shrink-0" aria-hidden />}
+            {tr('Choose visa type', 'Chọn loại visa')}
+          </Button>
+        ) : !paused && !!otherCases?.length && onSwitchCase ? (
           <DropdownMenu>
             {/* ⚠️ The icon+label live INSIDE the rendered Button, not as Trigger children — Base UI's
                 `render` REPLACES the trigger, so any sibling children are dropped and the menu never
@@ -2626,6 +2724,16 @@ export function VisaResendChip({ info, isDesk, busy, error, onResend, otherCases
       </div>
       {/* basis-full in compact mode: the wrapper is display:contents, so these notes are flex
           items of the CALLER row — without it they would sit between the chips. */}
+      {/* ⛔ OUTSIDE THE `!compact` BRANCH ON PURPOSE — MY FIRST VERSION PUT IT INSIDE AND IT WAS DEAD
+          CODE. The thread renders this chip with `compact`, which is the ONLY surface that ever sets
+          `noCase`, so the sentence explaining a deleted application would never once have been seen.
+          A reviewer spotted it; the `paused` note below already had the answer, using the same
+          `basis-full order-last` that makes a note take its own line inside the caller's flex row. */}
+      {noCase && !isDesk && !paused && !otherCases?.length && (
+        <p className={cn('text-2xs leading-relaxed text-body', compact && 'basis-full order-last')}>
+          {tr('Your application was deleted. Start a new one here.', 'Hồ sơ của bạn đã bị xóa. Bắt đầu hồ sơ mới tại đây.')}
+        </p>
+      )}
       {paused && (
         <p className={cn('text-2xs leading-relaxed text-body', compact && 'basis-full order-last')}>
           {tr('Paused while a specialist is in this chat.', 'Tạm dừng trong khi chuyên viên đang trong cuộc trò chuyện này.')}
