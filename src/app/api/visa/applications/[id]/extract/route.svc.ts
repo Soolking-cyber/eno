@@ -111,7 +111,29 @@ async function analyzeImage(
           maxOutputTokens: responseSchema === passportSchema ? 2_048 : 1_024,
           responseMimeType: 'application/json',
           responseSchema,
-          thinkingConfig: { thinkingLevel: ThinkingLevel.MINIMAL },
+          /**
+           * ⛔ EVERY DOCUMENT UPLOAD ON eno.forum WAS FAILING, AND THIS LINE WAS WHY. Production
+           * stderr, 2026-08-18:
+           *
+           *   [visa-image-analysis] failed { kind: 'passport', status: 400,
+           *     message: 'Thinking level is unsupported: THINKING_LEVEL_MINIMAL' }
+           *
+           * `MINIMAL` is not an accepted value, so the primary model 400'd — and because the config
+           * was sent UNCONDITIONALLY it went to the 2.5 fallback too, which does not take
+           * `thinkingConfig` at all. Both attempts failed, `withAiRetry` exhausted, the request
+           * ended 502, and the applicant was told "Automatic checking failed. Try this image again"
+           * — so a person with a perfectly good passport photo retries it forever. The worst shape
+           * of bug: the message blames the user's input for a server-side misconfiguration.
+           *
+           * ⚠️ THE GUARD IS COPIED FROM THE THREE ITINERARY ROUTES, WHICH HAVE ALWAYS HAD IT RIGHT:
+           * `attempt.model.startsWith('gemini-3') ? { thinkingLevel: LOW } : {}`. Those call the
+           * same API with the same fallback pair and never hit this, which is what made the
+           * difference findable. `LOW` is the level proven in production there; the fallback gets no
+           * thinkingConfig at all, because a 2.5 model rejects the field rather than ignoring it.
+           */
+          ...(attempt.model.startsWith('gemini-3')
+            ? { thinkingConfig: { thinkingLevel: ThinkingLevel.LOW } }
+            : {}),
           httpOptions: { timeout: 12_000, retryOptions: { attempts: 1 } },
         },
       })
