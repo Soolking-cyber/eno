@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import sharp from 'sharp'
-import { normalizeVisaImage } from './image-normalization'
+import { VISA_MIN_DIMENSIONS, normalizeVisaImage } from './image-normalization'
 import { evaluatePassportImageQuality } from './image-quality'
 import { parsePassportMrz } from './mrz'
 import { emptyVisaPayload, validateVisaForReview, validateVisaStep, visaDateDefaultsForStart, visaEndDateFor90DayWindow, visaPayloadSchema } from './schema'
@@ -32,9 +32,79 @@ describe('visa applicant engine (ported forum invariants)', () => {
     expect(passportMetadata.height).toBe(1500)
     expect(passport.output.length).toBeLessThan(1_900_000)
 
-    const tooSmall = await sharp({ create: { width: 320, height: 480, channels: 3, background: '#fff' } }).jpeg().toBuffer()
-    await expect(normalizeVisaImage(tooSmall, 'portrait')).rejects.toThrow('portrait_resolution_too_low')
+    // ⚠️ 320×480 IS NOW ACCEPTED, AND THAT IS THE CHANGE — NOT A WEAKENED TEST. The upload floor
+    // dropped to 240×320 on 2026-08-19 (owner: "as long as its readable passport photo accept it"),
+    // so this size, which used to be the canonical rejection, is exactly the case that must now get
+    // through. Asserting it PASSES is what stops the old floor being restored by accident.
+    const smallButUsable = await sharp({ create: { width: 320, height: 480, channels: 3, background: '#fff' } }).jpeg().toBuffer()
+    const upscaled = await normalizeVisaImage(smallButUsable, 'portrait')
+    expect([(await sharp(upscaled.output).metadata()).width, (await sharp(upscaled.output).metadata()).height]).toEqual([800, 1200])
+
+    // Below the floor still refuses, with the code the applicant's copy is keyed to. A thumbnail is
+    // the one thing a dimension check can honestly identify, and it is all it is asked to do now.
+    const thumbnail = await sharp({ create: { width: 160, height: 220, channels: 3, background: '#fff' } }).jpeg().toBuffer()
+    await expect(normalizeVisaImage(thumbnail, 'portrait')).rejects.toThrow('portrait_resolution_too_low')
   })
+
+  /**
+   * ⚠️ THIS TEST EXISTS BECAUSE NOTHING EXERCISED THE DOWNSCALE PATH, AND A REAL BUG LIVED THERE.
+   * Both external reviewers found that `fit: 'inside'` bounds the LONG edge only, so bounding by a
+   * square floor let an 800×1200 portrait land at 213×320 — under its 240 short-edge floor — while
+   * still reporting success. The assertion that matters is the SHORT edge, since that is the one
+   * the square box does not constrain.
+   */
+  it('downscales an incompressible passport under the official limit without breaching the floor', async () => {
+    /**
+     * ⚠️ IT MUST BE A PASSPORT, AND THE PIXELS MUST BE INCOMPRESSIBLE — MY FIRST VERSION OF THIS
+     * TEST WAS VACUOUS AND I ONLY FOUND OUT BY MEASURING IT.
+     *
+     * I wrote it against a portrait with a patterned "noise" buffer, it passed, and it proved
+     * nothing: portraits are resized to a fixed 800×1200, which came out at 89 KB — so the
+     * downscale branch never executed and the assertions below were checking the ordinary path.
+     * A passport is bounded at 2400 px instead, ~4.4M pixels, and only data JPEG cannot model
+     * survives the quality ladder to reach the loop. That is why the correction marker is asserted
+     * FIRST: it is the only thing that proves the expensive fixture did its job, and without it
+     * this test silently degrades into a second copy of the one above.
+     *
+     * ⚠️ SLOW ON PURPOSE (~30s local): several JPEG encodes at 4.4M pixels. That is the price of
+     * covering a path that two external reviewers found broken and the rest of the suite could not
+     * see. The timeout is 180s, not 90s, because a 2-vCPU GitHub Actions runner is routinely 2–3×
+     * slower on mozjpeg 4:4:4 — a reviewer pointed out that 90s was close enough to make this the
+     * suite's one flaky test, which is a bad trade for a gate that exists to pin a real bug.
+     * Source is kept near 12 MB — well under the 25 MiB intake ceiling — so a future sharp version
+     * nudging compression cannot turn this into a confusing `image_size_invalid`.
+     */
+    // ⚠️ SEEDED, NOT `randomBytes`. codex asked for a reproducible fixture and it is right: a gate
+    // whose input differs every run can fail once in a way nobody can reproduce. xorshift32 gives
+    // JPEG nothing to model — verified to still reach the downscale branch, which is the property
+    // that actually matters and the one the assertion below pins.
+    const width = 2600
+    const height = 3400
+    const pixels = Buffer.allocUnsafe(width * height * 3)
+    let seed = 0x9e3779b9
+    for (let i = 0; i < pixels.length; i++) {
+      seed ^= seed << 13; seed >>>= 0
+      seed ^= seed >>> 17
+      seed ^= seed << 5; seed >>>= 0
+      pixels[i] = seed & 0xff
+    }
+    const incompressible = await sharp(pixels, { raw: { width, height, channels: 3 } })
+      .jpeg({ quality: 85, chromaSubsampling: '4:4:4' })
+      .toBuffer()
+
+    const result = await normalizeVisaImage(incompressible, 'passport')
+    // The branch actually ran — without this the rest of the test can pass on the ordinary path.
+    expect(result.report.corrections).toContain('downscaled_for_official_limit')
+    expect(result.output.length).toBeLessThan(1_900_000)
+
+    const meta = await sharp(result.output).metadata()
+    const shortEdge = Math.min(meta.width || 0, meta.height || 0)
+    const longEdge = Math.max(meta.width || 0, meta.height || 0)
+    // The assertion that matters: `fit: 'inside'` bounds the LONG edge, so the short edge is the
+    // one a square floor fails to protect. 213×320 from an 800×1200 input was the original bug.
+    expect(shortEdge).toBeGreaterThanOrEqual(VISA_MIN_DIMENSIONS.passport.short)
+    expect(longEdge).toBeGreaterThanOrEqual(VISA_MIN_DIMENSIONS.passport.long)
+  }, 180_000)
 
   it('cross-checks standard passport MRZ check digits before autofill', () => {
     const result = parsePassportMrz(

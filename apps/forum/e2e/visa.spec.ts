@@ -53,8 +53,16 @@ test.describe('eno.forum visa assistance', () => {
     expect(passportMetadata.height).toBe(1500)
     expect(passport.output.length).toBeLessThan(1_900_000)
 
-    const tooSmall = await sharp({ create: { width: 320, height: 480, channels: 3, background: '#fff' } }).jpeg().toBuffer()
-    await expect(normalizeVisaImage(tooSmall, 'portrait')).rejects.toThrow('portrait_resolution_too_low')
+    // ⚠️ 320×480 IS NOW ACCEPTED. The shared upload floor dropped to 240×320 on 2026-08-19 (owner:
+    // "as long as its readable passport photo accept it"), and image-normalization.ts is sync-paired
+    // with the root, so this spec moves with it or the Forum E2E job goes red on a change that never
+    // touched apps/forum. A thumbnail is what the floor still refuses.
+    const smallButUsable = await sharp({ create: { width: 320, height: 480, channels: 3, background: '#fff' } }).jpeg().toBuffer()
+    const upscaled = await normalizeVisaImage(smallButUsable, 'portrait')
+    expect([(await sharp(upscaled.output).metadata()).width, (await sharp(upscaled.output).metadata()).height]).toEqual([800, 1200])
+
+    const thumbnail = await sharp({ create: { width: 160, height: 220, channels: 3, background: '#fff' } }).jpeg().toBuffer()
+    await expect(normalizeVisaImage(thumbnail, 'portrait')).rejects.toThrow('portrait_resolution_too_low')
   })
 
   test('cross-checks standard passport MRZ check digits before autofill', () => {

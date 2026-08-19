@@ -958,14 +958,19 @@ const ERROR_COPY: Record<string, [string, string]> = {
   checkout_card_refused: ['We could not post the payment step. Please try again.', 'Chưa gửi được bước thanh toán. Vui lòng thử lại.'],
   visa_encryption_not_configured: ['e-Visa assistance is not switched on for this site yet.', 'Dịch vụ hỗ trợ E-Visa chưa được bật trên trang này.'],
   visa_schema_not_ready: ['e-Visa assistance is not ready yet.', 'Dịch vụ hỗ trợ E-Visa chưa sẵn sàng.'],
-  image_size_invalid: ['Use an image smaller than 15 MB.', 'Dùng ảnh nhỏ hơn 15 MB.'],
+  // Reached only by an enormous or unreadable file — ordinary phone photos are resized in the
+  // browser rather than refused, however large they are.
+  image_size_invalid: ['That file is too large to open. Please take a photo with your camera instead.', 'Tệp này quá lớn để mở. Vui lòng chụp ảnh bằng máy ảnh thay thế.'],
   large_image_could_not_be_prepared: ['That image could not be resized here. Export it as a JPG and try again.', 'Không thể thu nhỏ ảnh này. Hãy xuất ảnh thành JPG rồi thử lại.'],
   network: ['No connection — please try again.', 'Mất kết nối — vui lòng thử lại.'],
-  unsupported_image_type: ['Use JPG, PNG, WebP, HEIC or HEIF.', 'Dùng JPG, PNG, WebP, HEIC hoặc HEIF.'],
+  unsupported_image_type: ['Use a photo file — JPG, PNG, HEIC, WebP, AVIF or TIFF. A PDF will not work yet.', 'Hãy dùng tệp ảnh — JPG, PNG, HEIC, WebP, AVIF hoặc TIFF. Tệp PDF hiện chưa dùng được.'],
   image_decode_failed: ['That image is damaged or unreadable.', 'Ảnh bị hỏng hoặc không đọc được.'],
-  portrait_resolution_too_low: ['The portrait is too small — at least 480×600 pixels.', 'Ảnh chân dung quá nhỏ — ít nhất 480×600 pixel.'],
-  passport_resolution_too_low: ['The passport image is too small — at least 900×600 pixels.', 'Ảnh hộ chiếu quá nhỏ — ít nhất 900×600 pixel.'],
-  image_official_limit_failed: ['The image could not be reduced below the official 2 MB limit.', 'Không thể giảm ảnh xuống dưới giới hạn 2 MB.'],
+  // ⚠️ These name the remedy, not just the rule. The floor is now so low that anything hitting it
+  // is a screenshot, a thumbnail or a messaging-app copy — never a photo taken with the camera —
+  // so the sentence that actually unblocks someone is "take a new one", not the pixel count.
+  portrait_resolution_too_low: ['That portrait is too small — take a new photo with your camera rather than sending a screenshot or a saved thumbnail.', 'Ảnh chân dung quá nhỏ — hãy chụp ảnh mới bằng máy ảnh thay vì gửi ảnh chụp màn hình hoặc ảnh thu nhỏ đã lưu.'],
+  passport_resolution_too_low: ['That passport image is too small — photograph the data page with your camera rather than sending a screenshot.', 'Ảnh hộ chiếu quá nhỏ — hãy chụp trang thông tin bằng máy ảnh thay vì gửi ảnh chụp màn hình.'],
+  image_official_limit_failed: ['That image could not be prepared for the official upload. Please take a new photo.', 'Không thể chuẩn bị ảnh này cho việc nộp hồ sơ. Vui lòng chụp ảnh mới.'],
   image_analysis_busy: ['The checker is busy. Your image is saved — try again in about a minute.', 'Hệ thống kiểm tra đang bận. Ảnh đã lưu — thử lại sau khoảng một phút.'],
   image_analysis_rate_limited: ['Checking paused after too many attempts. Your image is saved.', 'Kiểm tra tạm dừng do quá nhiều lần thử. Ảnh của bạn đã được lưu.'],
   image_analysis_failed: ['Automatic checking failed. Try the image again.', 'Kiểm tra tự động thất bại. Hãy thử lại ảnh.'],
@@ -1043,7 +1048,26 @@ const imageIssueCopy = (code: string, tr: Tr) => {
 /** Beyond this the image is re-encoded in the browser before it is POSTed. */
 const MAX_BROWSER_IMAGE_BYTES = 3_700_000
 /** The documents route's own ceiling — refuse locally rather than upload 20 MB to a 400. */
-const MAX_INTAKE_IMAGE_BYTES = 15 * 1024 * 1024
+/**
+ * ⛔ THIS IS A CRASH GUARD, NOT A SIZE RULE — AND CONFLATING THE TWO WAS REFUSING GOOD PHOTOS.
+ *
+ * It used to sit at the server's intake ceiling and reject anything above it, which meant a 30 MB
+ * photo was turned away by code that, three lines later, would have resized it to under 3.7 MB.
+ * codex put it plainly on the diff: files are still refused before readability is ever assessed,
+ * which is the exact thing the owner asked us to stop doing.
+ *
+ * So the ceiling now only answers "can this browser decode it at all without dying". Everything
+ * between MAX_BROWSER_IMAGE_BYTES and here is downscaled rather than refused, and what reaches the
+ * server is always ≤ 3.7 MB — comfortably inside its 25 MiB intake limit, which is why these two
+ * numbers no longer need to match. `createImageBitmap` on an arbitrarily large file can still take
+ * the tab down, so the bound stays.
+ */
+const MAX_PICKED_IMAGE_BYTES = 80 * 1024 * 1024
+
+// Mirrors MAX_INTAKE_BYTES in src/lib/visa/image-normalization.ts, which cannot be imported here
+// (it pulls in sharp). Used only for the undecodable-in-browser fallback above: a file this size or
+// smaller is worth sending even when the browser cannot open it, because the server can.
+const SERVER_INTAKE_BYTES = 25 * 1024 * 1024
 
 /**
  * A phone photo, shrunk to something the upload route will take.
@@ -1057,10 +1081,50 @@ const MAX_INTAKE_IMAGE_BYTES = 15 * 1024 * 1024
  * Throws a CODE (never a value): the caller renders it through visaErrorCopy.
  */
 export async function prepareVisaImage(file: File): Promise<File> {
-  if (file.size > MAX_INTAKE_IMAGE_BYTES) throw new Error('image_size_invalid')
-  if (file.size <= MAX_BROWSER_IMAGE_BYTES) return file
+  if (file.size > MAX_PICKED_IMAGE_BYTES) throw new Error('image_size_invalid')
+  /**
+   * ⛔ HEIC IS ALWAYS RE-ENCODED, NEVER PASSED THROUGH, AND THIS IS THE MOST IMPORTANT LINE HERE.
+   *
+   * The small-file shortcut below sends anything ≤ 3.7 MB to the server untouched — and a typical
+   * iPhone photo is 1–3 MB of HEVC-coded HEIC, which the server's sharp cannot decode (measured:
+   * the HEIF loader claims only `.avif`, and HEVC raises "Unsupported compression"). So the single
+   * most common camera upload in the product was arriving as raw HEIC and being rejected as
+   * `image_decode_failed` — "That image is damaged or unreadable" — under a caption that names HEIC
+   * as supported. Two reviewers found this independently, and both were right.
+   *
+   * Routing HEIC through `createImageBitmap` + canvas turns it into JPEG in the browser, which is
+   * where the decoder actually exists: iOS and macOS Safari — the platforms that PRODUCE HEIC —
+   * decode it natively. A browser that cannot (Chrome, Firefox) now falls through to the honest
+   * "export it as a JPG" rather than a server error that blames the applicant's photo.
+   */
+  const isHeic = /heic|heif/i.test(file.type) || /\.(heic|heif)$/i.test(file.name)
+  if (!isHeic && file.size <= MAX_BROWSER_IMAGE_BYTES) return file
   let bitmap: ImageBitmap
-  try { bitmap = await createImageBitmap(file) } catch { throw new Error('large_image_could_not_be_prepared') }
+  try { bitmap = await createImageBitmap(file) } catch {
+    /**
+     * ⛔ THE BROWSER CANNOT OPEN IT — BUT THE SERVER PROBABLY CAN, SO SEND IT RATHER THAN REFUSE.
+     *
+     * `createImageBitmap` has no HEIC or TIFF decoder on Chrome, Firefox or Edge. A stock iPhone
+     * shoots HEIC and routinely clears 3.7 MB, and a flatbed scanner emits TIFF — so the single
+     * most ordinary upload in this whole flow was landing on "export it as a JPG and try again"
+     * for anyone not using Safari. Two reviewers flagged that the caption promising HEIC and TIFF
+     * was false on those browsers, and they were right.
+     *
+     * ⛔ BUT NOT HEIC, AND MEASURING THAT IS THE ONLY REASON THIS IS NOT A REGRESSION. My first
+     * version forwarded anything under the server ceiling, on the assumption that sharp decodes
+     * what the browser cannot. It does for TIFF. It does NOT for an iPhone's HEIC:
+     *   sharp.format.heif.input.fileSuffix → ['.avif']   (AV1 only)
+     *   .heif({compression:'hevc'})        → "Unsupported compression"
+     * The prebuilt libvips carries libheif without HEVC, so an iPhone photo would have travelled
+     * 25 MB and died as `image_decode_failed` — "damaged or unreadable" — instead of getting the
+     * instant, actionable "export it as a JPG" it gets today. A reviewer predicted exactly this and
+     * running it confirmed the codec. Forwarding is therefore limited to what the server provably
+     * reads, and HEIC keeps the honest refusal.
+     */
+    const forwardable = !/heic|heif/i.test(file.type) && !/\.(heic|heif)$/i.test(file.name)
+    if (forwardable && file.size <= SERVER_INTAKE_BYTES) return file
+    throw new Error('large_image_could_not_be_prepared')
+  }
   try {
     let scale = Math.min(1, 2800 / Math.max(bitmap.width, bitmap.height))
     let quality = 0.9
@@ -1291,6 +1355,55 @@ const DOC_HINT: Record<DocKind, [string, string]> = {
   portrait: ['Your face, straight to camera, head and shoulders in frame — no hat, no glasses. A plain light background is best.', 'Khuôn mặt nhìn thẳng vào máy ảnh, thấy rõ đầu và vai — không đội mũ, không đeo kính. Nền sáng, trơn là tốt nhất.'],
 }
 
+/**
+ * WHAT A GOOD PHOTO LOOKS LIKE — SHOWN BEFORE THE PICKER OPENS, NOT AFTER THE REFUSAL.
+ *
+ * Owner, 2026-08-19: *"have clear dimension sample mock images and accepted formats — user shouldnt
+ * have any difficulty uploading necessary images"*. Every instruction on this step was prose, and
+ * prose describing a framing is the hardest kind of instruction to follow while holding a passport
+ * in one hand. A drawing of the target answers "is mine like that?" in one glance, in any language.
+ *
+ * ⚠️ DRAWN, NEVER PHOTOGRAPHED. A sample passport page or a sample face would be a real person's
+ * document or likeness shipped in our bundle — and a specimen page is also the single most useful
+ * asset a forger could ask us to host. An outline carries the whole instruction (page flat, four
+ * corners in, both machine-readable lines visible; head and shoulders, 4:6, face straight on)
+ * without depicting anybody. It also costs no network request and no CSP exception.
+ *
+ * ⚠️ `currentColor` THROUGHOUT, so it inherits the row's state colour and survives dark mode. Raw
+ * hex in an SVG would fail design-lint and would be invisible on one of the two grounds.
+ */
+function DocSample({ kind }: { kind: DocKind }) {
+  const common = { fill: 'none', stroke: 'currentColor', vectorEffect: 'non-scaling-stroke' as const }
+  return kind === 'passport' ? (
+    <svg viewBox="0 0 88 62" role="img" aria-hidden className="h-14 w-auto shrink-0 text-body/45" strokeWidth="1.6">
+      <rect x="1" y="1" width="86" height="60" rx="3" {...common} />
+      <rect x="7" y="9" width="22" height="28" rx="2" {...common} />
+      <circle cx="18" cy="19" r="5" {...common} />
+      <path d="M10 34c2-5 5-7 8-7s6 2 8 7" {...common} strokeLinecap="round" />
+      <g strokeLinecap="round">
+        <path d="M35 12h44M35 19h38M35 26h44M35 33h30" {...common} />
+      </g>
+      <g strokeLinecap="round" strokeWidth="2.4">
+        <path d="M7 46h74M7 54h74" {...common} />
+      </g>
+    </svg>
+  ) : (
+    <svg viewBox="0 0 44 62" role="img" aria-hidden className="h-14 w-auto shrink-0 text-body/45" strokeWidth="1.6">
+      <rect x="1" y="1" width="42" height="60" rx="3" {...common} />
+      <circle cx="22" cy="24" r="10" {...common} />
+      <path d="M6 57c3-11 9-16 16-16s13 5 16 16" {...common} strokeLinecap="round" />
+      <g strokeDasharray="2 3" className="text-body/35">
+        <path d="M1 12h42" {...common} />
+      </g>
+    </svg>
+  )
+}
+
+const DOC_SAMPLE_CAPTION: Record<DocKind, [string, string]> = {
+  passport: ['The whole page, flat, all four corners in frame — including both code lines at the bottom.', 'Toàn bộ trang, để phẳng, thấy đủ bốn góc — gồm cả hai dòng mã ở dưới cùng.'],
+  portrait: ['Head and shoulders, centred, like a printed 4×6 passport photo.', 'Đầu và vai, ở giữa khung, giống ảnh thẻ 4×6 in sẵn.'],
+}
+
 function DocumentRow({
   kind, document, busy, onPick,
 }: {
@@ -1385,6 +1498,28 @@ function DocumentRow({
             : <Badge variant="success" size="sm" className="shrink-0">{tr('Verified', 'Đã xác minh')}</Badge>
         )}
       </div>
+      {/* ⚠️ SHOWN WHILE IT CAN STILL HELP, HIDDEN ONCE IT CANNOT. Guidance belongs in front of the
+          applicant before they choose a file, and again if their file was refused — but a passed
+          document turns the same block into clutter in a chat thread that keeps scrolling. So it
+          renders when there is no document yet, or when the one there failed. */}
+      {(!document || failed) && (
+        <div className="mt-2 flex items-start gap-3 rounded-lg bg-accent/40 p-2.5">
+          <DocSample kind={kind} />
+          <div className="min-w-0 flex-1 space-y-1">
+            <p className="text-2xs leading-relaxed text-body">{tr(DOC_SAMPLE_CAPTION[kind][0], DOC_SAMPLE_CAPTION[kind][1])}</p>
+            {/* ⚠️ NO NUMBERS HERE, AND THE MEGABYTE FIGURE IS WHY. This said "up to 25 MB", which
+                was already false when written: the browser resizes anything it can open, so the
+                server's intake ceiling is not a limit the applicant can ever meet. codex caught the
+                copy quoting one of three different ceilings (25 MiB server, 80 MB picker, 3.7 MB
+                post-resize) as though it were the rule. A number no user can act on and that three
+                constants can contradict is worse than no number — and pixel counts fare no better,
+                since only a screenshot or a saved thumbnail can now miss the floor. */}
+            <p className="text-2xs leading-relaxed text-body/70">
+              {tr('Size is not a problem — we resize your photo for you. JPG, PNG, HEIC, WebP, AVIF or TIFF.', 'Kích thước không thành vấn đề — chúng tôi sẽ tự thu nhỏ ảnh giúp bạn. JPG, PNG, HEIC, WebP, AVIF hoặc TIFF.')}
+            </p>
+          </div>
+        </div>
+      )}
       {/*
         The <label> IS the control (the repo's documented file-picker idiom — see
         RAW_CONTROL_ALLOW in scripts/design-lint.mjs and the dashboard wizard's UploadCard):
@@ -1421,7 +1556,7 @@ function DocumentRow({
              This is only a picker hint and never a check: the server re-validates MIME AND
              extension in the documents route and sharp has to decode the bytes, so widening it
              here grants nothing. */
-          accept="image/*,image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif"
+          accept="image/*,image/jpeg,image/png,image/webp,image/heic,image/heif,image/avif,image/tiff,.heic,.heif,.avif,.tif,.tiff"
           className="sr-only"
           disabled={busy}
           onChange={(event) => {

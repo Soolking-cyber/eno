@@ -5,8 +5,47 @@ import { route } from '@/lib/api/handler'
 import { rateLimit } from '@/lib/ratelimit'
 import { decryptVisaPayload, encryptVisaPayload, visaCryptoReady } from '@/lib/visa/crypto'
 import { getVisaDb } from '@/lib/visa/db'
+import { MAX_INTAKE_BYTES } from '@/lib/visa/image-normalization'
 import { recordVisaEvent } from '@/lib/visa/records'
 import { removeVisaFiles, storeVisaImage } from '@/lib/visa/storage'
+
+/**
+ * ⛔ A REFUSED UPLOAD USED TO LEAVE NO TRACE ANYWHERE, WHICH IS WHY "USERS CANNOT UPLOAD" COULD
+ * ONLY EVER BE ANSWERED WITH A GUESS.
+ *
+ * `visa_documents` keeps only the last attempt per kind (every upload deletes the previous row),
+ * and `visa_events` was written only on SUCCESS — so size, format and decode failures produced no
+ * row in either table. The existing note in the funnel memo says it plainly: a failed upload emits
+ * no event, and that is not evidence it does not happen. When the owner reported people stuck on
+ * "too small" on 2026-08-19 there was no query that could say how often, on which kind, or from
+ * which format. codex named this the highest-value change in the whole task and it was right: every
+ * threshold in this file is now a number we can check against behaviour instead of defend from
+ * first principles.
+ *
+ * ⚠️ IT RECORDS SHAPE, NEVER CONTENT. Kind, refusal code, declared MIME, extension and byte size —
+ * enough to see which format or ceiling is doing the refusing. The image itself is never read here
+ * and the filename is reduced to its extension, because a passport scan's filename routinely
+ * carries the holder's name and this table is not encrypted.
+ *
+ * ⚠️ IT NEVER THROWS. Instrumentation that can fail an upload is worse than no instrumentation: the
+ * applicant already has a refusal to act on, and turning a 400 into a 500 would hide it.
+ */
+async function recordUploadFailure(applicationId: string, userId: string, kind: string, code: string, file: File) {
+  try {
+    await recordVisaEvent(applicationId, 'applicant', 'document_upload_failed', userId, {
+      kind,
+      code,
+      // ⚠️ `file.type` IS THE CLIENT'S CLAIM, NOT AN OBSERVED FACT — it is a multipart header the
+      // caller writes, so it can carry arbitrary text of arbitrary length straight into an audit
+      // row that is not encrypted. Flagged by codex on the diff. Only a well-formed, short
+      // `type/subtype` is kept; anything else is recorded as the fact that it was malformed, which
+      // is the only part with diagnostic value anyway.
+      mimeType: /^[a-z]+\/[a-z0-9.+-]{1,24}$/.test(file.type.toLowerCase()) ? file.type.toLowerCase() : 'malformed',
+      extension: /\.([a-z0-9]{1,5})$/i.exec(file.name)?.[1]?.toLowerCase() || 'none',
+      sizeBytes: file.size,
+    })
+  } catch { /* never let telemetry turn a clear 400 into a 500 */ }
+}
 
 // In-hub port of apps/forum/src/app/api/visa/applications/[id]/documents/route.ts —
 // cookie-session auth, no CORS layer. A passport upload records AI-processing consent
@@ -59,13 +98,39 @@ export const POST = route({ auth: 'userId' }, async ({ req, params, userId }) =>
   const kind = kindSchema.safeParse(form.get('kind'))
   const file = form.get('file')
   if (!kind.success || !(file instanceof File)) return NextResponse.json({ error: 'invalid_document' }, { status: 400 })
-  const acceptedMime = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/heic', 'image/heif']
-  const acceptedExtension = /\.(jpe?g|png|webp|heic|heif)$/i.test(file.name)
-  if (!acceptedMime.includes(file.type.toLowerCase()) && !acceptedExtension) return NextResponse.json({ error: 'unsupported_image_type' }, { status: 415 })
+  /**
+   * ⚠️ AVIF AND TIFF WERE ADDED. BMP AND GIF WERE NOT, FOR DIFFERENT REASONS.
+   *
+   * Owner, 2026-08-19: *"image size format correct accept"* — a document refused for its container
+   * is a document we simply declined to read. A flatbed scanner emits TIFF and a modern phone emits
+   * AVIF without the user ever choosing either.
+   *
+   * ⛔ BMP WAS IN THIS LIST FOR ONE REVISION AND IS THE REASON TO TEST RATHER THAN ASSUME. I added
+   * it believing "sharp decodes everything"; the prebuilt libvips binary has NO BMP loader (it
+   * needs ImageMagick, which the npm package does not ship). Measured:
+   *   `require('sharp').format.bmp` → undefined, and `.toFormat('bmp')` throws.
+   * So a BMP under 3.7 MB would have travelled to the server untouched and died as
+   * `image_decode_failed` — "That image is damaged or unreadable" — directly beneath UI copy
+   * promising BMP was fine. Caught by a reviewer, confirmed by running it.
+   *
+   * GIF is excluded for a different reason: nobody scans a passport to GIF, so it buys no real
+   * applicant anything, while animation makes "which frame is the document?" unanswerable.
+   * Multi-page TIFF and decompression bombs were already answered upstream — normalizeVisaImage
+   * rejects `(metadata.pages || 1) !== 1` and caps the decode at `limitInputPixels: 40_000_000`.
+   */
+  const acceptedMime = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/heic', 'image/heif', 'image/avif', 'image/tiff']
+  const acceptedExtension = /\.(jpe?g|png|webp|heic|heif|avif|tiff?)$/i.test(file.name)
+  if (!acceptedMime.includes(file.type.toLowerCase()) && !acceptedExtension) {
+    await recordUploadFailure(id, userId, kind.data, 'unsupported_image_type', file)
+    return NextResponse.json({ error: 'unsupported_image_type' }, { status: 415 })
+  }
   try {
     // Size guard BEFORE arrayBuffer() — otherwise a huge upload is fully buffered into
   // memory before storeVisaImage's downstream validation ever sees it.
-  if (file.size > 15_000_000) return NextResponse.json({ error: 'image_size_invalid' }, { status: 400 })
+  if (file.size > MAX_INTAKE_BYTES) {
+    await recordUploadFailure(id, userId, kind.data, 'image_size_invalid', file)
+    return NextResponse.json({ error: 'image_size_invalid' }, { status: 400 })
+  }
   const stored = await storeVisaImage(Buffer.from(await file.arrayBuffer()), userId, id, kind.data)
     const { data: old } = kind.data === 'supporting' ? { data: [] } : await db.from('visa_documents').select('id,storage_path').eq('application_id', id).eq('kind', kind.data)
     const document = { id: randomUUID(), application_id: id, kind: kind.data, ...stored, created_at: new Date().toISOString() }
@@ -87,7 +152,10 @@ export const POST = route({ auth: 'userId' }, async ({ req, params, userId }) =>
     return NextResponse.json({ document: { id: document.id, kind: document.kind, mimeType: document.mime_type, sizeBytes: document.size_bytes, width: document.width, height: document.height, validationStatus: document.validation_status, validationReport: document.validation_report, createdAt: document.created_at } }, { status: 201 })
   } catch (error) {
     const code = (error as Error).message.split(':')[0]
-    if (['image_size_invalid', 'image_dimensions_invalid', 'image_decode_failed', 'portrait_resolution_too_low', 'passport_resolution_too_low', 'image_official_limit_failed'].includes(code)) return NextResponse.json({ error: code }, { status: 400 })
+    if (['image_size_invalid', 'image_dimensions_invalid', 'image_decode_failed', 'portrait_resolution_too_low', 'passport_resolution_too_low', 'image_official_limit_failed'].includes(code)) {
+      await recordUploadFailure(id, userId, kind.data, code, file)
+      return NextResponse.json({ error: code }, { status: 400 })
+    }
     throw error
   }
 })
