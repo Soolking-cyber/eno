@@ -106,6 +106,48 @@ describe('visa applicant engine (ported forum invariants)', () => {
     expect(longEdge).toBeGreaterThanOrEqual(VISA_MIN_DIMENSIONS.passport.long)
   }, 180_000)
 
+  /**
+   * ⚠️ THE TRIO IS ALL-OR-NOTHING, AND "CLEAR THE NAME" IS NOW A PROMISE IN THE UI.
+   *
+   * The owner reported the form "asking twice" and not recognising filled answers. Measured: it
+   * recognises them fine — a name ALONE makes the other two required, and the rule was stated only
+   * on the name field, which is the one the applicant had already left behind. The chat copy says
+   * "fill all three, or clear all three to skip" — clearing only the name does NOT release an
+   * applicant who already typed an address, and every partial state is pinned below so the copy and
+   * the validator cannot drift apart again.
+   */
+  it('treats the Vietnam contact as all-or-nothing — only clearing all three skips it', () => {
+    const local = (p: Partial<Record<string, string>>) =>
+      validateVisaForReview({ ...emptyVisaPayload(), ...p } as never, []).filter((c) => c.startsWith('local_contact'))
+
+    expect(local({})).toEqual([])
+    expect(local({ localContactName: 'Tran Thi Mai' }))
+      .toEqual(['local_contact_address_required', 'local_contact_phone_required'])
+    expect(local({ localContactName: 'Tran Thi Mai', localContactAddress: '25 Bui Vien', localContactPhone: '+84901234567' })).toEqual([])
+
+    /**
+     * ⛔ THE PARTIAL STATES ARE THE WHOLE POINT, AND MY FIRST VERSION OF THIS TEST MISSED THEM.
+     * It "proved" the escape by clearing all three at once — which is just the empty case again,
+     * so the claim lived in the comment and not in the assertion. All three reviewer families
+     * caught it, along with the copy it was defending: clearing ONLY the name does not release an
+     * applicant who has already typed an address, it swaps two refusals for a different one.
+     * Every partial combination is pinned here so the hint and the validator cannot drift apart.
+     */
+    expect(local({ localContactAddress: '25 Bui Vien' }))
+      .toEqual(['local_contact_name_required', 'local_contact_phone_required'])
+    expect(local({ localContactPhone: '+84901234567' }))
+      .toEqual(['local_contact_name_required', 'local_contact_address_required'])
+    expect(local({ localContactName: 'Tran Thi Mai', localContactAddress: '25 Bui Vien' }))
+      .toEqual(['local_contact_phone_required'])
+    expect(local({ localContactName: 'Tran Thi Mai', localContactPhone: '+84901234567' }))
+      .toEqual(['local_contact_address_required'])
+    // Clearing the NAME alone is NOT the way out — this is the case the old copy got wrong.
+    expect(local({ localContactName: '', localContactAddress: '25 Bui Vien', localContactPhone: '+84901234567' }))
+      .toEqual(['local_contact_name_required'])
+    // Clearing ALL THREE is, which is what the hint now says.
+    expect(local({ localContactName: '', localContactAddress: '', localContactPhone: '' })).toEqual([])
+  })
+
   it('cross-checks standard passport MRZ check digits before autofill', () => {
     const result = parsePassportMrz(
       'P<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<<<<<<<<<',

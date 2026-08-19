@@ -92,6 +92,45 @@ function reachableFields(step: VisaDmStep): Set<string> {
   for (const draft of drafts) {
     for (const entry of visaStepFormFields(step, draft)) found.add(entry.field)
   }
+
+  /**
+   * ⚠️ AND ONCE MORE WITH EVERY FREE-TEXT BOX FILLED, BECAUSE A GROUP CAN BE ANCHORED ON TYPING.
+   *
+   * The enumeration above only flips answers it can enumerate — yes/no and selects. That was the
+   * whole vocabulary of gates until the optional groups were gated on their own first field
+   * (2026-08-19): the Vietnam contact opens when you NAME someone, which is free text. Under the
+   * old walk those follow-ups looked permanently unreachable and this guard failed — correctly,
+   * for the model it had; an applicant reaches them by typing, which the walk never did.
+   *
+   * So the sweep now also asks what the card renders when the typable boxes are non-empty. That
+   * keeps the invariant's real meaning — REACHABLE BY AN APPLICANT, not by a test that knows a
+   * magic draft — because typing your host's name is something any applicant can do.
+   *
+   * ⛔ IT TYPES ONLY INTO BOXES THAT ARE ON SCREEN, AND MY FIRST VERSION DID NOT — all three
+   * reviewer families caught it. That version filled every text field the step DECLARES, hidden
+   * ones included, so a follow-up gated on an unreachable anchor would have counted as reachable
+   * and the guard would have passed exactly the dangling field it exists to catch. The comment
+   * even claimed the opposite, which is the worse half of the mistake.
+   *
+   * Growing the draft one visible layer at a time is the honest model: an applicant can only type
+   * into a box they can see, and each thing they type may reveal the next. The loop is bounded
+   * because every pass either reveals a new field or stops.
+   */
+  for (const draft of drafts) {
+    let current = { ...draft }
+    for (let pass = 0; pass < 6; pass++) {
+      let revealed = false
+      for (const entry of visaStepFormFields(step, current)) {
+        found.add(entry.field)
+        // Only free text is "typable"; the enumerable answers are already walked exhaustively.
+        if (optionValues(entry, current).length === 0 && !current[entry.field]) {
+          current = { ...current, [entry.field]: 'x' }
+          revealed = true
+        }
+      }
+      if (!revealed) break
+    }
+  }
   return found
 }
 

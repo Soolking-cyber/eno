@@ -405,9 +405,23 @@ export const VISA_FIELD_LABEL: Record<string, [string, string]> = {
   payerName: ['Who is paying — name', 'Người chi trả — tên'],
   payerAddress: ['Payer address', 'Địa chỉ người chi trả'],
   payerPhone: ['Payer phone', 'Điện thoại người chi trả'],
+  /**
+   * ⛔ ALL THREE NAME THE PERSON IN VIETNAM, BECAUSE TWO OF THEM USED TO NOT.
+   *
+   * Step 3 already asks for `emergencyAddress` / `emergencyPhone` — "Emergency contact address"
+   * and "Emergency contact phone". Step 4 then asked for "Contact address" and "Contact phone",
+   * which is a DIFFERENT person (whoever is hosting you in Vietnam) wearing almost the same words.
+   * The owner hit it head-on: *"it asks contact address and contact phone 2 time — once filled
+   * doesnt recognize and asks to fill again"*. Nothing was broken; the applicant had answered the
+   * emergency contact and reasonably read step 4 as the same question coming back unsaved.
+   *
+   * `localContactName` already carried the qualifier — it was the other two that dropped it
+   * halfway through the same trio. The official form calls all three "Contact in Vietnam — …"
+   * (bundle.ts), so this is the app agreeing with the document it produces.
+   */
   localContactName: ['Contact in Vietnam — name', 'Người liên hệ tại Việt Nam — tên'],
-  localContactAddress: ['Contact address', 'Địa chỉ người liên hệ'],
-  localContactPhone: ['Contact phone', 'Điện thoại người liên hệ'],
+  localContactAddress: ['Contact in Vietnam — address', 'Người liên hệ tại Việt Nam — địa chỉ'],
+  localContactPhone: ['Contact in Vietnam — phone', 'Người liên hệ tại Việt Nam — điện thoại'],
   hasChildrenOnPassport: ['Children on your passport?', 'Có trẻ em đi cùng trong hộ chiếu?'],
   childrenOnPassportDetails: ['Accompanying children', 'Thông tin trẻ em đi cùng'],
   // The rest of the dashboard's trip page — fields the chat card only started rendering
@@ -598,6 +612,30 @@ export type VisaFormField = {
 
 const answeredYes = (field: string) => (draft: Record<string, string>) => draft[field] === 'yes'
 
+/**
+ * AN OPTIONAL GROUP OPENS WHEN ITS ANCHOR IS ANSWERED — AND STAYS OPEN WHILE IT HOLDS ANYTHING.
+ *
+ * Owner, 2026-08-19: *"how to shorten the steps by combining them, user should feel least
+ * friction"*. Combining steps is the wrong lever — merging 3 and 4 makes one card of fifty-odd
+ * fields. The friction is optional groups rendered exactly like required ones, so a traveller with
+ * no host in Vietnam and no employer still scrolls past seven boxes that will never apply to them.
+ *
+ * ⚠️ A SYNTHETIC "do you have a host?" TOGGLE IS NOT AVAILABLE HERE, and that constraint shaped
+ * this. visa-cards.test.ts enforces that every field the form renders is one the step OWNS
+ * ("asks for nothing it cannot write"), so a UI-only gate field would fail the suite — correctly,
+ * since the server would refuse to store it. The group's own first field is therefore the gate:
+ * naming the person IS the act of opting in.
+ *
+ * ⛔ THE SECOND CLAUSE IS NOT OPTIONAL — WITHOUT IT THIS RE-CREATES THE BUG IT EXISTS TO FIX.
+ * If the group hid whenever the anchor was blank, an applicant who had already typed an address
+ * and then cleared the name would face `local_contact_name_required` with the offending fields
+ * INVISIBLE, unable to clear what they cannot see. Staying open while any member holds a value is
+ * the same predicate schema.ts validates on (`if (name || address || phone)`), so the form and the
+ * validator open and close together.
+ */
+const groupOpen = (...fields: string[]) => (draft: Record<string, string>) =>
+  fields.some((field) => !!draft[field]?.trim())
+
 const YES_NO: readonly FieldChoice[] = [['yes', ['Yes', 'Có']], ['no', ['No', 'Không']]]
 
 const PAYMENT_METHODS: readonly FieldChoice[] = [
@@ -613,10 +651,29 @@ const PASSPORT_TYPES: readonly FieldChoice[] = [
   ['other', ['Other', 'Khác']],
 ]
 
-/** Only if somebody in Vietnam is inviting or hosting — but then all three are needed. */
+/**
+ * Only if somebody in Vietnam is inviting or hosting — but then all three are needed.
+ *
+ * ⛔ "CLEAR THE NAME TO SKIP" WAS MY WORDING AND IT WAS A LIE — ALL THREE REVIEWER FAMILIES CAUGHT
+ * IT INDEPENDENTLY. The validator fires when ANY of the three is set:
+ *   if (name || address || phone) { require(name); require(address); require(phone) }
+ * so an applicant holding a half-filled group who clears only the name gets
+ * `local_contact_name_required` and is more stuck than before. The original "leave all three blank"
+ * was accurate; I rewrote it into something friendlier and false. It says CLEAR ALL THREE now,
+ * which is both the true escape and still an escape you can act on.
+ *
+ * ⚠️ IT RIDES ON ALL THREE FIELDS, which is the part that was genuinely missing: the rule used to
+ * be stated only on the name, so the two fields that actually turn red explained nothing.
+ */
 const LOCAL_CONTACT_HINT: [string, string] = [
-  'Only if someone in Vietnam is inviting or hosting you. Fill all three, or leave all three blank.',
-  'Chỉ khi có người tại Việt Nam mời hoặc đón bạn. Điền cả ba mục, hoặc để trống cả ba.',
+  'Only if someone in Vietnam is inviting or hosting you. Fill all three, or clear all three to skip.',
+  'Chỉ khi có người tại Việt Nam mời hoặc đón bạn. Điền cả ba mục, hoặc xóa cả ba để bỏ qua.',
+]
+
+/** The same rule, short, for the two fields that sit under the full sentence. */
+const LOCAL_CONTACT_HINT_SHORT: [string, string] = [
+  'Part of the Vietnam contact — fill all three, or clear all three.',
+  'Thuộc nhóm người liên hệ tại Việt Nam — điền cả ba, hoặc xóa cả ba.',
 ]
 
 /**
@@ -667,9 +724,9 @@ export const VISA_STEP_FORM: Record<VisaDmStep, readonly VisaFormField[]> = {
     { field: 'emergencyPhone', control: 'tel', section: 'contact' },
     { field: 'emergencyAddress', control: 'long', section: 'contact', note: 'optional' },
     { field: 'occupation', control: 'text', section: 'work' },
-    { field: 'employerName', control: 'text', section: 'work', note: 'optional' },
-    { field: 'employerAddress', control: 'long', section: 'work', note: 'optional' },
-    { field: 'employerPhone', control: 'tel', section: 'work', note: 'optional' },
+    { field: 'employerName', control: 'text', section: 'work', note: 'optional', when: groupOpen('occupation', 'employerName', 'employerAddress', 'employerPhone') },
+    { field: 'employerAddress', control: 'long', section: 'work', note: 'optional', when: groupOpen('occupation', 'employerName', 'employerAddress', 'employerPhone') },
+    { field: 'employerPhone', control: 'tel', section: 'work', note: 'optional', when: groupOpen('occupation', 'employerName', 'employerAddress', 'employerPhone') },
   ],
   // ── 4 · the trip ──
   4: [
@@ -695,8 +752,11 @@ export const VISA_STEP_FORM: Record<VisaDmStep, readonly VisaFormField[]> = {
     { field: 'entryGate', control: 'checkpoint', section: 'stay', note: 'prefilled' },
     { field: 'exitGate', control: 'checkpoint', section: 'stay', note: 'prefilled' },
     { field: 'localContactName', control: 'text', section: 'stay', note: 'optional', hint: LOCAL_CONTACT_HINT },
-    { field: 'localContactAddress', control: 'long', section: 'stay', note: 'optional' },
-    { field: 'localContactPhone', control: 'tel', section: 'stay', note: 'optional' },
+    // ⚠️ THE HINT RIDES ON ALL THREE. It used to sit only on the name, so the two fields that
+    // actually go red were the two that never explained themselves.
+
+    { field: 'localContactAddress', control: 'long', section: 'stay', note: 'optional', hint: LOCAL_CONTACT_HINT_SHORT, when: groupOpen('localContactName', 'localContactAddress', 'localContactPhone') },
+    { field: 'localContactPhone', control: 'tel', section: 'stay', note: 'optional', hint: LOCAL_CONTACT_HINT_SHORT, when: groupOpen('localContactName', 'localContactAddress', 'localContactPhone') },
     { field: 'visitedVietnamLastYear', control: 'yesno', section: 'stay' },
     { field: 'previousVisitDetails', control: 'long', section: 'stay', when: answeredYes('visitedVietnamLastYear') },
     { field: 'hasRelativesInVietnam', control: 'yesno', section: 'stay' },
