@@ -119,7 +119,17 @@ declare global {
  * True when the branded path is configured AND usable on this client. The sign-in form calls
  * this to decide whether to try at all, so an unconfigured build never even pays the branch.
  */
-export function googleIdentityEnabled(): boolean {
+/**
+ * ⚠️ RENAMED, BECAUSE THE THING IT GATES CHANGED. This used to gate Google Identity Services; GIS
+ * is no longer used (a cross-origin iframe we could not style, and it refuses a click while hidden
+ * — see src/lib/auth/google-oauth.ts). It now gates our OWN OAuth round-trip, and the conditions
+ * happen to be identical: a client id must be configured, and the native shell must never take a
+ * web redirect (Google answers `disallowed_useragent` in an embedded WebView).
+ *
+ * ⛔ THE CLIENT CANNOT SEE GOOGLE_CLIENT_SECRET, so this is necessarily optimistic. /auth/google/start
+ * makes the real decision server-side and bounces back with ?g=fallback if the flow cannot run.
+ */
+export function googleFirstPartyEnabled(): boolean {
   if (!CLIENT_ID) return false
   if (typeof window === 'undefined') return false
   // ⚠️ Native NEVER reaches GIS — see "THE NATIVE CARVE-OUT" above.
@@ -224,7 +234,7 @@ export async function makeNoncePair(): Promise<{ raw: string; hashed: string } |
  * substitute one). Resolves `null` on every failure, and never throws or hangs.
  */
 export async function requestGoogleIdToken(): Promise<{ token: string; nonce?: string } | null> {
-  if (!googleIdentityEnabled()) return null
+  if (!googleFirstPartyEnabled()) return null
   try {
     if (!(await loadGis())) return null
     const api = window.google?.accounts?.id
@@ -370,7 +380,7 @@ export async function mountGoogleButton(
   },
 ): Promise<GoogleButtonHandle> {
   const dead: GoogleButtonHandle = { ok: false, destroy: () => {} }
-  if (!googleIdentityEnabled()) return dead
+  if (!googleFirstPartyEnabled()) return dead
   if (!(await loadGis())) return dead
   const api = window.google?.accounts?.id
   if (!api) return dead

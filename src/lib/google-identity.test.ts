@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { createHash } from 'node:crypto'
-import { makeNoncePair, googleIdentityEnabled } from './google-identity'
+import { makeNoncePair, googleFirstPartyEnabled } from './google-identity'
 
 /**
  * The nonce pairing for supabase.auth.signInWithIdToken + Google Identity Services.
@@ -39,10 +39,10 @@ describe('makeNoncePair', () => {
   })
 })
 
-describe('googleIdentityEnabled', () => {
+describe('googleFirstPartyEnabled', () => {
   it('is false with no NEXT_PUBLIC_GOOGLE_CLIENT_ID, so the sign-in form keeps the old OAuth flow', () => {
     // The env var is unset in the test env, and `window` is undefined under environment:'node' —
     // either alone must be enough to keep the branded path switched off.
-    expect(googleIdentityEnabled()).toBe(false)
+    expect(googleFirstPartyEnabled()).toBe(false)
   })
 })
