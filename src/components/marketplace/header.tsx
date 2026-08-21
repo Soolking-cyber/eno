@@ -291,7 +291,7 @@ export function Header() {
         // ⚠️ `ease-out` STAYS. globals.css explains why: this bar docks flush to the viewport edge,
         // so an overshooting spring opens a ~0.7px gap that shows the page sliding underneath. Now
         // that the tween actually happens, that rule finally has something to protect.
-        'sticky top-0 z-40 bg-background pt-[env(safe-area-inset-top)] transition-[translate,opacity] duration-[250ms] ease-out [will-change:translate,opacity] motion-reduce:transition-none',
+        'sticky top-0 z-40 bg-background pt-[env(safe-area-inset-top)] transition-[translate,opacity] duration-[var(--duration-sticky,250ms)] ease-out [will-change:translate,opacity] motion-reduce:transition-none',
         // Facebook-style on ALL sizes (incl. desktop): slide UP off-screen + fade out on
         // scroll-down, slide back down + fade in on scroll-up (near the top = always shown).
         hidden ? '-translate-y-full opacity-0' : 'translate-y-0 opacity-100',

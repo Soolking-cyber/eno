@@ -30,7 +30,7 @@ function AlertDialogOverlay({
     <AlertDialogPrimitive.Backdrop
       data-slot="alert-dialog-overlay"
       className={cn(
-        "overlay-scrim fixed inset-0 isolate z-50 duration-100 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0",
+        "overlay-scrim fixed inset-0 isolate z-50 duration-100 data-closed:duration-75 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0",
         className
       )}
       {...props}
@@ -52,10 +52,15 @@ function AlertDialogContent({
         data-slot="alert-dialog-content"
         data-size={size}
         className={cn(
-          // duration-150 on the CONTENT (backdrop stays 100) to match ui/dialog — the two centered
-          // modal surfaces were zooming at different speeds (100 vs 150), and 100ms on a fade+zoom
-          // reads as a snap. Flagged by all three reviewers in the Base UI audit.
-          "group/alert-dialog-content fixed top-1/2 left-1/2 z-50 grid w-full -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl bg-popover p-4 text-popover-foreground ring-1 ring-foreground/10 duration-150 outline-none data-[size=default]:max-w-xs data-[size=sm]:max-w-xs data-[size=default]:sm:max-w-sm data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
+          // ⚠️ THESE ARE TWO SEPARATE DECISIONS — do not collapse them.
+          // OPEN (duration-150): the two centered modal surfaces were zooming at different speeds
+          // (100 vs 150) and 100ms on a fade+zoom reads as a snap. Flagged by all three reviewers
+          // in the Base UI audit. Do NOT lower it.
+          // CLOSE (data-closed:duration-100 + ease-in): a dismissal should be quicker and quieter
+          // than its open — the same pair ui/dialog ships. The scrim behind it closes quicker still
+          // (75ms), which is deliberate: the dimming gets out of the way first. That 25ms stagger is
+          // HALF what this file had before (100 scrim / 150 content), not a new one.
+          "group/alert-dialog-content fixed top-1/2 left-1/2 z-50 grid w-full -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl bg-popover p-4 text-popover-foreground ring-1 ring-foreground/10 duration-150 data-closed:duration-100 data-closed:ease-in outline-none data-[size=default]:max-w-xs data-[size=sm]:max-w-xs data-[size=default]:sm:max-w-sm data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
           className
         )}
         {...props}

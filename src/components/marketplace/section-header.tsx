@@ -61,7 +61,7 @@ export function SectionHeader({ title, action, fallbackHref = '/dashboard/listin
         '-mx-3 -mt-6 mb-4 px-3 sm:-mx-6 sm:px-6',
         // Swapping `top` (vs transform) is a no-op while in normal flow — it only
         // glides once stuck (explorer-toolbar idiom, incl. the safe-area term).
-        'transition-[top] duration-[250ms] ease-out motion-reduce:transition-none',
+        'transition-[top] duration-[var(--duration-sticky,250ms)] ease-out motion-reduce:transition-none',
         // Even with the site header hidden, the bar must stay below the notch on native. Use the
         // dual-path inset like #app-header (globals.css): env(safe-area-inset-top) on iOS, and the
         // native-set var(--safe-area-inset-top) on Android where env() is 0 — env()-only would drop
