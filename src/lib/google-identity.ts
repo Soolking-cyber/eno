@@ -103,6 +103,10 @@ type GoogleIdApi = {
   initialize: (config: Record<string, unknown>) => void
   prompt: (listener?: (n: PromptMomentNotification) => void) => void
   cancel: () => void
+  // ⚠️ OPTIONAL, because this is a hand-written shape for a script we do not control. An older
+  // cached gsi/client without renderButton must degrade to "no button, keep ours" rather than
+  // throwing a TypeError inside a sign-in path — see the `?.` at the call site.
+  renderButton?: (parent: HTMLElement, options: Record<string, unknown>) => void
 }
 
 declare global {
@@ -313,5 +317,129 @@ export async function requestGoogleIdToken(): Promise<{ token: string; nonce?: s
   } catch {
     // Belt and braces: this function is on the auth path and must never reject.
     return null
+  }
+}
+
+// ── THE RENDERED BUTTON ─────────────────────────────────────────────────────────────────────────
+//
+// ⛔ WHY THIS EXISTS AND prompt() WAS NOT ENOUGH. One Tap is the only branded path this module had,
+// and One Tap DECLINES to appear for entirely ordinary reasons: a previous dismissal (Google then
+// suppresses it for a cooldown), no Google session in that browser, ITP partitioning, FedCM
+// unavailable. Every one of those arrives as a SKIPPED moment, which requestGoogleIdToken maps to
+// null, which sends the caller to signInWithOAuth — the redirect flow. Measured on prod
+// 2026-08-21: `momentType: 'skipped'` on a first visit, so the branded path essentially never ran
+// and the consent screen still read `xihiryllwmjoouipkyhw.supabase.co`.
+//
+// ⛔ THE BUTTON IS A DIFFERENT FLOW, NOT A DIFFERENT SKIN — and this is the whole point, measured
+// rather than assumed. Clicking the rendered button opens Google with:
+//     response_type=id_token   redirect_uri=gis_transform   app_domain=https://www.eno.forum
+// where the REDIRECT path carries `app_domain=https://xihiryllwmjoouipkyhw.supabase.co` and renders
+// exactly that string as `data-app-name`. There is no redirect_uri to a Supabase host here at all,
+// so the host cannot be displayed. That is why this fixes the branding and a CSS change never could.
+//
+// ⚠️ NEVER MOUNT THIS WHILE requestGoogleIdToken() IS ALSO IN USE. Both call
+// `google.accounts.id.initialize()`, and GIS treats a later initialize() as a CONFIG REPLACEMENT —
+// the second one silently overwrites the first's callback AND its nonce, so the first attempt's
+// credential resolves against a nonce Supabase will reject. An external reviewer refuted the first
+// version of this design on exactly that. The call site avoids it structurally: when the button
+// mounts it HIDES the custom button, so the prompt() path is unreachable while the button is live.
+
+type ButtonTheme = 'outline' | 'filled_blue' | 'filled_black'
+
+export type GoogleButtonHandle = {
+  /** False when GIS is unavailable — the caller must keep its own button visible. */
+  ok: boolean
+  destroy: () => void
+}
+
+/**
+ * Mount Google's own "Continue with Google" button into `container`.
+ *
+ * ⚠️ THE NONCE IS ROTATED AFTER EVERY CREDENTIAL, not fixed at mount. It is baked into
+ * initialize(), and the click happens inside Google's iframe where we cannot intervene first — so
+ * a nonce set once would be replayed by a second click. Re-initializing in the callback means each
+ * issued token carries a nonce used exactly once, which is the property the pair exists to provide.
+ */
+export async function mountGoogleButton(
+  container: HTMLElement,
+  opts: {
+    onCredential: (cred: { token: string; nonce?: string }) => void
+    theme?: ButtonTheme
+    locale?: string
+    width?: number
+  },
+): Promise<GoogleButtonHandle> {
+  const dead: GoogleButtonHandle = { ok: false, destroy: () => {} }
+  if (!googleIdentityEnabled()) return dead
+  if (!(await loadGis())) return dead
+  const api = window.google?.accounts?.id
+  if (!api) return dead
+
+  let disposed = false
+  let pair = await makeNoncePair()
+  // ⛔ SET SYNCHRONOUSLY, CLEARED WHEN THE NEW PAIR LANDS. Rotation is async (makeNoncePair awaits
+  // crypto.subtle), so without this a second activation during that window is handed a credential
+  // minted against the OLD nonce — which Supabase then rejects. The visitor is already mid-sign-in
+  // at that point, so dropping the duplicate is right; letting it through is not.
+  let rotating = false
+
+  const draw = () => {
+    if (disposed) return
+    api.initialize({
+      client_id: CLIENT_ID!,
+      callback: (response: CredentialResponse) => {
+        const token = response?.credential
+        if (!token || disposed || rotating) return
+        const raw = pair?.raw
+        // Rotate BEFORE handing the credential over, so a second click can never reuse this nonce
+        // even if the caller keeps the button on screen. `rotating` closes the async gap.
+        rotating = true
+        void makeNoncePair().then((next) => { pair = next; rotating = false; draw() })
+        opts.onCredential({ token, nonce: raw })
+      },
+      ...(pair ? { nonce: pair.hashed } : {}),
+      auto_select: false,
+      itp_support: true,
+      context: 'signin',
+    })
+    // renderButton APPENDS; without clearing, a rotation would stack a second button.
+    container.replaceChildren()
+    api.renderButton?.(container, {
+      type: 'standard',
+      theme: opts.theme ?? 'outline',
+      size: 'large',
+      text: 'continue_with',
+      shape: 'rectangular',
+      logo_alignment: 'left',
+      // ⚠️ GIS TAKES PIXELS AND IGNORES PERCENTAGES, and caps at 400. The caller measures its own
+      // container; this clamp only stops an unmeasured 0 from rendering an invisible button.
+      width: Math.max(200, Math.min(400, Math.round(opts.width ?? 320))),
+      ...(opts.locale ? { locale: opts.locale } : {}),
+    })
+    // ⛔ AFTER EVERY DRAW, NOT ONCE. Rotation calls draw() again, which replaceChildren()s and lets
+    // GIS inject FRESH focusable nodes — so a strip that ran only on the initial mount left phantom
+    // tab stops inside aria-hidden the moment anyone signed in. Both reviewers caught it.
+    for (const node of container.querySelectorAll<HTMLElement>('iframe, [tabindex]')) {
+      node.setAttribute('tabindex', '-1')
+    }
+  }
+
+  try {
+    draw()
+  } catch {
+    return dead
+  }
+  // ⚠️ RENDERING IS NOT CONFIRMATION. GIS refuses an unregistered JavaScript origin by logging and
+  // drawing NOTHING, without throwing — so an empty container is the real failure signal, and
+  // reporting ok:true there would hide the button the visitor needs behind one that does not exist.
+  if (!container.childElementCount) return dead
+
+  return {
+    ok: true,
+    destroy: () => {
+      disposed = true
+      try { api.cancel?.() } catch { /* nothing open */ }
+      container.replaceChildren()
+    },
   }
 }

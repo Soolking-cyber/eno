@@ -12,7 +12,8 @@ import { cn } from '@/lib/utils'
 import { googleOauthBlocked, isNativeTabs, openInSystemBrowser } from '@/lib/in-app-browser'
 import { HANDOFF_NEXT_KEY, handoffNonce } from '@/lib/auth/handoff-client'
 import { isNativeApp, nativeGoogleSignIn } from '@/lib/native-auth'
-import { googleIdentityEnabled, requestGoogleIdToken } from '@/lib/google-identity'
+import { googleIdentityEnabled, mountGoogleButton, requestGoogleIdToken } from '@/lib/google-identity'
+import { useTheme } from '@/context/theme-context'
 import { useTurnstile } from './turnstile'
 import { canonicalEmail } from '@/lib/email-alias'
 import { isVietnamesePhone, normalizePhoneForRouting } from '@/lib/phone'
@@ -368,7 +369,143 @@ export function SignInForm({ className }: { className?: string }) {
     })()
   }
 
-  const oauth = async (provider: 'google') => {
+  /**
+   * Hand a Google ID token to Supabase. Shared by BOTH branded paths — the rendered button and the
+   * One Tap prompt — so the hard-won handling below exists once instead of twice.
+   *
+   * Returns true when the session is live. On false the caller falls back to the redirect flow:
+   * an unbranded consent screen is cosmetic, a visitor who cannot sign in is not.
+   */
+  const signInWithGoogleCredential = async (cred: { token: string; nonce?: string }): Promise<boolean> => {
+    setError(null)
+    setLoading(true)
+    const sb = await getSupabase()
+    if (!sb) return false // getSupabase already cleared loading and set the error
+    // ⚠️ THE try/catch IS NOT DECORATION — signInWithIdToken RETHROWS. Verified in
+    // @supabase/auth-js GoTrueClient.signInWithIdToken: its catch is
+    // `if (isAuthError(error)) return {…error}; throw error`. A transport failure is an AuthError
+    // and comes back in `error`, but anything else escapes — and two realistic things live inside
+    // that try AFTER the token is accepted: `_saveSession` (a storage write, which is a
+    // DOMException in Safari with cookies blocked, not an AuthError) and
+    // `_notifyAllSubscribers('SIGNED_IN')`, which synchronously runs our own onAuthStateChange
+    // handlers. An escape here becomes an unhandled rejection, so `loading` never clears and the
+    // sign-in button is dead until a reload.
+    //
+    // `nonce` is the RAW value; google-identity gave Google the SHA-256 hex. Forward it unchanged —
+    // and forward `undefined` when there is none, because Supabase requires the passed nonce and
+    // the id_token claim to both exist or both be absent.
+    const { error } = await sb.auth
+      .signInWithIdToken({ provider: 'google', token: cred.token, nonce: cred.nonce })
+      .catch((e: unknown) => ({ error: { message: e instanceof Error ? e.message : String(e) } }))
+    // Success: the session is live in this client. No redirect happens here and none is needed —
+    // auth-context's onAuthStateChange closes the dialog, and the /signin page runs its own
+    // router.replace(next). `loading` stays set: the form is about to unmount or navigate, and a
+    // second tap in that window would start a second sign-in.
+    // ⚠️ /auth/callback's server-side finishSignIn() (ensureProfile + the /onboard hop) is NOT
+    // reached on this path — exactly as it is not on the phone-OTP and email-code paths. Both are
+    // covered client-side by auth-context: /api/me lazily provisions the Profile, and its gate
+    // sends an account with no accountType to /onboard.
+    if (!error) return true
+    console.warn('[auth] signInWithIdToken failed, falling back to redirect OAuth:', error.message)
+    setLoading(false)
+    return false
+  }
+
+  // ── GOOGLE'S OWN BUTTON ─────────────────────────────────────────────────────────────────────
+  //
+  // ⛔ THE ONE TAP PATH ALONE NEVER BRANDED ANYTHING IN PRACTICE. requestGoogleIdToken() below
+  // resolves null on a SKIPPED moment, and One Tap is skipped for entirely ordinary reasons — a
+  // previous dismissal, no Google session, ITP. Measured on prod: skipped on a first visit, so
+  // every visitor fell through to signInWithOAuth and read "continue to
+  // xihiryllwmjoouipkyhw.supabase.co". The rendered button is a different FLOW (id_token, no
+  // redirect_uri), which is why it shows our domain instead. See mountGoogleButton.
+  //
+  // ⚠️ WHEN THIS MOUNTS, OUR OWN BUTTON MUST DISAPPEAR — not for tidiness. Both paths call
+  // google.accounts.id.initialize(), and GIS treats a second initialize() as a config REPLACEMENT
+  // that silently overwrites the live callback and nonce. Keeping both on screen is a sign-in bug
+  // waiting for the visitor to tap the wrong one; `gisMounted` makes them mutually exclusive.
+  const gisRef = useRef<HTMLDivElement | null>(null)
+  const [gisMounted, setGisMounted] = useState(false)
+  const { resolved: themeResolved } = useTheme()
+
+  useEffect(() => {
+    const host = gisRef.current
+    // oauthBlocked = an in-app browser, where the whole point is to escape to a real one; native
+    // is already excluded inside googleIdentityEnabled().
+    if (!host || hideGoogle || oauthBlocked || !googleIdentityEnabled()) return
+    let handle: { destroy: () => void } | null = null
+    let cancelled = false
+
+    // ⚠️ PIXELS, MEASURED — GIS ignores percentage widths. Falls back to a sane 320 when the
+    // container has not been laid out yet.
+    const measure = () => Math.round(host.getBoundingClientRect().width)
+
+    // ⚠️ TRACK THE MEASURED WIDTH, NOT THE FALLBACK. Recording the 320 fallback as `lastWidth`
+    // meant a dialog that measured 0 at mount and then animated open to ~320 differed by less than
+    // the slack and never re-rendered — stranded at a guess that only looked right. `null` says
+    // "never measured", so the first real measurement always redraws.
+    let lastWidth: number | null = null
+    let generation = 0
+    const mount = () => {
+      const measured = measure()
+      const w = measured || 320
+      // Re-rendering on every stray resize would tear down Google's button mid-click; 8px of slack
+      // absorbs scrollbar and sub-pixel noise while still catching a real layout change.
+      if (lastWidth !== null && measured && Math.abs(measured - lastWidth) < 8) return
+      if (measured) lastWidth = measured
+      // ⛔ A GENERATION GUARD. mountGoogleButton is async, and a modal animating open fires the
+      // observer repeatedly — without this, two in-flight mounts finish out of order, the loser
+      // overwrites `handle`, and the winner's node is never destroyed.
+      const gen = ++generation
+      handle?.destroy()
+      handle = null
+      void mountGoogleButton(host, {
+        width: w,
+        locale: lang === 'vi' ? 'vi' : 'en',
+        // filled_black reads as a deliberate control on our dark canvas; outline disappears into it.
+        theme: themeResolved === 'dark' ? 'filled_black' : 'outline',
+        // ⛔ THE FALLBACK IS THE POINT. The first version did `void signInWithGoogleCredential(cred)`
+        // and dropped the false: a visitor who had already picked their Google account — and whose
+        // token was then rejected (nonce mismatch, client id missing from Supabase's provider,
+        // storage blocked in Safari) — landed back on an idle form with no error and no next step.
+        // The tap-through caller always fell back; this one silently did not. Caught by review.
+        onCredential: (cred) => {
+          void signInWithGoogleCredential(cred).then((ok) => { if (!ok) void oauth('google', true) })
+        },
+      }).then((h) => {
+        if (cancelled || gen !== generation) { h.destroy(); return }
+        handle = h
+        // ⚠️ ONLY ON ok. mountGoogleButton reports false when GIS drew nothing (an unregistered
+        // origin fails exactly that way, silently), and hiding our button on a false positive would
+        // leave the visitor with no way to sign in with Google at all.
+        setGisMounted(h.ok)
+      })
+    }
+
+    mount()
+    // ⛔ A DIALOG THAT ANIMATES OPEN MEASURES 0 AT MOUNT, and GIS bakes the width it was given —
+    // so without this the button stayed at the 320 fallback forever inside the sign-in modal, no
+    // matter how wide the dialog ended up. Both external reviewers flagged the missing observer.
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(() => mount()) : null
+    ro?.observe(host)
+
+    return () => { cancelled = true; ro?.disconnect(); handle?.destroy(); setGisMounted(false) }
+    // ⚠️ signInWithGoogleCredential is deliberately NOT a dep. It is redefined every render, so
+    // depending on it would tear down and re-mount Google's button on every keystroke in the email
+    // field — a visible flicker, a fresh nonce each time, and a re-render mid-click. The callback
+    // only ever reads setState setters and getSupabase, none of which go stale.
+  }, [hideGoogle, oauthBlocked, lang, themeResolved])
+
+  /**
+   * @param skipGis  Force the redirect flow, skipping the One Tap prompt.
+   *
+   * ⛔ AN ARGUMENT, NOT A READ OF `gisMounted`, AND THE DIFFERENCE IS A REAL BUG. The mount effect
+   * does not depend on `gisMounted`, so the `oauth` closure its onCredential captured still sees
+   * the render where it was false. A failed id-token sign-in therefore called requestGoogleIdToken()
+   * — the second google.accounts.id.initialize() this whole design exists to avoid, clobbering the
+   * live button's callback and nonce. Passing the intent explicitly cannot go stale. Caught by review.
+   */
+  const oauth = async (provider: 'google', skipGis = false) => {
     // In-flight guard + synchronous `loading`, the same way sendPhone/sendEmail do it. The
     // client is now a dynamic import, so there is a real chunk-fetch gap between the tap and
     // signInWithOAuth — long enough to tap twice. Two concurrent calls both reach
@@ -419,42 +556,16 @@ export function SignInForm({ className }: { className?: string }) {
     // rejected token — all of them drop to signInWithOAuth rather than showing an error. An
     // unbranded consent screen is cosmetic; a visitor who cannot sign in is not. The only thing
     // logged is a console.warn, because none of it is actionable by the person signing in.
-    if (googleIdentityEnabled()) {
+    // ── BRANDED PATH, TAP-THROUGH ─────────────────────────────────────────────────────────────
+    // Reached only when the RENDERED button is not on screen (see the mount effect: the two are
+    // mutually exclusive, because a second initialize() would clobber the first's callback+nonce).
+    // ⚠️ EVERY FAILURE FALLS THROUGH, NONE SURFACES.
+    // ⛔ SKIPPED WHILE THE OVERLAY IS LIVE. Both call google.accounts.id.initialize(), and the
+    // second call replaces the first's callback AND nonce — so a keyboard activation here would
+    // silently break the mounted button. Keyboard users take the redirect path instead.
+    if (googleIdentityEnabled() && !skipGis && !gisMounted) {
       const cred = await requestGoogleIdToken()
-      if (cred) {
-        // ⚠️ THE try/catch IS NOT DECORATION — signInWithIdToken RETHROWS. Verified in
-        // @supabase/auth-js GoTrueClient.signInWithIdToken: its catch is
-        // `if (isAuthError(error)) return {…error}; throw error`. A transport failure is an
-        // AuthError and comes back in `error`, but anything else escapes — and two realistic
-        // things live inside that try AFTER the token is accepted: `_saveSession` (a storage
-        // write, which is a DOMException in Safari with cookies blocked, not an AuthError) and
-        // `_notifyAllSubscribers('SIGNED_IN')`, which synchronously runs our own
-        // onAuthStateChange handlers. An escape here becomes an unhandled rejection in this
-        // handler, so `loading` never clears and the sign-in button is dead until a reload —
-        // the exact failure getSupabase() above was hardened against for the same reason.
-        // Catching it keeps the fallback chain intact: worst case we redirect a user who is
-        // already signed in through Google, which returns them signed in.
-        //
-        // `nonce` is the RAW value; google-identity gave Google the SHA-256 hex. Forward it
-        // unchanged — and forward `undefined` when there is none, because Supabase requires the
-        // passed nonce and the id_token claim to both exist or both be absent.
-        const { error } = await sb.auth
-          .signInWithIdToken({ provider, token: cred.token, nonce: cred.nonce })
-          .catch((e: unknown) => ({ error: { message: e instanceof Error ? e.message : String(e) } }))
-        // Success: the session is live in this client. No redirect happens here and none is
-        // needed — auth-context's onAuthStateChange closes the dialog (so `nextPath` is simply
-        // where the visitor already is), and the /signin page runs its own router.replace(next).
-        // `loading` stays set for the same reason the OAuth branch leaves it set: the form is
-        // about to unmount or navigate, and a second tap in that window would start a second
-        // sign-in. If neither happened the visitor is signed in anyway, so a disabled sign-in
-        // button is the correct end state, not a trap.
-        // ⚠️ /auth/callback's server-side finishSignIn() (ensureProfile + the /onboard hop) is
-        // NOT reached on this path — exactly as it is not on the phone-OTP and email-code paths.
-        // Both are covered client-side by auth-context: /api/me lazily provisions the Profile via
-        // getCurrentProfile(), and its gate sends an account with no accountType to /onboard.
-        if (!error) return
-        console.warn('[auth] signInWithIdToken failed, falling back to redirect OAuth:', error.message)
-      }
+      if (cred && (await signInWithGoogleCredential(cred))) return
     }
 
     // ⚠️ IMMEDIATELY BEFORE THE NEW FLOW, NEVER EARLIER. Abandoned attempts leave their PKCE
@@ -907,10 +1018,71 @@ export function SignInForm({ className }: { className?: string }) {
           In the native app's embedded tabs it's hidden outright (isNativeTabs). */}
       {!hideGoogle && (
         <>
-          <Button variant="ghost" size="none" disabled={loading} onClick={() => oauth('google')} className="w-full py-2.5 font-bold text-foreground hover:bg-muted hover:text-foreground cursor-pointer">
-            <GoogleIcon /> {oauthBlocked ? t('Open Google in your browser', 'Mở Google trong trình duyệt') : t('Continue with Google', 'Tiếp tục với Google')}
-            {oauthBlocked && <ExternalLink className="size-3.5 text-ink-4" />}
-          </Button>
+          {/* ⛔ OUR BUTTON IS WHAT YOU SEE; GOOGLE'S IS WHAT YOU CLICK.
+              Google's rendered button is a cross-origin iframe — its interior cannot be styled, and
+              dropped in raw it is the one square-cornered, Google-grey control on a page of 12px
+              squircles. So it is laid INVISIBLY over our own button: the visitor sees `<Button>` in
+              our design system, the pointer lands on Google's iframe, and the flow that runs is the
+              id_token one that shows OUR domain on the consent screen instead of
+              "xihiryllwmjoouipkyhw.supabase.co".
+
+              ⚠️ THE HEIGHTS MUST MATCH OR THE OVERLAY LEAVES A DEAD BAND. GIS `size: 'large'`
+              renders 40px; our button is text-sm (20px) + py-2.5 (2x10px) = exactly 40px. Change
+              either and clicks near the edge hit our button instead, silently taking the visitor
+              down the unbranded redirect. The e2e assertion for this is elementsFromPoint at the
+              CENTRE — the tap-target trap in this repo has bitten before, and only that call shows
+              which element actually receives the press.
+
+              ⚠️ opacity-0 STILL HIT-TESTS. Unlike `hidden` or `display:none`, a transparent element
+              receives pointer events — that is the whole mechanism. Do not "clean this up" into
+              visibility:hidden.
+
+              ⚠️ AND THIS IS A DELIBERATE DEPARTURE FROM GOOGLE'S BRANDING GUIDANCE, which asks that
+              their button be shown as rendered. The logo, the wording and the flow are all still
+              Google's; only the frame is ours. Flagged rather than hidden — if their verification
+              ever objects, the fix is to drop `opacity-0` and let their button show. */}
+          <div className="relative w-full">
+            <Button variant="ghost" size="none" disabled={loading} onClick={() => oauth('google')} className="w-full py-2.5 font-bold text-foreground hover:bg-muted hover:text-foreground cursor-pointer">
+              <GoogleIcon /> {oauthBlocked ? t('Open Google in your browser', 'Mở Google trong trình duyệt') : t('Continue with Google', 'Tiếp tục với Google')}
+              {oauthBlocked && <ExternalLink className="size-3.5 text-ink-4" />}
+            </Button>
+            {/* ⚠️ aria-hidden: the visitor already has a real, focusable <button> underneath with the
+                same label. Exposing Google's iframe as well would announce the control twice.
+                Keyboard activation therefore hits OUR button and takes the redirect path — unbranded
+                but working, which is the right trade for a key press that must never dead-end. */}
+            <div
+              ref={gisRef}
+              aria-hidden="true"
+              // ⛔ THE HOST NEVER HIT-TESTS; ONLY GOOGLE'S OWN IFRAME DOES. Both external reviewers
+              // caught the same defect here independently: GIS clamps its button to
+              // clamp(200, measured, 400)px, so on any container wider than 400 — or one measured
+              // at 0 while a dialog animates and floored to 320 — a transparent `inset-0 z-10`
+              // host covered a strip the iframe did not, swallowing clicks into nothing. Not a
+              // fallback to our button either: the host was on top and interactive, so that strip
+              // was simply DEAD.
+              //
+              // ⚠️ AND MY OWN CHECK COULD NOT SEE IT. I verified with elementsFromPoint at the
+              // CENTRE, which is exactly where the iframe always is; the bug lives at the edges.
+              // Check both corners as well as the centre.
+              //
+              // pointer-events-none on the host + auto on the iframe means a click outside Google's
+              // button falls through to our real <button> and takes the redirect path — unbranded,
+              // but never dead.
+              className={cn(
+                // ⛔ `[&>*]`, NOT `[&_iframe]`. GIS renders a LIGHT-DOM button (div/span with its own
+                // classes) and, beside it, an iframe that is 0x0 and is only the credential
+                // transport. Re-enabling pointer events on the iframe therefore re-enabled them on
+                // nothing: measured, every point on the button — centre included — fell through to
+                // ours, so the branded flow stopped running entirely while looking fine. The
+                // clickable surface is the direct child GIS appends.
+                'absolute inset-0 overflow-hidden rounded-xl pointer-events-none [&>*]:pointer-events-auto',
+                // ⚠️ WHILE LOADING, NOTHING INTERCEPTS. Our button carries `disabled={loading}` to
+                // stop re-entry, and an overlay that still accepted clicks would let a second
+                // sign-in start on top of an in-flight one — the exact case that guard exists for.
+                gisMounted && !loading ? 'z-10 opacity-0' : 'pointer-events-none [&>*]:pointer-events-none',
+              )}
+            />
+          </div>
           {oauthBlocked && (
             <p className="rounded-xl bg-tint px-3 py-2 text-2xs leading-relaxed text-muted-foreground">
               {iosHint
