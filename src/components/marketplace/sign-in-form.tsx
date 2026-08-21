@@ -379,51 +379,57 @@ export function SignInForm({ className }: { className?: string }) {
   const signInWithGoogleCredential = async (cred: { token: string; nonce?: string }): Promise<boolean> => {
     setError(null)
     setLoading(true)
-    const sb = await getSupabase()
-    if (!sb) return false // getSupabase already cleared loading and set the error
-    // ⚠️ THE try/catch IS NOT DECORATION — signInWithIdToken RETHROWS. Verified in
-    // @supabase/auth-js GoTrueClient.signInWithIdToken: its catch is
-    // `if (isAuthError(error)) return {…error}; throw error`. A transport failure is an AuthError
-    // and comes back in `error`, but anything else escapes — and two realistic things live inside
-    // that try AFTER the token is accepted: `_saveSession` (a storage write, which is a
-    // DOMException in Safari with cookies blocked, not an AuthError) and
-    // `_notifyAllSubscribers('SIGNED_IN')`, which synchronously runs our own onAuthStateChange
-    // handlers. An escape here becomes an unhandled rejection, so `loading` never clears and the
-    // sign-in button is dead until a reload.
-    //
-    // `nonce` is the RAW value; google-identity gave Google the SHA-256 hex. Forward it unchanged —
-    // and forward `undefined` when there is none, because Supabase requires the passed nonce and
-    // the id_token claim to both exist or both be absent.
-    const { error } = await sb.auth
-      .signInWithIdToken({ provider: 'google', token: cred.token, nonce: cred.nonce })
-      .catch((e: unknown) => ({ error: { message: e instanceof Error ? e.message : String(e) } }))
-    // Success: the session is live in this client. No redirect happens here and none is needed —
-    // auth-context's onAuthStateChange closes the dialog, and the /signin page runs its own
-    // router.replace(next). `loading` stays set: the form is about to unmount or navigate, and a
-    // second tap in that window would start a second sign-in.
-    // ⚠️ /auth/callback's server-side finishSignIn() (ensureProfile + the /onboard hop) is NOT
-    // reached on this path — exactly as it is not on the phone-OTP and email-code paths. Both are
-    // covered client-side by auth-context: /api/me lazily provisions the Profile, and its gate
-    // sends an account with no accountType to /onboard.
-    if (!error) return true
-    console.warn('[auth] signInWithIdToken failed, falling back to redirect OAuth:', error.message)
-    setLoading(false)
-    return false
+    setGoogleBusy(true)
+    // ⛔ EVERY UNSUCCESSFUL EXIT CLEARS THE BUSY STATE, VIA finally — AND THE FIRST VERSION HAD A
+    // PATH THAT DID NOT. `getSupabase()` can return null (it clears `loading` itself and surfaces
+    // its own error), and that early return left `googleBusy` true forever: the button span
+    // "Signing you in…" with a spinner while `disabled={loading}` had already gone false, so it was
+    // clickable AND lying. Two reviewers found the same path. A `finally` also covers the throw the
+    // comment below warns about, which no explicit call site could.
+    let ok = false
+    try {
+      const sb = await getSupabase()
+      if (!sb) return false // getSupabase already cleared loading and set the error
+      // ⚠️ THE try/catch IS NOT DECORATION — signInWithIdToken RETHROWS. Verified in
+      // @supabase/auth-js GoTrueClient.signInWithIdToken: its catch is
+      // `if (isAuthError(error)) return {…error}; throw error`. A transport failure is an AuthError
+      // and comes back in `error`, but anything else escapes — and two realistic things live inside
+      // that try AFTER the token is accepted: `_saveSession` (a storage write, which is a
+      // DOMException in Safari with cookies blocked, not an AuthError) and
+      // `_notifyAllSubscribers('SIGNED_IN')`, which synchronously runs our own onAuthStateChange
+      // handlers.
+      //
+      // `nonce` is the RAW value; google-identity gave Google the SHA-256 hex. Forward it unchanged
+      // — and forward `undefined` when there is none, because Supabase requires the passed nonce and
+      // the id_token claim to both exist or both be absent.
+      const { error } = await sb.auth
+        .signInWithIdToken({ provider: 'google', token: cred.token, nonce: cred.nonce })
+        .catch((e: unknown) => ({ error: { message: e instanceof Error ? e.message : String(e) } }))
+      if (error) {
+        console.warn('[auth] signInWithIdToken failed, falling back to redirect OAuth:', error.message)
+        return false
+      }
+      // Success: the session is live in this client. No redirect happens here and none is needed —
+      // auth-context's onAuthStateChange closes the dialog, and the /signin page runs its own
+      // router.replace(next). `loading` and `googleBusy` STAY SET: the form is about to unmount or
+      // navigate, and a second tap in that window would start a second sign-in.
+      // ⚠️ /auth/callback's server-side finishSignIn() (ensureProfile + the /onboard hop) is NOT
+      // reached on this path — exactly as it is not on the phone-OTP and email-code paths. Both are
+      // covered client-side by auth-context: /api/me lazily provisions the Profile, and its gate
+      // sends an account with no accountType to /onboard.
+      ok = true
+      return true
+    } finally {
+      if (!ok) { setLoading(false); setGoogleBusy(false) }
+    }
   }
 
-  // ── GOOGLE'S OWN BUTTON ─────────────────────────────────────────────────────────────────────
-  //
-  // ⛔ THE ONE TAP PATH ALONE NEVER BRANDED ANYTHING IN PRACTICE. requestGoogleIdToken() below
-  // resolves null on a SKIPPED moment, and One Tap is skipped for entirely ordinary reasons — a
-  // previous dismissal, no Google session, ITP. Measured on prod: skipped on a first visit, so
-  // every visitor fell through to signInWithOAuth and read "continue to
-  // xihiryllwmjoouipkyhw.supabase.co". The rendered button is a different FLOW (id_token, no
-  // redirect_uri), which is why it shows our domain instead. See mountGoogleButton.
-  //
-  // ⚠️ WHEN THIS MOUNTS, OUR OWN BUTTON MUST DISAPPEAR — not for tidiness. Both paths call
-  // google.accounts.id.initialize(), and GIS treats a second initialize() as a config REPLACEMENT
-  // that silently overwrites the live callback and nonce. Keeping both on screen is a sign-in bug
-  // waiting for the visitor to tap the wrong one; `gisMounted` makes them mutually exclusive.
+  // ⛔ GOOGLE-SPECIFIC, BECAUSE `loading` IS FORM-WIDE. Reusing `loading` for the Google button's
+  // label made it announce "Signing you in…" with a spinner whenever ANY flow was in flight — send
+  // a magic link and two controls claim progress for different operations, one of them falsely.
+  // Caught by review. `loading` still governs `disabled` and the overlay's hit-testing: any
+  // in-flight operation should block re-entry, only the COPY is provider-specific.
+  const [googleBusy, setGoogleBusy] = useState(false)
   const gisRef = useRef<HTMLDivElement | null>(null)
   const [gisMounted, setGisMounted] = useState(false)
   const { resolved: themeResolved } = useTheme()
@@ -538,6 +544,11 @@ export function SignInForm({ className }: { className?: string }) {
     if (oauthBlocked) { openGoogleInBrowser(); return }
     setError(null)
     setLoading(true)
+    // ⚠️ THE SAME BUTTON, SO THE SAME PROGRESS. This path (GIS unmounted, or a keyboard
+    // activation) also runs "Google sign-in" from the visitor's point of view; leaving it without
+    // the spinner meant the one control that DID show progress was the one they were less likely
+    // to be on. Cleared on the error branch below — the success branch navigates away.
+    setGoogleBusy(true)
     const sb = await getSupabase()
     if (!sb) return
 
@@ -577,7 +588,7 @@ export function SignInForm({ className }: { className?: string }) {
     const { error } = await sb.auth.signInWithOAuth({ provider, options: { redirectTo } })
     // On success supabase-js calls location.assign and this document is going away — leave
     // `loading` set so the button cannot be tapped again during the navigation.
-    if (error) { setError({ code: 'raw', message: error.message }); setLoading(false) }
+    if (error) { setError({ code: 'raw', message: error.message }); setLoading(false); setGoogleBusy(false) }
   }
 
   // Magic link goes through OUR endpoint, not supabase.auth.signInWithOtp — see the
@@ -1043,8 +1054,17 @@ export function SignInForm({ className }: { className?: string }) {
               ever objects, the fix is to drop `opacity-0` and let their button show. */}
           <div className="relative w-full">
             <Button variant="ghost" size="none" disabled={loading} onClick={() => oauth('google')} className="w-full py-2.5 font-bold text-foreground hover:bg-muted hover:text-foreground cursor-pointer">
-              <GoogleIcon /> {oauthBlocked ? t('Open Google in your browser', 'Mở Google trong trình duyệt') : t('Continue with Google', 'Tiếp tục với Google')}
-              {oauthBlocked && <ExternalLink className="size-3.5 text-ink-4" />}
+              {/* ⚠️ THE SPINNER IS WHAT MAKES THE ID-TOKEN FLOW READ AS PROGRESS. Unlike the redirect
+                  flow, nothing navigates when Google's popup closes — the token is exchanged in
+                  place, so for that moment the visitor is looking at the sign-in form again and
+                  reads it as "it did nothing / it logged me out". Every other button in this form
+                  swaps in Loader2 on `loading`; this one did not, which is why it was the one that
+                  looked broken. Same idiom, same position. */}
+              {googleBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <GoogleIcon />}
+              {googleBusy
+                ? t('Signing you in…', 'Đang đăng nhập…')
+                : oauthBlocked ? t('Open Google in your browser', 'Mở Google trong trình duyệt') : t('Continue with Google', 'Tiếp tục với Google')}
+              {oauthBlocked && !googleBusy && <ExternalLink className="size-3.5 text-ink-4" />}
             </Button>
             {/* ⚠️ aria-hidden: the visitor already has a real, focusable <button> underneath with the
                 same label. Exposing Google's iframe as well would announce the control twice.
@@ -1075,11 +1095,19 @@ export function SignInForm({ className }: { className?: string }) {
                 // nothing: measured, every point on the button — centre included — fell through to
                 // ours, so the branded flow stopped running entirely while looking fine. The
                 // clickable surface is the direct child GIS appends.
-                'absolute inset-0 overflow-hidden rounded-xl pointer-events-none [&>*]:pointer-events-auto',
-                // ⚠️ WHILE LOADING, NOTHING INTERCEPTS. Our button carries `disabled={loading}` to
+                // ⛔ opacity-0 IS UNCONDITIONAL, AND BUNDLING IT WITH A STATE WAS A VISIBLE BUG.
+                // It used to ride on `gisMounted && !loading`, so the instant a credential arrived
+                // and signInWithGoogleCredential called setLoading(true), that branch flipped and
+                // opacity-0 was DROPPED — Google's raw square button flashed over ours for the
+                // frame between choosing an account and the session landing. The same window
+                // existed on first paint, before setGisMounted(true) resolved. This overlay is
+                // aria-hidden and exists only to catch a pointer; it must NEVER be visible, in any
+                // state, so its invisibility cannot be conditional on one.
+                'absolute inset-0 overflow-hidden rounded-xl opacity-0 pointer-events-none [&>*]:pointer-events-none',
+                // ⚠️ ONLY THE HIT-TESTING IS STATEFUL. Our button carries `disabled={loading}` to
                 // stop re-entry, and an overlay that still accepted clicks would let a second
                 // sign-in start on top of an in-flight one — the exact case that guard exists for.
-                gisMounted && !loading ? 'z-10 opacity-0' : 'pointer-events-none [&>*]:pointer-events-none',
+                gisMounted && !loading && 'z-10 [&>*]:pointer-events-auto',
               )}
             />
           </div>

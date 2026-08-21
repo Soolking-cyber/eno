@@ -1928,6 +1928,7 @@ export const UI_STRINGS: string[] = [
   "Đang xem xét",
   "Đang xem xét — đội ngũ eno.vn sẽ quyết định, thường trong vòng 48 giờ.",
   "Đang xử lý…",
+  "Đang đăng nhập…",
   "Đang đăng…",
   "Điền các mục bên dưới",
   "Điền thông số",
