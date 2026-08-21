@@ -22,10 +22,23 @@ const GUEST_BASE = (process.env.E2E_BASE || 'https://eno.vn').replace(/\/$/, '')
 const AUTHED_BASE = process.env.E2E_AUTHED_BASE?.replace(/\/$/, '') || ''
 const AUTH_DIR = 'e2e/.auth'
 
+// ⚠️ E2E_RESOLVE EXISTS FOR ONE REAL CASE: testing an origin whose DNS has not
+// propagated to THIS machine's resolver yet. Pre-cutover, sb.eno.vn was created
+// minutes earlier and 8.8.8.8 still held the NXDOMAIN for the SOA's 1800s
+// negative TTL — so every page LOADED but no image, auth call or realtime socket
+// resolved, and `page.goto` timed out waiting for `load`. The pages themselves
+// were fine; curl never noticed because curl fetches no subresources.
+// Format is Chromium's own: "MAP sb.eno.vn 104.21.77.247, MAP other 1.2.3.4".
+// ⛔ Leave it UNSET for any normal run — it makes the browser resolve names
+// differently from the real world, which is precisely what you usually want to
+// be testing.
+const RESOLVE = process.env.E2E_RESOLVE?.trim()
+const guestUse = RESOLVE ? { launchOptions: { args: [`--host-resolver-rules=${RESOLVE}`] } } : {}
+
 const guestProjects: Project[] = [
-  { name: 'guest-desktop', use: { ...devices['Desktop Chrome'], baseURL: GUEST_BASE }, testMatch: /guest\/.*\.spec\.ts/ },
+  { name: 'guest-desktop', use: { ...devices['Desktop Chrome'], ...guestUse, baseURL: GUEST_BASE }, testMatch: /guest\/.*\.spec\.ts/ },
   // Mobile viewport — VN traffic is mobile-first, so the layout must hold on a phone too.
-  { name: 'guest-mobile', use: { ...devices['Pixel 5'], baseURL: GUEST_BASE }, testMatch: /guest\/.*\.spec\.ts/ },
+  { name: 'guest-mobile', use: { ...devices['Pixel 5'], ...guestUse, baseURL: GUEST_BASE }, testMatch: /guest\/.*\.spec\.ts/ },
 ]
 
 // Authed projects only exist when a preview base is configured. Each depends on the `setup`
