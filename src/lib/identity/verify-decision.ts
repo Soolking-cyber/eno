@@ -107,6 +107,20 @@ export type TierBInput = {
    * weak as it was before the client existed.
    */
   provider?: ProviderSignals
+  /**
+   * ⛔ THE REPLACEMENT TRUST ANCHOR WHEN THERE IS NO PROVIDER, AND THE REASON THIS FIELD EXISTS.
+   * The note on `provider` above says it: a forged MRZ passes every check digit, so MRZ + expiry +
+   * name is not evidence of anything. Dropping VNPT (owner, 2026-08-20: "we skip the ekyc by vnpt
+   * and create own checking flow") is EXACTLY the act that produces a caller with no provider — so
+   * without this field the decision silently reverts to the weakness qwen caught.
+   *
+   * A self-built flow substitutes a HUMAN for the provider. Until that human has looked, the
+   * honest answer is `pending`, never `verified`.
+   *   undefined → no human has looked yet          → pending
+   *   'approved' → a reviewer accepted the images   → verified, assurance `manual_review`
+   *   'rejected' → a reviewer refused them          → rejected
+   */
+  humanReview?: 'approved' | 'rejected'
   now?: Date
 }
 
@@ -123,7 +137,11 @@ export type TierBDecision = {
    * `document_expires_soon` / `document_expiry_unreadable` are precisely the two whose whole point
    * is telling the seller something actionable and different from "expired".
    */
-  rejectReason?: 'mrz_invalid' | 'document_expired' | 'document_expiry_unreadable' | 'document_expires_soon' | 'name_mismatch' | 'residence_expired' | 'document_not_authentic'
+  // ⚠️ `manual_review_rejected` JOINS THE BILINGUAL-COPY DEBT NOTED ABOVE, and it is the one
+  // reason whose text cannot be generic: the other seven describe a fact about the document,
+  // this one describes a person's judgement, so the seller needs the reviewer's note with it
+  // or the message is 'no' with no way to act.
+  rejectReason?: 'mrz_invalid' | 'document_expired' | 'document_expiry_unreadable' | 'document_expires_soon' | 'name_mismatch' | 'residence_expired' | 'document_not_authentic' | 'manual_review_rejected'
 }
 
 // ── The statutory validity floor for a foreign seller's document ────────────────────────────────
@@ -341,10 +359,24 @@ export function decideTierB(input: TierBInput): TierBDecision {
   //    varies by issuer. Auto-rejecting here would fail a large slice of legitimate expats on a
   //    string comparison, and this platform's standing posture is to be lenient and fix false
   //    positives rather than tighten the check.
+  //
+  //    ⛔ AND A HUMAN VERDICT OUTRANKS THE QUEUE. This used to return `pending` unconditionally,
+  //    which made the case UNAPPROVABLE: reviewKycCase calls back in with humanReview:'approved',
+  //    got `pending` again because this check runs first, and recorded a REJECTION. So the one
+  //    cohort manual review exists for — transliterations, married names, reordered given names —
+  //    was the one cohort a reviewer could not clear. Three external reviewers caught it
+  //    independently; `review.test.ts` had no mismatched-displayName case, so nothing local did.
   if (!namesCorrespond(input.surname, input.givenNames, input.accountName)) {
-    return { status: 'pending', assurance: null, limitations: TIER_B_LIMITATIONS, checksPassed: passed }
+    if (!input.humanReview) {
+      return { status: 'pending', assurance: null, limitations: TIER_B_LIMITATIONS, checksPassed: passed }
+    }
+    // ⚠️ ONLY ON AN APPROVAL. The first version pushed this before the branch, so a REJECTED case
+    // carried `name_mismatch_accepted_by_reviewer` in its checksPassed — an audit trail recording
+    // that the reviewer accepted the very thing they rejected. Caught by external review.
+    if (input.humanReview === 'approved') passed.push('name_mismatch_accepted_by_reviewer')
+  } else {
+    passed.push('name_matches_account')
   }
-  passed.push('name_matches_account')
 
   // 5. Provider anti-forgery. ⚠️ ABSENT ≠ PASSED. When the signals are missing the checks did not
   //    RUN — the provider was unreachable, or this is the MRZ-only path — and that must produce a
@@ -363,8 +395,25 @@ export function decideTierB(input: TierBInput): TierBDecision {
     // photo that may be a decade old is the single most error-prone step for a legitimate person —
     // ageing, weight, glasses, beards. An affirmative forgery signal is a rejection; a failed
     // likeness is a question.
+    // ⛔ SAME CARVE-OUT AS THE NAME CHECK, FOR THE SAME REASON: a queued face mismatch that a
+    //    reviewer has since adjudicated must be decidable, or approving it records a rejection.
     if (!p.faceIsLive || !p.faceMatches) {
-      return { status: 'pending', assurance: null, limitations: TIER_B_LIMITATIONS, checksPassed: passed }
+      if (!input.humanReview) {
+        return { status: 'pending', assurance: null, limitations: TIER_B_LIMITATIONS, checksPassed: passed }
+      }
+      if (input.humanReview === 'rejected') {
+        return {
+          status: 'rejected', assurance: null, limitations: TIER_B_LIMITATIONS,
+          checksPassed: passed, rejectReason: 'manual_review_rejected',
+        }
+      }
+      // Approved by a person despite a weak likeness — assurance drops to manual_review and the
+      // biometric limitation stays, because no machine bound this face to this document.
+      return {
+        status: 'verified', assurance: 'manual_review',
+        limitations: [...TIER_B_LIMITATIONS, LIMITATION.noBiometricBinding],
+        checksPassed: [...passed, 'human_review_approved'],
+      }
     }
     passed.push('portrait_matched_holder')
     return {
@@ -375,10 +424,32 @@ export function decideTierB(input: TierBInput): TierBDecision {
     }
   }
 
-  // MRZ-only path: internally consistent, but nothing has attested the document is genuine.
+  // MRZ-only path: internally consistent, but NOTHING HAS ATTESTED THE DOCUMENT IS GENUINE.
+  //
+  // ⛔ THIS USED TO RETURN `verified` AND MUST NOT. With a provider present that was defensible —
+  // the provider is the attestation. With the provider gone it is a mod-10 checksum on digits the
+  // forger chose, which is why the `provider` field carries the warning it does. A self-built flow
+  // therefore answers `pending` and waits for a human; only that human can lift it.
+  if (input.humanReview === 'rejected') {
+    return {
+      status: 'rejected', assurance: null,
+      limitations: [...TIER_B_LIMITATIONS, LIMITATION.noBiometricBinding],
+      checksPassed: passed, rejectReason: 'manual_review_rejected',
+    }
+  }
+  if (input.humanReview === 'approved') {
+    return {
+      status: 'verified',
+      // `manual_review`, NOT `document_consistent`: the thing that carried this record over the
+      // line was a person looking at it, and the compliance sentence has to say so.
+      assurance: 'manual_review',
+      limitations: [...TIER_B_LIMITATIONS, LIMITATION.noBiometricBinding],
+      checksPassed: [...passed, 'human_review_approved'],
+    }
+  }
   return {
-    status: 'verified',
-    assurance: 'document_consistent',
+    status: 'pending',
+    assurance: null,
     limitations: [...TIER_B_LIMITATIONS, LIMITATION.noBiometricBinding],
     checksPassed: passed,
   }

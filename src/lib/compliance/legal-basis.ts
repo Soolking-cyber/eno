@@ -31,7 +31,18 @@ export const LEGAL_BASIS = {
   identityDecree: {
     vi: 'Nghị định 248/2026/NĐ-CP',
     en: 'Decree No. 248/2026/ND-CP',
-    effective: '2027-01-01',
+    // ⚠️ IN FORCE 2026-07-01, WITH LAW 122/2025 — this said 2027-01-01, which conflated the
+    // decree's own effect with the identity DUTY it imposes. They are different dates and the
+    // constants below keep them apart.
+    effective: '2026-07-01',
+  },
+  eidDecree: {
+    vi: 'Nghị định 320/2026/NĐ-CP',
+    en: 'Decree No. 320/2026/ND-CP',
+    // Signed 13/8/2026, in force 28/9/2026. Adds khoản 9 to Điều 40 of ND 69/2024: seller,
+    // livestream-seller and affiliate accounts "phải được liên kết, xác thực với tài khoản định
+    // danh điện tử". This is the instrument that names VNeID for e-commerce explicitly.
+    effective: '2026-09-28',
   },
   currencyDecree: {
     vi: 'Nghị định 340/2025/NĐ-CP',
@@ -57,7 +68,37 @@ export function isLegalBasisKey(v: unknown): v is LegalBasisKey {
  * 07:00 on 1 January in Hanoi — so a deadline check would fire seven hours late for every
  * Vietnamese seller. Every compliance date in this codebase carries +07:00.
  */
-export const IDENTITY_DEADLINE = new Date('2027-01-01T00:00:00+07:00')
+// ⛔ THE DEADLINE MOVED FOUR MONTHS EARLIER AND THIS FILE HAD NOT NOTICED. The single
+// 2027-01-01 constant came from Decree 248/2026. Decree 320/2026/NĐ-CP (13/8/2026, in force
+// 28/9/2026) supersedes it for the linking duty and splits it in two, so one date can no longer
+// answer "is this seller late?" — it depends on when the account was created.
+//
+// ⚠️ AND NEITHER IS SATISFIABLE BY ANYTHING WE BUILD. "Xác thực điện tử" is a defined term:
+// Decree 69/2024 Art 3.6 makes it an operation performed THROUGH the national identification
+// system against the Cơ sở dữ liệu quốc gia về dân cư, and Art 3.9 restricts providers to public
+// -service units or enterprises inside the People's Police — i.e. Trung tâm RAR under C06. A
+// self-built selfie-and-document check does not meet it at any date. See docs/compliance-2026.md.
+
+/** Seller accounts created ON OR AFTER this date must be linked to VNeID before selling. */
+export const VNEID_LINK_DEADLINE_NEW = new Date('2026-09-28T00:00:00+07:00')
+
+/** Seller accounts that already existed must be linked by the end of this day. */
+export const VNEID_LINK_DEADLINE_EXISTING = new Date('2026-12-31T23:59:59+07:00')
+
+/**
+ * The date that applies to ONE seller, which is the only question a caller ever actually has.
+ * Pass the account's creation instant; an account created before the new-account rule bit gets
+ * the later, existing-account deadline.
+ */
+export function vneidLinkDeadlineFor(accountCreatedAt: Date): Date {
+  return accountCreatedAt < VNEID_LINK_DEADLINE_NEW ? VNEID_LINK_DEADLINE_EXISTING : VNEID_LINK_DEADLINE_NEW
+}
+
+/**
+ * @deprecated Decree 320/2026 replaced this with the two dates above. Kept only so an unmigrated
+ * caller fails loudly in review rather than silently reading a date four months too late.
+ */
+export const IDENTITY_DEADLINE = VNEID_LINK_DEADLINE_EXISTING
 
 /** Retention floor for investigative logs: 3 years. See docs/compliance-2026.md §4.2. */
 export const INVESTIGATIVE_RETENTION_DAYS = 3 * 365

@@ -30,6 +30,7 @@ import { sendMetaCapiEvent, metaUserDataFromHeaders } from '@/lib/meta-capi'
 import { dispatchListingEvent } from '@/lib/webhooks'
 import { browseRankScore, recomputeRankScoreForListing } from '@/lib/ranking'
 import { identityGateEnforced } from '@/lib/compliance/account-state'
+import { verificationStatusForDecision } from '@/lib/compliance/recompute-verification'
 import { assertPublishable, assertCleanTexts, assertCleanContactName, assertEnoughAngles, PublishBlockedError, type PublishBlockCode } from '@/lib/publish-guard'
 import { findDuplicateListing } from '@/lib/duplicate-guard'
 import { moderateListingById } from '@/lib/ai-moderation'
@@ -611,11 +612,21 @@ export async function updateListingCore(
  * paths produce IDENTICAL listings. `headers` powers CAPI user-matching + event source.
  */
 export async function createListingCore(input: {
-  // ⚠️ `verificationStatus` IS THE OWNER PROFILE'S, NOT THE STOREFRONT'S. Seller is a storefront
-  // and may be owner-less (a claimed guest seller); the legal obligation under NĐ 248/2026 attaches
-  // to the HUMAN behind it. Callers resolve it via Seller.ownerId → Profile.verificationStatus and
-  // pass it here; omitting it leaves the identity gate inert for that path (see assertPublishable).
-  seller: { id: string; trustTier: string; trustScore: number; phone: string | null; verificationStatus?: string | null }
+  // ⚠️ IDENTITY BELONGS TO THE OWNER PROFILE, NOT THE STOREFRONT. Seller is a storefront and may be
+  // owner-less (a claimed guest seller); the obligation under NĐ 248/2026 attaches to the HUMAN
+  // behind it. Hence `ownerId` rather than a status.
+  //
+  // ⛔ IT USED TO BE `verificationStatus?: string | null`, PASSED BY THE CALLER, AND BOTH CALLERS
+  // FORGOT — the session path handed over a raw Seller row and the partner path a select list
+  // without it, so an OPTIONAL field that no caller supplied left the gate inert on every path
+  // while looking wired. Taking `ownerId` and resolving here means it cannot be omitted: a new
+  // publish path either provides the owner or does not compile.
+  //
+  // ⚠️ ALL THREE CALL SITES ALREADY SATISFY IT (api/listings, api/v1/listings, lib/mcp/tools —
+  // verified, and `tsc` is the standing proof since the field is required). Saying "both callers
+  // forgot" in the present tense read as an unfixed break to two external reviewers, who both filed
+  // it as "the build is red or the diff is incomplete". It is neither: that sentence is history.
+  seller: { id: string; trustTier: string; trustScore: number; phone: string | null; ownerId: string | null }
   category: { id: string; slug: string; name: string; nameVi: string }
   title: string
   price: number
@@ -660,7 +671,23 @@ export async function createListingCore(input: {
   // ⚠️ TWO CONDITIONS, NOT ONE: the right EDITION and the switch actually thrown. Passing a status
   // while the gate is unenforced would refuse every seller the moment the column starts being
   // populated — with no way for them to clear it until VNPT works.
-  const identityStatus = identityGateEnforced() ? (seller.verificationStatus ?? undefined) : undefined
+  // ⛔ THIS READ WAS DEAD, AND SILENTLY SO. `seller.verificationStatus` does not exist — the column
+  // lives on PROFILE (prisma/schema.prisma:119). So `identityStatus` was ALWAYS undefined and
+  // assertIdentityVerified returned early every time; the gate was inert at a second level, beneath
+  // the env flag, and flipping IDENTITY_GATE_ENFORCED=1 would have changed nothing at all.
+  //
+  // ⛔ AND IT RE-READS identity_verifications RATHER THAN THE CACHE, because schema.prisma:116 says
+  // publishing must: "a cache that has drifted is exactly how a lapsed document keeps a verified
+  // badge". Expiry here is DERIVED, so a passport that lapsed this morning still reads `verified`
+  // in Profile until a sweep runs — reading the cache would let precisely that seller publish.
+  //
+  // ⚠️ A GUEST SELLER HAS NO ownerId AND THEREFORE NO IDENTITY, so it stays `undefined` — the
+  // guard's documented "not this caller's job" value, i.e. today's behaviour. That is a HOLE while
+  // the gate is on: a guest post bypasses verification entirely. Closing it is a product decision
+  // (require sign-in to post) rather than a change to make quietly here.
+  const identityStatus = identityGateEnforced() && seller.ownerId
+    ? await verificationStatusForDecision(seller.ownerId)
+    : undefined
   assertPublishable({ trustTier: seller.trustTier, verificationStatus: identityStatus, images, texts: [title, description], categorySlug, lat, lng, district })
 
   // Intent + subcategory from the taxonomy. listingType must be valid for the category

@@ -10,11 +10,82 @@ const NOW = new Date('2026-08-03T00:00:00Z')
 const CLEAN = { documentIsReal: true, legal: true, fakeWarning: false, faceMatches: true, faceIsLive: true }
 
 describe('Tier B decision', () => {
-  it('verifies a clean, consistent, unexpired document', () => {
+  // ⚠️ THIS TEST ASSERTED `verified` UNTIL 2026-08-20 AND THE CHANGE IS DELIBERATE. Dropping VNPT
+  // (owner: "we skip the ekyc by vnpt and create own checking flow") removes the provider, which
+  // this module's own note calls "the trust anchor". A clean MRZ is a mod-10 sum over digits the
+  // forger chose, so with nobody attesting the document, `pending` is the honest answer and a
+  // human is what lifts it. The checks still RAN and are still recorded — that has not changed.
+  it('a clean, consistent, unexpired document is PENDING until a human looks at it', () => {
     const d = decideTierB({ ...base(), accountName: 'Anna Maria Eriksson', now: NOW })
-    expect(d.status).toBe('verified')
-    expect(d.assurance).toBe('document_consistent')
+    expect(d.status).toBe('pending')
+    expect(d.assurance).toBeNull()
     expect(d.checksPassed).toContain('mrz_checksums')
+  })
+
+  it('a reviewer approving it produces manual_review, not document_consistent', () => {
+    const d = decideTierB({ ...base(), accountName: 'Anna Maria Eriksson', humanReview: 'approved', now: NOW })
+    expect(d.status).toBe('verified')
+    // What carried this record over the line was a PERSON, and the compliance sentence must say so.
+    expect(d.assurance).toBe('manual_review')
+    expect(d.checksPassed).toContain('human_review_approved')
+  })
+
+  it('a reviewer refusing it rejects with a reason the seller can act on', () => {
+    const d = decideTierB({ ...base(), accountName: 'Anna Maria Eriksson', humanReview: 'rejected', now: NOW })
+    expect(d.status).toBe('rejected')
+    expect(d.rejectReason).toBe('manual_review_rejected')
+  })
+
+  it('⛔ humanReview NEVER rescues a document that failed an objective check', () => {
+    // The human substitutes for the PROVIDER, not for expiry — otherwise "approve" becomes a
+    // button that verifies anything. Both objective checks run BEFORE the humanReview branch and
+    // return early, so approval cannot reach them.
+    const expired = decideTierB({ ...base(), accountName: 'Anna Maria Eriksson', documentExpiry: '2020-01-01', humanReview: 'approved', now: NOW })
+    expect(expired.status).toBe('rejected')
+    expect(expired.rejectReason).toBe('document_expired')
+  })
+
+  // ── the name-mismatch queue, and who can clear it ────────────────────────────────────────────
+  //
+  // ⛔ THIS TEST USED TO ASSERT `pending` AND CALLED IT "lenient by design". That was me writing
+  // down a bug as if it were a decision: three external reviewers independently found that the
+  // consequence is an UNAPPROVABLE case. reviewKycCase calls in with humanReview:'approved', gets
+  // `pending` back, and its own non-verified branch stamps `rejected` + `rejectReason:'expired'` on
+  // a passport valid for years. So the one cohort manual review exists for — transliterations,
+  // married names, reordered given names — was the one cohort a human could not clear.
+  //
+  // A test that pins current behaviour is only worth writing when the behaviour is RIGHT. This pair
+  // now pins the rule instead: unreviewed goes to a human; a human's verdict governs.
+  it('a name mismatch with NO human verdict waits for one', () => {
+    const wrongName = decideTierB({ ...base(), accountName: 'Someone Else Entirely', now: NOW })
+    expect(wrongName.status).toBe('pending')
+    expect(wrongName.checksPassed).not.toContain('name_matches_account')
+  })
+
+  it('⛔ A HUMAN CAN CLEAR A NAME MISMATCH — it is the whole point of the queue', () => {
+    const approved = decideTierB({ ...base(), accountName: 'Someone Else Entirely', humanReview: 'approved', now: NOW })
+    expect(approved.status).toBe('verified')
+    expect(approved.assurance).toBe('manual_review')
+    // Recorded as ACCEPTED, never as MATCHED — the audit trail must not claim the strings agreed.
+    expect(approved.checksPassed).toContain('name_mismatch_accepted_by_reviewer')
+    expect(approved.checksPassed).not.toContain('name_matches_account')
+  })
+
+  it('a human can also REJECT a name mismatch, with its own reason', () => {
+    const rejected = decideTierB({ ...base(), accountName: 'Someone Else Entirely', humanReview: 'rejected', now: NOW })
+    expect(rejected.status).toBe('rejected')
+    expect(rejected.rejectReason).toBe('manual_review_rejected')
+  })
+
+  it('⚠️ APPROVAL STILL CANNOT OUTRANK EXPIRY, mismatch or not', () => {
+    // The carve-out is for the two AMBIGUOUS checks (name, likeness). An expired passport is an
+    // objective fact, and "approve" must never become a button that verifies anything.
+    const both = decideTierB({
+      ...base(), accountName: 'Someone Else Entirely',
+      documentExpiry: '2020-01-01', humanReview: 'approved', now: NOW,
+    })
+    expect(both.status).toBe('rejected')
+    expect(both.rejectReason).toBe('document_expired')
   })
 
   it('⚠️ ALWAYS records the limitations, even on a clean pass', () => {
@@ -40,8 +111,10 @@ describe('Tier B decision', () => {
     // Treating "we could not ask" as "it answered yes" is the same fail-open shape as the
     // liveness bug qwen found in vnpt-client.
     const d = decideTierB({ ...base(), accountName: 'Anna Maria Eriksson', now: NOW })
-    expect(d.status).toBe('verified')
-    expect(d.assurance).toBe('document_consistent')          // NOT document_authenticated
+    // The test NAME was already right and the assertion had drifted from it: `verified` with no
+    // provider IS the silent pass this warns about. Now it stops at pending.
+    expect(d.status).toBe('pending')
+    expect(d.assurance).not.toBe('document_authenticated')
     expect(d.limitations).toContain(LIMITATION.noBiometricBinding)
   })
 
@@ -86,7 +159,9 @@ describe('Tier B decision', () => {
 
     it('accepts a passport expiring exactly on the floor — "ít nhất 06 tháng" includes the boundary', () => {
       const d = decideTierB({ ...base({ documentExpiry: '2027-02-03' }), accountName: 'Anna Maria Eriksson', now: NOW })
-      expect(d.status).toBe('verified')
+      // The BOUNDARY is what this pins, not the status: the six-month check passing is the claim.
+      // Status is pending now because no provider and no human have attested the document.
+      expect(d.status).toBe('pending')
       expect(d.checksPassed).toContain('document_valid_6_months')
     })
 
@@ -223,9 +298,10 @@ describe('Tier B decision', () => {
   })
 
   it('describeAssurance is derived from the record and names the missing registry', () => {
-    const d = decideTierB({ ...base(), accountName: 'Anna Maria Eriksson', now: NOW })
+    // Take the record through a human, since that is now the only route to an assurance level.
+    const d = decideTierB({ ...base(), accountName: 'Anna Maria Eriksson', humanReview: 'approved', now: NOW })
     const s = describeAssurance(d)
-    expect(s).toContain('document_consistent')
+    expect(s).toContain('manual_review')
     expect(s).toContain('INTERPOL SLTD')
     expect(s).toContain('mrz_checksums')
   })

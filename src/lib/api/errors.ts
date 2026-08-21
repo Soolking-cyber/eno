@@ -124,6 +124,15 @@ export type NicheApiErrorCode =
   | 'image_analysis_rate_limited'
   | 'image_download_failed'
   | 'image_size_invalid'
+  // Seller-facing KYC capture failures. Each is ACTIONABLE and they must stay distinct: the whole
+  // point is telling a foreign seller which retake fixes it. Flattening them to one code would send
+  // "invalid image" to someone whose only problem is standing too far from the camera.
+  | 'document_expired'
+  | 'duplicate_identity'
+  | 'image_decode_failed'
+  | 'image_dimensions_invalid'
+  | 'image_too_small_to_review'
+  | 'image_official_limit_failed'
   | 'invalid_account_type'
   | 'invalid_action'
   | 'invalid_analysis_request'
@@ -453,6 +462,12 @@ const ALL = [
   'geocode_failed',
   'id_number_required',
   'image_size_invalid',
+  'document_expired',
+  'duplicate_identity',
+  'image_decode_failed',
+  'image_dimensions_invalid',
+  'image_too_small_to_review',
+  'image_official_limit_failed',
   'internal_error',
   'invalid',
   'invalid_account_type',
