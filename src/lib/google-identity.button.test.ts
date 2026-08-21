@@ -144,4 +144,24 @@ describe('mountGoogleButton', () => {
     handle.destroy()
     expect(host.childElementCount).toBe(0)
   })
+
+  it('⛔ LEAVES GOOGLE\'S BUTTON IN THE TAB ORDER', async () => {
+    // It is the visible control now, not a hidden click target. An earlier version set
+    // tabindex=-1 on every node — correct while it lived inside aria-hidden, and a keyboard trap
+    // the moment it became the thing people actually see.
+    const api = {
+      initialize: () => {}, prompt: () => {}, cancel: () => {},
+      renderButton: (parent: HTMLElement) => {
+        const f = document.createElement('iframe')
+        parent.appendChild(f)
+      },
+    }
+    install(api)
+    const { mountGoogleButton } = await load()
+    const host = document.createElement('div')
+    await mountGoogleButton(host, { onCredential: () => {} })
+    const iframe = host.querySelector('iframe')
+    expect(iframe).not.toBeNull()
+    expect(iframe?.getAttribute('tabindex')).toBeNull()
+  })
 })

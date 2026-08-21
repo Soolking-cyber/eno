@@ -454,6 +454,11 @@ export function SignInForm({ className }: { className?: string }) {
     let generation = 0
     const mount = () => {
       const measured = measure()
+      // ⚠️ A HIDDEN CONTAINER MEASURES 0, AND RE-RENDERING INTO IT WOULD BAKE THE 320 FALLBACK.
+      // The container is display:none while a sign-in is in flight; the observer fires on that
+      // transition. Keeping the existing button untouched means it is still correct when it
+      // reappears, instead of churning through two wrong widths.
+      if (!measured && handle) return
       const w = measured || 320
       // Re-rendering on every stray resize would tear down Google's button mid-click; 8px of slack
       // absorbs scrollbar and sub-pixel noise while still catching a real layout change.
@@ -1029,88 +1034,62 @@ export function SignInForm({ className }: { className?: string }) {
           In the native app's embedded tabs it's hidden outright (isNativeTabs). */}
       {!hideGoogle && (
         <>
-          {/* ⛔ OUR BUTTON IS WHAT YOU SEE; GOOGLE'S IS WHAT YOU CLICK.
-              Google's rendered button is a cross-origin iframe — its interior cannot be styled, and
-              dropped in raw it is the one square-cornered, Google-grey control on a page of 12px
-              squircles. So it is laid INVISIBLY over our own button: the visitor sees `<Button>` in
-              our design system, the pointer lands on Google's iframe, and the flow that runs is the
-              id_token one that shows OUR domain on the consent screen instead of
-              "xihiryllwmjoouipkyhw.supabase.co".
+          {/* ⛔ GOOGLE'S BUTTON IS SHOWN, NOT HIDDEN — AND I SHIPPED THE OPPOSITE FIRST.
+              The previous version laid Google's button INVISIBLY (opacity-0) over our own, so the
+              visitor saw our design system and the pointer landed on Google. It was unclickable in
+              production and I had refuted the reviewer who predicted exactly that.
 
-              ⚠️ THE HEIGHTS MUST MATCH OR THE OVERLAY LEAVES A DEAD BAND. GIS `size: 'large'`
-              renders 40px; our button is text-sm (20px) + py-2.5 (2x10px) = exactly 40px. Change
-              either and clicks near the edge hit our button instead, silently taking the visitor
-              down the unbranded redirect. The e2e assertion for this is elementsFromPoint at the
-              CENTRE — the tap-target trap in this repo has bitten before, and only that call shows
-              which element actually receives the press.
+              WHY THE REFUTATION WAS WRONG: GIS renders two different ways. On localhost it drew a
+              LIGHT-DOM button, which happily accepts a click through a transparent parent — so the
+              popup opened and I called the finding refuted. Production draws an IFRAME instead, and
+              the iframe enforces a visibility check: at opacity 0 it swallows the click silently,
+              no console error, nothing. Proven on the live page by setting opacity to 1 and
+              clicking the same element — the popup opened instantly with app_domain=https://eno.vn.
 
-              ⚠️ opacity-0 STILL HIT-TESTS. Unlike `hidden` or `display:none`, a transparent element
-              receives pointer events — that is the whole mechanism. Do not "clean this up" into
-              visibility:hidden.
+              ⚠️ THE LESSON IS ABOUT THE TEST, NOT THE CSS: localhost did not reproduce production
+              for this component. Verify GIS rendering on the deployed origin.
 
-              ⚠️ AND THIS IS A DELIBERATE DEPARTURE FROM GOOGLE'S BRANDING GUIDANCE, which asks that
-              their button be shown as rendered. The logo, the wording and the flow are all still
-              Google's; only the frame is ours. Flagged rather than hidden — if their verification
-              ever objects, the fix is to drop `opacity-0` and let their button show. */}
-          <div className="relative w-full">
-            <Button variant="ghost" size="none" disabled={loading} onClick={() => oauth('google')} className="w-full py-2.5 font-bold text-foreground hover:bg-muted hover:text-foreground cursor-pointer">
-              {/* ⚠️ THE SPINNER IS WHAT MAKES THE ID-TOKEN FLOW READ AS PROGRESS. Unlike the redirect
-                  flow, nothing navigates when Google's popup closes — the token is exchanged in
-                  place, so for that moment the visitor is looking at the sign-in form again and
-                  reads it as "it did nothing / it logged me out". Every other button in this form
-                  swaps in Loader2 on `loading`; this one did not, which is why it was the one that
-                  looked broken. Same idiom, same position. */}
-              {googleBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <GoogleIcon />}
-              {googleBusy
-                ? t('Signing you in…', 'Đang đăng nhập…')
-                : oauthBlocked ? t('Open Google in your browser', 'Mở Google trong trình duyệt') : t('Continue with Google', 'Tiếp tục với Google')}
-              {oauthBlocked && !googleBusy && <ExternalLink className="size-3.5 text-ink-4" />}
-            </Button>
-            {/* ⚠️ aria-hidden: the visitor already has a real, focusable <button> underneath with the
-                same label. Exposing Google's iframe as well would announce the control twice.
-                Keyboard activation therefore hits OUR button and takes the redirect path — unbranded
-                but working, which is the right trade for a key press that must never dead-end. */}
-            <div
-              ref={gisRef}
-              aria-hidden="true"
-              // ⛔ THE HOST NEVER HIT-TESTS; ONLY GOOGLE'S OWN IFRAME DOES. Both external reviewers
-              // caught the same defect here independently: GIS clamps its button to
-              // clamp(200, measured, 400)px, so on any container wider than 400 — or one measured
-              // at 0 while a dialog animates and floored to 320 — a transparent `inset-0 z-10`
-              // host covered a strip the iframe did not, swallowing clicks into nothing. Not a
-              // fallback to our button either: the host was on top and interactive, so that strip
-              // was simply DEAD.
-              //
-              // ⚠️ AND MY OWN CHECK COULD NOT SEE IT. I verified with elementsFromPoint at the
-              // CENTRE, which is exactly where the iframe always is; the bug lives at the edges.
-              // Check both corners as well as the centre.
-              //
-              // pointer-events-none on the host + auto on the iframe means a click outside Google's
-              // button falls through to our real <button> and takes the redirect path — unbranded,
-              // but never dead.
-              className={cn(
-                // ⛔ `[&>*]`, NOT `[&_iframe]`. GIS renders a LIGHT-DOM button (div/span with its own
-                // classes) and, beside it, an iframe that is 0x0 and is only the credential
-                // transport. Re-enabling pointer events on the iframe therefore re-enabled them on
-                // nothing: measured, every point on the button — centre included — fell through to
-                // ours, so the branded flow stopped running entirely while looking fine. The
-                // clickable surface is the direct child GIS appends.
-                // ⛔ opacity-0 IS UNCONDITIONAL, AND BUNDLING IT WITH A STATE WAS A VISIBLE BUG.
-                // It used to ride on `gisMounted && !loading`, so the instant a credential arrived
-                // and signInWithGoogleCredential called setLoading(true), that branch flipped and
-                // opacity-0 was DROPPED — Google's raw square button flashed over ours for the
-                // frame between choosing an account and the session landing. The same window
-                // existed on first paint, before setGisMounted(true) resolved. This overlay is
-                // aria-hidden and exists only to catch a pointer; it must NEVER be visible, in any
-                // state, so its invisibility cannot be conditional on one.
-                'absolute inset-0 overflow-hidden rounded-xl opacity-0 pointer-events-none [&>*]:pointer-events-none',
-                // ⚠️ ONLY THE HIT-TESTING IS STATEFUL. Our button carries `disabled={loading}` to
-                // stop re-entry, and an overlay that still accepted clicks would let a second
-                // sign-in start on top of an in-flight one — the exact case that guard exists for.
-                gisMounted && !loading && 'z-10 [&>*]:pointer-events-auto',
-              )}
-            />
-          </div>
+              What we keep is what actually mattered — the FLOW. Clicking this runs id_token with
+              redirect_uri=gis_transform, so Google prints OUR domain instead of
+              "xihiryllwmjoouipkyhw.supabase.co". The frame is Google's; the consent screen is ours.
+
+              ⚠️ `rounded-xl` + `overflow-hidden` IS THE SQUIRCLE. globals.css:797 promotes every
+              rounded-lg…3xl to `corner-shape: squircle`, so Google's square corners are clipped to
+              the same shape as <Button>. GIS renders ~404px wide inside our 384px column and
+              `justify-center` clips it symmetrically, which reads as full-bleed rather than lopsided.
+              Its interior belongs to Google and cannot be styled — this is the closest fit available
+              without hiding it, which does not work. */}
+          {/* ⛔ HIDDEN, NOT UNMOUNTED, WHILE THE EXCHANGE RUNS. Two things break otherwise, both
+              found by review: Google's button stays live during signInWithIdToken so a second click
+              starts a second sign-in, and — the one that matters more — the progress state becomes
+              unreachable, because `googleBusy` only ever drove OUR button and that one is hidden
+              whenever GIS is up. That is exactly the "it flashes back to the login page and looks
+              like nothing happened" report this was meant to fix, reintroduced by removing the
+              overlay. `hidden` (display:none) makes it unclickable AND unfocusable in one, and our
+              button takes its place carrying the spinner.
+              ⚠️ The node must stay MOUNTED: GIS rendered into it, and unmounting would pull its DOM
+              out from under it while the effect that owns it never re-runs. */}
+          <div
+            ref={gisRef}
+            className={cn(
+              'flex w-full justify-center overflow-hidden rounded-xl',
+              gisMounted && !googleBusy ? 'min-h-11' : 'hidden',
+            )}
+          />
+          {/* ⚠️ HIDDEN ONLY ONCE GIS HAS CONFIRMED IT DREW. mountGoogleButton reports false when GIS
+              rendered nothing (an unregistered origin fails exactly that way, silently), and hiding
+              our button on a false positive leaves no way to sign in with Google at all. Two visible
+              buttons is also not merely untidy: both call initialize(), and the second call replaces
+              the first's callback and nonce. */}
+          {(!gisMounted || googleBusy) && (
+          <Button variant="ghost" size="none" disabled={loading} onClick={() => oauth('google')} className="w-full py-2.5 font-bold text-foreground hover:bg-muted hover:text-foreground cursor-pointer">
+            {googleBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <GoogleIcon />}
+            {googleBusy
+              ? t('Signing you in…', 'Đang đăng nhập…')
+              : oauthBlocked ? t('Open Google in your browser', 'Mở Google trong trình duyệt') : t('Continue with Google', 'Tiếp tục với Google')}
+            {oauthBlocked && !googleBusy && <ExternalLink className="size-3.5 text-ink-4" />}
+          </Button>
+          )}
           {oauthBlocked && (
             <p className="rounded-xl bg-tint px-3 py-2 text-2xs leading-relaxed text-muted-foreground">
               {iosHint

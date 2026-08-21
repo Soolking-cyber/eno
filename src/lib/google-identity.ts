@@ -416,12 +416,12 @@ export async function mountGoogleButton(
       width: Math.max(200, Math.min(400, Math.round(opts.width ?? 320))),
       ...(opts.locale ? { locale: opts.locale } : {}),
     })
-    // ⛔ AFTER EVERY DRAW, NOT ONCE. Rotation calls draw() again, which replaceChildren()s and lets
-    // GIS inject FRESH focusable nodes — so a strip that ran only on the initial mount left phantom
-    // tab stops inside aria-hidden the moment anyone signed in. Both reviewers caught it.
-    for (const node of container.querySelectorAll<HTMLElement>('iframe, [tabindex]')) {
-      node.setAttribute('tabindex', '-1')
-    }
+    // ⛔ THE TAB ORDER IS LEFT ALONE, AND AN EARLIER VERSION STRIPPED IT — CORRECTLY, THEN WRONGLY.
+    // While Google's button was laid invisibly over our own, its nodes were focusable content
+    // inside aria-hidden: a phantom tab stop that announced nothing, so `tabindex=-1` was right.
+    // That arrangement is gone (GIS refuses to act at opacity 0), and this button is now THE
+    // visible control. Stripping its tab stop would leave keyboard users with no way to reach
+    // Google sign-in at all — a far worse bug than the one the strip fixed.
   }
 
   try {
