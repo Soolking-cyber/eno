@@ -41,7 +41,7 @@ export function ReviewPrompt({
   if (state === 'done') {
     return (
       <div className={className}>
-        <p className="rounded-2xl bg-success/10 px-3 py-2 text-xs font-medium text-success duration-200 animate-in fade-in">
+        <p className="rounded-2xl bg-success/10 px-3 py-2 text-xs font-medium text-success duration-200 ease-out animate-in fade-in">
           <span aria-hidden>{'★'.repeat(rating || 5)}</span>{' '}
           {tr("Thanks — your review is live on the seller's page", 'Cảm ơn — đánh giá của bạn đã hiển thị trên trang người bán')}
         </p>
@@ -76,7 +76,7 @@ export function ReviewPrompt({
 
   return (
     <div className={className}>
-      <div className="rounded-2xl bg-tint px-3 py-2.5 duration-200 animate-in fade-in">
+      <div className="rounded-2xl bg-tint px-3 py-2.5 duration-200 ease-out animate-in fade-in">
         <div className="flex items-start gap-1.5">
           <p className="min-w-0 flex-1 text-xs font-medium text-foreground">
             {tr('How was your experience with {seller}?', 'Trải nghiệm của bạn với {seller} thế nào?').replace('{seller}', sellerName)}
@@ -117,7 +117,7 @@ export function ReviewPrompt({
           ))}
         </RadioGroup>
         {rating > 0 && (
-          <div className="mt-1.5 flex items-center gap-2 duration-200 animate-in fade-in">
+          <div className="mt-1.5 flex items-center gap-2 duration-200 ease-out animate-in fade-in">
             <Input
               variant="outline"
               value={text}

@@ -439,7 +439,7 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
           role="dialog"
           aria-modal="true"
           aria-label={title}
-          className="fixed inset-0 z-[100] flex touch-none items-center justify-center overscroll-none bg-black/92 animate-in fade-in duration-150"
+          className="fixed inset-0 z-[100] flex touch-none items-center justify-center overscroll-none bg-black/92 animate-in fade-in duration-150 ease-out"
           onClick={() => setOpen(false)}
         >
           <IconButton

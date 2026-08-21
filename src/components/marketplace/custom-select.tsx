@@ -94,7 +94,7 @@ const POSITIONER_Z = 'z-[1201]'
 // Tracking that width truncated every ward name to a few characters. The card is allowed
 // to be wider than its trigger; collisionPadding keeps it on screen.
 const POPUP_CARD =
-  'min-w-64 max-w-[min(22rem,calc(100vw-1rem))] overflow-hidden rounded-2xl bg-popover shadow-pop duration-150 data-open:animate-in data-open:fade-in-0'
+  'min-w-64 max-w-[min(22rem,calc(100vw-1rem))] overflow-hidden rounded-2xl bg-popover shadow-pop duration-150 ease-out data-open:animate-in data-open:fade-in-0'
 
 /** The marketplace's facet/filter select: a detached popover card 6px under the trigger
  *  (same width, floored at 176px so a narrow pill's menu stays readable), portaled to
@@ -349,7 +349,7 @@ function PlainSelect({
             // subtree is 0×0 AND out of the accessibility tree — an AX snapshot after Escape shows
             // no listbox and no options. It is NOT a leak (the node count stays at one across
             // repeated open/close) and NOT a visible orphan.
-            className="max-h-60 w-(--anchor-width) min-w-44 overflow-y-auto overflow-x-hidden rounded-2xl bg-popover p-1.5 shadow-pop scroll-thin duration-150 data-open:animate-in data-open:fade-in-0"
+            className="max-h-60 w-(--anchor-width) min-w-44 overflow-y-auto overflow-x-hidden rounded-2xl bg-popover p-1.5 shadow-pop scroll-thin duration-150 ease-out data-open:animate-in data-open:fade-in-0"
           >
             <SelectPrimitive.List>
               {options.map((opt) => {

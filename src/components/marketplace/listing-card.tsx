@@ -433,7 +433,7 @@ function ListingCardImpl({
                     // — the MEDIA brightens instead — so the card still answers the pointer without the
                     // imagery drifting under it. Brightness is a compositor-only filter, so this stays
                     // as cheap as the transform it replaced and never triggers layout.
-                    className="object-cover transition-[filter] duration-200 ease-out group-hover:brightness-105"
+                    className="object-cover transition-[filter] duration-200 group-hover:brightness-105"
                     placeholder="blur"
                     blurDataURL={BLUR}
                     quality={60}

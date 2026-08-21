@@ -94,7 +94,7 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
             alt={displayTitle}
             fill
             sizes="56px"
-            className="object-cover transition-transform duration-200 group-hover:scale-105"
+            className="object-cover transition-transform duration-200 ease-[var(--ease-spring-snappy)] group-hover:scale-105"
             loading={index < 6 ? 'eager' : 'lazy'}
 
           />
@@ -207,7 +207,7 @@ export const CompactListingRow = memo(function CompactListingRow({ listing: l, i
           // classes, same flex layout, identical render.
           <div
             onClick={(e) => e.stopPropagation()}
-            className="flex min-w-0 items-center gap-2 py-1 pr-1 animate-in slide-in-from-right-2 fade-in duration-150"
+            className="flex min-w-0 items-center gap-2 py-1 pr-1 animate-in slide-in-from-right-2 fade-in duration-150 ease-out"
           >
             <span className="shrink-0 text-2xs font-bold tabular-nums text-foreground">−{offer}%</span>
             {/* THE app slider (ui/slider, re-exported as EnoSlider) — same

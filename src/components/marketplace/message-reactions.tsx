@@ -456,7 +456,7 @@ export function BubbleChrome({
                * The mouse row stays 32px: a cursor is precise, and a 44px row of eight is 350px of
                * chrome hanging off a bubble that may be 91px wide.
                */
-              'press flex items-center justify-center rounded-full transition-[scale,background-color] duration-150 hover:scale-[1.35] hover:bg-tint focus-visible:scale-[1.35]',
+              'press flex items-center justify-center rounded-full transition-[scale,background-color] duration-150 ease-[var(--ease-spring-snappy)] hover:scale-[1.35] hover:bg-tint focus-visible:scale-[1.35]',
               coarse ? 'size-11' : 'size-8',
               myReaction === emoji && 'bg-primary/10',
             )}

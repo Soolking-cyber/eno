@@ -122,7 +122,7 @@ export function QuickReplyChips({
   return (
     <div className={className}>
       {!isSeller && note === 'shown' && availabilityConfirmedAt && (
-        <div className="mb-1 flex items-center gap-1.5 duration-200 animate-in fade-in">
+        <div className="mb-1 flex items-center gap-1.5 duration-200 ease-out animate-in fade-in">
           <p className="flex min-w-0 flex-1 items-center gap-1 text-xs font-medium text-success">
             {/* Line glyph, not the '✓' literal — one check mark per icon-language §1. */}
             <Check className="h-3.5 w-3.5 shrink-0" aria-hidden />
@@ -197,7 +197,7 @@ export function MarkSoldPrompt({ listingId, listingTitle }: { listingId: string;
 
   if (state === 'done') {
     return (
-      <p className="flex items-center gap-1.5 mt-2 text-xs font-medium text-success duration-200 animate-in fade-in">
+      <p className="flex items-center gap-1.5 mt-2 text-xs font-medium text-success duration-200 ease-out animate-in fade-in">
         {/* Line glyph instead of the 🎉 emoji — celebration stays, raster ink goes (§1). */}
         <PartyPopper className="h-3.5 w-3.5 shrink-0" aria-hidden />
         {tr('Marked as sold — congrats on the deal!', 'Đã đánh dấu là đã bán — chúc mừng bạn chốt đơn!')}
@@ -206,7 +206,7 @@ export function MarkSoldPrompt({ listingId, listingTitle }: { listingId: string;
   }
 
   return (
-    <div className="mt-2 duration-200 animate-in fade-in">
+    <div className="mt-2 duration-200 ease-out animate-in fade-in">
       <p className="text-xs font-medium text-foreground">
         {tr('Deal! Mark "{title}" as sold?', 'Chốt đơn! Đánh dấu "{title}" là đã bán?').replace('{title}', listingTitle)}
       </p>
