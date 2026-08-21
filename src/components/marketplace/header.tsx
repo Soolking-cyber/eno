@@ -343,7 +343,7 @@ export function Header() {
           // with no brand mark and no way home. `user && 'lg:hidden'` mirrors that exact condition —
           // change one and the other must follow, or the logo vanishes for people who have no rail.
             className={cn(
-              'flex shrink-0 items-center transition-transform duration-200 hover:scale-110 active:scale-[0.96]',
+              'flex shrink-0 items-center transition-transform duration-200 ease-[var(--ease-spring-snappy)] hover:scale-110 active:scale-[0.96]',
               railOpen && 'lg:hidden',
             )}
           aria-label={SITE_NAME}
@@ -419,7 +419,7 @@ export function Header() {
               submitSearch(typed ?? searchVal)
               setShowSuggestions(false)
             }}
-            className="relative min-w-0 flex-1 animate-in fade-in duration-200"
+            className="relative min-w-0 flex-1 animate-in fade-in duration-200 ease-out"
           >
             {/* Positioning context for the whole search component. The form is `flex-1`, so the bar
                 now stretches END TO END — from the eno wordmark to the action icons (owner 2026-07-17:
@@ -431,7 +431,7 @@ export function Header() {
                 bottom and fuses with the suggestions panel into one continuous white
                 window when open (Google-style monolith). */}
             <div className={cn(
-              'relative z-50 flex items-center transition-all duration-200',
+              'relative z-50 flex items-center transition-all duration-200 ease-out',
               panelOpen
                 // Open = the fused search WINDOW (a panel, not an input): rounded-2xl to match the
                 // suggestions panel it fuses with at sm+ (bottom flattened where they join), so the
@@ -541,7 +541,7 @@ export function Header() {
                     }}
                     aria-label={tr('Map', 'Bản đồ')}
                     title={tr('Map', 'Bản đồ')}
-                    className="relative mr-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-ink-4 tap-48 transition-[color,scale] duration-200 hover:text-accent-foreground active:scale-[0.96] cursor-pointer"
+                    className="relative mr-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-ink-4 tap-48 transition-[color,scale] duration-200 ease-[var(--ease-spring-snappy)] hover:text-accent-foreground active:scale-[0.96] cursor-pointer"
                   >
                     <Map className="h-6 w-6" strokeWidth={STROKE} />
                   </Button>
@@ -555,7 +555,7 @@ export function Header() {
             {/* Recent searches + recent locations — flush bottom of the same window */}
             {suggestOpen && (
               <>
-                <div className="fixed inset-x-2 top-[calc(env(safe-area-inset-top)+3.75rem)] z-50 space-y-4 rounded-2xl bg-popover p-4 shadow-pop animate-in fade-in slide-in-from-top-1 duration-100 sm:absolute sm:inset-x-0 sm:top-full sm:-mt-px sm:rounded-t-none sm:rounded-b-2xl">
+                <div className="fixed inset-x-2 top-[calc(env(safe-area-inset-top)+3.75rem)] z-50 space-y-4 rounded-2xl bg-popover p-4 shadow-pop animate-in fade-in slide-in-from-top-1 duration-100 ease-out sm:absolute sm:inset-x-0 sm:top-full sm:-mt-px sm:rounded-t-none sm:rounded-b-2xl">
                   {recentSearches.length > 0 && (
                     <div className="space-y-1.5">
                       <div className="flex items-center justify-between">
@@ -616,7 +616,7 @@ export function Header() {
 
             {/* Instant matches — live listings + categories as you type (≥2 chars) */}
             {instantOpen && (
-              <div className="fixed inset-x-2 top-[calc(env(safe-area-inset-top)+3.75rem)] z-50 max-h-[70vh] overflow-y-auto rounded-2xl bg-popover p-3 shadow-pop animate-in fade-in slide-in-from-top-1 duration-100 sm:absolute sm:inset-x-0 sm:top-full sm:-mt-px sm:rounded-t-none sm:rounded-b-2xl">
+              <div className="fixed inset-x-2 top-[calc(env(safe-area-inset-top)+3.75rem)] z-50 max-h-[70vh] overflow-y-auto rounded-2xl bg-popover p-3 shadow-pop animate-in fade-in slide-in-from-top-1 duration-100 ease-out sm:absolute sm:inset-x-0 sm:top-full sm:-mt-px sm:rounded-t-none sm:rounded-b-2xl">
                 <SearchSuggest
                   items={suggestItems}
                   loading={live.loading}

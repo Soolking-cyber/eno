@@ -148,7 +148,7 @@ export function AccountPanel({ open, onClose }: { open: boolean; onClose: () => 
   // -friendly; no layout reflow of the page since the panel is position:fixed). Under reduced-motion
   // the global guard collapses the transition to instant.
   const labelCls = cn(
-    'overflow-hidden whitespace-nowrap transition-[max-width,opacity] duration-200',
+    'overflow-hidden whitespace-nowrap transition-[max-width,opacity] duration-200 ease-out',
     'max-w-[180px] opacity-100',
     expanded ? 'lg:max-w-[180px] lg:opacity-100' : 'lg:max-w-0 lg:opacity-0',
   )
@@ -272,14 +272,14 @@ export function AccountPanel({ open, onClose }: { open: boolean; onClose: () => 
         // expands to 280px and FLOATS over the content on an OPAQUE bg-background (so the content
         // behind is cleanly covered without needing a shadow). Click-outside collapses it. Width /
         // colour / transform ease together; position:fixed so the width change never reflows the page.
-        'lg:transition-[width,background-color,transform] lg:duration-200',
+        'lg:transition-[width,background-color,transform] lg:duration-200 lg:ease-out',
         expanded
           ? 'lg:w-[var(--account-w-open)] lg:bg-background'
           : 'lg:w-[var(--account-w)] lg:bg-muted/10',
         // Entrance is SPLIT by breakpoint: MOBILE fades like a page (opacity+visibility,
         // transition-discrete so the fade-out finishes before it leaves the a11y tree; max-lg:starting
         // gives the first lazy-mount fade WITHOUT slowing desktop); DESKTOP slides in from the LEFT.
-        'transition-[opacity,visibility] transition-discrete duration-150',
+        'transition-[opacity,visibility] transition-discrete duration-150 ease-out',
         open
           ? 'opacity-100 max-lg:starting:opacity-0 lg:translate-x-0'
           : 'invisible opacity-0 lg:visible lg:opacity-100 lg:-translate-x-full',
@@ -339,11 +339,11 @@ export function AccountPanel({ open, onClose }: { open: boolean; onClose: () => 
           aria-hidden
           width={1024}
           height={1024}
-          className={cn('h-8 w-8 shrink-0 transition-[max-width,opacity] duration-200', expanded ? 'max-w-0 opacity-0' : 'max-w-8 opacity-100')}
+          className={cn('h-8 w-8 shrink-0 transition-[max-width,opacity] duration-200 ease-out', expanded ? 'max-w-0 opacity-0' : 'max-w-8 opacity-100')}
         />
         <span
           className={cn(
-            'min-w-0 overflow-hidden transition-[max-width,opacity] duration-200',
+            'min-w-0 overflow-hidden transition-[max-width,opacity] duration-200 ease-out',
             expanded ? 'max-w-[160px] opacity-100' : 'max-w-0 opacity-0',
           )}
         >
@@ -402,7 +402,7 @@ export function AccountPanel({ open, onClose }: { open: boolean; onClose: () => 
               className="absolute inset-0 rounded-2xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
             />
             <Avatar url={dash?.profile.avatarUrl} name={displayName} color={dash?.profile.avatarColor} size="sm" />
-            <div className={cn('min-w-0 overflow-hidden transition-[max-width,opacity] duration-200', 'max-w-[180px] flex-1 opacity-100', expanded ? 'lg:max-w-[180px] lg:flex-1 lg:opacity-100' : 'lg:max-w-0 lg:opacity-0')}>
+            <div className={cn('min-w-0 overflow-hidden transition-[max-width,opacity] duration-200 ease-out', 'max-w-[180px] flex-1 opacity-100', expanded ? 'lg:max-w-[180px] lg:flex-1 lg:opacity-100' : 'lg:max-w-0 lg:opacity-0')}>
               <span className="flex items-center gap-1.5">
                 <p className="truncate text-sm font-bold text-foreground group-hover:text-accent-foreground">{displayName}</p>
                 {typeof dash?.profile.trustScore === 'number' && (

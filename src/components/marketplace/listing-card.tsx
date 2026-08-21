@@ -281,7 +281,7 @@ function ListingCardImpl({
         // measurement before reaching for either again.
         // The accessible name moved to the meta row; see the sr-only there.
         className={cn(
-          'relative aspect-square w-full overflow-hidden rounded-2xl bg-tint transform-gpu isolate transition-shadow duration-200 group-hover:shadow-[var(--shadow-card)]',
+          'relative aspect-square w-full overflow-hidden rounded-2xl bg-tint transform-gpu isolate transition-shadow duration-200 ease-out group-hover:shadow-[var(--shadow-card)]',
         )}
         onClick={(e) => {
           // Image-area click → open the listing. It bubbles up from the photo, scrims,
@@ -433,7 +433,7 @@ function ListingCardImpl({
                     // — the MEDIA brightens instead — so the card still answers the pointer without the
                     // imagery drifting under it. Brightness is a compositor-only filter, so this stays
                     // as cheap as the transform it replaced and never triggers layout.
-                    className="object-cover transition-[filter] duration-200 group-hover:brightness-105"
+                    className="object-cover transition-[filter] duration-200 ease-out group-hover:brightness-105"
                     placeholder="blur"
                     blurDataURL={BLUR}
                     quality={60}
@@ -618,6 +618,14 @@ function ListingCardImpl({
             // Bare glyph — same face treatment as the heart/pin (white + drop-shadow) = variant="overlay".
             // tapTarget={false} is REQUIRED here: this is a gap-1 row of h-8 glyphs at ~36px pitch, so a
             // 44px ::before would overlap its neighbour and a boundary tap would fire OFFER, not CHAT.
+            //
+            // ⚠️ THE SPRING RIDES `transition-all`, AND THAT IS FINE HERE — all three reviewers
+            // read it as an overshoot landing on opacity and colour, so the arithmetic is written
+            // down once. --ease-spring-snappy peaks at 1.030, i.e. 3%. The travel is translate-x-3
+            // = 12px, so the overrun is 0.36px (~1 device px at dpr 3) on a button that floats over
+            // a photo — not docked to an edge, which is the case globals.css actually bans. Opacity
+            // clamps at 1, so its overshoot is unobservable by definition. The scale is what the
+            // spring is FOR. Narrowing the property list would be a separate, visually-tested change.
             <Tooltip content={tr('Chat with seller', 'Nhắn tin với người bán')} side="top">
               <IconButton
                 size="sm"
@@ -625,7 +633,7 @@ function ListingCardImpl({
                 tapTarget={false}
                 aria-label={tr('Chat with seller', 'Nhắn tin với người bán')}
                 onClick={(e) => { e.stopPropagation(); quickGo({ body: tr('Hi! Is this still available?', 'Chào bạn! Món này còn không?') }) }}
-                className="pointer-events-auto translate-x-3 opacity-0 transition-all duration-200 hover:scale-110 active:scale-[0.96] group-hover:translate-x-0 group-hover:opacity-100 focus-visible:translate-x-0 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                className="pointer-events-auto translate-x-3 opacity-0 transition-all duration-200 ease-[var(--ease-spring-snappy)] hover:scale-110 active:scale-[0.96] group-hover:translate-x-0 group-hover:opacity-100 focus-visible:translate-x-0 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
               >
                 <MessageCircle className="h-5 w-5" />
               </IconButton>
@@ -641,7 +649,7 @@ function ListingCardImpl({
                 aria-pressed={quickOffer !== null}
                 onClick={(e) => { e.stopPropagation(); setQuickOffer(quickOffer === null ? 10 : null) }}
                 className={cn(
-                  'pointer-events-auto translate-x-3 opacity-0 transition-all duration-200 hover:scale-110 active:scale-[0.96] group-hover:translate-x-0 group-hover:opacity-100 focus-visible:translate-x-0 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white',
+                  'pointer-events-auto translate-x-3 opacity-0 transition-all duration-200 ease-[var(--ease-spring-snappy)] hover:scale-110 active:scale-[0.96] group-hover:translate-x-0 group-hover:opacity-100 focus-visible:translate-x-0 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white',
                   quickOffer === null && 'delay-75 group-hover:delay-75',
                 )}
               >
@@ -661,7 +669,7 @@ function ListingCardImpl({
                 tapTarget={false}
                 aria-label={tr('Show on map', 'Xem trên bản đồ')}
                 onClick={(e) => { e.stopPropagation(); locate(listing) }}
-                className="pointer-events-auto translate-x-3 opacity-0 transition-all delay-150 duration-200 hover:scale-110 active:scale-[0.96] group-hover:translate-x-0 group-hover:opacity-100 group-hover:delay-150 focus-visible:translate-x-0 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                className="pointer-events-auto translate-x-3 opacity-0 transition-all delay-150 duration-200 ease-[var(--ease-spring-snappy)] hover:scale-110 active:scale-[0.96] group-hover:translate-x-0 group-hover:opacity-100 group-hover:delay-150 focus-visible:translate-x-0 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
               >
                 <MapPin className="h-5 w-5" />
               </IconButton>
@@ -680,7 +688,7 @@ function ListingCardImpl({
             sellerId={listing.sellerId}
             compact
             dense
-            className="pointer-events-auto translate-x-3 opacity-0 transition-all delay-200 duration-200 hover:scale-110 active:scale-[0.96] group-hover:translate-x-0 group-hover:opacity-100 group-hover:delay-200 focus-visible:translate-x-0 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+            className="pointer-events-auto translate-x-3 opacity-0 transition-all delay-200 duration-200 ease-[var(--ease-spring-snappy)] hover:scale-110 active:scale-[0.96] group-hover:translate-x-0 group-hover:opacity-100 group-hover:delay-200 focus-visible:translate-x-0 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
           />
         </span>
 
@@ -734,7 +742,7 @@ function ListingCardImpl({
         {quickOffer !== null && (
           <div
             onClick={(e) => e.stopPropagation()}
-            className="absolute inset-x-1 top-1/2 z-20 flex -translate-y-1/2 flex-col gap-1.5 rounded-xl bg-popover/95 p-2 shadow-pop backdrop-blur-[2px] animate-in slide-in-from-right-2 fade-in duration-150"
+            className="absolute inset-x-1 top-1/2 z-20 flex -translate-y-1/2 flex-col gap-1.5 rounded-xl bg-popover/95 p-2 shadow-pop backdrop-blur-[2px] animate-in slide-in-from-right-2 fade-in duration-150 ease-out"
           >
             <div className="flex items-center gap-2">
               <span className="shrink-0 text-2xs font-bold tabular-nums text-foreground">−{quickOffer}%</span>
