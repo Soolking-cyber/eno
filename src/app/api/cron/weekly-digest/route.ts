@@ -1,4 +1,5 @@
 import { route } from '@/lib/api/handler'
+import { mintUnsubscribeToken } from '@/lib/unsubscribe-token'
 import { db } from '@/lib/db'
 import { sendMail, mailEnabled } from '@/lib/mail'
 import { getDigestContent } from '@/lib/digest'
@@ -43,7 +44,7 @@ export const GET = route({ auth: 'cron' }, async () => {
 
   const recipients = await db.profile.findMany({
     where: { weeklyDigestOptIn: true, email: { not: null } },
-    select: { email: true, displayName: true, unsubscribeToken: true },
+    select: { id: true, email: true, displayName: true, unsubscribeToken: true },
     take: MAX_RECIPIENTS,
   })
 
@@ -54,7 +55,11 @@ export const GET = route({ auth: 'cron' }, async () => {
     const res = await Promise.all(
       batch.map(async (r) => {
         if (!r.email) return false
-        const unsubscribeUrl = `${ORIGIN}/unsubscribe?token=${r.unsubscribeToken}`
+        // ⚠️ Falls back to the stored cuid when no signing secret is configured, so a
+        // misconfigured environment still sends a WORKING unsubscribe link rather than a
+        // broken one — a dead unsubscribe link is worse than an unsigned one.
+        const unsubToken = mintUnsubscribeToken(r.id) ?? r.unsubscribeToken
+        const unsubscribeUrl = `${ORIGIN}/unsubscribe?token=${unsubToken}`
         const { subject, html, text } = renderWeeklyDigest({
           top, sales, origin: ORIGIN, unsubscribeUrl, recipientName: r.displayName,
         })
@@ -66,7 +71,7 @@ export const GET = route({ auth: 'cron' }, async () => {
           headers: {
             // RFC 8058 one-click unsubscribe — Gmail/Apple render a native "Unsubscribe"
             // control that POSTs here; the visible footer link goes to the /unsubscribe page.
-            'List-Unsubscribe': `<${ORIGIN}/api/unsubscribe?token=${r.unsubscribeToken}>`,
+            'List-Unsubscribe': `<${ORIGIN}/api/unsubscribe?token=${unsubToken}>`,
             'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
           },
         })

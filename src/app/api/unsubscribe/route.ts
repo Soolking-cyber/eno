@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { verifyUnsubscribeToken } from '@/lib/unsubscribe-token'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -39,10 +40,23 @@ export async function POST(req: NextRequest) {
     /* one-click POST bodies are form-encoded (List-Unsubscribe=One-Click), not JSON → unsubscribe */
   }
 
-  const res = await db.profile.updateMany({
-    where: { unsubscribeToken: token },
-    data: { weeklyDigestOptIn: optIn },
-  })
+  // ⛔ VERIFY A SIGNATURE FIRST, DO NOT LOOK A SECRET UP. A plaintext lookup means the
+  // database holds working unsubscribe capabilities for every profile, so a backup, a
+  // dump or an injection hands over the ability to toggle anyone's email preference.
+  // The signed form carries the profile id and proves itself — nothing is stored, so
+  // nothing can leak. See src/lib/unsubscribe-token.ts for why hashing the stored
+  // column could not work: the digest rebuilds the link from that column on every send.
+  const signedProfileId = verifyUnsubscribeToken(token)
+
+  const res = signedProfileId
+    ? await db.profile.updateMany({ where: { id: signedProfileId }, data: { weeklyDigestOptIn: optIn } })
+    // ⚠️ LEGACY FALLBACK, DELIBERATELY KEPT AND DELIBERATELY TEMPORARY. Emails already
+    // sitting in inboxes carry the old cuid, and an unsubscribe link that stops working
+    // is a compliance failure, not a hardening win. Remove this branch — and the
+    // Profile.unsubscribeToken column with it — once the digests that used it have aged
+    // out. Tracked in docs/security-checklist.md.
+    : await db.profile.updateMany({ where: { unsubscribeToken: token }, data: { weeklyDigestOptIn: optIn } })
+
   if (res.count === 0) return NextResponse.json({ error: 'invalid_token' }, { status: 404 })
   return NextResponse.json({ ok: true, optIn })
 }

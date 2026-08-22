@@ -67,6 +67,21 @@ it is the last recorded error, not current state. The logs are the authority.
       absent from `eno-root-env` and from the Cloud Run service env by design, so
       checking either of those reports a false negative.
 
+## Scheduled removals
+
+- [ ] **Drop the legacy unsubscribe path and the `Profile.unsubscribeToken` column.**
+      Unsubscribe tokens are now derived (HMAC over the profile id,
+      `src/lib/unsubscribe-token.ts`), so nothing usable is stored. The plaintext
+      lookup in `src/app/api/unsubscribe/route.ts` is kept only because emails already
+      in inboxes carry the old cuid, and an unsubscribe link that stops working is a
+      compliance failure rather than a hardening win. Remove the fallback and the
+      column once those digests have aged out — until then the database still holds
+      working tokens, so the hardening is partial by design.
+      ⚠️ **It will not age out on its own.** `Profile.unsubscribeToken` still carries
+      `@unique @default(cuid())`, so every new profile keeps getting a stored token.
+      Dropping the fallback means a schema change as well as a code change; a reviewer
+      caught that this note originally implied time alone would finish the job.
+
 ## Accepted risks
 
 - **Brand logo SVG filtering is a blocklist, not a structural sanitiser**
