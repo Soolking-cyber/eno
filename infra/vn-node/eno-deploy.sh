@@ -374,6 +374,28 @@ say "7. swap"
 # overwriting the only good rollback. Written first, removed only on success.
 touch /opt/eno/deploy-incomplete
 for svc in eno-vn eno-forum; do
+  # ⛔ ADOPTING A HAND-CREATED CONTAINER IS A ONE-WAY DOOR, SO IT IS EXPLICIT.
+  # Both app containers were started by hand with `docker run --name …` and carry no
+  # com.docker.compose.project label. Compose will not adopt a container it did not
+  # create: it tries to CREATE one with the same name and fails with a name conflict —
+  # which is exactly how the first real deploy stopped (2026-08-22), harmlessly, having
+  # changed nothing. The only way forward is to remove the old container first.
+  # ⚠️ Irreversible WHEN THE OLD IMAGE IS ALSO GONE, which is the same state pin_prev
+  # reports: once removed, that container cannot be recreated from anything on this box.
+  # The replacement is the freshly built and boundary-checked image, and the fallback is
+  # the DNS flip to Cloud Run — but there is no undo in between, so it is opt-in.
+  cname=$(docker inspect -f '{{.Name}}' "${svc}-app" 2>/dev/null | sed 's|^/||')
+  if [ -n "$cname" ] && [ -z "$(docker inspect -f '{{index .Config.Labels "com.docker.compose.project"}}' "$cname" 2>/dev/null)" ]; then
+    if [ "${ENO_ADOPT:-}" = "1" ]; then
+      bad "$cname was created by hand, not by compose — removing it so compose can own it."
+      bad "⛔ ONE-WAY: its image is gone, so this container cannot be recreated. Fallback is DNS→Cloud Run."
+      docker rm -f "$cname" >/dev/null || { bad "could not remove $cname"; exit 1; }
+    else
+      bad "$cname is not compose-managed, so compose cannot replace it (name conflict)."
+      bad "Re-run with ENO_ADOPT=1 to remove and re-create it under compose. Read the note above first."
+      exit 1
+    fi
+  fi
   docker compose -f "$COMPOSE" up -d --force-recreate "$svc" || { restore; exit 1; }
   # ⚠️ Next standalone needs a moment before it answers. Probing too early reports a
   # failure that would have passed, and the reflex then is to roll back a good deploy.
