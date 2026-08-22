@@ -131,62 +131,112 @@ upload our own cert+key with `POST /zones/{id}/origin_tls_client_auth`, then poi
 then, the Transform-Rule header check in `src/proxy.ts` is the only control that
 binds a request to our zone — and it guards `/api/*` only, not page routes.
 
-### Enabling, in this order
+### Where this actually stands
 
-⛔ **Order is the entire risk.** Zone first, box second. Reversed, nginx demands a
-certificate Cloudflare is not sending and every request through the edge breaks.
+⛔ **Hostname-level AOP is NOT Cloudflare's shared CA — it needs a certificate we
+supply.** `PUT /zones/{id}/origin_tls_client_auth/hostnames` takes a `cert_id`,
+and that id comes from `POST …/hostnames/certificates`, which requires
+`certificate` **and** `private_key`. So the "safe per-hostname toggle" and the
+"custom certificate that actually binds to our zone" are the same thing — which is
+good news: scoping it to this box's hostnames also gets the stronger property.
 
-**1. Zone or hostname.** Two options, and the second is safer while `eno.vn` still
-points at the GCLB:
+**Done and inert:**
 
-- **Zone-wide** — `PUT /zones/$ZONE/origin_tls_client_auth/settings` `{"enabled":true}`
-  (dashboard: *SSL/TLS → Origin Server → Authenticated Origin Pulls*). Safe for the
-  GCLB — an origin that does not ask for a client certificate discards the offered
-  one — but it is a live-zone change.
-- **Per hostname** (recommended pre-cutover) —
-  `PUT /zones/$ZONE/origin_tls_client_auth/hostnames` enables client auth for named
-  hostnames only. Turn it on for `sb.eno.vn` and `vn-test.eno.vn`, which are the
-  only names pointing at this box, and `eno.vn` on the GCLB is untouched entirely.
+- Our own CA generated (`eno-origin-pull-ca.pem`, CN `eno origin-pull CA`, to
+  2036). ⛔ **The CA private key never left the machine that made it and must NEVER
+  go to Cloudflare** — only the client certificate it signed does. That asymmetry
+  is the point: Cloudflare can prove it holds our client cert, but cannot mint
+  another one.
+- CA installed at `/etc/nginx/ssl/eno-origin-pull-ca.pem` on the box.
+- `vn-test.eno.vn` split into its own server block, so mTLS can be required on the
+  two hostnames that point here without demanding a client certificate on the
+  vhost `eno.vn` lands on at cutover.
+- `origin-pull.conf` staged; the `include` is commented out in both blocks.
 
-Zones: eno.vn `55e558b62f68a44f8177d7d98cb5369e`,
-eno.forum `cc81e3ff1d792c0aa5384e8feab21efa`.
-
-**2. Confirm nothing moved.** Baseline captured 2026-08-22 before any change:
+**The one blocked step.** Uploading the client cert+key needs a Cloudflare token
+this session does not hold, and marshalling a private key is refused here by
+design. Run it yourself with a token scoped to *SSL and Certificates: Edit*:
 
 ```bash
-for u in https://eno.vn/ https://www.eno.vn/ https://eno.forum/ https://vn-test.eno.vn/; do
-  curl -s -o /dev/null -w "$u %{http_code}\n" "$u"; done
-#   eno.vn 200 · www.eno.vn 308 · eno.forum 200 · vn-test.eno.vn 200
-SB=$(dig @1.1.1.1 +short sb.eno.vn A | head -1)
-curl -s -o /dev/null -w "sb %{http_code}\n" --resolve sb.eno.vn:443:$SB https://sb.eno.vn/auth/v1/health
-#   sb 401   ← five checks, five codes; the sb one needs its own command
+Z=55e558b62f68a44f8177d7d98cb5369e            # eno.vn
+D=<the directory holding eno-aop-client.pem / .key>
+
+# ⚠️ --data @- reads the body from STDIN. Passing it as an argument would put the
+# private key in this process's argv, where `ps` shows it to every local user.
+# --fail makes curl exit non-zero on an API error instead of handing the next
+# command an empty cert_id.
+jq -n --rawfile c "$D/eno-aop-client.pem" --rawfile k "$D/eno-aop-client.key" \
+     '{certificate:$c, private_key:$k}' \
+  | curl -sS --fail -X POST \
+      "https://api.cloudflare.com/client/v4/zones/$Z/origin_tls_client_auth/hostnames/certificates" \
+      -H "Authorization: Bearer $CF_TOKEN" -H "Content-Type: application/json" \
+      --data @- > /tmp/aop-upload.json || { echo "UPLOAD FAILED"; exit 1; }
+CERT_ID=$(jq -r '.result.id' /tmp/aop-upload.json)
+[ -n "$CERT_ID" ] && [ "$CERT_ID" != "null" ] || { echo "no cert_id returned"; exit 1; }
+echo "cert_id=$CERT_ID"
+
+curl -s -X PUT "https://api.cloudflare.com/client/v4/zones/$Z/origin_tls_client_auth/hostnames" \
+  -H "Authorization: Bearer $CF_TOKEN" -H "Content-Type: application/json" \
+  --data "$(jq -n --arg id "$CERT_ID" '{config:[
+      {hostname:"vn-test.eno.vn", cert_id:$id, enabled:true}]}')" | jq '.success,.errors'
+# ⚠️ vn-test FIRST, alone. Verify it end-to-end before adding sb.eno.vn — sb serves
+# auth, storage and realtime for BOTH editions, so getting it wrong is a real
+# outage while vn-test is a throwaway. Repeat the call with sb once vn-test proves
+# out (include BOTH hostnames in `config`; the PUT replaces the whole association
+# list rather than appending to it).
 ```
 
-**3. Box** — copy `origin-pull.conf` to `/etc/nginx/snippets/eno-origin-pull.conf`
-and add `include /etc/nginx/snippets/eno-origin-pull.conf;` beside the ssl include
-in each server block, then `nginx -t && systemctl reload nginx`.
+⛔ `origin-pull.conf` still names Cloudflare's shared CA. **Change
+`ssl_client_certificate` to `/etc/nginx/ssl/eno-origin-pull-ca.pem`** when using
+our own certificate — pointing it at the shared CA would accept any Cloudflare
+customer and give up the property we just paid for.
 
-**4. Prove it.** ⚠️ `ssl_verify_client on` does **not** abort the handshake — nginx
-completes TLS and answers **HTTP 400 "No required SSL certificate was sent"**. A
-test expecting a TLS alert will read as a failure when it is working:
+**Then, and only then, require it on the box:**
 
 ```bash
-curl -sk -o /dev/null -w '%{http_code}\n' --resolve eno.vn:443:127.0.0.1 https://eno.vn/
-#   expect 400  (was 200)
+$SCP origin-pull.conf $H:/etc/nginx/snippets/eno-origin-pull.conf
+# uncomment the `include /etc/nginx/snippets/eno-origin-pull.conf;` line in the
+# vn-test.eno.vn and sb.eno.vn blocks ONLY — never in the eno.vn/eno.forum blocks
+# until their hostnames are associated too.
+$SSH 'nginx -t && systemctl reload nginx'
+```
+
+**Prove it.** ⚠️ `ssl_verify_client on` completes the handshake and returns
+**HTTP 400 "No required SSL certificate was sent"** — not a TLS alert:
+
+```bash
+curl -sk -o /dev/null -w '%{http_code}\n' --resolve vn-test.eno.vn:443:127.0.0.1 https://vn-test.eno.vn/
+#   expect 400  (bypasses Cloudflare, so carries no client cert)
 curl -s  -o /dev/null -w '%{http_code}\n' https://vn-test.eno.vn/
-#   expect 200  — still fine, because it goes through Cloudflare
+#   expect 200  (through Cloudflare, which now presents our cert)
 ```
 
-✅ **`sb.eno.vn` under mTLS is safe.** Checked from inside the app container: it
-resolves `sb.eno.vn` to Cloudflare (`2606:4700:…`), so server-side Supabase calls
-hairpin through the edge and carry the client certificate like any other request.
-(They are a hairpin, which costs a round trip — worth revisiting separately.)
+⛔ **This breaks every on-box check in "Verifying a change" above** for those two
+hostnames — they all use `--resolve …:127.0.0.1` and so carry no certificate.
+Verify through the edge instead.
 
-⛔ **This breaks the on-box verification commands in "Verifying a change" above.**
-Every one of those uses `--resolve …:127.0.0.1`, which bypasses Cloudflare and
-therefore carries no client certificate — they will all return 400 once mTLS is on.
-After enabling, verify through the edge (`https://vn-test.eno.vn/...`) instead, or
-temporarily comment the include out on the box.
+⛔ **THE CA PRIVATE KEY IS NOT SAVED ANYWHERE DURABLE YET.** It was generated into
+a session scratchpad that will be deleted. Without it, the client certificate
+cannot be rotated — you would have to mint a whole new CA, reinstall it on the box
+and re-upload to Cloudflare. Move it into the vault before that directory goes:
+
+```bash
+# ⚠️ the generated files are named eno-aop-ca.{key,pem}; the vault entries are
+# named for what they are. Check the filenames before running — a typo here is
+# how the only copy gets lost.
+~/eno-vault/vault.sh put eno-origin-pull-ca-key  < eno-aop-ca.key   # the irreplaceable half
+~/eno-vault/vault.sh put eno-origin-pull-ca-cert < eno-aop-ca.pem
+```
+
+⚠️ **Neither file is in this repo, and that is deliberate** — `.gitignore` blanket-
+ignores `*.pem`. That rule is what stops a private key being committed by accident,
+so it is not worth punching a hole in it to store a public certificate; the vault
+holds both halves together instead. The cert also lives on the box at
+`/etc/nginx/ssl/eno-origin-pull-ca.pem`, which is where nginx reads it.
+
+⚠️ **Rotate the client key if the transcript that generated it is a concern.**
+It is purpose-built and replaceable: upload a new cert and re-associate. The CA
+key, which is the one that matters, never left the generating machine.
 
 ## Also outstanding
 
