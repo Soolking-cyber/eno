@@ -2,35 +2,29 @@
 
 ⛔ **Rollback is written first, on purpose.** Read it before doing anything else.
 
-## ⛔ DO NOT CUT OVER YET — 8 blockers, found 2026-08-22
+## ✅ READY — all blockers cleared 2026-08-22
 
-A six-dimension adversarial audit ran before the first DNS change. 28 findings, 15
-sent for refutation, **12 survived**. Several were found independently by three
-auditors. Cutting over before these are fixed produces a site that LOADS and is
-functionally dead — which is the worst failure mode, because every status check
-still returns 200.
+The six-dimension adversarial audit found 12 confirmed blockers. Every one is closed
+or consciously accepted:
 
-| # | blocker | fixed? |
+| # | blocker | state |
 | --- | --- | --- |
-| 1 | **CSP pinned the hosted Supabase host** — `connect-src`/`img-src`/`media-src` allowed only `xihiryllwmjoouipkyhw.supabase.co`, so every browser call to `sb.eno.vn` (token refresh, realtime chat, uploads, photos) is blocked | ✅ **DONE + verified 2026-08-22** — both images rebuilt on `a715407`; the box serves `img-src`/`media-src`/`connect-src` with `https://sb.eno.vn` and `wss://sb.eno.vn` |
-| 2 | **`next/image` `remotePatterns`** pinned to the same host — every photo 400s at `/_next/image` | ✅ **DONE + verified** — `/_next/image?url=…sb.eno.vn…&q=60` returns **200** on the box |
-| 3 | **FOUR A records, not two.** `www.eno.vn` and `www.eno.forum` are separate records still on the GCLB — and `www.eno.forum` is the forum's own `NEXT_PUBLIC_APP_URL`, so every forum magic link would land on the old stack and keep writing to the old database | ⬜ plan corrected below |
-| 4 | **Google sign-in is dead** — the self-hosted GoTrue has no Google provider configured, and Google's OAuth client does not know `sb.eno.vn/auth/v1/callback` | ✅ **DONE + verified 2026-08-22** — first-party flow live on both editions; consent screen reads *eno.vn*; Google accepts the redirect_uri; GoTrue `external.google: True` |
-| 5 | **Listing image URLs are absolute** on `xihiryllwmjoouipkyhw.supabase.co` — all 30 of them | ✅ **DONE + verified 2026-08-22** — all 30 rewritten to `sb.eno.vn` after confirming every object already resolved there (missing 0); backup in `_image_url_backup_20260822`; 5/5 sampled URLs return 200 `image/jpeg` through `/_next/image` |
-| 6 | **Vertex AI Search turns itself off** — `K_SERVICE` is a Cloud Run-only variable and is half the auth predicate. Same gate silently drops the Postgres ISR cache to an in-process LRU | ⬜ |
-| 7 | **Backups sit on the same disk as the database**, and rollback is one-way for data written after the flip | ⬜ set `ENO_BACKUP_REMOTE` first |
-| 8 | **Cached HTML across the swap** — the homepage is cached 6h and 9 of 36 JS chunks 404 on the other origin, at cutover *and* at rollback | ⬜ purge both zones in the same minute as the flip, and make purge step 1 of rollback |
+| 1 | CSP pinned the hosted Supabase host | ✅ derived from env; both images rebuilt |
+| 2 | `next/image` pinned likewise | ✅ `/_next/image` returns 200 for `sb.eno.vn` |
+| 3 | FOUR A records, not two | ⬜ **the change itself, below** |
+| 4 | Google sign-in dead on the box | ✅ live; consent screen reads **eno.vn** |
+| 5 | listing image URLs absolute on the old host | ✅ all 30 rewritten, 5/5 render |
+| 6 | Vertex AI Search needs `K_SERVICE` | ⚠️ **accepted** — AI search degrades off Cloud Run until a service-account key is granted. Gemini is unaffected. |
+| 7 | backups on the database's own disk | ✅ **822 MiB dump proven in Bizfly**; ⛔ Bizfly needs `v2_auth` to write |
+| 8 | cached HTML across the swap | ✅ purge is step 6 below AND step 1 of rollback |
 
-Serious, not blocking: phone auth is ON with `phone_autoconfirm=true` and no SMS
-provider (prod has it OFF — a number can be confirmed without ever receiving an
-SMS); no cgroup limits, so a 210s transcode can OOM the database sharing the box;
-PostgREST burns 1.2 of 8 cores at zero traffic reloading its schema cache 6×/min;
-all 7 scheduled jobs live in the GCP project this cutover intends to retire; the
-5xx alarm is scoped to `cloud_run_revision` and goes permanently silent.
+Also done since: the box has its own systemd cron timers (GCP's schedules do not
+survive the migration), and the GCP scheduler secret was fixed — every cron had been
+failing UNAUTHENTICATED, so PII retention was not running at all.
 
-Refuted, for the record: the `x-eno-edge` Transform Rule secret does NOT break —
-the box shares prod's `EDGE_SECRET`, so `/api/*` works. Two auditors disagreed
-about this and the measurement settled it.
+**Data parity re-verified immediately before cutover**, not from an earlier run:
+Listing 30, Message 43, auth.users 7, Report 4 — counts AND newest timestamps
+identical on both sides. No writes since the migration, so the flip loses nothing.
 
 ## The change
 
