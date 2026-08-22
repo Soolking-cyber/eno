@@ -43,6 +43,19 @@ than review, and a reviewer that did not answer is NOT a passed review — lives
   that is not a review. Re-run with `--dangerously-skip-permissions` (it is read-only anyway) or add an
   allow-rule. Seen 2026-07-22. Feed the file CONTENT inline in the
   prompt (its agentic file-reading mode times out on `--print-timeout`); use `--print-timeout 240s`.
+- **opus** (the panel's third seat since 2026-08-22, replacing fable) —
+  `claude -p --model claude-opus-5 --effort max --permission-mode plan < prompt.txt`, prompt on
+  **stdin** so it sees the whole diff and counts toward quorum. `--permission-mode plan` is the
+  sandbox: read-only, cannot edit or run anything.
+  ⛔ **THIS SEAT IS THE SAME MODEL AS THE MAIN THREAD, SO WEIGHT IT ACCORDINGLY.** opus was removed
+  from this seat on 2026-08-14 because "an Opus review of Opus code shares its blind spots", and it
+  is back only because the intended third family (`oxalpha` via opencode) needs an API key the owner
+  does not have. A unanimous 3/3 is worth less than it reads; when codex and agy agree and opus
+  dissents, weight the dissent.
+  ⛔ **On a diff over 180KB agy does not count, so the counted panel becomes codex + opus — half of
+  it a self-review.** The script prints a warning when this happens. Do not ignore it.
+  ⚠️ Distinct from the `fable-reviewer` SUBAGENT in `.claude/agents/`, which still runs Fable 5 and
+  is a different mechanism — a Claude Code subagent cannot be pointed at a non-Claude model.
 - Dispatch them **directly and in PARALLEL** as background jobs — never sequenced, never wrapped in an Opus
   subagent that shells out on their behalf.
 

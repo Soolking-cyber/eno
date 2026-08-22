@@ -31,7 +31,7 @@ import { join } from 'node:path'
 const ROOT = execFileSync('git', ['rev-parse', '--show-toplevel'], { encoding: 'utf8' }).trim()
 const RECEIPTS = join(ROOT, '.second-opinion')
 // Declared up here because `--status` validates receipts long before REVIEWERS is built below.
-const REVIEWER_NAMES = ['codex', 'agy', 'fable']
+const REVIEWER_NAMES = ['codex', 'agy', 'opus']
 
 /**
  * ⛔ GENERATED ASSETS ARE EXCLUDED FROM WHAT REVIEWERS *READ*, NEVER FROM WHAT IS *HASHED*.
@@ -130,7 +130,7 @@ if (!diff.trim()) {
 
 // ⚠️ SCAN FOR SECRETS BEFORE SHIPPING THE DIFF TO THREE THIRD PARTIES. qwen raised this reviewing
 // the gate itself, and it is the sharpest finding against it: this script sends the ENTIRE staged
-// diff to OpenAI (codex), Google (agy) and Anthropic (fable). Sending our SOURCE to them is already
+// diff to OpenAI (codex), Google (agy) and Anthropic (opus). Sending our SOURCE to them is already
 // standing policy — CLAUDE.md mandates these reviewers — but a CREDENTIAL is categorically
 // different: it cannot be un-sent, and it would land in three vendors' logs simultaneously.
 // The realistic path is not malice, it is a slip: `.env` is gitignored, but a key pasted into a
@@ -152,7 +152,7 @@ if (process.env.SECOND_OPINION_SKIP_SECRET_SCAN !== '1') {
   const hits = SECRET_PATTERNS.filter(([re]) => re.test(diff)).map(([, label]) => label)
   if (hits.length) {
     console.error(`⛔ REFUSING TO SEND THIS DIFF TO EXTERNAL REVIEWERS — it looks like it contains: ${hits.join(', ')}.`)
-    console.error('   codex, agy and fable are third-party services; a credential sent to them cannot be recalled.')
+    console.error('   codex, agy and opus are third-party services; a credential sent to them cannot be recalled.')
     console.error('   Remove the value from the staged content (git reset the file, move it to Secret Manager via')
     console.error('   scripts/secret-set.sh), then re-run. If this is a FALSE POSITIVE — a fixture, a public key, a')
     console.error('   sample in documentation — re-run with SECOND_OPINION_SKIP_SECRET_SCAN=1 and say so out loud.')
@@ -222,7 +222,7 @@ process.on('SIGTERM', () => process.exit(143))
 // that only saw the first 180KB would still have its verdict certify bytes it never read. On a
 // codebase where the failure mode is a visa/PayPal surface leaking onto the licensed marketplace,
 // "reviewed" must mean the reviewer saw the licensing-relevant hunk — which, in a big diff, is as
-// likely to be at the end as the start. codex and fable BOTH take the prompt on stdin and so both
+// likely to be at the end as the start. codex and opus BOTH take the prompt on stdin and so both
 // get the whole thing, which is what keeps the quorum reachable; agy's truncated verdict is
 // recorded but deliberately not counted.
 const AGY_LIMIT = 180_000
@@ -285,11 +285,39 @@ const REVIEWERS = [
    * three reviewers a silent fable drops the panel to codex + agy, which is the quorum MINIMUM.
    * If fable starts failing the way qwen did, do not leave it in place: that is exactly the failure
    * this file has already lived through once.
+   *
+   * ⛔ THE SEAT CAME BACK TO opus ON 2026-08-22, AND THE HISTORY ABOVE IS THE ARGUMENT AGAINST IT.
+   * Read it before assuming this is settled. The owner first asked for `oxalpha` — a cloaked model
+   * reached through the opencode CLI — which would have made the panel three genuinely separate
+   * labs for the first time and, being free and unmetered, would have retired the budget worry in
+   * the paragraph above. It was built, guarded and tested, then abandoned the same day for a flatly
+   * practical reason: **opencode holds no API credentials here and the owner has none** ("dont have
+   * api so drop opencode use opus 5 for 3rd"). A reviewer that cannot authenticate cannot answer,
+   * and this file's whole doctrine is that such a seat must not be left in place pretending.
+   *
+   * ⚠️ AND THE BUDGET WORRY ABOVE IS INHERITED, NOT SOLVED — the opus seat caught this reviewing
+   * its own installation. Opus at `--effort max` over a whole diff is not cheaper than fable; the
+   * free-and-unmetered property was oxalpha's, and it left with oxalpha. If this seat starts going
+   * quiet, budget is the first thing to check, exactly as it was before.
+   *
+   * ⚠️ SO THE BLIND-SPOT COST IS BACK, AND IS NOW THE LARGEST IT HAS EVER BEEN. The main thread that
+   * writes this code is Opus; this seat is now also Opus. Not merely the same lab, as with fable —
+   * the same model. CLAUDE.md's reviewer policy exists because "an Opus review of Opus code shares
+   * its blind spots", and opus was removed from this very seat on 2026-08-14 for that reason. The
+   * panel is now TWO independent families plus a same-model checker.
+   * ⛔ WHAT THAT MEANS IN PRACTICE: a unanimous 3/3 is worth noticeably less than it reads. When
+   * codex and agy agree and opus dissents, weight the dissent; when opus agrees with the author,
+   * that is the least informative agreement on the panel. If a third independent family ever
+   * becomes reachable — an OpenRouter key, an opencode login, anything — take it.
    */
   {
-    name: 'fable',
+    name: 'opus',
     cmd: 'claude',
-    args: ['-p', '--model', 'claude-fable-5', '--effort', 'max', '--permission-mode', 'plan'],
+    // ⚠️ `--permission-mode plan` IS THE SANDBOX and is not decorative: it keeps this reviewer
+    // read-only, so it answers from the diff on stdin and cannot edit, run or commit anything.
+    // `--effort max` is the point of spending an Opus call on a review at all — verified working
+    // 2026-08-22 with this exact argv.
+    args: ['-p', '--model', 'claude-opus-5', '--effort', 'max', '--permission-mode', 'plan'],
     stdin: true,
   },
 ]
@@ -393,6 +421,19 @@ for (const r of results) {
 const answered = results.filter((r) => r.verdict !== 'no-answer')
 const counted = answered.filter((r) => !r.truncated)
 console.log(`\n${answered.length}/${REVIEWERS.length} families answered (${counted.length} on the full diff).`)
+// ⛔ THE ONE PLACE THE opus SEAT IS ACTIVELY DANGEROUS, AND IT IS INVISIBLE WITHOUT THIS LINE.
+// Found by the opus seat reviewing its own installation, which is the most useful thing it has done.
+// agy's verdict does not count past AGY_LIMIT, so on a big diff the counted panel is codex + seat 3.
+// With fable that was two non-author models. With opus it is GPT plus THE SAME MODEL THAT WROTE THE
+// DIFF — self-review becomes half the quorum, exactly when the diff is too big to eyeball and the
+// licensing-relevant hunk is most likely to be buried in the tail. Nothing here blocks that; a gate
+// that refuses large diffs outright would just get bypassed. But it must not pass QUIETLY.
+if (agyTruncated) {
+  console.log('\n⛔ THIS DIFF IS OVER 180KB, SO agy DOES NOT COUNT — the panel that certified it is')
+  console.log('   codex + opus, and opus is the SAME MODEL that wrote the change. Half of this quorum')
+  console.log('   is a self-review. Read the licensing-relevant hunks yourself before trusting it, or')
+  console.log('   split the change until agy can see all of it.')
+}
 
 // ⚠️ THE RECEIPT IS WRITTEN ONLY AFTER THE QUORUM HOLDS — AND THIS ORDER IS THE GATE.
 // It was the other way round for exactly one run, and qwen caught it reviewing this very file:

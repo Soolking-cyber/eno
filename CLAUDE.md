@@ -16,6 +16,7 @@ Vietnamese expat marketplace. `PRELAUNCH=true` until the owner flips it.
 | A bug that already survived one plausible fix | `deep-debugger` | Opus · xhigh |
 | **Second opinion — run BOTH** (plan AND finished diff; ALSO every security/bug audit — owner 2026-07-23) | `codex` + `antigravity` | **codex GPT-5.6 (sol, high) + Gemini 3.6 Flash (High) — two non-Anthropic families** |
 | Second opinion — Anthropic-lineage | `fable-reviewer` | Fable 5 · xhigh — **budget-limited, use sparingly** |
+| Commit-gate third seat | `scripts/second-opinion.mjs` | **Opus 5 · max** since 2026-08-22 (was fable). ⛔ Same model as the main thread — see the file's seat history; a 3/3 is worth less than it reads, and past 180KB agy stops counting so the quorum becomes codex + a self-review. |
 | Shipping to prod (the whole ritual) | `/ship` | Opus · medium |
 | Seller/admin e2e suite | `/authed-e2e` | Opus · low |
 | Design, architecture, anything genuinely novel | main thread | session model |
