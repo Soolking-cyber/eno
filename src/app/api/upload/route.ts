@@ -45,7 +45,26 @@ export async function POST(req: NextRequest) {
     // reason on either side. `reason` distinguishes the three causes, all of which are
     // properties of the caller's OWN file and so safe to name.
     const reasons: string[] = []
-    for (const file of files.slice(0, 8)) {
+    // ⛔ ANON IS CAPPED AT 3 FILES, SIGNED-IN KEEPS 8. The rate limit alone reads as
+    // 30 requests/hour, but each request carried 8 files — 240 images/hour/IP into a
+    // PUBLIC bucket from an unauthenticated caller, which is a storage and egress bill
+    // with no account attached to it. Capping files rather than halving the request
+    // rate keeps the honest anonymous path (a few photos, one go) intact.
+    // ⚠️ THIS IS A REDUCTION, NOT A FIX: an anonymous IP can still land 90 images an
+    // hour (30 requests × 3). Bulk abuse gets more expensive, not impossible.
+    const perRequest = profileId ? 8 : 3
+    // ⛔ COUNT WHAT THE CAP DROPS. Slicing silently answers 200 with a short `urls`
+    // array and no explanation — a signed-out visitor attaching 8 photos would see 3
+    // land and be told nothing. This route's own contract, stated just below, is that
+    // a dropped file is always recorded; all three reviewers caught the first version
+    // of this cap breaking it.
+    const overCap = Math.max(0, files.length - perRequest)
+    if (overCap > 0) {
+      failed += overCap
+      reasons.push(`over_cap:${overCap}`)
+      console.warn('[POST /api/upload]', overCap, 'over the', perRequest, 'per-request cap', profileId ? '(authed)' : '(anon — sign in to send more)')
+    }
+    for (const file of files.slice(0, perRequest)) {
       // Cheap pre-check on the client-provided type/size; the core re-decodes with sharp.
       if (!IMG_ALLOWED.has(file.type)) {
         // The picker accepts .heic/.heif and the client converts them, so a HEIC arriving here

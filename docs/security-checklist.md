@@ -84,6 +84,23 @@ it is the last recorded error, not current state. The logs are the authority.
 
 ## Accepted risks
 
+- **Video transcode has no per-instance concurrency cap** (audit item 8b,
+  `src/app/api/upload/video/transcode/route.ts`). It keeps its 30/hour fail-closed
+  rate limit, which bounds the daily bill but not thirty requests arriving in the
+  same minute — each up to ~210s of full-CPU work.
+  ⛔ **Attempted and deliberately reverted.** The expensive part is scheduled with
+  Next's `after()` and continues past the response, so a semaphore released when the
+  handler returns frees the slot before ffmpeg starts — it would count request
+  handling, not encoding. All three reviewers caught exactly that in the first
+  attempt. Doing it properly means acquiring at request time and handing ownership to
+  the background job, with a leak-proof release on the inline fallback path too. That
+  is well past this item's "~30 lines" budget, and a semaphore that silently leaks
+  slots is worse than none: it refuses every video for the life of the instance while
+  looking like a working limit.
+  `src/lib/job-semaphore.ts` is kept, with tests including the `after()` case
+  (`tryAcquire`), so the next attempt starts from a proven primitive rather than a
+  hand-rolled counter.
+
 - **Brand logo SVG filtering is a blocklist, not a structural sanitiser**
   (`src/app/api/brands/[slug]/logo/route.ts`). Admin-supplied `logoPath` is handed to
   sharp/librsvg with doctypes, entities, scripts, event handlers, external

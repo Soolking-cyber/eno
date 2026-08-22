@@ -41,8 +41,16 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   // Shared limiter NAMES with the id in the KEY — one limiter per listing id would leak
   // a limiter instance per listing into the in-memory map.
   const [byPair, byIp] = await Promise.all([
-    rateLimit('listing-view', `${ip}:${id}`, 1, '6 h'), // 1 count / (ip,listing) / 6h
-    rateLimit('listing-view-ip', ip, 200, '1 h'),        // coarse anti-inflation per IP
+    // ⛔ strict: FAIL CLOSED FOR THE WRITE, NEVER FOR THE PAGE. On a limiter backend
+    // error the non-strict form returns success:true, so the dedup silently vanishes
+    // and every refresh increments — the counter inflates precisely when the database
+    // is already struggling. strict makes that error skip the increment instead.
+    // ⚠️ THIS DOES NOT BLOCK ANYTHING. Both branches below already answer
+    // 200 {"ok":true,"counted":false}; the visitor still gets the listing, they just
+    // do not get counted. An undercounted view is a rounding error, an overcounted one
+    // is a number a seller makes decisions on.
+    rateLimit('listing-view', `${ip}:${id}`, 1, '6 h', { strict: true }), // 1 count / (ip,listing) / 6h
+    rateLimit('listing-view-ip', ip, 200, '1 h', { strict: true }),       // coarse anti-inflation per IP
   ])
   if (!byPair.success || !byIp.success) return NextResponse.json({ ok: true, counted: false })
 

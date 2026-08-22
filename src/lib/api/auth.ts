@@ -74,7 +74,12 @@ export async function resolveApiKey(req: Request, requiredScope?: string): Promi
   if (requiredScope && !scopes.has(requiredScope)) {
     return { ok: false, status: 403, code: 'insufficient_scope', message: `This key is missing the "${requiredScope}" scope.` }
   }
-  const rl = await rateLimit('apiv1', key.id, API_RATE_PER_MIN, '1 m')
+  // ⛔ strict: FAIL CLOSED. Without it a limiter backend error returns success:true and
+  // every API key becomes unlimited for the duration of the outage — the one moment
+  // the database is already unhealthy is the worst possible time to remove its only
+  // throttle. A partner seeing 429s during an outage retries; an unthrottled partner
+  // during an outage is what turns a blip into an incident.
+  const rl = await rateLimit('apiv1', key.id, API_RATE_PER_MIN, '1 m', { strict: true })
   if (!rl.success) {
     return { ok: false, status: 429, code: 'rate_limited', message: 'Rate limit exceeded. Slow down or back off.' }
   }
