@@ -58,6 +58,31 @@ export function googleOauthConfigured(): boolean {
  */
 const ALLOWED_AUTH_HOSTS = new Set(['eno.vn', 'www.eno.vn', 'eno.forum', 'www.eno.forum'])
 
+/**
+ * Extra hosts allowed to own the OAuth round-trip, comma-separated. Server-only and UNSET in
+ * production, so prod behaviour is byte-identical to before this existed.
+ *
+ * ⛔ IT EXISTS FOR ONE JOB: proving Google sign-in works BEFORE production DNS moves. A pre-cutover
+ * alias (vn-test.eno.vn) that is not in the set above sends `redirect_uri` for eno.vn — and eno.vn
+ * still resolves to the OLD stack, so Google returns the visitor to a host with no transaction
+ * cookie and no client secret. The flow cannot complete, no matter how correct everything else is.
+ * That is not a hypothetical: it is why the first end-to-end attempt failed.
+ *
+ * ⚠️ DELETE THE ENV VAR AT CUTOVER. It is on the cutover checklist beside the DNS record and the
+ * `server_name` entry, because a test host left able to mint auth origins outlives its usefulness
+ * immediately. No rebuild is needed to remove it — that is the point of it being an env var rather
+ * than another entry in the literal above.
+ *
+ * ⚠️ Entries are matched EXACTLY against the Host header, never by suffix. A suffix rule would let
+ * anything ending in the value through, which is the classic way an allow-list becomes an open door.
+ */
+const EXTRA_AUTH_HOSTS = new Set(
+  (process.env.AUTH_EXTRA_HOSTS ?? '')
+    .split(',')
+    .map(h => h.trim().toLowerCase())
+    .filter(Boolean),
+)
+
 export function canonicalAuthOrigin(request: Request): string {
   const host = request.headers.get('host')?.toLowerCase() ?? null
   // Dev and opted-in previews keep the round-trip on localhost. The loopback check is defence in
@@ -65,7 +90,7 @@ export function canonicalAuthOrigin(request: Request): string {
   // talked into pointing the flow off-site.
   if (serverAuthUsesRequestOrigin() && isLoopbackHost(host)) return loopbackOrigin(host!)
   if (process.env.NODE_ENV === 'development') return new URL(request.url).origin
-  if (host && ALLOWED_AUTH_HOSTS.has(host)) return `https://${host}`
+  if (host && (ALLOWED_AUTH_HOSTS.has(host) || EXTRA_AUTH_HOSTS.has(host))) return `https://${host}`
   // ⚠️ The stored value can carry literal quotes (measured: eno-root-env holds `"https://eno.vn"`),
   // which would make `new URL` throw and take the whole route down. Strip them.
   const configured = (process.env.NEXT_PUBLIC_APP_URL || 'https://eno.vn').replace(/^"|"$/g, '')

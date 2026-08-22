@@ -171,3 +171,40 @@ describe('exchangeCodeForIdToken', () => {
     expect(spy).not.toHaveBeenCalled()
   })
 })
+
+describe('AUTH_EXTRA_HOSTS', () => {
+  const req = (host: string) =>
+    new Request('https://ignored/auth/google/start', { headers: { host } })
+
+  it('⛔ IS INERT WHEN UNSET — production must behave exactly as before it existed', async () => {
+    vi.stubEnv('NODE_ENV', 'production')
+    vi.stubEnv('AUTH_EXTRA_HOSTS', '')
+    const { canonicalAuthOrigin } = await load()
+    // An unlisted host falls back to NEXT_PUBLIC_APP_URL, which is the pre-existing behaviour.
+    expect(canonicalAuthOrigin(req('vn-test.eno.vn'))).toBe('https://eno.vn')
+    expect(canonicalAuthOrigin(req('eno.vn'))).toBe('https://eno.vn')
+  })
+
+  it('lets a named pre-cutover host own its own round-trip', async () => {
+    vi.stubEnv('NODE_ENV', 'production')
+    vi.stubEnv('AUTH_EXTRA_HOSTS', 'vn-test.eno.vn')
+    const { canonicalAuthOrigin } = await load()
+    expect(canonicalAuthOrigin(req('vn-test.eno.vn'))).toBe('https://vn-test.eno.vn')
+  })
+
+  it('⚠️ MATCHES EXACTLY, NEVER BY SUFFIX — an allow-list that suffix-matches is an open door', async () => {
+    vi.stubEnv('NODE_ENV', 'production')
+    vi.stubEnv('AUTH_EXTRA_HOSTS', 'vn-test.eno.vn')
+    const { canonicalAuthOrigin } = await load()
+    // The classic bypass: register a host that ENDS WITH the allowed value.
+    expect(canonicalAuthOrigin(req('evil-vn-test.eno.vn'))).toBe('https://eno.vn')
+    expect(canonicalAuthOrigin(req('vn-test.eno.vn.attacker.test'))).toBe('https://eno.vn')
+  })
+
+  it('tolerates whitespace and case, and ignores empty entries', async () => {
+    vi.stubEnv('NODE_ENV', 'production')
+    vi.stubEnv('AUTH_EXTRA_HOSTS', ' VN-Test.eno.vn , , ')
+    const { canonicalAuthOrigin } = await load()
+    expect(canonicalAuthOrigin(req('vn-test.eno.vn'))).toBe('https://vn-test.eno.vn')
+  })
+})
