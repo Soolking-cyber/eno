@@ -23,7 +23,11 @@ import { db } from '@/lib/db'
 // a broken publish, exactly as analytics.ts puts it.
 
 /** Bounded — the same 40 chars publish_log() clamps to. Keeps the counter from becoming a string sink. */
-const MAX_OUTCOME_LEN = 40
+// Exported so the test can assert against the REAL cap instead of a copy of it. A test that
+// hardcodes the number passes vacuously the moment the constant changes — which is exactly what
+// the first version of publish-funnel.record.test.ts did: it asserted <= 64 against a cap of 40,
+// so it would have accepted no truncation at all up to 64 characters.
+export const MAX_OUTCOME_LEN = 40
 
 // ⚠️ THE CLIENT-REPORTED CODES MOVED to lib/publish-funnel-codes.ts, and re-exporting them from
 // here would defeat the point: this module is `import 'server-only'`, so anything routed through
@@ -57,7 +61,19 @@ export function publishOutcome(status: number, errorCode?: unknown): string {
 export async function recordPublishOutcome(outcome: string): Promise<void> {
   if (!outcome) return
   try {
-    await db.$queryRaw`select publish_log(${outcome.slice(0, MAX_OUTCOME_LEN)})`
+    // ⚠️ $executeRaw, NOT $queryRaw — the same trap `ratelimit.ts` documents for `kv_del`.
+    // `publish_log` is declared `returns void`, and $queryRaw tries to DESERIALIZE the result
+    // column; Postgres `void` has no Prisma type, so this ALWAYS threw "Failed to deserialize
+    // column of type 'void'" — on every publish attempt, filling the container log with
+    // prisma:error while looking like a database fault (found 2026-08-22 while diagnosing an
+    // unrelated empty feed, which is exactly the cost of leaving noise like this in place).
+    //
+    // ⛔ NO DATA WAS LOST, AND THAT IS WHY IT SURVIVED SO LONG. Measured against the live
+    // database: the insert COMMITS and only the reply parsing blows up, so publish_funnel has
+    // real rows for every day the funnel ran. The catch below then swallowed the throw, making
+    // the whole thing correct by accident — until someone awaited it without a catch, or added
+    // error logging, and inherited a guaranteed failure.
+    await db.$executeRaw`select publish_log(${outcome.slice(0, MAX_OUTCOME_LEN)})`
   } catch {
     /* fail-open: instrumentation must never surface an error to a publish */
   }
