@@ -12,11 +12,11 @@ still returns 200.
 
 | # | blocker | fixed? |
 | --- | --- | --- |
-| 1 | **CSP pinned the hosted Supabase host** — `connect-src`/`img-src`/`media-src` allowed only `xihiryllwmjoouipkyhw.supabase.co`, so every browser call to `sb.eno.vn` (token refresh, realtime chat, uploads, photos) is blocked | ✅ `next.config.ts` derives it; **needs a rebuild of both images** |
-| 2 | **`next/image` `remotePatterns`** pinned to the same host — every photo 400s at `/_next/image` | ✅ same derivation, same rebuild |
+| 1 | **CSP pinned the hosted Supabase host** — `connect-src`/`img-src`/`media-src` allowed only `xihiryllwmjoouipkyhw.supabase.co`, so every browser call to `sb.eno.vn` (token refresh, realtime chat, uploads, photos) is blocked | ✅ **DONE + verified 2026-08-22** — both images rebuilt on `a715407`; the box serves `img-src`/`media-src`/`connect-src` with `https://sb.eno.vn` and `wss://sb.eno.vn` |
+| 2 | **`next/image` `remotePatterns`** pinned to the same host — every photo 400s at `/_next/image` | ✅ **DONE + verified** — `/_next/image?url=…sb.eno.vn…&q=60` returns **200** on the box |
 | 3 | **FOUR A records, not two.** `www.eno.vn` and `www.eno.forum` are separate records still on the GCLB — and `www.eno.forum` is the forum's own `NEXT_PUBLIC_APP_URL`, so every forum magic link would land on the old stack and keep writing to the old database | ⬜ plan corrected below |
 | 4 | **Google sign-in is dead** — the self-hosted GoTrue has no Google provider configured, and Google's OAuth client does not know `sb.eno.vn/auth/v1/callback` | ⬜ needs GoTrue env + a Google console change |
-| 5 | **Listing image URLs are absolute** on `xihiryllwmjoouipkyhw.supabase.co` — all 30 of them. The box's 250-object storage copy is orphaned, and Meta's catalog keeps pulling from the retired project | ⬜ SQL rewrite before the flip |
+| 5 | **Listing image URLs are absolute** on `xihiryllwmjoouipkyhw.supabase.co` — all 30 of them | ⛔ **NOW MANDATORY AND BLOCKING.** Fixing #2 made these URLs *invalid*: `remotePatterns` no longer allows the hosted host, so every listing photo 400s on the box until they are rewritten |
 | 6 | **Vertex AI Search turns itself off** — `K_SERVICE` is a Cloud Run-only variable and is half the auth predicate. Same gate silently drops the Postgres ISR cache to an in-process LRU | ⬜ |
 | 7 | **Backups sit on the same disk as the database**, and rollback is one-way for data written after the flip | ⬜ set `ENO_BACKUP_REMOTE` first |
 | 8 | **Cached HTML across the swap** — the homepage is cached 6h and 9 of 36 JS chunks 404 on the other origin, at cutover *and* at rollback | ⬜ purge both zones in the same minute as the flip, and make purge step 1 of rollback |
@@ -68,6 +68,30 @@ ssh … 'docker exec supabase-db pg_dump -U postgres -d postgres \
 few days.** The Cloud Run services, the load balancer, the images and the hosted
 Supabase project are the rollback path. Deleting them converts a two-minute DNS
 edit into a rebuild.
+
+### ⚠️ The box is mid-fix right now
+
+Blockers 1 and 2 are fixed and verified. That deliberately **invalidated the stored
+image URLs** — `remotePatterns` now allows only `sb.eno.vn` while all 30 listings
+still name the hosted host, so listing photos 400 on the box until the rewrite
+below runs. This is strictly closer to working than before (auth, realtime and
+uploads now pass a CSP that previously blocked them outright) but it is not a
+finished state.
+
+Every object was already confirmed present at the new host, so this points the
+database at files that exist:
+
+```sql
+create table _image_url_backup_20260822 as select id, images from "Listing";
+update "Listing"
+   set images = replace(images,
+       'https://xihiryllwmjoouipkyhw.supabase.co', 'https://sb.eno.vn')
+ where images like '%xihiryllwmjoouipkyhw.supabase.co%';
+```
+
+⛔ Run it **only on the box** (`docker exec supabase-db psql -U postgres -d postgres`),
+never against the hosted project — production still serves from there and rewriting
+its URLs would break the live site immediately.
 
 ## Order
 
