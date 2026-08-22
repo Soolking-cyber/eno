@@ -123,8 +123,10 @@ Then `git push`. The user's standing instruction is to push without asking.
 
 ## 5. Wait for the deploy
 
-**Primary (GCP):** the push fires ONE trigger — `eno-vn-deploy-asia`, **in `asia-southeast1`** —
-which builds and auto-deploys the Cloud Run service. Watch:
+**Primary (GCP):** the push fires TWO triggers — `eno-vn-deploy-asia` and
+`eno-forum-deploy-asia`, both **in `asia-southeast1`** — which build and auto-deploy the two Cloud
+Run services. (This said ONE trigger until 2026-08-22; the forum one fires on a plain `src/**`
+push too, so wait for BOTH rows before calling the deploy done.) Watch:
 
 ```bash
 gcloud builds list --region=asia-southeast1 --limit=4 --project=speedy-victory-500106-h8 \
@@ -153,6 +155,50 @@ open-ended `until` loop — one of those was left running for nearly 3 hours.
 ```bash
 E2E_BASE=https://eno.vn npx playwright test --project=guest-desktop --project=guest-mobile
 ```
+
+⛔ **PURGE CLOUDFLARE FIRST — THIS STEP WAS MISSING FROM THIS SKILL AND THE DEPLOY IS NOT DONE
+WITHOUT IT.** `CLAUDE.md` mandates it; this file did not, and on 2026-08-22 that gap shipped a
+green build that real visitors could not see for hours. Use `purge_everything`, never purge-by-URL
+(purge-by-file returns `success: true` and silently does nothing on cached HTML, because the
+`vary: normalize` cache key includes the encoding variant):
+
+```bash
+for Z in 55e558b62f68a44f8177d7d98cb5369e cc81e3ff1d792c0aa5384e8feab21efa; do   # eno.vn, eno.forum
+  curl -sS --fail -X POST "https://api.cloudflare.com/client/v4/zones/$Z/purge_cache" \
+    -H "Authorization: Bearer $CF_TOKEN" -H "Content-Type: application/json" \
+    --data '{"purge_everything":true}' | jq '.success'
+done
+curl -s -D- -o /dev/null https://eno.vn/ | grep -iE 'cf-cache-status|^age'   # expect MISS, then age: 0
+```
+
+⚠️ **BOTH domains deploy, so smoke BOTH.** Step 6 above only points at `https://eno.vn`; a forum
+regression sails through. Add `E2E_BASE=https://eno.forum npx playwright test --project=guest-desktop`,
+and check the licensing boundary explicitly — it is the one failure that is a legal problem, not a
+bug: `curl -s -o /dev/null -w '%{http_code}' https://eno.vn/itinerary` **must be 404**.
+
+⛔ **`/` IS EDGE-CACHED FOR 6 HOURS — A NAIVE POST-DEPLOY CHECK READS THE OLD BUILD.** There is a
+Cloudflare Cache Rule on the homepage (`s-maxage=21600`). On 2026-08-22 a freshly-deployed CSS token
+looked MISSING from production because `curl https://eno.vn/` returned `cf-cache-status: HIT` with
+`age: 20514` — a 5.7-hour-old page, naming 5.7-hour-old content-hashed chunk filenames. The deploy
+was fine. Always bust the cache when verifying a deploy, and check the header that tells you:
+
+```bash
+curl -s -D- -o /dev/null https://eno.vn/ | grep -iE 'cf-cache-status|^age'   # HIT + age = stale
+H=$(curl -s "https://eno.vn/?cb=$RANDOM$RANDOM")                            # bypasses the rule
+C=$(printf '%s' "$H" | grep -oE '/_next/static/chunks/[a-zA-Z0-9_-]+\.css' | tail -1)
+B=$(curl -s "https://eno.vn$C")
+printf '%s' "$B" | grep -o 'the-token-you-changed' | wc -l    # >0 = your change is live
+printf '%s' "$B" | grep -o 'a-token-that-cannot-exist' | wc -l # 0 = the grep discriminates
+```
+
+⚠️ Two things this recipe learned the hard way. The path is `/_next/static/chunks/*.css` on this
+build, **not** Next's documented `/_next/static/css/` — grep for the wrong one and you get a
+confident, wrong "missing". And the `?cb=` bypass is only trustworthy because it was checked: the
+busted request returned a *different, larger* chunk than the cached one. If a future cache rule
+ignores query strings this stops working silently, so compare the two filenames, do not assume.
+
+⚠️ And grep the CHUNK, not the HTML, for CSS changes — and with `grep -o | wc -l`, never `grep -c`:
+minified CSS is one line, so `grep -c` reports 1 no matter how many times a token occurs.
 
 Defaults to `https://eno.vn`. All 44 must pass. If one fails, re-run just that spec once — the ISR race is the usual culprit and it never fails twice in a row. A repeat failure is real: revert (`git revert`) and pause.
 
