@@ -64,8 +64,11 @@ const env = {
   ...process.env,
   NEXT_PUBLIC_ENO_EDITION: cfg.edition,
   NEXT_PUBLIC_APP_URL: cfg.url,
-  // ⛔ MIRRORS cloudbuild.yaml, AND WITHOUT IT THIS PREVIEW IS NOT THE ARTIFACT. Cloud Build
-  // appends MARKETPLACE_HOSTS_SERVICES=true to the marketplace build (armed 2026-08-14) — it
+  // ⛔ MIRRORS /opt/eno/bin/eno-build.sh ON THE BOX, AND WITHOUT IT THIS PREVIEW IS NOT THE
+  // ARTIFACT. (It mirrored cloudbuild.yaml until 2026-08-22, when Cloud Build was removed and the
+  // box became the only deploy path — see docs/history/cloudbuild-removal.md. The flag itself did
+  // not change; only where the authoritative copy lives.) The build script appends
+  // MARKETPLACE_HOSTS_SERVICES=true to the marketplace build (armed 2026-08-14) — it
   // admits eno.vn to the PARTNER's visa chat, the `.svc.` routes, while payments and eno's own
   // e-visa keep the stricter `.forum.svc.` infix that no marketplace build lists. It is read by
   // next.config.ts to pick `pageExtensions`, so it decides which routes EXIST; there is no
@@ -75,9 +78,11 @@ const env = {
   // routes were never compiled. That reads as "the app is broken", and it is really "the preview
   // built a different edition than the one that ships". The forum edition needs nothing: its
   // extension list already includes both tiers.
-  // ⚠️ KEEP THE TWO IN STEP. If cloudbuild.yaml ever turns this off, turn it off here in the same
-  // commit — a preview that is MORE permissive than production is the worse direction, because a
-  // leak would pass locally and only appear once deployed.
+  // ⚠️ KEEP THE TWO IN STEP, AND THAT MATTERS MORE NOW THAN IT DID. Local preview is no longer a
+  // rehearsal for a pipeline that would re-check everything; since 2026-08-22 it is HALF THE
+  // PROCESS — preview locally, deploy on the box. If eno-build.sh ever turns this off, turn it off
+  // here in the same commit. A preview MORE permissive than production is the worse direction: a
+  // leak would pass locally and surface only after it had shipped.
   ...(cfg.edition === 'marketplace' ? { MARKETPLACE_HOSTS_SERVICES: 'true' } : {}),
   NODE_ENV: 'production',
   // ⚠️ THE ONE THING THAT MAKES SIGN-IN USABLE LOCALLY, and it is set HERE and nowhere else.
@@ -86,8 +91,8 @@ const env = {
   // is a production build on purpose, so without the flag every sign-in on :3100 redirected to
   // https://eno.vn — and worse, the magic link we MINT pointed there too, so clicking it from a
   // local sign-in would have completed the login on PRODUCTION.
-  // Cloud Build's env comes from Secret Manager, which does not contain this key, so a deployed
-  // artifact has it absent and the hatch folds shut. The server side additionally requires a
+  // The box's build env comes from /opt/eno/secrets/*.env, which does not contain this key, so a
+  // deployed artifact has it absent and the hatch folds shut. The server side additionally requires a
   // loopback request host.
   NEXT_PUBLIC_LOCAL_AUTH: '1',
   LOCAL_AUTH: '1',

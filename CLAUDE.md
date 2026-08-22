@@ -173,7 +173,7 @@ to eno.vn and quietly skipped on eno.forum:
 
 So when a change touches any of these, do it TWICE and verify TWICE:
 Cloudflare zones (`eno.vn` = `55e558b6…`, `eno.forum` = `cc81e3ff…`) · Secret Manager
-(`eno-root-env`, `eno-services-env`) · Cloud Build triggers · Turnstile · Supabase URL config.
+(`eno-root-env`, `eno-services-env`) · Turnstile · Supabase URL config. (Cloud Build triggers: gone, 2026-08-22.)
 
 ## ⛔ DEPLOY ONLY WHEN THE OWNER SAYS "DEPLOY" (owner, 2026-08-02)
 
@@ -186,18 +186,27 @@ rewritten five times ON PRODUCTION in one afternoon, each round costing a build,
 cache purge and an owner screenshot to discover something a local preview would have shown
 in thirty seconds.
 
-**The mechanism, so nobody has to remember discipline:** the Cloud Build trigger fires on
-`push.branch: ^main$`. ⚠️ There is now exactly ONE trigger, `eno-vn-deploy-asia` in
-asia-southeast1 (measured 2026-08-05). `eno-forum-deploy` was deleted together with the
-`eno-forum` Cloud Run service when the owner said *"remove eno.forum hosting in gcloud we
-continue with eno.vn only"* — so a push to main deploys eno.vn and nothing else.
-So **a push to main IS a deploy** — there is no separate approval step, and no way to "just
-push and check". Work on a branch; a branch push runs nothing and deploys nothing. Merging
-to main is the deploy.
+**The mechanism, and it INVERTED on 2026-08-22:** Cloud Build was removed entirely (owner:
+*"remove cloud build entirely we preview locally and deploy on box from now on all future
+changes"*). Both triggers are deleted and `cloudbuild.yaml` / `cloudbuild.services.yaml` are
+gone — see `docs/history/cloudbuild-removal.md`, which keeps their definitions verbatim.
 
-⚠️ `git commit` is still fine and still expected — commit as you go. It is **push to main**
-that is gated. And note the triggers' `ignoredFiles` (docs/**, .claude/**, *.md, e2e/**,
-playwright/vitest configs) — a docs-only push to main does NOT deploy, so those are safe.
+⛔ **A PUSH TO MAIN IS NO LONGER A DEPLOY.** Pushing runs CI and nothing else. Code reaches
+users only when `infra/vn-node/eno-deploy.sh` is run ON THE BOX (162.4.176.208). That script
+is the entire path: pull → build both editions → verify the marketplace bundle carries no
+visa/itinerary routes → swap → health-check through Cloudflare → auto-rollback on failure.
+
+⚠️ **THE OLD RULE WAS SAFER IN ONE WAY AND THIS ONE IS SAFER IN ANOTHER — know which risk you
+now carry.** Before, the danger was deploying by accident; a push shipped instantly. Now the
+danger is the opposite and it has ALREADY HAPPENED: when DNS moved to the box, Cloud Build
+kept deploying Cloud Run faithfully for a full day while nobody pulled the box, and
+production sat **fourteen commits behind including seven security fixes** with every
+pipeline green. Nothing warns you about this. If you pushed and did not run the deploy
+script, **users do not have your change**, however green CI looked.
+
+⚠️ `git commit` and `git push` are both fine and expected — neither ships anything. What is
+gated is running the deploy script, which is the owner's call per *"i will tell you when to
+deploy"*. `/ship` step 5 is that step; a ship that stops at push has shipped nothing.
 
 ### Local review, before saying anything is ready
 

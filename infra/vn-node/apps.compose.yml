@@ -1,0 +1,57 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# eno · the two application containers on 162.4.176.208
+#
+# ⛔ THIS FILE EXISTS BECAUSE THE DEFINITION USED TO LIVE NOWHERE. Both containers
+# were started by hand with `docker run --env-file …` and their only record was the
+# metadata inside the running container. Anyone who removed one had to reconstruct
+# the flags from `docker inspect` — and a wrong reconstruction here is not a restart
+# bug, it is a LICENSING failure (see the port mapping below).
+#
+#   docker compose -f apps.compose.yml up -d
+#
+# ⚠️ ENV IS READ AT CONTAINER CREATE, NOT AT REQUEST TIME. Editing a file under
+# /opt/eno/secrets does nothing until the container is recreated. `restart` is not
+# enough; it must be `up -d` after the file changes.
+services:
+  # ⛔ THE LICENSING BOUNDARY IS THE image↔port PAIRING. `NEXT_PUBLIC_ENO_EDITION` is
+  # inlined at BUILD time, so eno-vn:local IS the marketplace and eno-forum:local IS
+  # the services edition — no runtime flag can talk one into behaving as the other.
+  # nginx routes eno.vn → 3001 and eno.forum → 3002. Cross them and the licensed sàn
+  # TMĐT serves visa, itinerary and PayPal wholesale.
+  eno-vn:
+    image: eno-vn:local
+    container_name: eno-vn-app
+    env_file: [/opt/eno/secrets/eno-vn.env]
+    # Loopback only — nginx is the sole way in, and the origin firewall assumes it.
+    ports: ["127.0.0.1:3001:8080"]
+    restart: unless-stopped
+    networks: [supabase_default]
+    # ⚠️ THE PROCESS BEING UP IS NOT THE APP BEING UP, but a request-level probe here
+    # would run SSR every interval on a box that also builds. A listening socket is
+    # the cheap half; eno-deploy.sh does the real HTTP check once, at deploy time.
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('net').connect(8080,'127.0.0.1').on('connect',()=>process.exit(0)).on('error',()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+
+  eno-forum:
+    image: eno-forum:local
+    container_name: eno-forum-app
+    env_file: [/opt/eno/secrets/eno-forum.env]
+    ports: ["127.0.0.1:3002:8080"]
+    restart: unless-stopped
+    networks: [supabase_default]
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('net').connect(8080,'127.0.0.1').on('connect',()=>process.exit(0)).on('error',()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
+
+# Created by the Supabase stack; the apps join it to reach Postgres and the envoy
+# gateway by service name rather than over the public internet.
+networks:
+  supabase_default:
+    external: true

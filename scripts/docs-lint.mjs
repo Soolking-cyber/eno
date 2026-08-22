@@ -45,7 +45,7 @@ const RULES = [
     // The config FILE, claimed as live configuration.
     claim: /\bvercel\.json\b/i,
     ok: () => existsSync(join(ROOT, 'vercel.json')),
-    why: 'names vercel.json as live configuration, but no vercel.json exists. This project deploys to Cloud Run via cloudbuild.yaml / cloudbuild.services.yaml.',
+    why: 'names vercel.json as live configuration, but no vercel.json exists. This project deploys to the VN box via infra/vn-node/eno-deploy.sh (Cloud Build removed 2026-08-22).',
   },
   {
     id: 'vercel-hosting',
@@ -62,7 +62,7 @@ const RULES = [
      */
     claim: /\bvercel\b(?![^.\n]*\b(?:retired|removed|replaced|legacy|former|historical|was|were|used to)\b)/i,
     ok: () => existsSync(join(ROOT, 'vercel.json')) || /"vercel"\s*:/.test(pkg),
-    why: 'mentions Vercel as current. The app has run on Cloud Run since 2026-07 (Dockerfile, cloudbuild.yaml). If describing history, say so in the same sentence or use a docs-lint-allow marker.',
+    why: 'mentions Vercel as current. The app ran on Cloud Run from 2026-07 and moved to the VN origin box on 2026-08-21. If describing history, say so in the same sentence or use a docs-lint-allow marker.',
   },
   {
     id: 'upstash-ratelimit',
