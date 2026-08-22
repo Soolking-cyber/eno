@@ -14,6 +14,35 @@ type Reason = (typeof REASONS)[number]
 
 // A report can target a listing and/or a storefront. Reports surface only in the
 // /admin queue; an admin-confirmed report moves the target's trust score.
+/**
+ * How long a REJECTED report suppresses another against the same surface by the same
+ * reporter. 24h is long enough to break a withdraw-refile loop (the reachable abuse
+ * is minutes, not days) and short enough that a genuine second incident the next day
+ * still gets through.
+ */
+export const REFILE_COOLDOWN_MS = 24 * 60 * 60 * 1000
+
+/** Statuses that mean the report was REJECTED. `confirmed` is deliberately absent. */
+export const REFILE_COOLDOWN_STATUSES = ['dismissed', 'abusive'] as const
+
+/**
+ * True while a rejected report still suppresses a refile against the same surface.
+ *
+ * ⚠️ TAKES THE LATEST SETTLED TIME, NOT THE LATEST CREATED ROW. The first version
+ * ordered by createdAt and measured resolvedAt, so a case filed two days ago and
+ * dismissed a minute ago lost to a newer row dismissed last week — the cooldown
+ * silently did nothing. All three reviewers found it independently.
+ */
+export function refileSuppressed(
+  rows: { resolvedAt: Date | null; createdAt: Date }[],
+  now: number = Date.now(),
+): boolean {
+  // resolvedAt is nullable on rows predating it; createdAt is the conservative
+  // fallback, never later than resolution, so the window can only come out shorter.
+  const settled = rows.map((r) => (r.resolvedAt ?? r.createdAt).getTime())
+  if (settled.length === 0) return false
+  return now - Math.max(...settled) < REFILE_COOLDOWN_MS
+}
 const MAX_OPEN_PER_LISTING = 50
 
 // ⚠️ WS6 MIGRATION — AUTH PREAMBLE ONLY, AND `auth: 'profile'` IS THE CORRECT MODE HERE, not the
@@ -149,6 +178,48 @@ export const POST = route({ auth: 'profile' }, async ({ req, profile: reporter }
   // Duplicate → hand back the EXISTING case so the client can still route the
   // reporter into their open dispute room instead of silently swallowing the tap.
   if (dupe) return { ok: true, id: dupe.id }
+
+  // ⛔ THE DEDUPE ABOVE ONLY SEES `status: 'open'`, WHICH MAKES IT A HARASSMENT LOOP.
+  // Once a case is dismissed it stops matching, so the same reporter can refile
+  // against the same surface immediately — and every refile fires a fresh bell and
+  // push at the respondent. Withdraw, refile, repeat: the per-listing cap counts only
+  // OPEN reports, so it never trips either.
+  //
+  // A cooldown that survives resolution is what closes it. Keyed on the same
+  // (reporter, surface) pair as the dedupe, so it inherits the per-surface fix
+  // recorded above rather than re-introducing the seller-identity key that used to
+  // swallow reports about a different listing.
+  //
+  // ⚠️ ONLY REJECTED OUTCOMES COOL DOWN. `confirmed` is deliberately excluded: a
+  // reporter who was RIGHT last time must be able to report the same surface again,
+  // and a repeat offender is exactly the case the queue needs to see. Cooling those
+  // down would punish accurate reporting and hide a pattern from admins.
+  // ⚠️ `...dupeWhere` LAST IS SAFE AND CHECKED: it only ever carries conversationId,
+  // listingId, targetProfileId or targetSellerId, never `status`, so it cannot
+  // override the status filter and turn this into dead code.
+  // ⚠️ Several rows, not findFirst — the decision variable is the latest SETTLED
+  // time, and no single ordering gives that when resolvedAt is nullable. Bounded at
+  // 10 because a reporter with more than ten rejected reports against one surface is
+  // already past any cooldown question.
+  const closed = await db.report.findMany({
+    where: {
+      reporterProfileId: reporter.id,
+      status: { in: [...REFILE_COOLDOWN_STATUSES] },
+      ...dupeWhere,
+    },
+    orderBy: { createdAt: 'desc' },
+    take: 10,
+    select: { resolvedAt: true, createdAt: true },
+  })
+  if (refileSuppressed(closed)) {
+    // ⚠️ Same shape as the per-listing cap above: accept silently rather than
+    // erroring. Telling the reporter a cooldown exists tells a harasser exactly how
+    // long to wait, and an error would also surface as a retry loop in the client.
+    // Nothing is created, so no bell and no push reach the respondent.
+    // ⚠️ No `id` here, unlike the open-duplicate path: there is no case to route into.
+    // The client treats a missing id as "submitted", which is the intended outcome.
+    return { ok: true }
+  }
 
   let created: { id: string; targetProfileId: string | null; targetSellerId: string | null }
   try {
