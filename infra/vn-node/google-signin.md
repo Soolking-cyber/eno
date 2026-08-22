@@ -1,9 +1,32 @@
 # Google sign-in on the VN box
 
-⛔ **Blocked on ONE credential that only the Google Console can give you:
-`GOOGLE_CLIENT_SECRET`.** It exists nowhere today — not in `eno-root-env`, not in
-`eno-services-env`, not on the box. Verified 2026-08-22. Everything else is built,
-tested and waiting.
+✅ **LIVE on the box since 2026-08-22.** Verified end to end short of a human
+completing a real Google account picker:
+
+| check | result |
+| --- | --- |
+| `/auth/google/start` redirects to | `accounts.google.com/o/oauth2/v2/auth` |
+| `redirect_uri` | `https://eno.vn/auth/google/callback` — so the consent screen reads **"to continue to eno.vn"** |
+| eno.forum | its own `https://eno.forum/auth/google/callback` |
+| `nonce` | hex SHA-256, 64 chars (the GoTrue contract) |
+| PKCE | `code_challenge` present, `S256` |
+| `prompt` | `select_account` |
+| Google accepts the redirect_uri | yes — it served the account chooser, not `redirect_uri_mismatch` |
+| GoTrue `external.google` | `True` |
+
+⛔ **The trap that cost a round here: writing `GOTRUE_EXTERNAL_GOOGLE_*` into
+`/opt/eno/supabase/.env` DOES NOTHING.** Supabase's compose declares every `GOTRUE_*`
+var explicitly under `environment:` and ships the four Google lines commented out, so
+the keys sit in the file looking correct while the container never receives them —
+`/auth/v1/settings` keeps reporting `google:false`. `docker-compose.override.yml` is
+what wires them in. `apply-google-signin.sh` now does that, and exits non-zero if
+GoTrue does not come back reporting the provider enabled: the app redirecting to
+Google proves only half of it, and the id_token exchange fails without the other.
+
+⚠️ Supabase's own commented template says
+`GOTRUE_EXTERNAL_GOOGLE_REDIRECT_URI: ${API_EXTERNAL_URL}/callback`, which yields
+`https://sb.eno.vn/callback`. The envoy gateway routes `/auth/v1/*` to GoTrue, so the
+documented value points at a path nothing serves. Use `/auth/v1/callback`.
 
 ## What is already done
 
