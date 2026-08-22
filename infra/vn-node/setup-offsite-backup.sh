@@ -40,6 +40,16 @@ chmod 600 "$C"
 echo "1. can we authenticate?"
 rclone lsd eno-offsite: >/dev/null 2>&1 && echo "   ok" || { echo "   ⛔ auth failed — check the keys"; exit 1; }
 
+# ⛔ BIZFLY REQUIRES SIGNATURE V2 FOR WRITES, AND FAILS IN THE MOST MISLEADING WAY.
+# Reads work fine on v4, so auth and listing both succeed — then every v4 PUT returns
+# `ServiceUnavailable` with an EMPTY message, which reads like a provider outage rather
+# than a signing problem. Diagnosed 2026-08-22 by trying variants: default, no-ACL,
+# storage-class and forced-path-style all failed identically, and only --s3-v2-auth
+# wrote a byte. Without this line the nightly backup reports success forever while
+# nothing ever leaves the disk.
+grep -q '^v2_auth' /root/.config/rclone/rclone.conf || \
+  sed -i '/^acl = private/a v2_auth = true' /root/.config/rclone/rclone.conf
+
 echo "2. bucket exists (creating if not)"
 rclone mkdir "eno-offsite:$BUCKET" 2>/dev/null || true
 rclone lsd eno-offsite: | grep -q " $BUCKET$" && echo "   ok: $BUCKET" || { echo "   ⛔ bucket missing"; exit 1; }
