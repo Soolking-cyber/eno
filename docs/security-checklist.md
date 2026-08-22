@@ -82,6 +82,28 @@ it is the last recorded error, not current state. The logs are the authority.
       Dropping the fallback means a schema change as well as a code change; a reviewer
       caught that this note originally implied time alone would finish the job.
 
+## Dependency advisories with no non-breaking fix (audit item 1)
+
+`npm audit` went 16 → 10 (high 13 → 6) with semver-compatible bumps only:
+brace-expansion ×4, fast-uri, js-yaml, nanoid, @trapezedev/* ×2, @capacitor/cli
+8.4.2 → 8.5.0. Every remaining advisory is `fix=none` or needs a MAJOR bump, which
+this task excluded. None are skipped silently:
+
+| package | why it stays |
+| --- | --- |
+| `tar` 6.2.1 **(critical)** | nested inside `@capacitor/assets`, a devDependency with `fix=none`. Top-level `tar` is already 7.5.22, the latest, and outside the vulnerable `<=7.5.20` range. Build-time only; never reachable from a request. |
+| `@capacitor/assets`, `@trapezedev/project`, `uuid`, `xcode` | `fix=none` — no fixed version published. Not forked and not pinned, per instruction. |
+| `prisma`, `@prisma/config`, `deepmerge-ts`, `@capacitor/cli` | fix requires a MAJOR bump. |
+
+⛔ **The `sharp` advisory does NOT apply to the runtime.** The audit item asked to bump
+sharp for libvips CVEs "since it decodes user uploads". Measured: the advisory's range
+is `<0.35.0`, the installed version is **0.35.3** — already the latest published — so
+it is outside the range. The vulnerable copy is the old sharp bundled inside
+`@capacitor/assets`, a dev tool. Verified the real one works rather than trusting the
+build: a round-trip encode → metadata → webp transcode succeeds on libvips 8.18.3.
+⚠️ `require('sharp/package.json')` throws — sharp's `exports` map forbids it. That is
+a property of the package, not a broken install, and it has now twice looked like one.
+
 ## Accepted risks
 
 - **Video transcode has no per-instance concurrency cap** (audit item 8b,

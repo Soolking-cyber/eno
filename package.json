@@ -105,7 +105,7 @@
   "devDependencies": {
     "@axe-core/playwright": "^4.12.1",
     "@capacitor/assets": "^3.0.5",
-    "@capacitor/cli": "^8.4.2",
+    "@capacitor/cli": "^8.5.0",
     "@playwright/test": "^1.61.1",
     "@solar-icons/static": "2.0.0",
     "@tailwindcss/postcss": "^4",
