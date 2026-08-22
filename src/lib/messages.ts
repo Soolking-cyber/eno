@@ -1128,23 +1128,41 @@ export async function actOnOffer(
   // holding two 'accepted' offers at different prices with nothing recording which deal is real,
   // and it inflated the seller's transaction count (see sellerTransactionCount in enforcement.ts).
   // Declining stays allowed: a stale pending card must always be clearable.
-  // ⚠️ This is a check, not a lock — under READ COMMITTED it does not serialise against a truly
-  // simultaneous second accept (the EvalPlanQual lesson recorded above). It closes the sequential
-  // case, which is the reachable one; closing the concurrent case needs a row to compare-and-set
-  // against, i.e. a schema change.
-  if (action === 'accept') {
-    const already = await db.message.count({
-      where: { conversationId: convo.id, kind: 'offer', offerStatus: 'accepted' },
-    })
-    if (already > 0) return false
-  }
-
   const status = action === 'accept' ? 'accepted' : 'declined'
-  // Atomic claim: only transition while STILL pending, so two concurrent
-  // accept/decline (or double-clicks) can't both emit the confirmation message +
-  // notification/push (TOCTOU). count===0 means another request already won.
-  const claim = await db.message.updateMany({ where: { id: offer.id, offerStatus: 'pending' }, data: { offerStatus: status } })
-  if (claim.count === 0) return false
+
+  // ⛔ THE COUNT AND THE CLAIM MUST BE ONE SERIALISED UNIT, NOT TWO STATEMENTS.
+  // This block used to say the concurrent case needed a schema change. It does not:
+  // an advisory lock keyed on the conversation gives the same compare-and-set
+  // guarantee without one. Read committed does not serialise `count` against another
+  // transaction's `updateMany`, so TWO different pending offers in one thread could
+  // both pass `already === 0` and both be accepted — at different prices, with
+  // nothing recording which deal is real, and the seller's transaction count
+  // inflated twice (sellerTransactionCount in enforcement.ts).
+  //
+  // Same idiom as addPartyStatementOnce in src/lib/dispute.ts: pg_advisory_xact_lock
+  // inside the transaction, released when it commits or rolls back — no unlock to
+  // leak, and no row required to lock against, which is the whole point when the
+  // invariant spans rows that do not exist yet.
+  //
+  // ⚠️ The lock is taken only for `accept`. Decline carries no cross-row invariant —
+  // its double-submit is already handled by the pending-guarded claim below — and
+  // locking it would serialise unrelated declines against every accept in the thread.
+  const lockKey = `offer-accept:${convo.id}`
+  const claimed = await db.$transaction(async (tx) => {
+    if (action === 'accept') {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${lockKey}))`
+      const already = await tx.message.count({
+        where: { conversationId: convo.id, kind: 'offer', offerStatus: 'accepted' },
+      })
+      if (already > 0) return false
+    }
+    // Atomic claim: only transition while STILL pending, so two concurrent
+    // accept/decline (or double-clicks) can't both emit the confirmation message +
+    // notification/push (TOCTOU). count===0 means another request already won.
+    const claim = await tx.message.updateMany({ where: { id: offer.id, offerStatus: 'pending' }, data: { offerStatus: status } })
+    return claim.count > 0
+  })
+  if (!claimed) return false
 
   // Confirmation line in the timeline (plain text → broadcasts to both sides).
   const amt = offer.offerAmount != null ? formatMoneyFull(offer.offerAmount, '₫') : ''

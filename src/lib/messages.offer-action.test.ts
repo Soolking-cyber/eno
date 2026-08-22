@@ -40,6 +40,10 @@ const h = vi.hoisted(() => ({
   /** When true, every findFirst is served the same pre-write snapshot (READ COMMITTED). */
   interleave: false,
   snapshot: null as Row | null,
+  /** Per-offer READ COMMITTED snapshots, so a thread with two pending offers is representable. */
+  snapshots: {} as Record<string, Row>,
+  /** One mutex PER LOCK KEY, standing in for pg_advisory_xact_lock. */
+  locks: {} as Record<string, Promise<void>>,
   /**
    * ⚠️ OTHER offers in the same conversation. The mock held exactly ONE message until 2026-08-06,
    * which made the state the `already accepted` guard exists for literally unrepresentable — and so
@@ -54,8 +58,9 @@ vi.mock('@/lib/push', () => ({
   sendPushToProfile: async (profileId: string, payload: Row) => { h.pushes.push({ profileId, ...payload }) },
 }))
 
-vi.mock('@/lib/db', () => ({
-  db: {
+vi.mock('@/lib/db', () => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const dbMock: any = {
     message: {
       findFirst: async ({ where }: Row) => {
         // ⚠️ IN RACE MODE EVERY READER SEES THE SAME PRE-WRITE SNAPSHOT, WHICH IS WHAT POSTGRES
@@ -69,8 +74,17 @@ vi.mock('@/lib/db', () => ({
         // simply re-read live state, and STILL left them green when it merely yielded on a timer
         // (the two timers fire in separate macrotasks, so the first caller finishes before the
         // second reads). Serving a frozen snapshot is what finally reproduces the race.
-        const src = h.interleave ? (h.snapshot ||= { ...h.offer }) : h.offer
-        const o = src
+        // ⛔ ADDRESSABLE BY ID ACROSS THE WHOLE THREAD, not just the one target. The
+        // double-spend this guard exists for is TWO DIFFERENT pending offers being
+        // accepted at once, and while findFirst resolved only h.offer that state was
+        // unrepresentable — the same shape of gap this file already records for
+        // `count` on 2026-08-06. Mutation-tested: with the lookup narrowed back to
+        // h.offer, the two-offer race test cannot even be written.
+        const pool = [h.offer, ...h.otherOffers].filter(Boolean) as Row[]
+        const live = pool.find((x) => x.id === where.id) ?? null
+        if (!live) return null
+        // Under READ COMMITTED every concurrent reader sees the same pre-write snapshot.
+        const o = h.interleave ? ((h.snapshots[live.id] ||= { ...live }) as Row) : live
         if (!o) return null
         // Model the real predicate: id + conversation + kind + STILL pending.
         if (where.id !== o.id) return null
@@ -82,7 +96,7 @@ vi.mock('@/lib/db', () => ({
       // ⚠️ THE CONDITIONAL UPDATE, MODELLED. Returns count 0 once the row has left 'pending',
       // which is what makes the double-accept case a real test rather than a call count.
       updateMany: async ({ where, data }: Row) => {
-        const o = h.offer
+        const o = [h.offer, ...h.otherOffers].filter(Boolean).find((x) => (x as Row).id === where.id) as Row | undefined
         if (!o || o.id !== where.id) return { count: 0 }
         if (where.offerStatus && o.offerStatus !== where.offerStatus) return { count: 0 }
         Object.assign(o, data)
@@ -106,6 +120,61 @@ vi.mock('@/lib/db', () => ({
         return row
       },
     },
+    /**
+     * ⛔ THE ADVISORY LOCK, MODELLED AS A LOCK — not stubbed away.
+     *
+     * actOnOffer wraps the accept check and the claim in db.$transaction with
+     * pg_advisory_xact_lock(hashtext(`offer-accept:<convoId>`)). Making $transaction
+     * merely `fn(db)` would let both concurrent accepts run interleaved and the test
+     * would pass while proving nothing — the failure mode this whole file exists to
+     * avoid (see the mutation notes on findFirst).
+     *
+     * So it serialises: a second caller waits for the first to settle, exactly as a
+     * second transaction waits on the advisory lock. And callbacks read LIVE state
+     * rather than the frozen race snapshot, because by the time the lock is granted
+     * the previous transaction has committed. That combination is what makes
+     * "two CONCURRENT accepts" a real assertion.
+     */
+    $transaction: async (arg: unknown) => {
+      // ⚠️ Prisma's $transaction has TWO shapes and this file uses both: messages.ts
+      // batches promises elsewhere ($transaction([...])), while actOnOffer takes the
+      // interactive callback. The array form needs no lock — it is a batch, not a
+      // critical section — so only the callback form serialises.
+      if (Array.isArray(arg)) return Promise.all(arg as Promise<unknown>[])
+      const fn = arg as (tx: unknown) => Promise<unknown>
+      // ⛔ THE TRANSACTION ALONE MUST NOT SERIALISE — THE LOCK MUST.
+      // A first version of this mock took the mutex here, and that made the lock line
+      // in actOnOffer dead weight: deleting `pg_advisory_xact_lock` left the
+      // concurrent test green, so it proved the wrapper and not the fix. Under READ
+      // COMMITTED a bare transaction does NOT serialise two accepts, so neither does
+      // this. $executeRaw below is what blocks — mutation-tested by deleting the lock
+      // line and confirming the concurrent test goes red.
+      // ⚠️ dbMock, NOT `await import('@/lib/db')` — inside this factory that import
+      // resolves the REAL PrismaClient and the test dies on 'Database does not exist'.
+      const db = dbMock
+      let release: null | (() => void) = null
+      const setRelease = (r: () => void) => { release = r }
+      const tx = {
+        ...db,
+        // ⚠️ KEYED, like the real thing. A single global chain would serialise every
+        // conversation against every other, so a wrong or missing lock key would still
+        // pass — the mock would be asserting "some lock was taken" rather than "the
+        // right one". Prisma passes the tagged template as (strings, ...values), so the
+        // interpolated lockKey arrives in values[0].
+        $executeRaw: async (_strings: TemplateStringsArray, ...values: unknown[]) => {
+          const key = String(values[0] ?? 'unkeyed')
+          const prev = h.locks[key] ?? Promise.resolve()
+          h.locks[key] = new Promise<void>((r) => { setRelease(r) })
+          await prev
+          // Once the lock is granted the previous holder has committed, so reads see
+          // live state rather than the frozen READ COMMITTED snapshot.
+          h.interleave = false
+          return 1
+        },
+      }
+      try { return await fn(tx) } finally { (release as null | (() => void))?.() }
+    },
+    $executeRaw: async () => 1,
     conversation: { update: async () => ({}), updateMany: async () => ({ count: 1 }) },
     profile: { findUnique: async () => ({ displayName: 'Buyer Bob', email: 'bob@example.test' }) },
     notification: {
@@ -127,9 +196,9 @@ vi.mock('@/lib/db', () => ({
         return data
       },
     },
-    $transaction: async (ops: unknown[]) => Promise.all(ops as Promise<unknown>[]),
-  },
-}))
+  }
+  return { db: dbMock }
+})
 
 const { actOnOffer } = await import('@/lib/messages')
 
@@ -147,6 +216,8 @@ beforeEach(() => {
   h.interleave = false
   h.snapshot = null
   h.otherOffers = []
+  h.snapshots = {}
+  h.locks = {}
 })
 
 describe('only the other party can act on an offer', () => {
@@ -188,6 +259,42 @@ describe('an offer can only be acted on once — the TOCTOU guard', () => {
     expect(h.messagesCreated).toHaveLength(1)
     expect(h.notifications).toHaveLength(1)
     expect(h.pushes).toHaveLength(1)
+  })
+
+  it('⛔ TWO DIFFERENT pending offers accepted at once: only one is accepted', async () => {
+    // THE DOUBLE-SPEND. The single-offer race above is already stopped by the
+    // pending-guarded claim, so it passes with or without the lock — mutation-tested,
+    // and that is why this second test exists. Here two DISTINCT pending offers in one
+    // thread are accepted simultaneously: both read `already === 0` under READ
+    // COMMITTED, both claim a row that is genuinely still pending, and the thread ends
+    // up with two accepted offers at DIFFERENT PRICES with nothing recording which
+    // deal is real — plus the seller's transaction count inflated twice.
+    // pg_advisory_xact_lock on the conversation is what makes the second one lose.
+    h.otherOffers = [{ id: 'msg-offer-2', senderProfileId: 'seller-1', offerAmount: 999, offerStatus: 'pending' }]
+    h.interleave = true
+
+    const [a, b] = await Promise.all([
+      actOnOffer(CONVO, 'buyer-1', OFFER_ID, 'accept'),
+      actOnOffer(CONVO, 'buyer-1', 'msg-offer-2', 'accept'),
+    ])
+
+    expect([a, b].filter(Boolean)).toHaveLength(1)
+    const accepted = [h.offer, ...h.otherOffers].filter((o) => o && o.offerStatus === 'accepted')
+    expect(accepted).toHaveLength(1)
+    // and exactly one of everything downstream
+    expect(h.messagesCreated).toHaveLength(1)
+    expect(h.notifications).toHaveLength(1)
+  })
+
+  it('the lock is keyed on the CONVERSATION — a different thread is not blocked by it', async () => {
+    // Guards the key, not just the presence of a lock. If lockKey were a constant, or
+    // keyed on something coarser, unrelated conversations would serialise against each
+    // other under load — a correctness-preserving change that quietly becomes a
+    // throughput bug nobody traces back to here.
+    h.otherOffers = [{ id: 'msg-offer-2', senderProfileId: 'seller-1', offerAmount: 999, offerStatus: 'pending' }]
+    await actOnOffer(CONVO, 'buyer-1', OFFER_ID, 'accept')
+    // Two distinct keys must have been taken across the two conversations we touched.
+    expect(Object.keys(h.locks)).toEqual([`offer-accept:${CONVO.id}`])
   })
 
   it('a sequential second accept is rejected by the read predicate', async () => {
