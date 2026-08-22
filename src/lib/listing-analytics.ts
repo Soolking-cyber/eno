@@ -95,12 +95,15 @@ export async function getListingAnalytics(
 // One UPSERT covers the whole table. gen_random_uuid()::text fills the PK (Prisma's cuid
 // default is app-side, so a raw INSERT must supply the id itself).
 export async function rollupListingDailyStats(): Promise<number> {
-  return db
-    .$executeRawUnsafe(`
+  // ⛔ $executeRaw, NOT $executeRawUnsafe. The SQL is static today, so this is not a
+  // live injection — it is the guarantee. `Unsafe` takes a plain string, so the day
+  // someone adds a `${...}` here it concatenates silently and nothing complains; the
+  // tagged template makes that same edit a parameterised bind instead. Keeping the
+  // safe form costs nothing while the statement is static and costs everything later.
+  return db.$executeRaw`
       INSERT INTO "ListingDailyStat" ("id", "listingId", "day", "views", "leads", "createdAt")
       SELECT gen_random_uuid()::text, "id", CURRENT_DATE, "views", "contactCount", now()
       FROM "Listing" WHERE "verified" = true AND "status" = 'active'
       ON CONFLICT ("listingId", "day") DO UPDATE SET "views" = EXCLUDED."views", "leads" = EXCLUDED."leads"
-    `)
-    .catch(() => 0)
+    `.catch(() => 0)
 }
