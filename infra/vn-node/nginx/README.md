@@ -103,30 +103,92 @@ GCLB. ⛔ **Remove it from `server_name` and delete the DNS record at cutover.**
 Only the GUEST suite may run against it: the host is not in `ALLOWED_AUTH_HOSTS`,
 so auth links fall back to `NEXT_PUBLIC_APP_URL` and would point at live prod.
 
-## Remaining hardening — NOT done
+## Authenticated Origin Pulls — prepared, NOT enabled
 
-⛔ **Authenticated Origin Pulls is absent, and it is the one real hole left.**
-ufw admits every Cloudflare range, so anyone can point their *own* Cloudflare zone
-at `162.4.176.208`, send `Host: eno.vn`, and arrive from an allowed IP at a served
-vhost. `/api/*` still refuses them — `src/proxy.ts` requires a header only our
-Transform Rule injects — but page routes would answer, and CF's WAF and rate
-limits would be bypassed entirely. Three reviewers raised it independently.
+The origin half is installed: Cloudflare's origin-pull CA is at
+`/etc/nginx/ssl/cf-origin-pull-ca.pem` (sha256 `c14fed0ce5210db0719fea11d1f10b33750dc17d609aeaf47c75e9eff0d7b843`,
+expires **2029-11-01**), and `origin-pull.conf` holds
+the two directives. ⛔ **`eno.conf` does not include it, and AOP is off on both
+zones.**
 
-The fix is mTLS between Cloudflare and this origin:
+### ⛔ Read this before enabling: it closes less than it looks like
+
+Cloudflare's default origin-pull CA is **shared by every Cloudflare customer**.
+`ssl_verify_client on` against it proves a request came *from Cloudflare* — not
+from *our* zone. An attacker who points their own Cloudflare zone at
+`162.4.176.208` with `Host: eno.vn` presents a certificate that same CA signed,
+and still gets through. An earlier version of this section claimed otherwise.
+
+| | closed by default-CA AOP? |
+| --- | --- |
+| Direct hit from a non-Cloudflare IP | already closed by ufw |
+| Workers egress / other services in CF ranges | ✅ yes — this is the real gain |
+| **Another customer's Cloudflare zone fronting us** | ❌ **no** |
+
+**The fix that actually binds to our zone** is a *custom* origin-pull certificate:
+upload our own cert+key with `POST /zones/{id}/origin_tls_client_auth`, then point
+`ssl_client_certificate` at **our** CA rather than Cloudflare's global one. Until
+then, the Transform-Rule header check in `src/proxy.ts` is the only control that
+binds a request to our zone — and it guards `/api/*` only, not page routes.
+
+### Enabling, in this order
+
+⛔ **Order is the entire risk.** Zone first, box second. Reversed, nginx demands a
+certificate Cloudflare is not sending and every request through the edge breaks.
+
+**1. Zone or hostname.** Two options, and the second is safer while `eno.vn` still
+points at the GCLB:
+
+- **Zone-wide** — `PUT /zones/$ZONE/origin_tls_client_auth/settings` `{"enabled":true}`
+  (dashboard: *SSL/TLS → Origin Server → Authenticated Origin Pulls*). Safe for the
+  GCLB — an origin that does not ask for a client certificate discards the offered
+  one — but it is a live-zone change.
+- **Per hostname** (recommended pre-cutover) —
+  `PUT /zones/$ZONE/origin_tls_client_auth/hostnames` enables client auth for named
+  hostnames only. Turn it on for `sb.eno.vn` and `vn-test.eno.vn`, which are the
+  only names pointing at this box, and `eno.vn` on the GCLB is untouched entirely.
+
+Zones: eno.vn `55e558b62f68a44f8177d7d98cb5369e`,
+eno.forum `cc81e3ff1d792c0aa5384e8feab21efa`.
+
+**2. Confirm nothing moved.** Baseline captured 2026-08-22 before any change:
 
 ```bash
-curl -fsSL https://developers.cloudflare.com/ssl/static/authenticated_origin_pull_ca.pem \
-  -o /etc/nginx/ssl/cf-origin-pull-ca.pem
-# then in each server block: ssl_client_certificate …/cf-origin-pull-ca.pem; ssl_verify_client on;
+for u in https://eno.vn/ https://www.eno.vn/ https://eno.forum/ https://vn-test.eno.vn/; do
+  curl -s -o /dev/null -w "$u %{http_code}\n" "$u"; done
+#   eno.vn 200 · www.eno.vn 308 · eno.forum 200 · vn-test.eno.vn 200
+SB=$(dig @1.1.1.1 +short sb.eno.vn A | head -1)
+curl -s -o /dev/null -w "sb %{http_code}\n" --resolve sb.eno.vn:443:$SB https://sb.eno.vn/auth/v1/health
+#   sb 401   ← five checks, five codes; the sb one needs its own command
 ```
 
-⚠️ **Order matters or you take the site down.** Enable Authenticated Origin Pulls
-in the Cloudflare zone FIRST, confirm traffic still flows, and only then set
-`ssl_verify_client on`. Reversed, nginx rejects every Cloudflare connection.
-Zone-level AOP is safe for the GCLB origin that eno.vn still points at — an origin
-that does not ask for a client certificate simply ignores the one CF offers.
+**3. Box** — copy `origin-pull.conf` to `/etc/nginx/snippets/eno-origin-pull.conf`
+and add `include /etc/nginx/snippets/eno-origin-pull.conf;` beside the ssl include
+in each server block, then `nginx -t && systemctl reload nginx`.
 
-Also outstanding:
+**4. Prove it.** ⚠️ `ssl_verify_client on` does **not** abort the handshake — nginx
+completes TLS and answers **HTTP 400 "No required SSL certificate was sent"**. A
+test expecting a TLS alert will read as a failure when it is working:
+
+```bash
+curl -sk -o /dev/null -w '%{http_code}\n' --resolve eno.vn:443:127.0.0.1 https://eno.vn/
+#   expect 400  (was 200)
+curl -s  -o /dev/null -w '%{http_code}\n' https://vn-test.eno.vn/
+#   expect 200  — still fine, because it goes through Cloudflare
+```
+
+✅ **`sb.eno.vn` under mTLS is safe.** Checked from inside the app container: it
+resolves `sb.eno.vn` to Cloudflare (`2606:4700:…`), so server-side Supabase calls
+hairpin through the edge and carry the client certificate like any other request.
+(They are a hairpin, which costs a round trip — worth revisiting separately.)
+
+⛔ **This breaks the on-box verification commands in "Verifying a change" above.**
+Every one of those uses `--resolve …:127.0.0.1`, which bypasses Cloudflare and
+therefore carries no client certificate — they will all return 400 once mTLS is on.
+After enabling, verify through the edge (`https://vn-test.eno.vn/...`) instead, or
+temporarily comment the include out on the box.
+
+## Also outstanding
 
 - **SSL mode is Full, not Full (strict)** on both zones — CF→origin is encrypted
   but this certificate is not verified.
