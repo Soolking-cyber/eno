@@ -94,9 +94,30 @@ pin_prev(){
   for pair in eno-vn-app:eno-vn eno-forum-app:eno-forum; do
     c=${pair%%:*}; t=${pair##*:}
     id=$(docker inspect -f '{{.Image}}' "$c" 2>/dev/null)
-    if [ -n "$id" ]; then docker tag "$id" "$t:prev" || { bad "docker tag failed for $t:prev — refusing"; exit 1; }
+    if [ -n "$id" ] && docker tag "$id" "$t:prev" 2>/dev/null; then
        ok "$t:prev = the image $c is serving"
-    else bad "$c is not running — no rollback pinned for $t"; fi
+    elif [ -n "$id" ]; then
+      # ⛔ THE RUNNING IMAGE CAN BE GONE WHILE THE CONTAINER STILL RUNS, and it happened on
+      # the very first real deploy (2026-08-22). Docker keeps a started container alive from
+      # layers already unpacked, but once the image is untagged and garbage-collected the
+      # content is gone: `docker tag` says "No such image" and even `docker commit` fails
+      # with "content digest not found". The code serving production is then UNREPRODUCIBLE
+      # — and, worse, if that container ever stops it cannot start again.
+      # There is no local rollback to construct in that state, so do not pretend: say so,
+      # and require the operator to name the fallback they are relying on instead.
+      bad "$c is running an image that NO LONGER EXISTS ($(printf '%s' "$id" | cut -c8-19))."
+      bad "It cannot be tagged or committed — the running code is unreproducible, and this"
+      bad "container could not be restarted if it stopped. No local rollback is possible."
+      if [ "${ENO_ROLLBACK_IS_CLOUDRUN:-}" = "1" ]; then
+        bad "ENO_ROLLBACK_IS_CLOUDRUN=1 — proceeding. THE ROLLBACK IS A DNS FLIP to the"
+        bad "Cloud Run services, not 'eno-deploy.sh --rollback', which will not work."
+        docker tag "$t:local" "$t:prev" 2>/dev/null || true
+      else
+        bad "Set ENO_ROLLBACK_IS_CLOUDRUN=1 only after confirming Cloud Run is Ready and"
+        bad "serving a good revision — that DNS flip is then your only way back."
+        exit 1
+      fi
+    else bad "$c is not running — no rollback pinned for $t"; exit 1; fi
   done
   # The schema gate's base commit has to roll back with the images, or it describes a
   # build that is no longer running.
