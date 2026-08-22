@@ -1,5 +1,32 @@
 # nginx on the VN origin
 
+⛔ **2026-08-22 — THIS FILE CLAIMED THE ORIGIN WAS FIREWALLED AND IT WAS NOT.**
+Every earlier version said "ufw allows 80/443 only from Cloudflare ranges". `ufw`
+was not even installed (`ufw: command not found`) — only leftover `ufw-*` iptables
+chains that blocked nothing, with `INPUT policy ACCEPT`. Measured from an ordinary
+Vietnamese ISP address: `curl --resolve eno.vn:443:162.4.176.208` returned **200**
+for eno.vn, eno.forum and vn-test. The origin was reachable by anyone, and this
+repo is **public**, so the IP was published alongside a note that Authenticated
+Origin Pulls was off.
+
+I wrote that claim from assumption. The earlier "verified from outside" test only
+covered 5432/6543/8000 — the database ports — and I generalised it to 80/443
+without ever testing them.
+
+**Now closed** by an `ENO-WEB` iptables chain: 15 Cloudflare IPv4 ranges ACCEPT,
+then DROP, persisted via `netfilter-persistent`. Verified both directions —
+direct-to-IP returns 000, through Cloudflare returns 200, SSH on 24700 untouched.
+The box has no global IPv6 address, so the v6 listeners are unreachable.
+
+⚠️ **RE-TEST THIS AFTER ANY FIREWALL, DOCKER OR REBOOT CHANGE, FROM OFF-BOX:**
+
+```bash
+curl -sk -o /dev/null -w '%{http_code}\n' --max-time 12 --resolve eno.vn:443:162.4.176.208 https://eno.vn/
+#   000 = closed. 200 = the origin is exposed again.
+curl -s -o /dev/null -w '%{http_code}\n' https://eno.vn/    # 200 = Cloudflare path still fine
+```
+
+
 Live on `162.4.176.208`. Cloudflare terminates TLS for the visitor and speaks to
 this box; nothing reaches it directly.
 
@@ -121,7 +148,7 @@ and still gets through. An earlier version of this section claimed otherwise.
 
 | | closed by default-CA AOP? |
 | --- | --- |
-| Direct hit from a non-Cloudflare IP | already closed by ufw |
+| Direct hit from a non-Cloudflare IP | already closed by the ENO-WEB chain |
 | Workers egress / other services in CF ranges | ✅ yes — this is the real gain |
 | **Another customer's Cloudflare zone fronting us** | ❌ **no** |
 

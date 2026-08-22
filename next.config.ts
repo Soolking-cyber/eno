@@ -157,6 +157,25 @@ const PAGE_EXTENSIONS =
       : ["ts", "tsx", "js", "jsx"]
     : ["ts", "tsx", "js", "jsx", ...SVC_EXTENSIONS, ...FORUM_ONLY_EXTENSIONS];
 
+// ⛔ THE SUPABASE ORIGIN IS DERIVED, NOT LITERAL — AND A REBUILD IS WHAT MOVES IT.
+// Both the CSP below and `images.remotePatterns` used to hardcode the hosted project
+// host. That is invisible until the app is pointed at a different Supabase, and then
+// it is total: a 2026-08-22 pre-cutover audit measured the VN box serving a CSP whose
+// connect-src/img-src/media-src allowed ONLY xihiryllwmjoouipkyhw.supabase.co while
+// its own client called sb.eno.vn. The page renders; sign-in, realtime chat, uploads
+// and every photo are blocked by the browser. Three independent auditors found it.
+// ⚠️ These are BUILD-TIME values baked into the route manifest — changing the env on a
+// running container does nothing. The image must be rebuilt.
+// ⚠️ STILL PINNED TO ONE EXACT HOST, never *.supabase.co: connect-src is the main
+// post-XSS exfiltration brake, and a wildcard would let stolen data POST to any
+// attacker-owned Supabase project. Deriving it keeps that property.
+const SUPABASE_ORIGIN = (() => {
+  try { return new URL(process.env.NEXT_PUBLIC_SUPABASE_URL || '').origin }
+  catch { return 'https://xihiryllwmjoouipkyhw.supabase.co' }
+})()
+const SUPABASE_WS = SUPABASE_ORIGIN.replace(/^https:/, 'wss:')
+const SUPABASE_HOST = SUPABASE_ORIGIN.replace(/^https?:\/\//, '')
+
 const nextConfig: NextConfig = {
   pageExtensions: PAGE_EXTENSIONS,
   /**
@@ -548,7 +567,7 @@ const nextConfig: NextConfig = {
     remotePatterns: [
       {
         protocol: "https",
-        hostname: "xihiryllwmjoouipkyhw.supabase.co",
+        hostname: SUPABASE_HOST,
         pathname: "/storage/v1/object/public/listings/**",
       },
     ],
@@ -689,17 +708,17 @@ const nextConfig: NextConfig = {
       // (OAuth sign-in) — without it they render as a broken-image icon.
       // `www.facebook.com` is the pixel's 1x1 beacon — img-src, not connect-src: the classic pixel
       // reports by loading an image, and without this the tag runs and every event is dropped.
-      "img-src 'self' capacitor: data: blob: https://xihiryllwmjoouipkyhw.supabase.co https://*.googleusercontent.com https://*.basemaps.cartocdn.com https://www.google-analytics.com https://www.googletagmanager.com https://www.facebook.com",
+      `img-src 'self' capacitor: data: blob: ${SUPABASE_ORIGIN} https://*.googleusercontent.com https://*.basemaps.cartocdn.com https://www.google-analytics.com https://www.googletagmanager.com https://www.facebook.com`,
       // <video> sources for listing videos: our public bucket + blob: (the wizard's
       // client-side preview object URL). Without this, default-src 'self' blocks playback.
-      "media-src 'self' blob: https://xihiryllwmjoouipkyhw.supabase.co",
+      `media-src 'self' blob: ${SUPABASE_ORIGIN}`,
       "font-src 'self' data:",
       // `capacitor:` (img+connect): the iOS shell's Camera picker returns capacitor://
       // webPaths that the post wizard fetch()es into Files — without the scheme the CSP
       // silently killed every picked photo IN-APP on iOS (Android rides the same-origin
       // /_capacitor_file_/ path, hence 'self' sufficed there). Browsers can't reach the
       // scheme, so the web surface is unchanged.
-      "connect-src 'self' capacitor: https://xihiryllwmjoouipkyhw.supabase.co wss://xihiryllwmjoouipkyhw.supabase.co https://www.google-analytics.com https://region1.google-analytics.com https://www.googletagmanager.com https://cloudflareinsights.com https://static.cloudflareinsights.com https://connect.facebook.net" + gsiConnect,
+      `connect-src 'self' capacitor: ${SUPABASE_ORIGIN} ${SUPABASE_WS} https://www.google-analytics.com https://region1.google-analytics.com https://www.googletagmanager.com https://cloudflareinsights.com https://static.cloudflareinsights.com https://connect.facebook.net` + gsiConnect,
       "frame-src 'self' https://td.doubleclick.net https://challenges.cloudflare.com" + gsiFrame,
       "worker-src 'self' blob:",
       "manifest-src 'self'",
