@@ -53,6 +53,29 @@ gcloud logging read 'resource.type="cloud_scheduler_job"' --project=$P --limit=3
 ⚠️ `gcloud scheduler jobs describe … status.code` reads `2` for a healthy job too —
 it is the last recorded error, not current state. The logs are the authority.
 
+## Migration blockers the owner must close
+
+- [ ] **Off-box backups.** `ENO_BACKUP_REMOTE` is unset, so every dump sits on the
+      same disk as the database it protects. Once the box serves production that disk
+      is the only copy of live data. ⛔ **This must be done BEFORE cutover, not after.**
+      Everything except the credential is now in place: rclone is installed and
+      `/root/.config/rclone/rclone.conf` holds an `eno-offsite` remote pointed at
+      Bizfly Simple Storage HCM1 (VN-resident, chosen for Decree 53) with the two keys
+      blank. Fill them, then **prove it rather than assume it**:
+      ```bash
+      rclone lsd eno-offsite:                                   # must list, not error
+      ENO_BACKUP_REMOTE=eno-offsite:eno-db /opt/eno/bin/eno-backup.sh
+      rclone ls eno-offsite:eno-db                              # the dump must BE there
+      ```
+      ⚠️ Nobody has ever tested this provider with live keys, and the backup script's
+      off-box branch has therefore never executed. A green backup run today proves only
+      the local half.
+
+- [ ] **The Cloud Scheduler secret** (see above) — and note the box no longer depends
+      on it: `/opt/eno/bin/eno-cron.sh` reads `CRON_SECRET` from the RUNNING CONTAINER,
+      so it cannot drift from what the app validates. That drift is exactly what left
+      every GCP cron failing.
+
 ## Config gaps
 
 - [ ] **`EDGE_SECRET` set in the Cloud Run production env.** Absent locally, which
