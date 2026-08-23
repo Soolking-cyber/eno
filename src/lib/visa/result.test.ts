@@ -38,6 +38,14 @@ const h = vi.hoisted(() => {
     state: {
       /** visa_documents rows removed by a rollback. */
       deletes: [] as Array<{ table: string; id: string }>,
+      /** Every transitionVisaCase call, in order — the case-closing step (12). */
+      transitions: [] as Array<{ id: string; next: string; admin: string }>,
+      /** Make the close fail, to prove a committed upload still answers 201. */
+      transitionResult: { ok: true } as { ok: boolean; error?: string },
+      /** Notification rows raised for the applicant when the result card lands. */
+      notifications: [] as Array<Record<string, unknown>>,
+      /** Ordered trace of the delivery side effects, so ordering can be asserted. */
+      order: [] as string[],
       deleteError: null as unknown,
       // identities
       admin: 'desk@eno.vn' as string | null,
@@ -114,6 +122,15 @@ vi.mock('@/lib/visa-admin', () => ({
   VISA_BUCKET: 'visa-documents',
   // Scope satisfied — these tests are about the ROUTE's behaviour once the case is in scope.
   visaCaseInScope: async () => true,
+  // Step (12). The real one carries the desk-scope check, the legal-transition guard, the
+  // result-document gate, the compare-and-set and the audit row; none of that is re-tested
+  // here (visa-admin owns it). What IS tested here is that the route calls it, with what,
+  // and WHEN relative to the card.
+  transitionVisaCase: async (id: string, next: string, admin: string) => {
+    h.state.transitions.push({ id, next, admin })
+    h.state.order.push('transition')
+    return h.state.transitionResult
+  },
 }))
 vi.mock('@/lib/visa/crypto', () => ({
   visaCryptoReady: () => h.state.cryptoReady,
@@ -138,6 +155,15 @@ vi.mock('@/lib/visa/storage', () => ({
 }))
 vi.mock('@/lib/db', () => ({
   db: {
+    // The applicant's bell row — insertMessage does NOT notify, so sendVisaResultCard raises
+    // this itself (owner 2026-08-20: a finished e-Visa arrived with no notification at all).
+    notification: {
+      create: async ({ data }: { data: Record<string, unknown> }) => {
+        h.state.notifications.push(data)
+        h.state.order.push('notification')
+        return data
+      },
+    },
     conversation: {
       // Honours the WHERE clause so the two resolution paths are told apart: lookup BY ID is
       // the immutable-conversation_id path, lookup BY visaApplicationId is the live-binding
@@ -170,6 +196,7 @@ vi.mock('@/lib/visa/dm-thread', () => ({
 vi.mock('@/lib/messages', () => ({
   insertMessage: async (convo: { id: string }, senderId: string, _body: string, opts?: { kind?: string; meta?: unknown; preview?: string }) => {
     h.state.cards.push({ senderId, kind: opts?.kind, meta: opts?.meta, preview: opts?.preview })
+    h.state.order.push('card')
     return { id: 'message-1', mine: true, body: '', createdAt: '', kind: opts?.kind ?? 'text', offerAmount: null, offerStatus: null, meta: null }
   },
 }))
@@ -264,6 +291,10 @@ beforeEach(() => {
     id: APP_ID, user_id: 'applicant-1', status: 'processing', reference: 'EV-1042', encrypted_payload: 'envelope',
   }
   s.loadError = null
+  s.transitions = []
+  s.transitionResult = { ok: true }
+  s.notifications = []
+  s.order = []
   s.resultDocs = []
   s.docLookupError = null
   s.insertError = null
@@ -559,9 +590,56 @@ describe('upload route — delivery', () => {
     expect(h.state.inserts).toHaveLength(1)
   })
 
-  it('does not change the case status — approval stays a separate, gated transition', async () => {
+  // ── CLOSING THE CASE (owner, 2026-08-20: "once the approval sent case should be closed for
+  // admin so he can focus on next case"). This REPLACES an earlier test that asserted the exact
+  // opposite — that the route left the status alone and the desk pressed approve separately. That
+  // second press was the friction being removed. What has NOT changed is how the status moves:
+  // through transitionVisaCase, which still owns the scope check, the legal-transition guard, the
+  // result-document gate, the compare-and-set and the audit row.
+  it('CLOSES the case by asking for the gated `approved` transition, never by writing status', async () => {
     await POST(uploadRequest(pdf()), params())
+    expect(h.state.transitions).toEqual([{ id: APP_ID, next: 'approved', admin: 'desk@eno.vn' }])
+    // The route still writes exactly one table itself; the status move belongs to visa-admin.
     expect(h.state.inserts.every((row) => row.table === 'visa_documents')).toBe(true)
+  })
+
+  it('⛔ closes AFTER the card, never before — `approved` is terminal and would shut the resume path', async () => {
+    await POST(uploadRequest(pdf()), params())
+    const card = h.state.order.indexOf('card')
+    const transition = h.state.order.indexOf('transition')
+    expect(card).toBeGreaterThanOrEqual(0)
+    expect(transition).toBeGreaterThan(card)
+  })
+
+  it('still answers 201 when the close FAILS — a committed upload is never reported as a failure', async () => {
+    h.state.transitionResult = { ok: false, error: 'invalid_status_transition' }
+    const res = await POST(uploadRequest(pdf()), params())
+    expect(res.status).toBe(201)
+    // …and it is REPORTED, so a case that stayed open is actionable rather than silent.
+    expect((await res.json()).closed).toBe('invalid_status_transition')
+  })
+
+  it('reports `closed: approved` on the happy path', async () => {
+    const res = await POST(uploadRequest(pdf()), params())
+    expect((await res.json()).closed).toBe('approved')
+  })
+
+  // ── NOTIFYING THE APPLICANT. insertMessage does NOT notify: the bell row and the push are
+  // raised by the SEND paths in messages.ts, which a server-authored card never goes through.
+  // Before this the applicant's finished e-Visa landed with no bell, no badge and no push.
+  it('raises a bell row for the APPLICANT when the result card lands', async () => {
+    await POST(uploadRequest(pdf()), params())
+    expect(h.state.notifications).toHaveLength(1)
+    const n = h.state.notifications[0]
+    expect(n.recipientId).toBe('applicant-1')          // the applicant, never the shop
+    expect(n.conversationId).toBe('convo-1')            // deep-links to the thread holding the PDF
+    expect(String(n.body)).toContain('e-Visa is ready')
+    expect(String(n.body)).toContain('EV-1042')         // the case reference the desk quotes
+  })
+
+  it('notifies AFTER the card exists, so the bell never points at an empty thread', async () => {
+    await POST(uploadRequest(pdf()), params())
+    expect(h.state.order.indexOf('notification')).toBeGreaterThan(h.state.order.indexOf('card'))
   })
 })
 

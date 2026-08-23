@@ -40,3 +40,27 @@ describe('job semaphore', () => {
     expect(s.inFlight).toBe(0)
   })
 })
+
+describe('tryAcquire — for work that outlives the request', () => {
+  it('⛔ HOLDS THE SLOT UNTIL RELEASED, NOT UNTIL THE HANDLER RETURNS', async () => {
+    // The production failure this exists for: the transcode is scheduled with after()
+    // and continues past the response, so a run()-style release frees the slot before
+    // ffmpeg starts and the limit counts request handling instead of encoding.
+    const { createJobSemaphore } = await import('./job-semaphore')
+    const s = createJobSemaphore(1)
+    const release = s.tryAcquire()!
+    expect(s.busy).toBe(true)
+    expect(s.tryAcquire()).toBeNull()   // a second caller is refused meanwhile
+    release()
+    expect(s.busy).toBe(false)
+    expect(s.tryAcquire()).not.toBeNull()
+  })
+
+  it('⚠️ RELEASE IS IDEMPOTENT — a double release must not invent a slot', async () => {
+    const { createJobSemaphore } = await import('./job-semaphore')
+    const s = createJobSemaphore(1)
+    const release = s.tryAcquire()!
+    release(); release(); release()
+    expect(s.inFlight).toBe(0)
+  })
+})

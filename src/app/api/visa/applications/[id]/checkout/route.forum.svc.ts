@@ -329,6 +329,10 @@ export const POST = route({ auth: 'userId' }, async ({ req: request, params, use
       : await paypalCreateOrder({
         applicationId: id, listingId: product.listingId,
         productTitle: product.title, amountCents, currency: 'USD', quote,
+        // Forwarded so PayPal can hand back an APP-SWITCH link on mobile — the PayPal app
+        // cannot open without it (see appSwitchUserAgent). Passed raw and validated there;
+        // an absent or unusable header just means today's web checkout.
+        buyerUserAgent: request.headers.get('user-agent'),
       })
 
     const { error } = await db.from('visa_payments').insert({

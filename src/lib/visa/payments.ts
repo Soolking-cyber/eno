@@ -450,6 +450,46 @@ async function paypalApi(path: string, method: 'GET' | 'POST', body?: unknown): 
  * asymmetry is the API's, not a choice: Orders v2 has no free-form key/value bag on a
  * purchase unit, and the two fields that could hold one are both load-bearing here.
  */
+/**
+ * PAYPAL APP SWITCH — the one field that lets the PayPal APP open on a mobile browser.
+ *
+ * ⚠️ WITHOUT THIS, THE APP CAN NEVER OPEN, AND THAT IS NOT A GUESS. PayPal's live
+ * apple-app-site-association (fetched 2026-08-20) declares 24 apps and 264 explicit paths with NO
+ * wildcard; `/checkoutnow` — the URL Orders v2 returns by default — is NOT among them, so iOS has
+ * no basis to intercept it. `/app-switch-checkout` IS among them, and supplying the buyer's user
+ * agent is what makes PayPal hand back that link instead. `paypalCreateOrder` already prefers
+ * `rel: 'payer-action'` over `rel: 'approve'`; that preference was written for this link and until
+ * now had none to find.
+ *
+ * ⛔ VALIDATE, NEVER REPAIR. The Orders v2 spec says verbatim: "Merchants must not alter or modify
+ * the buyer's device user agent." Stripping a bad character IS modifying it, so a UA that would not
+ * satisfy the schema is DROPPED WHOLE rather than cleaned up — external review (codex, plan stage)
+ * caught the first draft doing exactly that.
+ *
+ * ⛔ AND IT FAILS OPEN, because this is a PAYMENT. The schema caps the field at 512 chars and its
+ * pattern `^.*$` has no `m` flag, so any line terminator fails it — and a rejected field means
+ * PayPal 400s the whole order and the buyer cannot pay AT ALL. Returning null here costs only the
+ * app switch: checkout falls back to the web page it already uses today.
+ */
+const APP_SWITCH_UA_MAX = 512
+// Deliberately broad, not clever. A phone this misses simply gets today's web checkout, so a false
+// NEGATIVE is free; the reason it is gated at all is that a desktop UA must leave the request
+// byte-identical to what ships today (external review split on this — agy argued the desktop path
+// is the one thing worth protecting, since its failure mode is a regression rather than a no-op).
+const MOBILE_UA_RE = /Mobi|Android|iPhone|iPad|iPod|Windows Phone/i
+
+function appSwitchUserAgent(raw: string | null | undefined): string | null {
+  if (!raw) return null
+  if (raw.length < 1 || raw.length > APP_SWITCH_UA_MAX) return null
+  // Control characters and the Unicode line separators: none belong in a real UA, and each is a
+  // 400 waiting to happen. Reject the value; do not sanitize it.
+  // C0 *and* C1 (\u0080-\u009F): raw header bytes 0x80-0x9F decode to exactly those, and the
+  // first draft's range stopped at \u007F. None belong in a real UA.
+  if (/[\u0000-\u001F\u007F-\u009F\u2028\u2029]/.test(raw)) return null
+  if (!MOBILE_UA_RE.test(raw)) return null
+  return raw
+}
+
 export async function paypalCreateOrder(input: {
   applicationId: string
   listingId: string
@@ -457,11 +497,14 @@ export async function paypalCreateOrder(input: {
   amountCents: number
   currency: string
   quote: VisaQuoteEvidence
+  /** The buyer's raw `user-agent` header — forwarded UNMODIFIED or not at all. */
+  buyerUserAgent?: string | null
 }): Promise<{ ref: string; url: string }> {
   const origin = appOrigin()
+  const appSwitchUa = appSwitchUserAgent(input.buyerUserAgent)
   const amountCents = assertChargeableUsdCents('paypal', input.amountCents, input.currency)
   const quote = assertQuoteEvidence('paypal', input.quote)
-  const { status, json } = await paypalApi('/v2/checkout/orders', 'POST', {
+  const orderBody = (switchUa: string | null) => ({
     intent: 'CAPTURE',
     purchase_units: [{
       reference_id: input.applicationId,
@@ -481,10 +524,26 @@ export async function paypalCreateOrder(input: {
           // PayPal appends ?token=<orderId> to the return URL; aid as above.
           return_url: `${origin}/dashboard/visa?paid=paypal&aid=${input.applicationId}`,
           cancel_url: `${origin}/dashboard/visa?pay=cancelled`,
+          // Omitted entirely unless the UA passes — see appSwitchUserAgent. `return_flow`,
+          // `os_type` and `os_version` are readOnly in the spec, so `buyer_user_agent` is the
+          // ONLY writable field here and PayPal derives the rest from it.
+          ...(switchUa ? { app_switch_context: { mobile_web: { buyer_user_agent: switchUa } } } : {}),
         },
       },
     },
   })
+
+  let { status, json } = await paypalApi('/v2/checkout/orders', 'POST', orderBody(appSwitchUa))
+  // ⛔ APP SWITCH MUST NEVER BE THE REASON A BUYER CANNOT PAY. Validating the UA before the wire
+  // is not enough: if PayPal rejects the BLOCK itself — the merchant account not enabled for App
+  // Switch, a field-shape change, a stricter pattern than the spec documents — then every MOBILE
+  // buyer is dead in the water while desktop keeps working, so a spot-check passes and the outage
+  // is invisible. External review (fable) caught that the fail-open stopped at the wire. One
+  // retry without the block degrades to exactly the checkout that shipped before this feature.
+  if (status >= 400 && appSwitchUa) {
+    console.error('[paypal] order rejected with app_switch_context — retrying without it', status, (json as { name?: string }).name)
+    ;({ status, json } = await paypalApi('/v2/checkout/orders', 'POST', orderBody(null)))
+  }
   if (status >= 400 || typeof json.id !== 'string') throw new PaymentProviderError('paypal', String((json as { name?: string }).name || status))
   const links = (json.links || []) as Array<{ rel?: string; href?: string }>
   const approval = links.find((l) => l.rel === 'payer-action') || links.find((l) => l.rel === 'approve')

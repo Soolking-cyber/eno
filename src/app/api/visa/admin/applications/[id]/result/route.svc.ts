@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getAdmin } from '@/lib/admin'
 import { getVisaDeskScope } from '@/lib/desk-operator'
-import { visaCaseInScope } from '@/lib/visa-admin'
+import { transitionVisaCase, visaCaseInScope } from '@/lib/visa-admin'
 import { rateLimit } from '@/lib/ratelimit'
 import { getVisaDb } from '@/lib/visa/db'
 import { recordVisaEvent } from '@/lib/visa/records'
@@ -277,6 +277,27 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     pdf: bytes,
   })
 
+  // (12) CLOSE THE CASE, so the desk can move to the next one (owner, 2026-08-20: the approval
+  // was sent and the case still sat in the queue).
+  //
+  // ⚠️ THROUGH transitionVisaCase, NEVER A DIRECT STATUS WRITE. That is precisely what the
+  // header comment forbids, and every reason it gives still holds — the function re-checks desk
+  // SCOPE, refuses an illegal transition, requires the result document (which step 8 just
+  // committed), applies the compare-and-set so two operators cannot double-apply, stamps
+  // resolved_at + retention_until, and writes the `status_changed` audit row. Calling it from
+  // here changes only WHO initiates the transition, not one thing it enforces.
+  //
+  // ⛔ AFTER THE CARD, NOT BEFORE — this ordering is load-bearing, and external review is what
+  // caught it: `approved` is TERMINAL, so if the case were closed first and the card then failed,
+  // the 503 resume path above could never repeat processing → approved and the delivery-recovery
+  // route would be shut for good.
+  //
+  // Best-effort like every step past (8). A case that is not in `processing` returns
+  // 'invalid_status_transition' and simply stays open exactly as it does today; the outcome is
+  // REPORTED rather than swallowed, so a case that failed to close is actionable.
+  const closed = await transitionVisaCase(id, 'approved', admin, scope)
+  if (!closed.ok) console.error('[visa-result] case not closed after delivery', id, closed.error)
+
   return NextResponse.json(
     {
       document: { id: inserted.id, kind: 'result' },
@@ -284,6 +305,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
       card: card ? 'posted' : 'skipped',
       email: mail,
       audited,
+      closed: closed.ok ? 'approved' : closed.error,
     },
     { status: 201, headers: NO_STORE },
   )

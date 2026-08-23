@@ -1,9 +1,11 @@
 import 'server-only'
 import { createHash, randomUUID } from 'node:crypto'
+import { after } from 'next/server'
 import { db } from '@/lib/db'
 import { renderVisaResultEmail } from '@/lib/emails/visa-result'
 import { sendMail } from '@/lib/mail'
 import { insertMessage, type VisaResultMeta } from '@/lib/messages'
+import { sendPushToProfile } from '@/lib/push'
 import { VISA_BUCKET } from '@/lib/visa-admin'
 import { getVisaShopSeller } from '@/lib/visa-shop'
 import { decryptVisaPayload, visaCryptoReady } from './crypto'
@@ -307,11 +309,52 @@ export async function sendVisaResultCard(input: {
     // Body EMPTY like every other card (the realtime-broadcast note in insertMessage); the
     // inbox line is this bilingual composite. It names a case number and nothing else —
     // lastMessageText is a plaintext column both parties' inboxes read.
-    const message = await insertMessage(convo, senderId, '', {
-      kind: 'visa_result',
-      meta,
-      preview: `Thị thực điện tử đã sẵn sàng · Your e-Visa is ready${reference ? ` — ${reference}` : ''}`,
-    })
+    const line = `Thị thực điện tử đã sẵn sàng · Your e-Visa is ready${reference ? ` — ${reference}` : ''}`
+    const message = await insertMessage(convo, senderId, '', { kind: 'visa_result', meta, preview: line })
+
+    // ⚠️ THE CARD ALONE IS SILENT — insertMessage DOES NOT NOTIFY. The bell row and the web push
+    // are raised by the SEND paths in src/lib/messages.ts (:969 offers, :1165 counters), and a
+    // server-authored card never goes through either. So until now a finished e-Visa landed in the
+    // thread with NO bell, NO badge and NO push: the applicant learned about it from the result
+    // email, or by happening to open the thread. Reported by the owner 2026-08-20.
+    //
+    // ⛔ THIS KEEPS ITS OWN try/catch AND MUST. The outer catch is the exactly-once RACE DECIDER:
+    // the loser of two concurrent retries lands there on the partial unique index and returns null
+    // so it does not also send the thank-you email. A notify failure reaching that catch would
+    // report a DELIVERED card as undelivered and re-run the whole delivery.
+    //
+    // ⚠️ The copy lives in this ROW, never in notification-bell.tsx — that component renders on
+    // BOTH editions, so a visa string added there would ship inside the eno.vn bundle and breach
+    // the licensing boundary. The bell already degrades correctly for an unknown `type`: it falls
+    // back to the conversationId deep link and the MessageSquare glyph.
+    try {
+      const body = line.slice(0, 140)
+      await db.notification.create({
+        data: {
+          recipientId: convo.buyerProfileId,
+          type: 'visa_result',
+          title: 'eno e-Visa',
+          body,
+          actorName: 'eno e-Visa',
+          conversationId: convo.id,
+          listingId: convo.listingId,
+        },
+      })
+      // Push is best-effort and off the response path. `after()` needs a request scope — the admin
+      // result route has one, but a retry driven from a script does not, and that must not throw
+      // away the bell row that already landed.
+      try {
+        after(() => sendPushToProfile(convo.buyerProfileId, {
+          title: 'eno e-Visa',
+          body,
+          url: `/messages/${convo.id}`,
+          tag: `convo-${convo.id}`,
+        }))
+      } catch { /* no request scope */ }
+    } catch (e) {
+      console.error('[visa-result] notify', e)
+    }
+
     return { messageId: message.id }
   } catch (e) {
     // ⚠️ The catch is also the RACE DECIDER for resume-delivery: two concurrent retries can

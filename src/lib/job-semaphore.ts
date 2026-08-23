@@ -24,9 +24,26 @@ export function createJobSemaphore(max: number) {
     get busy() { return inFlight >= max },
     /** Runs `fn` if there is room, else returns null WITHOUT running it. */
     async run<T>(fn: () => Promise<T>): Promise<T | null> {
+      const release = this.tryAcquire()
+      if (!release) return null
+      try { return await fn() } finally { release() }
+    },
+    /**
+     * Takes a slot and hands back its release, or null when full.
+     *
+     * ⛔ FOR WORK THAT OUTLIVES THE REQUEST. `run()` releases when its callback
+     * resolves, which is wrong whenever the expensive part is scheduled with Next's
+     * `after()` and continues past the response — the slot frees before ffmpeg has
+     * started and the limit counts request handling instead of encoding. That is
+     * exactly what happened on the transcode route, and all three reviewers caught it.
+     * ⚠️ The caller now owns the release and MUST put it in a finally on every path.
+     */
+    tryAcquire(): null | (() => void) {
       if (inFlight >= max) return null
       inFlight += 1
-      try { return await fn() } finally { inFlight -= 1 }
+      let released = false
+      // Idempotent: a double release would hand out a slot that was never taken.
+      return () => { if (!released) { released = true; inFlight -= 1 } }
     },
   }
 }
