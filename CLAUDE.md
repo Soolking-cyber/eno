@@ -295,8 +295,11 @@ itinerary services since eno.vn cant legally have them … we cant have paypal c
 in eno.vn only in eno.forum so visa and itinerary related ui should be visible only in
 forum one"*.
 
-**The architecture is ONE SHARED CODEBASE, not two.** The repo root is deployed **twice**
-as two Cloud Run services; an edition flag decides which surfaces are live. Do not fork,
+**The architecture is ONE SHARED CODEBASE, not two.** The repo root is deployed **twice** —
+as two containers on the VN box (`eno-vn:local` on :3001, `eno-forum:local` on :3002; this
+said "two Cloud Run services" until 2026-08-23, when those were deleted). An edition flag
+decides which surfaces are live, and it is inlined at BUILD time, so the image IS the
+edition — no runtime flag can talk one into behaving as the other. Do not fork,
 do not port files into `apps/forum`, and do not let the two drift — drift is exactly what
 this replaces. `apps/forum` (a separate 102-file app sharing no code with the root) gets
 **retired**, and eno.forum is served by the root codebase.

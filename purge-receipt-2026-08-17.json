@@ -1,0 +1,90 @@
+{
+  "purpose": "Pre-launch data purge before commencement of real-user processing (PDPL evidence record)",
+  "executedAt": "2026-08-17T09:47:06.527Z",
+  "operator": "mk1e3",
+  "database": "postgresql://postgres.xihiryllwmjoouipkyhw:***@aws-1-ap-southeast-1.pooler.supabase.com:5432/postgres",
+  "keptAccounts": [
+    "support@eno.forum",
+    "support@eno.vn",
+    "info@vietkite.com.vn",
+    "info@giacmobayre.com"
+  ],
+  "before": {
+    "profiles": 20,
+    "profilesToDelete": 16,
+    "listings": 52,
+    "conversations": 33,
+    "messages": 504,
+    "reviews": 5,
+    "visaApplications": 6,
+    "visaDocuments": 4,
+    "visaEvents": 44,
+    "authUsers": 22,
+    "authUsersToDelete": 18,
+    "forumPosts": 44,
+    "storageObjectsOutsideVisaBucket": 239
+  },
+  "after": {
+    "profiles": 4,
+    "listings": 30,
+    "conversations": 0,
+    "messages": 0,
+    "visaApplications": 0,
+    "visaDocuments": 0,
+    "authUsers": 4,
+    "forumPosts": 0
+  },
+  "visaDocumentsRemoved": [
+    {
+      "kind": "passport",
+      "sizeBytes": 350365,
+      "createdAt": "2026-07-29T06:38:55.942Z",
+      "storagePath": "7f9bd1c5-c7c5-4196-a702-0314a4d53a45/6517f1f2-16d6-4328-ac81-e7f912678e0c/passport-60f52f35-9386-43a7-a34f-30c6d3dc792a.jpg"
+    },
+    {
+      "kind": "portrait",
+      "sizeBytes": 102900,
+      "createdAt": "2026-07-29T06:39:34.963Z",
+      "storagePath": "7f9bd1c5-c7c5-4196-a702-0314a4d53a45/6517f1f2-16d6-4328-ac81-e7f912678e0c/portrait-f9a4c58e-533e-44e7-890d-93dd765ff72d.jpg"
+    },
+    {
+      "kind": "passport",
+      "sizeBytes": 697530,
+      "createdAt": "2026-08-01T06:39:02.438Z",
+      "storagePath": "562fa1d5-893f-4290-bf75-e81e2f36c8d6/bccd78bf-3910-49ff-ba6d-74c91363192b/passport-249746fe-7b54-42ab-99ad-b297041205f1.jpg"
+    },
+    {
+      "kind": "portrait",
+      "sizeBytes": 116221,
+      "createdAt": "2026-08-01T06:39:11.832Z",
+      "storagePath": "562fa1d5-893f-4290-bf75-e81e2f36c8d6/bccd78bf-3910-49ff-ba6d-74c91363192b/portrait-eac0c955-2720-4f0c-a8f7-6d7f058666a1.jpg"
+    }
+  ],
+  "storageObjectsRemoved": [
+    {
+      "path": "7f9bd1c5-c7c5-4196-a702-0314a4d53a45/6517f1f2-16d6-4328-ac81-e7f912678e0c/passport-60f52f35-9386-43a7-a34f-30c6d3dc792a.jpg",
+      "kind": "passport",
+      "ok": true,
+      "error": null
+    },
+    {
+      "path": "7f9bd1c5-c7c5-4196-a702-0314a4d53a45/6517f1f2-16d6-4328-ac81-e7f912678e0c/portrait-f9a4c58e-533e-44e7-890d-93dd765ff72d.jpg",
+      "kind": "portrait",
+      "ok": true,
+      "error": null
+    },
+    {
+      "path": "562fa1d5-893f-4290-bf75-e81e2f36c8d6/bccd78bf-3910-49ff-ba6d-74c91363192b/passport-249746fe-7b54-42ab-99ad-b297041205f1.jpg",
+      "kind": "passport",
+      "ok": true,
+      "error": null
+    },
+    {
+      "path": "562fa1d5-893f-4290-bf75-e81e2f36c8d6/bccd78bf-3910-49ff-ba6d-74c91363192b/portrait-eac0c955-2720-4f0c-a8f7-6d7f058666a1.jpg",
+      "kind": "portrait",
+      "ok": true,
+      "error": null
+    }
+  ],
+  "note": "A purge limits ongoing processing. It does not retroactively undo a cross-border transfer that already occurred."
+}

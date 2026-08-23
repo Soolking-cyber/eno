@@ -108,13 +108,28 @@ pin_prev(){
       bad "$c is running an image that NO LONGER EXISTS ($(printf '%s' "$id" | cut -c8-19))."
       bad "It cannot be tagged or committed — the running code is unreproducible, and this"
       bad "container could not be restarted if it stopped. No local rollback is possible."
-      if [ "${ENO_ROLLBACK_IS_CLOUDRUN:-}" = "1" ]; then
-        bad "ENO_ROLLBACK_IS_CLOUDRUN=1 — proceeding. THE ROLLBACK IS A DNS FLIP to the"
-        bad "Cloud Run services, not 'eno-deploy.sh --rollback', which will not work."
+      # ⛔ THE CLOUD RUN ESCAPE HATCH IS GONE. This branch used to accept
+      # ENO_ROLLBACK_IS_CLOUDRUN=1, on the grounds that a DNS flip to the Cloud Run
+      # services was a real way back. The owner DELETED those services on 2026-08-23
+      # (verified: `gcloud run services list` is empty; the load balancer forwarding
+      # rules survive on 8.232.86.0 but now point at NO BACKEND, so flipping DNS back
+      # would serve errors, not the old app). Leaving the flag would be worse than not
+      # having one: it names a recovery route that no longer exists, and the person
+      # reading it is by definition already in trouble.
+      #
+      # There is no automatic way through this state any more. Build a rollback first:
+      #   git -C /opt/eno/app worktree add /tmp/rb <last-good-sha>
+      #   … build that tree and tag it $t:prev …
+      # or accept the risk deliberately and consciously with ENO_NO_ROLLBACK=1.
+      if [ "${ENO_NO_ROLLBACK:-}" = "1" ]; then
+        bad "ENO_NO_ROLLBACK=1 — proceeding with NO WAY BACK. If this deploy is bad, the"
+        bad "only recovery is building a previous commit from source, which takes ~20min"
+        bad "per edition while the site stays broken."
         docker tag "$t:local" "$t:prev" 2>/dev/null || true
       else
-        bad "Set ENO_ROLLBACK_IS_CLOUDRUN=1 only after confirming Cloud Run is Ready and"
-        bad "serving a good revision — that DNS flip is then your only way back."
+        bad "Cloud Run was deleted 2026-08-23, so there is no DNS-flip fallback either."
+        bad "Build a rollback image from the last good commit, or set ENO_NO_ROLLBACK=1"
+        bad "to proceed knowing a bad deploy cannot be undone quickly."
         exit 1
       fi
     else bad "$c is not running — no rollback pinned for $t"; exit 1; fi

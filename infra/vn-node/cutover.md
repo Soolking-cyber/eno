@@ -44,24 +44,39 @@ rollback is fast, and why a mistake is immediate.
 
 ## Rollback
 
-Set the same four records back to `8.232.86.0`. Cloud Run keeps serving throughout
-the cutover — nothing is stopped, scaled to zero or deleted — so the old origin is
-warm and rollback is a DNS edit, not a redeploy.
+⛔ **THERE IS NO DNS ROLLBACK ANY MORE. The Cloud Run services were deleted on
+2026-08-23** (owner: *"gcp deleted"*). Verified the same day: `gcloud run services
+list` returns nothing. The load-balancer forwarding rules still answer on
+`8.232.86.0`, which makes this worse rather than better — pointing the four records
+back now sends every visitor to a load balancer with **no backend**, so the "old
+origin" they reach is an error page, not the old app.
 
-⚠️ **The one thing rollback does NOT undo: writes.** Once traffic serves from the
-box, new rows land in the box's Postgres, not the hosted project. Roll back and
-those rows are stranded on the box while the site serves the old database. Before
-rolling back, dump anything written since cutover:
+What this section used to say — *set the records back to 8.232.86.0, Cloud Run stays
+warm* — was true for exactly two days and is now the most dangerous line in this
+file. It is kept here, struck through, because the instinct in an outage is to
+remember that a DNS rollback existed.
 
-```bash
-ssh … 'docker exec supabase-db pg_dump -U postgres -d postgres \
-  --data-only -t "\"Listing\"" -t "\"Message\"" -t auth.users' > post-cutover-delta.sql
-```
+**What recovery looks like instead:**
 
-⛔ **Do not delete ANY GCP resource until the box has served real traffic for a
-few days.** The Cloud Run services, the load balancer, the images and the hosted
-Supabase project are the rollback path. Deleting them converts a two-minute DNS
-edit into a rebuild.
+1. `eno-deploy.sh --rollback` — the real path now. It restores the `eno-vn:prev` /
+   `eno-forum:prev` images, which are pinned from the actually-serving containers at
+   the start of every deploy. This works **only** if those tags exist; the script
+   refuses to deploy without them for exactly this reason.
+2. If no `:prev` exists, build the last good commit from source (~20 min per edition,
+   site broken throughout):
+   ```bash
+   git -C /opt/eno/app worktree add /tmp/rb <last-good-sha> && …
+   ```
+
+⚠️ **The one thing rollback still does NOT undo: writes.** Rolling back the IMAGE
+does not roll back the database. Schema-affecting changes are gated by the
+`last-deployed-sha` check in `eno-deploy.sh`, but a data migration run by hand is
+yours to reverse.
+
+⚠️ Still present in GCP and NOT load-bearing: the LB forwarding rules, Artifact
+Registry images, and eight PAUSED schedulers. The forwarding rules cost money and
+serve nothing — worth deleting deliberately rather than leaving as a trap that looks
+like a fallback.
 
 ### Box status
 
