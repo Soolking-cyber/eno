@@ -1,19 +1,38 @@
 import { NextResponse } from 'next/server'
+import { SITE_NAME } from '@/lib/edition'
+
+// ⚠️ SAME DERIVATION AS layout.tsx AND THE llms.txt ROUTE. next.config.ts asserts
+// NEXT_PUBLIC_APP_URL matches the edition, so this is the one value guaranteed to describe
+// THIS deployment.
+const SITE_ORIGIN = process.env.NEXT_PUBLIC_APP_URL || 'https://eno.vn'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 // Machine-readable OpenAPI 3.1 description of the partner API, for client codegen + tooling.
 // Hand-maintained alongside the routes (kept intentionally compact; the human guide lives
-// at /developers). Served at GET /api/v1/openapi.json.
-const SPEC = {
+// at /developers). Served at GET /api/v1/openapi.json AND at the conventional /openapi.json.
+//
+// ⛔ EVERY OPERATION CARRIES A UNIQUE operationId, AND THEY MUST STAY STABLE. This is the
+// name an LLM tool-caller and every codegen client derives its function from, so renaming
+// one is a breaking change to code we do not control — treat them like a public API symbol,
+// not like a label. An agent audit on 2026-08-23 found 18 of 18 operations missing them,
+// which is why the spec scored as unusable for function calling despite being complete in
+// every other respect: descriptions, responses and securitySchemes were all already there.
+export const SPEC = {
   openapi: '3.1.0',
   info: {
-    title: 'eno.vn Partner API',
+    title: `${SITE_NAME} Partner API`,
     version: '1.0.0',
     description: 'Manage your eno.vn storefront programmatically. API-key auth; one key acts for one shop and only ever sees that shop\'s data.',
   },
-  servers: [{ url: 'https://eno.vn/api/v1' }],
+  // ⛔ DERIVED, NOT HARDCODED — THIS FILE IS SHARED BY BOTH DEPLOYMENTS. It read
+  // 'https://eno.vn/api/v1' as a literal, and /api/v1 compiles into both editions, so
+  // eno.forum served a spec titled "eno.vn Partner API" pointing every generated client
+  // at the other domain. Found 2026-08-23, the same shape as the static llms.txt that
+  // introduced eno.forum as eno.vn — and worse here, because a spec is consumed by
+  // codegen and tool-callers that will not notice the name is wrong.
+  servers: [{ url: `${SITE_ORIGIN}/api/v1` }],
   security: [{ bearerAuth: [] }],
   components: {
     securitySchemes: {
@@ -36,7 +55,7 @@ const SPEC = {
   },
   paths: {
     '/oauth/token': {
-      post: {
+      post: { operationId: 'createAccessToken',
         summary: 'Exchange an API key for a short-lived bearer token (client-credentials)',
         security: [],
         requestBody: { content: { 'application/x-www-form-urlencoded': { schema: { type: 'object', required: ['grant_type', 'client_secret'], properties: { grant_type: { type: 'string', enum: ['client_credentials'] }, client_id: { type: 'string', description: 'The key prefix (optional; verified if sent)' }, client_secret: { type: 'string', description: 'The full eno_live_… key' }, scope: { type: 'string', description: 'Space-separated subset of the key scopes (optional)' } } } } } },
@@ -44,45 +63,45 @@ const SPEC = {
       },
     },
     '/shop': {
-      get: { summary: 'Get your storefront profile + trust + live listing count', security: [{ bearerAuth: [] }], responses: { '200': { description: 'OK' }, '401': { description: 'Unauthorized', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } } } },
-      patch: { summary: 'Edit your storefront profile (sparse)', responses: { '200': { description: 'OK' } } },
+      get: { operationId: 'getShop', summary: 'Get your storefront profile + trust + live listing count', security: [{ bearerAuth: [] }], responses: { '200': { description: 'OK' }, '401': { description: 'Unauthorized', content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } } } },
+      patch: { operationId: 'updateShop', summary: 'Edit your storefront profile (sparse)', responses: { '200': { description: 'OK' } } },
     },
     '/listings': {
-      get: { summary: 'List your listings (all statuses), keyset-paginated', parameters: [{ name: 'limit', in: 'query', schema: { type: 'integer', maximum: 100 } }, { name: 'cursor', in: 'query', schema: { type: 'string' } }], responses: { '200': { description: 'OK' } } },
-      post: { summary: 'Create a listing', requestBody: { content: { 'application/json': { schema: { $ref: '#/components/schemas/ListingInput' } } } }, responses: { '201': { description: 'Created' }, '422': { description: 'Invalid input' } } },
+      get: { operationId: 'listListings', summary: 'List your listings (all statuses), keyset-paginated', parameters: [{ name: 'limit', in: 'query', schema: { type: 'integer', maximum: 100 } }, { name: 'cursor', in: 'query', schema: { type: 'string' } }], responses: { '200': { description: 'OK' } } },
+      post: { operationId: 'createListing', summary: 'Create a listing', requestBody: { content: { 'application/json': { schema: { $ref: '#/components/schemas/ListingInput' } } } }, responses: { '201': { description: 'Created' }, '422': { description: 'Invalid input' } } },
     },
     '/listings/{id}': {
-      get: { summary: 'Get one of your listings', parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }], responses: { '200': { description: 'OK' }, '404': { description: 'Not found' } } },
-      patch: { summary: 'Edit a listing (sparse)', parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }], responses: { '200': { description: 'OK' } } },
-      delete: { summary: 'Delete a listing', parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }], responses: { '200': { description: 'OK' } } },
+      get: { operationId: 'getListing', summary: 'Get one of your listings', parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }], responses: { '200': { description: 'OK' }, '404': { description: 'Not found' } } },
+      patch: { operationId: 'updateListing', summary: 'Edit a listing (sparse)', parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }], responses: { '200': { description: 'OK' } } },
+      delete: { operationId: 'deleteListing', summary: 'Delete a listing', parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }], responses: { '200': { description: 'OK' } } },
     },
     '/listings/{id}/status': {
-      post: { summary: 'Set availability: active | sold | hidden', parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }], requestBody: { content: { 'application/json': { schema: { type: 'object', required: ['status'], properties: { status: { type: 'string', enum: ['active', 'sold', 'hidden'] } } } } } }, responses: { '200': { description: 'OK' } } },
+      post: { operationId: 'setListingStatus', summary: 'Set availability: active | sold | hidden', parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }], requestBody: { content: { 'application/json': { schema: { type: 'object', required: ['status'], properties: { status: { type: 'string', enum: ['active', 'sold', 'hidden'] } } } } } }, responses: { '200': { description: 'OK' } } },
     },
     '/listings/{id}/confirm': {
-      post: { summary: 'Confirm still available (bumps feed recency)', parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }], responses: { '200': { description: 'OK' } } },
+      post: { operationId: 'confirmListing', summary: 'Confirm still available (bumps feed recency)', parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }], responses: { '200': { description: 'OK' } } },
     },
     '/listings/bulk': {
-      post: { summary: 'Create up to 200 listings (send Idempotency-Key)', requestBody: { content: { 'application/json': { schema: { type: 'object', properties: { listings: { type: 'array', items: { $ref: '#/components/schemas/ListingInput' } } } } } } }, responses: { '200': { description: 'Per-row results' } } },
+      post: { operationId: 'bulkCreateListings', summary: 'Create up to 200 listings (send Idempotency-Key)', requestBody: { content: { 'application/json': { schema: { type: 'object', properties: { listings: { type: 'array', items: { $ref: '#/components/schemas/ListingInput' } } } } } } }, responses: { '200': { description: 'Per-row results' } } },
     },
     '/listings/sync': {
-      post: { summary: 'Upsert your catalogue by externalId; mode full retires absent listings', requestBody: { content: { 'application/json': { schema: { type: 'object', properties: { mode: { type: 'string', enum: ['partial', 'full'] }, listings: { type: 'array', items: { $ref: '#/components/schemas/ListingInput' } } } } } } }, responses: { '200': { description: 'created/updated/retired counts + per-row results' } } },
+      post: { operationId: 'syncListings', summary: 'Upsert your catalogue by externalId; mode full retires absent listings', requestBody: { content: { 'application/json': { schema: { type: 'object', properties: { mode: { type: 'string', enum: ['partial', 'full'] }, listings: { type: 'array', items: { $ref: '#/components/schemas/ListingInput' } } } } } } }, responses: { '200': { description: 'created/updated/retired counts + per-row results' } } },
     },
     '/media': {
-      post: { summary: 'Upload an image (multipart file or raw body); returns a first-party URL', responses: { '200': { description: 'OK' } } },
+      post: { operationId: 'uploadMedia', summary: 'Upload an image (multipart file or raw body); returns a first-party URL', responses: { '200': { description: 'OK' } } },
     },
     '/analytics/summary': {
-      get: { summary: 'Shop rollup: total views/leads + counts by status', responses: { '200': { description: 'OK' } } },
+      get: { operationId: 'getAnalyticsSummary', summary: 'Shop rollup: total views/leads + counts by status', responses: { '200': { description: 'OK' } } },
     },
     '/analytics/listings': {
-      get: { summary: 'Per-listing daily views/leads (deltas), keyset-paginated', parameters: [{ name: 'from', in: 'query', schema: { type: 'string', format: 'date' } }, { name: 'to', in: 'query', schema: { type: 'string', format: 'date' } }, { name: 'limit', in: 'query', schema: { type: 'integer' } }, { name: 'cursor', in: 'query', schema: { type: 'string' } }], responses: { '200': { description: 'OK' } } },
+      get: { operationId: 'listListingAnalytics', summary: 'Per-listing daily views/leads (deltas), keyset-paginated', parameters: [{ name: 'from', in: 'query', schema: { type: 'string', format: 'date' } }, { name: 'to', in: 'query', schema: { type: 'string', format: 'date' } }, { name: 'limit', in: 'query', schema: { type: 'integer' } }, { name: 'cursor', in: 'query', schema: { type: 'string' } }], responses: { '200': { description: 'OK' } } },
     },
     '/webhooks': {
-      get: { summary: 'List your webhook endpoints (+ delivery health)', responses: { '200': { description: 'OK' } } },
-      post: { summary: 'Register a signed-event endpoint (secret returned once)', requestBody: { content: { 'application/json': { schema: { type: 'object', required: ['url'], properties: { url: { type: 'string', format: 'uri' }, events: { type: 'array', items: { type: 'string' } } } } } } }, responses: { '201': { description: 'Created' } } },
+      get: { operationId: 'listWebhooks', summary: 'List your webhook endpoints (+ delivery health)', responses: { '200': { description: 'OK' } } },
+      post: { operationId: 'createWebhook', summary: 'Register a signed-event endpoint (secret returned once)', requestBody: { content: { 'application/json': { schema: { type: 'object', required: ['url'], properties: { url: { type: 'string', format: 'uri' }, events: { type: 'array', items: { type: 'string' } } } } } } }, responses: { '201': { description: 'Created' } } },
     },
     '/webhooks/{id}': {
-      delete: { summary: 'Unregister a webhook', parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }], responses: { '200': { description: 'OK' } } },
+      delete: { operationId: 'deleteWebhook', summary: 'Unregister a webhook', parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }], responses: { '200': { description: 'OK' } } },
     },
   },
 } as const

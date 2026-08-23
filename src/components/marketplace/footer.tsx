@@ -83,6 +83,12 @@ export function Footer() {
         { label: tr('How trust works', 'Điểm uy tín hoạt động thế nào'), href: '/trust' },
         { label: tr('Operating regulations', 'Quy chế hoạt động'), href: '/regulations' },
         { label: tr('Prohibited items', 'Hàng hóa & dịch vụ cấm'), href: '/prohibited' },
+        // ⚠️ ON EVERY PAGE, WHICH IS THE POINT. /developers and the OpenAPI spec existed and
+        // scored as "not found" in an agent audit on 2026-08-23 because nothing linked to them:
+        // a crawler that never sees a URL cannot report it, and neither can a person. One footer
+        // entry is the difference between documentation that exists and documentation that is
+        // discoverable. Safe on both editions — the Partner API is served by both.
+        { label: tr('Developers & API', 'Nhà phát triển & API'), href: '/developers' },
       ],
     },
     {

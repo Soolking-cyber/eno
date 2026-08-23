@@ -484,6 +484,7 @@ export const UI_STRINGS: string[] = [
   "Details (optional)",
   "Details added — thank you",
   "Developers",
+  "Developers & API",
   "Did you just tap “Continue with Google” in the eno app on this phone?",
   "Diesel",
   "Dietary",

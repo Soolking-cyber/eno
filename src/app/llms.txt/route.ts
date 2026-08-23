@@ -70,6 +70,16 @@ ${MARKETPLACE_WHEN_TO_USE}
 - [Electronics](${SITE_ORIGIN}/c/electronics), [Furniture](${SITE_ORIGIN}/c/furniture-appliances), [Moving Sale](${SITE_ORIGIN}/c/moving-sale).
 - [Fashion & Beauty](${SITE_ORIGIN}/c/fashion-beauty), [Baby & Kids](${SITE_ORIGIN}/c/baby-kids), [Hobbies, Sports & Books](${SITE_ORIGIN}/c/hobbies-sports), [Jobs](${SITE_ORIGIN}/c/jobs), [Services](${SITE_ORIGIN}/c/services), [Pets](${SITE_ORIGIN}/c/pets).
 
+## For developers and agents
+
+- [OpenAPI 3.1 spec](${SITE_ORIGIN}/openapi.json) — the Partner API, machine-readable. Also at ${SITE_ORIGIN}/api/v1/openapi.json.
+- [Developer guide](${SITE_ORIGIN}/developers) — auth, endpoints, example requests.
+- ⚠️ The Partner API is AUTHENTICATED. Every operation needs a bearer token obtained from an
+  an eno_live_ key (see the guide); there is no public unauthenticated API surface. An agent
+  without a key can read the spec but cannot call the endpoints.
+- Scopes: listings:read, listings:write, analytics:read, media:write. One key acts for one shop
+  and only ever sees that shop's data.
+
 ## Data feeds
 
 - [Sitemap](${SITE_ORIGIN}/sitemap.xml) — open, no auth.
