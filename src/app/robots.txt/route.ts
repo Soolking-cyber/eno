@@ -109,16 +109,20 @@ User-agent: Omgilibot
 User-agent: Applebot-Extended
 Disallow: /
 
-# ✅ 'Agentmap:' IS SERVED HERE, AND IT ONLY BECAME POSSIBLE WHEN THIS FILE STOPPED BEING STATIC.
-# The comment that used to sit here said the opposite — that the directive was deliberately omitted
-# because it needs an ABSOLUTE url, and 'public/' is copied into both builds verbatim so any
-# hostname written into it is wrong on one of the two deployments. That reasoning was correct, and
-# it is exactly why this file moved into a route. Once it did, the constraint disappeared.
+# ⛔ NO 'Agentmap:' DIRECTIVE HERE. IT WAS ADDED 2026-08-23 AND REMOVED THE SAME DAY, BECAUSE IT
+# BREAKS THE WHOLE FILE FOR GOOGLE.
 # The ARD spec (agenticresourcediscovery.org/spec, v0.9) lists four ways to advertise a catalogue:
-# the well-known URI, an HTML <link rel="ai-catalog">, a DNS SVCB record, and an 'Agentmap:' line in
-# robots.txt. We serve the well-known URI, and now that this file is a route it could serve the
-# Agentmap directive too — an absolute URL is safe here because ${SITE_ORIGIN} is edition-derived.
-Agentmap: ${SITE_ORIGIN}/.well-known/ai-catalog.json
+# the well-known URI, an HTML <link rel="ai-catalog">, a DNS SVCB record, and an 'Agentmap:' line
+# here. Adding the line looked free once this file became a route (an absolute URL is safe when
+# ${SITE_ORIGIN} is edition-derived). It is not free: Lighthouse SEO reported
+#   "robots.txt is not valid — 1 error found · line 94 · Agentmap: … · Unknown directive"
+# and dropped the SEO score to 92. robots.txt has no extension mechanism — an unknown directive is
+# a PARSE ERROR to Google, not an ignorable line, and it puts the validity of every Disallow below
+# it in question.
+# ⚠️ THE TRADE IS THE WHOLE LESSON: ~1.7 points of agent-readiness against the validity of the file
+# that governs how the entire site is crawled. The well-known URI at
+# ${SITE_ORIGIN}/.well-known/ai-catalog.json is the primary mechanism, it already works, and every
+# ARD client checks it. Do not re-add this for a score.
 Sitemap: ${SITE_ORIGIN}/sitemap.xml
 `
 
