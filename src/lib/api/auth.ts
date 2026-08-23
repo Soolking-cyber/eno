@@ -1,4 +1,5 @@
 import 'server-only'
+import { clientIp } from '@/lib/client-ip'
 import crypto from 'crypto'
 import { db } from '@/lib/db'
 import { rateLimit, type RateLimitSnapshot } from '@/lib/ratelimit'
@@ -22,6 +23,19 @@ export const API_RATE_PER_MIN = 600
  * value in the unit the RFC headers and the status document use. Keep them in step.
  */
 export const API_RATE_WINDOW_SEC = 60
+
+/**
+ * What an UNAUTHENTICATED caller gets. Far below API_RATE_PER_MIN: this budget exists to bound
+ * key-probing and to give an anonymous client an honest number, not to serve real traffic.
+ *
+ * ⚠️ 240, NOT 60, AND CGNAT IS WHY. This bucket is keyed by IP, and Vietnamese mobile ISPs put
+ * thousands of subscribers behind one egress address — codex flagged that a tight per-IP budget
+ * punishes a shared NAT rather than an attacker. It also changes the anonymous contract from
+ * always-401 to sometimes-429, which a caller branching on `unauthorized` would not expect. 240/min
+ * is still four orders of magnitude below what a probe wants and generous enough that a real client
+ * behind a shared address never sees it.
+ */
+export const ANON_RATE_PER_MIN = 240
 
 export function hashApiKey(raw: string): string {
   return crypto.createHash('sha256').update(raw).digest('hex')
@@ -73,7 +87,30 @@ export async function resolveApiKey(req: Request, requiredScope?: string): Promi
   }
 
   if (!raw || !API_KEY_RE.test(raw)) {
-    return { ok: false, status: 401, code: 'unauthorized', message: 'Missing or malformed API key. Send `Authorization: Bearer eno_live_…`.' }
+    /**
+     * ⛔ THE ANONYMOUS 401 CARRIES REAL RATE-LIMIT HEADERS, AND IT IS BOTH A FIX AND A GUARD.
+     *
+     * The fix: the is-agentic audit scored "Rate limit response headers" 1/2 with "documented in
+     * OpenAPI spec, but not observed on a live response (API requires authentication)". Every REST
+     * endpoint it can reach without a credential rejects HERE, before any bucket was touched, so
+     * the headers the spec promises were unobservable — true of every anonymous client, not just
+     * an auditor. Now the budget an unauthenticated caller is actually subject to is stated on the
+     * response that tells them they need a key.
+     *
+     * The guard: this path used to be free. An anonymous caller could probe the key space as fast
+     * as the network allowed, because the limiter sat behind the credential check it was meant to
+     * protect. Keyed by IP, since there is no key to key on.
+     *
+     * ⚠️ THIS IS NOT THE TOKEN ENDPOINT AND DOES NOT CHANGE IT. `/api/v1/oauth/token` builds its
+     * own 401 through `oauthError()` and never reaches this function; the deliberate decision NOT
+     * to disclose the credential endpoint's throttle to an anonymous caller (see the openapi
+     * comment) is untouched.
+     */
+    const rl = await rateLimit('apiv1-anon', clientIp(req), ANON_RATE_PER_MIN, '1 m')
+    if (!rl.success) {
+      return { ok: false, status: 429, code: 'rate_limited', message: 'Too many unauthenticated requests. Slow down.', rate: rl }
+    }
+    return { ok: false, status: 401, code: 'unauthorized', message: 'Missing or malformed API key. Send `Authorization: Bearer eno_live_…`.', rate: rl }
   }
   let key: { id: string; sellerId: string; profileId: string; scopes: string; revokedAt: Date | null } | null = null
   try {
@@ -85,7 +122,20 @@ export async function resolveApiKey(req: Request, requiredScope?: string): Promi
     return { ok: false, status: 503, code: 'unavailable', message: 'Authentication is temporarily unavailable.' }
   }
   if (!key || key.revokedAt) {
-    return { ok: false, status: 401, code: 'unauthorized', message: 'Invalid or revoked API key.' }
+    /**
+     * ⛔ THE SAME LIMITER AS THE MALFORMED PATH, AND CODEX WAS RIGHT THAT WITHOUT IT THE GUARD WAS
+     * THEATRE. A real key-space probe does not send garbage — it sends WELL-FORMED `eno_live_…`
+     * strings, which sail past `API_KEY_RE`, skip the branch above entirely, and land here after a
+     * hash and a database lookup. Throttling only the malformed shape bounds the one attack nobody
+     * mounts while leaving the one they do mount free, and the comment above claimed otherwise.
+     * Same bucket as the malformed path on purpose: both are "an anonymous caller failing to
+     * authenticate", and splitting them would let a prober alternate shapes for double the budget.
+     */
+    const rl = await rateLimit('apiv1-anon', clientIp(req), ANON_RATE_PER_MIN, '1 m')
+    if (!rl.success) {
+      return { ok: false, status: 429, code: 'rate_limited', message: 'Too many unauthenticated requests. Slow down.', rate: rl }
+    }
+    return { ok: false, status: 401, code: 'unauthorized', message: 'Invalid or revoked API key.', rate: rl }
   }
   const scopes = new Set(key.scopes.split(/\s+/).filter(Boolean))
   if (requiredScope && !scopes.has(requiredScope)) {

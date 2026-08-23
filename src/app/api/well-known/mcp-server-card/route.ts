@@ -243,7 +243,47 @@ export function GET(req: NextRequest) {
     'i',
   ).test(accept)
   const wantsCard = accept.includes(CARD_TYPE) && !refusedWithQ0
-  return NextResponse.json(serverCard(), {
+
+  /**
+   * ⛔ THE de-facto `/.well-known/mcp.json` PATH GETS ALIAS FIELDS; THE SEP PATHS DO NOT.
+   *
+   * Measured 2026-08-23, and this is the whole reason the aliases exist. After publishing the
+   * card, the is-agentic audit scored `MCP tool listing` 3/3 ("product MCP exposes 15 tools") and
+   * `MCP error handling` 2/2, both reporting `mcpUrl: /api/mcp` — so it REACHED our server and
+   * used it happily. Yet `MCP server / manifest` stayed at 3/6 with "MCP manifest found at
+   * /.well-known/mcp.json but protocol handshake failed". The server was never the problem: the
+   * reader could not get a URL out of the SEP's `remotes[]` array, so its own handshake had
+   * nothing to connect to.
+   *
+   * So the document is a SUPERSET on EVERY path: all five spellings serve the SEP fields plus a
+   * flat `url`/`transport` pair and the `mcpServers` map that Claude Desktop-style configs use.
+   * Extra members are legal JSON and a SEP-conformant reader ignores them.
+   * ⚠️ THE FIRST CUT MADE THIS CONDITIONAL ON `new URL(req.url).pathname === '/.well-known/mcp.json'`,
+   * which assumes a rewritten request still reports its ORIGINAL path. That is exactly the kind of
+   * framework assumption this repo has been burned by twice, and the failure would have been
+   * silent — the aliases simply absent, the score unchanged, nothing to see. Unconditional cannot
+   * be wrong about which path it is on.
+   * ⚠️ EVERY ALIAS IS THE SAME VALUE AS `remotes[0]`, derived, never retyped — a second copy that
+   * could disagree with the first would be worse than no copy.
+   */
+  const card = serverCard()
+  // ⚠️ Guarded: an empty `remotes` would make `remote.url` throw and 500 ALL FIVE card paths for
+  // every caller, turning a discovery document into an outage. The SEP shape is the source of
+  // truth; the aliases simply do not appear if there is nothing to alias.
+  const remote = card.remotes[0]
+  if (!remote) {
+    return NextResponse.json(card, {
+      headers: { 'Content-Type': `${wantsCard ? CARD_TYPE : 'application/json'}; charset=utf-8`, Vary: 'Accept', ...CORS },
+    })
+  }
+  const body = {
+    ...card,
+    url: remote.url,
+    transport: remote.type,
+    mcpServers: { [card.name]: { url: remote.url, transport: remote.type } },
+  }
+
+  return NextResponse.json(body, {
     headers: {
       'Content-Type': `${wantsCard ? CARD_TYPE : 'application/json'}; charset=utf-8`,
       Vary: 'Accept',
