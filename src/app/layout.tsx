@@ -5,6 +5,7 @@ import { AnalyticsTags } from "@/components/marketplace/analytics-tags";
 import { AttributionCapture } from "@/components/marketplace/attribution-capture";
 import { Providers } from "./providers";
 import { IS_SERVICES, SITE_NAME } from "@/lib/edition";
+import { COMPANY, OPERATOR_REGISTERED } from "@/lib/site-legal";
 // The content-hashed sprite URL, from the generated shim — never a literal here, or a glyph edit
 // would preload a file that no longer exists while every icon silently fetched the new one.
 import { ICON_SPRITE_CORE } from "@/components/ui/icons";
@@ -389,6 +390,35 @@ export default function RootLayout({
                   "https://www.youtube.com/@enovietnam",
                 ],
               }),
+              /* ⛔ GATED ON OPERATOR_REGISTERED, AND THAT GATE IS THE WHOLE POINT. COMPANY is
+                 OPERATORS[EDITION], so on a deployment whose operating entity is still being
+                 registered these fields are the PENDING placeholder — emitting
+                 `"address": "Đang đăng ký"` as schema.org PostalAddress would publish a false
+                 business identity in machine-readable form, on the pages where agents and search
+                 engines go specifically to verify legitimacy. Absent structured data is a missing
+                 answer; wrong structured data is a claim. Only assert what the registry backs.
+
+                 ⚠️ THE WHOLE ADDRESS GOES IN streetAddress ON PURPOSE. COMPANY.address is one
+                 Vietnamese string ("Số 03-05 đường số 7, Phường An Khánh, Thành phố Hồ Chí Minh,
+                 Việt Nam"). Splitting it into streetAddress/addressLocality here would mean
+                 parsing it, and a parser that silently mis-splits when the constant is edited
+                 produces a subtly wrong address rather than an obviously missing one. Redundant
+                 beats parsed for a field this consequential. */
+              ...(OPERATOR_REGISTERED ? {
+                address: {
+                  "@type": "PostalAddress",
+                  streetAddress: COMPANY.address,
+                  addressCountry: "VN",
+                },
+                contactPoint: [{
+                  "@type": "ContactPoint",
+                  contactType: "customer support",
+                  email: COMPANY.email,
+                  telephone: COMPANY.phone,
+                  areaServed: "VN",
+                  availableLanguage: ["vi", "en"],
+                }],
+              } : {}),
             }).replace(/</g, "\\u003c"),
           }}
         />

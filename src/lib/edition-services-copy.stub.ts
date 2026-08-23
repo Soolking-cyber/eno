@@ -91,3 +91,5 @@ export const SERVICES_SAFETY: ServicesSafetyCopy = {
   wont: [],
   crossLink: { before: '', label: '', href: '', after: '' },
 }
+
+export const SERVICES_LLMS_WHEN_TO_USE = ''

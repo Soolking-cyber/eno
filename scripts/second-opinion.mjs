@@ -31,7 +31,7 @@ import { join } from 'node:path'
 const ROOT = execFileSync('git', ['rev-parse', '--show-toplevel'], { encoding: 'utf8' }).trim()
 const RECEIPTS = join(ROOT, '.second-opinion')
 // Declared up here because `--status` validates receipts long before REVIEWERS is built below.
-const REVIEWER_NAMES = ['codex', 'agy', 'opus']
+const REVIEWER_NAMES = ['codex', 'agy', 'fable']
 
 /**
  * ⛔ GENERATED ASSETS ARE EXCLUDED FROM WHAT REVIEWERS *READ*, NEVER FROM WHAT IS *HASHED*.
@@ -130,7 +130,7 @@ if (!diff.trim()) {
 
 // ⚠️ SCAN FOR SECRETS BEFORE SHIPPING THE DIFF TO THREE THIRD PARTIES. qwen raised this reviewing
 // the gate itself, and it is the sharpest finding against it: this script sends the ENTIRE staged
-// diff to OpenAI (codex), Google (agy) and Anthropic (opus). Sending our SOURCE to them is already
+// diff to OpenAI (codex), Google (agy) and Anthropic (fable). Sending our SOURCE to them is already
 // standing policy — CLAUDE.md mandates these reviewers — but a CREDENTIAL is categorically
 // different: it cannot be un-sent, and it would land in three vendors' logs simultaneously.
 // The realistic path is not malice, it is a slip: `.env` is gitignored, but a key pasted into a
@@ -152,7 +152,7 @@ if (process.env.SECOND_OPINION_SKIP_SECRET_SCAN !== '1') {
   const hits = SECRET_PATTERNS.filter(([re]) => re.test(diff)).map(([, label]) => label)
   if (hits.length) {
     console.error(`⛔ REFUSING TO SEND THIS DIFF TO EXTERNAL REVIEWERS — it looks like it contains: ${hits.join(', ')}.`)
-    console.error('   codex, agy and opus are third-party services; a credential sent to them cannot be recalled.')
+    console.error('   codex, agy and fable are third-party services; a credential sent to them cannot be recalled.')
     console.error('   Remove the value from the staged content (git reset the file, move it to Secret Manager via')
     console.error('   scripts/secret-set.sh), then re-run. If this is a FALSE POSITIVE — a fixture, a public key, a')
     console.error('   sample in documentation — re-run with SECOND_OPINION_SKIP_SECRET_SCAN=1 and say so out loud.')
@@ -222,7 +222,7 @@ process.on('SIGTERM', () => process.exit(143))
 // that only saw the first 180KB would still have its verdict certify bytes it never read. On a
 // codebase where the failure mode is a visa/PayPal surface leaking onto the licensed marketplace,
 // "reviewed" must mean the reviewer saw the licensing-relevant hunk — which, in a big diff, is as
-// likely to be at the end as the start. codex and opus BOTH take the prompt on stdin and so both
+// likely to be at the end as the start. codex and fable BOTH take the prompt on stdin and so both
 // get the whole thing, which is what keeps the quorum reachable; agy's truncated verdict is
 // recorded but deliberately not counted.
 const AGY_LIMIT = 180_000
@@ -286,7 +286,14 @@ const REVIEWERS = [
    * If fable starts failing the way qwen did, do not leave it in place: that is exactly the failure
    * this file has already lived through once.
    *
-   * ⛔ THE SEAT CAME BACK TO opus ON 2026-08-22, AND THE HISTORY ABOVE IS THE ARGUMENT AGAINST IT.
+   * ✅ AND BACK TO fable ON 2026-08-23 (owner: "add back the Fable 5 as a second opinion instead of
+   * opus 5"), which resolves the objection the next paragraph spends itself making. The panel is
+   * two labs plus a different-model Anthropic seat again, rather than two labs plus the author's
+   * own model. Everything below is kept because the round trip is the record: opus held this seat
+   * for one day, for one reason — oxalpha needed an API key nobody had — and the cost of that day
+   * is written down so the trade is visible if it is ever proposed again.
+   *
+   * ⛔ THE SEAT WENT TO opus ON 2026-08-22, AND THE HISTORY ABOVE IS THE ARGUMENT AGAINST IT.
    * Read it before assuming this is settled. The owner first asked for `oxalpha` — a cloaked model
    * reached through the opencode CLI — which would have made the panel three genuinely separate
    * labs for the first time and, being free and unmetered, would have retired the budget worry in
@@ -300,24 +307,23 @@ const REVIEWERS = [
    * free-and-unmetered property was oxalpha's, and it left with oxalpha. If this seat starts going
    * quiet, budget is the first thing to check, exactly as it was before.
    *
-   * ⚠️ SO THE BLIND-SPOT COST IS BACK, AND IS NOW THE LARGEST IT HAS EVER BEEN. The main thread that
-   * writes this code is Opus; this seat is now also Opus. Not merely the same lab, as with fable —
+   * ⚠️ THE BLIND-SPOT COST WHILE opus HELD IT WAS THE LARGEST IT HAS EVER BEEN. The main thread that
+   * writes this code is Opus; the seat was also Opus. Not merely the same lab, as with fable —
    * the same model. CLAUDE.md's reviewer policy exists because "an Opus review of Opus code shares
    * its blind spots", and opus was removed from this very seat on 2026-08-14 for that reason. The
    * panel is now TWO independent families plus a same-model checker.
-   * ⛔ WHAT THAT MEANS IN PRACTICE: a unanimous 3/3 is worth noticeably less than it reads. When
-   * codex and agy agree and opus dissents, weight the dissent; when opus agrees with the author,
-   * that is the least informative agreement on the panel. If a third independent family ever
-   * becomes reachable — an OpenRouter key, an opencode login, anything — take it.
+   * ⛔ THAT IS NO LONGER THE STANDING SITUATION, but the reading it forced is still worth keeping:
+   * when the two non-Anthropic seats agree and the Anthropic one dissents, weight the dissent.
+   * fable is a different model from the author, which is why this seat is worth having at all — it
+   * is still the same lab, so a unanimous 3/3 is two families agreeing, not three. If a third
+   * independent family ever becomes reachable — an OpenRouter key, an opencode login — take it.
    */
   {
-    name: 'opus',
+    name: 'fable',
     cmd: 'claude',
     // ⚠️ `--permission-mode plan` IS THE SANDBOX and is not decorative: it keeps this reviewer
     // read-only, so it answers from the diff on stdin and cannot edit, run or commit anything.
-    // `--effort max` is the point of spending an Opus call on a review at all — verified working
-    // 2026-08-22 with this exact argv.
-    args: ['-p', '--model', 'claude-opus-5', '--effort', 'max', '--permission-mode', 'plan'],
+    args: ['-p', '--model', 'claude-fable-5', '--effort', 'max', '--permission-mode', 'plan'],
     stdin: true,
   },
 ]
