@@ -200,7 +200,7 @@ describe('404 markdown body', () => {
     expect(res.headers.get('vary')).toBe('Accept')
     // ⛔ Deliberately absent: the same handler shape serves negotiated responses from real page
     // URLs, so `x-robots-tag: noindex` here would be a noindex on those pages. `Disallow: /md/` in
-    // public/robots.txt is what handles the directly-fetchable duplicate.
+    // src/app/robots.txt/route.ts is what handles the directly-fetchable duplicate.
     expect(res.headers.get('x-robots-tag')).toBeNull()
   })
 

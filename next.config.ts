@@ -832,6 +832,32 @@ const nextConfig: NextConfig = {
          * feedCategories/feedListingTypes in src/lib/product-feed.ts). The safety lives in the query,
          * not in which URL exists, so there is nothing to gate here.
          */
+        /**
+         * ── AGENT DISCOVERY DOCUMENTS ───────────────────────────────────────────────────────
+         * ⛔ WITHOUT THESE, EVERY ONE OF THE ROUTES BEHIND THEM IS DEAD CODE — and worse than
+         * dead: /llms.txt and /developers both LINK /.well-known/mcp.json in prose, so shipping
+         * the routes without the rewrites publishes a documented 404 to every agent that reads
+         * them. All three verify lenses independently flagged exactly that.
+         *
+         * ⚠️ `afterFiles`, matching the OAuth and AASA pairs above: these sources are all
+         * filesystem paths that do not exist, so the filesystem check falls through to here.
+         * (Contrast the markdown negotiation in `beforeFiles`, which MUST pre-empt real pages.)
+         *
+         * The MCP card answers on five spellings because two different SEPs specify two
+         * different canonical paths and the audit scanner probes a third set: SEP-2127 uses
+         * `/.well-known/mcp-server-card`, SEP-1649 uses `/.well-known/mcp/server-card.json`,
+         * and the scanner asks for `/.well-known/mcp.json`. One handler, five doors, so they
+         * cannot drift apart.
+         */
+        { source: "/.well-known/mcp.json", destination: "/api/well-known/mcp-server-card" },
+        { source: "/.well-known/mcp-server-card", destination: "/api/well-known/mcp-server-card" },
+        { source: "/.well-known/mcp-server-card.json", destination: "/api/well-known/mcp-server-card" },
+        { source: "/.well-known/mcp/server-card", destination: "/api/well-known/mcp-server-card" },
+        { source: "/.well-known/mcp/server-card.json", destination: "/api/well-known/mcp-server-card" },
+        { source: "/.well-known/ai-catalog.json", destination: "/api/well-known/ai-catalog" },
+        { source: "/agents.md", destination: "/md/agents" },
+        { source: "/index.md", destination: "/md/index" },
+        { source: "/auth.md", destination: "/md/auth" },
         { source: "/feeds/facebook-catalog.csv", destination: "/api/feeds/facebook-catalog" },
         { source: "/feeds/google-shopping.xml", destination: "/api/feeds/google-shopping" },
       ],

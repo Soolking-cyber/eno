@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import crypto from 'crypto'
 import { db } from '@/lib/db'
 import { hashApiKey, API_KEY_RE } from '@/lib/api/auth'
-import { issueAccessToken, TOKEN_TTL_SECONDS } from '@/lib/api/oauth'
+import { issueAccessToken, TOKEN_TTL_SECONDS , TOKEN_RATE_PER_IP, TOKEN_RATE_PER_CLIENT } from '@/lib/api/oauth'
 import { rateLimit, type RateLimitSnapshot } from '@/lib/ratelimit'
 import { rateLimitHeaders, tightestRate } from '@/lib/api/respond'
 import { clientIp } from '@/lib/client-ip'
@@ -72,8 +72,12 @@ export async function POST(req: NextRequest) {
   // dodge the limit. Also AND a per-clientId bucket so one shared IP (CGNAT) can't be
   // used to hammer a single client's credentials from many sources unnoticed.
   const [byIp, byClient] = await Promise.all([
-    rateLimit('oauth-token', clientIp(req), 30, '1 m'),
-    rateLimit('oauth-token-client', clientId || clientSecret.slice(0, 16), 60, '1 m'),
+    // ⚠️ THE CONSTANTS, NOT LITERALS. /auth.md publishes these exact numbers; exporting them from
+    // lib/api/oauth.ts is only worth anything if the ENFORCEMENT reads the same source. Otherwise
+    // the document is pinned to a constant the limiter ignores, which is worse than the retyped
+    // prose it replaced — it would look maintained while drifting.
+    rateLimit('oauth-token', clientIp(req), TOKEN_RATE_PER_IP, '1 m'),
+    rateLimit('oauth-token-client', clientId || clientSecret.slice(0, 16), TOKEN_RATE_PER_CLIENT, '1 m'),
   ])
   // ⚠️ THE HEADERS DESCRIBE THIS ENDPOINT'S OWN POLICY, NOT THE 600/min PARTNER-API BUDGET.
   // Token minting is throttled far harder than the API it hands out tokens for (30/min per IP,

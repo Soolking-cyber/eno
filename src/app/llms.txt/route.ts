@@ -27,7 +27,14 @@ export const revalidate = 86400
 // matches the edition, so this is the one value that is guaranteed to describe THIS deployment —
 // which is the entire point of moving this file off `public/`. Hardcoding eno.vn here would
 // reintroduce the bug in a new place.
-const SITE_ORIGIN = process.env.NEXT_PUBLIC_APP_URL || 'https://eno.vn'
+// ⛔ THE FALLBACK WAS THE LITERAL 'https://eno.vn' UNTIL 2026-08-23 — in the one file whose entire
+// reason for existing is that a shared, hardcoded copy had eno.forum introducing itself as the
+// licensed marketplace (see the header above). It only fires when NEXT_PUBLIC_APP_URL is unset,
+// which next.config.ts asserts against in any real build, so nothing was measured wrong in
+// production — but a fallback is the branch a MISCONFIGURED deployment takes, and this is the exact
+// file where taking it silently would be most expensive. `https://${SITE_NAME}` stays
+// edition-correct by construction; same shape as OAUTH_ISSUER's fallback in src/lib/api/oauth.ts.
+const SITE_ORIGIN = process.env.NEXT_PUBLIC_APP_URL || `https://${SITE_NAME}`
 
 /**
  * THE DEVELOPER BLOCK, SHARED BY BOTH EDITIONS.
@@ -42,6 +49,19 @@ const SITE_ORIGIN = process.env.NEXT_PUBLIC_APP_URL || 'https://eno.vn'
  * is about SERVICES vocabulary reaching eno.vn's artifact; "OpenAPI", "scopes" and "bearer token"
  * are neither edition's exclusive property. Everything below is interpolated from SITE_ORIGIN, so
  * each deployment names only itself — which is the failure this whole file exists to have fixed.
+ *
+ * ⛔ THE MCP LINE USED TO BE PROSE POINTING AT A BARE ENDPOINT, AND THAT IS NOT DISCOVERY. /api/mcp
+ * has been a live, key-authed MCP server since the partner API's Phase 4, and nothing machine-
+ * readable pointed at it — so the agent audit on 2026-08-23 spent its scan window guessing at
+ * .well-known paths (15 hits each on mcp.json, mcp-server-card.json and mcp/server-card.json, all
+ * 404) while simultaneously issuing seven `GET /api/mcp` and getting the correct 405 each time. The
+ * card link above is the fix; see src/app/api/well-known/mcp-server-card/route.ts for what it
+ * publishes and why each field is true of the route.
+ *
+ * ⚠️ THE NARRATION STAYS IN THIS COMMENT AND OUT OF THE DOCUMENT. Everything in the template below
+ * is SERVED to agents — a paragraph about our own audit history is noise in the one file whose job
+ * is to tell a machine what this site offers. Facts an agent can act on go in the body; the reason
+ * we added them goes here.
  */
 const DEVELOPER_SECTION = `## For developers and agents
 
@@ -49,7 +69,12 @@ const DEVELOPER_SECTION = `## For developers and agents
 - [OpenAPI 3.1 spec](${SITE_ORIGIN}/openapi.json) — the Partner API, machine-readable. Also at ${SITE_ORIGIN}/api/v1/openapi.json.
 - [OAuth authorization server metadata](${SITE_ORIGIN}/.well-known/oauth-authorization-server) — RFC 8414: token endpoint, grant, scopes.
 - [OAuth protected resource metadata](${SITE_ORIGIN}/.well-known/oauth-protected-resource) — RFC 9728: which resource a token is for.
-- Hosted MCP server at ${SITE_ORIGIN}/api/mcp — an agent can manage a storefront directly, using an API key as the Bearer token.
+- [MCP Server Card](${SITE_ORIGIN}/.well-known/mcp.json) — the manifest for the hosted Model Context
+  Protocol server: transport, supported protocol versions, and the header to connect with. The same
+  document also answers at /.well-known/mcp-server-card.json and /.well-known/mcp/server-card.json.
+- Hosted MCP server at ${SITE_ORIGIN}/api/mcp — an agent can manage a storefront directly, using an
+  API key as the Bearer token. Streamable HTTP, stateless: JSON-RPC over POST, no SSE stream (a GET
+  answers 405). Tools are listed at runtime via tools/list and each one is scope-gated.
 - [Service status](${SITE_ORIGIN}/api/v1/status) — the one endpoint that needs NO credential. Returns
   the edition, the API version and links to the spec and the OAuth metadata, and carries live
   \`RateLimit\` headers so an agent can see the throttle before it has a key. Start here.

@@ -1,3 +1,4 @@
+import { SITE_NAME } from '@/lib/edition'
 import { NextRequest } from 'next/server'
 import { resolveApiKey } from '@/lib/api/auth'
 import { TOOLS_BY_NAME, toolDescriptors, ToolError } from '@/lib/mcp/tools'
@@ -43,9 +44,17 @@ async function handleMessage(msg: Rpc, auth: ApiAuth): Promise<object | null> {
       return rpcResult(msg.id, {
         protocolVersion: SUPPORTED.has(req) ? req : PROTOCOL_VERSION,
         capabilities: { tools: { listChanged: false } },
-        serverInfo: { name: 'eno.vn Partner API', version: '1.0.0' },
+        // ⛔ DERIVED. This was the literal 'eno.vn Partner API', which meant the SERVICES build's
+        // MCP server introduced itself as the licensed marketplace on every `initialize`. It is
+        // the fifth instance of this exact leak in this repo (static llms.txt, the OpenAPI title,
+        // the developers page, an ApiStatus description — each caught by a reviewer, never by a
+        // gate), and the newly published Server Card is what made it observable: on eno.forum the
+        // card said "eno.forum Partner API" while the server it describes said "eno.vn Partner
+        // API". The MCP Server Card spec's "Consistency with Runtime Behavior" makes that
+        // contradiction a SHOULD NOT, so the card cannot be trusted while this line is a literal.
+        serverInfo: { name: `${SITE_NAME} Partner API`, version: '1.0.0' },
         instructions:
-          'Manage an eno.vn storefront: list/create/update/delete listings, bulk-import, sync a catalogue by your own externalId, read analytics, and manage webhooks. Every action is scoped to the one shop behind the API key.',
+          `Manage a ${SITE_NAME} storefront: list/create/update/delete listings, bulk-import, sync a catalogue by your own externalId, read analytics, and manage webhooks. Every action is scoped to the one shop behind the API key.`,
       })
     }
     case 'ping':

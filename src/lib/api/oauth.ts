@@ -12,7 +12,19 @@ import { SITE_NAME } from '@/lib/edition'
 // new env var (which we can't provision). Tokens are stateless — revoking the underlying
 // key takes effect within TTL_SECONDS (standard bearer-token semantics), so keep TTL short.
 
-export const TOKEN_TTL_SECONDS = 3600 // 1 hour
+export const TOKEN_TTL_SECONDS = 3600
+
+/**
+ * The token endpoint's own anti-abuse budget, in the units /auth.md publishes.
+ * ⚠️ EXPORTED SO THE DOCUMENT STOPS RETYPING THEM. /auth.md had `30 / 60s` and `60 / 60s` as prose
+ * literals directly under a header promising the constants are imported rather than retyped — so a
+ * change to the throttle would have left a public document confidently stating the old numbers, in
+ * the one file a partner reads to decide how hard to retry. A reviewer caught the contradiction.
+ * These are deliberately far tighter than the API budget: this is the credential-guessing surface.
+ */
+export const TOKEN_RATE_PER_IP = 30
+export const TOKEN_RATE_PER_CLIENT = 60
+export const TOKEN_RATE_WINDOW_SEC = 60 // 1 hour
 
 /**
  * ⚠️ SAME DERIVATION AS layout.tsx, llms.txt AND api/v1/openapi.json — deliberately, and it is

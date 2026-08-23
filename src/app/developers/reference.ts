@@ -72,6 +72,14 @@ export const SCOPES = OAUTH_SCOPES
  *   /.well-known/oauth-protected-resource        200 application/json
  *   /sitemap.xml                                 200 application/xml
  *
+ * ⚠️ ONE ENTRY IS AN EXCEPTION AND IT IS FLAGGED RATHER THAN QUIETLY ADDED, BECAUSE THE RULE ABOVE
+ * IS THE POINT OF THIS COMMENT. `/.well-known/mcp.json` was curled the same day and returned 404 on
+ * BOTH hosts — it is served by src/app/api/well-known/mcp-server-card/route.ts, which is new, and it
+ * only starts answering once next.config.ts carries the rewrite (the same shape as the two OAuth
+ * entries above, which were 404s the day before they were 200s). So: this link is a promise about
+ * the commit it ships in, not a measurement. ⛔ IF THAT REWRITE DOES NOT LAND, THIS ENTRY IS THE
+ * plausible-but-404 URL the paragraph above warns about — delete it rather than shipping it alone.
+ *
  * These are ROOT-RELATIVE on purpose. The page is served from this origin, so a relative href
  * resolves to this deployment's copy — which is the whole point, and one fewer place for a
  * hostname to be wrong. It also means a preview or a native WebView following these links stays
@@ -120,6 +128,15 @@ export const DISCOVERY: ReadonlyArray<{ href: string; label: string; note: strin
     href: '/.well-known/oauth-protected-resource',
     label: '/.well-known/oauth-protected-resource',
     note: 'RFC 9728 metadata: which resource the token is for, and which server issues it. An agent that gets a 401 reads this to find its way in.',
+  },
+  {
+    href: '/.well-known/mcp.json',
+    label: '/.well-known/mcp.json',
+    // ⚠️ ONE HREF, THREE PATHS. The same document also answers at /.well-known/mcp-server-card.json
+    // and /.well-known/mcp/server-card.json — the two other spellings agent scanners probe, and the
+    // reason it is one route behind rewrites rather than three files. Only the shortest is listed:
+    // a human reading this page needs one URL, and three would imply three documents.
+    note: 'MCP Server Card: the hosted Model Context Protocol server at /api/mcp, its transport, its protocol versions, and the Bearer header to connect with. Point an MCP client here.',
   },
   {
     href: '/llms.txt',

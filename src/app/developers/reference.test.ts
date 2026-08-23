@@ -47,10 +47,17 @@ afterEach(() => {
 })
 
 /**
- * The six URLs the page publishes as anchors. Every one was curled against BOTH live deployments
- * before it was written down (200 on each, matching content-type) — see the verification table in
- * ./reference. Pinning the list here means deleting a route without deleting its link fails the
- * suite, which is the only automated defence against a developer page that documents a 404.
+ * The URLs the page publishes as anchors. Every one but the last-added was curled against BOTH live
+ * deployments before it was written down (200 on each, matching content-type) — see the
+ * verification table in ./reference. Pinning the list here means deleting a route without deleting
+ * its link fails the suite, which is the only automated defence against a developer page that
+ * documents a 404.
+ *
+ * ⚠️ `/.well-known/mcp.json` IS THE ONE ENTRY NOT MEASURED AT 200, and ./reference says so in the
+ * same words: it 404s until next.config.ts carries its rewrite. A pinned list cannot tell the
+ * difference between "documents a 404" and "documents a route landing in this commit", so the
+ * distinction lives in prose in both files rather than in an assertion that would have to be
+ * relaxed. If the rewrite is dropped from the change, drop this line with it.
  */
 const REQUIRED_LINKS = [
   // ⚠️ FIRST, AND DELIBERATELY. /api/v1/status is the only entry an agent can CALL without a
@@ -63,6 +70,7 @@ const REQUIRED_LINKS = [
   '/api/v1/openapi.json',
   '/.well-known/oauth-authorization-server',
   '/.well-known/oauth-protected-resource',
+  '/.well-known/mcp.json',
   '/llms.txt',
   '/sitemap.xml',
 ]
@@ -78,7 +86,7 @@ describe('/developers reference — marketplace edition (eno.vn)', () => {
     expect(m.SUPPORT_EMAIL).toBe('support@eno.vn')
   })
 
-  it('publishes all seven discovery URLs as root-relative hrefs', async () => {
+  it('publishes all eight discovery URLs as root-relative hrefs', async () => {
     const m = await load('marketplace', 'https://eno.vn')
     expect(m.DISCOVERY.map((d) => d.href)).toEqual(REQUIRED_LINKS)
     // Root-relative, so a link resolves to THIS deployment's copy and carries no hostname that
@@ -101,7 +109,7 @@ describe('/developers reference — services edition (eno.forum)', () => {
     expect(everything).not.toContain('eno.vn')
   })
 
-  it('publishes the same seven discovery URLs — both deployments serve them identically', async () => {
+  it('publishes the same eight discovery URLs — both deployments serve them identically', async () => {
     const m = await load('services', 'https://www.eno.forum')
     expect(m.DISCOVERY.map((d) => d.href)).toEqual(REQUIRED_LINKS)
   })

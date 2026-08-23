@@ -89,7 +89,7 @@ export function markdownResponse(body: string): NextResponse {
        * 200 text/markdown directly — three crawlable duplicates per edition. The duplicate is real;
        * the header is still the wrong tool for it, because this one response object serves BOTH the
        * direct URL and the negotiated `/`. The duplicate is handled where it can be aimed at only
-       * the direct URLs: `Disallow: /md/` in public/robots.txt.
+       * the direct URLs: `Disallow: /md/` in src/app/robots.txt/route.ts.
        */
     },
   })
