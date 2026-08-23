@@ -139,16 +139,23 @@ Then `git push`. CI (`gh run list --limit 5`) must go green.
 ## 5. ⛔ DEPLOY — the step that actually ships
 
 ```bash
-printf 'export CF_TOKEN=%q\nexec bash /opt/eno/app/infra/vn-node/eno-deploy.sh --expect=%s\n' \
-  "$CF_TOKEN" "$(git rev-parse HEAD)" \
-  | ssh -i "$ENO_SSH_KEY" -p 24700 root@162.4.176.208 'bash -s'
+ssh -i "$ENO_SSH_KEY" -p 24700 root@162.4.176.208 \
+  "bash /opt/eno/app/infra/vn-node/eno-deploy.sh --expect=$(git rev-parse HEAD)"
 ```
 
-⛔ **THE TOKEN GOES OVER STDIN, NEVER IN THE SSH COMMAND STRING.** An ssh remote command is
-argv on the box: it shows in `ps` to every local user and lands in root's shell history. This
-project has already made that exact mistake once — `setup-offsite-backup.sh` shipped with the
-Bizfly keys in argv, in a script whose own header warned against it. Only the commit SHA, which
-is not a secret, travels as an argument.
+✅ **No token in this command any more.** The box holds a purge-only Cloudflare token at
+`/opt/eno/secrets/cf-token` (root, 0600) and the script reads it itself, so every deploy purges
+the edge without anyone remembering to. Install it once with
+`pbpaste | bash infra/vn-node/install-cf-token.sh` — that script takes the token on **stdin**,
+never in an ssh command string where it would show in `ps` and land in root's history, and it
+refuses to store a token that cannot actually purge both zones.
+
+⛔ **`--expect` still matters.** Without it the box builds whatever `origin/main` holds *at the
+moment it runs*, which is not necessarily the commit that just passed review; if someone else
+pushed in between, you deploy their untested work under your green CI.
+
+⚠️ `--skip-purge` remains, for the rare deliberate case. It is now the exception rather than
+every single deploy, which is the point: the step most likely to be skipped is no longer a step.
 
 ⛔ **BOTH ARGUMENTS MATTER.** Without `CF_TOKEN` the script refuses to start rather than
 finishing with an unpurged cache — a deploy nobody can see for six hours is the failure this

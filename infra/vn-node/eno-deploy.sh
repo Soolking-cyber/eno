@@ -149,6 +149,23 @@ untag_bad(){
   bad ":local restored to :prev so nothing can start the rejected image"
 }
 
+# ⛔ THE BOX PURGES ITSELF NOW. Until 2026-08-23 every deploy ran --skip-purge because the
+# token lived only on a laptop, so the cache was emptied by hand afterwards. That worked
+# only while one person was driving: the script's warning is a line of red text in a long
+# log, and the failure it describes — visitors served the pre-deploy page for six hours —
+# looks exactly like a deploy that did not happen. Automating it removes the step that was
+# most likely to be skipped by whoever deploys next.
+#
+# ⚠️ FILE, NOT ENVIRONMENT, BY DEFAULT. An exported CF_TOKEN still wins so a one-off deploy
+# can override it, but the normal path reads a root-owned 0600 file the app containers
+# never see. Install it with infra/vn-node/install-cf-token.sh, which takes the token on
+# stdin and refuses to store one that cannot actually purge both zones.
+CF_TOKEN_FILE=/opt/eno/secrets/cf-token
+if [ -z "${CF_TOKEN:-}" ] && [ -r "$CF_TOKEN_FILE" ]; then
+  CF_TOKEN=$(tr -d '\r\n' < "$CF_TOKEN_FILE")
+  export CF_TOKEN
+fi
+
 purge_edge(){
   local z out fail=0
   [ -n "${CF_TOKEN:-}" ] || { bad "CF_TOKEN unset"; return 1; }
@@ -213,9 +230,12 @@ restore(){
 # could not see for six hours, which is the exact failure this file was written to prevent.
 # Checking here means the deploy either can finish properly or does not begin.
 if [ "$SKIP_PURGE" != 1 ] && [ -z "${CF_TOKEN:-}" ]; then
-  bad "CF_TOKEN is not set, so the cache could not be purged and the deploy would be invisible."
-  bad "Pass it over STDIN, never in the ssh command string (it would show in ps and root history):"
-  bad "  printf 'export CF_TOKEN=%q\\nexec bash /opt/eno/app/infra/vn-node/eno-deploy.sh\\n' \"\$CF_TOKEN\" | ssh … 'bash -s'"
+  bad "No CF_TOKEN in the environment and no readable $CF_TOKEN_FILE, so the cache could not be"
+  bad "purged and the deploy would be invisible to visitors for up to six hours."
+  bad "Install the token once and this never comes up again:"
+  bad "  pbpaste | bash infra/vn-node/install-cf-token.sh"
+  bad "It takes the token on STDIN — never in an ssh command string, where it would show in ps"
+  bad "and land in root's history — and refuses to store one that cannot purge both zones."
   bad "Or accept the consequence deliberately with --skip-purge and purge by hand afterwards."
   exit 1
 fi
