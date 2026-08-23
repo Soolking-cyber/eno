@@ -13,6 +13,15 @@ import { logError } from '@/lib/log'
 
 export const API_KEY_RE = /^eno_(live|test)_[A-Za-z0-9]{32,}$/
 export const API_RATE_PER_MIN = 600
+/**
+ * The window those 600 requests are counted over, in seconds, as a NUMBER.
+ * ⚠️ Exported so `/api/v1/status` can publish the authenticated budget without retyping it. That
+ * endpoint had `window_seconds: 60` hardcoded beside the imported limit, which meant a change to
+ * the window here would have left the one document whose job is to state the budget confidently
+ * stating the old one. The `'1 m'` string below is what `rateLimit()` actually parses; this is its
+ * value in the unit the RFC headers and the status document use. Keep them in step.
+ */
+export const API_RATE_WINDOW_SEC = 60
 
 export function hashApiKey(raw: string): string {
   return crypto.createHash('sha256').update(raw).digest('hex')

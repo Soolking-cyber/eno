@@ -131,7 +131,18 @@ export async function GET() {
 `
 
     // Static info pages — no lastmod, deliberately (see the note at the top of this file).
-    for (const p of ['about', 'safety', 'help', 'guide', 'trust', 'terms', 'privacy', 'regulations', 'prohibited', 'brands']) {
+    //
+    // ⚠️ 'developers' JOINED THIS LIST 2026-08-23 AND ITS ABSENCE WAS THE WHOLE BUG. /developers had
+    // been live and returning 200 for months, but no sitemap entry and (until the same day) no
+    // inbound link from any page — so the one URL that documents this site's API was reachable only
+    // by guessing it. An agent audit duly searched for "eno" developer resources and found nothing.
+    // A page a crawler is never told about is, to every machine, a page that does not exist.
+    //
+    // Safe on BOTH editions, which is why it sits in the shared list rather than behind a gate: the
+    // Partner API, the OpenAPI spec and both .well-known documents are served identically by
+    // eno.vn and eno.forum (curled, 200 on every path on both hosts, 2026-08-23). Nothing on
+    // /developers names a service either edition may not offer.
+    for (const p of ['about', 'safety', 'help', 'guide', 'trust', 'terms', 'privacy', 'regulations', 'prohibited', 'brands', 'developers']) {
       xml += `  <url><loc>${hostUrl}/${p}</loc></url>\n`
     }
 

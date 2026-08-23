@@ -29,6 +29,38 @@ export const revalidate = 86400
 // reintroduce the bug in a new place.
 const SITE_ORIGIN = process.env.NEXT_PUBLIC_APP_URL || 'https://eno.vn'
 
+/**
+ * THE DEVELOPER BLOCK, SHARED BY BOTH EDITIONS.
+ *
+ * ⚠️ IT WAS ON THE MARKETPLACE BODY ONLY. The Partner API, the OpenAPI spec, both .well-known
+ * documents and /developers are served IDENTICALLY by both deployments — verified by curl on
+ * 2026-08-23, 200 on every path on both hosts — so eno.forum was withholding, from the one file
+ * written to tell an agent what this site offers, a surface it fully supports. An agent reading
+ * only the services llms.txt would conclude there is no API here.
+ *
+ * ⚠️ SHARED IS SAFE HERE PRECISELY BECAUSE IT NAMES NO SERVICE. The rule this file's header states
+ * is about SERVICES vocabulary reaching eno.vn's artifact; "OpenAPI", "scopes" and "bearer token"
+ * are neither edition's exclusive property. Everything below is interpolated from SITE_ORIGIN, so
+ * each deployment names only itself — which is the failure this whole file exists to have fixed.
+ */
+const DEVELOPER_SECTION = `## For developers and agents
+
+- [Developer documentation](${SITE_ORIGIN}/developers) — authentication, scopes, endpoints, copy-pasteable requests.
+- [OpenAPI 3.1 spec](${SITE_ORIGIN}/openapi.json) — the Partner API, machine-readable. Also at ${SITE_ORIGIN}/api/v1/openapi.json.
+- [OAuth authorization server metadata](${SITE_ORIGIN}/.well-known/oauth-authorization-server) — RFC 8414: token endpoint, grant, scopes.
+- [OAuth protected resource metadata](${SITE_ORIGIN}/.well-known/oauth-protected-resource) — RFC 9728: which resource a token is for.
+- Hosted MCP server at ${SITE_ORIGIN}/api/mcp — an agent can manage a storefront directly, using an API key as the Bearer token.
+- [Service status](${SITE_ORIGIN}/api/v1/status) — the one endpoint that needs NO credential. Returns
+  the edition, the API version and links to the spec and the OAuth metadata, and carries live
+  \`RateLimit\` headers so an agent can see the throttle before it has a key. Start here.
+- ⚠️ Every OTHER operation is AUTHENTICATED, and needs either an \`eno_live_\` key or a token minted
+  from one at ${SITE_ORIGIN}/api/v1/oauth/token (OAuth 2.0 client credentials). There is no sandbox
+  and no test key. An agent without a key can read the spec, the metadata and /api/v1/status, but
+  cannot call anything that touches a shop.
+- Scopes: listings:read, listings:write, analytics:read, media:write. One key acts for one shop
+  and only ever sees that shop's data.
+- Keys are issued in the account dashboard, under Developers, to business accounts.`
+
 const MARKETPLACE_WHEN_TO_USE = [
   '- Someone is looking to buy or sell secondhand goods in Vietnam — motorbikes, furniture, electronics, baby gear, whole-home moving sales.',
   '- Someone is moving to, or leaving, Ho Chi Minh City, Hanoi or Da Nang and needs housing or wants to clear a flat.',
@@ -70,15 +102,7 @@ ${MARKETPLACE_WHEN_TO_USE}
 - [Electronics](${SITE_ORIGIN}/c/electronics), [Furniture](${SITE_ORIGIN}/c/furniture-appliances), [Moving Sale](${SITE_ORIGIN}/c/moving-sale).
 - [Fashion & Beauty](${SITE_ORIGIN}/c/fashion-beauty), [Baby & Kids](${SITE_ORIGIN}/c/baby-kids), [Hobbies, Sports & Books](${SITE_ORIGIN}/c/hobbies-sports), [Jobs](${SITE_ORIGIN}/c/jobs), [Services](${SITE_ORIGIN}/c/services), [Pets](${SITE_ORIGIN}/c/pets).
 
-## For developers and agents
-
-- [OpenAPI 3.1 spec](${SITE_ORIGIN}/openapi.json) — the Partner API, machine-readable. Also at ${SITE_ORIGIN}/api/v1/openapi.json.
-- [Developer guide](${SITE_ORIGIN}/developers) — auth, endpoints, example requests.
-- ⚠️ The Partner API is AUTHENTICATED. Every operation needs a bearer token obtained from an
-  an eno_live_ key (see the guide); there is no public unauthenticated API surface. An agent
-  without a key can read the spec but cannot call the endpoints.
-- Scopes: listings:read, listings:write, analytics:read, media:write. One key acts for one shop
-  and only ever sees that shop's data.
+${DEVELOPER_SECTION}
 
 ## Data feeds
 
@@ -104,6 +128,8 @@ ${SERVICES_LLMS_WHEN_TO_USE}
 - [Home](${SITE_ORIGIN}/): listings and services.
 - [Help center](${SITE_ORIGIN}/help): accounts, messaging and safety.
 - [Contact](${SITE_ORIGIN}/contact): who operates this site, support email and registered address.
+
+${DEVELOPER_SECTION}
 
 ## Data feeds
 

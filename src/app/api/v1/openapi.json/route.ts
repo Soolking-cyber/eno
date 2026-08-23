@@ -258,6 +258,7 @@ export const SPEC = {
       'Authenticated responses (success and error alike) carry `RateLimit` and `RateLimit-Policy` (draft-ietf-httpapi-ratelimit-headers) alongside the older `X-RateLimit-Limit` / `X-RateLimit-Remaining` pair, plus an `X-Request-Id` to quote in a support request. The budget is per API key: 600 requests per 60 seconds, shared between the raw key and every token minted from it.',
       '⚠️ `reset` is the end of the current window slot, not the moment you are unblocked. The limiter is a weighted sliding window, so usage decays continuously; read `reset` as "your oldest counted requests start rolling off no later than this". A 429 additionally carries `Retry-After` with the same number.',
       '`POST /oauth/token` reports its OWN, much tighter policy (credential-guessing defence: 30/min per IP AND 60/min per client). Do not infer the API budget from it.',
+      '`GET /status` is the one operation here that needs no credential, and it publishes the same header set from the same limiter — fetch it once to see the exact shape your client will have to parse. Its policy is 60/min per client IP; that is a discovery budget, not yours.',
       '',
       '## Errors',
       'Every failure is `{"error":{"code":"…","message":"…"}}` with an HTTP status that matches. Branch on `code`, not on `message` — messages are prose and may be reworded. `code` is an open set: new codes appear without notice (the create path re-emits the publish guard\'s own codes verbatim), so always have a default arm. Some 4xx add an `error.detail` string with the specific offending value.',
@@ -274,6 +275,7 @@ export const SPEC = {
       '- This document is served by the same deployment it describes, so it cannot describe a build that is not running.',
       '',
       '## Discovery',
+      `- \`${CANONICAL_ORIGIN}/api/v1/status\` — unauthenticated service document: which edition answered, the API version, and a machine-readable index of every link below. Start here.`,
       `- \`${CANONICAL_ORIGIN}/openapi.json\` — this document (also at \`${CANONICAL_ORIGIN}/api/v1/openapi.json\`).`,
       `- \`${CANONICAL_ORIGIN}/.well-known/oauth-authorization-server\` — RFC 8414 authorization-server metadata for the token endpoint below.`,
       `- \`${CANONICAL_ORIGIN}/.well-known/oauth-protected-resource\` — RFC 9728 metadata for this API as a protected resource.`,
@@ -396,6 +398,64 @@ export const SPEC = {
         description: 'Bare acknowledgement returned by mutations that have nothing to report back.',
         required: ['ok'],
         properties: { ok: { type: 'boolean', const: true } },
+      },
+      ApiStatus: {
+        type: 'object',
+        description: 'Unauthenticated service document. Constants plus one live rate-limit snapshot — it reads no table and reflects no shop, so nothing in it varies by caller except `time` and `rate_limit`.',
+        required: ['service', 'edition', 'api_version', 'status', 'time', 'documentation', 'rate_limit'],
+        properties: {
+          // ⚠️ DERIVED, like every other self-naming value in this file. A reviewer measured this
+          // as the ONE remaining literal `eno.vn` in the spec — it would have shipped verbatim in
+          // eno.forum's public /openapi.json, reintroducing the exact cross-edition naming leak the
+          // rest of this change set exists to close.
+          service: { type: 'string', description: `Human-readable name of this API, e.g. "${SITE_NAME} Partner API".` },
+          edition: {
+            type: 'string',
+            enum: ['marketplace', 'services'],
+            description: 'Which of the two builds of this codebase answered. Useful after a redirect or from a stale link, when a client cannot be sure which host it reached.',
+          },
+          api_version: { type: 'string', const: 'v1', description: 'Matches the `/api/v1` path segment. A future major version answers on a different path, not with a different value here.' },
+          status: {
+            type: 'string',
+            const: 'ok',
+            description: '⚠️ LIVENESS ONLY — it means this deployment answered, and nothing more. No dependency is probed: the rate limiter fails open, so an unreachable database still returns "ok". Do NOT wire an alert to this field; there is deliberately no `database` field beside it, because this handler cannot truthfully compute one.',
+          },
+          time: { type: 'string', format: 'date-time', description: 'Server time when the response was built (RFC 3339, UTC).' },
+          documentation: {
+            type: 'object',
+            description: 'Absolute URLs on this deployment\'s CANONICAL origin, which is what the edition was built with — not an echo of the Host header you happened to reach it on. So a request through a preview alias or an apex-to-www redirect still gets the canonical links, which is the useful answer. Follow them rather than assembling paths yourself: the host differs per edition.',
+            required: ['openapi', 'oauth_authorization_server', 'oauth_protected_resource', 'developers', 'llms_txt'],
+            properties: {
+              openapi: { type: 'string', format: 'uri', description: 'This document.' },
+              oauth_authorization_server: { type: 'string', format: 'uri', description: 'RFC 8414 authorization-server metadata for the token endpoint.' },
+              oauth_protected_resource: { type: 'string', format: 'uri', description: 'RFC 9728 metadata describing this API as a protected resource.' },
+              developers: { type: 'string', format: 'uri', description: 'The human guide, with worked examples.' },
+              llms_txt: { type: 'string', format: 'uri', description: 'Site index for agents.' },
+            },
+          },
+          rate_limit: {
+            type: 'object',
+            description: 'The SAME limiter snapshot the `RateLimit` header on this response was built from — body and headers cannot disagree. Present so a client can self-throttle without a header-parsing library.',
+            required: ['limit', 'remaining', 'reset', 'window_seconds', 'keyed_by', 'authenticated'],
+            properties: {
+              limit: { type: 'integer', description: 'Requests allowed per window on THIS endpoint. 60 today; read it, do not hardcode it.' },
+              remaining: { type: 'integer', description: 'Left in the current window for your IP.' },
+              reset: { type: 'integer', minimum: 1, description: 'Seconds until the current window slot advances — the same caveat as the `RateLimit` header: the limiter decays continuously, so this is not a promise of when you are unblocked.' },
+              window_seconds: { type: 'integer', description: 'Window length. `RateLimit-Policy` states the same pair as `<limit>;w=<window_seconds>`.' },
+              keyed_by: { type: 'string', const: 'ip', description: 'This endpoint is bucketed per client IP, because an unauthenticated caller has no key to bucket by.' },
+              authenticated: {
+                type: 'object',
+                description: '⚠️ The budget the REST of the API runs on, stated outright so it is never inferred from the much smaller discovery budget above. Applies once you send a credential; keyed per API key and shared with every access token minted from it.',
+                required: ['limit', 'window_seconds', 'keyed_by'],
+                properties: {
+                  limit: { type: 'integer' },
+                  window_seconds: { type: 'integer' },
+                  keyed_by: { type: 'string', const: 'api_key' },
+                },
+              },
+            },
+          },
+        },
       },
       Category: {
         type: 'object',
@@ -794,6 +854,37 @@ export const SPEC = {
     },
   },
   paths: {
+    /**
+     * ⛔ THE ONLY OPERATION IN THIS DOCUMENT WITH NO CREDENTIAL AT ALL, AND IT IS HERE BECAUSE OF
+     * A MEASUREMENT. An agent audit on 2026-08-23 could not verify the rate-limit headers this
+     * spec describes — "documented at /openapi.json but not verified on a live response (REST API
+     * is auth-gated)" — because every endpoint an anonymous scanner can reach rejects BEFORE the
+     * limiter runs and therefore carries no honest budget to publish (see the `401` descriptions
+     * below, and the pre-limiter note on `authFailures()`). Neither of those rejections was
+     * changed to close the gap: this operation was added so that a live response carrying real
+     * `RateLimit` / `RateLimit-Policy` exists to be fetched, without leaking the authenticated
+     * budget onto an unauthenticated rejection.
+     */
+    '/status': {
+      get: {
+        operationId: 'getApiStatus',
+        summary: 'Service document — no credential required',
+        description: [
+          'Everything a client needs before it has a credential: which edition and API version answered, absolute URLs for the OpenAPI document and both OAuth metadata documents, and a live rate-limit snapshot.',
+          'It reads no table and reflects no shop, so it is safe to poll — but there is nothing to poll FOR: `status` is liveness only and never says "unhealthy" (the rate limiter fails open, so an unreachable database still answers `"ok"`). Fetch it once at startup, not on a schedule.',
+          '⚠️ Its rate limit is this endpoint\'s own — 60/min per client IP, a discovery budget. The authenticated API budget is 10x larger and is stated in `rate_limit.authenticated` rather than left to be inferred from the headers here.',
+        ].join(' '),
+        security: [],
+        responses: {
+          '200': ok('The service document. `Cache-Control: no-store` — the rate-limit numbers are yours alone and must never be served to another caller from a shared cache.', schemaRef('ApiStatus')),
+          '429': fail(
+            'More than 60 requests in 60 seconds from your IP. `Retry-After` and `RateLimit` both carry the same number of seconds.',
+            ['rate_limited'],
+            { retryAfter: true },
+          ),
+        },
+      },
+    },
     '/oauth/token': {
       post: {
         operationId: 'createAccessToken',

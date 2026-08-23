@@ -9,6 +9,41 @@ import { Tr } from '@/context/language-context'
 
 export const metadata: Metadata = { title: `Page not found | ${SITE_NAME}` }
 
+/**
+ * ⛔ THIS PAGE'S RECOVERY LINKS REACH A NON-JS AGENT ON ONLY *ONE* OF THE TWO 404 SHAPES, AND THE
+ * OTHER SHAPE IS THE ONE AUDITORS PROBE. Measured against production 2026-08-23, `cf-cache-status:
+ * DYNAMIC` on every probe so none of this is a stale edge copy:
+ *
+ *   GET https://eno.vn/nope/xyz/abc   404, 97,938 bytes, **56 `<a>` elements** in the server HTML,
+ *                                     including href="/", /brands, /help, /contact, /sitemap.xml,
+ *                                     /llms.txt and /openapi.json — this file, fully rendered.
+ *   GET https://eno.vn/nope-xyz       404, 56,173 bytes, **ZERO `<a>` elements**. The entire body is
+ *                                     `<body><div hidden=""><!--$--><!--/$--></div><script…>` — no
+ *                                     root-layout class on `<body>`, no header, no footer, nothing.
+ *                                     Every one of these links exists only inside the RSC flight
+ *                                     payload, i.e. only for a client that executes React.
+ *   GET https://eno.vn/help/nope-topic  same empty shell.
+ *
+ * ⚠️ THE DIFFERENCE IS *WHERE THE 404 COMES FROM*, NOT ANYTHING IN THIS FILE. `/nope/xyz/abc`
+ * matches no route at all, so Next renders this page normally. `/nope-xyz` MATCHES
+ * `src/app/[handle]` — the root dynamic segment that doubles as the catch-all for unknown top-level
+ * paths — and that page is `dynamic = 'force-dynamic'` and calls `notFound()` from
+ * `generateMetadata`. The payload's last flight row is `E{"digest":"NEXT_HTTP_ERROR_FALLBACK;404"}`:
+ * Next abandons the document and hands the 404 UI to the client. `/help/[id]` does the same thing.
+ *
+ * ⚠️ SO DO NOT "FIX" THIS BY ADDING MORE MARKUP HERE — IT ALREADY RENDERS, AND ON THE BROKEN SHAPE
+ * NOTHING FROM THIS FILE IS EMITTED, INCLUDING THE ROOT LAYOUT. The fix lives in the pages that
+ * throw: `notFound()` in `generateMetadata` on a force-dynamic route buys a real 404 status (the
+ * comment at src/app/[handle]/page.tsx:56 explains why that was chosen over a soft-404) and pays
+ * for it with an empty HTML body. Both halves are wanted; recovering the body means moving where
+ * the throw happens, and that is a change to those pages, not to this one.
+ *
+ * ⚠️ MARKDOWN NEGOTIATION HAS THE SAME SPLIT, FOR THE SAME REASON. `src/app/md/not-found/route.ts`
+ * answers `Accept: text/markdown` with a 404 markdown recovery document via the `fallback` rewrite
+ * in next.config.ts — and `fallback` is reached only when no route matched, so it covers
+ * `/nope/xyz/abc` and not `/nope-xyz`. One root cause, two symptoms.
+ */
+
 // Faint, on-brand marketplace icons scattered as a lightweight background motif —
 // inline SVG (lucide), so ZERO extra network weight (no raster images). Positions
 // are deterministic so it renders identically every time.
@@ -118,16 +153,34 @@ export default function NotFound() {
             target off the link text alone if it only kept the text. That rules out a button that
             navigates in an onClick, and it rules out labelling these "here" or "our API".
           */}
-          <p className="mt-3 text-xs text-body">
+          {/*
+            ⚠️ `<nav>`, NOT `<p>` — A MARKUP-SEMANTICS CHANGE WITH ZERO PIXEL COST. Tailwind's
+            preflight zeroes the margin on both elements and both are `display: block`, so the same
+            `mt-3 text-xs text-body` renders byte-identically; what changes is that the three
+            machine documents become a NAMED LANDMARK an agent (or a screen-reader user pressing
+            the landmarks key) can jump to, instead of a paragraph it has to read to discover. The
+            sibling recovery list above is already a labelled `<nav>` for the same reason; these
+            were the odd one out.
+            ⚠️ The label must differ from that one's — two same-named landmarks are worse than one
+            unnamed one.
+          */}
+          <nav aria-label="Machine-readable indexes" className="mt-3 text-xs text-body">
             {/* Plain <a>, not <Link>: these are non-HTML documents served by route handlers, and
-                the client router should not try to prefetch or soft-navigate them. */}
+                the client router should not try to prefetch or soft-navigate them.
+                ⚠️ `type` IS THE ADVERTISED MEDIA TYPE OF THE TARGET, and it is here for the same
+                audience as the visible filename: an agent deciding whether a link is worth a
+                round-trip should not have to fetch it to learn it will get XML rather than HTML.
+                It is a hint only — it sets no header and changes no rendering. Verify it against
+                the route handler before editing: src/app/sitemap.xml/route.ts, llms.txt/route.ts
+                and openapi.json/route.ts are the authorities, and a `type` that disagrees with the
+                response is worse than none. */}
             <Tr text="Looking for a machine-readable index?" />{' '}
-            <a href="/sitemap.xml" className={RECOVERY_LINK}>{SITEMAP_FILE}</a>
+            <a href="/sitemap.xml" type="application/xml" className={RECOVERY_LINK}>{SITEMAP_FILE}</a>
             {' · '}
-            <a href="/llms.txt" className={RECOVERY_LINK}>{LLMS_FILE}</a>
+            <a href="/llms.txt" type="text/plain" className={RECOVERY_LINK}>{LLMS_FILE}</a>
             {' · '}
-            <a href="/openapi.json" className={RECOVERY_LINK}>{OPENAPI_FILE}</a>
-          </p>
+            <a href="/openapi.json" type="application/json" className={RECOVERY_LINK}>{OPENAPI_FILE}</a>
+          </nav>
         </div>
       </main>
       <Footer />

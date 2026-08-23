@@ -169,9 +169,30 @@ const PAGE_EXTENSIONS =
 // ⚠️ STILL PINNED TO ONE EXACT HOST, never *.supabase.co: connect-src is the main
 // post-XSS exfiltration brake, and a wildcard would let stolen data POST to any
 // attacker-owned Supabase project. Deriving it keeps that property.
+// ⛔ THE FALLBACK USED TO BE A LITERAL `https://xihiryllwmjoouipkyhw.supabase.co` — THE RETIRED
+// SUPABASE **CLOUD** PROJECT. Production has run a SELF-HOSTED Supabase on the VN box since the
+// 2026-08-22 cutover (sb.eno.vn: postgres, gotrue, storage, realtime, rest, pooler); the Cloud
+// project no longer serves this app at all. So the old fallback did not merely point somewhere
+// stale, it pinned the CSP to a host that can never answer — silently, and only when
+// NEXT_PUBLIC_SUPABASE_URL was missing, which is exactly the case nobody tests.
+// The comment directly above records what that costs: a build whose connect-src/img-src/media-src
+// allow only the wrong origin renders a page where sign-in, realtime chat, uploads and every photo
+// are blocked by the browser, with no server-side error to notice.
+// ⚠️ SO IT FAILS LOUDLY INSTEAD. There is no correct value to guess here: the Supabase origin is
+// deployment state, not a constant, and a wrong guess is indistinguishable from success until a
+// user tries to log in. A build with no NEXT_PUBLIC_SUPABASE_URL is misconfigured, and the right
+// moment to say so is the build, not the first sign-in attempt in production.
 const SUPABASE_ORIGIN = (() => {
-  try { return new URL(process.env.NEXT_PUBLIC_SUPABASE_URL || '').origin }
-  catch { return 'https://xihiryllwmjoouipkyhw.supabase.co' }
+  const raw = process.env.NEXT_PUBLIC_SUPABASE_URL
+  try { return new URL(raw || '').origin }
+  catch {
+    throw new Error(
+      `next.config.ts: NEXT_PUBLIC_SUPABASE_URL is missing or unparseable (got ${JSON.stringify(raw)}). ` +
+      'It is baked into the CSP and images.remotePatterns at BUILD time, so a build without it ships ' +
+      'a page whose sign-in, chat, uploads and photos are all blocked by the browser. ' +
+      'Set it to this deployment\'s Supabase origin (production: https://sb.eno.vn).',
+    )
+  }
 })()
 const SUPABASE_WS = SUPABASE_ORIGIN.replace(/^https:/, 'wss:')
 const SUPABASE_HOST = SUPABASE_ORIGIN.replace(/^https?:\/\//, '')
@@ -814,7 +835,36 @@ const nextConfig: NextConfig = {
         { source: "/feeds/facebook-catalog.csv", destination: "/api/feeds/facebook-catalog" },
         { source: "/feeds/google-shopping.xml", destination: "/api/feeds/google-shopping" },
       ],
-      fallback: [],
+      /**
+       * ⛔ THE 404 MARKDOWN NEGOTIATION MUST BE `fallback` AND NOTHING ELSE IS SAFE.
+       *
+       * A 404 is by definition an UNKNOWN path, so this one cannot be enumerated the way `/`,
+       * `/privacy` and `/terms` are above. `fallback` is the LAST group in the order documented at
+       * the head of this function — it is reached only once the filesystem AND the dynamic routes
+       * have both failed to match — so a `/:path*` source here provably cannot shadow a real page.
+       * Verified against the installed runtime, not the docs:
+       * node_modules/next/dist/server/lib/router-utils/resolve-routes.js builds
+       * `beforeFiles -> check_fs -> afterFiles -> 'after files check: true' -> fallback`, and the
+       * `check: true` step is where dynamic routes resolve.
+       *
+       * The same wildcard in either other group would be a serious regression, which is why it is
+       * spelled out rather than left to be rediscovered: in `beforeFiles` it would answer 404 for
+       * `/about` and every other real page whenever the client accepts markdown (and would sit next
+       * to the three entries above, one reordering away from eating them); in `afterFiles` it would
+       * shadow `[handle]`, `/listings/[slug]` and every other dynamic segment.
+       *
+       * ⚠️ IT DOES NOT COVER EVERY 404, AND THAT IS INHERENT. A path that MATCHES a route and then
+       * calls `notFound()` never reaches this group. Measured on production 2026-08-23:
+       * `/nope/xyz/abc` reaches it; `/nope-xyz` (matches `src/app/[handle]`) and `/help/nope-topic`
+       * (matches `src/app/help/[id]`) do not.
+       *
+       * ⚠️ `acceptsMarkdown()` IS WHAT KEEPS THIS OFF BROWSERS. Without the `has` clause every
+       * unmatched path on the site would answer `text/markdown`. Reuse it — do not write a second
+       * Accept regex.
+       */
+      fallback: [
+        { source: "/:path*", has: acceptsMarkdown(), destination: "/md/not-found" },
+      ],
     };
   },
   // Baseline security headers on every response. CSP is ENFORCING and was TIGHTENED

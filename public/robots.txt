@@ -26,6 +26,14 @@ User-agent: *
 Allow: /
 Disallow: /admin
 Disallow: /api
+# ⛔ …EXCEPT THE ONE API PATH THAT EXISTS FOR CRAWLERS AND AGENTS. /api/v1/status needs no
+# credential; it returns the edition, the API version, links to the spec and the OAuth metadata,
+# and live `RateLimit` headers so an agent can see the throttle before it has a key. It was added
+# specifically so an anonymous auditor could verify those headers on a real response — and then
+# `Disallow: /api` above forbade every compliant one from fetching it, which a reviewer caught.
+# ⚠️ Allow must be MORE SPECIFIC than the Disallow it overrides: robots.txt precedence is
+# longest-match-wins (RFC 9309 §2.2.2), so this 16-character rule beats the 4-character one.
+Allow: /api/v1/status
 # ⛔ /md/* ARE THE MARKDOWN REPRESENTATIONS OF `/`, `/privacy` AND `/terms`, AND THEY ARE REAL,
 # DIRECTLY FETCHABLE URLs — not merely internal rewrite destinations. `GET /md/home` with no Accept
 # header returns 200 text/markdown carrying the same content as the home page. Without this line

@@ -268,11 +268,36 @@ export function Footer() {
                 cache, so returning visitors keep the old mark. Recompute with
                 `shasum -a 256 public/logo-mark.svg | cut -c1-8` (d88a7892 on 2026-08-23). */}
             <img src="/logo-mark.svg?v=d88a7892" alt={SITE_NAME} width={36} height={36} className="h-9 w-9" />
-            <p className="max-w-[220px] text-xs leading-relaxed text-muted-foreground">
+            {/* ⚠️ THIS IS AN <h2>, NOT A <p>, AND IT IS THE FOOTER'S ONLY HEADING AT THAT TIER.
+                It carries no new copy and no new classes — it is the same tagline sentence that
+                has always been painted here, re-tagged (2026-08-23). Two things made that the
+                right element:
+
+                · THE OUTLINE WAS BROKEN AT THE ROOT. The five link-group titles below were each
+                  an <h2>, i.e. the SAME tier as a page section, so on every route the footer
+                  announced five sibling sections with no parent — and promo-banner.tsx states the
+                  house convention in its own comment: "h1 → section h2 → card h3s". They are h3
+                  now, and an h3 needs an h2 ABOVE it in its own subtree or the outline skips a
+                  level; this is that h2, and it precedes them in DOM order because the brand
+                  column is the grid's first child.
+                · IT HOLDS ON AN EMPTY CATALOGUE, WHICH IS THE WHOLE POINT. Measured on prod
+                  2026-08-23: eno.vn's home renders h1×1, h2×11, **h3×0** — the h3 tier is
+                  supplied by listing-card titles, and eno.vn's catalogue is empty by design (the
+                  licensing hide-list), so no card exists to supply it. The footer renders on
+                  every route in every state, so this pair is the one place the tier can be fixed
+                  without inventing merchandise.
+
+                Pixel-identical, verified against the live stylesheet: Tailwind preflight ships
+                `h1,h2,h3,h4,h5,h6{font-size:inherit;font-weight:inherit}` and `*{margin:0}`, so a
+                heading tag contributes NO typography of its own here — the `text-xs
+                leading-relaxed text-muted-foreground` classes are still the only thing painting.
+                A screen-reader user gains a heading-navigation stop that names the site; a
+                sighted user sees the same sentence in the same place. */}
+            <h2 className="max-w-[220px] text-xs leading-relaxed text-muted-foreground">
               {IS_SERVICES
                 ? tr("eno.forum — Vietnam's trusted marketplace for the international community.", 'eno.forum — chợ uy tín cho cộng đồng quốc tế tại Việt Nam.')
                 : tr("eno.vn — Vietnam's trusted marketplace for the international community.", 'eno.vn — chợ uy tín cho cộng đồng quốc tế tại Việt Nam.')}
-            </p>
+            </h2>
             {/* The only genuinely OFF-SITE links on the page. In the native shell a plain
                 cross-origin anchor is a HARD EXIT — Capacitor hands the URL to Safari/Chrome and
                 the user has left eno for another app. handleExternalClick keeps them in an in-app
@@ -308,7 +333,11 @@ export function Footer() {
               src/lib/taxonomy-nav.test.ts asserts the projection still matches, so it cannot
               drift. */}
           <div className="col-span-2 space-y-3">
-            <h2 className="text-sm font-bold text-foreground">{tr('Explore', 'Khám phá')}</h2>
+            {/* ⚠️ h3, NOT h2 — SAME CLASSES, SAME PIXELS. See the tagline <h2> above: a link group
+                inside the footer is a CHILD of the footer, not a peer of the page's own sections,
+                and five sibling h2s with nothing above them is what made the outline flat. The
+                class string is untouched precisely so this stays a semantics-only change. */}
+            <h3 className="text-sm font-bold text-foreground">{tr('Explore', 'Khám phá')}</h3>
             <ul className="grid grid-cols-2 gap-x-6 gap-y-2">
               {NAV_CATEGORIES.map((cat) => (
                 <li key={cat.slug}>
@@ -321,7 +350,9 @@ export function Footer() {
           {/* Link columns */}
           {columns.map((col) => (
             <div key={col.title} className="space-y-3">
-              <h2 className="text-sm font-bold text-foreground">{col.title}</h2>
+              {/* h3 for the same reason as "Explore" above — one tier below the footer's tagline
+                  heading, so the document outline reads h1 → h2 → h3 with no skipped level. */}
+              <h3 className="text-sm font-bold text-foreground">{col.title}</h3>
               <ul className="space-y-2">
                 {col.links.map((link) => (
                   <li key={link.label}>
