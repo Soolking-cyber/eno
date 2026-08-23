@@ -403,11 +403,34 @@ ok "marketplace: no top-level /visa or /itinerary page, no PayPal surface"
 # A services build that picked up the wrong env file ships a marketplace bundle onto
 # eno.forum — caught only later by the /itinerary probe, after it is serving. Assert the
 # forum image POSITIVELY carries what only it may carry.
-FMAN=$(docker run --rm --entrypoint sh eno-forum:local -c \
-  'cat .next/server/app-paths-manifest.json 2>/dev/null' 2>/dev/null)
+# ⛔ AND IT MUST FAIL CLOSED THE SAME WAY THE MARKETPLACE CHECK ABOVE DOES — THIS ONE DID NOT,
+# AND IT COST A FALSE REJECTION ON 2026-08-23. The first version ran the container once and
+# grepped the result. An empty `docker run` and a genuinely wrong edition produce the SAME
+# failure, which is why the message below had to hedge with "or the manifest could not be read":
+# it could not tell them apart. On d15ea614 it rejected a PERFECTLY GOOD forum image — read
+# afterwards straight out of the rejected layer, it had 299 routes and /itinerary/page present.
+# Two containers had just been built on a 4-core box that is also serving both editions, and the
+# read came back empty. The gate above was hardened against exactly this ("this is NOT evidence of
+# a clean bundle"); this one was left behind.
+# ⚠️ A RETRY IS NOT A WEAKENING. It never accepts an empty read — it distinguishes "could not
+# read" (retry, then refuse with an honest reason) from "read fine, wrong edition" (refuse
+# immediately). Both still refuse; only the diagnosis differs, and a wrong diagnosis sends the
+# next person to fix an env file that was never broken.
+FMAN=""
+for attempt in 1 2; do
+  FMAN=$(docker run --rm --entrypoint sh eno-forum:local -c \
+    'cat .next/server/app-paths-manifest.json 2>/dev/null' 2>/dev/null)
+  printf '%s' "$FMAN" | grep -q '"/' && break
+  [ "$attempt" = 1 ] && sleep 3
+done
+if [ -z "$FMAN" ] || ! printf '%s' "$FMAN" | grep -q '"/'; then
+  bad "COULD NOT READ the route manifest from eno-forum:local after 2 attempts — refusing."
+  bad "(this is a READ failure, NOT evidence about the edition — the image may be fine)"
+  untag_bad; exit 1
+fi
 if ! printf '%s' "$FMAN" | grep -q '"/itinerary/page"'; then
-  bad "eno-forum:local does NOT contain /itinerary/page — it is not the services edition."
-  bad "(built with the wrong env file, or the manifest could not be read)"
+  bad "eno-forum:local was read cleanly ($(printf '%s' "$FMAN" | grep -oE '\"/[^\"]*\"' | sort -u | wc -l | tr -d ' ') routes) but has NO /itinerary/page."
+  bad "It is not the services edition — built with the wrong env file."
   untag_bad; exit 1
 fi
 ok "forum: services edition confirmed (/itinerary/page present)"
