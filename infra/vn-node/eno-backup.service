@@ -1,0 +1,16 @@
+[Unit]
+Description=eno nightly database backup
+# ⚠️ Wants, not Requires: if docker is slow to settle we still try, and the
+# script's own checks decide success — rather than systemd silently skipping.
+Wants=docker.service
+After=docker.service
+
+[Service]
+EnvironmentFile=-/etc/default/eno-backup
+Type=oneshot
+ExecStart=/opt/eno/bin/eno-backup.sh
+# ⛔ A FAILED BACKUP MUST BE VISIBLE. Type=oneshot propagates the exit code, so a
+# failure marks the unit failed and shows in `systemctl --failed` rather than
+# scrolling past in a log nobody reads.
+StandardOutput=journal
+StandardError=journal
