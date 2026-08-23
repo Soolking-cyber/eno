@@ -149,23 +149,6 @@ untag_bad(){
   bad ":local restored to :prev so nothing can start the rejected image"
 }
 
-# ⛔ THE BOX PURGES ITSELF NOW. Until 2026-08-23 every deploy ran --skip-purge because the
-# token lived only on a laptop, so the cache was emptied by hand afterwards. That worked
-# only while one person was driving: the script's warning is a line of red text in a long
-# log, and the failure it describes — visitors served the pre-deploy page for six hours —
-# looks exactly like a deploy that did not happen. Automating it removes the step that was
-# most likely to be skipped by whoever deploys next.
-#
-# ⚠️ FILE, NOT ENVIRONMENT, BY DEFAULT. An exported CF_TOKEN still wins so a one-off deploy
-# can override it, but the normal path reads a root-owned 0600 file the app containers
-# never see. Install it with infra/vn-node/install-cf-token.sh, which takes the token on
-# stdin and refuses to store one that cannot actually purge both zones.
-CF_TOKEN_FILE=/opt/eno/secrets/cf-token
-if [ -z "${CF_TOKEN:-}" ] && [ -r "$CF_TOKEN_FILE" ]; then
-  CF_TOKEN=$(tr -d '\r\n' < "$CF_TOKEN_FILE")
-  export CF_TOKEN
-fi
-
 purge_edge(){
   local z out fail=0
   [ -n "${CF_TOKEN:-}" ] || { bad "CF_TOKEN unset"; return 1; }
@@ -229,17 +212,27 @@ restore(){
 # no CF_TOKEN meant a printed warning and `exit 0` — a "successful" deploy that visitors
 # could not see for six hours, which is the exact failure this file was written to prevent.
 # Checking here means the deploy either can finish properly or does not begin.
-if [ "$SKIP_PURGE" != 1 ] && [ -z "${CF_TOKEN:-}" ]; then
-  bad "No CF_TOKEN in the environment and no readable $CF_TOKEN_FILE, so the cache could not be"
-  bad "purged and the deploy would be invisible to visitors for up to six hours."
-  bad "Install the token once and this never comes up again:"
-  bad "  pbpaste | bash infra/vn-node/install-cf-token.sh"
-  bad "It takes the token on STDIN — never in an ssh command string, where it would show in ps"
-  bad "and land in root's history — and refuses to store one that cannot purge both zones."
-  bad "Or accept the consequence deliberately with --skip-purge and purge by hand afterwards."
-  exit 1
+# ⛔ THE BOX PURGES ITSELF NOW. Until 2026-08-23 every deploy ran --skip-purge because the
+# token lived only on a laptop, so the cache was emptied by hand afterwards. That worked
+# only while one person was driving: the script's warning is a line of red text in a long
+# log, and the failure it describes — visitors served the pre-deploy page for six hours —
+# looks exactly like a deploy that did not happen. Automating it removes the step that was
+# most likely to be skipped by whoever deploys next.
+#
+# ⚠️ FILE, NOT ENVIRONMENT, BY DEFAULT. An exported CF_TOKEN still wins so a one-off deploy
+# can override it, but the normal path reads a root-owned 0600 file the app containers
+# never see. Install it with infra/vn-node/install-cf-token.sh, which takes the token on
+# stdin and refuses to store one that cannot actually purge both zones.
+CF_TOKEN_FILE=/opt/eno/secrets/cf-token
+if [ -z "${CF_TOKEN:-}" ] && [ -r "$CF_TOKEN_FILE" ]; then
+  CF_TOKEN=$(tr -d '\r\n' < "$CF_TOKEN_FILE")
+  export CF_TOKEN
 fi
 
+# ⚠️ LOADED HERE, GATED LATER, AND THE SPLIT IS DELIBERATE. Reading a file is safe this early
+# and `--rollback` needs it — restore() purges, and a rollback that leaves the rejected build
+# cached for six hours is cosmetic. What must wait until after the pull is the REFUSAL: see the
+# note on the gate below.
 if [ "$ROLLBACK" = 1 ]; then restore; exit $?; fi
 
 say "1. source"
@@ -274,6 +267,27 @@ if [ "${ENO_DEPLOY_RELOADED:-}" != "1" ] && \
   exec "$NEXT" "$@"
 fi
 ok "at $(git log --oneline -1)"
+
+# ⛔ THIS GATE RUNS AFTER THE PULL, AND THAT ORDERING IS THE BUG IT WAS BORN FROM.
+# It sat in pre-flight, above `say "1. source"`, for exactly one deploy — during which the
+# box refused thirteen lines before it would have fetched the very commit that taught it to
+# read the token file. A pre-flight check that can fail for a reason a NEWER VERSION OF THIS
+# SCRIPT would fix makes itself unfixable by deploying, and the only way out is an operator
+# pulling by hand. Anything that can be repaired by an update belongs after the update.
+#
+# Nothing is at stake in waiting: the pull is a fast-forward on a clean checkout, and the
+# swap that this gate protects is still five steps away.
+if [ "$SKIP_PURGE" != 1 ] && [ -z "${CF_TOKEN:-}" ]; then
+  bad "No CF_TOKEN in the environment and no readable $CF_TOKEN_FILE, so the cache could not be"
+  bad "purged and the deploy would be invisible to visitors for up to six hours."
+  bad "Install the token once and this never comes up again:"
+  bad "  pbpaste | bash infra/vn-node/install-cf-token.sh"
+  bad "It takes the token on STDIN — never in an ssh command string, where it would show in ps"
+  bad "and land in root's history — and refuses to store one that cannot purge both zones."
+  bad "Or accept the consequence deliberately with --skip-purge and purge by hand afterwards."
+  exit 1
+fi
+
 
 say "2. schema"
 # ⛔ CLAUDE.md: MIGRATE BEFORE DEPLOYING. Prisma selects every scalar column, so a commit
