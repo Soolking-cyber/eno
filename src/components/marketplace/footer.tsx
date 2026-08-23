@@ -248,7 +248,26 @@ export function Footer() {
                 matching string literals and silently skips a template expression: interpolating
                 SITE_NAME here would compile, render, and then ship untranslated to every other
                 language. */}
-            <img src="/logo-mark.svg" alt={SITE_NAME} width={36} height={36} className="h-9 w-9" />
+            {/* ⛔ THE `?v=` IS A CONTENT STAMP, NOT DECORATION — and this is the reference copy of the
+                explanation for all four /logo-mark.svg call sites (header.tsx, footer.tsx,
+                app/signin/page.tsx, account-panel-body.tsx).
+
+                Measured on production 2026-08-23 (headless chromium, mobile emulation, 4x CPU):
+                PageSpeed's Cache insight charged 710 of this file's 1,044 bytes to wasted cache,
+                served ttl=14400 — Cloudflare's zone `browser_cache_ttl` FLOOR, applied because the
+                origin's max-age was below it. next.config.ts now serves
+                `max-age=31536000, immutable` to a request for these paths THAT CARRIES A `v` QUERY,
+                and the old four-hour treatment to one that does not, so the stamp is what buys the
+                year. Same mechanism as the icon sprite (scripts/gen-icons.mjs): the stamp rides in
+                the QUERY, never in the filename, because eno.vn edge-caches its HTML and a hashed
+                FILENAME 404s out of already-cached HTML for hours after a deploy.
+
+                ⛔ REDRAW public/logo-mark.svg AND YOU **MUST** BUMP THE STAMP IN ALL FOUR PLACES IN
+                THE SAME COMMIT — `grep -rn "logo-mark.svg?v=" src/` finds them. Nothing enforces it,
+                and the failure is silent and year-long: a Cloudflare purge cannot reach a browser
+                cache, so returning visitors keep the old mark. Recompute with
+                `shasum -a 256 public/logo-mark.svg | cut -c1-8` (d88a7892 on 2026-08-23). */}
+            <img src="/logo-mark.svg?v=d88a7892" alt={SITE_NAME} width={36} height={36} className="h-9 w-9" />
             <p className="max-w-[220px] text-xs leading-relaxed text-muted-foreground">
               {IS_SERVICES
                 ? tr("eno.forum — Vietnam's trusted marketplace for the international community.", 'eno.forum — chợ uy tín cho cộng đồng quốc tế tại Việt Nam.')

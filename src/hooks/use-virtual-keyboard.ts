@@ -167,8 +167,20 @@ export function ensureKeyboardWired() {
   // Rotation changes the keyboard-free baseline — reset it so the drop-from-max
   // detector re-learns the new orientation's full height.
   window.addEventListener('orientationchange', () => { maxVvh = 0; onViewportChange() })
-  syncVars() // initial — no keyboard animation in flight
-  recompute()
+  // ⚠️ THE INITIAL SYNC RUNS IN A rAF, NOT INLINE. `ensureKeyboardWired()` is called from a
+  // `useEffect`, i.e. inside React's commit with the tree it just mutated still dirty, and
+  // `syncVars()` reads `visualViewport.height` — which forces a recalc of the WHOLE document before
+  // the browser would have done one anyway. Measured on prod 2026-08-23 (headless chromium, mobile
+  // emulation, 4x CPU): 47.7 ms of forced style+layout, out of 314.01 ms total on that load. The same
+  // read inside a rAF costs 0.0 ms, because layout has already settled by then.
+  // ⚠️ SAFE ONLY BECAUSE THE KEYBOARD IS DEFINITIONALLY CLOSED AT MOUNT, so this initial pass has no
+  // deadline — it is establishing the resting values, not tracking an animation. Every consumer is
+  // correct for that one extra frame: `--kb-h` has a resting `0px` in globals.css (:root) and every
+  // keyboard-aware rule is gated on `html.kb-open`, which is absent until syncVars adds it; the chat
+  // shell's `--vvh`/`--vvt` reads carry `100dvh`/`0px` fallbacks for exactly this pre-hydration
+  // window. The per-frame path (onViewportChange) is untouched and still runs the moment the
+  // viewport actually moves.
+  requestAnimationFrame(() => { syncVars(); recompute() })
 }
 
 // ── NATIVE --kb-h: the plugin height MINUS WebKit's own pan ──────────────────────────

@@ -35,11 +35,25 @@ describe('windowSeconds', () => {
 })
 
 describe('rateLimit', () => {
-  it('maps the rl_check row to { success, remaining }', async () => {
+  it('maps the rl_check row to { success, remaining, limit, resetSec, windowSec }', async () => {
+    // ⚠️ THE ROWS BELOW DELIBERATELY OMIT `reset_sec`, AND THAT IS THE INTERESTING HALF.
+    // `resetSec` is published verbatim as the `reset=` field of the RFC rate-limit header, where an
+    // `undefined` renders as the literal string "undefined" rather than throwing. A row without the
+    // column — an older `rl_check`, a mid-migration database — must therefore degrade to a full
+    // window, not to undefined. `1 m` -> 60.
     queryRaw.mockResolvedValueOnce([{ success: true, remaining: 4 }])
-    await expect(rateLimit('msg:send', 'u1', 20, '1 m')).resolves.toEqual({ success: true, remaining: 4 })
+    await expect(rateLimit('msg:send', 'u1', 20, '1 m')).resolves.toEqual({
+      success: true, remaining: 4, limit: 20, resetSec: 60, windowSec: 60,
+    })
     queryRaw.mockResolvedValueOnce([{ success: false, remaining: 0 }])
-    await expect(rateLimit('msg:send', 'u1', 20, '1 m')).resolves.toEqual({ success: false, remaining: 0 })
+    await expect(rateLimit('msg:send', 'u1', 20, '1 m')).resolves.toEqual({
+      success: false, remaining: 0, limit: 20, resetSec: 60, windowSec: 60,
+    })
+    // And when the column IS present it wins, because it is the database's own view of the slot.
+    queryRaw.mockResolvedValueOnce([{ success: true, remaining: 9, reset_sec: 17 }])
+    await expect(rateLimit('msg:send', 'u1', 20, '1 m')).resolves.toEqual({
+      success: true, remaining: 9, limit: 20, resetSec: 17, windowSec: 60,
+    })
   })
 
   it('fails OPEN on backend error for lenient limits', async () => {

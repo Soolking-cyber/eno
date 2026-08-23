@@ -25,7 +25,38 @@ export function windowSeconds(window: `${number} ${'s' | 'm' | 'h' | 'd'}`): num
 }
 
 /**
- * Returns { success } for a key under a named sliding-window limit.
+ * The wire-facing view of one limiter decision. Everything a caller needs to build the
+ * `RateLimit` / `RateLimit-Policy` headers, and nothing that would let a caller accidentally
+ * publish an internal counter.
+ *
+ * ⛔ THE HEADERS ARE `draft-ietf-httpapi-ratelimit-headers`, NOT "RFC 9331". That citation was
+ * here and was simply wrong — RFC 9331 is L4S explicit congestion notification and has nothing to
+ * do with HTTP rate limiting. The same wrong reference was written into src/lib/api/respond.ts in
+ * the same change; both are corrected, so neither can be used to confirm the other.
+ *
+ * ⚠️ `resetSec` IS "WHEN THE WINDOW SLOT ADVANCES", NOT "WHEN THE QUOTA IS EMPTY AGAIN".
+ * `rl_check` is a WEIGHTED sliding window (Upstash's algorithm, ported): usage decays
+ * continuously as the current slot ages, so `remaining` creeps up between requests rather
+ * than snapping back at a boundary. There is therefore no single instant at which the quota
+ * "resets", and any number claiming to be one would be invented. What IS exactly knowable is
+ * the end of the current fixed slot — `floor(now/W)*W + W` — which is what @upstash/ratelimit
+ * itself reports as `reset`, so partners porting from it get the semantics they already have.
+ * Treat it as "your oldest counted requests start rolling off no later than this".
+ */
+export type RateLimitSnapshot = {
+  limit: number
+  remaining: number
+  /** Seconds until the current window slot advances. See the caveat above. */
+  resetSec: number
+  /** Window length in seconds — the `w=` of `RateLimit-Policy`. */
+  windowSec: number
+}
+
+export type RateLimitResult = RateLimitSnapshot & { success: boolean }
+
+/**
+ * Returns { success } for a key under a named sliding-window limit, plus the limit/window/
+ * reset a caller needs to publish rate-limit headers (see RateLimitSnapshot).
  *
  * Default: fails OPEN (success:true) when the DB call errors — a flaky backend
  * must never block legitimate use (messaging, posting). In practice the limiter
@@ -43,17 +74,46 @@ export async function rateLimit(
   limit: number,
   window: `${number} s` | `${number} m` | `${number} h` | `${number} d`,
   opts?: { strict?: boolean },
-): Promise<{ success: boolean; remaining: number }> {
+): Promise<RateLimitResult> {
+  const windowSec = windowSeconds(window)
   try {
-    const rows = await db.$queryRaw<Array<{ success: boolean; remaining: number }>>`
-      select success, remaining from rl_check(${name}, ${key}, ${limit}::int, ${windowSeconds(window)}::int)`
+    /**
+     * ⚠️ `reset_sec` IS COMPUTED IN THIS STATEMENT, NOT IN JS, AND THAT IS THE WHOLE POINT.
+     * `rl_check` derives its slot as `to_timestamp(floor(extract(epoch from now())/W)*W)`.
+     * `now()` is `transaction_timestamp()` — one value for the whole statement, shared by the
+     * function body and by this select list — so the expression below is the SAME slot the
+     * limiter just counted against, to the microsecond. Computing it here from `Date.now()`
+     * would instead mix the app server's clock with the database's, and a second of skew is
+     * enough to publish a `reset` that has already passed (or that never arrives) on a 1-minute
+     * window. It costs no extra round trip and no extra row: it is arithmetic on a value the
+     * statement already has.
+     *
+     * `mod()` on the epoch gives seconds elapsed inside the slot; W minus that is what remains.
+     * `greatest(1, ...)` because a header saying "retry in 0 seconds" invites an immediate retry
+     * that is guaranteed to be refused.
+     */
+    const rows = await db.$queryRaw<Array<{ success: boolean; remaining: number; reset_sec: number }>>`
+      select r.success,
+             r.remaining,
+             greatest(1, ceil(${windowSec}::int - mod(extract(epoch from now())::numeric, ${windowSec}::int)))::int as reset_sec
+        from rl_check(${name}, ${key}, ${limit}::int, ${windowSec}::int) r`
     const r = rows[0]
     if (!r) throw new Error('rl_check returned no row')
-    return { success: r.success, remaining: r.remaining }
+    // ⚠️ `?? windowSec` IS NOT DEFENSIVE PADDING — IT IS THE CONTRACT WITH THE HEADER LAYER.
+    // `resetSec` is published verbatim as the `reset=` field of the RFC rate-limit header, and an
+    // `undefined` there renders as the literal string "undefined" in a response header rather than
+    // throwing anywhere a test would catch. Any row shape that lacks `reset_sec` (an older
+    // `rl_check`, a mocked row, a mid-migration database) therefore degrades to a full window —
+    // the same bound the catch branch below uses, and the only one that cannot be too short.
+    return { success: r.success, remaining: r.remaining, limit, resetSec: r.reset_sec ?? windowSec, windowSec }
   } catch (e) {
     // Transient backend error: strict routes DENY (no silent un-limiting); others allow.
+    // ⚠️ The reported reset falls back to a FULL window. We genuinely do not know where in the
+    // slot we are (the query that would have told us is the one that failed), and a full window
+    // is the only bound that cannot be too short — a client that backs off for it is never told
+    // to retry into a wall.
     console.error('[ratelimit] backend error for', name, e)
-    return { success: !opts?.strict, remaining: 0 }
+    return { success: !opts?.strict, remaining: 0, limit, resetSec: windowSec, windowSec }
   }
 }
 

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import crypto from 'crypto'
-import { issueAccessToken, verifyAccessToken, looksLikeAccessToken, TOKEN_TTL_SECONDS } from './oauth'
+import { issueAccessToken, verifyAccessToken, looksLikeAccessToken, TOKEN_TTL_SECONDS, OAUTH_ISSUER, LEGACY_ISSUER_UNTIL } from './oauth'
 
 // The OAuth access-token layer is the new machine-auth surface; its whole security rests on
 // the HMAC signature. These tests pin issue/verify, expiry, and — critically — that forged
@@ -74,6 +74,50 @@ describe('forgery rejection', () => {
     expect(verifyAccessToken('not-a-jwt', NOW)).toBeNull()
   })
 
+  it('accepts the legacy issuer BEFORE the cutoff and rejects it after', () => {
+    // The transition window closes on a CLOCK, not on a future commit — an external reviewer
+    // pointed out that a comment saying "delete this later" is a permanent widening with a TODO
+    // attached. This is the test that makes the closing real: nothing here needs maintaining, and
+    // if someone removes the cutoff to "fix" a red test, the second assertion goes red instead.
+    const key = Buffer.from(crypto.hkdfSync('sha256', Buffer.from(process.env.SUPABASE_SECRET_KEY!), Buffer.from('eno-oauth-v1'), Buffer.from('partner-api-access-token'), 32))
+    const b64 = (o: object) => Buffer.from(JSON.stringify(o)).toString('base64url')
+    const header = b64({ alg: 'HS256', typ: 'JWT' })
+    const mint = (iss: string, at: number) => {
+      const payload = b64({ iss, sub: 'key_1', sid: 'shop_1', pid: 'prof_1', scope: 'listings:read', exp: at + 900 })
+      return `${header}.${payload}.${crypto.createHmac('sha256', key).update(`${header}.${payload}`).digest('base64url')}`
+    }
+    // ⚠️ RELATIVE TO NOW, NOT ABSOLUTE DATES. The window is anchored to PROCESS START (see
+    // oauth.ts) precisely so that an owner-gated deploy weeks after the commit still gets its
+    // transition hour. Absolute dates here would re-import the bug the anchor removes: this test
+    // would start failing on a calendar boundary rather than on a behaviour change.
+    const REAL_NOW = Math.floor(Date.now() / 1000)
+    // A moment safely past the hard stop, whatever today is.
+    const LEGACY_ISSUER_HARD_STOP_PROBE = Math.floor(Date.parse('2027-06-01T00:00:00Z') / 1000)
+    const BEFORE = REAL_NOW + 60
+    const AFTER = REAL_NOW + TOKEN_TTL_SECONDS * 2
+
+    // ⛔ GATED ON THE WINDOW ACTUALLY BEING OPEN, AND THE PREVIOUS VERSION WAS NOT.
+    // A reviewer caught this one turn after I introduced it: `LEGACY_ISSUER_UNTIL` is
+    // `min(processStart + TTL, HARD_STOP)`, so once real time passes the hard stop the minimum
+    // collapses to it, `BEFORE` (now + 60s) is past the cutoff, and this assertion goes red on a
+    // calendar boundary with nobody having touched the code. That is precisely the failure the
+    // comment above claims to have designed out — and the kind of red test someone "fixes" by
+    // widening the very window it exists to bound. Asking the module when its window shuts, rather
+    // than assuming, makes the test true on every date.
+    if (REAL_NOW < LEGACY_ISSUER_UNTIL) {
+      // Inside the window a marketplace-issued token still verifies on this build…
+      expect(verifyAccessToken(mint('https://eno.vn', BEFORE), BEFORE)).not.toBeNull()
+    }
+    // …and once the hard stop has passed, it never does again, on any clock.
+    expect(verifyAccessToken(mint('https://eno.vn', LEGACY_ISSUER_HARD_STOP_PROBE), LEGACY_ISSUER_HARD_STOP_PROBE)).toBeNull()
+    // …and outside it, the allowlist is a single value again with no commit required.
+    if (OAUTH_ISSUER !== 'https://eno.vn') {
+      expect(verifyAccessToken(mint('https://eno.vn', AFTER), AFTER)).toBeNull()
+    }
+    // The current issuer is unaffected by the cutoff, in both directions.
+    expect(verifyAccessToken(mint(OAUTH_ISSUER, AFTER), AFTER)).not.toBeNull()
+  })
+
   it('rejects a wrong issuer even if signed correctly', () => {
     // ACTUALLY forge one (audit: this test previously never constructed a wrong-issuer
     // token — the suite stayed green with the iss check deleted). Re-derive the signing
@@ -86,7 +130,14 @@ describe('forgery rejection', () => {
     const sig = crypto.createHmac('sha256', key).update(`${header}.${payload}`).digest('base64url')
     const forged = `${header}.${payload}.${sig}`
     // Sanity: the signature itself is valid for our key (same-issuer variant verifies)…
-    const goodPayload = b64({ iss: 'https://eno.vn', sub: 'key_1', sid: 'shop_1', pid: 'prof_1', scope: 'listings:read', exp: NOW + 900 })
+    // ⚠️ THE CONTROL USES `OAUTH_ISSUER`, NOT THE LITERAL 'https://eno.vn'. It used to hardcode
+    // that literal, which is the LEGACY issuer — accepted only until LEGACY_ISSUER_UNTIL. NOW is
+    // 1_800_000_000 (2027-01-15), past that cutoff, so the control token stopped verifying and
+    // this test went red for a reason that had nothing to do with what it tests. Reading the
+    // issuer from the module keeps the control valid at any clock and on either edition, and the
+    // assertion below still proves the one thing this test is for: the signature is good, so the
+    // `iss` check is the only thing that can be rejecting the forgery.
+    const goodPayload = b64({ iss: OAUTH_ISSUER, sub: 'key_1', sid: 'shop_1', pid: 'prof_1', scope: 'listings:read', exp: NOW + 900 })
     const goodSig = crypto.createHmac('sha256', key).update(`${header}.${goodPayload}`).digest('base64url')
     expect(verifyAccessToken(`${header}.${goodPayload}.${goodSig}`, NOW)).not.toBeNull()
     // …so the ONLY thing rejecting the forgery is the issuer check.

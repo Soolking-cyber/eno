@@ -33,6 +33,7 @@ const RECOVERY_LINK = 'font-semibold text-accent-foreground hover:underline'
 // it to every visitor, and invite a translator to localise a path that must never change.
 const SITEMAP_FILE = 'sitemap.xml'
 const LLMS_FILE = 'llms.txt'
+const OPENAPI_FILE = 'openapi.json'
 
 export default function NotFound() {
   return (
@@ -73,8 +74,12 @@ export default function NotFound() {
             the wrong place to enumerate a site map: eno.vn 404s /visa and /itinerary BY LICENSING
             DESIGN, so a "where to look next" list that named services surfaces would advertise, in
             the response that exists to say a path is absent, that those paths exist somewhere. The
-            sitemap and llms.txt links solve the discovery problem properly — each deployment
-            generates its own, so each one lists only what that deployment may serve.
+            sitemap, llms.txt and openapi.json links solve the discovery problem properly — each
+            deployment generates its own sitemap and llms.txt, so each one lists only what that
+            deployment may serve, and the API spec (checked 2026-08-23) describes listings, sellers
+            and webhooks only: no visa, itinerary or PayPal operation appears in it on either
+            edition. Re-check that before adding an operation, because this link is what would
+            carry it onto eno.vn.
 
             ⚠️ NO SERVICES VOCABULARY AS A `<Tr>` LITERAL EITHER — src/app/not-found.tsx is not on
             gen-ui-strings.mjs's services path list, so a services word here ships in the catalogue
@@ -82,9 +87,37 @@ export default function NotFound() {
           */}
           <nav aria-label="Where to go next" className="mt-6 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-sm">
             <Link href="/" className={RECOVERY_LINK}><Tr text="Search all listings" /></Link>
+            {/*
+              ⚠️ THE SECOND ENTRY POINT IS A REAL INDEX PAGE, NOT A FILTERED HOME URL. `/` IS the
+              search page on both editions (home-is-search), so a second link to `/?category=…`
+              would hand an agent a variant of the page it was already given while naming one
+              arbitrary category. `/brands` is a distinct, fully crawlable index of what the
+              deployment actually holds, and it exists on both editions — so it needs no gate.
+            */}
+            <Link href="/brands" className={RECOVERY_LINK}><Tr text="Browse by brand" /></Link>
             <Link href="/help" className={RECOVERY_LINK}><Tr text="Help centre" /></Link>
             <Link href="/contact" className={RECOVERY_LINK}><Tr text="Contact us" /></Link>
           </nav>
+          {/*
+            ⛔ THE THREE MACHINE DOCUMENTS ARE THE WHOLE POINT OF THIS PARAGRAPH, and an agent audit
+            on 2026-08-23 is why the third one is here. The 404 status code was already correct; what
+            an agent got with it was a dead end, so the audit scored agent-friendly 404s a partial on
+            BOTH zones — "for full credit, include … site map links, where to look next". These are
+            that: sitemap.xml enumerates every URL this deployment serves, llms.txt says what the
+            site is FOR, and openapi.json is the machine contract for the partner API. Between them
+            a crawler that hit a dead path can rebuild its whole picture of the site from one
+            response.
+
+            ⚠️ /openapi.json, NOT /api/v1/openapi.json — the conventional path is the one tools
+            probe, which is exactly why the audit reported "no OpenAPI specification found" while a
+            complete 3.1.0 spec was being served (see src/app/openapi.json/route.ts). Repeating the
+            deep path here would reproduce that miss on the one page written for machines.
+
+            ⚠️ ANCHORS, RENDERED SERVER-SIDE, WITH THE PATH AS THE VISIBLE TEXT. An agent parsing
+            this body must find hrefs without executing JavaScript, and it must be able to read the
+            target off the link text alone if it only kept the text. That rules out a button that
+            navigates in an onClick, and it rules out labelling these "here" or "our API".
+          */}
           <p className="mt-3 text-xs text-body">
             {/* Plain <a>, not <Link>: these are non-HTML documents served by route handlers, and
                 the client router should not try to prefetch or soft-navigate them. */}
@@ -92,6 +125,8 @@ export default function NotFound() {
             <a href="/sitemap.xml" className={RECOVERY_LINK}>{SITEMAP_FILE}</a>
             {' · '}
             <a href="/llms.txt" className={RECOVERY_LINK}>{LLMS_FILE}</a>
+            {' · '}
+            <a href="/openapi.json" className={RECOVERY_LINK}>{OPENAPI_FILE}</a>
           </p>
         </div>
       </main>

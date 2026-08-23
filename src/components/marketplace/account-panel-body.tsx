@@ -333,8 +333,12 @@ export function AccountPanel({ open, onClose }: { open: boolean; onClose: () => 
 
             Both are always mounted and cross-fade on the same 200ms as the nav labels, so the rail
             never reflows mid-transition — only opacity and max-width animate. */}
+        {/* `?v=` is a content stamp that earns this file `max-age=31536000, immutable`
+            (next.config.ts gates the year on the query being present). It is repeated at four call
+            sites and MUST be bumped at all four when the mark is redrawn — the full reasoning and
+            the recompute command live in footer.tsx. */}
         <img
-          src="/logo-mark.svg"
+          src="/logo-mark.svg?v=d88a7892"
           alt=""
           aria-hidden
           width={1024}

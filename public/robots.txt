@@ -26,6 +26,14 @@ User-agent: *
 Allow: /
 Disallow: /admin
 Disallow: /api
+# ⛔ /md/* ARE THE MARKDOWN REPRESENTATIONS OF `/`, `/privacy` AND `/terms`, AND THEY ARE REAL,
+# DIRECTLY FETCHABLE URLs — not merely internal rewrite destinations. `GET /md/home` with no Accept
+# header returns 200 text/markdown carrying the same content as the home page. Without this line
+# they are three crawlable duplicate-content URLs per edition. They deliberately do NOT carry
+# `x-robots-tag: noindex` instead: the same handler serves the NEGOTIATED response at `/`, so a
+# noindex header on it would be a noindex on the home page itself. See the comment in
+# src/app/md/markdown-response.ts.
+Disallow: /md/
 Disallow: /disputes
 Disallow: /appeal
 Disallow: /reports

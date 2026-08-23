@@ -2392,3 +2392,63 @@ html.dark .leaflet-tile-pane {
 .feed-grid > *:nth-child(-n + 12)[data-feed-card] {
   content-visibility: visible;
 }
+
+/* ────────────────────────────────────────────────────────────────────────────
+   BLUR-FREE `enter`/`exit` — the tw-animate-css keyframes, minus one line.
+
+   `@import "tw-animate-css"` (line 2) ships `@keyframes enter`/`exit` whose only non-transform,
+   non-opacity property is `filter: blur(var(--tw-enter-blur,0))`. A `filter` keyframe MAY move
+   pixels, so Chrome refuses to composite the whole animation regardless of the value — even the
+   0-blur default this repo always resolves to. Measured on production 2026-08-23 via CDP with
+   Chrome's compositing-failure bitmask: the header search form animating `animate-in fade-in`
+   reported bit 1<<12 (filterMayMovePixels) and ran on the main thread. That form was 1 of the 3
+   elements PageSpeed flagged as non-composited animations on the mobile homepage; the promo-banner
+   carousel dots were the other 2 (fixed in promo-banner.tsx).
+
+   Dropping the `filter` line is safe here because the blur is dead weight in this codebase:
+   `grep -rn "blur-in\|blur-out\|enter-blur\|exit-blur" src` returns **0 hits** (verified
+   2026-08-23), so `--tw-enter-blur`/`--tw-exit-blur` are never set away from their registered
+   `initial-value: 0`. Every one of the ~63 `animate-in`/`animate-out` call sites was already
+   rendering `blur(0)`. Nothing changes visually TODAY — only which thread runs it.
+
+   ⛔ BUT THIS PERMANENTLY DISABLES tw-animate-css's `blur-in*` / `blur-out*` UTILITIES, AND THAT
+   IS THE PART A FUTURE READER WILL NOT EXPECT. Those utilities work by setting `--tw-enter-blur` /
+   `--tw-exit-blur`, which only the library's `filter:` line ever read — and ours, which wins the
+   cascade, has no such line. So `className="animate-in blur-in"` will compile, lint clean, and do
+   NOTHING, silently. If you ever genuinely want a blur entrance: do not restore the `filter` line
+   here (it re-breaks compositing for all ~63 call sites at once). Write a separate, explicitly
+   named keyframe for that one element and accept the main-thread cost where it is actually wanted.
+
+   ⚠️ WHY `@theme` AND NOT A BARE `@keyframes` AT TOP LEVEL. Tailwind v4 HOISTS keyframes declared
+   inside `@theme` to the tail of the compiled stylesheet, after the utility layers. Compiling this
+   file through `@tailwindcss/postcss` with a bare `@keyframes enter` appended showed ours landing
+   at byte 249101 and tw-animate-css's at 255337 — i.e. the library's blurred copy came LAST and
+   won, and the fix silently did nothing. Declaring ours inside `@theme` puts it in the same hoisted
+   block, after the import's, where document order finally favours it (measured: ours at 255964 vs
+   theirs at 255242). If you ever move this out of `@theme`, re-run that compile and check the byte
+   offsets, not the source order.
+
+   ⚠️ EVERY NON-FILTER PROPERTY IS COPIED VERBATIM from node_modules/tw-animate-css/dist/tw-animate.css.
+   `fade-in*`, `zoom-in*`, `spin-in*` and all eight `slide-in-from-*` utilities work by setting the
+   `--tw-enter-*` custom properties these two rules read, so a typo in a var name or a dropped
+   `rotate()` silently breaks a family of animations across ~63 call sites. Diff against the package
+   after any tw-animate-css upgrade; the `filter` line is the ONLY intended difference.
+   ──────────────────────────────────────────────────────────────────────────── */
+@theme {
+  @keyframes enter {
+    from {
+      opacity: var(--tw-enter-opacity, 1);
+      transform: translate3d(var(--tw-enter-translate-x, 0), var(--tw-enter-translate-y, 0), 0)
+        scale3d(var(--tw-enter-scale, 1), var(--tw-enter-scale, 1), var(--tw-enter-scale, 1))
+        rotate(var(--tw-enter-rotate, 0));
+    }
+  }
+  @keyframes exit {
+    to {
+      opacity: var(--tw-exit-opacity, 1);
+      transform: translate3d(var(--tw-exit-translate-x, 0), var(--tw-exit-translate-y, 0), 0)
+        scale3d(var(--tw-exit-scale, 1), var(--tw-exit-scale, 1), var(--tw-exit-scale, 1))
+        rotate(var(--tw-exit-rotate, 0));
+    }
+  }
+}

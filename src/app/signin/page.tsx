@@ -95,7 +95,11 @@ function SignInPageInner() {
           {/* The real logo mark, not a blue text wordmark — the wordmark competed with the
               form's single blue CTA, and the mark is what the header/footer already use. */}
           <Link href="/" className="mb-8 inline-block md:hidden">
-            <img src="/logo-mark.svg" alt={SITE_NAME} width={48} height={48} className="h-12 w-12" />
+            {/* `?v=` is a content stamp that earns this file `max-age=31536000, immutable`
+                (next.config.ts gates the year on the query being present). It is repeated at four
+                call sites and MUST be bumped at all four when the mark is redrawn — the full
+                reasoning and the recompute command live in marketplace/footer.tsx. */}
+            <img src="/logo-mark.svg?v=d88a7892" alt={SITE_NAME} width={48} height={48} className="h-12 w-12" />
           </Link>
           <h2 className="text-2xl font-bold text-foreground">{tr('Welcome to eno.vn', 'Chào mừng đến eno.vn')}</h2>
           <p className="mt-1 text-sm text-muted-foreground">{tr('Sign in or create your account in seconds.', 'Đăng nhập hoặc tạo tài khoản trong vài giây.')}</p>

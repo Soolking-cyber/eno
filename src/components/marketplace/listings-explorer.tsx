@@ -1462,7 +1462,36 @@ export function ListingsExplorer({
 
   // Loading is DERIVED from the query — it was mirrored into state via an effect,
   // which lagged a render behind and added a redundant state/effect pair.
-  const isLoading = queryLoading || (queryFetching && listings.length === 0)
+  //
+  // ⛔ NOTHING TIME-DEPENDENT MAY DECIDE THIS FLAG. It picks between two structurally DIFFERENT
+  // TREES — the skeleton grid below (:2744) and renderEmptyState() (:2760) — so if the server and
+  // the client disagree about it, hydration fails outright.
+  //
+  // That is exactly what shipped, and it was firing on 100% of eno.vn home loads:
+  //   · (home)/page.tsx stamps `initialFetchedAt={Date.now()}` into HTML that ISR then serves for
+  //     up to SIX HOURS, and :354 seeds `initialDataUpdatedAt` from it.
+  //   · React Query's OPTIMISTIC result runs shouldFetchOnMount() -> isStaleByTime(30s) against
+  //     that stamp on the FIRST render, before any effect
+  //     (query-core/build/modern/queryObserver.js:248-256).
+  //   · On the server the stamp is the Date.now() of that same RSC render — age ~0, not stale,
+  //     `isFetching` false -> EmptyState. In the browser the stamp is whatever was baked into the
+  //     cached HTML — measured 7,581s old — stale, `isFetching` TRUE -> 12 skeletons.
+  //   · Precondition `listings.length === 0`: only eno.vn has an empty catalogue (the licensing
+  //     hide-list), which is why eno.forum never showed it and why this looked edition-specific.
+  // Measured 32/32 across desktop, iPhone and Android profiles. It reads as INTERMITTENT if you
+  // listen on `page.on('console')` — it is an UNCAUGHT EXCEPTION, not a console.error, so a
+  // console listener sees nothing and you conclude it is a race. It is not a race.
+  // Isolated causally on the live artifact: rewriting ONLY `initialFetchedAt` in the served HTML
+  // gave 0/4 errors with a fresh stamp against 3/3 with the baked one.
+  //
+  // ⚠️ THE FIX IS THE `!hasSeededAnswer` TERM, AND IT IS A SEMANTIC CLAIM, NOT A GUARD:
+  // a background revalidation of a question we ALREADY have an answer for is not a loading state.
+  // With `initialData` present this makes the flag agree on both sides by construction, because it
+  // no longer consults the clock at all. Routes that mount this WITHOUT a seed still get skeletons
+  // (`listingsData` is undefined there), and the `queryFetching` opacity dim further down is
+  // untouched, so the "refreshing" affordance survives.
+  const hasSeededAnswer = listingsData !== undefined
+  const isLoading = queryLoading || (queryFetching && listings.length === 0 && !hasSeededAnswer)
 
   // Count helper for subcategory items
   const getSubcategoryCount = useCallback(
@@ -2045,6 +2074,20 @@ export function ListingsExplorer({
   const renderEmptyState = () => {
     const chips = getActiveChips()
 
+    // ⚠️ INTENT-WARM, NOT VIEWPORT-PREFETCH — THIS ONE `<Link>` WAS 29% OF "REDUCE UNUSED JS".
+    // Measured on prod 2026-08-23 (headless chromium, mobile emulation, 4x CPU throttle): the
+    // zero-results CTA below lands at y=966 on an 823px viewport, i.e. INSIDE Next's viewport
+    // prefetch margin, so the App Router RSC-prefetched /post and preloaded its six route chunks
+    // for every visitor who saw an empty grid. The largest was 31,678 B transfer / 31,625 B of it
+    // unused (100%) — 30.9 KiB, 29% of the Lighthouse "Reduce unused JavaScript" total. Proven by
+    // counterfactual, not inference: viewport height 823 → 6/6 chunks fetched, height 300 → 0/6.
+    // The fix is the intent-warm pattern already used in dashboard-listing-row.tsx: kill the
+    // automatic prefetch and warm the route only once the visitor signals intent, so tapping is
+    // still instant (pointerdown fires ~100ms before the click) but a visitor who never reaches
+    // for it pays nothing. onMouseEnter covers desktop hover; onPointerDown covers touch, where
+    // there is no hover to hover with.
+    const warmPost = () => router.prefetch('/post')
+
     // ⚠️ `activeCategory === 'all'` IS NOT REDUNDANT WITH `chips.length === 0`, AND LEAVING IT
     // OUT WAS A REAL BUG (external reviewer). getActiveChips() covers the query, subcategory,
     // brand/model, district, area, price, condition, intent and the custom facets — but NOT the
@@ -2079,7 +2122,7 @@ export function ListingsExplorer({
                 {tr('Create an alert for this search', 'Tạo thông báo cho tìm kiếm này')}
               </Button>
               <Button asChild variant="outline" size="none" className="rounded-xl px-4 py-2.5 text-sm font-semibold">
-                <Link href="/post">
+                <Link href="/post" prefetch={false} onPointerDown={warmPost} onMouseEnter={warmPost}>
                   {tr('Post a Wanted — let sellers come to you', 'Đăng tin cần tìm — để người bán tìm đến bạn')}
                 </Link>
               </Button>
@@ -2155,7 +2198,7 @@ export function ListingsExplorer({
                 {tr('Create an alert for this search', 'Tạo thông báo cho tìm kiếm này')}
               </Button>
               <Button asChild variant="outline" size="none" className="rounded-xl px-4 py-2 text-xs font-semibold">
-                <Link href="/post">
+                <Link href="/post" prefetch={false} onPointerDown={warmPost} onMouseEnter={warmPost}>
                   {tr('Post a Wanted — let sellers come to you', 'Đăng tin cần tìm — để người bán tìm đến bạn')}
                 </Link>
               </Button>

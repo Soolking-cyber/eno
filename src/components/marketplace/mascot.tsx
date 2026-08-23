@@ -17,6 +17,34 @@ export const MASCOT_NAMES = [
 export type MascotName = (typeof MASCOT_NAMES)[number]
 
 /**
+ * THE SET'S CONTENT STAMP, appended to every mascot url as `?v=`.
+ *
+ * Measured on production 2026-08-23 (headless chromium, mobile emulation, 4x CPU): PageSpeed's
+ * Cache insight charged 3,510 wasted bytes to /mascots/cookie.svg and 3,052 to /mascots/search.svg,
+ * both served ttl=14400. That four hours is CLOUDFLARE's zone `browser_cache_ttl` floor, not
+ * anything this repo asked for — these paths matched no rule in next.config.ts and the origin sent
+ * them no Cache-Control at all. next.config.ts now grants `max-age=31536000, immutable` to a request
+ * under /mascots/ that carries a `v` query, so this constant is what buys the year.
+ *
+ * ⚠️ IN THE QUERY, NOT IN THE FILENAME — and for a mask the stakes are higher than for an <img>.
+ * eno.vn edge-caches its HTML, so a hashed FILENAME 404s out of already-cached HTML for hours after
+ * a deploy; a `mask-image` whose target 404s paints NOTHING, so the empty state silently loses its
+ * illustration with no broken-image icon to notice. A query keeps the path stable, so the file
+ * always answers, while a changed query is a new browser cache key.
+ *
+ * ⚠️ ONE STAMP FOR ALL NINE, NOT NINE STAMPS, BECAUSE THE NINE FILES ARE ONE DRAWING WITH NINE
+ * PROPS (see the component comment below) and are regenerated from the rig as a SET. Editing one
+ * busts all nine — ~48 KB re-fetched once, across a change that in practice touches every file
+ * anyway — and in exchange there is a single number to keep honest instead of nine.
+ *
+ * ⛔ EDIT ANY FILE IN public/mascots/ AND YOU **MUST** BUMP THIS IN THE SAME COMMIT. Nothing
+ * enforces it (mascot.test.ts guards the canvas, not the bytes), and the failure is silent and
+ * year-long: a Cloudflare purge cannot reach a browser cache. Recompute exactly as it was computed:
+ *   cat public/mascots/*.svg | shasum -a 256 | cut -c1-8
+ */
+const MASCOTS_V = '5725a4f5'
+
+/**
  * eno.vn's shield mascots (public/mascots/*.svg), rendered as a CSS mask filled with
  * `currentColor`, so they're crisp at any size and adapt to the theme automatically: dark
  * line-art in light mode, light line-art in dark mode (via `text-foreground`). No raster,
@@ -71,7 +99,7 @@ export type MascotName = (typeof MASCOT_NAMES)[number]
  * out-of-canvas TRACED path would still get through. Render it before you trust it.
  */
 export function Mascot({ name, className, white = false }: { name: MascotName; className?: string; white?: boolean }) {
-  const url = `url(/mascots/${name}.svg)`
+  const url = `url(/mascots/${name}.svg?v=${MASCOTS_V})`
   return (
     <span
       aria-hidden

@@ -291,10 +291,31 @@ export function PromoBanner() {
                 aria-current={i === selected}
                 className="pointer-events-auto flex h-6 min-w-6 items-center justify-center px-1"
               >
+                {/* ⚠️ NOT `transition-all` — the property list is deliberate and load-bearing.
+                    The active dot swaps `w-1.5` → `w-5`, so `transition-all` put `width` on the
+                    transition list, and width cannot be composited: measured on production
+                    2026-08-23 via CDP with Chrome's own compositing-failure bitmask, these dots
+                    reported `compositeFailed=8224` (bit 1<<13, unsupportedCSSProperty) with
+                    `unsupportedProperties=["width"]`. They were 2 of the 3 elements PageSpeed
+                    flagged as non-composited animations on the mobile homepage — each one a
+                    main-thread layout+paint tick every frame for 200ms on every slide change,
+                    while the carousel itself is already animating.
+
+                    Naming background-color explicitly keeps the colour fade (measured
+                    `compositeFailed=0` on the same nodes) and lets the width snap instead. A 6px→20px
+                    step on a 6px-tall dot reads as a state change, not a broken animation.
+
+                    ⛔ DO NOT "fix" this back into a compositable animation with `transform: scaleX()`.
+                    That requires every dot to occupy 20px of layout and scale the inactive ones down,
+                    which widens every dot to 20px of layout and visibly changes the control. The
+                    composited version costs more than the thing it saves.
+                    (⚠️ The row is as long as `SLIDES`, which is edition-dependent: two on eno.vn
+                    since the three generic slides were dropped 2026-08-17, see promo-slides.ts —
+                    an earlier draft of this comment said "3×" and was wrong on the marketplace.) */}
                 <span
                   aria-hidden
                   className={cn(
-                    'block h-1.5 rounded-full transition-all duration-200',
+                    'block h-1.5 rounded-full transition-[background-color,opacity] duration-200',
                     i === selected ? 'w-5 bg-white' : 'w-1.5 bg-white/50 hover:bg-white/80',
                   )}
                 />

@@ -93,8 +93,16 @@ describe('root/forum sync pairs', () => {
       // both ride the SAME server-side atomic primitives
       expect(src).toContain('rl_check')
       expect(src).toContain('kv_incrby')
-      // fail-open default / fail-closed strict — the security stance must never drift
-      expect(src).toContain('return { success: !opts?.strict, remaining: 0 }')
+      // Fail-open default / fail-closed strict — the security stance must never drift.
+      //
+      // ⚠️ THE ASSERTION IS THE STANCE, NOT THE WHOLE RETURN LITERAL. It used to demand the exact
+      // string `return { success: !opts?.strict, remaining: 0 }` in both files. That broke the day
+      // the marketplace limiter started publishing RFC rate-limit headers and its return widened to
+      // carry `limit`/`resetSec`/`windowSec`; the forum limiter has no such caller and did not.
+      // Requiring byte-identical returns would force an unused widening on the forum to keep a test
+      // green — which is the test dictating architecture. What must never diverge is who is denied
+      // when the backend is down, and that is exactly this expression.
+      expect(src).toContain('success: !opts?.strict')
     }
   })
 })

@@ -251,7 +251,16 @@ describe('POST /api/handle — the limiter (handle-claim, 6/h, strict)', () => {
     // IP-keyed limit would let one person burn the whole office NAT's budget, and would let one
     // person evade their own limit by changing address.
     await POST(post({ handle: 'alex' }, { headers: { 'cf-connecting-ip': '203.0.113.9' } }))
-    expect(h.rlCalls).toEqual([['handle-claim', 'user-1', 6, 3600]])
+    // ⚠️ arrayContaining, NOT toEqual, AND THE `not.toContain` BELOW IS THE REAL ASSERTION.
+    // `h.rlCalls` records the raw bind-parameter array of the `$queryRaw` statement, so an exact
+    // match couples this test to the SQL's TEXT, not to its meaning: adding `reset_sec` to the
+    // select list prepended two window binds and reddened this test while the limiter behaved
+    // identically. What the test is actually for is the sentence in the comment above — the bucket,
+    // the caller-derived key, the limit and the window are what reach the limiter, and the client
+    // IP does not.
+    expect(h.rlCalls).toHaveLength(1)
+    expect(h.rlCalls[0]).toEqual(expect.arrayContaining(['handle-claim', 'user-1', 6, 3600]))
+    expect(h.rlCalls[0]).not.toContain('203.0.113.9')
   })
 
   it('runs BEFORE the handler: an over-limit caller gets 429, not the handler\'s 400', async () => {

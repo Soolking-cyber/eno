@@ -1,7 +1,7 @@
 import 'server-only'
 import crypto from 'crypto'
 import { db } from '@/lib/db'
-import { rateLimit } from '@/lib/ratelimit'
+import { rateLimit, type RateLimitSnapshot } from '@/lib/ratelimit'
 import { verifyAccessToken, looksLikeAccessToken } from '@/lib/api/oauth'
 import { logError } from '@/lib/log'
 
@@ -28,8 +28,16 @@ export function generateApiKey(env: 'live' | 'test' = 'live'): { secret: string;
 
 export type ApiAuth = { keyId: string; sellerId: string; profileId: string; scopes: Set<string> }
 export type ApiAuthResult =
-  | { ok: true; auth: ApiAuth; rate: { limit: number; remaining: number } }
-  | { ok: false; status: number; code: string; message: string }
+  | { ok: true; auth: ApiAuth; rate: RateLimitSnapshot }
+  /**
+   * ⚠️ `rate` IS OPTIONAL ON THE FAILURE SIDE BECAUSE MOST FAILURES HAPPEN BEFORE THE LIMITER.
+   * A missing/malformed key is rejected without ever counting against a bucket, so there is no
+   * honest budget to report — and inventing one (`limit=600, remaining=600`) would advertise a
+   * quota to an unauthenticated caller. The 429 branches DO carry it: that is the one response
+   * a self-throttling client most needs the numbers and `Retry-After` on, and until 2026-08-23
+   * it was the only /api/v1 response that shipped none of them.
+   */
+  | { ok: false; status: number; code: string; message: string; rate?: RateLimitSnapshot }
 
 /**
  * Resolve + authorize a partner request. Reads the `Authorization: Bearer <key>` header,
@@ -51,8 +59,8 @@ export async function resolveApiKey(req: Request, requiredScope?: string): Promi
       return { ok: false, status: 403, code: 'insufficient_scope', message: `This token is missing the "${requiredScope}" scope.` }
     }
     const rl = await rateLimit('apiv1', tok.keyId, API_RATE_PER_MIN, '1 m')
-    if (!rl.success) return { ok: false, status: 429, code: 'rate_limited', message: 'Rate limit exceeded. Slow down or back off.' }
-    return { ok: true, auth: { keyId: tok.keyId, sellerId: tok.sellerId, profileId: tok.profileId, scopes: tok.scopes }, rate: { limit: API_RATE_PER_MIN, remaining: rl.remaining } }
+    if (!rl.success) return { ok: false, status: 429, code: 'rate_limited', message: 'Rate limit exceeded. Slow down or back off.', rate: rl }
+    return { ok: true, auth: { keyId: tok.keyId, sellerId: tok.sellerId, profileId: tok.profileId, scopes: tok.scopes }, rate: rl }
   }
 
   if (!raw || !API_KEY_RE.test(raw)) {
@@ -81,10 +89,13 @@ export async function resolveApiKey(req: Request, requiredScope?: string): Promi
   // during an outage is what turns a blip into an incident.
   const rl = await rateLimit('apiv1', key.id, API_RATE_PER_MIN, '1 m', { strict: true })
   if (!rl.success) {
-    return { ok: false, status: 429, code: 'rate_limited', message: 'Rate limit exceeded. Slow down or back off.' }
+    return { ok: false, status: 429, code: 'rate_limited', message: 'Rate limit exceeded. Slow down or back off.', rate: rl }
   }
   void db.apiKey.update({ where: { id: key.id }, data: { lastUsedAt: new Date() } }).catch((e) => logError(e, { op: 'apiKey.touchLastUsed' }))
-  return { ok: true, auth: { keyId: key.id, sellerId: key.sellerId, profileId: key.profileId, scopes }, rate: { limit: API_RATE_PER_MIN, remaining: rl.remaining } }
+  // ⚠️ `rate: rl` — the limiter's own snapshot, not a re-derived `{ limit, remaining }` pair. The
+  // reset it carries was measured by the same SQL statement that did the check (see
+  // src/lib/ratelimit.ts), and rebuilding the object here is how that field silently gets lost.
+  return { ok: true, auth: { keyId: key.id, sellerId: key.sellerId, profileId: key.profileId, scopes }, rate: rl }
 }
 
 // Confirm a listing belongs to the key's shop — the v1 write/mutate guard (RLS is

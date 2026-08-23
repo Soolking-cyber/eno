@@ -1,7 +1,8 @@
 import 'server-only'
 import { NextResponse } from 'next/server'
 import crypto from 'crypto'
-import { kv } from '@/lib/ratelimit'
+import { kv, type RateLimitSnapshot } from '@/lib/ratelimit'
+import { rateLimitHeaders } from '@/lib/api/respond'
 import { logError } from '@/lib/log'
 
 // Idempotency for /api/v1 mutating endpoints. A client sends `Idempotency-Key: <id>` on a
@@ -13,11 +14,16 @@ const TTL_SECONDS = 86_400
 
 type Outcome = { status: number; body: unknown }
 
-function headers(rate: { limit: number; remaining: number }, replayed = false): Record<string, string> {
+// ⚠️ THE HEADER SET COMES FROM `respond.ts`, NOT A SECOND COPY. This function is the only other
+// place a /api/v1 response is constructed (the idempotent POST paths bypass apiOk entirely), and
+// it is exactly how the two drifted apart before: the RFC `RateLimit`/`RateLimit-Policy` headers
+// added on 2026-08-23 would have landed on every v1 route EXCEPT `POST /listings` and
+// `POST /listings/bulk` — the two a partner retries most, and therefore the two whose client most
+// needs to know its budget.
+function headers(rate: RateLimitSnapshot, replayed = false): Record<string, string> {
   const h: Record<string, string> = {
     'X-Request-Id': crypto.randomUUID(),
-    'X-RateLimit-Limit': String(rate.limit),
-    'X-RateLimit-Remaining': String(rate.remaining),
+    ...rateLimitHeaders(rate),
   }
   if (replayed) h['Idempotency-Replayed'] = 'true'
   return h
@@ -26,7 +32,7 @@ function headers(rate: { limit: number; remaining: number }, replayed = false): 
 export async function withIdempotency(
   req: Request,
   keyId: string,
-  rate: { limit: number; remaining: number },
+  rate: RateLimitSnapshot,
   run: () => Promise<Outcome>,
 ): Promise<NextResponse> {
   const idem = (req.headers.get('idempotency-key') || '').trim().slice(0, 200)

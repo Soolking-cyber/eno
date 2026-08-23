@@ -122,6 +122,28 @@ export type PromoSlide = {
    * the 732px mobile image — a wrong-size LCP that no gate would catch, on the home page. Making
    * the pair atomic makes that state unrepresentable instead of merely undocumented.
    */
+  /**
+   * ⛔ EVERY ARTWORK URL CARRIES A CONTENT STAMP `?v=<first 8 hex of sha256>`, AND IT IS LOAD-BEARING.
+   *
+   * Measured on production 2026-08-23 (headless chromium, mobile emulation, 4x CPU): PageSpeed's
+   * Cache insight charged 15,111 wasted bytes to /banners/gmbr-mobile.avif and 12,518 to
+   * /banners/vietkite-mobile.avif, both served ttl=14400 — Cloudflare's zone `browser_cache_ttl`
+   * floor, applied because the origin's max-age was below it. next.config.ts now hands
+   * `max-age=31536000, immutable` to any request under /banners/ THAT CARRIES A `v` QUERY, and the
+   * pre-existing four-hour treatment to any that does not. So the stamp here is what buys the year.
+   *
+   * ⚠️ THE STAMP IS IN THE QUERY, NEVER IN THE FILENAME — same rule as the icon sprite
+   * (scripts/gen-icons.mjs). eno.vn edge-caches its HTML, so a hashed FILENAME 404s out of
+   * already-cached HTML for hours after a deploy; a query is not part of the path, so the file
+   * always answers, while a CHANGED query is a new browser cache key.
+   *
+   * ⛔ REPLACE A BANNER FILE AND YOU **MUST** BUMP ITS STAMP IN THE SAME COMMIT. Nothing enforces
+   * this yet — there is no generator behind these four names the way gen-icons.mjs stands behind
+   * the sprite — and the failure is silent and long-lived: returning visitors keep the OLD artwork
+   * for up to a year, and a Cloudflare purge cannot reach a browser cache. Recompute with
+   *   shasum -a 256 public/banners/<file> | cut -c1-8
+   * The eight values below were computed that way on 2026-08-23.
+   */
   art?: { mobile: string; desktop: string; avif?: { mobile: string; desktop: string }; alt: string; altVi: string; partner: string | null }
 }
 
@@ -153,10 +175,10 @@ export const PROMO_SLIDES: PromoSlide[] = [
     image: '/banners/promo-1.svg',
     surface: 'bg-brand-deep',
     art: {
-      mobile: '/banners/vietkite-mobile.webp',
-      desktop: '/banners/vietkite-desktop.webp',
+      mobile: '/banners/vietkite-mobile.webp?v=6679580e',
+      desktop: '/banners/vietkite-desktop.webp?v=270411f1',
       // Measured 2026-08-14: 32,324 -> 18,018 B mobile, 70,222 -> 31,913 B desktop (q50).
-      avif: { mobile: '/banners/vietkite-mobile.avif', desktop: '/banners/vietkite-desktop.avif' },
+      avif: { mobile: '/banners/vietkite-mobile.avif?v=28a7d8f6', desktop: '/banners/vietkite-desktop.avif?v=3e67ff12' },
       // The advertiser, rendered on the panel as the "Quảng cáo · VietKite" disclosure chip and
       // spoken FIRST in the link's accessible name. Not a duplicate of the alt string: alt is the
       // artwork's message, this is the attribution, and the two are separated so the disclosure
@@ -197,10 +219,10 @@ export const PROMO_SLIDES: PromoSlide[] = [
       // Upscaling adds no real detail, so a genuine 732x376 export from the partner is still
       // better — swap the file, no code change. The DESKTOP art is native 1280x300, same as
       // VietKite; a 2x desktop would triple the weight of the home page's LCP image.
-      mobile: '/banners/gmbr-mobile.webp',
-      desktop: '/banners/gmbr-desktop.webp',
+      mobile: '/banners/gmbr-mobile.webp?v=70cd0f2c',
+      desktop: '/banners/gmbr-desktop.webp?v=f239dc93',
       // 44,388 -> 20,618 B mobile, 87,504 -> 38,323 B desktop (q50).
-      avif: { mobile: '/banners/gmbr-mobile.avif', desktop: '/banners/gmbr-desktop.avif' },
+      avif: { mobile: '/banners/gmbr-mobile.avif?v=e7d1ba23', desktop: '/banners/gmbr-desktop.avif?v=e481584c' },
       partner: 'GMBR',
       // Alt carries the WHOLE message — it replaces baked-in text, and it is all a screen reader
       // gets. The badges in the artwork ("600+ airlines", "10+ years") are the partner's claims,

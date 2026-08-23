@@ -85,6 +85,126 @@ type AuthCtx = {
   markOnboarded: (type: string) => void
 }
 
+/**
+ * ⛔ THE ANONYMOUS-VISITOR GATE — DO NOT NARROW IT WITHOUT RE-READING @supabase/ssr's SOURCE.
+ *
+ * ⚠️ WHAT WAS MEASURED (production, 2026-08-23, headless chromium · mobile emulation · 4x CPU
+ * throttle). The Supabase browser chunk was fetched on EVERY visit, anonymous ones included, at
+ * t=0.85–1.12s: **66,265 B transferred, 54,766 B (83%) of it counted as unused** by PSI's "Reduce
+ * unused JavaScript" audit — **51% of that entire 105 KiB audit**, the single largest item in it.
+ * For a visitor with no session that whole download buys exactly one fact we can read from
+ * `document.cookie` for free: there is no session.
+ *
+ * ⛔ THIS IS THE AUTHENTICATION BOUNDARY, so the gate is deliberately WIDER than "is there an
+ * auth-token cookie". A false negative signs a real user out; a false positive costs 66 KB. The
+ * rule is therefore: **boot unless we can prove both that there is nothing to find AND that this
+ * document cannot mint a session behind our back.** Every clause below is one of those proofs, and
+ * each was checked against the INSTALLED @supabase/ssr 0.12.4 and @supabase/supabase-js, not
+ * recalled:
+ *
+ * 1. `sb-` COOKIE PREFIX, NOT `sb-<ref>-auth-token`. supabase-js derives the storage key as
+ *    `` `sb-${baseUrl.hostname.split('.')[0]}-auth-token` `` (dist/index.cjs, the `defaultStorageKey`
+ *    line), and `createStorageFromOptions(..., false)` in @supabase/ssr routes EVERY key auth-js
+ *    writes — not just the session — through `document.cookie`. So a browser mid-sign-in holds
+ *    `…-auth-token-code-verifier`, `…-auth-token-flows-code-verifier` and
+ *    `…-auth-token-flow-<id>-code-verifier` (auth-js lib/helpers.js:303/305/340) and NO session
+ *    cookie at all. A regex anchored on `-auth-token=` misses every one of those, which is exactly
+ *    the PKCE-mid-flight false negative that would strand `/auth/escape`. Matching the `sb-` prefix
+ *    at a cookie-name boundary covers the session cookie, its `.0`/`.1` chunks (chunker.js writes
+ *    `` `${key}.${i}` ``), every verifier shape, a changed project ref, and the legacy
+ *    auth-helpers `sb-access-token` / `sb-refresh-token` names.
+ * 2. THE COOKIE IS READABLE FROM JS. `DEFAULT_COOKIE_OPTIONS` in @supabase/ssr is
+ *    `{ path: '/', sameSite: 'lax', httpOnly: false, maxAge: 400d }` (dist/main/utils/constants.js),
+ *    and this repo passes NO `cookieOptions` from either client (src/lib/supabase/browser.ts,
+ *    src/lib/supabase/server.ts) and has no middleware that rewrites them — so both the client-set
+ *    and the server-set session cookie are `httpOnly:false` on `path=/`, visible on every route.
+ * 3. NO SESSION LIVES ANYWHERE BUT COOKIES. `userStorage` is only wired up when the caller passes
+ *    `cookies.encode === 'tokens-only'` (createBrowserClient.js); we pass no options, so
+ *    localStorage holds no session for us to miss.
+ * 4. AUTH MATERIAL IN THE URL. Implicit-flow fragments and PKCE/`token_hash` query params mean a
+ *    session is about to exist even though the jar is still empty.
+ * 5. NATIVE. The Capacitor WebView and the iOS `EnoNativeTabs` WKWebViews load https://eno.vn with
+ *    a normal cookie jar, so (1) already covers them — but the bridge, the session mirror into
+ *    native Preferences and the `enoAuth` post below all hang off `onAuthStateChange`, so native
+ *    never takes the cheap path. `window.Capacitor` is guaranteed present here: layout.tsx's
+ *    document-start inline script already reads it.
+ * 6. AUTH ROUTES. `/signin` and `/auth/**` mount sign-in UI that creates the client THEMSELVES
+ *    (sign-in-form.tsx:225, handoff-waiting.tsx:42) and then rely on THIS provider's
+ *    `onAuthStateChange` to close the modal / redirect. `/auth/escape` is the one that cannot be
+ *    left to the interaction backstop: it finishes a handoff from a POLL, with zero interaction
+ *    possible in that document.
+ *    ⚠️ CLAUSE 6 ONLY FIRES ON A FULL DOCUMENT LOAD, and that limit is structural, not a bug to
+ *    patch here. This gate is read ONCE, from a `[]`-dep effect on a provider that lives in the
+ *    root layout and never remounts, so a CLIENT-SIDE arrival at /signin — e.g. a guest deep-links
+ *    to /dashboard/listings and its `!user` guard does `router.replace('/signin?next=…')` — never
+ *    re-tests the pathname. The interaction backstop below is what covers it: reaching a sign-in
+ *    form and not touching it is not a state anyone is in. Re-testing on every navigation would
+ *    mean subscribing the root layout to `usePathname()`, re-rendering the whole tree on each
+ *    route change — a real cost, paid on every visitor, to buy back a case the backstop already
+ *    holds.
+ *
+ * ⚠️ AND THE INTERACTION TRIGGERS STAY ARMED EVEN WHEN THIS RETURNS FALSE — that is the backstop
+ * that makes the gate safe to be wrong about. Nobody signs in without a pointerdown, keydown or
+ * touchstart in the document, so any auth surface this list forgets still wakes the client the
+ * moment it is touched. What the gate removes is only the *unconditional idle boot*, which is
+ * precisely what the lab measurement above is charging us for.
+ *
+ * Exported for `auth-context.test.tsx`, which pins both directions shape by shape.
+ */
+export type AuthBootProbe = {
+  cookie: string
+  hash: string
+  search: string
+  pathname: string
+  userAgent: string
+  capacitorNative: boolean
+}
+
+/** A cookie NAME starting with `sb-`. The `(?:^|;\s*)` anchor is what keeps it a NAME match: a
+ *  value cannot contain an unencoded `;`, so no cookie's value can fake the boundary. */
+const SUPABASE_COOKIE_RE = /(?:^|;\s*)sb-/
+/** `/signin`, `/auth`, and anything beneath them — never a look-alike like `/signin-help`. */
+const AUTH_ROUTE_RE = /^\/(?:signin|auth)(?:\/|$)/
+/** Implicit-flow fragment params. `hash` carries its leading `#`, hence the `[#&?]` class. */
+const AUTH_HASH_RE = /(?:^|[#&?])(?:access_token|refresh_token|provider_token|error|error_description)=/
+
+export function shouldBootAuth(p: AuthBootProbe): boolean {
+  if (p.capacitorNative) return true
+  if (/EnoNativeApp|EnoNativeTabs/.test(p.userAgent)) return true
+  if (SUPABASE_COOKIE_RE.test(p.cookie)) return true
+  if (AUTH_ROUTE_RE.test(p.pathname)) return true
+  if (AUTH_HASH_RE.test(p.hash)) return true
+  try {
+    const q = new URLSearchParams(p.search)
+    // `code` is the PKCE param auth-js reads; `token_hash` is the magic-link/OTP one. Neither is
+    // used anywhere else in this app (grep 2026-08-23: only /auth/callback and /auth/google/callback
+    // read `code`, both server routes), so there is no listing/discount `?code=` to collide with.
+    if (q.has('code') || q.has('token_hash')) return true
+  } catch { return true }
+  return false
+}
+
+/**
+ * Read the six signals off the live document. ⚠️ FAILS OPEN IN EVERY DIRECTION: a sandboxed or
+ * partitioned context can throw on `document.cookie` or on the Capacitor global, and "we could not
+ * look" must mean "boot", never "assume logged out".
+ */
+function probeAuthBoot(): AuthBootProbe {
+  let capacitorNative = false
+  try {
+    capacitorNative = !!(window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } })
+      .Capacitor?.isNativePlatform?.()
+  } catch { capacitorNative = true }
+  return {
+    cookie: document.cookie,
+    hash: window.location.hash,
+    search: window.location.search,
+    pathname: window.location.pathname,
+    userAgent: navigator.userAgent || '',
+    capacitorNative,
+  }
+}
+
 const AuthContext = createContext<AuthCtx | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -137,6 +257,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const identityLoaded = identityIsCurrent(identity, user?.id)
   const sellerId = ownStorefrontId(identity, user?.id)
   const accountType = ownAccountType(identity, user?.id)
+  /**
+   * The boot effect's `init`, published so anything that OPENS a sign-in surface can wake the
+   * Supabase client on the spot. Needed because `shouldBootAuth` may have declined the idle boot:
+   * without this, a modal opened by `eno:require-signin` (visual-search.ts fires it off a 401,
+   * which need not follow a gesture in this document) would have no `onAuthStateChange` listener,
+   * so a successful OTP would leave the dialog open and the user looking signed-out. Null before
+   * mount and after unmount; `init` is idempotent, so extra calls are free.
+   */
+  const bootAuth = useRef<(() => void) | null>(null)
   const router = useRouter()
   const pathname = usePathname()
 
@@ -145,11 +274,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     let started = false
     let unsub: (() => void) | undefined
     const events: (keyof WindowEventMap)[] = ['pointerdown', 'keydown', 'touchstart', 'scroll']
+
+    // ⚠️ THE ONE PATH THE INTERACTION BACKSTOP DOES NOT COVER: A SIGN-IN IN ANOTHER TAB.
+    // An idle anonymous tab now skips Supabase entirely, so it holds no `onAuthStateChange`
+    // subscription and cannot hear that the user just signed in somewhere else — it would sit
+    // visibly signed out until something happened to touch it. A reviewer caught this; the four
+    // events above genuinely do not fire in a tab nobody returns to.
+    //
+    // Re-becoming VISIBLE is the moment that matters, because that is when a stale signed-out
+    // header is actually looked at. It costs nothing on a cold load: the tab is already visible, so
+    // this never fires during the first paint that the whole gate exists to protect — only on a
+    // switch back, by which time the idle boot has long since happened anyway for anyone who stayed.
+    const onVisible = () => { if (document.visibilityState === 'visible') init() }
     let idleId: number | undefined
     let timerId: ReturnType<typeof setTimeout> | undefined
 
     const cleanupTriggers = () => {
       events.forEach((e) => window.removeEventListener(e, init))
+      document.removeEventListener('visibilitychange', onVisible)
       const cic = (window as unknown as { cancelIdleCallback?: (id: number) => void }).cancelIdleCallback
       if (idleId != null && cic) cic(idleId)
       if (timerId) clearTimeout(timerId)
@@ -216,19 +358,48 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }).catch(fail)
     }
 
+    /**
+     * ⚠️ ARMED UNCONDITIONALLY, INCLUDING FOR THE VISITOR THE GATE BELOW SKIPS. These four events
+     * are what makes the gate safe to be wrong about: every path that mints a session — the modal,
+     * /signin, OAuth, the password route — needs at least one of them in this document first, so a
+     * surface the gate does not know about still gets a client the instant it is touched.
+     */
     events.forEach((e) => window.addEventListener(e, init, { once: true, passive: true }))
-    const ric = (window as unknown as { requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number }).requestIdleCallback
-    if (ric) idleId = ric(() => init(), { timeout: 2000 })
-    else timerId = setTimeout(init, 1500)
+    // NOT `{ once: true }`: the first visibilitychange in a tab's life is usually the user leaving
+    // (state 'hidden'), which onVisible correctly ignores — consuming the listener there would
+    // spend it on the one transition that must not act.
+    document.addEventListener('visibilitychange', onVisible)
+    /** So `openSignIn()` and `eno:require-signin` can wake the client explicitly rather than
+     *  trusting that the gesture which produced them happened in THIS document. */
+    bootAuth.current = init
 
-    return () => { cancelled = true; cleanupTriggers(); unsub?.() }
+    /**
+     * ⛔ THE IDLE BOOT IS NOW CONDITIONAL — see shouldBootAuth above for the six signals and the
+     * 66,265 B / 83%-unused measurement that motivates it. An anonymous visitor resolves straight
+     * to the logged-out default, which is not a guess: it is the same answer `getSession()` would
+     * have returned a second later, since a session can only live in a cookie this code just read.
+     */
+    // ⚠️ ONE MORE FAIL-OPEN WRAPPER over probeAuthBoot's own: a throw anywhere in the probe must
+    // land on "boot", because the alternative is silently telling a signed-in visitor they are not.
+    let boot = true
+    try { boot = shouldBootAuth(probeAuthBoot()) } catch { boot = true }
+    if (boot) {
+      const ric = (window as unknown as { requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number }).requestIdleCallback
+      if (ric) idleId = ric(() => init(), { timeout: 2000 })
+      else timerId = setTimeout(init, 1500)
+    } else {
+      setUser(null)
+      setLoading(false)
+    }
+
+    return () => { cancelled = true; bootAuth.current = null; cleanupTriggers(); unsub?.() }
   }, [])
 
   // Any feature can request the sign-in modal by dispatching `eno:require-signin`
   // (e.g. a guest hitting a login-only AI endpoint) — keeps gating DRY without
   // threading openSignIn through every caller.
   useEffect(() => {
-    const onReq = () => setSignInOpen(true)
+    const onReq = () => { bootAuth.current?.(); setSignInOpen(true) }
     window.addEventListener('eno:require-signin', onReq)
     return () => window.removeEventListener('eno:require-signin', onReq)
   }, [])
@@ -442,7 +613,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localWrites.current += 1
     setIdentity((prev) => stampAccountType(prev, user.id, type))
   }, [user])
-  const openSignIn = useCallback((ctx?: SignInContext | null) => { setSignInCtx(ctx ?? null); setSignInOpen(true) }, [])
+  // ⚠️ BOOTS THE CLIENT AS IT OPENS. The dialog's own `getSupabase()` creates the singleton, but
+  // only THIS provider holds the onAuthStateChange listener that closes the modal and redirects
+  // after a verifyOtp (sign-in-form.tsx says so in both OTP handlers) — so the listener has to
+  // exist before the code is typed, not after.
+  const openSignIn = useCallback((ctx?: SignInContext | null) => { bootAuth.current?.(); setSignInCtx(ctx ?? null); setSignInOpen(true) }, [])
   // Memoized: opening/closing the sign-in dialog is signInOpen state on THIS
   // provider — without useMemo every useAuth consumer re-rendered on each toggle.
   const value = useMemo(() => ({ user, loading, accountType, sellerId, identityLoaded, signOut, openSignIn, markOnboarded }), [user, loading, accountType, sellerId, identityLoaded, signOut, openSignIn, markOnboarded])

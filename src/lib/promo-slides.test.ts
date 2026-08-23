@@ -1,4 +1,5 @@
-import { existsSync } from 'node:fs'
+import { createHash } from 'node:crypto'
+import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { PROMO_SLIDES } from './promo-slides'
@@ -23,6 +24,25 @@ import { PROMO_SLIDES } from './promo-slides'
  */
 describe('promo slides — partner attribution', () => {
   const withArt = PROMO_SLIDES.filter((s) => s.art)
+
+  /**
+   * Every artwork url is `/banners/<file>?v=<stamp>`; the file on disk is the path WITHOUT the
+   * query. Split here rather than at each call site so a missing split is one failure, not four.
+   */
+  const filePath = (href: string) => join('public', href.split('?')[0])
+  const stampOf = (href: string) => href.split('?v=')[1] ?? ''
+  const contentHash = (href: string) =>
+    createHash('sha256').update(readFileSync(filePath(href))).digest('hex').slice(0, 8)
+  /** mobile + desktop + the optional avif pair, i.e. every url a <picture> can actually request. */
+  const artHrefs = (slide: (typeof PROMO_SLIDES)[number]): [string, string][] => {
+    const a = slide.art
+    if (!a) return []
+    return [
+      ['mobile', a.mobile],
+      ['desktop', a.desktop],
+      ...(a.avif ? ([['avif mobile', a.avif.mobile], ['avif desktop', a.avif.desktop]] as [string, string][]) : []),
+    ]
+  }
 
   it('every slide carrying baked artwork names a non-empty partner', () => {
     for (const slide of withArt) {
@@ -95,9 +115,43 @@ describe('promo slides — partner attribution', () => {
       for (const [cut, href] of [['mobile', mobile], ['desktop', desktop]] as const) {
         expect(href, `${slide.key}: the ${cut} cut is missing from the slide`).toBeTruthy()
         expect(
-          existsSync(join('public', href)),
+          existsSync(filePath(href)),
           `${slide.key}: the ${cut} cut "${href}" does not exist in public/ — the banner is the home page's LCP element, so this 404s above the fold`,
         ).toBe(true)
+      }
+    }
+  })
+
+  /**
+   * ⛔ THE CONTENT STAMP MUST MATCH THE BYTES ON DISK, AND THIS IS THE ONLY THING THAT CHECKS IT.
+   *
+   * Added 2026-08-23 with the stamps themselves. next.config.ts serves every /banners/ request that
+   * carries a `v` query `max-age=31536000, immutable` — a full year in the visitor's own browser,
+   * which a Cloudflare purge cannot reach. That is safe ONLY while the stamp changes whenever the
+   * file does. Swap artwork in place and forget the stamp and there is no error, no 404 and no red
+   * gate anywhere else: returning visitors simply keep the old banner for up to a year, and the
+   * only way anyone finds out is a screenshot from someone who has visited before.
+   *
+   * Deliberately checks EVERY url a <picture> can request, avif pair included — the avif is what an
+   * up-to-date phone actually downloads, so a stale stamp there is the case that matters most, and
+   * it is the one the existence test above does not look at.
+   *
+   * The stamp is the first 8 hex of the file's sha256, i.e. `shasum -a 256 <file> | cut -c1-8`,
+   * which is the command promo-slides.ts and scripts/banner-optimize.mjs both name. Keep all three
+   * in agreement; the failure message prints the value to paste.
+   */
+  it('every artwork url carries a content stamp that matches the file', () => {
+    for (const slide of withArt) {
+      for (const [cut, href] of artHrefs(slide)) {
+        const stamp = stampOf(href)
+        expect(
+          stamp,
+          `${slide.key}: the ${cut} url "${href}" has no ?v= content stamp — next.config.ts only grants the one-year immutable cache to a stamped url, so this one silently falls back to 4 hours`,
+        ).toMatch(/^[0-9a-f]{8}$/)
+        expect(
+          stamp,
+          `${slide.key}: the ${cut} url "${href}" is stamped ?v=${stamp} but the file hashes to ${contentHash(href)} — bump it, or every browser that has already seen this banner keeps the OLD artwork for a year`,
+        ).toBe(contentHash(href))
       }
     }
   })

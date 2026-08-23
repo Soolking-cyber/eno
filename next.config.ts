@@ -176,6 +176,109 @@ const SUPABASE_ORIGIN = (() => {
 const SUPABASE_WS = SUPABASE_ORIGIN.replace(/^https:/, 'wss:')
 const SUPABASE_HOST = SUPABASE_ORIGIN.replace(/^https?:\/\//, '')
 
+/**
+ * ── ACCEPT: text/markdown — CONTENT NEGOTIATION FOR AGENTS (acceptmarkdown.com) ─────────────────
+ *
+ * WHAT IT BUYS: an agent asking for `/` gets ~4KB of markdown instead of a React shell it has to
+ * strip tags out of. Measured by the acceptmarkdown scanner before this existed: "Accept:
+ * text/markdown returned text/html; charset=utf-8; Vary header missing Accept" — an ESSENTIAL
+ * FAILURE on both zones, and the single biggest remaining item on each (~8.9 points).
+ *
+ * ⛔ THE ONE THING THAT MUST NOT HAPPEN IS A BROWSER BEING SERVED MARKDOWN, so read how this
+ * matches before touching it. Next compiles `has.value` as `new RegExp('^' + value + '$')` in
+ * node_modules/next/dist/shared/lib/router/utils/prepare-destination.js — ANCHORED, and with NO `i`
+ * flag. Two consequences that are easy to get wrong:
+ *
+ *   1. Case-insensitivity has to be spelled out as character classes. `(?i)` is not JavaScript, and
+ *      the ES2025 inline-modifier syntax is not something to bet a home page on.
+ *   2. The pattern must cover the whole header value, hence the leading and trailing `.*`.
+ *
+ * Chrome sends `text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,` +
+ * `*\/*;q=0.8`, and curl and almost every generic client send `*\/*`. Neither contains a markdown
+ * media type, so neither matches — the matcher keys on the token "markdown" being present, not on
+ * html being absent, which is what makes `*\/*` safe.
+ *
+ * ⚠️ `q=0` IS A REFUSAL, NOT A REQUEST. `text/html, text/markdown;q=0` explicitly says "not
+ * markdown", so the negative lookahead declines it. The `(?![0-9.])` tail is the part that took two
+ * attempts: without it, `0` matched the leading zero of `q=0.9` and a client that ASKED for
+ * markdown at q=0.9 was refused it. `q=0.00` is still a refusal; `q=0.000001` is not.
+ *
+ * Verified against Next's own matcher — MATCH: `text/markdown`, `text/markdown, text/html;q=0.9`,
+ * `TEXT/MARKDOWN`, `text/markdown; charset=utf-8`, `text/x-markdown`, `text/html;q=0.8,
+ * text/markdown;q=0.9`. NO MATCH: the Chrome string above, `*\/*`, `text/html`, the Safari string,
+ * `text/markdown;q=0`, an absent header.
+ */
+const ACCEPT_MARKDOWN_VALUE = [
+  // Anything may precede the token — Accept is a comma-separated list and markdown is rarely
+  // first — but whatever precedes it MUST end at a comma, because a media range begins only at the
+  // start of the header or after one.
+  //
+  // ⛔ A BARE `.*` HERE MATCHED ANY SUBSTRING, and codex caught it: `Accept: application/nottext/markdown`
+  // is not a request for markdown, and it was served markdown. Harmless in practice, wrong as a
+  // parser, and the kind of looseness that stops being harmless the moment someone reuses this
+  // pattern for something that is not a cache bypass.
+  "(?:.*,\\s*)?",
+  // `text/markdown` (RFC 7763), `text/x-markdown` (pre-RFC, still emitted by older tools), and
+  // `application/markdown` (non-standard but in the wild). Spelled per-character because the
+  // matcher is case-sensitive; media types are case-insensitive by RFC 9110.
+  "(?:[Tt][Ee][Xx][Tt]/(?:[Xx]-)?|[Aa][Pp][Pp][Ll][Ii][Cc][Aa][Tt][Ii][Oo][Nn]/)",
+  "[Mm][Aa][Rr][Kk][Dd][Oo][Ww][Nn]",
+  // ⛔ AND THE TOKEN MUST END HERE. Without this, `Accept: text/markdown-preview` and
+  // `text/markdownextra` matched and were served markdown — they are not requests for any media
+  // type we serve. codex caught the leading edge of this first (a bare `.*` matched
+  // `application/nottext/markdown`); this is the same defect on the other side of the token.
+  // A media type ends at a parameter (`;`), at the next range (`,`), at whitespace, or at the end
+  // of the header — nothing else may follow.
+  "(?=$|[;,\\s])",
+  // ...but not if this media range is refused with q=0. `[^,]*` scans the range's OWN parameters
+  // and stops at the comma that starts the next range, so it catches a q=0 that other params are
+  // sitting in front of.
+  //
+  // ⛔ THE FIRST VERSION ONLY LOOKED IMMEDIATELY AFTER THE TOKEN, and codex caught it:
+  // `Accept: text/markdown; charset=utf-8; q=0, text/html` is an explicit REFUSAL of markdown, and
+  // it was served markdown anyway because the lookahead saw `; charset` where it demanded `; q`.
+  // ⚠️ `[^,]*` is deliberately not `.*` — with `.*` a q=0 on a LATER range (`text/markdown,
+  // text/html;q=0`) would be read as refusing markdown, which is the opposite error.
+  // ⚠️ `q=0.9` is NOT a refusal: `0(?:\.0*)?` then `(?![0-9.])` rejects `0.9` on both backtracks.
+  // Only `0`, `0.`, `0.0`, `0.00`… qualify, which is what RFC 9110 §12.4.2 means by q=0.
+  // Backtracking still lets an acceptable markdown token elsewhere in the header win.
+  "(?![^,]*;\\s*[Qq]\\s*=\\s*0(?:\\.0*)?(?![0-9.]))",
+  ".*",
+].join("");
+
+/**
+ * The `has` clause, duplicated across the three negotiated paths.
+ *
+ * ⚠️ IT IS A FUNCTION, NOT A SHARED OBJECT LITERAL. Next mutates nothing here today, but three
+ * rewrite entries holding the same object reference is the kind of aliasing that turns one future
+ * `.push()` into three, and the manifest is generated from these objects.
+ */
+const acceptsMarkdown = () => [
+  { type: "header" as const, key: "accept", value: ACCEPT_MARKDOWN_VALUE },
+];
+
+/**
+ * THE PUBLIC-ASSET PATHS THAT ARE ALLOWED TO EARN A ONE-YEAR CACHE, shared verbatim by the two
+ * header rules that split on whether the request carries a content stamp. One constant, because the
+ * two lanes MUST match the same set — a path in only one of them either loses its long edge TTL or
+ * silently gets no Cache-Control at all, and both failures are invisible in a green build.
+ *
+ * ⚠️ THE NESTED-PATH FORM IS PROVEN LIVE, not assumed: `/banners/vietkite-mobile.avif` already
+ * receives this rule's headers in production, so `banners/.*` inside a single `:path(...)` group
+ * really does match across a slash.
+ */
+// ⛔ `logo\.svg` IS DELIBERATELY ABSENT, AND IT WAS IN THE FIRST DRAFT OF THIS CONSTANT.
+// Every path here earns a 30-day s-maxage (and, once stamped, a 1-year immutable browser TTL), and
+// that is only safe because a content stamp in the URL makes a changed file a changed cache key.
+// `/logo.svg` has NO stamp and cannot cheaply get one: its only reference is
+// `src/app/globals.css` `.skeleton-photo::before`, plain CSS with no build-time hash hook (contrast
+// `scripts/gen-icons.mjs`, which emits `?v=<hash>` into a generated TS file). Listing it here would
+// have taken it from "no origin Cache-Control at all" to a 30-day edge TTL on an asset nobody can
+// bust — a redraw invisible for a month. It stays in the short lane until it earns a stamp; that is
+// ~1.5 KiB of the ~36 KiB this rule recovers, and the cheap half is not worth the trap.
+const STAMPABLE_STATIC =
+  "/:path(banners/.*|mascots/.*|logo-mark\\.svg|logo-dotvn\\.svg|watermark\\.svg|vietkite-logo\\.png)";
+
 const nextConfig: NextConfig = {
   pageExtensions: PAGE_EXTENSIONS,
   /**
@@ -630,32 +733,89 @@ const nextConfig: NextConfig = {
     ];
   },
   async rewrites() {
-    return [
-      {
-        source: "/.well-known/apple-app-site-association",
-        destination: "/api/well-known/aasa",
-      },
+    return {
       /**
-       * ⛔ META AND GOOGLE JUDGE A FEED URL BY ITS FILE EXTENSION, NOT BY WHAT IT SERVES.
-       * Commerce Manager rejects `https://eno.vn/api/feeds/facebook-catalog` with "URL does not
-       * link to supported file… links to a CSV, TSV or XML (RSS/ATOM) file" even though that URL
-       * already answers 200 with `content-type: text/csv` AND
-       * `content-disposition: attachment; filename=facebook_catalog.csv`. Verified against
-       * production before adding these — the headers were never the problem, the path suffix was.
+       * ⛔ THE MARKDOWN NEGOTIATION MUST BE `beforeFiles` AND NOTHING ELSE WILL WORK.
        *
-       * ⚠️ REWRITES, NOT REDIRECTS. A scheduled fetcher following a 30x can drop the Basic-auth
-       * header on the hop, which turns a working feed into a silent 401 that only shows up as an
-       * empty catalogue days later. A rewrite is served in place, so the credentials the platform
-       * sends are the credentials the route checks.
+       * Next's routing order is headers -> redirects -> middleware -> beforeFiles -> FILESYSTEM
+       * ROUTES -> afterFiles -> dynamic routes -> fallback. A flat array (what this function
+       * returned until now) is `afterFiles`, i.e. checked only once the filesystem has failed to
+       * match. `/`, `/privacy` and `/terms` are all real pages, so they match at the filesystem step
+       * and an afterFiles entry for them would never once fire — silently, with no build error and
+       * no log line. The existing feed and well-known rewrites stay in `afterFiles` because their
+       * sources are NOT pages, which is also why they worked as a flat array.
        *
-       * ⚠️ EDITION-NEUTRAL ON PURPOSE. Both deployments expose both paths, and each serves its OWN
-       * scoped feed — eno.vn's stays retail-only, eno.forum's includes its services (see
-       * feedCategories/feedListingTypes in src/lib/product-feed.ts). The safety lives in the query,
-       * not in which URL exists, so there is nothing to gate here.
+       * ⚠️ MIDDLEWARE IS UNAFFECTED, WHICH IS THE OTHER HALF OF WHY THIS SHAPE IS SAFE. src/proxy.ts
+       * has matcher `/api/:path*` and is evaluated against the INCOMING path, which here is `/` or
+       * `/privacy`. It never sees `/md/*`, so there is no EDGE_SECRET 403 risk on the negotiated
+       * request even though the destination looks like an internal path.
+       *
+       * ⚠️ DEPLOY NOTE — CLOUDFLARE CAN STILL DEFEAT THIS AT THE EDGE, IN BOTH DIRECTIONS. There is
+       * a Cache Rule on `/` and the legal pages, and CF's cache key does not include Accept (it
+       * honours `Vary` for Accept-Encoding and essentially nothing else). So: a cached HTML `/` will
+       * be served to an `Accept: text/markdown` request (negotiation silently does nothing), and —
+       * far worse — if that rule overrides origin cache-control with an Edge TTL, the markdown
+       * response's `no-store` is ignored and MARKDOWN GETS CACHED UNDER THE KEY `/` AND SERVED TO
+       * BROWSERS. Before this ships, the rule needs a bypass on
+       * `http.request.headers["accept"][0] contains "markdown"` on BOTH zones (eno.vn 55e558b6…,
+       * eno.forum cc81e3ff…), or it must respect origin cache-control. Verify by curling through
+       * Cloudflare with and without the header, not against the origin.
        */
-      { source: "/feeds/facebook-catalog.csv", destination: "/api/feeds/facebook-catalog" },
-      { source: "/feeds/google-shopping.xml", destination: "/api/feeds/google-shopping" },
-    ];
+      beforeFiles: [
+        { source: "/", has: acceptsMarkdown(), destination: "/md/home" },
+        { source: "/privacy", has: acceptsMarkdown(), destination: "/md/privacy" },
+        { source: "/terms", has: acceptsMarkdown(), destination: "/md/terms" },
+      ],
+      afterFiles: [
+        {
+          source: "/.well-known/apple-app-site-association",
+          destination: "/api/well-known/aasa",
+        },
+        /**
+         * ── RFC 8414 / RFC 9728 OAuth discovery ────────────────────────────────────────────────
+         * The two documents live under `src/app/api/well-known/*` for the same reason the AASA one
+         * does: the app router ignores dot-folders, so nothing can be routed from a literal
+         * `.well-known` directory and `public/.well-known` cannot run code.
+         *
+         * ⚠️ THE `:path*` VARIANTS ARE NOT BELT-AND-BRACES — THEY ARE THE SPEC. RFC 9728 §3.1 (and
+         * RFC 8414 §3.1) define a path-INSERTED discovery URL when the resource identifier has a
+         * path component: a client whose resource is `https://eno.vn/api/v1` fetches
+         * `/.well-known/oauth-protected-resource/api/v1`. Both handlers deliberately ignore the
+         * suffix and answer the same document — there is exactly one protected resource here, and
+         * answering a client that guessed a different shape beats 404ing it.
+         *
+         * The bare entries are redundant (a `:path*` also matches zero segments) and are kept
+         * anyway: the bare form is the one the scanner fetches, and an explicit line is cheaper to
+         * read than an argument about wildcard arity. The four sources are disjoint, so order does
+         * not matter.
+         */
+        { source: "/.well-known/oauth-authorization-server", destination: "/api/well-known/oauth-authorization-server" },
+        { source: "/.well-known/oauth-authorization-server/:path*", destination: "/api/well-known/oauth-authorization-server" },
+        { source: "/.well-known/oauth-protected-resource", destination: "/api/well-known/oauth-protected-resource" },
+        { source: "/.well-known/oauth-protected-resource/:path*", destination: "/api/well-known/oauth-protected-resource" },
+        /**
+         * ⛔ META AND GOOGLE JUDGE A FEED URL BY ITS FILE EXTENSION, NOT BY WHAT IT SERVES.
+         * Commerce Manager rejects `https://eno.vn/api/feeds/facebook-catalog` with "URL does not
+         * link to supported file… links to a CSV, TSV or XML (RSS/ATOM) file" even though that URL
+         * already answers 200 with `content-type: text/csv` AND
+         * `content-disposition: attachment; filename=facebook_catalog.csv`. Verified against
+         * production before adding these — the headers were never the problem, the path suffix was.
+         *
+         * ⚠️ REWRITES, NOT REDIRECTS. A scheduled fetcher following a 30x can drop the Basic-auth
+         * header on the hop, which turns a working feed into a silent 401 that only shows up as an
+         * empty catalogue days later. A rewrite is served in place, so the credentials the platform
+         * sends are the credentials the route checks.
+         *
+         * ⚠️ EDITION-NEUTRAL ON PURPOSE. Both deployments expose both paths, and each serves its OWN
+         * scoped feed — eno.vn's stays retail-only, eno.forum's includes its services (see
+         * feedCategories/feedListingTypes in src/lib/product-feed.ts). The safety lives in the query,
+         * not in which URL exists, so there is nothing to gate here.
+         */
+        { source: "/feeds/facebook-catalog.csv", destination: "/api/feeds/facebook-catalog" },
+        { source: "/feeds/google-shopping.xml", destination: "/api/feeds/google-shopping" },
+      ],
+      fallback: [],
+    };
   },
   // Baseline security headers on every response. CSP is ENFORCING and was TIGHTENED
   // 2026-07-10: Supabase pinned to the exact project host (not *.supabase.co — connect-src
@@ -748,37 +908,137 @@ const nextConfig: NextConfig = {
           // same day).
         ],
       },
+      /**
+       * ── `Vary: Accept` IS DELIBERATELY *NOT* SET ON `/`, `/privacy` AND `/terms` ──────────────
+       *
+       * These three URLs DO negotiate on Accept (see the ACCEPT_MARKDOWN block and
+       * `rewrites().beforeFiles`), so `Vary: Accept` on their HTML is the textbook-correct HTTP.
+       * It is still wrong HERE, and the reason is measured, not theoretical.
+       *
+       * ⛔ THE COMMENT THIS REPLACED SAID "Cloudflare ignores Vary except for Accept-Encoding, so
+       * this costs nothing there today". THAT IS FALSE ON THIS ZONE. Read from the Cloudflare API
+       * on 2026-08-23, the live cache rule "cache public HTML at edge (home + legal)" — which
+       * matches exactly `/`, `/privacy` and `/terms` on both eno.vn and eno.forum — carries:
+       *     "vary": { "default": { "action": "normalize" } }
+       * Vary handling is explicitly ON. Adding `Accept` would have fragmented the edge cache of the
+       * homepage across every distinct Accept string browsers send, which is a cache-hit-rate
+       * regression on the one page that is edge-cached at all.
+       *
+       * ⚠️ AND REMOVING THE HEADER IS NOT ENOUGH BY ITSELF. Without it, a request carrying
+       * `Accept: text/markdown` still matches that cache rule and would be served the CACHED HTML
+       * from the edge — the rewrite below would never run and negotiation would be silently dead in
+       * production while working perfectly in local preview. The rule expression is therefore
+       * amended to exclude markdown requests outright:
+       *     and not any(http.request.headers["accept"][*] contains "markdown")
+       * so they miss the HTML cache, reach the origin, and get the markdown representation.
+       * ⚠️ THE SUBSTRING IS `markdown`, NOT `text/markdown`, AND THAT IS DELIBERATE — the matcher
+       * above also accepts `text/x-markdown` and `application/markdown`, and a narrower clause left
+       * those two matching the cache rule, i.e. negotiation silently dead for them. Verified live on
+       * both zones 2026-08-23: all three media types now answer `cf-cache-status: DYNAMIC` while a
+       * real Chrome Accept string still answers `HIT`.
+       * ⛔ IT CANNOT BE MADE CASE-INSENSITIVE. `lower()` is rejected on a header ARRAY
+       * ("cannot perform this operation on type Array"), so an uppercase `Accept: TEXT/MARKDOWN`
+       * still matches the cache rule. That is fail-SOFT — such a client may be served cached HTML —
+       * and the dangerous direction (markdown cached under `/`) is held by the `no-store` on the
+       * markdown response itself, not by this clause. The
+       * markdown responses themselves DO set `Vary: Accept` (src/app/md/markdown-response.ts),
+       * which is where the acceptmarkdown scanner reads it.
+       *
+       * ⚠️ IF THIS EVER NEEDS TO BE SITEWIDE-CORRECT INSTEAD: Cloudflare supports a per-header vary
+       * override, and it IS available on this Free plan — verified 2026-08-23 by POSTing a
+       * disabled probe rule with
+       *     vary: { default: {action:"normalize"},
+       *             headers: { accept: {action:"normalize", media_types:["text/markdown"]} } }
+       * to zone 55e558b6…, which returned success:true (the probe was deleted immediately).
+       * ⛔ Do not reach for it without first testing what bucket a request with `Accept: * / *`
+       * lands in — curl and most generic HTTP clients send it, and if it normalizes INTO the
+       * markdown bucket then a cached HTML response poisons every markdown request. The exclusion
+       * above has no such failure mode, which is why it is the one in use.
+       */
       {
         /**
-         * ⛔ THE UNSTAMPED STATIC ASSETS — MEASURED `cf-cache-status: REVALIDATED` ON EVERY REQUEST.
+         * ── STAMPED PUBLIC ASSETS — ONE YEAR, IMMUTABLE, GATED ON `?v=` ────────────────────────
          *
-         * Checked on production 2026-08-14: `/banners/vietkite-mobile.webp` (32 KB),
+         * ⛔ MEASURED ON PRODUCTION 2026-08-23 (headless chromium, mobile emulation, 4x CPU
+         * throttling). PageSpeed's Cache insight charged 36.38 KiB of same-origin waste
+         * (wastedBytes = (1 - cacheHitProbability) x encodedDataLength) to six files that all
+         * served ttl=14400: /banners/gmbr-mobile.avif 15111 B of 22222, /banners/vietkite-mobile.avif
+         * 12518 of 18409, /mascots/cookie.svg 3510 of 5162, /mascots/search.svg 3052 of 4488,
+         * /logo.svg 1482 of 2180, /logo-mark.svg 710 of 1044. Note that the mascots and /logo.svg
+         * matched NO rule in this file at all and the origin sent them no Cache-Control whatsoever —
+         * and they still came back at exactly four hours.
+         *
+         * ⚠️ THOSE FOUR HOURS ARE CLOUDFLARE'S ZONE `browser_cache_ttl = 14400`, AND IT IS A FLOOR,
+         * NOT A CEILING. It raises any CF-cached response whose origin max-age is below 14400 (or
+         * absent) to exactly 14400; a LONGER origin max-age passes through untouched, proven live by
+         * `/icons/glyphs-core.svg?v=…` arriving at the browser as `max-age=31536000, immutable`. So
+         * a long origin max-age WINS and this is fixable here, in the repo.
+         * ⛔ DO NOT "FIX" IT BY FLIPPING THE ZONE TO **Respect Existing Headers**. /logo.svg and
+         * /mascots/*.svg match no rule and send nothing, so respecting their (absent) headers takes
+         * them from four hours to TTL 0 and makes the audit strictly worse.
+         *
+         * ⚠️ A YEAR IS ONLY SAFE WITH A CONTENT STAMP IN THE URL, which is why this rule keys off the
+         * `v` query being PRESENT rather than off the path alone. The call sites now emit
+         * `/banners/vietkite-mobile.avif?v=28a7d8f6` (src/lib/promo-slides.ts),
+         * `url(/mascots/wave.svg?v=…)` (src/components/marketplace/mascot.tsx) and
+         * `/logo-mark.svg?v=d88a7892` (header/footer/signin/account-panel-body).
+         *
+         * ⚠️ THE STAMP RIDES IN THE QUERY, NEVER IN THE FILENAME — the same rule scripts/gen-icons.mjs
+         * follows, for the same reason. eno.vn edge-caches its HTML (`s-maxage=21600`), so a hashed
+         * FILENAME 404s out of already-cached HTML for hours after a deploy; for a mascot, whose
+         * artwork is a CSS `mask-image`, a 404 paints nothing at all and the empty state loses its
+         * illustration silently. A query is not part of the path, so the file always answers, while a
+         * CHANGED query is a different browser cache key — both holes closed at once.
+         *
+         * ⛔ AND THIS IS A has/missing PAIR RATHER THAN A WIDENED PATH BECAUSE NOT EVERY FILE UNDER
+         * THESE PATHS IS STAMPED YET. /logo.svg is painted by globals.css (`.skeleton-photo::before`),
+         * plain CSS with no build-time hash hook, so it is deliberately unstamped for now;
+         * /logo-dotvn.svg, /watermark.svg and /vietkite-logo.png are unstamped too. Granting an
+         * UNSTAMPED url a year would pin its bytes in every browser that ever fetched it with no way
+         * to bust them — a Cloudflare purge cannot reach a browser cache. Gating on `?v=` hands the
+         * year to exactly the urls that CAN be invalidated, and anything stamped later inherits it
+         * with no edit here.
+         */
+        source: STAMPABLE_STATIC,
+        has: [{ type: "query", key: "v" }],
+        headers: [
+          { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
+        ],
+      },
+      {
+        /**
+         * ── THE SAME PATHS, UNSTAMPED ─────────────────────────────────────────────────────────
+         * The pre-2026-08-23 treatment, unchanged, and still the right answer for a url with no
+         * content stamp to bust it.
+         *
+         * ⛔ MEASURED ON PRODUCTION 2026-08-14: `/banners/vietkite-mobile.webp` (32 KB),
          * `/banners/vietkite-desktop.webp` (70 KB), `/logo-mark.svg`, `/watermark.svg` and
-         * `/vietkite-logo.png` (80 KB) all served `max-age=14400` and every one came back
-         * REVALIDATED — the edge held a copy and asked the origin about it anyway, ~47 ms each, on
-         * files that had not changed in weeks. The banner is the home page's LCP element, so that
-         * round-trip sits directly in front of first paint.
+         * `/vietkite-logo.png` all served `max-age=14400`, and every one came back
+         * `cf-cache-status: REVALIDATED` — the edge held a copy and asked the origin about it
+         * anyway, ~47 ms each, on files that had not changed in weeks. The banner is the home page's
+         * LCP element, so that round-trip sat directly in front of first paint.
          *
          * ⚠️ THE LONG TTL IS `s-maxage` (THE EDGE), NOT `max-age` (THE BROWSER) — AND THE SPLIT IS
          * THE WHOLE POINT. The measured problem was an EDGE-to-ORIGIN round-trip, so the edge is
          * what needs the 30 days; the browser does not, and giving it 30 days would be a liability.
-         * These URLs carry no content stamp (the icon sprite below earns `immutable` because its
-         * href carries `?v=<hash>`; these paths do not). Replace `vietkite-logo.png` in place and a
-         * month-long browser cache pins the old bytes on every device that ever saw it, with no way
-         * to bust it short of renaming the file — a Cloudflare purge cannot reach into a browser.
+         * Replace `vietkite-logo.png` in place and a month-long browser cache pins the old bytes on
+         * every device that ever saw it, with no way to bust it short of renaming the file.
          * `s-maxage` is shared-cache-only, so browsers ignore it and honour the 1 hour instead.
          *
-         * ⛔ AND `stale-while-revalidate` DOES NOT SHORTEN A LONG `max-age` — I had this backwards
-         * in the first cut of this rule and an external reviewer caught it. SWR extends freshness
-         * PAST expiry (RFC 5861); it does not cause revalidation during it. So `max-age=2592000,
+         * ⛔ AND `stale-while-revalidate` DOES NOT SHORTEN A LONG `max-age` — I had this backwards in
+         * the first cut of this rule and an external reviewer caught it. SWR extends freshness PAST
+         * expiry (RFC 5861); it does not cause revalidation during it. So `max-age=2592000,
          * stale-while-revalidate=86400` does not "converge within a day" — it means no browser
-         * revalidates for a month, then serves stale for a day more. The short `max-age` here is
-         * what does the converging; SWR only keeps the 1-hour boundary off the critical path.
+         * revalidates for a month, then serves stale for a day more. The short `max-age` here is what
+         * does the converging; SWR only keeps the 1-hour boundary off the critical path.
          *
-         * ⚠️ If one of these ever gains a content stamp in its URL, move it to the immutable rule
-         * below rather than widening this one.
+         * ⚠️ THE 3600 IS BELOW CLOUDFLARE'S 14400 FLOOR, so a real browser holds these for four
+         * hours, not one. Recorded so nobody re-measures that as a bug: the fix for a file that
+         * matters is to STAMP ITS URL so it falls into the rule above, not to raise this number —
+         * raising it re-creates exactly the un-bustable browser cache the paragraph above rejects.
          */
-        source: "/:path(banners/.*|logo-mark\\.svg|logo-dotvn\\.svg|watermark\\.svg|vietkite-logo\\.png)",
+        source: STAMPABLE_STATIC,
+        missing: [{ type: "query", key: "v" }],
         headers: [
           { key: "Cache-Control", value: "public, max-age=3600, s-maxage=2592000, stale-while-revalidate=86400" },
         ],

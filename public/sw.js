@@ -8,8 +8,12 @@ self.addEventListener('push', (event) => {
   const title = data.title || 'eno.vn'
   const options = {
     body: data.body || '',
-    icon: '/logo-mark.svg',
-    badge: '/logo-mark.svg', // the MONOCHROME status-bar glyph — NOT the app-icon count (that's setAppBadge below)
+    // ⚠️ STAMPED, LIKE THE FOUR IN-APP CALL SITES. /logo-mark.svg is served
+    // `max-age=31536000, immutable`, so an unstamped request here would pin the OLD mark in the
+    // notification for a year. `src/lib/asset-stamps.test.ts` fails if this literal drifts from
+    // the file's hash — that guard is the only reason four hand-maintained copies are tolerable.
+    icon: '/logo-mark.svg?v=d88a7892',
+    badge: '/logo-mark.svg?v=d88a7892', // the MONOCHROME status-bar glyph — NOT the app-icon count (that's setAppBadge below)
     tag: data.tag || 'eno-reminder', // collapses repeats into one
     data: { url: data.url || '/dashboard' },
     requireInteraction: false,

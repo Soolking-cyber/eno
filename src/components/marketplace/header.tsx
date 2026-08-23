@@ -93,9 +93,24 @@ export function Header() {
         requestAnimationFrame(sync)
       }
     }
-    sync()
+    // ⚠️ THE INITIAL SYNC RUNS IN A rAF, NOT INLINE — AND IT IS NOT OPTIONAL.
+    // `sync()` reads `window.scrollY` and `banner.offsetHeight`; calling it here means calling it
+    // inside React's commit, with the tree React just mutated still dirty, which forces a full
+    // style+layout recalc. Measured on prod 2026-08-23 (headless chromium, mobile emulation, 4x CPU):
+    // this site plus the two `useHideOnScroll` mounts and the virtual-keyboard initial sync were
+    // 202.18 ms of the 314.01 ms total forced style+layout; deferring all four drops a 177 ms long
+    // task to ~38 ms so it stops being a long task at all. Deferring only the OTHERS does not help —
+    // the ~47 ms simply RELOCATES into this line, because whichever read hits the dirty tree first
+    // pays for the whole recalc. That is why all four had to move together.
+    // Safe because the pre-paint inline script in layout.tsx already adds `page-at-top` when
+    // `!window.scrollY`, so the class is right from first paint on every top-of-page load; this pass
+    // only corrects a load restored mid-scroll, one frame later, before anything can be perceived.
+    const initialRaf = requestAnimationFrame(sync)
     window.addEventListener('scroll', onScroll, { passive: true })
-    return () => window.removeEventListener('scroll', onScroll)
+    return () => {
+      cancelAnimationFrame(initialRaf)
+      window.removeEventListener('scroll', onScroll)
+    }
   }, [])
 
   // Explorer pages (home + category) mount the ListingsExplorer, which listens for
@@ -367,7 +382,7 @@ export function Header() {
               2026-08-02: "make logo mark as tall as the searchbar next to it"), so the two line up
               as one row instead of the mark floating small beside it. Square, so it costs 16px of
               width — the search form is `min-w-0 flex-1` and absorbs it. */}
-          <img src="/logo-mark.svg" alt={SITE_NAME} width={1024} height={1024} className="h-12 w-12" />
+          <img src="/logo-mark.svg?v=d88a7892" alt={SITE_NAME} width={1024} height={1024} className="h-12 w-12" />
           {/* ⚠️ NO TEXT WORDMARK BESIDE THE MARK — removed 2026-08-02 at the owner's request, one
               hour after being added. It was added on the theory that Google's "app name does not
               match" needed the name as PAINTED text somewhere above the fold (an <img alt> is never

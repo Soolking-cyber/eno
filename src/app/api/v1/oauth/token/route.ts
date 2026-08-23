@@ -3,7 +3,8 @@ import crypto from 'crypto'
 import { db } from '@/lib/db'
 import { hashApiKey, API_KEY_RE } from '@/lib/api/auth'
 import { issueAccessToken, TOKEN_TTL_SECONDS } from '@/lib/api/oauth'
-import { rateLimit } from '@/lib/ratelimit'
+import { rateLimit, type RateLimitSnapshot } from '@/lib/ratelimit'
+import { rateLimitHeaders, tightestRate } from '@/lib/api/respond'
 import { clientIp } from '@/lib/client-ip'
 import { logError } from '@/lib/log'
 
@@ -17,8 +18,20 @@ export const dynamic = 'force-dynamic'
 // returned JWT works anywhere the raw key does (resolveApiKey accepts both), incl. /api/mcp.
 
 // RFC 6749 §5.2 error envelope. `no-store` is mandated for token responses.
-function oauthError(status: number, error: string, description: string): NextResponse {
-  return NextResponse.json({ error, error_description: description }, { status, headers: { 'Cache-Control': 'no-store', Pragma: 'no-cache' } })
+//
+// ⚠️ `rate` IS OPTIONAL AND ARRIVES ONLY AFTER THE LIMITER HAS RUN. The grant_type and
+// client_secret-shape rejections above happen before either bucket is touched, so they have no
+// budget to report — an unauthenticated caller learning the exact throttle on the credential
+// endpoint is a gift to a brute-forcer, and a made-up `remaining` would be worse than silence.
+function oauthError(status: number, error: string, description: string, rate?: RateLimitSnapshot): NextResponse {
+  const headers: Record<string, string> = { 'Cache-Control': 'no-store', Pragma: 'no-cache' }
+  if (rate) {
+    Object.assign(headers, rateLimitHeaders(rate))
+    // Only on the 429: on a 401 `invalid_client` the client's problem is its credentials, and
+    // telling it when to retry the same wrong secret is telling it to keep guessing.
+    if (status === 429) headers['Retry-After'] = String(rate.resetSec)
+  }
+  return NextResponse.json({ error, error_description: description }, { status, headers })
 }
 
 // Read client_id/client_secret from HTTP Basic first (preferred), else the parsed body.
@@ -62,7 +75,14 @@ export async function POST(req: NextRequest) {
     rateLimit('oauth-token', clientIp(req), 30, '1 m'),
     rateLimit('oauth-token-client', clientId || clientSecret.slice(0, 16), 60, '1 m'),
   ])
-  if (!byIp.success || !byClient.success) return oauthError(429, 'invalid_request', 'Too many token requests. Slow down.')
+  // ⚠️ THE HEADERS DESCRIBE THIS ENDPOINT'S OWN POLICY, NOT THE 600/min PARTNER-API BUDGET.
+  // Token minting is throttled far harder than the API it hands out tokens for (30/min per IP,
+  // 60/min per client), because it is the credential-guessing surface. A client that reads
+  // `RateLimit` here and infers its /api/v1 budget from it would under-use its quota by 20x,
+  // which is why `RateLimit-Policy` is emitted alongside — the window and limit are stated
+  // outright rather than left to be inferred from a running `remaining`.
+  const tokenRate = tightestRate(byIp, byClient)
+  if (!byIp.success || !byClient.success) return oauthError(429, 'invalid_request', 'Too many token requests. Slow down.', tokenRate)
 
   let key: { id: string; sellerId: string; profileId: string; scopes: string; prefix: string; revokedAt: Date | null } | null = null
   try {
@@ -99,6 +119,6 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json(
     { access_token: token, token_type: 'Bearer', expires_in: TOKEN_TTL_SECONDS, scope: granted.join(' ') },
-    { headers: { 'Cache-Control': 'no-store', Pragma: 'no-cache' } },
+    { headers: { 'Cache-Control': 'no-store', Pragma: 'no-cache', ...rateLimitHeaders(tokenRate) } },
   )
 }

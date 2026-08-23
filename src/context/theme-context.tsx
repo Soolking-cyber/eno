@@ -50,10 +50,44 @@ function releaseThemeFreeze(root: HTMLElement): void {
 const systemPrefersDark = () =>
   typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches
 
+/** The user's choice → the scheme actually in effect. Pure: no DOM writes, no reflow.
+ *  Deliberately byte-identical in behaviour to the no-FOUC inline script in layout.tsx
+ *  (`localStorage['eno-theme']` + `prefers-color-scheme`), because the mount path below
+ *  compares the two and only touches the DOM when they disagree. */
+function resolveTheme(theme: Theme): 'light' | 'dark' {
+  return theme === 'dark' || (theme === 'system' && systemPrefersDark()) ? 'dark' : 'light'
+}
+
+/**
+ * ⛔ HOISTED OUT OF `apply()` ON PURPOSE — DO NOT FOLD IT BACK IN.
+ *
+ * Native shell mirror (Phase 2 M1): persist the RESOLVED scheme into native Preferences so the
+ * instant local shell can paint the same theme on the next cold launch (the shell is a different
+ * origin — it can't read our localStorage). `capacitor/www/index.html` reads exactly this key and
+ * sets `document.documentElement.className = 't-' + value` over its OS guess; verified 2026-08-23.
+ *
+ * It lives on its own because the MOUNT path below no longer calls `apply()` in the common case
+ * (see the effect: the inline script has already set the class, so re-applying it is pure forced
+ * reflow). If this write stayed inside `apply()`, guarding that call would silently stop the mirror
+ * from ever being written on a launch where the user never toggles the theme — and the native app's
+ * cold-launch cover would desync from the app it covers, with nothing failing loudly.
+ *
+ * Fire-and-forget; the dynamic import keeps the plugin out of the web bundle.
+ */
+function mirrorResolvedThemeToNative(dark: boolean): void {
+  try {
+    if ((window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor?.isNativePlatform?.()) {
+      void import('@capacitor/preferences')
+        .then(({ Preferences }) => Preferences.set({ key: 'eno-resolved-theme', value: dark ? 'dark' : 'light' }))
+        .catch(() => {})
+    }
+  } catch { /* web / plugin absent */ }
+}
+
 // Apply the resolved scheme to <html> — mirrors the no-FOUC inline script in
 // layout so the class set pre-hydration stays consistent.
 function apply(theme: Theme): 'light' | 'dark' {
-  const dark = theme === 'dark' || (theme === 'system' && systemPrefersDark())
+  const dark = resolveTheme(theme) === 'dark'
   const root = document.documentElement
   /**
    * ⛔ FREEZE TRANSITIONS ACROSS THE FLIP, OR THE THEME CHANGE TEARS.
@@ -82,17 +116,7 @@ function apply(theme: Theme): 'light' | 'dark' {
   void root.offsetHeight // force the suppression to land BEFORE the colours change
   root.classList.toggle('dark', dark)
   releaseThemeFreeze(root)
-  // Native shell mirror (Phase 2 M1): persist the RESOLVED scheme into native
-  // Preferences so the instant local shell can paint the same theme on the next
-  // cold launch (the shell is a different origin — it can't read our localStorage).
-  // Fire-and-forget; the dynamic import keeps the plugin out of the web bundle.
-  try {
-    if ((window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor?.isNativePlatform?.()) {
-      void import('@capacitor/preferences')
-        .then(({ Preferences }) => Preferences.set({ key: 'eno-resolved-theme', value: dark ? 'dark' : 'light' }))
-        .catch(() => {})
-    }
-  } catch { /* web / plugin absent */ }
+  mirrorResolvedThemeToNative(dark)
   return dark ? 'dark' : 'light'
 }
 
@@ -109,7 +133,35 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       if (stored === 'light' || stored === 'dark' || stored === 'system') initial = stored
     } catch { /* storage blocked → system */ }
     setThemeState(initial)
-    setResolved(apply(initial))
+
+    /**
+     * ⚠️ DO NOT CALL `apply()` HERE UNCONDITIONALLY — ON MOUNT IT IS PURE WASTE.
+     *
+     * `apply()` deliberately forces a reflow (`void root.offsetHeight`) so the `theme-switching`
+     * freeze lands before `.dark` flips. That is right for a TOGGLE. On mount there is no flip: the
+     * no-FOUC inline script in layout.tsx read the SAME localStorage key and the SAME media query
+     * before first paint and already put the class on <html>, so this ran the whole freeze/reflow/
+     * release dance to arrive at the class the document already had. Measured on prod 2026-08-23
+     * (headless chromium, mobile emulation, 4x CPU): 43.94 ms of forced style+layout here, plus a
+     * ~25 ms recalc when `releaseThemeFreeze` removed the class two frames later — out of 314.01 ms
+     * total forced layout on that load.
+     *
+     * ⛔ THE MIRROR IS NOT PART OF THE WASTE. `mirrorResolvedThemeToNative` used to live inside
+     * `apply()`; guarding the call without hoisting it would silently stop writing the
+     * `eno-resolved-theme` Preference that `capacitor/www/index.html` reads on cold launch, and the
+     * native shell's cover would desync from the app. It is called on BOTH branches below.
+     *
+     * The class comparison is the safety net for the one case where the two CAN disagree: the OS
+     * scheme flipping between the inline script running in <head> and hydration. That is a
+     * `classList.contains` read — an attribute lookup, not a geometry read, so it forces nothing.
+     */
+    const next = resolveTheme(initial)
+    mirrorResolvedThemeToNative(next === 'dark')
+    if (document.documentElement.classList.contains('dark') !== (next === 'dark')) {
+      setResolved(apply(initial)) // pre-paint guess was wrong (OS flipped mid-load) — really apply
+    } else {
+      setResolved(next) // DOM already correct: sync React state only, touch nothing
+    }
   }, [])
 
   // When following the system, react to OS scheme changes live.
