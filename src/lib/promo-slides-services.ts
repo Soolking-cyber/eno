@@ -1,3 +1,4 @@
+import { VINWONDERS_SLIDE } from '@/lib/promo-slides'
 import type { PromoSlide } from '@/lib/promo-slides'
 import { Plane } from '@/components/ui/icons'
 
@@ -35,6 +36,13 @@ import { Plane } from '@/components/ui/icons'
  * advertisement would be a false disclosure, not a cautious one.
  */
 export const SERVICES_PROMO_SLIDES: PromoSlide[] = [
+  /**
+   * ⛔ THE SAME OBJECT eno.vn SHOWS, IMPORTED RATHER THAN COPIED. VinWonders is the one storefront
+   * both editions carry (owner, 2026-08-24), so a second literal here would drift the first time
+   * the artwork or the link changed on one side only. Everything else in this array is eno's own
+   * desk, which is exactly what eno.vn must NOT promote — that separation is unchanged.
+   */
+  VINWONDERS_SLIDE,
   {
     key: 'eno-services',
     eyebrowEn: 'eno.forum',

@@ -7,8 +7,6 @@ import { localizeListingTitles } from '@/lib/translate'
 import { getCategoriesByDemand } from '@/lib/categories'
 import { topBusinessListings } from '@/lib/core/business-rail'
 import { trendingRailListings } from '@/lib/core/trending-rail'
-import { partnerBanners } from '@/lib/partner-banners'
-import { PartnerBannerStrip } from '@/components/marketplace/partner-banner-strip'
 import type { SerializedCategory, SerializedListingCard } from '@/lib/types'
 import { Header } from '@/components/marketplace/header'
 import { ListingsExplorer } from '@/components/marketplace/listings-explorer'
@@ -82,15 +80,17 @@ async function getData(): Promise<{ categories: SerializedCategory[]; listings: 
 
 export default async function Home() {
   /**
-   * ⚠️ FETCHED BESIDE getData(), NOT INSIDE IT. getData() re-throws DeskResolutionError on purpose
-   * so a build that cannot prove the edition scope fails loudly instead of prerendering an empty
-   * page into a 6-hour ISR window. partnerBanners() fails CLOSED to an empty list instead — a
-   * missing banner strip is invisible, and it must never be the reason the home page 500s.
+   * ⛔ NO SEPARATE PARTNER BANNER STRIP HERE — <PromoBanner> INSIDE ListingsExplorer IS THE ONE
+   * BANNER SLOT, and a second one above it would stack two banners over the feed. The strip built
+   * on 2026-08-24 was superseded within the day by putting VinWonders into promo-slides.ts beside
+   * VietKite and GMBR, which was already the tuned path: art direction, avif+webp, a measured LCP
+   * story, and the "Quảng cáo · <partner>" disclosure chip that a bare <img> would not carry.
+   * The strip, its edition-scoped query and its tests were REMOVED rather than left unused: dead
+   * code with a passing suite still reads as a live feature to the next person. It is in git at
+   * 8f78172 if a data-driven strip is ever wanted — the part worth re-reading there is that the
+   * deny-list and allow-list must be one `id` object, not two spreads that overwrite each other.
    */
-  const [{ categories, listings, total, businesses, trending }, banners] = await Promise.all([
-    getData(),
-    partnerBanners(),
-  ])
+  const { categories, listings, total, businesses, trending } = await getData()
 
   return (
     <div className="flex min-h-screen flex-col blob-bg">
@@ -106,9 +106,6 @@ export default async function Home() {
           into the client component fixed that; deleting the hero image removed the need entirely. */}
       <Header />
       <main id="main" tabIndex={-1} className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-4">
-        {/* Official partners, above the feed. Renders nothing at all while no partner has a
-            banner set, which is the state today — see PartnerBannerStrip. */}
-        <PartnerBannerStrip banners={banners} />
         <ListingsExplorer
           categories={categories}
           initialListings={listings}

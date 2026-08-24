@@ -407,6 +407,13 @@ model Seller {
   /// ⚠️ NOT WATERMARKED. It is the seller's own artwork, like the avatar — see
   /// scripts/set-partner-avatar.ts for why the eno mark stays on listing photos only.
   bannerUrl                String?
+  /// The narrow creative for phones. Partners ship two: a wide web banner (VinWonders' is
+  /// 1280x300, 4.3:1) and a much squarer mobile one (366x188, 1.9:1) whose artwork and text are
+  /// laid out for that shape. Cropping the wide one to a phone cuts the wordmark and the CTA off,
+  /// so this is art direction, not a resolution switch.
+  /// ⚠️ NULL FALLS BACK TO `bannerUrl`, which is the correct behaviour for a shop that uploaded
+  /// only one image — never render nothing just because the mobile variant is missing.
+  bannerMobileUrl          String?
   /// PARTNER CHECKOUT DISCOUNT — shown on every affiliate listing of this seller. Partner-wide
   /// rather than per-listing because one code covers the whole catalogue; repeating it on each
   /// listing is 17 chances for them to drift apart.

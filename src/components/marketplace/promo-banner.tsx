@@ -22,10 +22,16 @@ import { cn } from '@/lib/utils'
 /**
  * WHICH BANNER THIS DEPLOYMENT SHOWS.
  *
- * ⛔ THE TWO EDITIONS PROMOTE DIFFERENT THINGS AND MUST NOT SHARE A SLIDE. eno.vn shows the two
- * licensed partners it is allowed to surface; eno.forum shows its own visa and booking desk and
- * deliberately does NOT promote those partners (owner, 2026-08-17: "in eno.forum vietkite and gmbr
- * shouldnt be seen since we promote from our own storefront"). So this is a swap, not a merge.
+ * ⛔ THE EDITIONS PROMOTE DIFFERENT THINGS AND THE OVERLAP IS EXACTLY ONE SLIDE.
+ *   · eno.vn      — VietKite + GMBR + VinWonders (licensed partners it may surface)
+ *   · eno.forum   — its own visa/booking desk + VinWonders
+ * eno.forum keeps promoting its own storefront because PayPal checkout lives there (owner,
+ * 2026-08-24). VinWonders is in BOTH arrays as one shared object, VINWONDERS_SLIDE, so the two
+ * cannot drift; everything else stays edition-specific.
+ *
+ * ⚠️ THIS WAS BRIEFLY COLLAPSED TO ONE SHARED LIST EARLIER THE SAME DAY AND REVERTED WITHIN HOURS.
+ * If a merge is proposed again, the blocker to check first is PayPal: eno.vn may not serve it, so
+ * eno.forum cannot stop promoting the desk that does.
  *
  * ⚠️ `IS_SERVICES` FOLDS AT BUILD TIME, and the services module is aliased to an empty stub on the
  * marketplace build — so eno.vn's bundle contains neither the branch nor the words. The flag alone

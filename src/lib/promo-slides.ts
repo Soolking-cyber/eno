@@ -152,7 +152,50 @@ export type PromoSlide = {
  * the action the marketplace most needs from a new arrival (supply — an empty marketplace has
  * nothing to browse), not the one that flatters the product most.
  */
+
+/**
+ * VinWonders — SHARED BY BOTH EDITIONS, which is why this is a named export rather than a literal
+ * inside one array.
+ *
+ * ⛔ eno.vn PROMOTES VietKite + GMBR + VinWonders; eno.forum PROMOTES ITS OWN DESK + VinWonders
+ * (owner, 2026-08-24, reverting a same-day merge — "we have paypal checkout in eno.forum"). The
+ * attractions partner is the ONE storefront both sites carry, so its slide has to be one object:
+ * two copies would drift the first time the artwork or the link changed on only one side.
+ */
+export const VINWONDERS_SLIDE: PromoSlide = {
+  // The third official partner (owner, 2026-08-24). Attractions rather than travel admin, so it
+  // reads as a different offer beside VietKite's visas and GMBR's bookings rather than a third
+  // variation on the same one.
+  key: 'vinwonders-tickets',
+  // Not rendered for an `art` slide — kept populated so removing `art` (or receiving localised
+  // artwork) restores a working bilingual slide with no migration. Same contract as the two above.
+  eyebrowEn: 'Attractions', eyebrowVi: 'Điểm vui chơi',
+  titleEn: 'Your Day of Fun Starts at VinWonders',
+  titleVi: 'Ngày vui của bạn bắt đầu tại VinWonders',
+  bodyEn: 'Theme parks, water parks, safaris and aquariums across Vietnam. Booked on VinWonders.',
+  bodyVi: 'Công viên giải trí, công viên nước, safari và thủy cung khắp Việt Nam. Đặt vé trên VinWonders.',
+  ctaEn: 'See ticket prices', ctaVi: 'Xem giá vé',
+  // ⚠️ THE STOREFRONT, NOT THE AFFILIATE LINK. A marketing banner never points at a checkout, and
+  // an outbound affiliate url here would also need rel="sponsored" that a <Link> cannot carry.
+  // The storefront's product pages hold the disclosed outbound links.
+  href: '/vinwonders',
+  icon: BadgeCheck,
+  image: '/banners/promo-1.svg',
+  surface: 'bg-brand-deep',
+  art: {
+    mobile: '/banners/vinwonders-mobile.webp?v=783f417f',
+    desktop: '/banners/vinwonders-desktop.webp?v=cd3b06a2',
+    // The partner shipped PNGs; re-encoded here the same way the other two were.
+    avif: { mobile: '/banners/vinwonders-mobile.avif?v=fefc1c8d', desktop: '/banners/vinwonders-desktop.avif?v=437fa4de' },
+    partner: 'VinWonders',
+    // Alt carries the WHOLE message because it replaces baked-in text, not decoration.
+    alt: 'VinWonders — your day of fun starts at VinWonders. Get your ticket now.',
+    altVi: 'VinWonders — ngày vui của bạn bắt đầu tại VinWonders. Nhận vé ngay.',
+  },
+}
+
 export const PROMO_SLIDES: PromoSlide[] = [
+  VINWONDERS_SLIDE,
   {
     // ⚠️ FIRST SLIDE = THE PARTNER, BY OWNER DECISION (2026-08-10). This displaces the supply-side
     // "post free" slide from the one position most visitors ever see. The reasoning above about

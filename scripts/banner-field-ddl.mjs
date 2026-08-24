@@ -11,7 +11,10 @@ import 'dotenv/config'
 import pg from 'pg'
 
 const APPLY = process.argv.includes('--apply')
-const STATEMENTS = ['ALTER TABLE "Seller" ADD COLUMN IF NOT EXISTS "bannerUrl" TEXT']
+const STATEMENTS = [
+  'ALTER TABLE "Seller" ADD COLUMN IF NOT EXISTS "bannerUrl" TEXT',
+  'ALTER TABLE "Seller" ADD COLUMN IF NOT EXISTS "bannerMobileUrl" TEXT',
+]
 
 // A belt-and-braces refusal: nothing destructive can ride along in this file unnoticed.
 for (const sql of STATEMENTS) {
@@ -30,8 +33,9 @@ for (const sql of STATEMENTS) {
 }
 const { rows } = await client.query(
   `select column_name, data_type, is_nullable from information_schema.columns
-    where table_name = 'Seller' and column_name = 'bannerUrl'`,
+    where table_name = 'Seller' and column_name in ('bannerUrl','bannerMobileUrl') order by column_name`,
 )
-console.log(rows.length ? `  present: ${rows[0].column_name} ${rows[0].data_type} nullable=${rows[0].is_nullable}` : '  NOT PRESENT')
+for (const r of rows) console.log(`  present: ${r.column_name} ${r.data_type} nullable=${r.is_nullable}`)
+if (rows.length < STATEMENTS.length) console.log('  ⚠️ NOT ALL COLUMNS PRESENT')
 await client.end()
 if (!APPLY) console.log('\nDry run. Re-run with --apply.')

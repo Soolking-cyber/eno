@@ -162,7 +162,7 @@ export async function SellerStorefront({ id }: { id: string }) {
       <main id="main" tabIndex={-1} className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-4 pb-12">
         {/* Optional cover. Renders nothing for the storefronts that have not set one, which is
             almost all of them — see StorefrontBanner for why the box is sized before the image. */}
-        <StorefrontBanner url={seller.bannerUrl} name={seller.name} />
+        <StorefrontBanner url={seller.bannerUrl} mobileUrl={seller.bannerMobileUrl} />
         {/* Seller header — shared SellerCard (identity + trust + honest metrics
             strip + the primary "Chat" CTA that was previously ABSENT here). The
             storefront variant omits the "View shop" link back to itself. Storefront-

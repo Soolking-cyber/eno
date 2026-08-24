@@ -1034,7 +1034,6 @@ export const UI_STRINGS: string[] = [
   "Office",
   "Official partner",
   "Official partner — chosen and checked by eno",
-  "Official partners",
   "On this page",
   "On-site",
   "Once a day we’ll ask you to confirm what’s still available — it keeps your offers fresh at the top.",
