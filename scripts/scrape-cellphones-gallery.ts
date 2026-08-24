@@ -31,6 +31,10 @@ import { createClient } from '@supabase/supabase-js'
 import { db } from '../src/lib/db'
 import { watermarkSvg, watermarkPlacement, inkForLuminance } from '../src/lib/core/watermark-mark'
 import { hammingHex } from '../src/lib/image-hash-url'
+import { appendFileSync } from 'node:fs'
+
+/** Merchant category paths, appended as we go. Read by classify-cellphones.ts, offline. */
+const CRUMB_FILE = 'data/cellphones-breadcrumbs.jsonl'
 
 const arg = (n: string) => { const i = process.argv.indexOf(`--${n}`); return i >= 0 ? process.argv[i + 1] : undefined }
 const APPLY = process.argv.includes('--apply')
@@ -51,8 +55,13 @@ if (APPLY && (!storageUrl || !secret)) { console.error('supabase env required');
 if (APPLY && /supabase\.co$/.test(new URL(storageUrl!).hostname)) { console.error('refusing the retired project'); process.exit(1) }
 const storage = APPLY ? createClient(storageUrl!, secret!, { auth: { persistSession: false } }).storage.from(BUCKET) : null
 
-/** The gallery URLs on one product page, in order, hero first. */
-async function galleryFor(browser: Browser, url: string): Promise<string[]> {
+/**
+ * ⛔ ONE PAGE VISIT, TWO OUTPUTS. The merchant's own category path lives in the same Nuxt payload
+ * as the gallery, so reading it here costs nothing — and crawling someone else's site twice for
+ * two fields we could take in one pass would be rude and twice as slow. Learned the hard way: a
+ * separate breadcrumb probe run alongside this one got 48 of 160 pages before both were throttled.
+ */
+async function pageDataFor(browser: Browser, url: string): Promise<{ gallery: string[]; crumbs: string[] }> {
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } })
   try {
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45_000 })
@@ -66,7 +75,7 @@ async function galleryFor(browser: Browser, url: string): Promise<string[]> {
      * dies with "ReferenceError: __name is not defined" and a silent catch reported it as "no
      * gallery" on pages that visibly had five images. A string expression is never transpiled.
      */
-    return await page.evaluate(`(() => {
+    const gallery = await page.evaluate(`(() => {
       var grab = function (sel) {
         return Array.prototype.slice.call(document.querySelectorAll(sel))
           .map(function (el) {
@@ -81,11 +90,28 @@ async function galleryFor(browser: Browser, url: string): Promise<string[]> {
       for (var i = 0; i < list.length; i++) if (out.indexOf(list[i]) === -1) out.push(list[i])
       return out
     })()`) as string[]
+
+    /**
+     * CellphoneS's own category path — the authority on what a product IS.
+     * ⚠️ AND THE REASON IT MATTERS: `Phụ kiện > Ốp lưng > iPhone > iPhone 15 Pro Max` is a CASE FOR
+     * an iPhone, not an iPhone. Classifying from the title matched the device name first and filed
+     * 69% of "phones" as accessories. Their breadcrumb says which it is; a keyword never can.
+     */
+    const crumbs = await page.evaluate(`(() => {
+      var n = window.__NUXT__
+      var f = n && n.fetch && n.fetch['product-detail:0']
+      var bc = f && f.breadcrumbsArr
+      if (!bc || !bc.length) return []
+      var out = []
+      for (var i = 0; i < bc.length; i++) if (bc[i] && bc[i].name) out.push(String(bc[i].name).trim())
+      return out
+    })()`) as string[]
+    return { gallery, crumbs }
   } catch (e) {
     // ⚠️ A SILENT `catch { return [] }` HERE READS AS "this product has no gallery" AND IS A LIE.
     // The first run reported 6/6 with no gallery on pages that visibly had five images.
     galleryErrors.push((e as Error).message.slice(0, 70))
-    return []
+    return { gallery: [], crumbs: [] }
   } finally { await page.close() }
 }
 
@@ -149,13 +175,20 @@ async function main() {
   }
 
   const browser = await chromium.launch()
-  let done = 0, added = 0, none = 0
+  let done = 0, added = 0, none = 0, crumbed = 0
   for (let i = 0; i < targets.length; i += CONCURRENCY) {
     await Promise.all(targets.slice(i, i + CONCURRENCY).map(async (r) => {
       const page = pageUrlOf(r.affiliateUrl)
       if (!page) { none++; return }
-      const urls = (await galleryFor(browser, page)).slice(0, MAX_IMAGES + 4)
+      const data = await pageDataFor(browser, page)
+      const urls = data.gallery.slice(0, MAX_IMAGES + 4)
       done++
+      // Appended as JSONL so a killed run keeps everything it already learned — the classifier
+      // reads this file offline and can be re-run without touching the merchant's site again.
+      if (data.crumbs.length && r.externalId) {
+        appendFileSync(CRUMB_FILE, JSON.stringify({ externalId: r.externalId, crumbs: data.crumbs }) + '\n')
+        crumbed++
+      }
       if (!urls.length) { none++; return }
       if (!APPLY) { added += Math.min(urls.length, MAX_IMAGES); return }
 
@@ -179,7 +212,7 @@ async function main() {
     if (done % 30 === 0) console.log(`  ${done}/${targets.length}  images added=${added}  no-gallery=${none}`)
   }
   await browser.close()
-  console.log(`\n${APPLY ? 'APPLIED' : 'DRY RUN'}: ${done} pages read, ${added} images, ${none} with no gallery`)
+  console.log(`\n${APPLY ? 'APPLIED' : 'DRY RUN'}: ${done} pages read, ${added} images, ${crumbed} breadcrumb paths -> ${CRUMB_FILE}, ${none} with no gallery`)
   if (galleryErrors.length) {
     const kinds: Record<string, number> = {}
     for (const e of galleryErrors) kinds[e.split('\n')[0].slice(0, 46)] = (kinds[e.split('\n')[0].slice(0, 46)] || 0) + 1

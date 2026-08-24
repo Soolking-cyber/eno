@@ -246,6 +246,11 @@ export const LUCIDE_TO_SOLAR = {
   Wallet: 'wallet',
   WashingMachine: 'washing-machine',
   Watch: 'watch-round',
+  // Added 2026-08-25 for the electronics subcategories the CellphoneS import needed
+  // (networking, printers, keyboards & mice). Solar v2 names, same pack as everything else.
+  Wifi: 'home-wi-fi',
+  Printer: 'printer',
+  Keyboard: 'keyboard',
   Webhook: 'code',
   WifiOff: 'wi-fi-router-minimalistic',
   Wrench: 'settings',

@@ -571,7 +571,36 @@ export const TAXONOMY: CategoryDef[] = [
       { slug: 'audio', name: 'Audio', nameVi: 'Âm thanh', icon: 'Headphones', keywords: ['speaker', 'headphone', 'airpods', 'earbuds', 'loa', 'tai nghe'] },
       { slug: 'cameras', name: 'Cameras', nameVi: 'Máy ảnh', icon: 'Camera', keywords: ['camera', 'sony', 'canon', 'fujifilm', 'lens', 'máy ảnh', 'ống kính'] },
       { slug: 'gaming', name: 'Gaming', nameVi: 'Máy game', icon: 'Gamepad2', keywords: ['playstation', 'ps5', 'xbox', 'nintendo', 'switch', 'console', 'game'] },
-      { slug: 'accessories', name: 'Accessories', nameVi: 'Phụ kiện', icon: 'Cable', keywords: ['charger', 'cable', 'ram', 'ssd', 'keyboard', 'mouse', 'phụ kiện', 'linh kiện'] },
+      /**
+       * ⛔ THE BIG ACCESSORY TYPES ARE THEIR OWN AISLES (owner: "branch out massive ones"). One
+       * `accessories` bucket held 3,132 products — a third of the whole electronics catalogue in a
+       * single unfilterable chip, which is the same "can't find anything" problem as no
+       * subcategory at all. Split by MEASURED size, not by neatness: cases 1,126, screen
+       * protectors 422, keyboards & mice 394, bags 287, cables+chargers 421, power banks 177.
+       * ⚠️ THE TAIL STAYS IN `accessories` — watch straps (68), stands (68) and styluses (20) are
+       * too thin to earn a chip, and the brand + model filters are what narrow those.
+       */
+      { slug: 'phone-cases', name: 'Cases & covers', nameVi: 'Ốp lưng & bao da', icon: 'Smartphone', keywords: ['ốp lưng', 'bao da', 'case', 'cover', 'ốp'] },
+      { slug: 'screen-protectors', name: 'Screen protectors', nameVi: 'Dán màn hình', icon: 'Shapes', keywords: ['cường lực', 'dán màn', 'miếng dán', 'screen protector', 'tempered glass'] },
+      { slug: 'keyboards-mice', name: 'Keyboards & mice', nameVi: 'Bàn phím & chuột', icon: 'Keyboard', keywords: ['bàn phím', 'keyboard', 'chuột', 'mouse', 'lót chuột', 'mousepad'] },
+      { slug: 'bags-sleeves', name: 'Bags & sleeves', nameVi: 'Balo & túi chống sốc', icon: 'Briefcase', keywords: ['balo', 'túi chống sốc', 'backpack', 'sleeve', 'cặp laptop'] },
+      { slug: 'cables-chargers', name: 'Cables & chargers', nameVi: 'Cáp & sạc', icon: 'Cable', keywords: ['cáp', 'cable', 'sạc', 'charger', 'adapter', 'hub'] },
+      { slug: 'power-banks', name: 'Power banks', nameVi: 'Pin dự phòng', icon: 'Zap', keywords: ['pin dự phòng', 'sạc dự phòng', 'power bank'] },
+      { slug: 'accessories', name: 'Other accessories', nameVi: 'Phụ kiện khác', icon: 'Boxes', keywords: ['phụ kiện', 'linh kiện', 'dây đeo', 'giá đỡ', 'tripod', 'bút cảm ứng'] },
+      /**
+       * ⚠️ THE FOUR BELOW WERE ADDED 2026-08-25 FROM MEASURED DEMAND, not from a wish to be
+       * thorough. 3,070 imported electronics (32% of that catalogue) matched none of the seven
+       * above, and clustering their titles put smartwatches, storage, networking and printers at
+       * the top by a wide margin — each in the hundreds. CellphoneS carries all four as their own
+       * top-level departments too, so this is where a shopper expects to look.
+       * ⛔ DELIBERATELY STOPPING AT FOUR (owner: "keep tight not too many"). Power banks, tripods
+       * and bags stay under `accessories`; the brand + model filters are what narrow those, and a
+       * facet list with a three-product tail is worse than a short one.
+       */
+      { slug: 'smartwatch', name: 'Smartwatches', nameVi: 'Đồng hồ thông minh', icon: 'Watch', keywords: ['smartwatch', 'apple watch', 'galaxy watch', 'đồng hồ thông minh', 'smart band'] },
+      { slug: 'storage', name: 'Storage', nameVi: 'Lưu trữ', icon: 'Archive', keywords: ['ssd', 'hdd', 'thẻ nhớ', 'usb', 'ổ cứng', 'memory card', 'flash drive'] },
+      { slug: 'networking', name: 'Networking', nameVi: 'Mạng & Wifi', icon: 'Wifi', keywords: ['router', 'wifi', 'modem', 'phát sóng', 'access point', 'mesh'] },
+      { slug: 'printers', name: 'Printers', nameVi: 'Máy in', icon: 'Printer', keywords: ['máy in', 'printer', 'mực in', 'toner', 'máy scan'] },
     ],
     facets: [
       COND,
