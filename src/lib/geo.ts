@@ -25,33 +25,115 @@ export function hasRealCoords(lat: number | null | undefined, lng: number | null
   return lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180
 }
 
+
+/**
+ * City/province → a point in that city, for listings that carry no stored coordinate.
+ *
+ * ⛔ THIS TABLE REPLACED A THREE-CITY `if` CHAIN THAT MATCHED ALMOST NOTHING. It tested
+ * `city.includes('hanoi')` and `city.includes('danang')` — no space — while every city in the
+ * database is written with one: 'Ha Noi', 'Da Nang', 'Nha Trang', 'Phu Quoc', 'Hai Phong'. Not one
+ * of them matched, so EVERY listing without a stored coordinate fell through to the Ho Chi Minh
+ * City default. Measured on production 2026-08-24: seventeen partner tickets in Phu Quoc, Nha
+ * Trang, Hoi An, Hai Phong, Nghe An and Ha Tinh were all pinned in Saigon, on top of the thirty
+ * visa listings that genuinely are there. The map was confidently, invisibly wrong.
+ *
+ * ⚠️ KEYS ARE NORMALISED (see `normalizePlace`): lowercased, diacritics stripped, punctuation and
+ * spaces removed. So one key 'hanoi' answers 'Ha Noi', 'Hà Nội', 'HANOI' and 'ha-noi' alike. That
+ * is the whole reason the old chain failed, and matching on a normalised form is what stops the
+ * next spelling from silently reintroducing it.
+ *
+ * ⚠️ PROVINCES AND THEIR CAPITALS SHARE AN ENTRY where a listing may carry either — a seller in
+ * Vinh writes 'Nghe An' as often as 'Vinh'. The point is the city, which is what a map pin means.
+ */
+const PLACE_COORDS: Record<string, readonly [number, number]> = {
+  hochiminhcity: [10.7769, 106.7009], hochiminh: [10.7769, 106.7009], saigon: [10.7769, 106.7009], tphcm: [10.7769, 106.7009],
+  hanoi: [21.0285, 105.8542],
+  danang: [16.0471, 108.2068],
+  haiphong: [20.8449, 106.6881],
+  cantho: [10.0452, 105.7469],
+  nhatrang: [12.2388, 109.1967], khanhhoa: [12.2388, 109.1967],
+  dalat: [11.9404, 108.4583], lamdong: [11.9404, 108.4583],
+  hue: [16.4637, 107.5909], thuathienhue: [16.4637, 107.5909],
+  hoian: [15.8801, 108.3380],
+  quangnam: [15.5394, 108.0191],
+  phuquoc: [10.2270, 103.9670], kiengiang: [10.0125, 105.0809],
+  vungtau: [10.3460, 107.0843], bariavungtau: [10.3460, 107.0843],
+  quynhon: [13.7829, 109.2196], binhdinh: [13.7829, 109.2196],
+  vinh: [18.6733, 105.6922], nghean: [18.6733, 105.6922],
+  hatinh: [18.3559, 105.8877],
+  thanhhoa: [19.8067, 105.7852],
+  quangninh: [20.9599, 107.0448], halong: [20.9599, 107.0448],
+  hungyen: [20.6464, 106.0511],
+  bacninh: [21.1861, 106.0763],
+  binhduong: [11.0000, 106.6500], thudaumot: [11.0000, 106.6500],
+  dongnai: [10.9453, 106.8133], bienhoa: [10.9453, 106.8133],
+  buonmathuot: [12.6667, 108.0500], daklak: [12.6667, 108.0500],
+  phanthiet: [10.9333, 108.1000], binhthuan: [10.9333, 108.1000],
+  sapa: [22.3364, 103.8438], laocai: [22.4809, 103.9755],
+  ninhbinh: [20.2506, 105.9744],
+  camranh: [11.9214, 109.1591],
+  conda: [8.6833, 106.6000], condao: [8.6833, 106.6000],
+}
+
+/**
+ * Lowercase, strip Vietnamese diacritics, drop everything that is not a letter or digit.
+ * 'Hà Nội', 'Ha Noi', 'ha-noi' and 'HANOI' all collapse to 'hanoi'.
+ * ⚠️ đ/Đ NEEDS ITS OWN RULE — it is a distinct letter, not a d with a mark, so NFD leaves it
+ * alone and 'Đà Nẵng' would normalise to 'đanang' and miss.
+ */
+export function normalizePlace(value: string | null | undefined): string {
+  return (value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[đĐ]/g, 'd')
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, '')
+}
+
+/**
+ * The point to plot a listing on when it has no stored coordinate, and whether we actually
+ * recognised the place.
+ *
+ * ⚠️ `matched: false` MEANS THE PIN IS A GUESS. It is still Ho Chi Minh City — changing the
+ * fallback to "no pin" would make listings vanish from the map, which is a product decision and
+ * not this fix — but callers can now TELL, which they could not before, and a test can assert
+ * that our own cities are all recognised.
+ */
+export function placeCoordinates(city: string | null | undefined, district?: string | null) {
+  const cityKey = normalizePlace(city)
+  const districtKey = normalizePlace(district)
+
+  // District refinements, kept from the original: within the three biggest cities a district is
+  // a materially better pin than the city centre.
+  const DISTRICTS: Record<string, readonly [number, number]> = {
+    tayho: [21.0718, 105.8152], hoankiem: [21.0285, 105.8522], caugiay: [21.0264, 105.7977],
+    sontra: [16.0820, 108.2435], nguhanhson: [16.0279, 108.2494], haichau: [16.0594, 108.2199],
+    district2: [10.8016, 106.7368], quan2: [10.8016, 106.7368], thaodien: [10.8016, 106.7368],
+    binhthanh: [10.7981, 106.7061],
+    district1: [10.7769, 106.7009], quan1: [10.7769, 106.7009],
+    district7: [10.7226, 106.7271], quan7: [10.7226, 106.7271], phumyhung: [10.7226, 106.7271],
+    thuduc: [10.8500, 106.7700],
+  }
+  const byDistrict = districtKey ? DISTRICTS[districtKey] : undefined
+  const byCity = PLACE_COORDS[cityKey]
+  // ⚠️ THE DISTRICT ONLY WINS INSIDE ITS OWN CITY. 'District 1' in Da Nang is not Saigon's
+  // District 1, and a global district lookup would teleport the pin 600km.
+  const districtBelongsHere = !byCity || !byDistrict ? false
+    : Math.abs(byCity[0] - byDistrict[0]) < 0.6 && Math.abs(byCity[1] - byDistrict[1]) < 0.6
+  const point = (districtBelongsHere ? byDistrict : byCity) ?? PLACE_COORDS.hochiminhcity
+  return { lat: point[0], lng: point[1], matched: Boolean(byCity) }
+}
+
 export function getListingCoordinates(listing: Pick<SerializedListingCard, 'id' | 'lat' | 'lng' | 'city' | 'district'>) {
   if (hasRealCoords(listing.lat, listing.lng)) {
     return { lat: listing.lat as number, lng: listing.lng as number }
   }
-  const city = listing.city.toLowerCase()
-  const district = (listing.district || '').toLowerCase()
 
-  let baseLat = 10.7769 // HCMC center
-  let baseLng = 106.7009
+  const { lat: baseLat, lng: baseLng } = placeCoordinates(listing.city, listing.district)
 
-  if (city.includes('hanoi') || city.includes('hà nội')) {
-    baseLat = 21.0285; baseLng = 105.8542
-    if (district.includes('tay ho') || district.includes('tây hồ')) { baseLat = 21.0718; baseLng = 105.8152 }
-    else if (district.includes('hoan kiem') || district.includes('hoàn kiếm')) { baseLat = 21.0285; baseLng = 105.8522 }
-    else if (district.includes('cau giay') || district.includes('cầu giấy')) { baseLat = 21.0264; baseLng = 105.7977 }
-  } else if (city.includes('danang') || city.includes('đà nẵng')) {
-    baseLat = 16.0471; baseLng = 108.2068
-    if (district.includes('son tra') || district.includes('sơn trà')) { baseLat = 16.0820; baseLng = 108.2435 }
-    else if (district.includes('ngu hanh son') || district.includes('ngũ hành sơn')) { baseLat = 16.0279; baseLng = 108.2494 }
-    else if (district.includes('hai chau') || district.includes('hải châu')) { baseLat = 16.0594; baseLng = 108.2199 }
-  } else {
-    if (district.includes('district 2') || district.includes('thao dien') || district.includes('quận 2')) { baseLat = 10.8016; baseLng = 106.7368 }
-    else if (district.includes('binh thanh') || district.includes('bình thạnh')) { baseLat = 10.7981; baseLng = 106.7061 }
-    else if (district.includes('district 1') || district.includes('quận 1')) { baseLat = 10.7769; baseLng = 106.7009 }
-    else if (district.includes('district 7') || district.includes('phu my hung') || district.includes('quận 7')) { baseLat = 10.7226; baseLng = 106.7271 }
-  }
-
+  // A deterministic per-listing offset (≈±1km) so several listings in one city do not stack into
+  // a single unclickable pin. Derived from the id, so it never moves — in particular it does NOT
+  // change when the feed is re-sorted, which is what makes a pin's position trustworthy.
   const idHash = listing.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)
   const latOffset = ((idHash % 20) - 10) * 0.0009
   const lngOffset = (((idHash >> 2) % 20) - 10) * 0.0009

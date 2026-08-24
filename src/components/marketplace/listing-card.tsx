@@ -855,6 +855,17 @@ function ListingCardImpl({
               limit today. Any future attempt to enlarge the price has to buy the width first —
               by dropping the unit suffix or the ≈ approximation on this surface — not by bumping
               the size and hoping. */}
+          {/* ⚠️ "from" ONLY ON A PARTNER TICKET, and it is not decoration: the number we hold is the
+              LOWEST adult ticket, while the price the visitor actually pays is set at the partner's
+              checkout and varies by date. Without the qualifier the card states a price we do not
+              control as if it were the price — the PDP already says "from" for the same reason.
+              ⚠️ It is safe on the width budget documented above ONLY because partner tickets are
+              short: a 5-6 digit VND price with no unit suffix. Do not extend this prefix to
+              ordinary listings without re-measuring — "from 9,500,000,000 VND / month ≈ $361,000"
+              is exactly the line that wraps and breaks the grid's mt-auto footer alignment. */}
+          {listing.isPartnerBooking ? (
+            <span className="text-xs font-semibold text-body">{tr('from', 'từ')}</span>
+          ) : null}
           <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} compact className="text-lg leading-tight text-accent-foreground" />
           {/* Struck-through "was" anchor — server-computed 30-day-min reference, present
               whenever the listing HAS a live drop.

@@ -40,6 +40,7 @@ export function serializeListing(
     description: l.description,
     price: l.price,
     priceUnit: l.priceUnit,
+    isPartnerBooking: Boolean(l.affiliateUrl),
     currency: l.currency,
     negotiable: l.negotiable,
     affiliateUrl: l.affiliateUrl,
@@ -145,6 +146,9 @@ export const LISTING_CARD_SELECT = {
   previousPrice: true, priceDropAt: true, urgentUntil: true,
   location: true, district: true, city: true, lat: true, lng: true, images: true, video: true,
   brandSlug: true, model: true, condition: true, marketPosition: true, verified: true, postedAt: true, savedCount: true, contactCount: true,
+  // ⚠️ PROJECTED TO A BOOLEAN by serializeListingCard — the affiliate href is a tracker
+  // carrying our publisher id, and the card grid needs only the fact, not the link.
+  affiliateUrl: true,
   category: { select: { id: true, name: true, nameVi: true, slug: true, icon: true, color: true } },
   seller: { select: { trustScore: true, officialPartner: true, owner: { select: { accountType: true } } } },
 } as const
@@ -156,6 +160,7 @@ type ListingCardRow = {
   previousPrice: number | null; priceDropAt: Date | null; urgentUntil: Date | null
   lat: number | null; lng: number | null; images: string; video: string | null; brandSlug: string | null
   model: string | null; condition: string | null; marketPosition: string | null; verified: boolean; postedAt: Date; savedCount: number; contactCount: number
+  affiliateUrl: string | null
   category: { id: string; name: string; nameVi: string; slug: string; icon: string; color: string }
   seller: { trustScore: number; officialPartner: boolean; owner?: { accountType: string | null } | null }
 }
@@ -182,6 +187,7 @@ export function serializeListingCard(l: ListingCardRow): SerializedListingCard {
     titleVi: l.titleVi,
     price: l.price,
     priceUnit: l.priceUnit,
+    isPartnerBooking: Boolean(l.affiliateUrl),
     currency: l.currency,
     negotiable: l.negotiable,
     prevPrice: activeDropAnchor(l.previousPrice, l.priceDropAt, l.price),

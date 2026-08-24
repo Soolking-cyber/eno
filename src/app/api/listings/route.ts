@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { clientIp } from '@/lib/client-ip'
 import { db } from '@/lib/db'
-import { diversifyBySeller, FEED_DIVERSITY_WINDOW } from '@/lib/feed-diversity'
+import { diversifyBySeller, diversityAppliesTo, FEED_DIVERSITY_WINDOW } from '@/lib/feed-diversity'
 import { serializeListingCard, LISTING_CARD_SELECT } from '@/lib/serialize'
 import { normalizePhone, containsPhoneNumber } from '@/lib/phone'
 import { containsContactInfo, findBannedWord, PublishBlockedError } from '@/lib/publish-guard'
@@ -136,7 +136,13 @@ export async function GET(req: NextRequest) {
        * ⛔ SEMANTIC RESULTS ARE UNTOUCHED (the branch above). Their order IS the relevance answer;
        * interleaving it by seller would be overruling the ranking with a merchandising rule.
        */
-      : offset < FEED_DIVERSITY_WINDOW
+      /**
+       * ⛔ AND ONLY ON THE DEFAULT SORT. On an explicit "Cheapest first" the round-robin zips two
+       * individually-sorted seller lists together, so the feed is NOT in price order even though
+       * every row is — measured on production 2026-08-24 as 0, 30k, 790k, 50k, 1.24M, 60k.
+       * See diversityAppliesTo() for why this is the same rule the semantic branch above follows.
+       */
+      : diversityAppliesTo(sort) && offset < FEED_DIVERSITY_WINDOW
         ? db.listing
             /**
              * ⚠️ `max(window, offset+limit)` — A PAGE THAT STRADDLES THE WINDOW EDGE MUST STILL BE

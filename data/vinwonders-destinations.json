@@ -37,7 +37,10 @@
       ],
       "bookingCode": "PQVW1",
       "discountCode": null,
-      "discountPercent": null
+      "discountPercent": null,
+      "lat": 10.338713,
+      "lng": 103.852387,
+      "coordsSource": "partner-map-embed"
     },
     {
       "slug": "vinpearl-safari-phu-quoc",
@@ -54,7 +57,10 @@
       ],
       "bookingCode": "PQSAF",
       "discountCode": null,
-      "discountPercent": null
+      "discountPercent": null,
+      "lat": 10.3371,
+      "lng": 103.889247,
+      "coordsSource": "partner-map-embed"
     },
     {
       "slug": "grand-world-phu-quoc",
@@ -70,7 +76,10 @@
       ],
       "bookingCode": "PQGW1",
       "discountCode": "MEMBER3",
-      "discountPercent": 3
+      "discountPercent": 3,
+      "lat": 10.326622,
+      "lng": 103.85494,
+      "coordsSource": "partner-map-embed"
     },
     {
       "slug": "vinwonders-nha-trang",
@@ -87,7 +96,10 @@
       ],
       "bookingCode": "NTVW1",
       "discountCode": "MEMBER2",
-      "discountPercent": 2
+      "discountPercent": 2,
+      "lat": 12.218753,
+      "lng": 109.238318,
+      "coordsSource": "partner-map-embed"
     },
     {
       "slug": "hon-tam-mud-bath",
@@ -104,7 +116,10 @@
       ],
       "bookingCode": "HTVW1",
       "discountCode": "MEMBER10",
-      "discountPercent": 10
+      "discountPercent": 10,
+      "lat": 12.178727,
+      "lng": 109.242205,
+      "coordsSource": "partner-map-embed"
     },
     {
       "slug": "vinpearl-harbour-nha-trang",
@@ -118,7 +133,10 @@
       ],
       "bookingCode": "VPHB1",
       "discountCode": "MEMBER10",
-      "discountPercent": 10
+      "discountPercent": 10,
+      "lat": 12.203533,
+      "lng": 109.197816,
+      "coordsSource": "partner-map-embed"
     },
     {
       "slug": "aquafield-nha-trang",
@@ -135,7 +153,10 @@
       ],
       "bookingCode": "AQF01",
       "discountCode": "MEMBER10",
-      "discountPercent": 10
+      "discountPercent": 10,
+      "lat": 12.203533,
+      "lng": 109.197816,
+      "coordsSource": "sibling:VPHB1 — no embed; the partner address places it inside Vinpearl Harbour"
     },
     {
       "slug": "grand-world-ha-noi",
@@ -149,7 +170,10 @@
       ],
       "bookingCode": "GWHN1",
       "discountCode": "MEMBER10",
-      "discountPercent": 10
+      "discountPercent": 10,
+      "lat": 20.953513,
+      "lng": 105.976831,
+      "coordsSource": "nominatim:Grand World, Vinhomes Ocean Park 3"
     },
     {
       "slug": "vinke-vinpearl-aquarium",
@@ -165,7 +189,10 @@
       ],
       "bookingCode": "HNVKA",
       "discountCode": "MEMBER10",
-      "discountPercent": 10
+      "discountPercent": 10,
+      "lat": 20.996346,
+      "lng": 105.865816,
+      "coordsSource": "partner-map-embed"
     },
     {
       "slug": "vinwonders-wave-water-park",
@@ -182,7 +209,10 @@
       ],
       "bookingCode": "HNVW2",
       "discountCode": "MEMBER10",
-      "discountPercent": 10
+      "discountPercent": 10,
+      "lat": 20.956466,
+      "lng": 105.976548,
+      "coordsSource": "nominatim:VinWonders Ocean Park"
     },
     {
       "slug": "aquafield-ocean-city",
@@ -199,7 +229,10 @@
       ],
       "bookingCode": "AQF02",
       "discountCode": "MEMBER10",
-      "discountPercent": 10
+      "discountPercent": 10,
+      "lat": 20.944559,
+      "lng": 105.973153,
+      "coordsSource": "partner-map-embed"
     },
     {
       "slug": "vinpearl-theatre-ocean-city",
@@ -213,7 +246,10 @@
       ],
       "bookingCode": "NHOCP",
       "discountCode": "SHOW5",
-      "discountPercent": 5
+      "discountPercent": 5,
+      "lat": 20.951814,
+      "lng": 105.971958,
+      "coordsSource": "partner-map-embed"
     },
     {
       "slug": "grand-park-amusement-park",
@@ -227,7 +263,10 @@
       ],
       "bookingCode": "GPVW1",
       "discountCode": "MEMBER10",
-      "discountPercent": 10
+      "discountPercent": 10,
+      "lat": 10.84202,
+      "lng": 106.831235,
+      "coordsSource": "partner-map-embed"
     },
     {
       "slug": "vinwonders-nam-hoi-an",
@@ -244,7 +283,10 @@
       ],
       "bookingCode": "NHAVW",
       "discountCode": "MEMBER3",
-      "discountPercent": 3
+      "discountPercent": 3,
+      "lat": 15.786138,
+      "lng": 108.405955,
+      "coordsSource": "partner-map-embed"
     },
     {
       "slug": "vinwonders-cua-hoi",
@@ -258,7 +300,10 @@
       ],
       "bookingCode": "CHVW1",
       "discountCode": "MEMBER3",
-      "discountPercent": 3
+      "discountPercent": 3,
+      "lat": 18.772953,
+      "lng": 105.748763,
+      "coordsSource": "partner-map-embed"
     },
     {
       "slug": "ha-tinh-water-park",
@@ -275,7 +320,10 @@
       ],
       "bookingCode": "CVNHT",
       "discountCode": "MEMBER10",
-      "discountPercent": 10
+      "discountPercent": 10,
+      "lat": 18.489692,
+      "lng": 105.89337,
+      "coordsSource": "partner-map-embed"
     },
     {
       "slug": "vinwonders-vu-yen",
@@ -292,7 +340,10 @@
       ],
       "bookingCode": "VYVW1",
       "discountCode": null,
-      "discountPercent": null
+      "discountPercent": null,
+      "lat": 20.871182,
+      "lng": 106.727546,
+      "coordsSource": "partner-map-embed"
     }
   ]
 }

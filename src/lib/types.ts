@@ -36,6 +36,12 @@ export type SerializedListingCard = {
   priceUnit: string
   currency: string
   negotiable: boolean
+  /// TRUE when this listing is booked and paid for on a partner's own site. The card uses it for
+  /// one thing: prefixing the price with "from", because the number we hold is the lowest adult
+  /// ticket and the real price is set at the partner's checkout by date.
+  /// ⚠️ A BOOLEAN, NOT THE URL. The affiliate href is a tracker with our publisher id in it; the
+  /// card grid never needs it, and shipping it would put that id in every feed payload on the site.
+  isPartnerBooking: boolean
   // Active price-drop anchor (server-normalized): the struck-through "was" price
   // while the drop badge is live (3 days — see DROP.BADGE_MS in src/lib/price-drop.ts),
   // else null. Server-computed 30-day-min reference — never a seller-entered number.
@@ -101,6 +107,9 @@ export type SerializedListing = {
   /// Set ONLY on partner listings whose checkout is on the partner's own site. Null on every
   /// ordinary listing, which is what makes the PDP's affiliate branch inert for them.
   affiliateUrl: string | null
+  /// The same fact as a boolean, so a full listing satisfies SerializedListingCard — several
+  /// surfaces (saved, storefront, similar-listings) hand a full listing straight to <ListingCard>.
+  isPartnerBooking: boolean
   /// Per-product checkout discount. Null falls back to the seller's partner-wide code.
   affiliateDiscountCode: string | null
   affiliateDiscountPercent: number | null

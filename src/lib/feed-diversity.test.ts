@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { diversifyBySeller, FEED_DIVERSITY_WINDOW } from './feed-diversity'
+import { diversifyBySeller, diversityAppliesTo, DEFAULT_FEED_SORT, FEED_DIVERSITY_WINDOW } from './feed-diversity'
 
 /**
  * ⚠️ THE FIXTURE IS THE REAL PRODUCTION SHAPE, MEASURED 2026-08-13: 35 active listings, of which 14
@@ -141,5 +141,48 @@ describe('pages that straddle the window edge', () => {
     const seq = sequence(big)
     expect(seq.slice(FEED_DIVERSITY_WINDOW).map((r) => r.id))
       .toEqual(big.slice(FEED_DIVERSITY_WINDOW).map((r) => r.id))
+  })
+})
+
+describe('diversityAppliesTo', () => {
+  // ⛔ THE REGRESSION. With a visa desk and a ticket partner in the catalogue, `sort=price-low`
+  // returned 0, 30k, 790k, 50k, 1.24M, 60k, 1.32M, 100k on production (2026-08-24): two
+  // individually-ascending lists zipped together by the seller round-robin. Every row was sorted
+  // and the feed was not, so the cheapest listing sat in row 2.
+  it('leaves an explicitly chosen order alone', () => {
+    for (const sort of ['price-low', 'price-high', 'recent', 'popular']) {
+      expect(diversityAppliesTo(sort)).toBe(false)
+    }
+  })
+
+  it('still applies to the default blend, which is what it was built for', () => {
+    expect(diversityAppliesTo(DEFAULT_FEED_SORT)).toBe(true)
+    expect(DEFAULT_FEED_SORT).toBe('newest') // legacy name for the relevance blend, not "recent"
+  })
+
+  // An unknown string is what the route sees for a hand-typed or stale URL; the route resolves it
+  // to the default, so anything that is not a known explicit sort must be treated as no preference.
+  it('treats an unrecognised sort as no preference', () => {
+    expect(diversityAppliesTo('')).toBe(false)
+    expect(diversityAppliesTo('nonsense')).toBe(false)
+  })
+})
+
+// A round-robin over rows a caller sorted by price is exactly the production failure, expressed
+// as a unit: the mechanism is not wrong, applying it here is.
+describe('the interaction the gate prevents', () => {
+  it('demonstrates that diversifyBySeller destroys a price ordering', () => {
+    const byPrice = [
+      { id: 'a', sellerId: 's1', price: 30_000 },
+      { id: 'b', sellerId: 's1', price: 50_000 },
+      { id: 'c', sellerId: 's1', price: 60_000 },
+      { id: 'd', sellerId: 's2', price: 790_000 },
+      { id: 'e', sellerId: 's2', price: 1_240_000 },
+      { id: 'f', sellerId: 's2', price: 1_320_000 },
+    ]
+    const out = diversifyBySeller(byPrice).map((r) => r.price)
+    expect(out).toEqual([30_000, 790_000, 50_000, 1_240_000, 60_000, 1_320_000])
+    // Sorted input, unsorted output — which is why the route must not call this on a price sort.
+    expect(out).not.toEqual([...out].sort((x, y) => x - y))
   })
 })

@@ -132,9 +132,27 @@ export async function SellerStorefront({ id }: { id: string }) {
   }
   // Anchor "Chat" to the newest active listing (listings already ordered postedAt
   // desc). Null when there's nothing active to talk about → button self-omits.
-  const chatListingId = seller.listings[0]?.id ?? null
+  // ⚠️ THE NEWEST listing THAT CHAT ACTUALLY WORKS FOR. A partner ticket is booked on the
+  // partner's site and has no chat gate on its own PDP, so anchoring here to `listings[0]` would
+  // send a reader to a page with nothing to answer them — which is what happens the moment a
+  // partner posts one ordinary item and stops being caught by `isAffiliatePartner` below.
+  const chatListingId = seller.listings.find((l) => !l.affiliateUrl)?.id ?? null
   // Identity, not name/handle: the desk is whichever storefront getVisaShopSeller resolves.
   const isVisaDesk = seller.id === (await getVisaShopSeller())?.id
+  /**
+   * A partner storefront whose every product is booked and paid for on the partner's own site.
+   *
+   * ⛔ NO GENERIC "Chat now" HERE (owner, 2026-08-24). It is the same rule the visa desk already
+   * follows one line up, for the same reason: the CTA promises a conversation that leads somewhere,
+   * and on this storefront it does not. eno never takes the payment, sets the price, or holds the
+   * booking — every product page sends the reader to the partner's checkout instead.
+   *
+   * ⚠️ DERIVED FROM THE LISTINGS, NOT FROM A NAME OR AN ID. `every` and not `some`, and the
+   * non-empty guard is load-bearing: a storefront with zero active listings would otherwise satisfy
+   * `every` vacuously and silently lose its chat button. A partner that also sells something
+   * ordinary keeps the CTA, because for that product a chat IS the right next step.
+   */
+  const isAffiliatePartner = seller.listings.length > 0 && seller.listings.every((l) => Boolean(l.affiliateUrl))
 
   return (
     <div className="flex min-h-screen flex-col blob-bg">
@@ -174,14 +192,14 @@ export async function SellerStorefront({ id }: { id: string }) {
             {/* ⚠️ THE CTA NOW LIVES ON THIS ROW, so the guard has to admit it. The row used to
                 render only when there was a handle or an owner; a seller with a chat target but
                 neither would have lost their "Chat now" entirely when it moved here. */}
-            {(seller.handle || seller.ownerId || (!isVisaDesk && chatListingId)) && (
+            {(seller.handle || seller.ownerId || (!isVisaDesk && !isAffiliatePartner && chatListingId)) && (
               <div className="flex flex-wrap items-center gap-2">
                 {/* One line, mobile and desktop (owner, 2026-08-11). `flex-wrap` is deliberate
                     and is NOT a second row in disguise: at 320px the chips + CTA + Report cannot
                     fit, and forcing them to would either overflow the viewport or shrink the
                     primary action below a 44px target. Wrapping degrades to two lines only where
                     one is physically impossible; everywhere else it is the single row asked for. */}
-                {!isVisaDesk && <StorefrontChatButton chatListingId={chatListingId} />}
+                {!isVisaDesk && !isAffiliatePartner && <StorefrontChatButton chatListingId={chatListingId} />}
                 {seller.handle && <HandleChip handle={seller.handle.handle} />}
                 {/* ONE badge only (owner 2026-07-23: "only 1 badge, no 2 badge system").
                     A business that passed the >=2-channel verification shows "Business

@@ -89,3 +89,31 @@ export function diversifyBySeller<T extends Diversifiable>(rows: readonly T[]): 
   }
   return out
 }
+
+/**
+ * Whether the seller round-robin applies to a given sort.
+ *
+ * ⛔ ONLY THE DEFAULT BLEND. Diversity is a MERCHANDISING rule: it decides what a visitor who has
+ * expressed no preference should meet first. The moment a reader picks "Cheapest first" they HAVE
+ * expressed one, and interleaving by seller silently overrules it — which is the same argument the
+ * route already makes for semantic results ("their order IS the relevance answer").
+ *
+ * ⚠️ THIS WAS A REAL, VISIBLE BUG, MEASURED ON PRODUCTION 2026-08-24, NOT A THEORETICAL ONE. With
+ * two sellers in the catalogue — a visa desk and a ticket partner — `sort=price-low` returned
+ * 0, 30k, 790k, 50k, 1.24M, 60k, 1.32M, 100k: two individually-ascending lists zipped together.
+ * Every row was sorted and the feed was not, so the cheapest listing on screen sat in row 2 and
+ * the second-cheapest in row 4. The reader reads that as "the sort is broken", and they are right.
+ *
+ * The default keeps the round-robin: that feed's whole job is to look like a marketplace.
+ */
+export function diversityAppliesTo(sort: string): boolean {
+  return sort === DEFAULT_FEED_SORT
+}
+
+/**
+ * The sort key that means "no preference" — the balanced relevance blend the browse feed opens on.
+ * Named rather than inlined because three files have to agree on it: this module, the API route,
+ * and the home page's server render.
+ * ⚠️ It is the legacy string 'newest' and does NOT mean "most recent" — that is 'recent'.
+ */
+export const DEFAULT_FEED_SORT = 'newest'

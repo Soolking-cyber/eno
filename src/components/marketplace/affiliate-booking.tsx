@@ -1,4 +1,4 @@
-import { ArrowUpRight, ShieldCheck } from '@/components/ui/icons'
+import { ArrowUpRight } from '@/components/ui/icons'
 import { Button } from '@/components/ui/button'
 import { Tr } from '@/context/language-context'
 import { affiliateQrSvg, safeAffiliateUrl } from '@/lib/affiliate-qr'
@@ -115,16 +115,18 @@ export function AffiliateBooking({
       ) : null}
 
       {/*
-        * The disclosure. Required by Vietnamese consumer-protection rules and by Google's own
-        * guidance, and it is also simply true: we are paid if this link converts, and a reader who
-        * finds that out later trusts every other page here less.
+        * ⛔ THE PAID-LINK DISCLOSURE PARAGRAPH WAS REMOVED HERE ON OWNER INSTRUCTION (2026-08-24,
+        * "remove this warning"). What it said is not gone from the page: SafetyStrip's
+        * variant="affiliate" line already tells the reader to book only on the partner's own site
+        * and that eno.vn never takes payment or a deposit for a partner ticket and cannot refund
+        * one, so the "we don't sell this / don't hold your money" half is still stated.
+        *
+        * ⚠️ WHAT IS NO LONGER STATED ANYWHERE IS THE COMMISSION. rel="sponsored" on the anchor
+        * discloses the paid relationship to Google, but not to the person reading the page, and a
+        * reader-facing disclosure is what consumer-protection rules ask for. If that needs to come
+        * back, it is one sentence — "We may earn a commission if you book through this link, at no
+        * extra cost to you." — and this is the element it belongs on.
         */}
-      <p className="flex items-start gap-2 text-xs leading-relaxed text-body">
-        <ShieldCheck className="mt-0.5 size-3.5 shrink-0" aria-hidden />
-        <span>
-          <Tr text="Booking and payment happen on the partner's website — eno does not sell this ticket, hold your money, or process refunds. We may earn a commission if you book through this link, at no extra cost to you." />
-        </span>
-      </p>
     </section>
   )
 }
