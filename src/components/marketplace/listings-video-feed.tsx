@@ -404,16 +404,16 @@ function VideoFeedItem({
               `pressed` drives the Outline→Bold swap — see RailButton. Without it the saved
               heart paints red OUTLINE here while the grid card paints red BOLD. */}
           <RailButton label={tr('Save listing', 'Lưu tin')} pressed={favorited} onClick={() => toggle(listing.id)}>
-            <Heart strokeWidth={STROKE_NAV} className={cn('icon-own-ink h-7 w-7 transition-colors [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.6))]', favorited ? 'fill-current text-destructive' : 'text-white')} />
+            <Heart strokeWidth={STROKE_NAV} className={cn('icon-own-ink h-7 w-7 transition-colors icon-shadow-brand-strong', favorited ? 'fill-current text-destructive' : 'text-white')} />
           </RailButton>
           <RailButton label={tr('Chat with seller', 'Nhắn tin')} onClick={chat}>
-            <MessageCircle strokeWidth={STROKE_NAV} className="h-7 w-7 [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.6))]" />
+            <MessageCircle strokeWidth={STROKE_NAV} className="h-7 w-7 icon-shadow-brand-strong" />
           </RailButton>
           <RailButton label={tr('Share', 'Chia sẻ')} onClick={share}>
-            <Share2 strokeWidth={STROKE_NAV} className="h-7 w-7 [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.6))]" />
+            <Share2 strokeWidth={STROKE_NAV} className="h-7 w-7 icon-shadow-brand-strong" />
           </RailButton>
           <RailButton label={muted ? tr('Unmute', 'Bật tiếng') : tr('Mute', 'Tắt tiếng')} onClick={onToggleMute}>
-            {muted ? <VolumeX strokeWidth={STROKE_NAV} className="h-7 w-7 [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.6))]" /> : <Volume2 strokeWidth={STROKE_NAV} className="h-7 w-7 [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.6))]" />}
+            {muted ? <VolumeX strokeWidth={STROKE_NAV} className="h-7 w-7 icon-shadow-brand-strong" /> : <Volume2 strokeWidth={STROKE_NAV} className="h-7 w-7 icon-shadow-brand-strong" />}
           </RailButton>
         </div>
       </div>

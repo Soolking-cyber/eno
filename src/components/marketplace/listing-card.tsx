@@ -725,7 +725,9 @@ function ListingCardImpl({
                 from the <svg> — so `fill-brand` never reached the ink and both states painted
                 `text-white`. Setting `color` is what the paths actually follow. `fill-current` is
                 kept so the shape stays solid rather than falling back to the unset default. */}
-            <Heart className={cn('icon-own-ink h-5 w-5 transition-colors [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.5))]', favorited ? 'fill-current text-destructive' : 'fill-black/25 text-white')} />
+            <Heart className={cn('icon-own-ink h-5 w-5 transition-colors', favorited
+              ? 'icon-shadow-saved fill-current text-destructive'
+              : 'icon-shadow-brand fill-black/25 text-white')} />
           </span>
         </IconButton>
 

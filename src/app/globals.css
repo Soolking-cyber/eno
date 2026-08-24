@@ -2452,3 +2452,48 @@ html.dark .leaflet-tile-pane {
     }
   }
 }
+
+/* ICON SHADOW ON PRODUCT SURFACES — the eno blue, not black.
+   Owner, 2026-08-24: "make outlines our blue not black", "same for all icons on product".
+
+   These are the bare white glyphs that sit directly ON a photo — the save heart, the map card's
+   heart, the gallery's photo-count chip and Close, the video feed's action rail. They need a shadow
+   at all because a white icon over a pale photo is invisible without one; what changed is its hue.
+
+   ⚠️ ONE UTILITY, NOT NINE INLINE COPIES. This was `[filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.5))]`
+   pasted into nine call sites at three different alphas. That is exactly how the watermark ended up
+   drawn three different ways in this repo — a value repeated by hand drifts the first time someone
+   tunes one copy.
+
+   ⛔ `--brand-deeper`, NOT `--brand`. The shadow's job is CONTRAST, and --brand is a mid blue that
+   goes LIGHTER in dark mode (#3b8ee6; --brand-dark is a hover token and goes lighter still, to
+   #74b3f2). A light-blue shadow behind a white glyph over a pale photo separates far less than the
+   black it replaced, so the icon would disappear on exactly the photos that needed the shadow.
+   --brand-deep/--brand-deeper are declared ONCE and do not flip per theme (see the note at their
+   declaration), so #0c2b48 stays a near-black navy in both — recognisably our blue, with the
+   contrast the old black had.
+
+   ⛔ THE PLAIN DECLARATION FIRST IS A FALLBACK, NOT A DUPLICATE — DO NOT "TIDY" IT AWAY. An engine
+   without color-mix() discards the whole declaration, and `filter` would resolve to `none`: no
+   shadow at all. That is Safari <16.2 (every iOS-15-capped iPhone) and Chrome/WebView <111 — a real
+   share of this market on second-hand phones — seeing a white heart on a sky photo and nothing
+   else. The first line gives them a solid shadow; the second refines it where supported. */
+.icon-shadow-brand {
+  filter: drop-shadow(0 1px 2px var(--brand-deeper));
+  filter: drop-shadow(0 1px 2px color-mix(in oklab, var(--brand-deeper) 62%, transparent));
+}
+
+/* Over VIDEO, where the frame behind an icon changes constantly and can be any brightness, 62%
+   does not hold. This is for that rail only. */
+.icon-shadow-brand-strong {
+  filter: drop-shadow(0 1px 2px var(--brand-deeper));
+  filter: drop-shadow(0 1px 2px color-mix(in oklab, var(--brand-deeper) 82%, transparent));
+}
+
+/* ⚠️ THE SAVED HEART IS RED, AND A BLUE SHADOW UNDER IT IS A CLASH. `text-destructive` + a brand
+   shadow put two unrelated hues on one 20px glyph. This tints the shadow with the icon's own
+   colour family instead, so the saved state reads as one deliberate thing. */
+.icon-shadow-saved {
+  filter: drop-shadow(0 1px 2px var(--destructive));
+  filter: drop-shadow(0 1px 2px color-mix(in oklab, var(--destructive) 55%, transparent));
+}

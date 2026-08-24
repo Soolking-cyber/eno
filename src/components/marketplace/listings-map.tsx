@@ -670,7 +670,9 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
                         `text-destructive` merely recoloured the Outline layer underneath. The label
                         moved from state wording ("Saved") to action wording to match the other
                         hearts: with aria-pressed set, a state label reads as "Saved, pressed". */}
-                    <Heart className={cn('icon-own-ink h-5 w-5 transition-colors [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.5))]', isFavorite(card.id) ? 'fill-current text-destructive' : 'fill-black/25 text-white')} />
+                    <Heart className={cn('icon-own-ink h-5 w-5 transition-colors', isFavorite(card.id)
+              ? 'icon-shadow-saved fill-current text-destructive'
+              : 'icon-shadow-brand fill-black/25 text-white')} />
                   </IconButton>
                 </div>
                 <Button variant="bare" size="none" onClick={() => activateCard(card)} className="block w-full whitespace-normal text-left font-normal cursor-pointer active:scale-100">

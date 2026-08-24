@@ -378,7 +378,7 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
                 variant="bare"
                 size="none"
                 onClick={() => openAt(hasVideo ? Math.max(0, sel - 1) : sel)}
-                className="absolute bottom-3 right-3 flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold text-white cursor-pointer active:scale-100 [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.5))]"
+                className="absolute bottom-3 right-3 flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold text-white cursor-pointer active:scale-100 icon-shadow-brand"
               >
                 <Images className="h-4 w-4" /> <Tr text={showAllLabel} /> · {images.length}
               </Button>
@@ -449,7 +449,7 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
             aria-label={tr('Close', 'Đóng')}
             // Safe-area term: the lightbox is a fullscreen overlay and the native WebView is
             // edge-to-edge, so a bare top-4 puts Close under the Dynamic Island. 0 on web.
-            className="absolute right-4 top-[calc(env(safe-area-inset-top)+1rem)] [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.5))]"
+            className="absolute right-4 top-[calc(env(safe-area-inset-top)+1rem)] icon-shadow-brand"
           >
             <X className="h-5 w-5" />
           </IconButton>
