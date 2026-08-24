@@ -43,6 +43,7 @@ import { ReportButton } from '@/components/marketplace/report-button'
 import { ContactComposer } from '@/components/marketplace/contact-composer'
 import { AffiliateBooking } from '@/components/marketplace/affiliate-booking'
 import { safeAffiliateUrl } from '@/lib/affiliate-qr'
+import { isBookingCategory } from '@/lib/affiliate-kind'
 import { VisaStart, VISA_START_AVAILABLE } from '@/components/marketplace/visa-start'
 import { isVisaShopListing } from '@/lib/visa-shop'
 // The one switch that means "this deployment runs the visa chat" — see the gate on isVisaProduct.
@@ -242,6 +243,8 @@ export default async function ListingPage({ params }: Props) {
    * contact path comes back.
    */
   const affiliateUrl = safeAffiliateUrl(listing.affiliateUrl)
+  // Book a park, buy a laptop — the words and the price treatment differ (owner, 2026-08-24).
+  const isBooking = isBookingCategory(listing.category?.slug)
   // Is this the trip desk's own listing? Same trust shape as the visa check above — resolved
   // server-side from (seller, externalId) on the desk that owns the row, never from the title or
   // the category, which another seller could imitate. `cache()`d, so this costs one query per
@@ -575,7 +578,11 @@ export default async function ListingPage({ params }: Props) {
                       * page reads as a fixed quote we cannot honour, which is both a consumer-law
                       * problem and the structured-data/visible-price mismatch Google penalises.
                       */}
-                    {affiliateUrl ? (
+                    {/* ⚠️ "from" ONLY ON A BOOKING. A ticket's stored price is the lowest adult
+                        fare and the real amount is set at the partner's checkout; a retail
+                        product's price is simply its price, and prefixing that with "from" would
+                        state something untrue about it. See isBookingCategory. */}
+                    {affiliateUrl && isBooking ? (
                       <span className="text-base font-medium text-body"><Tr text="from" /></span>
                     ) : null}
                     <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} className="text-3xl tracking-tight text-accent-foreground" />
@@ -706,6 +713,7 @@ export default async function ListingPage({ params }: Props) {
                       partnerName={listing.seller.name}
                       discountCode={listing.affiliateDiscountCode}
                       discountPercent={listing.affiliateDiscountPercent}
+                      booking={isBooking}
                     />
                   : isVisaProduct
                   ? <VisaStart listingId={listing.id} className="w-full" />
@@ -745,7 +753,7 @@ export default async function ListingPage({ params }: Props) {
                   */}
                 <SafetyStrip
                   categorySlug={rawListing.category.slug}
-                  variant={affiliateUrl ? 'affiliate' : undefined}
+                  variant={affiliateUrl ? (isBooking ? 'affiliate' : 'affiliate-purchase') : undefined}
                   protections={affiliateUrl ? undefined : <ProtectionsRow inline />}
                   action={<ReportButton listingId={listing.id} />}
                 />
@@ -795,7 +803,7 @@ export default async function ListingPage({ params }: Props) {
               <div className="space-y-2">
                 <h2 className="text-lg font-semibold text-foreground"><Tr text="Description" /></h2>
                 {/* max-w-prose caps the reading measure at ~65ch — the col-7 body otherwise runs wide. */}
-                <ListingDescription text={listing.description} i18n={i18n[listing.description]} className="max-w-prose space-y-3 text-base leading-relaxed text-body" />
+                <ListingDescription text={listing.description} vi={listing.descriptionVi} i18n={i18n[listing.description]} className="max-w-prose space-y-3 text-base leading-relaxed text-body" />
               </div>
 
               {(attrs.length > 0 || numericSpecs.length > 0) && (

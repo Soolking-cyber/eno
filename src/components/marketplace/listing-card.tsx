@@ -15,6 +15,7 @@ import { CardBadges } from './card-badges'
 import Image from 'next/image'
 import type { SerializedListingCard } from '@/lib/types'
 import { Price } from './price'
+import { isBookingCategory } from '@/lib/affiliate-kind'
 import { formatMoneyFull, moneyLocale, dropPercent } from '@/lib/vnd'
 import { CategoryIcon } from './category-icons'
 import { cardSlots } from '@/lib/card-slots'
@@ -865,7 +866,7 @@ function ListingCardImpl({
               short: a 5-6 digit VND price with no unit suffix. Do not extend this prefix to
               ordinary listings without re-measuring — "from 9,500,000,000 VND / month ≈ $361,000"
               is exactly the line that wraps and breaks the grid's mt-auto footer alignment. */}
-          {listing.isPartnerBooking ? (
+          {listing.isPartnerBooking && isBookingCategory(listing.category?.slug) ? (
             <span className="text-xs font-semibold text-body">{tr('from', 'từ')}</span>
           ) : null}
           <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} compact className="text-lg leading-tight text-accent-foreground" />

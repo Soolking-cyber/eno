@@ -613,6 +613,12 @@ model Listing {
   title                   String
   titleVi                 String?
   description             String
+  /// Vietnamese description, mirroring `titleVi`. Null on everything a human posted in one
+  /// language; set by the feed importer, which keeps the merchant's original here and puts the
+  /// English translation in `description`.
+  /// ⚠️ ListingDescription already had the slot for this — it was calling useLocalized(text,
+  /// null, i18n), passing null exactly where titleVi goes for the heading.
+  descriptionVi           String?
   price                   Float
   priceUnit               String             @default("VND")
   currency                String             @default("₫")

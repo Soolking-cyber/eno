@@ -100,6 +100,8 @@ export type SerializedListing = {
   // titleVi cover those). Populated by localizeListingTitles at card-producing fetch sites.
   titleI18n?: Record<string, string>
   description: string
+  /// Vietnamese description, mirroring titleVi. Null unless the listing was stored bilingually.
+  descriptionVi: string | null
   price: number
   priceUnit: string
   currency: string

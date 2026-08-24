@@ -25,11 +25,14 @@ export function AffiliateBooking({
   partnerName,
   discountCode,
   discountPercent,
+  booking,
 }: {
   url: string
   partnerName: string
   discountCode?: string | null
   discountPercent?: number | null
+  /** True for a ticket/reservation, false for a boxed product — see isBookingCategory. */
+  booking: boolean
 }) {
   // ⛔ https ONLY — see safeAffiliateUrl. A stored `javascript:` value would otherwise be a
   // stored-XSS sink, and this link leads to a payment page so `http:` is refused as well.
@@ -42,7 +45,7 @@ export function AffiliateBooking({
   return (
     <section aria-labelledby="affiliate-booking-heading" className="flex flex-col gap-4">
       <h2 id="affiliate-booking-heading" className="sr-only">
-        <Tr text="Book this experience" />
+        {booking ? <Tr text="Book this experience" /> : <Tr text="Buy from this shop" />}
       </h2>
 
       {/*
@@ -53,7 +56,7 @@ export function AffiliateBooking({
         * penalises — as well as the kind of claim consumer-protection rules are written about.
         */}
       <p className="text-xs text-body">
-        <Tr text="Lowest adult ticket — the final price is set at checkout and varies by date." />
+        {booking ? <Tr text="Lowest adult ticket — the final price is set at checkout and varies by date." /> : <Tr text="Price shown is the shop's current price and can change." />}
       </p>
 
       <Button asChild variant="cta" size="lg" className="w-full">
@@ -73,7 +76,7 @@ export function AffiliateBooking({
           target="_blank"
           rel="sponsored nofollow noopener noreferrer"
         >
-          <Tr text="Book on" /> {partnerName}
+          {booking ? <Tr text="Book on" /> : <Tr text="Buy on" />} {partnerName}
           <ArrowUpRight className="size-4" aria-hidden />
         </a>
       </Button>
@@ -105,10 +108,10 @@ export function AffiliateBooking({
           <div className="shrink-0 [&>svg]:size-24 [&>svg]:rounded-lg" dangerouslySetInnerHTML={{ __html: qr }} />
           <div className="min-w-0">
             <p className="text-sm font-medium text-foreground">
-              <Tr text="Scan to book on your phone" />
+              {booking ? <Tr text="Scan to book on your phone" /> : <Tr text="Scan to open on your phone" />}
             </p>
             <p className="mt-1 text-xs text-body">
-              <Tr text="Opens the same booking page, with the discount code ready to enter." />
+              {booking ? <Tr text="Opens the same booking page, with the discount code ready to enter." /> : <Tr text="Opens the same product page on the shop's website." />}
             </p>
           </div>
         </div>

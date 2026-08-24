@@ -37,6 +37,7 @@ export function serializeListing(
     id: l.id,
     title: l.title,
     titleVi: l.titleVi,
+    descriptionVi: (l as { descriptionVi?: string | null }).descriptionVi ?? null,
     description: l.description,
     price: l.price,
     priceUnit: l.priceUnit,

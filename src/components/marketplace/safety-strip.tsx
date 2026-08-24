@@ -21,10 +21,19 @@ export function SafetyStrip({ categorySlug, action, protections, className, vari
    * that translates its own copy through tr(). A string handed in from the server page cannot be
    * translated — the first draft did exactly that and Vietnamese readers would have got the English
    * sentence, on the one line of the page that exists to prevent someone losing money.
-   */ variant?: 'affiliate' }) {
+   */ variant?: 'affiliate' | 'affiliate-purchase' }) {
   const { tr } = useLanguage()
 
-  const line = variant === 'affiliate'
+  // ⚠️ "partner tickets" IS WRONG ON A PHONE. The affiliate line was written for VinWonders and
+  // then inherited by an imported electronics catalogue, where it told a reader buying a laptop
+  // that we take no deposit "for partner tickets". Same split as the CTA: you book a park, you buy
+  // a laptop.
+  const line = variant === 'affiliate-purchase'
+    ? tr(
+        "Buy only on the shop's own website — eno.vn never takes payment for these items, and cannot refund or return one.",
+        'Chỉ mua trên website chính thức của cửa hàng — eno.vn không nhận thanh toán cho các sản phẩm này, và không thể hoàn tiền hay đổi trả.',
+      )
+    : variant === 'affiliate'
     ? tr(
         "Book only on the partner's own website — eno.vn never takes payment or a deposit for partner tickets, and cannot refund one.",
         'Chỉ đặt vé trên website chính thức của đối tác — eno.vn không bao giờ nhận thanh toán hay tiền cọc cho vé của đối tác, và không thể hoàn tiền.',

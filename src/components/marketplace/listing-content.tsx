@@ -109,9 +109,12 @@ export function RichText({ text, className }: { text: string; className?: string
 }
 
 /** Localized listing description rendered with light markdown (bullets / bold / paragraphs). */
-export function ListingDescription({ text, i18n, className }: { text: string; i18n?: Record<string, string> | null; className?: string }) {
+export function ListingDescription({ text, vi, i18n, className }: { text: string; vi?: string | null; i18n?: Record<string, string> | null; className?: string }) {
   const { lang } = useLanguage()
-  const out = useLocalized(text, null, i18n)
+  // ⚠️ `vi` WAS HARDCODED null HERE while the heading passed titleVi through the same hook — so a
+  // listing stored in two languages showed its title correctly and its description always in the
+  // primary one. The slot existed; nothing was filling it.
+  const out = useLocalized(text, vi ?? null, i18n)
   const cl = detectContentLang(out)
   // `allow-select`: keep the description selectable/copyable in the native app, where chrome
   // selection is disabled (globals.css html.native). Content text is the exception users need.
