@@ -36,11 +36,16 @@ import { appendFileSync } from 'node:fs'
 /** Merchant category paths, appended as we go. Read by classify-cellphones.ts, offline. */
 const CRUMB_FILE = 'data/cellphones-breadcrumbs.jsonl'
 
+/** Consecutive challenge pages. Past the threshold the run stops rather than digging in deeper. */
+let blockHits = 0
+const BLOCK_LIMIT = 8
+
 const arg = (n: string) => { const i = process.argv.indexOf(`--${n}`); return i >= 0 ? process.argv[i + 1] : undefined }
 const APPLY = process.argv.includes('--apply')
 const LIMIT = Number(arg('limit') ?? 0)
 const CONCURRENCY = Number(arg('concurrency') ?? 3)
 const MAX_IMAGES = Number(arg('max-images') ?? 6)
+const PAUSE_MS = Number(arg('pause') ?? 1200)
 const EDGE = 1100
 const BUCKET = 'listings'
 /** Two images this close are the same shot; the gallery repeats the hero in its thumbnail strip. */
@@ -66,6 +71,17 @@ async function pageDataFor(browser: Browser, url: string): Promise<{ gallery: st
   try {
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45_000 })
     await page.waitForTimeout(2600)
+    /**
+     * ⛔ DETECT THE BLOCK, DO NOT CRAWL THROUGH IT. Running this at concurrency 5 alongside a
+     * second crawler got us CAPTCHA-walled: every page returned HTTP 200 with a 6KB challenge and
+     * no __NUXT__, which the gallery selectors read as "this product has no images". A blocked run
+     * looks EXACTLY like a successful run over a site with no galleries, so it has to be checked
+     * explicitly — and then stopped, because continuing only deepens the block.
+     */
+    const blocked = await page.evaluate(`(function () {
+      return !window.__NUXT__ && document.documentElement.innerHTML.length < 20000
+    })()`) as boolean
+    if (blocked) { blockHits++; return { gallery: [], crumbs: [] } }
     await page.evaluate(() => document.querySelector('.gallery-slide, .box-gallery')?.scrollIntoView({ block: 'center' }))
     await page.waitForTimeout(2600)
     /**
@@ -190,6 +206,7 @@ async function main() {
         crumbed++
       }
       if (!urls.length) { none++; return }
+      blockHits = 0 // a real page resets the streak
       if (!APPLY) { added += Math.min(urls.length, MAX_IMAGES); return }
 
       const kept: string[] = []
@@ -208,7 +225,14 @@ async function main() {
         added += kept.length
       }
     }))
-    await new Promise((res) => setTimeout(res, 400))
+    // ⚠️ A REAL PAUSE BETWEEN BATCHES. This is thousands of requests to someone else's shop; the
+    // job is measured in hours either way, and being throttled costs far more than waiting.
+    await new Promise((res) => setTimeout(res, PAUSE_MS))
+    if (blockHits >= BLOCK_LIMIT) {
+      console.error(`\n⛔ STOPPING: ${blockHits} challenge pages in a row — cellphones.com.vn is rate-limiting us.`)
+      console.error('   Wait for it to lift, then re-run; the job is resumable and keeps what it has.')
+      break
+    }
     if (done % 30 === 0) console.log(`  ${done}/${targets.length}  images added=${added}  no-gallery=${none}`)
   }
   await browser.close()

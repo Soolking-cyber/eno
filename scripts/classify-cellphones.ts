@@ -36,7 +36,7 @@ type Hit = { category: string; subcategory: string | null }
 const RULES: [RegExp, Hit][] = [
   // 1 ─ NOT A PHYSICAL PRODUCT. A warranty plan or a software licence is a service; leaving these
   //     among the phones puts "AppleCare+ for AirPods" in the earphones aisle.
-  [/applecare|care\+|bảo hành|gói bảo|gói \d+ năm|\d+-year package|\d+-year .*package|extended warranty|phần mềm|office 365|microsoft 365|windows \d|kaspersky|antivirus|^sim |thuê bao/i,
+  [/applecare|care\+|bảo hành|gói bảo|gói \d+ năm|\d+-year package|\d+-year .*package|extended warranty|s-?buyback|buyback|trade-?in|thu cũ|đổi cũ lấy mới|phần mềm|office 365|microsoft 365|windows \d|kaspersky|antivirus|^sim |thuê bao/i,
     { category: 'services', subcategory: null }],
 
   // 2 ─ ACCESSORY INTENT, ABOVE EVERY DEVICE NAME. This is the block my first pass had last.
@@ -56,7 +56,15 @@ const RULES: [RegExp, Hit][] = [
   [/^cáp |cáp sạc|cable|dây cáp|hub |bộ chuyển|adapter|docking/i, { category: 'electronics', subcategory: 'cables-chargers' }],
   [/pin dự phòng|sạc dự phòng|power bank|powerbank/i, { category: 'electronics', subcategory: 'power-banks' }],
   [/balo|túi chống sốc|túi đựng|cặp laptop|laptop bag|backpack|túi xách|sleeve|shoulder bag|carrying case/i, { category: 'electronics', subcategory: 'bags-sleeves' }],
-  [/giá đỡ|chân đế|tripod|gimbal|gậy chụp|selfie stick|mount|kẹp /i, { category: 'electronics', subcategory: 'accessories' }],
+  /**
+   * ⚠️ THE LONG TAIL OF THINGS THAT ATTACH TO A PHONE. Each of these names a device and is not one:
+   * a "Snap Wallet Kickstand iPhone Wallet" was filed as a PHONE, so "cheap iphone" answered with
+   * wallets and stands. Found by sorting phones-tablets by price and reading the top — the cheap
+   * end of a device subcategory is where accessories hide.
+   */
+  [/giá đỡ|chân đế|tripod|gimbal|gậy chụp|selfie stick|mount|kẹp |\bstand\b|kickstand|holder|\bgrip\b/i, { category: 'electronics', subcategory: 'accessories' }],
+  [/\bwallet\b|ví |popsocket|ring holder|magsafe ring|lanyard|dây đeo cổ|airtag|location tracker|thẻ định vị/i,
+    { category: 'electronics', subcategory: 'accessories' }],
   [/bút cảm ứng|apple pencil|stylus/i, { category: 'electronics', subcategory: 'accessories' }],
   // ⚠️ ABOVE `cameras`: "camera lens protector" is a sticker for a phone, not a lens.
   [/bảo vệ camera|lens protector|camera protector|dán camera|ring camera/i, { category: 'electronics', subcategory: 'accessories' }],

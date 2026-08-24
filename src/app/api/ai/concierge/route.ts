@@ -1,6 +1,7 @@
 import { marketplaceListingScope, scopedListingWhere } from '@/lib/edition-scope'
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { TAXONOMY } from '@/lib/taxonomy'
 import { fold } from '@/lib/fold'
 import { serializeListing } from '@/lib/serialize'
 import { aiGuard } from '@/lib/ai-guard'
@@ -61,6 +62,7 @@ type Understood = {
   minPriceVnd: number | null
   maxPriceVnd: number | null
   categorySlug: string | null
+  subcategorySlug: string | null
 }
 
 const PRICE_ASC = /\b(cheap|cheapest|lowest|budget|affordable|least expensive)\b/i
@@ -100,11 +102,11 @@ function parsePrice(text: string): { minPriceVnd: number | null; maxPriceVnd: nu
 // 5 trieu" → {query:"laptop", maxPriceVnd:5000000} even when Gemini is down.
 function heuristicUnderstand(text: string): Understood {
   if (CHAT_RE.test(text.trim())) {
-    return { intent: 'chat', reply: null, query: '', brand: null, sort: null, minPriceVnd: null, maxPriceVnd: null, categorySlug: null }
+    return { intent: 'chat', reply: null, query: '', brand: null, sort: null, minPriceVnd: null, maxPriceVnd: null, categorySlug: null, subcategorySlug: null }
   }
   const sort: Sort = PRICE_ASC.test(text) ? 'price_asc' : PRICE_DESC.test(text) ? 'price_desc' : null
   const { minPriceVnd, maxPriceVnd } = parsePrice(text)
-  return { intent: 'search', reply: null, query: keywords(text).join(' ') || text.trim().slice(0, 160), brand: null, sort, minPriceVnd, maxPriceVnd, categorySlug: null }
+  return { intent: 'search', reply: null, query: keywords(text).join(' ') || text.trim().slice(0, 160), brand: null, sort, minPriceVnd, maxPriceVnd, categorySlug: null, subcategorySlug: null }
 }
 
 // One Gemini call = the concierge's brain: intent + a natural reply + structured
@@ -132,8 +134,12 @@ intent:
   - sort: "price_asc" (cheapest/lowest) | "price_desc" (most expensive/priciest) | null.
   - maxPriceVnd / minPriceVnd: budget in VND ("5 trieu"/"5tr"/"5 million"=5000000, "500k"=500000, "1 ty"=1000000000); "under/duoi X"→max, "over/tren X"→min, else null.
   - categorySlug: the single best match from [${cats.map((c) => c.slug).join(', ')}], or null. This is only a HINT — when unsure use null.
+  - subcategorySlug: the single best match from [${SUBCATS.join(', ')}], or null. THIS IS THE ONE THAT
+    MATTERS FOR DEVICES. "cheap iphone" means the PHONE (phones-tablets), not the 1,239 iPhone cases
+    that also mention iPhone; "case for iphone" means phone-cases. If they name a device, pick the
+    device's subcategory; if they name an accessory, pick the accessory's. When unsure use null.
 
-Return ONLY JSON: {"intent":"chat"|"search","reply":"...","query":"...","brand":"..."|null,"sort":"price_asc"|"price_desc"|null,"maxPriceVnd":number|null,"minPriceVnd":number|null,"categorySlug":"..."|null}
+Return ONLY JSON: {"intent":"chat"|"search","reply":"...","query":"...","brand":"..."|null,"sort":"price_asc"|"price_desc"|null,"maxPriceVnd":number|null,"minPriceVnd":number|null,"categorySlug":"..."|null,"subcategorySlug":"..."|null}
 
 Conversation:
 ${transcript}`
@@ -147,7 +153,7 @@ ${transcript}`
     const num = (v: unknown) => (typeof v === 'number' && v > 0 ? Math.round(v) : null)
     const reply = typeof j.reply === 'string' && j.reply.trim() ? j.reply.trim().slice(0, 500) : null
     if (j.intent === 'chat') {
-      return { intent: 'chat', reply, query: '', brand: null, sort: null, minPriceVnd: null, maxPriceVnd: null, categorySlug: null }
+      return { intent: 'chat', reply, query: '', brand: null, sort: null, minPriceVnd: null, maxPriceVnd: null, categorySlug: null, subcategorySlug: null }
     }
     return {
       intent: 'search',
@@ -158,6 +164,7 @@ ${transcript}`
       maxPriceVnd: num(j.maxPriceVnd) ?? fallback.maxPriceVnd,
       minPriceVnd: num(j.minPriceVnd) ?? fallback.minPriceVnd,
       categorySlug: typeof j.categorySlug === 'string' && cats.some((c) => c.slug === j.categorySlug) ? j.categorySlug : null,
+      subcategorySlug: typeof j.subcategorySlug === 'string' && SUBCATS.includes(j.subcategorySlug) ? j.subcategorySlug : null,
     }
   } catch (e) {
     console.error('[ai/concierge] understand', e)
@@ -173,9 +180,22 @@ ${transcript}`
 // a brand-alone rung dumped every Apple device for "iphone 16 pro max". First
 // non-empty rung wins; `relaxed` tells the caller the results are closest-matches,
 // not exact, so the reply can say so honestly.
+/**
+ * Every subcategory slug the taxonomy defines, as the model's allow-list.
+ *
+ * ⛔ THIS EXISTS BECAUSE "cheap iphone" ANSWERED WITH CAMERA LENS PROTECTORS. The concierge only
+ * ever extracted a TOP-LEVEL category, so an iPhone query became `electronics` — which holds the
+ * phones AND the 1,239 iPhone cases, and sorting those by price puts a 240,000đ lens protector
+ * above every actual phone. The subcategory is the field that separates a device from the things
+ * that fit it, and it only became usable once the catalogue was classified properly.
+ */
+const SUBCATS: string[] = [...new Set(
+  (TAXONOMY as { subcategories?: { slug: string }[] }[]).flatMap((c) => (c.subcategories ?? []).map((sc) => sc.slug)),
+)]
+
 async function fallbackSearch(
   query: string, take: number,
-  f: { minPriceVnd: number | null; maxPriceVnd: number | null; categorySlug: string | null; brandSlug: string | null },
+  f: { minPriceVnd: number | null; maxPriceVnd: number | null; categorySlug: string | null; subcategorySlug: string | null; brandSlug: string | null },
 ): Promise<{ rows: Awaited<ReturnType<typeof db.listing.findMany<{ include: typeof INCLUDE }>>>; relaxed: boolean }> {
   const price: Prisma.FloatFilter = {}
   if (f.minPriceVnd) price.gte = f.minPriceVnd
@@ -221,10 +241,20 @@ async function fallbackSearch(
   })
   const and = (n: number) => tokens.slice(0, n).map(wordMatch)
   const cat = f.categorySlug ? { category: { slug: f.categorySlug } } : null
+  /**
+   * ⛔ THE SUBCATEGORY RUNG SITS ABOVE THE CATEGORY ONE, and that ordering is the whole fix.
+   * "cheap iphone" tokenises to ["iphone"], which matches 1,239 phone cases as happily as it
+   * matches phones — and sorted by price the cases win every slot, so the assistant answered a
+   * request for a cheap iPhone with camera lens protectors. Trying `subcategorySlug` first means a
+   * device query has to fail to find devices before it is allowed to offer the things that fit one.
+   */
+  const sub = f.subcategorySlug ? { subcategorySlug: f.subcategorySlug } : null
 
   // rungs[i].exact — only the full token set (with or without the guessed category)
   // counts as an exact answer; every relaxation is flagged.
   const rungs: { where: Prisma.ListingWhereInput; exact: boolean }[] = []
+  if (tokens.length && sub) rungs.push({ where: { ...base, ...sub, AND: and(tokens.length) }, exact: true })
+  if (sub && !tokens.length) rungs.push({ where: { ...base, ...sub }, exact: true })
   if (tokens.length && cat) rungs.push({ where: { ...base, ...cat, AND: and(tokens.length) }, exact: true })
   if (tokens.length) rungs.push({ where: { ...base, AND: and(tokens.length) }, exact: true })
   for (let n = tokens.length - 1; n >= 1; n--) rungs.push({ where: { ...base, AND: and(n) }, exact: false })
@@ -291,7 +321,7 @@ export async function POST(req: NextRequest) {
 
   // Pull a wider set when sorting OR budget-filtering, so "cheapest under 5M" is the
   // cheapest of MANY matches; we slice back to 8 after.
-  const { query, sort, minPriceVnd, maxPriceVnd, categorySlug } = u
+  const { query, sort, minPriceVnd, maxPriceVnd, categorySlug, subcategorySlug } = u
   const take = sort || minPriceVnd || maxPriceVnd ? 24 : 8
 
   let reply = ''
@@ -329,7 +359,7 @@ export async function POST(req: NextRequest) {
   }
   let relaxed = false
   if (source !== 'vertex' || !rows?.length) {
-    const r = await fallbackSearch(query, take, { minPriceVnd, maxPriceVnd, categorySlug, brandSlug })
+    const r = await fallbackSearch(query, take, { minPriceVnd, maxPriceVnd, categorySlug, subcategorySlug, brandSlug })
     rows = r.rows
     relaxed = r.relaxed
   }
