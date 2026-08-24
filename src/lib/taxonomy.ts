@@ -604,18 +604,35 @@ export const TAXONOMY: CategoryDef[] = [
     ],
     facets: [
       COND,
+      /**
+       * ⛔ EXACT CAPACITIES, NOT BUCKETS (owner: "not 64gb+ bullshit exact filter untill top spec").
+       * The options were 64 / 128 / 256 / `512-up`, so everything from a 512GB phone to a 4TB drive
+       * collapsed into one chip and nobody could ask for the thing they actually wanted.
+       * ⚠️ THE LIST IS THE MEASURED CATALOGUE, not every capacity that exists: 256 (368 products),
+       * 128 (255), 512 (180), 1TB (107), 64 (78), 2TB (38), 32 (26). 4TB appears 7 times and is
+       * left out — a chip that finds seven things is noise.
+       */
       { key: 'storage', label: 'Storage', labelVi: 'Bộ nhớ', kind: 'toggle',
-        subcats: ['phones-tablets', 'laptops-pcs', 'gaming'], options: [
+        subcats: ['phones-tablets', 'laptops-pcs', 'gaming', 'storage'], options: [
+        { value: '32', label: '32 GB', labelVi: '32 GB' },
         { value: '64', label: '64 GB', labelVi: '64 GB' },
         { value: '128', label: '128 GB', labelVi: '128 GB' },
         { value: '256', label: '256 GB', labelVi: '256 GB' },
-        { value: '512-up', label: '512 GB+', labelVi: '512 GB+' },
+        { value: '512', label: '512 GB', labelVi: '512 GB' },
+        { value: '1024', label: '1 TB', labelVi: '1 TB' },
+        { value: '2048', label: '2 TB', labelVi: '2 TB' },
       ] },
+      // Same rule as storage: the sizes this catalogue actually sells — 8 (189), 12 (174), 16 (95),
+      // 4 (55), 6 (42), 24 (20). `4-8` and `32-up` hid the 12GB and 24GB tiers entirely.
       { key: 'ram', label: 'RAM', labelVi: 'RAM', kind: 'toggle',
         subcats: ['phones-tablets', 'laptops-pcs', 'gaming'], options: [
-        { value: '4-8', label: '4–8 GB', labelVi: '4–8 GB' },
+        { value: '4', label: '4 GB', labelVi: '4 GB' },
+        { value: '6', label: '6 GB', labelVi: '6 GB' },
+        { value: '8', label: '8 GB', labelVi: '8 GB' },
+        { value: '12', label: '12 GB', labelVi: '12 GB' },
         { value: '16', label: '16 GB', labelVi: '16 GB' },
-        { value: '32-up', label: '32 GB+', labelVi: '32 GB+' },
+        { value: '24', label: '24 GB', labelVi: '24 GB' },
+        { value: '32', label: '32 GB', labelVi: '32 GB' },
       ] },
       { key: 'cpu', label: 'Processor', labelVi: 'Chip', kind: 'toggle',
         subcats: ['laptops-pcs'], options: [
@@ -625,12 +642,30 @@ export const TAXONOMY: CategoryDef[] = [
         { value: 'amd-ryzen', label: 'AMD Ryzen', labelVi: 'AMD Ryzen' },
         { value: 'apple-silicon', label: 'Apple M-series', labelVi: 'Chip Apple M' },
       ] },
+      /**
+       * ⚠️ TWO SEPARATE FACETS, because 14 inches and 65 inches are not points on one scale a
+       * shopper reads. A laptop buyer picks 13/14/16; a television buyer picks 55/65/75. Sharing
+       * one `under-27 / 27-32 / 40-55 / 55-plus` list served neither.
+       */
       { key: 'screenSize', label: 'Screen size', labelVi: 'Kích thước màn', kind: 'toggle',
         subcats: ['tv-monitors'], options: [
-        { value: 'under-27', label: 'Under 27"', labelVi: 'Dưới 27"' },
-        { value: '27-32', label: '27–32"', labelVi: '27–32"' },
-        { value: '40-55', label: '40–55"', labelVi: '40–55"' },
-        { value: '55-plus', label: '55"+', labelVi: '55" trở lên' },
+        { value: '24', label: '24"', labelVi: '24"' },
+        { value: '27', label: '27"', labelVi: '27"' },
+        { value: '32', label: '32"', labelVi: '32"' },
+        { value: '43', label: '43"', labelVi: '43"' },
+        { value: '50', label: '50"', labelVi: '50"' },
+        { value: '55', label: '55"', labelVi: '55"' },
+        { value: '65', label: '65"', labelVi: '65"' },
+        { value: '75', label: '75"', labelVi: '75"' },
+        { value: '85', label: '85"', labelVi: '85"' },
+      ] },
+      { key: 'laptopSize', label: 'Screen size', labelVi: 'Kích thước màn', kind: 'toggle',
+        subcats: ['laptops-pcs'], options: [
+        { value: '13', label: '13"', labelVi: '13"' },
+        { value: '14', label: '14"', labelVi: '14"' },
+        { value: '15', label: '15"', labelVi: '15"' },
+        { value: '16', label: '16"', labelVi: '16"' },
+        { value: '17', label: '17"', labelVi: '17"' },
       ] },
       { key: 'warranty', label: 'Warranty', labelVi: 'Bảo hành', kind: 'toggle', options: [
         { value: 'yes', label: 'In warranty', labelVi: 'Còn bảo hành' },

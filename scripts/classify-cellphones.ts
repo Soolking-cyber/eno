@@ -65,6 +65,15 @@ const RULES: [RegExp, Hit][] = [
   [/chuột |bàn phím|keyboard|mouse|lót chuột|mousepad/i, { category: 'electronics', subcategory: 'keyboards-mice' }],
 
   // 3 ─ SUBCATEGORIES THAT ARE THEIR OWN DEPARTMENT AT THE MERCHANT.
+  /**
+   * ⛔ COMPONENTS AND SWITCHES BEFORE `laptops-pcs`. That rule matches /laptop|desktop|macbook/,
+   * which swallowed "RAM Laptop Kingston 8GB" (a memory stick), "TP-Link 8-Port Desktop Switch" (a
+   * network switch) and "Stickers for Macbook Air" — found by reading what was actually filed as a
+   * laptop. A part FOR a laptop is not a laptop, the same rule as a case for a phone.
+   */
+  [/^ram laptop|thanh ram|^ram \b|memory module|sodimm|dimm/i, { category: 'electronics', subcategory: 'accessories' }],
+  [/\bswitch\b|\bpoe\b|\d+-port|gigabit|10\/100mbps|bộ chia mạng/i, { category: 'electronics', subcategory: 'networking' }],
+  [/sticker|decal|cleaning kit|bộ vệ sinh|khăn lau|dung dịch vệ sinh/i, { category: 'electronics', subcategory: 'accessories' }],
   [/thẻ nhớ|memory card|ổ cứng|ssd|hdd|usb \d|flash drive|thẻ microsd|external drive/i, { category: 'electronics', subcategory: 'storage' }],
   /**
    * ⛔ NOT A BARE `wifi`. Tablets and laptops ship as "Wifi" vs "5G" variants, and IP cameras and

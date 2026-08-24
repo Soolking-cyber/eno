@@ -38,6 +38,16 @@ const OFFICES: { seller: string; address: string; lat: number; lng: number; sour
     source: 'interpolated between photon anchors, reverse-geocode confirmed to the street',
   },
   {
+    seller: 'CellphoneS',
+    // ⚠️ FROM THE MERCHANT'S OWN FOOTER, not from memory: "Địa chỉ văn phòng: 350-352 Võ Văn Kiệt,
+    // Phường Cầu Ông Lãnh, Thành phố Hồ Chí Minh". Read off a page fetched before they rate-limited
+    // us, which is the only reason it was available to check.
+    address: '350-352 Võ Văn Kiệt, Phường Cầu Ông Lãnh, Thành phố Hồ Chí Minh',
+    lat: 10.760442,
+    lng: 106.694523,
+    source: 'photon: Hẻm 354 Võ Văn Kiệt, Cầu Ông Lãnh — the alley beside 350-352, same ward',
+  },
+  {
     seller: 'GMBR',
     // Taken from the storefront's own `location`, which already held it.
     address: '193/25 Nguyen Dinh Chinh Street - Ward 11 - Phu Nhuan District - Ho Chi Minh City',
