@@ -24,6 +24,7 @@ import { createClient } from '@supabase/supabase-js'
 import { db } from '../src/lib/db'
 import { watermarkSvg, watermarkPlacement, inkForLuminance } from '../src/lib/core/watermark-mark'
 import { brandSlugify, normalizeBrand } from '../src/lib/brand-normalize'
+import { buildSearchText } from '../src/lib/fold'
 
 const KEY = process.env.ACCESSTRADE_KEY
 if (!KEY) { console.error('ACCESSTRADE_KEY missing from .env'); process.exit(1) }
@@ -333,6 +334,17 @@ async function main() {
           price, priceUnit: '', currency: 'VND', negotiable: false, condition: 'new',
           images, categoryId, location: MERCHANT_CITY, city: MERCHANT_CITY,
           subcategorySlug: subcategoryFor(slug, p.name), brandSlug: brandFor(p.name), model: modelFor(p.name),
+          /**
+           * ⛔ WITHOUT THIS EVERY IMPORTED PRODUCT IS INVISIBLE TO SEARCH. feed-query.ts matches
+           * keywords against this folded blob, and it is built in core/listings.ts on the POST
+           * path — which a direct Prisma write never runs, so the column keeps its @default("").
+           * Measured on production: all 9,726 imports had an empty one, and a catalogue holding
+           * 1,193 phone cases returned nothing for "iphone case".
+           * ⚠️ Built from the FEED's Vietnamese here because that is all this script knows. After
+           * translate-imported-listings.ts fills the English slots, run rebuild-search-text.ts —
+           * it folds both languages in, which is what makes "ốp lưng" and "case" find one product.
+           */
+          searchText: buildSearchText([feedTitle, feedDesc, MERCHANT_CITY, slug, brandFor(p.name), modelFor(p.name)]),
           affiliateUrl, verified: true, status: 'active',
         }
         /**
