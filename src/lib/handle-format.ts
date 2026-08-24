@@ -15,6 +15,18 @@ const RESERVED = new Set([
   'developers', 'dispute', 'disputes', 'guide', 'help', 'listings', 'messages', 'onboard', 'post', 'privacy',
   'prohibited', 'regulations', 'reports', 'safety', 'saved', 'search', 'sellers',
   'signin', 'signup', 'sitemap', 'terms', 'trust',
+  // ⚠️ `docs` IS NOT AN app ROUTE — IT IS A REWRITE, WHICH IS EXACTLY WHY IT IS EASY TO MISS.
+  // next.config.ts rewrites /docs -> /developers in `afterFiles`, which Next resolves BEFORE
+  // dynamic routes, so it outranks src/app/[handle]. A seller holding `docs` would have a
+  // permanently unreachable storefront. If this list is ever regenerated from `src/app/*`
+  // directories, a rewrite-only path is precisely what such a generator would drop — keep it.
+  'docs',
+  // ⚠️ SURFACED BY THE INVARIANT TEST, NOT BY REVIEW — it was already unsafe before /docs existed.
+  // next.config.ts 307s /travel -> /vietnam-evisa on the SERVICES edition. Edition-gated and only
+  // a 307, so milder than the cases above, but the shape is identical: config resolves before
+  // dynamic routes, so a seller holding `travel` on eno.forum would have an unreachable
+  // storefront. Unclaimed when reserved (measured 2026-08-24: eno.vn/travel 404).
+  'travel',
   // platform identity / staff impersonation
   'eno', 'enovn', 'eno_vn', 'official', 'support', 'moderator', 'mod', 'staff',
   'team', 'security', 'verify', 'verified', 'system', 'notifications', 'billing',

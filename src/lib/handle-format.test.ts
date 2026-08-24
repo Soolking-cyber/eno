@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest'
+import { readFileSync } from 'node:fs'
 import { slugifyHandle, validateHandle, HANDLE_RE } from './handle-format'
 
 // @handle rules: "Alex Doe" → alex_doe (Telegram-style), one global namespace.
@@ -50,6 +51,32 @@ describe('validateHandle', () => {
   it('rejects reserved / impersonation names', () => {
     for (const h of ['admin', 'eno', 'support', 'official', 'sellers', 'api', 'verified']) {
       expect(validateHandle(h), h).toBe('reserved')
+    }
+  })
+
+  /**
+   * ⛔ THE INVARIANT THAT MAKES ROOT-LEVEL REWRITES SAFE, not a spot-check of one name.
+   *
+   * `src/app/[handle]` is a ROOT dynamic segment, so any single-segment path next.config.ts
+   * claims — a rewrite or a redirect — sits at the same address as somebody's storefront. Next
+   * resolves both `afterFiles` rewrites and redirects BEFORE dynamic routes, so config always
+   * wins: a seller who held that handle would have a permanently unreachable page, and for a
+   * redirect the browser would cache that forever. Reserving the name is the only fix (the
+   * `eno_vietnam` note in handle-format.ts records the same lesson).
+   *
+   * This reads the real config rather than restating a list, so ADDING a root-level rewrite
+   * without reserving its name fails here instead of in production. Mutation-checked: deleting
+   * 'docs' from RESERVED turns this red.
+   */
+  it('reserves every root-level path next.config.ts claims', () => {
+    const cfg = readFileSync(new URL('../../next.config.ts', import.meta.url), 'utf8')
+    const claimed = [...cfg.matchAll(/source:\s*["'](\/[a-z][a-z0-9_]*)["']/g)]
+      .map((m) => m[1].slice(1))
+      .filter((seg) => HANDLE_RE.test(seg))
+    // Guard the guard: if the regex ever stops matching, this test must not silently pass.
+    expect(claimed).toContain('docs')
+    for (const seg of new Set(claimed)) {
+      expect(validateHandle(seg), `next.config.ts claims /${seg} but it is not a reserved handle`).toBe('reserved')
     }
   })
 })

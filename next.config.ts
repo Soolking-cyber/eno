@@ -793,6 +793,31 @@ const nextConfig: NextConfig = {
           destination: "/api/well-known/aasa",
         },
         /**
+         * ── /docs — the predictable documentation URL agents probe ─────────────────────────────
+         * It answered 404 (the empty React shell) until 2026-08-24, which an is-agentic audit
+         * scored as "developer resources not discoverable": a scanner guesses /docs, /api, /api/v1
+         * and /v1 before it reads llms.txt, and a dead /docs reads as "no documentation exists".
+         *
+         * ⚠️ A REWRITE, NOT A REDIRECT, AND THAT IS THE POINT. /docs must answer 200 on the FIRST
+         * hop — a scanner that scores the status it gets without following Location would still
+         * record a 3xx as "not published here". The page already emits
+         * `<link rel="canonical" href="https://eno.vn/developers">` (measured), so serving the
+         * same document at two paths costs nothing in search: /developers stays the one canonical
+         * URL. Both editions serve /developers (measured: 200 on eno.vn AND eno.forum).
+         *
+         * ⚠️ EXACT PATH, NO `/docs/:path*`. The destination cannot carry a suffix it has no page
+         * for, so a wildcard would silently flatten `/docs/api/auth` onto the index. Nothing lives
+         * under /docs today (no `public/docs`, no `src/app/docs` — checked). Map real subpages
+         * explicitly if they ever exist.
+         *
+         * ⛔ `docs` IS RESERVED IN src/lib/handle-format.ts AND MUST STAY THAT WAY. `/docs` is a
+         * root-level single segment, so it is also the shape of a storefront handle
+         * (`^[a-z][a-z0-9_]{2,29}$` matches it). afterFiles runs BEFORE dynamic routes, so this
+         * entry outranks `src/app/[handle]` — if a seller could register `docs`, their storefront
+         * would be permanently unreachable. Same hazard the `eno_vietnam` note records, same fix.
+         */
+        { source: "/docs", destination: "/developers" },
+        /**
          * ── RFC 8414 / RFC 9728 OAuth discovery ────────────────────────────────────────────────
          * The two documents live under `src/app/api/well-known/*` for the same reason the AASA one
          * does: the app router ignores dot-folders, so nothing can be routed from a literal
