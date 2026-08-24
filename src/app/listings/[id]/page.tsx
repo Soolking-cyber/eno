@@ -569,6 +569,15 @@ export default async function ListingPage({ params }: Props) {
               <div className="order-3 flex flex-col gap-2">
                 <div className="flex flex-col gap-1.5">
                   <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                    {/*
+                      * "from" ON A PARTNER LISTING — the number is the LOWEST adult ticket, and the
+                      * partner sets the real price at checkout per date. Without the qualifier the
+                      * page reads as a fixed quote we cannot honour, which is both a consumer-law
+                      * problem and the structured-data/visible-price mismatch Google penalises.
+                      */}
+                    {affiliateUrl ? (
+                      <span className="text-base font-medium text-body"><Tr text="from" /></span>
+                    ) : null}
                     <Price price={listing.price} currency={listing.currency} priceUnit={listing.priceUnit} className="text-3xl tracking-tight text-accent-foreground" />
                     {/* Server-computed drop anchor (30-day-min reference) — never a seller "was". */}
                     {/* ⚠️ BOTH CLAIMS ARE WRAPPED IN <LiveUntil> BECAUSE THIS PAGE IS ISR-CACHED
@@ -725,9 +734,19 @@ export default async function ListingPage({ params }: Props) {
                   See the notes in safety-strip.tsx and protections-row.tsx for why the merge went
                   in this direction rather than the other. */}
               <div className="order-9">
+                {/*
+                  * ⛔ NO "ENO PROTECTS YOU" ON A PARTNER LISTING. ProtectionsRow advertises eno
+                  * dispute handling and screening, and the default category line says "Meet,
+                  * inspect, then pay" — both describe a sale between an eno buyer and an eno
+                  * seller. Here the buyer pays the partner on the partner's site: eno holds no
+                  * money, runs no dispute and cannot refund. Leaving the promise up was live on
+                  * production for the seeded listings and is exactly the kind of claim that has to
+                  * be true. The Report affordance stays either way.
+                  */}
                 <SafetyStrip
                   categorySlug={rawListing.category.slug}
-                  protections={<ProtectionsRow inline />}
+                  variant={affiliateUrl ? 'affiliate' : undefined}
+                  protections={affiliateUrl ? undefined : <ProtectionsRow inline />}
                   action={<ReportButton listingId={listing.id} />}
                 />
               </div>

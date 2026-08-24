@@ -145,6 +145,11 @@ async function main() {
       images: JSON.stringify(d.images),
       categoryId: category.id,
       sellerId: seller.id,
+      // ⛔ FIRM PRICE, NO OFFERS. Offers default ON for ordinary listings, which put a "Your
+      // offer / Send offer" slider on these product pages — measured live 2026-08-24. There is
+      // nobody to negotiate with: the buyer pays the partner's published price at the partner's
+      // checkout, and an offer would open a thread no one reads against a price eno cannot change.
+      negotiable: false,
       affiliateUrl: d.affiliateUrl,
       affiliateDiscountCode: d.discountCode ?? null,
       affiliateDiscountPercent: d.discountPercent ?? null,

@@ -9,10 +9,27 @@ import { cn } from '@/lib/utils'
 // #1 marketplace scam, so the warning must be read BEFORE the buyer contacts the
 // seller, not buried in the footer note. Copy is category-aware: vehicles get the
 // papers/chassis check, property & rentals get the visit-before-deposit rule.
-export function SafetyStrip({ categorySlug, action, protections, className }: { categorySlug: string; action?: React.ReactNode; /** The "ENO protects you" trigger, folded in as the quiet second line — see the note at its render. */ protections?: React.ReactNode; className?: string }) {
+export function SafetyStrip({ categorySlug, action, protections, className, variant }: { categorySlug: string; action?: React.ReactNode; /** The "ENO protects you" trigger, folded in as the quiet second line — see the note at its render. */ protections?: React.ReactNode; className?: string; /**
+   * ⛔ A VARIANT, FOR LISTINGS WHERE THE CATEGORY COPY WOULD BE A FALSE PROMISE. The default advice
+   * below is written for an eno seller you meet: "Meet, inspect, then pay". On a PARTNER affiliate
+   * listing there is nobody to meet, eno holds no money and runs no dispute for it, so that line —
+   * and the "ENO protects you" second line beside it — would tell the buyer they have cover they do
+   * not have. The block is not suppressed, because the safety advice is the half that can stop
+   * someone losing money; the wording is replaced with one that is true here.
+   *
+   * ⚠️ A VARIANT RATHER THAN A `line` STRING PROP, AND THAT IS THE POINT. This is a client component
+   * that translates its own copy through tr(). A string handed in from the server page cannot be
+   * translated — the first draft did exactly that and Vietnamese readers would have got the English
+   * sentence, on the one line of the page that exists to prevent someone losing money.
+   */ variant?: 'affiliate' }) {
   const { tr } = useLanguage()
 
-  const line =
+  const line = variant === 'affiliate'
+    ? tr(
+        "Book only on the partner's own website — eno.vn never takes payment or a deposit for partner tickets, and cannot refund one.",
+        'Chỉ đặt vé trên website chính thức của đối tác — eno.vn không bao giờ nhận thanh toán hay tiền cọc cho vé của đối tác, và không thể hoàn tiền.',
+      )
+    :
     categorySlug === 'vehicles'
       ? tr(
           'Check the papers match the chassis before paying — and never pay a deposit through a link.',

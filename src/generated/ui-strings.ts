@@ -204,6 +204,7 @@ export const UI_STRINGS: string[] = [
   "Body type",
   "Book for tomorrow",
   "Book on",
+  "Book only on the partner's own website — eno.vn never takes payment or a deposit for partner tickets, and cannot refund one.",
   "Book this experience",
   "Booking and payment happen on the partner's website — eno does not sell this ticket, hold your money, or process refunds. We may earn a commission if you book through this link, at no extra cost to you.",
   "Books",
