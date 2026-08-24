@@ -31,14 +31,22 @@ async function main() {
   // taxonomy, and inventing one would fragment the browse rails for 19 listings.
   const CATEGORY_SLUG = 'tickets-travel'
 
-  const ready = destinations.filter((d) => d.affiliateUrl && d.priceFromVnd && d.images?.length)
-  const blocked = destinations.filter((d) => !(d.affiliateUrl && d.priceFromVnd && d.images?.length))
+  /**
+   * ⛔ A PRICE OF 0 IS NOT "UNKNOWN" ON THIS SITE — IT IS "FREE". src/components/marketplace/price.tsx
+   * renders `price === 0` as "Free / Miễn phí" in 3xl bold, deliberately, for the trip-planning
+   * service that genuinely costs nothing. Seeding an attraction ticket at 0 would therefore
+   * advertise free entry to VinWonders on 17 product pages. So a missing price BLOCKS the listing
+   * rather than defaulting; there is no safe placeholder.
+   */
+  const priceOk = (d: { priceFromVnd?: number | null }) => typeof d.priceFromVnd === 'number' && d.priceFromVnd > 0
+  const ready = destinations.filter((d) => d.affiliateUrl && priceOk(d) && d.images?.length)
+  const blocked = destinations.filter((d) => !(d.affiliateUrl && priceOk(d) && d.images?.length))
 
   console.log(`${APPLY ? 'APPLY' : 'DRY RUN'} — ${ready.length} ready, ${blocked.length} incomplete\n`)
   for (const d of blocked) {
     const why = [
       !d.affiliateUrl ? 'affiliateUrl' : null,
-      !d.priceFromVnd ? 'priceFromVnd' : null,
+      !priceOk(d) ? (d.priceFromVnd === 0 ? 'priceFromVnd (0 renders as "Free")' : 'priceFromVnd') : null,
       !d.images?.length ? 'images' : null,
     ].filter(Boolean).join(', ')
     console.log(`  skip  ${d.slug.padEnd(30)} missing: ${why}`)

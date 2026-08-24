@@ -8,7 +8,9 @@
     "priceFromVnd: the lowest adult ticket price, in VND, as an integer. Never USD — displaying a",
     "  price in USD is sanctionable under ND 340/2025.",
     "images: absolute URLs on our own storage (sb.eno.vn). Partner creatives must be uploaded",
-    "  there first; a remote host would be blocked by img-src and would not survive a CSP change."
+    "  there first; a remote host would be blocked by img-src and would not survive a CSP change.",
+    "THE HAVEN SUNSET TOUR and Vinpearl Horse Academy were removed on owner instruction (2026-08-24) — the partner supplied no affiliate link for either.",
+    "bookingCode records the VinWonders `code=` each affiliate link resolved to on 2026-08-24 (checked by following all 17 shorteners). It is DOCUMENTATION, not an enforced check — nothing in the seed re-resolves the links, so if a short link is re-pointed at a different attraction this file will not notice. Re-run scripts/verify-vinwonders-links.ts to compare them again."
   ],
   "partner": {
     "name": "VinWonders",
@@ -18,27 +20,175 @@
     "discountPercent": 5
   },
   "destinations": [
-    { "slug": "vinwonders-phu-quoc",          "name": "VinWonders Phu Quoc",              "city": "Phu Quoc",         "location": "Phu Quoc, Kien Giang",   "affiliateUrl": "https://shorten.asia/Cs7uMAXM", "priceFromVnd": null, "images": [] },
-    { "slug": "vinpearl-safari-phu-quoc",     "name": "Vinpearl Safari Phu Quoc",         "city": "Phu Quoc",         "location": "Phu Quoc, Kien Giang",   "affiliateUrl": null, "priceFromVnd": null, "images": [] },
-    { "slug": "grand-world-phu-quoc",         "name": "Grand World Phu Quoc",             "city": "Phu Quoc",         "location": "Phu Quoc, Kien Giang",   "affiliateUrl": null, "priceFromVnd": null, "images": [] },
-    { "slug": "the-haven-sunset-tour",        "name": "THE HAVEN SUNSET TOUR",            "city": "Phu Quoc",         "location": "Phu Quoc, Kien Giang",   "affiliateUrl": null, "priceFromVnd": null, "images": [] },
-
-    { "slug": "vinwonders-nha-trang",         "name": "VinWonders Nha Trang",             "city": "Nha Trang",        "location": "Nha Trang, Khanh Hoa",   "affiliateUrl": null, "priceFromVnd": null, "images": [] },
-    { "slug": "hon-tam-mud-bath",             "name": "Hon Tam Mud Bath",                 "city": "Nha Trang",        "location": "Nha Trang, Khanh Hoa",   "affiliateUrl": null, "priceFromVnd": null, "images": [] },
-    { "slug": "vinpearl-harbour-nha-trang",   "name": "Vinpearl Harbour Nha Trang",       "city": "Nha Trang",        "location": "Nha Trang, Khanh Hoa",   "affiliateUrl": null, "priceFromVnd": null, "images": [] },
-    { "slug": "aquafield-nha-trang",          "name": "Aquafield Nha Trang",              "city": "Nha Trang",        "location": "Nha Trang, Khanh Hoa",   "affiliateUrl": null, "priceFromVnd": null, "images": [] },
-
-    { "slug": "grand-world-ha-noi",           "name": "Grand World Ocean City",           "city": "Ha Noi",           "location": "Ocean City, Hung Yen",   "affiliateUrl": null, "priceFromVnd": null, "images": [] },
-    { "slug": "vinke-vinpearl-aquarium",      "name": "VinKE & Vinpearl Aquarium",        "city": "Ha Noi",           "location": "Times City, Ha Noi",     "affiliateUrl": null, "priceFromVnd": null, "images": [] },
-    { "slug": "vinwonders-wave-water-park",   "name": "VinWonders Wave Park & Water Park","city": "Ha Noi",           "location": "Ocean City, Hung Yen",   "affiliateUrl": null, "priceFromVnd": null, "images": [] },
-    { "slug": "aquafield-ocean-city",         "name": "Aquafield Ocean City (Sauna & Spa)","city": "Ha Noi",          "location": "Ocean City, Hung Yen",   "affiliateUrl": null, "priceFromVnd": null, "images": [] },
-    { "slug": "vinpearl-theatre-ocean-city",  "name": "Vinpearl Theatre Ocean City",      "city": "Ha Noi",           "location": "Ocean City, Hung Yen",   "affiliateUrl": null, "priceFromVnd": null, "images": [] },
-
-    { "slug": "grand-park-amusement-park",    "name": "Grand Park Amusement Park",        "city": "Ho Chi Minh City", "location": "Thu Duc, Ho Chi Minh City", "affiliateUrl": null, "priceFromVnd": null, "images": [] },
-    { "slug": "vinwonders-nam-hoi-an",        "name": "VinWonders Nam Hoi An",            "city": "Hoi An",           "location": "Nam Hoi An, Quang Nam",  "affiliateUrl": null, "priceFromVnd": null, "images": [] },
-    { "slug": "vinwonders-cua-hoi",           "name": "VinWonders Cua Hoi",               "city": "Nghe An",          "location": "Cua Hoi, Nghe An",       "affiliateUrl": null, "priceFromVnd": null, "images": [] },
-    { "slug": "ha-tinh-water-park",           "name": "Ha Tinh Water Park",               "city": "Ha Tinh",          "location": "Ha Tinh",                "affiliateUrl": null, "priceFromVnd": null, "images": [] },
-    { "slug": "vinwonders-vu-yen",            "name": "VinWonders Vu Yen",                "city": "Hai Phong",        "location": "Vu Yen Island, Hai Phong", "affiliateUrl": null, "priceFromVnd": null, "images": [] },
-    { "slug": "vinpearl-horse-academy",       "name": "Vinpearl Horse Academy",           "city": "Hai Phong",        "location": "Vu Yen Island, Hai Phong", "affiliateUrl": null, "priceFromVnd": null, "images": [] }
+    {
+      "slug": "vinwonders-phu-quoc",
+      "name": "VinWonders Phu Quoc",
+      "city": "Phu Quoc",
+      "location": "Phu Quoc, Kien Giang",
+      "affiliateUrl": "https://shorten.asia/Cs7uMAXM",
+      "priceFromVnd": null,
+      "images": [],
+      "bookingCode": "PQVW1"
+    },
+    {
+      "slug": "vinpearl-safari-phu-quoc",
+      "name": "Vinpearl Safari Phu Quoc",
+      "city": "Phu Quoc",
+      "location": "Phu Quoc, Kien Giang",
+      "affiliateUrl": "https://shorten.asia/WjPhKcJV",
+      "priceFromVnd": null,
+      "images": [],
+      "bookingCode": "PQSAF"
+    },
+    {
+      "slug": "grand-world-phu-quoc",
+      "name": "Grand World Phu Quoc",
+      "city": "Phu Quoc",
+      "location": "Phu Quoc, Kien Giang",
+      "affiliateUrl": "https://shorten.asia/5x1R3bB1",
+      "priceFromVnd": null,
+      "images": [],
+      "bookingCode": "PQGW1"
+    },
+    {
+      "slug": "vinwonders-nha-trang",
+      "name": "VinWonders Nha Trang",
+      "city": "Nha Trang",
+      "location": "Nha Trang, Khanh Hoa",
+      "affiliateUrl": "https://shorten.asia/WKeTB3M2",
+      "priceFromVnd": null,
+      "images": [],
+      "bookingCode": "NTVW1"
+    },
+    {
+      "slug": "hon-tam-mud-bath",
+      "name": "Hon Tam Mud Bath",
+      "city": "Nha Trang",
+      "location": "Nha Trang, Khanh Hoa",
+      "affiliateUrl": "https://shorten.asia/VP1UKReF",
+      "priceFromVnd": null,
+      "images": [],
+      "bookingCode": "HTVW1"
+    },
+    {
+      "slug": "vinpearl-harbour-nha-trang",
+      "name": "Vinpearl Harbour Nha Trang",
+      "city": "Nha Trang",
+      "location": "Nha Trang, Khanh Hoa",
+      "affiliateUrl": "https://shorten.asia/51Zh37sd",
+      "priceFromVnd": null,
+      "images": [],
+      "bookingCode": "VPHB1"
+    },
+    {
+      "slug": "aquafield-nha-trang",
+      "name": "Aquafield Nha Trang",
+      "city": "Nha Trang",
+      "location": "Nha Trang, Khanh Hoa",
+      "affiliateUrl": "https://shorten.asia/w3KqcTXf",
+      "priceFromVnd": null,
+      "images": [],
+      "bookingCode": "AQF01"
+    },
+    {
+      "slug": "grand-world-ha-noi",
+      "name": "Grand World Ocean City",
+      "city": "Ha Noi",
+      "location": "Ocean City, Hung Yen",
+      "affiliateUrl": "https://shorten.asia/nd5AZhUm",
+      "priceFromVnd": null,
+      "images": [],
+      "bookingCode": "GWHN1"
+    },
+    {
+      "slug": "vinke-vinpearl-aquarium",
+      "name": "VinKE & Vinpearl Aquarium",
+      "city": "Ha Noi",
+      "location": "Times City, Ha Noi",
+      "affiliateUrl": "https://shorten.asia/aZhWrmKn",
+      "priceFromVnd": null,
+      "images": [],
+      "bookingCode": "HNVKA"
+    },
+    {
+      "slug": "vinwonders-wave-water-park",
+      "name": "VinWonders Wave Park & Water Park",
+      "city": "Ha Noi",
+      "location": "Ocean City, Hung Yen",
+      "affiliateUrl": "https://shorten.asia/H8eSRp4a",
+      "priceFromVnd": null,
+      "images": [],
+      "bookingCode": "HNVW2"
+    },
+    {
+      "slug": "aquafield-ocean-city",
+      "name": "Aquafield Ocean City (Sauna & Spa)",
+      "city": "Ha Noi",
+      "location": "Ocean City, Hung Yen",
+      "affiliateUrl": "https://shorten.asia/eq98JJ5h",
+      "priceFromVnd": null,
+      "images": [],
+      "bookingCode": "AQF02"
+    },
+    {
+      "slug": "vinpearl-theatre-ocean-city",
+      "name": "Vinpearl Theatre Ocean City",
+      "city": "Ha Noi",
+      "location": "Ocean City, Hung Yen",
+      "affiliateUrl": "https://shorten.asia/XQNAsWQW",
+      "priceFromVnd": null,
+      "images": [],
+      "bookingCode": "NHOCP"
+    },
+    {
+      "slug": "grand-park-amusement-park",
+      "name": "Grand Park Amusement Park",
+      "city": "Ho Chi Minh City",
+      "location": "Thu Duc, Ho Chi Minh City",
+      "affiliateUrl": "https://shorten.asia/3qu8JUCd",
+      "priceFromVnd": null,
+      "images": [],
+      "bookingCode": "GPVW1"
+    },
+    {
+      "slug": "vinwonders-nam-hoi-an",
+      "name": "VinWonders Nam Hoi An",
+      "city": "Hoi An",
+      "location": "Nam Hoi An, Quang Nam",
+      "affiliateUrl": "https://shorten.asia/hVF9gQ5e",
+      "priceFromVnd": null,
+      "images": [],
+      "bookingCode": "NHAVW"
+    },
+    {
+      "slug": "vinwonders-cua-hoi",
+      "name": "VinWonders Cua Hoi",
+      "city": "Nghe An",
+      "location": "Cua Hoi, Nghe An",
+      "affiliateUrl": "https://shorten.asia/DxKWGu2K",
+      "priceFromVnd": null,
+      "images": [],
+      "bookingCode": "CHVW1"
+    },
+    {
+      "slug": "ha-tinh-water-park",
+      "name": "Ha Tinh Water Park",
+      "city": "Ha Tinh",
+      "location": "Ha Tinh",
+      "affiliateUrl": "https://shorten.asia/3ZXvTB3q",
+      "priceFromVnd": null,
+      "images": [],
+      "bookingCode": "CVNHT"
+    },
+    {
+      "slug": "vinwonders-vu-yen",
+      "name": "VinWonders Vu Yen",
+      "city": "Hai Phong",
+      "location": "Vu Yen Island, Hai Phong",
+      "affiliateUrl": "https://shorten.asia/2pR197Zf",
+      "priceFromVnd": null,
+      "images": [],
+      "bookingCode": "VYVW1"
+    }
   ]
 }

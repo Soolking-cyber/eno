@@ -45,6 +45,17 @@ export function AffiliateBooking({
         <Tr text="Book this experience" />
       </h2>
 
+      {/*
+        * ⚠️ SAY THAT THE PRICE IS A STARTING POINT, RIGHT BESIDE THE CTA. The partner sets and
+        * changes the real price at checkout and it varies by date, so the figure above this button
+        * is the lowest adult ticket, not a quote. Google also compares structured-data price to the
+        * visible price, and a page that implies a fixed price it cannot honour is the mismatch it
+        * penalises — as well as the kind of claim consumer-protection rules are written about.
+        */}
+      <p className="text-xs text-body">
+        <Tr text="Lowest adult ticket — the final price is set at checkout and varies by date." />
+      </p>
+
       <Button asChild variant="cta" size="lg" className="w-full">
         {/*
           * An anchor, not a router push: this leaves our origin entirely. Next's Link would
