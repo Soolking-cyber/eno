@@ -146,6 +146,8 @@ async function main() {
       categoryId: category.id,
       sellerId: seller.id,
       affiliateUrl: d.affiliateUrl,
+      affiliateDiscountCode: d.discountCode ?? null,
+      affiliateDiscountPercent: d.discountPercent ?? null,
       verified: true,
       status: 'active',
     }

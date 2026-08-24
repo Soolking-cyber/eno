@@ -43,6 +43,8 @@ export function serializeListing(
     currency: l.currency,
     negotiable: l.negotiable,
     affiliateUrl: l.affiliateUrl,
+    affiliateDiscountCode: l.affiliateDiscountCode,
+    affiliateDiscountPercent: l.affiliateDiscountPercent,
     prevPrice: activeDropAnchor(l.previousPrice, l.priceDropAt, l.price),
     priceDropAt: activeDropAnchor(l.previousPrice, l.priceDropAt, l.price) != null ? l.priceDropAt!.toISOString() : null,
     // When the drop badge expires (droppedAt + DROP.BADGE_MS) while a drop is live —

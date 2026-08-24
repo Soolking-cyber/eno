@@ -11,6 +11,8 @@
 // additive", and for three nullable columns the additive SQL is short enough to read in full:
 //
 //     ALTER TABLE "Listing" ADD COLUMN IF NOT EXISTS "affiliateUrl" TEXT;
+//     ALTER TABLE "Listing" ADD COLUMN IF NOT EXISTS "affiliateDiscountCode" TEXT;
+//     ALTER TABLE "Listing" ADD COLUMN IF NOT EXISTS "affiliateDiscountPercent" INTEGER;
 //     ALTER TABLE "Seller"  ADD COLUMN IF NOT EXISTS "affiliateDiscountCode" TEXT;
 //     ALTER TABLE "Seller"  ADD COLUMN IF NOT EXISTS "affiliateDiscountPercent" INTEGER;
 //
@@ -33,6 +35,8 @@ if (!url) {
 
 const STATEMENTS = [
   ['Listing', 'affiliateUrl', 'ALTER TABLE "Listing" ADD COLUMN IF NOT EXISTS "affiliateUrl" TEXT'],
+  ['Listing', 'affiliateDiscountCode', 'ALTER TABLE "Listing" ADD COLUMN IF NOT EXISTS "affiliateDiscountCode" TEXT'],
+  ['Listing', 'affiliateDiscountPercent', 'ALTER TABLE "Listing" ADD COLUMN IF NOT EXISTS "affiliateDiscountPercent" INTEGER'],
   ['Seller', 'affiliateDiscountCode', 'ALTER TABLE "Seller" ADD COLUMN IF NOT EXISTS "affiliateDiscountCode" TEXT'],
   ['Seller', 'affiliateDiscountPercent', 'ALTER TABLE "Seller" ADD COLUMN IF NOT EXISTS "affiliateDiscountPercent" INTEGER'],
 ]

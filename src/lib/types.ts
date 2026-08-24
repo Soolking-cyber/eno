@@ -101,6 +101,9 @@ export type SerializedListing = {
   /// Set ONLY on partner listings whose checkout is on the partner's own site. Null on every
   /// ordinary listing, which is what makes the PDP's affiliate branch inert for them.
   affiliateUrl: string | null
+  /// Per-product checkout discount. Null falls back to the seller's partner-wide code.
+  affiliateDiscountCode: string | null
+  affiliateDiscountPercent: number | null
   // Price-drop badge (see SerializedListingCard.prevPrice) + when the drop landed
   // (ISO, only while the badge is live — powers "dropped 3 days ago" on the detail page).
   prevPrice: number | null

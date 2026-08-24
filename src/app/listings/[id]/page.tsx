@@ -685,11 +685,18 @@ export default async function ListingPage({ params }: Props) {
                     product (missing entry type or speed) still gets visa chrome rather than
                     silently falling back to an empty chat. */}
                 {affiliateUrl
+                  // ⛔ THE PRODUCT'S OWN CODE, WITH NO FALL BACK TO THE PARTNER-WIDE ONE. The codes
+                  // differ per attraction (MEMBER10, MEMBER3, MEMBER2, SHOW5) and three products
+                  // have none at all. An earlier draft fell back to Seller.affiliateDiscountCode
+                  // for those three, which means printing a code the partner may reject at
+                  // checkout — the visitor follows our link, types what we told them, and it fails.
+                  // A missing code shows NO discount block; silence is recoverable, a broken promise
+                  // at the payment step is not. Set the code per listing to offer one.
                   ? <AffiliateBooking
                       url={affiliateUrl}
                       partnerName={listing.seller.name}
-                      discountCode={listing.seller.affiliateDiscountCode}
-                      discountPercent={listing.seller.affiliateDiscountPercent}
+                      discountCode={listing.affiliateDiscountCode}
+                      discountPercent={listing.affiliateDiscountPercent}
                     />
                   : isVisaProduct
                   ? <VisaStart listingId={listing.id} className="w-full" />

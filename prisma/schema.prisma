@@ -622,6 +622,14 @@ model Listing {
   /// ⚠️ THE OUTBOUND ANCHOR MUST CARRY rel="sponsored" — Google treats an undisclosed paid link as
   /// a link-scheme violation, which costs the ranking this feature exists to earn.
   affiliateUrl            String?
+  /// PER-PRODUCT checkout discount, which is the shape the partner actually uses: measured across
+  /// the VinWonders catalogue 2026-08-24 the codes differ per attraction (MEMBER10, MEMBER3,
+  /// MEMBER2, SHOW5) and three products have none at all. A partner-wide code alone was the wrong
+  /// model — it would have shown the same 10% on a park whose real code gives 2%.
+  /// ⚠️ NULL FALLS BACK to Seller.affiliateDiscountCode. Null here means "no product-specific
+  /// code", not "no discount".
+  affiliateDiscountCode    String?
+  affiliateDiscountPercent Int?
   priceDropAt             DateTime? // badge clock — the drop badge shows for 7 days from here
   // Monotonic notification ratchet (Poshmark model): the lowest price buyers were
   // ever notified at. A new drop notification requires ≥10% below this. NEVER reset

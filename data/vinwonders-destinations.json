@@ -10,14 +10,16 @@
     "images: absolute URLs on our own storage (sb.eno.vn). Partner creatives must be uploaded",
     "  there first; a remote host would be blocked by img-src and would not survive a CSP change.",
     "THE HAVEN SUNSET TOUR and Vinpearl Horse Academy were removed on owner instruction (2026-08-24) — the partner supplied no affiliate link for either.",
-    "bookingCode records the VinWonders `code=` each affiliate link resolved to on 2026-08-24 (checked by following all 17 shorteners). It is DOCUMENTATION, not an enforced check — nothing in the seed re-resolves the links, so if a short link is re-pointed at a different attraction this file will not notice. Re-run scripts/verify-vinwonders-links.ts to compare them again."
+    "bookingCode records the VinWonders `code=` each affiliate link resolved to on 2026-08-24 (checked by following all 17 shorteners). It is DOCUMENTATION, not an enforced check — nothing in the seed re-resolves the links, so if a short link is re-pointed at a different attraction this file will not notice. Re-run scripts/verify-vinwonders-links.ts to compare them again.",
+    "priceFromVnd is a FROM price supplied by the owner (2026-08-24), not scraped: VinWonders sets the real price per date at checkout. discountCode/discountPercent are PER PRODUCT — they differ across the catalogue (MEMBER10, MEMBER3, MEMBER2, SHOW5), so they live on the listing, not on the partner. Where a product has none, the partner-wide code on Seller is used instead.",
+    "partner.discountCode is intentionally NULL. XINCHAO (5%) was supplied as a general offer before the per-product codes arrived, and three products have no code of their own — using XINCHAO for those would print a code the partner may reject at checkout. Set it only if the partner confirms it is valid catalogue-wide; the PDP does not fall back to it in any case."
   ],
   "partner": {
     "name": "VinWonders",
     "handle": "vinwonders",
     "about": "Vietnam's largest network of theme parks, water parks, safaris and aquariums, operated by Vinpearl. Tickets are booked and paid on the VinWonders website.",
-    "discountCode": "XINCHAO",
-    "discountPercent": 5
+    "discountCode": null,
+    "discountPercent": null
   },
   "destinations": [
     {
@@ -26,9 +28,11 @@
       "city": "Phu Quoc",
       "location": "Phu Quoc, Kien Giang",
       "affiliateUrl": "https://shorten.asia/Cs7uMAXM",
-      "priceFromVnd": null,
+      "priceFromVnd": 250000,
       "images": [],
-      "bookingCode": "PQVW1"
+      "bookingCode": "PQVW1",
+      "discountCode": null,
+      "discountPercent": null
     },
     {
       "slug": "vinpearl-safari-phu-quoc",
@@ -36,9 +40,11 @@
       "city": "Phu Quoc",
       "location": "Phu Quoc, Kien Giang",
       "affiliateUrl": "https://shorten.asia/WjPhKcJV",
-      "priceFromVnd": null,
+      "priceFromVnd": 350000,
       "images": [],
-      "bookingCode": "PQSAF"
+      "bookingCode": "PQSAF",
+      "discountCode": null,
+      "discountPercent": null
     },
     {
       "slug": "grand-world-phu-quoc",
@@ -46,9 +52,11 @@
       "city": "Phu Quoc",
       "location": "Phu Quoc, Kien Giang",
       "affiliateUrl": "https://shorten.asia/5x1R3bB1",
-      "priceFromVnd": null,
+      "priceFromVnd": 200000,
       "images": [],
-      "bookingCode": "PQGW1"
+      "bookingCode": "PQGW1",
+      "discountCode": "MEMBER3",
+      "discountPercent": 3
     },
     {
       "slug": "vinwonders-nha-trang",
@@ -56,9 +64,11 @@
       "city": "Nha Trang",
       "location": "Nha Trang, Khanh Hoa",
       "affiliateUrl": "https://shorten.asia/WKeTB3M2",
-      "priceFromVnd": null,
+      "priceFromVnd": 300000,
       "images": [],
-      "bookingCode": "NTVW1"
+      "bookingCode": "NTVW1",
+      "discountCode": "MEMBER2",
+      "discountPercent": 2
     },
     {
       "slug": "hon-tam-mud-bath",
@@ -66,9 +76,11 @@
       "city": "Nha Trang",
       "location": "Nha Trang, Khanh Hoa",
       "affiliateUrl": "https://shorten.asia/VP1UKReF",
-      "priceFromVnd": null,
+      "priceFromVnd": 300000,
       "images": [],
-      "bookingCode": "HTVW1"
+      "bookingCode": "HTVW1",
+      "discountCode": "MEMBER10",
+      "discountPercent": 10
     },
     {
       "slug": "vinpearl-harbour-nha-trang",
@@ -76,9 +88,11 @@
       "city": "Nha Trang",
       "location": "Nha Trang, Khanh Hoa",
       "affiliateUrl": "https://shorten.asia/51Zh37sd",
-      "priceFromVnd": null,
+      "priceFromVnd": 100000,
       "images": [],
-      "bookingCode": "VPHB1"
+      "bookingCode": "VPHB1",
+      "discountCode": "MEMBER10",
+      "discountPercent": 10
     },
     {
       "slug": "aquafield-nha-trang",
@@ -86,9 +100,11 @@
       "city": "Nha Trang",
       "location": "Nha Trang, Khanh Hoa",
       "affiliateUrl": "https://shorten.asia/w3KqcTXf",
-      "priceFromVnd": null,
+      "priceFromVnd": 400000,
       "images": [],
-      "bookingCode": "AQF01"
+      "bookingCode": "AQF01",
+      "discountCode": "MEMBER10",
+      "discountPercent": 10
     },
     {
       "slug": "grand-world-ha-noi",
@@ -96,9 +112,11 @@
       "city": "Ha Noi",
       "location": "Ocean City, Hung Yen",
       "affiliateUrl": "https://shorten.asia/nd5AZhUm",
-      "priceFromVnd": null,
+      "priceFromVnd": 50000,
       "images": [],
-      "bookingCode": "GWHN1"
+      "bookingCode": "GWHN1",
+      "discountCode": "MEMBER10",
+      "discountPercent": 10
     },
     {
       "slug": "vinke-vinpearl-aquarium",
@@ -106,9 +124,11 @@
       "city": "Ha Noi",
       "location": "Times City, Ha Noi",
       "affiliateUrl": "https://shorten.asia/aZhWrmKn",
-      "priceFromVnd": null,
+      "priceFromVnd": 190000,
       "images": [],
-      "bookingCode": "HNVKA"
+      "bookingCode": "HNVKA",
+      "discountCode": "MEMBER10",
+      "discountPercent": 10
     },
     {
       "slug": "vinwonders-wave-water-park",
@@ -116,9 +136,11 @@
       "city": "Ha Noi",
       "location": "Ocean City, Hung Yen",
       "affiliateUrl": "https://shorten.asia/H8eSRp4a",
-      "priceFromVnd": null,
+      "priceFromVnd": 200000,
       "images": [],
-      "bookingCode": "HNVW2"
+      "bookingCode": "HNVW2",
+      "discountCode": "MEMBER10",
+      "discountPercent": 10
     },
     {
       "slug": "aquafield-ocean-city",
@@ -126,9 +148,11 @@
       "city": "Ha Noi",
       "location": "Ocean City, Hung Yen",
       "affiliateUrl": "https://shorten.asia/eq98JJ5h",
-      "priceFromVnd": null,
+      "priceFromVnd": 600000,
       "images": [],
-      "bookingCode": "AQF02"
+      "bookingCode": "AQF02",
+      "discountCode": "MEMBER10",
+      "discountPercent": 10
     },
     {
       "slug": "vinpearl-theatre-ocean-city",
@@ -136,9 +160,11 @@
       "city": "Ha Noi",
       "location": "Ocean City, Hung Yen",
       "affiliateUrl": "https://shorten.asia/XQNAsWQW",
-      "priceFromVnd": null,
+      "priceFromVnd": 320000,
       "images": [],
-      "bookingCode": "NHOCP"
+      "bookingCode": "NHOCP",
+      "discountCode": "SHOW5",
+      "discountPercent": 5
     },
     {
       "slug": "grand-park-amusement-park",
@@ -146,9 +172,11 @@
       "city": "Ho Chi Minh City",
       "location": "Thu Duc, Ho Chi Minh City",
       "affiliateUrl": "https://shorten.asia/3qu8JUCd",
-      "priceFromVnd": null,
+      "priceFromVnd": 100000,
       "images": [],
-      "bookingCode": "GPVW1"
+      "bookingCode": "GPVW1",
+      "discountCode": "MEMBER10",
+      "discountPercent": 10
     },
     {
       "slug": "vinwonders-nam-hoi-an",
@@ -156,9 +184,11 @@
       "city": "Hoi An",
       "location": "Nam Hoi An, Quang Nam",
       "affiliateUrl": "https://shorten.asia/hVF9gQ5e",
-      "priceFromVnd": null,
+      "priceFromVnd": 300000,
       "images": [],
-      "bookingCode": "NHAVW"
+      "bookingCode": "NHAVW",
+      "discountCode": "MEMBER3",
+      "discountPercent": 3
     },
     {
       "slug": "vinwonders-cua-hoi",
@@ -166,9 +196,11 @@
       "city": "Nghe An",
       "location": "Cua Hoi, Nghe An",
       "affiliateUrl": "https://shorten.asia/DxKWGu2K",
-      "priceFromVnd": null,
+      "priceFromVnd": 60000,
       "images": [],
-      "bookingCode": "CHVW1"
+      "bookingCode": "CHVW1",
+      "discountCode": "MEMBER3",
+      "discountPercent": 3
     },
     {
       "slug": "ha-tinh-water-park",
@@ -176,9 +208,11 @@
       "city": "Ha Tinh",
       "location": "Ha Tinh",
       "affiliateUrl": "https://shorten.asia/3ZXvTB3q",
-      "priceFromVnd": null,
+      "priceFromVnd": 30000,
       "images": [],
-      "bookingCode": "CVNHT"
+      "bookingCode": "CVNHT",
+      "discountCode": "MEMBER10",
+      "discountPercent": 10
     },
     {
       "slug": "vinwonders-vu-yen",
@@ -186,9 +220,11 @@
       "city": "Hai Phong",
       "location": "Vu Yen Island, Hai Phong",
       "affiliateUrl": "https://shorten.asia/2pR197Zf",
-      "priceFromVnd": null,
+      "priceFromVnd": 100000,
       "images": [],
-      "bookingCode": "VYVW1"
+      "bookingCode": "VYVW1",
+      "discountCode": null,
+      "discountPercent": null
     }
   ]
 }
