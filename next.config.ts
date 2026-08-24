@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import { appRootSegments, markdown404Source } from "./src/lib/root-segments";
 import type { NextConfig } from "next";
 
 /**
@@ -791,6 +792,33 @@ const nextConfig: NextConfig = {
         {
           source: "/.well-known/apple-app-site-association",
           destination: "/api/well-known/aasa",
+        },
+        /**
+         * ── /docs and the markdown 404 both live in afterFiles for the same reason ────────────
+         * THE MARKDOWN 404, FOR SINGLE-SEGMENT PATHS THAT CANNOT BE A STOREFRONT.
+         *
+         * ⛔ IT CANNOT LIVE IN `fallback` LIKE THE OTHER MARKDOWN 404. `fallback` runs only when
+         * routing found NOTHING, and `src/app/[handle]` matches every single-segment path — so
+         * `/some-path-that-does-not-exist` (the audit's own verification command) reaches the
+         * storefront route, 404s there, and never reaches `fallback`. That is why the existing
+         * `fallback` entry answers `/nope/xyz/abc` in markdown but leaves one-segment paths on a
+         * ~56KB React error shell with nothing an agent can act on.
+         *
+         * The source excludes two sets, and BOTH are required:
+         *   · appRootSegments(PAGE_EXTENSIONS) — real pages OF THIS EDITION. afterFiles outranks
+         *     app routes, so without it a markdown client is told `/moving-to-vietnam` does not
+         *     exist; and passing PAGE_EXTENSIONS is what keeps `itinerary` (forum-only) out of the
+         *     marketplace artifact.
+         *   · handle-shaped segments — a storefront may exist at `/vietkite` and only the database
+         *     knows. Claiming 404 there would be a guess; those stay with [handle].
+         *
+         * ⚠️ BROWSERS ARE UNAFFECTED: `acceptsMarkdown()` needs an explicit `Accept: text/markdown`,
+         * which no browser sends. HTML 404s are untouched.
+         */
+        {
+          source: markdown404Source(appRootSegments(PAGE_EXTENSIONS)),
+          has: acceptsMarkdown(),
+          destination: "/md/not-found",
         },
         /**
          * ── /docs — the predictable documentation URL agents probe ─────────────────────────────
