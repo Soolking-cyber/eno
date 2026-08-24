@@ -31,7 +31,18 @@ export function AffiliateCodeCopy({ code }: { code: string }) {
       type="button"
       onClick={copy}
       aria-label={copied ? tr('Discount code copied') : tr('Copy discount code')}
-      className="tap-44 group flex w-full items-center justify-between gap-3 rounded-xl border border-dashed border-border bg-card px-4 py-3 text-left transition-colors hover:border-foreground/30"
+      /**
+       * ⚠️ `relative` IS NOT OPTIONAL BESIDE `tap-44`, AND LEAVING IT OFF IS A TAP-STEALING BUG.
+       * globals.css spells it out: the pseudo-element sizes to 100% of the CONTAINING BLOCK, so on
+       * an unpositioned element it does not hug this button — it inflates to the nearest positioned
+       * ancestor and swallows taps meant for anything inside it.
+       * ⛔ MEASURED, NOT REASONED. On the mobile PDP this button was intercepting taps on the photo
+       * gallery: Playwright reported "Copy discount code … intercepts pointer events" on a click
+       * aimed at the first photo. Removing `relative` reproduces the failure, adding it back fixes
+       * it — so on a real phone, tapping a partner ticket's photo opened the clipboard instead of
+       * the lightbox.
+       */
+      className="tap-44 relative group flex w-full items-center justify-between gap-3 rounded-xl border border-dashed border-border bg-card px-4 py-3 text-left transition-colors hover:border-foreground/30"
     >
       <span className="font-mono text-base font-semibold tracking-[0.18em] text-foreground">{code}</span>
       <span className="flex shrink-0 items-center gap-1.5 text-xs font-medium text-body">

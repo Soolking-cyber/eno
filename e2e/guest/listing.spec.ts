@@ -153,8 +153,15 @@ test.describe('Guest · listing detail (first live listing)', () => {
     let opened = false
     for (const href of hrefs) {
       await page.goto(href)
-      const viewAllHere = page.getByRole('button', { name: /View all photos/i })
-      const photoHere = page.getByRole('button', { name: /photo 1/i }).first()
+      // ⚠️ `:visible`, NOT `.first()` — THE SAME TRAP THE SAVE-CLUSTER TEST BELOW DOCUMENTS. The PDP
+      // renders TWO galleries, the mobile carousel and the desktop mosaic, and only one of them is
+      // laid out at any viewport. Both name their photo buttons "<title> — photo N", so `.first()`
+      // takes whichever appears first in the DOM regardless of which one the reader can see.
+      // Measured on the mobile project: all ten photo buttons resolved at 0x0, the click landed at
+      // (0,0), and the copy-discount-code button up in the corner "intercepted pointer events" —
+      // an error that reads like an overlapping-layer bug and is nothing of the kind.
+      const viewAllHere = page.getByRole('button', { name: /View all photos/i }).locator('visible=true').first()
+      const photoHere = page.getByRole('button', { name: /photo 1/i }).locator('visible=true').first()
       if (await viewAllHere.isVisible().catch(() => false)) { await viewAllHere.click(); opened = true; break }
       if (await photoHere.isVisible().catch(() => false)) { await photoHere.click(); opened = true; break }
     }

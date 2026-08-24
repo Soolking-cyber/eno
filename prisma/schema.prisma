@@ -401,6 +401,12 @@ model Seller {
   // so this column is unreachable from PATCH /api/profile. Keep it that way — if that function
   // ever grows a spread, a seller can grant themselves the badge and switch off their own phone.
   officialPartner          Boolean              @default(false)
+  /// OPTIONAL STOREFRONT COVER — a wide banner across the top of this shop's page.
+  /// Null for every storefront that has not set one, and null is the normal case: the page
+  /// renders exactly as it does today without it, so nothing depends on it existing.
+  /// ⚠️ NOT WATERMARKED. It is the seller's own artwork, like the avatar — see
+  /// scripts/set-partner-avatar.ts for why the eno mark stays on listing photos only.
+  bannerUrl                String?
   /// PARTNER CHECKOUT DISCOUNT — shown on every affiliate listing of this seller. Partner-wide
   /// rather than per-listing because one code covers the whole catalogue; repeating it on each
   /// listing is 17 chances for them to drift apart.

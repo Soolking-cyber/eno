@@ -7,6 +7,8 @@ import { localizeListingTitles } from '@/lib/translate'
 import { getCategoriesByDemand } from '@/lib/categories'
 import { topBusinessListings } from '@/lib/core/business-rail'
 import { trendingRailListings } from '@/lib/core/trending-rail'
+import { partnerBanners } from '@/lib/partner-banners'
+import { PartnerBannerStrip } from '@/components/marketplace/partner-banner-strip'
 import type { SerializedCategory, SerializedListingCard } from '@/lib/types'
 import { Header } from '@/components/marketplace/header'
 import { ListingsExplorer } from '@/components/marketplace/listings-explorer'
@@ -79,7 +81,16 @@ async function getData(): Promise<{ categories: SerializedCategory[]; listings: 
 }
 
 export default async function Home() {
-  const { categories, listings, total, businesses, trending } = await getData()
+  /**
+   * ⚠️ FETCHED BESIDE getData(), NOT INSIDE IT. getData() re-throws DeskResolutionError on purpose
+   * so a build that cannot prove the edition scope fails loudly instead of prerendering an empty
+   * page into a 6-hour ISR window. partnerBanners() fails CLOSED to an empty list instead — a
+   * missing banner strip is invisible, and it must never be the reason the home page 500s.
+   */
+  const [{ categories, listings, total, businesses, trending }, banners] = await Promise.all([
+    getData(),
+    partnerBanners(),
+  ])
 
   return (
     <div className="flex min-h-screen flex-col blob-bg">
@@ -95,6 +106,9 @@ export default async function Home() {
           into the client component fixed that; deleting the hero image removed the need entirely. */}
       <Header />
       <main id="main" tabIndex={-1} className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-4">
+        {/* Official partners, above the feed. Renders nothing at all while no partner has a
+            banner set, which is the state today — see PartnerBannerStrip. */}
+        <PartnerBannerStrip banners={banners} />
         <ListingsExplorer
           categories={categories}
           initialListings={listings}
