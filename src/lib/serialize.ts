@@ -42,6 +42,7 @@ export function serializeListing(
     priceUnit: l.priceUnit,
     currency: l.currency,
     negotiable: l.negotiable,
+    affiliateUrl: l.affiliateUrl,
     prevPrice: activeDropAnchor(l.previousPrice, l.priceDropAt, l.price),
     priceDropAt: activeDropAnchor(l.previousPrice, l.priceDropAt, l.price) != null ? l.priceDropAt!.toISOString() : null,
     // When the drop badge expires (droppedAt + DROP.BADGE_MS) while a drop is live —
@@ -90,6 +91,8 @@ export function serializeListing(
       // eno's own commercial partners. Public by design — it is a claim eno makes about the
       // seller, unlike the phone beside it, and the badge has to reach cards and the PDP.
       officialPartner: l.seller.officialPartner,
+      affiliateDiscountCode: l.seller.affiliateDiscountCode,
+      affiliateDiscountPercent: l.seller.affiliateDiscountPercent,
       trustTier: l.seller.trustTier,
       trustScore: l.seller.trustScore,
       responseRate: l.seller.responseRate,

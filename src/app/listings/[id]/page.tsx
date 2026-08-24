@@ -41,6 +41,8 @@ import { sellerMetrics, topSellerReviews, sameSellerListings } from '@/lib/selle
 import { ListingDetailMap } from '@/components/marketplace/listing-detail-map'
 import { ReportButton } from '@/components/marketplace/report-button'
 import { ContactComposer } from '@/components/marketplace/contact-composer'
+import { AffiliateBooking } from '@/components/marketplace/affiliate-booking'
+import { safeAffiliateUrl } from '@/lib/affiliate-qr'
 import { VisaStart, VISA_START_AVAILABLE } from '@/components/marketplace/visa-start'
 import { isVisaShopListing } from '@/lib/visa-shop'
 // The one switch that means "this deployment runs the visa chat" — see the gate on isVisaProduct.
@@ -222,6 +224,24 @@ export default async function ListingPage({ params }: Props) {
    * build-time literal on both sides of the alias, so this folds away and cannot cost a render.
    */
   const isVisaProduct = VISA_THREADS_ENABLED && VISA_START_AVAILABLE && (await isVisaShopListing(listing.id))
+
+  /**
+   * A PARTNER LISTING WHOSE CHECKOUT IS ON THE PARTNER'S OWN SITE (VinWonders attraction tickets).
+   *
+   * ⚠️ ONE NULLABLE COLUMN IS THE WHOLE FEATURE FLAG. `affiliateUrl` is null on every ordinary
+   * listing, so nothing below changes for them — no env var, no allowlist, no deploy coupling.
+   * ⚠️ IT IS CHECKED BEFORE isVisaProduct because it is the more specific case; the two are
+   * mutually exclusive in practice (the visa desk sells its own services, not a partner's).
+   */
+  /**
+   * ⛔ VALIDATE HERE, NOT ONLY IN THE COMPONENT. This flag SUPPRESSES ContactComposer, and
+   * AffiliateBooking renders null on a URL it will not trust — so branching on the raw column
+   * meant one bad row produced a product page with NO call to action whatsoever: no booking
+   * button, no chat, no phone. Deciding with the same predicate the component uses makes the
+   * fallback automatic: an untrusted link is simply not an affiliate listing, and the ordinary
+   * contact path comes back.
+   */
+  const affiliateUrl = safeAffiliateUrl(listing.affiliateUrl)
   // Is this the trip desk's own listing? Same trust shape as the visa check above — resolved
   // server-side from (seller, externalId) on the desk that owns the row, never from the title or
   // the category, which another seller could imitate. `cache()`d, so this costs one query per
@@ -348,29 +368,41 @@ export default async function ListingPage({ params }: Props) {
       'priceCurrency': offerCurrency,
       'price': listing.price,
       'priceValidUntil': new Date(new Date(listing.postedAt).getTime() + 1000 * 60 * 60 * 24 * 90).toISOString().split('T')[0], // postedAt + 90d — deterministic across ISR regens (Date.now() made every regen unique, defeating Vercel's unchanged-output write dedup)
-      'itemCondition': schemaCondition,
+      // A partner ticket is issued fresh at checkout — the used/refurbished vocabulary the rest of
+      // the marketplace uses does not apply, and an unset condition suppresses the rich result.
+      'itemCondition': affiliateUrl ? 'https://schema.org/NewCondition' : schemaCondition,
       'availability': availability,
       'seller': { '@type': 'Organization', 'name': listing.seller.name },
-      // Return policy — eno is a meet-and-inspect-before-paying marketplace for
-      // (mostly used) goods, so sales are final / no returns. Satisfies Google
-      // Merchant "Improve item appearance" (hasMerchantReturnPolicy).
-      'hasMerchantReturnPolicy': {
-        '@type': 'MerchantReturnPolicy',
-        'applicableCountry': 'VN',
-        'returnPolicyCategory': 'https://schema.org/MerchantReturnNotPermitted',
-      },
-      // Fulfillment — buyer and seller meet locally, so there's no shipping fee
-      // (free local handover). Satisfies the shippingDetails recommendation.
-      'shippingDetails': {
-        '@type': 'OfferShippingDetails',
-        'shippingRate': { '@type': 'MonetaryAmount', 'value': '0', 'currency': offerCurrency },
-        'shippingDestination': { '@type': 'DefinedRegion', 'addressCountry': 'VN' },
-        'deliveryTime': {
-          '@type': 'ShippingDeliveryTime',
-          'handlingTime': { '@type': 'QuantitativeValue', 'minValue': 0, 'maxValue': 1, 'unitCode': 'DAY' },
-          'transitTime': { '@type': 'QuantitativeValue', 'minValue': 0, 'maxValue': 2, 'unitCode': 'DAY' },
+      /**
+       * ⛔ RETURN AND SHIPPING TERMS ARE OMITTED ON A PARTNER LISTING, DELIBERATELY. Both blocks
+       * below describe how *eno* fulfils a sale: meet locally, inspect, no returns, no shipping
+       * fee. None of that is true of an attraction ticket bought on the partner's own site under
+       * the partner's own refund rules — publishing "returns not permitted" for a product we do
+       * not sell is a claim we have no standing to make, and Google reads structured data as the
+       * merchant's own statement of terms. Absent is correct; wrong is not.
+       */
+      ...(affiliateUrl ? {} : {
+        // Return policy — eno is a meet-and-inspect-before-paying marketplace for
+        // (mostly used) goods, so sales are final / no returns. Satisfies Google
+        // Merchant "Improve item appearance" (hasMerchantReturnPolicy).
+        'hasMerchantReturnPolicy': {
+          '@type': 'MerchantReturnPolicy',
+          'applicableCountry': 'VN',
+          'returnPolicyCategory': 'https://schema.org/MerchantReturnNotPermitted',
         },
-      },
+        // Fulfillment — buyer and seller meet locally, so there's no shipping fee
+        // (free local handover). Satisfies the shippingDetails recommendation.
+        'shippingDetails': {
+          '@type': 'OfferShippingDetails',
+          'shippingRate': { '@type': 'MonetaryAmount', 'value': '0', 'currency': offerCurrency },
+          'shippingDestination': { '@type': 'DefinedRegion', 'addressCountry': 'VN' },
+          'deliveryTime': {
+            '@type': 'ShippingDeliveryTime',
+            'handlingTime': { '@type': 'QuantitativeValue', 'minValue': 0, 'maxValue': 1, 'unitCode': 'DAY' },
+            'transitTime': { '@type': 'QuantitativeValue', 'minValue': 0, 'maxValue': 2, 'unitCode': 'DAY' },
+          },
+        },
+      }),
     },
   }
 
@@ -652,7 +684,14 @@ export default async function ListingPage({ params }: Props) {
                     isVisaShopListing is deliberately WIDER than resolveVisaProduct: a half-built
                     product (missing entry type or speed) still gets visa chrome rather than
                     silently falling back to an empty chat. */}
-                {isVisaProduct
+                {affiliateUrl
+                  ? <AffiliateBooking
+                      url={affiliateUrl}
+                      partnerName={listing.seller.name}
+                      discountCode={listing.seller.affiliateDiscountCode}
+                      discountPercent={listing.seller.affiliateDiscountPercent}
+                    />
+                  : isVisaProduct
                   ? <VisaStart listingId={listing.id} className="w-full" />
                   : <ContactComposer
                       listingId={listing.id}

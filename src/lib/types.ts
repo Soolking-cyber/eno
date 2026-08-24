@@ -98,6 +98,9 @@ export type SerializedListing = {
   priceUnit: string
   currency: string
   negotiable: boolean
+  /// Set ONLY on partner listings whose checkout is on the partner's own site. Null on every
+  /// ordinary listing, which is what makes the PDP's affiliate branch inert for them.
+  affiliateUrl: string | null
   // Price-drop badge (see SerializedListingCard.prevPrice) + when the drop landed
   // (ISO, only while the badge is live — powers "dropped 3 days ago" on the detail page).
   prevPrice: number | null
@@ -148,6 +151,10 @@ export type SerializedListing = {
      *  as a second gold trust pill. Safe to serialize: unlike `phone` below it is meant to be
      *  public, and the badge has to reach cards, the PDP and the storefront. */
     officialPartner: boolean
+    /// Partner-wide checkout discount, shown on every affiliate listing of this seller. Redeemed on
+    /// the PARTNER's site — eno never validates it and never discounts anything.
+    affiliateDiscountCode: string | null
+    affiliateDiscountPercent: number | null
     trustTier: string
     trustScore: number
     responseRate: number

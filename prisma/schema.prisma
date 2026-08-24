@@ -116,13 +116,13 @@ model Profile {
   // trustTier/trustScore. Read paths may use these; any decision that MATTERS (publishing,
   // takedown, an authority answer) re-reads identity_verifications, because a cache that has
   // drifted is exactly how a lapsed document keeps a verified badge.
-  verificationStatus  String    @default("unverified") // unverified|pending|verified|rejected|expired|revoked
-  verificationTier    String? // 'A' = VNeID (citizens) | 'B' = passport + residence (expats)
-  verificationMethod  String? // vneid | passport_mrz | passport_manual | business_registry
-  verifiedAt          DateTime?
+  verificationStatus String    @default("unverified") // unverified|pending|verified|rejected|expired|revoked
+  verificationTier   String? // 'A' = VNeID (citizens) | 'B' = passport + residence (expats)
+  verificationMethod String? // vneid | passport_mrz | passport_manual | business_registry
+  verifiedAt         DateTime?
   /// Passport/TRC expiry for Tier B; null for Tier A (a citizen ID does not gate seller status).
   /// Indexed because a nightly job walks it to warn at -30d and expire at 0.
-  documentExpiresAt   DateTime?
+  documentExpiresAt  DateTime?
 
   /// ⚠️ SEPARATE FROM enforcementState, DELIBERATELY. A trust suspension and a regulatory hold
   /// are different things with different remedies and different audiences; conflating them means
@@ -165,7 +165,7 @@ model Profile {
 /// See docs/compliance-2026.md §2.4 — a national ID is low-entropy and structured, so a leaked
 /// plain sha256 column is equivalent to leaking the numbers themselves.
 model IdentityVerification {
-  id String @id @default(cuid())
+  id        String   @id @default(cuid())
   /// ⚠️ NULLABLE, AND onDelete: SetNull — NOT Cascade (codex). Cascade silently defeated the whole
   /// 3-year retention design: deleting a Profile deleted its verification history, which is exactly
   /// the record we are obliged to keep. Erasure must remove the PERSON, not the evidence that a
@@ -187,7 +187,7 @@ model IdentityVerification {
   subjectHash String @db.Char(64)
 
   fullName          String?
-  nationality       String? @db.Char(3) // ISO-3166-1 alpha-3, straight from the MRZ
+  nationality       String?   @db.Char(3) // ISO-3166-1 alpha-3, straight from the MRZ
   birthYear         Int? // year only — day/month is not needed for an age gate
   documentType      String? // passport | trc | visa | cccd
   documentExpiresAt DateTime?
@@ -237,26 +237,26 @@ model TakedownOrder {
   /// ⚠️ NO `listingId` SCALAR HERE (agy). The relation is driven by Listing.takedownOrderId, so a
   /// scalar on this side was a dangling column that nothing wrote and nothing read — while LOOKING
   /// authoritative to the next person who queried it. One order can cover several listings.
-  listings  Listing[] @relation("ListingTakedown")
-  sellerId  String? // whole-storefront orders
+  listings Listing[] @relation("ListingTakedown")
+  sellerId String? // whole-storefront orders
 
-  action     String // unpublish | restore | restrict
-  reason     String // visa_scam | illegal_sublet | counterfeit | prohibited_goods | …
+  action         String // unpublish | restore | restrict
+  reason         String // visa_scam | illegal_sublet | counterfeit | prohibited_goods | …
   /// ⚠️ A KEY INTO LEGAL_BASIS, NEVER FREE TEXT. An authority-supplied string would otherwise be
   /// quoted verbatim in an email we send under our own name.
-  legalBasis String
+  legalBasis     String
   /// The authority's own document number, e.g. "QĐ-1234/2026".
   orderReference String?
   issuedBy       String?
   issuedAt       DateTime?
 
   /// Which API key acted. Null for an in-app admin action (actor is then in the audit row).
-  actorKeyId String?
+  actorKeyId   String?
   actorAdminId String?
 
-  appealUntil    DateTime?
-  appealedAt     DateTime?
-  appealOutcome  String? // upheld | overturned | withdrawn
+  appealUntil   DateTime?
+  appealedAt    DateTime?
+  appealOutcome String? // upheld | overturned | withdrawn
 
   @@index([sellerId])
   @@index([createdAt])
@@ -336,7 +336,7 @@ model SavedSearch {
 // Web Push subscription (one row per browser/device that opted in). FK within
 // public → Profile, so it goes through the normal drop-FK→push→re-add flow.
 model PushSubscription {
-  id String @id @default(cuid())
+  id        String   @id @default(cuid())
   /// ⚠️ NULLABLE, AND onDelete: SetNull — NOT Cascade (codex). Cascade silently defeated the whole
   /// 3-year retention design: deleting a Profile deleted its verification history, which is exactly
   /// the record we are obliged to keep. Erasure must remove the PERSON, not the evidence that a
@@ -356,7 +356,7 @@ model PushSubscription {
 // Native (Capacitor) push tokens — FCM (Android) / APNs (iOS) device tokens, separate from the
 // web-push PushSubscription above. One row per device token; sends fan out via src/lib/native-push.
 model NativePushToken {
-  id String @id @default(cuid())
+  id        String   @id @default(cuid())
   /// ⚠️ NULLABLE, AND onDelete: SetNull — NOT Cascade (codex). Cascade silently defeated the whole
   /// 3-year retention design: deleting a Profile deleted its verification history, which is exactly
   /// the record we are obliged to keep. Erasure must remove the PERSON, not the evidence that a
@@ -372,18 +372,18 @@ model NativePushToken {
 }
 
 model Seller {
-  id                   String               @id @default(cuid())
+  id                       String               @id @default(cuid())
   // Link to the owning account. NULL = legacy/guest seller (no account yet).
-  ownerId              String?              @unique @db.Uuid // one Profile owns at most one Seller (1:0..1)
-  owner                Profile?             @relation(fields: [ownerId], references: [id], onDelete: SetNull)
-  claimedAt            DateTime? // when a real account claimed this guest seller
-  avatarUrl            String?
-  name                 String
-  avatarColor          String               @default("#dc2626")
-  rating               Float                @default(5)
-  reviewCount          Int                  @default(0)
-  verified             Boolean              @default(false)
-  verifiedSeller       Boolean              @default(false)
+  ownerId                  String?              @unique @db.Uuid // one Profile owns at most one Seller (1:0..1)
+  owner                    Profile?             @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+  claimedAt                DateTime? // when a real account claimed this guest seller
+  avatarUrl                String?
+  name                     String
+  avatarColor              String               @default("#dc2626")
+  rating                   Float                @default(5)
+  reviewCount              Int                  @default(0)
+  verified                 Boolean              @default(false)
+  verifiedSeller           Boolean              @default(false)
   // ⚠️ A COMMERCIAL RELATIONSHIP, NOT A VERIFICATION, AND NOT A TRUST SCORE. eno created this
   // account itself for a company it has an agreement with (the first is VietKite, a licensed VN
   // travel/visa company). It is deliberately NOT `verified`/`verifiedSeller` — those mean "eno
@@ -400,39 +400,46 @@ model Seller {
   // object field-by-field from an allowlist (verified 2026-08-10, no `...body` spread anywhere),
   // so this column is unreachable from PATCH /api/profile. Keep it that way — if that function
   // ever grows a spread, a seller can grant themselves the badge and switch off their own phone.
-  officialPartner      Boolean              @default(false)
+  officialPartner          Boolean              @default(false)
+  /// PARTNER CHECKOUT DISCOUNT — shown on every affiliate listing of this seller. Partner-wide
+  /// rather than per-listing because one code covers the whole catalogue; repeating it on each
+  /// listing is 17 chances for them to drift apart.
+  /// ⚠️ THE CODE IS REDEEMED ON THE PARTNER'S SITE, NOT HERE. eno never validates it, never
+  /// discounts anything, and must not imply it does — the copy says where to type it.
+  affiliateDiscountCode    String?
+  affiliateDiscountPercent Int?
   // Mirror of the owner Profile's trust (denormalized so a storefront card/badge
   // renders without a Profile join; recomputed whenever the owner's score changes).
-  trustScore           Int                  @default(100)
-  trustTier            String               @default("standard") // restricted | standard | trusted | exceptional
-  memberSince          DateTime             @default(now())
-  responseRate         Int                  @default(100)
-  responseTime         String               @default("within an hour")
+  trustScore               Int                  @default(100)
+  trustTier                String               @default("standard") // restricted | standard | trusted | exceptional
+  memberSince              DateTime             @default(now())
+  responseRate             Int                  @default(100)
+  responseTime             String               @default("within an hour")
   // Set ONLY by recomputeResponseRates() (nightly SQL, >=5-convo sample) — its presence
   // is what separates a MEASURED responseRate from the fabricated =100 default above.
   // Display (responseBucket) and trust (responseQ) both gate on it; never write it
   // anywhere else or the honesty gate is laundered.
-  responseMetricAt     DateTime?
-  location             String?
-  bio                  String?
-  phone                String?              @unique // KEEP: the guest-claim join key
+  responseMetricAt         DateTime?
+  location                 String?
+  bio                      String?
+  phone                    String?              @unique // KEEP: the guest-claim join key
   // ── Seller legal identity (Đ.29 ND52 + Law 122/2025 collection duty; VNeID
   //    verification enforceable 1 Jan 2027). Provided to buyers on request and to
   //    authorities — idNumber/taxCode must NEVER appear in public serializations. ──
-  legalName            String? // full legal name (individual) or registered company name
-  legalAddress         String? // residence (individual) / head office (business)
-  idNumber             String? // CCCD (individual) or ERC number (business)
-  taxCode              String? // mã số thuế, if any
-  identityUpdatedAt    DateTime? // when the seller last edited these fields
+  legalName                String? // full legal name (individual) or registered company name
+  legalAddress             String? // residence (individual) / head office (business)
+  idNumber                 String? // CCCD (individual) or ERC number (business)
+  taxCode                  String? // mã số thuế, if any
+  identityUpdatedAt        DateTime? // when the seller last edited these fields
   // ── VietQR/GDT tax-code soft check (owner "go" 2026-07-23) — FACTS only; the
   //    "verified" verdict is DERIVED at read time (src/lib/tax-lookup.ts) so a later
   //    legalName edit can never serve a stale badge. Written ATOMICALLY with taxCode
   //    in the same UPDATE (core/seller.ts) — facts always describe the row's own code.
   //    null taxCheckedAt = never checked / transient failure (self-heals next save);
   //    taxActive=false + checkedAt set = the registry POSITIVELY didn't know the code.
-  taxCheckedAt         DateTime?
-  taxRegisteredName    String? // registered name GDT returned (public record)
-  taxActive            Boolean? // 'NNT đang hoạt động' at check time
+  taxCheckedAt             DateTime?
+  taxRegisteredName        String? // registered name GDT returned (public record)
+  taxActive                Boolean? // 'NNT đang hoạt động' at check time
   // ── Business VERIFICATION badge (owner 2026-07-23: one badge, ≥2 channels). ──
   //    The badge is IDENTITY-HASH-DERIVED, never a plain latched flag (external
   //    review — kills the approval-vs-edit race, the indefinite latch, and stale
@@ -442,17 +449,17 @@ model Seller {
   //    edit changes the live hash → badge silently stops matching, no reset write) AND
   //    verifiedUntil > now AND taxVerdict()==='verified'. verifiedIdentityHash null =
   //    never verified. See src/lib/business-verification.ts (sellerIdentityHash).
-  verifiedIdentityHash String? // sha256 of the identity approved; compared to the live one
-  verifiedAt           DateTime? // when the approving review landed
-  verifiedUntil        DateTime? // reviewedAt + 365d — the badge expires, never indefinite
-  verifiedBy           String? // admin email that approved (audit)
-  verifications        SellerVerification[]
-  listings             Listing[]
-  reviews              Review[]
-  conversations        Conversation[]
-  apiKeys              ApiKey[]
-  webhooks             WebhookEndpoint[]
-  handle               Handle? // public @shopname (see model Handle)
+  verifiedIdentityHash     String? // sha256 of the identity approved; compared to the live one
+  verifiedAt               DateTime? // when the approving review landed
+  verifiedUntil            DateTime? // reviewedAt + 365d — the badge expires, never indefinite
+  verifiedBy               String? // admin email that approved (audit)
+  verifications            SellerVerification[]
+  listings                 Listing[]
+  reviews                  Review[]
+  conversations            Conversation[]
+  apiKeys                  ApiKey[]
+  webhooks                 WebhookEndpoint[]
+  handle                   Handle? // public @shopname (see model Handle)
 
   @@index([ownerId])
 }
@@ -606,6 +613,15 @@ model Listing {
   // from the PriceChange audit) — never seller-entered, so raise-then-drop can't
   // fake a discount. null = no active badge. Cleared instantly on any price raise.
   previousPrice           Float?
+  /// PARTNER AFFILIATE LINK — set ONLY on listings whose checkout happens on a partner's own
+  /// site (VinWonders attraction tickets, 2026-08-24). When present the PDP swaps its on-platform
+  /// contact/chat CTA for an outbound "Book on <partner>" button, because there is no eno seller
+  /// to message: the buyer pays the partner, not us.
+  /// ⚠️ NULL FOR EVERY ORDINARY LISTING, and that is the whole feature flag. Nothing about the
+  /// normal marketplace path changes; `affiliateUrl == null` is the existing behaviour verbatim.
+  /// ⚠️ THE OUTBOUND ANCHOR MUST CARRY rel="sponsored" — Google treats an undisclosed paid link as
+  /// a link-scheme violation, which costs the ranking this feature exists to earn.
+  affiliateUrl            String?
   priceDropAt             DateTime? // badge clock — the drop badge shows for 7 days from here
   // Monotonic notification ratchet (Poshmark model): the lowest price buyers were
   // ever notified at. A new drop notification requires ≥10% below this. NEVER reset
@@ -990,7 +1006,7 @@ model Message {
   replies         Message[]    @relation("MessageReplies")
   createdAt       DateTime     @default(now())
 
-  reactions       MessageReaction[]
+  reactions MessageReaction[]
 
   @@index([conversationId, createdAt])
   /// Covering index for the self-FK — the same unindexed-FK class Supabase's performance advisor
@@ -1589,14 +1605,14 @@ model ItineraryDay {
 // it. Resolving names → coordinates is a separate task; this model is just the place to put
 // them when it lands.
 model ItineraryStop {
-  id     String       @id @default(cuid())
-  dayId  String
-  day    ItineraryDay @relation(fields: [dayId], references: [id], onDelete: Cascade)
+  id               String       @id @default(cuid())
+  dayId            String
+  day              ItineraryDay @relation(fields: [dayId], references: [id], onDelete: Cascade)
   // Order WITHIN the day (0 = morning, 1 = afternoon, 2 = evening today). The map draws its
   // per-day polyline in this order, so it is the stop's identity within the day, not a hint.
-  position Int
+  position         Int
   // The searchable place — what a coordinate is resolved FROM ("Bến Thành Market").
-  place String
+  place            String
   // What the traveller is doing there ("Breakfast + first walk"). Distinct from `place`:
   // several activities can share one place, and the pin label wants the place.
   name             String
@@ -1607,7 +1623,7 @@ model ItineraryStop {
   travelMinutes    Int?
   estimatedCostVnd Int?
   bookingAdvice    String?
-  createdAt        DateTime @default(now())
+  createdAt        DateTime     @default(now())
 
   @@unique([dayId, position])
   @@index([dayId])
