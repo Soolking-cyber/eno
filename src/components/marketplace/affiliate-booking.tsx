@@ -61,7 +61,18 @@ export function AffiliateBooking({
           * An anchor, not a router push: this leaves our origin entirely. Next's Link would
           * prefetch a third-party URL it cannot prefetch and adds nothing.
           */}
-        <a href={safeUrl} target="_blank" rel="sponsored nofollow noopener noreferrer">
+        {/*
+          * data-affiliate-cta marks THIS anchor as the outbound booking CTA. The guest e2e needs
+          * to tell a partner PDP from an ordinary one, and matching the visible copy page-wide
+          * would also match an unrelated card in the similar-listings rail whose title happens to
+          * start "Book on …" — diverting a healthy ordinary listing into the partner assertions.
+          */}
+        <a
+          data-affiliate-cta="true"
+          href={safeUrl}
+          target="_blank"
+          rel="sponsored nofollow noopener noreferrer"
+        >
           <Tr text="Book on" /> {partnerName}
           <ArrowUpRight className="size-4" aria-hidden />
         </a>
