@@ -67,8 +67,50 @@ const storage = APPLY ? createClient(storageUrl!, secret!, { auth: { persistSess
  * two fields we could take in one pass would be rude and twice as slow. Learned the hard way: a
  * separate breadcrumb probe run alongside this one got 48 of 160 pages before both were throttled.
  */
-async function pageDataFor(browser: Browser, url: string): Promise<{ gallery: string[]; crumbs: string[] }> {
-  const page = await browser.newPage({ viewport: { width: 1280, height: 900 } })
+/**
+ * ⛔ THE BROWSER CAN DIE MID-RUN AND TAKE THE WHOLE JOB WITH IT. At concurrency 4 this crashed
+ * after 60 of 9,726 products with "browser.newPage: Target page, context or browser has been
+ * closed" — chromium went away and every subsequent call threw, so a job measured in hours ended
+ * silently in its first minute. A crawl this long has to treat a dead browser as weather, not as
+ * an error: the caller hands in a holder, and a closed browser is relaunched once and retried.
+ */
+type BrowserHolder = { b: Browser }
+let relaunches = 0
+/**
+ * ⛔ ONE RELAUNCH AT A TIME, AND ONLY BY WHOEVER SAW THE BROWSER DIE.
+ * The first version let every worker in the batch recover independently: when chromium died all
+ * of them entered the catch, each closed `holder.b` and launched a replacement — so a late worker
+ * would close a sibling's FRESH browser, that sibling's retry would throw "has been closed", and
+ * the run would die exactly as before, now with two or three orphaned chromiums. Three reviewers
+ * found the race independently.
+ * Capturing the dead handle makes "is this still the browser I saw fail?" answerable, and the
+ * shared promise makes the relaunch happen once while everyone else simply waits for it.
+ */
+let relaunching: Promise<void> | null = null
+
+async function relaunch(holder: BrowserHolder, dead: Browser): Promise<void> {
+  if (holder.b !== dead) return // somebody already replaced it; nothing to do
+  if (!relaunching) {
+    relaunching = (async () => {
+      relaunches++
+      console.error(`  browser died — relaunching (#${relaunches})`)
+      try { await dead.close() } catch { /* already gone */ }
+      holder.b = await chromium.launch()
+    })().finally(() => { relaunching = null })
+  }
+  await relaunching
+}
+
+async function pageDataFor(holder: BrowserHolder, url: string): Promise<{ gallery: string[]; crumbs: string[] }> {
+  let page
+  const dead = holder.b
+  try {
+    page = await holder.b.newPage({ viewport: { width: 1280, height: 900 } })
+  } catch (e) {
+    if (!/closed|crash/i.test(String(e))) throw e
+    await relaunch(holder, dead)
+    page = await holder.b.newPage({ viewport: { width: 1280, height: 900 } })
+  }
   try {
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45_000 })
     await page.waitForTimeout(2600)
@@ -227,13 +269,13 @@ async function main() {
     try { return new URL(aff).searchParams.get('url') } catch { return null }
   }
 
-  const browser = await chromium.launch()
+  const holder: BrowserHolder = { b: await chromium.launch() }
   let done = 0, added = 0, none = 0, crumbed = 0, short = 0
   for (let i = 0; i < targets.length; i += CONCURRENCY) {
     await Promise.all(targets.slice(i, i + CONCURRENCY).map(async (r) => {
       const page = pageUrlOf(r.affiliateUrl)
       if (!page) { none++; return }
-      const data = await pageDataFor(browser, page)
+      const data = await pageDataFor(holder, page)
       const urls = data.gallery.slice(0, MAX_IMAGES + 4)
       done++
       // Appended as JSONL so a killed run keeps everything it already learned — the classifier
@@ -282,7 +324,7 @@ async function main() {
     }
     if (done % 30 === 0) console.log(`  ${done}/${targets.length}  images added=${added}  no-gallery=${none}${short ? `  short(kept old)=${short}` : ''}`)
   }
-  await browser.close()
+  await holder.b.close()
   console.log(`\n${APPLY ? 'APPLIED' : 'DRY RUN'}: ${done} pages read, ${added} images, ${crumbed} breadcrumb paths -> ${CRUMB_FILE}, ${none} with no gallery`)
   if (galleryErrors.length) {
     const kinds: Record<string, number> = {}

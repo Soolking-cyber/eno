@@ -30,6 +30,12 @@ import { isBusinessVerified } from '@/lib/business-verification'
 
 // Single per-request DB read shared by generateMetadata + the page (React cache
 // dedupes), so an SEO seller page makes ONE round-trip instead of two.
+/**
+ * How many listings a storefront renders inline. Enough to fill the grid and its sort tabs;
+ * everything beyond it is reachable through search and the category pages, which paginate.
+ */
+const STOREFRONT_LISTINGS = 60
+
 export const loadSeller = cache(async (id: string) => {
   /**
    * ⚠️ THE WHOLE STOREFRONT IS REFUSED, NOT JUST ITS GRID. This component backs BOTH public routes —
@@ -54,7 +60,20 @@ export const loadSeller = cache(async (id: string) => {
   return db.seller.findUnique({
     where: { id },
     include: {
-      listings: { where: await scopedListingWhere({ verified: true, status: 'active' }), orderBy: { postedAt: 'desc' }, include: { category: true, seller: true } },
+      /**
+       * ⛔ `take` IS LOAD-BEARING, NOT A TIDY-UP. Without it this loads EVERY active listing a
+       * seller has, each with its category and seller relation, and renders them all into the HTML.
+       * That was invisible while storefronts held a dozen items; the CellphoneS import gave one
+       * seller 9,726, and the page became **117 MB of HTML taking 15.8 seconds** (VinWonders, for
+       * comparison: 58 KB). A browser could not finish it — which is how this was found: the
+       * owner reported that the partner's logo "still cant see", and the logo was fine; the page
+       * simply never got there.
+       * ⚠️ On Vietnamese mobile data a 117 MB page is not slow, it is unaffordable.
+       * The true total comes from `_count` below, so nothing on screen reports the cap as the
+       * inventory.
+       */
+      listings: { where: await scopedListingWhere({ verified: true, status: 'active' }), orderBy: { postedAt: 'desc' }, include: { category: true, seller: true }, take: STOREFRONT_LISTINGS },
+      _count: { select: { listings: { where: await scopedListingWhere({ verified: true, status: 'active' }) } } },
       handle: { select: { handle: true } }, // public shopname → the shareable eno.vn/<name> link
       // accountType → SellerCard's Business chip; lastSeenAt → the presence bucket
       // (consumed server-side by sellerMetrics — only the day-coarse value escapes).
@@ -137,7 +156,23 @@ export async function SellerStorefront({ id }: { id: string }) {
   // partner's site and has no chat gate on its own PDP, so anchoring here to `listings[0]` would
   // send a reader to a page with nothing to answer them — which is what happens the moment a
   // partner posts one ordinary item and stops being caught by `isAffiliatePartner` below.
-  const chatListingId = seller.listings.find((l) => !l.affiliateUrl)?.id ?? null
+  /**
+   * ⚠️ QUERIED, NOT SEARCHED IN THE LOADED PAGE. With a `take` on the grid, a seller whose first 60
+   * listings are all affiliate ones would look as though they had no chattable listing at all —
+   * silently removing the Chat CTA from a storefront that has one on item 61.
+   */
+  /**
+   * ⛔ `scopedListingWhere` IS NOT OPTIONAL HERE — IT IS THE LICENSING BOUNDARY. The grid and the
+   * `_count` above are both scoped; a bare `sellerId + verified + status` lookup is not, so it
+   * could anchor the Chat CTA on a listing THIS EDITION REFUSES TO SERVE (a visa/itinerary row on
+   * eno.vn), open a thread on it, and flip `isAffiliatePartner` false against a scoped count that
+   * says every listing is affiliate. Three reviewers found this independently, and they were right:
+   * the array `.find()` this replaced could never do it, because the array was already scoped.
+   */
+  const chatListingId = (await db.listing.findFirst({
+    where: await scopedListingWhere({ sellerId: seller.id, verified: true, status: 'active', affiliateUrl: null }),
+    orderBy: { postedAt: 'desc' }, select: { id: true },
+  }))?.id ?? null
   // Identity, not name/handle: the desk is whichever storefront getVisaShopSeller resolves.
   const isVisaDesk = seller.id === (await getVisaShopSeller())?.id
   /**
@@ -153,7 +188,10 @@ export async function SellerStorefront({ id }: { id: string }) {
    * `every` vacuously and silently lose its chat button. A partner that also sells something
    * ordinary keeps the CTA, because for that product a chat IS the right next step.
    */
-  const isAffiliatePartner = seller.listings.length > 0 && seller.listings.every((l) => Boolean(l.affiliateUrl))
+  // ⚠️ "EVERY listing is affiliate" now means "there is no non-affiliate one", which is the same
+  // statement without depending on having loaded them all — `every` over a capped page would call
+  // a mixed seller a pure affiliate partner.
+  const isAffiliatePartner = seller._count.listings > 0 && chatListingId === null
 
   return (
     <div className="flex min-h-screen flex-col blob-bg">
@@ -186,7 +224,7 @@ export async function SellerStorefront({ id }: { id: string }) {
                 // The visa-desk rule is unchanged, it just moved to the button below: that desk
                 // does not take a generic chat, its threads ARE applications.
                 chatListingId={null}
-                listingCount={listings.length}
+                listingCount={seller._count.listings}
               />
             </div>
             {/* ONE LINE: the identity chips and the (rare) Report action share a row instead of
@@ -325,7 +363,7 @@ export async function SellerStorefront({ id }: { id: string }) {
         {/* Listings by this seller */}
         {listings.length > 0 && (
           <section className="mt-10 space-y-4">
-            <h2 className="h-section text-foreground"><Tr text="Listings by" /> {seller.name} ({listings.length})</h2>
+            <h2 className="h-section text-foreground"><Tr text="Listings by" /> {seller.name} ({seller._count.listings})</h2>
             <SellerListings listings={listings} searchable sortable />
           </section>
         )}
