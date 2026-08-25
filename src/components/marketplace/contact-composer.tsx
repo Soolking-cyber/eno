@@ -10,6 +10,7 @@ import { EnoSlider } from './eno-slider'
 import { Button } from '@/components/ui/button'
 import { stashCompose } from '@/lib/quick-contact'
 import { hapticTap, hapticConfirm } from '@/lib/haptics'
+import { scrollBehavior } from '@/lib/reduced-motion'
 
 const MAX_DISCOUNT = 50 // % off the asking price the slider allows
 export { COMPOSE_KEY } from '@/lib/quick-contact' // re-export: the key + writer live in the lib
@@ -195,7 +196,7 @@ export function ContactComposer({
     // Ignore a stray ?offer= on a fixed-price listing (stale card link) — no offers here.
     const quickOffer = negotiable && Number.isFinite(offerParam) && offerParam >= 1 && offerParam <= MAX_DISCOUNT ? Math.round(offerParam) : null
     const t = window.setTimeout(() => {
-      document.getElementById('contact')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      document.getElementById('contact')?.scrollIntoView({ behavior: scrollBehavior(), block: 'center' })
       if (quickOffer != null) setDiscount(quickOffer)
     }, 150)
     return () => window.clearTimeout(t)

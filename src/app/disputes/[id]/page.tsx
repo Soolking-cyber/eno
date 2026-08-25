@@ -17,6 +17,7 @@ import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { handleExternalClick } from '@/lib/native-browser'
 import { cn } from '@/lib/utils'
+import { scrollBehavior } from '@/lib/reduced-motion'
 
 // The dispute case room (Binance-P2P style): one shared timeline where the reporter,
 // the respondent and the eno.vn team exchange statements + evidence during the
@@ -162,7 +163,7 @@ export default function DisputeRoomPage() {
       }
       setText(''); setFiles([]); setUploadedPaths(null)
       await load()
-      endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
+      endRef.current?.scrollIntoView({ behavior: scrollBehavior(), block: 'end' })
     } catch {
       setError(t('Could not send — try again.', 'Không gửi được — thử lại.'))
     } finally {

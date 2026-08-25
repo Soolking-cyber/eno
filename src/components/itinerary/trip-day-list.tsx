@@ -11,6 +11,7 @@ import { formatTravel } from '@/lib/travel'
 import { openExternal } from '@/lib/native-browser'
 import { dayRouteLink, stopMapsLink } from '@/lib/itinerary-maps-links'
 import { PIN_PATH, PIN_VIEWBOX, dayColor, type TripDay, type TripStop } from './trip-map'
+import { scrollBehavior } from '@/lib/reduced-motion'
 
 // The list half of the trip view. List-LED on purpose: an itinerary is read as a sequence of
 // days, and the map is the supporting reference — the opposite weighting to the marketplace
@@ -127,10 +128,9 @@ export function TripDayList({ days, activeDay, onSelectDay, selectedStopId = nul
     selfSelectRef.current = null
     if (!selectedStopId || cameFromThisList || !rootRef.current) return
     const row = rootRef.current.querySelector(`[data-stop-id="${CSS.escape(selectedStopId)}"]`)
-    // ⚠️ Honour reduced-motion. A programmatic smooth scroll is exactly the involuntary movement
-    // that setting exists to suppress, and `behavior: 'smooth'` overrides it unless asked. (codex.)
-    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    row?.scrollIntoView({ block: 'nearest', behavior: reduced ? 'auto' : 'smooth' })
+    // Honour reduced-motion — see lib/reduced-motion.ts for why CSS cannot do this. (codex found
+    // it here first; the helper generalised it to the other 20 call sites that had the same bug.)
+    row?.scrollIntoView({ block: 'nearest', behavior: scrollBehavior() })
   }, [selectedStopId])
 
   return (

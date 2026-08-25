@@ -17,6 +17,7 @@ import { useVirtualKeyboard } from '@/hooks/use-virtual-keyboard'
 import { useSafeBack } from '@/lib/safe-back'
 import type { SerializedListingCard } from '@/lib/types'
 import { fmtTime } from '@/lib/dates'
+import { scrollBehavior } from '@/lib/reduced-motion'
 
 // The "eno AI" conversation — rendered as a native thread in the messages tab (the AI
 // is just another contact). Self-contained: messages live in component state +
@@ -70,7 +71,7 @@ export default function AiThreadPage() {
   useEffect(() => {
     const el = listRef.current
     if (!el) return
-    const toBottom = () => el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' })
+    const toBottom = () => el.scrollTo({ top: el.scrollHeight, behavior: scrollBehavior() })
     toBottom()
     const r = requestAnimationFrame(toBottom)
     return () => cancelAnimationFrame(r)

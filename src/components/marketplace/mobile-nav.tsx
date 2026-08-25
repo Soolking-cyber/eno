@@ -18,6 +18,7 @@ import { STROKE_NAV } from '@/lib/icon-tokens'
 // ⚠️ FROM category-glyph, NOT category-icons — importing the renderer from the registry file
 // drags its 99-icon map into this route's chunk (see category-glyph.tsx's header).
 import { CategoryGlyphArt } from './category-glyph'
+import { scrollBehavior } from '@/lib/reduced-motion'
 
 // One uniform lucide stroke across the whole bar. A slightly thicker, identical weight on
 // every icon reads softer and keeps all five tabs at the same visual weight (symmetry).
@@ -247,7 +248,7 @@ export function MobileNav() {
     if (isActive && typeof window !== 'undefined' && window.scrollY > 0) {
       e.preventDefault()
       hapticTap()
-      window.scrollTo({ top: 0, behavior: 'smooth' })
+      window.scrollTo({ top: 0, behavior: scrollBehavior() })
       return
     }
   }

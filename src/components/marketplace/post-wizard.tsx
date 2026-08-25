@@ -32,6 +32,7 @@ import { RangeSpecInput } from './range-spec-input'
 import { usePostMedia } from '@/hooks/use-post-media'
 import { PublishButton, Section, Field, Chips, Preview } from './post-wizard-parts'
 import { MediaSection, PriceSection, LocationSection, ContactSection, PostSuccess } from './post-wizard-sections'
+import { scrollBehavior } from '@/lib/reduced-motion'
 
 const TITLE_MAX = 140
 const DESC_MAX = 5000
@@ -547,7 +548,7 @@ export function PostWizard({ categories, embedded = false, onPosted, edit }: { c
    */
   const scrollToField = (key: string) => {
     const el = document.getElementById(`pw-${key}`)
-    el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    el?.scrollIntoView({ behavior: scrollBehavior(), block: 'center' })
     if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) el.focus({ preventScroll: true })
   }
   const scrollToMissing = () => {

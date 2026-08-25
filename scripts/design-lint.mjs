@@ -126,6 +126,37 @@ const PORTAL_ALLOW = [
 ]
 const PORTAL_ALLOW_SET = new Set(PORTAL_ALLOW.map((e) => e.file))
 
+/**
+ * ⛔ A LITERAL `behavior: 'smooth'` IGNORES prefers-reduced-motion, AND THE STYLESHEET HIDES IT.
+ * globals.css sets `scroll-behavior: auto !important` in the reduced-motion block, which reads
+ * exactly like the preference is handled — but per CSSOM an EXPLICIT `behavior` in a scroll
+ * options bag wins over the CSS property, so every one of those calls animated the viewport for a
+ * user who had asked not to be moved. 20 call sites were doing it, and none of them looked wrong.
+ * `scrollBehavior()` from lib/reduced-motion.ts returns 'auto' or 'smooth' by asking at call time.
+ */
+function checkScrollBehavior(rel, codeLines, rawLines) {
+  if (rel === 'src/lib/reduced-motion.ts') return 0
+  let n = 0
+  // ⚠️ MATCHED ACROSS THE JOINED SOURCE, NOT LINE BY LINE. A prettier-wrapped options bag puts the
+  // key and the literal on separate lines (`behavior:\n  'smooth'`), and a per-line regex sails
+  // straight past it — a guard with a hole exactly where a formatter puts one.
+  const joined = codeLines.join('\n')
+  const re = /behavior\s*:\s*['"]smooth['"]/g
+  for (const m of joined.matchAll(re)) {
+    const i = joined.slice(0, m.index).split('\n').length - 1
+    if (rawLines[i]?.includes('design-lint-allow')) continue
+    n++
+    console.error(
+      `${rel}:${i + 1}  behavior: 'smooth'  — this ignores prefers-reduced-motion. The ` +
+        `\`scroll-behavior: auto !important\` in globals.css does NOT cover it: an explicit behavior in a ` +
+        `scroll options bag outranks the CSS property, so the kill switch reads as if it works and does ` +
+        `nothing. Use \`behavior: scrollBehavior()\` from '@/lib/reduced-motion'. If this scroll must be ` +
+        `animated regardless of the preference, add design-lint-allow on the line WITH A REASON.`,
+    )
+  }
+  return n
+}
+
 function checkPortals(rel, codeLines, rawLines) {
   if (rel.startsWith('src/components/ui/')) return 0
   if (PORTAL_ALLOW_SET.has(rel)) return 0
@@ -549,6 +580,7 @@ for (const file of walk(SRC)) {
   violations += checkTransitionProps(rel, lines, rawLines)
   violations += checkRawControls(rel, lines, rawLines)
   violations += checkPortals(rel, lines, rawLines)
+  violations += checkScrollBehavior(rel, lines, rawLines)
   for (const rule of RULES) {
     if (rule.allow?.has(rel)) continue
     // `raw` rules match across newlines against the ORIGINAL source (a JSX comment is

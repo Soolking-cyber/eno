@@ -58,6 +58,7 @@ import { AISearchButton } from './ai-concierge'
 import { useSuggestKeyboardNav, activeSuggestOptionId, visualSearchFromPaste, RECENT_LOCATIONS_KEY } from '@/hooks/use-search-box'
 import { RECENT_SEARCHES_KEY } from '@/lib/reco-signals'
 import { ListingCardSkeleton } from './listing-card-skeleton'
+import { scrollBehavior } from '@/lib/reduced-motion'
 
 // Custom filters are keyed by facet KEY in state, but range facets (year/mileage/
 // engine) travel in the URL + API keyed by their numeric COLUMN as `range_<col>`
@@ -836,13 +837,13 @@ export function ListingsExplorer({
     const onSearch = (e: Event) => {
       const q = (e as CustomEvent<{ query?: string }>).detail?.query ?? ''
       handleLandingSearch(q)
-      document.getElementById('listings')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      document.getElementById('listings')?.scrollIntoView({ behavior: scrollBehavior(), block: 'start' })
     }
     // Visual search applied from the header camera button (on the explorer page).
     const onVisual = (e: Event) => {
       const d = (e as CustomEvent<{ query: string; category?: string | null; brand?: string | null }>).detail
       if (d) applyVisualSearch(d)
-      document.getElementById('listings')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      document.getElementById('listings')?.scrollIntoView({ behavior: scrollBehavior(), block: 'start' })
     }
     window.addEventListener('eno:visual-search', onVisual)
     // Area filter (district + "near you") applied from the header search bar.
@@ -852,7 +853,7 @@ export function ListingsExplorer({
       setActiveWard(d?.ward ?? null)
       setNearby(d?.nearby ?? null)
       setShowExplorer(true)
-      document.getElementById('listings')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      document.getElementById('listings')?.scrollIntoView({ behavior: scrollBehavior(), block: 'start' })
     }
     // ⚠️ THE HEADER'S MAP BUTTON LANDS HERE. It was restored to the search bar on 2026-08-03, when
     // the hero search that owned the old map control was deleted. The header is a SIBLING of this
@@ -871,7 +872,7 @@ export function ListingsExplorer({
       // all unmount, and a 60dvh map mounts). A smooth scroll started in this tick aims at an
       // offset that stops being true one commit later.
       requestAnimationFrame(() => {
-        document.getElementById('listings')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        document.getElementById('listings')?.scrollIntoView({ behavior: scrollBehavior(), block: 'start' })
       })
     }
     window.addEventListener('eno:view-map', onViewMap)
@@ -888,7 +889,7 @@ export function ListingsExplorer({
         setActiveWard(d?.ward ?? null)
         setNearby(d?.nearby ?? null)
         setShowExplorer(true)
-        document.getElementById('listings')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        document.getElementById('listings')?.scrollIntoView({ behavior: scrollBehavior(), block: 'start' })
       }
     } catch { /* malformed stash — ignore */ }
     return () => {
@@ -968,7 +969,7 @@ export function ListingsExplorer({
     const qs = url.includes('?') ? url.slice(url.indexOf('?') + 1) : ''
     applyParams(new URLSearchParams(qs))
     setShowExplorer(true)
-    requestAnimationFrame(() => document.getElementById('listings')?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+    requestAnimationFrame(() => document.getElementById('listings')?.scrollIntoView({ behavior: scrollBehavior(), block: 'start' }))
   }, [applyParams])
 
   useEffect(() => {
@@ -1761,7 +1762,7 @@ export function ListingsExplorer({
     // map element itself (its scroll-mt clears the header).
     requestAnimationFrame(() =>
       requestAnimationFrame(() => {
-        (mapWrapRef.current ?? document.getElementById('listings'))?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        (mapWrapRef.current ?? document.getElementById('listings'))?.scrollIntoView({ behavior: scrollBehavior(), block: 'start' })
       }),
     )
   }, [])
@@ -1810,7 +1811,7 @@ export function ListingsExplorer({
   const browseIntent = useCallback((type: string) => {
     setListingType(type)
     setShowExplorer(true)
-    document.getElementById('listings')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    document.getElementById('listings')?.scrollIntoView({ behavior: scrollBehavior(), block: 'start' })
   }, [])
 
   // Save the current filter set → the buyer gets alerted (in-app + push) on new matches. (extracted)
@@ -2985,7 +2986,7 @@ export function ListingsExplorer({
                         // scrolling it is free); touch = only on the first tap of the popup
                         // card (on mobile the list is BELOW the map, so scrolling on a pin
                         // tap would drag the page off the map — user decision 2026-07-14).
-                        mapListRef.current?.querySelector(`[data-lid="${id}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+                        mapListRef.current?.querySelector(`[data-lid="${id}"]`)?.scrollIntoView({ behavior: scrollBehavior(), block: 'nearest' })
                       }}
                       onMove={setMapCenter}
                       focusId={focusId}

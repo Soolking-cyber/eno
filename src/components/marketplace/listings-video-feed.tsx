@@ -21,6 +21,7 @@ import { stashQuickCompose } from '@/lib/quick-contact'
 import { optimizedImageUrl } from '@/lib/listing-image'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
+import { scrollBehavior } from '@/lib/reduced-motion'
 
 // Full-screen TikTok-style vertical feed of the listings (in the current search/filters) that
 // carry a video. It TAKES OVER the viewport (portal → <body>, black canvas) rather than sitting
@@ -145,7 +146,7 @@ export function VideoFeed({
   // Desktop up/down arrows → snap to the neighbouring clip.
   const go = (dir: -1 | 1) => {
     const els = scrollRef.current?.querySelectorAll<HTMLElement>('[data-idx]')
-    els?.[activeIdx + dir]?.scrollIntoView({ behavior: 'smooth' })
+    els?.[activeIdx + dir]?.scrollIntoView({ behavior: scrollBehavior() })
   }
 
   const shell = (children: React.ReactNode) =>

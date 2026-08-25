@@ -9,6 +9,7 @@ import { useAccountPanel } from './account-panel'
 import { Button } from '@/components/ui/button'
 import { useLanguage } from '@/context/language-context'
 import { cn } from '@/lib/utils'
+import { scrollBehavior } from '@/lib/reduced-motion'
 
 /** Floating bottom-right controls, portaled to <body> (no ancestor can offset them),
  *  above the mobile bottom-nav. A bare chevron "back to top" that fades in after
@@ -119,7 +120,7 @@ export function BackToTop() {
           inert={!show}
           aria-hidden={!show || undefined}
           tabIndex={show ? undefined : -1}
-          onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+          onClick={() => window.scrollTo({ top: 0, behavior: scrollBehavior() })}
           // back-to-top-chevron is a stable hook for globals.css: native iOS hides
           // ONLY this button (status-bar tap already scrolls to top there); Android keeps the chevron.
           // (The floating Help "?" was removed 2026-07-18 — the rail's Help row owns it.)

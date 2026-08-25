@@ -19,6 +19,7 @@ import type { SerializedCategory } from '@/lib/types'
 // Prisma/`server-only` chain. It is imported rather than restated so the rail's prop and the
 // payload the route ships are literally the same type.
 import type { FacetCounts } from '@/lib/facet-counts'
+import { scrollBehavior } from '@/lib/reduced-motion'
 
 /**
  * A TILE LABEL, WHICH IS `Tr` PLUS ONE SUBSTITUTION: ASCII hyphens become NON-BREAKING ones.
@@ -153,7 +154,7 @@ export function CategoryRail({
     // Scroll ONLY this rail (see brand-rail): el.scrollIntoView would also scroll the
     // document horizontally and clip the whole results view. Move scrollLeft instead.
     const left = container.scrollLeft + (el.getBoundingClientRect().left - container.getBoundingClientRect().left)
-    container.scrollTo({ left, behavior: 'smooth' })
+    container.scrollTo({ left, behavior: scrollBehavior() })
   }, [activeCategory])
 
   // The category dimension: counted with `category` (and its whole cascade) released, so

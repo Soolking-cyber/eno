@@ -45,6 +45,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { LANGUAGES } from '@/lib/i18n/langs'
 import { useChatTranslation } from '@/hooks/use-chat-translation'
 import { fmtTime, dayKey } from '@/lib/dates'
+import { scrollBehavior } from '@/lib/reduced-motion'
 
 // `meta` is the structured payload of a CARD message (visa_step / visa_checkout) — the
 // thread GET parses and re-validates it server-side (parseMessageMeta), so an unreadable
@@ -834,7 +835,7 @@ export default function ThreadPage() {
     if (!pane || !node) return // not rendered yet — the effect below tries again when the list grows
     pendingReveal.current = null
     const top = node.getBoundingClientRect().top - pane.getBoundingClientRect().top + pane.scrollTop
-    pane.scrollTo({ top: Math.max(0, top - 12), behavior: 'smooth' })
+    pane.scrollTo({ top: Math.max(0, top - 12), behavior: scrollBehavior() })
     setRevealedId(target)
     if (revealTimer.current) window.clearTimeout(revealTimer.current)
     // The ring clears itself. A permanent highlight would still be sitting on the card the next time

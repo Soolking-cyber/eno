@@ -13,6 +13,7 @@ import { useScrollArrows, ScrollArrows } from '@/hooks/use-scroll-arrows'
 // Prisma/`server-only` chain. Imported rather than restated so the rail's prop and the payload
 // the route ships are literally the same type.
 import type { FacetCounts } from '@/lib/facet-counts'
+import { scrollBehavior } from '@/lib/reduced-motion'
 
 type BrandItem = { slug: string; name: string; count: number; iconPath: string | null }
 
@@ -90,7 +91,7 @@ export function BrandRail({
     // every scrollable ancestor (incl. the document), shifting the whole results view
     // sideways and clipping the left edge. Move the container's own scrollLeft instead.
     const left = container.scrollLeft + (el.getBoundingClientRect().left - container.getBoundingClientRect().left)
-    container.scrollTo({ left, behavior: 'smooth' })
+    container.scrollTo({ left, behavior: scrollBehavior() })
   }, [activeBrand])
 
   useEffect(() => {

@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { useLanguage } from '@/context/language-context'
 import { STROKE_FLOAT_MAX } from '@/lib/icon-tokens'
 import { cn } from '@/lib/utils'
+import { scrollBehavior } from '@/lib/reduced-motion'
 
 /**
  * Desktop horizontal-scroll arrows for any hidden-scrollbar rail. A mouse wheel scrolls only
@@ -94,7 +95,7 @@ export function useScrollArrows<T extends HTMLElement = HTMLDivElement>(
 
   const page = useCallback((dir: 1 | -1) => {
     const el = scrollerRef.current
-    if (el) el.scrollBy({ left: dir * el.clientWidth * 0.85, behavior: 'smooth' })
+    if (el) el.scrollBy({ left: dir * el.clientWidth * 0.85, behavior: scrollBehavior() })
   }, [])
 
   return { scrollerRef, canLeft, canRight, page, arrowTop }
