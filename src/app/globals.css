@@ -1212,7 +1212,13 @@ body:has(.dashboard-canvas) #status-bar-backdrop {
   inset: 0;
   transform: translateX(-100%);
   background: linear-gradient(90deg, transparent, var(--skeleton-sheen), transparent);
-  animation: shimmer 1.4s ease-in-out infinite;
+  /**
+   * ⚠️ `linear`, NOT `ease-in-out`. A skeleton sheen travels a fixed path forever; an eased curve
+   * spends the slow ends of every cycle with the highlight OFF-SCREEN and rips it across the tile
+   * during the fast middle — so the placeholder flashes, then sits apparently dead for most of a
+   * second. Constant motion is the one case the easing rules call for `linear`.
+   */
+  animation: shimmer 1.4s linear infinite;
 }
 
 /* Branded skeleton — a centred, faint eno wordmark over the shimmer so loading
@@ -1931,6 +1937,31 @@ html.dark .leaflet-tile-pane {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+
+  /**
+   * ⛔ A LOADER IS NOT DECORATION, AND THE BLANKET RULE ABOVE FREEZES IT. `iteration-count: 1` plus
+   * `0.01ms` stops `animate-spin` dead at 0° — and `<Spinner>` is a ring with a transparent top
+   * (ui/spinner.tsx), so a reduced-motion user sees a permanently BROKEN CIRCLE that never moves.
+   * On /onboard and /disputes/[id] that is the entire loading state: the page looks crashed. 53
+   * files use `animate-spin`.
+   * ⚠️ A LOADER MUST STAY ALIVE, BUT IT MUST NOT ROTATE. Two reviewer families refuted the first
+   * version of this rule three times and they were right: continuous rotation is the vestibular
+   * trigger `prefers-reduced-motion` exists to remove, and WCAG 2.3.3 does not exempt it just
+   * because the element is small. But the blanket `0.01ms` + `iteration-count: 1` above went too
+   * far the other way — it froze `<Spinner>`'s `border-t-transparent` ring and lucide's `Loader2`
+   * arc MID-TURN, and a still arc does not read as "loading", it reads as a broken glyph. On
+   * /onboard and /disputes/[id] that broken glyph IS the entire loading state.
+   * The signal people actually read is CHANGE OVER TIME, not rotation — so trade one for the
+   * other: opacity only, no transform, nothing that moves across the retina. 113 `Loader2` icons
+   * and every `<Spinner>` keep saying "working" without a single degree of spin.
+   */
+  .animate-spin {
+    animation: reduced-motion-pulse 1.6s ease-in-out infinite !important;
+  }
+  @keyframes reduced-motion-pulse {
+    from, to { opacity: 1; }
+    50% { opacity: 0.45; }
   }
   /* View Transitions aren't covered by the transition/animation kill above. */
   ::view-transition-group(*),

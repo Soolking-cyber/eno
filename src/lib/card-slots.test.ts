@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { CARD_SEGMENTS, cardSlots } from './card-slots'
+import { CARD_SEGMENTS, cardSlots, isSwipe } from './card-slots'
 
 describe('cardSlots', () => {
   // The whole table, because this is an off-by-one in three related numbers at once and reading
@@ -56,5 +56,35 @@ describe('cardSlots', () => {
     for (const junk of [-1, -100, NaN]) {
       expect(cardSlots(junk)).toEqual({ photoCount: 0, moreCount: 0, segments: 0, overflow: false })
     }
+  })
+})
+
+describe('isSwipe', () => {
+  it('pages on a decisive flick that distance alone would have ignored', () => {
+    // 30px in 40ms = 0.75px/ms. Under the old distance-only rule (>40px) this did NOTHING.
+    expect(isSwipe(-30, 2, 40)).toBe(true)
+  })
+
+  it('still pages on a slow deliberate drag', () => {
+    expect(isSwipe(-60, 5, 600)).toBe(true)
+  })
+
+  it('ignores a vertical flick-scroll that drifts sideways — BOTH branches', () => {
+    expect(isSwipe(45, 240, 300)).toBe(false)   // past the 40px distance gate
+    expect(isSwipe(30, 200, 40)).toBe(false)    // past the velocity gate
+  })
+
+  it('ignores a tap whose finger rolls a few pixels very fast', () => {
+    // 6px in 3ms is 2px/ms — an enormous velocity, and not a swipe. The 20px floor is what says so.
+    expect(isSwipe(6, 1, 3)).toBe(false)
+  })
+
+  it('ignores a slow short drag that reaches neither gate', () => {
+    expect(isSwipe(30, 1, 500)).toBe(false)
+  })
+
+  it('never divides by a zero elapsed time', () => {
+    expect(isSwipe(25, 0, 0)).toBe(true)
+    expect(Number.isFinite(25 / Math.max(1, 0))).toBe(true)
   })
 })

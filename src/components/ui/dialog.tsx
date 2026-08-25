@@ -139,7 +139,7 @@ function DialogContent({
              * a measured member of the critical partition. design-lint has no `<svg>` rule, so
              * nothing would have caught it either.
              */
-            className="ring-offset-background focus:ring-ring tap-44 absolute top-3.5 right-3.5 rounded-full text-ink-4 hover:text-foreground transition-all hover:scale-105 active:scale-[0.96] z-50 focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 cursor-pointer"
+            className="ring-offset-background focus:ring-ring tap-44 absolute top-3.5 right-3.5 rounded-full text-ink-4 hover:text-foreground transition hover:scale-105 active:scale-[0.96] z-50 focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 cursor-pointer"
           >
             <XIcon className="size-6" />
             <span className="sr-only"><Tr text="Close" /></span>

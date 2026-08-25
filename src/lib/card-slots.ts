@@ -45,3 +45,33 @@ export function cardSlots(imageCount: number): CardSlots {
   const moreCount = overflow ? n - photoCount : 0
   return { photoCount, overflow, moreCount, segments: photoCount + (overflow ? 1 : 0) }
 }
+
+/**
+ * Should a finished touch gesture page the card's photo strip?
+ *
+ * ⚠️ THIS IS A PURE FUNCTION BECAUSE THE INLINE VERSION COULD NOT BE PROVEN. The decision used to
+ * live in `listing-card.tsx`'s `onTouchEnd`, where the only way to exercise it is a real multi-photo
+ * card under a real touch driver — and the live catalogue is single-image, so `segments < 2` short-
+ * circuits every gesture and a browser probe can only ever report "nothing happened". A rule that
+ * cannot fail visibly is a rule nobody can check.
+ *
+ * The rule itself, and why each clause is there:
+ *  · DISTANCE **OR** VELOCITY. Distance alone ignored a decisive flick — the short, fast gesture
+ *    people actually make on a photo — while rewarding a slow 41px drag. `listing-gallery.tsx`
+ *    reached the same conclusion for the lightbox; this is the higher-traffic surface.
+ *  · AXIS LOCK ON BOTH BRANCHES. The card sits in a VERTICALLY SCROLLING feed, so a fast
+ *    flick-scroll that drifts sideways must not page the photo. The distance branch shipped without
+ *    this and a ≥41px lateral drift during a scroll already paged it.
+ *  · A 20px FLOOR under the velocity branch, so a tap whose finger rolls two pixels in 3ms — an
+ *    enormous px/ms — is not a swipe.
+ */
+export const SWIPE_DISTANCE_PX = 40
+export const FLICK_MIN_PX = 20
+export const FLICK_MIN_VELOCITY = 0.4
+
+export function isSwipe(dx: number, dy: number, elapsedMs: number): boolean {
+  const ax = Math.abs(dx)
+  if (ax <= Math.abs(dy)) return false
+  const ms = Math.max(1, elapsedMs)
+  return ax > SWIPE_DISTANCE_PX || (ax > FLICK_MIN_PX && ax / ms > FLICK_MIN_VELOCITY)
+}

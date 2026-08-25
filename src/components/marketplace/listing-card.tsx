@@ -18,7 +18,7 @@ import { Price } from './price'
 import { isBookingCategory } from '@/lib/affiliate-kind'
 import { formatMoneyFull, moneyLocale, dropPercent } from '@/lib/vnd'
 import { CategoryIcon } from './category-icons'
-import { cardSlots } from '@/lib/card-slots'
+import { cardSlots, isSwipe } from '@/lib/card-slots'
 import { isMockImageUrl } from '@/lib/listing-image'
 import { cn } from '@/lib/utils'
 import { useLanguage, useTr } from '@/context/language-context'
@@ -191,7 +191,32 @@ function ListingCardImpl({
     }
   }
   const touchStartX = useRef<number | null>(null)
-  const suppressClick = useRef(false)
+  /**
+   * Start Y and time, so a decisive FLICK counts as a swipe. Distance alone meant a quick, short
+   * gesture — the one people actually make on a photo — did nothing at all, while a slow 41px drag
+   * paged. listing-gallery.tsx reached the same conclusion for the lightbox; this is the higher
+   * traffic surface and it never got the fix.
+   */
+  const touchStartY = useRef<number | null>(null)
+  const touchStartT = useRef<number>(0)
+  /** The finger that began the gesture, so touchend measures against the same one. */
+  const touchId = useRef<number | null>(null)
+  /**
+   * ⚠️ A TIMESTAMP, NOT A BOOLEAN, and that is the whole fix for two reviewer findings. A swipe
+   * sets it so the release tap does not also open the listing — but that only works if a click
+   * actually arrives to consume it. When the browser withholds the synthetic click (it does when
+   * the gesture panned), a boolean flag survives and swallows the buyer's NEXT tap; and on a
+   * hybrid device a finger-swipe followed by a real mouse click swallowed that instead. A window
+   * expires on its own, so a stale suppression cannot outlive the gesture that set it.
+   */
+  const suppressClickAt = useRef(0)
+  /**
+   * ⚠️ SIZED TO THE SYNTHETIC CLICK, NOT TO "a while". The browser's touch-derived click follows
+   * touchend within ~300ms (that is the legacy click delay's own ceiling), so 400ms covers it with
+   * margin while staying well under a deliberate second tap — a reviewer rightly objected that a
+   * 700ms window would eat a buyer who swipes a photo and immediately taps to open the listing.
+   */
+  const SWIPE_CLICK_WINDOW_MS = 400
 
   // Slot arithmetic — the hover-scan ceiling and the "+N" doorway. Lives in lib/card-slots.ts so
   // every count from 0 to 60 is covered by a test rather than by reading this line carefully.
@@ -300,7 +325,7 @@ function ListingCardImpl({
             window.open(`/listings/${listing.id}`, '_blank', 'noopener')
             return
           }
-          if (suppressClick.current) { suppressClick.current = false; return }
+          if (Date.now() - suppressClickAt.current < SWIPE_CLICK_WINDOW_MS) { suppressClickAt.current = 0; return }
           onOpen(listing)
         }}
         onAuxClick={(e) => {
@@ -359,7 +384,30 @@ function ListingCardImpl({
           // slide mounted, forever. A touch that does not move the strip has not chosen anything.
           if (collapseTimer.current) { clearTimeout(collapseTimer.current); collapseTimer.current = null }
           if (segments > 1) setExpanded(true)
-          touchStartX.current = e.touches[0].clientX
+          /**
+           * ⚠️ THERE IS DELIBERATELY NO PINCH BRANCH HERE, and that is a decision, not an omission.
+           * Four reviewer rounds went into detecting a second finger — `targetTouches`, a tracked
+           * id, a live-contact test — and EVERY version swallowed an ordinary tap in some real
+           * posture, most damningly the one-handed grip with a thumb resting on the glass, where a
+           * buyer could not open a listing at all. What it prevents is that a pinch-zoom might page
+           * the photo strip: the behaviour this card shipped with for months, on a control whose
+           * worst outcome is showing a different photo of the same listing. Trading a working tap
+           * for that is the wrong side of the trade, so there is no branch.
+           * What DOES protect the measurement is the identifier match in onTouchEnd — the gesture
+           * is measured from the finger that started it, never across two — and that can only ever
+           * decline to page, never swallow anything.
+           *
+           * ⚠️ A FRESH GESTURE CLEARS THE SUPPRESSION WINDOW, the other half of the click
+           * arbitration below. The 400ms window alone would eat a buyer who swipes a photo and then
+           * deliberately taps to open the listing inside it; a touch-derived synthetic click always
+           * arrives BEFORE any new touchstart, so clearing here can only release a real tap.
+           */
+          suppressClickAt.current = 0
+          const t = e.changedTouches[0]
+          touchId.current = t.identifier
+          touchStartX.current = t.clientX
+          touchStartY.current = t.clientY
+          touchStartT.current = Date.now()
         }}
         // ⚠️ THE SWIPE IS CAPPED AT THE SAME FOUR SLOTS, AND THAT IS A DELIBERATE NARROWING.
         // This used to swipe through ALL of a listing's photos on a phone (`last` was
@@ -370,16 +418,41 @@ function ListingCardImpl({
         // to ask for it instead of discovering by swiping that there were more. The full set
         // lives one tap away on the PDP either way.
         onTouchEnd={(e) => {
-          if (touchStartX.current == null || segments < 2) return
-          const dx = e.changedTouches[0].clientX - touchStartX.current
-          if (Math.abs(dx) > 40) {
-            suppressClick.current = true
+          /**
+           * ⚠️ THE SAME FINGER THAT STARTED, MATCHED BY IDENTIFIER. `changedTouches[0]` is whichever
+           * contact happened to lift; with two fingers down that can be the other one, and a
+           * distance measured between two different fingers is not a gesture at all.
+           */
+          const end = Array.from(e.changedTouches).find((t) => t.identifier === touchId.current)
+          const sx = touchStartX.current
+          const sy = touchStartY.current
+          // ⚠️ CLEARED FIRST, BEFORE ANY EARLY RETURN. A single-photo card (`segments < 2`) used to
+          // return with the start point still set, so the refs held a dead coordinate until the
+          // next touch. Read into locals, clear, then decide.
+          touchStartX.current = null
+          touchStartY.current = null
+          touchId.current = null
+          if (!end || sx == null) return
+          if (segments < 2) return
+          const dx = end.clientX - sx
+          const dy = sy == null ? 0 : end.clientY - sy
+          // The decision itself is `isSwipe` in card-slots.ts — pure, so it can be unit-tested.
+          // It cannot be exercised from here: the live catalogue is single-image, `segments < 2`
+          // short-circuits above, and a browser probe can only ever report "nothing happened".
+          if (isSwipe(dx, dy, Date.now() - touchStartT.current)) {
+            suppressClickAt.current = Date.now()
             // THIS is where touch takes ownership of the slide — a swipe that actually moved it.
             // From here a stray mouse-out (hybrid devices emit one) must not rewind the choice.
             hoverNav.current = false
             goTo(idx + (dx < 0 ? 1 : -1))
           }
+        }}
+        // The OS cancels the gesture when it claims the touch for a scroll; without this the start
+        // point survives and the FOLLOWING touchend measures a swipe that never happened.
+        onTouchCancel={() => {
           touchStartX.current = null
+          touchStartY.current = null
+          touchId.current = null
         }}
       >
         {images.length > 0 ? (

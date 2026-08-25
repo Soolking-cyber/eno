@@ -92,7 +92,7 @@ function SheetContent({
             // creates a stacking context that paints over an un-z-indexed close, and the result is
             // a sheet that cannot be dismissed by tapping. It was missing here before this change
             // too — reviewer-caught while comparing the two primitives side by side.
-            className="ring-offset-background focus:ring-ring tap-44 absolute top-3 right-3 z-50 rounded-full text-ink-4 hover:text-foreground transition-all hover:scale-105 active:scale-[0.96] focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none cursor-pointer"
+            className="ring-offset-background focus:ring-ring tap-44 absolute top-3 right-3 z-50 rounded-full text-ink-4 hover:text-foreground transition hover:scale-105 active:scale-[0.96] focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none cursor-pointer"
           >
             <XIcon className="size-6" />
             <span className="sr-only"><Tr text="Close" /></span>
