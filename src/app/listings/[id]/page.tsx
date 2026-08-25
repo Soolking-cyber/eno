@@ -851,7 +851,12 @@ export default async function ListingPage({ params }: Props) {
         <SameSellerShelf listings={moreFromSeller} sellerHref={sellerHref} sellerName={listing.seller.name} />
 
         {/* More like this — same-category listings (client-fetched, ISR-safe) */}
-        <RelatedListings listingId={listing.id} categorySlug={rawListing.category.slug} />
+        <RelatedListings
+          listingId={listing.id}
+          categorySlug={rawListing.category.slug}
+          subcategorySlug={rawListing.subcategorySlug}
+          brandSlug={rawListing.brandSlug}
+        />
 
         {/* The buyer's own recently-viewed trail (excludes this listing). mt-12 matches the
             two shelves above — the three are bare siblings in main, each owning its own top gap. */}

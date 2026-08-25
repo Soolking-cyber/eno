@@ -121,3 +121,11 @@ supabase/.temp/
 
 # Local Claude Code overrides — machine-specific, never shared
 .claude/settings.local.json
+
+# Bulk-enrichment rollback snapshots (scripts/enrich-electronics.ts). Local operational
+# artefacts, one per run, and the whole point is that they are recoverable from disk — they are
+# not source and must not bloat a PUBLIC repo.
+data/enrich-snapshot-*.jsonl
+data/cellphones-breadcrumbs.jsonl
+data/reclassify-snapshot-*.jsonl
+data/repair-snapshot-*.jsonl

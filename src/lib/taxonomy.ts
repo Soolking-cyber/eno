@@ -24,6 +24,11 @@ import type { CategoryColor } from './types'
 // this file's visa wiring is unit-tested in src/lib/taxonomy.visa.test.ts. speed.ts is a
 // pure, import-free, side-effect-free module — safe to pull into a client bundle.
 import { VISA_ENTRY_TYPES, VISA_SPEED_CODES, VISA_SPEED_SPECS } from './visa/speed'
+// ⛔ THE ELECTRONICS SPEC CHIPS ARE GENERATED FROM ONE TABLE (src/lib/electronics-specs.ts), which
+// is also what the extractor validates against. They were hand-written here and drifted: the `cpu`
+// chips said `intel-i5`/`apple-silicon` while every row stores `i5`/`m4`, so those chips matched
+// nothing and read as an empty catalogue. Add an electronics spec THERE, never here.
+import { specFacets } from './electronics-specs'
 
 // ── Intent axis ──────────────────────────────────────────────────────────────
 export type ListingType = 'sell' | 'rent' | 'free' | 'wanted' | 'wholesale' | 'service' | 'job' | 'event'
@@ -605,68 +610,17 @@ export const TAXONOMY: CategoryDef[] = [
     facets: [
       COND,
       /**
-       * ⛔ EXACT CAPACITIES, NOT BUCKETS (owner: "not 64gb+ bullshit exact filter untill top spec").
-       * The options were 64 / 128 / 256 / `512-up`, so everything from a 512GB phone to a 4TB drive
-       * collapsed into one chip and nobody could ask for the thing they actually wanted.
-       * ⚠️ THE LIST IS THE MEASURED CATALOGUE, not every capacity that exists: 256 (368 products),
-       * 128 (255), 512 (180), 1TB (107), 64 (78), 2TB (38), 32 (26). 4TB appears 7 times and is
-       * left out — a chip that finds seven things is noise.
+       * ⛔ EXACT VALUES, NOT BUCKETS, AND GENERATED FROM ONE TABLE (owner: "not 64gb+ bullshit
+       * exact filter untill top spec like 256gb ram and so on or 2 tb storage"; and 2026-08-25:
+       * "go into each subcategory and fix filter chips ex smartwatches have 40mm 44mm variants the
+       * ones with LTE"). These were hand-written and had drifted from the stored values — the cpu
+       * chips offered `intel-i5`/`apple-silicon` while rows store `i5`/`m4`, matching nothing.
+       * ⚠️ EVERY ONE IS `subcats`-SCOPED, so a smartwatch shopper sees case size and LTE while a
+       * laptop shopper sees processor and RAM. A flat category-wide facet list is what produced the
+       * screenshot where smartwatches offered only Condition / Warranty / Colour.
+       * Add or change a value in src/lib/electronics-specs.ts — never here.
        */
-      { key: 'storage', label: 'Storage', labelVi: 'Bộ nhớ', kind: 'toggle',
-        subcats: ['phones-tablets', 'laptops-pcs', 'gaming', 'storage'], options: [
-        { value: '32', label: '32 GB', labelVi: '32 GB' },
-        { value: '64', label: '64 GB', labelVi: '64 GB' },
-        { value: '128', label: '128 GB', labelVi: '128 GB' },
-        { value: '256', label: '256 GB', labelVi: '256 GB' },
-        { value: '512', label: '512 GB', labelVi: '512 GB' },
-        { value: '1024', label: '1 TB', labelVi: '1 TB' },
-        { value: '2048', label: '2 TB', labelVi: '2 TB' },
-      ] },
-      // Same rule as storage: the sizes this catalogue actually sells — 8 (189), 12 (174), 16 (95),
-      // 4 (55), 6 (42), 24 (20). `4-8` and `32-up` hid the 12GB and 24GB tiers entirely.
-      { key: 'ram', label: 'RAM', labelVi: 'RAM', kind: 'toggle',
-        subcats: ['phones-tablets', 'laptops-pcs', 'gaming'], options: [
-        { value: '4', label: '4 GB', labelVi: '4 GB' },
-        { value: '6', label: '6 GB', labelVi: '6 GB' },
-        { value: '8', label: '8 GB', labelVi: '8 GB' },
-        { value: '12', label: '12 GB', labelVi: '12 GB' },
-        { value: '16', label: '16 GB', labelVi: '16 GB' },
-        { value: '24', label: '24 GB', labelVi: '24 GB' },
-        { value: '32', label: '32 GB', labelVi: '32 GB' },
-      ] },
-      { key: 'cpu', label: 'Processor', labelVi: 'Chip', kind: 'toggle',
-        subcats: ['laptops-pcs'], options: [
-        { value: 'intel-i3', label: 'Core i3', labelVi: 'Core i3' },
-        { value: 'intel-i5', label: 'Core i5', labelVi: 'Core i5' },
-        { value: 'intel-i7-i9', label: 'Core i7/i9', labelVi: 'Core i7/i9' },
-        { value: 'amd-ryzen', label: 'AMD Ryzen', labelVi: 'AMD Ryzen' },
-        { value: 'apple-silicon', label: 'Apple M-series', labelVi: 'Chip Apple M' },
-      ] },
-      /**
-       * ⚠️ TWO SEPARATE FACETS, because 14 inches and 65 inches are not points on one scale a
-       * shopper reads. A laptop buyer picks 13/14/16; a television buyer picks 55/65/75. Sharing
-       * one `under-27 / 27-32 / 40-55 / 55-plus` list served neither.
-       */
-      { key: 'screenSize', label: 'Screen size', labelVi: 'Kích thước màn', kind: 'toggle',
-        subcats: ['tv-monitors'], options: [
-        { value: '24', label: '24"', labelVi: '24"' },
-        { value: '27', label: '27"', labelVi: '27"' },
-        { value: '32', label: '32"', labelVi: '32"' },
-        { value: '43', label: '43"', labelVi: '43"' },
-        { value: '50', label: '50"', labelVi: '50"' },
-        { value: '55', label: '55"', labelVi: '55"' },
-        { value: '65', label: '65"', labelVi: '65"' },
-        { value: '75', label: '75"', labelVi: '75"' },
-        { value: '85', label: '85"', labelVi: '85"' },
-      ] },
-      { key: 'laptopSize', label: 'Screen size', labelVi: 'Kích thước màn', kind: 'toggle',
-        subcats: ['laptops-pcs'], options: [
-        { value: '13', label: '13"', labelVi: '13"' },
-        { value: '14', label: '14"', labelVi: '14"' },
-        { value: '15', label: '15"', labelVi: '15"' },
-        { value: '16', label: '16"', labelVi: '16"' },
-        { value: '17', label: '17"', labelVi: '17"' },
-      ] },
+      ...specFacets(),
       { key: 'warranty', label: 'Warranty', labelVi: 'Bảo hành', kind: 'toggle', options: [
         { value: 'yes', label: 'In warranty', labelVi: 'Còn bảo hành' },
         { value: 'no', label: 'No warranty', labelVi: 'Hết bảo hành' },

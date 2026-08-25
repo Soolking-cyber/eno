@@ -50,9 +50,20 @@ async function flushRecent(sellerId: string, alsoIds: string[] = []) {
     select: { id: true },
   })
   const ids = [...new Set([...alsoIds, ...recent.map((r) => r.id)])]
-  // ⚠️ A CAP THAT SAYS SO WHEN IT BITES. A silent top-N reads as "everything was flushed".
-  for (const id of ids.slice(0, REVALIDATE_CAP)) revalidatePath(`/listings/${id}`)
-  return { revalidated: Math.min(ids.length, REVALIDATE_CAP), ...(ids.length > REVALIDATE_CAP ? { revalidateCappedAt: REVALIDATE_CAP, wanted: ids.length } : {}) }
+  /**
+   * ⚠️ PAST THE CAP, FLUSH THE ROUTE INSTEAD OF TRUNCATING. A silent top-N reads as "everything
+   * was flushed" while thousands of pages stay stale — the exact failure this job exists to avoid.
+   * Next can invalidate every page of a dynamic route by its PATTERN, which is one call regardless
+   * of catalogue size. It is the blunter instrument (every listing page regenerates on next hit,
+   * not just the affiliate ones), so it is the fallback, not the default: a normal night moves a
+   * couple of hundred rows and those get a precise flush.
+   */
+  if (ids.length > REVALIDATE_CAP) {
+    revalidatePath('/listings/[id]', 'page')
+    return { revalidated: 'whole-route', wanted: ids.length }
+  }
+  for (const id of ids) revalidatePath(`/listings/${id}`)
+  return { revalidated: ids.length }
 }
 
 export const GET = route({ auth: 'cron' }, async () => {
@@ -60,7 +71,10 @@ export const GET = route({ auth: 'cron' }, async () => {
   const results: Record<string, unknown>[] = []
 
   for (const campaign of CAMPAIGNS) {
-    const seller = await db.seller.findFirst({ where: { name: merchantNameFor(campaign) }, select: { id: true } })
+    // ⛔ `ownerId: null`. Seller.name is NOT unique — anyone can open a storefront called
+    // "CellphoneS" — and this job rewrites prices and buy links in bulk. An owned storefront
+    // belongs to a real person and is never a datafeed target.
+    const seller = await db.seller.findFirst({ where: { name: merchantNameFor(campaign), ownerId: null }, select: { id: true } })
     if (!seller) { results.push({ campaign, error: 'no_storefront' }); continue }
 
     // ⛔ NO KEY = FLUSH ONLY, AND STILL A 200. This is the forum edition's whole job (its env has no

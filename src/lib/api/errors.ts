@@ -57,6 +57,10 @@ export type SharedApiErrorCode =
   | 'not_signed_in'                     // 9
   | 'ai_failed'                         // 7
   | 'no_storefront'                     // 7
+  // GET /api/cron/affiliate-prices — the campaign is not approved for this publisher, so its
+  // links earn nothing. Reported rather than guessed at, so a silent zero-commission run is
+  // visible in the journal.
+  | 'not_an_approved_campaign'          // 1
   | 'account_restricted'                // 6
   | 'business_only'                     // 6
   | 'application_locked'                // 5
@@ -516,6 +520,7 @@ const ALL = [
   'no_rows',
   'no_shop',
   'no_storefront',
+  'not_an_approved_campaign',
   'no_suggestions',
   'not_a_flag',
   'not_a_video',

@@ -1,8 +1,9 @@
 /**
  * Give the affiliate partner's storefront its own logo as the avatar.
  *
- *   npx tsx scripts/set-partner-avatar.ts            # DRY RUN
+ *   npx tsx scripts/set-partner-avatar.ts                                  # DRY RUN (VinWonders)
  *   npx tsx scripts/set-partner-avatar.ts --apply
+ *   npx tsx scripts/set-partner-avatar.ts --seller CellphoneS --logo <url> [--official] --apply
  *
  * ⚠️ NO WATERMARK ON THIS ONE, and that is not an oversight. src/lib/core/media.ts spells out the
  * rule: the eno wordmark goes on LISTING photos, which get scraped and re-shared, and never on
@@ -19,32 +20,55 @@ import { join } from 'node:path'
 import { createClient } from '@supabase/supabase-js'
 import { db } from '../src/lib/db'
 
+const arg = (n: string) => { const i = process.argv.indexOf(`--${n}`); return i >= 0 ? process.argv[i + 1] : undefined }
 const APPLY = process.argv.includes('--apply')
+// ⚠️ `officialPartner` IS OPT-IN PER RUN, NEVER IMPLIED BY HAVING A LOGO. import-accesstrade.ts
+// deliberately leaves it false — "that badge is for negotiated partners like VinWonders; stamping
+// it on an imported datafeed devalues the real one". The owner asked for it on CellphoneS
+// specifically (2026-08-25), so it is a flag someone has to type, not a side effect of an avatar.
+const OFFICIAL = process.argv.includes('--official')
 const BUCKET = 'listings'
 const SIZE = 512
-/** The partner's own icon, as published on their site. */
-const LOGO_URL = 'https://static.vinwonders.com/production/VWs_icon_512.png'
+/** The partner's own icon, as published on their site. Defaults to VinWonders, the first partner. */
+const SELLER_NAME = arg('seller')
+/**
+ * ⛔ `--seller` REQUIRES `--logo`. The default is VinWonders' mark, kept only for the original
+ * no-argument invocation; letting it apply to a NAMED seller meant
+ * `set-partner-avatar.ts --seller CellphoneS --apply` would stamp VinWonders' trademark on
+ * CellphoneS's storefront and hand it a partner badge. A default that is right for exactly one
+ * caller must not silently serve every other one.
+ */
+if (SELLER_NAME && !arg('logo')) { console.error('--seller requires --logo (refusing to reuse another partner\'s mark)'); process.exit(1) }
+const LOGO_URL = arg('logo') ?? 'https://static.vinwonders.com/production/VWs_icon_512.png'
 
 async function main() {
-  const cat = JSON.parse(readFileSync(join(process.cwd(), 'data/vinwonders-destinations.json'), 'utf8'))
-  const partnerName: string = cat.partner?.name
-  if (!partnerName) { console.error('catalogue has no partner.name'); process.exit(1) }
+  const partnerName: string = SELLER_NAME
+    ?? JSON.parse(readFileSync(join(process.cwd(), 'data/vinwonders-destinations.json'), 'utf8')).partner?.name
+  if (!partnerName) { console.error('no --seller and the catalogue has no partner.name'); process.exit(1) }
 
-  // ⚠️ IDENTIFIED BY ITS LISTINGS, NOT BY NAME. `Seller.name` is not unique and anyone can open a
-  // storefront called "VinWonders"; the storefront we mean is the one our affiliate listings hang
-  // off. Writing an avatar onto an impersonator would be handing them the partner's mark.
+  // ⚠️ IDENTIFIED BY ITS LISTINGS, NOT BY NAME ALONE. `Seller.name` is not unique and anyone can
+  // open a storefront called "VinWonders"; the storefront we mean is one our affiliate listings
+  // hang off. Writing an avatar onto an impersonator would be handing them the partner's mark.
+  // ⛔ AND IT MUST HAVE NO OWNER. A storefront with an ownerId belongs to a real person, and this
+  // script both restyles it and can stamp a partner badge on it.
   const anchor = await db.listing.findFirst({
-    where: { affiliateUrl: { not: null } },
-    select: { seller: { select: { id: true, name: true, avatarUrl: true, ownerId: true } } },
+    where: { affiliateUrl: { not: null }, seller: { name: partnerName } },
+    select: { seller: { select: { id: true, name: true, avatarUrl: true, ownerId: true, officialPartner: true } } },
   })
   const seller = anchor?.seller
-  if (!seller) { console.error('no affiliate listing found, so no partner storefront to update'); process.exit(1) }
-  if (seller.name !== partnerName) {
-    console.error(`storefront behind the affiliate listings is "${seller.name}", not "${partnerName}" — refusing`)
-    process.exit(1)
-  }
+  if (!seller) { console.error(`no affiliate listing hangs off a storefront named "${partnerName}" — refusing`); process.exit(1) }
+  if (seller.ownerId) { console.error(`"${seller.name}" is owned by a real account — refusing`); process.exit(1) }
+  /**
+   * ⛔ AMBIGUITY IS A REFUSAL, NOT A COIN FLIP. `Seller.name` is not unique, and this script hands
+   * out a consumer-facing "Official partner" badge and someone else's trademark. `findFirst` would
+   * silently pick one of several same-named ownerless storefronts; if there is more than one, the
+   * right answer is to stop and let a human say which.
+   */
+  const sameName = await db.seller.count({ where: { name: partnerName, ownerId: null } })
+  if (sameName > 1) { console.error(`${sameName} ownerless storefronts are named "${partnerName}" — refusing to guess`); process.exit(1) }
   console.log(`partner storefront: ${seller.name} (${seller.id})`)
   console.log(`current avatar: ${seller.avatarUrl ?? '(none)'}`)
+  console.log(`officialPartner: ${seller.officialPartner}${OFFICIAL && !seller.officialPartner ? ' -> true' : ''}`)
 
   const res = await fetch(LOGO_URL, { signal: AbortSignal.timeout(30_000) })
   if (!res.ok) { console.error(`logo fetch failed: ${res.status}`); process.exit(1) }
@@ -72,7 +96,7 @@ async function main() {
   const { error } = await storage.upload(name, out, { contentType: 'image/webp', upsert: false, cacheControl: '31536000' })
   if (error) { console.error(`upload failed: ${error.message}`); process.exit(1) }
   const avatarUrl = `${url}/storage/v1/object/public/${BUCKET}/${name}`
-  await db.seller.update({ where: { id: seller.id }, data: { avatarUrl } })
+  await db.seller.update({ where: { id: seller.id }, data: { avatarUrl, ...(OFFICIAL ? { officialPartner: true } : {}) } })
   console.log(`\nAPPLIED: ${avatarUrl}`)
   await db.$disconnect()
 }

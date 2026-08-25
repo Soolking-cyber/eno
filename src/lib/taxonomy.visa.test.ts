@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest'
+import { specFacets } from './electronics-specs'
 import {
   askableFacetsFor,
   facetsFor,
@@ -178,9 +179,19 @@ describe('isRequiredFacet — the publish gate', () => {
   })
 
   it('leaves every other subcategory\'s gate exactly as it was', () => {
-    // The whole taxonomy: the ONLY facets opted out of the gate are the two visa chips
-    // (plus range facets, which were never part of it). Anything else going optional is a
-    // gate change nobody asked for, and lands here as a failure.
+    // The whole taxonomy: the facets opted out of the gate are the two visa chips and the
+    // generated electronics spec chips (plus range facets, which were never part of it).
+    // Anything else going optional is a gate change nobody asked for, and lands here as a
+    // failure — which is exactly how this test earned its keep on 2026-08-25.
+    //
+    // ⛔ WHY ELECTRONICS SPECS ARE OPTIONAL, DELIBERATELY. They were added so a shopper can
+    // filter a 9,726-product merchant catalogue by exact capacity, watch case size, CPU and
+    // what an accessory fits. Required, they would instead stop an ordinary person posting one
+    // used phone until they filled in RAM, storage AND connectivity — a publish gate nobody
+    // asked for, against the standing "maximum posting leniency at launch" policy. The chips
+    // describe a catalogue; they are not a hurdle for a seller.
+    // ⚠️ The list is spelled out rather than pattern-matched (`!k.startsWith('visa')` style) so
+    // that adding a 21st spec is still a deliberate act that shows up in a diff.
     const optional: string[] = []
     for (const cat of TAXONOMY) {
       for (const f of cat.facets) {
@@ -190,7 +201,10 @@ describe('isRequiredFacet — the publish gate', () => {
         if (f.kind === 'range') expect(f.optional, `${cat.slug}/${f.key}`).toBeUndefined()
       }
     }
-    expect(optional.sort()).toEqual(['services/visaEntryType', 'services/visaSpeed'])
+    expect(optional.sort()).toEqual([
+      ...specFacets().map((f) => `electronics/${f.key}`),
+      'services/visaEntryType', 'services/visaSpeed',
+    ].sort())
   })
 
   it('is the OLD rule ("every non-range chip") everywhere but the visa slot', () => {
@@ -203,7 +217,13 @@ describe('isRequiredFacet — the publish gate', () => {
         // providerType is derived in every subcategory, so it leaves the gate everywhere —
         // that is the point: the app already knows the answer from Profile.accountType.
         const oldRule = facets.filter((f) => f.kind !== 'range' && !f.derived).map((f) => f.key)
-        const expected = isVisaProductSlot(cat.slug, sub) ? oldRule.filter((k) => !k.startsWith('visa')) : oldRule
+        // ⚠️ Electronics spec chips are optional by design (see the test above), so they leave
+        // the gate in every electronics subcategory the same way the visa chips leave it in
+        // their one slot. Everything else is still literally the pre-change rule.
+        const specKeys = new Set(specFacets().map((f) => f.key))
+        const expected = isVisaProductSlot(cat.slug, sub)
+          ? oldRule.filter((k) => !k.startsWith('visa'))
+          : cat.slug === 'electronics' ? oldRule.filter((k) => !specKeys.has(k)) : oldRule
         expect(facets.filter(isRequiredFacet).map((f) => f.key), `${cat.slug}/${sub}`).toEqual(expected)
       }
     }

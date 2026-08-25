@@ -1115,17 +1115,36 @@ export function ListingsExplorer({
   // both the grid query below and the Video feed (which appends hasVideo + its own paging).
   const baseParamsString = useMemo(() => {
     const params = new URLSearchParams()
+    /**
+     * ⛔ THE SUBCATEGORY IS SENT WHATEVER ELSE IS PICKED. It used to live only in the no-brand
+     * branch, so choosing a brand SILENTLY DROPPED IT: owner, 2026-08-25 — "i look for cases for
+     * iphone 16 pro max. i select electronics cases apple iphone 16 promax it should show only
+     * iphone 16 pro max cases". Measured on production: the rail, the breadcrumb and the URL all
+     * kept `subcategory=phone-cases`, while the request went out as
+     * `brand=apple&model=iPad+Pro&category=electronics` and returned 44 instead of 8. Nothing on
+     * screen contradicted itself — the filter simply was not applied — which is the hardest kind
+     * of wrong to notice.
+     * ⚠️ The hierarchy is category → subcategory → brand → model, and every level a person has
+     * explicitly chosen must AND with the rest.
+     */
+    if (activeSubcategory !== 'all') params.set('subcategory', activeSubcategory)
     if (activeBrand !== 'all') {
       params.set('brand', activeBrand)
       if (activeModel !== 'all') {
         params.set('model', activeModel)
         if (activeCategory !== 'all') params.set('category', activeCategory)
       } else if (activeCategory !== 'all') {
-        params.set('priorityCategory', activeCategory)
+        /**
+         * A bare brand search is deliberately SOFT on category — `priorityCategory` boosts rather
+         * than filters, so "Apple" does not hide Apple listings that sit elsewhere.
+         * ⚠️ But an explicit subcategory is not a guess: once someone has picked "Cases & covers",
+         * the category it belongs to is implied and must filter hard, or a soft boost lets other
+         * categories' listings back in underneath the chosen subcategory.
+         */
+        params.set(activeSubcategory !== 'all' ? 'category' : 'priorityCategory', activeCategory)
       }
-    } else {
-      if (activeCategory !== 'all') params.set('category', activeCategory)
-      if (activeSubcategory !== 'all') params.set('subcategory', activeSubcategory)
+    } else if (activeCategory !== 'all') {
+      params.set('category', activeCategory)
     }
     // Language in the CACHE KEY (audit P2): the response body varies on language for
     // non-en/vi viewers, but the edge caches by URL — a ru/ko variant could poison the

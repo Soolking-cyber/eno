@@ -320,7 +320,19 @@ async function main() {
           // source separately is what lets a refresh update the source without destroying the
           // translation, and what lets the translator re-run from a clean original.
           titleVi: feedTitle, descriptionVi: feedDesc,
-          price, priceUnit: '', currency: 'VND', negotiable: false, condition: 'new',
+          /**
+           * ⛔ THE SYMBOL '₫', NOT THE ISO STRING 'VND'. Three separate features key on
+           * `currency === '₫'` and silently treat anything else as a FOREIGN currency:
+           *   · price.tsx skips the "≈ $" dual-currency line entirely (owner, 2026-08-25:
+           *     "where equivalent prices in usd gone? for all products") and prints
+           *     "VND18,290,000" instead of the đồng format "18.290.000 đ";
+           *   · listings/[id]/page.tsx picks the OFFER currency from it;
+           *   · api/track/view reports the value to Meta CAPI as USD — so 9,726 products were
+           *     sending eighteen-million-DOLLAR view events into ad optimisation.
+           * Only 47 pre-existing listings were right and 9,726 imported ones were wrong, which is
+           * how a one-character mistake stayed invisible: every page still rendered a price.
+           */
+          price, priceUnit: '', currency: '₫', negotiable: false, condition: 'new',
           images, categoryId, location: MERCHANT_CITY, city: MERCHANT_CITY,
           subcategorySlug: subcategoryFor(slug, p.name), brandSlug: brandFor(p.name), model: modelFor(p.name),
           /**
