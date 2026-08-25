@@ -20,7 +20,7 @@ import 'dotenv/config'
 import { readFileSync, writeFileSync } from 'node:fs'
 import { db } from '../src/lib/db'
 import { existsSync } from 'node:fs'
-import { placementForCrumbs, placementFromTitle } from '../src/lib/merchant-taxonomy'
+import { matchCrumbs, placementFromTitle } from '../src/lib/merchant-taxonomy'
 
 const APPLY = process.argv.includes('--apply')
 const FILE = 'data/cellphones-breadcrumbs.jsonl'
@@ -64,7 +64,21 @@ async function main() {
      * covers aisle. See placementFromTitle for why it is deliberately narrow.
      */
     const byTitle = placementFromTitle(r.title, { category: from0.split('/')[0], subcategory: r.subcategorySlug })
-    const place = crumbs ? placementForCrumbs(crumbs) ?? byTitle : byTitle
+    /**
+     * ⚠️ THE TITLE MAY OVERRIDE THE BREADCRUMB, BUT ONLY WHERE THE BREADCRUMB IS VAGUE. A crumb can
+     * be TRUE and still say nothing: "Hàng cũ > Đồ gia dụng cũ" is "used home appliance", and the
+     * same two crumbs carry a rice cooker and a robot vacuum — 30+ vacuums and air purifiers sat in
+     * the kitchen aisle behind a breadcrumb that was never wrong.
+     * ⛔ Letting the title beat ANY crumb was tried and produced a fresh hole on every review round
+     * (a band whose name contains "Smartwatch", a tempered-glass screen protector for a watch, a
+     * used iPad SLEEVE) — every one a case where the crumb was already right. `vague` is marked on
+     * the department rules in merchant-taxonomy.ts; everywhere else the crumb still wins outright.
+     */
+    const m = crumbs ? matchCrumbs(crumbs) : null
+    const byCrumb = m?.to ?? null
+    const place = m && !m.vague
+      ? m.to
+      : placementFromTitle(r.title, byCrumb ?? { category: from0.split('/')[0], subcategory: r.subcategorySlug }) ?? byCrumb ?? byTitle
     if (!crumbs && !byTitle) { noCrumb++; continue }
     if (!place) { noRule++; continue }
     const targetCat = catId.get(place.category)
@@ -91,7 +105,20 @@ async function main() {
   console.log(`${moves.length} would move\n`)
   const tally = new Map<string, number>()
   for (const m of moves) tally.set(`${m.from}  ->  ${m.to}`, (tally.get(`${m.from}  ->  ${m.to}`) ?? 0) + 1)
-  console.table([...tally].sort((a, b) => b[1] - a[1]).slice(0, 22).map(([move, n]) => ({ move, n })))
+  const ranked = [...tally].sort((a, b) => b[1] - a[1])
+  console.table(ranked.slice(0, 22).map(([move, n]) => ({ move, n })))
+  /**
+   * ⚠️ SAY WHAT THE TABLE LEAVES OUT. The top-22 cap read as the complete picture and cost real
+   * time: nine microwaves sitting in `audio` (the owner saw them at the top of the Audio page) were
+   * below the cut, so the table looked like it did not handle them at all and sent me looking for a
+   * bug in the mapping that was never there. A truncated list that does not admit it is truncated
+   * is indistinguishable from a complete one.
+   */
+  if (ranked.length > 22) {
+    const rest = ranked.slice(22)
+    console.log(`… and ${rest.length} more move types totalling ${rest.reduce((a, [, n]) => a + n, 0)} listings:`)
+    for (const [move, n] of rest) console.log(`    ${String(n).padStart(4)}  ${move}`)
+  }
 
   if (!APPLY) { console.log('DRY RUN — nothing written.'); await db.$disconnect(); return }
 
