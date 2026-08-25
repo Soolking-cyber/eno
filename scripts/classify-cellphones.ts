@@ -134,7 +134,7 @@ const RULES: [RegExp, Hit][] = [
  * thing the condition filter exists to prevent, and it is the kind of claim a marketplace gets
  * held to. `cũ` = used, `trầy xước` = scratched — both are the merchant's own words.
  */
-const USED_RE = /\bcũ\b|trầy xước|đã qua sử dụng|\bused\b|refurbish|second[- ]hand|like new|hàng cũ/i
+const USED_RE = /(?<![\p{L}])cũ(?![\p{L}])|trầy xước|đã qua sử dụng|\bused\b|refurbish|second[- ]hand|like new|hàng cũ/ui
 function conditionFor(title: string, titleVi: string | null): 'new' | 'used' {
   return USED_RE.test(title) || USED_RE.test(titleVi ?? '') ? 'used' : 'new'
 }

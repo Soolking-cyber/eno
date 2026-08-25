@@ -215,6 +215,19 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
 
   // Double-tap zoom state: null = fit; {tx,ty} = zoomed at ZOOM, panned by (tx,ty).
   const [zoom, setZoom] = useState<{ tx: number; ty: number } | null>(null)
+  /**
+   * ⛔ A DIRECTLY MANIPULATED ELEMENT MUST NOT CARRY A TRANSITION. The zoomed photo had
+   * `transition-transform duration-200` permanently, while `onTouchMove` rewrote its transform on
+   * every frame — so the browser restarted a 200ms ease on each one and the picture trailed the
+   * finger by a fifth of a second. Apple's rule is that touch and content move together; a
+   * transition on the thing you are holding is the most direct way to break that.
+   * The transition still runs for the zoom TOGGLE, which is a state change and should animate.
+   */
+  const [panning, setPanning] = useState(false)
+  /** Timestamp of touchstart, so a flick can be told from a slow drag. */
+  const startT = useRef<number>(0)
+  /** Start Y, so a flick can be told from a vertical gesture that happens to drift sideways. */
+  const startY = useRef<number | null>(null)
   const lastTap = useRef<{ t: number; x: number; y: number } | null>(null)
   const panStart = useRef<{ x: number; y: number; tx: number; ty: number } | null>(null)
   const frameRef = useRef<HTMLDivElement>(null)
@@ -463,13 +476,28 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
             onTouchStart={(e) => {
               const t = e.touches[0]
               startX.current = t.clientX
-              if (zoom) panStart.current = { x: t.clientX, y: t.clientY, tx: zoom.tx, ty: zoom.ty }
+              startY.current = t.clientY
+              startT.current = Date.now()
+              if (zoom) { panStart.current = { x: t.clientX, y: t.clientY, tx: zoom.tx, ty: zoom.ty }; setPanning(true) }
             }}
             onTouchMove={(e) => {
               // Zoomed: single-finger drag pans the photo (transform-only).
               if (!zoom || !panStart.current) return
               const t = e.touches[0]
               setZoom(clampPan(panStart.current.tx + (t.clientX - panStart.current.x), panStart.current.ty + (t.clientY - panStart.current.y)))
+            }}
+            /**
+             * ⛔ `touchcancel` MUST RESET THE GESTURE, and only `touchend` did. The OS takes a touch
+             * away routinely — an incoming call, an edge swipe, the scroller claiming the gesture —
+             * and when it did, `panning` stayed true forever: the zoom transition was permanently
+             * disabled for the rest of the session and `panStart` held a stale origin, so the next
+             * pan jumped. Both reviewers found it; the fix is the same handler.
+             */
+            onTouchCancel={() => {
+              startX.current = null
+              startY.current = null
+              panStart.current = null
+              setPanning(false)
             }}
             onTouchEnd={(e) => {
               const t = e.changedTouches[0]
@@ -488,14 +516,34 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
               // Swipe navigation — only while fit-to-screen (zoomed swipes pan instead).
               if (!zoom && startX.current != null) {
                 const dx = t.clientX - startX.current
-                if (Math.abs(dx) > 40) goTo(idx + (dx < 0 ? 1 : -1))
+                /**
+                 * ⚠️ DISTANCE **OR** VELOCITY. Judging on distance alone made a fast flick behave
+                 * exactly like a slow 41px drag: both had to cross 40px or nothing happened, so a
+                 * quick decisive gesture — the one people actually make on a photo — did nothing.
+                 * Apple's rule is that motion inherits the velocity of the gesture that caused it.
+                 * 0.4 px/ms is a deliberate flick and nothing else; a scroll-adjacent graze is
+                 * slower than that.
+                 */
+                const dy = startY.current == null ? 0 : t.clientY - startY.current
+                const ms = Math.max(1, Date.now() - startT.current)
+                /**
+                 * ⚠️ AXIS-LOCKED, AND A REAL FLOOR. Velocity alone let a TAP whose finger rolls a
+                 * few pixels in ~30ms page the photo — and on the second tap of a double-tap that
+                 * zoomed into the wrong image. A fast vertical gesture with sideways drift did it
+                 * too. So a flick must be predominantly horizontal and travel far enough to be a
+                 * deliberate swipe rather than a wobble.
+                 */
+                const flick = Math.abs(dx) > 20 && Math.abs(dx) > Math.abs(dy) && Math.abs(dx) / ms > 0.4
+                if (Math.abs(dx) > 40 || flick) goTo(idx + (dx < 0 ? 1 : -1))
               }
               startX.current = null
+              startY.current = null
               panStart.current = null
+              setPanning(false)
             }}
           >
             <div
-              className={cn('relative h-full w-full transition-transform duration-200 motion-reduce:transition-none', zoom && 'cursor-grab')}
+              className={cn('relative h-full w-full motion-reduce:transition-none', !panning && 'transition-transform duration-200', zoom && 'cursor-grab')}
               style={zoom ? { transform: `translate(${zoom.tx}px, ${zoom.ty}px) scale(${ZOOM})` } : undefined}
             >
               <Image src={images[idx]} alt={`${title} — photo ${idx + 1} of ${images.length}`} fill sizes="92vw" quality={70} unoptimized={isMockImageUrl(images[idx]) || undefined} className="object-contain" />

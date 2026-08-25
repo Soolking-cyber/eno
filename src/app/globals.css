@@ -95,7 +95,17 @@
   --font-weight-semibold: 700;
   --font-weight-extrabold: 700;
   --font-weight-black: 700;
-  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+  /**
+   * ⛔ `var(--font-geist-mono)` WAS NEVER DEFINED, so this whole declaration was invalid and every
+   * `font-mono` element painted in the BODY face. Measured on production: the computed
+   * font-family of a `.font-mono` span was byte-identical to `<body>`'s — "openRunde".
+   * ⚠️ WHERE THAT ACTUALLY HURT: the in-person handoff PAIRING CODE (handoff-confirm.tsx, 30px,
+   * tracking-[0.3em]) is read character-by-character off one phone against another. In a rounded
+   * proportional face `0`/`O` and `1`/`l`/`I` are not distinguishable, and the wide tracking was
+   * authored for a mono grid that was not there. Same for API secrets, visa case ids and referral
+   * codes. A system mono stack needs no download and no font-loading step.
+   */
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
   --color-ring: var(--ring);
   --color-input: var(--input);
   --color-border: var(--border);

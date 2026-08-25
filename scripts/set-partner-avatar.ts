@@ -84,6 +84,29 @@ async function main() {
     .toBuffer()
   console.log(`logo: ${meta.width}x${meta.height} ${meta.format} -> ${SIZE}x${SIZE} webp, ${out.length} bytes`)
 
+  /**
+   * ⛔ REFUSE A LOGO THAT IS INVISIBLE ON THE BACKGROUND WE FLATTENED IT ONTO.
+   * A brand usually publishes TWO marks: a colour one, and a WHITE one for dark backgrounds. Both
+   * are the right file name, both decode, both upload — and flattening the white one onto white
+   * produces a blank circle. That is exactly what shipped for CellphoneS: `Logo-CPS-m.png` is the
+   * white mark, the stored avatar came out 254,254,254 with 3.7% non-white pixels, and the
+   * storefront showed an empty ring. Everything reported success: HTTP 200, valid webp, 6,218
+   * bytes, naturalWidth 512.
+   * ⚠️ The check is on the OUTPUT, not the input, because that is the artefact people see. Their
+   * colour asset (`logo-cps.png`) measures 81% visible against the same background.
+   */
+  const { data: grey } = await sharp(out).greyscale().raw().toBuffer({ resolveWithObject: true })
+  let visible = 0
+  for (const px of grey) if (px < 245) visible++
+  const pct = (visible / grey.length) * 100
+  console.log(`visible against the white flatten: ${pct.toFixed(1)}%`)
+  if (pct < 8) {
+    console.error(`\n⛔ REFUSING: only ${pct.toFixed(1)}% of this mark is visible on white — it is almost certainly`)
+    console.error('   the light-on-dark variant. Brands publish both; pass the COLOUR one via --logo.')
+    console.error('   (CellphoneS: Logo-CPS-m.png is white-on-transparent; logo-cps.png is the colour mark.)')
+    process.exit(1)
+  }
+
   if (!APPLY) { console.log('\nDRY RUN — re-run with --apply to upload and set it.'); await db.$disconnect(); return }
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/+$/, '')

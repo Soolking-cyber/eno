@@ -17,7 +17,7 @@
     "dev:vn": "node scripts/free-port.mjs 3000 && node scripts/gen-icons.mjs && NEXT_PUBLIC_ENO_EDITION=marketplace NEXT_PUBLIC_APP_URL=https://eno.vn next dev -p 3000",
     "dev:forum": "node scripts/gen-icons.mjs && NEXT_PUBLIC_ENO_EDITION=services NEXT_PUBLIC_APP_URL=https://www.eno.forum next dev -p 3001",
     "postinstall": "prisma generate && (node scripts/gen-icons.mjs || echo \"icons: scripts/ not present yet — regenerated at build\")",
-    "build": "node scripts/gen-icons.mjs && node scripts/design-lint.mjs && node scripts/edition-lint.mjs && prisma generate && next build && { [ -d .next/standalone ] && cp -r .next/static .next/standalone/.next/ && cp -r public .next/standalone/ || true; }",
+    "build": "node scripts/gen-icons.mjs && node scripts/design-lint.mjs && node scripts/regex-lint.mjs --self-test && node scripts/regex-lint.mjs && node scripts/edition-lint.mjs && prisma generate && next build && { [ -d .next/standalone ] && cp -r .next/static .next/standalone/.next/ && cp -r public .next/standalone/ || true; }",
     "start": "NODE_ENV=production node .next/standalone/server.js 2>&1 | tee server.log",
     "preview:vn": "node scripts/preview.mjs vn",
     "preview:forum": "node scripts/preview.mjs forum",
