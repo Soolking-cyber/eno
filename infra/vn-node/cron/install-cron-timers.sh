@@ -26,9 +26,17 @@ declare -A SCHED=(
   [daily-reminders]="*-*-* 02:00:00 UTC"
   [saved-search-alerts]="*-*-* 05:00:00 UTC"
   [weekly-digest]="Thu *-*-* 02:00:00 UTC"
+  # Merchant price refresh for the imported affiliate catalogue. 20:00 UTC = 03:00 ICT, after
+  # CellphoneS's own overnight repricing and well outside VN shopping hours — a ~50-page datafeed
+  # walk plus a few thousand row updates should not compete with real traffic.
+  [affiliate-prices]="*-*-* 20:00:00 UTC"
 )
+# ⚠️ affiliate-prices reaches OUT to api.accesstrade.vn and can run for minutes. It is safe to
+# enable because it writes only price/affiliateUrl on imported rows and emails nobody — and it
+# NO-OPS with `{skipped:"no_key"}` until ACCESSTRADE_KEY is present in the container env, so
+# installing it before the secret lands is harmless. eno-cron.sh already allows 900s.
 # Enabled now: they only touch this box's own data.
-SAFE=(visa-retention price-stats video-gc warm-translations)
+SAFE=(visa-retention price-stats video-gc warm-translations affiliate-prices)
 # Installed, NOT enabled: these send email to real people.
 EMAIL=(daily-reminders saved-search-alerts weekly-digest)
 
@@ -54,6 +62,16 @@ RUN
 chmod +x /opt/eno/bin/eno-cron.sh
 
 for job in "${!SCHED[@]}"; do
+  # ⛔ affiliate-prices RUNS ON BOTH EDITIONS. Its DB work is idempotent (the second call finds
+  # nothing to change), but `revalidatePath` only flushes the container that served the request —
+  # and the box runs two off one shared database. Calling only :3001 leaves eno.forum serving the
+  # old price until the 30-day ISR window expires. Type=oneshot runs multiple ExecStart in order.
+  # ⚠️ THE `-` PREFIX IS LOAD-BEARING. Type=oneshot runs ExecStart lines in order but ABORTS the
+  # rest when one exits non-zero — so an AccessTrade 500 against :3001 would silently skip the
+  # forum's cache flush entirely. `-` means "ignore this line's exit status"; the unit still fails
+  # on the first line, which is the one that reports the feed error.
+  EXTRA=""
+  [ "$job" = affiliate-prices ] && EXTRA="ExecStart=-/opt/eno/bin/eno-cron.sh $job eno.forum 3002"
   cat > "/etc/systemd/system/eno-cron-$job.service" <<UNIT
 [Unit]
 Description=eno cron: $job
@@ -61,6 +79,7 @@ After=docker.service
 [Service]
 Type=oneshot
 ExecStart=/opt/eno/bin/eno-cron.sh $job $HOST_HEADER $PORT
+$EXTRA
 UNIT
   cat > "/etc/systemd/system/eno-cron-$job.timer" <<UNIT
 [Unit]

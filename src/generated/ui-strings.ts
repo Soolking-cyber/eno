@@ -1153,7 +1153,6 @@ export const UI_STRINGS: string[] = [
   "Price lowered",
   "Price per unit",
   "Price range",
-  "Price shown is the shop's current price and can change.",
   "Price type",
   "Price-drop & search alerts",
   "Printers",

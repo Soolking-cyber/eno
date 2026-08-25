@@ -55,9 +55,20 @@ export function AffiliateBooking({
         * visible price, and a page that implies a fixed price it cannot honour is the mismatch it
         * penalises — as well as the kind of claim consumer-protection rules are written about.
         */}
-      <p className="text-xs text-body">
-        {booking ? <Tr text="Lowest adult ticket — the final price is set at checkout and varies by date." /> : <Tr text="Price shown is the shop's current price and can change." />}
-      </p>
+      {/* ⛔ THE PURCHASE VARIANT SAYS NOTHING HERE (owner, 2026-08-25). "Price shown is the shop's
+          current price and can change" was hedging on a number we now REFRESH DAILY from the
+          merchant's feed — see scripts/refresh-affiliate-prices.ts. A caveat that exists because
+          the data might be stale is worth removing by making the data fresh.
+          ⚠️ The BOOKING line stays: a ticket's price genuinely is a floor set at the partner's
+          checkout by date, which no refresh cadence can change.
+          ⚠️ Render NOTHING, not an empty <p> — the parent is a flex column with `gap`, so an empty
+          paragraph is still a flex item and still takes a gap, opening a dead band under the price
+          on every purchase PDP. */}
+      {booking ? (
+        <p className="text-xs text-body">
+          <Tr text="Lowest adult ticket — the final price is set at checkout and varies by date." />
+        </p>
+      ) : null}
 
       <Button asChild variant="cta" size="lg" className="w-full">
         {/*

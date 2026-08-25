@@ -636,7 +636,7 @@ function ListingCardImpl({
                 onClick={(e) => { e.stopPropagation(); quickGo({ body: tr('Hi! Is this still available?', 'Chào bạn! Món này còn không?') }) }}
                 className="pointer-events-auto translate-x-3 opacity-0 transition-all duration-200 ease-[var(--ease-spring-snappy)] hover:scale-110 active:scale-[0.96] group-hover:translate-x-0 group-hover:opacity-100 focus-visible:translate-x-0 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
               >
-                <MessageCircle className="h-5 w-5" />
+                <MessageCircle className="icon-shadow-brand h-5 w-5" />
               </IconButton>
             </Tooltip>
           )}
@@ -672,7 +672,7 @@ function ListingCardImpl({
                 onClick={(e) => { e.stopPropagation(); locate(listing) }}
                 className="pointer-events-auto translate-x-3 opacity-0 transition-all delay-150 duration-200 ease-[var(--ease-spring-snappy)] hover:scale-110 active:scale-[0.96] group-hover:translate-x-0 group-hover:opacity-100 group-hover:delay-150 focus-visible:translate-x-0 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
               >
-                <MapPin className="h-5 w-5" />
+                <MapPin className="icon-shadow-brand h-5 w-5" />
               </IconButton>
             </Tooltip>
           )}
@@ -726,9 +726,15 @@ function ListingCardImpl({
                 from the <svg> — so `fill-brand` never reached the ink and both states painted
                 `text-white`. Setting `color` is what the paths actually follow. `fill-current` is
                 kept so the shape stays solid rather than falling back to the unset default. */}
+            {/* ⛔ `fill-none`, NOT `fill-black/25`. The translucent black interior made the heart a
+                grey blob beside the chat and pin glyphs, which are unfilled outlines — the owner
+                spotted it as "the save icon is different than others". save-listing-button.tsx had
+                already reached this conclusion and written it down: a filled interior fights the
+                outline, and the outline is what carries legibility. All three now share
+                icon-shadow-brand so the trio is one treatment. */}
             <Heart className={cn('icon-own-ink h-5 w-5 transition-colors', favorited
               ? 'icon-shadow-saved fill-current text-destructive'
-              : 'icon-shadow-brand fill-black/25 text-white')} />
+              : 'icon-shadow-brand fill-none text-white')} />
           </span>
         </IconButton>
 

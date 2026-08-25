@@ -672,7 +672,7 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
                         hearts: with aria-pressed set, a state label reads as "Saved, pressed". */}
                     <Heart className={cn('icon-own-ink h-5 w-5 transition-colors', isFavorite(card.id)
               ? 'icon-shadow-saved fill-current text-destructive'
-              : 'icon-shadow-brand fill-black/25 text-white')} />
+              : 'icon-shadow-brand fill-none text-white')} />
                   </IconButton>
                 </div>
                 <Button variant="bare" size="none" onClick={() => activateCard(card)} className="block w-full whitespace-normal text-left font-normal cursor-pointer active:scale-100">

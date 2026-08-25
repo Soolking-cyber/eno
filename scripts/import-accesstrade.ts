@@ -25,6 +25,16 @@ import { db } from '../src/lib/db'
 import { watermarkSvg, watermarkPlacement, inkForLuminance } from '../src/lib/core/watermark-mark'
 import { brandSlugify, normalizeBrand } from '../src/lib/brand-normalize'
 import { buildSearchText } from '../src/lib/fold'
+// ⚠️ ONE COPY, SHARED WITH THE NIGHTLY REFRESH. This link repair used to live here; the cron job
+// needs exactly the same rule, and two copies of "which aff_link shapes do we trust" is how one
+// of them quietly rots. It is unit-tested in src/lib/affiliate-price-refresh.test.ts.
+import { repairAffLink } from '../src/lib/affiliate-price-refresh'
+/**
+ * ⚠️ THE FEED'S aff_links ARE REPAIRED LOCALLY, NOT MINTED PER PRODUCT. `product_link/create`
+ * works and would also be correct, but it is one HTTP round trip per product — 9,728 of them for a
+ * link whose only defect is a missing campaign id in a known position. The repaired shape was
+ * verified end to end: it 302s and resolves 200 at click.accesstrade.vn.
+ */
 
 const KEY = process.env.ACCESSTRADE_KEY
 if (!KEY) { console.error('ACCESSTRADE_KEY missing from .env'); process.exit(1) }
@@ -157,27 +167,6 @@ function modelFor(name: string): string | null {
 function brandFor(name: string): string | null {
   const m = name.match(BRAND_RE)
   return m ? brandSlugify(m[1]) : null
-}
-
-/**
- * ⛔ THE FEED'S `aff_link` IS BROKEN AND MUST BE REPAIRED — it 500s, and 404s in a browser.
- * Measured 2026-08-24 against the live feed: datafeeds returns
- *   https://go.isclix.com/deep_link/<pubId>?url=...
- * while the link the /v1/product_link/create endpoint mints for the SAME product is
- *   https://go.isclix.com/deep_link/<pubId>/<campaignId>?url=...
- * The campaign id path segment is simply missing from the feed. Inserting it turns HTTP 500 into a
- * 302 that resolves 200 at click.accesstrade.vn — verified end to end.
- *
- * ⚠️ REPAIRED LOCALLY RATHER THAN MINTED PER PRODUCT. product_link/create works and would also be
- * correct, but it is an HTTP round trip per product: 9,728 extra calls against an API that already
- * rate-limits, to reconstruct a string we can fix with one substitution.
- */
-function repairAffLink(affLink: string, campaignId: string): string | null {
-  if (!affLink) return null
-  if (/\/deep_link\/\d+\/\d+/.test(affLink)) return affLink // already well-formed
-  const fixed = affLink.replace(/\/deep_link\/(\d+)\?/, `/deep_link/$1/${campaignId}?`)
-  // If the shape was not what we expected, refuse rather than ship a link we have not reasoned about.
-  return fixed === affLink ? null : fixed
 }
 
 async function feedPage(page: number, limit: number): Promise<{ data: Feed[]; total: number }> {
