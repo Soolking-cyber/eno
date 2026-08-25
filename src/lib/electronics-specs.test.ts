@@ -188,3 +188,80 @@ describe('the regexes that silently never fired', () => {
     expect(extractSpecs('audio', 'Microphone thu âm Rode NT1').audioType).toBe('microphone')
   })
 })
+
+describe('labelled capacities — either side of the number', () => {
+  /**
+   * ⛔ The AI concierge tokenised "a laptop with 128gb ram" into words and matched them against
+   * `searchText`, which holds the TITLE — and these titles carry a SKU, not a spec. Reading the
+   * label lets the same closed-list extractor turn the phrase into `ram = 128`, the exact value
+   * the catalogue was indexed with.
+   */
+  it('reads a trailing label, which is how people type', () => {
+    expect(extractSpecs('laptops-pcs', 'a laptop with 128gb ram')).toEqual({ ram: '128' })
+    expect(extractSpecs('laptops-pcs', 'laptop 16GB RAM 512GB SSD')).toMatchObject({ ram: '16', storage: '512' })
+  })
+  it('reads a leading label, which is how the merchant writes', () => {
+    expect(extractSpecs('laptops-pcs', 'Laptop RAM 16GB 512GB')).toMatchObject({ ram: '16', storage: '512' })
+  })
+  /**
+   * ⛔ A LABEL MATCH IS ONLY BELIEVED IF THE VALUE IS LEGAL. In "laptop 16GB RAM 512GB SSD" the
+   * leading pattern `RAM <n>GB` matches "RAM 512GB" — the 512 belongs to the SSD after it — and
+   * returned 512, which is not a legal RAM size, so the RAM was dropped entirely.
+   */
+  it('rejects a label match whose value is impossible and tries the other form', () => {
+    expect(extractSpecs('laptops-pcs', 'laptop 16GB RAM 512GB SSD').ram).toBe('16')
+  })
+  it('still keeps GPU memory out of it', () => {
+    expect(extractSpecs('laptops-pcs', 'Laptop RTX 8GB, RAM 16GB, SSD 512GB')).toMatchObject({ ram: '16', storage: '512' })
+  })
+})
+
+describe('adjacent spec labels — the ambiguity two reviewers found together', () => {
+  /**
+   * ⛔ In "Laptop 16GB RAM 128GB SSD" the leading pattern `RAM <n>GB` matches "RAM 128GB", and 128
+   * IS a legal RAM size — so value-validation could not catch it and the row would be indexed with
+   * 128GB of RAM. A capacity immediately followed by a DIFFERENT label belongs to that label.
+   * ⚠️ The earlier test used 512GB, an ILLEGAL RAM size, so it passed for the wrong reason and
+   * missed the common shape entirely.
+   */
+  it('gives a capacity to the label that follows it, not the one before', () => {
+    expect(extractSpecs('laptops-pcs', 'Laptop 16GB RAM 128GB SSD')).toEqual({ ram: '16', storage: '128' })
+    expect(extractSpecs('laptops-pcs', '32GB RAM 16GB SSD').ram).toBe('32')
+  })
+  /**
+   * ⛔ THE FIRST ADJACENCY FIX BROKE THE COMMONEST FORM. A flat "reject if a storage label
+   * follows" also rejected "RAM 16GB SSD 512GB" — where the SSD carries its own number and the 16
+   * really is the RAM. The rule is: reject only when the following label has NO number of its own.
+   */
+  it('keeps the RAM when the next label carries its own capacity', () => {
+    expect(extractSpecs('laptops-pcs', 'RAM 16GB SSD 512GB')).toEqual({ ram: '16', storage: '512' })
+    expect(extractSpecs('laptops-pcs', 'SSD 512GB RAM 16GB')).toEqual({ ram: '16', storage: '512' })
+  })
+  // ⚠️ JS word boundaries are ASCII-only, so a `\b` after "nhớ" never matches at end-of-string —
+  // the third time that trap appeared in this file. "16GB RAM 128GB bộ nhớ" read as 128GB of RAM.
+  it('reads a Vietnamese storage label at the end of the string', () => {
+    expect(extractSpecs('laptops-pcs', 'Laptop 16GB RAM 128GB bộ nhớ')).toEqual({ ram: '16', storage: '128' })
+    expect(extractSpecs('laptops-pcs', 'Laptop RAM 16GB bộ nhớ 512GB')).toEqual({ ram: '16', storage: '512' })
+  })
+  it('applies the same rule to Vietnamese labels and to "of"', () => {
+    expect(extractSpecs('laptops-pcs', 'Laptop RAM 16GB bộ nhớ trong 512GB')).toEqual({ ram: '16', storage: '512' })
+    expect(extractSpecs('laptops-pcs', 'Laptop 16GB RAM 128GB bộ nhớ trong')).toEqual({ ram: '16', storage: '128' })
+    expect(extractSpecs('laptops-pcs', 'Laptop 16GB RAM 128GB of storage')).toEqual({ ram: '16', storage: '128' })
+  })
+  /**
+   * ⚠️ "Laptop RAM 16GB SSD" names an SSD with NO size of its own, so the adjacency lookahead —
+   * written for "16GB RAM 128GB SSD" — wrongly rejected a 16 that is plainly the RAM. A last-resort
+   * unguarded pattern runs only after the other two fail, so the real ambiguity is still resolved
+   * by the trailing form before this can fire.
+   */
+  it('reads a leading label when the following label has no size of its own', () => {
+    expect(extractSpecs('laptops-pcs', 'Laptop RAM 16GB SSD')).toEqual({ ram: '16' })
+    expect(extractSpecs('laptops-pcs', 'Laptop SSD 512GB RAM')).toEqual({ storage: '512' })
+  })
+  it('still reads the plain leading form where nothing follows', () => {
+    expect(extractSpecs('laptops-pcs', 'Laptop RAM 16GB 512GB')).toMatchObject({ ram: '16', storage: '512' })
+  })
+  it('accepts "of" on both slots, not just RAM', () => {
+    expect(extractSpecs('laptops-pcs', '512GB of storage 16GB of RAM')).toMatchObject({ ram: '16', storage: '512' })
+  })
+})

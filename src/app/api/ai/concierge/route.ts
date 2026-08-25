@@ -6,6 +6,13 @@ import { fold } from '@/lib/fold'
 import { serializeListing } from '@/lib/serialize'
 import { aiGuard } from '@/lib/ai-guard'
 import { rateLimit } from '@/lib/ratelimit'
+import { extractSpecs } from '@/lib/electronics-specs'
+
+/**
+ * The spec keys that are a NUMBER SOMEONE TYPED, as opposed to a product noun the extractor
+ * inferred. Only these drive the spec ladder, the Vertex bypass and the exact/relaxed decision.
+ */
+const NUMERIC_SPEC_KEYS = new Set(['ram', 'storage', 'caseSize', 'screenSize', 'laptopSize', 'refreshRate', 'wattage', 'capacity'])
 import { conciergeSearch, vertexConfigured } from '@/lib/vertex-search'
 import { getGemini, GEMINI_MODEL } from '@/lib/gemini'
 import { matchBrand } from '@/lib/brand'
@@ -195,7 +202,7 @@ const SUBCATS: string[] = [...new Set(
 
 async function fallbackSearch(
   query: string, take: number,
-  f: { minPriceVnd: number | null; maxPriceVnd: number | null; categorySlug: string | null; subcategorySlug: string | null; brandSlug: string | null },
+  f: { minPriceVnd: number | null; maxPriceVnd: number | null; categorySlug: string | null; subcategorySlug: string | null; brandSlug: string | null; sort?: Sort; specs?: Record<string, string> },
 ): Promise<{ rows: Awaited<ReturnType<typeof db.listing.findMany<{ include: typeof INCLUDE }>>>; relaxed: boolean }> {
   const price: Prisma.FloatFilter = {}
   if (f.minPriceVnd) price.gte = f.minPriceVnd
@@ -217,10 +224,115 @@ async function fallbackSearch(
     ...(f.brandSlug ? { brandSlug: f.brandSlug } : {}),
     ...editionScope,
   }
-  const order: Prisma.ListingOrderByWithRelationInput[] = [RANK, { id: 'desc' }]
+  /**
+   * ⛔ AN EXPLICIT PRICE SORT MUST BE DONE BY THE DATABASE, ACROSS THE WHOLE MATCHING SET.
+   * This ordered by rank and then re-sorted the fetched page in JS, which answers a different
+   * question: "the priciest of the N most relevant" rather than "the priciest". Owner, 2026-08-25,
+   * asked for the most expensive phones and got a 13,090,000đ handset while the catalogue holds
+   * 40,000,000đ+ ones — the expensive phones were simply never in the page that got sorted.
+   * `id` stays as the tiebreaker so paging is stable when prices tie.
+   */
+  const order: Prisma.ListingOrderByWithRelationInput[] =
+    f.sort === 'price_desc' ? [{ price: 'desc' }, { id: 'desc' }]
+    : f.sort === 'price_asc' ? [{ price: 'asc' }, { id: 'desc' }]
+    : [RANK, { id: 'desc' }]
+  /**
+   * ⛔ SPECS ARE A FILTER, NOT KEYWORDS. "a laptop with 128gb ram" was tokenised into
+   * "laptop"/"128gb"/"ram" and matched against `searchText`, which holds the product TITLE — and
+   * CellphoneS titles carry a SKU, not a spec. So the query found nothing and the assistant said
+   * "no exact match" while 128GB machines sat in the catalogue (owner, 2026-08-25: "also no ram
+   * context if we sorted them properly it would find").
+   * Reading the same closed-list extractor the catalogue was indexed with turns "128gb ram" into
+   * `attributes contains '"ram":"128"'` — the exact byte sequence the enrichment pass wrote.
+   * ⚠️ It is the TOP rung only. If nothing matches the spec, the ladder below relaxes to the plain
+   * text rungs, so a spec nobody stocks degrades to "here is the closest" rather than to nothing.
+   */
+  // Extracted by the caller (so the Vertex bypass can see it); recomputed only if absent.
+  // ⚠️ NUMERIC KEYS ONLY — see NUMERIC_SPEC_KEYS. A categorical key here would turn every
+  // "microphone"/"webcam"/"router" query into a spec query.
+  const specs = f.specs ?? (f.subcategorySlug
+    ? Object.fromEntries(Object.entries(extractSpecs(f.subcategorySlug, query)).filter(([k]) => NUMERIC_SPEC_KEYS.has(k)))
+    : {})
+  /**
+   * ⛔ ATTRIBUTE **OR** LITERAL TITLE — NOT ATTRIBUTES ALONE. Requiring the attribute made merchant
+   * stock shadow the marketplace's own users: a person's "iPhone 15 Pro 256GB" carries the spec in
+   * its TITLE and has no `attributes` (it never went through the import enrichment), so the
+   * enriched CellphoneS rows satisfied the rung, the ladder stopped, and the neighbour's phone was
+   * never queried. On a marketplace that is exactly backwards.
+   * ⚠️ The text half is weaker evidence — "128gb" in a title could be the SSD rather than the RAM —
+   * but it is the only evidence an unenriched listing can offer, and putting both in ONE rung means
+   * the peer and the merchant surface together and are ranked normally, instead of one hiding the
+   * other.
+   */
   // The brand word is carried by the brandSlug filter — drop it from the text tokens
   // so "huawei watch" needs only "watch" in the searchText.
-  const tokens = keywords(query).filter((t) => !f.brandSlug || !f.brandSlug.includes(t))
+  /**
+   * ⚠️ A SPEC WORD IS ALSO CARRIED BY ITS FILTER AND MUST LEAVE THE TEXT TOKENS. "a laptop with
+   * 128gb ram" tokenises to laptop/128gb/ram, and these titles hold a SKU — so requiring "128gb"
+   * in `searchText` guarantees zero rows even on the relaxed rungs, defeating the whole ladder.
+   * With the spec words removed the text side asks only for "laptop", which is answerable.
+   */
+  /**
+   * Drop the words the SPEC FILTER now carries, so the text side is not asked for them twice.
+   *
+   * ⛔ ONLY WHEN A SPEC WAS ACTUALLY EXTRACTED, and only by SHAPE — never by value. Three
+   * regressions came out of trying to be cleverer than this, each found by reviewers:
+   *   · stripping "ram" unconditionally gutted "RAM laptop" (someone shopping for memory sticks)
+   *     while adding no filter to replace it;
+   *   · stripping every bare number deleted the "15" from "iPhone 15 256GB", so an iPhone 11 came
+   *     back as an EXACT match;
+   *   · stripping by spec VALUE deleted the "16" from "MacBook Pro 16 16GB", which is the same bug
+   *     wearing a different hat — a 14-inch MacBook returned as exactly what was asked for.
+   * What is safe to remove is narrow: a unit word, a number fused to its unit ("256gb"), and a
+   * bare number IMMEDIATELY followed by a unit word (the "1" of a spaced "1 TB"). A model
+   * identifier is never any of those.
+   */
+  /**
+   * ⚠️ ONLY THE UNITS WHOSE SPEC WAS ACTUALLY EXTRACTED. Stripping every unit word on sight
+   * removed the still-meaningful "ssd" from "16GB RAM SSD laptop" — where only `ram` was
+   * extracted — so the filter no longer asked for an SSD at all and an HDD machine could come
+   * back as an exact match. A word is only redundant once a filter is genuinely carrying it.
+   */
+  const UNIT_FOR: Record<string, RegExp> = {
+    ram: /^ram$/i,
+    storage: /^(ssd|hdd|rom|storage|bo|bộ|nho|nhớ|trong|dung|luong|lượng)$/i,
+    caseSize: /^mm$/i, screenSize: /^(inch|inches)$/i, laptopSize: /^(inch|inches)$/i,
+    refreshRate: /^hz$/i, wattage: /^w$/i, capacity: /^mah$/i,
+  }
+  const SIZE_UNIT = /^(gb|tb|mm|hz|w|mah|inch|inches)$/i
+  /**
+   * ⚠️ A UNIT WORD IS ONLY REDUNDANT IF AN EXTRACTED SPEC USES THAT UNIT. "16GB RAM 7 TB laptop"
+   * extracts ram=16 and REJECTS 7TB (not a legal storage size); stripping "tb" anyway left a bare
+   * "7" in the tokens and dropped the 7TB requirement from the query altogether.
+   */
+  const UNIT_OF: Record<string, RegExp> = {
+    ram: /^(gb|tb)$/i, storage: /^(gb|tb)$/i, caseSize: /^mm$/i,
+    screenSize: /^(inch|inches)$/i, laptopSize: /^(inch|inches)$/i,
+    refreshRate: /^hz$/i, wattage: /^w$/i, capacity: /^mah$/i,
+  }
+  const unitIsCarried = (t: string) => Object.keys(specs).some((k) => UNIT_OF[k]?.test(t))
+  const FUSED = /^\d+(gb|tb|mm|hz|w|mah|inch)$/i
+  const hasSpecs = Object.keys(specs).length > 0
+  const isRedundantUnit = (t: string) =>
+    (SIZE_UNIT.test(t) && unitIsCarried(t)) || Object.keys(specs).some((k) => UNIT_FOR[k]?.test(t))
+  /**
+   * ⚠️ A FUSED CAPACITY IS ONLY REDUNDANT IF ITS SPEC WAS ACTUALLY EXTRACTED. "16GB RAM 7TB laptop"
+   * yields ram=16 and REJECTS 7TB (not a legal storage size), so stripping "7tb" as well would
+   * drop the storage requirement from both the filter AND the text — and hand back any 16GB
+   * laptop as an exact match to a query that asked for 7TB.
+   */
+  const extractedValues = new Set(Object.values(specs).map(String))
+  const capacityIsCarried = (t: string) => {
+    const m = t.match(/^(\d+)(gb|tb|mm|hz|w|mah|inch)$/i)
+    if (!m) return false
+    const n = m[2].toLowerCase() === 'tb' ? Number(m[1]) * 1024 : Number(m[1])
+    return extractedValues.has(String(n))
+  }
+  const stripSpecWords = (list: string[]) => !hasSpecs ? list : list.filter((t, i) =>
+    !isRedundantUnit(t) && !capacityIsCarried(t)
+    && !(/^\d+$/.test(t) && SIZE_UNIT.test(list[i + 1] ?? '') && capacityIsCarried(t + list[i + 1])))
+  const tokens = stripSpecWords(keywords(query))
+    .filter((t) => !f.brandSlug || !f.brandSlug.includes(t))
   // Match a token at a WORD BOUNDARY, not as a raw substring. A plain `contains: 'pen'`
   // (LIKE '%pen%') matched "dependable", so "pen" surfaced a motorcycle; word-boundary
   // matching keeps the real hits ("pen" → "pencil", "pens") and drops the buried-
@@ -239,28 +351,124 @@ async function fallbackSearch(
       ...BOUNDARY.map((b): Prisma.ListingWhereInput => ({ searchText: { contains: `${b}${t}` } })),
     ],
   })
+
+  /**
+   * ⚠️ MUST SIT BELOW `wordMatch`: these `.map`s run IMMEDIATELY, so referencing a `const` declared
+   * further down is a temporal-dead-zone ReferenceError at request time. TypeScript does not flag
+   * it, because the reference sits inside a callback.
+   */
   const and = (n: number) => tokens.slice(0, n).map(wordMatch)
   const cat = f.categorySlug ? { category: { slug: f.categorySlug } } : null
-  /**
-   * ⛔ THE SUBCATEGORY RUNG SITS ABOVE THE CATEGORY ONE, and that ordering is the whole fix.
-   * "cheap iphone" tokenises to ["iphone"], which matches 1,239 phone cases as happily as it
-   * matches phones — and sorted by price the cases win every slot, so the assistant answered a
-   * request for a cheap iPhone with camera lens protectors. Trying `subcategorySlug` first means a
-   * device query has to fail to find devices before it is allowed to offer the things that fit one.
-   */
   const sub = f.subcategorySlug ? { subcategorySlug: f.subcategorySlug } : null
+
+  const FUSED_RE = /^(\d+)(gb|tb|mm|hz|w|mah|inch)$/i
+  /**
+   * The query token that produced a given spec value — "128" came from "128gb", "1024" from "1tb".
+   * ⛔ PAIRED, NOT POOLED. An earlier version OR'd every spec key against EVERY fused token in the
+   * query, so "16GB RAM 512GB SSD" let a listing containing only "512gb" satisfy the RAM clause
+   * too. Three reviewers found it in the same round.
+   */
+  const tokenFor = (value: string) => keywords(query).filter((t) => {
+    const m = t.match(FUSED_RE)
+    if (!m) return false
+    const n = m[2].toLowerCase() === 'tb' ? Number(m[1]) * 1024 : Number(m[1])
+    return String(n) === value
+  })
+  /**
+   * ⛔ THE EXACT RUNGS MATCH ATTRIBUTES ONLY, AND THIS WAS ARGUED BOTH WAYS BEFORE IT SETTLED.
+   * An earlier version put attribute-OR-title in ONE rung so a peer's listing and a merchant's
+   * surfaced together. Two reviewers rejected it and they were right: a capacity in a title says
+   * nothing about WHICH component it belongs to. A capacity in a title is not evidence of WHICH
+   * component it belongs to — "128gb ram" word-matches "Laptop HP 8GB RAM 128GB SSD", where the
+   * 128 is the disk. Calling that an exact answer is a confident lie about a product someone may
+   * buy, and it is the failure mode this whole spec pass exists to remove.
+   * ⚠️ THE COST, STATED PLAINLY, BECAUSE A THIRD REVIEWER OBJECTED TO EXACTLY THIS: a person's own
+   * unenriched "iPhone 15 Pro 256GB" carries its spec only in the title, so it cannot reach an
+   * exact rung, and while the merchant has matching stock the ladder stops above the literal rung —
+   * so the peer listing is not shown at all for that query. That is a real cost on a marketplace
+   * and it is chosen deliberately: presenting an 8GB machine as an exact answer to "128GB RAM" is a
+   * confident lie about something someone may buy, and a ranking miss is not.
+   * ⛔ THE ACTUAL FIX IS TO ENRICH PEER LISTINGS, NOT TO LOWER THE BAR. `extractSpecs` needs only a
+   * subcategory and a title — nothing about it is import-specific — so running the enrichment pass
+   * across seller-posted listings puts them on the exact rung beside the merchant, where they
+   * belong. scripts/enrich-electronics.ts is scoped to one seller today purely because that is the
+   * catalogue it was written for.
+   */
+  const specWhere: Prisma.ListingWhereInput[] = Object.entries(specs)
+    .map(([k, v]) => ({ attributes: { contains: `"${k}":"${v}"` } }))
+  /** The same asks, as literal title text — weaker evidence, so it only ever feeds a relaxed rung. */
+  const specTextWhere: Prisma.ListingWhereInput[] = Object.entries(specs)
+    .map(([, v]) => ({ OR: tokenFor(v).map(wordMatch) }))
+    .filter((w) => w.OR!.length > 0)
 
   // rungs[i].exact — only the full token set (with or without the guessed category)
   // counts as an exact answer; every relaxation is flagged.
   const rungs: { where: Prisma.ListingWhereInput; exact: boolean }[] = []
-  if (tokens.length && sub) rungs.push({ where: { ...base, ...sub, AND: and(tokens.length) }, exact: true })
-  if (sub && !tokens.length) rungs.push({ where: { ...base, ...sub }, exact: true })
-  if (tokens.length && cat) rungs.push({ where: { ...base, ...cat, AND: and(tokens.length) }, exact: true })
-  if (tokens.length) rungs.push({ where: { ...base, AND: and(tokens.length) }, exact: true })
+  /**
+   * ⛔ THE SPEC RUNG ANDs WITH THE WORDS. Filtering on the spec ALONE and calling it exact meant
+   * "Dell XPS 16GB RAM" could answer with any 16GB laptop and report it as an exact match — the
+   * brand and model silently discarded. Two reviewers found this independently. Specs narrow the
+   * text match; they never replace it.
+   * ⚠️ The spec-only rung below is kept, but marked RELAXED, so an unstocked combination still
+   * degrades to "here are the closest" rather than to nothing.
+   */
+  /**
+   * ⛔ ONCE A SPEC HAS BEEN ASKED FOR, NO SPEC-LESS RUNG IS AN EXACT ANSWER. "Dell XPS 128GB RAM"
+   * with no 128GB machine stocked falls past the spec rungs to plain "Dell XPS", and would
+   * otherwise present a 16GB laptop as exactly what was asked for. `relaxed` is what makes the
+   * assistant say "no exact match — here are the closest", which is the honest answer.
+   * ⚠️ It also covers a subcategory whose rows are not enriched yet: with no attributes to match,
+   * EVERY spec query would otherwise come back as a confident text-only hit.
+   */
+  const exactText = !specWhere.length
+  if (specWhere.length && tokens.length && sub) rungs.push({ where: { ...base, ...sub, AND: [...and(tokens.length), ...specWhere] }, exact: true })
+  if (specWhere.length && tokens.length) rungs.push({ where: { ...base, AND: [...and(tokens.length), ...specWhere] }, exact: true })
+  /**
+   * The literal-title path, for rows the enrichment never touched (see specTextWhere above).
+   * ⛔ RELAXED, NEVER EXACT, AND IT SITS ABOVE THE SPEC-ONLY RUNG. Two things three reviewers
+   * agreed on, both right:
+   *   · It is a BAG OF WORDS. "128gb ram" word-matches "Laptop HP 8GB RAM 128GB SSD", whose 128GB
+   *     is the disk — the exact adjacency the extractor exists to get right. A text hit on spec
+   *     words is a plausible match, not a verified one, so it must not claim to be exact.
+   *   · Placed BELOW the spec-only rung it was unreachable: an unstocked spec stopped the ladder
+   *     at "any 16GB laptop" and the peer's correctly-titled listing never surfaced.
+   * Above it and honest about itself, a person's own unenriched listing shows up among "the
+   * closest ones" — which is where an unverifiable match belongs.
+   */
+  const specOnly = specWhere.length && sub
+    ? [{ where: { ...base, ...sub, AND: specWhere }, exact: !tokens.length }] : []
+  // Literal-title fallback for rows the enrichment never touched. Always relaxed — see above.
+  const literal = specTextWhere.length ? [
+    { where: { ...base, ...sub, AND: [...and(tokens.length), ...specTextWhere] }, exact: false },
+    { where: { ...base, AND: [...and(tokens.length), ...specTextWhere] }, exact: false },
+  ] : []
+  /**
+   * ⛔ THE ORDER DEPENDS ON WHETHER ANY WORDS SURVIVED THE STRIP.
+   *   · A PURE spec query ("128GB RAM") leaves no tokens, so the attribute rung IS the exact
+   *     answer and must come first — otherwise the bag-of-words rung matched a title mentioning
+   *     both words on different components and reported "no exact match" while real inventory sat
+   *     one rung below.
+   *   · A query with words ("Dell XPS 16GB RAM") wants the literal title first, because that is
+   *     the only rung that can find a PERSON's unenriched "Dell XPS 16GB RAM" listing; the
+   *     spec-only rung would answer with an Asus and stop the ladder.
+   */
+  rungs.push(...(tokens.length ? [...literal, ...specOnly] : [...specOnly, ...literal]))
+  if (tokens.length && sub) rungs.push({ where: { ...base, ...sub, AND: and(tokens.length) }, exact: exactText })
+  /**
+   * ⛔ NOT `exact` WHEN A SPEC WAS ASKED FOR AND NOT FOUND. "128GB RAM laptop" leaves no text
+   * tokens once the spec words are stripped, so an unstocked spec fell through to this rung and
+   * returned every laptop in the subcategory — labelled as an EXACT match. Saying "here are 8GB
+   * machines, exactly what you asked for" is worse than saying nothing.
+   */
+  if (sub && !tokens.length) rungs.push({ where: { ...base, ...sub }, exact: exactText })
+  if (tokens.length && cat) rungs.push({ where: { ...base, ...cat, AND: and(tokens.length) }, exact: exactText })
+  if (tokens.length) rungs.push({ where: { ...base, AND: and(tokens.length) }, exact: exactText })
   for (let n = tokens.length - 1; n >= 1; n--) rungs.push({ where: { ...base, AND: and(n) }, exact: false })
-  if (f.brandSlug) rungs.push({ where: cat ? { ...base, ...cat } : base, exact: !tokens.length }) // brand alone still honors budget
+  // ⚠️ `exactText` here too — a branded spec query whose spec is unstocked ("Dell 128GB RAM")
+  // would otherwise fall to brand-alone and present any Dell as an exact match.
+  if (f.brandSlug) rungs.push({ where: cat ? { ...base, ...cat } : base, exact: !tokens.length && exactText }) // brand alone still honors budget
   if (tokens.length > 1) rungs.push({ where: { ...base, OR: and(tokens.length) }, exact: false })
-  if (!rungs.length) rungs.push({ where: cat ? { ...base, ...cat } : base, exact: true })
+  if (!rungs.length) rungs.push({ where: cat ? { ...base, ...cat } : base, exact: exactText })
 
   for (const rung of rungs) {
     const rows = await db.listing.findMany({ where: rung.where, orderBy: order, take, include: INCLUDE })
@@ -331,7 +539,35 @@ export async function POST(req: NextRequest) {
   // Global daily Vertex AI Search budget breaker — Vertex draws the finite $1000 credit
   // (real money once exhausted), and 40/hr/IP x rotated IPs would otherwise be unbounded.
   // Over budget / Redis-down (strict) -> skip Vertex and use the free Postgres fallback.
-  const vBudget = vertexConfigured()
+  /**
+   * ⛔ AN EXPLICIT PRICE SORT SKIPS VERTEX ENTIRELY. Vertex ranks by SEMANTIC relevance and cannot
+   * be asked to order by price, so its rows are a subset — and sorting a subset answers "the
+   * priciest of the most relevant", which is the exact wrong answer the owner reported (a
+   * 13,090,000đ phone offered as the most expensive while the catalogue holds an 80,990,000đ one).
+   * The Postgres path CAN order by price across the whole matching set, so for "cheapest" and
+   * "most expensive" it is not the fallback — it is the only one that can be right.
+   */
+  /**
+   * ⛔ A SPEC QUERY SKIPS VERTEX TOO, AND THIS IS THE CASE THAT ACTUALLY MATTERS IN PRODUCTION.
+   * Vertex is semantic: it cannot filter on `attributes`, so when it answers at all the whole
+   * spec ladder below is skipped and "a laptop with 128gb ram" is served exactly as it was before
+   * any of this — a reviewer pointed out the fix was only observable with Vertex off or over
+   * budget, which is the state it was tested in, not the state prod is in.
+   * ⚠️ Extracted HERE rather than inside fallbackSearch so the decision can see it; the same
+   * object is passed down, so there is one extraction and one source of truth.
+   */
+  const querySpecs = subcategorySlug ? extractSpecs(subcategorySlug, query) : {}
+  /**
+   * ⛔ ONLY A **NUMERIC** SPEC TAKES OVER THE SEARCH. `extractSpecs` also returns categorical keys
+   * — audioType, cameraKind, printerKind, deviceKind — which it derives from the product NOUN.
+   * Letting those drive this logic meant that typing "microphone rode" disabled semantic search
+   * for the entire audio category and marked every result "no exact match", because the word
+   * "microphone" looked like a spec. A capacity or a case size is a constraint somebody typed on
+   * purpose; a product noun is just the thing they are shopping for, and Vertex is better at it.
+   */
+  const numericSpecs = Object.fromEntries(
+    Object.entries(querySpecs).filter(([k]) => NUMERIC_SPEC_KEYS.has(k)))
+  const vBudget = vertexConfigured() && !sort && !Object.keys(numericSpecs).length
     ? await rateLimit('ai-concierge-vertex', 'global', 20000, '1 d', { strict: true })
     : { success: false }
   if (vBudget.success) {
@@ -359,12 +595,16 @@ export async function POST(req: NextRequest) {
   }
   let relaxed = false
   if (source !== 'vertex' || !rows?.length) {
-    const r = await fallbackSearch(query, take, { minPriceVnd, maxPriceVnd, categorySlug, subcategorySlug, brandSlug })
+    const r = await fallbackSearch(query, take, { minPriceVnd, maxPriceVnd, categorySlug, subcategorySlug, brandSlug, sort, specs: numericSpecs })
     rows = r.rows
     relaxed = r.relaxed
   }
 
-  // Apply explicit price-sort, then cap to 8 cards.
+  /**
+   * Re-sort in JS as well, and it is NOT redundant: the Vertex path returns semantic matches in
+   * relevance order and cannot be told to order by price, so its rows still need this. The
+   * fallback path is already ordered by the database, where sorting a page is a no-op.
+   */
   if (sort) rows = [...rows].sort((a, b) => (sort === 'price_asc' ? a.price - b.price : b.price - a.price))
   rows = rows.slice(0, 8)
 

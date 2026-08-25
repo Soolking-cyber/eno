@@ -280,13 +280,84 @@ export function extractSpecs(subcategorySlug: string | null | undefined, title: 
     before: t.slice(Math.max(0, m.index! - 22), m.index!),
   })).filter((c) => !GPU.test(c.before))
 
-  const labelled = (re: RegExp) => {
-    const m = t.match(re)
-    if (!m) return null
-    return m[2]?.toUpperCase() === 'TB' ? Number(m[1]) * 1024 : Number(m[1])
+  /**
+   * Try each labelled pattern and take the first that yields a LEGAL value for this key.
+   * ⛔ "FIRST PATTERN THAT MATCHES" IS NOT ENOUGH. In "laptop 16GB RAM 512GB SSD" the leading-label
+   * pattern `RAM <n>GB` happily matches "RAM 512GB" — the 512 belongs to the SSD that follows —
+   * and returns 512, which is not a legal RAM size, so the RAM was dropped entirely. Validating
+   * inside the search lets the trailing-label pattern ("16GB RAM") supply the right answer.
+   */
+  /**
+   * @param res patterns tried in order; `guard` means "a GPU marker just before the NUMBER makes
+   *   this match untrustworthy".
+   * ⛔ THE GUARD BELONGS ONLY TO THE TRAILING FORM. In "Laptop RTX 8GB RAM 32GB" the trailing
+   *   pattern matches "8GB RAM", where the 8 is the card's VRAM — that needs the guard. The
+   *   LEADING form "RAM 32GB" names its slot before the number, so it is unambiguous no matter
+   *   what precedes it; guarding it too rejected the correct 32 and returned nothing at all.
+   */
+  const labelled = (key: SpecKey, ...res: { re: RegExp; guard: boolean; onlyIfSingleCapacity?: boolean }[]) => {
+    for (const { re, guard, onlyIfSingleCapacity } of res) {
+      // ⛔ The unguarded last resort is ONLY safe when there is nothing to be ambiguous ABOUT.
+      // With two capacities in play ("RTX 8GB RAM 128GB SSD") it happily claimed the SSD's 128 as
+      // system RAM — reintroducing, through the back door, the exact adjacency bug the guarded
+      // patterns exist to prevent.
+      if (onlyIfSingleCapacity && capAt.length !== 1) continue
+      // ⚠️ EVERY occurrence, not just the first. "512GB RAM unavailable; choose 16GB RAM" rejected
+      // 512 and then abandoned the pattern, losing the 16 that came after it.
+      for (const m of t.matchAll(new RegExp(re.source, `${re.flags.replace('g', '')}g`))) {
+        if (guard && GPU.test(t.slice(Math.max(0, m.index! - 22), m.index!))) continue
+        const n = m[2]?.toUpperCase() === 'TB' ? Number(m[1]) * 1024 : Number(m[1])
+        if (isLegalSpec(key, String(n), subcategorySlug)) return n
+      }
+    }
+    return null
   }
-  const ramLabelled = labelled(/\bram\s*:?\s*(\d+)\s*(GB|TB)\b/i)
-  const storageLabelled = labelled(/\b(?:ssd|hdd|rom|bộ nhớ trong|bộ nhớ|storage)\s*:?\s*(\d+)\s*(GB|TB)\b/i)
+  /**
+   * ⚠️ THE LABEL CAN COME EITHER SIDE OF THE NUMBER. Vietnamese retail writes "RAM 16GB"; English
+   * titles and, more importantly, people typing into search write "16GB RAM" / "a laptop with
+   * 128gb ram". Reading only the leading form meant that query fell through to the positional rule,
+   * which called 128 a STORAGE size — so the search asked for a 128GB disk and found nothing.
+   */
+  /**
+   * ⛔ A LEADING LABEL MUST NOT CLAIM A NUMBER THAT BELONGS TO THE NEXT LABEL. In
+   * "Laptop 16GB RAM 128GB SSD" the leading pattern `RAM <n>GB` happily matches "RAM 128GB" —
+   * and 128 IS a legal RAM size, so validation could not catch it and the row was indexed with
+   * 128GB of RAM instead of 16GB. Two reviewers found this independently, in the same minute.
+   * The negative lookahead makes the pairing unambiguous: a capacity immediately followed by a
+   * DIFFERENT spec label belongs to that label, not to the one before it.
+   */
+  /**
+   * ⚠️ THE LOOKAHEAD NEEDS ITS OWN LOOKAHEAD, and getting this wrong breaks the commonest form.
+   * Two shapes, both real, differing only in whether the NEXT label carries its own number:
+   *   "16GB RAM 128GB SSD"  — "RAM 128GB" then bare "SSD": the SSD owns the 128  → REJECT
+   *   "RAM 16GB SSD 512GB"  — "RAM 16GB"  then "SSD 512GB": the SSD has its own  → ACCEPT
+   * A flat `(?!\s*ssd)` rejects both and drops the RAM from the standard Vietnamese retail form.
+   * ⚠️ Vietnamese labels and the word "of" belong inside it too, or the same ambiguity walks
+   * straight back in through "128GB bộ nhớ trong" and "128GB of storage".
+   */
+  // ⚠️ `(?![a-z0-9])` NOT `\b` AFTER A VIETNAMESE LABEL. JS word boundaries are ASCII-only, so
+  // `bộ nhớ\b` needs a word char right after "ớ" and never matched at end-of-string or before a
+  // space — the same trap that made `thẻ nhớ\b` dead. Measured: "16GB RAM 128GB bộ nhớ" read as
+  // 128GB of RAM.
+  const ST = String.raw`(?:of\s*)?(?:ssd|hdd|storage|rom|bộ nhớ trong|bộ nhớ)(?![a-z0-9])`
+  const NOT_STORAGE = String.raw`(?!\s*${ST}(?!\s*\d))`
+  const NOT_RAM = String.raw`(?!\s*(?:of\s*)?ram\b(?!\s*\d))`
+  const ramLabelled = labelled('ram',
+    { re: new RegExp(String.raw`\bram\s*:?\s*(\d+)\s*(GB|TB)\b` + NOT_STORAGE, 'i'), guard: false },
+    { re: /\b(\d+)\s*(GB|TB)\s*(?:of\s*)?ram\b/i, guard: true },
+    /**
+     * ⚠️ LAST RESORT: the leading form WITHOUT the adjacency lookahead. "Laptop RAM 16GB SSD" names
+     * an SSD with no size of its own, so the lookahead — written for "16GB RAM 128GB SSD" — rejected
+     * a 16 that is plainly the RAM. Trying it only after the other two keeps the real ambiguity
+     * resolved (there, the trailing form supplies the answer before this ever runs) while letting an
+     * unambiguous title through.
+     */
+    { re: /\bram\s*:?\s*(\d+)\s*(GB|TB)\b/i, guard: false, onlyIfSingleCapacity: true })
+  const storageLabelled = labelled('storage',
+    { re: new RegExp(String.raw`\b(?:ssd|hdd|rom|bộ nhớ trong|bộ nhớ|storage)\s*:?\s*(\d+)\s*(GB|TB)\b` + NOT_RAM, 'i'), guard: false },
+    // ⚠️ `of` here too — "512GB of storage" is as natural as "16GB of RAM" — and the Vietnamese
+    // trailing form "128GB bộ nhớ trong", which had no pattern at all.
+    { re: /\b(\d+)\s*(GB|TB)\s*(?:of\s*)?(?:ssd|hdd|storage|rom|bộ nhớ trong|bộ nhớ)(?![a-z0-9])/i, guard: true })
   if (ramLabelled != null) put('ram', ramLabelled)
   if (storageLabelled != null) put('storage', storageLabelled)
 

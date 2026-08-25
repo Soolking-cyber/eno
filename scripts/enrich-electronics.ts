@@ -6,6 +6,7 @@
  *   npx tsx scripts/enrich-electronics.ts                   # DRY RUN — shows what would change
  *   npx tsx scripts/enrich-electronics.ts --apply
  *   npx tsx scripts/enrich-electronics.ts --apply --seller CellphoneS
+ *   npx tsx scripts/enrich-electronics.ts --apply --reextract   # re-derive keys the extractor owns
  *
  * ⛔ DETERMINISTIC ONLY. This script never calls a model: it reads specs that are already written
  * in the merchant's own title and validates every one against the closed list in
@@ -28,6 +29,15 @@ import { extractSpecsFromTitles, specsFor } from '../src/lib/electronics-specs'
 const arg = (n: string) => { const i = process.argv.indexOf(`--${n}`); return i >= 0 ? process.argv[i + 1] : undefined }
 const APPLY = process.argv.includes('--apply')
 const REPORT = process.argv.includes('--report')
+/**
+ * ⛔ `--reextract` EXISTS BECAUSE THE EXTRACTOR IMPROVES AND THE INDEX DOES NOT. The normal pass
+ * MERGES with "existing wins", which is right for a first fill and wrong after a parser fix: rows
+ * keep whatever the older, buggier version wrote. Measured after one such round: 5 JBL PartyBox
+ * SPEAKERS were still filed as microphones because their titles mention the mics in the box.
+ * ⚠️ It overwrites ONLY the keys this extractor owns and only where it produces a value, so a
+ * hand-set or human-entered attribute it cannot derive is never touched.
+ */
+const REEXTRACT = process.argv.includes('--reextract')
 const SELLER = arg('seller') ?? 'CellphoneS'
 
 type Row = { id: string; title: string; titleVi: string | null; subcategorySlug: string | null; attributes: string | null }
@@ -66,8 +76,23 @@ async function main() {
     // twice reads as "128GB RAM + 128GB storage" — which is exactly what this script published to
     // 134 live rows before an external reviewer caught it.
     const found = extractSpecsFromTitles(r.subcategorySlug, [r.title, r.titleVi])
-    const merged = { ...found, ...existing } // existing wins
-    const added = Object.keys(found).filter((k) => !(k in existing))
+    /**
+     * ⛔ REEXTRACT **CORRECTS**, IT NEVER DELETES — and that was decided by measuring, not by
+     * taste. A reviewer asked for keys the corrected extractor no longer emits to be purged, so
+     * that an old parser bug could not persist. Implemented and dry-run, it would have removed 331
+     * values, and reading them showed the deletion was the more dangerous half:
+     *   · 222 laptops would lose a CORRECT `laptopSize` — "ASUS VivoBook 14 M1407KA" really is a
+     *     14-inch machine, but this extractor needs the word "inch" and cannot re-derive it;
+     *   · every row whose `subcategorySlug` is null would lose ALL its specs, because
+     *     `extractSpecs(null, …)` returns {} — absence of a basis to judge, not a judgement.
+     * "The parser stopped recognising it" and "the value is wrong" are different statements, and
+     * only the second justifies a delete. Overwriting a value the extractor DOES produce fixes
+     * the case that actually occurred (5 JBL speakers filed as microphones) with none of that risk.
+     */
+    const merged = REEXTRACT ? { ...existing, ...found } : { ...found, ...existing }
+    const added = REEXTRACT
+      ? Object.keys(found).filter((k) => existing[k] !== found[k])
+      : Object.keys(found).filter((k) => !(k in existing))
     for (const k of Object.keys(merged)) b.keys.set(k, (b.keys.get(k) ?? 0) + 1)
     if (Object.keys(merged).length) b.nowHas++
     if (!added.length) continue
