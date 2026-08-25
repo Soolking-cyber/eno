@@ -23,6 +23,7 @@ import { buildSearchText } from '../src/lib/fold'
 const arg = (n: string) => { const i = process.argv.indexOf(`--${n}`); return i >= 0 ? process.argv[i + 1] : undefined }
 const APPLY = process.argv.includes('--apply')
 const ALL = process.argv.includes('--all')
+const FORCE = process.argv.includes('--force')
 const SELLER = arg('seller')
 if (!SELLER && !ALL) { console.error('--seller <name> or --all required'); process.exit(1) }
 
@@ -35,14 +36,21 @@ async function main() {
   }
 
   const rows = await db.listing.findMany({
-    where: { ...(sellerId ? { sellerId } : {}), searchText: '' },
+    /**
+     * ⚠️ `--force` EXISTS BECAUSE THE DAMAGE THIS SCRIPT REPAIRS IS NOT ALWAYS AN EMPTY BLOB. A
+     * clobbered `searchText` is WRONG, not missing — the importer used to rebuild it from feed
+     * values only, collapsing a bilingual blob to Vietnamese — and the `searchText: ''` filter made
+     * this script print "0 listings" and exit on exactly the rows that needed it. Without the flag
+     * nothing in the repo could detect or fix it.
+     */
+    where: { ...(sellerId ? { sellerId } : {}), ...(FORCE ? {} : { searchText: '' }) },
     select: {
       id: true, title: true, titleVi: true, description: true, descriptionVi: true,
       district: true, location: true, brandSlug: true, model: true,
       category: { select: { name: true, nameVi: true } },
     },
   })
-  console.log(`${rows.length} listings with an empty searchText`)
+  console.log(`${rows.length} listings ${FORCE ? 'to rebuild (--force: every row, not only empty ones)' : 'with an empty searchText'}`)
   if (!rows.length) { await db.$disconnect(); return }
   if (!APPLY) {
     const sample = rows[0]

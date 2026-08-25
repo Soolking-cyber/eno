@@ -129,3 +129,4 @@ data/enrich-snapshot-*.jsonl
 data/cellphones-breadcrumbs.jsonl
 data/reclassify-snapshot-*.jsonl
 data/repair-snapshot-*.jsonl
+data/describe-snapshot-*.jsonl

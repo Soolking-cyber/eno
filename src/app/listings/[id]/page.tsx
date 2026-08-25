@@ -371,9 +371,20 @@ export default async function ListingPage({ params }: Props) {
       'priceCurrency': offerCurrency,
       'price': listing.price,
       'priceValidUntil': new Date(new Date(listing.postedAt).getTime() + 1000 * 60 * 60 * 24 * 90).toISOString().split('T')[0], // postedAt + 90d — deterministic across ISR regens (Date.now() made every regen unique, defeating Vercel's unchanged-output write dedup)
-      // A partner ticket is issued fresh at checkout — the used/refurbished vocabulary the rest of
-      // the marketplace uses does not apply, and an unset condition suppresses the rich result.
-      'itemCondition': affiliateUrl ? 'https://schema.org/NewCondition' : schemaCondition,
+      /**
+       * A partner TICKET is issued fresh at checkout — the used/refurbished vocabulary the rest of
+       * the marketplace uses does not apply, and an unset condition suppresses the rich result.
+       *
+       * ⛔ BUT THAT IS TRUE OF TICKETS, NOT OF EVERY AFFILIATE LISTING. This read `affiliateUrl ?
+       * NewCondition : …` from the days when the only partner was VinWonders. The CellphoneS import
+       * then added 9,726 physical products, of which **1,009 carry `condition: 'used'`** — second-hand
+       * iPhones and laptops the merchant openly describes as scratched — and every one of them was
+       * being published to Google as NewCondition. That is a false statement about goods, in
+       * structured data a licensed sàn TMĐT serves to Merchant Center unattended, and it would have
+       * become plainly visible the moment the descriptions said "used condition with scratches".
+       * A boxed thing has a condition; a date on a calendar does not.
+       */
+      'itemCondition': affiliateUrl && isBooking ? 'https://schema.org/NewCondition' : schemaCondition,
       'availability': availability,
       'seller': { '@type': 'Organization', 'name': listing.seller.name },
       /**

@@ -300,7 +300,9 @@ async function main() {
         // ⚠️ The dry run queries too, or it reports every row as "created" forever and can never
         // show that a refresh is an UPDATE — which is the thing worth previewing on a re-run.
         const existing = seller
-          ? await db.listing.findFirst({ where: { sellerId: seller.id, externalId }, select: { id: true, images: true } })
+          // ⚠️ `title`/`description` are read so a REFRESH can keep the text a human or a model
+          // wrote (see the searchText build below), not just to decide create-vs-update.
+          ? await db.listing.findFirst({ where: { sellerId: seller.id, externalId }, select: { id: true, images: true, title: true, titleVi: true, description: true, descriptionVi: true } })
           : null
         if (!APPLY) { existing ? updated++ : created++; return }
         let images = existing?.images
@@ -345,7 +347,29 @@ async function main() {
            * translate-imported-listings.ts fills the English slots, run rebuild-search-text.ts —
            * it folds both languages in, which is what makes "ốp lưng" and "case" find one product.
            */
-          searchText: buildSearchText([feedTitle, feedDesc, MERCHANT_CITY, slug, brandFor(p.name), modelFor(p.name)]),
+          /**
+           * ⛔ FOLD THE ROW'S CURRENT TEXT, NOT ONLY THE FEED'S. `searchText` is in the refresh set,
+           * so on every re-import this line decides what the whole catalogue is searchable by. Built
+           * from feed values alone it collapses the blob to the merchant's VIETNAMESE title — which
+           * silently destroys the bilingual index that exists today (measured: 400/400 sampled rows
+           * currently contain every word of their English title) and any description a model wrote.
+           * ⚠️ AND THE REPAIR PATH CANNOT SEE IT: scripts/rebuild-search-text.ts selects
+           * `where: { searchText: '' }`, and a clobbered blob is wrong, not empty — so nothing in
+           * the repo could detect or fix it. Preserving here is cheaper than detecting later.
+           * ⚠️ Deliberately NOT solved by making searchText create-only: `titleVi`, `brandSlug`,
+           * `model` and the category all stay refreshable, so a create-only blob would silently
+           * stop matching a renamed or re-branded product — a different silent regression.
+           */
+          // ⚠️ BOTH DESCRIPTION COLUMNS. Folding only the English one dropped the model's
+          // VIETNAMESE prose out of the blob on every re-import — silently un-indexing the text
+          // most buyers actually read, with nothing to re-select the row afterwards.
+          searchText: buildSearchText([
+            existing?.title ?? feedTitle, feedTitle,
+            existing?.titleVi ?? feedTitle,
+            existing?.description ?? feedDesc, feedDesc,
+            existing?.descriptionVi ?? feedDesc,
+            MERCHANT_CITY, slug, brandFor(p.name), modelFor(p.name),
+          ]),
           affiliateUrl, verified: true, status: 'active',
         }
         /**
@@ -373,7 +397,15 @@ async function main() {
          * A refresh therefore updates: price, images, affiliateUrl, category/brand/model, and the
          * merchant's own Vietnamese text. Everything a human or a translator decided is left alone.
          */
-        const { status, verified, title, description, ...refreshable } = fields
+        /**
+         * ⛔ `descriptionVi` IS CREATE-ONLY TOO. It was refreshable, so a re-import overwrote it with
+         * the feed's `desc` — which is the title repeated. The damage is invisible and permanent:
+         * `description` is create-only so English readers keep the good prose, while `useLocalized`
+         * serves `descriptionVi` verbatim to every Vietnamese reader (the dominant traffic), and the
+         * describe script's resume predicate is "description still equals title" — which is now
+         * false — so it would never re-select the row to repair it.
+         */
+        const { status, verified, title, description, descriptionVi, ...refreshable } = fields
         /**
          * ⚠️ ONE ROW'S FAILURE MUST NOT KILL A 9,728-ROW RUN. This job talks to the database over
          * an SSH tunnel, and a dropped tunnel surfaces as Prisma `ConnectionClosed` — which,
