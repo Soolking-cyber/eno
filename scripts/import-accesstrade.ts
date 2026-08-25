@@ -191,11 +191,34 @@ async function hostImage(src: string, slug: string): Promise<string | null> {
     const buf = Buffer.from(await res.arrayBuffer())
     const img = sharp(buf, { limitInputPixels: 50_000_000 }).rotate()
     const meta = await img.metadata()
-    const side = Math.min(meta.width ?? EDGE, meta.height ?? EDGE, EDGE)
+    /**
+     * ⛔ NO SQUARE CROP. This read `side = min(width, height, EDGE)` and then `fit: 'cover'`, which
+     * takes a centre square out of every image — so a 1200x600 marketing banner lost half its
+     * width, and the text on it was sliced through the middle. Owner, 2026-08-25: "we have to
+     * import images without cropping since most products have broken bad looking images."
+     * Measured: every stored image was exactly 1:1 (1100x1100, 800x800, 600x600).
+     * ⚠️ `fit: 'inside'` + `withoutEnlargement` keeps the WHOLE frame and never upscales a small
+     * source into a blurry big one. Cards still show a square thumbnail — that crop belongs in CSS,
+     * where it is reversible, not baked into the file we store forever.
+     */
+    /**
+     * ⚠️ EXIF ORIENTATION SWAPS THE AXES, AND `metadata()` REPORTS THE PRE-ROTATION FRAME.
+     * `.rotate()` applies the EXIF flag at render time, so for orientations 5-8 the rendered image
+     * is H x W while `meta` still says W x H. Computing the target from the unrotated numbers makes
+     * `watermarkPlacement` place the mark outside the real canvas and `composite` throws
+     * "image to composite must have same dimensions or smaller" — killing that image, and with it
+     * the whole batch. Swapping here costs nothing; re-encoding to measure would cost a decode.
+     */
+    const swapped = (meta.orientation ?? 1) >= 5
+    const srcW = (swapped ? meta.height : meta.width) ?? EDGE
+    const srcH = (swapped ? meta.width : meta.height) ?? EDGE
+    const scale = Math.min(1, EDGE / Math.max(srcW, srcH))
+    const outW = Math.max(1, Math.round(srcW * scale))
+    const outH = Math.max(1, Math.round(srcH * scale))
     // Product shots are usually on white already; flatten keeps a transparent PNG from going black.
-    const png = await img.resize({ width: side, height: side, fit: 'cover', position: 'centre' })
+    const png = await img.resize({ width: outW, height: outH, fit: 'inside', withoutEnlargement: true })
       .flatten({ background: '#ffffff' }).png().toBuffer()
-    const { markWidth, left, top, region } = watermarkPlacement(side, side)
+    const { markWidth, left, top, region } = watermarkPlacement(outW, outH)
     let mean: number | null = null
     try { const { channels } = await sharp(png).extract(region).greyscale().stats(); mean = (channels[0]?.mean ?? 0) / 255 } catch {}
     const out = await sharp(png).composite([{ input: watermarkSvg(markWidth, inkForLuminance(mean)).svg, left, top }])

@@ -42,6 +42,7 @@ const BLOCK_LIMIT = 8
 
 const arg = (n: string) => { const i = process.argv.indexOf(`--${n}`); return i >= 0 ? process.argv[i + 1] : undefined }
 const APPLY = process.argv.includes('--apply')
+const REFETCH = process.argv.includes('--refetch')
 const LIMIT = Number(arg('limit') ?? 0)
 const CONCURRENCY = Number(arg('concurrency') ?? 3)
 const MAX_IMAGES = Number(arg('max-images') ?? 6)
@@ -153,12 +154,36 @@ async function store(src: string, slug: string): Promise<{ url: string; hash: st
     const sharp = (await import('sharp')).default
     const img = sharp(Buffer.from(await res.arrayBuffer()), { limitInputPixels: 50_000_000 }).rotate()
     const meta = await img.metadata()
-    const side = Math.min(meta.width ?? EDGE, meta.height ?? EDGE, EDGE)
-    const png = await img.resize({ width: side, height: side, fit: 'cover', position: 'centre' })
+    /**
+     * ⛔ NO SQUARE CROP. This read `side = min(width, height, EDGE)` and then `fit: 'cover'`, which
+     * takes a centre square out of every image — so a 1200x600 marketing banner lost half its
+     * width, and the text on it was sliced through the middle. Owner, 2026-08-25: "we have to
+     * import images without cropping since most products have broken bad looking images."
+     * Measured: every stored image was exactly 1:1 (1100x1100, 800x800, 600x600).
+     * ⚠️ `fit: 'inside'` + `withoutEnlargement` keeps the WHOLE frame and never upscales a small
+     * source into a blurry big one. Cards still show a square thumbnail — that crop belongs in CSS,
+     * where it is reversible, not baked into the file we store forever.
+     */
+    /**
+     * ⚠️ EXIF ORIENTATION SWAPS THE AXES, AND `metadata()` REPORTS THE PRE-ROTATION FRAME.
+     * `.rotate()` applies the EXIF flag at render time, so for orientations 5-8 the rendered image
+     * is H x W while `meta` still says W x H. Computing the target from the unrotated numbers makes
+     * `watermarkPlacement` place the mark outside the real canvas and `composite` throws
+     * "image to composite must have same dimensions or smaller" — killing that image, and with it
+     * the whole batch. Swapping here costs nothing; re-encoding to measure would cost a decode.
+     */
+    const swapped = (meta.orientation ?? 1) >= 5
+    const srcW = (swapped ? meta.height : meta.width) ?? EDGE
+    const srcH = (swapped ? meta.width : meta.height) ?? EDGE
+    const scale = Math.min(1, EDGE / Math.max(srcW, srcH))
+    const outW = Math.max(1, Math.round(srcW * scale))
+    const outH = Math.max(1, Math.round(srcH * scale))
+    // Product shots are usually on white already; flatten keeps a transparent PNG from going black.
+    const png = await img.resize({ width: outW, height: outH, fit: 'inside', withoutEnlargement: true })
       .flatten({ background: '#ffffff' }).png().toBuffer()
     const hash = await perceptualHash(png)
     if (!hash) return null
-    const { markWidth, left, top, region } = watermarkPlacement(side, side)
+    const { markWidth, left, top, region } = watermarkPlacement(outW, outH)
     let mean: number | null = null
     try { const { channels } = await sharp(png).extract(region).greyscale().stats(); mean = (channels[0]?.mean ?? 0) / 255 } catch {}
     const out = await sharp(png).composite([{ input: watermarkSvg(markWidth, inkForLuminance(mean)).svg, left, top }])
@@ -171,17 +196,29 @@ async function store(src: string, slug: string): Promise<{ url: string; hash: st
 }
 
 async function main() {
-  const seller = await db.seller.findFirst({ where: { name: 'CellphoneS' }, select: { id: true } })
+  // ⛔ `ownerId: null` — Seller.name is not unique and this job rewrites the images column in bulk.
+  const seller = await db.seller.findFirst({ where: { name: 'CellphoneS', ownerId: null }, select: { id: true } })
   if (!seller) { console.error('no CellphoneS storefront'); process.exit(1) }
 
-  // Only products that still have a single image — this job is expensive and must be resumable.
+  /**
+   * Only products that still have a single image — this job is expensive and must be resumable.
+   *
+   * ⛔ `--refetch` TAKES EVERY PRODUCT INSTEAD, and exists for one reason: every image stored before
+   * 2026-08-25 was CROPPED TO A CENTRE SQUARE. The old resize computed `side = min(w, h, EDGE)` and
+   * used `fit: 'cover'`, so a 1080x272 banner was reduced to 272x272 — 75% of the pixels thrown
+   * away, text sliced through the middle (owner: "most products have broken bad looking images").
+   * The pipeline is fixed, but a fixed pipeline does not repair files already written.
+   */
   const rows = (await db.listing.findMany({
     where: { sellerId: seller.id },
     select: { id: true, title: true, images: true, affiliateUrl: true, externalId: true },
-  })).filter((r) => { try { return JSON.parse(r.images || '[]').length <= 1 } catch { return true } })
+  })).filter((r) => {
+    if (REFETCH) return true
+    try { return JSON.parse(r.images || '[]').length <= 1 } catch { return true }
+  })
 
   const targets = LIMIT ? rows.slice(0, LIMIT) : rows
-  console.log(`${APPLY ? 'APPLY' : 'DRY RUN'} — ${targets.length} products with <=1 image (of ${rows.length})`)
+  console.log(`${APPLY ? 'APPLY' : 'DRY RUN'}${REFETCH ? ' --refetch' : ''} — ${targets.length} products ${REFETCH ? 're-fetching uncropped' : 'with <=1 image'} (of ${rows.length})`)
   console.log(`  up to ${MAX_IMAGES} images each, concurrency ${CONCURRENCY}\n`)
 
   // The merchant page url is inside the affiliate link's `url=` parameter.
@@ -191,7 +228,7 @@ async function main() {
   }
 
   const browser = await chromium.launch()
-  let done = 0, added = 0, none = 0, crumbed = 0
+  let done = 0, added = 0, none = 0, crumbed = 0, short = 0
   for (let i = 0; i < targets.length; i += CONCURRENCY) {
     await Promise.all(targets.slice(i, i + CONCURRENCY).map(async (r) => {
       const page = pageUrlOf(r.affiliateUrl)
@@ -218,9 +255,19 @@ async function main() {
         if (hashes.some((h) => hammingHex(h, s.hash) <= DUP_DISTANCE)) continue
         hashes.push(s.hash); kept.push(s.url)
       }
-      // ⚠️ Never shrink a gallery: if scraping produced less than we already had, keep what we had.
+      /**
+       * ⚠️ NEVER SHRINK A GALLERY. If scraping produced less than we already had, keep what we had.
+       * ⛔ UNDER --refetch THE RULE LOOSENS TO "AT LEAST AS MANY", NOT "AT LEAST ONE". Replacing is
+       * the point — the stored files are the cropped ones — but `kept.length > 0` would let a page
+       * that timed out on four of six images rewrite a six-image gallery down to two, and those
+       * four URLs would be gone. CellphoneS throttles (BLOCK_LIMIT exists for that), so a partial
+       * scrape is a normal event, not an edge case. Two reviewers caught this independently.
+       * A shortfall is logged so it can be picked up by a second pass.
+       */
       const existing: string[] = (() => { try { return JSON.parse(r.images || '[]') } catch { return [] } })()
-      if (kept.length > existing.length) {
+      const enough = kept.length >= Math.min(existing.length, MAX_IMAGES)
+      if (REFETCH && kept.length > 0 && !enough) short++
+      if (kept.length > existing.length || (REFETCH && enough && kept.length > 0)) {
         await db.listing.update({ where: { id: r.id }, data: { images: JSON.stringify(kept) } }).catch(() => {})
         added += kept.length
       }
@@ -233,7 +280,7 @@ async function main() {
       console.error('   Wait for it to lift, then re-run; the job is resumable and keeps what it has.')
       break
     }
-    if (done % 30 === 0) console.log(`  ${done}/${targets.length}  images added=${added}  no-gallery=${none}`)
+    if (done % 30 === 0) console.log(`  ${done}/${targets.length}  images added=${added}  no-gallery=${none}${short ? `  short(kept old)=${short}` : ''}`)
   }
   await browser.close()
   console.log(`\n${APPLY ? 'APPLIED' : 'DRY RUN'}: ${done} pages read, ${added} images, ${crumbed} breadcrumb paths -> ${CRUMB_FILE}, ${none} with no gallery`)
