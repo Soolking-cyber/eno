@@ -105,6 +105,92 @@ rm -f "$MARKER"
 if [ -n "${ENO_BACKUP_REMOTE:-}" ]; then
   rclone copy "$OUT/eno-$STAMP.dump" "$ENO_BACKUP_REMOTE" 2>/dev/null || fail "off-box copy"
   echo "off-box copy ok"
+
+  # ⛔ THE REMOTE HAD NO RETENTION AT ALL. The local dumps are pruned above, but every off-box
+  # copy ever made stayed in the bucket forever (owner, 2026-08-25: "why it doesnt auto delete
+  # previous backups"). Nothing cleaned it because nothing was written to.
+  #
+  # ⚠️ COUNT, NOT AGE, AND IT RUNS ONLY AFTER TODAY'S UPLOAD SUCCEEDED. Age-based pruning has a
+  # failure mode this must not have: if the backup breaks for a fortnight, an `--min-age 7d` rule
+  # cheerfully deletes the last good copy and leaves nothing. Keeping the newest N means a broken
+  # backup degrades to "stale but present" instead of "gone".
+  #
+  # ⚠️ WHY NOT 1, WHICH IS WHAT WAS ASKED FOR. A single copy is one corrupt dump away from no
+  # backup, and corruption is silent until a restore — the one moment it cannot be discovered
+  # safely. Three daily dumps of a ~5MB database cost nothing and survive that. Set
+  # ENO_BACKUP_KEEP_REMOTE=1 in /etc/default/eno-backup to make it exactly the latest.
+  KEEP_REMOTE="${ENO_BACKUP_KEEP_REMOTE:-3}"
+  # ⛔ VALIDATE BEFORE DELETING ANYTHING. `ENO_BACKUP_KEEP_REMOTE=0` — or a typo, or an empty
+  # value — would otherwise mean "keep none" and wipe the bucket including the dump uploaded
+  # seconds ago. A retention setting that can be misread as "delete everything" has no business
+  # near a backup, so anything that is not a positive integer falls back to the default.
+  case "$KEEP_REMOTE" in
+    ''|*[!0-9]*) echo "WARNING: ENO_BACKUP_KEEP_REMOTE='$KEEP_REMOTE' is not a number — using 3"; KEEP_REMOTE=3 ;;
+  esac
+  # ⚠️ STRIP LEADING ZEROS BEFORE COMPARING OR DOING ARITHMETIC. "00" is not the string "0", so a
+  # bare `0)` case never matched it — and `$(( KEEP_REMOTE - 1 ))` then gave -1, which selects
+  # EVERY older dump for deletion. "08" is worse: some shells read a leading zero as octal and
+  # abort on the invalid digit. Normalising to a plain decimal removes both.
+  KEEP_REMOTE=$(printf '%d' "$((10#$KEEP_REMOTE))")
+  if [ "$KEEP_REMOTE" -lt 1 ]; then
+    echo "WARNING: ENO_BACKUP_KEEP_REMOTE=$KEEP_REMOTE would delete every off-box copy — using 1"
+    KEEP_REMOTE=1
+  fi
+  # ⚠️ NORMALISE THE REMOTE. A configured "eno-offsite:eno/" would build "eno-offsite:eno//file",
+  # and object stores treat a doubled slash as a literal part of the key — the delete then targets
+  # an object that does not exist, fails quietly, and nothing is ever pruned.
+  REMOTE_BASE="${ENO_BACKUP_REMOTE%/}"
+  # ⛔ MATCH THE STAMPED NAME EXACTLY, NOT `eno-*.dump`. A hand-made `eno-latest.dump` or
+  # `eno-pre-migration.dump` also matches the glob, and because digits sort before letters it
+  # collates as the NEWEST file — pushing a real dated dump out of the keep-window every night,
+  # and at KEEP_REMOTE=1 deleting the copy uploaded seconds earlier. Only this script's own
+  # ISO-8601 output is eligible for deletion; anything a human put there is left alone.
+  # ⚠️ `|| true` — this script runs under `set -e`, and a grep that matches nothing exits 1. A
+  # failed listing (network blip, List-denied credentials) or a stamp that does not match the
+  # pattern would otherwise kill the script AFTER the upload, skipping the warning below and
+  # everything after it. The whole point of this branch is to degrade, not to die.
+  all_dumps=$(rclone lsf "$REMOTE_BASE" --include 'eno-*.dump' 2>/dev/null \
+              | grep -E '^eno-[0-9]{8}T[0-9]{6}Z\.dump$' | sort || true)
+  # ⛔ THE LISTING MUST CONTAIN TODAY'S DUMP BEFORE ANYTHING IS DELETED. `rclone lsf` failing —
+  # a network blip, or credentials that can Put but not List, which is the most common minimal
+  # backup policy — returns an empty list, which would prune nothing while still printing a
+  # reassuring retention line. Requiring the file just uploaded to appear proves that `copy` and
+  # `lsf` agree on the path, that the credentials can read, and that the name matches the pattern
+  # this prune is about to filter on. If it is not there, we do not know what we are looking at.
+  retention_ran=yes
+  if ! printf '%s\n' "$all_dumps" | grep -qFx "eno-$STAMP.dump"; then
+    echo "WARNING: off-box listing does not contain eno-$STAMP.dump — skipping retention"
+    all_dumps=''
+    retention_ran=no
+  fi
+  # ⛔ ONLY DUMPS OLDER THAN TODAY'S ARE ELIGIBLE. Excluding just today's file was not enough: if
+  # the clock steps BACKWARDS, the fresh upload sorts oldest, every genuinely newer backup looks
+  # stale, and at KEEP_REMOTE=1 all of them are deleted in favour of the backdated one. Because
+  # the stamps are ISO-8601 UTC, "older" is exactly "sorts before", so this is a string compare
+  # and needs no date parsing. A backward clock now prunes nothing instead of everything.
+  all_dumps=$(printf '%s\n' "$all_dumps" | awk -v cutoff="eno-$STAMP.dump" '$0 != "" && $0 < cutoff')
+  n_dumps=$(printf '%s\n' "$all_dumps" | grep -c . || true)
+  stale=''
+  # n_dumps counts only dumps OLDER than today's, so keep (KEEP_REMOTE - 1) of them alongside it.
+  keep_old=$(( KEEP_REMOTE - 1 ))
+  if [ "$n_dumps" -gt "$keep_old" ]; then
+    stale=$(printf '%s\n' "$all_dumps" | head -n "$(( n_dumps - keep_old ))")
+  fi
+  if [ -n "$stale" ]; then
+    # ⚠️ A FAILED DELETE IS REPORTED, NOT SWALLOWED. Credentials that can write but not delete
+    # would otherwise grow the bucket forever while this printed a reassuring retention line.
+    printf '%s\n' "$stale" | while IFS= read -r f; do
+      [ -n "$f" ] || continue
+      if rclone deletefile "$REMOTE_BASE/$f" 2>/dev/null; then
+        echo "pruned off-box $f"
+      else
+        echo "WARNING: could not prune off-box $f (write-but-not-delete credentials?)"
+      fi
+    done
+  fi
+  # ⚠️ Only claim retention ran when it did — a monitor reading this line must not be told
+  # "keeping newest 3" by a run that pruned nothing because it could not see the bucket.
+  [ "$retention_ran" = yes ] && echo "off-box retention: keeping newest $KEEP_REMOTE"
 else
   echo "WARNING: no off-box copy — ENO_BACKUP_REMOTE unset (single point of failure)"
 fi
