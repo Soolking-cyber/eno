@@ -21,7 +21,7 @@ type BadgeVariant = 'overlay' | 'inline'
 const TONE: Record<BadgeKind, string> = {
   urgent: 'bg-foreground text-background', // solid slate — quietly stronger than the /85 "New"
   drop: 'bg-destructive text-destructive-foreground tabular-nums',
-  new: 'bg-foreground/85 text-background backdrop-blur-[2px]',
+  new: 'bg-foreground/85 text-background material backdrop-blur-[2px]',
 }
 
 /** One badge chip. `overlay` = sits on a photo (shadow so it reads over any image);

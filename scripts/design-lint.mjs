@@ -157,6 +157,154 @@ function checkScrollBehavior(rel, codeLines, rawLines) {
   return n
 }
 
+/**
+ * ⛔ A TRANSLUCENT SURFACE MUST BE COVERED BY THE REDUCED-TRANSPARENCY BLOCK IN globals.css.
+ * `prefers-reduced-transparency: reduce` is turned on by people for whom translucency costs
+ * legibility, and it cannot be honoured generically: dropping the blur without raising the alpha
+ * makes a `bg-black/40` control over a photo HARDER to read, not easier. So globals.css names the
+ * exact tints it covers, and this rule fails the build when a `backdrop-blur` site carries one it
+ * does not — otherwise the block silently stops covering new surfaces and nobody finds out.
+ */
+const MATERIAL_TINTS = new Set([
+  'bg-background/95', 'bg-popover/95', 'bg-card/70',
+  'bg-foreground/70', 'bg-foreground/85',
+  'bg-black/40', 'bg-black/45', 'bg-black/50', 'bg-black/55', 'bg-black/60',
+])
+
+/**
+ * ⚠️ THE UNIT IS THE ENCLOSING STRING LITERAL, NOT THE LINE AND NOT THE `className` ATTRIBUTE.
+ * Three versions of this were wrong before it settled. Per-line missed a prettier-wrapped class
+ * list (tint on one line, `backdrop-blur` on the next). A ±4-line window absorbed a SIBLING
+ * element's tint and failed valid code. And scanning back to `className=` silently SKIPPED two
+ * common shapes with no output at all: `cn(className, '…')`, where the nearest `className` is the
+ * prop reference rather than the attribute, and a class string held in an object or constant
+ * (card-badges.tsx keeps its variants that way) which is never inside an attribute in the first
+ * place. A class list always lives in one string literal; that is the thing to read.
+ */
+function stringSpans(text) {
+  const spans = []
+  for (let i = 0; i < text.length; i++) {
+    const q = text[i]
+    if (q !== '"' && q !== "'" && q !== '`') continue
+    for (let j = i + 1; j < text.length; j++) {
+      if (text[j] === '\\') { j++; continue }
+      if (text[j] === q) { spans.push([i + 1, j]); i = j; break }
+      // An unescaped newline ends a normal quote — it was never a string, so do not swallow the file.
+      if (text[j] === '\n' && q !== '`') { break }
+    }
+  }
+  return spans
+}
+
+function checkMaterials(rel, codeLines, rawLines) {
+  let n = 0
+  const text = codeLines.join('\n')
+  const spans = stringSpans(text)
+  const lineOf = (idx) => text.slice(0, idx).split('\n').length - 1
+
+  /**
+   * ⚠️ `backdrop-blur-none` IS NOT A TRANSLUCENT SURFACE — it is the utility that TURNS BLUR OFF,
+   * and `motion-reduce:backdrop-blur-none` is a considerate use of it. Matching the bare substring
+   * would demand a `material` marker on an element that has no blur to speak of.
+   */
+  for (const m of text.matchAll(/backdrop-blur(?!-none)/g)) {
+    const i = lineOf(m.index)
+    if (rawLines[i]?.includes('design-lint-allow')) continue
+    const span = spans.find(([a, b]) => a <= m.index && m.index < b)
+    /**
+     * ⚠️ NOT INSIDE A STRING = REPORT IT, NEVER SKIP IT. The earlier version returned quietly here,
+     * which is how a gate develops a hole nobody can see. If a blur utility is reached some way
+     * this cannot read, that is a finding, not a pass.
+     */
+    if (!span) {
+      n++
+      console.error(
+        `${rel}:${i + 1}  backdrop-blur outside any string literal  — this gate reads the class list ` +
+          `from its enclosing string and cannot check this one, so it cannot promise the surface is ` +
+          `covered. Put the classes in a plain string, or add design-lint-allow WITH A REASON.`,
+      )
+      continue
+    }
+    const cls = text.slice(span[0], span[1])
+
+    /**
+     * ⚠️ THE MARKER IS REQUIRED FIRST, because the CSS cannot infer it. `.material` is how a call
+     * site declares "this is a surface, make it solid" as opposed to "this is a scrim, leave it
+     * alone" — and forcing a scrim to full opacity turns a darkened photo into a black rectangle.
+     */
+    /**
+     * ⚠️ A TOKEN INSIDE `${…}` IS CONDITIONAL, SO IT CANNOT VOUCH FOR AN UNCONDITIONAL BLUR.
+     * `` `backdrop-blur ${on ? 'material bg-black/40' : ''}` `` reads as covered — every token is
+     * in the literal — but when `on` is false the element ships a blur with no marker and no tint.
+     * So when the blur itself is static, the marker must be static too. (A blur that is ALSO inside
+     * an interpolation is conditional in the same way and stands or falls with it, so this only
+     * tightens the case where the two disagree.)
+     */
+    const staticOnly = cls.replace(/\$\{[^}]*\}/g, ' ')
+    const blurIsStatic = /backdrop-blur(?!-none)/.test(staticOnly)
+    const scope = blurIsStatic ? staticOnly : cls
+    if (!/(?:^|\s)material(?:\s|$)/.test(scope)) {
+      n++
+      console.error(
+        `${rel}:${i + 1}  backdrop-blur without \`material\`  — a translucent surface must declare ` +
+          `itself. Add \`material\` beside the blur utility and the reduced-transparency / high-contrast ` +
+          `rules in globals.css will make it solid. If this is a SCRIM (a darkening layer over content, ` +
+          `not a surface holding content), it must NOT be solid — add design-lint-allow WITH A REASON.`,
+      )
+      continue
+    }
+
+    /**
+     * ⚠️ ANY MODIFIER AT ALL DISQUALIFIES THE TINT. `dark:bg-black/50`, `md:bg-card/70`,
+     * `[data-open=true]:bg-black/50`, `!bg-black/40` and `bg-black/40!` each compile to a DIFFERENT
+     * escaped selector that `.material.bg-black\/40` cannot match — so the surface would pass the
+     * gate and stay transparent for the very user this exists for. Rather than enumerate Tailwind's
+     * modifier syntax (which grows), require the token to be free-standing: whitespace or a string
+     * edge on both sides, and nothing else.
+     */
+    let covered = false
+    /**
+     * ⚠️ THE COLOUR PART TAKES DIGITS AND ARBITRARY VALUES. `bg-[a-z-]+/N` cannot see
+     * `bg-red-500/50` (digits in the palette step) or `bg-[var(--overlay)]/50`, so a material
+     * carrying `dark:bg-red-500/50` alongside one covered tint was marked covered and its dark-mode
+     * surface stayed translucent — precisely the state this gate exists to prevent.
+     */
+    for (const t of cls.matchAll(/bg-(?:\[[^\]\s]*\]|[a-z0-9-]+)\/[0-9]+/g)) {
+      const before = t.index === 0 ? ' ' : cls[t.index - 1]
+      const after = cls[t.index + t[0].length] ?? ' '
+      const bare = /\s/.test(before) && /\s/.test(after)
+      if (bare && MATERIAL_TINTS.has(t[0])) { covered = true; continue }
+      n++
+      console.error(
+        `${rel}:${i + 1}  ${t[0]} on a material  — ` +
+          (bare
+            ? `this tint is NOT covered by the material block in globals.css, so a reduced-transparency ` +
+              `user keeps the transparency. It cannot be fixed generically: removing the blur without ` +
+              `raising the alpha makes text over a photo HARDER to read. Add \`${t[0]}\` to that block ` +
+              `(tint at full opacity) and to MATERIAL_TINTS in this file.`
+            : `it carries a MODIFIER (a variant prefix, or \`!\` important), which compiles to a different ` +
+              `escaped selector that the material block cannot match. Put the tint on the material ` +
+              `element bare.`),
+      )
+    }
+
+    /**
+     * ⛔ AND A MATERIAL WITH NO TINT AT ALL IS THE WORST CASE, not a harmless one: the rules strip
+     * its blur and have no background to raise, so a reduced-transparency user is left with a MORE
+     * transparent surface than before. Silent, and strictly a regression.
+     */
+    if (!covered) {
+      n++
+      console.error(
+        `${rel}:${i + 1}  material with no covered background tint  — the rules would remove this ` +
+          `surface's blur and have no background to make solid, leaving a reduced-transparency user ` +
+          `WORSE off than before. Give it one of: ${[...MATERIAL_TINTS].join(', ')}.`,
+      )
+    }
+  }
+  return n
+}
+
 function checkPortals(rel, codeLines, rawLines) {
   if (rel.startsWith('src/components/ui/')) return 0
   if (PORTAL_ALLOW_SET.has(rel)) return 0
@@ -581,6 +729,7 @@ for (const file of walk(SRC)) {
   violations += checkRawControls(rel, lines, rawLines)
   violations += checkPortals(rel, lines, rawLines)
   violations += checkScrollBehavior(rel, lines, rawLines)
+  violations += checkMaterials(rel, lines, rawLines)
   for (const rule of RULES) {
     if (rule.allow?.has(rel)) continue
     // `raw` rules match across newlines against the ORIGINAL source (a JSX comment is

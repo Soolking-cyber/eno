@@ -1929,6 +1929,100 @@ html.dark .leaflet-tile-pane {
 }
 
 /* ============================================================
+   TRANSLUCENT MATERIALS — the two accessibility signals besides reduced-motion
+   ============================================================ */
+
+/**
+ * ⛔ 17 SURFACES USE `backdrop-blur` AND NOTHING ANSWERED `prefers-reduced-transparency`.
+ * People turn that setting on precisely because translucency costs them legibility — and the
+ * measured alphas are not decorative: `bg-black/40` gallery controls sit over an arbitrary product
+ * photo, `bg-foreground/70` badges over the same. Dropping only the blur would make those WORSE,
+ * because the blur is what kept the text readable over the noise beneath it.
+ *
+ * The rule is uniform across every surface, which is why it lives in one place: take the SAME tint
+ * to full opacity and remove the blur. No call site decides anything — a solid `--background`
+ * chrome bar, a solid black gallery control and a solid `--foreground` badge are each exactly what
+ * that surface already means, minus the transparency.
+ *
+ * ⛔⛔ THIS IS A CLASS, NOT `@media (prefers-reduced-transparency: reduce)`, AND THAT IS THE WHOLE
+ * TRAP. Written as a media query it compiles, ships, and DOES NOTHING — lightningcss down-levels a
+ * media feature that no browserslist target supports (ours floors at safari 16; the feature needs
+ * safari 17) by rewriting every selector to `:is() .bg-black\/40`. An EMPTY `:is()` matches
+ * nothing, so the rule is present in the built CSS, greps as present, reads as correct, and never
+ * applies to a single element. Two tools were falsely accused before the built file was actually
+ * read: Tailwind keeps the query, and lightningcss keeps it too when called directly — the
+ * neutering only happens with Next's own options. ⚠️ NEVER conclude a media query works because it
+ * survived into `.next`; look at what its SELECTORS became.
+ * The class is set by the blocking script in layout.tsx, so there is no flash, and it re-toggles on
+ * `change` so flipping the OS setting with the tab open takes effect immediately.
+ * `prefers-contrast: more` below is left as a real media query — it is supported at our floor, and
+ * the built CSS confirms its selectors survived intact.
+ */
+/**
+ * ⚠️ EVERY RULE BELOW REQUIRES `.material`, AND THAT MARKER IS THE WHOLE CORRECTION. The first
+ * version matched the TINT alone — `.reduce-transparency .bg-black\/40` — which reaches every
+ * element in the app carrying that class, not just the blurred ones. Three reviewers independently
+ * landed on the same consequence: a scrim is also `bg-black/N`, and forcing a scrim to full opacity
+ * turns a darkened product photo into a black rectangle. 13 unblurred elements were being caught
+ * that way. Full opacity is right for a MATERIAL and wrong for a SCRIM, and no selector can tell
+ * them apart — so the call site says which it is by carrying `material`, and design-lint requires
+ * the marker on anything with `backdrop-blur`.
+ */
+.reduce-transparency .material {
+  /**
+   * ⚠️ THE UNPREFIXED PROPERTY ONLY — WRITING THE `-webkit-` TWIN DELETES IT. lightningcss owns
+   * prefixing; hand-write both and it emits ONLY `-webkit-backdrop-filter`, dropping the standard
+   * property Firefox needs. Measured: "both written" compiles to the prefixed form alone,
+   * "unprefixed only" compiles to both. That is why the first build of this rule left every surface
+   * still blurred while its background had correctly gone opaque.
+   */
+  backdrop-filter: none !important;
+}
+.reduce-transparency .material.bg-background\/95 { background-color: var(--background) !important; }
+.reduce-transparency .material.bg-popover\/95 { background-color: var(--popover) !important; }
+.reduce-transparency .material.bg-card\/70 { background-color: var(--card) !important; }
+.reduce-transparency .material:is(.bg-foreground\/70, .bg-foreground\/85) { background-color: var(--foreground) !important; }
+.reduce-transparency .material:is(.bg-black\/40, .bg-black\/45, .bg-black\/50, .bg-black\/55, .bg-black\/60) { background-color: #000 !important; }
+
+/**
+ * `prefers-contrast: more` wants a DEFINED EDGE, not just a solid fill. A control that reads as
+ * floating only because it is blurred has no boundary at all once the blur is gone, so it gets an
+ * explicit border in the current ink — the surface stops being a suggestion and becomes a shape.
+ * ⚠️ This one stays a real media query, deliberately: `prefers-contrast` IS supported at our
+ * browserslist floor, and the built CSS confirms its selectors survived intact — unlike
+ * `prefers-reduced-transparency` above, which compiled to an empty `:is()` and had to become a
+ * class. Check the built file before assuming either way.
+ */
+@media (prefers-contrast: more) {
+  .material {
+    /* Unprefixed only — see the note above; writing the -webkit- twin deletes this line. */
+    backdrop-filter: none !important;
+  }
+  /**
+   * ⚠️ THE EDGE IS FOR THE RESTING STATE ONLY — `:not(:focus-visible)` OR THIS ERASES THE FOCUS
+   * RING. The app draws keyboard focus with `outline` (see the focus block above; modern browsers
+   * render it along the radius), and two materials are focusable: the lightbox Mute button and the
+   * video-feed close. An unconditional `outline: 1px solid currentColor` here outranks a layered
+   * `focus-visible:outline-*` utility, so a keyboard user with high contrast on would tab to the
+   * button and see exactly the same 1px line as at rest — an accessibility rule quietly deleting an
+   * accessibility affordance, for the same person. Focus takes the element back.
+   */
+  .material:not(:focus-visible) {
+    outline: 1px solid currentColor;
+    outline-offset: -1px;
+  }
+  /* ⚠️ AND THE FILL GOES SOLID TOO, not just the border. A defined edge around a surface you can
+     still see through is half an answer: the text inside is still competing with whatever is
+     behind it. Duplicated rather than shared with the block above because the two preferences are
+     independent — a user can have either one without the other. */
+  .material.bg-background\/95 { background-color: var(--background) !important; }
+  .material.bg-popover\/95 { background-color: var(--popover) !important; }
+  .material.bg-card\/70 { background-color: var(--card) !important; }
+  .material:is(.bg-foreground\/70, .bg-foreground\/85) { background-color: var(--foreground) !important; }
+  .material:is(.bg-black\/40, .bg-black\/45, .bg-black\/50, .bg-black\/55, .bg-black\/60) { background-color: #000 !important; }
+}
+
+/* ============================================================
    ACCESSIBILITY — honor reduced-motion preference
    ============================================================ */
 @media (prefers-reduced-motion: reduce) {

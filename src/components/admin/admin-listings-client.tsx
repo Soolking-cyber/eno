@@ -257,7 +257,7 @@ export function AdminListingsClient() {
       </div>
 
       {/* Batch action bar */}
-      <div className="sticky top-0 z-10 mt-4 flex flex-wrap items-center gap-1 rounded-xl bg-popover/95 px-2 py-2 shadow-pop backdrop-blur">
+      <div className="sticky top-0 z-10 mt-4 flex flex-wrap items-center gap-1 rounded-xl bg-popover/95 px-2 py-2 shadow-pop material backdrop-blur">
         <label className="flex items-center gap-2 px-2 text-sm font-semibold text-body">
           <Checkbox checked={allSelected} indeterminate={sel.size > 0 && !allSelected} onChange={toggleAll} />
           {sel.size > 0 ? `${sel.size} selected` : 'Select all'}

@@ -211,7 +211,7 @@ export function SortStrip({
         // sizes, 32px at lg — and read as a rule that missed the banner and cards it was supposed to
         // sit under (owner, 2026-08-13: "shorten this hairline to match the banner length").
         // The BACKGROUND still bleeds; only the line is inset. Keep them separate.
-        'sticky z-30 bg-background/95 backdrop-blur transition-[top] duration-[var(--duration-sticky,250ms)] ease-out motion-reduce:transition-none',
+        'sticky z-30 bg-background/95 material backdrop-blur transition-[top] duration-[var(--duration-sticky,250ms)] ease-out motion-reduce:transition-none',
         // ⚠️ THIS BAR LEAVES WITH THE HEADER NOW, IT DOES NOT TAKE ITS PLACE (owner, 2026-08-12:
         // "on mobile and desktop when scroll up make these disappear and appear together with top
         // navbar" … "otherwise it should be there on home screen"). It used to swap `top` between

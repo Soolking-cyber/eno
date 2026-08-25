@@ -664,7 +664,7 @@ function ListingCardImpl({
         {(listing.video || savedTotal >= 3) && (
           <span className="pointer-events-none absolute left-2 bottom-2 z-10 flex items-center gap-1.5">
             {listing.video && (
-              <span title={tr('Has a video', 'Có video')} className="flex h-5 items-center rounded-full bg-foreground/70 px-1.5 text-background backdrop-blur-[2px]">
+              <span title={tr('Has a video', 'Có video')} className="flex h-5 items-center rounded-full bg-foreground/70 px-1.5 text-background material backdrop-blur-[2px]">
                 {/* Filled micro-mark (icon-language §2 spirit: a 2-weight line vanishes at
                     this size inside a filled chip) at the ladder's 12px micro step. */}
                 <Play className="h-3 w-3 fill-current" />
@@ -673,7 +673,7 @@ function ListingCardImpl({
             {/* base savedCount persists server-side (real saves); savedDelta adds this
                 session's own toggle so it moves the moment the heart is tapped. */}
             {savedTotal >= 3 && (
-              <span title={tr('people saved this', 'người đã lưu tin này')} className="flex h-5 items-center gap-1 rounded-full bg-foreground/70 px-2 text-3xs font-bold text-background backdrop-blur-[2px]">
+              <span title={tr('people saved this', 'người đã lưu tin này')} className="flex h-5 items-center gap-1 rounded-full bg-foreground/70 px-2 text-3xs font-bold text-background material backdrop-blur-[2px]">
                 <Heart className="h-3 w-3 fill-current" /> {new Intl.NumberFormat(moneyLocale(lang) === 'vi' ? 'vi-VN' : 'en-US').format(savedTotal)}
               </span>
             )}
@@ -824,7 +824,7 @@ function ListingCardImpl({
         {quickOffer !== null && (
           <div
             onClick={(e) => e.stopPropagation()}
-            className="absolute inset-x-1 top-1/2 z-20 flex -translate-y-1/2 flex-col gap-1.5 rounded-xl bg-popover/95 p-2 shadow-pop backdrop-blur-[2px] animate-in slide-in-from-right-2 fade-in duration-150 ease-out"
+            className="absolute inset-x-1 top-1/2 z-20 flex -translate-y-1/2 flex-col gap-1.5 rounded-xl bg-popover/95 p-2 shadow-pop material backdrop-blur-[2px] animate-in slide-in-from-right-2 fade-in duration-150 ease-out"
           >
             <div className="flex items-center gap-2">
               <span className="shrink-0 text-2xs font-bold tabular-nums text-foreground">−{quickOffer}%</span>

@@ -160,7 +160,7 @@ export function VideoFeed({
           // The baked tap-44 lifts the 40×40 glyph to a 44px hit target; `fixed` MUST stay here in
           // className — it's what beats the primitive's baked `relative` (twMerge, last wins) and
           // positions the ::before hit area correctly.
-          className="fixed left-4 top-[calc(env(safe-area-inset-top)+1rem)] z-[70] bg-black/40 text-white backdrop-blur transition-transform hover:scale-105 active:scale-[0.96]"
+          className="fixed left-4 top-[calc(env(safe-area-inset-top)+1rem)] z-[70] bg-black/40 text-white material backdrop-blur transition-transform hover:scale-105 active:scale-[0.96]"
         >
           {/* Takeover chrome = the platform weight at the header's h-6 step (§2/§4) —
               this ✕ is the same control as the header/lightbox close, so same tier. */}
@@ -349,7 +349,7 @@ function VideoFeedItem({
             // frame on every tap-to-play.
             className="absolute inset-0 z-10 flex items-center justify-center active:scale-100"
           >
-            <span className="flex h-16 w-16 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur-[2px]">
+            <span className="flex h-16 w-16 items-center justify-center rounded-full bg-black/45 text-white material backdrop-blur-[2px]">
               {/* Filled play mark, h-7 (the ladder's 28px step — h-8 is off-grid). */}
               <Play className="h-7 w-7 fill-current" />
             </span>

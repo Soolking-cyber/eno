@@ -189,7 +189,7 @@ function MapCredit({ className }: { className?: string }) {
         // ancestor, and two 44px hit areas 4px apart would also swallow each other. A footnote link
         // is not a primary control — the sentence it replaces was not 44px either, so nothing
         // regressed — but if these ever need proper targets, position them first.
-        'pointer-events-none absolute z-[800] flex items-center gap-1 rounded-lg bg-card/70 px-1 py-px text-3xs leading-none text-ink-4/80 backdrop-blur-[2px]',
+        'pointer-events-none absolute z-[800] flex items-center gap-1 rounded-lg bg-card/70 px-1 py-px text-3xs leading-none text-ink-4/80 material backdrop-blur-[2px]',
         className,
       )}
     >

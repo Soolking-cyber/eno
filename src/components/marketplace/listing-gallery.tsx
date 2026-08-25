@@ -121,7 +121,7 @@ function GalleryVideo({ src, poster, className }: { src: string; poster?: string
       )}
       {/* z-10: the cover overlay is z-[5] and would otherwise paint over this z-auto chip
           (permanently, for needsTap viewers whose cover never reveals). */}
-      <span className="pointer-events-none absolute left-2 top-2 z-10 flex items-center gap-1 rounded-lg bg-black/55 px-1.5 py-0.5 text-2xs font-bold text-white backdrop-blur-[2px]">
+      <span className="pointer-events-none absolute left-2 top-2 z-10 flex items-center gap-1 rounded-lg bg-black/55 px-1.5 py-0.5 text-2xs font-bold text-white material backdrop-blur-[2px]">
         <Play className="h-3 w-3 fill-current" /> {tr('Video', 'Video')}
       </span>
       {showPlayGlyph && (
@@ -133,7 +133,7 @@ function GalleryVideo({ src, poster, className }: { src: string; poster?: string
           aria-label={tr('Play video', 'Phát video')}
           className="absolute inset-0 z-10 flex items-center justify-center cursor-pointer active:scale-100"
         >
-          <span className="flex h-14 w-14 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur-[2px]">
+          <span className="flex h-14 w-14 items-center justify-center rounded-full bg-black/45 text-white material backdrop-blur-[2px]">
             <Play className="h-7 w-7 fill-current" />
           </span>
         </Button>
@@ -142,7 +142,7 @@ function GalleryVideo({ src, poster, className }: { src: string; poster?: string
         size="sm"
         aria-label={muted ? tr('Unmute', 'Bật tiếng') : tr('Mute', 'Tắt tiếng')}
         onClick={(e) => { e.stopPropagation(); setMuted((m) => !m) }}
-        className="absolute bottom-2 left-2 z-20 bg-black/50 text-white backdrop-blur-[2px] transition-transform active:scale-[0.96]"
+        className="absolute bottom-2 left-2 z-20 bg-black/50 text-white material backdrop-blur-[2px] transition-transform active:scale-[0.96]"
       >
         {muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
       </IconButton>
@@ -607,7 +607,7 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
               className="absolute inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+1rem)] flex justify-center px-4"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="scrollbar-none flex max-w-full gap-2 overflow-x-auto rounded-2xl bg-black/40 p-2 backdrop-blur-sm">
+              <div className="scrollbar-none flex max-w-full gap-2 overflow-x-auto rounded-2xl bg-black/40 p-2 material backdrop-blur-sm">
                 {images.map((img, i) => (
                   <Button
                     key={i}

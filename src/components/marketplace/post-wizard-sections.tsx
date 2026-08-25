@@ -261,7 +261,7 @@ export function MediaSection({
           {video ? (
             <div className="group relative h-full w-full overflow-hidden rounded-xl bg-black">
               <video src={video.url} muted loop autoPlay playsInline preload="metadata" className="h-full w-full object-cover" />
-              <span className="pointer-events-none absolute left-1.5 top-1.5 flex items-center gap-1 rounded-lg bg-black/60 px-1.5 py-0.5 text-3xs font-bold text-white backdrop-blur-[2px]">
+              <span className="pointer-events-none absolute left-1.5 top-1.5 flex items-center gap-1 rounded-lg bg-black/60 px-1.5 py-0.5 text-3xs font-bold text-white material backdrop-blur-[2px]">
                 <Video className="h-3 w-3" /> {t('Video', 'Video')}
               </span>
               <IconButton size="xs" variant="overlay" aria-label={t('Xóa video', 'Remove video')} onClick={removeVideo} className="absolute right-1 top-1 h-6 w-6">

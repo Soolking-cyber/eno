@@ -476,7 +476,7 @@ export function StickyActionBar({
         // A hairline top edge, not a shadow: the flat language separates with a line, and this
         // is the same treatment <MobileNav> gives the app's other bottom edge. `hairline-t`
         // needs a positioned host and `fixed` is one.
-        'hairline-t bg-background/95 backdrop-blur-md',
+        'hairline-t bg-background/95 material backdrop-blur-md',
         // Safe area + keyboard, once. See the `.kb-bottom` note at the top of this file.
         'kb-bottom [--kb-bottom-extra:var(--sticky-action-bar-offset,0px)]',
         '[html.kb-open_&]:[--kb-bottom-extra:0px]',

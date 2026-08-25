@@ -282,7 +282,7 @@ function MapCredit({ className }: { className?: string }) {
         // Same footnote treatment as the marketplace map's credit — kept in step deliberately:
         // these two MapCredit components are duplicated, and a restyle that lands in only one
         // leaves the same legal notice looking like two different things on two maps.
-        `pointer-events-none absolute ${OVERLAY_Z} flex items-center gap-1 rounded-lg bg-card/70 px-1 py-px text-3xs leading-none text-ink-4/80 backdrop-blur-[2px]`,
+        `pointer-events-none absolute ${OVERLAY_Z} flex items-center gap-1 rounded-lg bg-card/70 px-1 py-px text-3xs leading-none text-ink-4/80 material backdrop-blur-[2px]`,
         className,
       )}
     >
