@@ -263,7 +263,7 @@ export function RemovableBadge({
             that rule a primitive happens to carry. (Measured: ui/icon-button ships NO svg rule
             at all today — it wraps Base UI's Button, not ui/button — so this is insurance
             against a future recomposition, not a live fix.) */}
-        <X className="size-3.5" />
+        <X className="h-[29px] w-[29px] shrink-0" />
       </IconButton>
     </Badge>
   )

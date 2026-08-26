@@ -2537,7 +2537,7 @@ export default function ThreadPage() {
                 aria-label={tr('Cancel reply', 'Hủy trả lời')}
                 className="shrink-0 text-ink-4 hover:bg-muted"
               >
-                <X className="h-4 w-4" aria-hidden />
+                <X className="h-[33px] w-[33px] shrink-0" aria-hidden />
               </IconButton>
             </div>
           )}

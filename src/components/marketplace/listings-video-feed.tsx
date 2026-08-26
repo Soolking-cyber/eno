@@ -164,7 +164,7 @@ export function VideoFeed({
         >
           {/* Takeover chrome = the platform weight at the header's h-6 step (§2/§4) —
               this ✕ is the same control as the header/lightbox close, so same tier. */}
-          <X className="h-6 w-6" strokeWidth={STROKE_NAV} />
+          <X className="h-[42px] w-[42px] shrink-0" strokeWidth={STROKE_NAV} />
         </IconButton>
         {children}
       </div>,

@@ -531,7 +531,7 @@ export function Header() {
                   // for a 48px hit area — forgiving for kids / fast scrollers — with no size change.
                   className="mr-0.5 tap-48 text-ink-4 transition-colors hover:bg-muted hover:text-foreground"
                 >
-                  <X className="h-6 w-6" strokeWidth={STROKE} />
+                  <X className="h-[38px] w-[38px] shrink-0" strokeWidth={STROKE} />
                 </IconButton>
               ) : null) : (
                 <>

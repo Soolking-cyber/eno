@@ -488,7 +488,7 @@ export function FacetBar({
               <div className="mb-3 flex items-center justify-between">
                 <span className="text-sm font-bold text-foreground">{tr('Filters', 'Bộ lọc')}</span>
                 <IconButton size="xs" onClick={() => setAdvOpen(false)} aria-label={tr('Close', 'Đóng')} className="h-6 w-6 text-ink-4 hover:bg-muted hover:text-foreground">
-                  <X className="h-4 w-4" />
+                  <X className="h-[29px] w-[29px] shrink-0" />
                 </IconButton>
               </div>
               <div className="space-y-3.5">

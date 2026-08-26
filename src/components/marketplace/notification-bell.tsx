@@ -189,7 +189,7 @@ export function NotificationBell() {
                     aria-label={tr('Delete notification', 'Xóa thông báo')}
                     className="absolute right-2 top-1/2 -translate-y-1/2 text-ink-4 opacity-0 transition-opacity hover:bg-accent hover:text-foreground group-hover:opacity-100 focus:opacity-100 max-sm:opacity-100"
                   >
-                    <X className="h-3.5 w-3.5" />
+                    <X className="h-[29px] w-[29px] shrink-0" />
                   </IconButton>
                 </div>
               )

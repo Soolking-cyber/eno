@@ -170,7 +170,7 @@ export function MediaSection({
               </Button>
             )}
             <IconButton size="xs" variant="overlay" aria-label={t('Xóa ảnh', 'Remove photo')} onClick={() => { URL.revokeObjectURL(p.url); setPhotos((arr) => arr.filter((_, j) => j !== i)) }} className="absolute right-1 top-1 h-6 w-6">
-              <X className="h-4 w-4" />
+              <X className="h-[29px] w-[29px] shrink-0" />
             </IconButton>
             {/* Reframe / keep-full — only on a NEW photo (edit-mode hosted images have no source
                 to re-crop). Always visible (mobile can't hover); the label says the current state. */}
@@ -265,7 +265,7 @@ export function MediaSection({
                 <Video className="h-3 w-3" /> {t('Video', 'Video')}
               </span>
               <IconButton size="xs" variant="overlay" aria-label={t('Xóa video', 'Remove video')} onClick={removeVideo} className="absolute right-1 top-1 h-6 w-6">
-                <X className="h-4 w-4" />
+                <X className="h-[29px] w-[29px] shrink-0" />
               </IconButton>
             </div>
           ) : (

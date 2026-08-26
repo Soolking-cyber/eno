@@ -307,7 +307,7 @@ export function ExplorerFiltersDrawer({
             aria-label={tr('Close', 'Đóng')}
             className="bg-tint text-ink-3 hover:bg-line-strong active:scale-[0.96]"
           >
-            <X className="h-4 w-4" />
+            <X className="h-[29px] w-[29px] shrink-0" />
           </IconButton>
         </DrawerHeader>
 

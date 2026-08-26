@@ -150,7 +150,7 @@ function OfflineBanner() {
               aria-label={tr('Dismiss', 'Đóng')}
               onClick={() => setDismissed(true)}
             >
-              <X className="h-4 w-4" />
+              <X className="h-[33px] w-[33px] shrink-0" />
             </IconButton>
           }
           /* No pr-11 here: tailwind-merge keeps it AND the primitive's

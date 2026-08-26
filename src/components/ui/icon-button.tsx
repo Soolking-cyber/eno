@@ -50,6 +50,23 @@ import { cn } from '@/lib/utils'
 //                        instead. Default stays `true`.
 //
 // Still NOT for: badge/decorative spans, nav tabs, brand-filled FABs — those stay bespoke.
+/**
+ * ⚠️ THE CLOSE MARK IS SIZED TO ITS BUTTON, AND THE NUMBER IS NOT THE BUTTON'S SIZE. Owner,
+ * 2026-08-26: *"make this icon fit its outline everywhere across the app"* — pointing at a ✕ that
+ * was 20px inside a 40px button. The ✕ now fills every IconButton it owns, at 19 call sites.
+ *
+ * ⛔ A GLYPH DOES NOT PAINT ITS OWN BOX, so `h-10` in an `h-10` button leaves a visible ring, not a
+ * flush mark. Measured off rendered pixels: Solar's ✕ inks 90.0% of its box (90px at box 100).
+ * The rule is therefore `glyph = round((button - 2) / 0.9)`, which lands ~1px of INK inside the
+ * button edge — the glyph box deliberately OVERFLOWS the button by a few px and paints nothing there:
+ *   xs 28px → 29px    sm 32px → 33px    md 36px → 38px    lg 40px → 42px
+ * ⚠️ 0.9 IS THIS GLYPH'S NUMBER AND DOES NOT TRANSFER. Measured the same week: question-square
+ * needed box 50 for a 1px gap in a 44px plate, dialog-2 needed 46. Re-measure per icon; the
+ * sprite's own bbox is not a shortcut (it predicted 42 where the page rendered 40).
+ * ⚠️ A PERCENTAGE RULE WAS THE OBVIOUS SHAPE AND IS WRONG HERE — `review-prompt` gives its
+ * IconButton `h-auto w-auto p-1`, so a `width: 104%` glyph sizes against a box that is sized by the
+ * glyph. That one site is deliberately left alone: with no fixed box there is no outline to fit.
+ */
 const SIZES = {
   xs: 'h-7 w-7',
   sm: 'h-8 w-8',

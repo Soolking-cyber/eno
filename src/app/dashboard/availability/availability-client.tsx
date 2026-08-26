@@ -120,7 +120,7 @@ export function AvailabilityClient() {
             <DialogPrimitive.Close
               render={<IconButton aria-label={tr('Close', 'Đóng')} className="absolute right-3 top-3 text-ink-4 transition-colors hover:bg-muted" />}
             >
-              <X className="h-5 w-5" />
+              <X className="h-[38px] w-[38px] shrink-0" />
             </DialogPrimitive.Close>
           </div>
 

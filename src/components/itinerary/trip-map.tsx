@@ -679,7 +679,7 @@ export function TripMapDrawer(props: Props & { triggerClassName?: string }) {
           <DrawerHeader className="flex-row items-center justify-between border-b border-border/80 pb-2.5">
             <DrawerTitle>{tr('Trip map', 'Bản đồ chuyến đi')}</DrawerTitle>
             <IconButton size="xs" onClick={() => setOpen(false)} aria-label={tr('Close', 'Đóng')} className="bg-tint text-ink-3">
-              <X className="h-4 w-4" />
+              <X className="h-[29px] w-[29px] shrink-0" />
             </IconButton>
           </DrawerHeader>
           {/* A definite height: Leaflet cannot size itself inside a flex child with no basis,

@@ -103,7 +103,7 @@ export function InstallHint() {
           onClick={dismiss}
           className="text-ink-4 transition-colors hover:bg-muted"
         >
-          <X className="h-4 w-4" />
+          <X className="h-[33px] w-[33px] shrink-0" />
         </IconButton>
       </div>
     </div>

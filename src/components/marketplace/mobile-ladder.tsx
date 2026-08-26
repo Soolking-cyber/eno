@@ -916,7 +916,7 @@ export function MobileLadder({
               onClick={onClear}
               className="shrink-0 text-body transition-colors hover:text-foreground"
             >
-              <X className="h-5 w-5" strokeWidth={STROKE_UI} />
+              <X className="h-[42px] w-[42px] shrink-0" strokeWidth={STROKE_UI} />
             </IconButton>
           )}
         </div>

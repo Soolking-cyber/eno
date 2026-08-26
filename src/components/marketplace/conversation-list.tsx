@@ -219,7 +219,7 @@ export function ConversationList() {
                 {confirmId === c.id ? (
                   <div className="flex shrink-0 items-center gap-1 pr-2 pl-1">
                     <Button variant="destructive" size="none" onClick={() => { deleteConvo(c.id); setConfirmId(null) }} className="cursor-pointer rounded-xl px-3 py-1.5 text-xs font-bold text-white active:scale-[0.96]">{tr('Delete', 'Xóa')}</Button>
-                    <IconButton size="xs" onClick={() => setConfirmId(null)} aria-label={tr('Cancel', 'Hủy')} className="text-ink-4 hover:text-foreground"><X className="h-4 w-4" /></IconButton>
+                    <IconButton size="xs" onClick={() => setConfirmId(null)} aria-label={tr('Cancel', 'Hủy')} className="text-ink-4 hover:text-foreground"><X className="h-[29px] w-[29px] shrink-0" /></IconButton>
                   </div>
                 ) : (
                   <IconButton

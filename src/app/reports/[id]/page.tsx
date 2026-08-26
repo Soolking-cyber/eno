@@ -100,7 +100,7 @@ export default function ReportSupplementPage() {
               {files.map((f, i) => (
                 <div key={i} className="relative h-20 w-20 overflow-hidden rounded-xl bg-tint">
                   <img src={f.url} alt="" className="h-full w-full object-cover" />
-                  <IconButton size="xs" tapTarget={false} onClick={() => removeFile(i)} aria-label={t('Remove', 'Xóa')} className="absolute right-0.5 top-0.5 size-5 bg-black/60 text-white"><X className="h-3 w-3" /></IconButton>
+                  <IconButton size="xs" tapTarget={false} onClick={() => removeFile(i)} aria-label={t('Remove', 'Xóa')} className="absolute right-0.5 top-0.5 size-5 bg-black/60 text-white"><X className="h-[29px] w-[29px] shrink-0" /></IconButton>
                 </div>
               ))}
               {files.length < 6 && (

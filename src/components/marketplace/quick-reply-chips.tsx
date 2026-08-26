@@ -135,7 +135,7 @@ export function QuickReplyChips({
             aria-label={tr('Dismiss', 'Đóng')}
             className="text-ink-4 transition-colors hover:text-foreground"
           >
-            <X className="h-3.5 w-3.5" />
+            <X className="h-[29px] w-[29px] shrink-0" />
           </IconButton>
         </div>
       )}

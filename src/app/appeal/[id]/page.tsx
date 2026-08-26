@@ -95,7 +95,7 @@ export default function AppealPage() {
                   <img src={f.url} alt="" className="h-full w-full object-cover" />
                   {/* IconButton, mirroring the sibling /reports/[id] tile exactly — the two
                       supplement pages are one pattern and must stay byte-identical here. */}
-                  <IconButton size="xs" tapTarget={false} onClick={() => removeFile(i)} aria-label={t('Remove', 'Xóa')} className="absolute right-0.5 top-0.5 size-5 bg-black/60 text-white"><X className="h-3 w-3" /></IconButton>
+                  <IconButton size="xs" tapTarget={false} onClick={() => removeFile(i)} aria-label={t('Remove', 'Xóa')} className="absolute right-0.5 top-0.5 size-5 bg-black/60 text-white"><X className="h-[29px] w-[29px] shrink-0" /></IconButton>
                 </div>
               ))}
               {files.length < 6 && (

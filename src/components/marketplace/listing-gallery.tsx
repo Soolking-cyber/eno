@@ -464,7 +464,7 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
             // edge-to-edge, so a bare top-4 puts Close under the Dynamic Island. 0 on web.
             className="absolute right-4 top-[calc(env(safe-area-inset-top)+1rem)] icon-shadow-brand"
           >
-            <X className="h-5 w-5" />
+            <X className="h-[42px] w-[42px] shrink-0" />
           </IconButton>
 
           <div
