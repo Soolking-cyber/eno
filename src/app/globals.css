@@ -2632,3 +2632,27 @@ html.dark .leaflet-tile-pane {
   filter: drop-shadow(0 1px 2px var(--destructive));
   filter: drop-shadow(0 1px 2px color-mix(in oklab, var(--destructive) 55%, transparent));
 }
+
+/* ── The footer's "here now" dot ────────────────────────────────────────────────
+   A slow ring breathing out of a solid dot, so the live number reads as live
+   without asking to be looked at.
+
+   ⛔ NOT `animate-pulse`, AND THAT BAN IS WRITTEN IN THREE OTHER FILES HERE.
+   Tailwind's pulse fades the whole SUBTREE to 50% opacity; on this row that
+   subtree is a bold number and a 10px uppercase label, both of which drop below
+   contrast for half of every cycle. This animates `box-shadow` on the dot alone —
+   the dot's own ring grows and fades, and no text ever changes opacity.
+
+   ⚠️ OPT-IN under `no-preference`, not opt-out under `reduce`. The global
+   reduced-motion block kills `animation` app-wide, so an opt-out rule would work
+   today and silently start animating the day that selector is narrowed. Written
+   this way the animation cannot exist for a reader who asked for less motion,
+   whatever else changes. The dot itself stays solid and visible either way. */
+@keyframes live-dot-ring {
+  0%   { box-shadow: 0 0 0 0 color-mix(in oklab, var(--success) 55%, transparent); }
+  70%  { box-shadow: 0 0 0 5px color-mix(in oklab, var(--success) 0%, transparent); }
+  100% { box-shadow: 0 0 0 0 color-mix(in oklab, var(--success) 0%, transparent); }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .live-dot { animation: live-dot-ring 2.4s var(--ease-spring) infinite; }
+}
