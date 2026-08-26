@@ -94,7 +94,14 @@ export function ProfileEditor({ profile, onSaved }: { profile: Profile; onSaved:
             with ink-line Plus is the Vinted/Carousell avatar-edit idiom; the ring-2
             ring-background cutout still separates it from the photo underneath. */}
         <span className="absolute -bottom-0.5 -right-0.5 flex h-7 w-7 items-center justify-center rounded-full border border-line-strong bg-card text-body ring-2 ring-background transition-transform group-hover:scale-105">
-          {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+          {/* ⚠️ 29px INSIDE A 28px PLATE IS THE RULE, NOT A TYPO (owner, 2026-08-26: "make it fit
+              the plate behind"). Solar's mark inks ~0.90 of its box, so `glyph = round((plate - 2)
+              / 0.9)` puts ~1px of INK inside the edge; the box overflows and paints nothing there.
+              Same arithmetic as the close ✕ at this size — see ui/icon-button.tsx.
+              ⚠️ THE SPINNER DELIBERATELY DOES NOT MATCH. It is a ring, not a glyph with margin, so
+              the 0.9 factor does not apply to it, and a spinner inset from its plate is the
+              conventional read for "working" — it also only shows during an upload. */}
+          {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-[29px] w-[29px] shrink-0" />}
         </span>
         <input type="file" accept="image/jpeg,image/png,image/webp,.heic,.heif" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadPhoto(f) }} />
       </label>

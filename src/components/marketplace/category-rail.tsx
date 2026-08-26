@@ -11,7 +11,6 @@ import { MoreOverflow } from './more-overflow'
 import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
 import { STROKE_UI } from '@/lib/icon-tokens'
-import { railEdgeMask } from './shelf'
 import { useScrollArrows, ScrollArrows } from '@/hooks/use-scroll-arrows'
 import { cn } from '@/lib/utils'
 import type { SerializedCategory } from '@/lib/types'
@@ -258,8 +257,12 @@ export function CategoryRail({
       // overscroll-x-contain: a sideways flick that hits either end must not CHAIN out to an
       // ancestor scroller / the iOS WebView's swipe-back. It does not (and cannot) stop a swipe
       // that STARTS in the system edge gutter — see the note on RAIL_SCROLLER in shelf.tsx.
-      // railEdgeMask: fade — never hard-clip — the tile at the cut edge (see shelf.tsx).
-      style={railEdgeMask(canLeft, canRight)}
+      // ⛔ NO EDGE-FADE MASK HERE. `railEdgeMask` used to spread a linear-gradient mask onto this
+      // scroller so the tile at the cut edge dissolved instead of being sliced. Owner removed it
+      // 2026-08-26: *"remove these effects on sides of category model rails the cloudy effect"*.
+      // ⚠️ The trade is deliberate and known: the tile at the edge now HARD-CLIPS. Do not
+      // reintroduce a mask (or a painted gradient overlay — the flat canon bans new fills) as a
+      // "fix" for that clipping; it is the requested appearance.
       /* ⚠️ role+label ON THE SCROLLER. A bare overflow-x div is an UNNAMED scrollable region:
          a screen-reader user arrives in a run of buttons with nothing saying what the run IS.
          `group`, not `toolbar` — these are filters, and toolbar semantics would also claim the

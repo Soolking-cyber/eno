@@ -7,7 +7,6 @@ import { Button } from '@/components/ui/button'
 import { BrandLogo } from './brand-logo'
 import { CountChip, optionCount, railDimension } from './count-chip'
 import { MoreOverflow } from './more-overflow'
-import { railEdgeMask } from './shelf'
 import { useScrollArrows, ScrollArrows } from '@/hooks/use-scroll-arrows'
 // Type only — erased at compile time, so the client bundle never reaches for the module's
 // Prisma/`server-only` chain. Imported rather than restated so the rail's prop and the payload
@@ -244,8 +243,12 @@ export function BrandRail({
       // overscroll-x-contain: a sideways flick that hits either end must not CHAIN out to an
       // ancestor scroller / the iOS WebView's swipe-back. It does not (and cannot) stop a swipe
       // that STARTS in the system edge gutter — see the note on RAIL_SCROLLER in shelf.tsx.
-      // railEdgeMask: fade — never hard-clip — the tile at the cut edge (see shelf.tsx).
-      style={railEdgeMask(canLeft, canRight)}
+      // ⛔ NO EDGE-FADE MASK HERE. `railEdgeMask` used to spread a linear-gradient mask onto this
+      // scroller so the tile at the cut edge dissolved instead of being sliced. Owner removed it
+      // 2026-08-26: *"remove these effects on sides of category model rails the cloudy effect"*.
+      // ⚠️ The trade is deliberate and known: the tile at the edge now HARD-CLIPS. Do not
+      // reintroduce a mask (or a painted gradient overlay — the flat canon bans new fills) as a
+      // "fix" for that clipping; it is the requested appearance.
       /* role+label, same reason as category-rail: an overflow-x div is an unnamed scrollable
          region, so a screen-reader user lands in a run of buttons with nothing naming it. */
       role="group"

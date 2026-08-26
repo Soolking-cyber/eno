@@ -11,7 +11,6 @@ import type { DimensionCounts } from '@/lib/facet-counts'
 import { STROKE_UI } from '@/lib/icon-tokens'
 import { cn } from '@/lib/utils'
 import { formatCount, moneyLocale, type MoneyLocale } from '@/lib/vnd'
-import { railEdgeMask } from './shelf'
 
 /**
  * The breadcrumb separator, as a CONST rather than a literal in JSX.
@@ -494,12 +493,14 @@ function LadderRail({ level }: { level: LadderLevel }) {
     <div role="group" aria-label={level.label} data-ladder-level={level.id} className="relative">
       <div
         ref={scrollerRef}
-        // railEdgeMask — the repo's ONE edge treatment (shelf.tsx): a MASK, never a painted
-        // overlay (the flat canon bans new fills), fading ONLY the side that can still scroll,
-        // so the first chip is never dimmed at rest and the fade disappears once the row fits.
-        // ScrollArrows is the same rule for the pointer affordance: each chevron renders solely
-        // when there is room to scroll THAT way, and neither renders on touch.
-        style={railEdgeMask(canLeft, canRight)}
+        // ScrollArrows is the pointer affordance for this row: each chevron renders solely when
+        // there is room to scroll THAT way, and neither renders on touch.
+        // ⛔ NO EDGE-FADE MASK HERE. `railEdgeMask` used to spread a linear-gradient mask onto this
+        // scroller so the tile at the cut edge dissolved instead of being sliced. Owner removed it
+        // 2026-08-26: *"remove these effects on sides of category model rails the cloudy effect"*.
+        // ⚠️ The trade is deliberate and known: the tile at the edge now HARD-CLIPS. Do not
+        // reintroduce a mask (or a painted gradient overlay — the flat canon bans new fills) as a
+        // "fix" for that clipping; it is the requested appearance.
         // overscroll-x-contain keeps a sideways flick that hits either end INSIDE this row
         // instead of chaining out to an ancestor scroller / the iOS WebView swipe-back. It
         // cannot suppress a drag that STARTS in the system edge gutter — see RAIL_SCROLLER.

@@ -42,19 +42,16 @@ export const SECTION_SEE_ALL =
    single inherited stroke-width would either miss both layers or flatten the tint into
    the line. The re-tier is a prop: <CategoryIcon stroke={STROKE_UI}>. */
 
-/** Edge-fade for a hidden-scrollbar rail — a MASK, never a painted overlay (the flat canon
- *  bans new fills; a mask only lets the canvas through, in any theme). Clipping a tile
- *  mid-glyph at the container edge reads as a rendering bug; fading it reads as "more this
- *  way". Fades ONLY the side(s) that can still scroll — driven by useScrollArrows'
- *  canLeft/canRight — so the first tile is never dimmed at rest and the fade disappears
- *  entirely once a row fits. Spread onto the scroller's `style`. */
-export function railEdgeMask(canLeft: boolean, canRight: boolean): CSSProperties | undefined {
-  if (!canLeft && !canRight) return undefined
-  const from = canLeft ? 'transparent, black 2.5rem' : 'black'
-  const to = canRight ? 'black calc(100% - 2.5rem), transparent' : 'black'
-  const maskImage = `linear-gradient(to right, ${from}, ${to})`
-  return { WebkitMaskImage: maskImage, maskImage }
-}
+/* ⛔ `railEdgeMask` WAS DELETED 2026-08-26 — do not re-add it. It spread a
+   `linear-gradient` mask onto a rail's scroller so the tile at the cut edge faded instead of being
+   sliced, driven by useScrollArrows' canLeft/canRight. Owner: *"remove these effects on sides of
+   category model rails the cloudy effect"*.
+   ⚠️ Its stated reason still stands and was accepted as a trade, not refuted: a tile clipped
+   mid-glyph at the container edge does read as a rendering bug. The rails hard-clip now, on
+   purpose. A painted gradient overlay is not the workaround either — the flat canon bans new fills,
+   which is why this was a mask in the first place.
+   ⚠️ useScrollArrows still supplies canLeft/canRight: the chevrons use them. Its comment about a
+   40px fade on first paint is history, kept because it explains why the padding maths is there. */
 
 /** Card width — pixel-matches the feed grid (2 cols mobile / 3 sm / 4 lg), so a rail card
  *  equals exactly one feed column and the rail reads as one family with the grid below.
