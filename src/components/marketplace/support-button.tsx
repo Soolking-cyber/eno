@@ -150,13 +150,43 @@ export function SupportButton({ className }: { className?: string }) {
                properties and the press-to-bold rule. Removing it silently returns a grey mark
                with no back shape and no press state. */
             'support-mark flex h-11 w-11 items-center justify-center text-muted-foreground',
-            'transition-colors duration-200 hover:text-accent-foreground active:scale-[0.96] tap-44',
+            /* ⛔ HOVER LIFTS THE BACK SHAPE; IT DOES NOT RECOLOUR THE FRONT. This line was
+               `hover:text-accent-foreground`, and a reviewer caught what that does to a DUOTONE:
+               the front ships `fill="currentColor"`, so recolouring the control's text turned the
+               grey front brand-blue — the same blue as the back — and the two-tone mark collapsed
+               into one flat blue shape at exactly the moment a desktop user looked at it.
+               ⚠️ MEASURED, not argued: rest 1,892 blue / 4,458 grey pixels → hover 5,297 blue /
+               1,053 grey. Same collapse in dark.
+               ✅ Raising `--i-back-opacity` instead keeps the grey front grey and deepens the blue
+               behind it, so hover still answers the pointer while the duotone survives. It works
+               through the `<use>` shadow boundary for the same reason the colour does — custom
+               properties inherit across it, selectors do not.
+               ⛔ THAT HOVER RULE IS IN globals.css, NOT A `hover:[--i-back-opacity:.8]` UTILITY HERE.
+               The utility version was tried first: it appeared in the class list and changed
+               nothing, because Tailwind emits utilities into `@layer utilities` and the UNLAYERED
+               `.support-mark` rule outranks every layered rule regardless of specificity. */
+            /* ⚠️ `--i-back-opacity` IS NAMED IN THE PROPERTY LIST, because it is a registered
+               <number> and not a colour — `transition-colors` would never have interpolated it.
+               ⚠️ And it is HERE rather than in globals.css: a `transition` shorthand on the
+               unlayered `.support-mark` rule outranks every utility in this list and silently
+               killed both the colour fade and the ride-down below. */
+            'transition-[color,--i-back-opacity] duration-200 active:scale-[0.96] tap-44',
             /* Ride down with the bottom nav, same motion the bar itself uses.
                ⚠️ `translate`, NOT `transform`, in the property list — Tailwind v4 compiles
                `translate-*` to the standalone `translate` property, so naming `transform` here
                subscribes to something nothing writes and the move happens in a single frame.
                design-lint caught exactly that; the rule exists because it fails invisibly. */
-            'max-lg:transition-[translate,opacity] max-lg:duration-300 max-lg:ease-[var(--ease-spring)] motion-reduce:transition-none',
+            /* ⚠️ `--i-back-opacity` IS REPEATED IN THIS LIST, and leaving it out was a real gap a
+               reviewer found: a Tailwind variant REPLACES `transition-property`, it does not extend
+               it. Below `lg` the list would have been `translate,opacity` alone — and a MOUSE user
+               in a narrow window (half-screen on a laptop) still satisfies `(hover: hover)`, so the
+               back shape would jump 0.5→0.8 with no fade. That is exactly the hard flick the
+               `@property` registration exists to prevent, surviving in the one viewport nobody
+               thinks to hover-test.
+               ⚠️ `translate`, NOT `transform` — Tailwind v4 compiles `translate-*` to the standalone
+               `translate` property, so naming `transform` subscribes to something nothing writes and
+               the ride-down happens in a single frame. design-lint caught exactly that once. */
+            'max-lg:transition-[translate,opacity,--i-back-opacity] max-lg:duration-300 max-lg:ease-[var(--ease-spring)] motion-reduce:transition-none',
             scrolledAway && 'max-lg:pointer-events-none max-lg:translate-y-[calc(100%+1.25rem)] max-lg:opacity-0',
             className,
           )}
@@ -178,7 +208,15 @@ export function SupportButton({ className }: { className?: string }) {
       <SheetContent side="right" className="w-full gap-0 overflow-y-auto sm:max-w-md">
           <SheetHeader>
             <SheetTitle className="flex items-center gap-2">
-              <SupportDialog className="h-5 w-5 text-brand" aria-hidden />
+              {/* ⚠️ `[--i-back-opacity:1]` MAKES THIS ONE FLAT MARK, and without it this glyph was
+                  quietly duotone too — a reviewer caught it. `SupportDialog` carries the duotone in
+                  its REST layer for every call site, and `--i-back-color` is only set on
+                  `.support-mark`, so here the back shape fell back to `currentColor` at 0.5 and
+                  painted a faded second bubble behind a solid one. A header icon beside a title is
+                  not the floating affordance; it should read as a single solid mark, which is what
+                  taking the back shape to full opacity gives (both shapes then paint `text-brand`).
+                  ⛔ Do NOT "fix" this with a class on the shape — it lives in a shadow tree. */}
+              <SupportDialog className="h-5 w-5 text-brand [--i-back-opacity:1]" aria-hidden />
               {tr('Support', 'Hỗ trợ')}
             </SheetTitle>
             {/* ⚠️ COMPANY.email, NEVER A LITERAL. It is already per-edition — support@eno.vn on the

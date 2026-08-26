@@ -279,6 +279,18 @@ function normalise(svg, { name, style }) {
    */
   let src = svg
   if (style === DUOTONE_STYLE) {
+    /**
+     * ⛔ PROVENANCE FIRST. The marker is stripped from the tag check below, so an occurrence that
+     * arrived in VENDOR bytes would be trusted exactly as if this generator had written it — and
+     * `layer()` then converts every occurrence into a paint-bearing inline style. Solar ships no
+     * such attribute today; refusing the file if one ever appears is what keeps "the marker is
+     * ours" a fact rather than an assumption. A reviewer pointed out that scoping the allowance to
+     * the duotone style narrowed the hole without closing it.
+     */
+    if (/data-back/.test(svg)) {
+      fail(`${style}/${name}: the source already contains \`data-back\`, which is this generator's ` +
+           `own duotone marker. Refusing rather than trusting a vendor-supplied one.`)
+    }
     let backs = 0
     src = src.replace(SOLAR_SECONDARY, () => { backs += 1; return ' data-back="1"' })
     if (backs !== 1) {
@@ -331,7 +343,12 @@ function normalise(svg, { name, style }) {
     // `data-back="<anything>"`; this allows the one marker normalise itself just wrote and leaves
     // every other data-* attribute to be refused as unexpected markup, which is the point of the
     // subtract-what-is-allowed design documented above.
-    rest = rest.replace(/\s*data-back="1"/g, '')
+    // ⚠️ AND ONLY IN THE DUOTONE STYLE. A reviewer pointed out the first version allowed the marker
+    // for EVERY style, so a `data-back="1"` arriving in vendor bytes for an outline or bold glyph
+    // would have been silently accepted and then converted into a paint-bearing inline style by
+    // `layer()`. Solar ships no such attribute today — which is exactly why the allowance should
+    // not outlive the one style that needs it.
+    if (style === DUOTONE_STYLE) rest = rest.replace(/\s*data-back="1"/g, '')
     for (const a of ATTRS) rest = rest.replace(new RegExp(`\\s*${a}\\s*=\\s*"[^"]*"`, 'g'), '')
     rest = rest.replace(/[\s/]/g, '')
     if (rest) fail(`${style}/${name}: unexpected markup in <${el} …>: ${JSON.stringify(rest)}`)

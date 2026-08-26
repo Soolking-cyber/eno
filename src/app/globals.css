@@ -2496,6 +2496,64 @@ html.dark .leaflet-tile-pane {
 .support-mark {
   --i-back-color: var(--color-accent-foreground);
   --i-back-opacity: 0.5;
+  /* ⛔ NO `transition` HERE, AND A SHORTHAND HERE WAS A REAL REGRESSION THAT SHIPPED FOR ONE
+     COMMIT'S WORTH OF MINUTES. `transition` is a SHORTHAND: writing it set `transition-property` to
+     `--i-back-opacity` and nothing else — and by the very layer rule documented above, this
+     unlayered block then beat every transition utility in the call site's class list. Both died:
+     the colour fade, and `max-lg:transition-[translate,opacity]`, which is how the mark RIDES DOWN
+     with the bottom nav. The result was a bar that slides away while the support mark teleports.
+     ⚠️ MY OWN MEASUREMENT PRINTED `transitionProperty: --i-back-opacity` AND I READ IT AS A PASS.
+     It was the evidence of the bug. Two reviewers named it independently.
+     ✅ The transition belongs at the call site, where every property that animates is named
+     together and the mobile variant can keep its own duration. Nothing unlayered touches it. */
+}
+/* ⛔ HOVER LIVES HERE, NOT AS A TAILWIND `hover:[--i-back-opacity:.8]` UTILITY — AND THE UTILITY
+   VERSION SHIPPED, WAS PRESENT IN THE CLASS LIST, AND DID NOTHING. Cascade LAYERS, not specificity:
+   Tailwind v4 emits utilities inside `@layer utilities`, and an UNLAYERED rule beats every layered
+   rule no matter how specific the layered one is. So the `.support-mark` block above — plain CSS in
+   this file, in no layer — silently outranked a `:hover` utility that is strictly more specific.
+   Measured: the class was on the element and computed `--i-back-opacity` still read `.5` while
+   hovered.
+   ⚠️ The general lesson for this file: a token set on an unlayered rule here CANNOT be overridden
+   by a Tailwind variant at the call site. Put the variant here too, or move the base into a layer.
+   ⚠️ Hover deepens the BACK shape rather than recolouring the front, because the front is
+   `currentColor` — a `hover:text-*` would turn it the same blue as the back and collapse the
+   duotone into one flat shape. */
+/* ⚠️ REGISTERED, OR IT CANNOT ANIMATE. An UNREGISTERED custom property interpolates DISCRETELY —
+   it jumps at the halfway point of the duration instead of easing — so the transition below would
+   have been a hard flick with a 200ms delay bolted on. `@property` gives it a type, which is what
+   makes it a real animatable number. Three reviewers caught the missing piece independently.
+   ⚠️ `inherits: true` IS LOAD-BEARING HERE, not the default-ish choice: this value has to cross the
+   `<use>` shadow boundary to reach the glyph's back shape, and inheritance is the only channel that
+   does. Registering it as non-inheriting would silently sever the whole mechanism.
+
+   ⛔ REGISTRATION IS DOCUMENT-GLOBAL, NOT SCOPED TO `.support-mark`, and three reviewers raised the
+   same consequence: once registered, `var(--i-back-opacity, <fallback>)` anywhere resolves to this
+   `initial-value` and the author's fallback becomes unreachable. Two things make that safe rather
+   than lucky, and both are facts to RE-CHECK before adding a duotone glyph:
+     · the initial value is 0.5, the identical number the generator writes as the sprite's own
+       fallback — so today registration changes no pixel, it only makes the value animatable;
+     · `SupportDialog` is the ONLY duotone glyph in the set (DUOTONE in gen-icons.mjs has one
+       member), and it has exactly TWO call sites, both in support-button.tsx and both verified.
+   ⚠️ Add a second duotone icon and this initial value silently becomes its default. That is the
+   intended default — but it will no longer be true that nothing else is affected. */
+@property --i-back-opacity {
+  syntax: '<number>';
+  inherits: true;
+  initial-value: 0.5;
+}
+
+/* ⛔ `@media (hover: hover)` IS THE WHOLE POINT OF THIS BLOCK, NOT A NICETY. Tailwind v4 gates its
+   own `hover:` variant behind exactly this query, so the `hover:text-accent-foreground` this rule
+   replaced never fired on a phone. A hand-written `:hover` has no such gate — and touch browsers
+   KEEP `:hover` on the last-tapped element — so without this the support mark would stay visibly
+   "hot" after every tap, indefinitely, until the user tapped something else. That is invisible to
+   every desktop measurement in this file's history, which is how it nearly shipped: the mark is a
+   floating bottom-nav affordance and is therefore primarily TAPPED, not hovered. */
+@media (hover: hover) {
+  .support-mark:hover {
+    --i-back-opacity: 0.8;
+  }
 }
 
 /* ── THE SUPPORT MARK GOES BOLD WHILE PRESSED ──────────────────────────────────────────────────
