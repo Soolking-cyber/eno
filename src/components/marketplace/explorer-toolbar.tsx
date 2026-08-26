@@ -92,8 +92,8 @@ export function SortStrip({
    * have re-derived all of it blind. Passing the filters IN keeps every one of those properties
    * untouched and still produces one line.
    *
-   * ⚠️ IT WRAPS BELOW sm ON PURPOSE. The tab strip is a snap scroller on a phone (touch-pan-x —
-   * see the list below), and a filter bar beside it would leave both too narrow to scroll
+   * ⚠️ IT WRAPS BELOW sm ON PURPOSE. The tab strip is a snap scroller on a phone (see the
+   * touch-action note on the list below), and a filter bar beside it would leave both too narrow to scroll
    * sensibly. `basis-full sm:basis-auto` gives the filters their own line on mobile and shares
    * the row from sm up, which is where the wireframe's layout applies.
    */
@@ -282,12 +282,44 @@ export function SortStrip({
           'flex w-full justify-start p-0 group-data-horizontal/tabs:h-auto sm:w-auto sm:shrink-0 sm:justify-end',
           // HORIZONTAL RAIL, NOT A DRAGGABLE OBJECT. Three things are load-bearing here:
           //
-          //   touch-pan-x   The one that actually fixes it. overflow-x-auto forces overflow-y to
-          //                 compute to `auto` (CSS: once one axis is non-visible the other can't
-          //                 stay visible), so the strip was a TWO-AXIS scroller with the default
-          //                 touch-action:auto — it captured vertical drags and rubber-banded them
-          //                 instead of letting the page scroll. pan-x hands every vertical gesture
-          //                 back to the page and keeps only left/right for the strip.
+          //   ⛔ THE FIX FOR "cant scroll app on mobile" (owner, 2026-08-26) IS THE DELETED
+          //                 `touch-pan-x`, NOT THE ADDED `overflow-y-hidden` — said plainly because
+          //                 a reviewer caught the first version of this comment crediting the wrong
+          //                 line, which is exactly how the bad line gets restored later. Measured:
+          //                 `scrollHeight - clientHeight === 0` on this element BOTH before and
+          //                 after, so there was never any vertical overflow; the only thing eating
+          //                 vertical drags was the touch-action declaration.
+          //   overflow-y-hidden  Belt and braces, and it retires the ORIGINAL justification rather
+          //                 than the symptom: `overflow-x-auto` alone forces overflow-y to COMPUTE
+          //                 to `auto` (CSS: once one axis is non-visible the other cannot stay
+          //                 `visible`), which is what made "this strip is a two-axis scroller"
+          //                 look true and sent the previous author to touch-action. Naming `hidden`
+          //                 makes it false by declaration.
+          //                 ⚠️ It does NOT newly clip anything: the computed `auto` it replaces
+          //                 clips at the same box edge. The tab is exactly the list's height (42 of
+          //                 42) and carries a 2px outline at 2px offset, so the focus ring has zero
+          //                 headroom and is cut — pre-existing, unchanged here, and worth fixing
+          //                 separately by giving the list vertical padding.
+          //
+          //   ⛔ NO touch-action AT ALL, AND THE ABSENCE IS THE POINT. This carried `touch-pan-x`,
+          //                 justified by a comment claiming pan-x "hands every vertical gesture
+          //                 back to the page". It does the opposite: `touch-action` names the ONLY
+          //                 permitted directions, so a vertical drag BEGINNING here was discarded,
+          //                 not forwarded — and this strip is 388px wide on a 393px phone inside a
+          //                 STICKY container, i.e. parked under the reader's thumb for the whole
+          //                 page. The app looked frozen.
+          //                 ⚠️ `pan-x pan-y` was the obvious replacement and is ALSO wrong: any
+          //                 touch-action but `auto` drops `pinch-zoom` and double-tap zoom, so it
+          //                 would trade "cannot scroll" for "cannot zoom" over the same band, on a
+          //                 marketplace where zooming a photo is ordinary behaviour. All three
+          //                 reviewers caught that independently.
+          //                 ✅ With the vertical axis gone above, `auto` is correct AND minimal —
+          //                 there is nothing left for the strip to capture. Verified on the built
+          //                 page, one gesture each: vertical swipe starting ON the strip scrolls the
+          //                 page 399px (it was 0), horizontal swipe still pans the strip, and a
+          //                 pinch over it zooms 1.0 → 2.0.
+          //                 ⛔ Do NOT reintroduce a touch-action value here to "be explicit".
+          //
           //   -mb-px        Moved here off the tabs (see sortTab): on the tab it left a permanent
           //                 1px scrollHeight > clientHeight, i.e. a live vertical scroller. On the
           //                 list the same pixel overlaps the root's border with zero overflow.
@@ -296,7 +328,7 @@ export function SortStrip({
           //                 rather than resting mid-label.
           //
           // overscroll-x-contain stops a sideways flick chaining out to the page/back-gesture.
-          '-mb-px scrollbar-none flex-nowrap items-center gap-1 snap-x snap-mandatory touch-pan-x overflow-x-auto overscroll-x-contain',
+          '-mb-px scrollbar-none flex-nowrap items-center gap-1 snap-x snap-mandatory overflow-x-auto overflow-y-hidden overscroll-x-contain',
         )}
       >
         <TabsTrigger value="newest" type="button" className={sortTab(sort === 'newest')}>
