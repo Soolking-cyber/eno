@@ -73,7 +73,22 @@ export function FooterStats() {
   ].filter((i) => i.value > 0)
 
   return (
-    <div className="min-h-[3.25rem] pt-1">
+    /* ⚠️ THE RESERVATION IS TWO LINES ON NARROW SCREENS AND ONE FROM sm UP, because that is where
+       the counters actually wrap. A row that appears only when the fetch resolves pushes the legal
+       links down under a thumb already reaching for them.
+       ⛔ MEASURED, AFTER RESERVING ONE LINE EVERYWHERE WAS WRONG. Method: hold the /api/site-stats
+       response until the page has settled, then release it, and watch the /terms link — otherwise
+       the whole page's own load swamps the reading (measuring it naively gave CLS 0.96, none of
+       which was this widget).
+         one line everywhere:  320px 24px · 768px 2px · 1024px 2px · 390px 0 · 1280px 0
+         two lines under sm:   320px  0px · 768px 2px · 1024px 2px · 390px 0 · 1280px 0
+       So the 24px — a full line, on the narrowest phone people still use — is gone, and the 2px on
+       the horizontal row is sub-pixel rounding. Three reviewers predicted the wrap from the code;
+       isolating it is what showed WHICH width actually paid for it.
+       ⚠️ Reviewers also predicted horizontal overflow between 640 and 1024px. Measured at 640, 768,
+       820, 900 and 1024 in both languages: no child is squashed (scrollWidth == clientWidth) and the
+       page never scrolls horizontally. The `<ul>` wraps and the row's children wrap with it. */
+    <div className="min-h-[2.75rem] sm:min-h-[1.25rem]">
       {items.length > 0 && (
         /* ⚠️ A LIST, NOT A <dl>. The first version paired an `sr-only` <dt> with the visible
            label so the markup would be a proper description list — and that announced every stat
@@ -81,7 +96,7 @@ export function FooterStats() {
            tree. A <dl> here would need the term before the description, which is the opposite of
            the reading order the design wants; a list item that simply reads "2 visitors" is both
            correct and what a person actually hears. */
-        <ul className="flex flex-wrap items-baseline justify-center gap-x-5 gap-y-2 sm:justify-start">
+        <ul className="flex flex-wrap items-baseline justify-center gap-x-5 gap-y-1">
           {items.map((i) => (
             <li key={i.key} className="flex items-baseline gap-1.5">
               <span className="flex items-baseline gap-1.5">

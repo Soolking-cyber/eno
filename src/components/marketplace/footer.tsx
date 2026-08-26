@@ -465,19 +465,10 @@ export function Footer() {
         </div>
         )}
 
-        {/* Live counters — visitors, here now, members, sellers. Its own row above the copyright
-            rather than inline with it: the copyright line is already two clauses on mobile, and
-            four more numbers beside them read as a run-on. Both editions carry it; the two visit
-            counts are scoped per site (one database, two sites) while members and sellers are the
-            community as a whole. */}
-        <div className="mt-8 border-t border-border/60 pt-5">
-          <FooterStats />
-        </div>
-
-        {/* ⚠️ NO border-t HERE ANY MORE. The stats row above now carries the rule that used to
-            separate this block from the footer body; keeping both drew two hairlines a few pixels
-            apart, which reads as a rendering fault rather than as structure. */}
-        <div className="mt-4 flex flex-col items-center justify-between gap-2 pt-1 text-xs text-body sm:flex-row">
+        {/* ⚠️ THE RULE IS BACK ON THIS ROW. It briefly lived on a separate counters row above; with
+            the counters folded in here, that row is gone and this block needs its own separator
+            again — otherwise the legal block runs straight into the copyright with no boundary. */}
+        <div className="mt-8 flex flex-col items-center justify-between gap-3 border-t border-border/60 pt-6 text-xs text-body sm:flex-row">
           <p className="flex items-center gap-1.5">
             {/* ⚠️ SITE_NAME, NOT A LITERAL — a copyright line is a claim about WHO OPERATES THIS
                 SITE, so eno.forum asserting "© eno.vn" was the licensed marketplace claiming
@@ -490,6 +481,13 @@ export function Footer() {
             <span aria-hidden="true">·</span>
             <span>{tr('Made in Saigon', 'Làm tại Sài Gòn')} <span aria-hidden="true">❤️</span></span>
           </p>
+          {/* Live counters — visits, here now, members, sellers. Between the copyright clause and
+              the legal links, so `justify-between` seats it in the middle of the row on desktop and
+              it centres in the stack on mobile. Both editions carry it; the two visit counts are
+              scoped per site (one database, two sites) while members and sellers are the community
+              as a whole. */}
+          <FooterStats />
+
           <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-1">
             <a href="/terms" className="transition-colors hover:text-accent-foreground">{tr('Terms', 'Điều khoản')}</a>
             <a href="/privacy" className="transition-colors hover:text-accent-foreground">{tr('Privacy', 'Quyền riêng tư')}</a>
