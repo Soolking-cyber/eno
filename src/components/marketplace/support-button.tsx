@@ -91,6 +91,13 @@ export function SupportButton({ className }: { className?: string }) {
                page: identical in light (both #fafafa, so the border and shadow do the separating)
                and LIFTED in dark (#2a2a2a against the #1b1b1b canvas), which is exactly the
                difference a floating plate needs and `background` would not give it.
+               ⚠️ THE GLYPH ALL BUT FILLS THE PLATE — 42px inside 44px, ONE pixel each side. A
+               squared mark inside a squared plate, so the two outlines stay concentric and that
+               single pixel reads as a hairline rather than as a glyph that failed to centre.
+               ⚠️ THE PLATE IS A SQUIRCLE FOR FREE, and deliberately not by a class here: globals.css
+               gives `corner-shape: squircle` to anything matching `rounded-xl` (inside an @supports,
+               so browsers without it keep the plain arc). Hand-writing it on this element would be
+               a second source of truth for a decision the design system already makes app-wide.
                ⚠️ The GLYPH is brand blue and bold via `data-active` below; the plate is what makes
                that legible, which the bare version could not be (this app's grounds are near-white,
                so a blue-on-nothing mark had to lean on a drop-shadow). With a plate behind it the
@@ -108,7 +115,7 @@ export function SupportButton({ className }: { className?: string }) {
           )}
         />
       }>
-        <MessageSquareQuestion className="h-7 w-7" strokeWidth={STROKE_FLOAT} aria-hidden />
+        <MessageSquareQuestion className="h-[42px] w-[42px]" strokeWidth={STROKE_FLOAT} aria-hidden />
       </SheetTrigger>
 
       <SheetContent side="right" className="w-full gap-0 overflow-y-auto sm:max-w-md">
