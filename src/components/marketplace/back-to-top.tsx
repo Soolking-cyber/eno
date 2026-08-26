@@ -9,6 +9,7 @@ import { useAccountPanel } from './account-panel'
 import { Button } from '@/components/ui/button'
 import { useLanguage } from '@/context/language-context'
 import { cn } from '@/lib/utils'
+import { SupportButton } from '@/components/marketplace/support-button'
 import { scrollBehavior } from '@/lib/reduced-motion'
 
 /** Floating bottom-right controls, portaled to <body> (no ancestor can offset them),
@@ -101,6 +102,17 @@ export function BackToTop() {
         // Inline bottom (beats the classes) only while a bottom bar is on screen.
         style={{ ...(lift ? { bottom: lift + 12 } : {}), transitionTimingFunction: 'var(--ease-spring)' }}
       >
+        {/* ⛔ SUPPORT SITS ABOVE THE CHEVRON, AND THE ORDER IS THE POINT. The chevron is anchored to
+            the bottom of the column because it is the one control whose position people learn by
+            muscle memory; inserting anything BELOW it would move it the first time support appeared.
+            The column's own gap-2.5 is what keeps the two from overlapping — there is no offset to
+            keep in sync.
+            ⚠️ Support does NOT fade with scroll the way the chevron does: "back to top" is only
+            meaningful once you have scrolled, whereas needing help is not a function of scroll
+            position. It is present from first paint, which also means the chevron fading in below it
+            never shifts it. */}
+        <SupportButton />
+
         {/* Back to top — bare glyph, no circle: same treatment as the search-bar
             icons (quiet ink → brand blue on hover) with a subtle drop-shadow so it
             stays distinct over card imagery. Fades in once scrolled (slot reserved
