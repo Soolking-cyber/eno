@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { normalizeQuery, queryLength, INSTANT_MIN_CHARS } from '@/lib/search-panel'
 
 export type SuggestListing = {
   id: string
@@ -27,14 +28,19 @@ export function useSearchSuggest(query: string, enabled: boolean) {
   const [listings, setListings] = useState<SuggestListing[]>([])
   const [categories, setCategories] = useState<SuggestCategory[]>([])
   const [brands, setBrands] = useState<SuggestBrand[]>([])
-  const q = query.trim()
+  // ⚠️ THE SAME MEASUREMENT AND THE SAME CONSTANT AS THE PANEL (lib/search-panel.ts). This gate is
+  // the twin of `instantOpen`, so measuring differently is how the two drift apart: a decomposed
+  // Vietnamese `ế` is 3 UTF-16 units, which fired this fetch at one visible character while the
+  // panel was still showing history. Both the FUNCTION and the CONSTANT are imported — a hand-
+  // rolled copy of either is identical today and enforced by nothing tomorrow.
+  const q = normalizeQuery(query)
   // Derive loading so it's true on the SAME render the query first qualifies —
   // avoids a one-paint "No matches yet" flash before the effect/fetch starts.
   const [results, setResults] = useState<{ q: string; listings: SuggestListing[]; categories: SuggestCategory[] }>({ q: '', listings: [], categories: [] })
-  const loading = enabled && q.length >= 2 && results.q !== q
+  const loading = enabled && queryLength(q) >= INSTANT_MIN_CHARS && results.q !== q
 
   useEffect(() => {
-    if (!enabled || q.length < 2) {
+    if (!enabled || queryLength(q) < INSTANT_MIN_CHARS) {
       setListings([]); setCategories([]); setBrands([])
       return
     }

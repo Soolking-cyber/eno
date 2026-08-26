@@ -878,7 +878,19 @@ function ListingCardImpl({
                     // token — but lit from above like every other shadow in the app, and no raw
                     // colour literal in a `style` prop (design-lint bans those in className; an
                     // rgba() in `style` slipped the rule).
-                    'h-1.5 rounded-full bg-white transition-all shadow-onmedia',
+                    // ⚠️ `transition-[width,opacity]`, NOT `transition-all` — name what moves.
+                    // The DURATION is deliberately left off: the theme default is what every other
+                    // pip-sized tween in the app uses, and a bare perf edit is the wrong place to
+                    // change how fast a control feels.
+                    // The width tween DOES cost layout (measured: 158 layouts across 8 pip changes
+                    // vs 0 for a transform), and it was deliberately kept: every zero-layout
+                    // alternative changes the design. `scaleX` squares off the round ends visibly,
+                    // and any fixed-width-slot version (cross-fade, clip-path) widens the rail from
+                    // 42px to 60px. There is also no jitter to buy back — exactly one pip is ever
+                    // 12px, so the rail's total width is already constant. Twenty scoped layouts on
+                    // a three-element flex row, during an interaction the user just initiated, is
+                    // the cheaper side of that trade.
+                    'h-1.5 rounded-full bg-white transition-[width,opacity] shadow-onmedia',
                     i === idx ? 'w-3 opacity-100' : 'w-1.5 opacity-60',
                   )}
                 />

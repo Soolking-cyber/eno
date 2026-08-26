@@ -18,6 +18,7 @@ import { useSearchSuggest } from '@/hooks/use-search-suggest'
 import { buildSuggestItems, type SuggestItem } from './search-suggest'
 import { TrendingSearches } from './trending-searches'
 import { useTrendingSearches } from '@/hooks/use-trending-searches'
+import { searchPanels, trendingEnabled } from '@/lib/search-panel'
 import { AISearchButton } from './ai-concierge'
 import {
   useSuggestKeyboardNav, activeSuggestOptionId, visualSearchFromPaste,
@@ -159,15 +160,27 @@ export function Header() {
     return () => { document.removeEventListener('mousedown', onDown); document.removeEventListener('keydown', onKey) }
   }, [showSuggestions])
 
-  // The window is "open" (morph + panel) when focused with EITHER history to show
-  // (empty query) OR live instant-match results (≥2 chars). Otherwise it stays a
-  // normal pill (no flat-bottom).
-  // Trending searches — lazily fetched while the empty-focus panel is eligible, so a
-  // first-time visitor with no local history still gets a populated dropdown.
-  const trending = useTrendingSearches(showSuggestions && searchVal.trim().length === 0)
-  const suggestOpen = showSuggestions && searchVal.trim().length === 0 && (recentSearches.length > 0 || recentLocations.length > 0 || trending.length > 0)
-  const instantOpen = showSuggestions && searchVal.trim().length >= 2
-  const panelOpen = suggestOpen || instantOpen
+  /**
+   * The window is "open" (morph + panel) when focused with EITHER history to show (0-1 chars) OR
+   * live instant-match results (>=2 chars). Otherwise it stays a normal pill (no flat-bottom).
+   *
+   * ⛔ BOTH RANGES AND THE FETCH GATE LIVE IN `lib/search-panel.ts`, TOGETHER AND TESTED, BECAUSE
+   * THE BUG WAS THE GAP BETWEEN THEM. At exactly one character the whole dropdown used to vanish:
+   * this panel wanted an EMPTY query and the instant panel wants two characters, so one character
+   * satisfied NEITHER and the window blinked out and back in mid-word. Measured on a returning user
+   * with history: 0 chars present -> 1 char ABSENT -> 2 chars present, and the same flash in reverse
+   * while deleting. Every returning user who searches saw it, on every search.
+   * ⚠️ It is invisible on a FIRST visit, which is why it survived so long: with no history and no
+   * trending the panel is closed at 0 chars too, so the sequence is absent -> absent -> present and
+   * nothing appears to flicker. Seed `eno:recent_searches` before testing this by hand — or just
+   * read search-panel.test.ts, where 9 of 16 tests go red against the old rule.
+   */
+  const trending = useTrendingSearches(trendingEnabled(showSuggestions, searchVal))
+  const { suggestOpen, instantOpen, panelOpen } = searchPanels(
+    showSuggestions,
+    searchVal,
+    recentSearches.length > 0 || recentLocations.length > 0 || trending.length > 0,
+  )
 
   // Instant matches (debounced typeahead) — brands + categories + listings, with the
   // 'Search for "{q}"' row ALWAYS first: Enter with no arrow-key selection submits the
