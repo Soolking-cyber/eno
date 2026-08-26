@@ -31,7 +31,7 @@ import { join } from 'node:path'
 const ROOT = execFileSync('git', ['rev-parse', '--show-toplevel'], { encoding: 'utf8' }).trim()
 const RECEIPTS = join(ROOT, '.second-opinion')
 // Declared up here because `--status` validates receipts long before REVIEWERS is built below.
-const REVIEWER_NAMES = ['codex', 'agy', 'fable']
+const REVIEWER_NAMES = ['codex', 'agy', 'opus']
 
 /**
  * ⛔ GENERATED ASSETS ARE EXCLUDED FROM WHAT REVIEWERS *READ*, NEVER FROM WHAT IS *HASHED*.
@@ -103,11 +103,13 @@ if (process.argv.includes('--status')) {
       // the stack is that these families fail DIFFERENTLY; two of the same one is one review.
       /**
        * ⚠️ ONLY CURRENTLY-KNOWN REVIEWERS COUNT, WHICH MATTERS WHEN THE PANEL CHANGES.
-       * Receipts written before 2026-08-06 list `qwen`, which is no longer a member. Such a receipt
+       * Receipts naming a RETIRED reviewer keep working, and that is deliberate rather than lucky.
+       * Pre-2026-08-06 receipts list `qwen`; those written 2026-08-14..26 list `fable`. Either one
        * still validates whenever the other two answered (codex + agy = 2, the quorum), and is
-       * correctly rejected if qwen was one of only two verdicts — a review by a reviewer we no
-       * longer run is not a review. The cost is re-running the gate on a stale receipt, which is
-       * the safe direction.
+       * correctly rejected if the retired name was one of only two verdicts — a review by a
+       * reviewer we no longer run is not a review. The cost is re-running the gate on a stale
+       * receipt, which is the safe direction. Three reviewers flagged this swap as orphaning the
+       * receipt store; it does not, for the reason written here since the qwen retirement.
        */
       const known = new Set(REVIEWER_NAMES)
       const counted = [...new Set((r.reviewers || [])
@@ -130,7 +132,7 @@ if (!diff.trim()) {
 
 // ⚠️ SCAN FOR SECRETS BEFORE SHIPPING THE DIFF TO THREE THIRD PARTIES. qwen raised this reviewing
 // the gate itself, and it is the sharpest finding against it: this script sends the ENTIRE staged
-// diff to OpenAI (codex), Google (agy) and Anthropic (fable). Sending our SOURCE to them is already
+// diff to OpenAI (codex), Google (agy) and Anthropic (opus). Sending our SOURCE to them is already
 // standing policy — CLAUDE.md mandates these reviewers — but a CREDENTIAL is categorically
 // different: it cannot be un-sent, and it would land in three vendors' logs simultaneously.
 // The realistic path is not malice, it is a slip: `.env` is gitignored, but a key pasted into a
@@ -152,7 +154,7 @@ if (process.env.SECOND_OPINION_SKIP_SECRET_SCAN !== '1') {
   const hits = SECRET_PATTERNS.filter(([re]) => re.test(diff)).map(([, label]) => label)
   if (hits.length) {
     console.error(`⛔ REFUSING TO SEND THIS DIFF TO EXTERNAL REVIEWERS — it looks like it contains: ${hits.join(', ')}.`)
-    console.error('   codex, agy and fable are third-party services; a credential sent to them cannot be recalled.')
+    console.error('   codex, agy and opus are third-party services; a credential sent to them cannot be recalled.')
     console.error('   Remove the value from the staged content (git reset the file, move it to Secret Manager via')
     console.error('   scripts/secret-set.sh), then re-run. If this is a FALSE POSITIVE — a fixture, a public key, a')
     console.error('   sample in documentation — re-run with SECOND_OPINION_SKIP_SECRET_SCAN=1 and say so out loud.')
@@ -222,7 +224,7 @@ process.on('SIGTERM', () => process.exit(143))
 // that only saw the first 180KB would still have its verdict certify bytes it never read. On a
 // codebase where the failure mode is a visa/PayPal surface leaking onto the licensed marketplace,
 // "reviewed" must mean the reviewer saw the licensing-relevant hunk — which, in a big diff, is as
-// likely to be at the end as the start. codex and fable BOTH take the prompt on stdin and so both
+// likely to be at the end as the start. codex and opus BOTH take the prompt on stdin and so both
 // get the whole thing, which is what keeps the quorum reachable; agy's truncated verdict is
 // recorded but deliberately not counted.
 const AGY_LIMIT = 180_000
@@ -257,13 +259,25 @@ const REVIEWERS = [
    * cost: opus is the same family as the author of the code under review, so the panel had been
    * OpenAI + Google + Anthropic-reviewing-Anthropic. CLAUDE.md's reviewer policy exists precisely
    * because "an Opus review of Opus code shares its blind spots". Swapping it for fable rather than
-   * ADDING fable keeps three seats and three distinct families.
+   * ADDING fable kept three seats and three distinct families.
+   * ⚠️ THAT SENTENCE DESCRIBES 2026-08-14, NOT TODAY. As shipped the seat is opus again, so it is
+   * three seats and TWO families — see the note at the end of this block.
    *
-   * ⚠️ FABLE IS STILL ANTHROPIC-LINEAGE. The shared-blind-spot concern is reduced, not eliminated —
-   * a different model, but not a different lab. It runs in a FRESH context with no memory of why
-   * the code was written and is prompted adversarially to refute rather than review, which is what
-   * makes it useful at all. Treat a unanimous 3/3 with a little more suspicion than you would if
-   * this seat were a third lab.
+   * `fable` then held it until 2026-08-26, when the owner asked for opus back. THIS SEAT HAS NOW
+   * BEEN qwen -> opus -> fable -> opus, so read the paragraph above as live history rather than as
+   * a settled argument: the reason opus was removed on 2026-08-14 has not changed, it has been
+   * OVERRULED, and the cost is worth stating plainly where the swap lives.
+   *
+   * ⛔ THIS SEAT IS NOW THE SAME MODEL AS THE AUTHOR OF THE CODE IT REVIEWS. Not merely the same
+   * lab, which is what fable was — the same model. CLAUDE.md's reviewer policy exists because "an
+   * Opus review of Opus code shares its blind spots", and that is maximally true here. What still
+   * makes the seat worth having: it runs in a FRESH context with no memory of why the code was
+   * written, and it is prompted to REFUTE a specific claim rather than to review — measured on this
+   * repo, that framing is most of where the signal comes from. What it can no longer be relied on
+   * for is catching the class of mistake the author is systematically prone to.
+   * ⚠️ SO A 3/3 IS NOW TWO INDEPENDENT FAMILIES AGREEING, NOT THREE. codex (OpenAI) and agy (Google)
+   * are the seats that can surprise you. If the two of them split and opus sides with the author,
+   * that is not a majority — go and measure.
    */
   /**
    * FOURTH SEAT (owner, 2026-08-14). The owner first asked for `freebuff` here; it was measured and
@@ -281,17 +295,20 @@ const REVIEWERS = [
    * `--effort max` is the point of using it at all; `--permission-mode plan` keeps it read-only, so
    * it answers from the pasted diff and cannot edit, run or commit anything.
    *
-   * ⚠️ BUDGET-LIMITED, per CLAUDE.md — and that now matters more than it did as a fourth seat. With
-   * three reviewers a silent fable drops the panel to codex + agy, which is the quorum MINIMUM.
-   * If fable starts failing the way qwen did, do not leave it in place: that is exactly the failure
+   * ⚠️ THE BUDGET NOTE BELOW WAS ABOUT fable, and opus is not budget-limited the same way — but the
+   * operational half still holds exactly as written, for any seat: with
+   * three reviewers a silent opus drops the panel to codex + agy, which is the quorum MINIMUM.
+   * If opus starts failing the way qwen did, do not leave it in place: that is exactly the failure
    * this file has already lived through once.
    *
-   * ✅ AND BACK TO fable ON 2026-08-23 (owner: "add back the Fable 5 as a second opinion instead of
-   * opus 5"), which resolves the objection the next paragraph spends itself making. The panel is
-   * two labs plus a different-model Anthropic seat again, rather than two labs plus the author's
-   * own model. Everything below is kept because the round trip is the record: opus held this seat
-   * for one day, for one reason — oxalpha needed an API key nobody had — and the cost of that day
-   * is written down so the trade is visible if it is ever proposed again.
+   * ✅ BACK TO fable ON 2026-08-23 (owner: "add back the Fable 5 as a second opinion instead of
+   * opus 5") — and ⛔ BACK TO opus AGAIN ON 2026-08-26, at the owner's request. THE SEAT AS SHIPPED
+   * IS opus; read this whole block as a log, not as the current answer, and check REVIEWER_NAMES
+   * and the spec below for what actually runs.
+   * The objection the paragraphs here spend themselves making still stands on the merits — it has
+   * been overruled, not answered — which is why none of it is deleted: the trade has now been made
+   * in both directions twice, and the record is the only thing that makes the next proposal
+   * cheaper to think about than the last one.
    *
    * ⛔ THE SEAT WENT TO opus ON 2026-08-22, AND THE HISTORY ABOVE IS THE ARGUMENT AGAINST IT.
    * Read it before assuming this is settled. The owner first asked for `oxalpha` — a cloaked model
@@ -319,11 +336,11 @@ const REVIEWERS = [
    * independent family ever becomes reachable — an OpenRouter key, an opencode login — take it.
    */
   {
-    name: 'fable',
+    name: 'opus',
     cmd: 'claude',
     // ⚠️ `--permission-mode plan` IS THE SANDBOX and is not decorative: it keeps this reviewer
     // read-only, so it answers from the diff on stdin and cannot edit, run or commit anything.
-    args: ['-p', '--model', 'claude-fable-5', '--effort', 'max', '--permission-mode', 'plan'],
+    args: ['-p', '--model', 'claude-opus-5', '--effort', 'max', '--permission-mode', 'plan'],
     stdin: true,
   },
 ]
