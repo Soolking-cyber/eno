@@ -80,20 +80,22 @@ export function SupportButton({ className }: { className?: string }) {
              hairline, the shared pop shadow) rather than a brand-blue bubble — that treatment is
              reserved for the one CTA per screen, and a permanent blue disc on every page would
              outrank whatever the page is actually asking for. */
-            /* ⛔ A BARE GLYPH, NO DISC — matching the chevron above it. Solar's question-circle
-               already DRAWS a circle, so wrapping it in a bordered disc was a circle inside a
-               circle. The drop-shadow is the only backing, exactly as the chevron does it: that is
-               what lets a bare mark survive over card photography without a plate behind it.
-               ⚠️ BRAND BLUE, NOT WHITE AND NOT BODY INK. White was asked for and would be invisible
-               on this app's light surfaces — footer, page ground and most cards are near-white, and
-               a drop-shadow alone cannot carry a white mark. The blue arrives from `data-active`
-               below (the icon system paints the bold layer `--color-accent-foreground`), so
-               `text-body` on this element is only the fallback the SVG inherits before the bold
-               layer paints, and what the hover state returns to.
-               ⚠️ h-11 w-11 + tap-44 is the CHEVRON'S box, kept so the two align in the column; the
-               glyph inside is larger than the chevron's (h-8 vs h-7) because this one is an
-               invitation rather than chrome. */
-            'flex h-11 w-11 items-center justify-center rounded-full text-body',
+            /* A WHITE PLATE IN THE GLYPH'S OWN SHAPE — `rounded-xl` (12px), the canon's control
+               tier, so the plate echoes question-square's rounded square rather than boxing a
+               square inside a circle. Border + shadow-pop are what make it read as a surface
+               floating over the page instead of a sticker.
+               ⚠️ `bg-popover`, NOT a literal white and not `bg-background`. This app HAS no pure
+               white — every light surface token is #fafafa on purpose — so #fafafa is its white,
+               and a hard-coded #fff plate would be the only element on the page that is not.
+               `popover` over `background` because it is the token for a surface FLOATING above the
+               page: identical in light (both #fafafa, so the border and shadow do the separating)
+               and LIFTED in dark (#2a2a2a against the #1b1b1b canvas), which is exactly the
+               difference a floating plate needs and `background` would not give it.
+               ⚠️ The GLYPH is brand blue and bold via `data-active` below; the plate is what makes
+               that legible, which the bare version could not be (this app's grounds are near-white,
+               so a blue-on-nothing mark had to lean on a drop-shadow). With a plate behind it the
+               glyph's own shadow is removed — shadow over shadow reads muddy. */
+            'flex h-11 w-11 items-center justify-center rounded-xl border border-border/70 bg-popover shadow-pop',
             'transition-colors duration-200 hover:text-accent-foreground active:scale-[0.96] tap-44',
             /* Ride down with the bottom nav, same motion the bar itself uses.
                ⚠️ `translate`, NOT `transform`, in the property list — Tailwind v4 compiles
@@ -106,7 +108,7 @@ export function SupportButton({ className }: { className?: string }) {
           )}
         />
       }>
-        <MessageSquareQuestion className="h-8 w-8 [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.28))]" strokeWidth={STROKE_FLOAT} aria-hidden />
+        <MessageSquareQuestion className="h-7 w-7" strokeWidth={STROKE_FLOAT} aria-hidden />
       </SheetTrigger>
 
       <SheetContent side="right" className="w-full gap-0 overflow-y-auto sm:max-w-md">
