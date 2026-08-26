@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { kv } from '@/lib/ratelimit'
 import { IS_SERVICES } from '@/lib/edition'
 import { editionHiddenSellerIds } from '@/lib/edition-scope'
+import { logError } from '@/lib/log'
 import { HEARTBEAT_MS, coarseUserAgent, type SiteStats } from '@/lib/site-stats-shared'
 
 /**
@@ -92,7 +93,12 @@ async function communityCounts(): Promise<{ members: number; sellers: number }> 
   // would print the forum's seller count — the one that includes the visa/trip desk. The exclusion
   // three lines below was real and the cache in front of it handed the excluded number back.
   const cacheKey = `site-stats:community:${SITE_KEY}`
-  const cached = await kv.get<{ members: number; sellers: number }>(cacheKey).catch(() => null)
+  // ⚠️ A cache miss is fine and a cache FAULT is not the same thing — the read still falls through
+  // to the real counts either way, but a kv_store that has started failing should be visible rather
+  // than showing up as a permanently cold cache nobody investigates.
+  const cached = await kv
+    .get<{ members: number; sellers: number }>(cacheKey)
+    .catch((e) => { logError(e, { op: 'site-stats.cache-read' }); return null })
   if (cached) return cached
   // ⛔ EDITION-SCOPED, AND edition-lint CAUGHT THIS RATHER THAN ME. The visa/trip desk is a Seller
   // row WITH an owner, so an unscoped count reports it as one of eno.vn's sellers — the licensed
@@ -105,7 +111,7 @@ async function communityCounts(): Promise<{ members: number; sellers: number }> 
     db.seller.count({ where: { ownerId: { not: null }, id: { notIn: hidden } } }),
   ])
   const value = { members, sellers }
-  await kv.set(cacheKey, value, { ex: COUNTS_TTL_SEC }).catch(() => {})
+  await kv.set(cacheKey, value, { ex: COUNTS_TTL_SEC }).catch((e) => logError(e, { op: 'site-stats.cache-write' }))
   return value
 }
 
