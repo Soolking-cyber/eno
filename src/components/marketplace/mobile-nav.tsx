@@ -389,8 +389,15 @@ export function MobileNav() {
         // family, still flat.
         stack={STACK}
         icon={
+          // ⚠️ THE MARK FILLS THE COIN — same treatment as the floating support control, owner
+          // 2026-08-26. The bold sprite layer's ink is 0.896 of its box (21.5 of 24 units), so the
+          // box is 42px to paint 37.6px of ink inside the 40px coin: ~1.2px of visible gap. A
+          // `size-10` glyph would have painted 35.8px and read as a small plus in a big disc.
+          // ⚠️ THE RADIUS ALREADY MATCHES THE GLYPH and needs no change: this icon is Solar's
+          // `add-circle` — a plus inside a CIRCLE — and the coin is `rounded-full`. Concentric by
+          // construction, which is the whole reason the fill reads as deliberate.
           <span className="flex size-10 items-center justify-center rounded-full bg-brand-50 text-brand">
-            <Plus className="h-7 w-7" strokeWidth={STROKE} />
+            <Plus className="h-[42px] w-[42px] shrink-0" strokeWidth={STROKE} />
           </span>
         }
       />

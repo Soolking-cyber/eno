@@ -635,11 +635,23 @@ function ListingCardImpl({
 
         {/* Legibility scrims — faint top+bottom gradients so the white heart / locate
             pin / dots survive pale photos (sky, sand). Theme-neutral by design: they
-            sit ON the photo, so black works in both light and dark. */}
+            sit ON the photo, so black works in both light and dark.
+            ⚠️ black/10, HALVED FROM black/20 (owner 2026-08-26: "product image sits behind shadow
+            ... too dark"). These are 48px full-width bands, so they darken the whole top and bottom
+            of every photo in the feed while only the four CORNERS carry a glyph — the cost was paid
+            across the entire image for a benefit needed in a fraction of it. Measured under the
+            overlay glyphs on the live feed: the photo went 0.749 luminance at /20 to 0.852 at /10,
+            against 0.962 unscrimmed.
+            ⛔ THE SCRIM WAS NEVER WHAT MADE THESE GLYPHS LEGIBLE, which is why halving it is safe.
+            Measured worst-case white-glyph-to-surround contrast on this feed at the SHIPPED /20 was
+            1.23:1 — nowhere near the 3:1 non-text threshold. What actually carries them is the
+            per-glyph `icon-shadow-brand` drop-shadow, so the legibility work moved there: the
+            overlay trio now uses the `-strong` variant (82% of brand-deeper, up from 62%) that the
+            design system already defined for exactly this case. Contrast up, photo lighter. */}
         {images.length > 0 && (
           <>
-            <span aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-12 bg-gradient-to-b from-black/20 to-transparent" />
-            <span aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-black/20 to-transparent" />
+            <span aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-12 bg-gradient-to-b from-black/10 to-transparent" />
+            <span aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-black/10 to-transparent" />
           </>
         )}
 
@@ -709,7 +721,7 @@ function ListingCardImpl({
                 onClick={(e) => { e.stopPropagation(); quickGo({ body: tr('Hi! Is this still available?', 'Chào bạn! Món này còn không?') }) }}
                 className="pointer-events-auto translate-x-3 opacity-0 transition-all duration-200 ease-[var(--ease-spring-snappy)] hover:scale-110 active:scale-[0.96] group-hover:translate-x-0 group-hover:opacity-100 focus-visible:translate-x-0 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
               >
-                <MessageCircle className="icon-shadow-brand h-5 w-5" />
+                <MessageCircle className="icon-shadow-brand-strong h-5 w-5" />
               </IconButton>
             </Tooltip>
           )}
@@ -745,7 +757,7 @@ function ListingCardImpl({
                 onClick={(e) => { e.stopPropagation(); locate(listing) }}
                 className="pointer-events-auto translate-x-3 opacity-0 transition-all delay-150 duration-200 ease-[var(--ease-spring-snappy)] hover:scale-110 active:scale-[0.96] group-hover:translate-x-0 group-hover:opacity-100 group-hover:delay-150 focus-visible:translate-x-0 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
               >
-                <MapPin className="icon-shadow-brand h-5 w-5" />
+                <MapPin className="icon-shadow-brand-strong h-5 w-5" />
               </IconButton>
             </Tooltip>
           )}
@@ -807,7 +819,7 @@ function ListingCardImpl({
                 icon-shadow-brand so the trio is one treatment. */}
             <Heart className={cn('icon-own-ink h-5 w-5 transition-colors', favorited
               ? 'icon-shadow-saved fill-current text-destructive'
-              : 'icon-shadow-brand fill-none text-white')} />
+              : 'icon-shadow-brand-strong fill-none text-white')} />
           </span>
         </IconButton>
 
