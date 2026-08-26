@@ -120,7 +120,8 @@ async function main() {
     orderBy: { id: 'asc' },
   })
   // A visa case whose thread is anchored on a visa listing is healthy — the flow finds it.
-  const broken = convos.filter((c) => !visaIds.has(c.listingId))
+  // A support thread (listingId null) is not a desk thread and cannot be mis-anchored — skip it.
+  const broken = convos.filter((c) => c.listingId !== null && !visaIds.has(c.listingId))
   console.log(`${convos.length} desk threads carry a visa case; ${broken.length} are anchored OFF the catalogue\n`)
   if (broken.length === 0) { console.log('nothing to repair'); return }
 
@@ -159,7 +160,7 @@ async function main() {
     }
     plans.push({
       conversationId: c.id, buyerProfileId: c.buyerProfileId, applicationId: String(c.visaApplicationId),
-      from: c.listingId, to: target, why, messages: c._count.messages,
+      from: c.listingId ?? '(none)', to: target, why, messages: c._count.messages,
     })
   }
 

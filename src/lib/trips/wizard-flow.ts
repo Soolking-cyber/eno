@@ -66,7 +66,7 @@ export type WizardError =
   | 'update_failed'
 
 type ThreadContext = {
-  convo: { id: string; buyerProfileId: string; sellerProfileId: string | null; listingId: string; visaApplicationId: string | null }
+  convo: { id: string; buyerProfileId: string; sellerProfileId: string | null; listingId: string | null; visaApplicationId: string | null }
   profileId: string
 }
 

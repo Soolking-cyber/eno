@@ -111,7 +111,20 @@ export const POST = route(
     // worth a trust dock — offers here are bidirectional (insertMessage supports seller
     // counters), so a seller's stray counter on their own fixed-price listing must NOT
     // self-penalize. Both roles still get the 409; only the buyer's attempts are counted.
-    if (isOffer && !convo.listing.negotiable) {
+    /* ⛔ AN OFFER NEEDS SOMETHING TO OFFER ON. A support thread has no listing, so every check
+       below — negotiable, status, the price it is measured against — has nothing to read. Rejecting
+       here rather than null-guarding each one keeps the offer rules in one shape and makes the
+       impossible case loud instead of silently permitted. */
+    if (isOffer && !convo.listing) {
+      await release()
+      throw new ApiError('listing_unavailable', 409)
+    }
+    /* ⚠️ BOUND TO A LOCAL, because `if (isOffer && !convo.listing) throw` does NOT narrow the
+       property afterwards — the surviving condition is `!(isOffer && !listing)`, which is also true
+       when this simply is not an offer. The two checks below then read a value TypeScript still
+       considers nullable. A local plus its own `&&` says the same thing and is checkable. */
+    const offerListing = convo.listing
+    if (isOffer && offerListing && !offerListing.negotiable) {
       if (iAmBuyer) await recordFixedPriceOfferAttempt(meId)
       await release()
       throw new ApiError('not_negotiable', 409)
@@ -124,7 +137,7 @@ export const POST = route(
     // the one being fixed. Deliberately NOT counted as a fixed-price attempt: the listing being gone
     // is not the buyer trying it on, and docking trust for it would be exactly the false positive
     // offer-guard's own comments warn about.
-    if (isOffer && convo.listing.status !== 'active') {
+    if (isOffer && offerListing && offerListing.status !== 'active') {
       await release()
       throw new ApiError('listing_unavailable', 409)
     }
@@ -132,7 +145,7 @@ export const POST = route(
     let message: Awaited<ReturnType<typeof insertMessage>>
     try {
       message = await insertMessage(
-        { id, buyerProfileId: convo.buyerProfileId, sellerProfileId: convo.sellerProfileId, listingId: convo.listing.id },
+        { id, buyerProfileId: convo.buyerProfileId, sellerProfileId: convo.sellerProfileId, listingId: convo.listing?.id ?? null },
         meId,
         text,
         isOffer ? { kind: 'offer', offerAmount, replyToId } : replyToId ? { replyToId } : undefined,

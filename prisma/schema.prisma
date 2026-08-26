@@ -946,8 +946,14 @@ model ContactReveal {
 // Denormalized last-message + unread counts power the inbox/badge without N+1.
 model Conversation {
   id                String    @id @default(cuid())
-  listingId         String
-  listing           Listing   @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  /// NULL = a SUPPORT thread. Every other conversation is anchored to a listing; support has no
+  /// listing to anchor to, and inventing a placeholder one would put it in browse, search, the
+  /// sitemap and the product feeds. Applied by scripts/support-thread-ddl.mjs.
+  /// ⚠️ `@@unique([listingId, buyerProfileId])` below STOPS CONSTRAINING once this is null, because
+  /// Postgres treats NULLs as distinct — the partial index `Conversation_support_thread_key`
+  /// (buyerProfileId WHERE listingId IS NULL) is what keeps it to one support thread per person.
+  listingId         String?
+  listing           Listing?  @relation(fields: [listingId], references: [id], onDelete: Cascade)
   buyerProfileId    String    @db.Uuid
   buyer             Profile   @relation("BuyerConversations", fields: [buyerProfileId], references: [id], onDelete: Cascade)
   sellerId          String

@@ -58,12 +58,15 @@ export const POST = route(
     // nor actOnOffer read Listing.status, so a seller could accept an offer on an item they had
     // already marked sold. Gating decline too would strand pending offer cards forever on every sold
     // listing, with no way for either side to clear them, so the guard is scoped to 'accept'.
+    // A support thread carries no listing, so there is no offer to act on — see the same guard in
+    // the messages route for why this is a rejection rather than a null-check on each field.
+    if (!convo.listing) throw new ApiError('listing_unavailable', 409)
     if (action === 'accept' && convo.listing.status !== 'active') {
       throw new ApiError('listing_unavailable', 409)
     }
 
     const ok = await actOnOffer(
-      { id, buyerProfileId: convo.buyerProfileId, sellerProfileId: convo.sellerProfileId, listingId: convo.listing.id },
+      { id, buyerProfileId: convo.buyerProfileId, sellerProfileId: convo.sellerProfileId, listingId: convo.listing?.id ?? null },
       meId,
       messageId,
       action,

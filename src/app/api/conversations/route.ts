@@ -99,7 +99,12 @@ export const POST = route(
     const existing = gate.error === 'account_suspended'
       ? null
       : await db.conversation.findFirst({
-          where: { sellerId: listing.sellerId, buyerProfileId: profile.id },
+          // ⛔ `listingId: { not: null }` EXCLUDES SUPPORT THREADS EXPLICITLY. Today a support thread
+    // could not match anyway — its seller owns no listings, so it is never `listing.sellerId` — but
+    // that is an accident of the data, not a rule, and the candidate this query returns is handed
+    // to retargetForListing, which REWRITES its listingId. Left implicit, the day a support seller
+    // ever carries a listing, someone's support thread silently becomes a listing thread.
+    where: { sellerId: listing.sellerId, buyerProfileId: profile.id, listingId: { not: null } },
           select: { id: true },
         })
     if (!existing) return NextResponse.json(gate, { status: 403 })
@@ -258,9 +263,13 @@ export const POST = route(
    * which is where the pattern was copied FROM, never did.
    */
   const retargetForListing = async (
-    candidate: { id: string; listingId: string },
+    // ⚠️ `string | null` on the way IN because the column admits null now (support threads), and a
+    // non-null `listingId` on the way OUT because this function's whole job is to return a thread
+    // anchored to THIS listing. A null candidate simply fails the equality below and is retargeted,
+    // which is the correct behaviour rather than a special case.
+    candidate: { id: string; listingId: string | null },
   ): Promise<{ id: string; listingId: string }> => {
-    if (candidate.listingId === listingId) return candidate
+    if (candidate.listingId === listingId) return { ...candidate, listingId }
     // ⚠️ A THREAD CARRYING A LIVE OFFER IS NOT RETARGETABLE, because an offer is bound to the
     // CONVERSATION and not to a listing — Message has conversationId and no listingId
     // (schema.prisma:838). Moving the thread's listingId therefore silently re-points a pending
@@ -305,7 +314,10 @@ export const POST = route(
       // guaranteed to be the same KIND of thread by the reuse rule below, so this is the thread
       // that rule would have chosen anyway.
       console.error('[conversations] retarget collided but the winning thread was gone', { candidate: candidate.id, listingId })
-      return candidate
+      // The declared return is the listing this call was FOR; the row may still say otherwise
+      // (that is the whole point of this branch), but the caller only reads it to address the
+      // first message, and addressing it to the requested listing is what it already expected.
+      return { ...candidate, listingId }
     }
   }
 
@@ -354,7 +366,9 @@ export const POST = route(
     take: 20,
     select: { id: true, listingId: true },
   })
-  let existingWithSeller: { id: string; listingId: string } | null = null
+  // listingId is nullable since support threads exist; this reuse path only ever sees listing
+  // threads, but the type has to admit what the column admits.
+  let existingWithSeller: { id: string; listingId: string | null } | null = null
   if (sellerThreads.length > 0) {
     // Resolved once and only when a reuse is actually in question — `threadKind` costs two desk
     // lookups, and an ordinary first contact (no candidate rows at all) must not pay for them.
@@ -511,19 +525,22 @@ export const GET = route({ auth: 'userId' }, async ({ userId: meId }) => {
   //
   // Cheap despite the loop: both resolvers inside threadKind are React-cache()d, so the whole page
   // of conversations costs ONE desk lookup and one catalogue lookup, then in-memory comparisons.
-  const kinds = await Promise.all(visible.map((c) => threadKind({ listingId: c.listing.id })))
+  // threadKind already answers for a null listing — a support thread simply has no listing kind.
+  const kinds = await Promise.all(visible.map((c) => threadKind({ listingId: c.listing?.id ?? null })))
 
   const conversations = visible.map((c, i) => {
     const iAmBuyer = c.buyerProfileId === meId
-    const img = (() => { try { return (JSON.parse(c.listing.images || '[]')[0] as string) ?? null } catch { return null } })()
+    const img = (() => { try { return (JSON.parse(c.listing?.images || '[]')[0] as string) ?? null } catch { return null } })()
     const lastMsg = c.messages[0]
     const lastOffer = lastMsg?.kind === 'offer'
       ? { mine: lastMsg.senderProfileId === meId, amount: lastMsg.offerAmount, status: lastMsg.offerStatus }
       : null
     return {
       id: c.id,
-      listingId: c.listing.id,
-      listingTitle: c.listing.title,
+      // ⚠️ NULL ON A SUPPORT THREAD — the inbox row renders its own label for those rather than a
+      // listing title, because there is no listing to name.
+      listingId: c.listing?.id ?? null,
+      listingTitle: c.listing?.title ?? null,
       listingImage: img,
       lastMessageAt: c.lastMessageAt.toISOString(),
       lastMessageText: c.lastMessageText,

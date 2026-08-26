@@ -520,7 +520,8 @@ type ConvoForSend = {
   id: string
   buyerProfileId: string
   sellerProfileId: string | null
-  listingId: string
+  /** NULL on a SUPPORT thread — the only conversation kind with no listing behind it. */
+  listingId: string | null
   /**
    * The visa case this thread is bound to, when it is a visa thread. REQUIRED to send
    * a visa card — see buildCardMeta. Callers that don't select it simply cannot

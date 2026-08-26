@@ -235,7 +235,7 @@ export const GET = route({ auth: 'userId' }, async ({ req, params, userId: meId 
     } catch { hasReviewed = false }
   }
 
-  const img = (() => { try { return (JSON.parse(convo.listing.images || '[]')[0] as string) ?? null } catch { return null } })()
+  const img = (() => { try { return (JSON.parse(convo.listing?.images || '[]')[0] as string) ?? null } catch { return null } })()
 
   // FAILS SOFT, ALWAYS. A visa lookup (Supabase, the shop catalogue, the FX feed) must never
   // be able to 500 somebody's chat: without this block the thread simply renders the cards as
@@ -253,7 +253,9 @@ export const GET = route({ auth: 'userId' }, async ({ req, params, userId: meId 
   // visas AND trip planning from ONE Seller row, so the thread's seller cannot say which it is; the
   // anchor listing can, and threadKind is where that lives. The thread page needs it to suppress
   // affordances that make no sense at a form desk — "is this still available?" being the obvious one.
-  const kind = await threadKind({ listingId: convo.listing.id })
+  // ⚠️ A SUPPORT THREAD HAS NO LISTING, so there is nothing to ask threadKind about — it answers
+  // "what kind of listing anchors this", and the answer here is "none". See Conversation.listingId.
+  const kind = convo.listing ? await threadKind({ listingId: convo.listing.id }) : null
 
   return {
     id: convo.id,
@@ -271,7 +273,10 @@ export const GET = route({ auth: 'userId' }, async ({ req, params, userId: meId 
     sellerIsPartner: convo.seller.officialPartner,
     // availabilityConfirmedAt powers the buyer's instant "still available?" answer
     // (fresh seller confirmation → answered inline, no message sent).
-    listing: { id: convo.listing.id, title: convo.listing.title, image: img, price: convo.listing.price, currency: convo.listing.currency, priceUnit: convo.listing.priceUnit, negotiable: convo.listing.negotiable, availabilityConfirmedAt: convo.listing.availabilityConfirmedAt?.toISOString() ?? null, status: convo.listing.status },
+    // ⛔ NULL ON A SUPPORT THREAD. Every consumer of this payload assumed a listing because every
+    // conversation had one; support is the first that does not, and a fabricated placeholder would
+    // have to be filtered out of the thread header, the offer bar and the review prompt separately.
+    listing: convo.listing ? { id: convo.listing.id, title: convo.listing.title, image: img, price: convo.listing.price, currency: convo.listing.currency, priceUnit: convo.listing.priceUnit, negotiable: convo.listing.negotiable, availabilityConfirmedAt: convo.listing.availabilityConfirmedAt?.toISOString() ?? null, status: convo.listing.status } : null,
     // Buyer already reviewed this conversation → the thread UIs hide the review prompt.
     hasReviewed,
     // `locale` drives the live-translation toggle: the client offers it ONLY when the

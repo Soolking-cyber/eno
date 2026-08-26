@@ -66,6 +66,10 @@ export const POST = route({ auth: 'profile', rateLimit: { bucket: 'review-create
   if (!convo) throw new ApiError('not_found', 404)
   // Only the conversation's BUYER may review (the seller is the subject).
   if (convo.buyerProfileId !== me.id) throw new ApiError('forbidden', 403)
+  /* ⛔ A SUPPORT THREAD IS NOT REVIEWABLE. A review is about a storefront's handling of a
+     LISTING — it carries listingId, and the transaction signal below reads the listing's status.
+     A thread with no listing satisfies none of that, so it is refused before any of it is read. */
+  if (!convo.listing) throw new ApiError('forbidden', 403)
   // The reviewed storefront must own the listing this conversation is about.
   if (convo.listing.sellerId !== id) throw new ApiError('forbidden', 403)
 

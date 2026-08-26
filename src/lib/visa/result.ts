@@ -228,7 +228,7 @@ type ResultThread = {
   id: string
   buyerProfileId: string
   sellerProfileId: string | null
-  listingId: string
+  listingId: string | null
   visaApplicationId: string | null
 }
 

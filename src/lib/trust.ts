@@ -282,6 +282,9 @@ export async function computeTrustV2(profileId: string): Promise<TrustBreakdown 
       if (prev === undefined || t < prev) txByListing.set(l.id, t)
     }
     for (const m of acceptedOffers) {
+      // A support thread has no listing to key a transaction by, and cannot carry an accepted
+      // offer in any case — skip rather than bucket it under a null key.
+      if (!m.conversation.listingId) continue
       const t = m.createdAt.getTime()
       const prev = txByListing.get(m.conversation.listingId)
       if (prev === undefined || t < prev) txByListing.set(m.conversation.listingId, t)
