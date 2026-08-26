@@ -1,14 +1,35 @@
-// Client-side GA4 events (+ Meta Pixel BROWSING events, kept wired but DORMANT).
-// The Meta Pixel script was removed from analytics-tags.tsx for performance, so
-// window.fbq is never defined and every fb() call below no-ops — re-adding the Pixel
-// script re-enables them with no other change. GA (gtag) is installed interaction-gated.
+// Client-side GA4 events (+ Meta Pixel BROWSING events).
+// ⛔ THE PIXEL IS NOT DORMANT ANY MORE, AND NOTHING IN THIS REPO TURNED IT ON. This header said
+// "window.fbq is never defined and every fb() call below no-ops" from 2026-07-10, when the Pixel
+// script was removed from analytics-tags.tsx. That stopped being true on 2026-08-18 (8934e842),
+// when eno.forum got a GTM container and CSP was widened to admit `connect.facebook.net` as a tag
+// vendor: a Meta Pixel tag added in the GTM web UI now defines `window.fbq`, so every `fb()` call
+// below FIRES on eno.forum. Measured on the live site — `typeof window.fbq === 'function'`.
+// ⚠️ `fbq('track', …)` BROADCASTS TO EVERY INITIALISED PIXEL ID, so a container carrying two ids
+// sends each ViewContent/Search twice — on top of the server-side CAPI, which is the double-count
+// the "pixel off" decision existed to prevent. Measured 2026-08-26: `fbq.getState().pixels` held
+// TWO (1006148665611946 and 971008779317420). The owner removed the second from GTM the same day;
+// re-measured after, one id. ⛔ COUNT THEM, don't assume — nothing in this repo can see or gate
+// what the container loads, and `getState().pixels` is the only honest check.
+// ⚠️ The surviving id must stay the one `META_PIXEL_ID` posts to, or the `eventID` dedup below
+// pairs nothing and the two channels double-count anyway.
+// ⚠️ eno.vn is unaffected — it ships no GTM container (NEXT_PUBLIC_GTM_ID is set only in
+// eno-services-env), so `fbq` is genuinely undefined there and these calls really do no-op.
+// GA (gtag) is installed interaction-gated.
 //
 // IMPORTANT — conversions are server-side now: CompleteRegistration / Contact / Lead
 // fire from the API routes via the Meta Conversions API (src/lib/meta-capi.ts), which
 // adds ZERO client/first-load cost and isn't blocked by ad-blockers. So the client
 // helpers below only keep the *browsing* pixel events (ViewContent/Search) — the ones
-// the conversions don't cover. This keeps the two channels non-overlapping: no shared
-// event_id / dedup needed, and no double-counting if the browser pixel is switched on.
+// the conversions don't cover.
+// ⛔ THEY ARE NO LONGER NON-OVERLAPPING, AND THIS PARAGRAPH USED TO SAY THEY WERE. It read "no
+// shared event_id / dedup needed" — true when ViewContent was browser-only. `trackViewListing`
+// now fires the Pixel AND `viewContentBeacon` (CAPI, ad-blocker backstop) for the SAME view, so
+// the shared `eventId` is what stops Meta counting it twice. Dedup is load-bearing: it needs the
+// same event_id (it has one) AND the same pixel id on both sides (`META_PIXEL_ID` server-side vs
+// whatever the GTM container initialises — nothing in this repo can check that).
+// ⚠️ And the container can widen the overlap further: a Pixel tag with its own PageView/Lead
+// triggers duplicates the API-route conversions with NO event_id at all. Check the container.
 //
 // Every call here is guarded: it no-ops on the server / before the script loads and
 // never throws inside a click handler — a dropped event always beats a broken UX.
