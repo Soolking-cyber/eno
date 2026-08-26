@@ -1,6 +1,10 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
+import { useRouter } from 'next/navigation'
+import { useAuth } from '@/context/auth-context'
+import { logError } from '@/lib/log'
 import { useHideOnScroll } from '@/hooks/use-hide-on-scroll'
 import { SupportDialog, Mail } from '@/components/ui/icons'
 import { Button } from '@/components/ui/button'
@@ -36,7 +40,36 @@ import { cn } from '@/lib/utils'
  */
 export function SupportButton({ className }: { className?: string }) {
   const { tr } = useLanguage()
+  const { user } = useAuth()
+  const router = useRouter()
   const [open, setOpen] = useState(false)
+  const [opening, setOpening] = useState(false)
+
+  /**
+   * Signed in → a real conversation in /messages. Owner: *"auto open message ... route to message
+   * tab and open message with support"*.
+   *
+   * ⚠️ THE ROUTE TAKES NO BODY. Buyer, seller and edition are all resolved server-side, so there is
+   * nothing here that could open somebody else's thread or reach the other edition's desk.
+   * ⚠️ ON FAILURE IT FALLS BACK TO THE PANEL RATHER THAN TO AN ERROR. A person tapping "support" is
+   * already having a problem; the email form still reaches the same inbox, so a 500 costs them a
+   * different form, not their route to help.
+   */
+  const openThread = async () => {
+    if (opening) return
+    setOpening(true)
+    try {
+      const res = await fetch('/api/support/thread', { method: 'POST' })
+      if (!res.ok) throw new Error(`support-thread ${res.status}`)
+      const { id } = (await res.json()) as { id: string }
+      router.push(`/messages/${id}`)
+    } catch (e) {
+      logError(e, { op: 'support.openThread' })
+      setOpen(true)
+    } finally {
+      setOpening(false)
+    }
+  }
   /**
    * ⚠️ THE SAME SIGNAL THE BOTTOM NAV USES, so the two move as one piece of chrome rather than as
    * two things that happen to animate. mobile-nav.tsx calls this hook and applies
@@ -48,7 +81,23 @@ export function SupportButton({ className }: { className?: string }) {
   const scrolledAway = useHideOnScroll()
 
   return (
-    <Sheet open={open} onOpenChange={setOpen}>
+    /**
+     * ⛔ THE SIGNED-IN BRANCH LIVES IN onOpenChange, NOT IN THE TRIGGER'S onClick, and that is not a
+     * style choice. The trigger has to stay a real `SheetTrigger` — Base UI restores focus to the
+     * trigger IT registered, and a hand-rolled open flag registers nothing (measured: opening left
+     * `document.activeElement` on <body>, and Escape left it there too). But a signed-in tap must
+     * NOT open the sheet. Intercepting here uses the controlled contract that already exists: the
+     * trigger asks to open, and this decides what "open" means. Trying to cancel the trigger's own
+     * click with preventDefault would be a guess about Base UI's internals.
+     * ⚠️ Only `next === true` is intercepted, so Escape and backdrop clicks still close normally.
+     */
+    <Sheet
+      open={open}
+      onOpenChange={(next) => {
+        if (next && user) { void openThread(); return }
+        setOpen(next)
+      }}
+    >
       <SheetTrigger render={
         <Button
           variant="bare"
@@ -66,6 +115,7 @@ export function SupportButton({ className }: { className?: string }) {
              down would tab into an off-screen support button — the identical trap the chevron above
              documents and solves with `inert`. Same three levers here: inert removes focus, pointer
              and a11y in one; aria-hidden + tabIndex=-1 are the fallback for browsers without it. */
+          data-busy={opening || undefined}
           inert={scrolledAway || undefined}
           aria-hidden={scrolledAway || undefined}
           tabIndex={scrolledAway ? -1 : undefined}
@@ -138,6 +188,18 @@ export function SupportButton({ className }: { className?: string }) {
             <SheetDescription>
               {tr('Tell us what is going on and we will reply by email.', 'Cho chúng tôi biết vấn đề, chúng tôi sẽ trả lời qua email.')}
             </SheetDescription>
+            {/* ⚠️ THIS PANEL IS NOW THE SIGNED-OUT PATH, so it says what the signed-in one gets.
+                A signed-in tap never reaches here — it opens a real thread — so anyone reading this
+                is signed out, and the honest thing is to offer the better route rather than let
+                them assume email is all there is. */}
+            {!user && (
+              <p className="pt-1 text-xs text-muted-foreground">
+                <Link href="/signin" className="font-semibold text-accent-foreground underline-offset-2 hover:underline">
+                  {tr('Sign in', 'Đăng nhập')}
+                </Link>{' '}
+                {tr('to chat with support instead.', 'để trò chuyện trực tiếp với hỗ trợ.')}
+              </p>
+            )}
           </SheetHeader>
 
           <div className="px-4 pb-6">

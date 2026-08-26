@@ -273,7 +273,7 @@ type Thread = {
    * Optional because a cached thread written by an older build has none; treat absent as 'listing'
    * (the fallback threadKind itself fails closed to), never as a desk thread.
    */
-  kind?: 'visa' | 'itinerary' | 'listing'
+  kind?: 'visa' | 'itinerary' | 'listing' | null
   iAmSeller?: boolean // true = I'm the listing's seller → hide "request contact" (I'm the contact)
   // Seller.officialPartner — a partner shares no number by agreement, so the contact strip is not
   // offered at all. ⚠️ OPTIONAL, and that is load-bearing, exactly as it is for iAmSeller above:
@@ -290,7 +290,16 @@ type Thread = {
   // every ordinary conversation.
   visaApplicationId?: string | null
   visa?: unknown
-  listing: { id: string; title: string; image: string | null; price?: number; negotiable?: boolean; availabilityConfirmedAt?: string | null; status?: string }
+  /**
+   * ⛔ NULLABLE, AND THE SERVER HAS ALWAYS BEEN ABLE TO SEND NULL — this type was the lie.
+   * `/api/conversations/[id]` emits `listing: convo.listing ? {…} : null` for a SUPPORT thread,
+   * which is the one conversation with no anchor listing (see Conversation.listingId). While this
+   * field claimed to be non-optional, every `thread.listing.x` below type-checked and would have
+   * thrown at runtime the first time a support thread opened.
+   * ⚠️ So the guards this change adds are not defensive padding: each one is a crash that was
+   * already reachable, listed by tsc the moment the type stopped lying.
+   */
+  listing: { id: string; title: string; image: string | null; price?: number; negotiable?: boolean; availabilityConfirmedAt?: string | null; status?: string } | null
   counterpart: {
     name: string
     avatarColor: string
@@ -999,7 +1008,10 @@ export default function ThreadPage() {
   // Reveal the seller's number + Zalo on request (login-gated + rate-limited +
   // logged as a lead by the API). Gated in the UI to AFTER the seller has replied.
   const requestContact = async () => {
-    if (contact || revealing || !thread) return
+    // ⛔ `!thread.listing` IS NOT BELT-AND-BRACES — this reveal is `/api/listings/<id>/contact`,
+    // so with no anchor listing the URL would be `/api/listings/undefined/contact`. A support
+    // thread has no seller number to reveal in the first place; the strip is hidden below too.
+    if (contact || revealing || !thread || !thread.listing) return
     setRevealing(true)
     try {
       const res = await fetch(`/api/listings/${thread.listing.id}/contact`, { method: 'POST' })
@@ -1666,7 +1678,7 @@ export default function ThreadPage() {
     return null
   }, [thread])
 
-  const askingPrice = thread?.listing.price && thread.listing.price > 0 ? thread.listing.price : null
+  const askingPrice = thread?.listing?.price && thread.listing.price > 0 ? thread.listing.price : null
   const sliderOffer = askingPrice ? Math.round(askingPrice * (1 - offerPct / 100)) : null
   const submitOffer = () => {
     // counterMode → the typed amount; otherwise the slider wins when the listing has a price.
@@ -1731,7 +1743,7 @@ export default function ThreadPage() {
   // accepted) and this conversation hasn't produced a review yet.
   const hasAcceptedOffer = !!acceptedOfferId
   const showReviewPrompt = !!thread && !thread.iAmSeller && !thread.hasReviewed && !!thread.counterpart.sellerId &&
-    (thread.listing.status === 'sold' || hasAcceptedOffer)
+    (thread.listing?.status === 'sold' || hasAcceptedOffer)
 
   // Safety interjections — pure render-time, no fetch/send involvement. THREE moments now:
   // the thread's first breath, the first off-platform lure, and the moment a price is agreed.
@@ -1798,7 +1810,10 @@ export default function ThreadPage() {
                   />
                 </div>
               )}
-              {thread && <Link href={`/listings/${thread.listing.id}`} className="block truncate text-xs text-accent-foreground hover:underline">{thread.listing.title}</Link>}
+              {/* ⚠️ `thread.listing &&`, not `thread &&`: a SUPPORT thread has no listing, and this
+                  line is the header's subtitle — it would have rendered a link to /listings/undefined
+                  under the counterpart's name. */}
+              {thread?.listing && <Link href={`/listings/${thread.listing.id}`} className="block truncate text-xs text-accent-foreground hover:underline">{thread.listing.title}</Link>}
             </div>
             {/* Report this conversation (harassment / scam in chat) — the report links
                 the thread so an admin can read the exchange. */}
@@ -1903,7 +1918,7 @@ export default function ThreadPage() {
               const dayText = dk === new Date().toDateString() ? tr('Today', 'Hôm nay')
                 : dk === new Date(Date.now() - 864e5).toDateString() ? tr('Yesterday', 'Hôm qua')
                 : new Date(m.createdAt).toLocaleDateString(locale === 'vi' ? 'vi-VN' : 'en-US', { month: 'short', day: 'numeric' })
-              const askPct = m.kind === 'offer' && thread?.listing.price && m.offerAmount ? Math.round((m.offerAmount / thread.listing.price) * 100) : null
+              const askPct = m.kind === 'offer' && thread?.listing?.price && m.offerAmount ? Math.round((m.offerAmount / thread.listing.price) * 100) : null
               // KIND DISPATCH. Each structured kind parses its own metaJson and refuses to
               // render as a live prompt off a blob it cannot read (the server already
               // strict-parses every write, so an unreadable one is a legacy/hand-written row).
@@ -2161,7 +2176,7 @@ export default function ThreadPage() {
                     <div className="flex items-center gap-1 text-2xs font-bold uppercase tracking-wide text-accent-foreground"><Tag className={`h-3 w-3 ${m.offerStatus === 'pending' ? 'fill-brand text-brand' : ''}`} aria-hidden /> {tr('Offer', 'Đề nghị')}</div>
                     <div className="mt-0.5 text-base font-bold text-foreground">{tr('Offered', 'Đã trả giá')} {formatMoneyFull(m.offerAmount || 0, '₫', locale)}</div>
                     {askPct != null && (
-                      <div className="text-2xs font-medium text-ink-4">{askPct}% {tr('of asking', 'của giá rao')} ({formatMoneyFull(thread!.listing.price!, '₫', locale)})</div>
+                      <div className="text-2xs font-medium text-ink-4">{askPct}% {tr('of asking', 'của giá rao')} ({formatMoneyFull(thread!.listing!.price!, '₫', locale)})</div>
                     )}
                     {m.body && !m.body.startsWith('💰') && (
                       <div className="mt-1 text-sm leading-relaxed text-foreground">{m.body}</div>
@@ -2189,7 +2204,11 @@ export default function ThreadPage() {
                             (Accept/Decline don't send offers and stay). A stale pending offer
                             can outlive a switch to fixed price — the 409 would otherwise reject
                             the counter and, for a buyer, dock trust for a control we showed. */}
-                        {thread?.listing.negotiable !== false && (
+                        {/* ⛔ `thread?.listing &&` FIRST. `thread?.listing.negotiable !== false` reads
+                            as "allow unless explicitly non-negotiable", and with NO listing that is
+                            `undefined !== false` → true, so a support thread would offer to counter
+                            an offer against a product that does not exist. */}
+                        {!!thread?.listing && thread.listing.negotiable !== false && (
                           <Button variant="ghost" size="none" onClick={() => { setOfferInput(groupVnd(String(m.offerAmount ?? 0), locale)); setCounterMode(true); setShowOffer(true) }} className="rounded-lg px-3 py-1 text-xs font-bold text-accent-foreground transition-colors hover:bg-muted cursor-pointer">{tr('Counter', 'Trả giá')}</Button>
                         )}
                       </div>
@@ -2219,7 +2238,7 @@ export default function ThreadPage() {
                         `kind` is absent — the deny-list lesson written out in the timeline map above. */}
                     {m.id === acceptedOfferId && <OfferAcceptedNote />}
                     {/* Seller just accepted THIS offer → follow through to "sold". */}
-                    {thread?.iAmSeller && m.id === justAcceptedId && m.offerStatus === 'accepted' && (
+                    {thread?.iAmSeller && thread.listing && m.id === justAcceptedId && m.offerStatus === 'accepted' && (
                       <MarkSoldPrompt listingId={thread.listing.id} listingTitle={thread.listing.title} />
                     )}
                     {/* Owner, 2026-08-16: "timestamp is inside box for all other in chat elements
@@ -2499,7 +2518,9 @@ export default function ThreadPage() {
               that can sell out — and the cards are the affordance in both. Visa was already gated on
               `visaInfo`; trips needed the server's `threadKind`, because the desk sells both from one
               Seller row and nothing on the client could tell them apart. */}
-          {thread && !visaInfo && thread.kind === 'listing' && (
+          {/* `thread.listing &&` is implied by `kind === 'listing'` (the server derives that kind
+              FROM the anchor listing) but the compiler cannot see it — and stating it is free. */}
+          {thread && !visaInfo && thread.kind === 'listing' && thread.listing && (
             <QuickReplyChips
               isSeller={!!thread.iAmSeller}
               hasPendingBuyerOffer={hasPendingBuyerOffer}
@@ -2569,7 +2590,9 @@ export default function ThreadPage() {
             {/* Offer control only on negotiable listings — a fixed-price seller takes
                 no offers (buyers just ask availability + buy). Undefined = older cached
                 thread → allow (server still enforces). */}
-            {thread?.listing.negotiable !== false && (
+            {/* ⛔ Same trap as the counter button above: with no listing, `undefined !== false`
+                is TRUE, so the composer would show "Make an offer" in a support thread. */}
+            {!!thread?.listing && thread.listing.negotiable !== false && (
               <IconButton
                 size="lg"
                 onClick={toggleOffer}
