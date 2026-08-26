@@ -582,6 +582,24 @@ export default async function ListingPage({ params }: Props) {
                   three read as one cohesive unit. Price is the largest, boldest text on the page. */}
               <div className="order-3 flex flex-col gap-2">
                 <div className="flex flex-col gap-1.5">
+                  {/* ⚠️ KNOWN, MEASURED, AND DELIBERATELY NOT "FIXED" — read this before trying.
+                      On a COLD cache this row grows after first paint and everything below it moves:
+                      the approximate USD is not in the server HTML (it needs the rate from /api/fx),
+                      so when that lands the price span widens 222px -> 302px, the row wraps, and this
+                      container goes 36px -> 63px. Measured at 390px with /api/fx held: the <h1> drops
+                      26px, CLS 0.0811. At 640px and wider it does not wrap at all (0px, CLS 0.0002),
+                      and on every visit after the first `eno-fx` is cached so it never happens.
+                      ⛔ `min-h-[4rem]` WAS TRIED AND IS WORSE. It removes the shift (0px, CLS 0.0032
+                      at 390) but pins the row at 64px for listings whose price is short enough not to
+                      wrap: measured with a 500,000 price, content 36px inside a 64px box — 28px of
+                      permanent dead space directly under the largest text on the page, on the cheap
+                      listings a classifieds site is full of. Three reviewers called it and they were
+                      right; the measurement is above so nobody has to re-derive it.
+                      ⛔ AND NOT BY BAKING THE RATE INTO THE HTML. This page is ISR-cached for 30 days;
+                      a rate baked into prerendered markup is exactly the shape that already broke
+                      hydration on the home page. The real fix is a stable-width approximation slot,
+                      which needs the rate's magnitude up front — $19 and $2,926 are not the same
+                      width — so it is a Price-component change, not a class on this div. */}
                   <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
                     {/*
                       * "from" ON A PARTNER LISTING — the number is the LOWEST adult ticket, and the
