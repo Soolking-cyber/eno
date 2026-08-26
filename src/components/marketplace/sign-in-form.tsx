@@ -207,6 +207,14 @@ export function SignInForm({ className }: { className?: string }) {
   // from the AASA allowlist on purpose, so Universal Links cannot bring it back either.
   // There we email a numeric code (EMAIL_OTP_LEN digits) and verify it in-app, exactly like phone OTP.
   const [emailCode, setEmailCode] = useState(false)
+  /**
+   * What the AUTO-detect decided, kept separately from `emailCode` so the delivery toggle below can
+   * be one-way exactly where it must be. An in-app-browser / native / PWA visitor is forced to the
+   * code because a magic LINK lands in the system browser's cookie jar and signs in a window they
+   * have already left — offering them "send a link instead" would be offering a dead end. Everyone
+   * else may switch freely in both directions.
+   */
+  const [autoCode, setAutoCode] = useState(false)
   const lastSubmitted = useRef('')
   // Google blocks OAuth inside in-app browsers / iOS PWAs (403 disallowed_useragent).
   // Detect that client-side and hand off to the real browser instead of dead-ending.
@@ -235,7 +243,9 @@ export function SignInForm({ className }: { className?: string }) {
     // The emailed code is typed where the visitor already is, so it cannot care about jars.
     // The previous comment noted the iOS PWA \"has the same broken-link problem\" and deferred it to
     // limit blast radius; the blast radius of NOT doing it is a visitor who cannot sign in.
-    setEmailCode(isNativeApp() || isNativeTabs() || googleOauthBlocked())
+    const auto = isNativeApp() || isNativeTabs() || googleOauthBlocked()
+    setAutoCode(auto)
+    setEmailCode(auto)
   }, [])
 
   // supabase-js (~248 KB) is loaded on demand, per handler, instead of at module
@@ -1074,12 +1084,50 @@ export function SignInForm({ className }: { className?: string }) {
               <Button variant="cta" size="none" onMouseDown={(e) => e.preventDefault()} onClick={sendEmail} disabled={loading || !email.includes('@')} className="flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm disabled:opacity-100 disabled:bg-muted disabled:text-ink-4 transition-colors cursor-pointer">
                 {loading && <Loader2 className="h-4 w-4 animate-spin" />} {emailCode ? t('Send code', 'Gửi mã') : t('Send magic link', 'Gửi liên kết đăng nhập')}
               </Button>
+              {/* DELIVERY TOGGLE — link vs code, chosen by the visitor.
+                  ⛔ ONLY THE CLIENT MAY DECIDE THIS, and that is why the switch lives here rather
+                  than in a server heuristic. api/auth/email-link takes `deliver` from the request
+                  precisely so the sender and the screen can never disagree: a server that sniffed
+                  the UA and chose differently would show a code box to someone holding only a link,
+                  which is a dead end with no way back.
+                  ⚠️ HIDDEN WHEN THE AUTO-DETECT FORCED CODE, because for that cohort — in-app
+                  browsers, native, iOS PWA — the link genuinely does not work: it opens in the
+                  system browser and signs in a window they have already left. A toggle offering it
+                  would be offering the broken path. Everyone else gets it in both directions.
+                  ⚠️ Codes are the WEAKER credential today (six digits, and /auth/v1/verify is
+                  outside our Postgres rate limiter), which is why this is opt-in rather than the
+                  new default — see EMAIL_OTP_LEN for the expiry question that governs that. */}
+              {/* ⛔ RENDERED ALWAYS, HIDDEN WHEN IT DOES NOT APPLY — and I tried the other way first.
+                  Conditionally rendering it (`{!autoCode && …}`) removes the reserved 22px row for
+                  the forced-code cohort, which a reviewer asked for and which looks strictly better.
+                  It is not: `autoCode` is false until the mount effect runs, so the toggle renders
+                  on first paint and then UNMOUNTS at hydration. Measured on an in-app UA at 390px —
+                  the CTA jumps 546px -> 541px, CLS 0.0068 — which is the tap-target-moves-under-a-
+                  travelling-thumb failure this component reserves space to prevent, landing on the
+                  exact cohort the removal was meant to help. A stable gap beats a moving button. */}
+              <SecondarySwitch
+                show={email.includes('@') && !autoCode}
+                  /* ⛔ `disabled={loading}`, AND IT IS NOT COSMETIC. The CTA beside it already had
+                     this; the toggle did not, so a tap during the in-flight send flipped `emailCode`
+                     between the request leaving and `sendEmail` reading it back — the request went
+                     with deliver=link and the resolve then rendered the CODE box. That is precisely
+                     the "code box with only a link in the inbox" dead end the comment above claims
+                     this design prevents. Found in review; the comment was true of the server
+                     contract and false of my own switch. */
+                disabled={loading}
+                onClick={() => { setEmailCode((v) => !v); setError(null) }}
+                  /* ⚠️ "Use a … instead", matching the password switch, NOT "Send …". The Vietnamese
+                     for "Send a magic link instead" is `Gửi liên kết đăng nhập` — character for
+                     character the CTA's own label — so in Vietnamese the two read as two send
+                     buttons stacked. English hid it; only the vi pair showed it. */
+                label={emailCode ? t('Use a magic link instead', 'Dùng liên kết đăng nhập') : t('Use a code instead', 'Dùng mã qua email')}
+              />
               {/* Secondary by construction: a text button under the CTA, shown only once the
                   field holds something that could BE an account. Password is opt-in from
                   Settings, so most visitors have none — leading with it, or making it a third
                   tab, would put a credential most accounts lack beside the two that always
                   work. Enabled state mirrors the CTA's so it cannot advance on an empty box. */}
-              <PasswordSwitch
+              <SecondarySwitch
                 show={email.includes('@')}
                 onClick={() => { setStage('password'); setPassword(''); setError(null) }}
                 label={t('Use a password instead', 'Dùng mật khẩu')}
@@ -1159,7 +1207,7 @@ export function SignInForm({ className }: { className?: string }) {
               {/* Sits BELOW the delivery warning, not above it: with no SMS fallback the
                   warning is the thing a visitor most needs to read before tapping send, and
                   password is the rarer path. Same 9-digit threshold as the CTA. */}
-              <PasswordSwitch
+              <SecondarySwitch
                 show={phone.replace(/\D/g, '').length >= 9}
                 onClick={() => { setStage('password'); setPassword(''); setError(null) }}
                 label={t('Use a password instead', 'Dùng mật khẩu')}
@@ -1248,7 +1296,9 @@ export function SignInForm({ className }: { className?: string }) {
 }
 
 /**
- * The "use a password instead" switch, shared by both tabs.
+ * A secondary text switch under the CTA. Used for "use a password instead" on both tabs and for
+ * the link/code delivery toggle on the email tab — same shape, same layout contract, so it stays
+ * one component rather than two that drift.
  *
  * ⚠️ IT RESERVES ITS SPACE WHEN HIDDEN. Rendering `show && <Button/>` made the whole form
  * grow by a row the moment the visitor typed an "@", which pushed the CTA out from under a
@@ -1258,13 +1308,14 @@ export function SignInForm({ className }: { className?: string }) {
  * merely unseen: an invisible button that a screen reader still announces, or that Tab still
  * lands on, is worse than one that is simply absent.
  */
-function PasswordSwitch({ show, onClick, label }: { show: boolean; onClick: () => void; label: string }) {
+function SecondarySwitch({ show, onClick, label, disabled }: { show: boolean; onClick: () => void; label: string; disabled?: boolean }) {
   return (
     <div className={cn('pt-0.5 text-center', !show && 'invisible pointer-events-none')} aria-hidden={!show}>
       <Button
         variant="bare"
         size="none"
-        tabIndex={show ? undefined : -1}
+        disabled={disabled}
+        tabIndex={show && !disabled ? undefined : -1}
         onMouseDown={(e) => e.preventDefault()}
         onClick={onClick}
         className="text-xs font-semibold text-muted-foreground hover:text-accent-foreground hover:underline cursor-pointer"
