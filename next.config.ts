@@ -981,6 +981,18 @@ const nextConfig: NextConfig = {
       // SELF-HOSTED (public/vendor/leaflet) and the browser Meta Pixel is REMOVED (server-side
       // CAPI only) — so unpkg.com and the facebook.net/stape/run.app hosts are gone from every
       // directive. (va.vercel-scripts.com dropped with the Vercel→Cloud Run migration.)
+      // ⛔ THE TAG THIS ADMITS IS PAUSED AS OF 2026-08-26, so this entry is DORMANT, not
+      // load-bearing. The Meta Pixel was paused in GTM container GTM-NMN55HBT because its
+      // client-side probes to per-load RANDOMISED hosts (…run.app, …ecs.*.on.aws) are unallowlistable
+      // — the only way to permit them is wildcarding two clouds, which is the post-XSS exfiltration
+      // hole connect-src exists to close — and CSP blocking them cost 8 PageSpeed Best-Practices
+      // points on eno.forum. Verified after the pause: `fbq` undefined, no connect.facebook.net
+      // request, 0 CSP violations, 0 console errors.
+      // ⚠️ KEPT ON PURPOSE ANYWAY. The tag is PAUSED, not deleted, so it is one click from
+      // returning; removing this line would make that click silently do nothing — the tag would
+      // load and be blocked with no visible cause. Delete this entry when the tag is deleted, not
+      // before. Conversions are unaffected either way: those go server-side via lib/meta-capi.ts,
+      // which CSP does not touch.
       // ⚠️ `connect.facebook.net` IS THE META PIXEL, AND IT IS HERE SO A GTM TAG CAN LOAD IT — the
       // pixel is NOT in this repo's code. The browser pixel was removed on 2026-07-10 as the
       // heaviest third party (~233 KiB) and stays removed; what is re-enabled is the ABILITY to

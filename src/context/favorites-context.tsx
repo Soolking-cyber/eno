@@ -39,11 +39,23 @@ export function FavoritesProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => { setOptimisticSaves({}) }, [pathname])
   const savedDelta = useCallback((id: string) => optimisticSaves[id] ?? 0, [optimisticSaves])
 
+  /**
+   * ⛔ `idsHydrated` EXISTS BECAUSE /saved CONTRADICTED ITSELF. `ids` is filled HERE, in an effect,
+   * so for the first client render it is empty — and the fetch effect below read that empty set as
+   * "this device has saved nothing", set `saved = []`, and /saved dropped out of its loading branch
+   * into the mascot "No saved listings yet" while its own heading, reading the freshly-hydrated
+   * `ids.size`, said "5 saved listings". Reproduced with the listings fetch held 2.5s: the
+   * contradictory pair was on screen for 12 of 16 samples.
+   * ⚠️ An empty `ids` means "we have not looked yet" until this flag flips. The flag is set in a
+   * `finally` so a thrown/absent localStorage (private mode, storage disabled) still releases the
+   * page rather than pinning it in skeletons forever.
+   */
+  const [idsHydrated, setIdsHydrated] = useState(false)
   useEffect(() => {
     try {
       const raw = localStorage.getItem(KEY)
       if (raw) setIds(new Set(JSON.parse(raw)))
-    } catch { /* ignore */ }
+    } catch { /* ignore */ } finally { setIdsHydrated(true) }
     // keep tabs in sync
     const onStorage = (e: StorageEvent) => {
       if (e.key === KEY) {
@@ -102,6 +114,10 @@ export function FavoritesProvider({ children }: { children: React.ReactNode }) {
   const retrySaved = useCallback(() => { setSavedError(false); setFetchTick((t) => t + 1) }, [])
   const idKey = [...ids].sort().join(',')
   useEffect(() => {
+    // ⚠️ WAIT FOR THE IDS. Before hydration an empty `idKey` is "unknown", not "none" — see
+    // idsHydrated above. Returning early keeps /saved in its loading branch, which is the honest
+    // state, instead of asserting the device has nothing saved.
+    if (!idsHydrated) return
     if (!idKey) { setSaved([]); return }
     // Instant paint from cache (functional first-party cache of the user's own
     // saved items — works without the cookie banner).
@@ -138,7 +154,7 @@ export function FavoritesProvider({ children }: { children: React.ReactNode }) {
         .catch(() => { if (!cancelled) setSavedError(true) })
     }, 400)
     return () => { cancelled = true; clearTimeout(t) }
-  }, [idKey, fetchTick, lang])
+  }, [idKey, fetchTick, lang, idsHydrated])
 
   const value = useMemo(() => ({ ids, isFavorite, toggle, count: ids.size, savedDelta, saved, savedError, retrySaved }), [ids, isFavorite, toggle, savedDelta, saved, savedError, retrySaved])
 
