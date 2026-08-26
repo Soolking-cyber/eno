@@ -43,6 +43,89 @@ const BLOCK_LIMIT = 8
 const arg = (n: string) => { const i = process.argv.indexOf(`--${n}`); return i >= 0 ? process.argv[i + 1] : undefined }
 const APPLY = process.argv.includes('--apply')
 const REFETCH = process.argv.includes('--refetch')
+/**
+ * `--refetch --stale-before <iso>` — re-fetch ONLY the listings whose every stored image predates
+ * <iso>, instead of the whole catalogue.
+ *
+ * ⛔ THIS EXISTS BECAUSE A BARE `--refetch` IS 4x THE WORK IT NEEDS TO BE. The square-crop fix
+ * landed 2026-08-25T18:57+07:00 and most of the catalogue was re-fetched after it; measured
+ * 2026-08-26, 12,438 of 50,462 stored images still predate it and 2,349 of 9,726 listings hold
+ * NOTHING newer. Re-crawling all 9,726 product pages to reach those 2,349 is ~10-15h of requests
+ * to someone else's site for ~3h of useful work.
+ * ⚠️ ANY stale image selects the listing. A gallery is rewritten whole, so in practice it is all
+ * or nothing — but the rule that matches the flag's meaning is "has something old in it".
+ * ⚠️ The timestamp is the base36 `Date.now()` in the object path (`…-g-<b36>-<rand>-h<hash>.webp`),
+ * which is the only record of WHEN an image was written — the DB stores no per-image date. A path
+ * without one predates that naming and is treated as stale; so is an empty gallery, which wants
+ * re-fetching for its own reasons.
+ * ⚠️ THE CUTOFF IS THE FIX'S COMMIT TIME, AND THAT IS ONLY RIGHT BECAUSE NO PRE-FIX CRAWLER
+ * OUTLIVED IT — a live Node process never reloads code, so one still running would have stamped
+ * CROPPED images with post-cut times and this filter would skip them forever. Checked by sampling
+ * squareness per hour: 15:00-17:00 and 17:00-18:57+07 are 100% square (120 of 120), 18:57-20:00
+ * is 78%, and every later window holds that baseline. The transition is sharp at the commit
+ * minute. Re-derive this before reusing the flag for a different fix.
+ * ⚠️ MEASURED, because `every` looked too strict: a listing is entirely pre-fix or entirely
+ * post-fix, never mixed (0 of 9,726 mixed on 2026-08-26). One `db.listing.update` rewrites the
+ * whole `images` array, so a visit replaces the gallery rather than appending to it.
+ */
+const STALE_BEFORE = (() => {
+  // ⚠️ `--stale-before=<v>` TOO, not just the space form. `argv.includes('--stale-before')` is
+  // false for the equals spelling, so a typo'd flag would fall through to `null` and silently run
+  // the FULL 9,726-page crawl with --apply already on — the exact widening these guards exist to
+  // stop. Detect the flag by prefix, read the value from either spelling.
+  const eq = process.argv.find((a) => a.startsWith('--stale-before='))
+  const given = eq != null || process.argv.includes('--stale-before')
+  const raw = eq ? eq.slice('--stale-before='.length) : arg('stale-before')
+  if (!given) return null
+  /**
+   * ⛔ EVERY MISUSE HERE EXITS RATHER THAN NARROWING SILENTLY, because each one fails toward a
+   * crawl of someone else's site that is either 4x too big or quietly incomplete — and both look
+   * like success in the log.
+   *  · no value (`--apply --stale-before` with the flag last): `arg()` returns undefined, the
+   *    filter short-circuits to true, and you get the full 9,726-page run with --apply already on.
+   *  · without `--refetch`: the filter never consults this at all and selects `<= 1 image`
+   *    instead, while the banner still prints `--stale-before <date>`.
+   *  · no UTC offset: `Date.parse('2026-08-25')` is UTC midnight — 07:00+07, twelve hours BEFORE
+   *    the fix landed at 18:57+07. Images written in between then read as fresh, their listings
+   *    are skipped, and the smaller target count reads as progress.
+   */
+  if (!raw || raw.startsWith('--')) { console.error('--stale-before needs an ISO timestamp, e.g. 2026-08-25T18:57:04+07:00'); process.exit(1) }
+  if (!REFETCH) { console.error('--stale-before only narrows --refetch; pass both or neither'); process.exit(1) }
+  if (!/(?:Z|[+-]\d{2}:?\d{2})$/.test(raw)) { console.error(`--stale-before: "${raw}" has no UTC offset — pass e.g. 2026-08-25T18:57:04+07:00`); process.exit(1) }
+  const t = Date.parse(raw)
+  if (Number.isNaN(t)) { console.error(`--stale-before: "${raw}" is not a date`); process.exit(1) }
+  // A cutoff in the future marks the whole catalogue stale — the oversized crawl in a new costume.
+  if (t > Date.now()) { console.error(`--stale-before: ${raw} is in the future; that selects every listing`); process.exit(1) }
+  return t
+})()
+
+/** True when ANY image in this listing's gallery predates `cut` — i.e. the gallery needs re-fetching. */
+function hasImageOlderThan(images: string | null, cut: number): boolean {
+  // ⚠️ `Array.isArray`, not just try/catch. `JSON.parse('null')` does not throw — it returns null,
+  // and `.every` on it throws INSIDE `.filter()`, aborting target selection before a single fetch.
+  // Measured 0 such rows today; the guard is one line and the failure mode is the whole run.
+  let list: unknown
+  try { list = JSON.parse(images || '[]') } catch { return true }
+  if (!Array.isArray(list) || list.length === 0) return true
+  // ⚠️ ANCHORED TO THE FULL GENERATED TAIL, not just `-g-`. Measured across all 50,462 stored
+  // paths the anchored and unanchored forms disagree on ZERO — but the loose one reads the FIRST
+  // `-g-` anywhere in the URL, so the day a product slug contains one it parses that instead, and
+  // an 8-char alphanumeric run is a base36 value past the cutoff. The listing would then be
+  // skipped forever, silently keeping its cropped images. Anchoring costs nothing today.
+  // A path this cannot read counts as STALE — including one carrying a `?query` a reviewer raised.
+  // We build these paths ourselves and none has one, but the direction matters: unreadable means
+  // re-fetch, which costs a page view, where the opposite would silently strand a cropped gallery.
+  // ⛔ `some`, NOT `every`. They select the IDENTICAL set today (0 mixed galleries, measured), so
+  // this costs nothing — but `every` skips a listing the moment ONE image is fresh, stranding the
+  // stale ones beside it forever. One update rewrites the whole array so this crawler cannot make
+  // a mixed gallery, but an import, a manual edit or a future write path can, and the failure
+  // would be silent. `some` re-fetches a gallery that has anything old in it, which is the rule
+  // the flag actually means.
+  return list.some((u) => {
+    const m = typeof u === 'string' ? /-g-([a-z0-9]+)-[a-z0-9]+-h[a-z0-9]+\.webp$/.exec(u) : null
+    return !m || parseInt(m[1], 36) < cut
+  })
+}
 const LIMIT = Number(arg('limit') ?? 0)
 const CONCURRENCY = Number(arg('concurrency') ?? 3)
 const MAX_IMAGES = Number(arg('max-images') ?? 6)
@@ -255,12 +338,12 @@ async function main() {
     where: { sellerId: seller.id },
     select: { id: true, title: true, images: true, affiliateUrl: true, externalId: true },
   })).filter((r) => {
-    if (REFETCH) return true
+    if (REFETCH) return STALE_BEFORE == null || hasImageOlderThan(r.images, STALE_BEFORE)
     try { return JSON.parse(r.images || '[]').length <= 1 } catch { return true }
   })
 
   const targets = LIMIT ? rows.slice(0, LIMIT) : rows
-  console.log(`${APPLY ? 'APPLY' : 'DRY RUN'}${REFETCH ? ' --refetch' : ''} — ${targets.length} products ${REFETCH ? 're-fetching uncropped' : 'with <=1 image'} (of ${rows.length})`)
+  console.log(`${APPLY ? 'APPLY' : 'DRY RUN'}${REFETCH ? ' --refetch' : ''}${STALE_BEFORE != null ? ` --stale-before ${new Date(STALE_BEFORE).toISOString()}` : ''} — ${targets.length} products ${REFETCH ? 're-fetching uncropped' : 'with <=1 image'} (of ${rows.length})`)
   console.log(`  up to ${MAX_IMAGES} images each, concurrency ${CONCURRENCY}\n`)
 
   // The merchant page url is inside the affiliate link's `url=` parameter.
