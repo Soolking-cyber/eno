@@ -19,8 +19,12 @@ import type { SignInMode } from './sign-in-link'
 // an extra block bolted onto sign-in-link.ts. A vitest asserts neither email leaks the
 // other's token.
 //
-// ⚠️ The code is an 8-digit STRING with meaningful leading zeros (observed: 00730251).
-// Never round-trip it through Number().
+// ⚠️ THE CODE IS A STRING WITH MEANINGFUL LEADING ZEROS — never round-trip it through Number().
+// This renderer is deliberately LENGTH-AGNOSTIC (`${esc(code)}`, no padding, no slicing): the
+// length comes from a Supabase project setting we do not own, and it has already moved once —
+// 8 when this was written (observed 00730251), 6 as of 2026-08-26. The client's OTP input is the
+// only place that must know, and hardcoding it there is what broke email sign-in; see OTP_LEN in
+// sign-in-form.tsx. Do not "helpfully" add a length assertion here.
 
 const { INK, MUTED } = EMAIL
 

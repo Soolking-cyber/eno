@@ -26,9 +26,38 @@ const RESEND_SECONDS = 60
 const SMS_RESEND_STEPS = [60, 300, 900, 1800]
 // Same contract for email, mirroring RESEND_STEPS_SEC in api/auth/email-link.
 const EMAIL_RESEND_STEPS = [30, 60, 300, 900]
-// generateLink's email_otp is EIGHT digits, and leading zeros are real (observed 00730251)
-// — it is a string end to end, never Number().
-const EMAIL_CODE_LEN = 8
+/**
+ * ⛔ SIX, AND IT WAS EIGHT UNTIL 2026-08-26 — WHICH BROKE EMAILED-CODE SIGN-IN COMPLETELY.
+ * These gate `disabled={code.length < …}` and render that many slots, so with the constant at 8
+ * and Supabase minting 6, the Verify button could never enable and `onComplete` never fired. Not a
+ * cosmetic mismatch: there was no way to submit an emailed code at all.
+ *
+ * ⚠️ TWO CONSTANTS, NOT ONE, THOUGH BOTH ARE 6 TODAY. Three reviewers pushed back on folding them
+ * together and they are right: these lengths are owned by different systems that have never agreed
+ * to move together — the email code is GoTrue's `MAILER_OTP_LENGTH` on our own Supabase box, the
+ * phone code is whatever Zalo ZNS / SMS sends. Equal today is a coincidence, and one constant would
+ * mean the next email-side change silently reshapes the phone input.
+ *
+ * ⚠️ EMAIL_OTP_LEN MIRRORS A SERVER SETTING WE DO NOT OWN, which is exactly why it drifted with no
+ * commit here. RE-MEASURE rather than trusting this comment:
+ *   admin.auth.admin.generateLink({ type: 'magiclink', email })  →  data.properties.email_otp.length
+ * ⛔ Mint only for an address that ALREADY EXISTS and is NOT in ADMIN_EMAILS — generateLink CREATES
+ * the account otherwise, and creating a live admin that way is the trap in the auth notes.
+ *
+ * ⛔ THE DROP FROM 8 TO 6 IS A SECURITY CHANGE NOBODY DECIDED, AND THIS CONSTANT ONLY REFLECTS IT.
+ * It coincides with the move to self-hosted sb.eno.vn, where GoTrue defaults to
+ * `MAILER_OTP_LENGTH=6` and `MAILER_OTP_EXP=86400` (24h) unless set. Six digits is a 100x smaller
+ * brute-force space than eight, `verifyOtp` runs against Supabase directly rather than through our
+ * Postgres rate limiter, and every magic-link send also mints a live `email_otp`. ⚠️ OPEN QUESTION
+ * FOR THE BOX, not for this file: confirm `GOTRUE_MAILER_OTP_EXP` is short (minutes, not 24h) and
+ * that /auth/v1/verify is rate-limited. Raising `MAILER_OTP_LENGTH` back to 8 there is a one-line
+ * change — and then this constant must move with it, or sign-in breaks the same way again.
+ *
+ * ⚠️ Leading zeros are real (00730251 was an actual code): string end to end, never Number().
+ */
+const EMAIL_OTP_LEN = 6
+/** Zalo ZNS / SMS code length — independent of the email one, see above. */
+const PHONE_OTP_LEN = 6
 const fmtCountdown = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
 
 /**
@@ -176,7 +205,7 @@ export function SignInForm({ className }: { className?: string }) {
   // In the native shells a magic LINK is a dead end: it opens in the system browser, so the
   // session lands in Safari's cookie jar and the app stays logged out. /auth/* is excluded
   // from the AASA allowlist on purpose, so Universal Links cannot bring it back either.
-  // There we email an 8-digit code and verify it in-app, exactly like phone OTP.
+  // There we email a numeric code (EMAIL_OTP_LEN digits) and verify it in-app, exactly like phone OTP.
   const [emailCode, setEmailCode] = useState(false)
   const lastSubmitted = useRef('')
   // Google blocks OAuth inside in-app browsers / iOS PWAs (403 disallowed_useragent).
@@ -203,7 +232,7 @@ export function SignInForm({ className }: { className?: string }) {
     // window they had already left, and only phone OTP genuinely working in place — and phone
     // delivery is Telegram-only in production today. That is close to no way in at all.
     //
-    // The 8-digit code is typed where the visitor already is, so it cannot care about jars.
+    // The emailed code is typed where the visitor already is, so it cannot care about jars.
     // The previous comment noted the iOS PWA \"has the same broken-link problem\" and deferred it to
     // limit blast radius; the blast radius of NOT doing it is a visitor who cannot sign in.
     setEmailCode(isNativeApp() || isNativeTabs() || googleOauthBlocked())
@@ -615,7 +644,7 @@ export function SignInForm({ className }: { className?: string }) {
     // success → auth-context onAuthStateChange closes the modal / the page redirects
   }
 
-  // The emailed 8-digit code, verified through the SAME client SDK the phone flow uses —
+  // The emailed numeric code, verified through the SAME client SDK the phone flow uses —
   // no custom endpoint. Measured 2026-07-22: type:'email' is a superset that accepts both
   // 'magiclink'-minted (existing account) and 'signup'-minted (new account) codes, so the
   // client never has to be told which it got — which is exactly what keeps this free of an
@@ -1059,7 +1088,8 @@ export function SignInForm({ className }: { className?: string }) {
           )}
 
           {/* Native only (emailCode) — a link cannot deliver a session into the app, so the
-              code lands here instead. Structurally the phone code stage with an 8-slot strip;
+              code lands here instead. Structurally identical to the phone code stage now that both
+              are six slots at the same width;
               the two are deliberately NOT yet extracted into one component because the phone
               block carries a dense set of load-bearing comments (autoFocus/keyboard behaviour,
               the disabled= progress-cue tradeoff) that a refactor would have to relocate
@@ -1067,20 +1097,26 @@ export function SignInForm({ className }: { className?: string }) {
           {stage === 'code' && (
             <div className="space-y-3">
               <p className="text-center text-xs text-muted-foreground">
-                {t('Enter the 8-digit code sent to', 'Nhập mã 8 số gửi tới')} <strong className="text-foreground">{email}</strong>
+                {t('Enter the 6-digit code sent to', 'Nhập mã 6 số gửi tới')} <strong className="text-foreground">{email}</strong>
               </p>
               <p className="-mt-1.5 text-center text-2xs text-ink-4">{t('Check spam if it is not there in a minute.', 'Nếu chưa thấy sau một phút, hãy kiểm tra thư rác.')}</p>
-              {/* w-9 not w-12: eight slots at the phone strip's width would overflow the dialog's
-                  content box on a 320px device. 8 × 36px == 6 × 48px, so the strip is the same
-                  total width as the phone one and the panel never reflows between tabs. */}
-              <InputOTP maxLength={EMAIL_CODE_LEN} value={code} onChange={setCode} onComplete={onCodeComplete} autoFocus autoComplete="one-time-code" inputMode="numeric" containerClassName="justify-center" disabled={loading}>
+              {/* ⚠️ w-10 ON BOTH STRIPS, AND THE OLD ONE OVERFLOWED — MEASURED, NOT REASONED.
+                  The rule here was "match the phone strip's total width so the panel never reflows
+                  between tabs", satisfied by 8 × 36px == 6 × 48px == 288px. But 288px does not FIT:
+                  injected into this card at a 320px viewport it pushes documentElement.scrollWidth
+                  from 320 to 336 — and the outgoing 8 × w-9 strip did exactly the same, so the
+                  overflow predates this change and simply survived the arithmetic that only ever
+                  compared the two strips to EACH OTHER. Six slots at w-10 is 240px: it fits the
+                  272px content box, and because both strips are six slots now they still match, so
+                  the no-reflow property is kept rather than traded away. */}
+              <InputOTP maxLength={EMAIL_OTP_LEN} value={code} onChange={setCode} onComplete={onCodeComplete} autoFocus autoComplete="one-time-code" inputMode="numeric" containerClassName="justify-center" disabled={loading}>
                 <InputOTPGroup>
-                  {Array.from({ length: EMAIL_CODE_LEN }, (_, i) => (
-                    <InputOTPSlot key={i} index={i} className="h-12 w-9 text-base font-semibold data-[active=true]:border-brand data-[active=true]:ring-brand/30" />
+                  {Array.from({ length: EMAIL_OTP_LEN }, (_, i) => (
+                    <InputOTPSlot key={i} index={i} className="h-12 w-10 text-base font-semibold data-[active=true]:border-brand data-[active=true]:ring-brand/30" />
                   ))}
                 </InputOTPGroup>
               </InputOTP>
-              <Button variant="cta" size="none" onClick={() => verifyEmailCode()} disabled={loading || code.length < EMAIL_CODE_LEN} className="flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm disabled:opacity-100 disabled:bg-muted disabled:text-ink-4 transition-colors cursor-pointer">
+              <Button variant="cta" size="none" onClick={() => verifyEmailCode()} disabled={loading || code.length < EMAIL_OTP_LEN} className="flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm disabled:opacity-100 disabled:bg-muted disabled:text-ink-4 transition-colors cursor-pointer">
                 {loading && <Loader2 className="h-4 w-4 animate-spin" />} {t('Verify', 'Xác nhận')}
               </Button>
               <div className="flex items-center justify-between px-1 text-xs">
@@ -1165,14 +1201,19 @@ export function SignInForm({ className }: { className?: string }) {
                   a concurrent verify is already blocked by onCodeComplete's own `loading` guard, so
                   dropping `disabled` would cost the feedback, not the guard. One extra tap after a
                   wrong code is the cheaper bug. */}
-              <InputOTP maxLength={6} value={code} onChange={setCode} onComplete={onCodeComplete} autoFocus autoComplete="one-time-code" inputMode="numeric" containerClassName="justify-center" disabled={loading}>
+              <InputOTP maxLength={PHONE_OTP_LEN} value={code} onChange={setCode} onComplete={onCodeComplete} autoFocus autoComplete="one-time-code" inputMode="numeric" containerClassName="justify-center" disabled={loading}>
+                {/* w-10, matching the email strip — see the measurement above: the shared 288px
+                    width both strips used overflows a 320px viewport. NB a JSX comment cannot live
+                    inside the map callback below: that is expression position, not child position,
+                    and it is a syntax error. Nor can one be nested inside another — the inner
+                    close-marker ends the outer. Both recorded in CLAUDE.md; I hit both here. */}
                 <InputOTPGroup>
-                  {[0, 1, 2, 3, 4, 5].map((i) => (
-                    <InputOTPSlot key={i} index={i} className="h-12 w-12 text-lg font-semibold data-[active=true]:border-brand data-[active=true]:ring-brand/30" />
+                  {Array.from({ length: PHONE_OTP_LEN }, (_, i) => (
+                    <InputOTPSlot key={i} index={i} className="h-12 w-10 text-base font-semibold data-[active=true]:border-brand data-[active=true]:ring-brand/30" />
                   ))}
                 </InputOTPGroup>
               </InputOTP>
-              <Button variant="cta" size="none" onClick={() => verifyPhone()} disabled={loading || code.length < 6} className="flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm disabled:opacity-100 disabled:bg-muted disabled:text-ink-4 transition-colors cursor-pointer">
+              <Button variant="cta" size="none" onClick={() => verifyPhone()} disabled={loading || code.length < PHONE_OTP_LEN} className="flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm disabled:opacity-100 disabled:bg-muted disabled:text-ink-4 transition-colors cursor-pointer">
                 {loading && <Loader2 className="h-4 w-4 animate-spin" />} {t('Verify', 'Xác nhận')}
               </Button>
               <div className="flex items-center justify-between px-1 text-xs">

@@ -145,7 +145,7 @@ export const POST = route({ auth: 'public' }, async ({ req }) => {
   // predicate that sets it also chooses which screen to render. If the server sniffed the
   // UA and disagreed, the user would face a code entry box with only a link in their inbox
   // — a dead end. Spoofing it is not interesting: it only causes the address's OWN inbox to
-  // receive a single-use 8-digit token instead of a longer one, at the same rate limit,
+  // receive a single-use numeric code instead of a longer token, at the same rate limit,
   // and the caller could already trigger the send either way.
   const wantCode = body.deliver === 'code'
 
@@ -170,8 +170,11 @@ export const POST = route({ auth: 'public' }, async ({ req }) => {
   }
 
   const hashedToken = data.properties?.hashed_token
-  // The 8-digit code. ⚠️ A STRING with meaningful leading zeros (observed 00730251) —
-  // never coerce it through Number().
+  // The numeric code. ⚠️ A STRING with meaningful leading zeros (observed 00730251) — never
+  // coerce it through Number(). Its LENGTH is a Supabase project setting (Auth → Email OTP
+  // length), not ours, and it moved 8 -> 6 without a commit here; nothing on this path cares,
+  // but the client's OTP input hardcodes it and broke when it drifted. See OTP_LEN in
+  // sign-in-form.tsx before assuming a width anywhere.
   const emailOtp = data.properties?.email_otp
   // ⚠️ The type is whatever Supabase says it is, NEVER a hardcoded 'magiclink'. A token
   // minted for a new or unconfirmed account comes back as `signup`, and verifyOtp rejects

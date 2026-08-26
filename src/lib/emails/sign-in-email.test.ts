@@ -12,7 +12,9 @@ import { renderSignInCodeEmail } from './sign-in-code'
 // would creep back in, which is why this is a test and not a comment.
 
 const URL = 'https://eno.vn/auth/confirm?token_hash=42a11a5444fae64feead03e8cf9cd1b2a5295192477fa7293f98b692&type=magiclink&next=%2F'
-const CODE = '00730251'
+// 6 digits, matching what Supabase mints today, and still leading-zero-bearing — the
+// renderer must not strip or pad, whatever the length happens to be.
+const CODE = '007302'
 const ORIGIN = 'https://eno.vn'
 const EMAIL = 'someone@example.com'
 
@@ -54,10 +56,23 @@ describe('sign-in emails · signup is visibly different from sign-in', () => {
   })
 
   // Leading zeros are real (observed 00730251). A Number() round-trip anywhere in the
-  // render would silently ship "730251" and every such sign-in would fail.
+  // render would silently ship "7302" and every such sign-in would fail.
   it('preserves leading zeros in the code', () => {
-    const { html, text } = renderSignInCodeEmail({ code: '00730251', origin: ORIGIN, email: EMAIL })
-    expect(html).toContain('00730251')
-    expect(text).toContain('00730251')
+    const { html, text } = renderSignInCodeEmail({ code: CODE, origin: ORIGIN, email: EMAIL })
+    expect(html).toContain(CODE)
+    expect(text).toContain(CODE)
+  })
+
+  /**
+   * ⚠️ LENGTH-AGNOSTIC ON PURPOSE. The code's length is a Supabase project setting we do not own
+   * and it has already moved once (8 -> 6). A renderer that padded, sliced or asserted a width
+   * would break the day it moves again — silently, in an email nobody reads in CI.
+   */
+  it('renders whatever length the code happens to be', () => {
+    for (const code of ['007302', '00730251', '0073']) {
+      const { html, text } = renderSignInCodeEmail({ code, origin: ORIGIN, email: EMAIL })
+      expect(html, code).toContain(code)
+      expect(text, code).toContain(code)
+    }
   })
 })
