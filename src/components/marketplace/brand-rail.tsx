@@ -246,6 +246,10 @@ export function BrandRail({
       // that STARTS in the system edge gutter — see the note on RAIL_SCROLLER in shelf.tsx.
       // railEdgeMask: fade — never hard-clip — the tile at the cut edge (see shelf.tsx).
       style={railEdgeMask(canLeft, canRight)}
+      /* role+label, same reason as category-rail: an overflow-x div is an unnamed scrollable
+         region, so a screen-reader user lands in a run of buttons with nothing naming it. */
+      role="group"
+      aria-label={tr('Brands', 'Thương hiệu')}
       className="flex items-center gap-4 overflow-x-auto overscroll-x-contain scrollbar-none snap-x py-1"
     >
       {sortedBrands.map((b) => {
@@ -263,6 +267,7 @@ export function BrandRail({
               // it only because it sets h-11/w-11 CLASSES. Turning the rule off lets `size={48}` land.
               iconSize={false}
               data-brand={b.slug}
+              aria-pressed={isActive}
               onClick={() => { onPickBrand(isActive ? 'all' : b.slug); onPickModel('all') }}
               className={cn(tileCls, 'whitespace-normal')}
             >
@@ -305,7 +310,7 @@ export function BrandRail({
                       chosen brand's total under the current filters — legitimately larger than
                       the model chips sum to, since a listing with no `model` set comes back when
                       the rail is cleared. Never rendered as a sum of what is on screen. */}
-                  <Button variant="bare" size="none" onClick={() => onPickModel('all')} className={cn(modelChip(activeModel === 'all'), 'justify-start gap-0')}>
+                  <Button variant="bare" size="none" aria-pressed={activeModel === 'all'} onClick={() => onPickModel('all')} className={cn(modelChip(activeModel === 'all'), 'justify-start gap-0')}>
                     {tr('All', 'Tất cả')}
                     <CountChip count={modelDim?.all} className="ml-1" />
                   </Button>
@@ -317,6 +322,7 @@ export function BrandRail({
                         key={m.model}
                         variant="bare"
                         size="none"
+                        aria-pressed={mActive}
                         onClick={() => onPickModel(mActive ? 'all' : m.model)}
                         className={cn(modelChip(mActive), 'justify-start gap-0')}
                       >
@@ -351,6 +357,7 @@ export function BrandRail({
                             key={m.model}
                             variant="bare"
                             size="none"
+                            aria-pressed={mActive}
                             onClick={() => onPickModel(mActive ? 'all' : m.model)}
                             className={cn('w-full justify-between gap-3 rounded-lg px-2.5 py-1.5 text-left text-sm font-semibold transition-colors active:scale-100', mActive ? 'bg-accent text-accent-foreground' : 'text-body hover:bg-muted hover:text-accent-foreground')}
                           >

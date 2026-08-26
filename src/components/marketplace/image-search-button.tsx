@@ -3,7 +3,7 @@
 import { useRef, useState } from 'react'
 import { Camera, Loader2 } from '@/components/ui/icons'
 import { useLanguage } from '@/context/language-context'
-import { runVisualSearch } from '@/lib/visual-search'
+import { runVisualSearch, isUnauthorized } from '@/lib/visual-search'
 import { IconButton } from '@/components/ui/icon-button'
 import { Tooltip } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
@@ -36,6 +36,10 @@ export function ImageSearchButton({
     setBusy(true)
     try {
       const r = await runVisualSearch(file)
+      // ⚠️ 401 IS SILENT HERE TOO. runVisualSearch has already asked the AuthProvider to open the
+      // sign-in modal; adding "try a clearer photo" on top of it blames the photograph for being
+      // signed out. This branch existed because a 401 used to arrive as a bare `null`.
+      if (isUnauthorized(r)) return
       if (r && r.query) onResult({ query: r.query, category: r.category, brand: r.brand })
       else onError?.(tr("Couldn't recognize the item — try a clearer photo.", 'Không nhận ra món đồ — thử ảnh rõ hơn.'))
     } catch {

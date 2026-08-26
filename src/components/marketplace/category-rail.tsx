@@ -260,10 +260,16 @@ export function CategoryRail({
       // that STARTS in the system edge gutter — see the note on RAIL_SCROLLER in shelf.tsx.
       // railEdgeMask: fade — never hard-clip — the tile at the cut edge (see shelf.tsx).
       style={railEdgeMask(canLeft, canRight)}
+      /* ⚠️ role+label ON THE SCROLLER. A bare overflow-x div is an UNNAMED scrollable region:
+         a screen-reader user arrives in a run of buttons with nothing saying what the run IS.
+         `group`, not `toolbar` — these are filters, and toolbar semantics would also claim the
+         arrow-key roving focus this rail does not implement. */
+      role="group"
+      aria-label={tr('Categories', 'Danh mục')}
       className="flex items-center gap-4 overflow-x-auto overscroll-x-contain scrollbar-none snap-x py-1"
     >
       {/* All */}
-      <Button variant="bare" size="none" data-cat="all" onClick={() => onCategory('all')} className={cn('whitespace-normal', tileCls)}>
+      <Button variant="bare" size="none" data-cat="all" aria-pressed={activeCategory === 'all'} onClick={() => onCategory('all')} className={cn('whitespace-normal', tileCls)}>
         <span className="flex h-11 items-center justify-center">
           {/* 'all' is a filter reset, not a category — it has no taxonomy row and no registry
               key (keys mirror DB Category.icon rows and are immutable). It has Solar artwork
@@ -346,7 +352,7 @@ export function CategoryRail({
         const overflowSubs = subsNeedMore ? subs.filter((s, i) => i >= 7 && s.slug !== activeSubcategory) : []
         return (
           <Fragment key={cat.id}>
-            <Button variant="bare" size="none" data-cat={cat.slug} onClick={() => onCategory(isActive ? 'all' : cat.slug)} className={cn('whitespace-normal', tileCls)}>
+            <Button variant="bare" size="none" data-cat={cat.slug} aria-pressed={isActive} onClick={() => onCategory(isActive ? 'all' : cat.slug)} className={cn('whitespace-normal', tileCls)}>
               <span className="flex h-11 items-center justify-center">
                 <CategoryTileGlyph slug={cat.slug} icon={cat.icon} className={iconCls(isActive)} selected={isActive} />
               </span>
@@ -365,7 +371,7 @@ export function CategoryRail({
                   {/* "All" = this rail released, every other filter still applied — so it is
                       legitimately larger than the chips beside it sum to (rows carrying no
                       subcategorySlug come back when the rail is cleared). Never a sum. */}
-                  <Button variant="bare" size="none" onClick={() => onSubcategory('all')} className={cn('block', subChip(activeSubcategory === 'all'))}>
+                  <Button variant="bare" size="none" aria-pressed={activeSubcategory === 'all'} onClick={() => onSubcategory('all')} className={cn('block', subChip(activeSubcategory === 'all'))}>
                     {tr('All', 'Tất cả')}
                     <CountChip count={subDim?.all} className="ml-1" />
                   </Button>
@@ -373,7 +379,7 @@ export function CategoryRail({
                     const subActive = activeSubcategory === sub.slug
                     const count = subCount(sub.slug)
                     return (
-                      <Button key={sub.slug} variant="bare" size="none" onClick={() => onSubcategory(subActive ? 'all' : sub.slug)} className={cn('block', subChip(subActive))}>
+                      <Button key={sub.slug} variant="bare" size="none" aria-pressed={subActive} onClick={() => onSubcategory(subActive ? 'all' : sub.slug)} className={cn('block', subChip(subActive))}>
                         {/* At 14px the baked display stroke goes wispy — re-tier the ink
                             line to the UI weight (icon-language §2). */}
                         <CategoryIcon name={sub.icon} stroke={STROKE_UI} selected={subActive} className="mr-1 h-3.5 w-3.5 shrink-0 align-[-2px]" />
@@ -392,6 +398,7 @@ export function CategoryRail({
                             key={sub.slug}
                             variant="bare"
                             size="none"
+                            aria-pressed={subActive}
                             onClick={() => onSubcategory(subActive ? 'all' : sub.slug)}
                             className={cn('flex w-full justify-between gap-3 rounded-lg px-2.5 py-1.5 text-left font-semibold transition-colors active:scale-100', subActive ? 'bg-accent text-accent-foreground' : 'text-body hover:bg-muted hover:text-accent-foreground')}
                           >

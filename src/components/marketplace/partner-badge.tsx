@@ -1,4 +1,5 @@
 'use client'
+import * as React from 'react'
 
 import Link from 'next/link'
 import { Tooltip } from '@/components/ui/tooltip'
@@ -30,7 +31,18 @@ import { cn } from '@/lib/utils'
  * feed, so auto-prefetch would warm the same explainer once per visible card. It is a footnote
  * link, not a primary route.
  */
-export function PartnerBadge({ size = 'sm', className }: { size?: 'sm' | 'md'; className?: string }) {
+/**
+ * ⛔ `asLink={false}` INSIDE A LISTING CARD, AND IT IS NOT OPTIONAL THERE. As a link this chip is
+ * 67x15px — a third of the 44px minimum — so once it sits ABOVE the card's stretched anchor (which
+ * it must, or it is unreachable at all), a thumb aimed at the card and landing on the chip navigates
+ * to /partners instead of the listing. That trades an unreachable link for an accidental trap in
+ * the middle of every partner card, which is the worse of the two. A reviewer caught me making
+ * exactly that trade. In a card the chip is a plain <span>: no tap target, no tab stop, and the
+ * card behaves the way every other pixel of it behaves. The tooltip and the accessible name stay.
+ * Standalone surfaces (the partner page, the PDP shop link, the seller card) keep the link, where
+ * it has room and nothing is competing for the tap.
+ */
+export function PartnerBadge({ size = 'sm', className, asLink = true }: { size?: 'sm' | 'md'; className?: string; asLink?: boolean }) {
   const { tr } = useLanguage()
   // Short and precise, per the brief. The TOOLTIP and the link's accessible name carry the full
   // "Official partner" — the pill itself only has room for the noun, and a badge that wraps onto
@@ -43,11 +55,30 @@ export function PartnerBadge({ size = 'sm', className }: { size?: 'sm' | 'md'; c
        instruction aimed at touch users is the one they can never read; on desktop it says out
        loud what a cursor already shows. The hint names the thing instead. */
     <Tooltip content={tr('Official partner — chosen and checked by eno', 'Đối tác chính thức — do eno chọn và thẩm định')} side="top">
-      <Link
-        href="/partners"
-        prefetch={false}
-        aria-label={`${full} — ${tr('how eno chooses partners', 'eno chọn đối tác thế nào')}`}
-        className="inline-flex shrink-0 cursor-pointer rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+      <LinkOrSpan
+        asLink={asLink}
+        /* ⚠️ role="img" ON THE SPAN BRANCH, BECAUSE ARIA FORBIDS NAMING A GENERIC ROLE. A bare
+           <span aria-label> may be ignored outright, leaving only the visible "Partner" — half the
+           phrase. `img` is the role for a graphical composite that reads as one thing, accepts an
+           accessible name, and hides the inner glyph and word from being announced separately.
+           The LINK branch needs none of this: a link is nameable by definition. */
+        {...(asLink ? {} : { role: 'img' as const })}
+        aria-label={asLink ? `${full} — ${tr('how eno chooses partners', 'eno chọn đối tác thế nào')}` : full}
+        /* ⛔ relative + z-[1], OR THIS LINK IS UNREACHABLE INSIDE A CARD. <ListingCard> stretches
+           its own anchor across the whole tile (`absolute inset-0 z-0`), and a STATIC element cannot
+           sit above a positioned one whatever its z-index — so elementFromPoint at this badge's
+           centre returned the card's /listings/… link, and tapping "official partner" opened the
+           listing. Measured on the live feed: a 67x15 <a href="/partners">, position static,
+           z-index auto, covered on every card that has one. The save button already escapes the
+           same way with z-10; z-[1] is enough to clear a z-0 sibling and stays under it. */
+        /* ⚠️ NO relative/z-index HERE ANY MORE. A z-escape was briefly added so this link could be
+           tapped above a card's `absolute inset-0 z-0` anchor — but the card renders the SPAN
+           variant now, so no remaining call site sits under a stretched link, and leaving the
+           escape in would silently change stacking on the three surfaces that never needed it. */
+        className={cn(
+          'inline-flex shrink-0 rounded-full',
+          asLink && 'cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+        )}
       >
         {/* ⚠️ A PLAIN <span> WITH THE TRUST CHIP'S EXACT CLASS STRING, NOT <Badge>. Owner,
             2026-08-13: "height is still taller than other trust pills" — it measured 18.8px against
@@ -74,7 +105,23 @@ export function PartnerBadge({ size = 'sm', className }: { size?: 'sm' | 'md'; c
           <ShieldCheck aria-hidden size={11} className="shrink-0" />
           {word}
         </span>
-      </Link>
+      </LinkOrSpan>
     </Tooltip>
   )
 }
+
+/**
+ * A <Link> or a <span>, one prop apart. Written as a component rather than a ternary at the call
+ * site so the chip, the tooltip wiring and the accessible name are declared exactly once — the two
+ * branches cannot drift into two different badges.
+ */
+const LinkOrSpan = React.forwardRef<HTMLElement, { asLink: boolean; className?: string; children: React.ReactNode } & React.HTMLAttributes<HTMLElement>>(
+  /* ⛔ forwardRef IS LOAD-BEARING, NOT BOILERPLATE. <Tooltip> attaches a ref to its child to
+     position the popup against it; a plain function component swallows that ref, and the tooltip
+     would render against nothing. It fails silently — no type error, no console warning, just a
+     popup in the wrong place — which is why a reviewer had to catch it rather than a gate. */
+  function LinkOrSpan({ asLink, className, children, ...rest }, ref) {
+    if (!asLink) return <span ref={ref as React.Ref<HTMLSpanElement>} className={className} {...rest}>{children}</span>
+    return <Link ref={ref as React.Ref<HTMLAnchorElement>} href="/partners" prefetch={false} className={className} {...rest}>{children}</Link>
+  },
+)

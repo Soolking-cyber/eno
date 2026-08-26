@@ -1111,7 +1111,7 @@ function ListingCardImpl({
               pdp-shop-link and compact-listing-row, so a partner reads identically everywhere. */}
           {/* Mini chip (glyph + number) — display only; the card itself is the button. */}
           {listing.seller.officialPartner
-            ? <PartnerBadge className="shrink-0" />
+            ? <PartnerBadge asLink={false} className="shrink-0" />
             : <TrustScore score={listing.seller.trustScore} variant="mini" className="shrink-0" />}
         </div>
       </div>

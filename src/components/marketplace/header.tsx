@@ -540,8 +540,18 @@ export function Header() {
                   <AISearchButton
                     active={pathname === '/messages/ai'}
                     onClick={() => { router.push('/messages/ai'); setShowSuggestions(false) }}
-                    // relative + tap-48 → a 48px hit area around the 40px visual (invisible ::before).
-                    className="relative mr-0.5 h-10 w-10 tap-48"
+                    /* relative + tap-48 → a 48px hit area around the 40px visual (invisible ::before).
+                       ⛔ mr-2, NOT mr-0.5, AND THE ARITHMETIC IS THE POINT: a 40px visual plus a 2px
+                       margin is a 42px PITCH carrying a 48px hit area, so consecutive buttons'
+                       ::before boxes overlapped by 6px and the later one won. Measured by sweeping
+                       elementFromPoint across y=96 at 390px: this button owned only x=250..283 (34px,
+                       under the 44px minimum) while Map owned 284..331 — so a tap on the AI button's
+                       own right edge opened the map. mr-2 makes the pitch 48px, exactly the hit area. */
+                    /* ⚠️ ml-2 AS WELL: mr-2 alone only cleared the RIGHT neighbour. The 48px pseudo
+                       still overhung the search input on the left, which owns those pixels, so this
+                       button measured 38px — under the 44px minimum. Margin on both sides gives the
+                       hit area room in both directions. */
+                    className="relative ml-2 mr-2 h-10 w-10 tap-48"
                   />
                   {/* ⚠️ MAP VIEW, BACK IN THE BAR (owner, 2026-08-03: "add mapview back to searchbar in
                       top navbar, inside to the right of ai search icon"). It lived in the hero search
@@ -569,7 +579,7 @@ export function Header() {
                     }}
                     aria-label={tr('Map', 'Bản đồ')}
                     title={tr('Map', 'Bản đồ')}
-                    className="relative mr-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-ink-4 tap-48 transition-[color,scale] duration-200 ease-[var(--ease-spring-snappy)] hover:text-accent-foreground active:scale-[0.96] cursor-pointer"
+                    className="relative mr-2 flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-ink-4 tap-48 transition-[color,scale] duration-200 ease-[var(--ease-spring-snappy)] hover:text-accent-foreground active:scale-[0.96] cursor-pointer"
                   >
                     <Map className="h-6 w-6" strokeWidth={STROKE} />
                   </Button>

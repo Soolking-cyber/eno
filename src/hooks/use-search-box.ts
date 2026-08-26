@@ -12,7 +12,7 @@
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { suggestOptionId } from '@/components/marketplace/search-suggest'
-import { runVisualSearch, imageFromPaste, type VisualSearchResult } from '@/lib/visual-search'
+import { runVisualSearch, imageFromPaste, isUnauthorized, type VisualSearchResult } from '@/lib/visual-search'
 import { RECENT_SEARCHES_KEY } from '@/lib/reco-signals'
 import type { Geo } from '@/components/marketplace/area-filter'
 
@@ -82,8 +82,28 @@ export async function visualSearchFromPaste(
   const f = imageFromPaste(e)
   if (!f) return
   e.preventDefault()
+  /**
+   * ⛔ try/finally, BECAUSE A THROW HERE LEFT "Reading your photo…" ON SCREEN FOREVER. Only the
+   * happy path and the no-match path dismissed the loading toast; `runVisualSearch` awaits a
+   * `fetch` and a `res.json()`, either of which rejects on a flaky network — and Sonner ignores
+   * `duration` on a loading toast, so nothing else was ever going to clear it. The sibling
+   * image-search-button.tsx has had this exact try/catch/finally all along; the paste path never
+   * got it. The `finally` is what makes the guarantee, not the catch.
+   * ⚠️ And a 401 must be SILENT here: runVisualSearch already opened the sign-in modal, so an
+   * error toast about photo quality on top of it describes a problem the visitor does not have.
+   */
   toast.loading(tr('Reading your photo…', 'Đang đọc ảnh…'), { id: 'vis' })
-  const r = await runVisualSearch(f)
-  if (r?.query) { toast.dismiss('vis'); onResult(r) }
-  else toast.error(tr("Couldn't recognize the item — try a clearer photo.", 'Không nhận ra món đồ — thử ảnh rõ hơn.'), { id: 'vis' })
+  let settled = false
+  try {
+    const r = await runVisualSearch(f)
+    if (isUnauthorized(r)) { toast.dismiss('vis'); settled = true; return }
+    if (r && 'query' in r && r.query) { toast.dismiss('vis'); settled = true; onResult(r as VisualSearchResult); return }
+    toast.error(tr("Couldn't recognize the item — try a clearer photo.", 'Không nhận ra món đồ — thử ảnh rõ hơn.'), { id: 'vis' })
+    settled = true
+  } catch {
+    toast.error(tr('Visual search failed — try again.', 'Tìm bằng ảnh thất bại — thử lại.'), { id: 'vis' })
+    settled = true
+  } finally {
+    if (!settled) toast.dismiss('vis')
+  }
 }
