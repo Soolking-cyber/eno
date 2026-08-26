@@ -70,45 +70,36 @@ export function SupportButton({ className }: { className?: string }) {
           aria-hidden={scrolledAway || undefined}
           tabIndex={scrolledAway ? -1 : undefined}
           className={cn(
-            /* An elevated disc, not a bare glyph. The chevron above it is bare because it is chrome
-             the reader already understands; a support affordance has to read as a THING to press,
-             and the surface is what says so. Quiet by default (ink on the page's own surface, one
-             hairline, the shared pop shadow) rather than a brand-blue bubble — that treatment is
-             reserved for the one CTA per screen, and a permanent blue disc on every page would
-             outrank whatever the page is actually asking for. */
-            /* A WHITE PLATE IN THE GLYPH'S OWN SHAPE — `rounded-xl` (12px), the canon's control
-               tier, so the plate echoes question-square's rounded square rather than boxing a
-               square inside a circle. Border + shadow-pop are what make it read as a surface
-               floating over the page instead of a sticker.
-               ⚠️ `bg-popover`, NOT a literal white and not `bg-background`. This app HAS no pure
-               white — every light surface token is #fafafa on purpose — so #fafafa is its white,
-               and a hard-coded #fff plate would be the only element on the page that is not.
-               `popover` over `background` because it is the token for a surface FLOATING above the
-               page: identical in light (both #fafafa, so the border and shadow do the separating)
-               and LIFTED in dark (#2a2a2a against the #1b1b1b canvas), which is exactly the
-               difference a floating plate needs and `background` would not give it.
-               ⚠️ THE GLYPH BOX IS 46px INSIDE A 44px PLATE, WHICH IS NOT A TYPO. The visible mark
-               is smaller than its own box — the sprite leaves built-in margin — so sizing the box to
-               the plate paints a mark with a fat gap around it. Owner asked for one pixel; one pixel
-               of INK, not of box. Swept on the built page, ink read off the rendered pixels:
-                 box 44 → ink 40.5, gap 2      box 50 → ink 46, gap −1 (spills past the plate)
-                 box 46 → ink 42,   gap 1  ←   box 52 → ink 48, gap −2
-                 box 48 → ink 44,   gap 0 (flush with the border)
-               ⚠️ EVEN, because an odd box in an even plate splits the overflow across a half-pixel
-               and the mark lands visibly off-centre — 47px measured 2.5 left and 1.5 right.
-               `shrink-0` stops the flex parent reclaiming the 1px of overflow.
-               ⛔ THIS NUMBER IS PER-GLYPH AND DOES NOT TRANSFER. The previous mark (question-square)
-               needed box 50 for the same 1px; dialog-2 needs 46, because the two drawings fill their
-               24-unit grid differently. Swapping the icon means re-running the sweep — and the
-               sprite's own bbox is NOT a shortcut: it predicted 42 at box 47 and measured 40.
-               ⚠️ `text-muted-foreground` IS THE DUOTONE'S FRONT SHAPE — owner, 2026-08-26:
-               *"front one our gray"*. The front ships `fill="currentColor"`, so the control's own
-               text colour paints it; the BACK shape overrides that to brand blue at 50% via
-               `.i-back` in globals.css. Two colours, one glyph, no per-shape markup at the call
-               site. The plate is what makes the pair legible (this app's grounds are near-white),
-               and with a plate behind it the glyph's own drop-shadow is removed — shadow over
-               shadow reads muddy. */
-            'support-mark flex h-11 w-11 items-center justify-center rounded-xl border border-border/70 bg-popover text-muted-foreground shadow-pop',
+            /* ⛔ NO PLATE. Owner, 2026-08-26: *"no outline plate for this support icon"* — this
+               control carried a white `rounded-xl` plate (border + bg-popover + shadow-pop) for
+               about an hour and it is gone. Do not reintroduce it as a legibility fix; the fix is
+               the drop-shadow on the glyph, below.
+               ⚠️ BARE IS ALSO WHAT MAKES THE CLUSTER ONE THING. The back-to-top chevron directly
+               above is a bare glyph with a drop-shadow, and a plated neighbour read as two
+               unrelated controls stacked by accident rather than as one column of page chrome.
+               The mark now takes the chevron's exact treatment.
+
+               ⚠️ THE 46px GLYPH SIZE IS KEPT FROM THE PLATED VERSION ON PURPOSE. It was derived to
+               sit 1px inside a 44px plate, and with the plate gone that derivation no longer means
+               anything — but the SIZE was the thing the owner converged on across four rounds
+               ("larger", "as big as its background", "leave 1 pixel"), so it stays. The box is
+               46px inside an `h-11` (44px) hit box and paints ~42px of ink; `shrink-0` stops the
+               flex parent reclaiming the 2px of overflow, which carries no paint.
+               ⛔ THAT NUMBER IS PER-GLYPH AND DOES NOT TRANSFER. dialog-2 needs 46 where
+               question-square needed 50 for the same gap. Swapping the icon means re-measuring on
+               the rendered page — the sprite's own bbox is not a shortcut, it predicted 42px of
+               ink at box 47 where the page drew 40.
+
+               ⚠️ `text-muted-foreground` IS THE DUOTONE'S FRONT SHAPE — owner: *"front one our
+               gray"*. The front ships `fill="currentColor"`, so the control's own text colour
+               paints it; the BACK shape reads `--i-back-color` (brand blue) at `--i-back-opacity`
+               (0.5), both set by `.support-mark` in globals.css. Two colours, one glyph, no
+               per-shape markup here — and it has to be custom properties rather than a class,
+               because the glyph is a `<use>` and lives in a shadow tree a selector cannot reach.
+               ⛔ `support-mark` IS LOAD-BEARING, NOT DECORATIVE: it carries both those custom
+               properties and the press-to-bold rule. Removing it silently returns a grey mark
+               with no back shape and no press state. */
+            'support-mark flex h-11 w-11 items-center justify-center text-muted-foreground',
             'transition-colors duration-200 hover:text-accent-foreground active:scale-[0.96] tap-44',
             /* Ride down with the bottom nav, same motion the bar itself uses.
                ⚠️ `translate`, NOT `transform`, in the property list — Tailwind v4 compiles
@@ -121,7 +112,17 @@ export function SupportButton({ className }: { className?: string }) {
           )}
         />
       }>
-        <SupportDialog className="h-[46px] w-[46px] shrink-0" strokeWidth={STROKE_FLOAT} aria-hidden />
+        {/* ⚠️ THE SAME DROP-SHADOW LITERAL AS THE CHEVRON ABOVE (back-to-top.tsx), copied rather than
+            tokenised: these two are the only bare glyphs floating over arbitrary page content, and
+            the value is the pair's shared definition of "readable on a near-white ground". If it
+            ever moves, it moves in both.
+            ⚠️ NOT `icon-shadow-brand` — that is a BRAND-BLUE shadow, which under a grey front shape
+            reads as a colour fringe rather than as lift. */}
+        <SupportDialog
+          className="h-[46px] w-[46px] shrink-0 [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.28))]"
+          strokeWidth={STROKE_FLOAT}
+          aria-hidden
+        />
       </SheetTrigger>
 
       <SheetContent side="right" className="w-full gap-0 overflow-y-auto sm:max-w-md">
