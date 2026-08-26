@@ -150,7 +150,33 @@ const openRunde = localFont({
   fallback: ["ui-sans-serif", "system-ui", "sans-serif"],
 });
 
-const OG_IMAGE = { url: "/listings/hero-market.png", width: 1344, height: 768, alt: `${SITE_NAME} — trusted marketplace` };
+/**
+ * THE LINK-PREVIEW CARD, ON BOTH EDITIONS.
+ *
+ * This was `/listings/hero-market.png` — a seed listing photo of motorbikes in traffic, 1344x768.
+ * Every time anyone pasted eno.vn or eno.forum into a chat, that is what the recipient saw: a
+ * stock street scene with no wordmark, no proposition and nothing identifying the product.
+ *
+ * ⚠️ 1200x630 IS THE SHAPE, AND THE SOURCE BANNER IS NOT THAT SHAPE. Facebook, Twitter/X, Slack,
+ * Zalo and iMessage all render `summary_large_image` at 1.91:1. The brand banner is 1942x809 —
+ * 2.40:1, WIDER — so every platform would crop it, each differently, and the crop is horizontal:
+ * reaching 1.91:1 takes ~200px off each side, which cuts into the `eno` wordmark on the left and
+ * the right-hand photo column. Handing scrapers an unshaped image means accepting whichever crop
+ * each one picks; `scripts/gen-share-card.mjs` fits the whole banner instead and fills the 65px
+ * bars with a blurred copy of itself, so nothing is lost and the letterbox reads as design. The
+ * blur matters because the background is a GRADIENT — flat brand-blue bars would band visibly.
+ *
+ * ⚠️ RELATIVE ON PURPOSE. `metadataBase` above is built from NEXT_PUBLIC_APP_URL, so this resolves
+ * to the right absolute origin per edition. An absolute url here would pin both cards to one host.
+ *
+ * ⚠️ SHARED BY BOTH EDITIONS, WHICH IS THE DEFAULT AND IS SAFE IN THE DIRECTION THAT MATTERS: the
+ * card carries no visa, itinerary or PayPal content, so it cannot leak a services surface onto the
+ * licensed marketplace. It does read "The trusted marketplace for expats living in Vietnam", which
+ * is eno.vn's positioning — eno.forum's own tagline leads with e-visa services via a licensed
+ * partner. Gate this on IS_SERVICES the day a forum-specific card exists; do not gate it on the
+ * strength of that mismatch alone, because a motorbike photo served both worse.
+ */
+const OG_IMAGE = { url: "/og/share-card.jpg", width: 1200, height: 630, alt: `${SITE_NAME} — buy, sell, rent and connect in Vietnam` };
 
 /**
  * THE SITEWIDE DESCRIPTION, PER EDITION.
