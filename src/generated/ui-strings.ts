@@ -1941,6 +1941,7 @@ export const UI_STRINGS: string[] = [
   "the seller",
   "tin nhắn",
   "tin đang đăng — hãy đánh dấu đã bán một tin, hoặc chờ tài khoản đủ 30 ngày.",
+  "to chat with support instead.",
   "tùy chọn · 60 giây",
   "tối đa 6 ảnh",
   "tối đa 60 giây",
