@@ -57,6 +57,30 @@ const buttonVariants = cva(
   // cn()'s tailwind-merge — no double-scale. `.press` no longer double-scales either: its
   // shrink is now the same `scale` property, emitted from @layer components, so this base
   // value beats it and a `<Button className="press">` presses exactly once, at 0.97.
+  // ⚠️ THE PRESS IS ASYMMETRIC: 60ms DOWN, 160ms BACK UP. It was 160ms both ways, so the finger's
+  // arrival and the button's recovery took exactly as long — which reads as a control animating
+  // rather than one responding. `active:duration-[60ms]` applies while the pseudo-class holds
+  // (going down); the base is what is left once it drops (coming back up).
+  //
+  // ⛔ THE ASYMMETRY IS BOUGHT BY MAKING THE PRESS FASTER, NEVER BY MAKING THE BASE SLOWER, AND I
+  // shipped it the wrong way round first. `transition-duration` is ONE value covering all fifteen
+  // properties listed above, so raising the base to 220ms to "slow the release" also retimed every
+  // hover background, every focus-visible ring and `disabled:opacity-50` — on every Button, on both
+  // editions, permanently. Two reviewers refused it.
+  // ⚠️ BE PRECISE ABOUT WHAT THE `active:` VARIANT DOES, because "it only touches the press" is
+  // what I wrote next and it is not quite true: while `:active` HOLDS, all fifteen properties run
+  // at 60ms, so a variant with an active-state background or border transitions that fast too.
+  // What it cannot do is change anything at rest — hover, focus-visible and disabled keep the
+  // 160ms they have always had, because the variant is gone the moment the finger lifts. Fast
+  // acknowledgement of a press is the intent; this is a narrower blast radius than the base, not
+  // a surgical one.
+  //
+  // ⚠️ 60ms IS THE REPO'S OWN NUMBER, not one imported from elsewhere: mobile-nav.tsx's TAB uses
+  // `active:duration-[60ms]` with the same curve, and `.press` in globals.css is documented as
+  // "press-down is near-instant, release SPRINGS back". This primitive now says the same thing.
+  // ⚠️ DO NOT reach for `.press` here to get it — that utility carries its own `active:scale-0.96`
+  // which COMPOUNDS with this variant's 0.97 to 0.931, a depth nobody chose. globals.css:1640
+  // records that trap.
   // Reduced motion: the global kill switch in globals.css makes the transition instant
   // (the pressed state itself remains, as it should).
   // NOTE: the icon auto-size rule deliberately does NOT live here — see the
@@ -70,7 +94,7 @@ const buttonVariants = cva(
   // that must be re-stated at every call site is a defect in the primitive, not in the
   // callers. (`disabled:pointer-events-none` below already suppresses hover on a disabled
   // button, so this needs no disabled: counterpart.)
-  "cursor-pointer inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl text-sm font-medium transition-[color,background-color,border-color,outline-color,text-decoration-color,fill,stroke,opacity,box-shadow,filter,backdrop-filter,transform,translate,scale,rotate] duration-[160ms] ease-[var(--ease-spring-snappy)] active:scale-[0.97] disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 aria-invalid:border-destructive",
+  "cursor-pointer inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl text-sm font-medium transition-[color,background-color,border-color,outline-color,text-decoration-color,fill,stroke,opacity,box-shadow,filter,backdrop-filter,transform,translate,scale,rotate] duration-[160ms] ease-[var(--ease-spring-snappy)] active:duration-[60ms] active:scale-[0.97] disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 aria-invalid:border-destructive",
   {
     variants: {
       variant: {
