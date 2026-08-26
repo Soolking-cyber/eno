@@ -118,6 +118,10 @@ export const LUCIDE_TO_SOLAR = {
   Heart: 'heart',
   HeartHandshake: 'hand-heart',
   HelpCircle: 'question-circle',
+  // Solar's question-SQUARE. Added 2026-08-26 for the floating support control (owner picked it
+  // over question-circle). Lucide's own name for the squared question mark is MessageSquareQuestion,
+  // so the left side stays lucide vocabulary like every other row here.
+  MessageSquareQuestion: 'question-square',
   History: 'history',
   Home: 'home',
   Hotel: 'buildings-2',

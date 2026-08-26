@@ -102,17 +102,6 @@ export function BackToTop() {
         // Inline bottom (beats the classes) only while a bottom bar is on screen.
         style={{ ...(lift ? { bottom: lift + 12 } : {}), transitionTimingFunction: 'var(--ease-spring)' }}
       >
-        {/* ⛔ SUPPORT SITS ABOVE THE CHEVRON, AND THE ORDER IS THE POINT. The chevron is anchored to
-            the bottom of the column because it is the one control whose position people learn by
-            muscle memory; inserting anything BELOW it would move it the first time support appeared.
-            The column's own gap-2.5 is what keeps the two from overlapping — there is no offset to
-            keep in sync.
-            ⚠️ Support does NOT fade with scroll the way the chevron does: "back to top" is only
-            meaningful once you have scrolled, whereas needing help is not a function of scroll
-            position. It is present from first paint, which also means the chevron fading in below it
-            never shifts it. */}
-        <SupportButton />
-
         {/* Back to top — bare glyph, no circle: same treatment as the search-bar
             icons (quiet ink → brand blue on hover) with a subtle drop-shadow so it
             stays distinct over card imagery. Fades in once scrolled (slot reserved
@@ -147,6 +136,13 @@ export function BackToTop() {
               chrome so it survives busy photos; the drop-shadow is its only backing. */}
           <ChevronUp className="h-7 w-7 [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.28))]" strokeWidth={STROKE_FLOAT} />
         </Button>
+
+        {/* ⛔ SUPPORT SITS BELOW THE CHEVRON, CLOSEST TO THE BOTTOM NAV — owner, 2026-08-26, swapping
+            the original order. It is the element that moves WITH the bar on scroll, so it belongs
+            nearest to it; putting the chevron between them would have the nav's motion jump a gap.
+            Neither position shifts the other: both are always in the DOM (the chevron fades with
+            `opacity`, never `display`), so the column's geometry is fixed whatever either is doing. */}
+        <SupportButton />
 
       </div>
 

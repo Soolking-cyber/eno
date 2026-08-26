@@ -1,7 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { Headphones, Mail } from '@/components/ui/icons'
+import { useHideOnScroll } from '@/hooks/use-hide-on-scroll'
+import { MessageSquareQuestion, Mail } from '@/components/ui/icons'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
 import { HelpFeedback } from '@/components/marketplace/help-feedback'
@@ -36,6 +37,15 @@ import { cn } from '@/lib/utils'
 export function SupportButton({ className }: { className?: string }) {
   const { tr } = useLanguage()
   const [open, setOpen] = useState(false)
+  /**
+   * ⚠️ THE SAME SIGNAL THE BOTTOM NAV USES, so the two move as one piece of chrome rather than as
+   * two things that happen to animate. mobile-nav.tsx calls this hook and applies
+   * `translate-y-full opacity-0 pointer-events-none`; this mirrors it, and mirrors its transition,
+   * so the support mark rides down with the bar and comes back on the same scroll-up.
+   * ⚠️ MOBILE ONLY (`max-lg:`). There is no bottom nav from lg up — nothing to move with — and
+   * hiding a support affordance on a desktop scroll would just make it hard to find.
+   */
+  const scrolledAway = useHideOnScroll()
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
@@ -45,6 +55,24 @@ export function SupportButton({ className }: { className?: string }) {
           size="none"
           type="button"
           aria-label={tr('Contact support', 'Liên hệ hỗ trợ')}
+          /* ⛔ data-active IS HOW THE BOLD WEIGHT AND THE BRAND BLUE ARE TURNED ON, and it is the
+             house switch rather than a one-off: globals.css shows the `.i-on` (filled) sprite layer
+             for a control carrying aria-pressed/aria-selected/aria-expanded/data-active, and paints
+             that layer `--color-accent-foreground` — the brand blue, already themed for dark mode.
+             So "bold, in our blue" needs no colour class here and cannot drift from the rest of the
+             icon system.
+             ⚠️ `data-active`, NOT `aria-pressed="true"`. The ARIA options all assert something to a
+             screen reader — that this is a toggle currently pressed, or a selected option — and none
+             of that is true of a support button. data-* asserts nothing. */
+          data-active="true"
+          /* ⛔ HIDDEN FROM THE MOUSE IS NOT HIDDEN. opacity-0 + translate + pointer-events-none
+             leave this in the TAB ORDER and in the accessibility tree, so a keyboard user scrolling
+             down would tab into an off-screen support button — the identical trap the chevron above
+             documents and solves with `inert`. Same three levers here: inert removes focus, pointer
+             and a11y in one; aria-hidden + tabIndex=-1 are the fallback for browsers without it. */
+          inert={scrolledAway || undefined}
+          aria-hidden={scrolledAway || undefined}
+          tabIndex={scrolledAway ? -1 : undefined}
           className={cn(
             /* An elevated disc, not a bare glyph. The chevron above it is bare because it is chrome
              the reader already understands; a support affordance has to read as a THING to press,
@@ -52,19 +80,39 @@ export function SupportButton({ className }: { className?: string }) {
              hairline, the shared pop shadow) rather than a brand-blue bubble — that treatment is
              reserved for the one CTA per screen, and a permanent blue disc on every page would
              outrank whatever the page is actually asking for. */
-            'flex h-11 w-11 items-center justify-center rounded-full border border-border/70 bg-background text-body shadow-pop',
+            /* ⛔ A BARE GLYPH, NO DISC — matching the chevron above it. Solar's question-circle
+               already DRAWS a circle, so wrapping it in a bordered disc was a circle inside a
+               circle. The drop-shadow is the only backing, exactly as the chevron does it: that is
+               what lets a bare mark survive over card photography without a plate behind it.
+               ⚠️ BRAND BLUE, NOT WHITE AND NOT BODY INK. White was asked for and would be invisible
+               on this app's light surfaces — footer, page ground and most cards are near-white, and
+               a drop-shadow alone cannot carry a white mark. The blue arrives from `data-active`
+               below (the icon system paints the bold layer `--color-accent-foreground`), so
+               `text-body` on this element is only the fallback the SVG inherits before the bold
+               layer paints, and what the hover state returns to.
+               ⚠️ h-11 w-11 + tap-44 is the CHEVRON'S box, kept so the two align in the column; the
+               glyph inside is larger than the chevron's (h-8 vs h-7) because this one is an
+               invitation rather than chrome. */
+            'flex h-11 w-11 items-center justify-center rounded-full text-body',
             'transition-colors duration-200 hover:text-accent-foreground active:scale-[0.96] tap-44',
+            /* Ride down with the bottom nav, same motion the bar itself uses.
+               ⚠️ `translate`, NOT `transform`, in the property list — Tailwind v4 compiles
+               `translate-*` to the standalone `translate` property, so naming `transform` here
+               subscribes to something nothing writes and the move happens in a single frame.
+               design-lint caught exactly that; the rule exists because it fails invisibly. */
+            'max-lg:transition-[translate,opacity] max-lg:duration-300 max-lg:ease-[var(--ease-spring)] motion-reduce:transition-none',
+            scrolledAway && 'max-lg:pointer-events-none max-lg:translate-y-[calc(100%+1.25rem)] max-lg:opacity-0',
             className,
           )}
         />
       }>
-        <Headphones className="h-5 w-5" strokeWidth={STROKE_FLOAT} aria-hidden />
+        <MessageSquareQuestion className="h-8 w-8 [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.28))]" strokeWidth={STROKE_FLOAT} aria-hidden />
       </SheetTrigger>
 
       <SheetContent side="right" className="w-full gap-0 overflow-y-auto sm:max-w-md">
           <SheetHeader>
             <SheetTitle className="flex items-center gap-2">
-              <Headphones className="h-5 w-5 text-brand" aria-hidden />
+              <MessageSquareQuestion className="h-5 w-5 text-brand" aria-hidden />
               {tr('Support', 'Hỗ trợ')}
             </SheetTitle>
             {/* ⚠️ COMPANY.email, NEVER A LITERAL. It is already per-edition — support@eno.vn on the
