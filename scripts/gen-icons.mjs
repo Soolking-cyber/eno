@@ -211,6 +211,33 @@ const UI = [
 /** `rest` = the idle weight. `selected` = the active weight. */
 const STYLE = { rest: 'outline', selected: 'bold' }
 
+/**
+ * DUOTONE REST LAYERS — an opt-in, keyed by SOLAR name, that swaps this glyph's RESTING weight
+ * from Outline to Bold-Duotone. Owner, 2026-08-26, for the floating support control: *"use duotone
+ * front one our gray back one our blue but 50% opacity and bold on press"*.
+ *
+ * ⚠️ IT IS A SET OF EXACTLY THE NAMES THAT ASKED FOR IT, NOT A NEW DEFAULT. Duotone costs a second
+ * coloured shape on every glyph that uses it, and the app's whole icon grammar is Outline-at-rest /
+ * Bold-when-selected; making this global would restate that grammar in colour on 200+ marks.
+ *
+ * ⚠️ THE SELECTED WEIGHT IS STILL PLAIN BOLD. Solar ships `bold-duotone` and `bold` as the same
+ * drawing plus a second shape, so the pressed state stays exactly the mark the rest of the app
+ * uses — only the idle weight gains the back plate.
+ */
+const DUOTONE = new Set(['dialog-2'])
+const DUOTONE_STYLE = 'bold-duotone'
+
+/**
+ * Solar marks a duotone's BACK shape with its own two custom properties rather than with a class:
+ * `style="color: var(--solar-secondary-color, currentColor); opacity: var(--solar-secondary-opacity, 0.5)"`.
+ * ⚠️ THAT EXACT STRING IS THE CONTRACT, and matching it literally is deliberate — a loose match
+ * (`/solar-secondary/`) would keep passing if upstream changed the fallback opacity or added a
+ * third property, and the glyph would ship with an opacity we never chose. If a dependency bump
+ * breaks this regex the build FAILS with the count check below, which is the correct outcome.
+ */
+const SOLAR_SECONDARY =
+  /\s+style="color: var\(--solar-secondary-color, currentColor\); opacity: var\(--solar-secondary-opacity, 0\.5\)"/g
+
 // ── read ─────────────────────────────────────────────────────────────────────────────────────
 
 if (!existsSync(SRC)) {
@@ -221,7 +248,7 @@ if (!existsSync(SRC)) {
 }
 
 const available = Object.fromEntries(
-  Object.values(STYLE).map((style) => [
+  [...Object.values(STYLE), DUOTONE_STYLE].map((style) => [
     style,
     new Set(
       readdirSync(join(SRC, style))
@@ -240,7 +267,26 @@ const available = Object.fromEntries(
  * the vendor class, and a root `stroke-width` that paints nothing on a fill-only glyph.
  */
 function normalise(svg, { name, style }) {
-  const out = svg
+  /**
+   * ⚠️ THE BACK SHAPE IS MARKED BEFORE THE `class` STRIP TWO LINES DOWN, WHICH IS WHY THIS IS A
+   * `data-back` MARKER AND NOT THE FINAL CLASS. That strip removes Solar's `class="solar …"` from
+   * every glyph; writing `class="i-back"` here would be erased by it and the back shape would ship
+   * unstyled — visible only as a second full-opacity silhouette. `layer()` turns the marker into
+   * the real class (or className) once the sanitiser has run.
+   * ⚠️ EXACTLY ONE, AND THE BUILD FAILS OTHERWISE. Zero means the regex above no longer matches
+   * what Solar ships, so the glyph would render as two identical solid shapes with no duotone at
+   * all; more than one means the drawing changed and the colour split needs re-deciding by a human.
+   */
+  let src = svg
+  if (style === DUOTONE_STYLE) {
+    let backs = 0
+    src = src.replace(SOLAR_SECONDARY, () => { backs += 1; return ' data-back="1"' })
+    if (backs !== 1) {
+      fail(`${style}/${name}: expected exactly 1 duotone back shape, found ${backs}.\n` +
+           `  Solar's secondary-shape contract changed — re-read the file and re-decide the split.`)
+    }
+  }
+  const out = src
     .replace(/\s+class="[^"]*"/g, '')
     .replace(/\s+stroke-width="[^"]*"/g, '')
     .replace(/>\s+</g, '><')
@@ -281,6 +327,11 @@ function normalise(svg, { name, style }) {
     const el = tag.match(/^<([a-zA-Z][\w:-]*)/)?.[1] ?? ''
     if (!ELEMENTS.includes(el)) fail(`${style}/${name}: unexpected element <${el}>`)
     let rest = tag.slice(1 + el.length, -1)
+    // ⚠️ THE LITERAL VALUE, NOT `data-back` AS A NAME. Adding it to ATTRS would allow
+    // `data-back="<anything>"`; this allows the one marker normalise itself just wrote and leaves
+    // every other data-* attribute to be refused as unexpected markup, which is the point of the
+    // subtract-what-is-allowed design documented above.
+    rest = rest.replace(/\s*data-back="1"/g, '')
     for (const a of ATTRS) rest = rest.replace(new RegExp(`\\s*${a}\\s*=\\s*"[^"]*"`, 'g'), '')
     rest = rest.replace(/[\s/]/g, '')
     if (rest) fail(`${style}/${name}: unexpected markup in <${el} …>: ${JSON.stringify(rest)}`)
@@ -574,6 +625,31 @@ const layer = (solar, style, { jsx = true } = {}) => {
   const svg = normalise(readFileSync(join(SRC, style, `${solar}.svg`), 'utf8'), { name: solar, style })
   let inner = svg.replace(/^<svg[^>]*>/, '').replace(/<\/svg>\s*$/, '')
   if (jsx) for (const [a, j] of Object.entries(JSX_ATTR)) inner = inner.split(a + '=').join(j + '=')
+  /**
+   * The duotone marker becomes an INLINE STYLE reading two custom properties, and that shape is
+   * forced by where this markup ends up rather than chosen for elegance.
+   *
+   * ⛔ A CLASS CANNOT STYLE THIS SHAPE. THE FIRST VERSION USED ONE AND DID NOTHING. Every app glyph
+   * is drawn as `<use href="…#Name-r">`, and a `<use>` clones its symbol into a SHADOW TREE — so a
+   * stylesheet rule like `.i-back { color: … }` in globals.css never matches, the selector cannot
+   * cross the boundary. Measured on the built page, not reasoned about: `querySelector('.i-back')`
+   * returned null while the class was plainly present in glyphs-rest.svg. ⚠️ Grepping the sprite
+   * "verified" it and was worthless — the bytes shipped and the rule was inert.
+   *
+   * ✅ CUSTOM PROPERTIES DO INHERIT THROUGH A SHADOW BOUNDARY, which is the one channel that works
+   * and is exactly how Solar's own duotone files are built (`--solar-secondary-color/-opacity`).
+   * This keeps their mechanism under our names, so the values live in the design system: any
+   * ancestor sets `--i-back-color` / `--i-back-opacity` and it reaches inside the sprite.
+   * ⚠️ `color` + `fill="currentColor"`, NOT `fill:` directly — it keeps the sanitiser's guarantee
+   * that no paint value other than currentColor/none exists anywhere in the icon set.
+   * ⚠️ BOTH FALLBACKS ARE REAL DEFAULTS, so an unstyled call site renders Solar's intended duotone
+   * (secondary at 50% of the inherited colour) instead of a solid silhouette over the front shape.
+   * The class rides along unused by CSS — it is how you find this shape when reading the sprite.
+   */
+  const BACK_STYLE = 'color:var(--i-back-color,currentColor);opacity:var(--i-back-opacity,0.5)'
+  inner = inner.split('data-back="1"').join(jsx
+    ? `className="i-back" style={{ color: 'var(--i-back-color, currentColor)', opacity: 'var(--i-back-opacity, 0.5)' }}`
+    : `class="i-back" style="${BACK_STYLE}"`)
   return inner
 }
 
@@ -695,14 +771,17 @@ const spriteGlyphs = shimRows.map(([lucide, solar]) => {
     const { rest, on, why } = bareMark(lucide, BARE_MARKS[lucide], { jsx: false })
     return { name: lucide, rest, on, why }
   }
-  for (const style of ['outline', 'bold']) {
+  const restStyle = DUOTONE.has(solar) ? DUOTONE_STYLE : 'outline'
+  for (const style of [restStyle, 'bold']) {
     if (!available[style].has(solar)) fail(`lucide ${lucide} -> solar "${solar}" is not in the ${style} style`)
   }
   return {
     name: lucide,
-    rest: layer(solar, 'outline', { jsx: false }),
+    rest: layer(solar, restStyle, { jsx: false }),
     on: layer(solar, 'bold', { jsx: false }),
-    why: `Solar \`${solar}\` — Outline at rest, Bold while pressed.`,
+    why: restStyle === DUOTONE_STYLE
+      ? `Solar \`${solar}\` — Bold-Duotone at rest (back shape carries .i-back), Bold while pressed.`
+      : `Solar \`${solar}\` — Outline at rest, Bold while pressed.`,
   }
 })
 

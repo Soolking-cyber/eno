@@ -2472,6 +2472,56 @@ html.dark .leaflet-tile-pane {
   .i-on { transition: none; }
 }
 
+/* ── DUOTONE BACK SHAPE ────────────────────────────────────────────────────────────────────────
+   The back plate of a Bold-Duotone glyph. gen-icons.mjs marks exactly one shape per duotone icon
+   (see DUOTONE there) and writes two custom properties onto it; everything else is untouched.
+
+   ⛔ THIS IS A CUSTOM PROPERTY AND NOT A `.i-back` SELECTOR, AND THAT IS NOT A STYLE PREFERENCE.
+   Glyphs render as `<use href="…#Name-r">`, which clones the symbol into a SHADOW TREE, and a
+   selector cannot cross that boundary — `.i-back { color: … }` here matches NOTHING. That was the
+   first version of this rule: the class shipped in the sprite, the rule was inert on the page, and
+   grepping the sprite "confirmed" it. What proved it was `querySelector('.i-back')` returning null
+   on the built page while the class was plainly in the file.
+
+   ✅ Custom properties are the one thing that DOES inherit through a shadow boundary, which is why
+   Solar's own duotone files are built this way (`--solar-secondary-color/-opacity`). The generator
+   writes `color:var(--i-back-color,currentColor);opacity:var(--i-back-opacity,0.5)` on the back
+   shape, so any ancestor can set those two and reach inside the sprite.
+   ⚠️ `color` + the shape's own `fill="currentColor"`, never a literal `fill:` — that keeps the
+   sanitiser's guarantee that no paint value but currentColor/none exists in the icon set.
+
+   ⚠️ SET ON THE CONTROL, NOT ON `:root`. On :root every duotone glyph anywhere would get a blue
+   back. Owner, 2026-08-26: *"back one our blue but 50% opacity"* — for this mark.
+   --color-accent-foreground is that blue and re-themes itself in dark. */
+.support-mark {
+  --i-back-color: var(--color-accent-foreground);
+  --i-back-opacity: 0.5;
+}
+
+/* ── THE SUPPORT MARK GOES BOLD WHILE PRESSED ──────────────────────────────────────────────────
+   ⛔ `:active` IS EXCLUDED FROM THE APP-WIDE WEIGHT SWAP ABOVE, DELIBERATELY AND BY THE SAME OWNER
+   — 2026-08-13: *"fix icons outline and bold state not on click but when button is selected change
+   state"*. This rule does NOT reopen that. It is scoped to one class on one control, because the
+   support mark is the one glyph in the app with no selected state to express: it opens a thread and
+   returns to rest, so press is the only thing its weight can honestly report. Owner, 2026-08-26:
+   *"bold on press"*.
+   ⛔ Do NOT generalise this to `button:active` — that is exactly the grammar collapse the 08-13
+   note removed, where every button in the app flickered bold under a finger and "bold" stopped
+   meaning "you are on this".
+
+   ⚠️ The duotone back shape goes with it. The pressed layer is `.i-on`, a single Bold
+   shape with no back plate, so leaving the duotone's 50% back visible under it would show a blue
+   ghost offset behind the bold mark for as long as the finger is down. */
+.support-mark:active .i-rest {
+  opacity: 0;
+  transition-duration: 130ms;
+}
+.support-mark:active .i-on {
+  opacity: 1;
+  transition-duration: 130ms;
+  color: var(--color-accent-foreground);
+}
+
 /* ── FEED WINDOWING — the browser's own virtual scrolling ──────────────────────────────────────
    ⛔ THIS IS THE VIRTUALISATION, AND IT IS CSS RATHER THAN JAVASCRIPT ON PURPOSE. A JS virtualiser
    (react-window, TanStack Virtual) UNMOUNTS off-screen rows, and in this feed three things depend

@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useHideOnScroll } from '@/hooks/use-hide-on-scroll'
-import { MessageSquareQuestion, Mail } from '@/components/ui/icons'
+import { SupportDialog, Mail } from '@/components/ui/icons'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
 import { HelpFeedback } from '@/components/marketplace/help-feedback'
@@ -55,16 +55,12 @@ export function SupportButton({ className }: { className?: string }) {
           size="none"
           type="button"
           aria-label={tr('Contact support', 'Liên hệ hỗ trợ')}
-          /* ⛔ data-active IS HOW THE BOLD WEIGHT AND THE BRAND BLUE ARE TURNED ON, and it is the
-             house switch rather than a one-off: globals.css shows the `.i-on` (filled) sprite layer
-             for a control carrying aria-pressed/aria-selected/aria-expanded/data-active, and paints
-             that layer `--color-accent-foreground` — the brand blue, already themed for dark mode.
-             So "bold, in our blue" needs no colour class here and cannot drift from the rest of the
-             icon system.
-             ⚠️ `data-active`, NOT `aria-pressed="true"`. The ARIA options all assert something to a
-             screen reader — that this is a toggle currently pressed, or a selected option — and none
-             of that is true of a support button. data-* asserts nothing. */
-          data-active="true"
+          /* ⛔ THE PERMANENT `data-active="true"` THAT USED TO BE HERE IS GONE, and its removal is
+             the whole point of the duotone. It forced the app-wide SELECTED weight on a control
+             that is never selected — the icon grammar's one job is that bold means "you are on
+             this". The mark now carries its own colour at rest (duotone: grey front, brand-blue
+             back at 50%) and goes bold only while a finger is down, via `.support-mark` in
+             globals.css. Owner, 2026-08-26: *"bold on press"*. */
           /* ⛔ HIDDEN FROM THE MOUSE IS NOT HIDDEN. opacity-0 + translate + pointer-events-none
              leave this in the TAB ORDER and in the accessibility tree, so a keyboard user scrolling
              down would tab into an off-screen support button — the identical trap the chevron above
@@ -91,18 +87,28 @@ export function SupportButton({ className }: { className?: string }) {
                page: identical in light (both #fafafa, so the border and shadow do the separating)
                and LIFTED in dark (#2a2a2a against the #1b1b1b canvas), which is exactly the
                difference a floating plate needs and `background` would not give it.
-               ⚠️ THE GLYPH ALL BUT FILLS THE PLATE — 42px inside 44px, ONE pixel each side. A
-               squared mark inside a squared plate, so the two outlines stay concentric and that
-               single pixel reads as a hairline rather than as a glyph that failed to centre.
-               ⚠️ THE PLATE IS A SQUIRCLE FOR FREE, and deliberately not by a class here: globals.css
-               gives `corner-shape: squircle` to anything matching `rounded-xl` (inside an @supports,
-               so browsers without it keep the plain arc). Hand-writing it on this element would be
-               a second source of truth for a decision the design system already makes app-wide.
-               ⚠️ The GLYPH is brand blue and bold via `data-active` below; the plate is what makes
-               that legible, which the bare version could not be (this app's grounds are near-white,
-               so a blue-on-nothing mark had to lean on a drop-shadow). With a plate behind it the
-               glyph's own shadow is removed — shadow over shadow reads muddy. */
-            'flex h-11 w-11 items-center justify-center rounded-xl border border-border/70 bg-popover shadow-pop',
+               ⚠️ THE GLYPH BOX IS 46px INSIDE A 44px PLATE, WHICH IS NOT A TYPO. The visible mark
+               is smaller than its own box — the sprite leaves built-in margin — so sizing the box to
+               the plate paints a mark with a fat gap around it. Owner asked for one pixel; one pixel
+               of INK, not of box. Swept on the built page, ink read off the rendered pixels:
+                 box 44 → ink 40.5, gap 2      box 50 → ink 46, gap −1 (spills past the plate)
+                 box 46 → ink 42,   gap 1  ←   box 52 → ink 48, gap −2
+                 box 48 → ink 44,   gap 0 (flush with the border)
+               ⚠️ EVEN, because an odd box in an even plate splits the overflow across a half-pixel
+               and the mark lands visibly off-centre — 47px measured 2.5 left and 1.5 right.
+               `shrink-0` stops the flex parent reclaiming the 1px of overflow.
+               ⛔ THIS NUMBER IS PER-GLYPH AND DOES NOT TRANSFER. The previous mark (question-square)
+               needed box 50 for the same 1px; dialog-2 needs 46, because the two drawings fill their
+               24-unit grid differently. Swapping the icon means re-running the sweep — and the
+               sprite's own bbox is NOT a shortcut: it predicted 42 at box 47 and measured 40.
+               ⚠️ `text-muted-foreground` IS THE DUOTONE'S FRONT SHAPE — owner, 2026-08-26:
+               *"front one our gray"*. The front ships `fill="currentColor"`, so the control's own
+               text colour paints it; the BACK shape overrides that to brand blue at 50% via
+               `.i-back` in globals.css. Two colours, one glyph, no per-shape markup at the call
+               site. The plate is what makes the pair legible (this app's grounds are near-white),
+               and with a plate behind it the glyph's own drop-shadow is removed — shadow over
+               shadow reads muddy. */
+            'support-mark flex h-11 w-11 items-center justify-center rounded-xl border border-border/70 bg-popover text-muted-foreground shadow-pop',
             'transition-colors duration-200 hover:text-accent-foreground active:scale-[0.96] tap-44',
             /* Ride down with the bottom nav, same motion the bar itself uses.
                ⚠️ `translate`, NOT `transform`, in the property list — Tailwind v4 compiles
@@ -115,13 +121,13 @@ export function SupportButton({ className }: { className?: string }) {
           )}
         />
       }>
-        <MessageSquareQuestion className="h-[42px] w-[42px]" strokeWidth={STROKE_FLOAT} aria-hidden />
+        <SupportDialog className="h-[46px] w-[46px] shrink-0" strokeWidth={STROKE_FLOAT} aria-hidden />
       </SheetTrigger>
 
       <SheetContent side="right" className="w-full gap-0 overflow-y-auto sm:max-w-md">
           <SheetHeader>
             <SheetTitle className="flex items-center gap-2">
-              <MessageSquareQuestion className="h-5 w-5 text-brand" aria-hidden />
+              <SupportDialog className="h-5 w-5 text-brand" aria-hidden />
               {tr('Support', 'Hỗ trợ')}
             </SheetTitle>
             {/* ⚠️ COMPANY.email, NEVER A LITERAL. It is already per-edition — support@eno.vn on the

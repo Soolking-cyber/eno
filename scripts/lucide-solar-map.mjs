@@ -118,10 +118,17 @@ export const LUCIDE_TO_SOLAR = {
   Heart: 'heart',
   HeartHandshake: 'hand-heart',
   HelpCircle: 'question-circle',
-  // Solar's question-SQUARE. Added 2026-08-26 for the floating support control (owner picked it
-  // over question-circle). Lucide's own name for the squared question mark is MessageSquareQuestion,
-  // so the left side stays lucide vocabulary like every other row here.
-  MessageSquareQuestion: 'question-square',
+  // ⚠️ THE ONE ROW WHOSE LEFT SIDE IS NOT LUCIDE VOCABULARY, and the exception is deliberate.
+  // This is the floating support control's mark, and it has moved twice in a day at the owner's
+  // direction: question-circle -> question-square -> `dialog-2` (2026-08-26, *"use duotone front
+  // one our gray back one our blue but 50% opacity"*). Lucide's name for two stacked speech
+  // bubbles is MessagesSquare, which this file already spends on Solar's `chat-square-2` — so
+  // reusing it would put two different drawings behind one name, which is worse than departing
+  // from the convention once, in the open, for a mark that exists to mean "talk to support".
+  // ⚠️ IT IS ALSO THE ONLY MEMBER OF `DUOTONE` in gen-icons.mjs: its resting weight comes from
+  // Solar's bold-duotone, not outline. Renaming the SOLAR side here without updating that set
+  // silently drops the duotone and the glyph goes back to a plain outline.
+  SupportDialog: 'dialog-2',
   History: 'history',
   Home: 'home',
   Hotel: 'buildings-2',
