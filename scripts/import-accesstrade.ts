@@ -24,6 +24,7 @@ import { createClient } from '@supabase/supabase-js'
 import { db } from '../src/lib/db'
 import { watermarkSvg, watermarkPlacement, inkForLuminance } from '../src/lib/core/watermark-mark'
 import { brandSlugify, normalizeBrand } from '../src/lib/brand-normalize'
+import { modelFor } from '../src/lib/feed-model'
 import { buildSearchText } from '../src/lib/fold'
 // ⚠️ ONE COPY, SHARED WITH THE NIGHTLY REFRESH. This link repair used to live here; the cron job
 // needs exactly the same rule, and two copies of "which aff_link shapes do we trust" is how one
@@ -130,40 +131,10 @@ const BRAND_RE = new RegExp(`\\b(${BRANDS.join('|')})\\b`, 'i')
  * ⚠️ NO MATCH LEAVES IT NULL. Most of this feed is appliances and cables with no model; inventing
  * one would fill the facet with noise, which is the opposite of "easier to find".
  */
-const MODEL_RES: RegExp[] = [
-  /\b(iPhone\s?\d{1,2}(?:\s?Pro\s?Max|\s?Pro|\s?Plus|\s?Mini|e)?)/i,
-  /\b(Galaxy\s(?:Z\s)?(?:Fold|Flip|Note|Tab|Watch|Buds)?\s?[A-Z]?\d{1,3}(?:\s?Ultra|\s?Plus|\s?FE)?)/i,
-  /\b(MacBook\s(?:Air|Pro)(?:\s?M\d)?)/i,
-  /\b(iPad(?:\s(?:Pro|Air|Mini))?(?:\s?M\d)?)/i,
-  /\b(Apple\sWatch\s(?:Series\s\d+|Ultra\s?\d?|SE\s?\d?))/i,
-  /\b(AirPods(?:\s(?:Pro|Max))?\s?\d?)/i,
-  /\b(Redmi\s(?:Note\s)?\d{1,2}[A-Za-z]?)/i,
-  /\b(Xiaomi\s\d{1,2}[A-Za-z]?)/i,
-]
-/** Spellings the feed uses inconsistently, mapped to one display form. */
-const MODEL_CASE: [RegExp, string][] = [
-  [/^macbook/i, 'MacBook'], [/^iphone/i, 'iPhone'], [/^ipad/i, 'iPad'],
-  [/^airpods/i, 'AirPods'], [/^apple watch/i, 'Apple Watch'], [/^galaxy/i, 'Galaxy'],
-  [/^redmi/i, 'Redmi'], [/^xiaomi/i, 'Xiaomi'],
-]
-function modelFor(name: string): string | null {
-  for (const re of MODEL_RES) {
-    const m = name.match(re)
-    if (!m) continue
-    const raw = m[1].replace(/\s+/g, ' ').trim()
-    // ⚠️ WORD-CASE FIRST, CANONICAL HEAD SECOND — the other order lowercases the canonical form it
-    // just applied and turns "MacBook Pro" back into "Macbook Pro", which is the exact split this
-    // function exists to prevent. Caught by running both spellings through it.
-    const cased = raw.split(' ').map((w) => /^(M\d|SE|FE)$/i.test(w) ? w.toUpperCase()
-      : /^\d/.test(w) ? w : w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ')
-    for (const [head, canon] of MODEL_CASE) {
-      if (head.test(cased)) return cased.replace(head, canon)
-    }
-    return cased
-  }
-  return null
-}
-
+// ⛔ MOVED TO src/lib/feed-model.ts (2026-08-26) — do not re-inline it here. This file imports
+// `../src/lib/db` at module scope, so nothing in it can be unit-tested; the rule sat here and
+// invented a product ("Apple Watch Ultra 4", from the 49 in "49mm") across 6 live listings before
+// anyone could write a test for it. It now has 17.
 function brandFor(name: string): string | null {
   const m = name.match(BRAND_RE)
   return m ? brandSlugify(m[1]) : null
