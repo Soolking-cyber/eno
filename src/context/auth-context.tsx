@@ -617,7 +617,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // only THIS provider holds the onAuthStateChange listener that closes the modal and redirects
   // after a verifyOtp (sign-in-form.tsx says so in both OTP handlers) — so the listener has to
   // exist before the code is typed, not after.
-  const openSignIn = useCallback((ctx?: SignInContext | null) => { bootAuth.current?.(); setSignInCtx(ctx ?? null); setSignInOpen(true) }, [])
+  // Sticky: flipped true on the first open and never back. See the render note below — it is what
+  // lets the dialog's declared exit animation actually run, without loading its chunk up front.
+  const [everOpened, setEverOpened] = useState(false)
+  const openSignIn = useCallback((ctx?: SignInContext | null) => { bootAuth.current?.(); setSignInCtx(ctx ?? null); setEverOpened(true); setSignInOpen(true) }, [])
   // Memoized: opening/closing the sign-in dialog is signInOpen state on THIS
   // provider — without useMemo every useAuth consumer re-rendered on each toggle.
   const value = useMemo(() => ({ user, loading, accountType, sellerId, identityLoaded, signOut, openSignIn, markOnboarded }), [user, loading, accountType, sellerId, identityLoaded, signOut, openSignIn, markOnboarded])
@@ -625,8 +628,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   return (
     <AuthContext.Provider value={value}>
       {children}
-      {/* Mounted only once opened, so its chunk loads on demand. */}
-      {signInOpen && (
+      {/**
+        * ⛔ `everOpened`, NOT `signInOpen` — AND THE DIFFERENCE IS THE EXIT ANIMATION. Gating on
+        * `signInOpen` unmounts the Root on close, so the panel and its full-viewport scrim vanish
+        * in a SINGLE FRAME. Measured by rAF-sampling a real Escape press: the panel was present at
+        * opacity 1.0 on one frame and gone on the next, and `data-closed` was never observed on the
+        * element across 193 sampled frames — so `data-closed:animate-out fade-out-0 zoom-out-95`
+        * on dialog.tsx and the scrim's matching fade were declared and never ran.
+        * ⚠️ THE ORIGINAL REASON IS PRESERVED: the comment here said "mounted only once opened, so
+        * its chunk loads on demand", and that is still true — `everOpened` starts false, so nothing
+        * loads until the first open. It only stops the component being TORN DOWN afterwards.
+        * ⛔ Do not "simplify" this back to `{signInOpen && …}`: it looks equivalent, costs nothing
+        * visible on open, and silently deletes every close animation in the dialog.
+        */}
+      {everOpened && (
         <SignInDialog
           open={signInOpen}
           onOpenChange={(o) => { setSignInOpen(o); if (!o) setSignInCtx(null) }}

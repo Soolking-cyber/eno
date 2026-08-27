@@ -127,13 +127,32 @@ export function Price({ price, currency, priceUnit, compact = false, dual = true
     // cuts, no variable axis — and the owner settled on 700 ("make prices 700"). So this is Bold,
     // the heaviest the family has, and globals.css retargets 800/900 to 700 for the same reason.
     <span className={cn('tabular-nums font-bold', className)}>
-      {amount}
+      {/**
+        * ⛔ THE AMOUNT AND ITS UNIT ARE ONE UNBREAKABLE RUN. Without this the price broke between
+        * the number and the currency word on EVERY phone width — measured on the home feed, 12 of
+        * 12 cards at 320px, 360px and 390px, 8 of 12 at 430px: the block rendered 45px tall against
+        * a 23px line-height, i.e. "9,490,000" on line 1 and "VND ≈ $361" on line 2. On the
+        * most-repeated element in the product.
+        * ⚠️ IT IS NOT A WIDTH PROBLEM — "9,490,000 VND" measures 135px inside a 175px column. It was
+        * pushed over only because the `≈ $361` sub-span shares the same inline run, so the line
+        * filled and the break landed at the last space before it. Widening the column would not
+        * have fixed it; this does, and leaves the conversion free to wrap, which is the wrap the
+        * comment below deliberately keeps.
+        * ⛔ IT WRAPS THE AMOUNT+UNIT ONLY, NOT THE WHOLE SPAN. `whitespace-nowrap` on the parent
+        * would force "9,490,000 VND ≈ $361" onto one line and overflow the card instead.
+        * ⚠️ HOW TO RE-MEASURE IT: `height > lineHeight * 1.6`. `getClientRects().length` returns 1
+        * for this span even when the text occupies two lines — that metric is what made me refute
+        * this bug as a false positive the first time it was reported.
+        */}
+      <span className="whitespace-nowrap">
+        {amount}
       {/* The bare text node is kept for the default (always-on) case so the other
           call sites' DOM is byte-identical to before; only the 'sm' variant needs a
           wrapper element to hang the breakpoint class on. */}
-      {suffix && (showUnit === 'sm'
-        ? <span className="hidden sm:inline">{suffix}</span>
-        : suffix)}
+        {suffix && (showUnit === 'sm'
+          ? <span className="hidden sm:inline">{suffix}</span>
+          : suffix)}
+      </span>
       {approx && (
         /**
          * ⛔ `aria-hidden` IS CONDITIONAL, AND THE CONDITION IS THE SAME ONE THAT GOVERNS THE

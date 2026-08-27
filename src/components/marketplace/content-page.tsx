@@ -77,7 +77,28 @@ export function ContentSection({ id, title, wide = false, children }: {
   return (
     <section id={id} className="scroll-mt-24">
       {title && <h2 className="h-section text-foreground"><Tr text={title} /></h2>}
-      <div className={cn('space-y-3', title && 'mt-3', !wide && 'max-w-[70ch]')}>{children}</div>
+      {/**
+        * ⛔ THE CAP IS ON THE CHILDREN, NOT ON THIS WRAPPER, BECAUSE `ch` RESOLVES AGAINST THE
+        * ELEMENT THAT DECLARES IT. On the wrapper it inherited 16px (1ch = 10px), so
+        * `max-w-[70ch]` computed to a flat 700px — and the copy inside is smaller: `text-sm`
+        * (1ch = 8.75px) rendered 80ch and `text-xs` (1ch = 7.5px) rendered 93ch, against the
+        * 65–75ch measure this cap exists to hold. Measured across 10 content routes: 79 of 215
+        * text blocks were over 75ch, the longest line 106 characters.
+        * ✅ On the children it resolves per element: 612px for 14px copy, 525px for 12px copy —
+        * both exactly 70ch, which is what the class always claimed.
+        * ⛔ `[&_p]` (DESCENDANT), NOT `[&>p]` (CHILD) — I shipped the child version first and it was
+        * WORSE than the bug: most paragraphs on these pages are nested inside sub-wrappers, so they
+        * matched nothing and lost the cap altogether. Measured on /regulations: 107 of 109 blocks
+        * over 75ch, longest 109ch, against 79 of 215 before the change. The scope has to be every
+        * descendant — the same reach the wrapper cap had; the only thing changing is WHERE `ch`
+        * resolves.
+        * ⚠️ THE WRAPPER CAP STAYS TOO, and dropping it was a regression a reviewer caught: every
+        * block that is not a `p` or an `li` — tables, callouts, figures — lost its only bound and
+        * ran the full container width. Keeping both means text resolves `ch` against its own size
+        * (612px at 14px, 525px at 12px) while everything else keeps the 700px it always had.
+        * ⚠️ `/terms` already did it this way; this brings the shared component in line.
+        */}
+      <div className={cn('space-y-3', title && 'mt-3', !wide && 'max-w-[70ch] [&_p]:max-w-[70ch] [&_li]:max-w-[70ch]')}>{children}</div>
     </section>
   )
 }

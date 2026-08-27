@@ -452,7 +452,17 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
           role="dialog"
           aria-modal="true"
           aria-label={title}
-          className="fixed inset-0 z-[100] flex touch-none items-center justify-center overscroll-none bg-black/92 animate-in fade-in duration-150 ease-out"
+          /* ⛔ `[touch-action:pinch-zoom]`, NEVER `touch-none` — THIS WAS `touch-none` AND IT KILLED
+             ZOOM ON THE ONE SURFACE BUILT FOR EXAMINING A PHOTO. `none` forbids every browser
+             gesture including two-finger zoom, across the whole viewport (measured: 390x664, 100%
+             of the screen). This repo has already ruled on the exact trade twice — globals.css
+             calls a blanket `none` "a WCAG 1.4.4 failure" for the public site and uses
+             `pinch-zoom` instead.
+             ⚠️ THE JS PAN/SWIPE HANDLERS ARE UNAFFECTED: at scale 1.0 WebKit suppresses
+             single-finger panning for `pinch-zoom` exactly as it does for `none`, so the
+             onTouchStart/Move logic below still owns the one-finger gesture. What comes back is the
+             two-finger one, which nothing here was handling anyway. */
+          className="fixed inset-0 z-[100] flex [touch-action:pinch-zoom] items-center justify-center overscroll-none bg-black/92 animate-in fade-in duration-150 ease-out"
           onClick={() => setOpen(false)}
         >
           <IconButton
@@ -470,7 +480,7 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
           <div
             ref={frameRef}
             data-protected
-            className="relative h-[78vh] w-[92vw] max-w-5xl touch-none overflow-hidden"
+            className="relative h-[78vh] w-[92vw] max-w-5xl [touch-action:pinch-zoom] overflow-hidden"
             onClick={(e) => e.stopPropagation()}
             onDoubleClick={(e) => toggleZoom(e.clientX, e.clientY)}
             onTouchStart={(e) => {

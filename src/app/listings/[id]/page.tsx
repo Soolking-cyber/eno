@@ -861,7 +861,14 @@ export default async function ListingPage({ params }: Props) {
             {/* 11 — Map */}
             <div id="location-on-map" className="order-11 space-y-2 scroll-mt-20">
               <h2 className="text-lg font-semibold text-foreground"><Tr text="Location" /></h2>
-              <div className="relative h-[260px] overflow-hidden rounded-2xl">
+              {/* ⛔ THE RING IS ON THIS WRAPPER, KEYED OFF THE CHILD'S FOCUS. The focusable is
+                  Leaflet's own `.leaflet-container` (tabIndex=0), which sits flush inside this
+                  `overflow-hidden` box — so the global `outline-offset: 2px` ring was clipped
+                  entirely: tabbing to the map changed 0 pixels. `has-[:focus-visible]` puts the
+                  indicator on the clipper itself, where nothing can crop it.
+                  ⚠️ `:focus-visible`, not `focus-within` — a mouse click inside a map should not
+                  draw a keyboard ring, and Leaflet focuses its container on click. */}
+              <div className="relative h-[260px] overflow-hidden rounded-2xl after:pointer-events-none after:absolute after:inset-0 after:z-[500] after:rounded-[inherit] after:border-2 after:border-ring after:opacity-0 after:content-[''] has-[:focus-visible]:after:opacity-100">
                 <ListingDetailMap listings={[listing]} activeDistrict={listing.district || 'all'} />
               </div>
             </div>

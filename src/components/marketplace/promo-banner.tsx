@@ -518,7 +518,18 @@ function SlidePanel({ slide, first = false, artReady = true }: { slide: PromoSli
         // and it is EXACT above 1344px where max-w-7xl caps the container.
         // `min-h-[150px]` is a content floor, not a design value: it is what the heading, the
         // subline and the CTA need before they start colliding at the narrowest phone.
-        className="group relative block aspect-[2.04] min-h-[150px] sm:aspect-[3.14] lg:aspect-[4.16] overflow-hidden"
+        /* ⛔ THE FOCUS RING IS AN `::after`, NOT THE GLOBAL OUTLINE, AND THIS CONTROL HAD NO
+           VISIBLE RING AT ALL. The app-wide `:focus-visible` rule sits at `outline-offset: 2px`,
+           i.e. entirely OUTSIDE the border box — and this slide is flush inside the carousel's
+           `overflow-hidden` viewport, so 100% of the ring was clipped. Measured two ways: tabbing
+           to it changed 0 pixels, and an 8px red probe outline painted 0 red pixels, while 63 of
+           65 other tabbables on the page changed >=20px.
+           ⛔ AN INSET OUTLINE (or an inset box-shadow) IS NOT THE FIX — it paints UNDER an
+           absolutely-positioned child, and this slide's artwork is exactly that. `::after` with a
+           z-index above the image is what actually shows.
+           ⚠️ It is always in the DOM at `opacity-0` rather than created on focus, so the ring does
+           not trigger a paint-time layout on the first Tab. */
+        className="group relative block aspect-[2.04] min-h-[150px] sm:aspect-[3.14] lg:aspect-[4.16] overflow-hidden after:pointer-events-none after:absolute after:inset-0 after:z-20 after:rounded-[inherit] after:border-2 after:border-ring after:opacity-0 after:content-[''] focus-visible:outline-none focus-visible:after:opacity-100"
       >
         {/* ⚠️ CLS IS UNAFFECTED BY THE HOLD, AND THAT IS STRUCTURAL RATHER THAN LUCKY. The box above
             owns its height through `aspect-[…]` + `min-h`, and the <img> is `absolute inset-0` — it
