@@ -1,4 +1,5 @@
 import 'dotenv/config'
+import crypto from 'node:crypto'
 import { createClient } from '@supabase/supabase-js'
 import { db } from '../src/lib/db'
 import { makeImageHost } from '../src/lib/host-product-image'
@@ -137,10 +138,36 @@ async function main() {
     const want = Math.max(0, MAX_IMAGES - current.length)
     const extras: string[] = []
     if (want > 0 && APPLY) {
-      for (const src of gallery.slice(0, want + 1)) {
-        const hosted = await hostImage(src, slugify(l.title))
-        if (hosted) extras.push(hosted)
+      /**
+       * ⛔ COMPARE THE BYTES BEFORE UPLOADING, BECAUSE A PAGE'S FIRST GALLERY IMAGE IS THE FEED'S
+       * PRIMARY SHOT. The first version hosted `gallery.slice(0, want + 1)` — starting at index 0 —
+       * so every enriched listing got a second copy of the picture it already had, at a new URL and
+       * therefore invisible to any URL-based check. Measured afterwards: 25 of 25 sampled listings
+       * had `sha256(images[0]) === sha256(images[1])`. The comment right above this said not to do
+       * it; the slice did it anyway, which is why the guard is now bytes rather than a comment.
+       * ⚠️ The existing images are hashed ONCE per listing, so this costs one extra fetch each and
+       * catches a duplicate anywhere in the set, not just the well-known first-vs-first case.
+       */
+      const seen = new Set<string>()
+      for (const u of current) {
+        try {
+          const res = await fetch(u, { signal: AbortSignal.timeout(20_000) })
+          if (res.ok) seen.add(crypto.createHash('sha256').update(Buffer.from(await res.arrayBuffer())).digest('hex'))
+        } catch { /* an unreadable existing image just means we cannot dedupe against it */ }
+      }
+      for (const src of gallery) {
         if (extras.length >= want) break
+        let buf: Buffer
+        try {
+          const res = await fetch(encodeURI(src), { signal: AbortSignal.timeout(25_000) })
+          if (!res.ok) continue
+          buf = Buffer.from(await res.arrayBuffer())
+        } catch { continue }
+        const h = crypto.createHash('sha256').update(buf).digest('hex')
+        if (seen.has(h)) continue
+        seen.add(h)
+        const hosted = await hostImage.fromBuffer(buf, slugify(l.title))
+        if (hosted) extras.push(hosted)
       }
     } else if (want > 0) {
       extras.push(...gallery.slice(0, want).map((g) => `(would host) ${g.split('/').pop()}`))
