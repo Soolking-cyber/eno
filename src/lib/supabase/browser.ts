@@ -1,5 +1,9 @@
 import { createBrowserClient } from '@supabase/ssr'
 import type { SupabaseClient } from '@supabase/supabase-js'
+// ⚠️ SHARED WITH THE SERVER CLIENT ON PURPOSE — this client WRITES the same cookies from JS, so a
+// flag set only on the server leaves the copy a signed-in reader actually carries unprotected. The
+// long note on why `httpOnly` is NOT among these options lives with the constant.
+import { authCookieOptions } from './cookie-options'
 
 // Client-side Supabase (publishable/anon key — safe in the browser). SINGLETON:
 // one stable instance per tab so Realtime keeps a single socket and auth stays
@@ -12,6 +16,7 @@ export function createSupabaseBrowser(): SupabaseClient {
   client = createBrowserClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+    { cookieOptions: authCookieOptions({ proto: globalThis.location?.protocol }) },
   )
   // Private Realtime channels authorize off the user JWT. Arm realtime auth now
   // and RE-arm on every token refresh, or a private channel silently stops

@@ -1,5 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
+import { authCookieOptions } from './cookie-options'
 
 // Server-side Supabase (reads/writes the auth session cookies). Use in
 // server components / route handlers to read the logged-in user.
@@ -9,6 +10,7 @@ export async function createSupabaseServer() {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
     {
+      cookieOptions: authCookieOptions(),
       cookies: {
         getAll() {
           return cookieStore.getAll()
