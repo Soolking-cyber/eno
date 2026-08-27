@@ -1,5 +1,6 @@
 'use client'
 
+import { basemapTileUrl } from '@/lib/basemap'
 import Image from 'next/image'
 import { isMockImageUrl } from '@/lib/listing-image'
 import { useEffect, useRef, useState } from 'react'
@@ -409,7 +410,7 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
     const conn = (navigator as Navigator & { connection?: { effectiveType?: string; saveData?: boolean } }).connection
     const lightTiles = !!conn && (conn.saveData === true || (!!conn.effectiveType && conn.effectiveType !== '4g'))
     const retina = !lightTiles && L.Browser.retina ? '@2x' : ''
-    L.tileLayer(`https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}${retina}.png`, {
+    L.tileLayer(basemapTileUrl(retina as '@2x' | ''), {
       maxZoom: 19,
       keepBuffer: 1,        // hold fewer off-screen tiles → fewer requests on slow links
       updateWhenIdle: true, // defer tile fetches until a pan/zoom settles

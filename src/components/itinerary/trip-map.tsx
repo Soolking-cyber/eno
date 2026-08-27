@@ -1,5 +1,6 @@
 'use client'
 
+import { basemapTileUrl } from '@/lib/basemap'
 import { useEffect, useRef, useState } from 'react'
 import { Map as MapIcon, X, Info } from '@/components/ui/icons'
 import { useLanguage } from '@/context/language-context'
@@ -382,7 +383,7 @@ export function TripMap({ days, activeDay = null, selectedStopId = null, onSelec
     // conforms to the design language. Enabling this would show the credit twice.
     const map = L.map(mapRef.current, { zoomControl: true, attributionControl: false, scrollWheelZoom: true })
       .setView([16.0, 107.5], 5)
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(map)
+    L.tileLayer(basemapTileUrl('{r}'), { maxZoom: 19 }).addTo(map)
     mapInstanceRef.current = map
     const sizer = setTimeout(() => map.invalidateSize(), 80)
     return () => {
