@@ -22,6 +22,7 @@ import { cardSlots, isSwipe } from '@/lib/card-slots'
 import { isMockImageUrl } from '@/lib/listing-image'
 import { cn } from '@/lib/utils'
 import { useLanguage, useTr } from '@/context/language-context'
+import { isHcmc } from '@/lib/city-short'
 // PostedAgo (not a bare timeAgo() call) so the card's relative time is the SAME string the PDP
 // prints — it derives its label from useLanguage at render time, which is the repo's existing
 // answer to relative time on a cached page (the PDP renders it inside the ISR'd listing route,
@@ -102,7 +103,19 @@ function ListingCardImpl({
   const { lang, t, tr } = useLanguage()
   const images = listing.images
   const displayTitle = useLocalized(listing.title, listing.titleVi, listing.titleI18n)
-  const displayLocation = useTr(listing.location)
+  /**
+   * ⚠️ ABBREVIATED ON THE CARD ONLY, AND ONLY FOR THE ONE CITY THAT NEEDS IT. Measured on the feed:
+   * below `sm` this row renders just "New · Hồ Chí Minh", which needs 96px and had 67px at 320px
+   * and 87px at 360px — so the city lost its tail ("New · Hồ C…"). 9,726 of 9,773 live listings
+   * carry exactly this location, so one substitution fixes essentially every card.
+   * ⚠️ `tr()`, not a literal, so the two forms stay with the rest of the copy — and they are the
+   * app's OWN existing pair: the search placeholder already says "HCM" in English and "TP.HCM" in
+   * Vietnamese. A third spelling here would be a new vocabulary for the same city.
+   * ⛔ DISPLAY ONLY. `listing.location` is untouched — abbreviating the stored value would split
+   * the location facet and break saved searches. See src/lib/city-short.ts.
+   */
+  const translatedLocation = useTr(listing.location)
+  const displayLocation = isHcmc(listing.location) ? tr('HCM', 'TP.HCM') : translatedLocation
   // Condition badge text for the metadata line. new/used are the canonical facet values
   // (verified in prod); an unexpected value is shown verbatim rather than dropped.
   const conditionLabel = listing.condition === 'new' ? tr('New', 'Mới')

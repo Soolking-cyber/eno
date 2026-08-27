@@ -103,6 +103,13 @@ export function PartnerBadge({ size = 'sm', className, asLink = true }: { size?:
               glyph, not the text, set the box and the pill measured 16px against the trust chip's
               15px. The icon is the tallest child, so its size IS the chip's height. */}
           <ShieldCheck aria-hidden size={11} className="shrink-0" />
+          {/* ⛔ THE WORD STAYS AT EVERY WIDTH, and hiding it below `sm` was tried and reverted.
+              It would have bought 44px in the feed card's meta row — but the row's truncation was
+              fixed by abbreviating the city instead (listing-card.tsx), and measuring showed that
+              alone is enough: 0 of 12 rows truncate at 320px with this badge at its full 67px.
+              ⛔ AND THE COST WOULD HAVE BEEN REAL: below `sm` is exactly where hover does not
+              exist, so a bare shield's only remaining explanation is a tooltip that can never
+              open. A reviewer named that; the measurement is what made it unnecessary to argue. */}
           {word}
         </span>
       </LinkOrSpan>
