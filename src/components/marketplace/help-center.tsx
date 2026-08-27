@@ -306,7 +306,20 @@ export function HelpCenter({ data }: { data: HelpCenterData }) {
 
       {/* Search — the page's primary affordance. The wrapper owns the box, so it also
           owns the focus ring (the Input inside is `unstyled` by contract — ui/input). */}
-      <div className="mt-6 flex items-center rounded-xl bg-tint px-3 transition-shadow focus-within:ring-2 focus-within:ring-ring/30">
+      {/* ⚠️ `ring-ring`, NOT `ring-ring/30`. At 30% alpha over this tinted field the ring measured
+          1.57:1 against its surround — present in the DOM, invisible in practice, which is the
+          worst of both. The same colour at full alpha measures 5.5:1. The Input inside is
+          `unstyled` by contract, so this wrapper's ring is the ONLY focus indicator the field has.
+          ⛔ `ring-[var(--ring)]`, NOT `ring-ring` — the bare utility renders a ring with NO COLOUR
+          here (measured: five `rgba(0,0,0,0)` shadows while focused, i.e. the ring machinery firing
+          with a transparent value). Every other ring in this codebase carries an alpha suffix
+          (`ring-ring/30`, `/40`, `/50`), so the colourless bare form was never exercised. The
+          arbitrary value resolves the token directly and cannot be affected by that.
+          ⚠️ `ring-[color:var(--ring)]` WITH THE TYPE HINT — a bare `ring-[var(--ring)]` is ambiguous
+          to Tailwind, which can read an arbitrary `ring-[…]` as a WIDTH. The hint removes the
+          guess. A reviewer raised it; the ring measured visible either way, but "it happened to
+          parse the way I meant" is not a property worth relying on. */}
+      <div className="mt-6 flex items-center rounded-xl bg-tint px-3 transition-shadow focus-within:ring-2 focus-within:ring-[color:var(--ring)]">
         <Search className="size-5 shrink-0 text-muted-foreground" aria-hidden />
         <Input
           variant="unstyled"

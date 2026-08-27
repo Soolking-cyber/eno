@@ -685,7 +685,13 @@ export function Header() {
             <Link
               href="/signin"
               prefetch={false}
-              className="hidden sm:flex items-center gap-1.5 rounded-xl px-2.5 h-9 text-sm font-semibold text-body transition-colors hover:bg-accent hover:text-accent-foreground cursor-pointer tap-48 relative"
+              /* ⚠️ THE ONLY HEADER CONTROL WITH NO PRESS RESPONSE UNTIL NOW — measured against its
+                 own neighbours: 0 of 7,872 pixels changed under a held pointer, while /post moved
+                 1,120px, the logo 727, the bell 409, AI 187 and Map 212, all at scale ~0.96.
+                 ⚠️ AND THE `hover:bg-accent` DEFENCE DOES NOT COVER TOUCH: Tailwind gates `hover:`
+                 behind `@media (hover: hover)`, and this link renders from `sm` up — which includes
+                 touch tablets, where it therefore had no feedback at all. */
+              className="hidden sm:flex items-center gap-1.5 rounded-xl px-2.5 h-9 text-sm font-semibold text-body transition-[color,background-color,scale] hover:bg-accent hover:text-accent-foreground active:scale-[0.97] active:duration-[60ms] cursor-pointer tap-48 relative"
               aria-label={tr('Sign in', 'Đăng nhập')}
             >
               <User className="h-6 w-6 sm:h-7 sm:w-7" strokeWidth={STROKE} />

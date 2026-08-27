@@ -445,7 +445,10 @@ export function FacetBar({
   return (
     <div className="relative">
       {/* Mobile: one horizontally-swipable line (bleeds to screen edges); desktop: wraps. */}
-      <div className="flex items-center gap-2 flex-nowrap overflow-x-auto scrollbar-none -mx-3 px-3 lg:mx-0 lg:px-0 lg:flex-wrap lg:overflow-x-visible">
+      {/* ⚠️ `overscroll-x-contain` — see the note in listing-gallery.tsx: without it a flick at
+          either end of this strip chains to an ancestor, or to the iOS swipe-back gesture. It only
+          applies while the strip is a scroller; from `lg` it wraps and the property is inert. */}
+      <div className="flex items-center gap-2 flex-nowrap overflow-x-auto overscroll-x-contain scrollbar-none -mx-3 px-3 lg:mx-0 lg:px-0 lg:flex-wrap lg:overflow-x-visible">
         {/* Advanced per-category filter form — leftmost. Only when the category has facets. */}
         {hasAdvanced && (
           // Advanced per-category filter panel. Base UI Popover now supplies the whole

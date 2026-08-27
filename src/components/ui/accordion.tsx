@@ -43,7 +43,15 @@ function AccordionTrigger({ className, children, ...props }: AccordionPrimitive.
       <AccordionPrimitive.Trigger
         data-slot="accordion-trigger"
         className={cn(
-          "group/acc-trigger flex flex-1 items-start justify-between gap-4 py-4 text-left text-base font-bold text-foreground transition-colors",
+          // ⚠️ `active:scale-[0.99]`, NOT the chip's 0.97 — a 584px-wide row scaled 3% reads as the
+          // whole page flexing, where the same 3% on a 100px chip reads as a press. The row still
+          // answers the finger; it just answers at its own size.
+          // ⛔ IT HAD NO PRESS STATE AT ALL, and on touch that meant NO feedback whatever: measured
+          // on /help, 39 of 40 triggers changed 0 pixels under a held pointer, and globals.css
+          // zeroes `-webkit-tap-highlight-color` app-wide on the stated assumption that ":active"
+          // styling exists. Here it did not, so every tap on the FAQ looked dead until the panel
+          // opened. The 60ms down-duration is the house press timing (docs/design-language.md §6).
+          "group/acc-trigger flex flex-1 items-start justify-between gap-4 py-4 text-left text-base font-bold text-foreground transition-[color,scale] active:scale-[0.99] active:duration-[60ms]",
           "hover:text-accent-foreground focus-visible:outline-1 focus-visible:outline-ring",
           "disabled:pointer-events-none disabled:opacity-50",
           className

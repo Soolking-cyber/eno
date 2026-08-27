@@ -215,7 +215,18 @@ export function PriceRangeFilter({
             <div className="mt-4 flex items-end gap-3">
               <label className="min-w-0 flex-1">
                 <span className="mb-1 block text-2xs font-semibold text-ink-4">{tr('Minimum', 'Tối thiểu')}</span>
-                <span className="flex items-center gap-1 rounded-xl px-3 py-2 text-sm transition-colors hover:bg-muted focus-within:bg-muted">
+                {/* ⛔ A BACKGROUND TINT IS NOT A FOCUS INDICATOR. `focus-within:bg-muted` alone measured
+                    1.05:1 against the surrounding canvas — a keyboard user could not tell which of
+                    the two fields they were in. These inputs use `variant="unstyled"` and so opt
+                    out of the app-wide `:focus-visible` outline, which is why the tint was all
+                    there was. The ring at full alpha measures 5.5:1, the same colour the header
+                    CTA's outline uses.
+                    ⚠️ `focus-within`, not `:focus-visible`, because the ring belongs on this
+                    wrapper — the focusable is the `<Input>` inside it, and the wrapper is what
+                    draws the field's visible boundary.
+                    ⛔ `ring-[var(--ring)]`, NOT `ring-ring` — see help-center.tsx: the bare utility
+                    paints a transparent ring. */}
+                  <span className="flex items-center gap-1 rounded-xl px-3 py-2 text-sm transition-colors hover:bg-muted focus-within:bg-muted focus-within:ring-2 focus-within:ring-[color:var(--ring)]">
                   {currency === 'VND' && <span className="text-ink-4">₫</span>}
                   <Input
                     variant="unstyled"
@@ -229,7 +240,16 @@ export function PriceRangeFilter({
               <span className="pb-2 text-ink-4">–</span>
               <label className="min-w-0 flex-1">
                 <span className="mb-1 block text-2xs font-semibold text-ink-4">{tr('Maximum', 'Tối đa')}</span>
-                <span className="flex items-center gap-1 rounded-xl px-3 py-2 text-sm transition-colors hover:bg-muted focus-within:bg-muted">
+                {/* ⛔ A BACKGROUND TINT IS NOT A FOCUS INDICATOR. `focus-within:bg-muted` alone measured
+                    1.05:1 against the surrounding canvas — a keyboard user could not tell which of
+                    the two fields they were in. These inputs use `variant="unstyled"` and so opt
+                    out of the app-wide `:focus-visible` outline, which is why the tint was all
+                    there was. The ring at full alpha measures 5.5:1, the same colour the header
+                    CTA's outline uses.
+                    ⚠️ `focus-within`, not `:focus-visible`, because the ring belongs on this
+                    wrapper — the focusable is the `<Input>` inside it, and the wrapper is what
+                    draws the field's visible boundary. */}
+                  <span className="flex items-center gap-1 rounded-xl px-3 py-2 text-sm transition-colors hover:bg-muted focus-within:bg-muted focus-within:ring-2 focus-within:ring-[color:var(--ring)]">
                   {currency === 'VND' && <span className="text-ink-4">₫</span>}
                   <Input
                     variant="unstyled"

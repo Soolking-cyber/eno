@@ -214,7 +214,23 @@ export function PromoBanner() {
           onMouseLeave={() => hold(false)}
           onFocus={() => hold(true)}
           onBlur={() => hold(false)}
-          onPointerDownCapture={() => setArtReady(true)}
+          /* ⛔ TOUCH HAD NO PAUSE AT ALL — the four handlers above are mouse and focus only, and
+             Tailwind's own `hover:` gate is the giveaway: a phone fires neither. Measured with a
+             finger resting on the banner, the carousel advanced a full slide underneath it, three
+             trials out of three. Pointer events cover mouse, pen and touch in one, so this is the
+             pause the mouse has always had, extended to the readers who actually get this surface.
+             ⚠️ `onPointerUp` AND `onPointerCancel`: a drag that leaves the element, or one the
+             browser claims for a scroll, fires only Cancel — without it the banner would pause and
+             never resume. */
+          /* ⛔ TOUCH AND PEN ONLY — A MOUSE MUST NOT REACH THESE. A mouse click fires
+             `mouseenter → pointerdown → pointerup`, so an unconditional `hold(false)` on pointerup
+             CANCELS the hover pause and the banner resumes rotating under a mouse that is still
+             sitting on it. All three reviewers caught that in the first version of this handler.
+             Mouse already has its pause (onMouseEnter/Leave above); this exists only for the input
+             those handlers cannot see. */
+          onPointerDownCapture={(e) => { if (e.pointerType !== 'mouse') hold(true); setArtReady(true) }}
+          onPointerUp={(e) => { if (e.pointerType !== 'mouse') hold(false) }}
+          onPointerCancel={(e) => { if (e.pointerType !== 'mouse') hold(false) }}
           onKeyDownCapture={() => setArtReady(true)}
         >
           {/* ⚠️ THE PRIMITIVE'S GUTTER IS CANCELLED HERE, ON BOTH HALVES TOGETHER. ui/carousel pairs

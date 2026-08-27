@@ -1113,7 +1113,22 @@ function ListingCardImpl({
           {listing.seller.officialPartner ? (
             <span className="sr-only">{tr('Official partner', 'Đối tác chính thức')}</span>
           ) : listing.seller.isBusiness && (
-            <span role="img" title={tr('Business', 'Doanh nghiệp')} aria-label={tr('Business', 'Doanh nghiệp')} className="inline-flex shrink-0 items-center">
+            /* ⚠️ `hidden sm:inline-flex` — THE GLYPH YIELDS ITS WIDTH TO THE FACTS ON THE LEFT
+               BELOW sm. Measured on the real feed at 320px and 360px, the truncating span was
+               getting 67–87px and the city was being cut mid-word ("New · Hồ C…" — 10 of 52
+               characters). This glyph plus its gap is ~20px of that row, and it is the most
+               redundant thing in it: the seller's business status is on the PDP and the seller
+               page, an official partner suppresses it entirely, and the trust chip beside it is
+               the signal a buyer actually scans for.
+               ⛔ THE TRUST CHIP IS DELIBERATELY NOT HIDDEN, though it is the bigger 45px. That
+               would trade a trust signal away on the surface where most buyers see it, which is a
+               product decision and not a typography one. ~20px does not fully fix the line; see
+               the measurement in the commit.
+               ⛔ `sr-only`, NOT `hidden` — `hidden` is `display:none` and would drop the seller's
+               business status out of the ACCESSIBILITY TREE below sm, not just out of view. This
+               element exists to be announced (role=img + aria-label); it is the visual 14px glyph
+               that the row cannot afford, not the fact. A reviewer caught the first version. */
+            <span role="img" title={tr('Business', 'Doanh nghiệp')} aria-label={tr('Business', 'Doanh nghiệp')} className="sr-only sm:not-sr-only sm:inline-flex sm:shrink-0 sm:items-center">
               <Building2 className="h-3.5 w-3.5" />
             </span>
           )}

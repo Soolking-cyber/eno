@@ -335,7 +335,12 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
               // Square corners (owner 2026-07-24). The radius lived on the SCROLLER, so it
               // clipped the whole strip rather than each slide — dropping it here is what
               // actually squares the mobile viewport.
-              className="scrollbar-none flex snap-x snap-mandatory overflow-x-auto"
+              /* ⚠️ `overscroll-x-contain` matches every other horizontal strip in the app
+                 (shelf.tsx's RAIL_SCROLLER, the ladder, the facet bar). Without it a sideways
+                 flick that hits either end CHAINS out to the nearest scrollable ancestor — and in
+                 the iOS WebView it hands the gesture to swipe-back navigation, so flicking past the
+                 last photo leaves the listing entirely. */
+              className="scrollbar-none flex snap-x snap-mandatory overflow-x-auto overscroll-x-contain"
               onScroll={(e) => {
                 const el = e.currentTarget
                 setSlide(Math.round(el.scrollLeft / el.clientWidth))
