@@ -6,7 +6,7 @@ import { ChevronRight } from '@/components/ui/icons'
 import type { SerializedCategory, SerializedListingCard } from '@/lib/types'
 import { ListingCard } from './listing-card'
 import { CategoryIcon } from './category-icons'
-import { RAIL_CARD_W, RAIL_SCROLLER, MIN_RAIL_ITEMS, RAIL_SKELETON_COUNT, SECTION_HEADER_ROW, SECTION_TITLE, SECTION_SEE_ALL } from './shelf'
+import { RAIL_CARD_W, RAIL_SCROLLER, MIN_RAIL_ITEMS, RAIL_SKELETON_COUNT, SECTION_HEADER_ROW, SECTION_TITLE, SECTION_SEE_ALL, RailBeam } from './shelf'
 import { STROKE_UI } from '@/lib/icon-tokens'
 import { useLanguage, Tr } from '@/context/language-context'
 import { useScrollArrows, ScrollArrows } from '@/hooks/use-scroll-arrows'
@@ -71,6 +71,9 @@ function CategoryRail({ cat, listings, onCategory }: { cat: SerializedCategory; 
           <ChevronRight className="h-4 w-4" />
         </Button>
       </div>
+      {/* ⚠️ THE SWIPE BEAM BELONGS HERE TOO — this rail does NOT go through <Shelf>, which is
+          exactly why the first version of the hint missed Services, Travel, Home and Fashion. */}
+      <RailBeam scrollerRef={scrollerRef} canRight={canRight} />
       {/* Cards pixel-match the feed grid (gap-2 / sm:gap-4; one card == one grid column) + snap. */}
       <div className="relative">
         <div ref={scrollerRef} className={RAIL_SCROLLER}>

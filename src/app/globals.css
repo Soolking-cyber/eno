@@ -2640,10 +2640,29 @@ html.dark .leaflet-tile-pane {
    on `.rail-beam` itself, where it will also show on rails that cannot scroll.
    ⚠️ This guard is not optional — the search beam lost its equivalent to a careless rewrite on this
    same day and two reviewers had to catch it. */
+/* ⛔ CENTRED IN THE GAP, NOT FLUSH AGAINST THE CARDS, AND THE MARGINS CANCEL. Owner, 2026-08-27,
+   on the first version: "run beam in the center of this now cant see it overlaps with product top".
+   The header above carries `mb-3`, so all 12px of the gap sat ABOVE the line and the line itself
+   was pressed against the card tops — reading as an artefact of the cards rather than a mark of
+   its own. `-6px` top and `+6px` bottom put it in the middle of that gap with clear air on both
+   sides. ⚠️ THE MARGINS CANCEL BUT THE FOOTPRINT STILL GREW BY 1px, because the line itself went
+   from 1px to 2px: -6 + 2 + 6 = 2. An earlier version of this comment claimed "no rail moves by a
+   pixel", which was true of the margins and false of the total — a reviewer did the arithmetic.
+   One pixel per rail is not worth trading the centring for, but say what it is.
+   ⚠️ If the header's `mb-3` ever changes, these two numbers are half of it — they are not arbitrary.
+
+   ⚠️ 2px, NOT 1px, FOR THE SAME REPORT. Ocean at 15% over a light page is close to invisible on a
+   single hairline: measured, one row of pixels peaked at a delta of 8/255 against the page — real
+   but not something a reader notices in passing. Doubling the ink is the change that costs nothing
+   else; raising the ALPHA instead would break the 15% the owner picked, and the rail beam is meant
+   to match the search bar's strength. */
 .rail-beam {
   position: relative;
-  height: 1px;
+  height: 2px;
+  margin-top: -6px;
+  margin-bottom: 6px;
   overflow: hidden;
+  border-radius: 2px;
 }
 
 .rail-beam::after {

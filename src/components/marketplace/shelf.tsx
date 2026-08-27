@@ -1,8 +1,8 @@
 'use client'
 
 import Link from 'next/link'
-import { useState } from 'react'
-import type { CSSProperties } from 'react'
+import { useEffect, useState } from 'react'
+import type { CSSProperties, RefObject } from 'react'
 import { ChevronRight } from '@/components/ui/icons'
 import type { IconComponent } from '@/components/ui/icons'
 import { useLanguage } from '@/context/language-context'
@@ -70,6 +70,64 @@ export const RAIL_CARD_W =
  *  (w3c/pointerevents#358). Containment is a real improvement, not a guarantee. */
 export const RAIL_SCROLLER = 'flex gap-2 overflow-x-auto overscroll-x-contain scrollbar-none snap-x sm:gap-4'
 
+/**
+ * ⛔ THE SWIPE HINT — A COMPONENT, NOT A LINE OF JSX IN `Shelf`, AND THAT WAS THE WHOLE BUG.
+ * Owner, 2026-08-27: a line beam travelling RIGHT TO LEFT above every horizontal carousel, "to
+ * indicate they can swipe left". It was first written inline in `Shelf` on the reasoning that all
+ * the rails route through it. They do not: measured on the live home page, SIX scrollers genuinely
+ * overflow and only ONE is a `Shelf`. `category-rails.tsx` hand-rolls its own header and scroller
+ * (its own comment says so — it "cannot use <Shelf>" because of the button-title), so Services,
+ * Travel, Home and Fashion — the sections in the owner's screenshot — had no beam at all. The
+ * owner's report was exactly right: "absolutely nothing no beam".
+ * ⚠️ COUNT THE SCROLLERS, NOT THE SHELVES, when checking this reaches everything — and expect
+ * FIVE beams against SIX overflowing scrollers, because the sixth is deliberately left bare: the
+ * `role="group"` / "Categories" chip row is a FILTER, not a carousel of things to browse, and the
+ * same goes for the facet bar, the mobile ladder and the PDP gallery (whose beam would land on the
+ * photo). The hint means "there are more PRODUCTS this way". A reviewer read 6-vs-5 as the bug
+ * recurring one instance smaller, which is the right instinct and the reason the number is written
+ * down here rather than left to be re-derived.
+ *
+ * ⚠️ IT OWNS THE LATCH so a call site is one line and cannot forget the state. Given the scroller
+ * ref it already has, every rail adds `<RailBeam scrollerRef={…} canRight={canRight} />`.
+ *
+ * ⛔ THE TEST IS POSITIONAL — `scrollLeft > 8` — AND IT IS SEEDED, NOT ONLY LISTENED FOR. Reading
+ * the position on mount is what handles the reader who comes BACK: browser scroll restoration puts
+ * a rail at 400px before any listener exists, so an event-only latch hears nothing and sweeps
+ * "swipe left" at someone already halfway along it. A reviewer caught that, and caught the comment
+ * that used to sit here claiming the threshold "excludes" restoration and arrow clicks. It does
+ * not, and it should not: being positional is the point. Anything that moved the rail off its
+ * start — finger, arrow button, restored history — means the reader is past needing the hint.
+ */
+export function RailBeam({ scrollerRef, canRight }: {
+  scrollerRef: RefObject<HTMLDivElement | null>
+  canRight: boolean
+}) {
+  /** ⚠️ PER MOUNT, NOT PER PERSON — deliberately `useState`. The owner asked for a beam above every
+   *  carousel; remembering it forever in storage would quietly delete a thing that was asked for.
+   *  What the latch buys is that it stops competing with the reader the moment they are already
+   *  doing the thing it suggests. */
+  const [everScrolled, setEverScrolled] = useState(false)
+
+  // ⚠️ `canRight` IS IN THE DEPS AND IS NOT DECORATION. A ref OBJECT is stable forever, so a
+  // dependency list of just the ref can never re-run — and if `scrollerRef.current` were null on
+  // the first pass (a late-mounted or conditionally rendered scroller) the listener would never
+  // attach and that rail would sweep for the whole session. `canRight` flips when a rail's content
+  // arrives, which is exactly the moment worth re-checking.
+  useEffect(() => {
+    const el = scrollerRef.current
+    if (!el || everScrolled) return
+    if (el.scrollLeft > 8) { setEverScrolled(true); return }   // already moved before we got here
+    const onScroll = () => { if (el.scrollLeft > 8) setEverScrolled(true) }
+    el.addEventListener('scroll', onScroll, { passive: true })
+    return () => el.removeEventListener('scroll', onScroll)
+  }, [scrollerRef, everScrolled, canRight])
+
+  // ⚠️ ALWAYS RENDERED, VISIBILITY TOGGLED BY THE ATTRIBUTE — dropping the element instead would
+  // shift the rail by 1px the moment a late fetch makes it scrollable. `aria-hidden` because it
+  // restates an affordance the scroller already exposes to assistive tech.
+  return <div className="rail-beam" data-swipeable={canRight && !everScrolled ? '' : undefined} aria-hidden="true" />
+}
+
 export function Shelf({
   title,
   icon: Icon,
@@ -112,17 +170,6 @@ export function Shelf({
   // card PHOTO (data-rail-media), not the full card, so they sit level with the image.
   const { scrollerRef, canLeft, canRight, page, arrowTop } = useScrollArrows({ centerSelector: '[data-rail-media]', watch })
 
-  /** ⛔ HAS THIS RAIL EVER BEEN SCROLLED — not "is it scrolled right now". The swipe beam below
-   *  first used `!canLeft`, which is scroll POSITION: scroll a rail to the end and back and the
-   *  hint reappeared, having already taught what it exists to teach. A reviewer caught the gap
-   *  between that and the comment's claim of retiring "at the first scroll".
-   *  ⚠️ PER MOUNT, NOT PER PERSON — this is `useState`, so the hint is back on the next page view.
-   *  That is deliberate and it is the owner's ask ("above every horizontal carousel we have line
-   *  beam"): the beam is an affordance, not a one-time tutorial, and remembering it forever in
-   *  storage would quietly delete a thing that was asked for. What the latch buys is that it stops
-   *  competing with the reader THE MOMENT they are already doing the thing it suggests. */
-  const [everScrolled, setEverScrolled] = useState(false)
-
   return (
     <section className={sectionClassName}>
       <div className={SECTION_HEADER_ROW}>
@@ -134,23 +181,9 @@ export function Shelf({
         </div>
         {seeAll}
       </div>
-      {/* ⛔ THE SWIPE BEAM. Owner, 2026-08-27: a line beam travelling RIGHT TO LEFT above every
-          horizontal carousel, "to indicate they can swipe left" — ocean at 15%, the `line` variant.
-          It lives here rather than in the seven rails because every one of them already routes
-          through this component; adding it per-rail is how the headers drifted apart before.
-          ⚠️ GATED ON `canRight && !everScrolled` — THERE IS SOMEWHERE TO GO *AND* THE READER HAS
-          NEVER GONE. `canRight` alone was the first version and a reviewer had it both ways:
-          it never stops (seven rails sweeping forever on one screen, while the search beam forty
-          lines away stops the moment the reader engages) and it pops out mid-sweep when someone
-          scrolls to the end. Retiring the hint at the FIRST scroll answers both — a hint that
-          outlives the moment it teaches is just motion. `canLeft` is already computed for the
-          arrows, so this costs nothing.
-          ⚠️ ALWAYS RENDERED, VISIBILITY TOGGLED BY THE ATTRIBUTE — dropping the element instead
-          would shift the rail by 1px the moment a fetch resolves and the rail becomes scrollable.
-          ⚠️ `aria-hidden`: it restates an affordance the scroller already exposes to AT. */}
-      <div className="rail-beam" data-swipeable={canRight && !everScrolled ? '' : undefined} aria-hidden="true" />
+      <RailBeam scrollerRef={scrollerRef} canRight={canRight} />
       <div className="relative">
-        <div ref={scrollerRef} className={RAIL_SCROLLER} onScroll={() => setEverScrolled(true)}>{children}</div>
+        <div ref={scrollerRef} className={RAIL_SCROLLER}>{children}</div>
         <ScrollArrows canLeft={canLeft} canRight={canRight} page={page} arrowTop={arrowTop} />
       </div>
     </section>
