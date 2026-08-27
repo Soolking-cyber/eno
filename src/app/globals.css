@@ -2537,6 +2537,70 @@ html.dark .leaflet-tile-pane {
        member), and it has exactly TWO call sites, both in support-button.tsx and both verified.
    ⚠️ Add a second duotone icon and this initial value silently becomes its default. That is the
    intended default — but it will no longer be true that nothing else is affected. */
+/* ── THE SEARCH BEAM ───────────────────────────────────────────────────────────────────────────
+   A soft brand-blue ring that breathes on the idle search bar. Owner, 2026-08-27: search and post
+   are the two things a classifieds site is for, so the search bar should say so without shouting —
+   then, on seeing the first version, "lower opacity and use pulse version".
+
+   ⛔ THIS DELIBERATELY BREAKS THE BAR'S "ZERO BORDER, ZERO RING" RULE, and header.tsx states that
+   rule out loud — the idle bar is pure `bg-tint` precisely so nothing competes with the header. The
+   beam is the agreed exception. If it is ever removed, the bar goes back to bare tint; do not leave
+   a static border behind.
+
+   ⚠️ IDLE ONLY. It stops the moment the panel opens — something still pulsing while someone reads
+   suggestions is noise, and by then it has done its job.
+
+   ⛔ A PULSE, NOT THE TRAVELLING ARC IT STARTED AS — and the simplification is worth keeping. The
+   first version swept a conic gradient round the edge, which needs a two-layer `mask` with
+   `mask-composite: exclude` to become a border rather than a filled block. A reviewer pointed out
+   that where `mask-composite` is unsupported the fallback is not "no beam", it is a SOLID SPINNING
+   RECTANGLE over the search bar. Opacity on a ring has no such failure mode: unsupported means
+   invisible, never broken.
+   ⛔ So do not reintroduce the conic version without checking the built CSS for the WebKit form
+   first — the standard property alone is not enough to rely on there.
+
+   ⚠️ `box-shadow: inset` ON A FULL-SIZE `::after` rather than a border on the bar itself: a border
+   would change the bar's box and shift the input by 3px on mount. The pseudo-element takes no
+   layout at all. It also sits above the bar's static children, so nothing crops it.
+   ⚠️ TWO INSET SHADOWS, AND BOTH DO A JOB: a 1px line that draws the edge, and a blurred, spread
+   inset that feathers the light INWARD so the bar reads as lit rather than outlined. Owner picked
+   "pulse inner ... not outside" at half strength — blur without the line is a smudge, the line
+   without blur is just a border.
+   ⚠️ THE GEOMETRY WAS CHALLENGED AND MEASURED: a reviewer argued 14px of blur plus 3px of spread
+   from all four edges would wash a 49px-tall bar top to bottom rather than edge it. Sampled down
+   the middle of the rendered bar at peak: only 27% of its height carries a quarter of the peak
+   intensity, and the centre row measures 0% of peak. The light stays on the edges. ⛔ Raise the blur
+   or the spread and that stops being true — re-measure the profile, do not eyeball it. */
+.search-beam::after {
+  content: '';
+  position: absolute;
+  /* ⚠️ Relies on `.search-beam` carrying `relative`, which its shared class string in header.tsx
+     already sets. Measured: the glow's box matches the bar exactly. */
+  inset: 0;
+  border-radius: inherit;
+  box-shadow:
+    inset 0 0 0 1px color-mix(in oklab, var(--color-accent-foreground) 40%, transparent),
+    inset 0 0 14px 3px color-mix(in oklab, var(--color-accent-foreground) 50%, transparent);
+  pointer-events: none;
+  animation: search-beam-pulse 3.2s ease-in-out infinite;
+}
+
+@keyframes search-beam-pulse {
+  0%, 100% { opacity: 0.22; }
+  50%      { opacity: 1; }
+}
+
+/* ⚠️ WCAG 2.2.2 ASKS FOR A WAY OUT OF MOTION THAT AUTO-STARTS AND RUNS PAST FIVE SECONDS, and this
+   does run indefinitely while the bar is idle. `prefers-reduced-motion` IS that way out, and it is
+   the mechanism the guideline's own techniques name for decorative motion — there is no second
+   control because the effect carries no information, so pausing it costs the reader nothing.
+   ⚠️ If this ever becomes something the reader must watch to understand, it needs a real pause.
+   ⚠️ Removed entirely, not frozen: a stopped pulse is a static ring on a bar whose whole design is
+   not having one. Someone asking for less motion gets the bar as it was. */
+@media (prefers-reduced-motion: reduce) {
+  .search-beam::after { display: none; }
+}
+
 @property --i-back-opacity {
   syntax: '<number>';
   inherits: true;
