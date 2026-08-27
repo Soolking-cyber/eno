@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { useState } from 'react'
 import type { CSSProperties } from 'react'
 import { ChevronRight } from '@/components/ui/icons'
 import type { IconComponent } from '@/components/ui/icons'
@@ -111,6 +112,17 @@ export function Shelf({
   // card PHOTO (data-rail-media), not the full card, so they sit level with the image.
   const { scrollerRef, canLeft, canRight, page, arrowTop } = useScrollArrows({ centerSelector: '[data-rail-media]', watch })
 
+  /** ⛔ HAS THIS RAIL EVER BEEN SCROLLED — not "is it scrolled right now". The swipe beam below
+   *  first used `!canLeft`, which is scroll POSITION: scroll a rail to the end and back and the
+   *  hint reappeared, having already taught what it exists to teach. A reviewer caught the gap
+   *  between that and the comment's claim of retiring "at the first scroll".
+   *  ⚠️ PER MOUNT, NOT PER PERSON — this is `useState`, so the hint is back on the next page view.
+   *  That is deliberate and it is the owner's ask ("above every horizontal carousel we have line
+   *  beam"): the beam is an affordance, not a one-time tutorial, and remembering it forever in
+   *  storage would quietly delete a thing that was asked for. What the latch buys is that it stops
+   *  competing with the reader THE MOMENT they are already doing the thing it suggests. */
+  const [everScrolled, setEverScrolled] = useState(false)
+
   return (
     <section className={sectionClassName}>
       <div className={SECTION_HEADER_ROW}>
@@ -122,8 +134,23 @@ export function Shelf({
         </div>
         {seeAll}
       </div>
+      {/* ⛔ THE SWIPE BEAM. Owner, 2026-08-27: a line beam travelling RIGHT TO LEFT above every
+          horizontal carousel, "to indicate they can swipe left" — ocean at 15%, the `line` variant.
+          It lives here rather than in the seven rails because every one of them already routes
+          through this component; adding it per-rail is how the headers drifted apart before.
+          ⚠️ GATED ON `canRight && !everScrolled` — THERE IS SOMEWHERE TO GO *AND* THE READER HAS
+          NEVER GONE. `canRight` alone was the first version and a reviewer had it both ways:
+          it never stops (seven rails sweeping forever on one screen, while the search beam forty
+          lines away stops the moment the reader engages) and it pops out mid-sweep when someone
+          scrolls to the end. Retiring the hint at the FIRST scroll answers both — a hint that
+          outlives the moment it teaches is just motion. `canLeft` is already computed for the
+          arrows, so this costs nothing.
+          ⚠️ ALWAYS RENDERED, VISIBILITY TOGGLED BY THE ATTRIBUTE — dropping the element instead
+          would shift the rail by 1px the moment a fetch resolves and the rail becomes scrollable.
+          ⚠️ `aria-hidden`: it restates an affordance the scroller already exposes to AT. */}
+      <div className="rail-beam" data-swipeable={canRight && !everScrolled ? '' : undefined} aria-hidden="true" />
       <div className="relative">
-        <div ref={scrollerRef} className={RAIL_SCROLLER}>{children}</div>
+        <div ref={scrollerRef} className={RAIL_SCROLLER} onScroll={() => setEverScrolled(true)}>{children}</div>
         <ScrollArrows canLeft={canLeft} canRight={canRight} page={page} arrowTop={arrowTop} />
       </div>
     </section>

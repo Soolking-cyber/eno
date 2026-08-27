@@ -153,6 +153,21 @@ export function Price({ price, currency, priceUnit, compact = false, dual = true
           ? <span className="hidden sm:inline">{suffix}</span>
           : suffix)}
       </span>
+      {/* ⛔ A ZERO-WIDTH BREAK OPPORTUNITY, AND WITHOUT IT THIS ROW CANNOT WRAP AT ALL. Both spans
+          carry `whitespace-nowrap` and JSX strips the newline between them, so there is no text
+          node here — and two adjacent inline boxes with no intervening whitespace offer the line
+          breaker NOWHERE to break. The comment above claims the amount+unit wrap "wraps the amount
+          only, not the whole span"; that was true of the intent and false of the DOM. Measured on a
+          real card: "58,990,000 VND ≈ $2,246" rendered 218px on ONE line inside a 164–199px column,
+          overflowing by 21px at 430 and 56px at 360 and painting over the NEXT card in the grid.
+          Owner reported it as "some overlap issue" with a screenshot of exactly that collision.
+          ⚠️ `<wbr>`, NOT a space: a space would add to the 6px `ml-1.5` and widen the one-line case
+          that fits today. `<wbr>` is invisible until the break is needed. Measured after: 195px on
+          two lines at 430 (2px of slack), 45px tall — which is the two-line height
+          listing-card-skeleton.tsx ALREADY reserves, so the grid's footer alignment is unaffected.
+          ⛔ Do not "tidy" this away as a stray tag, and do not replace it with `truncate` — half a
+          price reads as the whole price to a shopper, which price-drop code here already argues. */}
+      {approx ? <wbr /> : null}
       {approx && (
         /**
          * ⛔ `aria-hidden` IS CONDITIONAL, AND THE CONDITION IS THE SAME ONE THAT GOVERNS THE

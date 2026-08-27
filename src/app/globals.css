@@ -2550,7 +2550,18 @@ html.dark .leaflet-tile-pane {
    ⚠️ IDLE ONLY. It stops the moment the panel opens — something still pulsing while someone reads
    suggestions is noise, and by then it has done its job.
 
-   ⛔ A PULSE, NOT THE TRAVELLING ARC IT STARTED AS — and the simplification is worth keeping. The
+   ⛔ A PULSE, NOT A TRAVELLING LIGHT — TRIED TWICE, REJECTED TWICE. First as the conic arc below;
+   then again on 2026-08-27 ("try rotate one with same settings"), rebuilt as a radial hotspot
+   orbiting inside the bar, measured, and turned down in favour of this. Two things that build
+   attempt learned, so a third does not have to: a conic gradient sweeps at a constant ANGLE, which
+   on an 18:1 bar means the lit arc covers half the border at the short ends and a smudge at the
+   long-edge midpoints — it visibly lurches; and a filled radial on this `::after` washes over the
+   placeholder and the icons, measured at 23/255 on the glyph ink. The inset shadows below have
+   neither problem because they never leave the edge.
+   ⛔ The travelling version also cost a `prefers-reduced-motion` guard — deleted by accident while
+   rewriting this block, caught by two reviewers. Whatever replaces this, keep that guard.
+
+   ⛔ THE ORIGINAL SIMPLIFICATION, STILL THE REASON THIS IS OPACITY AND NOT GEOMETRY. The
    first version swept a conic gradient round the edge, which needs a two-layer `mask` with
    `mask-composite: exclude` to become a border rather than a filled block. A reviewer pointed out
    that where `mask-composite` is unsupported the fallback is not "no beam", it is a SOLID SPINNING
@@ -2578,9 +2589,14 @@ html.dark .leaflet-tile-pane {
      already sets. Measured: the glow's box matches the bar exactly. */
   inset: 0;
   border-radius: inherit;
+  /* ⚠️ 15%, SETTLED BY EYE FROM A 50 → 30 → 10 → 15 WALK (owner, 2026-08-27, off an 8/10/14 peak
+     comparison). The LINE moves with the glow, 40% → 12%, holding the 0.8 ratio the original was
+     judged at — the owner sets ONE strength, not two, and leaving the line high while the glow fell
+     would quietly turn this back into the static border the bar's design rules out.
+     ⚠️ So "make the beam more/less visible" means moving BOTH numbers together, not just one. */
   box-shadow:
-    inset 0 0 0 1px color-mix(in oklab, var(--color-accent-foreground) 40%, transparent),
-    inset 0 0 14px 3px color-mix(in oklab, var(--color-accent-foreground) 50%, transparent);
+    inset 0 0 0 1px color-mix(in oklab, var(--color-accent-foreground) 12%, transparent),
+    inset 0 0 14px 3px color-mix(in oklab, var(--color-accent-foreground) 15%, transparent);
   pointer-events: none;
   animation: search-beam-pulse 3.2s ease-in-out infinite;
 }
@@ -2599,6 +2615,81 @@ html.dark .leaflet-tile-pane {
    not having one. Someone asking for less motion gets the bar as it was. */
 @media (prefers-reduced-motion: reduce) {
   .search-beam::after { display: none; }
+}
+
+/* ── THE RAIL SWIPE BEAM ───────────────────────────────────────────────────────────────────────
+   A hairline that a soft light crosses from RIGHT TO LEFT, sitting directly above a horizontal
+   rail. Owner, 2026-08-27: the direction IS the message — it traces the way the finger goes, so a
+   reader who has never scrolled the rail learns it can be scrolled. Ocean at 15%, the same colour
+   and strength as the search bar's pulse, so the two read as one family rather than two effects.
+
+   ⛔ `translateX`, NOT `background-position`. The light must leave the rail completely at both ends
+   or the loop pops: it restarts at the right the instant it exits at the left, and only a fully
+   off-stage element makes that restart invisible. Transform also stays on the compositor, which
+   matters when several rails animate on one screen.
+
+   ⚠️ ONLY WHEN THERE IS SOMEWHERE TO SWIPE — shelf.tsx sets `data-swipeable` from the same
+   `canRight` the scroll arrows use. The element is always in the DOM so the rail does not shift
+   by a pixel when a late fetch makes it scrollable; it is the LIGHT that appears.
+
+   ⚠️ Reduced motion removes it entirely rather than freezing it: a frozen sweep is a stray blue
+   smear that says nothing about swiping. What is left is NOTHING — an empty 1px box, not a rule.
+   That is deliberate (the `line` variant is the moving light, there is no static track), and it is
+   spelled out because an earlier draft of this comment claimed a "plain hairline" remained and a
+   reviewer went looking for the rule that would draw it. If a visible track is ever wanted, it goes
+   on `.rail-beam` itself, where it will also show on rails that cannot scroll.
+   ⚠️ This guard is not optional — the search beam lost its equivalent to a careless rewrite on this
+   same day and two reviewers had to catch it. */
+.rail-beam {
+  position: relative;
+  height: 1px;
+  overflow: hidden;
+}
+
+.rail-beam::after {
+  content: '';
+  position: absolute;
+  inset-block: 0;
+  left: 0;
+  /* Wide enough to read as a travelling light rather than a dot, narrow enough that the rail is
+     mostly dark at any instant — which is what makes the movement legible. */
+  width: 45%;
+  background: linear-gradient(
+    to right,
+    transparent,
+    color-mix(in oklab, var(--color-accent-foreground) 15%, transparent),
+    transparent
+  );
+  /* 250% → -100% of its OWN width: fully off the right edge to fully off the left. */
+  animation: rail-beam-sweep 3.2s linear infinite;
+  /* ⛔ FADED, NOT SWITCHED OFF. Gating the whole `::after` on the attribute made the light vanish
+     wherever it happened to be the instant the reader scrolled — the mid-bar pop `translateX` was
+     chosen to avoid, arriving through the other door. Opacity lets it leave gracefully, and the
+     paused state below stops it costing anything on the rails where it is invisible. */
+  opacity: 1;
+  transition: opacity 220ms ease-out;
+}
+
+/* ⚠️ OPACITY ONLY — NO `animation-play-state: paused` HERE, AND THAT WAS TRIED. Pausing lands with
+   the fade, so the light freezes mid-bar for the 220ms it takes to dissolve: the same mid-sweep
+   stop the transform was chosen to avoid. The animation is a compositor transform on a fully
+   transparent pseudo-element, which browsers throttle heavily and which costs approximately
+   nothing next to the rail's own scrolling.
+   ⚠️ SAID EXACTLY: the ANIMATION does not stop, only the opacity retires — an earlier version of
+   this comment claimed the sweep "retires for good" and it does not. If a future measurement on a
+   low-end Android says these idle animations cost something real, the fix is to drop the
+   `animation` shorthand once the latch flips, and to accept the pop that reintroduces. */
+.rail-beam:not([data-swipeable])::after {
+  opacity: 0;
+}
+
+@keyframes rail-beam-sweep {
+  from { transform: translateX(250%); }
+  to   { transform: translateX(-100%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rail-beam::after { display: none; }
 }
 
 @property --i-back-opacity {

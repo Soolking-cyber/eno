@@ -36,7 +36,11 @@ if [ "${ENO_DEPLOY_REEXEC:-}" != "1" ]; then
   # exported rather than kept local.
   exec "$ENO_DEPLOY_SELF" "$@"
 fi
-trap 'rm -f "${ENO_DEPLOY_SELF:-}"' EXIT
+# ⚠️ `$MAN_ERR` IS CLEANED UP HERE TOO. It is created much later (the manifest reads), and every
+# refusal path between here and there calls `exit 1` — a reviewer pointed out that without this a
+# failed deploy leaves a temp file behind each time. `:-` because it does not exist yet at this
+# point, and never exists at all on the paths that exit before the gates.
+trap 'rm -f "${ENO_DEPLOY_SELF:-}" "${MAN_ERR:-}"' EXIT
 COMPOSE=$APP/infra/vn-node/apps.compose.yml
 LOCK=/var/lock/eno-deploy.lock
 PULL=1; ROLLBACK=0; SKIP_PURGE=0; EXPECT=""
@@ -370,11 +374,70 @@ say "6. edition boundary, read from the ARTIFACT"
 # the script printed "no visa/itinerary routes" and DEPLOYED. The one check whose
 # failure is a legal problem could not tell "clean" from "did not run". So read the
 # manifest first, prove it is non-empty and really is the manifest, and only then judge.
-MANIFEST=$(docker run --rm --entrypoint sh eno-vn:local -c \
-  'cat .next/server/app-paths-manifest.json 2>/dev/null' 2>/dev/null)
-if [ -z "$MANIFEST" ] || ! printf '%s' "$MANIFEST" | grep -q '"/'; then
-  bad "COULD NOT READ the route manifest from eno-vn:local — refusing to deploy unverified."
-  bad "(empty or unrecognisable output; this is NOT evidence of a clean bundle)"
+# ⛔ RETRIED, EXACTLY LIKE THE FORUM READ BELOW — AND THIS ONE WAS THE HALF LEFT BEHIND. The forum
+# gate carries a note about a read coming back empty on a 4-core box that had just built two images
+# while still serving both editions; that hardening never reached this read. It bit on 2026-08-27:
+# the build succeeded, both images exported, sharp passed, and THIS `docker run` returned nothing —
+# so a healthy deploy was refused and rolled back with a message pointing at the bundle.
+# ⚠️ A RETRY IS NOT A WEAKENING. An empty read is still never accepted; the retry only separates
+# "could not read" from "read fine, wrong edition". Both refuse — but a wrong diagnosis sends the
+# next person hunting an edition leak that never existed.
+count_routes() { printf '%s' "$1" | grep -oE '"/[^"]*"' | sort -u | wc -l | tr -d ' '; }
+# ⛔ COMPLETENESS IS PROVED STRUCTURALLY, NOT BY COUNTING. The first fix here required >= 50 routes,
+# and two reviewers refuted it with the same arithmetic: the bundle serves ~288 routes, manifest keys
+# are emitted in path order, and `/visa*` / `/itinerary*` sort LATE. So a read that died anywhere
+# past ~17% of the file still clears a floor of 50, arrives with no visa keys in it, and the gate
+# below happily reports "no visa/itinerary routes" over a manifest that was never going to contain
+# them. That is a fail-OPEN window across most of the file, on the one check whose failure is a
+# licensing problem — strictly worse than the `grep -q '"/'` it replaced, because it looks rigorous.
+#
+# ⛔ SO THE CONTAINER PARSES ITS OWN MANIFEST AND SAYS WHEN IT IS DONE. `require()` throws on
+# truncated or corrupt JSON at ANY size, and the trailing sentinel proves the whole stream survived
+# the pipe — which is the actual failure mode both retries were written for. A count cannot
+# distinguish "half the file" from "all of it"; a parse plus an end-marker can.
+# ⚠️ `--entrypoint node` with `-e`, NOT `sh -c`: the image is a Node app so node is certainly there,
+# and it keeps the JS out of nested shell quoting.
+# ⚠️ The floor stays as a second belt, but it now runs INSIDE the container against the parsed
+# object, where it counts real routes rather than however many survived the pipe.
+# ⚠️ THE KEYS ARE WRITTEN BEFORE THE FLOOR IS TESTED, so a short manifest still reports its real
+# size. An earlier draft exited first and the refusal then said "0 routes" for a 48-route bundle —
+# a reviewer's catch, and exactly the kind of lying diagnostic this whole block exists to remove.
+# ⚠️ VALUES TOO, NOT JUST KEYS. Keys are the URL paths; values are the FILES. A route group —
+# `app/(payment)/checkout/page.js` — is invisible in the key, so a PayPal surface parked in one
+# would never appear in `$ROUTES`. That hole predates this change (`$ROUTES` was always key-only),
+# but it is a licensing gate, so it gets closed here rather than noted.
+MANIFEST_JS='const m=require("./.next/server/app-paths-manifest.json");const k=Object.keys(m);process.stdout.write(k.map(x=>JSON.stringify(x)+" "+JSON.stringify(m[x])).join("\n")+"\n");if(k.length<50){process.exitCode=3}else{process.stdout.write("__MANIFEST_END__\n")}'
+# ⚠️ STDERR AND THE EXIT CODE ARE KEPT, because a reviewer pointed out the old message asserted a
+# diagnosis it had thrown away: both were sent to /dev/null, so "this is a READ failure, not evidence
+# about the bundle" was a guess. A missing manifest and a busy box are now distinguishable.
+# ⚠️ CHECKED, because an unchecked `mktemp` failure leaves MAN_ERR empty, `2>""` then fails the
+# redirection, docker never runs, and a healthy build is refused with no stderr — the precise false
+# refusal this section exists to prevent. Falling back to a pid-named path keeps that impossible.
+MAN_ERR=$(mktemp) || MAN_ERR=/tmp/eno-manifest-err.$$
+: > "$MAN_ERR"
+read_manifest() {
+  # ⚠️ APPENDS. `2>` truncates, so a second attempt that failed quietly used to erase the first
+  # attempt's real message ("No such image") and print nothing — while the text below claimed the
+  # two cases were now distinguishable.
+  MAN_OUT=$(docker run --rm --entrypoint node "$1" -e "$MANIFEST_JS" 2>>"$MAN_ERR")
+  MAN_RC=$?
+}
+complete_manifest() { case "$1" in *__MANIFEST_END__*) return 0 ;; *) return 1 ;; esac; }
+
+: > "$MAN_ERR"   # ⚠️ per-GATE, not per-script: without this a vn attempt-1 error survives into the
+                 # forum gate's output and gets reported as forum evidence — the same misattributed
+                 # diagnosis this whole section exists to delete.
+for attempt in 1 2; do
+  read_manifest eno-vn:local
+  MANIFEST="$MAN_OUT"
+  complete_manifest "$MANIFEST" && break
+  [ "$attempt" = 1 ] && sleep 3
+done
+if ! complete_manifest "$MANIFEST"; then
+  bad "COULD NOT READ a complete route manifest from eno-vn:local after 2 attempts — refusing to deploy unverified."
+  bad "(exit $MAN_RC$([ "$MAN_RC" = 3 ] && echo ' = manifest parsed but had < 50 routes'); $(count_routes "$MANIFEST") routes before the stream ended, no end-marker)"
+  [ -s "$MAN_ERR" ] && sed 's/^/      /' "$MAN_ERR"
+  bad "(a READ failure unless the exit code says otherwise — NOT evidence about the bundle)"
   untag_bad; exit 1
 fi
 ROUTES=$(printf '%s' "$MANIFEST" | grep -oE '"/[^"]*"' | sort -u)
@@ -391,10 +454,61 @@ ok "manifest read: $(printf '%s\n' "$ROUTES" | wc -l | tr -d ' ') routes"
 # and /itinerary/[id]/page. Anchoring on the FIRST path segment catches every top-level
 # services page while still permitting /api/visa/*, /dashboard/visa and /admin/visas,
 # which the marketplace legitimately compiles. Verified against real manifest entries.
-LEAK=$(printf '%s\n' "$ROUTES" | grep -Ei '"/(visa|itinerary)(/|")|paypal')
+# ⛔ WHAT THIS CAN AND CANNOT SEE, SAID PLAINLY, because an earlier draft of these comments claimed
+# coverage the data structure cannot give. `app-paths-manifest.json` lists ROUTE ENTRY FILES — one
+# path per route — and nothing about what those files import. So a PayPal button pulled into
+# `app/checkout/page.js`, or a visa form imported into a neutrally-named page, is INVISIBLE here and
+# always was. This gate catches a forbidden SURFACE (its own route), not a forbidden dependency.
+# The module-graph question needs a bundle scan, which is a different tool and is not this one.
+# ⚠️ TWO SCANS, BECAUSE THEY LOOK AT DIFFERENT THINGS. The visa/itinerary test anchors on the URL
+# path's FIRST SEGMENT, so it must run over keys only — over raw manifest text it would match every
+# legitimate `app/api/visa/...` value and fail every clean build. PayPal has no such nuance: the
+# marketplace may not carry it in any form, so that one scans keys AND file paths.
+# ⛔ `(/\([^)]*\))*` — LEADING ROUTE GROUPS ARE SKIPPED BEFORE THE ANCHOR, and this is not
+# hypothetical: this manifest already contains `/(home)/page`, so the pattern is in use here today.
+# A page moved to `app/(services)/visa/page.tsx` gets the key `/(services)/visa/page`, which the
+# bare `"/(visa|itinerary)` anchor does NOT match — the gate would print "no visa/itinerary routes"
+# over a bundle that ships them. A route group changes the FILE tree and not the URL, so it is
+# exactly the kind of refactor that would be made without a thought for this check.
+# ⚠️ The allowances still hold, and they are what stop this being `grep -i visa`: `/api/visa/*`,
+# `/dashboard/visa` and `/admin/visas` do not start with a group, so they still do not match.
+LEAK=$(printf '%s\n' "$ROUTES" | grep -Ei '"(/\([^)]*\))*/(visa|itinerary)(/|")')
+PAYPAL=$(printf '%s' "$MANIFEST" | grep -Ei 'paypal')
+# ⛔ AND THE SAME EVIDENCE FOR VISA/ITINERARY, BECAUSE A URL CANNOT ALWAYS SHOW IT. A route group
+# named for the thing it holds — `app/(visa)/apply/page.tsx` — produces the URL `/apply` and the key
+# `/(visa)/apply/page`. There is no arrangement of the key anchor above that finds "visa" in a path
+# that does not contain it; only the FILE path does. Reviewers found this twice, from both sides.
+# ⚠️ AN ALLOW-LIST, AND IT HAS TO BE, because `grep -i visa` over file paths matches every one of the
+# 24 values this bundle legitimately carries — MARKETPLACE_HOSTS_SERVICES compiles the partner visa
+# chat in on purpose. Measured against the real manifest: these five prefixes cover all 24, so a
+# clean build reports nothing, and anything outside them is by definition a tree nobody has vouched
+# for. ⛔ It fails CLOSED: a new legitimate `app/api/visa-*` route refuses the deploy until someone
+# adds it here. On a licensing gate that is the right direction to be wrong in.
+# ⛔ `(\([^)]*\)/)*` AND `-i` ON THE EXCLUSION TOO. The key anchor was made route-group tolerant
+# and this list was not, so moving a PERMITTED tree into a group — `app/(dashboard)/dashboard/visa`
+# — escaped the exclusion and refused a healthy deploy of BOTH editions until someone edited this
+# script on the box. Fail-closed is the right direction, but not for a refactor that changed nothing
+# about what ships. The include used `-Ei` while the exclusion was case-sensitive; now both are.
+# ⛔ `(/|")` TERMINATES EVERY PREFIX, AND WITHOUT IT THIS LIST DID THE EXACT OPPOSITE OF THAT
+# SENTENCE. `grep` matches substrings, so a bare `"app/api/visa` also excused `app/api/visa-quote`,
+# `app/api/visa-checkout-session` and `app/dashboard/visa-apply` — a whole family of plausible names
+# auto-vouched-for by an allow-list whose comment promised it fails closed. A reviewer caught it.
+VISA_FILES=$(printf '%s' "$MANIFEST" | grep -oE '"app/[^"]*"' | grep -Ei '(visa|itinerary)' \
+  | grep -viE '"app/(\([^)]*\)/)*(admin/visas|api/cron|api/trips|api/visa|dashboard/visa)(/|")')
+[ -n "$VISA_FILES" ] && LEAK=$(printf '%s\n%s' "$LEAK" "$VISA_FILES" | grep -v '^$')
+# ⚠️ `grep -v '^$'` — appending to an empty $LEAK leaves a leading newline, which `sed 's/^/      /'`
+# below then prints as a stray indented blank line above the real evidence.
+[ -n "$PAYPAL" ] && LEAK=$(printf '%s\n%s' "$LEAK" "$PAYPAL" | grep -v '^$')
 if [ -n "$LEAK" ]; then
   bad "MARKETPLACE IMAGE CONTAINS FORBIDDEN SURFACES — refusing to deploy:"
   printf '%s\n' "$LEAK" | sed 's/^/      /'
+  # ⚠️ THE WAY OUT IS PRINTED HERE, because this gate CAN refuse a healthy image and the operator is
+  # on a box at the time. The file-path list is an allow-list of trees the marketplace legitimately
+  # compiles; a newly added, genuinely permitted `app/api/visa-*` route is not on it and will land
+  # here. That refusal is the intended direction — but only if the person reading it knows it is a
+  # list they may extend, rather than evidence of a licensing breach.
+  bad "If one of these is a tree eno.vn is PERMITTED to compile, add its prefix to the allow-list"
+  bad "in this script (search VISA_FILES) and re-run. Do NOT widen it to clear a real /visa page."
   untag_bad; exit 1
 fi
 ok "marketplace: no top-level /visa or /itinerary page, no PayPal surface"
@@ -416,16 +530,22 @@ ok "marketplace: no top-level /visa or /itinerary page, no PayPal surface"
 # read" (retry, then refuse with an honest reason) from "read fine, wrong edition" (refuse
 # immediately). Both still refuse; only the diagnosis differs, and a wrong diagnosis sends the
 # next person to fix an env file that was never broken.
+# ⛔ THE SAME STRUCTURAL READ AS THE MARKETPLACE GATE ABOVE. A reviewer flagged that the first
+# version of this fix hardened only the vn read, leaving the two siblings silently different — which
+# is precisely how this read came to be missing the retry in the first place.
 FMAN=""
+: > "$MAN_ERR"
 for attempt in 1 2; do
-  FMAN=$(docker run --rm --entrypoint sh eno-forum:local -c \
-    'cat .next/server/app-paths-manifest.json 2>/dev/null' 2>/dev/null)
-  printf '%s' "$FMAN" | grep -q '"/' && break
+  read_manifest eno-forum:local
+  FMAN="$MAN_OUT"
+  complete_manifest "$FMAN" && break
   [ "$attempt" = 1 ] && sleep 3
 done
-if [ -z "$FMAN" ] || ! printf '%s' "$FMAN" | grep -q '"/'; then
-  bad "COULD NOT READ the route manifest from eno-forum:local after 2 attempts — refusing."
-  bad "(this is a READ failure, NOT evidence about the edition — the image may be fine)"
+if ! complete_manifest "$FMAN"; then
+  bad "COULD NOT READ a complete route manifest from eno-forum:local after 2 attempts — refusing."
+  bad "(exit $MAN_RC$([ "$MAN_RC" = 3 ] && echo ' = manifest parsed but had < 50 routes'); $(count_routes "$FMAN") routes before the stream ended, no end-marker)"
+  [ -s "$MAN_ERR" ] && sed 's/^/      /' "$MAN_ERR"
+  bad "(a READ failure unless the exit code says otherwise — NOT evidence about the edition)"
   untag_bad; exit 1
 fi
 if ! printf '%s' "$FMAN" | grep -q '"/itinerary/page"'; then
