@@ -22,7 +22,7 @@
 import 'dotenv/config'
 import { createClient } from '@supabase/supabase-js'
 import { db } from '../src/lib/db'
-import { watermarkSvg, watermarkPlacement, inkForLuminance } from '../src/lib/core/watermark-mark'
+import { makeImageHost } from '../src/lib/host-product-image'
 import { brandSlugify, normalizeBrand } from '../src/lib/brand-normalize'
 import { modelFor } from '../src/lib/feed-model'
 import { buildSearchText } from '../src/lib/fold'
@@ -153,53 +153,13 @@ if (APPLY && (!storageUrl || !secret)) { console.error('NEXT_PUBLIC_SUPABASE_URL
 if (APPLY && /supabase\.co$/.test(new URL(storageUrl!).hostname)) { console.error(`Refusing to upload to ${storageUrl} — retired project`); process.exit(1) }
 const storage = APPLY ? createClient(storageUrl!, secret!, { auth: { persistSession: false } }).storage.from(BUCKET) : null
 
-/** Square-crop, stamp, encode — the same mark and ink rule the app uses (see watermark-mark.ts). */
-async function hostImage(src: string, slug: string): Promise<string | null> {
-  try {
-    const res = await fetch(encodeURI(src), { signal: AbortSignal.timeout(25_000) })
-    if (!res.ok) return null
-    const sharp = (await import('sharp')).default
-    const buf = Buffer.from(await res.arrayBuffer())
-    const img = sharp(buf, { limitInputPixels: 50_000_000 }).rotate()
-    const meta = await img.metadata()
-    /**
-     * ⛔ NO SQUARE CROP. This read `side = min(width, height, EDGE)` and then `fit: 'cover'`, which
-     * takes a centre square out of every image — so a 1200x600 marketing banner lost half its
-     * width, and the text on it was sliced through the middle. Owner, 2026-08-25: "we have to
-     * import images without cropping since most products have broken bad looking images."
-     * Measured: every stored image was exactly 1:1 (1100x1100, 800x800, 600x600).
-     * ⚠️ `fit: 'inside'` + `withoutEnlargement` keeps the WHOLE frame and never upscales a small
-     * source into a blurry big one. Cards still show a square thumbnail — that crop belongs in CSS,
-     * where it is reversible, not baked into the file we store forever.
-     */
-    /**
-     * ⚠️ EXIF ORIENTATION SWAPS THE AXES, AND `metadata()` REPORTS THE PRE-ROTATION FRAME.
-     * `.rotate()` applies the EXIF flag at render time, so for orientations 5-8 the rendered image
-     * is H x W while `meta` still says W x H. Computing the target from the unrotated numbers makes
-     * `watermarkPlacement` place the mark outside the real canvas and `composite` throws
-     * "image to composite must have same dimensions or smaller" — killing that image, and with it
-     * the whole batch. Swapping here costs nothing; re-encoding to measure would cost a decode.
-     */
-    const swapped = (meta.orientation ?? 1) >= 5
-    const srcW = (swapped ? meta.height : meta.width) ?? EDGE
-    const srcH = (swapped ? meta.width : meta.height) ?? EDGE
-    const scale = Math.min(1, EDGE / Math.max(srcW, srcH))
-    const outW = Math.max(1, Math.round(srcW * scale))
-    const outH = Math.max(1, Math.round(srcH * scale))
-    // Product shots are usually on white already; flatten keeps a transparent PNG from going black.
-    const png = await img.resize({ width: outW, height: outH, fit: 'inside', withoutEnlargement: true })
-      .flatten({ background: '#ffffff' }).png().toBuffer()
-    const { markWidth, left, top, region } = watermarkPlacement(outW, outH)
-    let mean: number | null = null
-    try { const { channels } = await sharp(png).extract(region).greyscale().stats(); mean = (channels[0]?.mean ?? 0) / 255 } catch {}
-    const out = await sharp(png).composite([{ input: watermarkSvg(markWidth, inkForLuminance(mean)).svg, left, top }])
-      .webp({ quality: WEBP_QUALITY }).toBuffer()
-    const path = `affiliate/${slug}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}.webp`
-    const { error } = await storage!.upload(path, out, { contentType: 'image/webp', upsert: false, cacheControl: '31536000' })
-    if (error) return null
-    return `${storageUrl}/storage/v1/object/public/${BUCKET}/${path}`
-  } catch { return null }
-}
+/**
+ * ⚠️ MOVED TO src/lib/host-product-image.ts so the enrichment script can use the same one. The
+ * behaviour is unchanged — same longest-edge resize, same watermark placement, same bucket path
+ * shape. See that file for why there is no square crop and why EXIF orientation is read after
+ * `.rotate()`.
+ */
+const hostImage = makeImageHost({ storage, storageUrl: storageUrl!, bucket: BUCKET, edge: EDGE, quality: WEBP_QUALITY })
 
 async function main() {
   console.log(`${APPLY ? 'APPLY' : 'DRY RUN'} — campaign=${CAMPAIGN}${LIMIT ? ` (first ${LIMIT})` : ''}\n`)
@@ -216,8 +176,9 @@ async function main() {
   // posted. VinWonders' seeder learned this the same way.
   // The campaign's numeric id, needed to repair every aff_link. Read from the API so this script
   // works for any campaign without a hardcoded table.
-  const campList = await (await fetch(`https://api.accesstrade.vn/v1/campaigns?approval=successful&limit=50`, { headers: { Authorization: `Token ${KEY}` } })).json() as { data: { id: string; merchant: string }[] }
-  const campaignId = (campList.data || []).find((c) => c.merchant === CAMPAIGN)?.id
+  const campList = await (await fetch(`https://api.accesstrade.vn/v1/campaigns?approval=successful&limit=50`, { headers: { Authorization: `Token ${KEY}` } })).json() as { data: { id: string; merchant: string; name?: string }[] }
+  const campaign = (campList.data || []).find((c) => c.merchant === CAMPAIGN)
+  const campaignId = campaign?.id
   if (!campaignId) {
     // ⛔ Not approved = the links earn nothing. Refuse rather than fill the marketplace with them.
     console.error(`"${CAMPAIGN}" is not an APPROVED campaign for this publisher — refusing.`)
@@ -226,7 +187,17 @@ async function main() {
   }
   console.log(`campaign id ${campaignId}\n`)
 
-  const merchantName = CAMPAIGN === 'cellphones_cps' ? 'CellphoneS' : CAMPAIGN!
+  /**
+   * ⛔ THE MERCHANT'S OWN NAME, FROM THE CAMPAIGN — NOT THE SLUG. This read
+   * `CAMPAIGN === 'cellphones_cps' ? 'CellphoneS' : CAMPAIGN`, i.e. one hardcoded exception and the
+   * raw slug for everyone else. Importing `--campaign ben` would therefore have created a
+   * user-facing storefront called "ben" instead of "BỀN COMPUTER".
+   * ⚠️ SAFE FOR THE EXISTING CATALOGUE: the API's name for `cellphones_cps` is exactly
+   * "CellphoneS", so the 9,726 listings already hanging off that storefront still resolve to the
+   * same row by name — verified against the campaigns endpoint before removing the special case.
+   * ⚠️ `--name` overrides it, for a merchant whose registered name is not what shoppers should see.
+   */
+  const merchantName = arg('name') ?? (campaign?.name?.trim() || CAMPAIGN!)
   // The merchant's own city. Only used for the storefront and the listings' fallback map pin.
   const MERCHANT_CITY = arg('city') ?? 'Hồ Chí Minh'
   let seller = await db.seller.findFirst({ where: { name: merchantName }, select: { id: true, name: true, ownerId: true } })
