@@ -40,13 +40,15 @@ export function makeImageHost(deps: {
 }) {
   const { storage, storageUrl, bucket, edge = 1200, quality = 80, prefix = 'affiliate' } = deps
 
-  return async function hostImage(src: string, slug: string): Promise<string | null> {
+  /**
+   * The shared half: resize, watermark, encode, upload. Takes BYTES, so it serves both a merchant
+   * CDN URL and a file off disk — the VinWonders covers are supplied as local PNGs, and re-fetching
+   * them over HTTP to reuse this would have meant a second copy of the same twenty lines.
+   */
+  async function hostBuffer(buf: Buffer, slug: string): Promise<string | null> {
     if (!storage) return null
     try {
-      const res = await fetch(encodeURI(src), { signal: AbortSignal.timeout(25_000) })
-      if (!res.ok) return null
       const sharp = (await import('sharp')).default
-      const buf = Buffer.from(await res.arrayBuffer())
       const img = sharp(buf, { limitInputPixels: 50_000_000 }).rotate()
       const meta = await img.metadata()
       const swapped = (meta.orientation ?? 1) >= 5
@@ -82,4 +84,18 @@ export function makeImageHost(deps: {
       return null
     }
   }
+
+  /** Fetch a remote image, then process it. Fails to null on a 404, a timeout or an undecodable body. */
+  async function hostImage(src: string, slug: string): Promise<string | null> {
+    if (!storage) return null
+    try {
+      const res = await fetch(encodeURI(src), { signal: AbortSignal.timeout(25_000) })
+      if (!res.ok) return null
+      return await hostBuffer(Buffer.from(await res.arrayBuffer()), slug)
+    } catch {
+      return null
+    }
+  }
+
+  return Object.assign(hostImage, { fromBuffer: hostBuffer })
 }
