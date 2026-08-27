@@ -224,6 +224,26 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
    * The transition still runs for the zoom TOGGLE, which is a state change and should animate.
    */
   const [panning, setPanning] = useState(false)
+  /**
+   * HOW FAR THE FINGER HAS CARRIED THE PHOTO, in px, while fit-to-screen.
+   * ⛔ THE PHOTO USED TO NOT MOVE AT ALL: 200px of drag moved it 0px, because paging was decided
+   * entirely in `onTouchEnd` and nothing rendered in between. A gesture with no continuous feedback
+   * cannot tell you whether it has been understood, whether it is far enough, or which way it will
+   * go — the reader is guessing until they let go. Direct manipulation is the whole point of a
+   * photo viewer.
+   * ⚠️ It is NOT a second source of truth for which photo is showing — `idx` still is. This is
+   * offset only, and it returns to 0 on release either way.
+   */
+  const [dragX, setDragX] = useState(0)
+  /**
+   * Which way this gesture was going when it declared itself: 'x' tracks, 'y' never will.
+   * ⚠️ DECIDED ONCE PER GESTURE, NOT PER MOVE. Re-testing `|dx| < |dy|` on every touchmove let a
+   * swipe that drifted vertically half-way through simply stop updating — the photo froze at
+   * whatever offset it had reached and sat there until release, which looks like the app hanging.
+   * A reviewer caught it. Locking the axis on the first move that is big enough to mean something
+   * is also what a native pager does.
+   */
+  const dragAxis = useRef<'x' | 'y' | null>(null)
   /** Timestamp of touchstart, so a flick can be told from a slow drag. */
   const startT = useRef<number>(0)
   /** Start Y, so a flick can be told from a vertical gesture that happens to drift sideways. */
@@ -497,9 +517,39 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
             }}
             onTouchMove={(e) => {
               // Zoomed: single-finger drag pans the photo (transform-only).
-              if (!zoom || !panStart.current) return
+              if (zoom) {
+                if (!panStart.current) return
+                const t = e.touches[0]
+                setZoom(clampPan(panStart.current.tx + (t.clientX - panStart.current.x), panStart.current.ty + (t.clientY - panStart.current.y)))
+                return
+              }
+              /**
+               * Fit-to-screen: the photo follows the finger 1:1.
+               * ⚠️ AXIS-LOCKED, matching the release rule below. A predominantly VERTICAL drag is
+               * not a page gesture and must not drag the photo sideways — otherwise a reader
+               * starting a scroll or a dismiss sees the photo lurch.
+               * ⚠️ `setPanning(true)` is what suppresses the transition, so the photo tracks the
+               * finger instead of easing behind it. It is the same flag the zoom pan uses, and
+               * `touchend`/`touchcancel` already clear it — including when the OS takes the touch
+               * away, which is the case that once left it stuck true forever.
+               */
+              /**
+               * ⛔ ONE FINGER ONLY. `e.touches[0]` moves during a PINCH too, so without this a
+               * two-finger zoom dragged the photo sideways as it scaled — and `touch-action` is
+               * `pinch-zoom` here precisely so that gesture belongs to the browser. A reviewer
+               * caught it. Anything already dragged is returned before handing the gesture over.
+               */
+              if (e.touches.length > 1) { if (dragX !== 0) setDragX(0); dragAxis.current = 'y'; return }
+              if (startX.current == null) return
               const t = e.touches[0]
-              setZoom(clampPan(panStart.current.tx + (t.clientX - panStart.current.x), panStart.current.ty + (t.clientY - panStart.current.y)))
+              const dx = t.clientX - startX.current
+              const dy = startY.current == null ? 0 : t.clientY - startY.current
+              if (dragAxis.current === null && Math.hypot(dx, dy) > 8) {
+                dragAxis.current = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y'
+              }
+              if (dragAxis.current !== 'x') return
+              setPanning(true)
+              setDragX(dx)
             }}
             /**
              * ⛔ `touchcancel` MUST RESET THE GESTURE, and only `touchend` did. The OS takes a touch
@@ -512,9 +562,13 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
               startX.current = null
               startY.current = null
               panStart.current = null
+              dragAxis.current = null
               setPanning(false)
+              setDragX(0)
             }}
             onTouchEnd={(e) => {
+              // Set by the swipe branch below; decides whether the offset animates back or snaps.
+              let committed = false
               const t = e.changedTouches[0]
               // Double-tap (two taps <300ms, <30px apart) toggles zoom.
               const prev = lastTap.current
@@ -524,12 +578,32 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
                 lastTap.current = null
                 toggleZoom(t.clientX, t.clientY)
                 startX.current = null
+                startY.current = null
                 panStart.current = null
+                /**
+                 * ⚠️ THIS EARLY RETURN SKIPS THE CLEANUP AT THE BOTTOM, so it has to do its own —
+                 * and it did not, which stranded a drag. Double-tapping after any horizontal
+                 * movement left `dragX` at its last offset and `panning` true, i.e. a photo
+                 * permanently displaced with its transition disabled. A reviewer found it.
+                 */
+                dragAxis.current = null
+                setPanning(false)
+                setDragX(0)
                 return
               }
               lastTap.current = moved ? null : { t: now, x: t.clientX, y: t.clientY }
               // Swipe navigation — only while fit-to-screen (zoomed swipes pan instead).
-              if (!zoom && startX.current != null) {
+              /**
+               * ⛔ THE RELEASE MUST OBEY THE SAME AXIS LOCK THE DRAG DID, and it did not — all three
+               * reviewers found the same hole. `onTouchMove` could classify a gesture as vertical
+               * (or hand it to a pinch) and show no movement at all, then this branch paged anyway
+               * on `|dx| > 40`, so a mostly-vertical drag flipped the photo while the photo itself
+               * had never moved. The visual promise and the action have to agree.
+               * ⚠️ `null` STILL PAGES, deliberately: a fast flick can end before any touchmove
+               * crosses the 8px classification threshold, and that flick is exactly the gesture the
+               * velocity rule below exists to serve. Only an explicit 'y' is refused.
+               */
+              if (!zoom && startX.current != null && dragAxis.current !== 'y') {
                 const dx = t.clientX - startX.current
                 /**
                  * ⚠️ DISTANCE **OR** VELOCITY. Judging on distance alone made a fast flick behave
@@ -549,17 +623,57 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
                  * deliberate swipe rather than a wobble.
                  */
                 const flick = Math.abs(dx) > 20 && Math.abs(dx) > Math.abs(dy) && Math.abs(dx) / ms > 0.4
-                if (Math.abs(dx) > 40 || flick) goTo(idx + (dx < 0 ? 1 : -1))
+                /**
+                 * ⚠️ `committed` MEANS THE PHOTO ACTUALLY CHANGED, not that a swipe was intended.
+                 * `goTo` CLAMPS, so a swipe past the last photo is a no-op — recording it as a
+                 * commit would suppress the snap-back transition and the photo would jump home
+                 * from its drag offset instead of easing. A reviewer caught the distinction.
+                 */
+                /**
+                 * ⚠️ AN UNCLASSIFIED GESTURE MUST PROVE ITSELF HORIZONTAL HERE. `dragAxis` is null
+                 * when the touch ended before any move crossed the 8px threshold — the fast-flick
+                 * case — and the distance rule alone (`|dx| > 40`) would then page on a quick
+                 * mostly-VERTICAL swipe that happened to drift 40px sideways. The velocity rule
+                 * already demands `|dx| > |dy|`; this makes the distance rule demand it too,
+                 * but only when the lock has nothing to say. A reviewer found the bypass.
+                 */
+                const axisOk = dragAxis.current === 'x' || Math.abs(dx) > Math.abs(dy)
+                const target = idx + (dx < 0 ? 1 : -1)
+                if (axisOk && (Math.abs(dx) > 40 || flick) && target >= 0 && target <= last) { goTo(target); committed = true }
               }
               startX.current = null
               startY.current = null
               panStart.current = null
-              setPanning(false)
+              dragAxis.current = null
+              /**
+               * ⛔ A COMMITTED SWIPE SNAPS; ONLY A CANCELLED ONE ANIMATES. The first version let the
+               * transition run in both cases, and three reviewers pointed out the same consequence:
+               * ONE div holds ONE photo, so on commit `idx` and `dragX` change together and the NEW
+               * photo animates from the OLD photo's offset — after a left swipe it slid in from the
+               * LEFT, the opposite of the direction the finger went. A backwards animation is worse
+               * than none.
+               * ✅ So a commit keeps `panning` true across the swap (transition suppressed, the new
+               * photo simply appears centred) and a cancel clears it (the photo eases back under the
+               * transition, which is the motion that IS correct). `panning` is released on the next
+               * frame either way, so the layer is never left permanently un-transitioned.
+               * ⚠️ A TRUE CAROUSEL — neighbours pre-rendered in a track, sliding in from the correct
+               * side — is the better answer and is deliberately not built here. It restructures the
+               * image rendering this file has accumulated several fixes around; this change is
+               * scoped to the finding, which is that 200px of drag moved the photo 0px.
+               */
+              if (!committed) setPanning(false)
+              setDragX(0)
+              if (committed) requestAnimationFrame(() => setPanning(false))
             }}
           >
             <div
               className={cn('relative h-full w-full motion-reduce:transition-none', !panning && 'transition-transform duration-200', zoom && 'cursor-grab')}
-              style={zoom ? { transform: `translate(${zoom.tx}px, ${zoom.ty}px) scale(${ZOOM})` } : undefined}
+              style={zoom
+                ? { transform: `translate(${zoom.tx}px, ${zoom.ty}px) scale(${ZOOM})` }
+                // ⚠️ `undefined` WHEN AT REST, not `translateX(0px)` — an always-present transform
+                // would put this element on its own compositor layer for the whole session, and the
+                // zoom branch above already owns that cost only while it is needed.
+                : dragX !== 0 ? { transform: `translateX(${dragX}px)` } : undefined}
             >
               <Image src={images[idx]} alt={`${title} — photo ${idx + 1} of ${images.length}`} fill sizes="92vw" quality={70} unoptimized={isMockImageUrl(images[idx]) || undefined} className="object-contain" />
               {/* Max-quality detail layer: on an explicit zoom (double-tap/-click) load the
