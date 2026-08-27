@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { clientIp } from '@/lib/client-ip'
 import { HANDOFF_COOKIE, HANDOFF_TTL_MS, isNonce, openHandoff } from '@/lib/auth/handoff'
 import { rateLimit } from '@/lib/ratelimit'
 
@@ -29,9 +30,10 @@ const appOrigin = () => new URL(process.env.NEXT_PUBLIC_APP_URL || 'https://eno.
 //   · THE SUCCESS RESPONSE SETS THE httpOnly `HANDOFF_COOKIE`. "THE COOKIE IS THE POINT" — it is
 //     what later proves a redeem comes from the context that started the flow. A plain-object return
 //     cannot emit Set-Cookie.
-// Also worth recording: the limiter key here is `request.headers.get('cf-connecting-ip') ||
-// 'unknown'`, while `rateLimit:` keys on `clientIp(req)` (cf-connecting-ip → x-real-ip → first XFF
-// hop → 'anon'). Same value behind Cloudflare, a different bucket everywhere else.
+// ⚠️ THE LIMITER KEY USED TO DIVERGE and no longer does: it read `cf-connecting-ip` raw while
+// `rateLimit:` keyed on `clientIp(req)`, so the same caller sat in different buckets here and
+// everywhere else — and, once clientIp() started verifying the edge proof, this route would have
+// gone on trusting a header anyone can type. Both now go through clientIp().
 export async function POST(request: Request) {
   // ⚠️ A MISSING Origin IS REFUSED IN PRODUCTION. Browsers always send it on a cross-origin POST, so
   // absent means a non-browser caller. Allowing absent (an earlier draft did) let anything mint rows.
@@ -40,7 +42,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'bad_origin' }, { status: 403 })
   }
 
-  const ip = request.headers.get('cf-connecting-ip') || 'unknown'
+  // ⛔ `clientIp()`, NOT A RAW `cf-connecting-ip` READ. This limiter used to take the header
+  // straight off the request, which meant it kept trusting a value anyone reaching the origin can
+  // type — the exact hole the audit raised, bypassing the verification clientIp() now performs.
+  // ⚠️ It also diverged from every other limiter in the codebase (no x-real-ip / XFF fallback), so
+  // the same caller landed in different buckets here and elsewhere. Both notes above described that
+  // divergence as a known quirk; it is now simply gone.
+  const ip = clientIp(request)
   // ⚠️ NOT strict: this is the sign-in path, so a limiter blip must not lock people out.
   const rl = await rateLimit('handoff-open', ip, 20, '10 m').catch(() => ({ success: true, remaining: 0 }))
   if (!rl.success) return NextResponse.json({ error: 'rate_limited' }, { status: 429 })

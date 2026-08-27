@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { clientIp } from '@/lib/client-ip'
 import { cookies } from 'next/headers'
 import { browserCookieName, consentAndMintPair, isNonce, voidHandoff } from '@/lib/auth/handoff'
 import { rateLimit } from '@/lib/ratelimit'
@@ -32,9 +33,10 @@ const NO_STORE = { 'Cache-Control': 'no-store, no-cache, must-revalidate', Pragm
 //     cannot produce `{"ok":false}`, and the throttled 429 is the same shape.
 //   · THE LIMITER RUNS AFTER THE BODY AND AFTER THE COOKIE CHECK, deliberately: an attacker with the
 //     nonce but no browser cookie is rejected 403 without ever touching the limiter, so hoisting it
-//     into `rateLimit:` would let that caller consume the honest visitor's per-IP budget. Its key is
-//     also `cf-connecting-ip || 'unknown'`, not `clientIp()`, so off-Cloudflare traffic buckets
-//     differently from what the wrapper would compute.
+//     into `rateLimit:` would let that caller consume the honest visitor's per-IP budget. ⚠️ Its key
+//     WAS a raw `cf-connecting-ip || 'unknown'` rather than `clientIp()`; that divergence is gone,
+//     because it also meant this route kept trusting a spoofable header after clientIp() started
+//     verifying the edge proof.
 //   · EVERY RESPONSE CARRIES `Cache-Control: no-store, no-cache, must-revalidate` + `Pragma:
 //     no-cache` — and this is the one endpoint that returns the pairing code, so losing no-store is
 //     not a cosmetic regression.
@@ -55,7 +57,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: false, reason: 'gone' }, { status: 403, headers: NO_STORE })
   }
 
-  const ip = request.headers.get('cf-connecting-ip') || 'unknown'
+  // ⛔ `clientIp()`, NOT A RAW `cf-connecting-ip` READ. This limiter used to take the header
+  // straight off the request, which meant it kept trusting a value anyone reaching the origin can
+  // type — the exact hole the audit raised, bypassing the verification clientIp() now performs.
+  // ⚠️ It also diverged from every other limiter in the codebase (no x-real-ip / XFF fallback), so
+  // the same caller landed in different buckets here and elsewhere. Both notes above described that
+  // divergence as a known quirk; it is now simply gone.
+  const ip = clientIp(request)
   const rl = await rateLimit('handoff-consent', ip, 30, '10 m').catch(() => ({ success: true, remaining: 0 }))
   if (!rl.success) return NextResponse.json({ ok: false }, { status: 429, headers: NO_STORE })
 
