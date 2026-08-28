@@ -2,13 +2,22 @@
 
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 import { useLanguage } from '@/context/language-context'
 import { getConsent, setConsent, syncConsentCookie } from '@/lib/consent'
 import { Mascot } from './mascot'
 import { cn } from '@/lib/utils'
 import { Dialog as DialogPrimitive } from '@base-ui/react/dialog'
 import { Button } from '@/components/ui/button'
+
 import { ShieldCheck, Sparkles, MessageCircle } from '@/components/ui/icons'
+
+/**
+ * ⚠️ THE ONE ROUTE THIS CARD MUST NOT COVER. `/signin` centres the sign-in card in exactly the
+ * place this one occupies; see the note in the auto-open effect. Named rather than inlined because
+ * two separate checks read it and they must never drift apart.
+ */
+const SIGNIN_PATH = '/signin'
 
 function Toggle({ title, desc, value, onChange, locked = false }: { title: string; desc: string; value: boolean; onChange?: (v: boolean) => void; locked?: boolean }) {
   return (
@@ -65,7 +74,10 @@ export function CookieConsent() {
    * Did the CARD open because the user asked for it (footer "Cookie settings"), or did it appear on
    * its own after the delay? Only the first may move focus — see `initialFocus` on the Popup.
    */
+  const pathname = usePathname()
   const [openedByUser, setOpenedByUser] = useState(false)
+  /** The auto-open fired while the visitor was on /signin; show it once they are elsewhere. */
+  const [deferred, setDeferred] = useState(false)
   const [view, setView] = useState<'ask' | 'settings'>('ask')
   const [perso, setPerso] = useState(true)
   const [ads, setAds] = useState(true)
@@ -87,6 +99,25 @@ export function CookieConsent() {
   useEffect(() => {
     syncConsentCookie()
     if (getConsent() !== null) return
+    /**
+     * ⛔ DEFERRED, NOT SUPPRESSED, ON THE SIGN-IN ROUTE — AND THE FIRST VERSION OF THIS GUARD GOT
+     * THAT WRONG. This card is `fixed inset-0 … items-center justify-center` — dead centre of the
+     * viewport by design, and with no backdrop it simply sits over whatever is there. `/signin` now
+     * centres the sign-in card in the same place (it renders the popup's own `<SignInCard>`), so
+     * the two overlapped almost perfectly: measured on a 1440x900 build, the consent card covered
+     * the heading, the Google button, the email field and the submit, leaving only the legal line
+     * and "Back to eno.vn" visible around its edges. Reported as the page being "empty", which is
+     * exactly how it reads.
+     * ⛔ BUT A BARE `return` HERE WOULD HAVE SUPPRESSED CONSENT FOR THE WHOLE SESSION, not deferred
+     * it, and the comment claiming otherwise would have been false. This component is mounted from
+     * a layout that never unmounts, so a visitor who ENTERS at /signin — a magic-link landing, an
+     * OAuth return, any of the twelve `redirect('/signin?next=…')` guards — and then navigates on
+     * would never remount it, the effect would never re-run, and they would never be asked at all.
+     * A reviewer traced it. On a PDPL surface, silently never asking is the worse failure.
+     * ⚠️ SO THE TIMER STILL RUNS ON /signin AND PARKS ITS RESULT. Re-keying this whole effect on
+     * the pathname would have been the other trap: the delay would restart on every navigation, and
+     * someone clicking through pages faster than that would never see the card either.
+     */
     const t = setTimeout(() => {
       autoTimer.current = null
       /**
@@ -97,11 +128,50 @@ export function CookieConsent() {
        * in ANOTHER TAB during the delay. The immediate version could not hit either case, because
        * it read and showed in the same tick.
        */
-      if (getConsent() === null) setShow(true)
+      if (getConsent() !== null) return
+      if (window.location.pathname === SIGNIN_PATH) setDeferred(true)
+      else setShow(true)
     }, SHOW_AFTER_MS)
     autoTimer.current = t
     return () => clearTimeout(t)
   }, [])
+
+  /**
+   * ⚠️ KEYED ON `pathname`, WHICH IS THE HALF THE TIMER CANNOT DO. `usePathname()` re-renders on a
+   * client-side navigation where a mount effect does not, so this is what actually delivers the
+   * "asked on the next page" promise above. It fires at most once — `setShow(true)` and the
+   * consent write both close it off.
+   */
+  useEffect(() => {
+    /**
+     * ⚠️ CONSENT DECIDED ELSEWHERE ENDS THE DEFERRAL TOO — another tab, or the footer's settings.
+     * Without clearing the flag it would dangle for the life of a layout that never unmounts. It
+     * renders nothing either way; a reviewer was right that it is exactly the stale state the
+     * comment above claims cannot happen.
+     */
+    if (getConsent() !== null) { setDeferred(false); return }
+    /**
+     * ⛔ AND A CARD THAT IS ALREADY OPEN STEPS ASIDE WHEN THE VISITOR ARRIVES AT /signin. The timer
+     * check cannot cover this: the card may have opened legitimately on `/` and the visitor then
+     * navigate to the sign-in route, where it lands on the form exactly as before. Measured, the
+     * realistic path self-resolves — clicking a sign-in link is an outside press, which dismisses
+     * this non-modal dialog on the way out — but that makes the invariant accidentally true rather
+     * than true, and a Back navigation does not press anything. A reviewer walked it through.
+     * ⚠️ `!openedByUser`, so a visitor who deliberately opened Cookie settings on /signin (their
+     * PDPL withdrawal right, reachable from the footer everywhere) is not closed out from under
+     * their own click.
+     */
+    if (pathname === SIGNIN_PATH) {
+      // ⚠️ BACK TO THE `ask` VIEW WITH IT. Stepping aside is not a close, so a visitor who had
+      // opened the settings pane would otherwise meet the card again on the next page already in
+      // `settings` with half-set toggles, which is not how an auto-open ever presents itself.
+      if (show && !openedByUser) { setShow(false); setView('ask'); setDeferred(true) }
+      return
+    }
+    if (!deferred) return
+    setShow(true)
+    setDeferred(false)
+  }, [deferred, pathname, show, openedByUser])
 
   // Withdrawal right (PDPL): the footer "Cookie settings" link dispatches this to
   // reopen the banner any time, pre-filled with the current choice, so consent is
