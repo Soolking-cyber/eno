@@ -21,8 +21,12 @@ import { cn } from '@/lib/utils'
  * when they had something to report. Neither mechanism survives an `<img>`:
  *   · the active state is now the artwork's own colour against a grey inactive state, so the LABEL
  *     carries the brand ink alone;
- *   · "has unread" / "has saved" is passed in as `lit` and rendered as the coloured state, so the
- *     signal is kept — it simply arrives through the same filter instead of a fill;
+ *   · "has unread" / "has saved" is NOT carried here at all. The lucide glyphs painted themselves
+ *     `fill-brand` for that, and porting it looked like preserving a signal — but it gave the bar
+ *     two unrelated meanings for one colour, so a visitor with saves and unread saw three lit tabs
+ *     and the row stopped saying where they were (owner, 2026-08-28: "only blue if button is
+ *     pressed not when has noticification or saved counter increases"). The count badge carries
+ *     that, louder than a tint ever did;
  *   · dark mode gets the same pixels as light.
  * ⚠️ Five more requests on the most-visited component in the app, which is why `fetchPriority` is
  * low and decoding async — the same reasoning as the tiles, and it matters more here.
@@ -33,7 +37,12 @@ export function NavArt({
   className,
 }: {
   name: NavArtKey
-  /** Coloured rather than grey: the active tab, or a tab with something to report. */
+  /**
+   * Coloured rather than grey. ⛔ THIS MEANS "YOU ARE ON THIS TAB" AND NOTHING ELSE — do not wire
+   * it to an unread count or a saved count, however tempting. See the note above: that was tried,
+   * and it cost the bar its location signal. The one exception is Post, which is always lit because
+   * it is an action rather than a place.
+   */
   lit?: boolean
   className?: string
 }) {

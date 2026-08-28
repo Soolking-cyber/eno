@@ -368,16 +368,18 @@ export function MobileNav() {
           label={tr('Saved', 'Đã lưu')}
           icon={(on) => (
             <>
-              {/* ⚠️ `lit` TAKES THE COUNT AS WELL AS THE ROUTE, and dropping that would have been a
-                  silent loss. The lucide Heart painted itself `fill-brand` whenever anything was
-                  saved, on or off this tab — a real signal that the raster's active/grey model does
-                  not carry by itself. Passing `count > 0` keeps it, through the filter instead of a
-                  fill. The badge is the louder half; this is the half you see at a glance.
-                  ⚠️ `on`, NOT a second `at('/saved')`. `TabBody` already computed the active state
-                  and hands it to a function-form icon, which is how Explore and Account read it;
-                  re-deriving it here was a second source of truth that could drift from the label's
-                  brand ink — a reviewer caught it. */}
-              <NavArt name="saved" lit={on || count > 0} />
+              {/* ⛔ COLOUR MEANS "YOU ARE HERE", AND NOTHING ELSE — owner, 2026-08-28, looking at a
+                  blue heart while standing on Explore: "only blue if button is pressed not when has
+                  noticification or saved counter increases". This DID carry `|| count > 0`, ported
+                  from the lucide Heart which painted itself `fill-brand` whenever anything was
+                  saved. Keeping it looked like preserving a signal; what it actually did was give
+                  the bar two unrelated meanings for one colour, so a visitor with saves and unread
+                  saw three lit tabs and the row stopped saying which one they were on. A reviewer
+                  had made the same argument independently. The COUNT BADGE says there is something
+                  to see — that is its whole job, it is louder than a tint, and it is unaffected.
+                  ⚠️ `on` comes from `TabBody`, which already computed the active state; re-deriving
+                  `at('/saved')` here was a second source of truth that could drift from the label. */}
+              <NavArt name="saved" lit={on} />
               {count > 0 && (
                 <Badge variant="counter" size="count" className="absolute -right-2 -top-1">
                   {count}
@@ -440,9 +442,9 @@ export function MobileNav() {
         label={tr('Messages', 'Tin nhắn')}
         icon={(on) => (
           <>
-            {/* Same as Saved: unread lights the glyph whether or not this is the current tab, and
-                `on` comes from TabBody rather than a second route test. */}
-            <NavArt name="messages" lit={on || !!(user && unread > 0)} />
+            {/* Same rule as Saved: colour is location only. Unread is the badge's job — see the
+                note there for why lighting the glyph too cost more than it carried. */}
+            <NavArt name="messages" lit={on} />
             {user && unread > 0 && (
               <Badge variant="counter" size="count" className="absolute -right-2 -top-1">
                 {unread > 9 ? '9+' : unread}
