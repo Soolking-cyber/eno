@@ -92,6 +92,15 @@ export function IntroTour() {
    * parked on it, so a stale rect blurs — and points at — the wrong thing.
    */
   const [hole, setHole] = useState<DOMRect | null>(null)
+  /**
+   * ⛔ WHICH SIDE THE CARD OPENS ON, DECIDED ONCE PER STEP. Reading it from `hole` on every render
+   * looked equivalent and was not: `hole` updates every frame the target moves, so a smooth
+   * `scrollIntoView` sweeps the anchor straight through the threshold and the card jumps from below
+   * the target to above it mid-scroll — during the very re-centring that exists to steady things. A
+   * reviewer spotted the missing hysteresis; latching per step is simpler than a dead band and has
+   * no flicker at all.
+   */
+  const [side, setSide] = useState<'top' | 'bottom'>('bottom')
 
   /**
    * ⛔ A RUN ID, BECAUSE THIS TOUR SCHEDULES WORK IN THE FUTURE. Typing and step advancement are
@@ -356,14 +365,67 @@ export function IntroTour() {
     if (!anchorEl) return
     let raf = 0
     let last = ''
+    /**
+     * ⛔ AND IT KEEPS THE TARGET ON SCREEN, BECAUSE SCROLLING TO IT ONCE IS NOT ENOUGH — owner,
+     * 2026-08-28, from a phone: "on mobile scrolling breaks center the button that needs to be
+     * tapped". `attach()` centres the chip the moment it resolves, and then the page keeps moving:
+     * results arrive, the rail's images land, a facet panel opens and pushes everything down. On the
+     * waiting steps that is the difference between "tap Laptops & PCs" naming something under your
+     * thumb and naming something off the edge of the screen.
+     *
+     * ⚠️ THREE GUARDS, BECAUSE RE-CENTRING IS ONLY HELPFUL WHEN IT IS NOT FIGHTING ANYONE.
+     *   · It acts only when the target is genuinely OUT of the comfortable band, never to nudge
+     *     something that is merely off-centre.
+     *   · It stands down for `QUIET_MS` after any real scroll gesture, so someone deliberately
+     *     looking around is never yanked back mid-swipe — it re-centres once they stop.
+     * ⚠️ THERE IS DELIBERATELY NO "GIVE UP" LATCH. The first version stopped correcting for the
+     * rest of the step once a scroll failed to move the page — and a reviewer traced the hole in
+     * that: the latch was keyed on scrollY while the failure mode is LAYOUT. A chip that cannot
+     * reach the band once, then gets pushed under the header when the facet panel opens at the
+     * same scroll position, would never be recovered. Throttling is enough; a `scrollIntoView` that
+     * has nothing to do is a cheap no-op, and retrying is what makes it self-heal.
+     */
+    const GAP_MS = 700
+    const QUIET_MS = 1200
+    let lastFix = 0
+    let lastGesture = 0
+    const gesture = () => { lastGesture = performance.now() }
+    window.addEventListener('touchstart', gesture, { passive: true })
+    window.addEventListener('touchmove', gesture, { passive: true })
+    window.addEventListener('wheel', gesture, { passive: true })
+
     const tick = () => {
       const r = anchorEl.getBoundingClientRect()
       const key = `${r.top}|${r.left}|${r.width}|${r.height}`
-      if (key !== last) { last = key; setHole(r) }
+      if (key !== last) {
+        // ⚠️ The side is taken from the FIRST measurement of this step and then left alone — see
+        // the note on `side`. `last === ''` is that first frame.
+        if (!last) setSide(r.bottom > window.innerHeight * 0.58 ? 'top' : 'bottom')
+        last = key
+        setHole(r)
+      }
+      const now = performance.now()
+      if (now - lastGesture > QUIET_MS && now - lastFix > GAP_MS) {
+        // ⚠️ The header is FIXED and overlays the page, so "visible" is not `top >= 0` — a chip
+        // tucked under it is on screen and untappable. Measured live rather than hardcoded: the
+        // header has three geometries and picks one by scroll position.
+        const headerBottom = document.getElementById('app-header')?.getBoundingClientRect().bottom ?? 0
+        const offVertically = r.top < headerBottom + PAD || r.bottom > window.innerHeight - 120
+        const offHorizontally = r.left < 0 || r.right > window.innerWidth
+        if (offVertically || offHorizontally) {
+          lastFix = now
+          anchorEl.scrollIntoView({ block: 'center', inline: 'center', behavior: scrollBehavior() })
+        }
+      }
       raf = requestAnimationFrame(tick)
     }
     raf = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(raf)
+    return () => {
+      cancelAnimationFrame(raf)
+      window.removeEventListener('touchstart', gesture)
+      window.removeEventListener('touchmove', gesture)
+      window.removeEventListener('wheel', gesture)
+    }
   }, [anchorEl])
 
   /**
@@ -593,7 +655,15 @@ export function IntroTour() {
       <Popover open onOpenChange={() => { /* see above — closing is ours alone */ }}>
         <PopoverContent
           anchor={anchorEl ?? centreAnchor}
-          side="bottom"
+          /**
+           * ⛔ THE CARD FLIPS AWAY FROM THE TARGET. Fixed to `bottom` it opened downward whatever
+           * the target's position — and on a phone, where the subcategory panel fills most of the
+           * screen, that put the card directly over the chip the step was telling the visitor to
+           * tap (owner's screenshot, 2026-08-28). Base UI would flip it on a collision with the
+           * viewport EDGE, but the collision here is with the anchor itself, which it has no reason
+           * to avoid. Below the target when there is room beneath it, above when there is not.
+           */
+          side={side}
           sideOffset={14}
           collisionPadding={12}
           positionerClassName="z-[1160]"
