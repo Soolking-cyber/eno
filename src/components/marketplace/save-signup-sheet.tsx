@@ -1,21 +1,29 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 import { useAuth } from '@/context/auth-context'
-import { useLanguage } from '@/context/language-context'
-import { Dialog as DialogPrimitive } from '@base-ui/react/dialog'
-import { Button } from '@/components/ui/button'
 
 /**
- * Contextual signup sheet (5a #10) — appears ONCE, on a guest's first "save" tap:
- * the moment the value of an account is self-evident. Auth is asked when it helps
- * the user, never on arrival. favorites-context dispatches `eno:first-save`; the
- * flag lives in localStorage so the sheet never nags twice.
+ * First-save sign-in prompt — a guest's first "save" tap is the moment an account explains itself,
+ * so that is when auth is asked. `favorites-context` dispatches `eno:first-save`; the flag lives in
+ * localStorage so it never nags twice.
+ *
+ * ⛔ IT OPENS THE ONE POPUP, AND THE SHEET IT REPLACED IS THE REASON THIS COMMENT IS LONG. There was
+ * a bottom sheet here — "Saved! Now keep it.", a Google button and an email button — and NEITHER
+ * button signed anyone in. Both called `openSignIn()`, so the visitor read a pitch, chose a method,
+ * and was then shown the real popup asking the same question again. A second surface that only
+ * forwards to the first is worse than no surface: it costs a tap, teaches a wrong mental model of
+ * where accounts are made, and is one more place for the auth design to drift.
+ * ⚠️ The framing is what was lost, and that is the accepted trade (owner, 2026-08-28: "only 1 popup
+ * dont use other than this anywhere"). If the "you just saved something" context is wanted back, it
+ * belongs INSIDE the card as a variant — `SignInCard` already takes listing context for exactly
+ * this reason — never as another sheet in front of it.
+ *
+ * ⚠️ THE COMPONENT RENDERS NOTHING and is still mounted in providers.tsx on purpose: it is a
+ * listener, not a UI. Deleting it would silently drop the first-save prompt altogether.
  */
 export function SaveSignupSheet() {
   const { user, openSignIn } = useAuth()
-  const { tr } = useLanguage()
-  const [open, setOpen] = useState(false)
 
   useEffect(() => {
     const onFirstSave = () => {
@@ -24,57 +32,11 @@ export function SaveSignupSheet() {
         if (localStorage.getItem('eno:save-sheet-done')) return
         localStorage.setItem('eno:save-sheet-done', '1')
       } catch { /* private mode — show it anyway, once per session */ }
-      setOpen(true)
+      openSignIn()
     }
     window.addEventListener('eno:first-save', onFirstSave)
     return () => window.removeEventListener('eno:first-save', onFirstSave)
-  }, [user])
+  }, [user, openSignIn])
 
-  if (!open) return null
-  return (
-    <DialogPrimitive.Root open={true} onOpenChange={(open) => { if (!open) setOpen(false) }}>
-      <DialogPrimitive.Portal>
-        <DialogPrimitive.Backdrop className="overlay-scrim fixed inset-0 z-[130] data-open:animate-in data-open:fade-in data-closed:animate-out data-closed:fade-out" />
-        <div className="fixed inset-0 z-[130] flex flex-col justify-end">
-          <DialogPrimitive.Popup aria-label={tr('Keep your saved items', 'Giữ tin đã lưu')} className="relative mx-auto w-full max-w-md rounded-t-2xl bg-card px-6 pb-[calc(2rem+env(safe-area-inset-bottom))] pt-3 shadow-overlay outline-none animate-in slide-in-from-bottom-4 duration-250 data-closed:animate-out data-closed:slide-out-to-bottom-4">
-            <div aria-hidden className="mx-auto h-1 w-10 rounded-full bg-line-strong" />
-        <h2 className="mt-4 text-lg font-extrabold tracking-tight text-foreground">{tr('Saved! Now keep it.', 'Đã lưu! Giữ nó nhé.')}</h2>
-        <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
-          {tr('Sign up free to keep your saved items, chat with sellers and get price-drop alerts.', 'Đăng ký miễn phí để giữ tin đã lưu, nhắn tin với người bán và nhận báo giá giảm.')}
-        </p>
-        <div className="mt-4 space-y-2">
-          <Button
-            variant="cta"
-            size="none"
-            type="button"
-            onClick={() => { setOpen(false); openSignIn() }}
-            className="w-full py-3 active:scale-[0.96] cursor-pointer"
-          >
-            {tr('Continue with Google', 'Tiếp tục với Google')}
-          </Button>
-          <Button
-            variant="soft"
-            size="none"
-            type="button"
-            onClick={() => { setOpen(false); openSignIn() }}
-            className="w-full py-2.5 font-bold text-foreground cursor-pointer"
-          >
-            {tr('Continue with email or phone', 'Tiếp tục với email hoặc SĐT')}
-          </Button>
-          <Button
-            variant="bare"
-            size="none"
-            type="button"
-            onClick={() => setOpen(false)}
-            className="w-full py-1 text-xs font-semibold text-ink-4 hover:text-foreground cursor-pointer"
-          >
-            {tr('Not now', 'Để sau')}
-          </Button>
-        </div>
-        <p className="mt-2 text-center text-3xs text-ink-4">{tr('Free forever · no spam · 10 seconds', 'Miễn phí · không spam · 10 giây')}</p>
-        </DialogPrimitive.Popup>
-      </div>
-    </DialogPrimitive.Portal>
-  </DialogPrimitive.Root>
-  )
+  return null
 }

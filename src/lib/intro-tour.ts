@@ -50,7 +50,13 @@ export function isDrillStep(step: TourStepId): boolean {
   return step in TOUR_DRILL
 }
 
-export type TourStepId = 'search' | 'category' | 'subcategory' | 'brand' | 'model' | 'result' | 'signup'
+/**
+ * ⚠️ `signup` IS GONE ON PURPOSE (owner, 2026-08-28: "no need form 6-7"). The tour used to end on a
+ * step whose only content was a sign-up pitch and whose button left the site for
+ * /auth/google/start; the last step now hands straight to the one sign-in popup instead. Leaving
+ * the id in this union would let a step reference it and typecheck against a step that cannot exist.
+ */
+export type TourStepId = 'search' | 'category' | 'subcategory' | 'brand' | 'model' | 'result'
 
 /**
  * ⛔ THE DRILL-DOWN IS CLICKED BY THE VISITOR, ONE LEVEL AT A TIME — owner, 2026-08-28: "make user

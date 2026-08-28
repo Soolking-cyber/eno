@@ -5,7 +5,6 @@ import { usePathname } from 'next/navigation'
 import { Popover, PopoverContent } from '@/components/ui/popover'
 import { Button } from '@/components/ui/button'
 import { useLanguage } from '@/context/language-context'
-import { googleOauthBlocked } from '@/lib/in-app-browser'
 import { useAuth } from '@/context/auth-context'
 import { scrollBehavior } from '@/lib/reduced-motion'
 import {
@@ -48,7 +47,7 @@ type Step = {
 
 export function IntroTour() {
   const { tr } = useLanguage()
-  const { user } = useAuth()
+  const { user, openSignIn } = useAuth()
   const pathname = usePathname()
   const [index, setIndex] = useState<number | null>(null)
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null)
@@ -151,38 +150,42 @@ export function IntroTour() {
           'Four taps from everything to cases that fit one exact phone. The same four work for a laptop, a scooter or an apartment.',
           'Bốn lần chạm từ tất cả đến ốp lưng vừa đúng một mẫu máy. Bốn bước đó cũng dùng cho laptop, xe máy hay căn hộ.',
         ),
-        next: tr('Last thing', 'Điều cuối'),
-      },
-      {
-        id: 'signup',
-        title: tr('Save what you find', 'Lưu lại những gì bạn thích'),
-        body: tr(
-          'Sign up to save listings, message sellers and get told when a price drops. It takes one tap with Google.',
-          'Đăng ký để lưu tin, nhắn tin với người bán và nhận báo khi giá giảm. Chỉ một chạm với Google.',
-        ),
-        next: tr('Continue with Google', 'Tiếp tục với Google'),
+        /**
+         * ⛔ THE TOUR ENDS HERE AND HANDS STRAIGHT TO THE POPUP — owner, 2026-08-28: "tour number 6
+         * already have popup open to login with google the login signup login fast no need form
+         * 6-7". There was a seventh step whose whole content was a sign-up pitch and whose button
+         * hard-navigated to `/auth/google/start`. Two things were wrong with it: it spent a step
+         * asking for a decision the popup asks for anyway, and it left the marketplace entirely on
+         * a full page load, so someone who changed their mind came back to nothing.
+         * ⚠️ THE GUEST LABEL LIVES HERE AND THE SIGNED-IN ONE IS SWAPPED IN AT RENDER — this memo
+         * must NOT depend on `user`. Keying it on the session rebuilds all six step objects the
+         * moment /api/me resolves, and `step` is a dependency of the anchor, scroll and mask
+         * effects: a guest on step 3 would see the page re-scroll and the spotlight re-measure
+         * under them for no reason. A reviewer traced it. Only a label varies, so only a label is
+         * computed late.
+         */
+        next: tr('Sign up to save these', 'Đăng ký để lưu tin'),
       },
     ],
     [tr],
   )
 
   /**
-   * ⛔ THE SIGN-UP STEP IS DROPPED FOR ANYONE ALREADY SIGNED IN. A signed-in visitor can still
-   * reach the tour — answering the cookie card is not proof of being new, since the card also
-   * appears for a member who has cleared site data — and showing them "Sign up to save listings…
-   * one tap with Google" would be a real misfire rather than a cosmetic one: the button hard-
-   * navigates to /auth/google/start, which for an account created with an email link is an
-   * identity-LINKING round trip, not a no-op. A reviewer caught it.
+   * ⚠️ NOTHING IS FILTERED OUT ANY MORE, AND THE ALIAS IS KEPT ON PURPOSE. There used to be a
+   * sign-up step dropped for signed-in visitors — its button hard-navigated to
+   * /auth/google/start, which for an account created with an email link is an identity-LINKING
+   * round trip rather than a no-op, so showing it to a member was a real misfire. That step is
+   * gone; the session now only changes the last step's LABEL. `steps` stays as the name every
+   * index, clamp and `isLast` check reads, so this can become a filter again without touching them.
    */
-  const steps = useMemo(() => (user ? allSteps.filter((s) => s.id !== 'signup') : allSteps), [user, allSteps])
+  const steps = allSteps
 
   /**
-   * ⚠️ CLAMPED, BECAUSE `steps` CAN SHRINK UNDER THE INDEX. `useAuth()` resolves the session from
-   * /api/me after mount, so a visitor who reaches the last step as a guest and is then recognised
-   * has `signup` filtered away beneath them — `steps[3]` becomes undefined and the popover would
-   * simply vanish mid-sentence. A reviewer spotted the race. Ending deliberately is the same
-   * outcome the visitor wanted (they are signed in; the last step was the sign-up pitch) and it
-   * goes through the normal close rather than a blank frame.
+   * ⚠️ CLAMPED. `steps` no longer shrinks — the session changes only the last step's LABEL now, not
+   * the list's length — so this can no longer fire, and it is kept deliberately rather than deleted:
+   * it is one `??` standing between a future filter and a popover that vanishes mid-sentence, which
+   * is exactly what a reviewer caught when a sign-up step WAS filtered out from under a guest who
+   * had just been recognised. Ending deliberately beats rendering a blank frame.
    */
   const step = index === null ? null : (steps[index] ?? null)
 
@@ -468,18 +471,33 @@ export function IntroTour() {
 
   if (!step) return null
 
-  const isLast = step.id === 'signup'
+  const isLast = index !== null && index === steps.length - 1
+  // ⚠️ Swapped in at render rather than baked into the step — see the note on the last step's
+  // `next`. A member is not offered a sign-up; everything else about the step is the same.
+  const nextLabel = isLast && user ? tr('Got it', 'Đã hiểu') : step.next
 
   const advance = () => {
     if (isLast) {
-      // ⚠️ REUSE THE EXISTING GUARD RATHER THAN THE RAW ROUTE. `/auth/google/start` is fine in a
-      // normal browser and dead inside an in-app browser (Facebook/Zalo webviews), which is what
-      // `googleOauthBlocked()` detects — the same check sign-in-form.tsx makes. When it is blocked
-      // the visitor goes to /signin, which owns the whole fallback story (system browser hand-off,
-      // native deep links, first-party fallback). Duplicating that here would be a bug factory.
-      const href = googleOauthBlocked() ? '/signin?next=%2F' : '/auth/google/start?next=%2F'
-      markTourSeen()
-      window.location.href = href
+      /**
+       * ⛔ CLOSE THE TOUR, THEN OPEN THE ONE POPUP — never a navigation. This used to send the
+       * visitor to `/auth/google/start` (or `/signin` inside an in-app browser, via
+       * `googleOauthBlocked()`), which meant the tour's reward for reaching the end was leaving the
+       * marketplace on a full page load. The popup keeps them exactly where they are, on the search
+       * results the tour just taught them to produce.
+       * ⚠️ THE IN-APP-BROWSER FALLBACK IS NOT LOST, IT MOVED TO WHERE IT BELONGS. `SignInForm` —
+       * which the popup renders — already makes that same check and owns the whole story (system
+       * browser hand-off, native deep links, first-party fallback). Repeating it here was always a
+       * second copy of a decision that has one right home.
+       * ⚠️ AND THE OPEN IS DEFERRED A FRAME, WHICH `finish()` ALONE DOES NOT BUY. Both calls are
+       * state updates in one handler, so React batches them into a single commit: the popover
+       * unmounts and the dialog mounts together, and Base UI restores focus as the popover goes —
+       * which can pull focus out of the freshly-opened dialog and onto the tile behind the scrim,
+       * leaving it untrapped and, on iOS, with no keyboard for the email field. A reviewer caught
+       * that the ordering the first version claimed was not the ordering it got. One frame is
+       * enough for the unmount and its focus restore to land first.
+       */
+      finish()
+      if (!user) requestAnimationFrame(() => openSignIn())
       return
     }
     setIndex((i) => (i === null ? null : i + 1))
@@ -495,10 +513,11 @@ export function IntroTour() {
    * ⚠️ 8px of padding so the ring around the target is inside the hole rather than blurred off.
    * ⚠️ On the two centred steps there is no target, so one full-viewport panel covers everything —
    * nothing to press but the card.
-   * ⛔ `backdrop-blur-md` matches the app's other floating chrome (`sticky-action-bar`), and the
-   * `material` marker is what `.reduce-transparency` keys off: a reader who asks for less
-   * transparency gets a solid scrim instead of a blur, which is the platform contract, not a
-   * nicety. Blur is not motion, so `prefers-reduced-motion` deliberately does not touch it.
+   * ⛔ THE DIM MATCHES `.overlay-scrim`, the backdrop under every popover in the app, because both
+   * demote the page for the same reason. The `material` marker is what `.reduce-transparency` keys
+   * off: a reader who asks for less transparency loses the BLUR and gets a deeper — but still
+   * translucent — scrim, since a mask that goes opaque hides the page it is explaining. Blur is not
+   * motion, so `prefers-reduced-motion` deliberately does not touch it.
    */
   /**
    * ⛔ THE TINT AND THE BLUR LIVE IN `.tour-mask` IN globals.css, NOT IN UTILITIES HERE, and that
@@ -603,7 +622,7 @@ export function IntroTour() {
               actually do it. The step still ends via Skip or Esc. */}
           {step.next ? (
             <Button variant="cta" size="none" onClick={advance} className="rounded-lg px-3 py-1.5 text-sm cursor-pointer">
-              {step.next}
+              {nextLabel}
             </Button>
           ) : (
             <p className="text-2xs font-semibold text-accent-foreground">{tr('Waiting for your tap…', 'Đang chờ bạn chạm…')}</p>

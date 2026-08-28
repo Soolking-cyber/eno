@@ -1,9 +1,7 @@
 'use client'
 
-import Image from 'next/image'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { useLanguage } from '@/context/language-context'
-import { SignInForm } from '@/components/marketplace/sign-in-form'
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
+import { SignInCard } from '@/components/marketplace/sign-in-card'
 
 type Props = {
   open: boolean
@@ -16,37 +14,34 @@ type Props = {
   sellerName?: string
 }
 
-/** Inline sign-in modal (opened via auth-context's openSignIn for gated actions
- *  like revealing a phone or messaging a seller). Shares all logic with the
- *  dedicated /signin page via <SignInForm>. */
+/**
+ * THE sign-in popup — the single auth surface in the app (owner, 2026-08-28). Everything that needs
+ * a visitor signed in opens THIS, via auth-context's `openSignIn()`: a gated phone reveal, messaging
+ * a seller, the first save, the end of the intro tour. `/signin` renders the same `<SignInCard>` as a
+ * page, because a server `redirect()` cannot open a dialog.
+ *
+ * ⛔ DO NOT BUILD A SECOND ONE. There were three before this consolidation, and the one that did the
+ * most damage was the politest: a first-save bottom sheet offering "Continue with Google" and
+ * "Continue with email or phone", both of which only opened this dialog — a whole extra tap and a
+ * second decision in front of a visitor who had already decided.
+ */
 export function SignInDialog({ open, onOpenChange, listingTitle, listingImage, sellerName }: Props) {
-  const { tr } = useLanguage()
-  const seller = sellerName || tr('the seller', 'người bán')
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="rounded-2xl shadow-overlay w-full max-w-sm p-6 gap-0">
-        <DialogHeader>
-          {listingTitle ? (
-            <div className="flex items-center gap-3 text-left">
-              {listingImage && (
-                <Image src={listingImage} alt="" width={48} height={48} className="h-12 w-12 shrink-0 rounded-lg object-cover" />
-              )}
-              <div className="min-w-0 space-y-0.5">
-                <DialogTitle className="text-sm font-bold leading-snug text-foreground line-clamp-2">
-                  {tr(`Sign in to message ${seller} about ${listingTitle}`, `Đăng nhập để nhắn ${seller} về ${listingTitle}`)}
-                </DialogTitle>
-                <p className="text-xs text-muted-foreground">
-                  {tr('Free · takes 20 seconds · your number stays private', 'Miễn phí · 20 giây · số của bạn được giữ kín')}
-                </p>
-              </div>
-            </div>
-          ) : (
-            <DialogTitle className="text-center text-lg font-bold text-foreground">
-              {tr('Sign in to eno.vn', 'Đăng nhập eno.vn')}
-            </DialogTitle>
-          )}
-        </DialogHeader>
-        <SignInForm className="mt-4" />
+        {/*
+          ⚠️ NO `DialogHeader` WRAPPER. It is a `flex flex-col gap-2` box meant for a title and a
+          description, and `SignInCard` is title AND the whole form — so wrapping it put the email
+          input, the OTP entry, the Google button and the legal line inside the dialog's HEADER
+          region, both semantically and as flex children inheriting its gap. Two reviewers caught
+          it. The card lays itself out; the dialog only needs to name itself, which `titleAs` does.
+        */}
+        <SignInCard
+          titleAs={DialogTitle}
+          listingTitle={listingTitle}
+          listingImage={listingImage}
+          sellerName={sellerName}
+        />
       </DialogContent>
     </Dialog>
   )

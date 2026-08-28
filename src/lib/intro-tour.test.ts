@@ -9,6 +9,7 @@ import {
   TOUR_TARGETS,
   drillDone,
   hasSeenTour,
+  isDrillStep,
   markTourSeen,
   markTourPending,
   tourPending,
@@ -139,8 +140,10 @@ describe('steps', () => {
     expect(tourAnchorFor('subcategory')).toBe('[data-subcat="phone-cases"]')
     expect(tourAnchorFor('brand')).toBe('[data-brand="apple"]')
     expect(tourAnchorFor('model')).toBe('[data-model="iPhone 17 Pro Max"]')
+    // ⚠️ The unanchored step. `signup` used to be the second one and was deleted with the step
+    // itself — leaving this line a verbatim duplicate, which a reviewer spotted asserting nothing.
     expect(tourAnchorFor('result')).toBeNull()
-    expect(tourAnchorFor('signup')).toBeNull()
+    expect(isDrillStep('result')).toBe(false)
   })
 
   /**
@@ -157,7 +160,7 @@ describe('steps', () => {
     expect(drillDone('model', '?model=iPhone+17+Pro+Max')).toBe(true)
     // Steps that are not part of the drill can never satisfy it.
     expect(drillDone('search', '?q=anything')).toBe(false)
-    expect(drillDone('signup', '?category=electronics')).toBe(false)
+    expect(drillDone('result', '?category=electronics')).toBe(false)
   })
 
   /** The selectors and the params must describe the SAME control, or a step waits forever. */
