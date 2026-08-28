@@ -20,7 +20,7 @@
  * do not hand-edit anything under public/icons/categories/.
  */
 import { createHash } from 'node:crypto'
-import { mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import sharp from 'sharp'
 
@@ -39,6 +39,7 @@ const OUT = 'public/icons/categories'
  * failure, not linking. A separate directory is the clearest version of that prefix.
  */
 const OUT_SERVICES = 'public/icons/services'
+const OUT_NAV = 'public/icons/nav'
 
 /**
  * ⚠️ KEYED BY THE TILE KEY, NOT A TAXONOMY SLUG — these are eno's OWN products, not categories.
@@ -49,6 +50,23 @@ const OUT_SERVICES = 'public/icons/services'
 const SERVICES_MAP = {
   'Vietnam e-Visa.png': 'evisa',
   'Trip planner.png': 'trip',
+}
+
+/**
+ * ⚠️ THE BOTTOM NAV, FROM THE SAME PACK AND THE SAME SUBFOLDER (owner, 2026-08-28: "also use these
+ * icons for navbar similar to category icons"). Numbered like the category files and mapped here
+ * for the same reason — the numbers are the designer's order, the keys are the app's.
+ * ⛔ THESE SHIP TO BOTH EDITIONS, unlike `SERVICES_MAP` next door. A house, a heart, a plus, a
+ * speech bubble and a person describe no regulated service, so `public/icons/nav/` is deliberately
+ * NOT added to the Dockerfile's marketplace prune — the bottom bar is identical on eno.forum and
+ * pruning it would leave that edition with five broken images.
+ */
+const NAV_MAP = {
+  'Navigation bar/Navigation bar-01.png': 'explore',
+  'Navigation bar/Navigation bar-02.png': 'saved',
+  'Navigation bar/Navigation bar-03.png': 'post',
+  'Navigation bar/Navigation bar-04.png': 'messages',
+  'Navigation bar/Navigation bar-05.png': 'account',
 }
 
 /**
@@ -130,8 +148,31 @@ async function main() {
   const missingSvc = Object.keys(SERVICES_MAP).filter((f) => !present.has(f))
   if (missingSvc.length) { console.error(`pack is missing services art: ${missingSvc.join(', ')}`); process.exit(1) }
 
+  // ⚠️ CHECKED WITH `existsSync`, NOT AGAINST `present` — the nav files live in a SUBFOLDER, and
+  // `readdirSync(SRC)` only lists the top level, so every one of them would read as missing.
+  const missingNav = Object.keys(NAV_MAP).filter((f) => !existsSync(join(SRC, f)))
+  if (missingNav.length) { console.error(`pack is missing nav art: ${missingNav.join(', ')}`); process.exit(1) }
+
+  /**
+   * ⚠️ ASSERTED AGAINST THE APP'S OWN LIST, exactly as the category slugs are. `NAV_ART_KEYS` in
+   * src/lib/category-art.ts is what the bottom bar renders from, so a key here that is not there
+   * writes a file nothing loads, and a key there that is not here renders a broken image in the
+   * one component that is on every mobile screen.
+   */
+  const navBlock = lib.slice(lib.indexOf('NAV_ART_KEYS = ['), lib.indexOf('] as const', lib.indexOf('NAV_ART_KEYS = [')))
+  const navKnown = [...navBlock.matchAll(/'([a-z0-9-]+)'/g)].map((m) => m[1])
+  // ⚠️ "DID THE PARSE WORK", not "are there five". Asserting the count made a SIXTH tab fail with
+  // "could not parse", which is a misleading error for a correct change — a reviewer caught it.
+  // Whether the keys are the RIGHT ones is what the two checks below are for.
+  if (!navKnown.length) { console.error('could not parse NAV_ART_KEYS — the check would be vacuous'); process.exit(1) }
+  const navUnknown = Object.values(NAV_MAP).filter((k) => !navKnown.includes(k))
+  const navUncovered = navKnown.filter((k) => !Object.values(NAV_MAP).includes(k))
+  if (navUnknown.length) { console.error(`nav keys not in NAV_ART_KEYS: ${navUnknown.join(', ')}`); process.exit(1) }
+  if (navUncovered.length) { console.error(`no artwork for nav: ${navUncovered.join(', ')} — those tabs would render NOTHING`); process.exit(1) }
+
   mkdirSync(OUT, { recursive: true })
   mkdirSync(OUT_SERVICES, { recursive: true })
+  mkdirSync(OUT_NAV, { recursive: true })
   let bytes = 0
   const stamp = createHash('sha256')
   for (const [file, slug] of Object.entries(MAP)) {
@@ -156,6 +197,17 @@ async function main() {
     process.stdout.write(`  ${(key + ' (services)').padEnd(22)} ${String(buf.length).padStart(6)} B\n`)
   }
 
+  for (const [file, key] of Object.entries(NAV_MAP)) {
+    const buf = await sharp(join(SRC, file))
+      .resize(EDGE, EDGE, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+      .webp({ quality: QUALITY, alphaQuality: ALPHA_QUALITY, effort: 6 })
+      .toBuffer()
+    writeFileSync(join(OUT_NAV, `${key}.webp`), buf)
+    stamp.update(buf)
+    bytes += buf.length
+    process.stdout.write(`  ${(key + ' (nav)').padEnd(22)} ${String(buf.length).padStart(6)} B\n`)
+  }
+
   /**
    * ⚠️ THE STAMP RIDES IN THE QUERY, NEVER IN THE FILENAME — the rule next.config.ts states and
    * scripts/gen-icons.mjs already follows. eno.vn edge-caches its HTML for hours, so a hashed
@@ -166,10 +218,10 @@ async function main() {
   const v = stamp.digest('hex').slice(0, 8)
   writeFileSync('src/generated/category-art-stamp.ts',
     `// AUTO-GENERATED by scripts/gen-category-art.mjs — do not edit by hand.\n` +
-    `// Content hash of every generated file — public/icons/categories AND public/icons/services — so a\n// redrawn pack busts the cache for both editions.\n` +
+    `// Content hash of EVERY file this generator writes — public/icons/categories,\n// public/icons/services and public/icons/nav — so a redrawn pack busts the cache for all of\n// them, on both editions. One stamp on purpose: three would be three things to keep in step.\n` +
     `export const CATEGORY_ART_STAMP = '${v}'\n`)
-  const n = Object.keys(MAP).length + Object.keys(SERVICES_MAP).length
-  console.log(`\n${n} icons · ${(bytes / 1024).toFixed(0)} KB total → ${OUT} + ${OUT_SERVICES}  (v=${v})`)
+  const n = Object.keys(MAP).length + Object.keys(SERVICES_MAP).length + Object.keys(NAV_MAP).length
+  console.log(`\n${n} icons · ${(bytes / 1024).toFixed(0)} KB total → ${OUT} + ${OUT_SERVICES} + ${OUT_NAV}  (v=${v})`)
 }
 
 main().catch((e) => { console.error(e); process.exit(1) })

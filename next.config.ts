@@ -306,7 +306,7 @@ const acceptsMarkdown = () => [
 // is shared by both editions, and eno.forum is where they ship and where the four-hour lane would
 // be paid. Listing a path here grants nothing on an edition that has no such file.
 const STAMPABLE_STATIC =
-  "/:path(banners/.*|mascots/.*|icons/categories/.*|icons/services/.*|logo-mark\\.svg|logo-dotvn\\.svg|watermark\\.svg|vietkite-logo\\.png)";
+  "/:path(banners/.*|mascots/.*|icons/categories/.*|icons/services/.*|icons/nav/.*|logo-mark\\.svg|logo-dotvn\\.svg|watermark\\.svg|vietkite-logo\\.png)";
 
 const nextConfig: NextConfig = {
   pageExtensions: PAGE_EXTENSIONS,
