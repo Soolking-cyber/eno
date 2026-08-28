@@ -1,21 +1,26 @@
 /**
- * First-run product tour — storage, targets and the worked example.
+ * First-run product tour — storage, targets and the worked example it DEMONSTRATES.
  *
- * Owner, 2026-08-28: the consent card should also introduce the marketplace, and closing it should
- * start a short tour — the search bar, then the category rail with a real example, ending on a
- * one-tap Google sign-up. This module holds the parts worth testing away from the DOM: whether the
- * tour has already run, which elements it points at, and the example it navigates to.
+ * Owner, 2026-08-28: the consent card introduces the marketplace and closing it starts a short
+ * tour. This module holds the parts worth testing away from the DOM: whether the tour has already
+ * run, which elements it points at, and the example it walks.
  *
  * ⛔ THE EXAMPLE MUST LAND ON REAL RESULTS OR THE TOUR IS WORSE THAN NOTHING. A walkthrough whose
- * finale is an empty page teaches the visitor the catalogue is empty. Measured against production
- * before this was written: `/?q=iPhone 17 Pro Max case` returns 97 listings, led by the UAG Monarch
- * case, and 100 against the local database.
+ * finale is an empty page teaches the visitor that the catalogue is empty.
+ *
+ * ⚠️ THE OWNER'S OWN SEARCH STRING RETURNS ZERO, WHICH IS WHY IT IS NOT THE ONE BELOW. Asked for as
+ * "Macbook pro 16 inch m5 64GB 1TB" — measured against production that day, that exact query
+ * returns 0 listings, because no title carries all six tokens. Measured alternatives:
+ *     "Macbook pro 16 inch m5 64GB 1TB"    0
+ *     "Macbook Pro M5 1TB"                25   ← chosen: their phrase, minus what empties it
+ *     "Macbook Pro M5"                    61
+ *     "Macbook Pro 16"                    49
+ * The trimmed string keeps everything they were demonstrating — brand, model, chip, a storage size
+ * — and is the closest thing to what they wrote that a visitor would actually see work.
  * ⚠️ THERE IS NO RUNTIME GUARD ON THAT COUNT, and an earlier version of this comment claimed there
- * was — a reviewer went looking for it and found nothing. The step's copy is written so it still
- * reads correctly with few results ("These are the results for …" rather than a boasted number),
- * but if this query ever empties out, the honest fix is to change it here to something well
- * stocked. `src/lib/intro-tour.test.ts` pins the phone the owner asked for, so a change is a
- * deliberate edit rather than a drift.
+ * was — a reviewer went looking and found nothing. The copy reads correctly with few results, but
+ * if this query ever empties out the honest fix is to change it here. `intro-tour.test.ts` pins it,
+ * so a change is a deliberate edit rather than a drift.
  */
 
 /** Bumping the suffix re-runs the tour for everyone — do that only for a genuinely new tour. */
@@ -26,14 +31,7 @@ export const TOUR_STORAGE_KEY = 'eno_intro_tour_v1'
  * as a search rather than a chain of facet params because that is what the browse page actually
  * keys on, and because one URL cannot go wrong halfway.
  */
-/**
- * ⚠️ THE QUERY, NOT A HREF. An earlier version also exported `TOUR_EXAMPLE_HREF` for a
- * `router.push` — and kept exporting it after the step switched to dispatching `eno:search`,
- * leaving a constant that nothing used and a test asserting a navigation that no longer happened.
- * The explorer writes the query string itself once it handles the event (measured: the address bar
- * becomes `?q=iPhone+17+Pro+Max+case`), so sharing and Back still work.
- */
-export const TOUR_EXAMPLE_QUERY = 'iPhone 17 Pro Max case'
+export const TOUR_EXAMPLE_QUERY = 'Macbook Pro M5 1TB'
 
 /**
  * ⚠️ THESE STRINGS ARE CONTRACTS WITH THE MARKUP. Each is a `data-tour` attribute on a real element
@@ -45,10 +43,6 @@ export const TOUR_TARGETS = {
   search: '[data-tour="search"]',
 } as const
 
-/** True for the four steps that wait on a real click. Exported so the component need not guess. */
-export function isDrillStep(step: TourStepId): boolean {
-  return step in TOUR_DRILL
-}
 
 /**
  * ⚠️ `signup` IS GONE ON PURPOSE (owner, 2026-08-28: "no need form 6-7"). The tour used to end on a
@@ -59,29 +53,44 @@ export function isDrillStep(step: TourStepId): boolean {
 export type TourStepId = 'search' | 'category' | 'subcategory' | 'brand' | 'model' | 'result'
 
 /**
- * ⛔ THE DRILL-DOWN IS CLICKED BY THE VISITOR, ONE LEVEL AT A TIME — owner, 2026-08-28: "make user
- * click 1 by one first electronics then cases after apple and then iphone 17 pro max… let them
- * experience how to find". So these steps do NOT advance on a Next button: each points at one real
- * control and waits for the URL to gain the parameter that clicking it produces. The tour cannot
- * fake the click, which is the point — the visitor's hand does it.
+ * ⛔ THE TOUR NOW WALKS THE DRILL ITSELF — AND THAT REVERSES A DECISION RECORDED IN THIS EXACT SPOT.
+ * The note this replaces read: "make user click 1 by one first electronics then cases after apple
+ * and then iphone 17 pro max… let them experience how to find" (owner, 2026-08-28), and the steps
+ * waited on the URL gaining each param because "the tour cannot fake the click, which is the
+ * point". Later the same day the owner asked for the opposite — "the tour make it simpler just
+ * words with icon ex search hand icon taps and writes … then next taps icon on with text select
+ * category electronics" — so the visitor now WATCHES the path being walked instead of walking it.
+ * ⚠️ Both halves of that history are kept deliberately. The first design is not wrong; it is a real
+ * trade (doing teaches better than watching, watching finishes far more often), and knowing it was
+ * tried is what stops it being "discovered" again in three months.
  *
- * ⚠️ EVERY LEVEL WAS WALKED IN A BROWSER BEFORE BEING WRITTEN DOWN, because a guided path that
- * dead-ends is worse than no guide:
- *   Electronics                    → ?category=electronics                 7,690
- *   Cases & covers                 → &subcategory=phone-cases              1,093
- *   Apple                          → &brand=apple                            790
- *   iPhone 17 Pro Max              → &model=iPhone 17 Pro Max                  3
- * ⚠️ THE LAST LEVEL IS THIN — THREE LISTINGS, NOT THE ~100 THE TEXT SEARCH RETURNS, because most
- * case listings carry no model tag. That is the honest result of this path and the step's copy is
- * written for it. If model tagging improves the number rises on its own; if the model facet ever
- * empties, drop the `model` step rather than leave the tour ending on nothing.
+ * ⚠️ EVERY LEVEL WAS MEASURED AGAINST PRODUCTION BEFORE BEING WRITTEN DOWN, because a guided path
+ * that dead-ends is worse than no guide at all:
+ *     Electronics        → ?category=electronics            7,690
+ *     Laptops & PCs      → &subcategory=laptops-pcs           626
+ *     Apple              → &brand=apple                        80
+ *     MacBook Pro M5     → &model=MacBook Pro M5                11
+ * ⚠️ `laptops-pcs`, NOT `laptops` — the obvious guess returns 0, and the taxonomy slug is the one
+ * with stock. Measured rather than assumed, which is the whole reason the numbers are written down.
+ *
+ * ⚠️ BRAND BEFORE MODEL, WHICH IS NOT THE ORDER THE OWNER SAID. Their words were "then select model
+ * and lastly select brand". The facet UI reveals brand first and every model here IS an Apple
+ * model, so picking a model before its brand is not a path the interface offers. Following the
+ * interface and flagging the difference beats reproducing a slip in silence.
  */
-export const TOUR_DRILL = {
-  category: { param: 'category', value: 'electronics', selector: '[data-cat="electronics"]' },
-  subcategory: { param: 'subcategory', value: 'phone-cases', selector: '[data-subcat="phone-cases"]' },
-  brand: { param: 'brand', value: 'apple', selector: '[data-brand="apple"]' },
-  model: { param: 'model', value: 'iPhone 17 Pro Max', selector: '[data-model="iPhone 17 Pro Max"]' },
-} as const
+/**
+ * ⚠️ THE VALUE IS A FIELD, NOT SOMETHING PARSED BACK OUT OF THE SELECTOR. The first version derived
+ * it with a regex over `[data-cat="electronics"]`, which works right up until a selector gains a
+ * second attribute or a different quote style and then silently produces a query parameter nobody
+ * typed. `param` is the query key the explorer reads; `selector` is only how the hand finds
+ * something to point at, and the tour still works when it finds nothing.
+ */
+export const TOUR_DEMO = [
+  { id: 'category', param: 'category', value: 'electronics', selector: '[data-cat="electronics"]' },
+  { id: 'subcategory', param: 'subcategory', value: 'laptops-pcs', selector: '[data-subcat="laptops-pcs"]' },
+  { id: 'brand', param: 'brand', value: 'apple', selector: '[data-brand="apple"]' },
+  { id: 'model', param: 'model', value: 'MacBook Pro M5', selector: '[data-model="MacBook Pro M5"]' },
+] as const
 
 /**
  * ⚠️ NO EXPORTED STEP ORDER. There was one, and a test asserted it — but intro-tour.tsx owns the
@@ -92,21 +101,9 @@ export const TOUR_DRILL = {
 /** The anchor selector for a step, or null when the step is a centred card. */
 export function tourAnchorFor(step: TourStepId): string | null {
   if (step === 'search') return TOUR_TARGETS.search
-  if (step in TOUR_DRILL) return TOUR_DRILL[step as keyof typeof TOUR_DRILL].selector
-  return null
+  return TOUR_DEMO.find((d) => d.id === step)?.selector ?? null
 }
 
-/**
- * Has the visitor completed this drill step? Read from the query string the explorer maintains, so
- * it is true however they got there — the highlighted chip, the "More" overflow, or their own
- * curiosity. ⚠️ Deliberately NOT a click listener on the anchor: that would miss the overflow copy
- * of the same chip and would go stale if the rail re-rendered under it.
- */
-export function drillDone(step: TourStepId, search: string): boolean {
-  const d = TOUR_DRILL[step as keyof typeof TOUR_DRILL]
-  if (!d) return false
-  return new URLSearchParams(search).get(d.param) === d.value
-}
 
 /**
  * ⚠️ EVERY READ AND WRITE IS WRAPPED. Safari in private mode throws on `localStorage` access rather

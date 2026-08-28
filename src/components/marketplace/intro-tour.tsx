@@ -6,557 +6,459 @@ import { Popover, PopoverContent } from '@/components/ui/popover'
 import { Button } from '@/components/ui/button'
 import { useLanguage } from '@/context/language-context'
 import { useAuth } from '@/context/auth-context'
-import { scrollBehavior } from '@/lib/reduced-motion'
+import { googleOauthBlocked } from '@/lib/in-app-browser'
+import { prefersReducedMotion, scrollBehavior } from '@/lib/reduced-motion'
+import { Search, Sparkles, Tag } from '@/components/ui/icons'
 import {
-  drillDone,
+  TOUR_DEMO,
+  TOUR_EXAMPLE_QUERY,
   hasSeenTour,
-  isDrillStep,
-  markTourSeen,
   markTourPending,
-  tourPending,
+  markTourSeen,
   tourAnchorFor,
+  tourPending,
   type TourStepId,
 } from '@/lib/intro-tour'
-
-/**
- * The first-run tour that starts when the intro/consent card closes.
- *
- * ⛔ NO BACKDROP, AND THIS IS NOT A STYLE CHOICE — READ cookie-consent.tsx BEFORE ADDING ONE. A
- * centred card over a `fixed inset-0` scrim cost THREE Google OAuth verification rejections
- * ("your home page is behind a login page"). A product tour is exactly the shape that tempts a
- * dimming overlay to make the highlighted element pop. The target gets a ring instead — see
- * `data-tour-active` in globals.css — and the page behind stays fully visible and clickable.
- *
- * ⚠️ IT RUNS ONCE, EVER, AND ONLY ON THE HOME PAGE. Both anchors live in the home header and rail;
- * on any other route the tour would point at nothing. A step whose anchor is missing is SKIPPED
- * rather than shown floating, so a layout change shortens the tour instead of breaking it.
- */
-
 
 /** Padding around the hole, so the ring the tour draws on the target is inside it, not blurred off. */
 const PAD = 8
 
-/** Everything the tour needs from one step, resolved per render so copy stays translated. */
+/**
+ * ⚠️ TIMINGS ARE THE WHOLE UX OF AN AUTO-PLAYING TOUR, so they are named rather than sprinkled.
+ * `SETTLE` is the pause after a step's action fires, before the next step begins — the results have
+ * to visibly change or the demonstration has demonstrated nothing. `READ` is how long a step's line
+ * stays up. `KEY` is the per-character typing interval.
+ * ⚠️ NOT TUNED TO A STOPWATCH — tuned to "can you read six words and see the grid change". If these
+ * are shortened, the tour stops being legible before it stops being fast.
+ */
+const READ_MS = 1500
+const SETTLE_MS = 1100
+const KEY_MS = 45
+
 type Step = {
   id: TourStepId
-  title: string
-  body: string
-  /** Label for the advance button; the last step's is the sign-up call to action. */
-  next: string
+  icon: React.ReactNode
+  /** ⛔ ONE LINE. Owner: "just words with icon". No paragraph, no title/body pair. */
+  line: string
 }
 
+/**
+ * FIRST-RUN TOUR — it DEMONSTRATES the app rather than asking the visitor to drive it.
+ *
+ * Owner, 2026-08-28: "the tour make it simpler just words with icon ex search hand icon taps and
+ * writes Macbook pro 16 inch m5 64GB 1TB with smooth text reveal inside search bar then next taps
+ * icon on with text select category electronics then similar select subcategory then select model
+ * and lastly select brand", and "sign up and save these should auto trigger google login".
+ *
+ * ⛔ THIS REVERSES THE PREVIOUS DESIGN, WHICH IS RECORDED IN src/lib/intro-tour.ts AND SHOULD STAY
+ * RECORDED. Earlier the same day the ask was the opposite — "make user click 1 by one … let them
+ * experience how to find" — and the steps waited on the URL gaining each parameter. Doing teaches
+ * better than watching; watching finishes far more often. Both are true, the owner has now picked,
+ * and knowing the other was tried is what stops it being rediscovered as a fresh idea later.
+ *
+ * ⛔ IT DRIVES THE APP'S OWN FILTER EVENT, NOT THE DOM. The obvious implementation of "the hand taps
+ * Electronics" is `el.click()` on the real chip, and two reviewers independently said don't: the
+ * rail fills in after its own fetch, so the chip may not be mounted when the step fires; it scrolls
+ * horizontally inside its own scroller; and `.click()` skips the pointer sequence some handlers key
+ * on. So each step dispatches `eno:apply-url` with the next parameter — the same event the
+ * notification bell's deep links and the header's brand picks use — and the explorer applies it
+ * exactly as it would a real tap. The hand still animates to the chip when it is there; when it is
+ * not, the step narrates and the app still moves, instead of stalling on an element that never came.
+ *
+ * ⚠️ `replace`, NOT `push`, so the visitor does not have to press Back six times to leave.
+ *
+ * ⛔ AND THE VISITOR CAN ALWAYS TAKE THE WHEEL. This is the thing an auto-playing tour gets wrong:
+ * it mutates a page nobody asked it to mutate. So a real click outside the card or any keypress
+ * ENDS it, and ending restores the URL the tour started from — but only while the tour still owns
+ * that URL, so a visitor who navigated themselves is never yanked backwards. Leaving four filters
+ * applied on a page someone was trying to escape is the anti-pattern both reviewers named.
+ */
 export function IntroTour() {
   const { tr } = useLanguage()
-  const { user, openSignIn } = useAuth()
+  const { user } = useAuth()
   const pathname = usePathname()
+
   const [index, setIndex] = useState<number | null>(null)
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null)
   /**
-   * The target's live viewport rect, re-read on scroll and resize. The mask is cut around it, so a
-   * stale rect would blur the very control the step is asking the reader to press.
+   * The target's live viewport rect, re-read every frame. The mask is cut around it and the hand is
+   * parked on it, so a stale rect blurs — and points at — the wrong thing.
    */
   const [hole, setHole] = useState<DOMRect | null>(null)
-  const [startedByClick, setStartedByClick] = useState(false)
 
   /**
-   * ⛔ MARKED SEEN AT THE START, NOT AT THE END — "runs once, ever" was false until this. The flag
-   * was written only on finish/skip/Esc, so reloading at step 3 brought step 1 back and a visitor
-   * who reloads a few times got the tour every single time with no way to stop it. Marking on start
-   * spends the one shot the moment it is taken, which is the honest reading of a first-run
-   * introduction. The trade: someone who reloads during step 1 loses the rest of it, which is the
-   * better failure than a walkthrough that cannot be escaped by leaving.
-   * ⚠️ IN THE COMPONENT BODY, NOT INSIDE THE START EFFECT, because two paths now call it: the
-   * consent card's event, and the parked-claim redeem keyed on `pathname`. See `byClick` below for
-   * why those two must not be treated the same.
+   * ⛔ A RUN ID, BECAUSE THIS TOUR SCHEDULES WORK IN THE FUTURE. Typing and step advancement are
+   * timers; Skip, Esc, a takeover click or leaving the page must make every timer already in flight
+   * a no-op. Comparing a captured id against this ref is the only thing that makes "stop" mean
+   * stopped rather than "stop after the next tick fires".
    */
-  /**
-   * ⛔ `byClick` IS BACK, AND REMOVING IT WAS A REAL REGRESSION I INTRODUCED. When the only way in
-   * was the consent card's button, focus had just been destroyed with the control that was clicked,
-   * so moving it into the tour card was the correct thing rather than a theft — and the flag looked
-   * dead. Parking the claim brought the other case back: the redeem path fires on a NAVIGATION to
-   * `/`, nobody has clicked anything, and pulling focus there can take the keyboard from someone
-   * already typing in the very search box step 1 points at (and close the suggestions panel its
-   * `onFocus` opened). A reviewer caught that the two changes interact. Keyboard reachability is
-   * preserved on the path that has it: started by click, the card takes focus; arrived at by
-   * navigation, it is left alone and the card stays reachable by Tab.
-   */
-  const begin = useCallback((byClick: boolean) => {
+  const runId = useRef(0)
+  /** The URL the tour found the visitor on, restored if they abandon it. */
+  const pristineUrl = useRef<string | null>(null)
+  /** True while every URL change since the tour began was the tour's own. */
+  const ownsUrl = useRef(false)
+  const cardRef = useRef<HTMLDivElement | null>(null)
+
+  const begin = useCallback(() => {
     markTourSeen()
-    setStartedByClick(byClick)
+    runId.current += 1
+    pristineUrl.current = window.location.pathname + window.location.search
+    ownsUrl.current = true
     setIndex(0)
   }, [])
 
   /**
-   * ⛔ THE UNANCHORED STEPS GET A VIRTUAL ANCHOR AT THE VIEWPORT CENTRE, and the first version's
-   * comment claimed they were centred when they were not. Passing `anchor={undefined}` does not
-   * centre anything — with no trigger to fall back on, the positioner simply KEEPS THE LAST
-   * ANCHOR'S PLACEMENT. Measured: steps 3 and 4 rendered at the coordinates the category rail had
-   * left behind (464, 534) rather than centred. Not offscreen, so it looked fine and was wrong for
-   * a reason nobody would find later — and it drifts the moment the previous anchor scrolls away.
-   * A virtual element is Base UI's documented way to position against a point rather than a node.
+   * ⚠️ THE UNANCHORED LAST STEP GETS A VIRTUAL ANCHOR AT THE VIEWPORT CENTRE. Passing
+   * `anchor={undefined}` does not centre anything — with no trigger to fall back on the positioner
+   * keeps its last position, so the card would sit wherever the previous step left it.
    */
   const centreAnchor = useMemo(
     () => ({
       getBoundingClientRect: () =>
-        new DOMRect(window.innerWidth / 2, window.innerHeight / 2, 0, 0),
+        new DOMRect(typeof window === 'undefined' ? 0 : window.innerWidth / 2, typeof window === 'undefined' ? 0 : window.innerHeight / 2, 0, 0),
     }),
     [],
   )
 
-  const allSteps: Step[] = useMemo(
+  /**
+   * ⚠️ ONE ICON AND ONE LINE PER STEP — the whole brief. The facet lines name the control AND the
+   * value ("Select category · Electronics") because the value is what makes it a demonstration
+   * rather than a label; the chip is highlighted at the same moment, so the two agree on screen.
+   */
+  const steps: Step[] = useMemo(
     () => [
       {
         id: 'search',
-        title: tr('Start by searching', 'Bắt đầu bằng tìm kiếm'),
-        body: tr(
-          'Type anything here — a model, a brand, or a few words in English or Vietnamese. Both languages find the same listings.',
-          'Nhập bất cứ điều gì — mẫu máy, thương hiệu, hoặc vài từ bằng tiếng Việt hay tiếng Anh. Cả hai ngôn ngữ đều ra cùng kết quả.',
-        ),
-        next: tr('Next', 'Tiếp'),
+        icon: <Search className="h-5 w-5 text-brand" aria-hidden />,
+        line: tr('Search anything', 'Tìm bất cứ thứ gì'),
       },
-      /**
-       * ⛔ FOUR STEPS THE VISITOR CLICKS THEMSELVES. Owner: "let them experience how to find". Each
-       * of these has NO next button — the tour waits for the real control to be used and moves on
-       * when the query string says it happened. The copy is an instruction, not a description.
-       */
       {
         id: 'category',
-        title: tr('Now narrow it down', 'Giờ thu hẹp lại'),
-        body: tr('Tap Electronics in the row below.', 'Chạm vào Điện tử ở hàng bên dưới.'),
-        next: '',
+        icon: <Tag className="h-5 w-5 text-brand" aria-hidden />,
+        line: tr('Category · Electronics', 'Danh mục · Đồ điện tử'),
       },
       {
         id: 'subcategory',
-        title: tr('Pick what kind', 'Chọn loại nào'),
-        body: tr('Electronics is broad. Tap “Cases & covers”.', 'Điện tử rất rộng. Chạm vào “Ốp lưng & bao da”.'),
-        next: '',
+        icon: <Tag className="h-5 w-5 text-brand" aria-hidden />,
+        line: tr('Type · Laptops & PCs', 'Loại · Laptop & PC'),
       },
       {
         id: 'brand',
-        title: tr('Then the brand', 'Rồi đến thương hiệu'),
-        body: tr('Tap Apple.', 'Chạm vào Apple.'),
-        next: '',
+        icon: <Tag className="h-5 w-5 text-brand" aria-hidden />,
+        line: tr('Brand · Apple', 'Hãng · Apple'),
       },
       {
         id: 'model',
-        title: tr('And the exact model', 'Và đúng mẫu máy'),
-        body: tr('Tap iPhone 17 Pro Max.', 'Chạm vào iPhone 17 Pro Max.'),
-        next: '',
+        icon: <Tag className="h-5 w-5 text-brand" aria-hidden />,
+        line: tr('Model · MacBook Pro M5', 'Mẫu · MacBook Pro M5'),
       },
       {
         id: 'result',
-        title: tr('That is how you find one thing', 'Đó là cách tìm đúng một thứ'),
-        body: tr(
-          'Four taps from everything to cases that fit one exact phone. The same four work for a laptop, a scooter or an apartment.',
-          'Bốn lần chạm từ tất cả đến ốp lưng vừa đúng một mẫu máy. Bốn bước đó cũng dùng cho laptop, xe máy hay căn hộ.',
-        ),
-        /**
-         * ⛔ THE TOUR ENDS HERE AND HANDS STRAIGHT TO THE POPUP — owner, 2026-08-28: "tour number 6
-         * already have popup open to login with google the login signup login fast no need form
-         * 6-7". There was a seventh step whose whole content was a sign-up pitch and whose button
-         * hard-navigated to `/auth/google/start`. Two things were wrong with it: it spent a step
-         * asking for a decision the popup asks for anyway, and it left the marketplace entirely on
-         * a full page load, so someone who changed their mind came back to nothing.
-         * ⚠️ THE GUEST LABEL LIVES HERE AND THE SIGNED-IN ONE IS SWAPPED IN AT RENDER — this memo
-         * must NOT depend on `user`. Keying it on the session rebuilds all six step objects the
-         * moment /api/me resolves, and `step` is a dependency of the anchor, scroll and mask
-         * effects: a guest on step 3 would see the page re-scroll and the spotlight re-measure
-         * under them for no reason. A reviewer traced it. Only a label varies, so only a label is
-         * computed late.
-         */
-        next: tr('Sign up to save these', 'Đăng ký để lưu tin'),
+        icon: <Sparkles className="h-5 w-5 text-brand" aria-hidden />,
+        line: tr('That is how you find one exact thing', 'Đó là cách tìm đúng một thứ'),
       },
     ],
     [tr],
   )
 
-  /**
-   * ⚠️ NOTHING IS FILTERED OUT ANY MORE, AND THE ALIAS IS KEPT ON PURPOSE. There used to be a
-   * sign-up step dropped for signed-in visitors — its button hard-navigated to
-   * /auth/google/start, which for an account created with an email link is an identity-LINKING
-   * round trip rather than a no-op, so showing it to a member was a real misfire. That step is
-   * gone; the session now only changes the last step's LABEL. `steps` stays as the name every
-   * index, clamp and `isLast` check reads, so this can become a filter again without touching them.
-   */
-  const steps = allSteps
-
-  /**
-   * ⚠️ CLAMPED. `steps` no longer shrinks — the session changes only the last step's LABEL now, not
-   * the list's length — so this can no longer fire, and it is kept deliberately rather than deleted:
-   * it is one `??` standing between a future filter and a popover that vanishes mid-sentence, which
-   * is exactly what a reviewer caught when a sign-up step WAS filtered out from under a guest who
-   * had just been recognised. Ending deliberately beats rendering a blank frame.
-   */
   const step = index === null ? null : (steps[index] ?? null)
+  const isLast = index !== null && index === steps.length - 1
 
-  useEffect(() => {
-    if (index !== null && index >= steps.length) finishRef.current()
-  }, [index, steps.length])
-
-  // ⚠️ A ref so the clamp effect above can call the latest `finish` without listing it as a
-  // dependency and re-running on every render.
   const finishRef = useRef<() => void>(() => {})
 
-  const finish = useCallback(() => {
-    markTourSeen()
-    setIndex(null)
-    setAnchorEl(null)
-  }, [])
+  /**
+   * ⚠️ `restore` IS THE DIFFERENCE BETWEEN LEAVING AND BEING LEFT SOMEWHERE. Finishing normally
+   * KEEPS the demonstrated results — the visitor watched them being found and the last step points
+   * at them. Abandoning restores the page they were on. Same function, opposite intent, so the
+   * caller says which.
+   */
+  const close = useCallback(
+    (restore: boolean) => {
+      runId.current += 1
+      markTourSeen()
+      setIndex(null)
+      setAnchorEl(null)
+      setHole(null)
+      if (restore && ownsUrl.current && pristineUrl.current) {
+        // Same door back out — see `go` for why the router cannot do this.
+        window.dispatchEvent(new CustomEvent('eno:apply-url', { detail: { url: pristineUrl.current } }))
+      }
+      ownsUrl.current = false
+      // Clear the demonstration text out of the search bar; it was never the visitor's.
+      if (restore) window.dispatchEvent(new CustomEvent('eno:search-preview', { detail: { text: '' } }))
+    },
+    [],
+  )
+  const finish = useCallback(() => close(false), [close])
   finishRef.current = finish
 
   // ── start: the intro card fires this when it closes, whatever the visitor chose ────────────────
-  // ⚠️ ON EITHER CHOICE. Starting the tour only after "Allow" would make the tour a reward for
-  // consenting, which is exactly the nudge PDPL/GDPR call out — consent has to be freely given, so
-  // it cannot buy a better product experience.
+  // ⚠️ ON EITHER CHOICE. Starting the tour only after "Allow" would make it a reward for consenting,
+  // which is exactly the nudge PDPL/GDPR call out — consent has to be freely given, so it cannot buy
+  // a better product experience.
   useEffect(() => {
     /**
-     * ⛔ THE HOME PAGE IS THE ONLY PLACE IT CAN RUN, AND THAT USED TO COST THE TOUR ENTIRELY.
-     * `CookieConsent` is global and fires this event wherever the visitor happens to be, while the
-     * tour's anchors are the header search box and the category rail. The first version simply
-     * returned off-home — and its comment claimed the flag stayed unmarked "so it runs on their
-     * next visit to `/`", which was never true: consent is stored by then, the card never reopens,
-     * and nothing else fires the event. Anyone whose first page was a shared listing link or a
-     * search result lost the tour permanently. It is parked now; see `markTourPending`.
+     * ⛔ THE HOME PAGE IS THE ONLY PLACE IT CAN RUN, AND OFF IT THE CLAIM IS PARKED RATHER THAN
+     * DROPPED. `CookieConsent` is global and fires this wherever the visitor is; the tour's anchors
+     * are the header search box and the category rail. Returning early off-home lost the tour
+     * permanently for everyone who arrived on a shared listing link — consent is stored by then and
+     * the card never reopens to fire it again.
      */
     const start = () => {
       if (hasSeenTour()) return
-      if (window.location.pathname === '/') begin(true)
+      if (window.location.pathname === '/') begin()
       else markTourPending()
     }
     window.addEventListener('eno:start-tour', start)
-    /**
-     * ⛔ THE CONSENT CARD IS THE ONLY THING THAT STARTS THIS — owner, 2026-08-28: "onboarding tour
-     * should fire only once when user passes through cookie screen not every time page reloads".
-     * There WAS a second path here that also began the tour on mount for anyone who already had
-     * consent stored and no tour flag. It existed to reach visitors who had answered the card
-     * before the tour shipped, and it is what made the tour able to appear on a load nobody asked
-     * for: any state where the flag failed to stick — private mode, cleared site data, storage
-     * denied — turned every home-page visit into a fresh tour, with the card nowhere in sight to
-     * explain why. Tying the tour to the one event that fires exactly once makes "only once" a
-     * property of WHEN it starts rather than a promise the flag has to keep.
-     * ⚠️ THE TRADE, STATED: someone who dismissed the cookie card before the tour existed will
-     * never see the tour. That is the owner's call and the right one — a walkthrough is worth
-     * having on your first minute and is an interruption on your fiftieth.
-     * ⚠️ `markTourSeen()` on `begin` still matters, and the cookie mirror behind it more so: it is
-     * what stops a reload MID-TOUR from restarting at step 1.
-     */
     return () => window.removeEventListener('eno:start-tour', start)
-  }, [])
+  }, [begin])
 
   /**
-   * ⛔ AND THE PARKED CLAIM IS REDEEMED WHENEVER THE VISITOR REACHES `/` — KEYED ON `pathname`, NOT
-   * ON MOUNT. This started life inside the effect above, and a reviewer caught what that costs: the
-   * app is a SPA and this component's layout does not unmount, so tapping the header logo to go
-   * home changes the URL and runs no mount effect at all. The claim would sit unredeemed until a
-   * hard reload — precisely the wrong visitor to ask that of, since they arrived on a shared
-   * listing link and are navigating, not reloading. Reading `window.location.pathname` once was the
-   * tell: a value read imperatively at mount cannot see a route change.
-   * ⚠️ STILL A ONE-SHOT, which is the whole constraint. `markTourSeen()` writes `done` before the
-   * tour opens, so `tourPending()` is false on every later run of this effect and on every later
-   * navigation. Nothing here can replay it.
+   * ⛔ THE PARKED CLAIM IS REDEEMED WHENEVER THE VISITOR REACHES `/` — KEYED ON `pathname`, NOT ON
+   * MOUNT. The app is a SPA and this component's layout does not unmount, so tapping the header
+   * logo to go home runs no mount effect at all; the claim would sit unredeemed until a hard
+   * reload, which is the wrong thing to ask of someone who is navigating rather than reloading.
+   * ⚠️ STILL A ONE-SHOT: `begin()` writes `done` before the first step opens.
    */
   useEffect(() => {
-    if (pathname === '/' && tourPending() && !hasSeenTour()) begin(false)
-  }, [pathname])
+    if (pathname === '/' && tourPending() && !hasSeenTour()) begin()
+  }, [pathname, begin])
 
   /**
-   * ⚠️ RESOLVE THE ANCHOR AFTER PAINT, AND RE-RESOLVE ON EVERY STEP. The header and rail mount with
-   * the page, but the rail in particular fills in after its fetch, so querying once at start would
-   * miss it. A step whose element is absent is skipped rather than rendered unanchored.
-   */
-  useEffect(() => {
-    if (!step) return
-    const selector = tourAnchorFor(step.id)
-    if (!selector) { setAnchorEl(null); return }
-    /**
-     * ⚠️ RETRY BEFORE GIVING UP. The rail fills in after its own fetch, so a single query at the
-     * moment the step opens loses the race on a slow first load and silently skips step 2 — the
-     * comment above named that race and the first version did not actually handle it (reviewer's
-     * catch). Ten frames at 100ms is a second of patience, invisible when the element is already
-     * there and enough for a rail that is still loading.
-     */
-    let tries = 0
-    let el = document.querySelector<HTMLElement>(selector)
-    const attach = (found: HTMLElement) => {
-      setAnchorEl(found)
-      found.setAttribute('data-tour-active', '')
-      found.scrollIntoView({ block: 'center', behavior: scrollBehavior() })
-    }
-    if (!el) {
-      // ⚠️ REMEMBER THE NODE WE MARKED. The cleanup used to re-query the selector, so if the rail
-      // remounted — the very reason this poll exists — the ring was stripped from whichever element
-      // matched second and left burning on the first. Reviewer's catch.
-      let marked: HTMLElement | null = null
-      const poll = setInterval(() => {
-        el = document.querySelector<HTMLElement>(selector)
-        if (el) { clearInterval(poll); marked = el; attach(el) }
-        else if (++tries >= 10) {
-          clearInterval(poll)
-          /**
-           * Out of patience: move on rather than point at nothing.
-           * ⚠️ THE SIDE EFFECT IS OUTSIDE THE UPDATER. `setIndex(i => (…, markTourSeen(), …))` reads
-           * naturally and is wrong: React double-invokes updaters under StrictMode, so the write
-           * would run twice — harmless here, but the habit is how a real double-submit gets shipped.
-           * A reviewer flagged it; `finish()` already does both things in the right order.
-           */
-          // ⚠️ Only the first two steps are anchored, so a poll timeout can never be the LAST step
-          // — an earlier version carried a `markTourSeen()` here for that case, which could not
-          // fire and duplicated what `finish()` already does. A reviewer called it dead; it is.
-          setIndex((i) => (i === null ? null : i + 1))
-        }
-      }, 100)
-      return () => { clearInterval(poll); marked?.removeAttribute('data-tour-active') }
-    }
-    setAnchorEl(el)
-    // ⚠️ Bring it into view before pointing at it — the rail sits below the fold on a phone.
-    // ⚠️ `scrollBehavior()`, NOT a literal 'smooth': an explicit behavior in the options bag
-    // outranks the `scroll-behavior: auto !important` kill switch in globals.css, so the literal
-    // would ignore prefers-reduced-motion while looking as though it respected it. design-lint
-    // caught exactly that here.
-    attach(el)
-    const settled = el
-    return () => settled.removeAttribute('data-tour-active')
-  }, [step, steps.length])
-
-  /**
-   * ⛔ THE MASK'S HOLE HAS TO TRACK THE TARGET, NOT A REMEMBERED RECTANGLE. The rail scrolls, the
-   * page scrolls, phones rotate — a hole measured once drifts off the control and ends up blurring
-   * and blocking the thing the step just told the reader to tap. `scroll` is captured so it also
-   * fires for the RAIL's own scroller, not just the window.
-   */
-  useEffect(() => {
-    setHole(null)
-    if (!anchorEl) return
-    /**
-     * ⛔ A FRAME LOOP, NOT SCROLL LISTENERS — and the listener version shipped a visible bug.
-     * `attach()` calls `scrollIntoView` on the target, so the element is still MOVING when the hole
-     * is first measured. Listening for `scroll` (even captured, so the rail's own scroller counts)
-     * did not converge: measured on step 3, the hole was cut at the chip's pre-scroll position
-     * (left ≈ 324) while the chip had settled at 119, so the mask covered the very control the step
-     * was telling the reader to tap — reported as clickable in one probe and BLOCKED in another,
-     * which is exactly what a race looks like from the outside.
-     * ⚠️ A loop is immune to WHY the rect moved: smooth scrolling, a late image, a rotation, the
-     * rail re-rendering. It reads one `getBoundingClientRect` per frame while a step is open and
-     * calls `setHole` ONLY when the numbers actually change, so a settled target costs one cheap
-     * read per frame and no renders at all.
-     */
-    let raf = 0
-    let last = ''
-    /**
-     * ⛔ AND IT KEEPS THE TARGET IN VIEW, BECAUSE SCROLLING TO IT ONCE IS NOT ENOUGH. `attach()`
-     * scrolls the anchor into view the moment it resolves — and then the page keeps moving under
-     * it. The rail's images and counts arrive after the scroll, the explorer swaps placeholder
-     * cards for real ones, a font settles: each one shifts the control the step is pointing at,
-     * and on a phone that is the difference between "tap Electronics" landing on the chip and
-     * landing on nothing. Reported by the owner as the tour not scrolling to the button at all.
-     * The frame loop already knows where the target IS; this makes it act on that.
-     *
-     * ⚠️ TWO GUARDS, BECAUSE AN AUTO-SCROLL THAT FIGHTS THE READER IS WORSE THAN NO AUTO-SCROLL.
-     *   · IT STOPS AT THE FIRST REAL GESTURE. `touchstart`/`wheel`/`keydown`/`pointerdown` are
-     *     user intent and
-     *     are never produced by programmatic scrolling, so they cleanly separate "the page moved
-     *     under us" from "they are looking around" — a plain `scroll` listener cannot, because our
-     *     own smooth scroll fires those too, which is how this kind of fix becomes a scroll fight.
-     *     ⚠️ `pointerdown` is in the list for the DESKTOP scrollbar drag, which a reviewer spotted
-     *     produces none of the other three. It also fires when the visitor taps the target itself,
-     *     which is the right outcome — they have found it, so there is nothing left to correct.
-     *   · IT IS A WINDOW, NOT A LEASH. Corrections stop after CORRECT_MS whatever happens, so the
-     *     worst case is a couple of seconds of settling and never a page that refuses to be
-     *     scrolled away from.
-     * ⚠️ AND IT GIVES UP IF IT IS NOT WORKING: a target that cannot reach the band — a short page,
-     * an element taller than the gap between the header and the card — would otherwise re-scroll
-     * on every tick to no effect. If a correction does not move the page, that was the last one.
-     */
-    const CORRECT_MS = 2500
-    const CORRECT_GAP = 400
-    let correctUntil = performance.now() + CORRECT_MS
-    let lastCorrection = 0
-    let scrollAtCorrection = -1
-    const stopCorrecting = () => { correctUntil = 0 }
-    /**
-     * ⛔ A TARGET INSIDE THE FIXED HEADER IS NEVER OUT OF VIEW, AND CORRECTING IT IS ALL COST. The
-     * band test asks whether the target sits below the header's bottom edge — which is false BY
-     * CONSTRUCTION for the header's own search box, step 1's anchor. So the loop would read "out of
-     * view" on a control that is permanently visible and scroll the page trying to fix it. A
-     * reviewer caught it. The give-up check happens to contain the damage (the first correction
-     * moves nothing when the page is already at the top, so the second stops), but "saved by an
-     * unrelated guard" is not the same as correct: from a scrolled position it would yank the page
-     * to the top for no reason at all.
-     */
-    if (anchorEl.closest('#app-header')) correctUntil = 0
-    window.addEventListener('touchstart', stopCorrecting, { passive: true })
-    window.addEventListener('wheel', stopCorrecting, { passive: true })
-    window.addEventListener('keydown', stopCorrecting)
-    window.addEventListener('pointerdown', stopCorrecting, { passive: true })
-
-    const tick = () => {
-      const r = anchorEl.getBoundingClientRect()
-      const key = `${r.top}|${r.left}|${r.width}|${r.height}`
-      if (key !== last) { last = key; setHole(r) }
-      const now = performance.now()
-      if (now < correctUntil && now - lastCorrection > CORRECT_GAP) {
-        // ⚠️ The header is FIXED and overlaps the top of the page, so "visible" is not `top >= 0`
-        // — a chip tucked under the header is on screen and untappable. Measured live rather than
-        // hardcoded: the header has three geometries and picks one by scroll position.
-        const headerBottom = document.getElementById('app-header')?.getBoundingClientRect().bottom ?? 0
-        // ⚠️ The lower bound leaves room for the tour card, which opens BELOW the target, and for
-        // the bottom nav. It only has to be good enough to DETECT a bad position; `block: 'center'`
-        // is what actually chooses where the target lands.
-        const safeBottom = window.innerHeight * 0.62
-        if (r.top < headerBottom + PAD || r.bottom > safeBottom) {
-          if (scrollAtCorrection === Math.round(window.scrollY)) correctUntil = 0
-          else {
-            lastCorrection = now
-            scrollAtCorrection = Math.round(window.scrollY)
-            anchorEl.scrollIntoView({ block: 'center', behavior: scrollBehavior() })
-          }
-        }
-      }
-      raf = requestAnimationFrame(tick)
-    }
-    raf = requestAnimationFrame(tick)
-    return () => {
-      cancelAnimationFrame(raf)
-      window.removeEventListener('touchstart', stopCorrecting)
-      window.removeEventListener('wheel', stopCorrecting)
-      window.removeEventListener('keydown', stopCorrecting)
-      window.removeEventListener('pointerdown', stopCorrecting)
-    }
-  }, [anchorEl])
-
-  /**
-   * ⛔ THE TOUR ENDS IF THE VISITOR LEAVES THE HOME PAGE — except for the navigation IT performs.
-   * Without this, tapping a listing card mid-tour leaves a popover pointing at an element that no
-   * longer exists on the new route. The example step navigates within `/`, so the pathname does not
-   * change and this does not fire for it.
+   * ⛔ THE TOUR ENDS IF THE VISITOR LEAVES THE HOME PAGE. Its anchors live here, and a card pointing
+   * at an element on another route is worse than no card. The demo changes only the query string,
+   * never the pathname, so this does not fire for its own steps.
    */
   useEffect(() => {
     if (index !== null && pathname !== '/') finish()
   }, [pathname, index, finish])
 
   /**
-   * ⛔ THE DRILL STEPS ADVANCE ON THE VISITOR'S CLICK, NOT ON A BUTTON. Each one names a control and
-   * waits for the query string to gain the parameter that using it produces. Polling rather than a
-   * listener is deliberate: the explorer updates the URL with `history.pushState`, which fires no
-   * event, and the chip the visitor actually taps may be the copy inside the "More" overflow rather
-   * than the one being pointed at. Reading the URL is true however they got there.
-   * ⚠️ 250ms is under the threshold where a confirmation feels laggy and costs nothing — it runs
-   * only while a drill step is open.
+   * ⛔ THE VISITOR TAKES OVER AND THE TOUR GETS OUT OF THE WAY. An auto-playing sequence that keeps
+   * driving while someone is trying to use the page is the failure both reviewers led with, so a
+   * real click outside the card, or any keypress, ends it AND hands back the URL it borrowed.
+   * ⚠️ `click`, NOT `pointerdown`/`touchstart`. On a phone a scroll BEGINS with a touch, so a
+   * pointer-level listener would end the tour the moment anyone scrolled to see what it was talking
+   * about. A click is a completed intent; scrolling never produces one.
    */
-  useEffect(() => {
-    // ⚠️ ONLY THE WAITING STEPS POLL. The first version's guard read `!drillDone(step.id, '?')`,
-    // which is false for every step — so a 250ms interval also spun on the three steps that have a
-    // button and could never satisfy it. It did no harm and read as if it meant something, which is
-    // worse. `isDrillStep` says the thing out loud.
-    if (!step || !isDrillStep(step.id)) return
-    // ⚠️ CHECK IMMEDIATELY, THEN POLL. A visitor can arrive with the parameter already set — a
-    // shared filter link, or Back from a listing — and that step is then already satisfied.
-    if (drillDone(step.id, window.location.search)) { setIndex((i) => (i === null ? null : i + 1)); return }
-    const t = setInterval(() => {
-      if (drillDone(step.id, window.location.search)) {
-        clearInterval(t)
-        setIndex((i) => (i === null ? null : i + 1))
-      }
-    }, 250)
-    return () => clearInterval(t)
-  }, [step])
-
-  // Esc leaves at any point, and leaving counts as seen — nobody wants it again tomorrow.
   useEffect(() => {
     if (index === null) return
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') finish() }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [index, finish])
-
-  if (!step) return null
-
-  const isLast = index !== null && index === steps.length - 1
-  // ⚠️ Swapped in at render rather than baked into the step — see the note on the last step's
-  // `next`. A member is not offered a sign-up; everything else about the step is the same.
-  const nextLabel = isLast && user ? tr('Got it', 'Đã hiểu') : step.next
-
-  const advance = () => {
-    if (isLast) {
-      /**
-       * ⛔ CLOSE THE TOUR, THEN OPEN THE ONE POPUP — never a navigation. This used to send the
-       * visitor to `/auth/google/start` (or `/signin` inside an in-app browser, via
-       * `googleOauthBlocked()`), which meant the tour's reward for reaching the end was leaving the
-       * marketplace on a full page load. The popup keeps them exactly where they are, on the search
-       * results the tour just taught them to produce.
-       * ⚠️ THE IN-APP-BROWSER FALLBACK IS NOT LOST, IT MOVED TO WHERE IT BELONGS. `SignInForm` —
-       * which the popup renders — already makes that same check and owns the whole story (system
-       * browser hand-off, native deep links, first-party fallback). Repeating it here was always a
-       * second copy of a decision that has one right home.
-       * ⚠️ AND THE OPEN IS DEFERRED A FRAME, WHICH `finish()` ALONE DOES NOT BUY. Both calls are
-       * state updates in one handler, so React batches them into a single commit: the popover
-       * unmounts and the dialog mounts together, and Base UI restores focus as the popover goes —
-       * which can pull focus out of the freshly-opened dialog and onto the tile behind the scrim,
-       * leaving it untrapped and, on iOS, with no keyboard for the email field. A reviewer caught
-       * that the ordering the first version claimed was not the ordering it got. One frame is
-       * enough for the unmount and its focus restore to land first.
-       */
-      finish()
-      if (!user) requestAnimationFrame(() => openSignIn())
-      return
+    /**
+     * ⚠️ THE LAST STEP DOES NOT RESTORE, AND THAT IS NOT AN INCONSISTENCY. Everywhere else a
+     * takeover means "I did not ask for this", so the borrowed URL goes back. On the closing step
+     * the demonstration is finished and the results ARE the thing being pointed at — "Sign up to
+     * save these" refers to them. Restoring there would clear the filters out from under a visitor
+     * who is about to press that button, and hand its `next=` a page that no longer shows what it
+     * promised. A reviewer traced it.
+     */
+    const takeOver = (e: Event) => {
+      const t = e.target as Node | null
+      if (t && cardRef.current?.contains(t)) return
+      close(!isLast)
     }
-    setIndex((i) => (i === null ? null : i + 1))
+    const onKey = (e: KeyboardEvent) => {
+      /**
+       * ⛔ NOT WHEN THE KEY IS MEANT FOR THE CARD, WHICH THE FIRST VERSION GOT WRONG AND A REVIEWER
+       * CAUGHT. `e.key.length === 1` is true for SPACE — so a keyboard visitor tabbing to "Sign up
+       * to save these" and pressing Space fired this listener first, closed the tour, and the
+       * button's own handler never ran. The one control the last step exists for was reachable
+       * only with a mouse. Esc is deliberately NOT excluded: leaving is leaving, wherever focus is.
+       */
+      if (e.key !== 'Escape' && cardRef.current?.contains(e.target as Node)) return
+      // Everything else at the window level is the visitor starting to type or navigate.
+      if (e.key === 'Escape' || e.key.length === 1 || e.key === 'Backspace') close(!isLast)
+    }
+    window.addEventListener('click', takeOver, true)
+    window.addEventListener('keydown', onKey)
+    return () => {
+      window.removeEventListener('click', takeOver, true)
+      window.removeEventListener('keydown', onKey)
+    }
+  }, [index, isLast, close])
+
+  /**
+   * ⚠️ RESOLVE THE ANCHOR AFTER PAINT, AND RE-RESOLVE ON EVERY STEP. The rail fills in after its own
+   * fetch, so querying once at start would miss it. A step whose element never arrives is NOT
+   * skipped any more — the demo drives the URL, so it still works; the hand simply has nothing to
+   * point at and the mask stays out of the way.
+   */
+  useEffect(() => {
+    if (!step) return
+    const selector = tourAnchorFor(step.id)
+    if (!selector) { setAnchorEl(null); return }
+    let tries = 0
+    let marked: HTMLElement | null = null
+    const attach = (found: HTMLElement) => {
+      marked = found
+      setAnchorEl(found)
+      found.setAttribute('data-tour-active', '')
+      // ⚠️ `scrollBehavior()`, NOT a literal 'smooth': an explicit behavior in the options bag
+      // outranks the `scroll-behavior: auto !important` kill switch in globals.css, so the literal
+      // would ignore prefers-reduced-motion while looking as though it respected it.
+      found.scrollIntoView({ block: 'center', inline: 'center', behavior: scrollBehavior() })
+    }
+    const el = document.querySelector<HTMLElement>(selector)
+    if (el) { attach(el); return () => el.removeAttribute('data-tour-active') }
+    const poll = setInterval(() => {
+      const late = document.querySelector<HTMLElement>(selector)
+      if (late) { clearInterval(poll); attach(late) }
+      else if (++tries >= 12) clearInterval(poll)
+    }, 100)
+    // ⚠️ REMEMBER THE NODE WE MARKED. Re-querying the selector in cleanup meant that if the rail
+    // remounted — the very reason this poll exists — the ring was stripped from whichever element
+    // matched second and left burning on the first.
+    return () => { clearInterval(poll); marked?.removeAttribute('data-tour-active') }
+  }, [step])
+
+  /**
+   * ⛔ THE MASK'S HOLE TRACKS THE TARGET EVERY FRAME, NOT ONCE. The rail scrolls, the page scrolls,
+   * results load and push things down; a rect measured once drifts off the control and ends up
+   * blurring — and pointing at — the wrong thing. A loop is immune to WHY it moved, and it calls
+   * `setHole` only when the numbers actually change, so a settled target costs one cheap read per
+   * frame and no renders at all.
+   */
+  useEffect(() => {
+    setHole(null)
+    if (!anchorEl) return
+    let raf = 0
+    let last = ''
+    const tick = () => {
+      const r = anchorEl.getBoundingClientRect()
+      const key = `${r.top}|${r.left}|${r.width}|${r.height}`
+      if (key !== last) { last = key; setHole(r) }
+      raf = requestAnimationFrame(tick)
+    }
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
+  }, [anchorEl])
+
+  /**
+   * ⛔ THE STEP MACHINE. Each step: let its line be read, perform its action, let the results
+   * settle, advance. Every timeout is checked against the run id it was scheduled under, so Skip,
+   * Esc, a takeover or a route change makes work already in flight a no-op rather than something
+   * that lands a second later on a page the tour no longer owns.
+   * ⚠️ THE ACTION IS A URL, and the URL is cumulative: each step adds one parameter to the last, so
+   * the visitor watches the result count fall the way it would if they were tapping. Measured
+   * against production before it was written: 25 → 25 → 25 → 25 → 8. It ends on real listings,
+   * which is the rule this file has carried from the start.
+   */
+  useEffect(() => {
+    if (index === null || !step) return
+    const my = runId.current
+    const alive = () => runId.current === my
+    const timers: ReturnType<typeof setTimeout>[] = []
+    const later = (fn: () => void, ms: number) => { timers.push(setTimeout(() => { if (alive()) fn() }, ms)) }
+
+    /**
+     * ⛔ THE SEARCH STEP AND THE FACET STEPS ARE TWO SEPARATE DEMONSTRATIONS, AND MIXING THEM PUT
+     * THREE THINGS ON SCREEN THAT DISAGREED. The first version carried `q` through every step. The
+     * explorer treats a plain `?q=` as a RAW TEXT search by convention (its own comment says so) and
+     * drops it once facets arrive, so the measured result was: the search bar still showing "Macbook
+     * Pro M5 1TB", the URL still carrying it, and the count showing 7,690 — the category total,
+     * ignoring the query entirely. A demonstration cannot have its own three surfaces contradict
+     * each other.
+     * ⚠️ So the text search IS the first step and ends with it; the facet walk is the second thing
+     * being shown, and it starts from a clean bar. The bar is cleared at the same moment, below.
+     */
+    const params = new URLSearchParams()
+    if (step.id === 'search') params.set('q', TOUR_EXAMPLE_QUERY)
+    for (const d of TOUR_DEMO) {
+      const at = steps.findIndex((s) => s.id === d.id)
+      if (at !== -1 && at <= index) params.set(d.param, d.value)
+    }
+
+    /**
+     * ⛔ `eno:apply-url`, NOT `router.replace` — AND THE ROUTER VERSION SHIPPED A TOUR THAT
+     * DEMONSTRATED NOTHING. It wrote the right query string and the address bar looked perfect;
+     * measured on a real build, the grid behind the card still read "10,020 listings" and the rail
+     * still showed every category, because the EXPLORER owns this URL. It maintains the query
+     * string itself with `history.pushState` and reads changes from `popstate` — which a Next
+     * client-side replace does not fire — so a router write is a URL the app never looks at again.
+     * A demonstration whose demonstration does not happen is worse than no tour.
+     * ⚠️ THIS IS THE APP'S OWN DOOR, not one opened for the tour: the notification bell's deep links
+     * and the header's brand picks both apply filters this way. Using it means the tour produces
+     * exactly the state a real interaction produces, which is the entire point of demonstrating.
+     */
+    const go = () => {
+      if (!alive()) return
+      ownsUrl.current = true
+      window.dispatchEvent(new CustomEvent('eno:apply-url', { detail: { url: `/?${params.toString()}` } }))
+    }
+
+    const advance = () => setIndex((i) => (i === null || i >= steps.length - 1 ? i : i + 1))
+
+    if (step.id === 'search') {
+      /**
+       * ⛔ THE TEXT IS REVEALED IN THE REAL SEARCH BAR, via `eno:search-preview`, which header.tsx
+       * listens for. The alternatives were faking a bar over the real one, or fighting React for a
+       * controlled input's value; a four-line listener beats both.
+       * ⚠️ NO FOCUS IS TAKEN. Focusing would open the suggestions panel over the very results this
+       * is about to produce, and on a phone would raise the keyboard.
+       * ⚠️ WHOLE-STRING UNDER REDUCED MOTION. A character-by-character reveal IS motion; the step
+       * still dwells the same length so the pacing does not change, only the animation.
+       */
+      const type = (n: number) => {
+        if (!alive()) return
+        window.dispatchEvent(new CustomEvent('eno:search-preview', { detail: { text: TOUR_EXAMPLE_QUERY.slice(0, n) } }))
+        if (n < TOUR_EXAMPLE_QUERY.length) later(() => type(n + 1), KEY_MS)
+        else later(() => { go(); later(advance, SETTLE_MS) }, READ_MS)
+      }
+      if (prefersReducedMotion()) {
+        window.dispatchEvent(new CustomEvent('eno:search-preview', { detail: { text: TOUR_EXAMPLE_QUERY } }))
+        later(() => { go(); later(advance, SETTLE_MS) }, READ_MS)
+      } else {
+        later(() => type(1), 450)
+      }
+    } else if (!isLast) {
+      // ⚠️ The bar is emptied as the facet walk begins — see the note on `params`. Doing it here
+      // rather than once at the start means the typed query stays visible for the whole of its own
+      // step, which is the step it is demonstrating.
+      if (step.id === 'category') window.dispatchEvent(new CustomEvent('eno:search-preview', { detail: { text: '' } }))
+      later(() => { go(); later(advance, SETTLE_MS) }, READ_MS)
+    }
+
+    return () => { timers.forEach(clearTimeout) }
+    // ⚠️ `index` alone: `step` and `steps` are derived from it, and listing them would re-run the
+    // machine (restarting the typing) on every unrelated re-render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [index])
+
+  /**
+   * ⛔ THE LAST STEP GOES STRAIGHT TO GOOGLE — owner: "sign up and save these should auto trigger
+   * google login". It briefly opened the in-app sign-in popup instead; that was my change and the
+   * owner reversed it.
+   * ⚠️ REUSE THE EXISTING GUARD RATHER THAN THE RAW ROUTE. `/auth/google/start` is fine in a normal
+   * browser and dead inside an in-app browser (Facebook/Zalo webviews), which is what
+   * `googleOauthBlocked()` detects — the same check sign-in-form.tsx makes. When it is blocked the
+   * visitor goes to /signin, which owns the whole fallback story.
+   * ⚠️ AND `next` IS THE RESULTS THEY WERE JUST SHOWN, not `/`. Signing in to save "these" and
+   * landing on an unfiltered home page loses the very things the sentence was pointing at.
+   */
+  const signUp = () => {
+    const back = encodeURIComponent(window.location.pathname + window.location.search)
+    markTourSeen()
+    window.location.href = googleOauthBlocked() ? `/signin?next=${back}` : `/auth/google/start?next=${back}`
   }
 
+  if (index === null || !step) return null
+
   /**
-   * ⛔ FOUR PANELS AROUND THE TARGET, NOT ONE OVERLAY WITH A CSS HOLE. The mask has two jobs —
-   * blur everything that is not the subject, and make everything that is not the subject
-   * unclickable — and four rectangles do both for free: the gap between them is not covered by
-   * anything, so the control underneath keeps its own sharpness AND its own clicks with no
-   * `pointer-events` juggling. A single overlay with a `clip-path` hole would still swallow the
-   * press, which is exactly what the guided steps need the reader to be able to make.
-   * ⚠️ 8px of padding so the ring around the target is inside the hole rather than blurred off.
-   * ⚠️ On the two centred steps there is no target, so one full-viewport panel covers everything —
-   * nothing to press but the card.
+   * ⛔ FOUR PANELS AROUND THE TARGET, NOT ONE OVERLAY WITH A CSS HOLE. The mask has two jobs — demote
+   * everything that is not the subject, and leave the subject itself alone — and four rectangles do
+   * both for free: the gap between them is covered by nothing, so the control underneath keeps its
+   * own sharpness and its own clicks with no `pointer-events` juggling.
+   * ⚠️ On the last step there is no target, so one full-viewport panel covers everything.
    * ⛔ THE DIM MATCHES `.overlay-scrim`, the backdrop under every popover in the app, because both
-   * demote the page for the same reason. The `material` marker is what `.reduce-transparency` keys
-   * off: a reader who asks for less transparency loses the BLUR and gets a deeper — but still
-   * translucent — scrim, since a mask that goes opaque hides the page it is explaining. Blur is not
-   * motion, so `prefers-reduced-motion` deliberately does not touch it.
-   */
-  /**
-   * ⛔ THE TINT AND THE BLUR LIVE IN `.tour-mask` IN globals.css, NOT IN UTILITIES HERE, and that
-   * is a fix rather than a preference. As `bg-black/40 material backdrop-blur-md` these panels
-   * were also matched by the two blocks that force `.material.bg-black\/40` to `#000` — measured
-   * on an iPhone viewport with `prefers-contrast: more`, every panel came back `rgb(0, 0, 0)`
-   * with the blur stripped, so four opaque rectangles around a small hole turned the whole page
-   * black. That is right for a floating bar with text on it and wrong for a mask, whose only job
-   * is to keep the page visible-but-demoted; the CSS file explains the split at length.
-   * ⚠️ `material` STAYS. It is still a translucent surface and must still declare itself — the
-   * marker is what `.reduce-transparency` keys off, and design-lint requires it beside a blur.
-   * Only the two values moved.
+   * demote the page for the same reason. `material` is what `.reduce-transparency` keys off: a
+   * reader who asks for less transparency loses the BLUR and gets a deeper — but still translucent —
+   * scrim, since a mask that goes opaque hides the page it is explaining.
    */
   const panel = 'fixed material tour-mask'
-  /**
-   * ⚠️ THE SIDE PANELS ARE CLAMPED TO THE VISIBLE PART OF THE HOLE, and the unclamped version had
-   * a real artefact. When the target is scrolled partly above the fold, `hole.top` goes negative:
-   * the sides then started at 0 but kept the full height, so they ran past where the bottom panel
-   * begins and two `bg-black/40` layers with two blurs stacked into a visibly darker band beside
-   * and under the highlighted control. Deriving top and bottom from the clamped edges keeps every
-   * panel edge-to-edge with its neighbour and never overlapping.
-   */
-  /**
-   * ⛔ AN ANCHORED STEP WITH NO MEASURED HOLE DRAWS NO MASK AT ALL — this is the fix for a real
-   * one-frame bug, not caution. The rect is read in an effect, so the first paint after a step
-   * change has no hole yet; falling back to the full-viewport panel there covered the very control
-   * the new step was about to point at, and a fast tap in that window landed on a handler-less
-   * blurred div and made the tour look dead. Showing nothing for one frame is invisible; showing
-   * the wrong thing is a dead tap. The full panel is only for the steps that genuinely have no
-   * target — `result` and `signup` — where covering everything is the intent.
-   */
   const anchored = tourAnchorFor(step.id) !== null
   /**
    * ⛔ NO MASK WHILE THE TARGET IS OFF SCREEN, OR THE READER IS TRAPPED. Scroll the anchor past
    * either edge and the clamped geometry collapses the hole to nothing: one panel ends up covering
-   * the whole viewport, so the page is blurred, every click is swallowed, and the thing the step
-   * points at is nowhere to be seen. A reviewer walked that through. Dropping the mask hands the
-   * page straight back — and it returns by itself the moment the target scrolls into view again,
-   * because the frame loop above is still measuring.
+   * the viewport, the page is dimmed, and the thing the step points at is nowhere to be seen.
    */
   const onScreen = !!hole && hole.bottom > 0 && hole.top < window.innerHeight
   const mask = hole && onScreen ? (() => {
@@ -573,68 +475,117 @@ export function IntroTour() {
 
   return (
     <>
-      {/* ⚠️ z-[1150]: above the app's chrome (header and its neighbours run z-[60] to z-[130]) and
-          below the tour's own popover, which is raised to z-[1160] on the Positioner. Both numbers
-          exist because a mask that sits under the header would leave the header clickable — the one
-          thing this is here to prevent. */}
+      {/* z-[1150]: above the app's chrome (header and neighbours run z-[60] to z-[130]) and below
+          the tour's own card, which is raised to z-[1160] on the Positioner. */}
       {mask.map(({ key, style }) => (
         <div key={key} aria-hidden="true" className={`${panel} z-[1150]`} style={style} />
       ))}
-    {/*
-     * ⛔ THE OUTSIDE PRESS MUST NOT CLOSE THIS, AND IT DID — the whole guided drill-down died on the
-     * first click. Base UI's non-modal Popover dismisses on any press outside the popup, and every
-     * drill step asks the visitor to press exactly such a control: tapping "Electronics" both
-     * advanced the filter AND closed the tour, so the walkthrough vanished at the moment it started
-     * working. Measured — the URL walked all four levels while the popover was already gone.
-     * ⚠️ So closing is OURS alone: Skip, the final buttons, Esc (a keydown listener above) and
-     * leaving the home page. `onOpenChange` is deliberately inert rather than removed, so nobody
-     * re-adds a `finish()` here without reading this.
-     */}
-    <Popover open onOpenChange={() => { /* see above — never close on outside press */ }}>
-      <PopoverContent
-        // `anchor` positions against a real element rather than a trigger; null centres the card.
-        anchor={anchorEl ?? centreAnchor}
-        // Anchored steps sit under their target; the centred ones open downward from the midpoint,
-        // which reads as a card in the middle of the screen rather than a bubble pointing nowhere.
-        side="bottom"
-        sideOffset={10}
-        collisionPadding={12}
-        positionerClassName="z-[1160]"
-        // ⛔ NO `backdrop` — see the note at the top of this file. Three OAuth rejections.
-        className="w-[min(22rem,calc(100vw-1.5rem))] gap-2"
-        // See the note on `begin`: focus follows a click, never a passive arrival.
-        initialFocus={startedByClick ? undefined : false}
-      >
-        <div className="flex items-center justify-between gap-2">
-          <p className="text-2xs font-semibold uppercase tracking-wide text-ink-4">
-            {tr('Quick tour', 'Hướng dẫn nhanh')} · {(index ?? 0) + 1}/{steps.length}
-          </p>
-          <Button variant="bare" size="none" onClick={finish} className="text-2xs font-semibold text-ink-4 hover:text-foreground cursor-pointer">
-            {tr('Skip', 'Bỏ qua')}
-          </Button>
+
+      {/* ⛔ THE HAND — the owner's "hand icon taps". Decorative and `aria-hidden`: it says nothing a
+          screen reader needs, and the step's own line is announced instead. It parks at the bottom
+          edge of the highlighted control so it reads as a finger about to press it, and it is
+          suppressed entirely under reduced motion, where a gliding cursor is exactly the kind of
+          movement the preference is asking us not to make. */}
+      {hole && onScreen && !prefersReducedMotion() && (
+        <div
+          aria-hidden="true"
+          className="pointer-events-none fixed z-[1155] transition-[translate] duration-500 ease-[var(--ease-spring-snappy)]"
+          /**
+           * ⚠️ INSIDE THE TARGET'S BOTTOM-RIGHT, NOT BELOW ITS CENTRE. Parked under the middle of
+           * the control it was almost entirely hidden by the card, which opens centred 14px below
+           * the same anchor — measured on a phone, only the fingertip showed. Inside the box it
+           * stays within the one region the mask leaves lit, so it reads as a finger on the control
+           * rather than a stray glyph, and it cannot collide with the card at any width.
+           * ⚠️ Clamped to the viewport so a target flush with the right edge does not push it off.
+           */
+          style={{
+            left: 0,
+            top: 0,
+            // ⚠️ Clamped at BOTH ends. A target scrolled so its bottom is within 26px of the top
+            // edge still counts as on-screen, and the unclamped form put the hand at a negative
+            // offset — off the viewport, pointing at nothing. A reviewer spotted the missing floor.
+            translate: `${Math.round(Math.max(0, Math.min(hole.right - 26, window.innerWidth - 30)))}px ${Math.round(Math.max(0, hole.bottom - 26))}px`,
+          }}
+        >
+          <span className="relative flex h-6 w-6">
+            <span className="absolute inset-0 animate-ping rounded-full bg-brand/30" />
+            <svg viewBox="0 0 24 24" className="relative h-6 w-6 drop-shadow-sm" fill="none">
+              <path
+                d="M9 11V5.5a1.5 1.5 0 0 1 3 0V11m0-1.5a1.5 1.5 0 0 1 3 0V12m0-1a1.5 1.5 0 0 1 3 0v1.5m0 0v3A5.5 5.5 0 0 1 12.5 21h-1a5.5 5.5 0 0 1-5.5-5.5v-4a1.5 1.5 0 0 1 3 0"
+                stroke="currentColor"
+                strokeWidth="1.75"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="text-brand"
+                fill="var(--card)"
+              />
+            </svg>
+          </span>
         </div>
-        <p className="text-sm font-bold leading-tight text-foreground">{step.title}</p>
-        <p className="text-2xs leading-snug text-muted-foreground">{step.body}</p>
-        <div className="mt-0.5 flex items-center gap-1.5">
-          {/* ⚠️ NO BUTTON ON A WAITING STEP. An empty `next` means the tour is waiting for the
-              visitor to use the control it is pointing at — offering a "Next" there would let them
-              skip the very thing the step exists to teach, and the owner's ask was that they
-              actually do it. The step still ends via Skip or Esc. */}
-          {step.next ? (
-            <Button variant="cta" size="none" onClick={advance} className="rounded-lg px-3 py-1.5 text-sm cursor-pointer">
-              {nextLabel}
-            </Button>
-          ) : (
-            <p className="text-2xs font-semibold text-accent-foreground">{tr('Waiting for your tap…', 'Đang chờ bạn chạm…')}</p>
-          )}
-          {isLast && (
-            <Button variant="ghost" size="none" onClick={finish} className="rounded-lg px-2.5 py-1.5 text-sm font-semibold text-body hover:bg-muted cursor-pointer">
-              {tr('Maybe later', 'Để sau')}
-            </Button>
-          )}
-        </div>
-      </PopoverContent>
-    </Popover>
+      )}
+
+      {/* ⛔ THE OUTSIDE PRESS MUST NOT CLOSE THIS THROUGH BASE UI — the takeover listener above owns
+          that, because it also has to hand the URL back. Base UI's non-modal Popover dismisses on
+          any outside press, which would close the card and leave four filters applied. */}
+      <Popover open onOpenChange={() => { /* see above — closing is ours alone */ }}>
+        <PopoverContent
+          anchor={anchorEl ?? centreAnchor}
+          side="bottom"
+          sideOffset={14}
+          collisionPadding={12}
+          positionerClassName="z-[1160]"
+          // ⛔ NO `backdrop` — three Google OAuth brand reviews rejected a dimmed page behind a card.
+          className="w-[min(20rem,calc(100vw-1.5rem))] gap-2"
+          // ⚠️ FOCUS IS NEVER TAKEN. The tour plays by itself and the visitor may be reading, or
+          // typing; there is no control here they must reach to make it progress. Skip is reachable
+          // by Tab, and any keypress ends the tour anyway.
+          initialFocus={false}
+        >
+          {/* ⚠️ CENTRED — owner, 2026-08-28, on the button row: "center its content". The whole card
+              is centred rather than only the buttons: an icon-plus-one-line card that centres its
+              text and left-aligns its actions reads as two different cards. */}
+          <div ref={cardRef} className="flex flex-col items-center gap-2 text-center">
+            <div className="flex items-center gap-2">
+              <p className="text-2xs font-semibold uppercase tracking-wide text-ink-4">
+                {tr('Quick tour', 'Hướng dẫn nhanh')} · {(index ?? 0) + 1}/{steps.length}
+              </p>
+            </div>
+
+            {/* ⚠️ A POLITE LIVE REGION. The tour advances on a timer with no visitor input, so a
+                screen reader would otherwise be told nothing at all as the page changes underneath.
+                One announcement per step, never interrupting. */}
+            <div className="flex items-center gap-2" aria-live="polite">
+              {step.icon}
+              <p className="text-sm font-bold leading-tight text-foreground">{step.line}</p>
+            </div>
+
+            <div className="mt-0.5 flex items-center justify-center gap-1.5">
+              {isLast ? (
+                <>
+                  {/*
+                    ⛔ A MEMBER MUST NOT BE SENT THROUGH GOOGLE, AND THE FIRST VERSION SENT THEM.
+                    Only the LABEL branched on `user`; the handler was `signUp` either way, so
+                    "Got it" hard-navigated a signed-in visitor to /auth/google/start — which for an
+                    account created with an email link is an identity-LINKING round trip, not a
+                    no-op. The file this replaced carried that exact warning and I dropped it with
+                    the rewrite; a reviewer put it back. The button says what it does now.
+                  */}
+                  <Button variant="cta" size="none" onClick={user ? finish : signUp} className="rounded-lg px-3 py-1.5 text-sm cursor-pointer">
+                    {user ? tr('Got it', 'Đã hiểu') : tr('Sign up to save these', 'Đăng ký để lưu tin')}
+                  </Button>
+                  <Button variant="ghost" size="none" onClick={finish} className="rounded-lg px-2.5 py-1.5 text-sm font-semibold text-body hover:bg-muted cursor-pointer">
+                    {tr('Maybe later', 'Để sau')}
+                  </Button>
+                </>
+              ) : (
+                <Button variant="bare" size="none" onClick={() => close(true)} className="text-2xs font-semibold text-ink-4 hover:text-foreground cursor-pointer">
+                  {tr('Skip', 'Bỏ qua')}
+                </Button>
+              )}
+            </div>
+          </div>
+        </PopoverContent>
+      </Popover>
     </>
   )
 }

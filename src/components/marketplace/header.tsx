@@ -132,6 +132,27 @@ export function Header() {
   // hides it if a page ever reintroduces `#eno-hero-search`.
   const [showSearch, setShowSearch] = useState(true)
   const [searchVal, setSearchVal] = useState('')
+
+  /**
+   * ⛔ THE FIRST-RUN TOUR TYPES INTO THIS INPUT, AND THIS IS THE ONLY DOOR IN. The tour demonstrates
+   * a search by revealing a query character by character in the real search bar, and this input is
+   * controlled state owned here — so without a listener the tour's only options were to fake a bar
+   * on top of the real one, or to reach into the DOM and fight React for the value. Both are worse
+   * than four lines.
+   * ⚠️ IT SETS THE TEXT AND NOTHING ELSE. No focus, no suggestions panel, no submit: stealing focus
+   * would take the keyboard from someone already typing (and on a phone would raise the keyboard
+   * over the very results the tour is about to show), and the tour submits through the existing
+   * `eno:search` path when it is ready. The suggestions panel opens `onFocus`, so leaving focus
+   * alone is also what keeps it shut.
+   * ⚠️ THE VISITOR ALWAYS WINS. `intro-tour.tsx` cancels its own typing on any real keystroke or
+   * pointer press, so these two states cannot fight — but the tour is the only sender, and if that
+   * ever stops being true this listener needs a guard of its own.
+   */
+  useEffect(() => {
+    const onPreview = (e: Event) => setSearchVal(String((e as CustomEvent<{ text?: string }>).detail?.text ?? ''))
+    window.addEventListener('eno:search-preview', onPreview)
+    return () => window.removeEventListener('eno:search-preview', onPreview)
+  }, [])
   // Quick-select suggestions (same store as the hero/in-explorer search): the user's
   // recent searches + recently-used areas, shown when the header search is focused.
   const [showSuggestions, setShowSuggestions] = useState(false)

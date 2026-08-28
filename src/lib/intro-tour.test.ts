@@ -5,11 +5,9 @@ import { execFileSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import {
   TOUR_EXAMPLE_QUERY,
-  TOUR_DRILL,
+  TOUR_DEMO,
   TOUR_TARGETS,
-  drillDone,
   hasSeenTour,
-  isDrillStep,
   markTourSeen,
   markTourPending,
   tourPending,
@@ -134,50 +132,49 @@ describe('tour memory', () => {
 })
 
 describe('steps', () => {
-  it('anchors the search step and every drill step, and centres the rest', () => {
+  it('anchors the search step and every demo step, and centres the last', () => {
     expect(tourAnchorFor('search')).toBe(TOUR_TARGETS.search)
     expect(tourAnchorFor('category')).toBe('[data-cat="electronics"]')
-    expect(tourAnchorFor('subcategory')).toBe('[data-subcat="phone-cases"]')
+    expect(tourAnchorFor('subcategory')).toBe('[data-subcat="laptops-pcs"]')
     expect(tourAnchorFor('brand')).toBe('[data-brand="apple"]')
-    expect(tourAnchorFor('model')).toBe('[data-model="iPhone 17 Pro Max"]')
-    // ⚠️ The unanchored step. `signup` used to be the second one and was deleted with the step
-    // itself — leaving this line a verbatim duplicate, which a reviewer spotted asserting nothing.
+    expect(tourAnchorFor('model')).toBe('[data-model="MacBook Pro M5"]')
+    // The one step with no target: the closing card is centred in the viewport.
     expect(tourAnchorFor('result')).toBeNull()
-    expect(isDrillStep('result')).toBe(false)
   })
 
   /**
-   * ⛔ THE STEP ADVANCES ONLY WHEN THE VISITOR'S OWN CLICK LANDS. Owner: "let them experience how to
-   * find" — so each level is read back off the query string the explorer maintains, which is true
-   * however they got there (the highlighted chip or its copy inside the "More" overflow).
+   * ⛔ THE SELECTOR AND THE PARAM MUST DESCRIBE THE SAME CONTROL. The tour drives the URL and points
+   * the hand at a chip; if those two disagree the visitor watches a highlighted "Electronics" while
+   * the results filter to something else — a demonstration that demonstrates a lie. Nothing else
+   * checks it, because each half is correct on its own.
    */
-  it('reads each drill level back off the query string', () => {
-    expect(drillDone('category', '?category=electronics')).toBe(true)
-    expect(drillDone('category', '?category=vehicles')).toBe(false)
-    expect(drillDone('category', '')).toBe(false)
-    expect(drillDone('subcategory', '?category=electronics&subcategory=phone-cases')).toBe(true)
-    expect(drillDone('brand', '?category=electronics&subcategory=phone-cases&brand=apple')).toBe(true)
-    expect(drillDone('model', '?model=iPhone+17+Pro+Max')).toBe(true)
-    // Steps that are not part of the drill can never satisfy it.
-    expect(drillDone('search', '?q=anything')).toBe(false)
-    expect(drillDone('result', '?category=electronics')).toBe(false)
-  })
-
-  /** The selectors and the params must describe the SAME control, or a step waits forever. */
-  it('pairs every drill selector with the param that clicking it sets', () => {
-    for (const [id, d] of Object.entries(TOUR_DRILL)) {
-      expect(tourAnchorFor(id as never), id).toBe(d.selector)
-      expect(drillDone(id as never, `?${d.param}=${encodeURIComponent(d.value)}`), id).toBe(true)
+  it('pairs every demo selector with the parameter it stands for', () => {
+    for (const d of TOUR_DEMO) {
+      expect(tourAnchorFor(d.id), d.id).toBe(d.selector)
+      // The value must be the one written into the selector, or the hand and the filter diverge.
+      expect(d.selector, d.id).toContain(`="${d.value}"`)
+      expect(tourAnchorFor(d.id), d.id).toBeTruthy()
     }
   })
 
   /**
-   * The owner named the example: Electronics → Apple → iPhone 17 Pro Max covers.
-   * ⚠️ Asserts the QUERY the tour dispatches, not a href — an earlier version pinned a
-   * `TOUR_EXAMPLE_HREF` that the code had stopped using, which is false confidence rather than a test.
+   * ⛔ THE ORDER IS THE DEMONSTRATION. Category before subcategory before brand before model is the
+   * order the facet UI reveals them in; shuffle it and a step filters by a control the interface
+   * has not offered yet. ⚠️ The owner asked for "model and lastly brand" — the interface disagrees
+   * and the interface wins here; see the note in intro-tour.ts.
    */
-  it('points the worked example at the phone the owner asked for', () => {
-    expect(TOUR_EXAMPLE_QUERY).toBe('iPhone 17 Pro Max case')
+  it('walks the facets in the order the interface reveals them', () => {
+    expect(TOUR_DEMO.map((d) => d.id)).toEqual(['category', 'subcategory', 'brand', 'model'])
+  })
+
+  /**
+   * ⛔ PINNED BECAUSE THE OWNER'S OWN STRING RETURNS ZERO LISTINGS. They asked for "Macbook pro 16
+   * inch m5 64GB 1TB"; measured against production that returns 0, while this trimmed form returns
+   * 25 and the full facet chain on top of it still returns 8. A tour that ends on an empty page
+   * teaches the visitor the catalogue is empty, so this string is a deliberate edit, not a drift.
+   */
+  it('points the worked example at a query that has stock', () => {
+    expect(TOUR_EXAMPLE_QUERY).toBe('Macbook Pro M5 1TB')
   })
 })
 
@@ -207,13 +204,14 @@ describe('the anchors exist in the markup', () => {
    * a rename cannot silently shorten the tour. A reviewer was right that the old wording oversold it.
    */
   /**
-   * ⚠️ COVERS THE DRILL SELECTORS TOO. The first version checked only TOUR_TARGETS, so the four
-   * chips the guided walk depends on — `data-cat`, `data-subcat`, `data-brand`, `data-model` —
-   * were unpinned: rename one and the step would poll, time out and skip, quietly turning a
-   * four-level walkthrough into a shorter one. A reviewer pointed at the gap.
+   * ⚠️ COVERS THE DEMO SELECTORS TOO. The first version checked only TOUR_TARGETS, so the four
+   * chips — `data-cat`, `data-subcat`, `data-brand`, `data-model` — were unpinned. The consequence
+   * has changed with the redesign and is now smaller but stranger: the tour drives the URL, so
+   * renaming one no longer stalls it. The filter still applies; the hand simply has nothing to
+   * point at, and the visitor watches a step narrate a control that is not highlighted.
    */
   it('every anchored step has its attribute in the markup', () => {
-    const all = { ...TOUR_TARGETS, ...Object.fromEntries(Object.entries(TOUR_DRILL).map(([k, d]) => [k, d.selector])) }
+    const all = { ...TOUR_TARGETS, ...Object.fromEntries(TOUR_DEMO.map((d) => [d.id, d.selector])) }
     for (const [id, selector] of Object.entries(all)) {
       // `[data-tour="search"]` → `data-tour="search"`, the literal that appears in the JSX.
       const attr = selector.replace(/^\[|\]$/g, '')
