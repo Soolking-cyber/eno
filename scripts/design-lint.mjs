@@ -305,6 +305,62 @@ function checkMaterials(rel, codeLines, rawLines) {
   return n
 }
 
+/**
+ * ⛔ `tour-mask` IS A MATERIAL WHOSE TWO VALUES LIVE IN CSS — AND THAT IS EXACTLY WHY IT NEEDS ITS
+ * OWN GUARD. The onboarding tour's four spotlight panels used to carry `bg-black/40 backdrop-blur-md`
+ * like any other material, which meant the blocks in globals.css that force a material solid under
+ * `prefers-contrast: more` also caught them: measured on an iPhone viewport, every panel came back
+ * `rgb(0, 0, 0)` with the blur stripped, so four opaque rectangles around a small hole turned the
+ * page black for anyone with Increase Contrast on. Going solid is right for a bar with text on it
+ * and wrong for a mask, so `.tour-mask` owns its tint and blur and states its own accessible
+ * fallback — a DEEPER but still translucent scrim.
+ *
+ * ⚠️ THE FAILURE THIS CATCHES IS A REVERSION, and it is invisible without the accessibility setting
+ * turned on: someone tidies the mask by "restoring" a Tailwind tint or blur, the covered-tint rules
+ * start matching again, and the blackout is back with every test still green. `checkMaterials`
+ * cannot see it — that gate only reads lines carrying a `backdrop-blur` utility, which is precisely
+ * what this element no longer has.
+ */
+/**
+ * ⚠️ IT READS A WINDOW, NOT THE LINE AND NOT THE ENCLOSING STRING — and both of the simpler versions
+ * were tried and shown to miss. Line-local misses `cn('tour-mask',\n  'bg-black/40')`, which a
+ * formatter produces on its own. Enclosing-string ALSO misses it, and less obviously: the tint is a
+ * SIBLING literal, so the span holding `tour-mask` never contains it. A reviewer proposed the second
+ * fix for the first miss; running it showed it did not bite, which is why this reads the neighbourhood
+ * instead — every string literal overlapping a window around the occurrence.
+ * ⚠️ THE WINDOW IS A HEURISTIC AND THAT IS ACCEPTABLE HERE. `tour-mask` appears in exactly one file
+ * and one expression, so the realistic failure this guards is "someone puts a tint back beside it",
+ * not an adversarial layout. A false positive is a one-line lint message telling a developer to move
+ * a value into `.tour-mask`, which is where it belongs anyway.
+ */
+const TOUR_MASK_WINDOW = 250
+function checkTourMask(rel, code) {
+  // ⚠️ CHEAP EXIT FIRST. `stringSpans` is a char-by-char pass over the whole file, and this lint runs
+  // on every .tsx edit via a hook and at the head of every build — for a token that lives in one file.
+  if (!code.includes('tour-mask')) return 0
+  let n = 0
+  const spans = stringSpans(code)
+  for (const m of code.matchAll(/\btour-mask\b/g)) {
+    const lo = m.index - TOUR_MASK_WINDOW
+    const hi = m.index + TOUR_MASK_WINDOW
+    const near = spans.filter(([a, b]) => a < hi && b > lo).map(([a, b]) => code.slice(a, b)).join(' ')
+    const line = code.slice(0, m.index).split('\n').length
+    // ⚠️ THE OPACITY IS OPTIONAL IN THIS PATTERN, deliberately: `bg-black` with no slash is a FULLY
+    // opaque mask — worse than the bug this guards — and a reviewer pointed out the first version
+    // could not see it, because it required the `/N`.
+    for (const t of near.matchAll(/\b(bg-(?:\[[^\]\s]*\]|[a-z0-9-]+)(?:\/[0-9]+)?|backdrop-blur[a-z-]*)\b/g)) {
+      n++
+      console.error(
+        `${rel}:${line}  \`${t[1]}\` beside \`tour-mask\`  — the mask owns its tint and blur in ` +
+          `globals.css on purpose. A covered tint here is matched again by the material blocks, which ` +
+          `force it to #000 under prefers-contrast/reduce-transparency and black out the whole page ` +
+          `for the reader who asked for MORE contrast. Change the values in \`.tour-mask\` instead.`,
+      )
+    }
+  }
+  return n
+}
+
 function checkPortals(rel, codeLines, rawLines) {
   if (rel.startsWith('src/components/ui/')) return 0
   if (PORTAL_ALLOW_SET.has(rel)) return 0
@@ -730,6 +786,7 @@ for (const file of walk(SRC)) {
   violations += checkPortals(rel, lines, rawLines)
   violations += checkScrollBehavior(rel, lines, rawLines)
   violations += checkMaterials(rel, lines, rawLines)
+  violations += checkTourMask(rel, code)
   for (const rule of RULES) {
     if (rule.allow?.has(rel)) continue
     // `raw` rules match across newlines against the ORIGINAL source (a JSX comment is

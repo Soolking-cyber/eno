@@ -2023,6 +2023,85 @@ html.dark .leaflet-tile-pane {
 }
 
 /* ============================================================
+   THE ONBOARDING TOUR'S SPOTLIGHT MASK
+   ============================================================ */
+/**
+ * ⛔ THE MASK OWNS ITS TINT AND BLUR HERE, NOT AS `bg-black/40 backdrop-blur-md` UTILITIES, AND
+ * THAT MOVE IS THE FIX FOR A MEASURED BLACKOUT. The tour draws four fixed panels around the
+ * control a step points at. While they carried the ordinary material utilities they were also
+ * caught by the two blocks directly above, which force `.material.bg-black\/40` to `#000` — and
+ * measured on an iPhone viewport with `prefers-contrast: more`, every panel came back
+ * `rgb(0, 0, 0)` with `backdrop-filter: none`. Four opaque panels around a small hole IS a black
+ * screen, which is exactly what the owner reported.
+ *
+ * ⚠️ THOSE RULES ARE NOT WRONG — THEY ARE WRONG *HERE*, and the distinction is the whole point.
+ * For the surfaces they were written for (the sticky action bar, a popover) going solid is
+ * correct: a translucent panel with text on it is unreadable once you drop its blur, so the fill
+ * has to take over. A SPOTLIGHT MASK is the opposite kind of surface. It carries no content, and
+ * its entire job is to keep the page visible-but-demoted so the one bright control reads as part
+ * of the page the tour is explaining. Make it opaque and the tour is narrating a black rectangle.
+ * ⚠️ So the accessible fallback here is MORE contrast, not more paint: the scrim deepens from 10%
+ * to 35% — a stronger separation between the highlighted control and everything else — while
+ * staying translucent. That honours the preference (no blur, no see-through *effect* to parse)
+ * without deleting the content the preference was meant to make legible.
+ *
+ * ⚠️ ORDER IS LOAD-BEARING: this block sits AFTER the material rules on purpose. Both sides use
+ * `!important` and the selectors tie on specificity (`.reduce-transparency .material.tour-mask`
+ * and `.reduce-transparency .material:is(.bg-black\/40, …)` are both three classes, since `:is()`
+ * takes the specificity of its heaviest argument), so the later rule wins. Move this above them
+ * and the blackout returns silently.
+ *
+ * ⚠️ THE ELEMENT STILL CARRIES `material`. It is a translucent surface and it must keep declaring
+ * itself — the marker is what `.reduce-transparency` keys off, and design-lint requires it beside
+ * any blur. What changed is only WHERE the tint and blur are written, so this file can special-case
+ * the one material that must never go solid.
+ */
+/**
+ * ⛔ THE SAME VALUES AS `.overlay-scrim`, AND THAT IS THE POINT — owner, 2026-08-28, pointing at the
+ * area-filter dropdown: "look at this blur and the one u applied to onboard tour us this". The tour
+ * mask and every popover backdrop dim the page for the same reason, so they should not be two
+ * different weights of dim. This started at `bg-black/40` + 12px, which read as a blackout on a
+ * phone; it went to 28% + 4px, still heavier than the app's own scrim. Now it simply IS the scrim.
+ * ⚠️ KEEP THESE TWO NUMBERS IN STEP WITH `.overlay-scrim`, further DOWN this file. They are
+ * deliberately equal, not coincidentally equal.
+ *
+ * ⛔ BOTH SPELLINGS, AND THE UNPREFIXED ONE ALONE IS A REGRESSION ON THE EXACT DEVICE THIS WAS
+ * REPORTED FROM. iOS Safari before 18 understands only `-webkit-backdrop-filter`, so a standard-
+ * property-only rule ships NO BLUR to a large share of this app's phone traffic — the mask would
+ * come out a flat 10% wash with nothing behind it softened. `.overlay-scrim` measured this and
+ * carries both; the note further up this file warning that writing both makes lightningcss drop the
+ * standard property is about the `.material` block, where the declaration is bare. Inside this
+ * `@supports` guard the pair survives — verified in the built CSS, not assumed.
+ */
+.tour-mask {
+  background-color: rgb(0 0 0 / 0.10);
+}
+@supports ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .tour-mask {
+    -webkit-backdrop-filter: blur(2px);
+    backdrop-filter: blur(2px);
+  }
+}
+
+.reduce-transparency .tour-mask,
+.reduce-transparency .material.tour-mask {
+  background-color: rgb(0 0 0 / 0.35) !important;
+}
+
+@media (prefers-contrast: more) {
+  .tour-mask,
+  .material.tour-mask {
+    background-color: rgb(0 0 0 / 0.35) !important;
+  }
+  /* ⚠️ AND NO BORDER. The material block gives every `.material` a 1px `currentColor` outline so a
+     surface that only read as floating still has an edge. Four full-bleed panels do not need one,
+     and drawing it would fence the viewport in four bright lines. */
+  .tour-mask:not(:focus-visible) {
+    outline: none;
+  }
+}
+
+/* ============================================================
    ACCESSIBILITY — honor reduced-motion preference
    ============================================================ */
 @media (prefers-reduced-motion: reduce) {

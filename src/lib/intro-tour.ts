@@ -107,9 +107,87 @@ export function drillDone(step: TourStepId, search: string): boolean {
  * than returning null, and a thrown error here would take the whole provider tree down on first
  * paint. A tour that cannot remember it ran is a small annoyance; a blank site is not.
  */
+/**
+ * ⚠️ MIRRORED INTO A COOKIE AS WELL AS localStorage, and that is not belt-and-braces. iOS Safari in
+ * private mode throws on `setItem` while `getItem` happily returns null, so the flag silently never
+ * sticks and the visitor gets the tour again on every single load with no way to stop it — the
+ * shape the owner reported on 2026-08-28. A cookie is written through a different door and survives
+ * that case. `setConsent` next door already does exactly this, for a different reason.
+ * ⚠️ Either store answering 'done' is enough: this is a "have we already spent our one shot" flag,
+ * so the safe direction is to believe whichever one says yes.
+ */
+/**
+ * ⚠️ PARSED, NOT `includes()`. A substring test for `eno_intro_tour_v1=done` also matches a cookie
+ * NAMED `x_eno_intro_tour_v1`, and `resetTour()` only ever deletes the exact name — so one unrelated
+ * cookie could pin the tour to "already seen" with no way to clear it. A reviewer caught it. Split
+ * on `;`, compare the trimmed name exactly.
+ */
+function cookieValue(): string | null {
+  try {
+    if (typeof document === 'undefined') return null
+    for (const part of document.cookie.split(';')) {
+      const eq = part.indexOf('=')
+      if (eq === -1) continue
+      if (part.slice(0, eq).trim() === TOUR_STORAGE_KEY) return part.slice(eq + 1).trim()
+    }
+    return null
+  } catch {
+    return null
+  }
+}
+
+function stored(): string | null {
+  const c = cookieValue()
+  if (c) return c
+  try {
+    return typeof window !== 'undefined' ? window.localStorage.getItem(TOUR_STORAGE_KEY) : null
+  } catch {
+    // ⚠️ Rethrown as "seen" by the caller — see hasSeenTour.
+    throw new Error('unreadable')
+  }
+}
+
+/**
+ * ⛔ THE ONE-SHOT IS CLAIMED BUT NOT YET SPENT. `CookieConsent` is global: a visitor whose first
+ * page is a shared listing link answers the card THERE, and the tour's anchors only exist on `/`.
+ * The tour used to simply drop that event, so — measured by a reviewer against this very diff —
+ * everyone who did not land on the home page first lost the tour permanently, because consent is
+ * then stored and the card never returns to fire it again. `pending` remembers the claim until they
+ * reach a page the tour can actually run on.
+ * ⚠️ THIS IS NOT THE MOUNT PATH THAT WAS REMOVED, and the difference is the whole point. That one
+ * inferred a tour from "consent is decided", which is true forever and on every reload. This one
+ * reads a token that ONLY the consent card's close can write and that `begin()` overwrites with
+ * `done` the instant the tour starts. It can fire at most once, whatever storage does.
+ */
+/**
+ * ⚠️ COOKIE ONLY, AND FOR HOURS RATHER THAN A YEAR. A reviewer asked what happens to someone who
+ * answers the cookie card on a listing page and does not reach `/` for three months: with the
+ * ordinary write they would get a first-run walkthrough on a visit that is nothing of the sort.
+ * A claim is a short-lived intention, not a permanent fact, so it expires on its own — and writing
+ * it to the cookie ALONE is what makes that true, since localStorage has no expiry and a `pending`
+ * left there would outlive the cookie and defeat the bound.
+ */
+const PENDING_MAX_AGE = 12 * 60 * 60
+
+export function markTourPending(): void {
+  try {
+    document.cookie = `${TOUR_STORAGE_KEY}=pending; path=/; max-age=${PENDING_MAX_AGE}; SameSite=Lax`
+  } catch {
+    /* noop — no claim parked, and the tour is simply not shown */
+  }
+}
+
+export function tourPending(): boolean {
+  try {
+    return stored() === 'pending'
+  } catch {
+    return false
+  }
+}
+
 export function hasSeenTour(): boolean {
   try {
-    return typeof window !== 'undefined' && window.localStorage.getItem(TOUR_STORAGE_KEY) === 'done'
+    return stored() === 'done'
   } catch {
     // ⚠️ TRUE, NOT FALSE, when storage is unreadable: if we cannot tell whether it ran, do NOT run
     // it. Repeating an unskippable-feeling tour on every page load is far more irritating than
@@ -118,12 +196,23 @@ export function hasSeenTour(): boolean {
   }
 }
 
-export function markTourSeen(): void {
+function write(value: string): void {
   try {
-    window.localStorage.setItem(TOUR_STORAGE_KEY, 'done')
+    window.localStorage.setItem(TOUR_STORAGE_KEY, value)
   } catch {
-    /* private mode — the tour simply runs again next time; see above */
+    /* private mode — the cookie below is what carries the flag there; see cookieValue */
   }
+  try {
+    // A year, path-wide, Lax: the same shape as the consent mirror. No personal data — one bit
+    // saying an introduction has been shown — so it needs no consent of its own.
+    document.cookie = `${TOUR_STORAGE_KEY}=${value}; path=/; max-age=31536000; SameSite=Lax`
+  } catch {
+    /* noop */
+  }
+}
+
+export function markTourSeen(): void {
+  write('done')
 }
 
 /** For the footer/debug affordance and for tests. */
@@ -132,5 +221,12 @@ export function resetTour(): void {
     window.localStorage.removeItem(TOUR_STORAGE_KEY)
   } catch {
     /* nothing to reset if we cannot reach storage */
+  }
+  // ⚠️ AND THE COOKIE, or a reset would silently do nothing: `hasSeenTour` checks the cookie FIRST,
+  // so clearing only localStorage leaves the tour just as unreachable as before.
+  try {
+    document.cookie = `${TOUR_STORAGE_KEY}=; path=/; max-age=0; SameSite=Lax`
+  } catch {
+    /* noop */
   }
 }

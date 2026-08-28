@@ -6,7 +6,6 @@ import { Popover, PopoverContent } from '@/components/ui/popover'
 import { Button } from '@/components/ui/button'
 import { useLanguage } from '@/context/language-context'
 import { googleOauthBlocked } from '@/lib/in-app-browser'
-import { getConsent } from '@/lib/consent'
 import { useAuth } from '@/context/auth-context'
 import { scrollBehavior } from '@/lib/reduced-motion'
 import {
@@ -14,6 +13,8 @@ import {
   hasSeenTour,
   isDrillStep,
   markTourSeen,
+  markTourPending,
+  tourPending,
   tourAnchorFor,
   type TourStepId,
 } from '@/lib/intro-tour'
@@ -31,6 +32,10 @@ import {
  * on any other route the tour would point at nothing. A step whose anchor is missing is SKIPPED
  * rather than shown floating, so a layout change shortens the tour instead of breaking it.
  */
+
+
+/** Padding around the hole, so the ring the tour draws on the target is inside it, not blurred off. */
+const PAD = 8
 
 /** Everything the tour needs from one step, resolved per render so copy stays translated. */
 type Step = {
@@ -52,17 +57,35 @@ export function IntroTour() {
    * stale rect would blur the very control the step is asking the reader to press.
    */
   const [hole, setHole] = useState<DOMRect | null>(null)
-  /**
-   * ⛔ FOCUS ONLY WHEN THE TOUR FOLLOWS A CLICK, and this split is the same one cookie-consent.tsx
-   * makes for the same reason. `initialFocus={false}` everywhere left the tour unreachable by
-   * keyboard — no trigger, no focus, so a keyboard-only visitor could never press Next (reviewer's
-   * catch). But focusing unconditionally would steal the caret on the MOUNT path, which fires on a
-   * plain page load and could take the keyboard from someone already typing in the very search box
-   * step 1 points at. Started from the consent card's Allow/Decline, focus has just been destroyed
-   * with the button that was clicked, so moving it into the tour is the correct thing rather than a
-   * theft. Started on mount, it is left alone and the tour stays reachable by Tab.
-   */
   const [startedByClick, setStartedByClick] = useState(false)
+
+  /**
+   * ⛔ MARKED SEEN AT THE START, NOT AT THE END — "runs once, ever" was false until this. The flag
+   * was written only on finish/skip/Esc, so reloading at step 3 brought step 1 back and a visitor
+   * who reloads a few times got the tour every single time with no way to stop it. Marking on start
+   * spends the one shot the moment it is taken, which is the honest reading of a first-run
+   * introduction. The trade: someone who reloads during step 1 loses the rest of it, which is the
+   * better failure than a walkthrough that cannot be escaped by leaving.
+   * ⚠️ IN THE COMPONENT BODY, NOT INSIDE THE START EFFECT, because two paths now call it: the
+   * consent card's event, and the parked-claim redeem keyed on `pathname`. See `byClick` below for
+   * why those two must not be treated the same.
+   */
+  /**
+   * ⛔ `byClick` IS BACK, AND REMOVING IT WAS A REAL REGRESSION I INTRODUCED. When the only way in
+   * was the consent card's button, focus had just been destroyed with the control that was clicked,
+   * so moving it into the tour card was the correct thing rather than a theft — and the flag looked
+   * dead. Parking the claim brought the other case back: the redeem path fires on a NAVIGATION to
+   * `/`, nobody has clicked anything, and pulling focus there can take the keyboard from someone
+   * already typing in the very search box step 1 points at (and close the suggestions panel its
+   * `onFocus` opened). A reviewer caught that the two changes interact. Keyboard reachability is
+   * preserved on the path that has it: started by click, the card takes focus; arrived at by
+   * navigation, it is left alone and the card stays reachable by Tab.
+   */
+  const begin = useCallback((byClick: boolean) => {
+    markTourSeen()
+    setStartedByClick(byClick)
+    setIndex(0)
+  }, [])
 
   /**
    * ⛔ THE UNANCHORED STEPS GET A VIRTUAL ANCHOR AT THE VIEWPORT CENTRE, and the first version's
@@ -144,12 +167,12 @@ export function IntroTour() {
   )
 
   /**
-   * ⛔ THE SIGN-UP STEP IS DROPPED FOR ANYONE ALREADY SIGNED IN, and without this it was a real
-   * misfire rather than a cosmetic one. The tour also starts on mount for EXISTING visitors (they
-   * have consent stored and no tour flag), so a long-standing signed-in user would have been shown
-   * "Sign up to save listings… one tap with Google" — and the button hard-navigates to
-   * /auth/google/start, which for an account created with an email link is an identity-LINKING
-   * round trip, not a no-op. A reviewer caught it.
+   * ⛔ THE SIGN-UP STEP IS DROPPED FOR ANYONE ALREADY SIGNED IN. A signed-in visitor can still
+   * reach the tour — answering the cookie card is not proof of being new, since the card also
+   * appears for a member who has cleared site data — and showing them "Sign up to save listings…
+   * one tap with Google" would be a real misfire rather than a cosmetic one: the button hard-
+   * navigates to /auth/google/start, which for an account created with an email link is an
+   * identity-LINKING round trip, not a no-op. A reviewer caught it.
    */
   const steps = useMemo(() => (user ? allSteps.filter((s) => s.id !== 'signup') : allSteps), [user, allSteps])
 
@@ -184,49 +207,54 @@ export function IntroTour() {
   // it cannot buy a better product experience.
   useEffect(() => {
     /**
-     * ⛔ ONLY ON THE HOME PAGE, AND NOT MERELY BECAUSE THE ANCHORS LIVE THERE. `CookieConsent` is
-     * global and fires this event wherever the visitor happens to be. Without this check the tour
-     * would start on, say, a listing page, immediately hit the `pathname !== '/'` guard below,
-     * call `finish()` — which MARKS IT SEEN — and be gone forever, having shown nothing. A reviewer
-     * caught it: anyone whose first ever page was a shared listing link or /signin would silently
-     * lose the tour. Not starting leaves it unmarked, so it runs on their next visit to `/`.
+     * ⛔ THE HOME PAGE IS THE ONLY PLACE IT CAN RUN, AND THAT USED TO COST THE TOUR ENTIRELY.
+     * `CookieConsent` is global and fires this event wherever the visitor happens to be, while the
+     * tour's anchors are the header search box and the category rail. The first version simply
+     * returned off-home — and its comment claimed the flag stayed unmarked "so it runs on their
+     * next visit to `/`", which was never true: consent is stored by then, the card never reopens,
+     * and nothing else fires the event. Anyone whose first page was a shared listing link or a
+     * search result lost the tour permanently. It is parked now; see `markTourPending`.
      */
-    /**
-     * ⛔ MARKED SEEN AT THE START, NOT AT THE END — "runs once, ever" was false until this. The flag
-     * was written only on finish/skip/Esc, so reloading at step 3 brought step 1 back, and a
-     * visitor who reloads a few times gets the tour every single time with no way to stop it.
-     * Measured: after a reload the tour reappeared at 1/4. Marking on start spends the one shot the
-     * moment it is taken, which is the honest reading of a first-run introduction.
-     * ⚠️ THE TRADE, STATED: someone who reloads during step 1 loses the rest of the tour. That is
-     * the better failure — the alternative is a walkthrough that cannot be escaped by leaving.
-     */
-    const begin = (byClick: boolean) => { markTourSeen(); setStartedByClick(byClick); setIndex(0) }
-    const start = () => { if (window.location.pathname === '/' && !hasSeenTour()) begin(true) }
+    const start = () => {
+      if (hasSeenTour()) return
+      if (window.location.pathname === '/') begin(true)
+      else markTourPending()
+    }
     window.addEventListener('eno:start-tour', start)
     /**
-     * ⛔ ALSO ON MOUNT, BECAUSE THE EVENT ONLY EVER FIRES ONCE. `eno:start-tour` is dispatched when
-     * the consent card closes, and the card closes exactly once — the choice is then stored and it
-     * never reopens. So an event-only start meant: reload at step 2 and the tour is gone; land
-     * first on a shared listing link and it is gone. `hasSeenTour()` stayed unset forever, and the
-     * comment above cheerfully claimed it would "run on their next visit to /" — it could not.
-     * ⚠️ A reviewer caught it, and my own check had missed it: I verified the flag was still unset
-     * and stopped there, which proves the tour was not BURNED, not that it would ever RUN.
-     * ⚠️ Gated on consent already being decided, so this never races the card on a true first visit
-     * — the card's own close is what starts it then.
+     * ⛔ THE CONSENT CARD IS THE ONLY THING THAT STARTS THIS — owner, 2026-08-28: "onboarding tour
+     * should fire only once when user passes through cookie screen not every time page reloads".
+     * There WAS a second path here that also began the tour on mount for anyone who already had
+     * consent stored and no tour flag. It existed to reach visitors who had answered the card
+     * before the tour shipped, and it is what made the tour able to appear on a load nobody asked
+     * for: any state where the flag failed to stick — private mode, cleared site data, storage
+     * denied — turned every home-page visit into a fresh tour, with the card nowhere in sight to
+     * explain why. Tying the tour to the one event that fires exactly once makes "only once" a
+     * property of WHEN it starts rather than a promise the flag has to keep.
+     * ⚠️ THE TRADE, STATED: someone who dismissed the cookie card before the tour existed will
+     * never see the tour. That is the owner's call and the right one — a walkthrough is worth
+     * having on your first minute and is an interruption on your fiftieth.
+     * ⚠️ `markTourSeen()` on `begin` still matters, and the cookie mirror behind it more so: it is
+     * what stops a reload MID-TOUR from restarting at step 1.
      */
-    /**
-     * ⛔ GUESTS ONLY ON THIS PATH. Every EXISTING visitor has consent stored and no tour flag, so
-     * without the `!user` gate a member signed in since launch would get "Start by searching" on
-     * their next home visit — and step 2 would replace their view with iPhone cases. Dropping the
-     * sign-up step for them was not enough; a reviewer was right that it only removed the last
-     * slide. The click path above is unchanged: someone who has just answered the consent card is
-     * new by definition, whatever the session says.
-     */
-    if (window.location.pathname === '/' && !hasSeenTour() && getConsent() !== null && !user) begin(false)
     return () => window.removeEventListener('eno:start-tour', start)
-    // ⚠️ `user` is a dependency because the mount start waits on it: /api/me resolves after mount,
-    // so evaluating this once with a null user would show the tour to every member exactly once.
-  }, [user])
+  }, [])
+
+  /**
+   * ⛔ AND THE PARKED CLAIM IS REDEEMED WHENEVER THE VISITOR REACHES `/` — KEYED ON `pathname`, NOT
+   * ON MOUNT. This started life inside the effect above, and a reviewer caught what that costs: the
+   * app is a SPA and this component's layout does not unmount, so tapping the header logo to go
+   * home changes the URL and runs no mount effect at all. The claim would sit unredeemed until a
+   * hard reload — precisely the wrong visitor to ask that of, since they arrived on a shared
+   * listing link and are navigating, not reloading. Reading `window.location.pathname` once was the
+   * tell: a value read imperatively at mount cannot see a route change.
+   * ⚠️ STILL A ONE-SHOT, which is the whole constraint. `markTourSeen()` writes `done` before the
+   * tour opens, so `tourPending()` is false on every later run of this effect and on every later
+   * navigation. Nothing here can replay it.
+   */
+  useEffect(() => {
+    if (pathname === '/' && tourPending() && !hasSeenTour()) begin(false)
+  }, [pathname])
 
   /**
    * ⚠️ RESOLVE THE ANCHOR AFTER PAINT, AND RE-RESOLVE ON EVERY STEP. The header and rail mount with
@@ -311,14 +339,86 @@ export function IntroTour() {
      */
     let raf = 0
     let last = ''
+    /**
+     * ⛔ AND IT KEEPS THE TARGET IN VIEW, BECAUSE SCROLLING TO IT ONCE IS NOT ENOUGH. `attach()`
+     * scrolls the anchor into view the moment it resolves — and then the page keeps moving under
+     * it. The rail's images and counts arrive after the scroll, the explorer swaps placeholder
+     * cards for real ones, a font settles: each one shifts the control the step is pointing at,
+     * and on a phone that is the difference between "tap Electronics" landing on the chip and
+     * landing on nothing. Reported by the owner as the tour not scrolling to the button at all.
+     * The frame loop already knows where the target IS; this makes it act on that.
+     *
+     * ⚠️ TWO GUARDS, BECAUSE AN AUTO-SCROLL THAT FIGHTS THE READER IS WORSE THAN NO AUTO-SCROLL.
+     *   · IT STOPS AT THE FIRST REAL GESTURE. `touchstart`/`wheel`/`keydown`/`pointerdown` are
+     *     user intent and
+     *     are never produced by programmatic scrolling, so they cleanly separate "the page moved
+     *     under us" from "they are looking around" — a plain `scroll` listener cannot, because our
+     *     own smooth scroll fires those too, which is how this kind of fix becomes a scroll fight.
+     *     ⚠️ `pointerdown` is in the list for the DESKTOP scrollbar drag, which a reviewer spotted
+     *     produces none of the other three. It also fires when the visitor taps the target itself,
+     *     which is the right outcome — they have found it, so there is nothing left to correct.
+     *   · IT IS A WINDOW, NOT A LEASH. Corrections stop after CORRECT_MS whatever happens, so the
+     *     worst case is a couple of seconds of settling and never a page that refuses to be
+     *     scrolled away from.
+     * ⚠️ AND IT GIVES UP IF IT IS NOT WORKING: a target that cannot reach the band — a short page,
+     * an element taller than the gap between the header and the card — would otherwise re-scroll
+     * on every tick to no effect. If a correction does not move the page, that was the last one.
+     */
+    const CORRECT_MS = 2500
+    const CORRECT_GAP = 400
+    let correctUntil = performance.now() + CORRECT_MS
+    let lastCorrection = 0
+    let scrollAtCorrection = -1
+    const stopCorrecting = () => { correctUntil = 0 }
+    /**
+     * ⛔ A TARGET INSIDE THE FIXED HEADER IS NEVER OUT OF VIEW, AND CORRECTING IT IS ALL COST. The
+     * band test asks whether the target sits below the header's bottom edge — which is false BY
+     * CONSTRUCTION for the header's own search box, step 1's anchor. So the loop would read "out of
+     * view" on a control that is permanently visible and scroll the page trying to fix it. A
+     * reviewer caught it. The give-up check happens to contain the damage (the first correction
+     * moves nothing when the page is already at the top, so the second stops), but "saved by an
+     * unrelated guard" is not the same as correct: from a scrolled position it would yank the page
+     * to the top for no reason at all.
+     */
+    if (anchorEl.closest('#app-header')) correctUntil = 0
+    window.addEventListener('touchstart', stopCorrecting, { passive: true })
+    window.addEventListener('wheel', stopCorrecting, { passive: true })
+    window.addEventListener('keydown', stopCorrecting)
+    window.addEventListener('pointerdown', stopCorrecting, { passive: true })
+
     const tick = () => {
       const r = anchorEl.getBoundingClientRect()
       const key = `${r.top}|${r.left}|${r.width}|${r.height}`
       if (key !== last) { last = key; setHole(r) }
+      const now = performance.now()
+      if (now < correctUntil && now - lastCorrection > CORRECT_GAP) {
+        // ⚠️ The header is FIXED and overlaps the top of the page, so "visible" is not `top >= 0`
+        // — a chip tucked under the header is on screen and untappable. Measured live rather than
+        // hardcoded: the header has three geometries and picks one by scroll position.
+        const headerBottom = document.getElementById('app-header')?.getBoundingClientRect().bottom ?? 0
+        // ⚠️ The lower bound leaves room for the tour card, which opens BELOW the target, and for
+        // the bottom nav. It only has to be good enough to DETECT a bad position; `block: 'center'`
+        // is what actually chooses where the target lands.
+        const safeBottom = window.innerHeight * 0.62
+        if (r.top < headerBottom + PAD || r.bottom > safeBottom) {
+          if (scrollAtCorrection === Math.round(window.scrollY)) correctUntil = 0
+          else {
+            lastCorrection = now
+            scrollAtCorrection = Math.round(window.scrollY)
+            anchorEl.scrollIntoView({ block: 'center', behavior: scrollBehavior() })
+          }
+        }
+      }
       raf = requestAnimationFrame(tick)
     }
     raf = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(raf)
+    return () => {
+      cancelAnimationFrame(raf)
+      window.removeEventListener('touchstart', stopCorrecting)
+      window.removeEventListener('wheel', stopCorrecting)
+      window.removeEventListener('keydown', stopCorrecting)
+      window.removeEventListener('pointerdown', stopCorrecting)
+    }
   }, [anchorEl])
 
   /**
@@ -400,12 +500,19 @@ export function IntroTour() {
    * transparency gets a solid scrim instead of a blur, which is the platform contract, not a
    * nicety. Blur is not motion, so `prefers-reduced-motion` deliberately does not touch it.
    */
-  const PAD = 8
-  // ⚠️ `bg-black/40`, one of the tints the reduce-transparency block in globals.css actually
-  // covers — design-lint refused `bg-background/45` because those rules would strip the blur and
-  // find no solid background underneath, leaving a reduced-transparency reader worse off than
-  // before. A covered tint degrades to a plain scrim, which is the correct fallback for a mask.
-  const panel = 'fixed bg-black/40 material backdrop-blur-md'
+  /**
+   * ⛔ THE TINT AND THE BLUR LIVE IN `.tour-mask` IN globals.css, NOT IN UTILITIES HERE, and that
+   * is a fix rather than a preference. As `bg-black/40 material backdrop-blur-md` these panels
+   * were also matched by the two blocks that force `.material.bg-black\/40` to `#000` — measured
+   * on an iPhone viewport with `prefers-contrast: more`, every panel came back `rgb(0, 0, 0)`
+   * with the blur stripped, so four opaque rectangles around a small hole turned the whole page
+   * black. That is right for a floating bar with text on it and wrong for a mask, whose only job
+   * is to keep the page visible-but-demoted; the CSS file explains the split at length.
+   * ⚠️ `material` STAYS. It is still a translucent surface and must still declare itself — the
+   * marker is what `.reduce-transparency` keys off, and design-lint requires it beside a blur.
+   * Only the two values moved.
+   */
+  const panel = 'fixed material tour-mask'
   /**
    * ⚠️ THE SIDE PANELS ARE CLAMPED TO THE VISIBLE PART OF THE HOLE, and the unclamped version had
    * a real artefact. When the target is scrolled partly above the fold, `hole.top` goes negative:
@@ -476,7 +583,7 @@ export function IntroTour() {
         positionerClassName="z-[1160]"
         // ⛔ NO `backdrop` — see the note at the top of this file. Three OAuth rejections.
         className="w-[min(22rem,calc(100vw-1.5rem))] gap-2"
-        // See the note on `startedByClick`: focus follows a click, never a passive page load.
+        // See the note on `begin`: focus follows a click, never a passive arrival.
         initialFocus={startedByClick ? undefined : false}
       >
         <div className="flex items-center justify-between gap-2">
