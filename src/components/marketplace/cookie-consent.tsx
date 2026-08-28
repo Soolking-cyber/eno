@@ -232,12 +232,17 @@ export function CookieConsent() {
                the settings view would push the actions off a landscape phone with no way to reach
                them. A consent card whose "Decline" cannot be reached is the worst possible failure
                mode here, so it scrolls rather than overflowing. Raised in review. */
-            className="pointer-events-auto relative flex max-h-full w-full max-w-md items-center gap-2 overflow-y-auto rounded-2xl bg-popover p-3 shadow-overlay outline-none animate-in fade-in zoom-in-95 duration-200 sm:gap-3.5 sm:p-4 data-closed:animate-out data-closed:fade-out data-closed:zoom-out-95"
+            className="pointer-events-auto relative flex max-h-full w-full max-w-md flex-col overflow-y-auto rounded-2xl bg-popover p-3 shadow-overlay outline-none animate-in fade-in zoom-in-95 duration-200 sm:p-4 data-closed:animate-out data-closed:fade-out data-closed:zoom-out-95"
           >
-            {/* Mascot — fills the card height (the tallest element), minimal padding. */}
-        <Mascot name="cookie" className="h-24 w-24 shrink-0 self-center text-foreground sm:h-28 sm:w-28" />
-
-        <div className="min-w-0 flex-1 pr-0.5">
+            {/* ⛔ THE CARD IS TWO STACKED SECTIONS, NOT TWO COLUMNS — owner, 2026-08-28. The mascot
+            used to be a sibling of the whole content block, so it occupied a full-height left
+            column: on a tall card it floated in the middle of its own empty gutter, and the rule
+            beneath the introduction could only ever span the RIGHT column, which read as a divider
+            inside one section rather than a division of the card.
+            Now the introduction runs the full width above the rule, and the mascot sits beside the
+            cookie question below it, where it belongs — it is the cookie mascot, and that is the
+            cookie half. */}
+        <div>
           {view === 'ask' ? (
             <>
               {/**
@@ -365,7 +370,24 @@ export function CookieConsent() {
                 * separates the introduction from the request, and the size goes back to `text-sm`.
                 * ⚠️ If the card ever needs to be shorter, cut the introduction — never this.
                 */}
-              <div className="sticky bottom-0 z-10 mt-2.5 border-t border-line bg-popover pt-2.5">
+              {/* ⚠️ `-mx-3 px-3` (and the sm: pair) BLEEDS THE RULE TO THE CARD EDGES. Inside the
+                  padding it stops short of both sides and reads as an underline under the proof
+                  list; edge to edge it reads as what it is, the seam between two sections.
+                  ⚠️ Still `sticky bottom-0` — this whole half stays pinned, so the introduction
+                  scrolls behind it and the controls never leave the screen. `bg-popover` matches
+                  the card's own token so the pinned half is opaque in both themes. */}
+              <div className="sticky bottom-0 z-10 -mx-3 mt-2.5 flex items-center gap-3 border-t border-line bg-popover px-3 pt-2.5 sm:-mx-4 sm:px-4">
+              {/* ⛔ THE MASCOT DROPS ON A SHORT VIEWPORT, AND IT IS THE RIGHT THING TO DROP.
+                  It now lives inside the pinned half, so it costs that half ~92px of permanent
+                  height — measured at 740x360, the sticky block was 185px of a 216px card, leaving
+                  31px of scroll room and an introduction nobody could reach. That is the trade the
+                  comment above warns about.
+                  ⚠️ Hiding THIS is not the same as hiding the introduction, which is why there is
+                  no `pointer` gate here: the mascot is decoration and carries no claim, so a
+                  zoomed desktop reader losing a drawing loses nothing. The copy, the proof and the
+                  consent question stay for everyone at every size. */}
+              <Mascot name="cookie" className="h-20 w-20 shrink-0 self-center text-foreground [@media(max-height:560px)]:hidden sm:h-24 sm:w-24" />
+              <div className="min-w-0 flex-1">
               <p className="text-sm leading-snug text-muted-foreground">
                 {isNative
                   ? tr(
@@ -444,9 +466,15 @@ export function CookieConsent() {
                 </Button>
               </div>
               </div>
+              </div>
             </>
           ) : (
             <>
+              {/* ⚠️ The settings view keeps the mascot beside it — the ask view moved its copy into
+                  the consent half, and without this the mascot would vanish entirely on this view. */}
+              <div className="flex items-center gap-3">
+              <Mascot name="cookie" className="hidden h-20 w-20 shrink-0 self-center text-foreground sm:block" />
+              <div className="min-w-0 flex-1">
               <DialogPrimitive.Title className="text-base font-bold leading-tight text-foreground">{tr('Your choices', 'Lựa chọn của bạn')}</DialogPrimitive.Title>
               <div className="mt-1.5 -ml-1.5 space-y-0">
                 <Toggle locked value title={tr('Essential', 'Cần thiết')} desc={tr('Sign-in & speed. Always on.', 'Đăng nhập & tốc độ. Luôn bật.')} />
@@ -456,6 +484,8 @@ export function CookieConsent() {
               <div className="mt-3 flex flex-wrap items-center gap-2.5">
                 <Button variant="cta" size="none" onClick={save} className={primary}>{tr('Save', 'Lưu')}</Button>
                 <Button variant="ghost" size="none" onClick={decline} className={ghost}>{tr('Decline all', 'Từ chối tất cả')}</Button>
+              </div>
+              </div>
               </div>
             </>
           )}
