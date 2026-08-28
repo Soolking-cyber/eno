@@ -382,7 +382,7 @@ export function CategoryRail({
                     const subActive = activeSubcategory === sub.slug
                     const count = subCount(sub.slug)
                     return (
-                      <Button key={sub.slug} variant="bare" size="none" aria-pressed={subActive} onClick={() => onSubcategory(subActive ? 'all' : sub.slug)} className={cn('block', subChip(subActive))}>
+                      <Button key={sub.slug} variant="bare" size="none" data-subcat={sub.slug} aria-pressed={subActive} onClick={() => onSubcategory(subActive ? 'all' : sub.slug)} className={cn('block', subChip(subActive))}>
                         {/* At 14px the baked display stroke goes wispy — re-tier the ink
                             line to the UI weight (icon-language §2). */}
                         <CategoryIcon name={sub.icon} stroke={STROKE_UI} selected={subActive} className="mr-1 h-3.5 w-3.5 shrink-0 align-[-2px]" />
@@ -401,6 +401,7 @@ export function CategoryRail({
                             key={sub.slug}
                             variant="bare"
                             size="none"
+                            data-subcat={sub.slug}
                             aria-pressed={subActive}
                             onClick={() => onSubcategory(subActive ? 'all' : sub.slug)}
                             className={cn('flex w-full justify-between gap-3 rounded-lg px-2.5 py-1.5 text-left font-semibold transition-colors active:scale-100', subActive ? 'bg-accent text-accent-foreground' : 'text-body hover:bg-muted hover:text-accent-foreground')}

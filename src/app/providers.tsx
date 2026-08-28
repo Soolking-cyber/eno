@@ -16,6 +16,7 @@ import { SkipLink } from "@/components/marketplace/skip-link";
 import { Toaster as SonnerToaster } from "@/components/ui/sonner";
 import { SaveSignupSheet } from "@/components/marketplace/save-signup-sheet";
 import { CookieConsent } from "@/components/marketplace/cookie-consent";
+import { IntroTour } from "@/components/marketplace/intro-tour";
 import { InstallHint } from "@/components/marketplace/install-hint";
 import { ImageShield } from "@/components/marketplace/image-shield";
 import { PrelaunchNotice } from "@/components/marketplace/prelaunch-notice";
@@ -117,6 +118,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
                     <SaveSignupSheet />
                     <ImageShield />
                     <CookieConsent />
+                    {/* Starts when the intro card closes, on either choice — see intro-tour.tsx. */}
+                    <IntroTour />
                     <InstallHint />
                     {/* ⚠️ MOUNTED GLOBALLY BECAUSE THE FAILURE LANDS ON THE HOME PAGE, NOT ON
                         /signin. /auth/callback redirects a failed sign-in to `/?auth_error=…`, so

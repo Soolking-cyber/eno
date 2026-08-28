@@ -325,6 +325,9 @@ export function BrandRail({
                         key={m.model}
                         variant="bare"
                         size="none"
+                        // ⚠️ The first-run tour anchors its guided drill-down here and waits for a
+                        // real click; an attribute survives translation where the label would not.
+                        data-model={m.model}
                         aria-pressed={mActive}
                         onClick={() => onPickModel(mActive ? 'all' : m.model)}
                         className={cn(modelChip(mActive), 'justify-start gap-0')}
@@ -360,6 +363,7 @@ export function BrandRail({
                             key={m.model}
                             variant="bare"
                             size="none"
+                            data-model={m.model}
                             aria-pressed={mActive}
                             onClick={() => onPickModel(mActive ? 'all' : m.model)}
                             className={cn('w-full justify-between gap-3 rounded-lg px-2.5 py-1.5 text-left text-sm font-semibold transition-colors active:scale-100', mActive ? 'bg-accent text-accent-foreground' : 'text-body hover:bg-muted hover:text-accent-foreground')}

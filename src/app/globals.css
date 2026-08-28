@@ -2617,6 +2617,42 @@ html.dark .leaflet-tile-pane {
   .search-beam::after { display: none; }
 }
 
+/* ── THE FIRST-RUN TOUR'S TARGET RING ──────────────────────────────────────────────────────────
+   ⛔ A RING ON THE TARGET, NOT A SCRIM OVER THE PAGE, AND THE DIFFERENCE IS EXPENSIVE. The obvious
+   way to make a tour step's subject stand out is to dim everything else. Do not: a centred card
+   over a `fixed inset-0` backdrop is precisely what cost THREE Google OAuth verification
+   rejections ("your home page is behind a login page") — the whole story is in cookie-consent.tsx.
+   Lighting the target instead leaves the page fully visible and fully clickable, which is also
+   kinder: someone who ignores the tour and just starts scrolling is not fighting an overlay.
+
+   ⚠️ `outline`, NOT `box-shadow` or a `ring-*` utility. The search bar is `overflow` clipped and
+   the rail is a scroller, so an inset ring lands under the children (see the inset-outline note
+   elsewhere in this file). An outline is drawn outside the border box and cannot be clipped by the
+   element's own content. `outline-offset` keeps it off the bar's own rounded edge.
+   ⚠️ Reduced motion drops the pulse and keeps the ring — the ring is the INFORMATION here, and a
+   step that points at nothing visible is a step nobody can follow. */
+[data-tour-active] {
+  outline: 2px solid color-mix(in oklab, var(--color-accent-foreground) 70%, transparent);
+  outline-offset: 3px;
+  /* ⛔ NO `border-radius: inherit` HERE — it was in the first version and it is pure downside. An
+     outline already follows the element's OWN radius, so the declaration bought nothing, while
+     `[data-tour-active]` is an unlayered attribute selector at the same specificity as
+     `.rounded-2xl`: on any target whose parent is square, it would flatten a pill into a rectangle
+     for the length of the step. Measured 18px before and after on the search bar, so it was not
+     firing there — but "it happens not to bite on the two elements we point at today" is not a
+     reason to keep a rule that can only hurt. */
+  animation: tour-target-pulse 2s ease-in-out infinite;
+}
+
+@keyframes tour-target-pulse {
+  0%, 100% { outline-color: color-mix(in oklab, var(--color-accent-foreground) 70%, transparent); }
+  50%      { outline-color: color-mix(in oklab, var(--color-accent-foreground) 25%, transparent); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-tour-active] { animation: none; }
+}
+
 /* ── THE RAIL SWIPE BEAM ───────────────────────────────────────────────────────────────────────
    A hairline that a soft light crosses from RIGHT TO LEFT, sitting directly above a horizontal
    rail. Owner, 2026-08-27: the direction IS the message — it traces the way the finger goes, so a

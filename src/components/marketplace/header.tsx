@@ -476,7 +476,11 @@ export function Header() {
                 // once the panel is open the reader is already engaged and a moving edge competes
                 // with the suggestions they came for.
                 : 'search-beam rounded-2xl bg-tint',
-            )}>
+            )}
+            /* ⚠️ THE FIRST-RUN TOUR POINTS AT THIS ELEMENT (src/lib/intro-tour.ts, TOUR_TARGETS).
+               A step whose anchor is missing is skipped, so removing this shortens the tour
+               silently rather than breaking it — intro-tour.test.ts asserts both ends exist. */
+            data-tour="search">
               <Search className="pointer-events-none ml-3.5 h-6 w-6 shrink-0 text-ink-4" strokeWidth={STROKE} />
               <Input
                 variant="unstyled"

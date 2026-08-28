@@ -8,6 +8,7 @@ import { Mascot } from './mascot'
 import { cn } from '@/lib/utils'
 import { Dialog as DialogPrimitive } from '@base-ui/react/dialog'
 import { Button } from '@/components/ui/button'
+import { ShieldCheck, Sparkles, MessageCircle } from '@/components/ui/icons'
 
 function Toggle({ title, desc, value, onChange, locked = false }: { title: string; desc: string; value: boolean; onChange?: (v: boolean) => void; locked?: boolean }) {
   return (
@@ -133,6 +134,15 @@ export function CookieConsent() {
     setShow(false)
     setOpenedByUser(false)
     setView('ask')
+    /**
+     * ⚠️ THE TOUR STARTS ON EITHER CHOICE, AND THAT IS A COMPLIANCE POINT rather than a nicety.
+     * Owner, 2026-08-28: "once they close popup the onboarding process should start". Starting it
+     * only after "Allow" would make the walkthrough a reward for consenting — the exact nudge
+     * PDPL/GDPR mean by consent not being freely given. Allow, Decline and Esc all lead here.
+     * ⚠️ NOT fired for the footer re-open: someone editing their choice a month later is not a
+     * first-run visitor. `intro-tour.tsx` also refuses to run twice, so this is belt and braces.
+     */
+    if (!openedByUser) window.dispatchEvent(new CustomEvent('eno:start-tour'))
   }
   const allow = () => { setConsent('all'); close() }
   const save = () => { setConsent(ads ? 'all' : perso ? 'personalized' : 'essential'); close() }
@@ -230,12 +240,64 @@ export function CookieConsent() {
         <div className="min-w-0 flex-1 pr-0.5">
           {view === 'ask' ? (
             <>
+              {/**
+                * ⛔ AN INTRODUCTION THAT STILL ASKS — AND IT MUST NOT GROW INTO AN INTERSTITIAL.
+                * Owner, 2026-08-28: the card should say who we are, what we do and why to use us,
+                * "to industry standards". The standard landing shape is value proposition → proof →
+                * one action, and that is what this is: a headline that names the marketplace, one
+                * line of what it does, three proof points, then the consent question.
+                * ⚠️ WHAT IT DELIBERATELY IS NOT is a full-page splash. Read the note above the
+                * Root: a centred card over a backdrop cost THREE Google OAuth verification
+                * rejections. The proof points are one tight row precisely so the card stays a card;
+                * if a future edit makes this scroll on a landscape phone, cut copy rather than
+                * raising the height.
+                * ⚠️ EDITION-AWARE, BECAUSE THE COPY IS A LEGAL SURFACE. eno.vn may not describe
+                * visa or trip services at all, so the services line only exists on the forum build.
+                */}
               <DialogPrimitive.Title className="text-base font-bold leading-tight text-foreground">
-                {isNative
-                  ? tr('Personalize your experience?', 'Cá nhân hoá trải nghiệm của bạn?')
-                  : tr('Want results made for you?', 'Muốn kết quả dành riêng cho bạn?')}
+                {tr('Buy and sell in Vietnam, without the guesswork', 'Mua bán tại Việt Nam, không còn mơ hồ')}
               </DialogPrimitive.Title>
               <p className="mt-1 text-sm leading-snug text-muted-foreground">
+                {/* ⛔ ONE LINE FOR BOTH EDITIONS, AND AN EDITION TERNARY HERE WAS A LICENSING LEAK.
+                    The first version branched on IS_MARKETPLACE to mention trips and e-visa on the
+                    forum — correct at RENDER, and wrong in the artifact: scripts/gen-ui-strings.mjs
+                    scrapes tr() calls out of the source, so BOTH branches landed in the MARKETPLACE
+                    string table and eno.vn shipped a bundle containing "listings, trips and e-visa
+                    in one place". A reviewer caught it; measured in src/generated/ui-strings.ts
+                    before believing it. eno.vn may not name those services in any form.
+                    ⚠️ So the rule for this file: never put an edition branch inside `tr()`. If the
+                    editions ever genuinely need different intro copy, the services variant belongs
+                    in its own `.svc.` module that the marketplace build never compiles — not in a
+                    ternary the generator will flatten. */}
+                {tr(
+                  'eno is the marketplace for people living in Vietnam — everything from phones to apartments, in English and Vietnamese, with prices in đồng and dollars.',
+                  'eno là chợ trực tuyến cho người sống tại Việt Nam — từ điện thoại đến căn hộ, bằng tiếng Việt và tiếng Anh, giá theo đồng và đô la.',
+                )}
+              </p>
+              <ul className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+                {[
+                  { Icon: ShieldCheck, label: tr('Verified sellers', 'Người bán đã xác minh') },
+                  { Icon: Sparkles, label: tr('Real prices', 'Giá thật') },
+                  { Icon: MessageCircle, label: tr('Chat, no phone number', 'Nhắn tin, không cần số') },
+                ].map(({ Icon, label }) => (
+                  <li key={label} className="flex items-center gap-1 text-2xs font-semibold text-body">
+                    <Icon className="h-3.5 w-3.5 shrink-0 text-accent-foreground" />
+                    {label}
+                  </li>
+                ))}
+              </ul>
+              {/**
+                * ⛔ THE CONSENT ASK IS ITS OWN SECTION, AT FULL SIZE, AND THE FIRST DRAFT BROKE THAT.
+                * Adding the introduction pushed this line to `text-2xs` under a marketing headline —
+                * so the smallest type on the card was the only place explaining what "Allow" does.
+                * GDPR Art. 7(2) requires a consent request be "clearly distinguishable from other
+                * matters" and intelligible; a reviewer was right that the diff argued consent law to
+                * justify when the TOUR starts while quietly weakening the NOTICE. The rule above
+                * separates the introduction from the request, and the size goes back to `text-sm`.
+                * ⚠️ If the card ever needs to be shorter, cut the introduction — never this.
+                */}
+              <div className="mt-2.5 border-t border-line pt-2.5">
+              <p className="text-sm leading-snug text-muted-foreground">
                 {isNative
                   ? tr(
                       'Allow us to put the most relevant products first and to measure what works, so the app keeps getting better for you. ',
@@ -247,10 +309,11 @@ export function CookieConsent() {
                     )}
                 <Link href="/privacy" prefetch={false} className="font-semibold text-accent-foreground underline underline-offset-2">{tr('Privacy policy', 'Chính sách quyền riêng tư')}</Link>
               </p>
-              <div className="mt-3 flex flex-wrap items-center gap-2.5">
+              <div className="mt-2.5 flex flex-wrap items-center gap-2.5">
                 <Button variant="cta" size="none" onClick={allow} className={primary}>{tr('Allow', 'Cho phép')}</Button>
                 <Button variant="ghost" size="none" onClick={decline} className={ghost}>{tr('Decline', 'Từ chối')}</Button>
                 <Button variant="ghost" size="none" onClick={() => setView('settings')} className={ghost}>{tr('Settings', 'Tùy chỉnh')}</Button>
+              </div>
               </div>
             </>
           ) : (
