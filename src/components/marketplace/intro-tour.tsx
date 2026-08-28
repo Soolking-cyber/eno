@@ -48,6 +48,11 @@ export function IntroTour() {
   const [index, setIndex] = useState<number | null>(null)
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null)
   /**
+   * The target's live viewport rect, re-read on scroll and resize. The mask is cut around it, so a
+   * stale rect would blur the very control the step is asking the reader to press.
+   */
+  const [hole, setHole] = useState<DOMRect | null>(null)
+  /**
    * ⛔ FOCUS ONLY WHEN THE TOUR FOLLOWS A CLICK, and this split is the same one cookie-consent.tsx
    * makes for the same reason. `initialFocus={false}` everywhere left the tour unreachable by
    * keyboard — no trigger, no focus, so a keyboard-only visitor could never press Next (reviewer's
@@ -283,6 +288,40 @@ export function IntroTour() {
   }, [step, steps.length])
 
   /**
+   * ⛔ THE MASK'S HOLE HAS TO TRACK THE TARGET, NOT A REMEMBERED RECTANGLE. The rail scrolls, the
+   * page scrolls, phones rotate — a hole measured once drifts off the control and ends up blurring
+   * and blocking the thing the step just told the reader to tap. `scroll` is captured so it also
+   * fires for the RAIL's own scroller, not just the window.
+   */
+  useEffect(() => {
+    setHole(null)
+    if (!anchorEl) return
+    /**
+     * ⛔ A FRAME LOOP, NOT SCROLL LISTENERS — and the listener version shipped a visible bug.
+     * `attach()` calls `scrollIntoView` on the target, so the element is still MOVING when the hole
+     * is first measured. Listening for `scroll` (even captured, so the rail's own scroller counts)
+     * did not converge: measured on step 3, the hole was cut at the chip's pre-scroll position
+     * (left ≈ 324) while the chip had settled at 119, so the mask covered the very control the step
+     * was telling the reader to tap — reported as clickable in one probe and BLOCKED in another,
+     * which is exactly what a race looks like from the outside.
+     * ⚠️ A loop is immune to WHY the rect moved: smooth scrolling, a late image, a rotation, the
+     * rail re-rendering. It reads one `getBoundingClientRect` per frame while a step is open and
+     * calls `setHole` ONLY when the numbers actually change, so a settled target costs one cheap
+     * read per frame and no renders at all.
+     */
+    let raf = 0
+    let last = ''
+    const tick = () => {
+      const r = anchorEl.getBoundingClientRect()
+      const key = `${r.top}|${r.left}|${r.width}|${r.height}`
+      if (key !== last) { last = key; setHole(r) }
+      raf = requestAnimationFrame(tick)
+    }
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
+  }, [anchorEl])
+
+  /**
    * ⛔ THE TOUR ENDS IF THE VISITOR LEAVES THE HOME PAGE — except for the navigation IT performs.
    * Without this, tapping a listing card mid-tour leaves a popover pointing at an element that no
    * longer exists on the new route. The example step navigates within `/`, so the pathname does not
@@ -346,8 +385,76 @@ export function IntroTour() {
     setIndex((i) => (i === null ? null : i + 1))
   }
 
+  /**
+   * ⛔ FOUR PANELS AROUND THE TARGET, NOT ONE OVERLAY WITH A CSS HOLE. The mask has two jobs —
+   * blur everything that is not the subject, and make everything that is not the subject
+   * unclickable — and four rectangles do both for free: the gap between them is not covered by
+   * anything, so the control underneath keeps its own sharpness AND its own clicks with no
+   * `pointer-events` juggling. A single overlay with a `clip-path` hole would still swallow the
+   * press, which is exactly what the guided steps need the reader to be able to make.
+   * ⚠️ 8px of padding so the ring around the target is inside the hole rather than blurred off.
+   * ⚠️ On the two centred steps there is no target, so one full-viewport panel covers everything —
+   * nothing to press but the card.
+   * ⛔ `backdrop-blur-md` matches the app's other floating chrome (`sticky-action-bar`), and the
+   * `material` marker is what `.reduce-transparency` keys off: a reader who asks for less
+   * transparency gets a solid scrim instead of a blur, which is the platform contract, not a
+   * nicety. Blur is not motion, so `prefers-reduced-motion` deliberately does not touch it.
+   */
+  const PAD = 8
+  // ⚠️ `bg-black/40`, one of the tints the reduce-transparency block in globals.css actually
+  // covers — design-lint refused `bg-background/45` because those rules would strip the blur and
+  // find no solid background underneath, leaving a reduced-transparency reader worse off than
+  // before. A covered tint degrades to a plain scrim, which is the correct fallback for a mask.
+  const panel = 'fixed bg-black/40 material backdrop-blur-md'
+  /**
+   * ⚠️ THE SIDE PANELS ARE CLAMPED TO THE VISIBLE PART OF THE HOLE, and the unclamped version had
+   * a real artefact. When the target is scrolled partly above the fold, `hole.top` goes negative:
+   * the sides then started at 0 but kept the full height, so they ran past where the bottom panel
+   * begins and two `bg-black/40` layers with two blurs stacked into a visibly darker band beside
+   * and under the highlighted control. Deriving top and bottom from the clamped edges keeps every
+   * panel edge-to-edge with its neighbour and never overlapping.
+   */
+  /**
+   * ⛔ AN ANCHORED STEP WITH NO MEASURED HOLE DRAWS NO MASK AT ALL — this is the fix for a real
+   * one-frame bug, not caution. The rect is read in an effect, so the first paint after a step
+   * change has no hole yet; falling back to the full-viewport panel there covered the very control
+   * the new step was about to point at, and a fast tap in that window landed on a handler-less
+   * blurred div and made the tour look dead. Showing nothing for one frame is invisible; showing
+   * the wrong thing is a dead tap. The full panel is only for the steps that genuinely have no
+   * target — `result` and `signup` — where covering everything is the intent.
+   */
+  const anchored = tourAnchorFor(step.id) !== null
+  /**
+   * ⛔ NO MASK WHILE THE TARGET IS OFF SCREEN, OR THE READER IS TRAPPED. Scroll the anchor past
+   * either edge and the clamped geometry collapses the hole to nothing: one panel ends up covering
+   * the whole viewport, so the page is blurred, every click is swallowed, and the thing the step
+   * points at is nowhere to be seen. A reviewer walked that through. Dropping the mask hands the
+   * page straight back — and it returns by itself the moment the target scrolls into view again,
+   * because the frame loop above is still measuring.
+   */
+  const onScreen = !!hole && hole.bottom > 0 && hole.top < window.innerHeight
+  const mask = hole && onScreen ? (() => {
+    const top = Math.max(0, hole.top - PAD)
+    const bottom = Math.min(window.innerHeight, hole.bottom + PAD)
+    const height = Math.max(0, bottom - top)
+    return [
+      { key: 'top', style: { left: 0, right: 0, top: 0, height: top } },
+      { key: 'bottom', style: { left: 0, right: 0, top: bottom, bottom: 0 } },
+      { key: 'left', style: { left: 0, width: Math.max(0, hole.left - PAD), top, height } },
+      { key: 'right', style: { left: Math.max(0, hole.right + PAD), right: 0, top, height } },
+    ]
+  })() : anchored ? [] : [{ key: 'all', style: { inset: 0 } }]
+
   return (
-    /**
+    <>
+      {/* ⚠️ z-[1150]: above the app's chrome (header and its neighbours run z-[60] to z-[130]) and
+          below the tour's own popover, which is raised to z-[1160] on the Positioner. Both numbers
+          exist because a mask that sits under the header would leave the header clickable — the one
+          thing this is here to prevent. */}
+      {mask.map(({ key, style }) => (
+        <div key={key} aria-hidden="true" className={`${panel} z-[1150]`} style={style} />
+      ))}
+    {/*
      * ⛔ THE OUTSIDE PRESS MUST NOT CLOSE THIS, AND IT DID — the whole guided drill-down died on the
      * first click. Base UI's non-modal Popover dismisses on any press outside the popup, and every
      * drill step asks the visitor to press exactly such a control: tapping "Electronics" both
@@ -356,7 +463,7 @@ export function IntroTour() {
      * ⚠️ So closing is OURS alone: Skip, the final buttons, Esc (a keydown listener above) and
      * leaving the home page. `onOpenChange` is deliberately inert rather than removed, so nobody
      * re-adds a `finish()` here without reading this.
-     */
+     */}
     <Popover open onOpenChange={() => { /* see above — never close on outside press */ }}>
       <PopoverContent
         // `anchor` positions against a real element rather than a trigger; null centres the card.
@@ -366,6 +473,7 @@ export function IntroTour() {
         side="bottom"
         sideOffset={10}
         collisionPadding={12}
+        positionerClassName="z-[1160]"
         // ⛔ NO `backdrop` — see the note at the top of this file. Three OAuth rejections.
         className="w-[min(22rem,calc(100vw-1.5rem))] gap-2"
         // See the note on `startedByClick`: focus follows a click, never a passive page load.
@@ -401,5 +509,6 @@ export function IntroTour() {
         </div>
       </PopoverContent>
     </Popover>
+    </>
   )
 }

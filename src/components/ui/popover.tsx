@@ -98,6 +98,7 @@ function PopoverContent({
   anchor,
   backdrop = false,
   backdropClassName,
+  positionerClassName,
   ...props
 }: PopoverPrimitive.Popup.Props &
   Pick<
@@ -115,6 +116,16 @@ function PopoverContent({
      */
     backdrop?: boolean
     backdropClassName?: string
+    /**
+     * ⚠️ FOR THE LAYER, NOT THE LOOK — the Positioner is where `z-index` lives, and the popup's own
+     * `className` cannot reach it. Added for the first-run tour, which paints a blurred mask over
+     * the page to block clicks everywhere except the control it is pointing at: that mask has to
+     * sit ABOVE app chrome (the header and its neighbours run z-[60] to z-[130]) and the tour's own
+     * popover has to sit above the mask, which the hard-coded `z-50` made impossible.
+     * ⛔ Reach for this only to restack a whole popover. Anything about the CARD — padding, width,
+     * colour — belongs on `className`, which lands on the popup where tailwind-merge can resolve it.
+     */
+    positionerClassName?: string
   }) {
   return (
     <PopoverPrimitive.Portal>
@@ -129,7 +140,7 @@ function PopoverContent({
         sideOffset={sideOffset}
         collisionPadding={collisionPadding}
         anchor={anchor}
-        className="isolate z-50"
+        className={cn("isolate z-50", positionerClassName)}
       >
         {/* `shadow-pop` — the ELEVATION TOKEN, not one of Tailwind's stock t-shirt shadow
             utilities, which is what this was until 2026-08-11. The scale is tokenised in
