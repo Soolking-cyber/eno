@@ -10,8 +10,9 @@ import { googleOauthBlocked } from '@/lib/in-app-browser'
 import { prefersReducedMotion, scrollBehavior } from '@/lib/reduced-motion'
 import { Search, Sparkles, Tag } from '@/components/ui/icons'
 import {
-  TOUR_DEMO,
   TOUR_EXAMPLE_QUERY,
+  drillDone,
+  isDrillStep,
   hasSeenTour,
   markTourPending,
   markTourSeen,
@@ -24,15 +25,20 @@ import {
 const PAD = 8
 
 /**
- * ⚠️ TIMINGS ARE THE WHOLE UX OF AN AUTO-PLAYING TOUR, so they are named rather than sprinkled.
- * `SETTLE` is the pause after a step's action fires, before the next step begins — the results have
- * to visibly change or the demonstration has demonstrated nothing. `READ` is how long a step's line
- * stays up. `KEY` is the per-character typing interval.
- * ⚠️ NOT TUNED TO A STOPWATCH — tuned to "can you read six words and see the grid change". If these
- * are shortened, the tour stops being legible before it stops being fast.
+ * ⚠️ ONLY THE SEARCH STEP IS TIMED — the other four wait for the visitor — so these three numbers
+ * are the entire pacing of the part that plays itself. `READ` is how long the line stays up before
+ * the query is submitted, `KEY` is the per-character typing interval, and `SETTLE` is the pause
+ * afterwards, before the facet walk takes over.
+ * ⚠️ `SETTLE` WAS 1100 AND THAT WAS MEASURED TOO SHORT. The search fires, the results come back over
+ * the network, and only then is there anything to look at: sampled on a real build, the count
+ * reached 105 at t+3.5s and the step handed over at t+4.2s, so the whole point of the step — a
+ * number visibly falling from 10,020 — was on screen for seven tenths of a second. The settle has
+ * to outlast the request, not the render.
+ * ⚠️ NOT TUNED TO A STOPWATCH — tuned to "can you read six words and see the grid change". Shorten
+ * these and the tour stops being legible before it stops being fast.
  */
 const READ_MS = 1500
-const SETTLE_MS = 1100
+const SETTLE_MS = 1900
 const KEY_MS = 45
 
 type Step = {
@@ -43,35 +49,36 @@ type Step = {
 }
 
 /**
- * FIRST-RUN TOUR — it DEMONSTRATES the app rather than asking the visitor to drive it.
+ * FIRST-RUN TOUR — the tour WRITES, the visitor TAPS.
  *
- * Owner, 2026-08-28: "the tour make it simpler just words with icon ex search hand icon taps and
- * writes Macbook pro 16 inch m5 64GB 1TB with smooth text reveal inside search bar then next taps
- * icon on with text select category electronics then similar select subcategory then select model
- * and lastly select brand", and "sign up and save these should auto trigger google login".
+ * Owner, 2026-08-28, across three passes: "just words with icon ex search hand icon taps and writes
+ * Macbook pro 16 inch m5 64GB 1TB with smooth text reveal inside search bar then next taps icon on
+ * with text select category electronics", then "sign up and save these should auto trigger google
+ * login", then — after seeing it play by itself — "dont auto run taps make it user do the taps".
  *
- * ⛔ THIS REVERSES THE PREVIOUS DESIGN, WHICH IS RECORDED IN src/lib/intro-tour.ts AND SHOULD STAY
- * RECORDED. Earlier the same day the ask was the opposite — "make user click 1 by one … let them
- * experience how to find" — and the steps waited on the URL gaining each parameter. Doing teaches
- * better than watching; watching finishes far more often. Both are true, the owner has now picked,
- * and knowing the other was tried is what stops it being rediscovered as a fresh idea later.
+ * ⛔ SO ONE THING IS DEMONSTRATED AND ONE THING IS ASKED FOR, and the split is the design rather
+ * than a compromise. The search query types itself into the real bar, because nobody could mistake
+ * that for their own work and it is the fastest way to show what the box is for. The four facet
+ * steps do NOT act: each highlights one real chip and waits for the visitor to press it. The full
+ * back-and-forth that got here is in src/lib/intro-tour.ts and is worth keeping — every version of
+ * it was a reasonable thing to want, and the trade (doing teaches better, watching finishes more
+ * often) is the kind that gets rediscovered as a fresh idea otherwise.
  *
- * ⛔ IT DRIVES THE APP'S OWN FILTER EVENT, NOT THE DOM. The obvious implementation of "the hand taps
- * Electronics" is `el.click()` on the real chip, and two reviewers independently said don't: the
- * rail fills in after its own fetch, so the chip may not be mounted when the step fires; it scrolls
- * horizontally inside its own scroller; and `.click()` skips the pointer sequence some handlers key
- * on. So each step dispatches `eno:apply-url` with the next parameter — the same event the
- * notification bell's deep links and the header's brand picks use — and the explorer applies it
- * exactly as it would a real tap. The hand still animates to the chip when it is there; when it is
- * not, the step narrates and the app still moves, instead of stalling on an element that never came.
+ * ⛔ THE SEARCH STEP DRIVES THE APP'S OWN FILTER EVENT, NOT THE DOM. `router.replace` was tried and
+ * shipped a demonstration that demonstrated nothing: it wrote a perfect query string while the grid
+ * behind the card still read "10,020 listings", because the EXPLORER owns this URL — it maintains
+ * the query string with `history.pushState` and reads changes from `popstate`, which a client-side
+ * replace never fires. `eno:apply-url` is the app's own door, used by the notification bell's deep
+ * links and the header's brand picks, so the tour produces exactly the state a real interaction
+ * produces. The four facet steps need none of this: the visitor's own tap does it.
  *
  * ⚠️ `replace`, NOT `push`, so the visitor does not have to press Back six times to leave.
  *
- * ⛔ AND THE VISITOR CAN ALWAYS TAKE THE WHEEL. This is the thing an auto-playing tour gets wrong:
- * it mutates a page nobody asked it to mutate. So a real click outside the card or any keypress
- * ENDS it, and ending restores the URL the tour started from — but only while the tour still owns
- * that URL, so a visitor who navigated themselves is never yanked backwards. Leaving four filters
- * applied on a page someone was trying to escape is the anti-pattern both reviewers named.
+ * ⛔ AND THE VISITOR CAN ALWAYS TAKE THE WHEEL — but the tap the tour ASKED FOR is not taking over,
+ * which is the distinction that makes a wait-for-tap tour work at all. A click anywhere except the
+ * card and the highlighted chip ends it, and ending undoes only what the tour itself did: the typed
+ * search, and only while no facet has been tapped yet. Filters the visitor pressed are theirs, and
+ * clearing those on the way out would be the hijacking this rule exists to prevent.
  */
 export function IntroTour() {
   const { tr } = useLanguage()
@@ -135,22 +142,22 @@ export function IntroTour() {
       {
         id: 'category',
         icon: <Tag className="h-5 w-5 text-brand" aria-hidden />,
-        line: tr('Category · Electronics', 'Danh mục · Đồ điện tử'),
+        line: tr('Tap Electronics', 'Chạm Đồ điện tử'),
       },
       {
         id: 'subcategory',
         icon: <Tag className="h-5 w-5 text-brand" aria-hidden />,
-        line: tr('Type · Laptops & PCs', 'Loại · Laptop & PC'),
+        line: tr('Tap Laptops & PCs', 'Chạm Laptop & PC'),
       },
       {
         id: 'brand',
         icon: <Tag className="h-5 w-5 text-brand" aria-hidden />,
-        line: tr('Brand · Apple', 'Hãng · Apple'),
+        line: tr('Tap Apple', 'Chạm Apple'),
       },
       {
         id: 'model',
         icon: <Tag className="h-5 w-5 text-brand" aria-hidden />,
-        line: tr('Model · MacBook Pro M5', 'Mẫu · MacBook Pro M5'),
+        line: tr('Tap MacBook Pro M5', 'Chạm MacBook Pro M5'),
       },
       {
         id: 'result',
@@ -234,47 +241,64 @@ export function IntroTour() {
   }, [pathname, index, finish])
 
   /**
-   * ⛔ THE VISITOR TAKES OVER AND THE TOUR GETS OUT OF THE WAY. An auto-playing sequence that keeps
-   * driving while someone is trying to use the page is the failure both reviewers led with, so a
-   * real click outside the card, or any keypress, ends it AND hands back the URL it borrowed.
+   * ⛔ THE TAP THE TOUR ASKED FOR IS NOT A TAKEOVER, AND GETTING THAT WRONG BREAKS THE WHOLE TOUR.
+   * Four of the six steps now wait for the visitor to press the highlighted chip — so a listener
+   * that ends the tour on "any click outside the card" would end it on precisely the click the step
+   * exists to invite. The anchor is excluded for that reason, not as a nicety.
+   * ⚠️ Everything ELSE still ends it: an auto-playing card that keeps pointing while someone is
+   * trying to use the page is the failure both reviewers led with, and the typing step genuinely
+   * does drive the page.
    * ⚠️ `click`, NOT `pointerdown`/`touchstart`. On a phone a scroll BEGINS with a touch, so a
-   * pointer-level listener would end the tour the moment anyone scrolled to see what it was talking
-   * about. A click is a completed intent; scrolling never produces one.
+   * pointer-level listener would end the tour the moment anyone scrolled to see the chip it is
+   * pointing at. A click is a completed intent; scrolling never produces one.
    */
   useEffect(() => {
     if (index === null) return
     /**
-     * ⚠️ THE LAST STEP DOES NOT RESTORE, AND THAT IS NOT AN INCONSISTENCY. Everywhere else a
-     * takeover means "I did not ask for this", so the borrowed URL goes back. On the closing step
-     * the demonstration is finished and the results ARE the thing being pointed at — "Sign up to
-     * save these" refers to them. Restoring there would clear the filters out from under a visitor
-     * who is about to press that button, and hand its `next=` a page that no longer shows what it
-     * promised. A reviewer traced it.
+     * ⛔ THE CLICK LISTENER RUNS ONLY WHILE THE TOUR IS DRIVING — i.e. the typing step — AND A
+     * REVIEWER FOUND WHY THAT MATTERS. On the four waiting steps the visitor is being ASKED to tap,
+     * and the chip they are told to press may be the copy inside the rail's "More" overflow rather
+     * than the one being pointed at; `drillDone` is read off the URL precisely so that path counts.
+     * With a blanket listener that tap lands outside both the card and the anchor, so it read as
+     * "the visitor took over": the tour ended AND undid the category they had just correctly
+     * applied — exactly the hijacking this was written to prevent.
+     * ⚠️ Esc and Skip still leave from any step; only this listener is narrowed.
      */
+    const driving = step?.id === 'search'
+    /**
+     * ⚠️ RESTORE ONLY WHAT THE TOUR ITSELF DID. It types a search query; the visitor does the rest.
+     * So abandoning before any facet has been tapped undoes the typed search — which was never
+     * theirs — and abandoning after undoes nothing, because those filters are the result of their
+     * own presses and clearing them would be the hijacking this rule exists to prevent.
+     */
+    // ⚠️ DERIVED FROM THE STEP, NOT A MAGIC INDEX. `index <= 1` said the same thing until someone
+    // reorders the steps, at which point it silently scopes the wrong ones. Nothing has been tapped
+    // until the category step is behind us, so those are the two where the state is still the
+    // tour's to undo. A reviewer flagged the literal.
+    const mine = step?.id === 'search' || step?.id === 'category'
     const takeOver = (e: Event) => {
       const t = e.target as Node | null
-      if (t && cardRef.current?.contains(t)) return
-      close(!isLast)
+      if (t && (cardRef.current?.contains(t) || anchorEl?.contains(t))) return
+      close(mine)
     }
     const onKey = (e: KeyboardEvent) => {
       /**
-       * ⛔ NOT WHEN THE KEY IS MEANT FOR THE CARD, WHICH THE FIRST VERSION GOT WRONG AND A REVIEWER
-       * CAUGHT. `e.key.length === 1` is true for SPACE — so a keyboard visitor tabbing to "Sign up
-       * to save these" and pressing Space fired this listener first, closed the tour, and the
-       * button's own handler never ran. The one control the last step exists for was reachable
-       * only with a mouse. Esc is deliberately NOT excluded: leaving is leaving, wherever focus is.
+       * ⛔ NOT WHEN THE KEY IS MEANT FOR THE CARD. `e.key.length === 1` is true for SPACE — so a
+       * keyboard visitor tabbing to "Sign up to save these" and pressing Space fired this listener
+       * first, closed the tour, and the button's own handler never ran. A reviewer caught it: the
+       * one control the last step exists for was reachable only with a mouse. Esc is deliberately
+       * NOT excluded — leaving is leaving, wherever focus happens to be.
        */
       if (e.key !== 'Escape' && cardRef.current?.contains(e.target as Node)) return
-      // Everything else at the window level is the visitor starting to type or navigate.
-      if (e.key === 'Escape' || e.key.length === 1 || e.key === 'Backspace') close(!isLast)
+      if (e.key === 'Escape' || e.key.length === 1 || e.key === 'Backspace') close(mine)
     }
-    window.addEventListener('click', takeOver, true)
+    if (driving) window.addEventListener('click', takeOver, true)
     window.addEventListener('keydown', onKey)
     return () => {
       window.removeEventListener('click', takeOver, true)
       window.removeEventListener('keydown', onKey)
     }
-  }, [index, isLast, close])
+  }, [index, step, anchorEl, close])
 
   /**
    * ⚠️ RESOLVE THE ANCHOR AFTER PAINT, AND RE-RESOLVE ON EVERY STEP. The rail fills in after its own
@@ -302,7 +326,17 @@ export function IntroTour() {
     const poll = setInterval(() => {
       const late = document.querySelector<HTMLElement>(selector)
       if (late) { clearInterval(poll); attach(late) }
-      else if (++tries >= 12) clearInterval(poll)
+      else if (++tries >= 12) {
+        clearInterval(poll)
+        /**
+         * ⛔ MOVE ON RATHER THAN POINT AT NOTHING — and for a WAITING step this is not cosmetic. Its
+         * chip is the only way to satisfy it, so a rail that never loads leaves "Tap Electronics" on
+         * screen with nothing to tap and no way forward but Skip. A reviewer caught that the
+         * previous design's stated safety ("the app still moves") had been removed with the
+         * auto-advance and not replaced.
+         */
+        setIndex((i) => (i === null || i >= steps.length - 1 ? i : i + 1))
+      }
     }, 100)
     // ⚠️ REMEMBER THE NODE WE MARKED. Re-querying the selector in cleanup meant that if the rail
     // remounted — the very reason this poll exists — the ring was stripped from whichever element
@@ -350,22 +384,16 @@ export function IntroTour() {
     const later = (fn: () => void, ms: number) => { timers.push(setTimeout(() => { if (alive()) fn() }, ms)) }
 
     /**
-     * ⛔ THE SEARCH STEP AND THE FACET STEPS ARE TWO SEPARATE DEMONSTRATIONS, AND MIXING THEM PUT
-     * THREE THINGS ON SCREEN THAT DISAGREED. The first version carried `q` through every step. The
-     * explorer treats a plain `?q=` as a RAW TEXT search by convention (its own comment says so) and
-     * drops it once facets arrive, so the measured result was: the search bar still showing "Macbook
-     * Pro M5 1TB", the URL still carrying it, and the count showing 7,690 — the category total,
-     * ignoring the query entirely. A demonstration cannot have its own three surfaces contradict
-     * each other.
-     * ⚠️ So the text search IS the first step and ends with it; the facet walk is the second thing
-     * being shown, and it starts from a clean bar. The bar is cleared at the same moment, below.
+     * ⚠️ THE SEARCH STEP SETS ONLY `q`, AND NOTHING CLEARS IT AFTERWARDS. When the tour performed
+     * the facet taps itself it rebuilt this whole string each step, and an earlier version emptied
+     * the search bar as the facet walk began, because the explorer treats a plain `?q=` as a raw
+     * text search and dropped it once facets arrived — three surfaces disagreeing. The visitor does
+     * the tapping now, so the app layers their facets onto their live search exactly as it would
+     * for anyone else. Emptying the bar under them would be the tour interfering with a search it
+     * had already handed over.
      */
     const params = new URLSearchParams()
-    if (step.id === 'search') params.set('q', TOUR_EXAMPLE_QUERY)
-    for (const d of TOUR_DEMO) {
-      const at = steps.findIndex((s) => s.id === d.id)
-      if (at !== -1 && at <= index) params.set(d.param, d.value)
-    }
+    params.set('q', TOUR_EXAMPLE_QUERY)
 
     /**
      * ⛔ `eno:apply-url`, NOT `router.replace` — AND THE ROUTER VERSION SHIPPED A TOUR THAT
@@ -379,13 +407,36 @@ export function IntroTour() {
      * and the header's brand picks both apply filters this way. Using it means the tour produces
      * exactly the state a real interaction produces, which is the entire point of demonstrating.
      */
+    const next = () => setIndex((i) => (i === null || i >= steps.length - 1 ? i : i + 1))
+
     const go = () => {
       if (!alive()) return
       ownsUrl.current = true
       window.dispatchEvent(new CustomEvent('eno:apply-url', { detail: { url: `/?${params.toString()}` } }))
     }
 
-    const advance = () => setIndex((i) => (i === null || i >= steps.length - 1 ? i : i + 1))
+
+    /**
+     * ⛔ ONLY THE SEARCH STEP ACTS. Owner, 2026-08-28: "dont auto run taps make it user do the
+     * taps". The tour WRITES — the query types itself, which no one could mistake for their own
+     * work — and the visitor TAPS. The four facet steps below schedule nothing at all; they wait,
+     * in the effect further down, for the query string to gain the parameter their chip produces.
+     */
+    /**
+     * ⛔ THE FACET WALK STARTS CLEAN, AND MEASUREMENT IS WHY. Leaving the typed query applied while
+     * the visitor taps put three surfaces in disagreement: measured on a real build, after tapping
+     * Electronics the bar still read "Macbook Pro M5 1TB" while the count showed 7,690 — the
+     * category total, with the query silently dropped. That is the explorer's own convention (a
+     * plain `?q=` is a raw text search, superseded once facets arrive) and a real visitor doing the
+     * same thing would see it too; but the tour is the one that put them there, so it is the tour's
+     * job not to demonstrate a contradiction.
+     * ⚠️ Reading it as two demonstrations is also the truer story: here is the search box, and here
+     * is the other way to find the same thing.
+     */
+    if (step.id === 'category') {
+      window.dispatchEvent(new CustomEvent('eno:search-preview', { detail: { text: '' } }))
+      window.dispatchEvent(new CustomEvent('eno:apply-url', { detail: { url: '/' } }))
+    }
 
     if (step.id === 'search') {
       /**
@@ -401,27 +452,39 @@ export function IntroTour() {
         if (!alive()) return
         window.dispatchEvent(new CustomEvent('eno:search-preview', { detail: { text: TOUR_EXAMPLE_QUERY.slice(0, n) } }))
         if (n < TOUR_EXAMPLE_QUERY.length) later(() => type(n + 1), KEY_MS)
-        else later(() => { go(); later(advance, SETTLE_MS) }, READ_MS)
+        else later(() => { go(); later(next, SETTLE_MS) }, READ_MS)
       }
       if (prefersReducedMotion()) {
         window.dispatchEvent(new CustomEvent('eno:search-preview', { detail: { text: TOUR_EXAMPLE_QUERY } }))
-        later(() => { go(); later(advance, SETTLE_MS) }, READ_MS)
+        later(() => { go(); later(next, SETTLE_MS) }, READ_MS)
       } else {
         later(() => type(1), 450)
       }
-    } else if (!isLast) {
-      // ⚠️ The bar is emptied as the facet walk begins — see the note on `params`. Doing it here
-      // rather than once at the start means the typed query stays visible for the whole of its own
-      // step, which is the step it is demonstrating.
-      if (step.id === 'category') window.dispatchEvent(new CustomEvent('eno:search-preview', { detail: { text: '' } }))
-      later(() => { go(); later(advance, SETTLE_MS) }, READ_MS)
     }
 
     return () => { timers.forEach(clearTimeout) }
     // ⚠️ `index` alone: `step` and `steps` are derived from it, and listing them would re-run the
-    // machine (restarting the typing) on every unrelated re-render.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // machine — restarting the typing — on every unrelated re-render.
   }, [index])
+
+  /**
+   * ⛔ THE FOUR FACET STEPS ADVANCE ON THE VISITOR'S OWN TAP. Polling rather than a click listener
+   * is deliberate and was true of the first version of this tour too: the explorer updates the URL
+   * with `history.pushState`, which fires no event, and the chip the visitor actually presses may be
+   * the copy inside the "More" overflow rather than the one being pointed at. Reading the query
+   * string is true however they got there.
+   * ⚠️ CHECK IMMEDIATELY, THEN POLL. A visitor can arrive with the parameter already set — a shared
+   * filter link, or Back from a listing — and that step is then already satisfied.
+   * ⚠️ 250ms is under the threshold where a confirmation feels laggy, and it runs only while one of
+   * the four waiting steps is open.
+   */
+  useEffect(() => {
+    if (!step || !isDrillStep(step.id)) return
+    const bump = () => setIndex((i) => (i === null ? null : i + 1))
+    if (drillDone(step.id, window.location.search)) { bump(); return }
+    const t = setInterval(() => { if (drillDone(step.id, window.location.search)) { clearInterval(t); bump() } }, 250)
+    return () => clearInterval(t)
+  }, [step])
 
   /**
    * ⛔ THE LAST STEP GOES STRAIGHT TO GOOGLE — owner: "sign up and save these should auto trigger

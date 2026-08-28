@@ -53,16 +53,16 @@ export const TOUR_TARGETS = {
 export type TourStepId = 'search' | 'category' | 'subcategory' | 'brand' | 'model' | 'result'
 
 /**
- * ⛔ THE TOUR NOW WALKS THE DRILL ITSELF — AND THAT REVERSES A DECISION RECORDED IN THIS EXACT SPOT.
- * The note this replaces read: "make user click 1 by one first electronics then cases after apple
- * and then iphone 17 pro max… let them experience how to find" (owner, 2026-08-28), and the steps
- * waited on the URL gaining each param because "the tour cannot fake the click, which is the
- * point". Later the same day the owner asked for the opposite — "the tour make it simpler just
- * words with icon ex search hand icon taps and writes … then next taps icon on with text select
- * category electronics" — so the visitor now WATCHES the path being walked instead of walking it.
- * ⚠️ Both halves of that history are kept deliberately. The first design is not wrong; it is a real
- * trade (doing teaches better than watching, watching finishes far more often), and knowing it was
- * tried is what stops it being "discovered" again in three months.
+ * ⛔ THE VISITOR TAPS; THE TOUR ONLY POINTS. This settled after three passes on 2026-08-28 and the
+ * whole sequence is worth keeping, because each step of it was a reasonable thing to want:
+ *   1. "make user click 1 by one first electronics then cases after apple and then iphone 17 pro
+ *      max… let them experience how to find" — steps waited on the URL gaining each parameter.
+ *   2. "the tour make it simpler just words with icon ex search hand icon taps and writes …" — read
+ *      as a demonstration, so the tour performed the taps itself and the visitor watched.
+ *   3. "dont auto run taps make it user do the taps" — back to waiting, and that is what ships.
+ * ⚠️ THE LINE THAT SURVIVED ALL THREE: the tour WRITES (the search query types itself, which is the
+ * part that cannot be mistaken for the visitor's own work) and the visitor TAPS. Doing teaches
+ * better than watching; watching finishes far more often. The owner has chosen teaching, twice.
  *
  * ⚠️ EVERY LEVEL WAS MEASURED AGAINST PRODUCTION BEFORE BEING WRITTEN DOWN, because a guided path
  * that dead-ends is worse than no guide at all:
@@ -98,6 +98,26 @@ export const TOUR_DEMO = [
  * left that test green. That is the same false confidence `TOUR_EXAMPLE_HREF` was deleted for.
  * `TourStepId` stays because it genuinely types both ends.
  */
+/**
+ * ⛔ HAS THE VISITOR'S OWN TAP LANDED? Read off the query string the explorer maintains, so it is
+ * true however they got there — the highlighted chip, its copy inside the "More" overflow, or their
+ * own curiosity. ⚠️ Deliberately NOT a click listener on the anchor: that misses the overflow copy
+ * of the same chip and goes stale if the rail re-renders under it.
+ * ⚠️ RESTORED after the tour briefly performed these taps itself — owner, 2026-08-28: "dont auto run
+ * taps make it user do the taps". See TOUR_DEMO above for the full back-and-forth; the short version
+ * is that the WRITING is demonstrated and the TAPPING is not.
+ */
+export function drillDone(step: TourStepId, search: string): boolean {
+  const d = TOUR_DEMO.find((x) => x.id === step)
+  if (!d) return false
+  return new URLSearchParams(search).get(d.param) === d.value
+}
+
+/** True for the four steps that wait on a real tap. Exported so the component need not guess. */
+export function isDrillStep(step: TourStepId): boolean {
+  return TOUR_DEMO.some((d) => d.id === step)
+}
+
 /** The anchor selector for a step, or null when the step is a centred card. */
 export function tourAnchorFor(step: TourStepId): string | null {
   if (step === 'search') return TOUR_TARGETS.search
