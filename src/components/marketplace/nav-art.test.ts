@@ -21,7 +21,7 @@ const SRC = 'src/components/marketplace/mobile-nav.tsx'
 
 describe('bottom nav: lit means location', () => {
   const code = readFileSync(SRC, 'utf8')
-  const calls = [...code.matchAll(/<NavArt\s+([^>]*?)\/>/gs)].map((m) => m[1].replace(/\s+/g, ' ').trim())
+  const calls = [...code.matchAll(/<NavArt\s+([^>]*?)\/>/g)].map((m) => m[1].replace(/\s+/g, ' ').trim())
 
   it('finds all five tabs', () => {
     expect(calls, `no <NavArt> call sites in ${SRC} — did the bar move or get renamed?`).toHaveLength(5)
