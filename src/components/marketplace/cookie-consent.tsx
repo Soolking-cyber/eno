@@ -254,9 +254,29 @@ export function CookieConsent() {
                 * ⚠️ EDITION-AWARE, BECAUSE THE COPY IS A LEGAL SURFACE. eno.vn may not describe
                 * visa or trip services at all, so the services line only exists on the forum build.
                 */}
-              <DialogPrimitive.Title className="text-base font-bold leading-tight text-foreground">
+              {/* ⚠️ `tracking-tight` IS SIZE-SPECIFIC, NOT DECORATION. Letters read too far apart as
+                  type grows, so display sizes want negative tracking while body stays near zero —
+                  a single letter-spacing across the ramp is wrong somewhere. This is the one line
+                  on the card big enough to need it; nothing else here gets tracking.
+                  ⚠️ `text-lg`, not larger: it is the canon's display step (SECTION_TITLE), and the
+                  card has to keep its Decline reachable on a 320x480 landscape phone. */}
+              <DialogPrimitive.Title className="text-lg font-bold leading-tight tracking-tight text-foreground">
                 {tr('Buy and sell in Vietnam, without the guesswork', 'Mua bán tại Việt Nam, không còn mơ hồ')}
               </DialogPrimitive.Title>
+              {/* ⛔ NOTHING IS HIDDEN BY VIEWPORT ANY MORE — THE ACTIONS ARE PINNED INSTEAD, and
+                  the three drafts it took to get here are worth knowing. The card grew, and at
+                  740x360 the actions fell below the fold. First fix hid the intro under a height
+                  query; that deleted the whole introduction for a desktop reader at 200% zoom,
+                  whose CSS viewport is also short (WCAG 1.4.4). Second fix added `pointer:coarse`
+                  to keep it to phones; that re-opened the original bug for a touch device docked
+                  to a trackpad — an iPad with a keyboard, a 2-in-1 in laptop posture — which
+                  reports `pointer: fine` at 740x360 and got the overflow back. Each fix moved the
+                  failure to a population the previous one had not thought about.
+                  ⛔ THE REQUIREMENT WAS NEVER "hide the intro", IT WAS "the consent controls are
+                  always on screen". So the consent block is `sticky bottom-0` inside the card's own
+                  scrollport: the introduction scrolls away behind it when there is no room, and
+                  Allow, Decline and Cookie settings never leave. No viewport is special-cased, no
+                  reader loses the explanation, and zoom is irrelevant. */}
               <p className="mt-1 text-sm leading-snug text-muted-foreground">
                 {/* ⛔ ONE LINE FOR BOTH EDITIONS, AND AN EDITION TERNARY HERE WAS A LICENSING LEAK.
                     The first version branched on IS_MARKETPLACE to mention trips and e-visa on the
@@ -274,15 +294,64 @@ export function CookieConsent() {
                   'eno là chợ trực tuyến cho người sống tại Việt Nam — từ điện thoại đến căn hộ, bằng tiếng Việt và tiếng Anh, giá theo đồng và đô la.',
                 )}
               </p>
-              <ul className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+              {/**
+                * ⛔ EVERY CLAIM HERE HAS TO BE TRUE TODAY, AND THE FIRST VERSION'S WAS NOT. It led
+                * with "Verified sellers — ID-checked, with a trust score". Measured against the
+                * production database before shipping it: 9 sellers, `verified` = 0,
+                * `verifiedSeller` = 0. Not "mostly unverified" — none. VNPT eKYC is still blocked
+                * on their token endpoint (`VNPT_MONTHLY_QUOTA` defaults to 0 and the flow reports
+                * "eKYC quota not configured"), so the badge exists in the schema and nothing wears
+                * it. A pre-consent trust claim that is flatly false is a consumer-protection
+                * problem on any marketplace and a worse one for a company mid-way through a sàn
+                * TMĐT licence. A reviewer flagged it as unverified; the database settled it.
+                * ⚠️ THE RULE THIS LEAVES BEHIND: this card is the first thing a stranger reads, so
+                * nothing goes in it that cannot be checked in the product on the day it ships.
+                * When eKYC actually goes live, the verified-sellers line is a good one — add it
+                * back then, not before.
+                *
+                * ⛔ AND THE RULE HAD TO BE APPLIED TWICE. The replacement bullets were WRITTEN, not
+                * measured, and a reviewer caught that: "Chat in-app — never hand out your number"
+                * was false in the same way. `api/listings/[id]/contact/route.ts` says it in its own
+                * comment — "this route reveals a seller's phone number to a buyer" — so a seller
+                * does hand one over, and OTP sign-in takes one too. The claim now describes what is
+                * actually guaranteed: you can message a seller without swapping contact details,
+                * because revealing a phone is a separate, deliberate step.
+                * ⚠️ The price line is scoped to "popular models" rather than claiming a band
+                * everywhere: the band is computed per brand+model+segment and is suppressed under
+                * five samples, so a thin category genuinely has none.
+                * ⚠️ Paid placement: the schema carries no isFeatured/boostedUntil/bumpedAt column,
+                * so nothing can be bought up the list today. Free republish exists and moves
+                * `postedAt` — which is why the word is "paid" and has to stay.
+                * ⚠️ EN AND VI MUST PROMISE THE SAME THING, and two pairs had to be fixed for it.
+                * "never hand out your number" was absolute where the Vietnamese said "no need to
+                * give your number"; and "buy their way up the list" described RANKING while the
+                * Vietnamese described display SLOTS — a gap that matters because free republish
+                * does move `postedAt` and therefore does move a listing up. Both now say the same
+                * narrow, true thing: nobody can PAY to rank higher. Vietnamese is the primary
+                * market and this is a pre-consent representation; a promise cannot differ by
+                * locale.
+                * ⚠️ Wrapping, not truncating — an earlier `truncate` cut the qualifier off exactly
+                * where Vietnamese runs longest, deleting the proof in the primary market's own
+                * language. `gap`, not margins, so removing one row cannot collapse the spacing.
+                * ⚠️ `text-xs` AND `text-ink-4`, NOT `text-2xs` / `text-muted-foreground`. The
+                * qualifiers are what make these claims TRUE — "on popular models" is the scope that
+                * keeps the price line honest, "without swapping contact details" is the whole
+                * distinction on the chat line. They were set as the smallest, faintest text on a
+                * card a stranger reads before consenting, which is a qualifier nobody reads and so
+                * a claim nobody has actually seen scoped. `--ink-4` is ~6:1 rather than ~4.6:1.
+                */}
+              <ul className="mt-2 flex flex-col gap-1">
                 {[
-                  { Icon: ShieldCheck, label: tr('Verified sellers', 'Người bán đã xác minh') },
-                  { Icon: Sparkles, label: tr('Real prices', 'Giá thật') },
-                  { Icon: MessageCircle, label: tr('Chat, no phone number', 'Nhắn tin, không cần số') },
-                ].map(({ Icon, label }) => (
-                  <li key={label} className="flex items-center gap-1 text-2xs font-semibold text-body">
-                    <Icon className="h-3.5 w-3.5 shrink-0 text-accent-foreground" />
-                    {label}
+                  { Icon: Sparkles, label: tr('Market prices', 'Giá thị trường'), sub: tr('see the going rate on popular models', 'xem mức giá phổ biến của các mẫu thông dụng') },
+                  { Icon: MessageCircle, label: tr('Chat in-app', 'Nhắn tin trong ứng dụng'), sub: tr('message a seller without swapping contact details', 'nhắn tin với người bán mà không cần trao đổi thông tin liên hệ') },
+                  { Icon: ShieldCheck, label: tr('No paid placement', 'Không có vị trí trả tiền'), sub: tr('nobody can pay to rank higher', 'không ai trả tiền để được xếp hạng cao hơn') },
+                ].map(({ Icon, label, sub }) => (
+                  <li key={label} className="flex items-start gap-1.5 text-xs leading-snug">
+                    <Icon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-accent-foreground" />
+                    <span className="min-w-0">
+                      <span className="font-semibold text-foreground">{label}</span>
+                      <span className="text-ink-4"> — {sub}</span>
+                    </span>
                   </li>
                 ))}
               </ul>
@@ -296,7 +365,7 @@ export function CookieConsent() {
                 * separates the introduction from the request, and the size goes back to `text-sm`.
                 * ⚠️ If the card ever needs to be shorter, cut the introduction — never this.
                 */}
-              <div className="mt-2.5 border-t border-line pt-2.5">
+              <div className="sticky bottom-0 z-10 mt-2.5 border-t border-line bg-popover pt-2.5">
               <p className="text-sm leading-snug text-muted-foreground">
                 {isNative
                   ? tr(
@@ -309,10 +378,70 @@ export function CookieConsent() {
                     )}
                 <Link href="/privacy" prefetch={false} className="font-semibold text-accent-foreground underline underline-offset-2">{tr('Privacy policy', 'Chính sách quyền riêng tư')}</Link>
               </p>
-              <div className="mt-2.5 flex flex-wrap items-center gap-2.5">
-                <Button variant="cta" size="none" onClick={allow} className={primary}>{tr('Allow', 'Cho phép')}</Button>
-                <Button variant="ghost" size="none" onClick={decline} className={ghost}>{tr('Decline', 'Từ chối')}</Button>
-                <Button variant="ghost" size="none" onClick={() => setView('settings')} className={ghost}>{tr('Settings', 'Tùy chỉnh')}</Button>
+              {/**
+                * ⛔ ONE DOMINANT CTA, THE OTHER TWO AS TEXT BENEATH IT — owner's call, 2026-08-28,
+                * made after the trade was put to them twice. Allow is a full-width filled button
+                * at the LOWEST point of the card, which on a phone is the centre of the natural
+                * thumb arc; Cookie settings and Decline sit under it as text, split left and right
+                * so a right thumb travelling to Allow cannot brush Decline on the way.
+                *
+                * ⚠️ WHAT THIS TRADES, RECORDED SO THE DECISION STAYS VISIBLE RATHER THAN BECOMING
+                * FOLKLORE. The risk here is NOT the position: Decline is still one tap, on the
+                * first layer, in legible ink — and that is what CNIL's €150M/€60M decisions against
+                * Google and Meta actually turned on, where refusing took MORE clicks than
+                * accepting. The risk is the PROMINENCE gap between a filled button and a text
+                * link, which EDPB Guidelines 03/2022 on deceptive design patterns name directly,
+                * and eno is mid-licensing as a sàn TMĐT.
+                * ⛔ SO THIS IS THE CEILING, NOT A STARTING POINT. Do NOT move Decline behind a
+                * second screen, add a tap to refuse, or fade it until it stops reading as a
+                * control. Those are the changes that turn an arguable layout into a fineable one.
+                * The equal-weight version is one swap — Decline back to a `variant="ghost"` button
+                * of the same width and height as Allow — and the design canvas keeps it drawn.
+                *
+                * ⚠️ `.press` ON ALL THREE, NOT A HAND-WRITTEN TRANSITION. The old `transition-colors`
+                * animated colour and nothing else, so the `active:scale` snapped in and snapped back
+                * — press feedback that was there in the markup and absent on screen. The obvious fix
+                * (`transition-[transform,…]`) is ALSO wrong and design-lint caught it: Tailwind v4
+                * compiles `scale-*` to the standalone `scale` property, not `transform`, so that
+                * list subscribes to something nothing writes. `.press` is the house utility and it
+                * already encodes the right behaviour — 40ms in on `:active`, a 220ms spring back
+                * out, on `scale` — plus `touch-action: manipulation`, which drops the legacy 300ms
+                * tap delay. Feedback on the press, and no latency in front of it.
+                * ⚠️ `rounded-xl` (12px), NOT the mockup's 14px: `--radius-xl` is the button tier in
+                * docs/design-language.md and design-lint enforces the scale. ⚠️ `min-h-11` on the
+                * text actions is a real 44px target — they are the interactive element themselves,
+                * so this does NOT use the `tap-44` utility, whose pseudo-overlay covers a
+                * positioned ancestor when it lands on an unpositioned element.
+                */}
+              <Button
+                variant="cta"
+                size="none"
+                onClick={allow}
+                className="press mt-3 flex w-full items-center justify-center rounded-xl px-4 py-3 text-base font-extrabold cursor-pointer"
+              >
+                {tr('Allow cookies', 'Cho phép cookie')}
+              </Button>
+              {/* ⚠️ `mt-3`, NOT `mt-1`. Four pixels under a full-width primary put a 44px Decline
+                  target directly in the path of an overshooting thumb — and a mis-tap here writes
+                  a consent decision the reader did not make, in either direction. The earlier
+                  reasoning only considered horizontal travel; the collision is vertical. */}
+              <div className="mt-3 flex items-center justify-between gap-3">
+                <Button
+                  variant="ghost"
+                  size="none"
+                  onClick={() => setView('settings')}
+                  className="press min-h-11 rounded-lg px-1 text-sm font-semibold text-body hover:text-foreground cursor-pointer"
+                >
+                  {tr('Cookie settings', 'Tùy chỉnh cookie')}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="none"
+                  onClick={decline}
+                  className="press min-h-11 rounded-lg px-1 text-sm font-semibold text-foreground cursor-pointer"
+                >
+                  {tr('Decline', 'Từ chối')}
+                </Button>
               </div>
               </div>
             </>
