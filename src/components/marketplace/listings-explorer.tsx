@@ -2522,6 +2522,11 @@ export function ListingsExplorer({
             activeSubcategory={activeSubcategory}
             subcategoryCounts={subcategoryCounts}
             facets={facetCounts}
+            /* ⚠️ `queryFetching`, not `queryLoading`: the jump happens on a REFETCH — tap a
+               category and the held payload is still last second's, so every chip in the new row
+               has no number yet. `isLoading` is only true on the very first fetch and would leave
+               exactly the case the owner reported unfixed. */
+            countsPending={queryFetching}
             onCategory={handleCategorySelect}
             onSubcategory={setActiveSubcategory}
             shortcuts={DESK_SHORTCUTS}

@@ -5,6 +5,7 @@ import { useLanguage } from '@/context/language-context'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { BrandLogo } from './brand-logo'
+import { Skeleton } from '@/components/ui/skeleton'
 import { CountChip, optionCount, railDimension } from './count-chip'
 import { MoreOverflow } from './more-overflow'
 import { useScrollArrows, ScrollArrows } from '@/hooks/use-scroll-arrows'
@@ -15,6 +16,16 @@ import type { FacetCounts } from '@/lib/facet-counts'
 import { scrollBehavior } from '@/lib/reduced-motion'
 
 type BrandItem = { slug: string; name: string; count: number; iconPath: string | null }
+
+/**
+ * ⚠️ MODULE SCOPE, BECAUSE THE SKELETON NEEDS IT BEFORE THE COMPONENT DECLARES IT. This was a
+ * `const` in the component body, below the early-return guards — so the loading rail, which has to
+ * use the exact same tile width to hold the exact same space, referenced it from inside its
+ * `Array.from` callback and would have thrown a temporal-dead-zone ReferenceError the first time it
+ * rendered. `tsc` does not flag that (the reference is inside a callback, so it cannot prove the
+ * order), which is precisely why moving it beats reordering the guards around it.
+ */
+const tileCls = 'group flex w-[4.75rem] shrink-0 snap-start flex-col items-center gap-1.5 py-1 text-center cursor-pointer select-none'
 
 // Line 2 of the search header. Large, flat square brand tiles (logo in a square
 // field + name + live count under, on the canvas — no fill) in one horizontally scrollable
@@ -72,8 +83,19 @@ export function BrandRail({
   // also need arrows like in home page"). The hook's ref IS the rail element, so it also
   // serves the auto-centre-the-active-brand effect below — one node, one ref.
   const [brands, setBrands] = useState<BrandItem[]>([])
+  /**
+   * ⛔ "HAVE WE ASKED YET" IS NOT "IS THE ANSWER EMPTY", AND CONFLATING THEM IS WHY THIS RAIL
+   * POPPED IN. `brands.length === 0` was the whole render guard, so between a category tap and
+   * /api/brands answering, the rail was ABSENT — then it appeared at full height and shoved
+   * everything below it down the page. Owner, 2026-08-28: "revealing category subcateogory is
+   * gittery … lets make sure everything is fetched beforehand with skeletons".
+   * ⚠️ `true` INITIALLY, because the first fetch is already in flight by first paint; starting
+   * `false` would show one frame of "no brands here" before the skeleton.
+   */
+  const [brandsLoading, setBrandsLoading] = useState(true)
   const { scrollerRef: railRef, canLeft, canRight, page, arrowTop } = useScrollArrows<HTMLDivElement>({ watch: brands.length })
   const [models, setModels] = useState<{ model: string; count: number }[]>([])
+  const [modelsLoading, setModelsLoading] = useState(false)
   // Read through refs inside the fetch effects so validating the CURRENT pick
   // doesn't add it to the deps (which would refetch on every brand/model tap).
   const pick = useRef({ activeBrand, activeModel, onPickBrand, onPickModel })
@@ -95,6 +117,20 @@ export function BrandRail({
 
   useEffect(() => {
     let off = false
+    /**
+     * ⛔ CLEAR THE OLD SCOPE'S BRANDS, OR THE SKELETON NEVER RUNS ON THE CASE IT WAS BUILT FOR.
+     * The guard below is `brandsLoading && brands.length === 0`, and this effect used to set only
+     * the flag — so on the FIRST mount the list was empty and the skeleton showed, but on every
+     * later category tap `brands` still held the previous scope's list, the guard was false, and
+     * the rail kept rendering it. Measured on a throttled build: tapping Electronics → Vehicles
+     * left Apple, Samsung and Zagg on screen for 750ms. A reviewer caught that the shipped
+     * behaviour was unchanged for exactly the interaction the owner reported.
+     * ⚠️ AND STALE IS WORSE THAN ABSENT HERE, which is why this is a clear rather than a swap:
+     * those tiles are not merely old, they are wrong — Apple is not a Vehicles brand, and tapping
+     * one filters the feed to nothing.
+     */
+    setBrands([])
+    setBrandsLoading(true)
     fetch(`/api/brands?category=${encodeURIComponent(category)}&subcategory=${encodeURIComponent(subcategory)}&limit=40`)
       .then((r) => r.json())
       .then((d) => {
@@ -108,13 +144,22 @@ export function BrandRail({
         if (cur !== 'all' && !list.some((b) => b.slug === cur)) { pb('all'); pm('all') }
       })
       .catch(() => { if (!off) setBrands([]) })
+      .finally(() => { if (!off) setBrandsLoading(false) })
     return () => { off = true }
   }, [category, subcategory])
 
   useEffect(() => {
-    if (activeBrand === 'all') { setModels([]); return }
+    if (activeBrand === 'all') { setModels([]); setModelsLoading(false); return }
     let off = false
+    /**
+     * ⛔ THE PREVIOUS BRAND'S MODELS ARE CLEARED, AND THE GRID KEEPS ITS HEIGHT ANYWAY. Emptying
+     * this list is correct — showing Honda's models under Yamaha for a beat would be a lie — but
+     * emptying it with nothing in its place collapsed the grid and then re-expanded it a moment
+     * later, which is the second half of the jump the owner reported. `modelsLoading` puts
+     * skeleton chips in the same shape while the answer is on its way.
+     */
     setModels([])
+    setModelsLoading(true)
     fetch(`/api/brands/${encodeURIComponent(activeBrand)}/models?category=${encodeURIComponent(category)}&subcategory=${encodeURIComponent(subcategory)}`)
       .then((r) => r.json())
       .then((d) => {
@@ -127,9 +172,33 @@ export function BrandRail({
         if (cur !== 'all' && !list.some((m) => m.model === cur)) pm('all')
       })
       .catch(() => {})
+      .finally(() => { if (!off) setModelsLoading(false) })
     return () => { off = true }
   }, [activeBrand, category, subcategory])
 
+  /**
+   * ⛔ A SKELETON RAIL WHILE THE ANSWER IS IN FLIGHT, AND `null` ONLY ONCE THE ANSWER IS "NONE".
+   * The single `brands.length === 0` guard meant both, so between a category tap and /api/brands
+   * replying the rail was absent — and then appeared at full height, shoving the results below it
+   * down the page under a thumb already moving. Owner, 2026-08-28: "lets make sure everything is
+   * fetched beforehand with skeletons and lazyload so once user clicks ui is smooth".
+   * ⚠️ SIX TILES AT THE REAL `tileCls` WIDTH, which is what makes this work at all: the placeholder
+   * has to occupy the height and rhythm the real rail will, or it is just a different jump. Six is
+   * roughly a phone's worth plus one, so the strip reads as scrollable before it has anything to
+   * scroll.
+   */
+  if (brandsLoading && brands.length === 0) {
+    return (
+      <div className="flex items-center gap-4 overflow-hidden py-1" aria-hidden="true">
+        {Array.from({ length: 6 }, (_, i) => (
+          <div key={i} className={cn(tileCls, 'pointer-events-none')}>
+            <Skeleton className="h-11 w-11 rounded-xl" />
+            <Skeleton className="h-2.5 w-12 rounded-full" />
+          </div>
+        ))}
+      </div>
+    )
+  }
   if (brands.length === 0) return null
 
   // The two rails' conditional counts. `brand` is present whenever the category has a brand rail;
@@ -224,7 +293,6 @@ export function BrandRail({
   const visibleModels = modelsNeedMore ? sortedModels.filter((m, i) => i < 7 || m.model === activeModel) : sortedModels
   const overflowModels = modelsNeedMore ? sortedModels.filter((m, i) => i >= 7 && m.model !== activeModel) : []
 
-  const tileCls = 'group flex w-[4.75rem] shrink-0 snap-start flex-col items-center gap-1.5 py-1 text-center cursor-pointer select-none'
   // ⚠️ w-full + break-words — same containment as category-rail. The span is a flex item
   // under `items-center`, so without w-full its width is fit-content and a long brand name
   // ("Mercedes-Benz", or anything once OS text scaling is on) spills outside the fixed
@@ -301,6 +369,26 @@ export function BrandRail({
             </Button>
 
             {/* Models roll out to the right of the active brand */}
+            {/*
+              ⛔ THE GRID HOLDS ITS SHAPE WHILE THE MODELS ARE FETCHED. Picking a brand cleared
+              `models` and only refilled it a round trip later — correct (showing Honda's models
+              under Yamaha would be a lie) but visibly wrong: the 3x3 grid vanished and re-expanded,
+              which is the second half of the jitter the owner reported. Nine chips in the same
+              grid, at the same radius and gaps, so the row's width and height are already what the
+              answer will need.
+              ⚠️ IT IS THE SAME GRID ELEMENT, not a separate loading block beside it — a different
+              wrapper would reserve a different width and simply move the jump one step later.
+            */}
+            {isActive && modelsLoading && models.length === 0 && (
+              <div className="flex shrink-0 items-center gap-2" aria-hidden="true">
+                <span className="h-12 w-px shrink-0 bg-border" />
+                <div className="grid grid-rows-3 grid-flow-col auto-cols-max gap-x-1.5 gap-y-0.5 rounded-2xl bg-brand-50 p-1.5">
+                  {Array.from({ length: 9 }, (_, i) => (
+                    <Skeleton key={i} className="h-6 w-20 rounded-lg" />
+                  ))}
+                </div>
+              </div>
+            )}
             {isActive && models.length > 0 && (
               <div className="flex shrink-0 items-center gap-2 animate-in fade-in slide-in-from-left-2 duration-200">
                 <span className="h-12 w-px shrink-0 bg-border" />

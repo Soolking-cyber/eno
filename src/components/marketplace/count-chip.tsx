@@ -192,9 +192,48 @@ export function railDimension(
  * because the count sits on its own line. Type and colour are NOT the caller's — that is the
  * whole point of the component.
  */
-export function CountChip({ count, className }: { count?: number | null; className?: string }) {
+export function CountChip({
+  count,
+  pending = false,
+  className,
+}: {
+  count?: number | null
+  /**
+   * ⛔ THE NUMBER IS COMING, SO HOLD ITS PLACE — owner, 2026-08-28: "revealing category
+   * subcateogory is gittery … once subcat is shown with 0 items and after fetch it jumps".
+   *
+   * That jump is this component being honest at the wrong moment. `count == null` renders NOTHING,
+   * which is right for a dimension that was never computed (a load-more page, `?facets=0`) — but
+   * it is also the state of every chip in the second between a filter tap and the feed's answer.
+   * The chip renders at its bare label width, the number arrives, every chip in the row grows, and
+   * the whole rail reflows under a thumb that is already reaching for one of them.
+   * ⚠️ SO THIS IS A THIRD STATE, NOT A REPLACEMENT FOR `null`. `pending` means "a number is on its
+   * way"; `null` still means "there is no number to say". Only the caller knows which — the rails
+   * pass the feed's own fetching flag — and conflating them would put a shimmer on the load-more
+   * page forever.
+   */
+  pending?: boolean
+  className?: string
+}) {
   const { lang, tr } = useLanguage()
-  if (count == null) return null
+  if (count == null) {
+    if (!pending) return null
+    /**
+     * ⚠️ SIZED IN `ch`, WHICH IS WHY IT ACTUALLY STOPS THE REFLOW. The reserved box has to match
+     * what lands in it, and what lands is `tabular-nums` digits at `text-3xs`; `2.5ch` of that font
+     * is the width of a three-digit count, which is the common case on these rails. A fixed px
+     * width would be right at one font size and wrong at every other, including the OS text-zoom
+     * this app already supports.
+     * ⚠️ `aria-hidden` and NO screen-reader text: there is nothing to announce yet, and "loading"
+     * on every chip in a row would be a wall of noise for the one reader who cannot see the row.
+     */
+    return (
+      <span
+        aria-hidden="true"
+        className={cn('inline-block h-2.5 w-[2.5ch] shrink-0 rounded-full align-[-1px] shimmer', className)}
+      />
+    )
+  }
   const srName = `, ${countChipLabel(count, lang, tr)}`
   return (
     <>

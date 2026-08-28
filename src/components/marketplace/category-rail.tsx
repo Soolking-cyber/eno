@@ -68,6 +68,7 @@ export function CategoryRail({
   activeSubcategory,
   subcategoryCounts,
   facets,
+  countsPending = false,
   onCategory,
   onSubcategory,
   intents,
@@ -80,6 +81,14 @@ export function CategoryRail({
   activeCategory: string
   activeSubcategory: string
   subcategoryCounts: Record<string, number>
+  /**
+   * ⚠️ IS A NUMBER ON ITS WAY? Passed straight to every `CountChip` below so a chip whose count has
+   * not landed reserves the width instead of rendering bare and growing when it does — the reflow
+   * the owner reported as "revealing category subcateogory is gittery". The rail cannot work this
+   * out for itself: an absent dimension looks identical whether the feed is mid-flight or the
+   * payload simply has nothing to say, and only the explorer holds the query's fetching state.
+   */
+  countsPending?: boolean
   /**
    * Live chip counts from the feed response's `facets` key (src/lib/facet-counts.ts). Omit — or
    * pass `{}` — and the rail renders exactly as it did before counts existed.
@@ -410,7 +419,7 @@ export function CategoryRail({
                       subcategorySlug come back when the rail is cleared). Never a sum. */}
                   <Button variant="bare" size="none" aria-pressed={activeSubcategory === 'all'} onClick={() => onSubcategory('all')} className={cn('block', subChip(activeSubcategory === 'all'))}>
                     {tr('All', 'Tất cả')}
-                    <CountChip count={subDim?.all} className="ml-1" />
+                    <CountChip pending={countsPending} count={subDim?.all} className="ml-1" />
                   </Button>
                   {visibleSubs.map((sub) => {
                     const subActive = activeSubcategory === sub.slug
@@ -421,7 +430,7 @@ export function CategoryRail({
                             line to the UI weight (icon-language §2). */}
                         <CategoryIcon name={sub.icon} stroke={STROKE_UI} selected={subActive} className="mr-1 h-3.5 w-3.5 shrink-0 align-[-2px]" />
                         <Tr text={lang === 'vi' ? sub.nameVi : sub.name} />
-                        <CountChip count={count} className="ml-1" />
+                        <CountChip pending={countsPending} count={count} className="ml-1" />
                       </Button>
                     )
                   })}
@@ -441,7 +450,7 @@ export function CategoryRail({
                             className={cn('flex w-full justify-between gap-3 rounded-lg px-2.5 py-1.5 text-left font-semibold transition-colors active:scale-100', subActive ? 'bg-accent text-accent-foreground' : 'text-body hover:bg-muted hover:text-accent-foreground')}
                           >
                             <span className="flex min-w-0 items-center gap-2"><CategoryIcon name={sub.icon} stroke={STROKE_UI} selected={subActive} className="h-4 w-4 shrink-0 text-ink-4" /><span className="truncate"><Tr text={lang === 'vi' ? sub.nameVi : sub.name} /></span></span>
-                            <CountChip count={count} className="shrink-0" />
+                            <CountChip pending={countsPending} count={count} className="shrink-0" />
                           </Button>
                         )
                       })}
