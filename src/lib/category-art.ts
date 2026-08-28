@@ -1,3 +1,4 @@
+import { CATEGORY_ART_STAMP } from '@/generated/category-art-stamp'
 /**
  * CATEGORY ARTWORK — which top-level tiles have a Solar SVG, and where it lives.
  *
@@ -97,4 +98,17 @@ export function hasCategoryArt(slug: string): slug is CategoryArtSlug {
  */
 export function categoryArtPath(slug: string, state: CategoryArtState): string | null {
   return hasCategoryArt(slug) ? `/icons/${state}/${slug}.svg` : null
+}
+
+/**
+ * The tile's raster artwork — the owner's 3D pack, one file per slug, greyed by CSS until pressed.
+ *
+ * ⚠️ `?v=` IS NOT OPTIONAL. next.config.ts grants `max-age=31536000, immutable` to `/icons/*` only
+ * when a `v` query is PRESENT, and the stamp is a content hash of every generated file, so a
+ * redrawn pack is a new cache key for everyone. ⛔ The stamp rides in the QUERY, never in the
+ * filename: eno.vn edge-caches its HTML for hours, so a hashed filename 404s out of already-cached
+ * HTML after a deploy.
+ */
+export function categoryTileArtPath(slug: string): string | null {
+  return hasCategoryArt(slug) ? `/icons/categories/${slug}.webp?v=${CATEGORY_ART_STAMP}` : null
 }

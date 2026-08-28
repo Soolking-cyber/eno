@@ -45,10 +45,18 @@ ENV NEXT_TELEMETRY_DISABLED=1
 #
 # ⚠️ The pattern is prefix-based (`evisa-*`), so new services artwork inherits the prune by being
 # named for the surface it belongs to. Name a services asset anything else and it ships to eno.vn.
+#
+# ⚠️ `public/icons/services/` IS THE SAME RULE WITH A DIRECTORY INSTEAD OF A PREFIX (2026-08-28).
+# The category tiles gained 3D artwork, including a Vietnam e-Visa icon and a Trip planner icon.
+# A whole folder is the clearest form of "named for the surface it belongs to": anything a designer
+# drops in there is pruned by being in there, with no filename convention to remember. The taxonomy
+# artwork stays in `public/icons/categories/` and ships to both editions, which is correct — those
+# are categories, not services.
 RUN --mount=type=secret,id=buildenv \
     sh -c 'set -a; [ -f /run/secrets/buildenv ] && . /run/secrets/buildenv; set +a; npm run build; \
            if [ "$NEXT_PUBLIC_ENO_EDITION" = "marketplace" ]; then \
              rm -fv public/banners/evisa-* .next/standalone/public/banners/evisa-* 2>/dev/null || true; \
+             rm -rfv public/icons/services .next/standalone/public/icons/services 2>/dev/null || true; \
            fi'
 
 # ---------- runner: minimal non-root server ----------

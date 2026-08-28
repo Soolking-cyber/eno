@@ -298,8 +298,15 @@ const acceptsMarkdown = () => [
 // have taken it from "no origin Cache-Control at all" to a 30-day edge TTL on an asset nobody can
 // bust — a redraw invisible for a month. It stays in the short lane until it earns a stamp; that is
 // ~1.5 KiB of the ~36 KiB this rule recovers, and the cheap half is not worth the trap.
+// ⚠️ `icons/categories/.*` JOINED THE LIST ON 2026-08-28, when the category tile artwork earned a
+// stamp. scripts/gen-category-art.mjs hashes every generated file and `categoryTileArtPath()` emits
+// `?v=<hash>`, which is the entry fee this rule charges — 100 KB of webp that would otherwise sit in
+// the four-hour lane, re-fetched by every returning visitor on the busiest page in the app.
+// ⚠️ `icons/services/.*` IS LISTED TOO even though a marketplace image prunes those files: the rule
+// is shared by both editions, and eno.forum is where they ship and where the four-hour lane would
+// be paid. Listing a path here grants nothing on an edition that has no such file.
 const STAMPABLE_STATIC =
-  "/:path(banners/.*|mascots/.*|logo-mark\\.svg|logo-dotvn\\.svg|watermark\\.svg|vietkite-logo\\.png)";
+  "/:path(banners/.*|mascots/.*|icons/categories/.*|icons/services/.*|logo-mark\\.svg|logo-dotvn\\.svg|watermark\\.svg|vietkite-logo\\.png)";
 
 const nextConfig: NextConfig = {
   pageExtensions: PAGE_EXTENSIONS,

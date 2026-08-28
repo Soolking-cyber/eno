@@ -126,7 +126,9 @@ export function CategoryRail({
    * rail "would have deleted the bet silently", which is exactly what a rail with no such slot
    * would have done. Position is preserved: ahead of the categories, not appended at the tail.
    */
-  shortcuts?: { key: string; href: string; kind?: string; name: string; nameVi: string; icon: string }[]
+  // ⚠️ `art` is the optional 3D tile artwork, supplied only by the aliased services module — see
+  // ServicesTile in src/lib/edition-services-copy.ts for why the path lives on the tile.
+  shortcuts?: { key: string; href: string; kind?: string; name: string; nameVi: string; icon: string; art?: string }[]
   onShortcut?: (s: { key: string; href: string; kind?: string }) => void
   intents?: { type: string; name: string; nameVi: string; icon: string }[]
   activeType?: string
@@ -233,6 +235,21 @@ export function CategoryRail({
   // `.press` (icon-language §8): the browse rail's tiles press with the same spring as the
   // home grid's — one tile, one feel, wherever the grid appears.
   const tileCls = 'press group flex w-[4.75rem] shrink-0 snap-start flex-col items-center gap-1.5 py-1 text-center cursor-pointer select-none'
+  /**
+   * Is one of eno's own product tiles the current view? Only a `filter` shortcut can be — a `route`
+   * one navigates away, so it is never "on" while this rail is showing.
+   * ⚠️ READ OUT OF THE HREF rather than duplicated as a constant: the href is the single place the
+   * filter is already written down, so a shortcut that changes what it points at cannot drift out
+   * of sync with what lights up.
+   */
+  const shortcutActive = (sc: { kind?: string; href: string }) => {
+    if (sc.kind !== 'filter') return false
+    const q = new URLSearchParams(sc.href.split('?')[1] ?? '')
+    const cat = q.get('category')
+    const sub = q.get('subcategory')
+    return (!cat || cat === activeCategory) && (!sub || sub === activeSubcategory)
+  }
+
   const iconCls = (active: boolean) =>
     cn('h-11 w-11 transition-transform duration-200 group-hover:scale-110', active ? 'text-accent-foreground' : 'text-body group-hover:text-accent-foreground')
   // ⚠️ w-full + break-words. The tile is a FIXED 4.75rem column, but this span is a flex
@@ -307,7 +324,24 @@ export function CategoryRail({
       {shortcuts?.map((sc) => (
         <Button key={sc.key} variant="bare" size="none" data-shortcut={sc.key} onClick={() => onShortcut?.(sc)} className={cn('whitespace-normal', tileCls)}>
           <span className="flex h-11 items-center justify-center">
-            <CategoryIcon name={sc.icon} className={iconCls(false)} />
+            {/* ⚠️ `sc.art` COMES FROM THE ALIASED SERVICES MODULE, so on a marketplace build it is
+                not merely falsy — the string never enters the artifact at all, and the file it
+                names is pruned from that image by the Dockerfile. The lucide fallback is what a
+                tile without artwork still gets.
+                ⛔ AND IT TAKES `selected` LIKE EVERY OTHER TILE. The first version hardcoded grey,
+                inheriting `iconCls(false)` from the lucide line it replaced — which was invisible
+                while the glyph was a line icon and obvious the moment it became colour artwork:
+                filtering to e-Visa lit every category tile blue and left the e-Visa tile itself
+                grey, on the two tiles that exist to sell the service. A `kind: 'filter'` shortcut
+                is active when the rail's own category and subcategory match its href. */}
+            {sc.art ? (
+              /* eslint-disable-next-line @next/next/no-img-element -- same reasoning as CategoryArt */
+              <img src={sc.art} alt="" aria-hidden width={184} height={184} draggable={false}
+                fetchPriority="low" decoding="async"
+                className={cn('shrink-0 select-none object-contain transition-[filter] duration-200', !shortcutActive(sc) && 'grayscale', iconCls(shortcutActive(sc)))} />
+            ) : (
+              <CategoryIcon name={sc.icon} className={iconCls(shortcutActive(sc))} />
+            )}
           </span>
           <span className="flex w-full flex-col items-center gap-0.5">
             <span className={nameCls(false)}><TileLabel text={lang === 'vi' ? sc.nameVi : sc.name} /></span>

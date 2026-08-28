@@ -1,3 +1,4 @@
+import { CATEGORY_ART_STAMP } from '@/generated/category-art-stamp'
 /**
  * Services-edition-only link, tile and safety copy, in ONE module so it can be aliased away.
  *
@@ -46,7 +47,16 @@ import { VIETNAM_EVISA_PATHS } from '@/app/vietnam-evisa/links'
 export const SERVICES_SITEMAP_PATHS: readonly string[] = VIETNAM_EVISA_PATHS
 
 export type ServicesLink = { labelEn: string; labelVi: string; href: string; rel?: string }
-export type ServicesTile = { key: string; name: string; nameVi: string; icon: string; kind: 'filter' | 'route'; href: string }
+/**
+ * ⚠️ `art` IS THE 3D TILE ARTWORK, AND IT LIVES ON THE TILE FOR THE SAME REASON EVERY OTHER STRING
+ * IN THIS FILE DOES. next.config.ts aliases this whole module to a stub on a marketplace build, so
+ * putting the path here keeps `/icons/services/evisa.webp` out of the eno.vn artifact entirely —
+ * whereas building the same string at the render site, which compiles on BOTH editions, would ship
+ * it. The file it points at is pruned from the marketplace image by the Dockerfile; this is the
+ * other half of that pair, and the header of this file explains why both are wanted.
+ * ⚠️ Optional, because a tile without artwork still renders its lucide `icon`.
+ */
+export type ServicesTile = { key: string; name: string; nameVi: string; icon: string; kind: 'filter' | 'route'; href: string; art?: string }
 /** A whole extra footer COLUMN, as opposed to entries appended to one of the existing four. */
 export type ServicesFooterGroup = { titleEn: string; titleVi: string; links: ServicesLink[] }
 
@@ -156,8 +166,15 @@ export const SERVICES_NAV_ADMIN_QUEUE: ServicesNavRow = { href: '/admin/visas', 
 
 /** The two home-page desk tiles. */
 export const SERVICES_DESK_TILES: ServicesTile[] = [
-  { key: 'evisa', name: 'Vietnam e-Visa', nameVi: 'e-Visa Việt Nam', icon: 'Stamp', kind: 'filter', href: '/?category=services&subcategory=visa-legal' },
-  { key: 'trip', name: 'Trip planner', nameVi: 'Lên lịch trình', icon: 'CalendarDays', kind: 'route', href: '/itinerary' },
+  // ⚠️ "Vn e-Visa", not "Vietnam e-Visa" (owner, 2026-08-28) — this is the TILE label only, where
+  // the full name wrapped to two lines in a 4.75rem column. The service is still called Vietnam
+  // e-Visa everywhere it is described: the footer links, the /vietnam-evisa landing page and the
+  // provider disclosure all keep the full name, and none of them are short on room.
+  // ⚠️ `nameVi` IS SHORTENED WITH IT. Only the English was asked for, but "e-Visa Việt Nam" is
+  // LONGER than the string that was too long, and Vietnamese is the primary market — fixing the
+  // wrap in one language and leaving it in the other would be the wrong half.
+  { key: 'evisa', name: 'Vn e-Visa', nameVi: 'e-Visa VN', icon: 'Stamp', kind: 'filter', href: '/?category=services&subcategory=visa-legal', art: `/icons/services/evisa.webp?v=${CATEGORY_ART_STAMP}` },
+  { key: 'trip', name: 'Trip planner', nameVi: 'Lên lịch trình', icon: 'CalendarDays', kind: 'route', href: '/itinerary', art: `/icons/services/trip.webp?v=${CATEGORY_ART_STAMP}` },
 ]
 
 /**
