@@ -180,16 +180,35 @@ function CarouselItem({ className, ...props }: React.ComponentProps<"div">) {
 }
 
 /**
- * ⚠️ THE APP'S ONE FLOATING-ARROW LOOK — a BARE bold chevron, never a circle (owner,
- * 2026-08-07: "arrows inside banner have circle outline, remove it and match arrows to
- * the other arrows on the home screen — clean, minimal, our style"). This is byte-for-byte
- * the rail-arrow treatment in use-scroll-arrows.tsx: size-7 at the floating-chevron max
- * stroke with a hairline drop-shadow so it stays legible over a photo or a gradient. The
+ * ⚠️ THE APP'S ONE FLOATING-ARROW LOOK — a bold chevron on the shared translucent disc, never a
+ * bordered pill. Owner, 2026-08-07: "arrows inside banner have circle outline, remove it and match
+ * arrows to the other arrows on the home screen — clean, minimal, our style"; then 2026-08-29:
+ * "put back plates to all arrows around app". What was rejected then was an OUTLINE RING around a
+ * chevron; what is here now is `.icon-plate`, the filled scrim every over-media control wears. The
+ * "match the other arrows" half of that instruction still holds — use-scroll-arrows.tsx was plated
+ * in the same change. This is byte-for-byte that rail-arrow treatment: size-7 at the
+ * floating-chevron max stroke on the disc, with a hairline shadow softening its edge. The
  * default variant is `bare`/`none` for the same reason — `outline` + `icon-sm` drew the
  * bordered pill the owner rejected. A caller that genuinely wants a chip can still pass
  * variant/size, but nothing in the app does.
  */
-const ARROW_GLYPH = 'size-7 [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.25))]'
+/**
+ * ⚠️ `.icon-plate` IS THE BACKING; THE SHADOW ONLY SOFTENS ITS EDGE. Owner, 2026-08-29: "put back
+ * plates to all arrows around app". Both carousels that use these arrows put them OVER content —
+ * the promo banner sits them at `left-2` on top of the artwork, and the gallery thumbstrip at
+ * `-left-2` over the thumbnails — so a bare chevron with a drop-shadow vanished against a busy or
+ * dark slide, taking the shadow with it. The disc is defined once in globals.css and shared with
+ * every `IconButton variant="overlay"`.
+ * ⛔ 28px + 3px EACH SIDE = A 34px DISC, SO A CALLER MUST LEAVE AT LEAST 34px OF BOX. Both callers
+ * were checked against that and the gallery thumbstrip failed it — `h-8 w-8` is 32px, and it was
+ * moved to `h-9`. An earlier draft of this note called that 2px overflow deliberate while the
+ * gallery was being fixed in the same commit; a reviewer caught the contradiction. There is no
+ * "on purpose" here: glyph + 6 ≤ button, and the default (`size="none"`) satisfies it by hugging.
+ * ⚠️ THE INK IS SET HERE RATHER THAN IN THE PLATE RULE so a call site can override it with an
+ * ordinary utility. promo-banner used to set `text-white/80` → `hover:text-white` and had to be
+ * changed when the glyph started carrying its own ink — check for that when adding a caller.
+ */
+const ARROW_GLYPH = 'icon-plate size-7 text-white dark:text-neutral-900 [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.22))]'
 
 function CarouselPrevious({
   className,

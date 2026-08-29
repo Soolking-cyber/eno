@@ -124,10 +124,15 @@ export function SupportButton({ className }: { className?: string }) {
                control carried a white `rounded-xl` plate (border + bg-popover + shadow-pop) for
                about an hour and it is gone. Do not reintroduce it as a legibility fix; the fix is
                the drop-shadow on the glyph, below.
-               ⚠️ BARE IS ALSO WHAT MAKES THE CLUSTER ONE THING. The back-to-top chevron directly
-               above is a bare glyph with a drop-shadow, and a plated neighbour read as two
-               unrelated controls stacked by accident rather than as one column of page chrome.
-               The mark now takes the chevron's exact treatment.
+               ⚠️ THE CHEVRON ABOVE IS NOW PLATED AND THIS IS NOT, AND THAT IS THE OWNER'S CALL,
+               NOT DRIFT. The note here used to argue the opposite — "the chevron is a bare glyph,
+               a plated neighbour reads as two unrelated controls" — and that was true while both
+               were bare. On 2026-08-29 the instruction was "put back plates to all arrows around
+               app"; the chevron is an arrow and took the disc, this mark is not and keeps the
+               2026-08-26 ruling *"no outline plate for this support icon"*. Two explicit
+               instructions, three days apart, pointing at two different glyphs. If the cluster ever
+               needs to read as one thing again, that is a question for the owner, not a licence to
+               plate this or unplate the chevron.
 
                ⚠️ THE 46px GLYPH SIZE IS KEPT FROM THE PLATED VERSION ON PURPOSE. It was derived to
                sit 1px inside a 44px plate, and with the plate gone that derivation no longer means
@@ -170,7 +175,21 @@ export function SupportButton({ className }: { className?: string }) {
                ⚠️ And it is HERE rather than in globals.css: a `transition` shorthand on the
                unlayered `.support-mark` rule outranks every utility in this list and silently
                killed both the colour fade and the ride-down below. */
-            'transition-[color,--i-back-opacity] duration-200 active:scale-[0.96] tap-44',
+            /* ⛔ `relative` IS NOT DECORATION — WITHOUT IT THIS BUTTON SWALLOWED THE CHEVRON'S TAPS.
+               `.tap-44::before` is `position:absolute` with `height:100%`, so on a STATIC element
+               it resolves against the nearest positioned ancestor instead of the button: measured
+               on the rendered page it was 98px tall, centred, spilling 27px UP over the back-to-top
+               chevron that sits 10px above. `document.elementsFromPoint` at the chevron's exact
+               centre returned THIS button first — so the tap that meant "back to top" opened the
+               support sheet, on every page, for every reader who scrolled.
+               ⚠️ FOUND BY THE CHECK globals.css PRESCRIBES, not by looking:
+                 [...document.querySelectorAll('[class*="tap-4"]')]
+                   .filter(el => getComputedStyle(el).position === 'static')
+               must be empty. It was this element, on all three pages swept. `ui/icon-button` bakes
+               `relative` beside its `tap-44`; `ui/button` does not, and this is a `ui/button`.
+               ⚠️ Playwright's `click({force: true})` HIDES this — it dispatches at coordinates and
+               lets the covering layer take them. The hit test has to be elementsFromPoint. */
+            'relative transition-[color,--i-back-opacity] duration-200 active:scale-[0.96] tap-44',
             /* Ride down with the bottom nav, same motion the bar itself uses.
                ⚠️ `translate`, NOT `transform`, in the property list — Tailwind v4 compiles
                `translate-*` to the standalone `translate` property, so naming `transform` here

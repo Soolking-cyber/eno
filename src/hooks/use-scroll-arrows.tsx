@@ -120,15 +120,32 @@ export function ScrollArrows({
   tight?: boolean
 }) {
   const { tr } = useLanguage()
-  // Bare BOLD chevron (no circle/outline), clear of the cards in the gutter — quiet ink → brand on
-  // hover, a subtle drop-shadow so it stays legible next to a card. `top-1/2` centres on the full
-  // row; an inline `top` (arrowTop) overrides that to centre on the media.
+  // ⛔ PLATED, AND THIS REVERSES 2026-08-07 ON THE OWNER'S OWN INSTRUCTION. That day the ask was
+  // "arrows inside banner have circle outline, remove it and match arrows to the other arrows on
+  // the home screen"; on 2026-08-29 it is "put back plates to all arrows around app". The two are
+  // not in conflict about the same object: what was removed then was a BORDERED PILL — an outline
+  // ring around a chevron, the same shape the ✕ was told off for. What arrives now is the app's
+  // translucent disc, the one every over-media control already wears, and it arrives on the banner
+  // arrows and these together so "match the other arrows" still holds.
+  // ⚠️ THESE SIT IN THE GUTTER, NOT OVER A PHOTO, which is the one argument against plating them —
+  // a disc on a plain background is decoration rather than legibility. It is plated anyway because
+  // the home screen shows these and the banner's arrows at once, and half-plated is the exact
+  // inconsistency the 2026-08-07 note was complaining about.
+  // `top-1/2` centres on the full row; an inline `top` (arrowTop) overrides that to centre on the
+  // media.
   // Offset is RESPONSIVE: at ≤1359px the content fills the viewport (only the 32px page padding to
   // work with), so -8 keeps the arrow fully visible with no h-scroll; once the viewport gutter opens
   // up (≥1360px) we push out to -14 for a full arrow-width gap. This never overflows at any width.
+  // ⚠️ HOVER DEEPENS THE DISC RATHER THAN RECOLOURING THE INK, because the ink is now fixed white
+  // (neutral-900 in dark) against the plate — brand blue on a black disc would stop reading as the
+  // same control as every other plated glyph. `hover:scale-110` stays; it was always the louder
+  // half of the affordance. THE DEEPENING ITSELF IS NOT WRITTEN HERE: it belongs to `.icon-plate`
+  // in globals.css, so it is the same on every plated glyph in the app rather than three copies.
   const arrowCls =
-    'absolute z-10 hidden -translate-y-1/2 text-ink-4 transition-transform duration-150 hover:scale-110 hover:text-accent-foreground active:scale-[0.96] pc:block'
-  const arrowIcon = 'size-7 [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.25))]'
+    'absolute z-10 hidden -translate-y-1/2 transition-transform duration-150 hover:scale-110 active:scale-[0.96] pc:block'
+  // 28px glyph + 3px content-box padding each side = a 34px disc. `size="none"` lets the button
+  // hug it, so there is no box to overflow here.
+  const arrowIcon = 'icon-plate size-7 text-white dark:text-neutral-900 [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.22))]'
   // 50% less space when tight: -8→-4 (32→16px), -14→-7 (56→28px).
   const leftInset = tight ? '-left-4 min-[1360px]:-left-7' : '-left-8 min-[1360px]:-left-14'
   const rightInset = tight ? '-right-4 min-[1360px]:-right-7' : '-right-8 min-[1360px]:-right-14'

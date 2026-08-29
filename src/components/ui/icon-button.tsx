@@ -124,10 +124,21 @@ const VARIANTS = {
    * ⚠️ THE BUTTON KEEPS ITS OWN SIZE, which is the point of putting the plate elsewhere: the tap
    * target stays whatever `size`/`tapTarget` set it to, so hugging the icon costs no hit area.
    */
-  overlay:
-    'text-white dark:text-neutral-900 ' +
-    '[&_svg]:rounded-full [&_svg]:bg-black/45 [&_svg]:p-[3px] [&_svg]:box-content ' +
-    'dark:[&_svg]:bg-white/75',
+  /** ⚠️ THE PLATE ITSELF LIVES IN globals.css AS `.plate-host svg` — see the block there. It moved
+   *  out when the arrows were plated (owner, 2026-08-29 "put back plates to all arrows around
+   *  app"): back-to-top and the carousel are plain `<Button>`s, not IconButtons, so they cannot
+   *  reach a variant here, and two copies of the alpha is how the heart and the chevron drift.
+   *  ⚠️ THE INK STAYS HERE, and that is not an oversight — keeping `color` out of the plate rule
+   *  leaves a call site free to override it with an ordinary utility.
+   *  ⚠️ THE SELECTOR IS `.plate-host svg`, A DESCENDANT — IT PLATES EVERY svg INSIDE, not just the
+   *  one glyph. That is preserved behaviour (the old `[&_svg]:` utilities compiled to exactly the
+   *  same descendant selector), but it means a call site rendering a badge or a spinner alongside
+   *  the glyph gets a second disc. Nothing does today; if one ever needs to, this is the line to
+   *  tighten to `>` and every existing caller has to be re-checked when it happens.
+   *  ⛔ THE SIZE RULE TRAVELS WITH THIS VARIANT: the plate is the glyph box + 6px, so a caller
+   *  overriding the button box must leave glyph + 6. `h-6 w-6` with a 29px glyph was doing the
+   *  opposite in post-wizard-sections until this commit. */
+  overlay: 'plate-host text-white dark:text-neutral-900',
 } as const
 
 export function IconButton({

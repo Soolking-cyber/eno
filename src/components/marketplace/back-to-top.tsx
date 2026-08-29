@@ -128,13 +128,29 @@ export function BackToTop() {
           className={cn(
             // Hover = colour only (icon-language §8 — scale-on-hover is a tile-glyph move,
             // not chrome); press keeps the standard settle.
-            'back-to-top-chevron relative flex h-11 w-11 items-center justify-center text-body transition-all duration-200 hover:text-accent-foreground active:scale-[0.96] tap-44',
+            // ⚠️ HOVER MOVED FROM THE INK TO THE PLATE. The ink is now fixed white (neutral-900 in
+            // dark) because it sits on a disc, so `hover:text-accent-foreground` would have put
+            // brand blue on black — legible, but no longer the same control as every other plated
+            // glyph. Deepening the disc reads as the same affordance and keeps the mark constant.
+            // ⚠️ NO HOVER CLASS HERE — `.icon-plate` OWNS IT. It was written inline first and a
+            // reviewer caught that only the arrows got it while ~100 plated IconButtons did not.
+            // The deepening now lives with the plate in globals.css, so every plated glyph in the
+            // app hovers the same way and this line cannot drift from them.
+            'back-to-top-chevron relative flex h-11 w-11 items-center justify-center transition-all duration-200 active:scale-[0.96] tap-44',
             show ? 'opacity-100 translate-y-0' : 'pointer-events-none opacity-0 translate-y-2',
           )}
         >
-          {/* STROKE_FLOAT (§2): a bare chevron floating over card imagery — heavier than
-              chrome so it survives busy photos; the drop-shadow is its only backing. */}
-          <ChevronUp className="h-7 w-7 [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.28))]" strokeWidth={STROKE_FLOAT} />
+          {/* STROKE_FLOAT (§2): a chevron floating over card imagery — heavier than chrome so it
+              survives busy photos.
+              ⚠️ `.icon-plate` REPLACED THE DROP-SHADOW AS THE BACKING. Owner, 2026-08-29: "put back
+              plates to all arrows around app", pointing at this button. A shadow only works when
+              the thing behind it is lighter than the mark; over a dark photo the chevron and its
+              shadow disappeared together. The disc is the same one every plated control wears —
+              one definition, in globals.css.
+              ⚠️ 28px GLYPH + 3px EACH SIDE = A 34px DISC inside a 44px button. The shadow stays,
+              but it now falls from the plate rather than from the strokes, which is why it can be
+              lighter than it was. */}
+          <ChevronUp className="icon-plate h-7 w-7 text-white dark:text-neutral-900 [filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.22))]" strokeWidth={STROKE_FLOAT} />
         </Button>
 
         {/* ⛔ SUPPORT SITS BELOW THE CHEVRON, CLOSEST TO THE BOTTOM NAV — owner, 2026-08-26, swapping

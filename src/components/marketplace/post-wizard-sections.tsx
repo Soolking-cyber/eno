@@ -170,7 +170,12 @@ export function MediaSection({
               </Button>
             )}
             <IconButton size="xs" variant="overlay" aria-label={t('Xóa ảnh', 'Remove photo')} onClick={() => { URL.revokeObjectURL(p.url); setPhotos((arr) => arr.filter((_, j) => j !== i)) }} className="absolute right-1 top-1 h-6 w-6">
-              <X className="h-[29px] w-[29px] shrink-0" />
+              {/* ⛔ 18px, NOT 29 — `variant="overlay"` PLATES THE GLYPH AND THIS BUTTON IS 24px.
+                The plate is the glyph box + 6px, so 29 drew a 35px disc hanging 5px past every
+                edge of an `h-6 w-6` button, over the photo it is meant to remove. 29 came from the
+                "fill its button" pass, which sized for the xs DEFAULT (28px) — this call site
+                overrides the box to 24 and the glyph was never re-derived. 18 + 6 = 24. */}
+              <X className="h-[18px] w-[18px] shrink-0" />
             </IconButton>
             {/* Reframe / keep-full — only on a NEW photo (edit-mode hosted images have no source
                 to re-crop). Always visible (mobile can't hover); the label says the current state. */}
@@ -265,7 +270,12 @@ export function MediaSection({
                 <Video className="h-3 w-3" /> {t('Video', 'Video')}
               </span>
               <IconButton size="xs" variant="overlay" aria-label={t('Xóa video', 'Remove video')} onClick={removeVideo} className="absolute right-1 top-1 h-6 w-6">
-                <X className="h-[29px] w-[29px] shrink-0" />
+                {/* ⛔ 18px, NOT 29 — `variant="overlay"` PLATES THE GLYPH AND THIS BUTTON IS 24px.
+                The plate is the glyph box + 6px, so 29 drew a 35px disc hanging 5px past every
+                edge of an `h-6 w-6` button, over the photo it is meant to remove. 29 came from the
+                "fill its button" pass, which sized for the xs DEFAULT (28px) — this call site
+                overrides the box to 24 and the glyph was never re-derived. 18 + 6 = 24. */}
+              <X className="h-[18px] w-[18px] shrink-0" />
               </IconButton>
             </div>
           ) : (

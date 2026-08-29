@@ -529,8 +529,12 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
               </CarouselContent>
               {mediaCount > 6 && (
                 <>
-                  <CarouselPrevious className="-left-2 h-8 w-8" />
-                  <CarouselNext className="-right-2 h-8 w-8" />
+                  {/* ⚠️ h-9, NOT h-8 — THE PLATE IS 34px AND 32 DOES NOT HOLD IT. ARROW_GLYPH is
+                      28px plus 3px of content-box padding each side, so a 32px button let the disc
+                      hang 1px past every edge. This is the third time that arithmetic has caught
+                      something in this file; the rule is glyph + 6 ≤ button. */}
+                  <CarouselPrevious className="-left-2 h-9 w-9" />
+                  <CarouselNext className="-right-2 h-9 w-9" />
                 </>
               )}
             </Carousel>

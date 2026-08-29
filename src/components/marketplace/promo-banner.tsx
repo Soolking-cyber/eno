@@ -281,13 +281,18 @@ export function PromoBanner() {
               goes on the primitive's own className, where cn()/tailwind-merge resolves it against
               the base — a collision like this on a render-child would merely concatenate and lose
               to stylesheet order. Pointer-only: on touch the swipe is the gesture. */}
+          {/* ⚠️ THE INK MOVED TO THE GLYPH WITH THE PLATE. These carried `text-white/80` →
+              `hover:text-white`; the arrow now wears `.icon-plate` and sets its own ink (see
+              ARROW_GLYPH in ui/carousel.tsx), which as an unlayered rule would have left that
+              hover silently dead. The same affordance now deepens the disc instead, matching
+              back-to-top and every other plated control. */}
           <CarouselPrevious
             variant="bare"
-            className="left-2 hidden text-white/80 opacity-0 transition-[opacity,color,scale] hover:text-white active:scale-[0.96] group-hover/carousel:opacity-100 focus-visible:opacity-100 pc:flex"
+            className="left-2 hidden opacity-0 transition-[opacity,scale] active:scale-[0.96] group-hover/carousel:opacity-100 focus-visible:opacity-100 pc:flex"
           />
           <CarouselNext
             variant="bare"
-            className="right-2 hidden text-white/80 opacity-0 transition-[opacity,color,scale] hover:text-white active:scale-[0.96] group-hover/carousel:opacity-100 focus-visible:opacity-100 pc:flex"
+            className="right-2 hidden opacity-0 transition-[opacity,scale] active:scale-[0.96] group-hover/carousel:opacity-100 focus-visible:opacity-100 pc:flex"
           />
 
           {/* Dots. Real <Button>s with labels, not decorative spans: they are the only slide control

@@ -1840,6 +1840,76 @@ html.dark .leaflet-tile-pane {
   }
 }
 
+/* ── THE OVER-CONTENT ICON PLATE ──────────────────────────────────────────────────────────────
+   A translucent disc behind a glyph that floats over a photo, a banner or the feed itself. Owner,
+   2026-08-29: "semitransparent black plate outline with minimal padding to icon ... on light theme
+   and semitransparent white on dark", then "put back plates to all arrows around app".
+
+   ⛔ ONE DEFINITION, TWO WAYS IN, BECAUSE THE CALLERS ARE NOT ALL THE SAME COMPONENT. Most plated
+   controls are `<IconButton variant="overlay">`, which owns its glyph and reaches it as a
+   descendant — that is `.plate-host`. The arrows are not: back-to-top and the carousel are plain
+   `<Button>`s whose glyph is styled directly, and they take `.icon-plate` on the glyph itself.
+   Writing the numbers twice is how the heart and the chevron drift apart three months from now,
+   so both selectors share this one block. If the alpha changes, it changes for everything.
+
+   ⛔ `@layer components`, AND UNLAYERED WAS WRITTEN FIRST AND CAUGHT IN THE BUILD. An unlayered
+   rule in this file beats every Tailwind utility — this repo has been bitten by exactly that — so
+   the first version silently killed the hover states the call sites had just been given:
+   `hover:[&_svg]:bg-black/60` is a utility, `.icon-plate` was not, and the plate won on every
+   hover. Inside `components` the utilities layer still outranks it, which is the right way round:
+   this block is the default, a call site is the exception.
+
+   ⚠️ NO `color` HERE EITHER, AND THE REASON IS THE LAYER, NOT THE LACK OF ONE. Ink is a utility at
+   the call site — `text-white dark:text-neutral-900`, as icon-button.tsx's overlay variant sets it
+   — so a call site that wants different ink writes a utility and wins, the same way promo-banner
+   used to. Putting `color` in this block would work but would make that override a specificity
+   argument instead of a layer one, for no gain.
+
+   ⚠️ `content-box` GROWS THE PLATE RATHER THAN SHRINKING THE GLYPH. A 28px chevron becomes a 34px
+   disc, so the BUTTON has to be at least that; `size="lg"` (40px) fits a 34px glyph and no more.
+   This arithmetic is what put a 48px plate inside a 40px lightbox button once already. */
+@layer components {
+  .icon-plate,
+  .plate-host svg {
+    border-radius: 9999px;
+    background-color: rgb(0 0 0 / 0.45);
+    padding: 3px;
+    box-sizing: content-box;
+  }
+  .dark .icon-plate,
+  .dark .plate-host svg {
+    background-color: rgb(255 255 255 / 0.75);
+  }
+
+  /* ⛔ HOVER BELONGS HERE, NOT AT THE CALL SITES, AND IT WAS COPY-PASTED TO THREE OF THEM FIRST.
+     A reviewer pointed out the consequence: the arrows deepened on hover and the ~100 plated
+     IconButtons did not, so one change split the plate into two behaviours. Whatever the plate
+     does, it does everywhere; that is the reason it is one block.
+     ⚠️ POINTER ONLY. `@media (hover: hover)` keeps a touch device from latching the deepened state
+     after a tap — the sticky-hover problem, which on a control that dismisses a photo would leave
+     it looking permanently pressed. */
+  @media (hover: hover) {
+    .icon-plate,
+    .plate-host svg {
+      transition: background-color 200ms linear;
+    }
+    /* ⚠️ DESCENDANT, NOT CHILD, ON BOTH HOSTS. The first version used `a:hover > .icon-plate`,
+       which silently skipped any glyph wrapped in a span inside a link — a reviewer caught the
+       asymmetry with the button selector beside it. A plate is a plate however deeply the call
+       site nests it. */
+    a:hover .icon-plate,
+    button:hover .icon-plate,
+    .plate-host:hover svg {
+      background-color: rgb(0 0 0 / 0.6);
+    }
+    .dark a:hover .icon-plate,
+    .dark button:hover .icon-plate,
+    .dark .plate-host:hover svg {
+      background-color: rgb(255 255 255 / 0.9);
+    }
+  }
+}
+
 /* ── A TWO-LINE LABEL BOX ─────────────────────────────────────────────────────────────────────
    The brand rail pins its tile label to two line boxes so the rail's height stops depending on
    whether a brand name happens to wrap — see brand-rail.tsx's `nameCls` for the full argument.
