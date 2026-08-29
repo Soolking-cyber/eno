@@ -231,6 +231,7 @@ export const UI_STRINGS_SERVICES: string[] = [
   "Sign in to start an e-Visa",
   "Sign in to start your e-Visa application.",
   "Size is not a problem — we resize your photo for you. JPG, PNG, HEIC, WebP, AVIF or TIFF.",
+  "Skip",
   "Skipped",
   "Some answers are already filled in with the most common ones. They are suggestions, not assumptions about you — change anything that is not right.",
   "Some answers were not saved — the form has moved back to the first one we still need.",

@@ -1372,7 +1372,6 @@ export const UI_STRINGS: string[] = [
   "Similar near you",
   "Single entry",
   "Size",
-  "Skip",
   "Skip for now",
   "Skip to main content",
   "Smartwatches",
