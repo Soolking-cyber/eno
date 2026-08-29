@@ -5,6 +5,16 @@ import { ArtImage } from '@/components/marketplace/art-image'
 /**
  * A CHROME CONTROL'S GLYPH — the owner's outline pack, grey until the control is the chosen one.
  *
+ * ⛔ CURRENTLY UNUSED, AND THAT IS A DECISION RATHER THAN A LEFTOVER. Owner, 2026-08-29: "use solar
+ * v2 back on top navbar and view selector icons" — the header and the view switcher were reverted
+ * to the Solar sprite the rest of the app's chrome uses. This component and the nine generated
+ * icons under `public/icons/ui/` are kept because the pack was supplied deliberately and wiring it
+ * back is one import; an unfetched asset costs a visitor nothing.
+ * ⚠️ If it is still unused when someone next reads this, deleting it means removing THREE things
+ * together: this file, `UI_ART_KEYS`/`uiArtPath` in src/lib/category-art.ts, and `OUTLINE_MAP` in
+ * scripts/gen-category-art.mjs — the generator asserts the first two against each other and will
+ * fail loudly if only one goes.
+ *
  * Owner, 2026-08-29: "also replace remaining outline icons on top navbar and view type icons line
  * grid map and video gray by default blue when pressed". Same pack, same generator and the same
  * `grayscale()` state model as the category tiles and the bottom bar, so the app tells one story

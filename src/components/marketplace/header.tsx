@@ -29,7 +29,6 @@ import { SITE_NAME } from '@/lib/edition'
 import { STROKE_NAV } from '@/lib/icon-tokens'
 // ⚠️ The rail's REAL open state, not a guess at it — see the logo's className below.
 import { useAccountPanel } from './account-panel'
-import { UiArt } from '@/components/marketplace/ui-art'
 
 // The typeahead listbox this bar owns. Static (one Header per page), and distinct
 // from the hero bar's so both can be in the DOM at once without id collisions.
@@ -503,9 +502,7 @@ export function Header() {
                A step whose anchor is missing is skipped, so removing this shortens the tour
                silently rather than breaking it — intro-tour.test.ts asserts both ends exist. */
             data-tour="search">
-              {/* ⚠️ NEVER `lit`: this one is decoration inside the field, not a control that can be
-                  chosen, so there is no pressed state for it to have. Grey is its only state. */}
-              <UiArt name="search" className="pointer-events-none ml-3.5 h-7 w-7" />
+              <Search className="pointer-events-none ml-3.5 h-6 w-6 shrink-0 text-ink-4" strokeWidth={STROKE} />
               <Input
                 variant="unstyled"
                 value={searchVal}
@@ -613,7 +610,7 @@ export function Header() {
                     title={tr('Map', 'Bản đồ')}
                     className="relative mr-2 flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-ink-4 tap-48 transition-[color,scale] duration-200 ease-[var(--ease-spring-snappy)] hover:text-accent-foreground active:scale-[0.96] cursor-pointer"
                   >
-                    <UiArt name="map" className="h-7 w-7" />
+                    <Map className="h-6 w-6" strokeWidth={STROKE} />
                   </Button>
                 </>
               )}
@@ -726,7 +723,7 @@ export function Header() {
               className="hidden sm:flex items-center gap-1.5 rounded-xl px-2.5 h-9 text-sm font-semibold text-body transition-[color,background-color,scale] hover:bg-accent hover:text-accent-foreground active:scale-[0.97] active:duration-[60ms] cursor-pointer tap-48 relative"
               aria-label={tr('Sign in', 'Đăng nhập')}
             >
-              <UiArt name="user" className="h-6 w-6 sm:h-7 sm:w-7" />
+              <User className="h-6 w-6 sm:h-7 sm:w-7" strokeWidth={STROKE} />
               <span className="hidden lg:inline">{tr('Log in', 'Đăng nhập')}</span>
             </Link>
           )}
