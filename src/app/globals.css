@@ -2791,7 +2791,7 @@ html.dark .leaflet-tile-pane {
   background: linear-gradient(
     to right,
     transparent,
-    color-mix(in oklab, var(--color-accent-foreground) 15%, transparent),
+    color-mix(in oklab, var(--color-accent-foreground) 30%, transparent),
     transparent
   );
   /* 250% → -100% of its OWN width: fully off the right edge to fully off the left. */
@@ -2815,6 +2815,37 @@ html.dark .leaflet-tile-pane {
    `animation` shorthand once the latch flips, and to accept the pop that reintroduces. */
 .rail-beam:not([data-swipeable])::after {
   opacity: 0;
+}
+
+/**
+ * ⛔ DARK MODE GETS MORE INK THAN THE NUMBER ALONE JUSTIFIES, AND THE MEASUREMENT IS WHY IT IS NOT
+ * SYMMETRICAL. Owner, 2026-08-29: "make vertial beam intensity 50% more now its too subtle and not
+ * seen on dark mode". The 15% went to 22.5% — exactly the 50% asked for — and measured on a real
+ * build the peak delta against the page is 101 in light and 102 in dark: the two themes were never
+ * unequal, so "not seen on dark mode" is not explained by the numbers.
+ * ⚠️ WHAT EXPLAINS IT IS WHAT SURROUNDS IT. In dark mode the rail's own cards are near-white and
+ * the page is near-black, so the eye adapts to the brightest thing on screen and a 2px line at 22%
+ * of a mid blue falls below notice — a contrast-adaptation effect a per-pixel delta cannot see.
+ * The extra lift here is for that, not for a deficit in the colour.
+ * ⚠️ ONE NUMBER TO TUNE IN EACH DIRECTION. 30% (light) is the owner's own figure and should stay
+ * unless they move it; 40% here is mine, carrying the same relative lift the measurement argued
+ * for, and is the one to change if dark reads too strong.
+ *
+ * ⛔ `.dark`, NOT `[data-theme]` AND NOT `prefers-color-scheme` — the file says so 1000 lines up and
+ * I still reached for the wrong one. This app resolves the theme in theme-context.tsx and writes
+ * `root.classList.toggle('dark', …)`; it NEVER sets a `data-theme` attribute. So
+ * `[data-theme='dark']` matches nothing and `:not([data-theme='light'])` is ALWAYS true — the pair
+ * would have applied this brighter beam in LIGHT mode too, silently discarding the 22.5% the owner
+ * asked for. The media query is equally wrong: it reports what the OS wants, while `.dark` is what
+ * the app RESOLVED, which includes the visitor's explicit toggle and must win.
+ */
+.dark .rail-beam::after {
+  background: linear-gradient(
+    to right,
+    transparent,
+    color-mix(in oklab, var(--color-accent-foreground) 40%, transparent),
+    transparent
+  );
 }
 
 @keyframes rail-beam-sweep {
