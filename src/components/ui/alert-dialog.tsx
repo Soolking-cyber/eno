@@ -30,7 +30,7 @@ function AlertDialogOverlay({
     <AlertDialogPrimitive.Backdrop
       data-slot="alert-dialog-overlay"
       className={cn(
-        "overlay-scrim fixed inset-0 isolate z-50 duration-100 ease-out data-closed:ease-in data-closed:duration-75 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0",
+        "overlay-scrim fixed inset-0 isolate z-50 duration-100 ease-[var(--ease-out-strong)] data-closed:ease-[var(--ease-out-strong)] data-closed:duration-75 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0",
         className
       )}
       {...props}
@@ -56,11 +56,16 @@ function AlertDialogContent({
           // OPEN (duration-150): the two centered modal surfaces were zooming at different speeds
           // (100 vs 150) and 100ms on a fade+zoom reads as a snap. Flagged by all three reviewers
           // in the Base UI audit. Do NOT lower it.
-          // CLOSE (data-closed:duration-100 + ease-in): a dismissal should be quicker and quieter
+          // CLOSE (data-closed:duration-100): a dismissal should be quicker — the DURATION is what
+          // makes it quieter, and the curve is not. `ease-in` used to be here on the reasoning that
+          // it softened the exit; measured, it moves 9.3% of the way in the first quarter of the
+          // animation, so the overlay is still 90% present at the moment the reader is watching
+          // hardest. Both halves now ride `--ease-out-strong` (77.5% by that same point); the
+          // asymmetry that matters is 100ms out against 150ms in.
           // than its open — the same pair ui/dialog ships. The scrim behind it closes quicker still
           // (75ms), which is deliberate: the dimming gets out of the way first. That 25ms stagger is
           // HALF what this file had before (100 scrim / 150 content), not a new one.
-          "group/alert-dialog-content fixed top-1/2 left-1/2 z-50 grid w-full -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl bg-popover p-4 text-popover-foreground ring-1 ring-foreground/10 duration-150 data-closed:duration-100 data-closed:ease-in outline-none data-[size=default]:max-w-xs data-[size=sm]:max-w-xs data-[size=default]:sm:max-w-sm data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
+          "group/alert-dialog-content fixed top-1/2 left-1/2 z-50 grid w-full -translate-x-1/2 -translate-y-1/2 gap-4 rounded-xl bg-popover p-4 text-popover-foreground ring-1 ring-foreground/10 duration-150 ease-[var(--ease-out-strong)] data-closed:duration-100 data-closed:ease-[var(--ease-out-strong)] outline-none data-[size=default]:max-w-xs data-[size=sm]:max-w-xs data-[size=default]:sm:max-w-sm data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
           className
         )}
         {...props}

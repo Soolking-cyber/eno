@@ -750,9 +750,29 @@ function ListingCardImpl({
                 tapTarget={false}
                 aria-label={tr('Chat with seller', 'Nhắn tin với người bán')}
                 onClick={(e) => { e.stopPropagation(); quickGo({ body: tr('Hi! Is this still available?', 'Chào bạn! Món này còn không?') }) }}
-                className="pointer-events-auto translate-x-3 opacity-0 transition-all duration-200 ease-[var(--ease-spring-snappy)] hover:scale-110 active:scale-[0.96] group-hover:translate-x-0 group-hover:opacity-100 focus-visible:translate-x-0 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                /**
+                 * ⛔ THIS ONE GLYPH GETS 4px OF PLATE PADDING, AND IT IS THE ONLY ONE THAT DOES.
+                 * Owner, 2026-08-29: *"message icon is clipping over backplate on product images"*.
+                 * The plate is a CIRCLE and the padding is a SQUARE, so what has to clear the disc
+                 * is the glyph's INK, not its box — and Solar's `MessageCircle` is the one plated
+                 * mark whose ink leaves its own viewBox. Measured by rendering each symbol alone on
+                 * black and taking the furthest lit pixel, as a fraction of the box radius:
+                 *     MessageCircle 1.132 · Tag 0.997 · Heart 0.979 · Share2 0.929 · X 0.900
+                 *     MapPin 0.898 · ChevronRight 0.699 · ChevronUp 0.697
+                 * At `h-5` + 3px that put the speech tail 1.7px inside a 13px disc while the heart
+                 * beside it had 3.2px — the same nominal size, visibly tighter, which is exactly
+                 * what the owner saw.
+                 * ⚠️ THE DISC STAYS 26px. Four controls sit in one column on this card; shrinking
+                 * the glyph alone would have shrunk its plate with it (`box-content`) and left one
+                 * disc smaller than its three neighbours. 18 + 4 + 4 = 26, the same as h-5 + 3 + 3.
+                 * ⚠️ A UTILITY, SO IT WINS. `.plate-host svg` sets the 3px default in
+                 * `@layer components`; this is an ordinary utility and outranks it by layer.
+                 * ⛔ DO NOT GENERALISE THE 4px BACK INTO `.icon-plate`. Every other glyph would
+                 * then sit further inside its disc than it needs to, and the discs would grow.
+                 */
+                className="pointer-events-auto translate-x-3 opacity-0 transition-all duration-200 ease-[var(--ease-spring-snappy)] hover:scale-110 active:scale-[0.96] group-hover:translate-x-0 group-hover:opacity-100 focus-visible:translate-x-0 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white [&_svg]:p-[4px]"
               >
-                <MessageCircle className="h-5 w-5 fill-none" />
+                <MessageCircle className="h-[18px] w-[18px] fill-none" />
               </IconButton>
             </Tooltip>
           )}

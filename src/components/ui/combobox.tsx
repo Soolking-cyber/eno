@@ -105,11 +105,12 @@ function ComboboxContent({
             default while its three siblings (dropdown-menu, popover, select) all ran
             `ease-out`: four identical-looking menus, one of them subtly off. Scoping it
             to `data-open:` would have kept combobox the odd one out in a different way.
-            The close half (`duration-75` + `ease-in`) is what the dismissal pass added. */}
+            The close half (`duration-75`) is what the dismissal pass added — the SHORTER duration,
+            not a different curve. It carried `ease-in` until the easing pass measured it. */}
         <ComboboxPrimitive.Popup
           data-slot="combobox-content"
           className={cn(
-            "relative z-50 max-h-(--available-height) w-(--anchor-width) min-w-64 origin-(--transform-origin) overflow-hidden rounded-2xl bg-popover text-popover-foreground shadow-pop ring-1 ring-foreground/10 duration-100 ease-out data-closed:duration-75 data-closed:ease-in data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95 data-[side=bottom]:slide-in-from-top-2 data-[side=top]:slide-in-from-bottom-2",
+            "relative z-50 max-h-(--available-height) w-(--anchor-width) min-w-64 origin-(--transform-origin) overflow-hidden rounded-2xl bg-popover text-popover-foreground shadow-pop ring-1 ring-foreground/10 duration-100 ease-[var(--ease-out-strong)] data-closed:duration-75 data-closed:ease-[var(--ease-out-strong)] data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95 data-[side=bottom]:slide-in-from-top-2 data-[side=top]:slide-in-from-bottom-2",
             className,
           )}
           {...props}

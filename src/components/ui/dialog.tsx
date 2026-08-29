@@ -33,7 +33,7 @@ function DialogOverlay({
     <DialogPrimitive.Backdrop
       data-slot="dialog-overlay"
       className={cn(
-        "overlay-scrim fixed inset-0 isolate z-50 duration-100 ease-out data-closed:ease-in data-closed:duration-75 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0",
+        "overlay-scrim fixed inset-0 isolate z-50 duration-100 ease-[var(--ease-out-strong)] data-closed:ease-[var(--ease-out-strong)] data-closed:duration-75 data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0",
         className
       )}
       {...props}
@@ -92,7 +92,7 @@ function DialogContent({
           // the page canvas, so a dialog rendered on either is indistinguishable from the page
           // behind it — only the backdrop separated them. --popover is #2a2a2a and lifts the
           // surface off the page. This matches ui/sheet, which is already on bg-popover.
-          "fixed left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-2xl bg-popover p-6 shadow-overlay duration-150 data-closed:duration-100 data-closed:ease-in outline-none sm:max-w-lg data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
+          "fixed left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-2xl bg-popover p-6 shadow-overlay duration-150 ease-[var(--ease-out-strong)] data-closed:duration-100 data-closed:ease-[var(--ease-out-strong)] outline-none sm:max-w-lg data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
           // Centre on the VISIBLE viewport (see the block above). Both keyboard terms are
           // 0px with no keyboard, so this resolves to a plain 50% and the closed-keyboard
           // rendering is byte-identical to `top-1/2`.

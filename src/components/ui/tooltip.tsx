@@ -119,10 +119,34 @@ export function Tooltip({
               "origin-(--transform-origin) rounded-lg bg-foreground px-2 py-1 text-xs font-medium text-background shadow-md select-none",
               // Anchored motion mirroring ui/popover, at tooltip scale: a quick fade + subtle zoom
               // and a 1px slide FROM the anchor on open, reversed TO the anchor on close.
-              "duration-100 ease-out data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95",
-              "data-closed:duration-75 data-closed:ease-in data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
+              "duration-100 ease-[var(--ease-out-strong)] data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95",
+              "data-closed:duration-75 data-closed:ease-[var(--ease-out-strong)] data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
               "data-[side=bottom]:slide-in-from-top-1 data-[side=top]:slide-in-from-bottom-1 data-[side=left]:slide-in-from-right-1 data-[side=right]:slide-in-from-left-1",
               "data-[side=bottom]:data-closed:slide-out-to-top-1 data-[side=top]:data-closed:slide-out-to-bottom-1 data-[side=left]:data-closed:slide-out-to-right-1 data-[side=right]:data-closed:slide-out-to-left-1",
+              /**
+               * ⛔ `data-instant` KILLS THE ANIMATION WHEN THE TOOLTIP WAS ALREADY GOING TO BE
+               * INSTANT, and Base UI has been emitting it unread. It is set in three cases and all
+               * three want no motion:
+               *   · `delay` — the <TooltipProvider> above groups the 600ms open delay, so moving
+               *     along a toolbar opens each neighbour with no wait. Playing a 100ms zoom on
+               *     something that appeared instantly is the mismatch: the delay is skipped and
+               *     the animation is not, so the row still feels like it lags.
+               *   · `focus` — a tooltip opened by TABBING. Keyboard actions are repeated all day
+               *     and animating them makes the interface feel disconnected from the key press.
+               *   · `dismiss` — reopening straight after an Escape.
+               * ⛔ `!` BECAUSE CLASS ORDER DOES NOT DECIDE THIS, AND THE FIRST VERSION SAID IT DID.
+               * Two reviewers refuted the stated mechanism: tailwind-merge only drops conflicts
+               * within the SAME variant set, so `data-instant:` and `data-closed:` both survive
+               * `cn()` — and they have identical specificity, which leaves STYLESHEET order to
+               * decide. It happened to fall the right way in the built chunk (instant emitted
+               * after closed), but that is an accident of Tailwind's variant sort, not a contract,
+               * and Base UI sets `data-closed` and `data-instant` together on an Escape dismissal.
+               * `!important` makes it true by construction instead of by luck.
+               * ⚠️ IT ZEROES THE DURATION RATHER THAN CHANGING THE EASING because `animate-in`
+               * reads `var(--tw-animation-duration, var(--tw-duration, .15s))` — verified in the
+               * built CSS — so a duration utility does reach a keyframe animation here.
+               */
+              "data-instant:duration-0!",
               className,
             )}
           >
