@@ -26,6 +26,25 @@ import {
 const PAD = 8
 
 /**
+ * ⛔ HOW LONG A STEP WAITS FOR ITS CONTROL TO EXIST — 10s, and 1.2s was measured far too short.
+ * Owner, 2026-08-29: "why it dropped steps 4-5 from tour model brand is not asked to be tapped".
+ * Reproduced: step 5 opened with `[data-tour-active]` null and the tour advanced straight to 6/6,
+ * so the model tap was never asked for.
+ *
+ * ⚠️ I CAUSED THIS THE SAME DAY, IN A DIFFERENT FILE. The brand rail now clears its tiles on a scope
+ * change and shows skeletons while /api/brands answers, and the model grid does the same after a
+ * brand is picked — both deliberate, both fixing a real jump. The consequence is that the chips
+ * these steps point at legitimately do not exist for a second or two, and the poll gave up at 12
+ * tries × 100ms. A fix in one file shortened a budget in another.
+ *
+ * ⚠️ AND WAITING COSTS NOTHING HERE, WHICH IS WHY THE NUMBER IS GENEROUS. These four steps wait for
+ * the visitor's own tap anyway — there is no clock to beat — so the only thing a short budget buys
+ * is skipping a step whose control was merely slow. Skip is on screen the whole time for the case
+ * where the control genuinely never comes.
+ */
+const ANCHOR_TRIES = 100
+
+/**
  * ⚠️ ONLY THE SEARCH STEP IS TIMED — the other four wait for the visitor — so these three numbers
  * are the entire pacing of the part that plays itself. `READ` is how long the line stays up before
  * the query is submitted, `KEY` is the per-character typing interval, and `SETTLE` is the pause
@@ -336,7 +355,18 @@ export function IntroTour() {
     const poll = setInterval(() => {
       const late = document.querySelector<HTMLElement>(selector)
       if (late) { clearInterval(poll); attach(late) }
-      else if (++tries >= 12) {
+      /**
+       * ⛔ A RAIL THAT IS STILL LOADING DOES NOT BURN THE BUDGET. Wall-clock alone is only a proxy
+       * for "the fetch finished", so on a slow connection the step would still drop — the cliff
+       * would have moved rather than closed, which a reviewer said plainly. The rails render
+       * `.shimmer` skeletons for exactly as long as their answer is outstanding, so while one is on
+       * screen the tour is not waiting on nothing and the try does not count.
+       * ⚠️ THE CEILING STILL APPLIES, just not to this branch: `ANCHOR_TRIES` remains the backstop
+       * for a control that never arrives at all, so a permanently-shimmering page cannot pin the
+       * visitor on a step forever.
+       */
+      else if (document.querySelector('.shimmer') && tries < ANCHOR_TRIES * 3) { /* still loading */ }
+      else if (++tries >= ANCHOR_TRIES) {
         clearInterval(poll)
         /**
          * ⛔ MOVE ON RATHER THAN POINT AT NOTHING — and for a WAITING step this is not cosmetic. Its
