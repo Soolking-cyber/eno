@@ -760,6 +760,27 @@ export function IntroTour() {
               <p className="text-sm font-bold leading-tight text-foreground">{step.line}</p>
             </div>
 
+            {/*
+              ⛔ NO SKIP ON THE WALKING STEPS — owner, 2026-08-29: "remove skip otion for onborading
+              tour its short and useful for users to know how to search". Six steps, four of them a
+              single tap on a chip the tour has already centred and lit, so the cost of finishing is
+              lower than the cost of deciding whether to.
+              ⚠️ THE ROW ITSELF GOES WITH IT rather than rendering empty: a `flex` box with a `gap`
+              and no children still occupies its `mt-0.5` and leaves the card bottom-heavy, which
+              reads as a missing button rather than a deliberate absence. The closing step is now
+              the ONLY one with any action, so `isLast` is the whole condition.
+              ⚠️ THE WAYS OUT THAT REMAIN, because "no Skip" must not mean "no exit": Esc closes it,
+              leaving the home page closes it, any keypress or a click outside the card closes it
+              while the search step is typing, and the closing step still offers "Maybe later".
+              ⛔ WHAT THAT LEAVES, STATED PLAINLY: on a PHONE, during the four waiting steps, there
+              is no Esc key and the takeover listener is deliberately off (a tap outside the anchor
+              is how someone presses the chip's copy inside the "More" overflow — ending the tour
+              there was a real bug a reviewer caught). So a phone visitor who does not want to tap
+              the highlighted chip leaves by navigating away. That is the owner's call and the
+              honest cost of it; if it turns out to bite, "tap anywhere else to exit" is the fix
+              rather than putting Skip back.
+            */}
+            {isLast && (
             <div className="mt-0.5 flex items-center justify-center gap-1.5">
               {isLast ? (
                 <>
@@ -778,12 +799,9 @@ export function IntroTour() {
                     {tr('Maybe later', 'Để sau')}
                   </Button>
                 </>
-              ) : (
-                <Button variant="bare" size="none" onClick={() => close(true)} className="text-2xs font-semibold text-ink-4 hover:text-foreground cursor-pointer">
-                  {tr('Skip', 'Bỏ qua')}
-                </Button>
-              )}
+              ) : null}
             </div>
+            )}
           </div>
         </PopoverContent>
       </Popover>
