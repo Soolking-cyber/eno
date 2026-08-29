@@ -714,16 +714,14 @@ function ListingCardImpl({
             opens the centered discount bar (shared with mobile). */}
         <span className="pointer-events-none absolute right-11 top-2 z-10 hidden flex-row-reverse items-center gap-1 pc:flex">
           {quickOffer === null && (
-            // ⛔ NO `variant="overlay"` ON THIS ROW, AND THE COMMENT THAT USED TO SIT HERE IS WHY IT
-            // DRIFTED. It claimed overlay WAS "the same face treatment as the heart (white +
-            // drop-shadow)" — it is not. `overlay` paints a 2px `rgba(0,0,0,0.78)` stroke under the
-            // glyph with `paint-order: stroke fill`, so the chat, offer and map icons wore a heavy
-            // black outline while the heart, which never used that variant, stayed a soft white
-            // shape. Owner, 2026-08-29, with a screenshot: "remove stron outline form icons on
-            // products make them all match the heart".
-            // ⚠️ SO THE WHITE COMES FROM THE GLYPH, exactly as it does on the heart: `text-white`
-            // plus `icon-shadow-brand-strong` for legibility over a photo, and no stroke at all.
-            // The four controls on a card are now one treatment rather than three plus one.
+            // ⛔ ALL FOUR CONTROLS SHARE `variant="overlay"`, WHICH IS NOW A TRANSLUCENT PLATE
+            // rather than the 2px black stroke that variant used to paint. Owner, 2026-08-29,
+            // after the stroke came off and the glyphs proved invisible on white photos:
+            // "semistransparent black plate outline with minimal padding to icon on icons on light
+            // theme and semitransparent white on dark theme all icons on images should have that".
+            // ⚠️ THE GLYPHS CARRY NO COLOUR OF THEIR OWN ANY MORE — the variant supplies white in
+            // light mode and dark ink in dark mode, so a `text-white` here would break dark mode.
+            // Only the SAVED heart still sets its own ink, and red on the plate still reads.
             // tapTarget={false} is REQUIRED here: this is a gap-1 row of h-8 glyphs at ~36px pitch, so a
             // 44px ::before would overlap its neighbour and a boundary tap would fire OFFER, not CHAT.
             //
@@ -737,12 +735,13 @@ function ListingCardImpl({
             <Tooltip content={tr('Chat with seller', 'Nhắn tin với người bán')} side="top">
               <IconButton
                 size="sm"
+                variant="overlay"
                 tapTarget={false}
                 aria-label={tr('Chat with seller', 'Nhắn tin với người bán')}
                 onClick={(e) => { e.stopPropagation(); quickGo({ body: tr('Hi! Is this still available?', 'Chào bạn! Món này còn không?') }) }}
                 className="pointer-events-auto translate-x-3 opacity-0 transition-all duration-200 ease-[var(--ease-spring-snappy)] hover:scale-110 active:scale-[0.96] group-hover:translate-x-0 group-hover:opacity-100 focus-visible:translate-x-0 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
               >
-                <MessageCircle className="icon-shadow-brand-strong h-5 w-5 fill-none text-white" />
+                <MessageCircle className="h-5 w-5 fill-none" />
               </IconButton>
             </Tooltip>
           )}
@@ -750,6 +749,7 @@ function ListingCardImpl({
             <Tooltip content={tr('Make an offer', 'Trả giá')} side="top">
               <IconButton
                 size="sm"
+                variant="overlay"
                 tapTarget={false}
                 aria-label={tr('Make an offer', 'Trả giá')}
                 aria-pressed={quickOffer !== null}
@@ -764,7 +764,7 @@ function ListingCardImpl({
                     controls open as ONE wide edge-to-edge bar (shared with mobile,
                     below) so the amount never gets cramped on a narrow card. */}
                 {/* ⚠️ The active state still fills brand — only the black stroke goes. */}
-                <Tag className={cn('icon-shadow-brand-strong h-5 w-5 text-white', quickOffer !== null ? 'fill-brand' : 'fill-none')} />
+                <Tag className={cn('h-5 w-5', quickOffer !== null ? 'fill-brand' : 'fill-none')} />
               </IconButton>
             </Tooltip>
           )}
@@ -772,12 +772,13 @@ function ListingCardImpl({
             <Tooltip content={tr('Show on map', 'Xem trên bản đồ')} side="top">
               <IconButton
                 size="sm"
+                variant="overlay"
                 tapTarget={false}
                 aria-label={tr('Show on map', 'Xem trên bản đồ')}
                 onClick={(e) => { e.stopPropagation(); locate(listing) }}
                 className="pointer-events-auto translate-x-3 opacity-0 transition-all delay-150 duration-200 ease-[var(--ease-spring-snappy)] hover:scale-110 active:scale-[0.96] group-hover:translate-x-0 group-hover:opacity-100 group-hover:delay-150 focus-visible:translate-x-0 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
               >
-                <MapPin className="icon-shadow-brand-strong h-5 w-5 fill-none text-white" />
+                <MapPin className="h-5 w-5 fill-none" />
               </IconButton>
             </Tooltip>
           )}
@@ -806,6 +807,7 @@ function ListingCardImpl({
             (a quiet native action row); desktop keeps its on-hover unfurl above. */}
         <IconButton
           size="sm"
+          variant="overlay"
           // ⚠️ THE NAME IS CONSTANT ON PURPOSE — `aria-pressed` is what reports the state, and a
           // toggle button whose NAME also flips says the same thing twice, in contradictory
           // words: "Remove favorite" + pressed announces as though REMOVAL were the active state,
@@ -838,8 +840,8 @@ function ListingCardImpl({
                 outline, and the outline is what carries legibility. All three now share
                 icon-shadow-brand so the trio is one treatment. */}
             <Heart className={cn('icon-own-ink h-5 w-5 transition-colors', favorited
-              ? 'icon-shadow-saved fill-current text-destructive'
-              : 'icon-shadow-brand-strong fill-none text-white')} />
+              ? 'fill-current text-destructive'
+              : 'fill-none')} />
           </span>
         </IconButton>
 

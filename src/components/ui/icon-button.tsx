@@ -79,39 +79,55 @@ const VARIANTS = {
   // call site relies on the class list being exactly the base + size + its own className.
   ghost: '',
   /**
-   * OVER MEDIA — white ink with a dark OUTLINE, and no chip of any kind.
+   * OVER-MEDIA CONTROLS: A TRANSLUCENT PLATE, NOT AN OUTLINE ON THE GLYPH.
    *
-   * ⛔ THE DARK CIRCLE SHIPPED THIS MORNING AND THE OWNER REVERSED IT THE SAME DAY: "remove the
-   * circles around icons on product pages and cards make the icons bolder at least or background
-   * color agnostic no circles". The chip WAS the most legible option and it was chosen from a
-   * rendered comparison — but legibility was never the only requirement, and two solid discs on
-   * every card is a heavier mark than this UI wants. Do not restore it as a fix for contrast.
+   * Owner, 2026-08-29: "try semistransparent black plate outline on icons on light theme and
+   * semitransparent white on dark theme all icons on images should have that for better
+   * visibility". So the contrast comes from a disc behind the mark rather than from the mark's own
+   * edge, and it inverts with the theme — dark plate/white glyph in light mode, light plate/dark
+   * glyph in dark mode.
    *
-   * ⚠️ AN OUTLINED GLYPH IS THE ONLY TREATMENT THAT ACTUALLY DELIVERS THE ORIGINAL BRIEF — "dark on
-   * light background and light on dark background". Rendered on the real PDP against three
-   * backgrounds before choosing:
-   *   · white  → the dark stroke carries it; it reads as a dark icon.   ✓
-   *   · black  → the white fill carries it; it reads as a white icon.   ✓
-   *   · mid blue → both halves visible, which is exactly where
-   *     `mix-blend-mode: difference` collapses to invisibility.          ✓
-   * A drop-shadow halo was tested in the same pass and rejected: on pure white it washes out to a
-   * grey smudge, because a white glyph on white has nothing but the halo doing the work.
+   * ⛔ WHAT THIS REPLACES AND WHY THE REPLACEMENT HAD TO BE A PLATE. The old variant painted a 2px
+   * `rgba(0,0,0,0.78)` stroke under the glyph with `paint-order: stroke fill`. The owner asked for
+   * it to go — "remove stron outline form icons on products make them all match the heart" — and
+   * simply deleting it was measured on this PDP's own white product photo and is not survivable:
+   *     2px black stroke .................... peak glyph contrast 597
+   *     white glyph, blue drop-shadow ....... 217
+   *     white glyph, dark drop-shadow ....... 135
+   *     white glyph, nothing ................   0   ← invisible
+   * A white mark on a white photograph has nothing to be seen against, which is exactly what the
+   * note this replaces had recorded when a halo was tried and rejected. A plate puts a known
+   * background under the mark, so legibility stops depending on what the photograph happens to be.
    *
-   * ⚠️ `paint-order: stroke fill` IS THE LOAD-BEARING PROPERTY. Without it the stroke is painted
-   * OVER the fill and eats the glyph from the inside — a 2px stroke on a 1.5px line leaves a black
-   * blob. Painting the stroke first and the fill on top makes it an outline around the mark, which
-   * is also what makes the glyph read as BOLDER, the other half of what the owner asked for.
+   * ⚠️ AND THE PLATE WAS MEASURED TOO, on the same white product photo, because a table of rejected
+   * options with no number for the chosen one is half an argument: 345 in light mode and 696 in
+   * dark. Below the 2px stroke's 597 in light and well above everything else that was tried — and
+   * unlike all of them it does not depend on the image, which is the property that matters.
+   * ⚠️ 32 plated controls were checked on the PDP for a plate wider than its own button: none.
    *
-   * ⚠️ IT IS APPLIED TO THE `svg` CHILD, NOT THE BUTTON, because these glyphs are `<use>` references
-   * into an external sprite: stroke on the button inherits nowhere useful, and a `filter` on the
-   * button would blur the whole box rather than trace the path.
+   * ⚠️ `dark:` KEYS OFF `.dark`, THE APP'S OWN SIGNAL — `@custom-variant dark (&:is(.dark *))` in
+   * globals.css — not `prefers-color-scheme`. The distinction is load-bearing here for the same
+   * reason it is on the map tiles: the media query reports what the OS wants, while `.dark` is what
+   * the app RESOLVED, including the visitor's explicit toggle.
    *
-   * ⚠️ COLOURED STATE STILL OVERRIDES: <Heart className="fill-current text-destructive"> on the icon
-   * CHILD wins over `text-white` here, so a saved heart is still red — now a red heart with a dark
-   * outline, which is more legible on a bright photo than the bare red was.
+   * ⚠️ NO `backdrop-blur`. A blurred plate would need the `material` marker and a covered tint (see
+   * design-lint's rule), and would buy nothing here: the plate is opaque enough to carry the glyph
+   * on its own, and these controls sit on top of imagery that is already the subject.
+   *
+   * ⛔ THE PLATE IS ON THE GLYPH, NOT ON THE BUTTON — owner, 2026-08-29: "with minimal padding to
+   * icon". The size variants are fixed boxes (`sm` is h-8 w-8) around a 20px mark, so a background
+   * on the BUTTON draws a 32px disc with 6px of air: a chip, not a plate. Painting the svg instead,
+   * with `p-[3px]` and `box-content` so the padding grows the disc rather than shrinking the mark,
+   * gives a 26px plate that hugs the icon.
+   * ⚠️ `box-content` IS LOAD-BEARING. Under the default `border-box` the padding would eat INTO the
+   * 20px box and the glyph would render at 14px — smaller, not better padded.
+   * ⚠️ THE BUTTON KEEPS ITS OWN SIZE, which is the point of putting the plate elsewhere: the tap
+   * target stays whatever `size`/`tapTarget` set it to, so hugging the icon costs no hit area.
    */
   overlay:
-    'text-white [&_svg]:[paint-order:stroke_fill] [&_svg]:[stroke:rgba(0,0,0,0.78)] [&_svg]:[stroke-width:2px] [&_svg]:[stroke-linejoin:round] [&_svg]:[stroke-linecap:round]',
+    'text-white dark:text-neutral-900 ' +
+    '[&_svg]:rounded-full [&_svg]:bg-black/45 [&_svg]:p-[3px] [&_svg]:box-content ' +
+    'dark:[&_svg]:bg-white/75',
 } as const
 
 export function IconButton({

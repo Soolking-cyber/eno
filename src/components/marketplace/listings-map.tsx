@@ -653,6 +653,7 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
                 <div className="absolute right-2 top-2 z-10 flex items-center gap-1.5">
                   <IconButton
                     size="sm"
+                    variant="overlay"
                     tapTarget={false}
                     onClick={(e) => { e.stopPropagation(); toggle(card.id) }}
                     // Constant name + `aria-pressed` = the ARIA toggle pattern; see the note on
@@ -671,9 +672,16 @@ export function ListingsMap({ listings, activeDistrict, onOpenListing, selectedI
                         `text-destructive` merely recoloured the Outline layer underneath. The label
                         moved from state wording ("Saved") to action wording to match the other
                         hearts: with aria-pressed set, a state label reads as "Saved, pressed". */}
+                    {/* ⚠️ `variant="overlay"` SUPPLIES THE PLATE AND THE INK — owner, 2026-08-29:
+                        "images on the map too icons need plate". This heart sits on a listing photo
+                        exactly as the grid card's does, and it previously relied on `text-white`
+                        plus a shadow, which is invisible on a white product shot (measured on the
+                        PDP: contrast 0). Setting a colour here would break dark mode, where the
+                        variant paints a light plate and dark ink. Only the SAVED state keeps its
+                        own red. */}
                     <Heart className={cn('icon-own-ink h-5 w-5 transition-colors', isFavorite(card.id)
-              ? 'icon-shadow-saved fill-current text-destructive'
-              : 'icon-shadow-brand fill-none text-white')} />
+              ? 'fill-current text-destructive'
+              : 'fill-none')} />
                   </IconButton>
                 </div>
                 <Button variant="bare" size="none" onClick={() => activateCard(card)} className="block w-full whitespace-normal text-left font-normal cursor-pointer active:scale-100">
