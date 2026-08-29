@@ -134,3 +134,19 @@ export type NavArtKey = (typeof NAV_ART_KEYS)[number]
 export function navArtPath(key: NavArtKey): string {
   return `/icons/nav/${key}.webp?v=${CATEGORY_ART_STAMP}`
 }
+
+/**
+ * THE OUTLINE SET — the header's controls and the view switcher (owner, 2026-08-29: "also replace
+ * remaining outline icons on top navbar and view type icons line grid map and video gray by default
+ * blue when pressed"). Same pack, same generator, same stamp, and the same grey-until-chosen
+ * contract as the tiles and the bottom bar.
+ * ⛔ BOTH EDITIONS SHIP THESE, like the nav set: a magnifier and a bell describe nothing regulated,
+ * so this folder is deliberately absent from the Dockerfile's marketplace prune.
+ */
+export const UI_ART_KEYS = ['ai', 'arrow', 'grid', 'list', 'map', 'bell', 'play', 'search', 'user'] as const
+
+export type UiArtKey = (typeof UI_ART_KEYS)[number]
+
+export function uiArtPath(key: UiArtKey): string {
+  return `/icons/ui/${key}.webp?v=${CATEGORY_ART_STAMP}`
+}

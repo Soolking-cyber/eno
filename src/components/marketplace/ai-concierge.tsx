@@ -2,6 +2,7 @@
 
 import { Sparkles } from '@/components/ui/icons'
 import { useLanguage } from '@/context/language-context'
+import { UiArt } from '@/components/marketplace/ui-art'
 import { Button } from '@/components/ui/button'
 import { STROKE_NAV, WASH_ACTIVE } from '@/lib/icon-tokens'
 import { cn } from '@/lib/utils'
@@ -40,10 +41,11 @@ export function AISearchButton({
         className,
       )}
     >
-      {/* STROKE_NAV — the search-bar icon standard, matching the magnifier + Map (§2:
-          h-6 chrome carries the platform weight; the ✨ was the one glyph in the bar
-          still on the default 2 and read thinner than its neighbours). */}
-      <Sparkles className={iconClassName} strokeWidth={STROKE_NAV} />
+      {/* ⚠️ THE PACK'S GLYPH, LIKE ITS NEIGHBOURS. This was the last lucide icon in the search bar
+          after the magnifier and the map moved to the outline set, and it read as a different
+          family sitting between them. `lit` follows the button's own active state — this control
+          CAN be pressed, unlike the decorative magnifier beside it. */}
+      <UiArt name="ai" lit={active} className={iconClassName} />
     </Button>
   )
 }

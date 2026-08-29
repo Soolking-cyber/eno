@@ -1,6 +1,7 @@
 'use client'
 
-import { Rows3, LayoutGrid, Map, Play, ArrowUp, ArrowDown, ArrowUpDown } from '@/components/ui/icons'
+import { ArrowUp, ArrowDown, ArrowUpDown } from '@/components/ui/icons'
+import { UiArt } from '@/components/marketplace/ui-art'
 import { Button } from '@/components/ui/button'
 import { Tooltip } from '@/components/ui/tooltip'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -37,28 +38,35 @@ export function ViewToggles({ viewMode, onViewMode, showVideo = true }: { viewMo
   // Glyph choices follow §3 (soft-cornered variants): Rows3/LayoutGrid carry the canon's
   // rounded-rect feel where the old List (dotted lines) and Grid (hard lattice) could take no
   // wash at all and read boxy next to the washed family.
-  const wash = (on: boolean, sel: string) => (on ? sel : undefined)
+  /**
+   * ⚠️ `wash` IS GONE WITH THE LUCIDE GLYPHS IT SERVED. It painted a brand-100 fill into one
+   * specific child path of each icon to mark the active view — a per-icon selector (`[&>rect]`,
+   * `[&>polygon]`) that had to be hand-matched to each glyph's internal structure. The pack's
+   * artwork has no such structure to reach into: selected is simply the artwork as drawn, and
+   * unselected is the same artwork through `grayscale()`. Owner, 2026-08-29: "gray by default blue
+   * when pressed".
+   */
   return (
     <>
       <Tooltip content={tr('List view', 'Danh sách')} side="bottom">
         <Button variant="bare" size="none" onClick={() => onViewMode('compact')} aria-label={tr('List view', 'Danh sách')} aria-pressed={viewMode === 'compact'} className={tab('compact')}>
-          <Rows3 className={cn('h-5 w-5', wash(viewMode === 'compact', '[&>rect]:fill-brand-100'))} />
+          <UiArt name="list" lit={viewMode === 'compact'} />
         </Button>
       </Tooltip>
       <Tooltip content={tr('Grid view', 'Lưới')} side="bottom">
         <Button variant="bare" size="none" onClick={() => onViewMode('grid')} aria-label={tr('Grid view', 'Lưới')} aria-pressed={viewMode === 'grid'} className={tab('grid')}>
-          <LayoutGrid className={cn('h-5 w-5', wash(viewMode === 'grid', '[&>rect:first-of-type]:fill-brand-100'))} />
+          <UiArt name="grid" lit={viewMode === 'grid'} />
         </Button>
       </Tooltip>
       <Tooltip content={tr('Map view', 'Xem Bản đồ')} side="bottom">
         <Button variant="bare" size="none" onClick={() => onViewMode('map')} aria-label={tr('Map view', 'Bản đồ')} aria-pressed={viewMode === 'map'} className={tab('map')}>
-          <Map className={cn('h-5 w-5', wash(viewMode === 'map', '[&>path:first-of-type]:fill-brand-100'))} />
+          <UiArt name="map" lit={viewMode === 'map'} />
         </Button>
       </Tooltip>
       {showVideo && (
         <Tooltip content={tr('Video view', 'Xem Video')} side="bottom">
           <Button variant="bare" size="none" onClick={() => onViewMode('video')} aria-label={tr('Video view', 'Video')} aria-pressed={viewMode === 'video'} className={tab('video')}>
-            <Play className={cn('h-5 w-5', wash(viewMode === 'video', '[&>polygon]:fill-brand-100'))} />
+            <UiArt name="play" lit={viewMode === 'video'} />
           </Button>
         </Tooltip>
       )}

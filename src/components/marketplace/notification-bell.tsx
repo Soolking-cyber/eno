@@ -13,6 +13,7 @@ import { useAuth } from '@/context/auth-context'
 import { useLanguage, Tr } from '@/context/language-context'
 import { timeAgo } from '@/lib/types'
 import { cn } from '@/lib/utils'
+import { UiArt } from '@/components/marketplace/ui-art'
 
 /** Notification bell for the header (desktop + mobile). Badge shows unread count.
  *  Unread float to the top and stay highlighted; each row is marked read when
@@ -67,7 +68,12 @@ export function NotificationBell() {
                 STROKE_NAV: the bell is h-7 header chrome (§2 — it was the one chrome
                 glyph in the header still on lucide's default 2). The solid fill-brand
                 when unread is USER-state (§5) — something is yours/waiting. */}
-            <Bell className={cn('h-7 w-7', user && unread > 0 && 'fill-brand text-brand')} strokeWidth={STROKE_NAV} />
+            {/* ⛔ NOT LIT BY THE UNREAD COUNT. The lucide bell filled brand whenever something was
+                waiting; the bottom bar made exactly that mistake and the owner corrected it —
+                colour in this app means "this is the thing you are on", and the count badge beside
+                this glyph is what says there is something to read. `lit` is reserved for the open
+                state, which is the only sense in which this control is "pressed". */}
+            <UiArt name="bell" lit={open} className="h-7 w-7" />
             {user && unread > 0 && (
               <Badge aria-hidden variant="counter" size="count" className="absolute right-1 top-1 animate-in zoom-in duration-200">
                 {unread > 9 ? '9+' : unread}
