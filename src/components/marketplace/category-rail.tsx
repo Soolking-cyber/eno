@@ -1,6 +1,6 @@
 'use client'
 
-import { Fragment, useEffect, useRef } from 'react'
+import { Fragment, useEffect, useMemo } from 'react'
 import { useLanguage, Tr, useTr } from '@/context/language-context'
 import { detectContentLang } from '@/lib/detect-lang'
 import { CategoryIcon } from './category-icons'
@@ -241,6 +241,49 @@ export function CategoryRail({
   const subCount = (slug: string): number | undefined => optionCount(subDim, slug) ?? legacySubCount(slug)
   const subRank = (slug: string) => subCount(slug) ?? 0
 
+  /**
+   * ⛔ THE ORDER IS DECIDED ONCE PER CATEGORY AND THEN FROZEN. Owner, 2026-08-29: "the jump is still
+   * there when subcategory first opens its in one place once fetches amount of products available
+   * it jumps to another place so annoying".
+   *
+   * Measured on production: at +300ms the row read Phones, Laptops, TVs; at +900ms — the moment the
+   * feed answered — it read Cases & covers, Phones, Audio. The chips never MOVED, they REORDERED, so
+   * the one being reached for was somewhere else by the time the finger landed. `subRank` falls back
+   * to 0 for an unknown count, which quietly means "taxonomy order now, ranked order in a second".
+   *
+   * ⚠️ THIS IS THE FAILURE brand-rail.tsx REFUSES TO HAVE, and its note is the reasoning: "the rail
+   * would paint in one order, sit still long enough to be reached for, and then re-order under the
+   * finger". It solves it by ranking on a count that arrives WITH the tiles. This row has no such
+   * count, so it freezes instead: whatever order the first render of a category produces is the
+   * order that category keeps until the visitor leaves it.
+   *
+   * ⛔ HIDING THE ROW UNTIL THE COUNTS LAND WAS TRIED FIRST AND IS WORSE. Skeletons in these cells
+   * removed the reorder, but they also made the primary navigation untappable for as long as the
+   * feed takes — up to the 2.5s `semanticRank` is allowed. Two existing tests say so out loud: a
+   * stale or empty payload must leave the chips PRESENT and merely numberless, never absent.
+   * ⚠️ THE ACCEPTED COST, STATED: on a cold open the cut (seven chips plus "+N") is made on taxonomy
+   * order rather than on the counts, which brand-rail's rule says a cutting rail should avoid. It is
+   * the lesser evil and it is not a regression — the previous code cut on taxonomy order in that
+   * same window too. It simply also re-sorted a second later, which is the part being removed.
+   */
+  const frozenOrder = useMemo(
+    () => [...(SUBCATEGORIES[activeCategory] ?? [])].sort((a, b) => subRank(b.slug) - subRank(a.slug)).map((sub) => sub.slug),
+    /**
+     * ⛔ `activeCategory` ALONE, AND THE MISSING DEPENDENCY IS THE ENTIRE MECHANISM. This memo reads
+     * `subRank`, which closes over the counts — so recomputing when THOSE change is precisely the
+     * re-sort being removed. Freezing means capturing the ranking at the moment a category opens
+     * and keeping it until a different category is opened, which is what this dependency list says.
+     * ⚠️ A `useRef` written during render was the first version and a reviewer was right to reject
+     * it: React may discard a render (an interrupted transition, Suspense, StrictMode's double
+     * invoke) and a ref write is not rolled back, so a render begun with empty counts and abandoned
+     * would still have recorded taxonomy order. It also ran during SSR. A memo has neither problem.
+     * ⚠️ NO `eslint-disable` HERE: the rule is not enabled as an error in this repo, so the
+     * directive reported as UNUSED — and a stale disable is how a red pipeline starts. The reason
+     * the list is short is written above instead, where it cannot rot into a lint warning.
+     */
+    [activeCategory],
+  )
+
   // `.press` (icon-language §8): the browse rail's tiles press with the same spring as the
   // home grid's — one tile, one feel, wherever the grid appears.
   const tileCls = 'press group flex w-[4.75rem] shrink-0 snap-start flex-col items-center gap-1.5 py-1 text-center cursor-pointer select-none'
@@ -364,8 +407,22 @@ export function CategoryRail({
         // taxonomy order. Empty counts (pre-load) leave the canonical order.
         // (`subRank` is the reconciled source above — the same numbers whichever key the payload
         // carried, so switching to it changed no order, only where the figure is read from.)
+        /**
+         * ⚠️ RANK ONCE, THEN REPLAY. The first render for a category sorts on whatever counts exist
+         * at that instant and records the result; every later render of the SAME category replays
+         * that recorded order, so a payload arriving mid-view cannot reshuffle the chips under a
+         * finger. Changing category clears it (above), because a new category is a new question.
+         */
+        /**
+         * ⚠️ REPLAY THE FROZEN ORDER. A slug the memo never saw — only reachable if `SUBCATEGORIES`
+         * changed under the same category — keeps its taxonomy position instead of collapsing into
+         * one undifferentiated bucket at the end, which a reviewer pointed out a flat fallback does.
+         */
         const subs = isActive
-          ? [...(SUBCATEGORIES[cat.slug] ?? [])].sort((a, b) => subRank(b.slug) - subRank(a.slug))
+          ? [...(SUBCATEGORIES[cat.slug] ?? [])]
+              .map((sub, i) => ({ sub, at: frozenOrder.indexOf(sub.slug), i }))
+              .sort((a, b) => (a.at < 0 ? frozenOrder.length + a.i : a.at) - (b.at < 0 ? frozenOrder.length + b.i : b.at))
+              .map((e) => e.sub)
           : []
         // 3×3 grid (9 cells): "All" + up to 8 subcats. All+8 fills it exactly, so only
         // collapse into a "More" cell when there are MORE than 8 — at ≤8 show them all.
