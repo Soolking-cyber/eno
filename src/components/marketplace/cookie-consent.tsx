@@ -76,6 +76,8 @@ export function CookieConsent() {
    */
   const pathname = usePathname()
   const [openedByUser, setOpenedByUser] = useState(false)
+  /** Latches on the first open so the popup survives its own closing frame — see the note below. */
+  const [everShown, setEverShown] = useState(false)
   /** The auto-open fired while the visitor was on /signin; show it once they are elsewhere. */
   const [deferred, setDeferred] = useState(false)
   const [view, setView] = useState<'ask' | 'settings'>('ask')
@@ -173,6 +175,8 @@ export function CookieConsent() {
     setDeferred(false)
   }, [deferred, pathname, show, openedByUser])
 
+  useEffect(() => { if (show) setEverShown(true) }, [show])
+
   // Withdrawal right (PDPL): the footer "Cookie settings" link dispatches this to
   // reopen the banner any time, pre-filled with the current choice, so consent is
   // as easy to change as to give (compliance verification 2026-07-06).
@@ -188,7 +192,22 @@ export function CookieConsent() {
     window.addEventListener('eno:open-consent', reopen)
     return () => window.removeEventListener('eno:open-consent', reopen)
   }, [])
-  if (!show) return null
+  /**
+   * ⛔ MOUNTED ONCE SHOWN, SO THE EXIT ANIMATION THE POPUP DECLARES CAN ACTUALLY RUN. This was
+   * `if (!show) return null`, which unmounts `DialogPrimitive.Root` in the same commit that closes
+   * it — so `data-closed:animate-out fade-out zoom-out-95` on the popup below never had a frame to
+   * run in, and the card vanished instantly after fading in over 200ms. Declared-but-dead exit
+   * animation, and the same shape auth-context.tsx already solved for the sign-in dialog (its note
+   * on `everOpened` explains the identical trade).
+   * ⚠️ `everShown`, NOT a plain `true`: nothing renders before the 4s timer or the footer's reopen
+   * fires, so a visitor who never sees the card never mounts a dialog at all.
+   * ⚠️ `|| show` IS WHAT KEEPS THE OPEN INSTANT. `everShown` latches in an effect, which runs after
+   * the commit — so gating on it alone returned `null` for the render where `show` first turned
+   * true and the card arrived one frame late. A reviewer caught it. Reading `show` directly here
+   * mounts in the same pass; `everShown` then holds the subtree open for the exit, which is the
+   * only job it has.
+   */
+  if (!everShown && !show) return null
 
   /**
    * Closing means closed. Three things reset, and each was a bug found in review:

@@ -35,7 +35,14 @@ export function AISearchButton({
         // wash inside the big sparkle (WASH_ACTIVE fills the first path only — the body
         // a child would colour in). The old solid bg-primary chip + shadow was the
         // user-state treatment shouting about mere location, and the one shadow in the bar.
-        'rounded-full transition-colors duration-200 tap-44 relative active:scale-[0.96]',
+        // ⛔ `active:duration-[60ms]` IS THE POINT OF THE WHOLE LINE, AND LEAVING IT OFF MADE THIS
+        // BUTTON WORSE. Naming `scale` gives the press an easing it never had — but it also puts
+        // it in the 200ms bucket, and `active:scale-[0.96]` was INSTANT before, because
+        // `transition-colors` never covered scale. A reviewer caught the inversion: the sibling
+        // hunk in the header added the active override in the same diff, this one did not, so the
+        // change advertised as press polish delayed the acknowledgement on the search bar's most
+        // tapped control. Press goes down fast and comes back on the slow curve.
+        'rounded-full transition-[color,background-color,scale] duration-200 active:duration-[60ms] tap-44 relative active:scale-[0.96]',
         active ? cn('text-accent-foreground', WASH_ACTIVE) : 'text-ink-4 hover:text-accent-foreground',
         className,
       )}

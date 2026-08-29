@@ -42,10 +42,17 @@ type Props = {
  * ("12.000.000 đ" for vi). Locale-swap stays hydration-safe the tr() way. A rare
  * non-VND stored listing shows as-is, with no approximation (no reliable rate).
  */
+/** Nominal đồng-per-dollar, expressed the way /api/fx publishes it (currency per 1 VND), used
+ *  ONLY to size the invisible placeholder that reserves the approximation's slot before the real
+ *  table arrives. It is never displayed and never used for a figure a viewer can read, so it does
+ *  not need to be accurate — only the right order of magnitude, so the reserved box is the right
+ *  number of digits wide. */
+const FX_RESERVE_RATES = { USD: 1 / 26_000 }
+
 export function Price({ price, currency, priceUnit, compact = false, dual = true, unit: showUnit = true, className }: Props) {
   void compact // amounts are always shown in full now
   const { lang, tr } = useLanguage()
-  const { currency: displayCur, rates, format } = useCurrency()
+  const { currency: displayCur, rates, ratesPending, format } = useCurrency()
   const locale = moneyLocale(lang)
   // A zero price is FREE, not "0 VND". Rendering the number was actively misleading on the one
   // surface that has one — the trip-planning service, where planning genuinely costs nothing and
@@ -73,12 +80,50 @@ export function Price({ price, currency, priceUnit, compact = false, dual = true
   // approximation is safe to show — a reviewer correctly pointed out that two copies of this rule
   // are only equal until one of them changes.
   let approx: string | null = null
+  // ⚠️ TRUE WHEN `approx` HOLDS A STAND-IN, NOT A RATE. See the block below the assignment.
+  let approxReserved = false
   // `dual`/`unit` of 'fit' are truthy here on purpose: the element is always RENDERED and hidden
   // by a container query in CSS. Deciding it in JS would need the container's width, which is not
   // known at render and would tear on resize.
   if (dual !== false && currency === '₫' && price > 0) {
     if (displayCur === 'USD') approx = formatMoneyFull(price, '₫', locale)
     else if (vndPerUsd(rates)) approx = formatMoney(price, 'USD', rates, locale)
+    // ⛔ THIS BRANCH RENDERS A FIGURE THAT IS NEVER SHOWN, AND THAT IS THE ENTIRE POINT.
+    // /api/fx is deferred to an idle slot for the default VND viewer, so the "≈ $x" slot used to
+    // appear ~620ms after paint and push everything under it down a line: on the PDP the whole
+    // desktop buy box — H1, metadata and the Chat CTA — dropped 26px on every first visit, which
+    // is a CLS hit on the most valuable page in the app. Rendering the slot from a FIXED nominal
+    // rate reserves its width in the SSR HTML, so the real approximation lands into a box that is
+    // already the right size and nothing moves.
+    // ⚠️ IT IS `invisible`, NOT a rate we are willing to publish: visibility:hidden keeps the
+    // geometry and paints nothing, and the span is aria-hidden below, so no viewer and no screen
+    // reader ever meets this number. NĐ 340/2025 is about the figure a shopper SEES; a stand-in
+    // that is never seen is a layout box, not a price. Do not "fix" it by making it visible, and
+    // do not swap `invisible` for `opacity-0` (still hit-testable) or `text-transparent`
+    // (selectable, and copied into the clipboard as a confidently wrong dollar figure).
+    // ⚠️ IT RESERVES THE WIDTH FOR 99.7% OF PRICES, NOT ALL OF THEM, AND THE GAP IS MEASURED.
+    // tabular-nums above makes every digit the same width, so the stand-in and the real
+    // approximation differ only when the digit COUNT does. Swept every 10 000 ₫ from 50 000 to
+    // 2bn against 25 000/25 500/26 000/26 500/27 000 ₫ per $ — 999 980 pairs: 99.67% identical
+    // width, 0.30% off by one character, 0.03% off by two. The two-character case is a price that
+    // straddles $1 000 ($961 vs $1,000 — the thousands comma arrives with the digit), which a
+    // reviewer found after the first version of this comment claimed one character was the worst
+    // case.
+    // ⚠️ SO THE CLAIM IS 99.67%, NOT "NO SHIFT", and a second reviewer was right to press on the
+    // difference: on a card narrow enough to have less than two characters of slack, a price in
+    // that 0.33% can still cross the `<wbr>` when the real rate lands and take the second line
+    // with it. That is the same failure this replaces, at 1/300th the frequency, and closing the
+    // remainder needs a server-rendered rate rather than a nominal one. Do not restate this as
+    // "exact", and do not widen the reserve to hide it — a wider box is a visible gap on the
+    // 99.67%.
+    // ⚠️ A STORED USD VIEWER IS NOT SERVED BY THIS AND CANNOT BE. `displayCur` is read from
+    // localStorage in an effect, so on the server every viewer looks like a VND one and gets the
+    // dollar-shaped stand-in; a viewer whose stored currency is USD then hydrates into branch one,
+    // where the second slot holds the full đồng price and the box grows. That shift is older than
+    // this code — the same viewer previously went from NO span to the đồng string, so the reserve
+    // makes their jump smaller, not larger — and closing it needs the display currency in the SSR
+    // response, not a better placeholder. Noted so the next reader does not re-derive it.
+    else if (ratesPending) { approx = formatMoney(price, 'USD', FX_RESERVE_RATES, locale); approxReserved = true }
   }
   // ⛔ THE SECOND FIGURE IS NOT ALWAYS THE ESTIMATE, AND 'fit' MUST NOT HIDE IT WHEN IT IS NOT.
   // Read the branch above: for a viewer whose display currency is USD, `amount` is the CONVERTED
@@ -218,9 +263,25 @@ export function Price({ price, currency, priceUnit, compact = false, dual = true
          * for USD viewers — a product decision, not a styling one.
          */
         <span
-          aria-hidden={approxIsEstimate}
+          aria-hidden={approxIsEstimate || approxReserved}
+          /** ⛔ INLINE, NOT ONLY THE UTILITY CLASS, AND A REVIEWER IS WHY. `invisible` lives in the
+           *  stylesheet; the stand-in figure is real text in the SSR HTML. On any load where the
+           *  stylesheet is blocked, fails or is stripped — a corporate proxy, a reader mode — the
+           *  class does nothing and a fabricated dollar amount becomes visible and selectable
+           *  beside a real đồng price.
+           *  ⚠️ IT DOES NOT COVER A CLIENT THAT IGNORES CSS ALTOGETHER, and an earlier version of
+           *  this comment claimed it did. Something that drops `style=` along with the stylesheet
+           *  still sees the digits; so does anything reading `textContent`. What the inline style
+           *  buys is the far more common case — the CSS never arrives — and nothing beyond it.
+           *  Closing the remainder means not rendering the figure at all, which costs the
+           *  reservation this whole branch exists for. That is the exact NĐ 340/2025
+           *  exposure the rest of this component is built to avoid, so the hiding travels with the
+           *  element itself. The class stays too: it is what tailwind-merge and any future variant
+           *  reason about. */
+          style={approxReserved ? { visibility: 'hidden' } : undefined}
           className={cn(
             'ml-1.5 whitespace-nowrap text-[0.8em] font-medium text-muted-foreground',
+            approxReserved && 'invisible',
             // ⛔ `approxIsEstimate` GUARDS THE HIDE, AND THE UNGUARDED VERSION WAS A LIVE LEGAL
             // BUG ON THE DEFAULT FEED. `dual="sm"` is passed by the compact row — the default
             // browse view — so on a phone this span was `display: none` unconditionally. For a

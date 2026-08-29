@@ -49,10 +49,16 @@ const Slider = dynamic(() => import('@/components/ui/slider').then((m) => m.Slid
 
 import { stashQuickCompose } from '@/lib/quick-contact'
 
-// Tiny neutral blur (matches the card's bg) so images fade in instead of popping
-// from a grey box. Shared across all cards.
-const BLUR =
-  'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI4IiBoZWlnaHQ9IjYiPjxyZWN0IHdpZHRoPSI4IiBoZWlnaHQ9IjYiIGZpbGw9IiNlZWYyZjYiLz48L3N2Zz4='
+/**
+ * ⛔ THE BLUR PLACEHOLDER IS GONE, AND ITS OWN COMMENT IS WHY. It said "matches the card's bg" and
+ * baked `#eef2f6` into a data URI — a fixed near-white tile. The card's background is `bg-tint`,
+ * which is theme-aware (#f5f5f5 light / #262626 dark), so the two matched in light mode and could
+ * not possibly match in dark: every card in a dark-mode grid painted a near-white rectangle until
+ * its photo arrived. A constant cannot follow a class-based theme.
+ * ⚠️ NOTHING REPLACES IT because nothing needs to: the media box already carries `bg-tint`, so the
+ * pre-load state is now the correct grey in both themes — which is what the deleted comment was
+ * trying to achieve.
+ */
 
 // Brand slug → label ("louis-vuitton" → "Louis Vuitton") for the card's brand line.
 function prettyBrand(slug: string): string {
@@ -521,8 +527,6 @@ function ListingCardImpl({
                     // imagery drifting under it. Brightness is a compositor-only filter, so this stays
                     // as cheap as the transform it replaced and never triggers layout.
                     className="object-cover transition-[filter] duration-200 group-hover:brightness-105"
-                    placeholder="blur"
-                    blurDataURL={BLUR}
                     quality={60}
                     // Mock/seed images (picsum) are already CDN-sized — bypass the Vercel
                     // optimizer (saves transformations AND removes a failure hop). No-op
@@ -585,8 +589,6 @@ function ListingCardImpl({
                     fill
                     sizes={sizes}
                     className="object-cover"
-                    placeholder="blur"
-                    blurDataURL={BLUR}
                     // ⚠️ 60, NOT a cheaper number, even though this image is never seen
                     // unscrimmed. `qualities` in next.config.ts is an ALLOWLIST — [60, 70] — and
                     // Next's optimizer answers 400 to any `q` outside it (the same invariant
@@ -725,6 +727,15 @@ function ListingCardImpl({
             // tapTarget={false} is REQUIRED here: this is a gap-1 row of h-8 glyphs at ~36px pitch, so a
             // 44px ::before would overlap its neighbour and a boundary tap would fire OFFER, not CHAT.
             //
+            // ⛔ THE TWO STAGGERED BUTTONS NO LONGER RIDE `transition-all`, AND THE COMMENT BELOW
+            // DOES NOT COVER WHY. It answers a question about OVERSHOOT, which is still correct and
+            // still applies to the two undelayed buttons. The staggered ones carried `delay-150` /
+            // `delay-200`, and a delay on `all` is a delay on EVERY property — including `scale`,
+            // which is the press feedback. So pressing Offer or Locate the instant they appeared
+            // acknowledged a fifth of a second late, which is the one thing Emil's framework says a
+            // press must never do. The delay now rides `translate` and `opacity` only; `scale`
+            // starts immediately.
+            //
             // ⚠️ THE SPRING RIDES `transition-all`, AND THAT IS FINE HERE — all three reviewers
             // read it as an overshoot landing on opacity and colour, so the arithmetic is written
             // down once. --ease-spring-snappy peaks at 1.030, i.e. 3%. The travel is translate-x-3
@@ -776,7 +787,7 @@ function ListingCardImpl({
                 tapTarget={false}
                 aria-label={tr('Show on map', 'Xem trên bản đồ')}
                 onClick={(e) => { e.stopPropagation(); locate(listing) }}
-                className="pointer-events-auto translate-x-3 opacity-0 transition-all delay-150 duration-200 ease-[var(--ease-spring-snappy)] hover:scale-110 active:scale-[0.96] group-hover:translate-x-0 group-hover:opacity-100 group-hover:delay-150 focus-visible:translate-x-0 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                className="pointer-events-auto translate-x-3 opacity-0 [transition:translate_200ms_var(--ease-spring-snappy)_150ms,opacity_200ms_var(--ease-spring-snappy)_150ms,scale_160ms_var(--ease-spring-snappy)] hover:scale-110 active:scale-[0.96] group-hover:translate-x-0 group-hover:opacity-100 focus-visible:translate-x-0 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
               >
                 <MapPin className="h-5 w-5 fill-none" />
               </IconButton>
@@ -795,7 +806,7 @@ function ListingCardImpl({
             sellerId={listing.sellerId}
             compact
             dense
-            className="pointer-events-auto translate-x-3 opacity-0 transition-all delay-200 duration-200 ease-[var(--ease-spring-snappy)] hover:scale-110 active:scale-[0.96] group-hover:translate-x-0 group-hover:opacity-100 group-hover:delay-200 focus-visible:translate-x-0 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+            className="pointer-events-auto translate-x-3 opacity-0 [transition:translate_200ms_var(--ease-spring-snappy)_200ms,opacity_200ms_var(--ease-spring-snappy)_200ms,scale_160ms_var(--ease-spring-snappy)] hover:scale-110 active:scale-[0.96] group-hover:translate-x-0 group-hover:opacity-100 focus-visible:translate-x-0 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
           />
         </span>
 

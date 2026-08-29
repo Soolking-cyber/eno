@@ -28,7 +28,7 @@ type Props = {
 export function SignInDialog({ open, onOpenChange, listingTitle, listingImage, sellerName }: Props) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="rounded-2xl shadow-overlay w-full max-w-sm p-6 gap-0">
+      <DialogContent className="rounded-2xl shadow-overlay w-full max-w-sm sm:max-w-sm p-6 gap-0">
         {/*
           ⚠️ NO `DialogHeader` WRAPPER. It is a `flex flex-col gap-2` box meant for a title and a
           description, and `SignInCard` is title AND the whole form — so wrapping it put the email

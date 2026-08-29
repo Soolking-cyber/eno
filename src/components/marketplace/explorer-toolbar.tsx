@@ -26,39 +26,44 @@ export function ViewToggles({ viewMode, onViewMode, showVideo = true }: { viewMo
   // (same failure the video-feed rail hit).
   const tab = (mode: ViewMode) =>
     cn('rounded-lg p-2.5 transition-colors duration-200 cursor-pointer', viewMode === mode ? 'text-accent-foreground' : 'text-body hover:bg-muted')
-  // §5 icon-language: the active view toggle is LOCATION state ("you are here" among the four
-  // result views), so it takes the soft duotone — the line turns text-accent-foreground (via
-  // tab() above) AND the glyph's ONE closed region gains the brand wash. Same treatment as the
-  // bottom nav's active tab; NEVER solid fill-brand, which is reserved for user-state (§5.2).
-  // Selectors are per-glyph literals (lucide child order varies, and both Tailwind's scanner
-  // and the design-lint hook read the source text — no template concatenation):
-  //   Rows3       body rect        LayoutGrid  first tile rect
-  //   Map         sheet path       Play        the triangle polygon
-  // Glyph choices follow §3 (soft-cornered variants): Rows3/LayoutGrid carry the canon's
-  // rounded-rect feel where the old List (dotted lines) and Grid (hard lattice) could take no
-  // wash at all and read boxy next to the washed family.
-  const wash = (on: boolean, sel: string) => (on ? sel : undefined)
+  /**
+   * ⛔ THE PER-GLYPH `wash()` IS GONE BECAUSE IT NEVER RENDERED. It carried a careful comment about
+   * §5 duotone — "the glyph's ONE closed region gains the brand wash" — and named a child selector
+   * per icon: `[&>rect]` for Rows3, `[&>rect:first-of-type]` for LayoutGrid, `[&>path:first-of-type]`
+   * for Map, `[&>polygon]` for Play. Those children do not exist in this app's DOM. The icons are
+   * `<use href="…#glyph">` references into an external sprite, and the repo already has this written
+   * down elsewhere: a class cannot style inside a `<use>` shadow tree — only inherited properties
+   * and custom properties cross that boundary. So the fill was never applied and the only thing
+   * marking the active view was the ink colour from `tab()`.
+   * ⚠️ IT LOOKED FINE THE WHOLE TIME, which is why nobody caught it: `text-accent-foreground` alone
+   * reads as selected, so the missing half was invisible.
+   * ⚠️ THE REAL MECHANISM IS ALREADY WIRED: `aria-pressed` on each button drives the app's
+   * `.i-rest`→`.i-on` swap in globals.css (Solar Bold weight + accent colour). If the duotone back
+   * plate is genuinely wanted here, it has to go through scripts/gen-icons.mjs's DUOTONE list and
+   * be driven by `--i-back-color` / `--i-back-opacity`, because a custom property is the only thing
+   * that crosses into the sprite.
+   */
   return (
     <>
       <Tooltip content={tr('List view', 'Danh sách')} side="bottom">
         <Button variant="bare" size="none" onClick={() => onViewMode('compact')} aria-label={tr('List view', 'Danh sách')} aria-pressed={viewMode === 'compact'} className={tab('compact')}>
-          <Rows3 className={cn('h-5 w-5', wash(viewMode === 'compact', '[&>rect]:fill-brand-100'))} />
+          <Rows3 className="h-5 w-5" />
         </Button>
       </Tooltip>
       <Tooltip content={tr('Grid view', 'Lưới')} side="bottom">
         <Button variant="bare" size="none" onClick={() => onViewMode('grid')} aria-label={tr('Grid view', 'Lưới')} aria-pressed={viewMode === 'grid'} className={tab('grid')}>
-          <LayoutGrid className={cn('h-5 w-5', wash(viewMode === 'grid', '[&>rect:first-of-type]:fill-brand-100'))} />
+          <LayoutGrid className="h-5 w-5" />
         </Button>
       </Tooltip>
       <Tooltip content={tr('Map view', 'Xem Bản đồ')} side="bottom">
         <Button variant="bare" size="none" onClick={() => onViewMode('map')} aria-label={tr('Map view', 'Bản đồ')} aria-pressed={viewMode === 'map'} className={tab('map')}>
-          <Map className={cn('h-5 w-5', wash(viewMode === 'map', '[&>path:first-of-type]:fill-brand-100'))} />
+          <Map className="h-5 w-5" />
         </Button>
       </Tooltip>
       {showVideo && (
         <Tooltip content={tr('Video view', 'Xem Video')} side="bottom">
           <Button variant="bare" size="none" onClick={() => onViewMode('video')} aria-label={tr('Video view', 'Video')} aria-pressed={viewMode === 'video'} className={tab('video')}>
-            <Play className={cn('h-5 w-5', wash(viewMode === 'video', '[&>polygon]:fill-brand-100'))} />
+            <Play className="h-5 w-5" />
           </Button>
         </Tooltip>
       )}

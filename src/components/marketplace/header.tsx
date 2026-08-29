@@ -468,7 +468,12 @@ export function Header() {
               submitSearch(typed ?? searchVal)
               setShowSuggestions(false)
             }}
-            className="relative min-w-0 flex-1 animate-in fade-in duration-200 ease-out"
+            /* ⚠️ NO ENTRANCE ANIMATION HERE ON PURPOSE — it was `animate-in fade-in duration-200
+               ease-out` and it was removed. This form is in the SSR HTML of every page, so the
+               fade was not an entrance at all: it replayed on hydration and again on the first
+               state change, making the header's most-seen element flicker on a load where nothing
+               had appeared. An element that was already on screen has nothing to animate in. */
+            className="relative min-w-0 flex-1"
           >
             {/* Positioning context for the whole search component. The form is `flex-1`, so the bar
                 now stretches END TO END — from the eno wordmark to the action icons (owner 2026-07-17:
@@ -558,7 +563,28 @@ export function Header() {
                   aria-label={tr('Clear search', 'Xóa tìm kiếm')}
                   // tap-48 overrides the IconButton's baked-in tap-44 (defined later in the sheet)
                   // for a 48px hit area — forgiving for kids / fast scrollers — with no size change.
-                  className="mr-0.5 tap-48 text-ink-4 transition-colors hover:bg-muted hover:text-foreground"
+                  // ⚠️ `/65` SOFTENS THE RING, AND THE SIZE IS NOT THE LEVER. Owner, 2026-08-29:
+                  // "make outline of this x icon subtle, too harsh". The mark is Solar
+                  // `close-circle` — the ring IS the glyph — and it is drawn at 38px so it FILLS
+                  // its button, which is the owner's own instruction from 2026-08-26 (43dd9bcf).
+                  // Shrinking it back would undo that, and a class cannot reach inside a `<use>`
+                  // shadow tree to dim the ring alone, so the whole mark is dimmed at rest.
+                  // ⛔ 75% IS THE FLOOR, AND 65% WAS BELOW IT — a reviewer refuted the first pass
+                  // and the numbers back it. Composited and measured, ink-4 over the light tint:
+                  // 100% → 5.68:1, 80% → 3.67:1, 75% → 3.34:1, 70% → 3.04:1, 65% → 2.75:1. WCAG
+                  // 1.4.11 wants 3:1 for a control that carries no text of its own, so 65% FAILED
+                  // and 70% clears it by 0.04. 75% keeps a real margin and still visibly softens.
+                  // Dark is not the binding case (75% → 3.94:1 on the #262626 tint, 3.79:1 on the
+                  // #2a2a2a panel); light is, and every number here is composited and measured.
+                  // ⚠️ FOCUS RESTORES FULL INK ALONGSIDE HOVER, AND ONLY HOVER DID AT FIRST. A
+                  // reviewer pointed out the obvious consequence: a keyboard user tabbing onto
+                  // Clear never triggers hover, so they met the softened glyph and nothing else —
+                  // the softened state is the measured 3.34:1, which is exactly the reader WCAG
+                  // 1.4.11 is written for. Pointer and keyboard now get the same affordance.
+                  // ⚠️ DO NOT GO LOWER FOR LOOKS. This is the only "clear" affordance while the
+                  // search panel is open, and it is the tap that stops the next one landing on ✨.
+                  // Hover and focus restore full ink, so the softening costs nothing on approach.
+                  className="mr-0.5 tap-48 text-ink-4/75 transition-[color,background-color,scale] duration-150 active:duration-[60ms] active:scale-[0.96] hover:bg-muted hover:text-foreground focus-visible:text-foreground"
                 >
                   <X className="h-[38px] w-[38px] shrink-0" strokeWidth={STROKE} />
                 </IconButton>

@@ -1840,6 +1840,29 @@ html.dark .leaflet-tile-pane {
   }
 }
 
+/* ── A TWO-LINE LABEL BOX ─────────────────────────────────────────────────────────────────────
+   The brand rail pins its tile label to two line boxes so the rail's height stops depending on
+   whether a brand name happens to wrap — see brand-rail.tsx's `nameCls` for the full argument.
+
+   ⛔ `rem`, AND `2lh` WAS TRIED AND CAUGHT IN THE BUILD. `lh` shipped in Safari 16.4 while this
+   repo's browserslist floor is `safari >= 16`, so 16.0–16.3 are inside the supported range and
+   drop the declaration. The textbook fallback — `min-height: 30px; min-height: 2lh;` — was written
+   and then MEASURED in `.next/static/chunks/*.css`, where lightningcss had collapsed the pair to
+   `.label-2lh{min-height:2lh}`: the fallback was gone and old Safari got nothing. This is the same
+   trap as the media query that shipped as an empty `:is()`; a fallback is a claim about output,
+   and output is the only place to check it.
+
+   ⚠️ 1.875rem IS THE SAME NUMBER, DERIVED: `--text-xs` is .75rem and `--leading-tight` is 1.25, so
+   one line box is .9375rem and two are 1.875rem. It is `rem` rather than `px` for the reason `lh`
+   was attractive — it tracks the reader's text size, because browser text scaling moves the root
+   font size and the label's own `text-xs` is derived from it too. Universally supported, nothing
+   for a minifier to discard, and it moves WITH the type ramp instead of drifting from it.
+   ⚠️ If `--text-xs` or `--leading-tight` changes, recompute this. It is the one hand-derived
+   number here and there is no test that would catch it. */
+.label-2lh {
+  min-height: 1.875rem;
+}
+
 .press {
   transition: scale 220ms var(--ease-spring-snappy),
               transform 220ms var(--ease-spring-snappy),

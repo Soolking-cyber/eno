@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import Image from 'next/image'
 import { X, ChevronLeft, ChevronRight, Images, Play, Volume2, VolumeX } from '@/components/ui/icons'
 import { STROKE_FLOAT } from '@/lib/icon-tokens'
@@ -208,6 +208,63 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
   const hasVideo = !!video && images.length > 0
   const mediaCount = images.length + (hasVideo ? 1 : 0)
   const [open, setOpen] = useState(false)
+  /**
+   * ⛔ THE LIGHTBOX HAD AN ENTRANCE AND NO EXIT, WHICH IS THE MOST JARRING THING ON THE PAGE. A
+   * full-screen 92%-black scrim faded IN over 150ms and then vanished in a single frame, because
+   * `{open && …}` unmounts the node in the same commit that closes it — so a declared
+   * `animate-out` could never run. Emil's framework calls this out directly: elements disappearing
+   * without transition feel broken, and this is the one overlay in the app that had no exit.
+   * ⚠️ `closing` KEEPS THE NODE ALIVE FOR THE EXIT FRAME and `onAnimationEnd` unmounts it, so the
+   * dialog is gone from the tree the moment the animation lands rather than lingering.
+   * ⚠️ 100ms OUT AGAINST 150ms IN, per the house rule that overlays close faster than they open.
+   */
+  const [closing, setClosing] = useState(false)
+  /** The scrim element, read only to ask whether an exit animation is actually running. */
+  const scrimRef = useRef<HTMLDivElement | null>(null)
+  /**
+   * ⛔ THE EXIT MUST NOT DEPEND ON AN EVENT THAT CAN NEVER ARRIVE. A reviewer refuted the
+   * animationend-only version: while `closing` is true this component keeps a `fixed inset-0`
+   * scrim mounted and the body scroll locked, so any load where the exit animation is CANCELLED
+   * (a class change mid-flight) or never runs at all (a user or accessibility stylesheet with
+   * `animation: none`, a backgrounded tab that never ticks) left the lightbox stuck open over the
+   * page with no way out. The repo's own reduced-motion rule happens to dodge it — it forces
+   * `animation-duration: 0.01ms` rather than `none`, so the event still fires — but that is a rule
+   * this component does not own and must not rely on.
+   * ⚠️ REACT HAS NO `onAnimationCancel`, which is why this is a deadline rather than a second
+   * handler: one timer covers cancel, never-started and never-ticked alike.
+   * ⚠️ 400ms against a 100ms exit — long enough that it never pre-empts the real animation on a
+   * slow frame, short enough that a stuck overlay clears before anyone reaches for the tab bar.
+   * The cleanup cancels it the instant `animationend` wins, so the normal path costs nothing.
+   */
+  useEffect(() => {
+    if (!closing) return
+    // ⛔ ASK THE ELEMENT WHETHER AN EXIT ANIMATION EXISTS — the deadline alone made dismissal WORSE
+    // for the readers it was meant to protect. With animations suppressed the old code closed
+    // instantly; the deadline held a full-screen scrim with the scroll lock on for 400ms after
+    // every Escape, back or tap. So the no-animation case has to be detected, not waited out.
+    //
+    // ⛔ `getComputedStyle`, NOT `getAnimations()`, AND THE DIFFERENCE IS THE WHOLE FIX. The first
+    // version asked `el.getAnimations()` inside one `requestAnimationFrame`, and two reviewers
+    // independently refuted it: WAAPI is populated after style recalc, which a single rAF does not
+    // guarantee has run for a class applied in the same commit. An empty list there does not mean
+    // "no animation", it means "not yet" — and acting on it tears the scrim down instantly, which
+    // is precisely the missing-exit bug this code exists to remove. `getComputedStyle` FORCES the
+    // recalc and answers about the cascade rather than about timing, so it cannot be early.
+    // ⚠️ This runs in the effect body, after React has committed the `animate-out` class to the
+    // DOM and before paint, which is why no rAF is needed at all.
+    // ⚠️ An empty string (jsdom, and any engine that does not resolve the longhand) reads as no
+    // animation and closes immediately — the safe direction: dismissal always works, and the worst
+    // case is an exit that does not animate, never an overlay that will not go away.
+    const el = scrimRef.current
+    const anim = el ? getComputedStyle(el).animationName : ''
+    if (!anim || anim === 'none') { setClosing(false); setOpen(false); return }
+    // The remaining case is an animation that starts and is then CANCELLED — no `animationend`
+    // ever arrives for it. 400ms against a 100ms exit is far enough clear not to pre-empt a slow
+    // frame, and short enough that a stuck scrim clears before anyone reaches for the tab bar.
+    const t = setTimeout(() => { setClosing(false); setOpen(false) }, 400)
+    return () => clearTimeout(t)
+  }, [closing])
+  const closeLightbox = useCallback(() => { setClosing(true) }, [])
   const [idx, setIdx] = useState(0)
   const [slide, setSlide] = useState(0) // mobile carousel position (for the n/N chip)
   const [sel, setSel] = useState(0) // desktop viewport selection (video = slot 0 when present)
@@ -254,7 +311,12 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
 
   const last = images.length - 1
   const goTo = (n: number) => setIdx(Math.max(0, Math.min(last, n)))
-  const openAt = (n: number) => { setIdx(n); setOpen(true) }
+  /** ⚠️ `setClosing(false)` IS BELT AND BRACES, NOT A FIX FOR A LIVE BUG. Both close paths clear
+   *  `closing` and `open` together, so a lightbox that is closing is still on screen and no
+   *  thumbnail is reachable underneath it — a reviewer's "reopen mid-exit" case cannot be reached
+   *  today. It costs one call to guarantee a fresh open never inherits `animate-out` plus an armed
+   *  400ms timer, and removes the need to re-derive that argument next time this file changes. */
+  const openAt = (n: number) => { setClosing(false); setIdx(n); setOpen(true) }
 
   // Leaving a photo (or the lightbox) always resets the zoom.
   useEffect(() => { setZoom(null) }, [idx, open])
@@ -279,11 +341,11 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
     const releaseStatusBar = pushBlackStatusBar()
     window.history.pushState({ lightbox: true }, '')
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpen(false)
+      if (e.key === 'Escape') closeLightbox()
       else if (e.key === 'ArrowLeft') setIdx((n) => Math.max(0, n - 1))
       else if (e.key === 'ArrowRight') setIdx((n) => Math.min(last, n + 1))
     }
-    const onPop = () => setOpen(false)
+    const onPop = () => closeLightbox()
     window.addEventListener('keydown', onKey)
     window.addEventListener('popstate', onPop)
     return () => {
@@ -416,7 +478,13 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
                 variant="bare"
                 size="none"
                 onClick={() => openAt(hasVideo ? Math.max(0, sel - 1) : sel)}
-                className="absolute bottom-3 right-3 flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold text-white cursor-pointer active:scale-100 icon-shadow-brand"
+                /* ⛔ IT NEEDS ITS OWN GROUND, NOT A SHADOW. This is the desktop gallery's only
+                   affordance for opening the lightbox, and it was 12px white text over whatever the
+                   product photo happens to be — on a white-background shot (which most of this
+                   catalogue is) a drop-shadow leaves it barely there, the same failure measured on
+                   the icons: contrast 0 against white. Same translucent plate the over-media icons
+                   now use, so the two read as one language. */
+                className="absolute bottom-3 right-3 flex items-center gap-1.5 rounded-full bg-black/55 px-3 py-1.5 text-xs font-semibold text-white cursor-pointer active:scale-100"
               >
                 <Images className="h-4 w-4" /> <Tr text={showAllLabel} /> · {images.length}
               </Button>
@@ -474,6 +542,7 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
       {/* Lightbox */}
       {open && (
         <div
+          ref={scrimRef}
           role="dialog"
           aria-modal="true"
           aria-label={title}
@@ -487,19 +556,46 @@ export function ListingGallery({ images, title, video, showAllLabel = 'Show all 
              single-finger panning for `pinch-zoom` exactly as it does for `none`, so the
              onTouchStart/Move logic below still owns the one-finger gesture. What comes back is the
              two-finger one, which nothing here was handling anyway. */
-          className="fixed inset-0 z-[100] flex [touch-action:pinch-zoom] items-center justify-center overscroll-none bg-black/92 animate-in fade-in duration-150 ease-out"
-          onClick={() => setOpen(false)}
+          /** ⚠️ THE FAST PATH ONLY — the deadline beside `closing` is what guarantees the unmount.
+           *  `e.target === e.currentTarget` drops animation events bubbling from the media and the
+           *  controls inside, which would otherwise tear the lightbox down mid-open. */
+          onAnimationEnd={(e) => { if (e.target === e.currentTarget && closing) { setClosing(false); setOpen(false) } }}
+          className={cn(
+            'fixed inset-0 z-[100] flex [touch-action:pinch-zoom] items-center justify-center overscroll-none bg-black/92',
+            // ⚠️ ONCE IT IS LEAVING IT MUST STOP TAKING TAPS. A reviewer caught it: the scrim keeps
+            // `fixed inset-0` and a live onClick for the whole exit, so a tap-to-close followed
+            // straight away by a tap on what is underneath ate the second one — 100ms of dead
+            // input on the normal path, 400ms if the deadline is what finishes the job. The pixels
+            // are still fading; the control is already gone, which is what the reader believes.
+            closing && 'pointer-events-none',
+            // ⚠️ `ease-out` ON THE WAY OUT TOO, AND `ease-in` WAS THE OBVIOUS WRONG CHOICE. A
+            // reviewer measured it: `ease-in` holds the scrim at 68.5% opacity 50ms into a 100ms
+            // exit, so a dismissal that IS fast still feels like it hesitates. An overlay leaving
+            // should move the moment it is told to; the curve that does that is the same one the
+            // entrance uses. The 100ms-out against 150ms-in is what makes closing feel quicker,
+            // not the easing.
+            closing ? 'animate-out fade-out duration-100 ease-out' : 'animate-in fade-in duration-150 ease-out',
+          )}
+          onClick={closeLightbox}
         >
           <IconButton
             size="lg"
             variant="overlay"
-            onClick={() => setOpen(false)}
+            onClick={closeLightbox}
             aria-label={tr('Close', 'Đóng')}
             // Safe-area term: the lightbox is a fullscreen overlay and the native WebView is
             // edge-to-edge, so a bare top-4 puts Close under the Dynamic Island. 0 on web.
             className="absolute right-4 top-[calc(env(safe-area-inset-top)+1rem)] icon-shadow-brand"
           >
-            <X className="h-[42px] w-[42px] shrink-0" />
+            {/* ⛔ 34px, AND 36 WAS STILL 2px TOO BIG BY MY OWN ARITHMETIC. `variant="overlay"`
+                paints a disc behind the glyph with 3px of `box-content` padding, so the plate is
+                the glyph box + 6px. `size="lg"` is `h-10` — 40px — so the glyph may be at most 34.
+                The original 42px mark made a 48px plate: 8px of overflow on the one control that
+                dismisses a fullscreen overlay. The first fix took it to 36 and wrote "inside the
+                button with a hair to spare" directly under the sum 36+3+3=42; a reviewer read the
+                sum rather than the sentence. 34 + 3 + 3 = 40, exactly the button.
+                ⚠️ My own plate sweep missed all of this because it never opened the lightbox. */}
+            <X className="h-[34px] w-[34px] shrink-0" />
           </IconButton>
 
           <div

@@ -107,7 +107,7 @@ export function OwnerEditButton({
         onMouseEnter={() => router.prefetch(href)}
         aria-label={label}
         title={label}
-        className={cn('press', className)}
+        className={cn(!dense && 'press', className)}
       >
         <Pencil className="h-5 w-5" aria-hidden />
       </IconButton>

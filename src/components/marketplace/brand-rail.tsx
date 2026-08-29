@@ -193,7 +193,15 @@ export function BrandRail({
         {Array.from({ length: 6 }, (_, i) => (
           <div key={i} className={cn(tileCls, 'pointer-events-none')}>
             <Skeleton className="h-11 w-11 rounded-xl" />
-            <Skeleton className="h-2.5 w-12 rounded-full" />
+            {/* ⚠️ THE SAME `text-xs leading-tight min-h-[2lh]` BOX AS THE REAL LABEL — see nameCls
+                for why the real one is pinned to two lines. Matching it here is what makes the
+                skeleton exact rather than approximate, at any OS text size: the tile is the same
+                height before and after the answer lands, so the rail does not move in EITHER
+                direction. Two bars, the second shorter, so it reads as a wrapped name. */}
+            <span className="label-2lh flex w-full flex-col items-center justify-start gap-[3px] pt-[2px] text-xs leading-tight">
+              <Skeleton className="h-2.5 w-12 rounded-full" />
+              <Skeleton className="h-2.5 w-8 rounded-full" />
+            </span>
           </div>
         ))}
       </div>
@@ -298,8 +306,25 @@ export function BrandRail({
   // ("Mercedes-Benz", or anything once OS text scaling is on) spills outside the fixed
   // 4.75rem tile instead of wrapping into the line-clamp. break-words covers a single
   // unbreakable wordmark that is wider than the tile on its own.
+  /**
+   * ⛔ `min-h-[2lh]` IS THE ONLY ZERO-SHIFT ANSWER, AND TWO REVIEW ROUNDS GOT THERE. The label is
+   * `line-clamp-2`, so a tile is one line tall or two depending on the NAME — and a flex row takes
+   * its height from the tallest tile. That makes the rail's height a function of data the skeleton
+   * does not have yet, so no fixed skeleton height can be right: reserve one line and the rail
+   * GROWS when "Mercedes-Benz" wraps; reserve two and it COLLAPSES on a category whose brands all
+   * fit one line. Both are CLS. Pinning the REAL label to two lines removes the variable: every
+   * tile is the same height whatever the catalogue holds, and the skeleton can match it exactly.
+   * ⚠️ `.label-2lh`, NOT `min-h-[30px]`. A reviewer measured the px version at 175% text scaling:
+   * two lines become 52.5px and the rail grew 22.5px anyway. The class reserves 1.875rem — two
+   * `text-xs leading-tight` line boxes — so it scales with the reader's text size the same way the
+   * label does. It lives in globals.css rather than inline because getting there took a `2lh`
+   * version that Safari 16.0–16.3 silently drops and a px fallback the minifier silently removed;
+   * that whole story is in the CSS, and it is why this is not an arbitrary utility.
+   * ⚠️ THE COST IS ONE LINE OF SPACE UNDER A SHORT NAME, and it is paid on purpose — it also
+   * squares the tiles up, which is what a rail of mixed-length wordmarks wanted anyway.
+   */
   const nameCls = (active: boolean) =>
-    cn('line-clamp-2 w-full break-words text-xs font-bold leading-tight transition-colors', active ? 'text-accent-foreground' : 'text-foreground group-hover:text-accent-foreground')
+    cn('line-clamp-2 label-2lh w-full break-words text-xs font-bold leading-tight transition-colors', active ? 'text-accent-foreground' : 'text-foreground group-hover:text-accent-foreground')
   const modelChip = (active: boolean) =>
     cn('w-full shrink-0 whitespace-nowrap rounded-lg px-2.5 py-1 text-left text-sm font-semibold transition-colors cursor-pointer', active ? 'bg-card text-accent-foreground shadow-sm' : 'text-body hover:bg-card/70 hover:text-accent-foreground')
 
