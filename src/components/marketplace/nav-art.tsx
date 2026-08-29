@@ -1,5 +1,6 @@
 import { navArtPath, type NavArtKey } from '@/lib/category-art'
 import { cn } from '@/lib/utils'
+import { ArtImage } from '@/components/marketplace/art-image'
 
 /**
  * A BOTTOM-NAV TAB'S GLYPH — the owner's 3D pack, grey until the tab is the one you are on.
@@ -47,9 +48,7 @@ export function NavArt({
   className?: string
 }) {
   return (
-    /* eslint-disable-next-line @next/next/no-img-element -- a fixed-size static asset from our own
-       origin; next/image would add a proxy hop and a layout wrapper for no benefit at 28px. */
-    <img
+    <ArtImage
       src={navArtPath(name)}
       alt=""
       aria-hidden

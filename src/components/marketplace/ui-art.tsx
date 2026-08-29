@@ -1,5 +1,6 @@
 import { uiArtPath, type UiArtKey } from '@/lib/category-art'
 import { cn } from '@/lib/utils'
+import { ArtImage } from '@/components/marketplace/art-image'
 
 /**
  * A CHROME CONTROL'S GLYPH — the owner's outline pack, grey until the control is the chosen one.
@@ -34,9 +35,7 @@ export function UiArt({
   className?: string
 }) {
   return (
-    /* eslint-disable-next-line @next/next/no-img-element -- a fixed-size static asset from our own
-       origin; next/image would add a proxy hop and a layout wrapper for no benefit at 20px. */
-    <img
+    <ArtImage
       src={uiArtPath(name)}
       alt=""
       aria-hidden

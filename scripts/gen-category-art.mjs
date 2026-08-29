@@ -140,6 +140,55 @@ const EDGE = 184
 const QUALITY = 50
 const ALPHA_QUALITY = 80
 
+/**
+ * ⛔ AVIF FIRST, WEBP AS THE FALLBACK — AND THIS IS MEASURED, NOT FASHION. Owner, 2026-08-29: "make
+ * thos icons larger and crisper with maximum compression, also all png icons find the way to make
+ * them even smaller by KB size without loosing quality".
+ *
+ * Sweeping both codecs over five icons from the pack, comparing each encode against the source
+ * resampled to a real 3x device size AND COMPOSITED OVER THE PAGE'S OWN BACKGROUND (the first run
+ * compared raw RGBA and was wrong — the RGB of a fully transparent pixel is undefined, which
+ * punished WebP for something invisible):
+ *     webp q50 (what shipped)   3.69 KB   error 1.222
+ *     webp q80                  4.99 KB   error 1.006
+ *     webp LOSSLESS            15.73 KB   error 0.625
+ *     avif q50                  3.35 KB   error 0.464   ← smaller than q50 AND better than lossless
+ *     avif q65                  4.40 KB   error 0.324
+ * AVIF at q50 is 9% SMALLER than the WebP we shipped and 2.6x more accurate — better than WebP
+ * LOSSLESS at a fifth of the bytes. That is the whole ask in one number, which is why the quality
+ * is 50 and not higher.
+ * ⚠️ 62 WAS TRIED AND REVERTED, because it answers only half of it: crisper, yes, but the AVIF set
+ * then totalled 161 KB against the 140 KB of WebP it replaces, so every visitor downloaded MORE.
+ * "Smaller without losing quality" is a two-sided constraint and q50 is the point that satisfies
+ * both sides; going up trades away the half the owner asked for first.
+ *
+ * ⛔ THE WEBP TWIN IS NOT OPTIONAL, AND THE BROWSERSLIST FLOOR IS WHY. This app supports
+ * `safari >= 16`; AVIF decoding landed in Safari 16.4. Shipping AVIF alone would show 16.0–16.3 a
+ * BROKEN IMAGE, which is far worse than a slightly soft one — so every icon is emitted twice and
+ * the components render a `<picture>`. Each browser downloads exactly one of them, so per-visitor
+ * bytes go DOWN even though the repo carries both.
+ * ⚠️ Raising the floor to 16.4 would delete the fallback and is not this change's call to make.
+ */
+const AVIF_QUALITY = 50
+
+/**
+ * Encode one source file to both formats and write them side by side. Returns the bytes written so
+ * the caller can report a total, and feeds BOTH buffers into the stamp — a redraw must bust the
+ * cache for whichever twin a given browser happens to be holding.
+ */
+async function emit(srcFile, outDir, key, stamp) {
+  const base = sharp(srcFile).resize(EDGE, EDGE, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+  const webp = await base.clone().webp({ quality: QUALITY, alphaQuality: ALPHA_QUALITY, effort: 6 }).toBuffer()
+  // ⚠️ `effort: 6` on AVIF too — it is encode-time only, costs nothing at runtime, and this script
+  // runs by hand when the pack changes rather than on every build.
+  const avif = await base.clone().avif({ quality: AVIF_QUALITY, effort: 6 }).toBuffer()
+  writeFileSync(join(outDir, `${key}.webp`), webp)
+  writeFileSync(join(outDir, `${key}.avif`), avif)
+  stamp.update(webp)
+  stamp.update(avif)
+  return webp.length + avif.length
+}
+
 async function main() {
   const present = new Set(readdirSync(SRC))
   const missing = Object.keys(MAP).filter((f) => !present.has(f))
@@ -210,47 +259,26 @@ async function main() {
   let bytes = 0
   const stamp = createHash('sha256')
   for (const [file, slug] of Object.entries(MAP)) {
-    const out = join(OUT, `${slug}.webp`)
-    const buf = await sharp(join(SRC, file))
-      .resize(EDGE, EDGE, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
-      .webp({ quality: QUALITY, alphaQuality: ALPHA_QUALITY, effort: 6 })
-      .toBuffer()
-    writeFileSync(out, buf)
-    stamp.update(buf)
-    bytes += buf.length
-    process.stdout.write(`  ${slug.padEnd(22)} ${String(buf.length).padStart(6)} B\n`)
+    const n = await emit(join(SRC, file), OUT, slug, stamp)
+    bytes += n
+    process.stdout.write(`  ${(slug + '').padEnd(22)} ${String(n).padStart(6)} B (avif+webp)\n`)
   }
   for (const [file, key] of Object.entries(SERVICES_MAP)) {
-    const buf = await sharp(join(SRC, file))
-      .resize(EDGE, EDGE, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
-      .webp({ quality: QUALITY, alphaQuality: ALPHA_QUALITY, effort: 6 })
-      .toBuffer()
-    writeFileSync(join(OUT_SERVICES, `${key}.webp`), buf)
-    stamp.update(buf)
-    bytes += buf.length
-    process.stdout.write(`  ${(key + ' (services)').padEnd(22)} ${String(buf.length).padStart(6)} B\n`)
+    const n = await emit(join(SRC, file), OUT_SERVICES, key, stamp)
+    bytes += n
+    process.stdout.write(`  ${(key + ' (services)').padEnd(22)} ${String(n).padStart(6)} B (avif+webp)\n`)
   }
 
   for (const [file, key] of Object.entries(NAV_MAP)) {
-    const buf = await sharp(join(SRC, file))
-      .resize(EDGE, EDGE, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
-      .webp({ quality: QUALITY, alphaQuality: ALPHA_QUALITY, effort: 6 })
-      .toBuffer()
-    writeFileSync(join(OUT_NAV, `${key}.webp`), buf)
-    stamp.update(buf)
-    bytes += buf.length
-    process.stdout.write(`  ${(key + ' (nav)').padEnd(22)} ${String(buf.length).padStart(6)} B\n`)
+    const n = await emit(join(SRC, file), OUT_NAV, key, stamp)
+    bytes += n
+    process.stdout.write(`  ${(key + ' (nav)').padEnd(22)} ${String(n).padStart(6)} B (avif+webp)\n`)
   }
 
   for (const [file, key] of Object.entries(OUTLINE_MAP)) {
-    const buf = await sharp(join(SRC, file))
-      .resize(EDGE, EDGE, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
-      .webp({ quality: QUALITY, alphaQuality: ALPHA_QUALITY, effort: 6 })
-      .toBuffer()
-    writeFileSync(join(OUT_UI, `${key}.webp`), buf)
-    stamp.update(buf)
-    bytes += buf.length
-    process.stdout.write(`  ${(key + ' (ui)').padEnd(22)} ${String(buf.length).padStart(6)} B\n`)
+    const n = await emit(join(SRC, file), OUT_UI, key, stamp)
+    bytes += n
+    process.stdout.write(`  ${(key + ' (ui)').padEnd(22)} ${String(n).padStart(6)} B (avif+webp)\n`)
   }
 
   /**

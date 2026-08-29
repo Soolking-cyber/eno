@@ -11,7 +11,7 @@ import { cn } from '@/lib/utils'
  *  "eno AI" conversation in the messages tab (a native chat, not a popup). `active` is
  *  driven by the route so the icon lights up while you're on that chat. */
 export function AISearchButton({
-  active, onClick, className, iconClassName = 'h-6 w-6',
+  active, onClick, className, iconClassName = 'h-7 w-7',
 }: { active: boolean; onClick: () => void; className?: string; iconClassName?: string }) {
   const { tr } = useLanguage()
   return (

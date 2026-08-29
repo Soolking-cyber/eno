@@ -150,3 +150,17 @@ export type UiArtKey = (typeof UI_ART_KEYS)[number]
 export function uiArtPath(key: UiArtKey): string {
   return `/icons/ui/${key}.webp?v=${CATEGORY_ART_STAMP}`
 }
+
+/**
+ * ⛔ THE AVIF TWIN OF ANY ART PATH. Every icon this app generates is written twice — AVIF for the
+ * bytes and the fidelity, WebP so `safari >= 16` (our floor) still renders one, since AVIF decoding
+ * only arrived in 16.4. The `*ArtPath` helpers keep returning the WEBP, so every existing call site
+ * and its `null` contract are untouched and a plain `<img src>` remains correct; this swaps the
+ * extension for the `<source>` that sits in front of it.
+ * ⚠️ THE QUERY STAMP IS PRESERVED, which is the whole reason this is a function and not a template
+ * at each call site: without `?v=` the file drops out of the `max-age=31536000, immutable` rule in
+ * next.config.ts and quietly joins the short-cache lane.
+ */
+export function avifOf(webpPath: string): string {
+  return webpPath.replace('.webp?', '.avif?')
+}

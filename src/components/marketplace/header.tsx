@@ -505,7 +505,7 @@ export function Header() {
             data-tour="search">
               {/* ⚠️ NEVER `lit`: this one is decoration inside the field, not a control that can be
                   chosen, so there is no pressed state for it to have. Grey is its only state. */}
-              <UiArt name="search" className="pointer-events-none ml-3.5 h-6 w-6" />
+              <UiArt name="search" className="pointer-events-none ml-3.5 h-7 w-7" />
               <Input
                 variant="unstyled"
                 value={searchVal}
@@ -613,7 +613,7 @@ export function Header() {
                     title={tr('Map', 'Bản đồ')}
                     className="relative mr-2 flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-ink-4 tap-48 transition-[color,scale] duration-200 ease-[var(--ease-spring-snappy)] hover:text-accent-foreground active:scale-[0.96] cursor-pointer"
                   >
-                    <UiArt name="map" className="h-6 w-6" />
+                    <UiArt name="map" className="h-7 w-7" />
                   </Button>
                 </>
               )}

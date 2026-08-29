@@ -50,23 +50,23 @@ export function ViewToggles({ viewMode, onViewMode, showVideo = true }: { viewMo
     <>
       <Tooltip content={tr('List view', 'Danh sách')} side="bottom">
         <Button variant="bare" size="none" onClick={() => onViewMode('compact')} aria-label={tr('List view', 'Danh sách')} aria-pressed={viewMode === 'compact'} className={tab('compact')}>
-          <UiArt name="list" lit={viewMode === 'compact'} />
+          <UiArt className="h-6 w-6" name="list" lit={viewMode === 'compact'} />
         </Button>
       </Tooltip>
       <Tooltip content={tr('Grid view', 'Lưới')} side="bottom">
         <Button variant="bare" size="none" onClick={() => onViewMode('grid')} aria-label={tr('Grid view', 'Lưới')} aria-pressed={viewMode === 'grid'} className={tab('grid')}>
-          <UiArt name="grid" lit={viewMode === 'grid'} />
+          <UiArt className="h-6 w-6" name="grid" lit={viewMode === 'grid'} />
         </Button>
       </Tooltip>
       <Tooltip content={tr('Map view', 'Xem Bản đồ')} side="bottom">
         <Button variant="bare" size="none" onClick={() => onViewMode('map')} aria-label={tr('Map view', 'Bản đồ')} aria-pressed={viewMode === 'map'} className={tab('map')}>
-          <UiArt name="map" lit={viewMode === 'map'} />
+          <UiArt className="h-6 w-6" name="map" lit={viewMode === 'map'} />
         </Button>
       </Tooltip>
       {showVideo && (
         <Tooltip content={tr('Video view', 'Xem Video')} side="bottom">
           <Button variant="bare" size="none" onClick={() => onViewMode('video')} aria-label={tr('Video view', 'Video')} aria-pressed={viewMode === 'video'} className={tab('video')}>
-            <UiArt name="play" lit={viewMode === 'video'} />
+            <UiArt className="h-6 w-6" name="play" lit={viewMode === 'video'} />
           </Button>
         </Tooltip>
       )}
