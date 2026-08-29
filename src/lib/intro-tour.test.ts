@@ -112,14 +112,37 @@ describe('tour memory', () => {
    */
   it('keeps the spotlight mask on .tour-mask, with no tint or blur utility', () => {
     const src = readFileSync('src/components/marketplace/intro-tour.tsx', 'utf8')
-    const panel = /const panel = ([^\n]+)/.exec(src)?.[1]
-    expect(panel, 'the mask panel class list moved or was renamed').toBeTruthy()
-    expect(panel).toContain('tour-mask')
+    /**
+     * ⚠️ READS THE MASK'S OWN className, NOT A `const panel`. The first version pinned that
+     * constant, which vanished when the four geometry-animated panels became one clip-path overlay
+     * — so the guard failed for a reason that had nothing to do with what it guards. Matching the
+     * class list wherever it lives survives that shape change and the next one.
+     */
+    /**
+     * ⚠️ A WINDOW AROUND THE TOKEN, NOT A `className=` MATCH — the same approach design-lint's
+     * `tour-mask` rule settled on, and for the same reason. The class list is assembled with `cn()`
+     * across two arguments, so a regex anchored to `className="…"` finds nothing and a regex for
+     * the first string literal finds only half of it. Reading the neighbourhood covers both.
+     * ⚠️ EXACTLY ONE MASK, asserted so that a second element carrying its own tint — the shape a
+     * reviewer pointed at — is a failure rather than a silent bypass.
+     */
+    /**
+     * ⚠️ COMMENTS STRIPPED FIRST. The note explaining WHY this mask is one clip-path element quotes
+     * the class name it replaced, so a raw count sees two and fails for the most annoying possible
+     * reason: prose. design-lint's own `tour-mask` rule strips comments before scanning for exactly
+     * this; a guard that a comment can trip teaches people to stop writing comments.
+     */
+    const code = src.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/^\s*\/\/.*$/gm, ' ')
+    const hits = [...code.matchAll(/\btour-mask\b/g)]
+    expect(hits, 'nothing in intro-tour.tsx carries `tour-mask` — did the mask move or get renamed?').toHaveLength(1)
+    const cls = code.slice(Math.max(0, hits[0].index - 220), hits[0].index + 220)
+    expect(cls).toContain('material')
+    // ⛔ The mask must not swallow the tap the step is asking for — see the note at its call site.
+    expect(cls).toContain('pointer-events-none')
     // ⚠️ Both spellings of the failure: a translucent tint AND a fully opaque one.
-    expect(panel).not.toMatch(/\bbg-[a-z0-9[\]()-]+(\/[0-9]+)?\b/)
-    expect(panel).not.toMatch(/backdrop-blur/)
+    expect(cls).not.toMatch(/\bbg-[a-z0-9[\]()-]+(\/[0-9]+)?\b/)
+    expect(cls).not.toMatch(/backdrop-blur/)
   })
-
   it('parks the claim off-home and spends it exactly once', () => {
     expect(tourPending()).toBe(false)
     markTourPending()

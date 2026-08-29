@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { usePathname } from 'next/navigation'
 import { Popover, PopoverContent } from '@/components/ui/popover'
 import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
 import { useLanguage } from '@/context/language-context'
 import { useAuth } from '@/context/auth-context'
 import { googleOauthBlocked } from '@/lib/in-app-browser'
@@ -568,43 +569,80 @@ export function IntroTour() {
   if (index === null || !step) return null
 
   /**
-   * ⛔ FOUR PANELS AROUND THE TARGET, NOT ONE OVERLAY WITH A CSS HOLE. The mask has two jobs — demote
-   * everything that is not the subject, and leave the subject itself alone — and four rectangles do
-   * both for free: the gap between them is covered by nothing, so the control underneath keeps its
-   * own sharpness and its own clicks with no `pointer-events` juggling.
-   * ⚠️ On the last step there is no target, so one full-viewport panel covers everything.
-   * ⛔ THE DIM MATCHES `.overlay-scrim`, the backdrop under every popover in the app, because both
-   * demote the page for the same reason. `material` is what `.reduce-transparency` keys off: a
-   * reader who asks for less transparency loses the BLUR and gets a deeper — but still translucent —
-   * scrim, since a mask that goes opaque hides the page it is explaining.
+   * ⛔ ONE OVERLAY WITH A CLIP-PATH HOLE — AND THE FOUR PANELS IT REPLACES WERE THE SINGLE LARGEST
+   * SOURCE OF JITTER ON THE PAGE. The old mask was four `position: fixed` divs whose `top`, `left`,
+   * `width` and `height` were rewritten from the frame loop as the target moved. Those are LAYOUT
+   * properties, so every frame of every scroll produced layout-shift entries. Measured on
+   * production with the Layout Instability API: tapping a brand while the tour was open scored
+   * CLS 8.74, and `DIV.fixed material tour-mask` was the source of the three worst shifts; with the
+   * tour off the same tap scored 0.03. The owner reported the page as "gittery" and the rails were
+   * only part of it — this was most of it.
+   *
+   * ⚠️ A `clip-path` COSTS NOTHING BECAUSE IT IS PAINT, NOT LAYOUT. The element never moves or
+   * resizes; only the shape it paints through changes, so the Layout Instability API has nothing to
+   * report. The polygon traces the viewport and cuts in to the hole through a seam on the left edge
+   * — the standard single-path keyhole, used rather than `polygon(evenodd, …)` because the fill-rule
+   * argument is still not safe at this app's browserslist floor.
+   *
+   * ⛔ AND IT NO LONGER BLOCKS CLICKS, WHICH IS A REAL CHANGE. The four panels made everything
+   * except the target unclickable; one element cannot be transparent to pointers in one region and
+   * opaque in another, so this is `pointer-events-none` and stray taps now reach the page. That is
+   * the right trade TODAY and would not have been six hours ago: the tour asks the visitor to tap a
+   * specific control, and a tap anywhere else is handled — the takeover listener ends the tour and
+   * hands back whatever state the tour had borrowed. A swallowed tap would just look broken.
    */
-  const panel = 'fixed material tour-mask'
   const anchored = tourAnchorFor(step.id) !== null
   /**
-   * ⛔ NO MASK WHILE THE TARGET IS OFF SCREEN, OR THE READER IS TRAPPED. Scroll the anchor past
-   * either edge and the clamped geometry collapses the hole to nothing: one panel ends up covering
-   * the viewport, the page is dimmed, and the thing the step points at is nowhere to be seen.
+   * ⚠️ HORIZONTALLY TOO, NOT JUST VERTICALLY — and the vertical-only version had teeth. The brand
+   * and category rails scroll SIDEWAYS, so a target routinely leaves the viewport left or right
+   * while its top and bottom stay perfectly in range. The polygon below would then be traced
+   * backwards (`right + PAD` negative, or `left - PAD` past the far edge), the winding stops
+   * subtracting, and the result is a full-viewport dim with no hole and no visible target — the
+   * exact trap the four-panel version's comment said its guard existed to prevent. A reviewer
+   * walked it through.
    */
-  const onScreen = !!hole && hole.bottom > 0 && hole.top < window.innerHeight
-  const mask = hole && onScreen ? (() => {
-    const top = Math.max(0, hole.top - PAD)
-    const bottom = Math.min(window.innerHeight, hole.bottom + PAD)
-    const height = Math.max(0, bottom - top)
-    return [
-      { key: 'top', style: { left: 0, right: 0, top: 0, height: top } },
-      { key: 'bottom', style: { left: 0, right: 0, top: bottom, bottom: 0 } },
-      { key: 'left', style: { left: 0, width: Math.max(0, hole.left - PAD), top, height } },
-      { key: 'right', style: { left: Math.max(0, hole.right + PAD), right: 0, top, height } },
-    ]
-  })() : anchored ? [] : [{ key: 'all', style: { inset: 0 } }]
+  const onScreen =
+    !!hole &&
+    hole.bottom > 0 &&
+    hole.top < window.innerHeight &&
+    hole.right > 0 &&
+    hole.left < window.innerWidth
+  /**
+   * ⚠️ NO HOLE MEANS NO MASK ON AN ANCHORED STEP, not a full-viewport dim. The rect is read in an
+   * effect, so the first paint after a step change has none yet; dimming everything for that frame
+   * flashes over the very control the step is about to point at.
+   */
+  const clip = hole && onScreen ? (() => {
+    const l = Math.max(0, hole.left - PAD)
+    const r = Math.min(window.innerWidth, hole.right + PAD)
+    const t = Math.max(0, hole.top - PAD)
+    const btm = Math.min(window.innerHeight, hole.bottom + PAD)
+    // ⚠️ BAIL RATHER THAN EMIT A BACKWARDS RECT. Clamping both ends can still cross when the target
+    // is only a sliver on screen; a zero-or-negative box traces the hole in reverse and cancels it.
+    if (r <= l || btm <= t) return null
+    return `polygon(0px 0px, 0px 100%, ${l}px 100%, ${l}px ${t}px, ${r}px ${t}px, ${r}px ${btm}px, ${l}px ${btm}px, ${l}px 100%, 100% 100%, 100% 0px)`
+  })() : null
 
   return (
     <>
       {/* z-[1150]: above the app's chrome (header and neighbours run z-[60] to z-[130]) and below
           the tour's own card, which is raised to z-[1160] on the Positioner. */}
-      {mask.map(({ key, style }) => (
-        <div key={key} aria-hidden="true" className={`${panel} z-[1150]`} style={style} />
-      ))}
+      
+      {(clip || !anchored) && (
+        <div
+          aria-hidden="true"
+          /**
+           * ⛔ IT BLOCKS ONLY WHEN THERE IS NOTHING TO TAP. One element cannot be transparent to
+           * pointers in one region and opaque in another, so the choice is per-step: a step with a
+           * hole must let the target through, and the closing step — a full dim with no target —
+           * has no such need and should absorb strays. Without that split a tap on a listing card
+           * under the final card navigates away from the sign-up the step exists for. A reviewer
+           * caught it; the four-panel version blocked everywhere and this is the half worth keeping.
+           */
+          className={cn('fixed inset-0 z-[1150] material tour-mask', clip && 'pointer-events-none')}
+          style={clip ? { clipPath: clip } : undefined}
+        />
+      )}
 
       {/* ⛔ THE HAND — the owner's "hand icon taps". Decorative and `aria-hidden`: it says nothing a
           screen reader needs, and the step's own line is announced instead. It parks at the bottom
