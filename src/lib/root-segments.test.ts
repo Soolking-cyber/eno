@@ -84,7 +84,13 @@ describe('markdown-404 rewrite scope', () => {
   it('claims paths that can be neither a page nor a handle', () => {
     const caught = matcher(appRootSegments(SERVICES))
     // The audit's own verification command is the first of these.
-    for (const junk of ['some-path-that-does-not-exist', 'nope-xyz', 'v1', 'THISISUPPER', 'ab']) {
+    // ⚠️ THE HYPHENATED CASES LEFT THIS LIST ON 2026-08-30 AND THAT IS NOT A REGRESSION. The
+    // handle grammar gained `-` so a handle can also be a hostname, so `some-path-that-does-not-
+    // exist` is now handle-SHAPED and this rewrite correctly declines to claim it. The visitor's
+    // outcome is unchanged — it falls through to src/app/[handle], which 404s an unclaimed name —
+    // it is simply a different route answering. What this rewrite still claims is what can be
+    // neither: uppercase, too short, and dotted or otherwise unhandle-like segments.
+    for (const junk of ['THISISUPPER', 'ab', 'v1']) {
       expect(caught(`/${junk}`), junk).toBe(true)
     }
   })

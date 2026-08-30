@@ -31,6 +31,9 @@ export type Dash = {
     location: string | null
     phone: string | null
     avatarUrl: string | null
+    /** The shop's storefront cover. Optional for the same reason `officialPartner` is: a payload
+     *  cached before this field existed simply lacks it, and absent must read as "no banner". */
+    bannerUrl?: string | null
     legalName?: string | null
     legalAddress?: string | null
     idNumber?: string | null

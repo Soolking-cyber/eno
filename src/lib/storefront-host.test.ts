@@ -23,6 +23,22 @@ describe('storefrontHandleFromHost — what resolves', () => {
   })
 })
 
+describe('hyphens resolve, because a handle is now also a hostname', () => {
+  // The grammar gained `-` on 2026-08-30 so `slugifyHandle` could stop turning every space into an
+  // underscore — which is what stopped a multi-word shop name ever having a subdomain.
+  it('resolves a hyphenated handle', () => {
+    expect(storefrontHandleFromHost('my-shop.eno.vn', 'eno.vn')).toBe('my-shop')
+    expect(storefrontUrl('my-shop', 'https://eno.vn')).toBe('https://my-shop.eno.vn')
+  })
+
+  it('⛔ still refuses a label DNS would refuse, whatever the handle grammar allows', () => {
+    // `-bob` and `bob-` match nothing here because HANDLE_RE needs a leading letter and
+    // slugifyHandle strips a trailing separator — but isHostnameLabel is the backstop either way.
+    expect(isHostnameLabel('-bob')).toBe(false)
+    expect(isHostnameLabel('bob-')).toBe(false)
+  })
+})
+
 describe('⛔ underscore handles are not hostnames', () => {
   // The handle grammar allows `_` and rejects `-`; DNS and TLS do the exact opposite. Real shops
   // on this marketplace hold underscore handles today (sdc_store, eno_visa), so this is the
@@ -89,7 +105,6 @@ describe('storefrontHandleFromHost — what must not resolve', () => {
   it('rejects anything the handle grammar rejects', () => {
     expect(storefrontHandleFromHost('AB.eno.vn', 'eno.vn')).toBeNull() // too short
     expect(storefrontHandleFromHost('1shop.eno.vn', 'eno.vn')).toBeNull() // must start alpha
-    expect(storefrontHandleFromHost('my-shop.eno.vn', 'eno.vn')).toBeNull() // legal in DNS, but the handle grammar bars hyphen
     expect(storefrontHandleFromHost(('a'.repeat(40)) + '.eno.vn', 'eno.vn')).toBeNull()
   })
 

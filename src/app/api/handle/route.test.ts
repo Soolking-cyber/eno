@@ -307,7 +307,10 @@ describe('POST /api/handle — the tolerant body parse (no zod schema, on purpos
     ['too short', { handle: 'ab' }],
     ['not letter-first', { handle: '1abc' }],
     ['too long', { handle: 'a'.repeat(31) }],
-    ['illegal characters', { handle: 'alex-doe' }],
+    // ⚠️ WAS `alex-doe`, WHICH IS NOW LEGAL. The grammar gained `-` on 2026-08-30 so a handle can
+    // also be a hostname (`<handle>.eno.vn`) — see HANDLE_RE. A dot is still illegal and is the
+    // better probe anyway: it is the character that would let a handle claim a second label.
+    ['illegal characters', { handle: 'alex.doe' }],
     ['whitespace only', { handle: '   ' }],
     // ⚠️ `false` IS THE SOLE DISCRIMINATOR BETWEEN `||` AND `??` HERE, which is why it is spelled
     // out rather than left to the other falsy cases. `String(body.handle || '')` is the live code;

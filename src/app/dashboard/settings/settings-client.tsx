@@ -10,6 +10,7 @@ import { useDashboard } from '@/hooks/use-dashboard'
 import { Skeleton } from '@/components/ui/skeleton'
 import { cn } from '@/lib/utils'
 import { ProfileEditor } from '@/components/marketplace/profile-editor'
+import { StorefrontBannerEditor } from '@/components/marketplace/storefront-banner-editor'
 import { BusinessProfileEditor } from '@/components/marketplace/business-profile-editor'
 import { BusinessVerificationPanel } from '@/components/marketplace/business-verification-panel'
 import { HandleSettings } from '@/components/marketplace/handle-settings'
@@ -108,6 +109,19 @@ export function SettingsClient() {
               ? <BusinessProfileEditor seller={dash.seller} repName={dash.profile.displayName} onSaved={refresh} />
               : <ProfileEditor profile={dash.profile} onSaved={refresh} />}
           </SettingsGroup>
+          {/* ⛔ ANY SELLER, NOT ONLY `isBusiness`. A storefront is gated on holding a HANDLE, so an
+              ordinary seller has a live page at `<handle>.eno.vn` too — gating this control on tier
+              (as the first version did, by living inside <BusinessProfileEditor>) left them with a
+              storefront and nowhere in the product to put a banner on it. */}
+          {dash.seller && (
+            <SettingsGroup caption={tr('Storefront banner', 'Ảnh bìa cửa hàng')}>
+              <StorefrontBannerEditor
+                bannerUrl={dash.seller.bannerUrl ?? null}
+                handle={dash.seller.handle ?? null}
+                onSaved={refresh}
+              />
+            </SettingsGroup>
+          )}
           {/* Its OWN inset card (mt-6 rounded-2xl border bg-card) — must NOT be wrapped in a
               SettingsGroup or it double-borders. Renders as a sibling group in the space-y-6 flow. */}
           {isBusiness && dash.seller && <BusinessVerificationPanel />}

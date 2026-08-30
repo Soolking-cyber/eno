@@ -24,7 +24,6 @@ export function BusinessProfileEditor({ seller, repName, onSaved }: { seller: Se
   const [location, setLocation] = useState(seller.location || '')
   const [phone, setPhone] = useState(seller.phone || '')
   const [avatarUrl, setAvatarUrl] = useState(seller.avatarUrl)
-  const [bannerUrl, setBannerUrl] = useState(seller.bannerUrl ?? null)
   // Legal identity (Đ.29 e-commerce law collection duty; owner-only, never public)
   const [legalName, setLegalName] = useState(seller.legalName || '')
   const [legalAddress, setLegalAddress] = useState(seller.legalAddress || '')
@@ -32,9 +31,6 @@ export function BusinessProfileEditor({ seller, repName, onSaved }: { seller: Se
   const [taxCode, setTaxCode] = useState(seller.taxCode || '')
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
-  // ⚠️ ITS OWN FLAG, not shared with the logo: both uploaders can be in flight at once and a
-  // single boolean would make finishing one of them re-enable the other's control mid-upload.
-  const [uploadingBanner, setUploadingBanner] = useState(false)
   const [saved, setSaved] = useState(false)
   const [locating, setLocating] = useState(false)
   // The server names the field it rejected (`bad_tax_code`, `phone_taken`, …), so the message is
@@ -95,12 +91,12 @@ export function BusinessProfileEditor({ seller, repName, onSaved }: { seller: Se
   // Re-sync local fields when the saved storefront changes (e.g. after refresh()
   // returns the server-trimmed values) so the form doesn't read perpetually dirty.
   useEffect(() => {
-    setName(seller.name); setBio(seller.bio || ''); setLocation(seller.location || ''); setPhone(seller.phone || ''); setBannerUrl(seller.bannerUrl ?? null); setAvatarUrl(seller.avatarUrl)
+    setName(seller.name); setBio(seller.bio || ''); setLocation(seller.location || ''); setPhone(seller.phone || ''); setAvatarUrl(seller.avatarUrl)
     setLegalName(seller.legalName || ''); setLegalAddress(seller.legalAddress || ''); setIdNumber(seller.idNumber || ''); setTaxCode(seller.taxCode || '')
-  }, [seller.name, seller.bio, seller.location, seller.phone, seller.avatarUrl, seller.bannerUrl, seller.legalName, seller.legalAddress, seller.idNumber, seller.taxCode])
+  }, [seller.name, seller.bio, seller.location, seller.phone, seller.avatarUrl, seller.legalName, seller.legalAddress, seller.idNumber, seller.taxCode])
   useEffect(() => { setRep(repName || '') }, [repName])
 
-  const dirty = name !== seller.name || rep !== (repName || '') || bio !== (seller.bio || '') || location !== (seller.location || '') || phone !== (seller.phone || '') || avatarUrl !== seller.avatarUrl || bannerUrl !== (seller.bannerUrl ?? null) || legalName !== (seller.legalName || '') || legalAddress !== (seller.legalAddress || '') || idNumber !== (seller.idNumber || '') || taxCode !== (seller.taxCode || '')
+  const dirty = name !== seller.name || rep !== (repName || '') || bio !== (seller.bio || '') || location !== (seller.location || '') || phone !== (seller.phone || '') || avatarUrl !== seller.avatarUrl || legalName !== (seller.legalName || '') || legalAddress !== (seller.legalAddress || '') || idNumber !== (seller.idNumber || '') || taxCode !== (seller.taxCode || '')
 
   const uploadLogo = async (file: File) => {
     setUploading(true); setError('')
@@ -114,30 +110,6 @@ export function BusinessProfileEditor({ seller, repName, onSaved }: { seller: Se
       if (d.urls?.[0]) setAvatarUrl(d.urls[0])
       else throw new Error('upload')
     } catch { setError(tr('Logo upload failed.', 'Tải logo thất bại.')) } finally { setUploading(false) }
-  }
-
-  /**
-   * THE STOREFRONT BANNER — one cover image for the shop's own page. Owner, 2026-08-30: a shop
-   * gets one banner, added through its store profile.
-   *
-   * ⚠️ `kind: 'avatar'` IS CORRECT AND IS NOT A COPY-PASTE SLIP. That flag means "do not
-   * watermark", and it is the right one here for the same reason it is right for the logo: the
-   * banner is the shop's OWN artwork. The eno mark goes on listing photos, which get scraped and
-   * re-shared — stamping a shop's cover would put our brand across the top of the page they hand
-   * out as theirs. The schema field says the same thing where it is defined.
-   */
-  const uploadBanner = async (file: File) => {
-    setUploadingBanner(true); setError('')
-    try {
-      file = await compressImageFile(file) // HEIC→JPEG + downscale so big artwork doesn't 413
-      const form = new FormData()
-      form.append('files', file)
-      form.append('kind', 'avatar')
-      const res = await fetch('/api/upload', { method: 'POST', body: form })
-      const d = await res.json()
-      if (d.urls?.[0]) setBannerUrl(d.urls[0])
-      else throw new Error('upload')
-    } catch { setError(tr('Banner upload failed.', 'Tải ảnh bìa thất bại.')) } finally { setUploadingBanner(false) }
   }
 
   const save = async () => {
@@ -157,27 +129,6 @@ export function BusinessProfileEditor({ seller, repName, onSaved }: { seller: Se
       // logo URL would 400 (the API only accepts Supabase-hosted images).
       const payload: Record<string, unknown> = { name: name.trim(), bio, location, phone, legalName, legalAddress, idNumber, taxCode }
       if (avatarUrl !== seller.avatarUrl) payload.avatarUrl = avatarUrl
-      /**
-       * Same rule as the logo: send it only when it CHANGED. `null` is a real value here — it is
-       * how a shop removes its banner — so this compares rather than testing truthiness.
-       *
-       * ⛔ AND IT CLEARS `bannerMobileUrl` IN THE SAME BREATH, WHICH IS THE WHOLE REASON THIS
-       * EDITOR HAS ONE CONTROL AND NOT TWO. The schema carries a separate phone creative that
-       * `<StorefrontBanner>` PREFERS on small screens, and partners have one set (VinWonders ships
-       * a wide banner and a narrow one). Writing only the wide URL from here would have been a
-       * half-pair: three reviewers walked the same failure — a shop changes its banner, sees it
-       * change on desktop, and every phone visitor to its storefront keeps seeing the old artwork
-       * with no control anywhere to remove it.
-       * ⚠️ ONE BANNER IS THE PRODUCT DECISION, not a simplification of it. Owner, 2026-08-30: a
-       * shop gets *"1 banner for their store"*. So a shop setting its own banner collapses the
-       * pair to that one image, and `<StorefrontBanner>`'s null-falls-back-to-wide rule then puts
-       * it on both. An admin-set pair survives until the shop next edits its own banner, which is
-       * the correct precedence: the shop's own choice wins on the shop's own page.
-       */
-      if (bannerUrl !== (seller.bannerUrl ?? null)) {
-        payload.bannerUrl = bannerUrl
-        payload.bannerMobileUrl = null
-      }
       const res = await fetch('/api/seller', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -233,48 +184,6 @@ export function BusinessProfileEditor({ seller, repName, onSaved }: { seller: Se
         </span>
         <input type="file" accept="image/jpeg,image/png,image/webp,.heic,.heif" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadLogo(f) }} />
       </label>
-
-      {/**
-        * THE STOREFRONT BANNER — one image, the shop's own, shown across the top of its storefront
-        * (`<handle>.eno.vn` and `eno.vn/<handle>`). Owner, 2026-08-30.
-        *
-        * ⚠️ 3:1 PREVIEW, BECAUSE THAT IS WHAT THE STOREFRONT ACTUALLY CROPS TO. Showing the raw
-        * upload at its own ratio here would let a shop approve artwork whose subject the real page
-        * then cuts off — the preview has to lie in the same direction as the page, or it is not a
-        * preview.
-        * ⚠️ REMOVE IS A REAL ACTION, not "upload something else". `null` round-trips through the
-        * API as a deliberate clear, so a shop can take its banner down without needing a
-        * replacement to hand.
-        */}
-      <div className="mt-6">
-        <span className="mb-2 block text-sm font-semibold text-foreground">{tr('Storefront banner', 'Ảnh bìa cửa hàng')}</span>
-        <p className="mb-2 text-xs text-muted-foreground">
-          {tr('Shown across the top of your storefront. One wide image works best.', 'Hiển thị ở đầu trang cửa hàng của bạn. Nên dùng một ảnh ngang.')}
-        </p>
-        <label className="group relative block cursor-pointer overflow-hidden rounded-2xl border border-line-strong bg-tint" title={tr('Change banner', 'Đổi ảnh bìa')}>
-          <span className="block aspect-[3/1] w-full">
-            {bannerUrl ? (
-              <img src={bannerUrl} alt="" className="h-full w-full object-cover" />
-            ) : (
-              <span className="flex h-full w-full items-center justify-center gap-2 text-sm font-medium text-muted-foreground">
-                {uploadingBanner ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-5 w-5 shrink-0" />}
-                {tr('Add a banner', 'Thêm ảnh bìa')}
-              </span>
-            )}
-          </span>
-          {bannerUrl && (
-            <span className="absolute right-2 top-2 flex h-8 items-center rounded-full bg-black/55 px-3 text-xs font-semibold text-white">
-              {uploadingBanner ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : tr('Change', 'Đổi')}
-            </span>
-          )}
-          <input type="file" accept="image/jpeg,image/png,image/webp,.heic,.heif" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadBanner(f) }} />
-        </label>
-        {bannerUrl && (
-          <Button variant="ghost" size="none" onClick={() => setBannerUrl(null)} className="press mt-2 cursor-pointer text-sm font-semibold text-body hover:text-accent-foreground">
-            {tr('Remove banner', 'Xoá ảnh bìa')}
-          </Button>
-        )}
-      </div>
 
       <div className="mt-4 grid gap-4 sm:grid-cols-2">
         <Field invalid={!!fieldErr.name}>
@@ -387,7 +296,7 @@ export function BusinessProfileEditor({ seller, repName, onSaved }: { seller: Se
             props — the image appears to upload successfully and silently does not stick. Reviewers
             found it on the new banner; it was already true of the logo, which is why both flags are
             here rather than only the new one. */}
-        <Button variant="cta" onClick={save} disabled={saving || uploading || uploadingBanner || !dirty || name.trim().length < 2}>
+        <Button variant="cta" onClick={save} disabled={saving || uploading || !dirty || name.trim().length < 2}>
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : saved && !dirty ? <Check className="h-4 w-4" /> : null}
           {saved && !dirty ? tr('Saved', 'Đã lưu') : tr('Save changes', 'Lưu thay đổi')}
         </Button>

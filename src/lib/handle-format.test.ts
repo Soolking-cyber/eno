@@ -2,24 +2,57 @@ import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { slugifyHandle, validateHandle, HANDLE_RE } from './handle-format'
 
-// @handle rules: "Alex Doe" → alex_doe (Telegram-style), one global namespace.
+// @handle rules: "Alex Doe" → alex-doe, one global namespace.
 // Slugify must always yield a VALID base; validate must reject impersonation names.
+//
+// ⚠️ THE SEPARATOR IS A HYPHEN AS OF 2026-08-30, and it changed for a reason outside this file: a
+// handle is now also a HOSTNAME (`<handle>.eno.vn`). RFC 1123 allows `-` in a host label and
+// forbids `_`, so the old underscore meant every multi-word shop name auto-claimed a handle that
+// could never have a subdomain. Underscore is still ACCEPTED by HANDLE_RE — handles claimed before
+// today keep working — it is simply no longer produced.
 
 describe('slugifyHandle', () => {
   it('turns display names into handles', () => {
-    expect(slugifyHandle('Alex Doe')).toBe('alex_doe')
-    expect(slugifyHandle('Apple Store')).toBe('apple_store')
-    expect(slugifyHandle('SDC GIFT SHOP')).toBe('sdc_gift_shop')
+    expect(slugifyHandle('Alex Doe')).toBe('alex-doe')
+    expect(slugifyHandle('Apple Store')).toBe('apple-store')
+    expect(slugifyHandle('SDC GIFT SHOP')).toBe('sdc-gift-shop')
   })
 
   it('folds Vietnamese diacritics', () => {
-    expect(slugifyHandle('Nguyễn Văn Ánh')).toBe('nguyen_van_anh')
-    expect(slugifyHandle('Cửa hàng Đồ cũ')).toBe('cua_hang_do_cu')
+    expect(slugifyHandle('Nguyễn Văn Ánh')).toBe('nguyen-van-anh')
+    expect(slugifyHandle('Cửa hàng Đồ cũ')).toBe('cua-hang-do-cu')
   })
 
-  it('collapses punctuation runs and trims underscores', () => {
-    expect(slugifyHandle("Anna's — Café & Bakery!")).toBe('anna_s_cafe_bakery')
-    expect(slugifyHandle('__weird__name__')).toBe('weird_name')
+  it('collapses punctuation runs and trims separators', () => {
+    expect(slugifyHandle("Anna's — Café & Bakery!")).toBe('anna-s-cafe-bakery')
+    expect(slugifyHandle('__weird__name__')).toBe('weird-name')
+  })
+
+  it('⛔ the GRAMMAR itself refuses a trailing separator, not just the slugifier', () => {
+    // A handle typed into the editor or POSTed to /api/handle is validated by HANDLE_RE alone —
+    // slugify never sees it. `bob-` used to match, which would have been a legal handle and an
+    // illegal host label. Three reviewers found it in the same round.
+    expect(validateHandle('bob-')).toBe('invalid')
+    expect(validateHandle('bob_')).toBe('invalid')
+    expect(validateHandle('my-shop')).toBeNull()
+  })
+
+  it('⛔ a reserved word stays reserved however it is spelled', () => {
+    // The hyphen made `sign-in` claimable while `signin` was reserved — and `sign-in.eno.vn` on a
+    // passwordless product is a phishing page. isReservedHandle folds separators out first.
+    for (const h of ['signin', 'sign-in', 'sign_in', 'log-in', 'ad-min']) {
+      expect(validateHandle(h), h).toBe('reserved')
+    }
+  })
+
+  it('⛔ every name it produces is a legal HOST label, which is the point of the change', () => {
+    // A handle that HANDLE_RE accepts but DNS does not is a storefront nobody can reach — the
+    // exact failure the underscore separator caused. Assert the stronger property directly.
+    for (const name of ['Alex Doe', "Anna's — Café & Bakery!", 'Bền Computer', '84 Motors', '   ', 'ồ', 'a'.repeat(80)]) {
+      const s = slugifyHandle(name)
+      expect(s, `from "${name}"`).toMatch(/^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/)
+      expect(s.length, `from "${name}"`).toBeLessThanOrEqual(63)
+    }
   })
 
   it('always yields a valid handle, even from hostile names', () => {
