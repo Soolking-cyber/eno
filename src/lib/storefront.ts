@@ -36,6 +36,10 @@ export type Storefront = {
   sellerId: string
   handle: string
   name: string
+  /** The shop's own cover art. Null for almost every shop — the storefront renders nothing there
+   *  rather than a placeholder, which is what `<StorefrontBanner>` already does on the path page. */
+  bannerUrl: string | null
+  bannerMobileUrl: string | null
 }
 
 /**
@@ -55,6 +59,11 @@ const VERIFICATION_SELECT = {
   taxActive: true,
   verifiedIdentityHash: true,
   verifiedUntil: true,
+  // ⚠️ NOT PART OF THE VERIFICATION HASH, and deliberately so: the banner is artwork, not
+  // identity, so a shop may change it freely without dropping its badge. Contrast `name`, which
+  // IS in the hash precisely because changing it is how impersonation would start.
+  bannerUrl: true,
+  bannerMobileUrl: true,
 } as const
 
 /**
@@ -74,7 +83,13 @@ export const storefrontByHandle = cache(async (handle: string): Promise<Storefro
   const seller = row?.seller
   if (!seller) return null
   if (!isBusinessVerified(seller)) return null
-  return { sellerId: seller.id, handle: row.handle, name: seller.name }
+  return {
+    sellerId: seller.id,
+    handle: row.handle,
+    name: seller.name,
+    bannerUrl: seller.bannerUrl,
+    bannerMobileUrl: seller.bannerMobileUrl,
+  }
 })
 
 /**

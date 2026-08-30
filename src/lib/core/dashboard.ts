@@ -73,6 +73,9 @@ export async function dashboardStatsCore(profile: Profile) {
           location: seller.location,
           phone: seller.phone,
           avatarUrl: seller.avatarUrl,
+          // The storefront cover the shop sets for itself. Owner-scoped like the rest of this
+          // payload; the PUBLIC copy is selected separately in storefront.ts.
+          bannerUrl: seller.bannerUrl,
           // Legal identity (owner-scoped payload only — never in public serializers)
           legalName: seller.legalName,
           legalAddress: seller.legalAddress,

@@ -552,7 +552,18 @@ export function ListingsExplorer({
    * instead of on tapping. One stable frame, results changing inside it. If this is ever revisited
    * the axis to argue is the banner's HEIGHT on directed views, not its presence.
    */
-  const showBanner = viewMode !== 'map' && viewMode !== 'video'
+  /**
+   * ⛔ NEVER ON A SHOP'S OWN STOREFRONT. Owner, 2026-08-30: *"dont show eno.vn banners in
+   * individual storefront"*. `<PromoBanner>` is eno's OWN advertising slot — VinWonders, VietKite,
+   * GMBR — and a shop that hands out `apple.eno.vn` as its shopfront is handing out a page that
+   * would otherwise carry a competitor's ad above its own stock. That is the opposite of the
+   * proposition, and on a partner's storefront it could put a rival partner's creative on their
+   * own domain.
+   * ⚠️ THE SHOP'S OWN BANNER IS A DIFFERENT COMPONENT and lives on the page above this one — see
+   * `<StorefrontBanner>` in `/s/[handle]`. One banner slot per storefront, and it belongs to the
+   * shop; this one belongs to eno.
+   */
+  const showBanner = !sellerId && viewMode !== 'map' && viewMode !== 'video'
 
   // ⚠️ THE SORT STRIP IS THE ONE CONTROL THE PREDICATES ABOVE DO NOT SEE, AND ALL THREE
   // REVIEWERS FOUND IT. Measured: the showExplorer sync effect covers category, query, district,

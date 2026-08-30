@@ -41,7 +41,6 @@ export const UI_STRINGS_SERVICES: string[] = [
   "Budget estimate",
   "Build my plan",
   "Cancelled",
-  "Change",
   "Change where you stay?",
   "Changes requested",
   "Check every answer",

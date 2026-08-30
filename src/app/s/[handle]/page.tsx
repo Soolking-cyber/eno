@@ -9,6 +9,7 @@ import type { SerializedCategory, SerializedListingCard } from '@/lib/types'
 import { Header } from '@/components/marketplace/header'
 import { ListingsExplorer } from '@/components/marketplace/listings-explorer'
 import { Footer } from '@/components/marketplace/footer'
+import { StorefrontBanner } from '@/components/marketplace/storefront-banner'
 import { storefrontByHandle } from '@/lib/storefront'
 import { storefrontUrl } from '@/lib/storefront-host'
 import { SITE_NAME } from '@/lib/edition'
@@ -119,6 +120,21 @@ export default async function Storefront({ params }: Props) {
     <div className="flex min-h-screen flex-col blob-bg">
       <Header />
       <main id="main" tabIndex={-1} className="flex-1 max-w-7xl mx-auto w-full px-3 sm:px-6 lg:px-8 pt-4">
+        {/**
+          * THE SHOP'S OWN BANNER — one slot, theirs, above their stock. Owner, 2026-08-30: a shop
+          * gets one banner for its store, set from its store profile.
+          *
+          * ⛔ AND IT IS THE ONLY BANNER ON THIS PAGE. eno's own `<PromoBanner>` is suppressed
+          * inside `<ListingsExplorer>` whenever `sellerId` is set — same instruction, other half.
+          * A shop's storefront carrying eno's partner advertising would put a competitor's
+          * creative above that shop's own products, on a domain the shop hands out as its own.
+          *
+          * ⚠️ ABSENT IS THE COMMON CASE and renders nothing — no placeholder, no reserved strip.
+          * `<StorefrontBanner>` already owns that decision for the `eno.vn/<handle>` page; reusing
+          * it here means the two storefront surfaces cannot drift on sizing, art direction or the
+          * mobile fallback (`bannerMobileUrl` null falls back to the wide one).
+          */}
+        <StorefrontBanner url={shop.bannerUrl} mobileUrl={shop.bannerMobileUrl} />
         <ListingsExplorer
           categories={categories}
           initialListings={listings}

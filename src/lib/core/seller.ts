@@ -25,6 +25,7 @@ import { logError } from '@/lib/log'
 export type SellerUpdateErrorCode =
   | 'name_too_short'
   | 'bad_avatar'
+  | 'bad_banner'
   | 'bad_phone'
   | 'phone_taken'
   | 'bad_id_number'
@@ -48,6 +49,30 @@ export async function updateSellerCore(
     const url = body.avatarUrl ? String(body.avatarUrl) : null
     if (url && !isListingImageUrl(url)) return { ok: false, code: 400, error: 'bad_avatar' }
     data.avatarUrl = url
+  }
+  /**
+   * THE SHOP'S STOREFRONT BANNER — one cover image, set by the shop itself. Owner, 2026-08-30:
+   * a shop gets one banner for its store, added through its store profile.
+   *
+   * ⛔ `isListingImageUrl` IS THE SAME GUARD THE AVATAR USES, AND IT IS NOT COSMETIC. It restricts
+   * the value to media this platform stores, so a shop cannot point its banner at a third-party
+   * URL — which would let it hotlink, swap the creative after any review, or aim the request at
+   * an internal address. The banner is rendered on `<handle>.eno.vn`, a host that carries eno's
+   * own certificate, so the artwork there has to come from us.
+   * ⚠️ NULL IS A REAL VALUE, NOT AN OMISSION: clearing the banner is how a shop removes it, which
+   * is why this tests `!== undefined` rather than truthiness.
+   * ⚠️ THE MOBILE VARIANT IS OPTIONAL AND FALLS BACK TO THE WIDE ONE in <StorefrontBanner>. A shop
+   * that uploads one image gets it on both, which is why this does not require them in pairs.
+   */
+  if (body.bannerUrl !== undefined) {
+    const url = body.bannerUrl ? String(body.bannerUrl) : null
+    if (url && !isListingImageUrl(url)) return { ok: false, code: 400, error: 'bad_banner' }
+    data.bannerUrl = url
+  }
+  if (body.bannerMobileUrl !== undefined) {
+    const url = body.bannerMobileUrl ? String(body.bannerMobileUrl) : null
+    if (url && !isListingImageUrl(url)) return { ok: false, code: 400, error: 'bad_banner' }
+    data.bannerMobileUrl = url
   }
   // Contact phone (the in-chat reveal number; gated, never shown publicly).
   if (body.phone !== undefined) {

@@ -96,6 +96,7 @@ export type NicheApiErrorCode =
   | 'application_status_changed'
   | 'bad_action'
   | 'bad_avatar'
+  | 'bad_banner'
   | 'bad_id_number'
   | 'bad_phone'
   | 'bad_type'
@@ -431,6 +432,7 @@ const ALL = [
   'auth_required',
   'bad_action',
   'bad_avatar',
+  'bad_banner',
   'bad_body',
   'bad_id_number',
   'bad_origin',
