@@ -30,6 +30,9 @@ model Category {
 // authenticated user has exactly one Profile (buyer and/or seller-owner).
 // The auth.users FK is added via raw SQL (Prisma can't model the auth schema).
 model Profile {
+  /// Payments (eno.forum only — see the Order model). Back-relations; nothing on eno.vn reads them.
+  ordersBought         Order[]   @relation("OrderBuyer")
+  custodyWallet        CustodyWallet?
   id                   String    @id @db.Uuid // = auth.users.id
   email                String?   @unique // mirrored from auth for display/search
   displayName          String? // from OAuth metadata or set later
@@ -380,6 +383,8 @@ model Seller {
   avatarUrl                String?
   name                     String
   avatarColor              String               @default("#dc2626")
+  /// Payments (eno.forum only). Money settles to a storefront, not to a person.
+  orders                   Order[]
   rating                   Float                @default(5)
   reviewCount              Int                  @default(0)
   verified                 Boolean              @default(false)
@@ -609,6 +614,8 @@ model Review {
 }
 
 model Listing {
+  /// Payments (eno.forum only). Restrict on the FK: an order outlives a hidden or sold listing.
+  orders                  Order[]
   id                      String             @id @default(cuid())
   title                   String
   titleVi                 String?
@@ -1761,4 +1768,120 @@ model TripAssistanceEvent {
   createdAt DateTime @default(now())
 
   @@index([requestId, createdAt])
+}
+
+// ── Payments (eno.forum ONLY) ────────────────────────────────────────────────────
+// ⛔ THESE TABLES EXIST IN ONE DATABASE THAT BOTH EDITIONS SHARE, AND THAT IS NOT A LEAK.
+// eno.vn cannot reach them: every payment ROUTE carries the `.forum.svc.` infix, which a
+// marketplace build does not compile at all (next.config.ts), so the licensed sàn TMĐT has no
+// code path that reads or writes an Order. Schema is shared; SURFACE is not. Do not "tidy" this
+// by adding an edition column — a column is a runtime check, and the guarantee here is build-time.
+//
+// ⛔ AND THE LEGAL GATE IS NOT IN THIS FILE. Who may transact, and on which rail, is decided by
+// src/lib/payments/eligibility.ts — stablecoin settlement is prohibited for Vietnamese parties, so
+// `rail` being nullable here is a data shape, never a permission.
+
+model Order {
+  id         String   @id @default(cuid())
+  /// The buyer's account. Uuid because Profile mirrors auth.users.
+  buyerId    String   @db.Uuid
+  buyer      Profile  @relation("OrderBuyer", fields: [buyerId], references: [id], onDelete: Restrict)
+  /// The shop being paid. A Seller, not a Profile: money settles to a storefront.
+  sellerId   String
+  seller     Seller   @relation(fields: [sellerId], references: [id], onDelete: Restrict)
+  /// What was bought. Kept even if the listing is later hidden or sold.
+  listingId  String
+  listing    Listing  @relation(fields: [listingId], references: [id], onDelete: Restrict)
+
+  /// ⛔ RESTRICT, NEVER CASCADE, ON ALL THREE. An order is a financial record: deleting an account,
+  /// a shop or a listing must not delete the evidence that money moved.
+  /// ⚠️ SO DELETING A LISTING THAT HAS ORDERS NOW RAISES 23503 rather than cascading, and a caller
+  /// that does not catch it returns a 500 instead of "this listing has orders". Nothing in the app
+  /// creates orders yet, so no delete path can hit it today — but the first one that can must
+  /// handle it, and erasure must redact in place rather than delete.
+  ///
+  /// ⛔ AND A COMPOSITE FK BINDS (listingId, sellerId) TO Listing(id, sellerId) — see
+  /// scripts/add-payments-tables.mjs. Without it these are two independent references and an order
+  /// can display one shop's listing while settling to another. Prisma cannot express that shape, so
+  /// the constraint lives in the DDL script and this note is the only thing pointing at it.
+
+  /// See OrderStatus in src/lib/payments/order-state.ts. Stored as text so the state machine, not
+  /// the database, owns the vocabulary — a Postgres enum would need a migration to add `shipped`.
+  status     String   @default("pending")
+  /// 'paypal' | 'crossmint'. Null until the seller accepts and a rail is chosen.
+  rail       String?
+  /// ⛔ MINOR UNITS, AND `BigInt` BECAUSE `Int` IS 32-BIT AND THAT OVERFLOWS AT $2,147.48. Two
+  /// reviewers caught it: Prisma `Int` is int4 (max 2 147 483 647) and USDC carries SIX decimals,
+  /// so 1 USDC is 1 000 000 minor units and any order above ~$2 147 fails to INSERT — on a
+  /// marketplace that lists motorbikes, laptops and property. VND is worse: it has no minor unit,
+  /// so a 3 billion đồng listing overflows on its own.
+  /// ⚠️ int8 IN THE DATABASE, JS `number` IN THE STATE MACHINE. `validAmount` already refuses
+  /// anything past Number.MAX_SAFE_INTEGER (2^53), which is nine quadrillion minor units — far
+  /// beyond any real price — so the app layer stays on ordinary numbers and the conversion happens
+  /// where Prisma hands over a bigint. Money is never a float in either layer.
+  amount     BigInt
+  currency   String   @default("USD")
+
+  /// The rail's own identifier for the settlement — a Crossmint transaction id or a PayPal
+  /// capture id. Unique so one rail payment can never be recorded against two different orders.
+  /// ⚠️ IT IS NOT, BY ITSELF, THE ANSWER TO A CONCURRENT WEBHOOK ON THE *SAME* ORDER — a reviewer
+  /// was right that two handlers writing the same ref to the same row do not violate uniqueness.
+  /// The settlement write must be a CONDITIONAL update (`where status = 'awaiting_payment'`) and
+  /// act only if it changed a row; the state machine refuses the replay, and the row count is what
+  /// makes that refusal atomic.
+  railRef    String?  @unique
+
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  paidAt     DateTime?
+
+  events     OrderEvent[]
+
+  @@index([buyerId, createdAt])
+  @@index([sellerId, createdAt])
+  @@index([status])
+}
+
+/// Append-only audit of every state change. The Order row carries the CURRENT status; this carries
+/// how it got there, which is what a dispute, a refund or an auditor actually needs.
+/// ⚠️ WRITTEN IN THE SAME TRANSACTION AS THE STATUS UPDATE. `applyEvent` returns the next status
+/// rather than mutating precisely so a caller cannot move the order without recording why.
+model OrderEvent {
+  id         String   @id @default(cuid())
+  orderId    String
+  order      Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  /// See OrderEventType.
+  type       String
+  fromStatus String
+  toStatus   String
+  /// Who caused it: a Profile id, or null for the system (expiry, webhook).
+  actorId    String?  @db.Uuid
+  /// Rail payload or admin note. Free-form on purpose; nothing branches on it.
+  metaJson   String?
+  createdAt  DateTime @default(now())
+
+  @@index([orderId, createdAt])
+}
+
+/// A user's non-custodial wallet, created through Crossmint.
+/// ⚠️ WE STORE THE ADDRESS, NEVER A KEY. The signer is Crossmint-side (server signer authorised
+/// once by the user); this row is a pointer so we can show a balance and address a transfer.
+model CustodyWallet {
+  id         String   @id @default(cuid())
+  profileId  String   @unique @db.Uuid
+  profile    Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  /// 'crossmint' — named so a second provider does not need a table rename.
+  provider   String   @default("crossmint")
+  /// Chain id as the provider names it, e.g. 'base' / 'base-sepolia'. Stored because a wallet
+  /// created on staging must never be addressed as if it were mainnet.
+  chain      String
+  address    String
+  createdAt  DateTime @default(now())
+
+  /// ⚠️ CHAIN IS IN THE KEY. The comment here used to argue that (provider, address) kept a staging
+  /// wallet from colliding with a production one — which is exactly what it does NOT do, since the
+  /// same address exists on `base` and `base-sepolia`. A reviewer caught the contradiction between
+  /// the constraint and its own justification.
+  @@unique([provider, chain, address])
+  @@index([profileId])
 }
