@@ -4,6 +4,8 @@ import type { Prisma } from '@/generated/prisma/client'
 import { recomputeVerification } from '@/lib/compliance/recompute-verification'
 import { decideTierB } from '@/lib/identity/verify-decision'
 import { signVerificationDoc } from '@/lib/business-verification-store'
+import { provisionWithinBudget } from './on-verified'
+import { logError } from '@/lib/log'
 import { ownsKycPath } from './store'
 
 // ── THE HUMAN HALF ──────────────────────────────────────────────────────────────────────────────
@@ -253,6 +255,31 @@ export async function reviewKycCase(input: {
   })
   if (!wrote) return { ok: false, code: 'not_pending' }
   if (row.profileId) await recomputeVerification(row.profileId, now)
+  /**
+   * ⚠️ PROVISIONING RUNS AFTER THE VERIFICATION IS DURABLE, AND CANNOT FAIL THE REVIEW. Owner,
+   * 2026-08-30: a fresh KYC should auto-create the user's wallet. The approval is the fact that
+   * matters and it is already written; a wallet provider failing — or NOT ANSWERING AT ALL, which
+   * a try/catch here could not have stopped — must not turn an approved case into an error the
+   * admin has to re-drive. `provisionWithinBudget` never throws and cannot outlast its budget, and
+   * provisioning is idempotent, so a retry or a backfill converges rather than making a second wallet.
+   */
+  if (row.profileId) {
+    /**
+     * ⚠️ CAUGHT HERE TOO, THOUGH `provisionWithinBudget` PROMISES NEVER TO THROW. A reviewer noted
+     * this call was untested; writing the test showed the approval had come to DEPEND on that
+     * promise, with nothing enforcing it from this side. The decision is already durable at this
+     * point and an admin must never see it fail over a side effect, so the guarantee is asserted at
+     * both ends rather than trusted across the boundary.
+     */
+    try {
+      await provisionWithinBudget(row.profileId)
+    } catch (e) {
+      // ⚠️ AND THE LOGGER IS INSIDE ITS OWN GUARD. A reviewer spotted the irony: the catch existed
+      // so a side effect could not fail an approval, then called a logger that can itself throw —
+      // turning the rescue into the same failure it was added to prevent.
+      try { logError(e, { at: 'kyc.review.provision', profileId: row.profileId }) } catch { /* ignore */ }
+    }
+  }
   return { ok: true, status: 'verified' }
 }
 

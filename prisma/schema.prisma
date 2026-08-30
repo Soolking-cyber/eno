@@ -191,6 +191,22 @@ model IdentityVerification {
 
   fullName          String?
   nationality       String?   @db.Char(3) // ISO-3166-1 alpha-3, straight from the MRZ
+  /// ⛔ WHERE THE PERSON LIVES, WHICH IS NOT WHAT THE PASSPORT SAYS — and the settlement rules turn
+  /// on it, not on nationality. Populated ONLY from a source that actually verified an address:
+  /// today that means the payment provider's own KYC (Crossmint runs KYC/AML natively and is the
+  /// regulated party for it). Our own document capture can establish VIETNAMESE residence — a VNeID
+  /// or a TRC is a residence document — and deliberately cannot establish a foreign one.
+  /// ⚠️ NULL MEANS UNKNOWN, AND UNKNOWN IS TREATED AS VIETNAM by payments/eligibility.ts. So an
+  /// unpopulated column is safe and merely means the wallet rail stays closed for that user.
+  residenceCountry  String?   @db.Char(3)
+  /// ⛔ WHO SAID SO — and the country above is IGNORED unless this names an address-verifying
+  /// source. See ADDRESS_VERIFYING_SOURCES in src/lib/kyc/identity.ts, which is the allow-list.
+  /// Without it the first writer of `residenceCountry` — a form field, a CSV backfill — silently
+  /// becomes the law deciding who may hold a stablecoin wallet. Only value today: provider_kyc.
+  /// ⚠️ `residence_document` WAS CONSIDERED AND REJECTED — a Vietnamese residence document already
+  /// forces VNM before the column is consulted, so that label could only ever have arrived on a
+  /// document that is NOT one. Do not add it back.
+  residenceSource   String?
   birthYear         Int? // year only — day/month is not needed for an age gate
   documentType      String? // passport | trc | visa | cccd
   documentExpiresAt DateTime?

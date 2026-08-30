@@ -8,6 +8,8 @@ const h = vi.hoisted(() => ({
     queue: [] as Record<string, unknown>[],
     updates: [] as Record<string, unknown>[],
     recomputed: [] as string[],
+    provisioned: [] as string[],
+    provisionFails: false,
   },
 }))
 
@@ -32,6 +34,14 @@ vi.mock('@/lib/compliance/recompute-verification', () => ({
   recomputeVerification: async (id: string) => { h.s.recomputed.push(id); return { status: 'verified', sourceId: null, changed: true } },
 }))
 vi.mock('@/lib/business-verification-store', () => ({ signVerificationDoc: async (p: string) => `signed:${p}` }))
+vi.mock('./on-verified', () => ({
+  provisionWithinBudget: async (id: string) => {
+    h.s.provisioned.push(id)
+    // ⚠️ THE REAL ONE NEVER THROWS; this asserts review.ts does not depend on that being true.
+    if (h.s.provisionFails) throw new Error('provider exploded')
+    return { wallet: 'pending_provider' }
+  },
+}))
 
 const { reviewKycCase, listKycQueue } = await import('./review')
 
@@ -46,7 +56,7 @@ const caseRow = (over: Record<string, unknown> = {}) => ({
   profile: { displayName: 'Anna Maria Eriksson' }, ...over,
 })
 
-beforeEach(() => { h.s.row = caseRow(); h.s.clash = null; h.s.raced = false; h.s.queue = []; h.s.updates = []; h.s.recomputed = [] })
+beforeEach(() => { h.s.row = caseRow(); h.s.clash = null; h.s.raced = false; h.s.queue = []; h.s.updates = []; h.s.recomputed = []; h.s.provisioned = []; h.s.provisionFails = false })
 
 describe('reviewKycCase', () => {
   it('approving a good case verifies it and records WHO decided', async () => {
@@ -55,6 +65,29 @@ describe('reviewKycCase', () => {
     expect(h.s.updates[0]).toMatchObject({ status: 'verified', decidedBy: 'desk@eno.vn' })
     // The assurance must say a HUMAN carried it, not that the document was self-consistent.
     expect(h.s.updates[0].assuranceLevel).toBe('manual_review')
+  })
+
+  it('⛔ approving PROVISIONS what the verification unlocks', async () => {
+    // ⛔ THE UNTESTED WIRE. A reviewer pointed out that deleting the `provisionWithinBudget` call
+    // from review.ts left the whole suite green: the hook was covered, the call was not. Owner,
+    // 2026-08-30 — a fresh KYC should auto-create the user's wallet without them asking.
+    await reviewKycCase({ verificationId: 'iv1', admin: 'desk@eno.vn', decision: 'approve', now: NOW })
+    expect(h.s.provisioned).toEqual(['p1'])
+  })
+
+  it('⛔ REJECTING provisions nothing', async () => {
+    await reviewKycCase({ verificationId: 'iv1', admin: 'desk@eno.vn', decision: 'reject', note: 'unreadable', now: NOW })
+    expect(h.s.provisioned).toEqual([])
+  })
+
+  it('⛔ provisioning happens AFTER the decision is durable, and cannot undo it', async () => {
+    // The approval is the fact that matters; a wallet provider is a side effect. If provisioning
+    // could fail the review, an admin would see an error on a case that IS verified — and the retry
+    // returns `not_pending`, so it looks broken and cannot be re-driven.
+    h.s.provisionFails = true
+    const r = await reviewKycCase({ verificationId: 'iv1', admin: 'desk@eno.vn', decision: 'approve', now: NOW })
+    expect(r).toEqual({ ok: true, status: 'verified' })
+    expect(h.s.updates[0]).toMatchObject({ status: 'verified' })
   })
 
   it('⛔ A PASSPORT THAT LAPSED WHILE IT QUEUED IS REJECTED, NOT APPROVED', async () => {

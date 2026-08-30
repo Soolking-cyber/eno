@@ -185,3 +185,32 @@ describe('availableRails — the wallet leads where it is lawful', () => {
     expect(availableRails(abroad, verified({ kycVerified: false }))).toEqual([])
   })
 })
+
+describe('⚠️ sanctions veto the WALLET only — and that is deliberate', () => {
+  const ok = { kycVerified: true, nationality: 'GBR', residenceCountry: 'GBR' }
+  const russian = { kycVerified: true, nationality: 'RUS', residenceCountry: 'GBR' }
+  const iranian = { kycVerified: true, nationality: 'IRN', residenceCountry: 'GBR' }
+
+  it('⛔ a sanctioned nationality is refused the STABLECOIN rail', () => {
+    expect(railAllowed('crossmint', iranian, ok)).toBe('rail_not_available_in_country')
+    expect(railAllowed('crossmint', russian, ok)).toBe('rail_not_available_in_country')
+  })
+
+  it('⛔ but ORDINARY COMMERCE is untouched, and this is the case that was broken', () => {
+    /**
+     * ⛔ A REVERTED FIX, PINNED SO IT CANNOT COME BACK BY ACCIDENT. Moving the SANCTIONED veto into
+     * `partiesEligible` so it covered PayPal looked like closing a hole; what it did was ban every
+     * Russian and Belarusian expat on eno.forum from buying or selling anything. `SANCTIONED` is a
+     * stablecoin floor that is "deliberately over-inclusive", not a trading ban — and only IRN was
+     * tested, so the blast radius was invisible for a whole review round.
+     */
+    for (const p of [russian, iranian]) {
+      expect(railAllowed('paypal', p, ok)).toBeNull()
+      expect(partiesEligible(p, ok)).toBeNull()
+    }
+  })
+
+  it('an unsanctioned pair still gets PayPal with the allow-list empty', () => {
+    expect(railAllowed('paypal', ok, ok)).toBeNull()
+  })
+})

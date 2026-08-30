@@ -115,6 +115,24 @@ await client.query(`
 await client.query(`create unique index if not exists "CustodyWallet_provider_chain_address_key" on public."CustodyWallet" ("provider", "chain", "address");`)
 await client.query(`create index if not exists "CustodyWallet_profileId_idx" on public."CustodyWallet" ("profileId");`)
 
+/**
+ * ⛔ RESIDENCE ON THE IDENTITY RECORD, AND WITHOUT IT THE WALLET CAN NEVER BE PROVISIONED FOR
+ * ANYONE. The settlement rules turn on where a person LIVES, and the only thing the app could
+ * derive from a document was Vietnamese residence or nothing — both of which read as Vietnamese, so
+ * every user was ineligible. This column is where a source that actually verified an address puts
+ * its answer (the payment provider's own KYC; they run it natively and are the regulated party).
+ * ⛔ AND `residenceSource` IS WHY THE COUNTRY CAN BE TRUSTED. The country alone is just a column,
+ * and the first thing to write it — a form field, a CSV backfill, a hopeful admin — would silently
+ * become the rule deciding who may hold a stablecoin wallet. identity.ts honours the country ONLY
+ * when this names an address-verifying source, so the two columns must always be written together.
+ * ⚠️ NULLABLE AND UNPOPULATED IS THE SAFE STATE: unknown residence is treated as Vietnam.
+ */
+await client.query(`
+  alter table public."IdentityVerification"
+    add column if not exists "residenceCountry" char(3),
+    add column if not exists "residenceSource" text;
+`)
+
 const { rows } = await client.query(`
   select table_name, (select count(*) from information_schema.columns c where c.table_name = t.table_name) as cols
   from information_schema.tables t
@@ -124,5 +142,15 @@ const { rows } = await client.query(`
 console.log('payment tables:')
 for (const r of rows) console.log(`  ${r.table_name} (${r.cols} columns)`)
 if (rows.length !== 3) { console.error('expected 3 tables'); process.exitCode = 1 }
+
+// ⚠️ THE COLUMNS ARE VERIFIED TOO, not just the tables. `add column if not exists` is silent on
+// success and on no-op alike, so a run that did nothing looks exactly like a run that worked.
+const { rows: cols } = await client.query(`
+  select column_name from information_schema.columns
+  where table_schema = 'public' and table_name = 'IdentityVerification'
+    and column_name in ('residenceCountry','residenceSource');
+`)
+console.log(`IdentityVerification residence columns: ${cols.map((c) => c.column_name).sort().join(', ') || '(none)'}`)
+if (cols.length !== 2) { console.error('expected residenceCountry + residenceSource'); process.exitCode = 1 }
 
 await client.end()

@@ -31,7 +31,7 @@ import { join } from 'node:path'
 const ROOT = execFileSync('git', ['rev-parse', '--show-toplevel'], { encoding: 'utf8' }).trim()
 const RECEIPTS = join(ROOT, '.second-opinion')
 // Declared up here because `--status` validates receipts long before REVIEWERS is built below.
-const REVIEWER_NAMES = ['codex', 'agy', 'opus']
+const REVIEWER_NAMES = ['codex', 'agy', 'fable']
 
 /**
  * ⛔ GENERATED ASSETS ARE EXCLUDED FROM WHAT REVIEWERS *READ*, NEVER FROM WHAT IS *HASHED*.
@@ -268,7 +268,13 @@ const REVIEWERS = [
    * a settled argument: the reason opus was removed on 2026-08-14 has not changed, it has been
    * OVERRULED, and the cost is worth stating plainly where the swap lives.
    *
-   * ⛔ THIS SEAT IS NOW THE SAME MODEL AS THE AUTHOR OF THE CODE IT REVIEWS. Not merely the same
+   * ✅ AND ON 2026-08-30 THE OWNER SWITCHED IT BACK TO FABLE — "also use fable 5 as 3rd opnion
+   * instead of opus". So the seat has now been qwen -> opus -> fable -> opus -> fable, and this
+   * swing restores the property the paragraph below is about: fable is the same LAB as the author,
+   * not the same MODEL, so a 3/3 is two independent families agreeing plus a cousin rather than the
+   * author nodding at itself. Read the warning below as the reason this switch was right.
+   *
+   * ⛔ THE OPUS SEAT WAS THE SAME MODEL AS THE AUTHOR OF THE CODE IT REVIEWS. Not merely the same
    * lab, which is what fable was — the same model. CLAUDE.md's reviewer policy exists because "an
    * Opus review of Opus code shares its blind spots", and that is maximally true here. What still
    * makes the seat worth having: it runs in a FRESH context with no memory of why the code was
@@ -336,11 +342,11 @@ const REVIEWERS = [
    * independent family ever becomes reachable — an OpenRouter key, an opencode login — take it.
    */
   {
-    name: 'opus',
+    name: 'fable',
     cmd: 'claude',
     // ⚠️ `--permission-mode plan` IS THE SANDBOX and is not decorative: it keeps this reviewer
     // read-only, so it answers from the diff on stdin and cannot edit, run or commit anything.
-    args: ['-p', '--model', 'claude-opus-5', '--effort', 'max', '--permission-mode', 'plan'],
+    args: ['-p', '--model', 'claude-fable-5', '--effort', 'max', '--permission-mode', 'plan'],
     stdin: true,
   },
 ]

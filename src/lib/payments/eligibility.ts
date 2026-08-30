@@ -69,9 +69,25 @@ export function settlementAllowedCountries(): ReadonlySet<string> {
     // ⚠️ MEMBERSHIP OF THE REAL CODE LIST, not just the shape — a reviewer pointed out that a
     // deploy typo (`GBX`) would otherwise become a jurisdiction. Configuration is an input like
     // any other and gets the same validation as a passport field.
-    if (c && c !== VN && ISO_ALPHA3.has(c) && !SANCTIONED.has(c)) out.add(c)
+    if (c && couldBeAllowListed(c)) out.add(c)
   }
   return out
+}
+
+/**
+ * Could this country lawfully appear on the settlement allow-list at all?
+ *
+ * ⛔ EXTRACTED FROM `settlementAllowedCountries`, NOT COPIED BESIDE IT. It answers a question a
+ * caller genuinely needs and could otherwise only get by re-implementing this rule: whether a
+ * country is absent from the list because the LAW forbids it (Vietnam, a sanctioned jurisdiction,
+ * or not a country at all) or merely because nobody has opened it yet. A reviewer found the two
+ * reported identically to users — a Dutch resident was told "the law says no" when the truth was
+ * "counsel has not added NLD", and a backfill keyed on that outcome would have skipped them for
+ * good. Deriving both answers from one predicate is what stops those drifting apart.
+ */
+export function couldBeAllowListed(country: string | null | undefined): boolean {
+  const c = norm(country)
+  return !!c && c !== VN && ISO_ALPHA3.has(c) && !SANCTIONED.has(c)
 }
 
 /**
@@ -100,7 +116,7 @@ const SANCTIONED = new Set(['PRK', 'IRN', 'SYR', 'CUB', 'RUS', 'BLR', 'MMR', 'AF
  * residence would satisfy any allow-list built the same way. Reviewers found both. Membership of a
  * real code list is the difference between validating a value and validating a string length.
  */
-const ISO_ALPHA3 = new Set(
+export const ISO_ALPHA3 = new Set(
   ('ABW AFG AGO AIA ALA ALB AND ARE ARG ARM ASM ATA ATF ATG AUS AUT AZE BDI BEL BEN BES BFA BGD BGR BHR BHS BIH BLM ' +
    'BLR BLZ BMU BOL BRA BRB BRN BTN BVT BWA CAF CAN CCK CHE CHL CHN CIV CMR COD COG COK COL COM CPV CRI CUB CUW CXR ' +
    'CYM CYP CZE DEU DJI DMA DNK DOM DZA ECU EGY ERI ESH ESP EST ETH FIN FJI FLK FRA FRO FSM GAB GBR GEO GGY GHA GIB ' +
@@ -154,8 +170,30 @@ export type EligibilityDenial =
 export function partiesEligible(buyer: PartyIdentity, seller: PartyIdentity): EligibilityDenial | null {
   if (!seller.kycVerified) return 'seller_kyc_required'
   if (!buyer.kycVerified) return 'buyer_kyc_required'
+  // ⛔ NO SANCTIONS CHECK HERE, DELIBERATELY — see the note below before adding one.
   return null
 }
+
+/**
+ * ⛔ AND `SANCTIONED` IS DELIBERATELY *NOT* CHECKED HERE — A REVERTED FIX, RECORDED SO IT IS NOT
+ * RE-APPLIED. A reviewer correctly observed that a comprehensively sanctioned party is refused the
+ * wallet by `isSettlementEligibleParty` and then handed a PayPal checkout, and the obvious fix was
+ * to move the veto up into this function so it covered every rail. That fix was WRONG and shipped
+ * for one review round before another reviewer caught what it actually did.
+ *
+ * ⚠️ `SANCTIONED` IS A STABLECOIN FLOOR, NOT A LIST OF PEOPLE ENO MAY NOT TRADE WITH. Its own
+ * docstring says it is "deliberately over-inclusive rather than precise" because a US stablecoin
+ * provider's exposure is the thing it was sized for — and it contains RUS, BLR and MMR. This
+ * function gates ORDINARY ORDERS, so applying it here banned every Russian and Belarusian expat on
+ * eno.forum from buying or selling anything at all. Nha Trang has one of Vietnam's largest Russian
+ * communities. Vietnam sanctions none of them, the owner asked for none of it, and the only test
+ * covering it used IRN, so the blast radius was invisible.
+ *
+ * ⚠️ THE ORIGINAL GAP IS REAL AND IS NOW AN OPEN QUESTION FOR COUNSEL, not a silent decision: which
+ * jurisdictions, if any, must be refused FIAT settlement as well as digital assets. That is a legal
+ * judgement about a specific rail and a specific provider's obligations. It is not a set of country
+ * codes an engineer should widen the meaning of on a Saturday.
+ */
 
 /**
  * May this party settle on the stablecoin rail?
