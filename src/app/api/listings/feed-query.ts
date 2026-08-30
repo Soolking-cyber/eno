@@ -87,6 +87,22 @@ export async function buildFeedFilters(searchParams: URLSearchParams) {
    */
   const editionScope = await marketplaceListingScope()
   if (editionScope.sellerId) andFilters.push({ sellerId: editionScope.sellerId })
+  /**
+   * STOREFRONT SCOPE — `?seller=<id>`, sent by every query a shop's subdomain makes.
+   *
+   * ⚠️ ITS OWN AND ELEMENT, BESIDE THE EDITION'S, FOR THE REASON THE NOTE ABOVE GIVES. Two
+   * independent `sellerId` conditions in one AND array is exactly right: on the services edition
+   * both are present and Postgres intersects them, so a storefront can never widen past the desk
+   * scope. Merged into one object, the second would overwrite the first and do precisely that.
+   *
+   * ⛔ IT IS A FILTER, NOT AN AUTHORISATION. Anyone may pass any seller id here and get that
+   * shop's PUBLIC listings — which is no more than `eno.vn/<handle>` has always shown, and the
+   * clause below still restricts the result to active, publicly visible rows. What decides whether
+   * a shop gets a subdomain at all is `storefront.ts`, on the render path; nothing here is load-
+   * bearing for that and this must not be mistaken for it.
+   */
+  const sellerParam = searchParams.get('seller')?.trim()
+  if (sellerParam) andFilters.push({ sellerId: sellerParam })
   if (featuredOnly) {
     andFilters.push({ featured: true })
   }

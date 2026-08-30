@@ -228,6 +228,14 @@ type Props = {
   categories: SerializedCategory[]
   initialListings: SerializedListingCard[]
   initialTotal?: number
+  /**
+   * ⛔ SCOPES EVERY QUERY THIS COMPONENT MAKES TO ONE SHOP — set only by a storefront
+   * (`apple.eno.vn`, rewritten to `/s/<handle>`), never on the marketplace home page.
+   * ⚠️ IT IS NOT A FILTER THE READER CAN CLEAR. Facets, search, sort and paging all compose
+   * INSIDE it; there is no chip for it and no way to widen back to the whole catalogue, because on
+   * a shop's own storefront "show me everything" means everything THEY sell.
+   */
+  sellerId?: string
   // Server render timestamp of initialListings (Date.now() in the RSC). The homepage is 6h-ISR:
   // stamping the seed with CLIENT Date.now() marked hours-old snapshot data as fresh (within the
   // 30s staleTime), so React Query never revalidated it. With the true age, a stale snapshot
@@ -249,6 +257,7 @@ export function ListingsExplorer({
   initialBusinesses,
   initialTrending,
   listingsRef,
+  sellerId,
 }: Props) {
   const { lang, t, tr } = useLanguage()
   const { openSignIn } = useAuth()
@@ -1111,11 +1120,27 @@ export function ListingsExplorer({
     else if (page !== 1) setPage(1)
   }
 
+  /**
+   * ⛔ EVERY QUERY STARTS HERE SO NONE OF THEM CAN FORGET THE SHOP. On a storefront the seller
+   * scope is not one filter among many — it is the boundary of the page, and a request that omits
+   * it returns the WHOLE marketplace under the shop's own domain. There are four fetch sites in
+   * this component (grid, prefetch, histogram, video probe) and this file already records what
+   * happens when one of several call sites drops a parameter the others carry: the subcategory bug
+   * a few lines below, where a brand selection silently widened 8 results to 44. Seeding the
+   * builder is the version of that fix which a fifth fetch site inherits for free.
+   * ⚠️ ON THE MARKETPLACE `sellerId` IS UNDEFINED and this returns an empty set of params, so the
+   * home page's queries are byte-identical to what they were.
+   */
+  const scopedParams = useCallback(
+    () => new URLSearchParams(sellerId ? { seller: sellerId } : undefined),
+    [sellerId],
+  )
+
   // Fetch listings dynamically from API on parameter/page modifications using React Query SWR cache
   // The current filters as URL query params, WITHOUT paging — the single source of truth for
   // both the grid query below and the Video feed (which appends hasVideo + its own paging).
   const baseParamsString = useMemo(() => {
-    const params = new URLSearchParams()
+    const params = scopedParams()
     /**
      * ⛔ THE SUBCATEGORY IS SENT WHATEVER ELSE IS PICKED. It used to live only in the no-brand
      * branch, so choosing a brand SILENTLY DROPPED IT: owner, 2026-08-25 — "i look for cases for
@@ -1168,7 +1193,9 @@ export function ListingsExplorer({
     }
     applyFilterParams(params, customFilters, activeCategory, activeSubcategory)
     return params.toString()
-  }, [activeBrand, activeModel, activeCategory, activeSubcategory, nearby, activeDistrict, activeProvince, activeWard, conditionFilter, listingType, debouncedQuery, looseMatch, sort, verifiedOnly, priceRange, customFilters, lang])
+    // ⚠️ `scopedParams` IS A DEPENDENCY, not decoration: it carries the shop. Omitting it would
+    // memoise the marketplace's params on a storefront's first render and never widen them again.
+  }, [scopedParams, activeBrand, activeModel, activeCategory, activeSubcategory, nearby, activeDistrict, activeProvince, activeWard, conditionFilter, listingType, debouncedQuery, looseMatch, sort, verifiedOnly, priceRange, customFilters, lang])
 
   const { data: listingsData, isLoading: queryLoading, isFetching: queryFetching, isPlaceholderData: queryShowingStaleSet, isError: queryError, refetch: refetchListings } = useQuery({
     queryKey: [
@@ -1252,10 +1279,12 @@ export function ListingsExplorer({
     const t = setTimeout(arm, 4000); return () => clearTimeout(t)
   }, [])
   const { data: videoAvail } = useQuery({
-    queryKey: ['video-availability'],
+    // ⚠️ THE SHOP IS IN THE KEY, NOT ONLY IN THE URL. Without it two storefronts share one cached
+    // answer and a shop with no clips inherits its neighbour's Video tab.
+    queryKey: ['video-availability', sellerId ?? null],
     enabled: videoProbeReady,
     queryFn: async () => {
-      const res = await fetch('/api/listings?hasVideo=1&limit=1')
+      const res = await fetch(`/api/listings?hasVideo=1&limit=1${sellerId ? `&seller=${encodeURIComponent(sellerId)}` : ''}`)
       if (!res.ok) return { total: 0 }
       return res.json() as Promise<{ total: number }>
     },
@@ -1266,7 +1295,7 @@ export function ListingsExplorer({
   // Filter signature (no price/sort/pagination) for the price-histogram fetch, so
   // the slider's distribution reflects every OTHER active filter.
   const histogramQuery = useMemo(() => {
-    const p = new URLSearchParams()
+    const p = scopedParams()
     p.set('histogram', '1')
     if (activeBrand !== 'all') {
       p.set('brand', activeBrand)
@@ -1556,7 +1585,7 @@ export function ListingsExplorer({
         },
       ],
       queryFn: async () => {
-        const params = new URLSearchParams()
+        const params = scopedParams()
         // Mirror the live query EXACTLY (brand/model scoping + applyFilterParams) so the
         // prefetched page matches the filtered results and populates the right cache key.
         if (activeBrand !== 'all') {
