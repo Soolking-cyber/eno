@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { storefrontHandleFromHost, storefrontBaseHost } from '@/lib/storefront-host'
 import { usePathname } from 'next/navigation'
 import { Popover, PopoverContent } from '@/components/ui/popover'
 import { Button } from '@/components/ui/button'
@@ -100,6 +101,29 @@ type Step = {
  * search, and only while no facet has been tapped yet. Filters the visitor pressed are theirs, and
  * clearing those on the way out would be the hijacking this rule exists to prevent.
  */
+/**
+ * ⛔ NEVER ON A SHOP'S STOREFRONT. Owner, 2026-08-30: *"have onboarding only when user lands on
+ * eno.vn and eno.forum not the subdomain storefronts"*, with a screenshot of the tour stuck at
+ * step 4/6 telling a visitor to "Tap Apple" on VinWonders' amusement-park catalogue.
+ *
+ * ⛔ IT IS NOT MERELY OFF-MESSAGE THERE, IT CANNOT COMPLETE. The tour walks the marketplace's own
+ * funnel — search, category, subcategory, brand, model — and waits on each anchor before advancing.
+ * A storefront is one shop's stock, so the brand step has nothing to point at and the tour parks on
+ * a step the visitor cannot satisfy, over a shop's shopfront, on the shop's own domain. Teaching
+ * eno's search on a page that is not eno's search was the wrong idea before it was a broken one.
+ *
+ * ⚠️ HOST, NOT PATHNAME. A storefront's URL path IS `/` — that is the whole rewrite — so the
+ * existing `pathname === '/'` guards below cannot tell the two apart, which is exactly why the
+ * tour fired here at all. `storefrontHandleFromHost` is the same parser the proxy rewrites on, so
+ * the client and the edge agree about what a storefront is.
+ * ⚠️ SSR-SAFE: `window` is absent on the server and this resolves false, so the tour's own effects
+ * behave as they always did until the browser knows its own host.
+ */
+function onStorefrontHost(): boolean {
+  if (typeof window === 'undefined') return false
+  return storefrontHandleFromHost(window.location.host, storefrontBaseHost(process.env.NEXT_PUBLIC_APP_URL)) !== null
+}
+
 export function IntroTour() {
   const { tr } = useLanguage()
   const { user } = useAuth()
@@ -242,6 +266,10 @@ export function IntroTour() {
      */
     const start = () => {
       if (hasSeenTour()) return
+      // ⚠️ NOT EVEN PARKED on a storefront. Parking is for a visitor who landed off-home on the
+      // marketplace and will reach `/` later; a storefront visitor's `/` is the shop's page, so a
+      // parked claim would redeem itself there — the exact bug, one navigation later.
+      if (onStorefrontHost()) return
       if (window.location.pathname === '/') begin()
       else markTourPending()
     }
@@ -257,7 +285,7 @@ export function IntroTour() {
    * ⚠️ STILL A ONE-SHOT: `begin()` writes `done` before the first step opens.
    */
   useEffect(() => {
-    if (pathname === '/' && tourPending() && !hasSeenTour()) begin()
+    if (pathname === '/' && !onStorefrontHost() && tourPending() && !hasSeenTour()) begin()
   }, [pathname, begin])
 
   /**

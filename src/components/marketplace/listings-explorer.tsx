@@ -2592,6 +2592,7 @@ export function ListingsExplorer({
               activeBrand={activeBrand}
               activeModel={activeModel}
               facets={facetCounts}
+              sellerId={sellerId}
               onPickBrand={setActiveBrand}
               onPickModel={setActiveModel}
             />

@@ -36,6 +36,7 @@ export const GET = route({ auth: 'public' }, async ({ req }) => {
   const category = searchParams.get('category')?.trim()
   const subcategory = searchParams.get('subcategory')?.trim()
   const limit = Math.min(Math.max(Number(searchParams.get('limit')) || 60, 1), 200)
+  const sellerParam = searchParams.get('seller')?.trim() || null
 
   let rows: { slug: string; name: string; iconSlug: string | null; logoPath: string | null; count: number }[]
 
@@ -56,6 +57,20 @@ export const GET = route({ auth: 'public' }, async ({ req }) => {
         brandSlug: { not: null },
         category: { slug: category },
         ...(subcategory && subcategory !== 'all' ? { subcategorySlug: subcategory } : {}),
+        /**
+         * STOREFRONT SCOPE — `?seller=<id>`, sent by a shop's own subdomain. Owner, 2026-08-30:
+         * *"storefronts dont show brands"*.
+         *
+         * ⛔ THE RAIL IS DERIVED FROM LISTINGS, SO SCOPING IT HERE IS WHAT MAKES IT THE SHOP'S. The
+         * brands come from a groupBy over the catalogue, not from the Brand table — so without the
+         * seller the rail on `apple.eno.vn` advertised every brand the MARKETPLACE carries in that
+         * category, and tapping one returned nothing, because the feed beside it is scoped and the
+         * rail was not. A shop's storefront now offers exactly the brands that shop stocks.
+         * ⚠️ IT GOES INSIDE `scopedListingWhere`, never spread onto its result — the same rule the
+         * feed query documents, because that helper may return `{ AND: [...] }` and a spread would
+         * drop the edition exclusion.
+         */
+        ...(sellerParam ? { sellerId: sellerParam } : {}),
       }),
       _count: { _all: true },
       _sum: { views: true, contactCount: true },

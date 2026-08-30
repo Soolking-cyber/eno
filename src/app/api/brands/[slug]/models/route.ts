@@ -25,6 +25,7 @@ export const GET = route({ auth: 'public' }, async ({ req, params }) => {
   const sp = new URL(req.url).searchParams
   const category = sp.get('category')?.trim()
   const subcategory = sp.get('subcategory')?.trim()
+  const seller = sp.get('seller')?.trim() || null
 
   const grouped = await db.listing.groupBy({
     by: ['model'],
@@ -38,6 +39,15 @@ export const GET = route({ auth: 'public' }, async ({ req, params }) => {
       model: { not: null },
       ...(category && category !== 'all' ? { category: { slug: category } } : {}),
       ...(subcategory && subcategory !== 'all' ? { subcategorySlug: subcategory } : {}),
+      /**
+       * STOREFRONT SCOPE — the second half of `/api/brands?seller=`. Two reviewers caught that
+       * scoping the BRAND rail without scoping this one leaves a shop's storefront offering
+       * marketplace-wide models under one of its own brands: the visitor taps a model the shop
+       * does not stock and the feed beside it — which IS scoped — comes back empty. A dead end
+       * reached through the shop's own navigation.
+       * ⚠️ INSIDE `scopedListingWhere`, never spread onto its result; see the feed query.
+       */
+      ...(seller ? { sellerId: seller } : {}),
     }),
     _count: { _all: true },
     _sum: { views: true, contactCount: true },

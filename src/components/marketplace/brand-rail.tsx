@@ -46,6 +46,7 @@ export function BrandRail({
   activeBrand,
   activeModel,
   facets,
+  sellerId,
   onPickBrand,
   onPickModel,
 }: {
@@ -75,6 +76,10 @@ export function BrandRail({
    * both — if that ever changes, tap four goes numberless first.
    */
   facets?: FacetCounts
+  /** ⚠️ SET ONLY ON A SHOP'S STOREFRONT. The rail is derived from listings, so without it a shop's
+   *  page offers brands the MARKETPLACE stocks and every tap returns nothing — the feed beside it
+   *  is scoped and the rail would not be. */
+  sellerId?: string
   onPickBrand: (slug: string) => void
   onPickModel: (model: string) => void
 }) {
@@ -131,7 +136,7 @@ export function BrandRail({
      */
     setBrands([])
     setBrandsLoading(true)
-    fetch(`/api/brands?category=${encodeURIComponent(category)}&subcategory=${encodeURIComponent(subcategory)}&limit=40`)
+    fetch(`/api/brands?category=${encodeURIComponent(category)}&subcategory=${encodeURIComponent(subcategory)}&limit=40${sellerId ? `&seller=${encodeURIComponent(sellerId)}` : ''}`)
       .then((r) => r.json())
       .then((d) => {
         if (off) return
@@ -146,7 +151,9 @@ export function BrandRail({
       .catch(() => { if (!off) setBrands([]) })
       .finally(() => { if (!off) setBrandsLoading(false) })
     return () => { off = true }
-  }, [category, subcategory])
+    // ⚠️ `sellerId` IS A DEPENDENCY: without it the rail keeps a marketplace-wide brand list it
+    // fetched before the shop was known, on the one page where that list is wrong.
+  }, [category, subcategory, sellerId])
 
   useEffect(() => {
     if (activeBrand === 'all') { setModels([]); setModelsLoading(false); return }
@@ -160,7 +167,7 @@ export function BrandRail({
      */
     setModels([])
     setModelsLoading(true)
-    fetch(`/api/brands/${encodeURIComponent(activeBrand)}/models?category=${encodeURIComponent(category)}&subcategory=${encodeURIComponent(subcategory)}`)
+    fetch(`/api/brands/${encodeURIComponent(activeBrand)}/models?category=${encodeURIComponent(category)}&subcategory=${encodeURIComponent(subcategory)}${sellerId ? `&seller=${encodeURIComponent(sellerId)}` : ''}`)
       .then((r) => r.json())
       .then((d) => {
         if (off) return
@@ -174,7 +181,8 @@ export function BrandRail({
       .catch(() => {})
       .finally(() => { if (!off) setModelsLoading(false) })
     return () => { off = true }
-  }, [activeBrand, category, subcategory])
+    // ⚠️ `sellerId` here too — the models list is as shop-scoped as the brands above it.
+  }, [activeBrand, category, subcategory, sellerId])
 
   /**
    * ⛔ A SKELETON RAIL WHILE THE ANSWER IS IN FLIGHT, AND `null` ONLY ONCE THE ANSWER IS "NONE".

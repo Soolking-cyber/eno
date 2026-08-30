@@ -80,7 +80,7 @@ async function getData(sellerId: string): Promise<{
    * `feed-query.ts` documents in its own words. Passing the filter IN means the two compose.
    */
   const where = await scopedListingWhere({ sellerId, verified: true, status: 'active' })
-  const [serializedCategories, rows, total] = await Promise.all([
+  const [allCategories, rows, total, ownCategories] = await Promise.all([
     getCategoriesByDemand(),
     db.listing.findMany({
       where,
@@ -89,7 +89,30 @@ async function getData(sellerId: string): Promise<{
       take: 24,
     }),
     db.listing.count({ where }),
+    /**
+     * ⛔ THE CATEGORY RAIL IS THE SHOP'S, NOT THE MARKETPLACE'S. Owner, 2026-08-30: *"storefront
+     * should show only relevant parts for that store whatever products they have"* — sent with a
+     * screenshot of VinWonders' storefront offering Electronics, Fashion, Home, Food and Hobbies
+     * for a shop that sells amusement-park tickets. Every one of those chips led to an empty feed,
+     * because the rail was marketplace-wide while the feed beside it was scoped.
+     * ⚠️ A `groupBy` OVER THE SHOP'S OWN LISTINGS, reusing the same `where` the feed uses, so the
+     * two can never disagree about what this shop sells.
+     */
+    // edition-lint-allow: this read carries the SAME `where` the feed above uses — the one
+    // built by scopedListingWhere at the top of this function — so it inherits the edition
+    // exclusion rather than needing its own. Sharing one predicate across the feed, the count
+    // and this grouping is what stops the rail and the results disagreeing about the catalogue;
+    // three separate calls would be three chances to drift.
+    db.listing.groupBy({ by: ['categoryId'], where }),
   ])
+  /**
+   * ⚠️ FILTERED FROM THE FULL LIST RATHER THAN REBUILT, so the chips keep the demand ORDER, the
+   * artwork and the serialization the home rail already has. Only the membership changes.
+   * ⚠️ A SHOP WITH NOTHING IN ANY CATEGORY GETS AN EMPTY RAIL, which is correct — an empty shop
+   * should not advertise categories it cannot fill.
+   */
+  const ownIds = new Set(ownCategories.map((g) => g.categoryId))
+  const serializedCategories = allCategories.filter((c) => ownIds.has(c.id))
   /**
    * ⚠️ NO `diversifyBySeller` HERE, AND ITS ABSENCE IS THE POINT. The home feed interleaves sellers
    * so one shop's catalogue cannot hold the top of the page. On a shop's OWN storefront every row
