@@ -1,7 +1,6 @@
 import 'server-only'
 import { cache } from 'react'
 import { db } from '@/lib/db'
-import { isBusinessVerified } from '@/lib/business-verification'
 import { storefrontBaseHost, storefrontHandleFromHost } from '@/lib/storefront-host'
 
 /**
@@ -12,24 +11,37 @@ import { storefrontBaseHost, storefrontHandleFromHost } from '@/lib/storefront-h
  * question is pure and runs in the proxy (edge runtime, no database), the eligibility question
  * needs Postgres and runs in the server components that render the page.
  *
- * ⛔ ELIGIBILITY IS `isBusinessVerified`, WHICH IS A LIVE TEST RATHER THAN A STORED FLAG, AND THAT
- * IS THE WHOLE REASON THIS FEATURE CAN EXIST AT ALL. Owner, 2026-08-30: only verified shops get a
- * subdomain. That predicate is derived at read time from an identity HASH — see
- * business-verification.ts — so three things follow for free, none of which a boolean column would
- * have given us:
- *   · A shop that renames itself to a brand loses the badge on the next read (`name` is inside the
- *     hash), and therefore loses the subdomain. The impersonation route closes itself.
- *   · Verification EXPIRES, so an abandoned shop's subdomain stops answering without a sweeper.
- *   · A revoked or lapsed tax registration takes the storefront down the moment channel 1 fails.
- * Do not cache this verdict across requests, and do not denormalize it onto Seller. The freshness
- * IS the security property.
+ * ⛔ ANY SHOP WITH A HANDLE GETS ONE — VERIFICATION IS NOT THE GATE, AND THAT IS A REVERSAL.
+ * Owner first chose "verified shops only" (2026-08-30), then reversed it the same day once the
+ * data made the cost concrete: NOT ONE shop on the marketplace passes `isBusinessVerified` — it
+ * needs a tax-registry match AND a human document review, and of six shop handles only eno's own
+ * even has a tax code. The gate was not selective, it was total, and a storefront nobody can have
+ * is not a value proposition. So the subdomain now follows the handle.
  *
- * ⚠️ AND IT IS WHY THE SHARED SESSION COOKIE IS TOLERABLE. Owner's other decision the same day was
- * to scope the session to `.eno.vn` so a buyer stays signed in on a shop's subdomain. That is only
- * defensible because the set of hosts under that cookie is not arbitrary: every one of them
- * belongs to a business that passed a registry check AND a human document review. If this gate is
- * ever widened to unverified shops, the cookie scope has to be reconsidered in the same change —
- * see the Origin check in `proxy.ts` for the other half of that trade.
+ * ⛔ EXCEPT A BRAND NAME, WHICH NEVER GETS A SUBDOMAIN — NOT EVEN VERIFIED. The first version of
+ * this let a business-verified shop through, and three reviewers made the same correct objection:
+ * business verification proves a seller is a real, documented business; it says NOTHING about
+ * whether they are Apple or authorised by Apple. Any verified seller holding `apple` would have
+ * passed. There is no cheap test for trademark entitlement, so the rule is the blunt one — a
+ * handle that names a brand keeps `eno.vn/<handle>` and never gets `apple.eno.vn`, because it is
+ * the SUBDOMAIN that hands out eno's own certificate for that name, and eno is mid-licensing as a
+ * sàn TMĐT. A genuine brand partner is a support conversation, not a predicate.
+ *
+ * ⚠️ THE BRAND LIST IS THE CATALOGUE, NOT A CONSTANT, so it grows as the marketplace learns brands.
+ * A shop can therefore hold a handle that is not a brand today and lose the SUBDOMAIN (never the
+ * path) when the catalogue learns that name tomorrow. That is deliberate and is the same live-read
+ * shape the verification gate had; it costs one indexed lookup on a page that already queries.
+ *
+ * ⛔ AND THE SHARED SESSION COOKIE MUST NOT BE BUILT AS SPECIFIED — READ THIS BEFORE TOUCHING AUTH.
+ * The owner chose (2026-08-30) to scope the session to `.eno.vn` so a buyer stays signed in on a
+ * shop's storefront. That was justified HERE by a fact this commit deletes: that every such host
+ * belonged to a business a human had checked. It is now any handle-holder. Worse, and decisively:
+ * this app's session cookie is deliberately NOT `httpOnly` — see ed222c6d, which refused the audit
+ * fix because `createBrowserClient` reads the jar with `document.cookie` across 11 files and 39
+ * auth calls. So a domain-scoped cookie would not be a CSRF question at all; one line of
+ * JavaScript on any shop's storefront would read the visitor's session token outright. The Origin
+ * write-guard in `proxy.ts` does not help with a read. Storefronts stay a READ surface with
+ * sign-in on the canonical host until that is redesigned.
  */
 
 export type Storefront = {
@@ -82,7 +94,14 @@ export const storefrontByHandle = cache(async (handle: string): Promise<Storefro
   // A handle row exists for people too; only the seller branch can be a storefront.
   const seller = row?.seller
   if (!seller) return null
-  if (!isBusinessVerified(seller)) return null
+  /**
+   * ⚠️ THE BRAND CHECK RUNS ONLY WHEN THE NAME IS ACTUALLY A BRAND, so the ordinary shop pays
+   * nothing for it beyond one indexed lookup that misses. `Brand.slug` is the canonical form the
+   * catalogue stores (`huawei`, `apple`), which is the same shape a handle takes, so this compares
+   * like with like rather than trying to fold a display name.
+   */
+  const brand = await db.brand.findUnique({ where: { slug: handle }, select: { slug: true } })
+  if (brand) return null
   return {
     sellerId: seller.id,
     handle: row.handle,
