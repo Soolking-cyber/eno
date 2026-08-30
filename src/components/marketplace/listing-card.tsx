@@ -751,28 +751,36 @@ function ListingCardImpl({
                 aria-label={tr('Chat with seller', 'Nhắn tin với người bán')}
                 onClick={(e) => { e.stopPropagation(); quickGo({ body: tr('Hi! Is this still available?', 'Chào bạn! Món này còn không?') }) }}
                 /**
-                 * ⛔ THIS ONE GLYPH GETS 4px OF PLATE PADDING, AND IT IS THE ONLY ONE THAT DOES.
-                 * Owner, 2026-08-29: *"message icon is clipping over backplate on product images"*.
-                 * The plate is a CIRCLE and the padding is a SQUARE, so what has to clear the disc
-                 * is the glyph's INK, not its box — and Solar's `MessageCircle` is the one plated
-                 * mark whose ink leaves its own viewBox. Measured by rendering each symbol alone on
-                 * black and taking the furthest lit pixel, as a fraction of the box radius:
-                 *     MessageCircle 1.132 · Tag 0.997 · Heart 0.979 · Share2 0.929 · X 0.900
-                 *     MapPin 0.898 · ChevronRight 0.699 · ChevronUp 0.697
-                 * At `h-5` + 3px that put the speech tail 1.7px inside a 13px disc while the heart
-                 * beside it had 3.2px — the same nominal size, visibly tighter, which is exactly
-                 * what the owner saw.
-                 * ⚠️ THE DISC STAYS 26px. Four controls sit in one column on this card; shrinking
-                 * the glyph alone would have shrunk its plate with it (`box-content`) and left one
-                 * disc smaller than its three neighbours. 18 + 4 + 4 = 26, the same as h-5 + 3 + 3.
-                 * ⚠️ A UTILITY, SO IT WINS. `.plate-host svg` sets the 3px default in
-                 * `@layer components`; this is an ordinary utility and outranks it by layer.
-                 * ⛔ DO NOT GENERALISE THE 4px BACK INTO `.icon-plate`. Every other glyph would
-                 * then sit further inside its disc than it needs to, and the discs would grow.
+                 * ⛔ `[overflow:visible]` IS THE WHOLE FIX, AND TWO WRONG ONES CAME FIRST. Owner,
+                 * 2026-08-29: *"message icon is clipping over backplate"*, then 2026-08-30 with a
+                 * screenshot: *"message icon corner clipped"*. Solar's `MessageCircle` is the one
+                 * plated mark whose ink leaves its OWN viewBox — measured by rendering each sprite
+                 * symbol alone on black and taking the furthest lit pixel, as a fraction of the box
+                 * radius: MessageCircle 1.132 · Tag 0.997 · Heart 0.979 · MapPin 0.898 · chevrons
+                 * ~0.70. An `<svg>` with a viewBox clips to its viewport by UA default, so the
+                 * speech tail was being cut off flat before it went anywhere near the plate.
+                 * ⛔ THE FIRST TWO ATTEMPTS TREATED IT AS A SIZE PROBLEM AND BOTH MADE IT WORSE.
+                 * `h-[18px]` + `[&_svg]:p-[4px]` kept the disc at 26px and moved the mark inward —
+                 * which does nothing about a clip, and a reviewer's measurement showed what it did
+                 * do instead: an 18px box renders this glyph's stroke at 1.50px beside its
+                 * siblings' 1.67px, so the chat mark went visibly lighter and smaller than the
+                 * three controls next to it. Turning the clip off makes the padding unnecessary:
+                 * at `h-5` the ink reaches 11.32px from centre inside a 13px disc, 1.68px of
+                 * clearance, at exactly the weight of every other control in the column.
+                 * ⚠️ MEASURED AS AN A/B ON THE RENDERED PAGE, because a reviewer raised the one
+                 * theory that would make this a no-op: a `<symbol>` referenced through `<use>`
+                 * establishes its own viewport, and if IT clipped first, `overflow` on the host
+                 * `<svg>` would change nothing. Toggling the property on the live card and counting
+                 * lit pixels inside the disc settles it — hidden: ink reaches 9.80px from centre,
+                 * 9 067 px of ink; visible: 11.08px and 9 588. So 521 pixels of tail were being
+                 * cut, the symbol does not clip first, and the mark lands 1.92px inside the 13px
+                 * disc.
+                 * ⚠️ IT DOES NOT GENERALISE. Every other plated glyph is under 1.0 and would gain
+                 * nothing from `overflow:visible`; this is a property of one mark, not of the plate.
                  */
-                className="pointer-events-auto translate-x-3 opacity-0 transition-all duration-200 ease-[var(--ease-spring-snappy)] hover:scale-110 active:scale-[0.96] group-hover:translate-x-0 group-hover:opacity-100 focus-visible:translate-x-0 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white [&_svg]:p-[4px]"
+                className="pointer-events-auto translate-x-3 opacity-0 transition-all duration-200 ease-[var(--ease-spring-snappy)] hover:scale-110 active:scale-[0.96] group-hover:translate-x-0 group-hover:opacity-100 focus-visible:translate-x-0 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
               >
-                <MessageCircle className="h-[18px] w-[18px] fill-none" />
+                <MessageCircle className="h-5 w-5 fill-none [overflow:visible]" />
               </IconButton>
             </Tooltip>
           )}
