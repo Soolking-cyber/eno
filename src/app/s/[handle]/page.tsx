@@ -9,6 +9,11 @@ import type { SerializedCategory, SerializedListingCard } from '@/lib/types'
 import { Header } from '@/components/marketplace/header'
 import { ListingsExplorer } from '@/components/marketplace/listings-explorer'
 import { Footer } from '@/components/marketplace/footer'
+import { EmptyState } from '@/components/ui/empty-state'
+import { Button } from '@/components/ui/button'
+import { Store } from '@/components/ui/icons'
+import { Tr } from '@/context/language-context'
+import Link from 'next/link'
 import { StorefrontBanner } from '@/components/marketplace/storefront-banner'
 import { storefrontByHandle } from '@/lib/storefront'
 import { storefrontUrl } from '@/lib/storefront-host'
@@ -158,6 +163,51 @@ export default async function Storefront({ params }: Props) {
           * mobile fallback (`bannerMobileUrl` null falls back to the wide one).
           */}
         <StorefrontBanner url={shop.bannerUrl} mobileUrl={shop.bannerMobileUrl} />
+        {total === 0 ? (
+          /**
+           * A SHOP WITH NOTHING IN IT GETS A WELCOME, NOT AN EMPTY MARKETPLACE. Owner, 2026-08-30:
+           * *"friendly message guiding to post products"*. Before this, an empty storefront rendered
+           * the full explorer — a search box, a sort strip and a lone "All" chip over nothing — which
+           * reads as broken rather than new, on the page a shop hands out.
+           *
+           * ⛔ THE COPY CANNOT ASSUME THE READER IS THE OWNER, AND THAT IS A FACT ABOUT THIS HOST
+           * RATHER THAN A STYLE CHOICE. The session cookie is scoped to `eno.vn`, so on
+           * `<handle>.eno.vn` there is no session at all and the server cannot tell the shopkeeper
+           * from a shopper. "Post your first listing" would therefore greet strangers as the owner.
+           * So it states the fact — nothing listed yet — and offers the action, which is true for
+           * whoever is reading: on a marketplace, a visitor can post too.
+           *
+           * ⚠️ THE EXPLORER IS REPLACED, NOT HIDDEN. Rendering it with `initialTotal = 0` would still
+           * mount the search box, facet bar and view switcher, all of which query and all of which
+           * can only ever answer nothing here.
+           */
+          <div className="py-10 sm:py-16">
+            <EmptyState
+              size="lg"
+              icon={Store}
+              title={<Tr text="Nothing listed yet" />}
+              /**
+               * ⚠️ NO INTERPOLATION IN A TRANSLATED SENTENCE. `<Tr>` resolves against the generated
+               * string table, and `gen-ui-strings.mjs` scrapes LITERALS — a template carrying the
+               * shop's name would never be scraped, so it would ship untranslated on a Vietnamese
+               * marketplace. The shop is already named by the page title, the banner and the header.
+               */
+              subtitle={<Tr text="Anything this shop posts shows up here automatically." />}
+              action={
+                /**
+                 * ⚠️ ABSOLUTE, TO THE CANONICAL HOST. Posting is a WRITE, and writes are pinned to
+                 * the canonical origin — a relative `/post` would keep the visitor on the shop's
+                 * subdomain, where the sign-in they need cannot complete. See proxy.ts.
+                 */
+                <Button variant="cta" asChild>
+                  <Link href={`${process.env.NEXT_PUBLIC_APP_URL || 'https://eno.vn'}/post`}>
+                    <Tr text="Post a listing" />
+                  </Link>
+                </Button>
+              }
+            />
+          </div>
+        ) : (
         <ListingsExplorer
           categories={categories}
           initialListings={listings}
@@ -172,6 +222,7 @@ export default async function Storefront({ params }: Props) {
            */
           sellerId={shop.sellerId}
         />
+        )}
       </main>
       <Footer />
     </div>

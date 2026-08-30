@@ -2569,10 +2569,21 @@ export function ListingsExplorer({
             countsPending={queryFetching}
             onCategory={handleCategorySelect}
             onSubcategory={setActiveSubcategory}
-            shortcuts={DESK_SHORTCUTS}
+            /**
+             * ⛔ NEITHER SHORTCUT GROUP BELONGS ON A SHOP'S STOREFRONT. Owner, 2026-08-30, with a
+             * screenshot of `gmbr.eno.vn` — one listing, five chips: *"3 seperate categories still
+             * show ... only categories subcategories brands models that are present"*.
+             * `DESK_SHORTCUTS` is eno's OWN merchandising (its services tile, pinned ahead of the
+             * demand order) and `INTENT_SHORTCUTS` are marketplace-wide listingType filters — Free
+             * & Giveaways, Wanted, Wholesale. Both are eno navigating its own catalogue, so on a
+             * shop's page they advertise filters that shop cannot fill: every one of those chips
+             * led to an empty feed, which is the same rail-vs-feed disagreement the category rail
+             * had. A storefront shows what the shop HAS.
+             */
+            shortcuts={sellerId ? undefined : DESK_SHORTCUTS}
             onShortcut={(sc) => { if (sc.kind === 'filter') applyUrl(sc.href); else router.push(sc.href) }}
             // Free / Wanted shortcuts — the intent tiles, at the tail.
-            intents={INTENT_SHORTCUTS}
+            intents={sellerId ? undefined : INTENT_SHORTCUTS}
             activeType={listingType}
             onIntent={(type) => setListingType(listingType === type ? 'all' : type)}
           />
