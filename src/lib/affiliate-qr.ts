@@ -1,5 +1,5 @@
 import 'server-only'
-import qr from 'qrcode-generator'
+import { qrSvg } from './qr-svg'
 
 /**
  * A QR code for a partner affiliate URL, rendered as INLINE SVG.
@@ -17,53 +17,11 @@ import qr from 'qrcode-generator'
  * there is nothing for the browser to compute — shipping it to the client would be pure cost.
  */
 
-/** Error-correction level M: ~15% recovery, the usual choice when a logo is not overlaid. */
-const EC_LEVEL = 'M' as const
-
 export function affiliateQrSvg(url: string, opts: { size?: number; title?: string } = {}): string | null {
-  const trimmed = url.trim()
-  if (!trimmed) return null
-
-  // typeNumber 0 = "pick the smallest version that fits", so a longer tracking URL simply produces
-  // a denser code rather than throwing.
-  const code = qr(0, EC_LEVEL)
-  code.addData(trimmed)
-  try {
-    code.make()
-  } catch {
-    // Over capacity for even the largest version. Fail soft: the button still works, the page just
-    // does not offer a QR — better than a 500 on a product page.
-    return null
-  }
-
-  const count = code.getModuleCount()
-  // A 4-module quiet zone is required by the spec; scanners fail intermittently without it, which
-  // reads as "our QR is flaky" rather than "our QR is wrong".
-  const quiet = 4
-  const total = count + quiet * 2
-  const size = opts.size ?? 160
-
-  let path = ''
-  for (let row = 0; row < count; row++) {
-    for (let col = 0; col < count; col++) {
-      if (code.isDark(row, col)) path += `M${col + quiet} ${row + quiet}h1v1h-1z`
-    }
-  }
-
-  // `shape-rendering: crispEdges` stops the browser antialiasing module edges into grey, which is
-  // what makes a small on-screen QR scan slowly.
-  return (
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${total} ${total}" ` +
-    `width="${size}" height="${size}" role="img" shape-rendering="crispEdges" ` +
-    `aria-label="${escapeAttr(opts.title ?? 'QR code linking to the partner booking page')}">` +
-    `<rect width="${total}" height="${total}" fill="#fff"/>` +
-    `<path d="${path}" fill="#000"/>` +
-    `</svg>`
-  )
-}
-
-function escapeAttr(s: string): string {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+  // ⚠️ A THIN WRAPPER SINCE THE PAYMENTS WORK NEEDED THE SAME ENCODER. The QR-to-SVG logic moved to
+  // `qr-svg.ts` unchanged; what stays here is the affiliate-specific default label. A second copy
+  // of the module-painting loop would be two things to keep right, and a wrong QR still scans.
+  return qrSvg(url, { size: opts.size, title: opts.title ?? 'QR code linking to the partner booking page' })
 }
 
 /**

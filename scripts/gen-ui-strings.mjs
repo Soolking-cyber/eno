@@ -44,6 +44,17 @@ const SERVICES_SOURCES = [
   // ships to every browser and pays Google to translate.
   'src/lib/promo-slides-services',
   /**
+   * ⛔ THE PAYMENT SURFACES, ADDED AFTER MEASURING THE LEAK RATHER THAN BEFORE. eno.vn is
+   * deliberately paymentless, and the checkout and payout copy — "Scan to pay", "Transfer note",
+   * "Account holder name" — was harvested straight into the SHARED catalogue and shipped in the
+   * marketplace client bundle. The pages themselves are `.svc.` and never compile there; their
+   * STRINGS travelled separately, through this file, which is precisely the trap the two comments
+   * below record for other surfaces. Grep a marketplace build for the copy, not for the route.
+   * ⚠️ THE CLIENT COMPONENTS ARE PLAIN `.tsx` because only a ROUTE can carry `.svc.` — so their
+   * paths look shared and nothing but these lines says otherwise.
+   */
+  'src/app/checkout/', 'src/app/dashboard/payout/', 'src/app/api/seller/payout',
+  /**
    * ⚠️ THE CROSS-SITE PROMO IS SERVICES-ONLY EVEN THOUGH ITS PATH LOOKS SHARED, and this line is
    * the only thing that says so. Every other entry above is recognisably a visa/trip surface;
    * `src/components/marketplace/cross-site-promo.tsx` sits among the shared components and its
