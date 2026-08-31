@@ -5,9 +5,13 @@
 // cannot run at all while public.Profile carries a cross-schema FK to Supabase's auth.users. Every
 // additive change in this repo is a hand-written idempotent script; see add-convo-delete-cols.mjs.
 //
-// ⚠️ IDEMPOTENT AND ADDITIVE ONLY. Everything is `if not exists`; nothing here drops, alters a
-// type, or touches a row. Running it twice is a no-op, which is what makes it safe to run against
-// production without a maintenance window.
+// ⚠️ RE-RUNNABLE AND CONVERGENT — which is NOT quite "a no-op", and the distinction is a reviewer's.
+// Everything creating a table, index or column is `if not exists`, and nothing alters a type or
+// touches a row. The ONE exception is the residence CHECK constraint, dropped and re-added so a
+// corrected rule can reach a database that already ran an older version of this file; both
+// statements are inside the transaction, so the table is never left unprotected.
+//
+// ⚠️ IT TAKES LOCKS ON LIVE TABLES — see the lock_timeout note before running it under load.
 //
 // ⚠️ THE TYPES MIRROR prisma/schema.prisma EXACTLY. `amount` is BIGINT minor units — int4 overflows
 // at $2 147 once USDC's six decimals are counted — ids are text cuid, and the two Profile references are uuid because Profile.id is
@@ -24,133 +28,257 @@ if (!url) { console.error('Set DIRECT_URL'); process.exit(1) }
 const client = new pg.Client({ connectionString: url })
 await client.connect()
 
-// ⛔ RESTRICT, NEVER CASCADE, ON ALL THREE ORDER FKs. An order is a financial record: deleting an
-// account, a shop or a listing must not delete the evidence that money moved. Erasure redacts the
-// PII in place and leaves the row.
-await client.query(`
-  create table if not exists public."Order" (
-    "id"         text primary key,
-    "buyerId"    uuid not null references public."Profile"("id") on delete restrict,
-    "sellerId"   text not null references public."Seller"("id")  on delete restrict,
-    "listingId"  text not null references public."Listing"("id") on delete restrict,
-    "status"     text not null default 'pending',
-    "rail"       text,
-    "amount"     bigint not null,
-    "currency"   text not null default 'USD',
-    "railRef"    text,
-    "createdAt"  timestamp(3) not null default now(),
-    "updatedAt"  timestamp(3) not null default now(),
-    "paidAt"     timestamp(3)
-  );
-`)
-
-// ⚠️ THE UNIQUE ON railRef STOPS ONE RAIL PAYMENT BEING RECORDED AGAINST TWO ORDERS. It does NOT,
-// on its own, settle a race between two deliveries for the SAME order — a reviewer pointed out that
-// both writing the same ref to the same row violates nothing. That race is closed in the caller, by
-// making the settlement a conditional update (`where "status" = 'awaiting_payment'`) and acting only
-// when it changed a row. Both guards are needed and they cover different collisions.
-await client.query(`create unique index if not exists "Order_railRef_key" on public."Order" ("railRef");`)
-
 /**
- * ⛔ THE LISTING MUST BELONG TO THE SELLER BEING PAID, AND ONLY THE DATABASE CAN GUARANTEE THAT.
- * `sellerId` and `listingId` were two independent foreign keys, so nothing stopped an order that
- * DISPLAYS Seller A's listing from SETTLING to Seller B — a reviewer walked straight to it. A
- * composite FK on (listingId, sellerId) referencing Listing(id, sellerId) makes the pairing an
- * integrity constraint rather than something every caller has to remember to check.
- *
- * ⚠️ THE REFERENCED PAIR NEEDS ITS OWN UNIQUE INDEX — Postgres will only accept a composite FK
- * against a unique key. `Listing.id` is already unique, so (id, sellerId) is trivially unique too;
- * the index exists solely to let the FK be declared.
- * ⚠️ NOT EXPRESSIBLE IN prisma/schema.prisma, which is why it lives here and why the schema carries
- * a pointer to this file. Prisma has no multi-column relation to a non-primary unique key of this
- * shape, so losing this script would silently lose the constraint.
+ * ⛔ ONE TRANSACTION, SO A FAILURE LEAVES NOTHING HALF-APPLIED. Postgres has transactional DDL and
+ * this script did not use it: the first version named the Prisma MODEL instead of the mapped table
+ * in its final ALTER, which would have aborted after three tables and six indexes were already
+ * committed. Every statement here is `if not exists`, so a re-run converges either way — but
+ * "converges on the second try" is a worse guarantee than "never lands partially", and the flow
+ * CLAUDE.md documents for schema changes is explicitly BEGIN/COMMIT with ON_ERROR_STOP.
  */
-await client.query(`create unique index if not exists "Listing_id_sellerId_key" on public."Listing" ("id", "sellerId");`)
-await client.query(`
-  do $$
-  begin
-    if not exists (select 1 from pg_constraint where conname = 'Order_listing_belongs_to_seller') then
-      alter table public."Order"
-        add constraint "Order_listing_belongs_to_seller"
-        foreign key ("listingId", "sellerId")
-        references public."Listing" ("id", "sellerId")
-        on delete restrict;
-    end if;
-  end $$;
-`)
-await client.query(`create index if not exists "Order_buyerId_createdAt_idx"  on public."Order" ("buyerId", "createdAt");`)
-await client.query(`create index if not exists "Order_sellerId_createdAt_idx" on public."Order" ("sellerId", "createdAt");`)
-await client.query(`create index if not exists "Order_status_idx"             on public."Order" ("status");`)
-
-// Append-only audit. CASCADE here is right and the opposite of the Order FKs: an event has no
-// meaning without its order, and orders are never deleted anyway.
-await client.query(`
-  create table if not exists public."OrderEvent" (
-    "id"         text primary key,
-    "orderId"    text not null references public."Order"("id") on delete cascade,
-    "type"       text not null,
-    "fromStatus" text not null,
-    "toStatus"   text not null,
-    "actorId"    uuid,
-    "metaJson"   text,
-    "createdAt"  timestamp(3) not null default now()
-  );
-`)
-await client.query(`create index if not exists "OrderEvent_orderId_createdAt_idx" on public."OrderEvent" ("orderId", "createdAt");`)
-
-// ⚠️ THE ADDRESS, NEVER A KEY. The signer lives at Crossmint (a server signer the user authorises
-// once); this row is a pointer so we can read a balance and address a transfer.
-await client.query(`
-  create table if not exists public."CustodyWallet" (
-    "id"        text primary key,
-    "profileId" uuid not null unique references public."Profile"("id") on delete cascade,
-    "provider"  text not null default 'crossmint',
-    "chain"     text not null,
-    "address"   text not null,
-    "createdAt" timestamp(3) not null default now()
-  );
-`)
-// ⚠️ (provider, CHAIN, address). The same address exists on `base` and `base-sepolia`, so a key
-// without the chain is precisely what would let a staging wallet collide with a production one.
-await client.query(`create unique index if not exists "CustodyWallet_provider_chain_address_key" on public."CustodyWallet" ("provider", "chain", "address");`)
-await client.query(`create index if not exists "CustodyWallet_profileId_idx" on public."CustodyWallet" ("profileId");`)
-
 /**
- * ⛔ RESIDENCE ON THE IDENTITY RECORD, AND WITHOUT IT THE WALLET CAN NEVER BE PROVISIONED FOR
- * ANYONE. The settlement rules turn on where a person LIVES, and the only thing the app could
- * derive from a document was Vietnamese residence or nothing — both of which read as Vietnamese, so
- * every user was ineligible. This column is where a source that actually verified an address puts
- * its answer (the payment provider's own KYC; they run it natively and are the regulated party).
- * ⛔ AND `residenceSource` IS WHY THE COUNTRY CAN BE TRUSTED. The country alone is just a column,
- * and the first thing to write it — a form field, a CSV backfill, a hopeful admin — would silently
- * become the rule deciding who may hold a stablecoin wallet. identity.ts honours the country ONLY
- * when this names an address-verifying source, so the two columns must always be written together.
- * ⚠️ NULLABLE AND UNPOPULATED IS THE SAFE STATE: unknown residence is treated as Vietnam.
+ * ⛔ A THROW MUST ROLL BACK AND CLOSE, NOT JUST EXIT. A reviewer pointed out the whole body ran
+ * outside any error handling: a failing statement left an open transaction and an open connection,
+ * and while process exit tidies both in practice, "in practice" is not what you want holding a lock
+ * on a production table. The rollback is explicit and the disconnect is in `finally`.
  */
-await client.query(`
-  alter table public."IdentityVerification"
-    add column if not exists "residenceCountry" char(3),
-    add column if not exists "residenceSource" text;
-`)
+try {
+  await client.query('begin')
 
-const { rows } = await client.query(`
-  select table_name, (select count(*) from information_schema.columns c where c.table_name = t.table_name) as cols
-  from information_schema.tables t
-  where table_schema = 'public' and table_name in ('Order','OrderEvent','CustodyWallet')
-  order by table_name;
-`)
-console.log('payment tables:')
-for (const r of rows) console.log(`  ${r.table_name} (${r.cols} columns)`)
-if (rows.length !== 3) { console.error('expected 3 tables'); process.exitCode = 1 }
+  /**
+   * ⛔ FAIL FAST RATHER THAN QUEUE, BECAUSE THE TRANSACTION MADE THE LOCKS WORSE. A reviewer traced
+   * what wrapping this in one transaction actually costs: `create unique index` on `Listing` takes a
+   * SHARE lock now held until COMMIT instead of until the statement ends, and the two
+   * `alter table identity_verifications` statements need ACCESS EXCLUSIVE — which queues behind any
+   * open read of that table AND, while queued, blocks every new KYC write behind it. A migration
+   * that waits is how a "safe, additive" script takes the site down.
+   * ⚠️ 5s TO ACQUIRE, 60s TO RUN. Losing the lock race aborts the transaction and changes nothing;
+   * the script is re-runnable, so retrying in a quiet moment costs nothing and blocking production
+   * costs a great deal.
+   */
+  await client.query("set local lock_timeout = '5s'")
+  await client.query("set local statement_timeout = '60s'")
 
-// ⚠️ THE COLUMNS ARE VERIFIED TOO, not just the tables. `add column if not exists` is silent on
-// success and on no-op alike, so a run that did nothing looks exactly like a run that worked.
-const { rows: cols } = await client.query(`
-  select column_name from information_schema.columns
-  where table_schema = 'public' and table_name = 'IdentityVerification'
-    and column_name in ('residenceCountry','residenceSource');
-`)
-console.log(`IdentityVerification residence columns: ${cols.map((c) => c.column_name).sort().join(', ') || '(none)'}`)
-if (cols.length !== 2) { console.error('expected residenceCountry + residenceSource'); process.exitCode = 1 }
+  // ⛔ RESTRICT, NEVER CASCADE, ON ALL THREE ORDER FKs. An order is a financial record: deleting an
+  // account, a shop or a listing must not delete the evidence that money moved. Erasure redacts the
+  // PII in place and leaves the row.
+  await client.query(`
+    create table if not exists public."Order" (
+      "id"         text primary key,
+      "buyerId"    uuid not null references public."Profile"("id") on delete restrict,
+      "sellerId"   text not null references public."Seller"("id")  on delete restrict,
+      "listingId"  text not null references public."Listing"("id") on delete restrict,
+      "status"     text not null default 'pending',
+      "rail"       text,
+      "amount"     bigint not null,
+      "currency"   text not null default 'USD',
+      "railRef"    text,
+      "createdAt"  timestamp(3) not null default now(),
+      "updatedAt"  timestamp(3) not null default now(),
+      "paidAt"     timestamp(3)
+    );
+  `)
 
-await client.end()
+  // ⚠️ THE UNIQUE ON railRef STOPS ONE RAIL PAYMENT BEING RECORDED AGAINST TWO ORDERS. It does NOT,
+  // on its own, settle a race between two deliveries for the SAME order — a reviewer pointed out that
+  // both writing the same ref to the same row violates nothing. That race is closed in the caller, by
+  // making the settlement a conditional update (`where "status" = 'awaiting_payment'`) and acting only
+  // when it changed a row. Both guards are needed and they cover different collisions.
+  await client.query(`create unique index if not exists "Order_railRef_key" on public."Order" ("railRef");`)
+
+  /**
+   * ⛔ THE LISTING MUST BELONG TO THE SELLER BEING PAID, AND ONLY THE DATABASE CAN GUARANTEE THAT.
+   * `sellerId` and `listingId` were two independent foreign keys, so nothing stopped an order that
+   * DISPLAYS Seller A's listing from SETTLING to Seller B — a reviewer walked straight to it. A
+   * composite FK on (listingId, sellerId) referencing Listing(id, sellerId) makes the pairing an
+   * integrity constraint rather than something every caller has to remember to check.
+   *
+   * ⚠️ THE REFERENCED PAIR NEEDS ITS OWN UNIQUE INDEX — Postgres will only accept a composite FK
+   * against a unique key. `Listing.id` is already unique, so (id, sellerId) is trivially unique too;
+   * the index exists solely to let the FK be declared.
+   * ⚠️ NOT EXPRESSIBLE IN prisma/schema.prisma, which is why it lives here and why the schema carries
+   * a pointer to this file. Prisma has no multi-column relation to a non-primary unique key of this
+   * shape, so losing this script would silently lose the constraint.
+   */
+  await client.query(`create unique index if not exists "Listing_id_sellerId_key" on public."Listing" ("id", "sellerId");`)
+  await client.query(`
+    do $$
+    begin
+      -- ⚠️ SCOPED BY conrelid. A constraint name is unique per TABLE in Postgres, not per database, so
+      -- a same-named constraint on any other table made this guard skip the creation while the check
+      -- at the bottom still counted it as present. Two reviewers found it.
+      if not exists (select 1 from pg_constraint
+                     where conname = 'Order_listing_belongs_to_seller'
+                       and conrelid = 'public."Order"'::regclass) then
+        alter table public."Order"
+          add constraint "Order_listing_belongs_to_seller"
+          foreign key ("listingId", "sellerId")
+          references public."Listing" ("id", "sellerId")
+          on delete restrict;
+      end if;
+    end $$;
+  `)
+  await client.query(`create index if not exists "Order_buyerId_createdAt_idx"  on public."Order" ("buyerId", "createdAt");`)
+  await client.query(`create index if not exists "Order_sellerId_createdAt_idx" on public."Order" ("sellerId", "createdAt");`)
+  await client.query(`create index if not exists "Order_status_idx"             on public."Order" ("status");`)
+
+  // Append-only audit. CASCADE here is right and the opposite of the Order FKs: an event has no
+  // meaning without its order, and orders are never deleted anyway.
+  await client.query(`
+    create table if not exists public."OrderEvent" (
+      "id"         text primary key,
+      "orderId"    text not null references public."Order"("id") on delete cascade,
+      "type"       text not null,
+      "fromStatus" text not null,
+      "toStatus"   text not null,
+      "actorId"    uuid,
+      "metaJson"   text,
+      "createdAt"  timestamp(3) not null default now()
+    );
+  `)
+  await client.query(`create index if not exists "OrderEvent_orderId_createdAt_idx" on public."OrderEvent" ("orderId", "createdAt");`)
+
+  // ⚠️ THE ADDRESS, NEVER A KEY. The signer lives at Crossmint (a server signer the user authorises
+  // once); this row is a pointer so we can read a balance and address a transfer.
+  //
+  // ⚠️ ONE WALLET PER PROFILE IS DELIBERATE, mirroring `profileId @unique` in schema.prisma. Two
+  // reviewers read the `(provider, chain, address)` key as intending several wallets per person; it
+  // does not. That key exists so the SAME address on `base` and `base-sepolia` cannot collide — a
+  // staging wallet masquerading as a production one. If multi-chain custody is ever wanted, the
+  // `profileId` unique is what must change, in the Prisma schema first.
+  await client.query(`
+    create table if not exists public."CustodyWallet" (
+      "id"        text primary key,
+      "profileId" uuid not null unique references public."Profile"("id") on delete cascade,
+      "provider"  text not null default 'crossmint',
+      "chain"     text not null,
+      "address"   text not null,
+      "createdAt" timestamp(3) not null default now()
+    );
+  `)
+  // ⚠️ (provider, CHAIN, address). The same address exists on `base` and `base-sepolia`, so a key
+  // without the chain is precisely what would let a staging wallet collide with a production one.
+  await client.query(`create unique index if not exists "CustodyWallet_provider_chain_address_key" on public."CustodyWallet" ("provider", "chain", "address");`)
+  await client.query(`create index if not exists "CustodyWallet_profileId_idx" on public."CustodyWallet" ("profileId");`)
+
+  /**
+   * ⛔ RESIDENCE ON THE IDENTITY RECORD, AND WITHOUT IT THE WALLET CAN NEVER BE PROVISIONED FOR
+   * ANYONE. The settlement rules turn on where a person LIVES, and the only thing the app could
+   * derive from a document was Vietnamese residence or nothing — both of which read as Vietnamese, so
+   * every user was ineligible. This column is where a source that actually verified an address puts
+   * its answer (the payment provider's own KYC; they run it natively and are the regulated party).
+   * ⛔ AND `residenceSource` IS WHY THE COUNTRY CAN BE TRUSTED. The country alone is just a column,
+   * and the first thing to write it — a form field, a CSV backfill, a hopeful admin — would silently
+   * become the rule deciding who may hold a stablecoin wallet. identity.ts honours the country ONLY
+   * when this names an address-verifying source, so the two columns must always be written together.
+   * ⚠️ NULLABLE AND UNPOPULATED IS THE SAFE STATE: unknown residence is treated as Vietnam.
+   */
+  // ⚠️ `identity_verifications`, NOT `IdentityVerification`. This model is one of the few carrying an
+  // `@@map`, so the Prisma model name and the real table name differ — and raw SQL, unlike the client,
+  // does not do that translation for you. The first version named the model, which meant this ALTER
+  // would have failed with 42P01 AFTER the three tables above had already been created, leaving a
+  // half-applied migration behind. Only the TABLE is mapped; the columns stay camelCase.
+  await client.query(`
+    alter table public."identity_verifications"
+      add column if not exists "residenceCountry" char(3),
+      add column if not exists "residenceSource" text;
+  `)
+
+  /**
+   * ⛔ THE TWO RESIDENCE COLUMNS ARE NOW A DATABASE INVARIANT, NOT A COMMENT ASKING NICELY. The note
+   * above says they "must always be written together"; a reviewer pointed out nothing enforced it, so
+   * any partial write — a backfill, a manual UPDATE, a future adapter — could leave a country with no
+   * provenance. identity.ts would ignore such a row (it demands an address-verifying source), so the
+   * failure is a silently unprovisioned user rather than an unlawful wallet; the constraint makes the
+   * bad state unrepresentable instead of merely unread.
+   * ⚠️ A SOURCE WITHOUT A COUNTRY IS FINE — that is a provider that answered "I could not establish
+   * one". It is the country without provenance that must not exist.
+   */
+  /**
+   * ⚠️ DROP-THEN-ADD, THE ONE PLACE THIS SCRIPT IS NOT PURELY ADDITIVE, AND DELIBERATELY SO. The
+   * constraint is owned by this script and nothing else creates it; an `if not exists` guard would
+   * pin the FIRST definition forever, so a corrected rule — as happened here, when `is not null`
+   * turned out to accept an empty string — could never take effect on a database that already ran it.
+   * Both statements are inside the transaction, so there is no window where the table is unprotected.
+   */
+  await client.query(`
+    alter table public."identity_verifications"
+      drop constraint if exists "identity_verifications_residence_provenance";
+  `)
+  await client.query(`
+    alter table public."identity_verifications"
+      add constraint "identity_verifications_residence_provenance"
+      check ("residenceCountry" is null or ("residenceSource" is not null and "residenceSource" <> ''));
+  `)
+
+  const { rows } = await client.query(`
+    select table_name, (select count(*) from information_schema.columns c where c.table_name = t.table_name) as cols
+    from information_schema.tables t
+    where table_schema = 'public' and table_name in ('Order','OrderEvent','CustodyWallet')
+    order by table_name;
+  `)
+  console.log('payment tables:')
+  for (const r of rows) console.log(`  ${r.table_name} (${r.cols} columns)`)
+  if (rows.length !== 3) { console.error('expected 3 tables'); process.exitCode = 1 }
+
+  // ⚠️ THE COLUMNS ARE VERIFIED TOO, not just the tables. `add column if not exists` is silent on
+  // success and on no-op alike, so a run that did nothing looks exactly like a run that worked.
+  const { rows: cols } = await client.query(`
+    select column_name from information_schema.columns
+    where table_schema = 'public' and table_name = 'identity_verifications'
+      and column_name in ('residenceCountry','residenceSource');
+  `)
+  console.log(`IdentityVerification residence columns: ${cols.map((c) => c.column_name).sort().join(', ') || '(none)'}`)
+  if (cols.length !== 2) { console.error('expected residenceCountry + residenceSource'); process.exitCode = 1 }
+
+  // ⚠️ SCOPED BY TABLE HERE TOO — otherwise a same-named constraint elsewhere lets this assertion
+  // report success over an unprotected table, which is worse than having no assertion.
+  const { rows: chk } = await client.query(`
+    select conname from pg_constraint
+    where (conname = 'Order_listing_belongs_to_seller' and conrelid = 'public."Order"'::regclass)
+       or (conname = 'identity_verifications_residence_provenance'
+           and conrelid = 'public."identity_verifications"'::regclass);
+  `)
+  console.log(`integrity constraints: ${chk.map((c) => c.conname).sort().join(', ') || '(none)'}`)
+  if (chk.length !== 2) { console.error('expected both integrity constraints'); process.exitCode = 1 }
+
+  /**
+   * ⛔ AND THE MONEY-CRITICAL OBJECTS ARE CHECKED BY DEFINITION, NOT BY NAME. `create ... if not
+   * exists` matches on the NAME only, so a pre-existing `Order_railRef_key` that is not unique, or
+   * a composite FK pointing at different columns, is silently accepted and every assertion above
+   * still passes. A reviewer put it exactly right: the script would commit while advertising an
+   * invariant it had not established. These two are checked because they are the ones that hold
+   * money — one rail payment against two orders, and paying the wrong seller for a listing.
+   * ⚠️ NOT A FULL SCHEMA DIFF, and deliberately not: verifying every column and FK here would be a
+   * second, drifting copy of prisma/schema.prisma. Prisma is the check for the rest — it fails at
+   * runtime on a column that is not there.
+   */
+  const { rows: shape } = await client.query(`
+    select
+      (select indisunique from pg_index
+        where indexrelid = 'public."Order_railRef_key"'::regclass) as railref_unique,
+      (select pg_get_constraintdef(oid) from pg_constraint
+        where conname = 'Order_listing_belongs_to_seller'
+          and conrelid = 'public."Order"'::regclass) as listing_fk;
+  `)
+  const railRefUnique = shape[0]?.railref_unique === true
+  const fkDef = String(shape[0]?.listing_fk ?? '')
+  const fkCorrect = /\("listingId", "sellerId"\)/.test(fkDef) && /REFERENCES "Listing"\(id, "sellerId"\)/.test(fkDef)
+  console.log(`Order_railRef_key unique: ${railRefUnique} | listing→seller FK targets the right pair: ${fkCorrect}`)
+  if (!railRefUnique || !fkCorrect) {
+    console.error('a money-critical object exists under the right name with the wrong definition')
+    process.exitCode = 1
+  }
+
+  // ⛔ COMMIT ONLY IF EVERY ASSERTION PASSED. A verification that reports a problem and then commits
+  // anyway is not a verification.
+  if (process.exitCode) { console.error('rolling back — assertions failed'); await client.query('rollback') }
+  else { await client.query('commit') }
+} catch (e) {
+  console.error('FAILED, rolling back:', e instanceof Error ? e.message : e)
+  try { await client.query('rollback') } catch { /* the connection may already be gone */ }
+  process.exitCode = 1
+} finally {
+  await client.end()
+}
+
