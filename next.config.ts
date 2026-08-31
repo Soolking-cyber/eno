@@ -677,6 +677,20 @@ const nextConfig: NextConfig = {
             // strings land in eno.vn's SERVER chunks instead of its client ones. Less visible,
             // same standard: not in the artifact.
             "@/lib/prohibited-services-copy": "./src/lib/prohibited-services-copy.stub.ts",
+
+            /**
+             * ⛔ THE WALLET ADAPTER, FOR THE SAME REASON AND WITH THE SAME EVIDENCE. eno.vn is
+             * deliberately paymentless (owner, 2026-08-30), and the adapter already refuses to run
+             * on this edition — `IS_SERVICES` is checked inside it AND at its call site in
+             * kyc/on-verified.ts. That is a gate, and a gate decides what renders. Measured on a
+             * marketplace build before this alias: `.next/server` carried `staging.crossmint.com`,
+             * `adminSigner`, `usdxm` and `base-sepolia`. The client bundle was already clean, which
+             * is exactly the shape that makes this easy to conclude is unnecessary — it is not.
+             * ⚠️ THE STUB KEEPS THE `Result` SHAPE and answers `wrong_edition`, never
+             * `not_configured`: the provisioning hook treats those differently, and the wrong one
+             * would queue marketplace users for a wallet this edition may never create.
+             */
+            "@/lib/payments/crossmint": "./src/lib/payments/crossmint.stub.ts",
           },
         }
       : {}),

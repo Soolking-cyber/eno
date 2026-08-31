@@ -119,6 +119,16 @@ describe.each([
   // `SERVICES_ALL` existing at all: a rename in the real module with no rename here is a green
   // typecheck and `undefined.includes(...)` on eno.vn the first time apiErrorCode() runs.
   ['api/errors-services', 'src/lib/api/errors-services.ts', 'src/lib/api/errors-services.stub.ts'],
+  /**
+   * ⛔ THE WALLET ADAPTER, AND THE PARITY HERE IS ABOUT SHAPES AS WELL AS NAMES. eno.vn is
+   * deliberately paymentless, so the real module is aliased away — but every export is a FUNCTION
+   * the KYC provisioning hook calls and whose `Result` it branches on. A stub missing one is a
+   * crash on the approval path; a stub returning the wrong `reason` is worse and quieter, because
+   * `not_configured` means "eligible, credentials missing, retry later" while `wrong_edition` means
+   * "this build never will" — hand back the former and every marketplace approval queues a user for
+   * a wallet that cannot exist. The inertness check below covers the shape.
+   */
+  ['payments/crossmint', 'src/lib/payments/crossmint.ts', 'src/lib/payments/crossmint.stub.ts'],
   ['ui-strings.services', 'src/generated/ui-strings.services.ts', 'src/generated/ui-strings.services.stub.ts'],
 ])('%s stub', (_label, realPath, stubPath) => {
   it('exports every name the real module exports', () => {
@@ -165,6 +175,7 @@ describe('alias coverage', () => {
     'src/components/marketplace/visa-start.tsx',
     'src/generated/ui-strings.services.ts',
     'src/lib/api/errors-services.ts',
+    'src/lib/payments/crossmint.ts',
   ])
 
   it('finds the alias map (so the checks below are not vacuous)', () => {

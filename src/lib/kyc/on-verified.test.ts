@@ -12,6 +12,17 @@ const h = vi.hoisted(() => ({
   logs: [] as unknown[][],
   throwOnLog: false,
   errors: [] as string[],
+  existingWallet: null as { id: string } | null,
+  rowsCreated: [] as Record<string, unknown>[],
+  createCalls: [] as string[],
+  createRowError: null as string | null,
+  createRowTarget: ['profileId'] as string[],
+  lookupThrows: false,
+  lookups: 0,
+  walletAfterRace: null as { address: string } | null,
+  config: { env: 'staging', chain: 'base-sepolia' } as Record<string, unknown> | null,
+  configBroken: false,
+  createResult: { ok: true, value: { address: '0xabc0000000000000000000000000000000000001', chain: 'base-sepolia', provider: 'crossmint' } } as Record<string, unknown>,
 }))
 
 vi.mock('@/lib/log', () => ({
@@ -20,8 +31,37 @@ vi.mock('@/lib/log', () => ({
   logWarn: (...a: unknown[]) => { if (h.throwOnLog) throw new Error('log transport down'); h.logs.push(['warn', ...a]) },
 }))
 
-// The read model needs a db to import; nothing in this file reaches one.
-vi.mock('@/lib/db', () => ({ db: {} }))
+vi.mock('@/lib/db', () => ({
+  db: {
+    custodyWallet: {
+      findUnique: async () => {
+        if (h.lookupThrows) { const e = new Error('db down') as Error & { code?: string }; e.code = 'P1001'; throw e }
+        h.lookups++
+        // ⚠️ THE SECOND LOOKUP IS THE POST-P2002 RE-READ, and it must be able to answer differently
+        // from the first: that is the whole mechanism for telling a concurrent race from a
+        // cross-account collision.
+        return h.lookups > 1 ? h.walletAfterRace : h.existingWallet
+      },
+      create: async (args: { data: Record<string, unknown> }) => {
+        if (h.createRowError) {
+          const e = new Error('row') as Error & { code?: string; meta?: { target?: string[] } }
+          e.code = h.createRowError; e.meta = { target: h.createRowTarget }
+          throw e
+        }
+        h.rowsCreated.push(args.data); return args.data
+      },
+    },
+  },
+}))
+
+// ⚠️ THE ADAPTER IS MOCKED, NOT THE NETWORK. Its own suite (crossmint.test.ts) covers the HTTP
+// contract against a stubbed fetch; what THIS file has to prove is how each adapter ANSWER maps to
+// a provisioning outcome, which is a different question and the one that reached production wrong.
+vi.mock('@/lib/payments/crossmint', () => ({
+  createWallet: async (profileId: string) => { h.createCalls.push(profileId); return h.createResult },
+  crossmintConfig: () => h.config,
+  configState: () => (h.config ? 'ok' : h.configBroken ? 'broken' : 'absent'),
+}))
 
 /**
  * ⛔ ONLY THE READS ARE STUBBED — `railsFor` IS THE REAL ONE. A reviewer pointed out that stubbing
@@ -50,6 +90,11 @@ const PROFILE = '11111111-2222-4333-8444-555555555555'
 
 beforeEach(() => {
   h.readCalls = 0; h.cachedCalls = 0; h.hang = false; h.logs = []; h.throwOnLog = false; h.errors = []
+  h.existingWallet = null; h.rowsCreated = []; h.createCalls = []; h.createRowError = null
+  h.createRowTarget = ['profileId']; h.lookupThrows = false
+  h.lookups = 0; h.walletAfterRace = null
+  h.config = { env: 'staging', chain: 'base-sepolia' }; h.configBroken = false
+  h.createResult = { ok: true, value: { address: '0xabc0000000000000000000000000000000000001', chain: 'base-sepolia', provider: 'crossmint' } }
   // ⚠️ EVERY ELIGIBILITY TEST STUBS THE ALLOW-LIST OPEN. Two reviewers found the denial tests
   // vacuous without it: `PAYMENTS_SETTLEMENT_COUNTRIES` is empty by default, so a gate broken shut
   // passes them exactly as happily as a gate that is working.
@@ -131,10 +176,150 @@ describe('provisionForVerifiedIdentity', () => {
     }
   })
 
-  it('reports pending_provider for someone who SHOULD get a wallet', async () => {
-    // Honest about the true state: the adapter is not built, so an eligible user is neither
-    // `created` (a lie) nor `skipped_ineligible` (a lie about the law).
+  it('creates the wallet and records it for someone eligible', async () => {
+    expect(await provisionForVerifiedIdentity(PROFILE)).toEqual({ wallet: 'created' })
+    expect(h.createCalls).toEqual([PROFILE])
+    expect(h.rowsCreated[0]).toMatchObject({
+      profileId: PROFILE, provider: 'crossmint', chain: 'base-sepolia',
+      address: '0xabc0000000000000000000000000000000000001',
+    })
+  })
+
+  it('⛔ an existing wallet is ADOPTED, never duplicated — and the provider is not called', async () => {
+    // A second approval, a retry after a timeout, and a backfill over already-verified users all
+    // reach here. Asking the provider again each time is how one person ends up with three wallets.
+    h.existingWallet = { chain: 'base-sepolia', provider: 'crossmint', address: '0xabc' } as never
+    expect(await provisionForVerifiedIdentity(PROFILE)).toEqual({ wallet: 'existing' })
+    expect(h.createCalls).toEqual([])
+  })
+
+  it('⛔ a BROKEN config is `failed` and warns — not "waiting for credentials"', async () => {
+    // The early return mapped `absent` and `broken` to the same answer while createWallet mapped
+    // them differently, so a half-configured eno.forum deploy told every eligible approval to wait
+    // for credentials that had already been supplied, wrongly.
+    h.config = null; h.configBroken = true
+    expect(await provisionForVerifiedIdentity(PROFILE)).toEqual({ wallet: 'failed' })
+    expect(h.logs[0]?.[0]).toBe('warn')
+  })
+
+  it('⛔ the race re-read compares the ADDRESS, or the new wallet is orphaned', async () => {
+    // If the winning row points at a different address, this call's freshly created provider wallet
+    // is unreferenced while we report `existing`.
+    h.createRowError = 'P2002'
+    h.walletAfterRace = { chain: 'base-sepolia', provider: 'crossmint', address: '0xdifferent' } as never
+    expect(await provisionForVerifiedIdentity(PROFILE)).toEqual({ wallet: 'failed' })
+  })
+
+  it('⛔ without a usable config, an existing row is NOT declared fine', async () => {
+    // The chain check was skipped whenever crossmintConfig() returned null, so a broken environment
+    // answered `existing` for a wallet it had no way to validate. Without a config we can neither
+    // provision nor check — the honest answer is the one the createWallet path would have given.
+    h.config = null
+    h.existingWallet = { chain: 'base-sepolia', provider: 'crossmint', address: '0xabc' } as never
     expect(await provisionForVerifiedIdentity(PROFILE)).toEqual({ wallet: 'pending_provider' })
+  })
+
+  it('⛔ a wallet on ANOTHER CHAIN is not adopted — it is surfaced', async () => {
+    /**
+     * ⛔ BOTH EDITIONS SHARE ONE DATABASE, so a profile provisioned while the deploy carried staging
+     * keys meets a production deploy later and — matching by profileId alone — answered `existing`
+     * forever. The user reads as provisioned while their wallet sits on a testnet nobody can pay
+     * them through. `profileId` is unique by design, so a second row is impossible: this needs a
+     * human, and the outcome has to say so rather than go quiet.
+     */
+    h.existingWallet = { chain: 'base-sepolia', provider: 'crossmint', address: '0xabc' } as never
+    h.config = { env: 'production', chain: 'base' }
+    expect(await provisionForVerifiedIdentity(PROFILE)).toEqual({ wallet: 'wrong_chain' })
+    expect(h.logs[0]?.[0]).toBe('warn')
+  })
+
+  it('⛔ the P2002 RE-READ applies the chain check too, or it defeats wrong_chain', async () => {
+    // The recovery path was the one meant to be safe: the winner of a staging/production race could
+    // leave the loser reporting `existing` over a wrong-chain row.
+    h.createRowError = 'P2002'
+    h.walletAfterRace = { chain: 'base-sepolia', provider: 'crossmint', address: '0xabc0000000000000000000000000000000000001' } as never
+    h.config = { env: 'production', chain: 'base' }
+    expect(await provisionForVerifiedIdentity(PROFILE)).toEqual({ wallet: 'wrong_chain' })
+  })
+
+  it('⛔ a DB outage AND a broken log transport still returns, never throws', async () => {
+    // The recovery branch logged without protection, so the one thing that swallows the outage
+    // could itself throw. Both failures at once is the state a reviewer named.
+    h.lookupThrows = true
+    h.throwOnLog = true
+    await expect(provisionForVerifiedIdentity(PROFILE)).resolves.toEqual({ wallet: 'failed' })
+  })
+
+  it('⛔ a concurrent approval losing the unique race is `existing`, not an error', async () => {
+    // Crossmint is idempotent by owner, so both callers got the SAME address (measured: 201 then
+    // 200, same address); the loser of the row insert has not failed at anything. The re-read is
+    // what sees the winner's row.
+    h.createRowError = 'P2002'
+    h.walletAfterRace = { chain: 'base-sepolia', provider: 'crossmint', address: '0xabc0000000000000000000000000000000000001' } as never
+    expect(await provisionForVerifiedIdentity(PROFILE)).toEqual({ wallet: 'existing' })
+  })
+
+  it('⛔ a DATABASE OUTAGE on the existence check does not propagate', async () => {
+    // Two reviewers found the one new read sitting outside every try. The approval survived anyway
+    // — provisionWithinBudget and review.ts both catch — but this function states its own
+    // never-throws contract, and a backfill calling it directly would have inherited the throw.
+    h.lookupThrows = true
+    await expect(provisionForVerifiedIdentity(PROFILE)).resolves.toEqual({ wallet: 'failed' })
+    expect(h.logs[0]?.[0]).toBe('warn')
+  })
+
+  it('⛔ a P2002 is resolved by RE-READING, whatever shape meta.target takes', async () => {
+    /**
+     * ⛔ TWO ATTEMPTS TO READ THE CONSTRAINT OFF THE ERROR WERE BOTH WRONG. First an array of field
+     * names; then, told a string was possible, an exact string match — but `@prisma/adapter-pg` can
+     * report the CONSTRAINT NAME (`CustodyWallet_profileId_key`, which fails `includes('profileId')`)
+     * or nothing at all, so the ordinary concurrent race took the cross-account branch. Re-reading
+     * answers the only question that matters — does THIS profile have a row now — for every driver
+     * and every target shape.
+     */
+    for (const target of [['profileId'], 'CustodyWallet_profileId_key', undefined, ['provider', 'chain', 'address']]) {
+      h.lookups = 0; h.createRowError = 'P2002'
+      h.createRowTarget = target as unknown as string[]
+      h.walletAfterRace = { chain: 'base-sepolia', provider: 'crossmint', address: '0xabc0000000000000000000000000000000000001' } as never // the concurrent approval's row is now visible
+      expect(await provisionForVerifiedIdentity(PROFILE), JSON.stringify(target)).toEqual({ wallet: 'existing' })
+    }
+  })
+
+  it('⛔ a P2002 with STILL no row for this profile is a cross-account collision, not `existing`', async () => {
+    // The address belongs to somebody else. Saying `existing` would tell the caller this user has a
+    // wallet when they have no row at all, and would bury the anomaly.
+    h.createRowError = 'P2002'
+    h.walletAfterRace = null
+    expect(await provisionForVerifiedIdentity(PROFILE)).toEqual({ wallet: 'failed' })
+    expect(h.logs[0]?.[0]).toBe('warn')
+  })
+
+  it('⛔ the stored address is LOWERCASED, so casing cannot evade the unique index', async () => {
+    // Crossmint returns EIP-55 mixed case; the index is case-sensitive and an EVM address is not.
+    h.createResult = { ok: true, value: { address: '0xAbCd000000000000000000000000000000000001', chain: 'base-sepolia', provider: 'crossmint' } }
+    await provisionForVerifiedIdentity(PROFILE)
+    expect(h.rowsCreated[0].address).toBe('0xabcd000000000000000000000000000000000001')
+  })
+
+  it('⛔ a wallet created at the provider but NOT recorded is `failed` AND logged with its address', async () => {
+    // The dangerous state: a wallet exists that we cannot address. It must be reconcilable by hand.
+    h.createRowError = 'P1001'
+    expect(await provisionForVerifiedIdentity(PROFILE)).toEqual({ wallet: 'failed' })
+    expect(JSON.stringify(h.logs)).toContain('0xabc0000000000000000000000000000000000001')
+  })
+
+  it('⚠️ no credentials is `pending_provider` — the ordinary state, not a failure to chase', async () => {
+    h.createResult = { ok: false, reason: 'not_configured' }
+    expect(await provisionForVerifiedIdentity(PROFILE)).toEqual({ wallet: 'pending_provider' })
+  })
+
+  it('⛔ a provider refusal or outage is `failed`, and warns', async () => {
+    for (const reason of ['provider_rejected', 'provider_unreachable']) {
+      h.logs = []
+      h.createResult = { ok: false, reason, detail: 'boom' }
+      expect(await provisionForVerifiedIdentity(PROFILE), reason).toEqual({ wallet: 'failed' })
+      expect(h.logs[0]?.[0], reason).toBe('warn')
+    }
   })
 
   it('⛔ a DUAL NATIONAL with a Vietnamese passport is refused on the WRITE path too', async () => {
@@ -262,7 +447,7 @@ describe('provisionForVerifiedIdentity', () => {
       // allow-list for RESIDENCE and asks only that nationality be known, ISO and not Vietnamese or
       // sanctioned. A Dutch national living in Britain never reaches the diagnosis at all.
       h.identity = { ...h.identity, nationality: 'NLD', nationalities: ['NLD'], residenceCountry: 'GBR' }
-      expect(await provisionForVerifiedIdentity(PROFILE)).toEqual({ wallet: 'pending_provider' })
+      expect(await provisionForVerifiedIdentity(PROFILE)).toEqual({ wallet: 'created' })
     })
 
     it('⛔ and with NO list configured, a BARRED user is still barred — not "awaiting"', async () => {
@@ -283,7 +468,7 @@ describe('provisionForVerifiedIdentity', () => {
     // code can actually get wrong: the round-three fix moved the logging INSIDE a try, and without
     // a test it could be hoisted back out and stay green.
     h.throwOnLog = true
-    await expect(provisionWithinBudget(PROFILE)).resolves.toEqual({ wallet: 'pending_provider' })
+    await expect(provisionWithinBudget(PROFILE)).resolves.toEqual({ wallet: 'created' })
   })
 })
 
@@ -300,6 +485,15 @@ describe('⛔ the marketplace edition provisions nothing at all', () => {
     const fresh = await import('./on-verified')
     expect(await fresh.provisionForVerifiedIdentity(PROFILE)).toEqual({ wallet: 'skipped_edition' })
     expect(h.readCalls, 'must not even read the identity').toBe(0)
+    /**
+     * ⛔ AND NOT THE WALLET TABLE EITHER. A reviewer claimed twice that `IS_SERVICES` was imported
+     * but never checked, so eno.vn would adopt a forum wallet out of the SHARED database. It is
+     * checked, first — but "the identity was not read" did not say so about custody, and the two
+     * editions really do share one database, so the claim deserved a direct answer rather than an
+     * adjacent one.
+     */
+    expect(h.lookups, 'must not touch the custody table').toBe(0)
+    expect(h.createCalls, 'must not reach the provider').toEqual([])
   })
 })
 

@@ -69,6 +69,8 @@
     "@capacitor/text-zoom": "^8.0.1",
     "@capawesome/capacitor-badge": "^8.0.2",
     "@google/genai": "^2.10.0",
+    "@noble/curves": "^2.4.0",
+    "@noble/hashes": "^2.4.0",
     "@prisma/adapter-pg": "^7.8.0",
     "@prisma/client": "^7.8.0",
     "@supabase/ssr": "^0.12.0",

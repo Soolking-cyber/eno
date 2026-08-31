@@ -1,6 +1,8 @@
 import 'server-only'
 import { readVerifiedIdentity, railsFor, isoNationality, type VerifiedIdentity } from './identity'
 import { logError, logInfo, logWarn } from '@/lib/log'
+import { db } from '@/lib/db'
+import { createWallet, crossmintConfig, configState } from '@/lib/payments/crossmint'
 import { settlementAllowedCountries, couldBeAllowListed } from '@/lib/payments/eligibility'
 import { IS_SERVICES } from '@/lib/edition'
 
@@ -29,6 +31,12 @@ export type ProvisionOutcome = {
     | 'skipped_ineligible'
     /** This build is the marketplace, which has no settlement layer at all. */
     | 'skipped_edition'
+    /**
+     * ⛔ THIS PROFILE ALREADY HOLDS A WALLET ON ANOTHER CHAIN — typically a staging wallet met by a
+     * production deploy, which is reachable because both editions share one database. `profileId`
+     * is unique, so a second row cannot be created; this needs a human, not a retry.
+     */
+    | 'wrong_chain'
     /**
      * ⚠️ THIS PERSON'S COUNTRY IS LAWFUL BUT NOT YET OPENED — again our configuration, not them.
      * A reviewer found the empty-list fix left the same defect one level deeper: a verified Dutch
@@ -63,9 +71,9 @@ export type ProvisionOutcome = {
     /** No live verification — nothing to provision against. */
     | 'skipped_unverified'
     /**
-     * ⚠️ ELIGIBLE, AND WAITING ON THE PROVIDER — not an error and not a skip. The Crossmint adapter
-     * and its credentials do not exist in any environment yet, so this is the honest answer for a
-     * user who SHOULD get a wallet. Reporting `failed` would send an eligible user to a retry that
+     * ⚠️ ELIGIBLE, AND THE PROVIDER IS NOT CONFIGURED HERE — not an error and not a skip. The
+     * adapter exists now, but an environment without `CROSSMINT_SERVER_SIDE_API_KEY` and a signer
+     * secret cannot create anything. Reporting `failed` would send an eligible user to a retry that
      * cannot succeed; reporting `skipped_ineligible` would be false about the law.
      */
     | 'pending_provider'
@@ -173,19 +181,172 @@ export async function provisionForVerifiedIdentity(profileId: string): Promise<P
   if (!railsFor(identity).includes('crossmint')) return { wallet: whyClosed(identity) }
 
   /**
-   * ⛔ THE ADAPTER IS NOT BUILT YET, AND THIS IS DELIBERATELY NOT A STUB THAT PRETENDS OTHERWISE.
-   * Creating the wallet needs `@crossmint/wallets-sdk`, a server API key with `wallets.create`
-   * scope and a signer secret — none of which exist in any environment yet. Saying
-   * `skipped_ineligible` here would be a lie about the law (they ARE eligible) and `created` would
-   * be worse. The hook, its gate and its call site are what this file lands; the provider call
-   * drops in exactly here.
-   *
-   * ⚠️ AND THE try/catch THAT WRAPPED THIS IS GONE UNTIL THERE IS SOMETHING TO CATCH — eslint was
-   * right that it was unreachable. It comes back WITH the provider call: a network failure there
-   * must resolve to `failed` and must never propagate, because the caller in review.ts is an admin
-   * approving a case and this is a side effect, not the decision.
+   * ⛔ THE EXISTING ROW IS CHECKED FIRST, AND THAT IS WHAT MAKES THIS SAFE TO RE-RUN. A second
+   * approval, a retry after a timeout, or a backfill over already-verified users all reach here;
+   * without this they would ask the provider for another wallet each time. Crossmint is idempotent
+   * by owner as well, so the two guards overlap on purpose — the row can be MISSING while the
+   * wallet exists (a crash between the provider call and the insert), and that case has to
+   * converge rather than duplicate.
    */
-  return { wallet: 'pending_provider' }
+  /**
+   * ⛔ THE CONFIG IS RESOLVED BEFORE THE ROW IS TRUSTED. A reviewer found the chain check silently
+   * skipped whenever `crossmintConfig()` returned null: an environment with missing or broken
+   * credentials would answer `existing` for a wallet it had no way to validate — possibly on
+   * another chain, possibly from another provider. Without a config we cannot provision and cannot
+   * check, so the honest answer is the one the createWallet path would have given anyway.
+   */
+  const state = configState()
+  // ⚠️ `absent` AND `broken` ARE DIFFERENT ANSWERS, and mapping them the same here contradicted the
+  // mapping a few lines below. `configState` exists so there is only one of them.
+  if (state === 'absent') return { wallet: 'pending_provider' }
+  if (state === 'broken') {
+    warn('crossmint is configured but unusable — an eligible user is blocked on a broken deploy', {
+      at: 'kyc.provision.config', profileId,
+    })
+    return { wallet: 'failed' }
+  }
+  const cfg = crossmintConfig()!
+
+  try {
+    const existing = await db.custodyWallet.findUnique({
+      where: { profileId }, select: { chain: true, provider: true, address: true },
+    })
+    if (existing) {
+      /**
+       * ⛔ ADOPTED ONLY IF IT IS ON THE CHAIN WE ARE ACTUALLY SETTLING ON. This matched by
+       * `profileId` alone, and a reviewer traced what that costs given two facts this codebase
+       * already states: the chain is part of a wallet's identity, and BOTH EDITIONS SHARE ONE
+       * DATABASE. A profile provisioned while the deploy carried staging keys — which `stagingFund`
+       * exists to make easy — would answer `existing` forever once production keys landed. The user
+       * reads as provisioned; their wallet is on a testnet nobody can pay them through.
+       * ⚠️ IT CANNOT BE FIXED BY CREATING A SECOND ROW: `profileId` is unique, deliberately. So the
+       * honest answer is a distinct outcome that says so loudly rather than a silent `existing`.
+       */
+      if (existing.chain !== cfg.chain || existing.provider !== 'crossmint') {
+        warn('profile holds a wallet on a different chain — it cannot settle here', {
+          at: 'kyc.provision.chain', profileId, held: existing.chain, expected: cfg.chain,
+          provider: existing.provider,
+        })
+        return { wallet: 'wrong_chain' }
+      }
+      return { wallet: 'existing' }
+    }
+  } catch (e) {
+    /**
+     * ⛔ THE ONE DATABASE READ WAS THE ONE UNGUARDED STATEMENT, and two reviewers found it. This
+     * function's contract is that it never propagates — the caller is an admin approving a case —
+     * and a transient DB error here would have rejected straight out of it. `provisionWithinBudget`
+     * and review.ts both catch as well, so the approval survived either way; what did not survive
+     * was the contract this file states about itself, and a future backfill calling
+     * `provisionForVerifiedIdentity` directly would have inherited the throw.
+     */
+    warn('could not check for an existing wallet', {
+      at: 'kyc.provision.lookup', profileId, code: (e as { code?: string })?.code,
+    })
+    return { wallet: 'failed' }
+  }
+
+  const created = await createWallet(profileId)
+  if (!created.ok) {
+    /**
+     * ⚠️ THE PROVIDER'S REFUSAL IS TRANSLATED, NOT PASSED THROUGH. `not_configured` is the ordinary
+     * state of an environment without keys and must not read as a failure someone should chase;
+     * everything else is a real failure worth a warning. The adapter never throws, so there is
+     * nothing to catch here — a network error already arrived as `provider_unreachable`.
+     */
+    if (created.reason === 'not_configured') return { wallet: 'pending_provider' }
+    if (created.reason === 'wrong_edition') return { wallet: 'skipped_edition' }
+    warn('wallet provider refused', { at: 'kyc.provision.create', profileId, reason: created.reason, detail: created.detail })
+    return { wallet: 'failed' }
+  }
+
+  /**
+   * ⛔ THE WALLET EXISTS AT THE PROVIDER BEFORE THIS ROW EXISTS HERE, and the failure that matters
+   * is losing the pointer to it. That is `failed`, logged with the address so it can be reconciled
+   * by hand.
+   * ✅ AND THE RETRY GENUINELY RECOVERS — MEASURED, NOT ASSUMED. Creating twice for the same owner
+   * on Crossmint staging returned 201 then 200 with the SAME address, so a crash between the
+   * provider call and this insert is repaired by simply running provisioning again. A reviewer was
+   * right to challenge the claim; the check is what turned it from an assumption into a fact.
+   */
+  /**
+   * ⛔ LOWERCASED BEFORE STORAGE, because the unique index is case-SENSITIVE and an EVM address is
+   * not. Crossmint returns EIP-55 checksummed mixed case (measured: `0x89DD714793278cA2FA8D477…`);
+   * if it ever answered the same address in another casing, `(provider, chain, address)` would see
+   * two different values and the same wallet could be recorded against two profiles. A reviewer
+   * found the tests only ever used lowercase. The checksum is a typo guard, not identity — the
+   * adapter has already validated the shape.
+   */
+  const address = created.value.address.toLowerCase()
+
+  try {
+    await db.custodyWallet.create({
+      data: { profileId, provider: created.value.provider, chain: created.value.chain, address },
+    })
+    return { wallet: 'created' }
+  } catch (e) {
+    const err = e as { code?: string; meta?: { target?: unknown } }
+    /**
+     * ⛔ WHICH UNIQUE CONSTRAINT FIRED MATTERS — AND THE ANSWER COMES FROM THE DATABASE, NOT FROM
+     * PARSING THE ERROR. `CustodyWallet` has two: `profileId`, and `(provider, chain, address)`. A
+     * `profileId` collision is benign, a concurrent approval that Crossmint answered with the same
+     * address (measured: 201 then 200, same address). A collision on the ADDRESS means the provider
+     * handed us a wallet already recorded against a DIFFERENT profile — an anomaly that must not be
+     * reported as this user having a wallet.
+     *
+     * ⚠️ TWO ATTEMPTS TO READ IT OFF `meta.target` WERE BOTH WRONG, which is why this asks instead.
+     * First it assumed an array of field names; then, told a string is possible, it wrapped the
+     * string and matched exactly — but under `@prisma/adapter-pg` the value can be the CONSTRAINT
+     * NAME (`CustodyWallet_profileId_key`, which fails `includes('profileId')`) or absent entirely,
+     * so the ordinary race would have taken the cross-account branch. A reviewer found the second
+     * version still broken. Re-reading answers the only question that actually matters — does THIS
+     * profile have a row now — for every driver, every target shape, and no string handling at all.
+     */
+    if (err.code === 'P2002') {
+      const settled = await db.custodyWallet
+        .findUnique({ where: { profileId }, select: { chain: true, provider: true, address: true } })
+        .catch(() => null)
+      /**
+       * ⚠️ THE RE-READ GETS THE SAME CHAIN CHECK AS ADOPTION, or it quietly defeats it. A reviewer
+       * spotted that the winner of a staging/production race could leave the loser reporting
+       * `existing` over a wrong-chain row — the exact state `wrong_chain` was added to surface,
+       * reachable through the recovery path that was meant to be the safe one.
+       */
+      if (settled) {
+        /**
+         * ⛔ THE ADDRESS IS COMPARED TOO. A reviewer spotted the re-read selecting only chain and
+         * provider: if the winning row pointed at a DIFFERENT address, this call's freshly created
+         * provider wallet would be orphaned while we reported `existing`. Crossmint is idempotent
+         * by owner, so the addresses SHOULD match — which is exactly why a mismatch is worth
+         * shouting about rather than assuming away.
+         */
+        // ⚠️ BOTH SIDES LOWERCASED. New rows are written lowercase, but a row that predates that —
+        // or one inserted by hand — would otherwise fail this comparison on casing alone and turn a
+        // benign race into a `failed`.
+        if (settled.address.toLowerCase() !== address) {
+          warn('the winning row of a provisioning race holds a DIFFERENT address', {
+            at: 'kyc.provision.race-address', profileId, held: settled.address, created: address,
+          })
+          return { wallet: 'failed' }
+        }
+        if (settled.chain !== cfg.chain || settled.provider !== 'crossmint') {
+          warn('the winning row of a provisioning race is on a different chain', {
+            at: 'kyc.provision.race-chain', profileId, held: settled.chain, expected: cfg.chain,
+          })
+          return { wallet: 'wrong_chain' }
+        }
+        return { wallet: 'existing' }
+      }
+      warn('wallet address already recorded against another profile — do not retry blindly', {
+        at: 'kyc.provision.collision', profileId, address, target: err.meta?.target,
+      })
+      return { wallet: 'failed' }
+    }
+    warn('wallet created at provider but NOT recorded — reconcile by address', {
+      at: 'kyc.provision.record', profileId, address, chain: created.value.chain, code: err.code,
+    })
+    return { wallet: 'failed' }
+  }
 }
 
 /**
@@ -200,6 +361,16 @@ export async function provisionForVerifiedIdentity(profileId: string): Promise<P
  * wallet yet and `provisionForVerifiedIdentity` is re-runnable — it is idempotent precisely so this
  * is recoverable. Losing the approval would mean an admin re-reviewing a decided case.
  */
+/**
+ * ⚠️ A LOG IN A RECOVERY BRANCH MUST NOT BE ABLE TO UNDO THE RECOVERY. `provisionWithinBudget`
+ * already wrapped its own logging after a reviewer pointed out the irony; the same reviewer then
+ * found every `logWarn` inside `provisionForVerifiedIdentity`'s catch branches still bare, so a
+ * database outage PLUS a broken log transport threw out of the function that exists to swallow it.
+ */
+function warn(message: string, ctx: Record<string, unknown>): void {
+  try { logWarn(message, ctx) } catch { /* a lost log line must never cost more than itself */ }
+}
+
 export const PROVISION_BUDGET_MS = 8_000
 
 export async function provisionWithinBudget(profileId: string): Promise<ProvisionOutcome> {
@@ -246,7 +417,7 @@ export async function provisionWithinBudget(profileId: string): Promise<Provisio
     // ⚠️ THE THREE `awaiting_*` OUTCOMES ARE NOT HERE ON PURPOSE — each is an ordinary state of a
     // user waiting on US, and warning on them would make the channel useless by volume.
     const needsAttention = ['timed_out', 'failed', 'unmappable_nationality']
-    if (needsAttention.includes(outcome.wallet)) logWarn('wallet provisioning did not complete', detail)
+    if (needsAttention.includes(outcome.wallet)) warn('wallet provisioning did not complete', detail)
     else logInfo('wallet provisioning outcome', detail)
   } catch { /* a lost log line must never cost an approval */ }
   return outcome
