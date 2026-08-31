@@ -1,3 +1,5 @@
+import { IS_SERVICES } from '@/lib/edition'
+
 /**
  * WHO MAY SETTLE A TRADE, AND ON WHICH RAIL.
  *
@@ -128,7 +130,40 @@ export const ISO_ALPHA3 = new Set(
    'TTO TUN TUR TUV TWN TZA UGA UKR UMI URY USA UZB VAT VCT VEN VGB VIR VNM VUT WLF WSM YEM ZAF ZMB ZWE').split(' '),
 )
 
-export type PaymentRailId = 'paypal' | 'crossmint'
+/**
+ * ⚠️ `vietqr` IS A DOMESTIC BANK TRANSFER, NOT A CRYPTO RAIL, and that distinction is the whole
+ * reason it exists. Owner, 2026-08-31: *"vietnam is the place users will pay with qr"*. The buyer
+ * scans a NAPAS 247 code in their own banking app and sends dong. It is the rail for exactly the
+ * population `crossmint` must refuse — Vietnamese residents, whom the DTI Law permits to hold and
+ * trade digital assets but not to pay with them.
+ */
+export type PaymentRailId = 'paypal' | 'crossmint' | 'vietqr'
+
+/**
+ * ⛔ THE ONLY PLACE `vietqrPayout` IS ALLOWED TO COME FROM. It is a boolean on `PartyIdentity`, so
+ * any caller could simply pass `true` — two reviewers pointed out it had no producer and no
+ * write-time validation, which makes it a claim rather than a fact. Deriving it here from the
+ * seller's actual columns means "can this seller be paid by QR" has one answer, and it is the same
+ * question `lib/payments/vietqr.ts` will refuse to render a code without.
+ * ⚠️ SHAPE-CHECKED, NOT JUST PRESENT. A six-digit BIN and a digits-only account are what NAPAS
+ * requires; a seller who typed their account with dashes is not payable, and finding that out at
+ * checkout rather than here would mean a buyer staring at a QR that never renders.
+ */
+export function vietqrPayoutReady(payout: {
+  bankBin?: string | null
+  bankAccountNo?: string | null
+  bankAccountName?: string | null
+} | null | undefined): boolean {
+  /**
+   * ⚠️ NULL IS THE DEFAULT STATE, NOT AN EDGE CASE. `Seller.payout` is a nullable relation and NO
+   * existing row has one, so `vietqrPayoutReady(seller.payout)` — the obvious call — passed null
+   * and threw. A reviewer caught it as the same class as the field-name seam next door: a
+   * predicate that answers a yes/no question must not have a third outcome.
+   */
+  return /^\d{6}$/.test((payout?.bankBin ?? '').trim())
+    && /^\d{4,19}$/.test((payout?.bankAccountNo ?? '').trim())
+    && (payout?.bankAccountName ?? '').trim().length > 0
+}
 
 /**
  * What we know about one side of a trade at settlement time.
@@ -147,6 +182,12 @@ export type PartyIdentity = {
   nationality?: string | null
   /** ISO-3166-1 alpha-3 of declared/verified residence, or null when unknown. */
   residenceCountry?: string | null
+  /**
+   * ⚠️ SELLER-SIDE ONLY, AND A BOOLEAN RATHER THAN THE DETAILS THEMSELVES. Whether this seller has
+   * usable VietQR payout fields on file. The account number never enters this module — it is
+   * payment data, and an eligibility predicate has no business holding it to answer yes or no.
+   */
+  vietqrPayout?: boolean
 }
 
 export type Party = 'buyer' | 'seller'
@@ -155,6 +196,12 @@ export type EligibilityDenial =
   | 'buyer_kyc_required'
   | 'seller_kyc_required'
   | 'rail_not_available_in_country'
+  /**
+   * ⚠️ THE SELLER CANNOT BE PAID ON THIS RAIL — a data gap, not a legal one, and the two need very
+   * different responses. A country refusal is final for that party; this one is fixed by the seller
+   * filling in three fields.
+   */
+  | 'payout_details_missing'
 
 /**
  * BOTH SIDES MUST BE VERIFIED BEFORE ANY MONEY MOVES. Owner, 2026-08-30, choosing the strictest of
@@ -237,6 +284,15 @@ export function isSettlementEligibleParty(p: PartyIdentity): boolean {
  * platform's licence decide where it runs, which is a different question from this one.
  */
 export function railAllowed(rail: PaymentRailId, buyer: PartyIdentity, seller: PartyIdentity): EligibilityDenial | null {
+  /**
+   * ⛔ THE EDITION GATE IS HERE TOO, AND `availableRails` ALONE WAS NOT ENOUGH. A reviewer pointed
+   * out the obvious bypass a moment after the first gate landed: a checkout that VALIDATES a
+   * submitted rail calls this function directly, never touching the one that lists them, so
+   * eno.vn would have accepted `{ rail: 'vietqr' }` on a paymentless edition. The listing function
+   * and the validating function have to agree, and the only way to be sure they do is for both to
+   * ask.
+   */
+  if (!IS_SERVICES) return 'rail_not_available_in_country'
   const parties = partiesEligible(buyer, seller)
   if (parties) return parties
   /**
@@ -251,6 +307,36 @@ export function railAllowed(rail: PaymentRailId, buyer: PartyIdentity, seller: P
     case 'paypal':
       // Fiat. Its availability is a licensing and provider question, not this country gate's.
       return null
+    case 'vietqr':
+      /**
+       * ⚠️ FIAT, SO NOT COUNTRY-GATED — a domestic bank transfer is lawful for a Vietnamese party
+       * and is the ordinary way the country pays, so the digital-asset rule simply does not apply.
+       * ⛔ BUT IT IS GATED ON THE SELLER ACTUALLY HAVING AN ACCOUNT TO BE PAID INTO. The first
+       * version returned `null` unconditionally and left that to "the checkout", which all three
+       * reviewers refused: every existing Seller row has NULL bank details, so the rail was offered
+       * to everybody and fulfillable by nobody, and a buyer would reach a payment page that cannot
+       * render. A rail you cannot be paid on is not an available rail.
+       * ⛔ AND THE BUYER MUST PLAUSIBLY BE ABLE TO SEND ONE. Gating on the seller alone was not
+       * enough: a British buyer paying a British seller who happens to hold a Vietnamese account
+       * was offered a NAPAS 247 code ranked above PayPal, and no foreign banking app can execute
+       * it. The diff's own test had pinned that as desired. A reviewer read the test rather than
+       * the comment, which is the right way round.
+       * ⚠️ AND IT SHARES PAYPAL'S SANCTIONS TREATMENT, DELIBERATELY. A reviewer noted that
+       * `isSettlementEligibleParty` — which refuses sanctioned nationalities — gates only the
+       * stablecoin rail, so a sanctioned-nationality buyer resident in Vietnam may use this one.
+       * That is the SAME decision recorded above `partiesEligible`: `SANCTIONED` is an
+       * over-inclusive stablecoin floor containing RUS and BLR, and applying it to fiat once
+       * banned every Russian expat on eno.forum from ordinary commerce. Which jurisdictions must
+       * also be refused fiat is the open question for counsel, and it covers this rail too.
+       * ⚠️ UNKNOWN RESIDENCE IS ALLOWED HERE, WHICH IS THE OPPOSITE OF THE WALLET RULE, and the
+       * asymmetry is deliberate: an unknown residence on the stablecoin rail risks an unlawful
+       * settlement, while here it risks showing someone a payment option they cannot use. Failing
+       * closed is right when being wrong is illegal; on a Vietnam-focused marketplace where most
+       * unknown buyers are local, it would just hide the country's default payment method.
+       */
+      if (!seller.vietqrPayout) return 'payout_details_missing'
+      const buyerResidence = norm(buyer.residenceCountry)
+      return !buyerResidence || buyerResidence === VN ? null : 'rail_not_available_in_country'
     case 'crossmint':
       return isSettlementEligibleParty(buyer) && isSettlementEligibleParty(seller)
         ? null
@@ -270,7 +356,25 @@ export function railAllowed(rail: PaymentRailId, buyer: PartyIdentity, seller: P
  * why, using the denial from `railAllowed`, rather than an empty chooser.
  */
 export function availableRails(buyer: PartyIdentity, seller: PartyIdentity): PaymentRailId[] {
-  const order: PaymentRailId[] = ['crossmint', 'paypal']
+  /**
+   * ⛔ NO RAIL EXISTS ON THE MARKETPLACE EDITION, AND THIS BELONGS HERE RATHER THAN AT EVERY CALL
+   * SITE. Owner: *"eno.vn stay paymentless but eno.forum will have payment settlement layer"*.
+   * Reviewers raised the missing edition gate on this function in every round, and each time the
+   * answer was "the callers gate" — true today, because the only caller is `railsFor`, reached from
+   * two places that both check `IS_SERVICES` first. But "every future caller will remember" is not
+   * a guarantee, and a checkout is exactly the caller about to be written. One gate, in the
+   * function that decides what may be offered.
+   * ⚠️ `@/lib/edition` IS CLIENT-SAFE BY DESIGN (it imports nothing), so this does not make an
+   * otherwise-pure module server-only.
+   */
+  if (!IS_SERVICES) return []
+  /**
+   * ⚠️ THE ORDER IS THE PREFERENCE ORDER, and `vietqr` sits second on purpose. The owner asked for
+   * the wallet first; for a Vietnamese buyer the wallet is refused a line later anyway, so what
+   * they actually see first is the QR their banking app already knows how to read. PayPal remains
+   * last — it is the fallback for a foreign party the wallet cannot serve.
+   */
+  const order: PaymentRailId[] = ['crossmint', 'vietqr', 'paypal']
   return order.filter((r) => railAllowed(r, buyer, seller) === null)
 }
 

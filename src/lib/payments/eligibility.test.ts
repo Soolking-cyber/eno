@@ -1,8 +1,21 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
-import {
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+
+/**
+ * ⚠️ EVERY TEST BELOW ASSUMES THE SERVICES EDITION, AND NOTHING HERE ESTABLISHES IT. `availableRails`
+ * and `railAllowed` now return nothing on the marketplace build (eno.vn is paymentless), and
+ * `IS_SERVICES` folds at module scope — so these pass because `vitest.config.ts` pins
+ * NEXT_PUBLIC_ENO_EDITION to 'services', not because they say so. A reviewer flagged the ambient
+ * coupling: run this file under the other edition and every rail assertion fails at once, for a
+ * reason none of them mention.
+ * ⚠️ THE EDITION ITSELF IS TESTED IN eligibility-edition.test.ts, in its own file because proving it
+ * needs `vi.resetModules()` — doing that here polluted the worker and turned five unrelated tests
+ * red in the full suite while they passed in isolation.
+ */import {
   availableRails,
   isSettlementEligibleParty,
   partiesEligible,
+  vietqrPayoutReady,
   railAllowed,
   type PartyIdentity,
 } from './eligibility'
@@ -91,9 +104,11 @@ describe('isSettlementEligibleParty — three allow-lists, all of which must pas
   it('⛔ WITH NO CONFIGURED JURISDICTIONS THE RAIL IS OFFERED TO NOBODY', () => {
     // The default state of every environment until counsel signs off. The first version of this
     // module shipped ten countries as a "placeholder", which authorised settlement in all of them.
+    // ⚠️ THE *STABLECOIN* RAIL. The fiat rails are unaffected — they are not what the allow-list
+    // governs — so the assertion is that `crossmint` is absent, not that nothing is offered.
     delete process.env.PAYMENTS_SETTLEMENT_COUNTRIES
     expect(isSettlementEligibleParty(verified())).toBe(false)
-    expect(availableRails(verified(), verified())).toEqual(['paypal'])
+    expect(availableRails(verified(), verified())).not.toContain('crossmint')
   })
 
   it('⛔ a SANCTIONED nationality is refused even from an allow-listed residence', () => {
@@ -173,12 +188,65 @@ describe('availableRails — the wallet leads where it is lawful', () => {
   const abroad = verified({ nationality: 'GBR', residenceCountry: 'GBR' })
   const inVietnam = verified({ nationality: 'GBR', residenceCountry: 'VNM' })
 
-  it('offers the wallet first, then paypal', () => {
+  it('offers the wallet first, then paypal, for a foreign pair', () => {
+    /**
+     * ⛔ NO `vietqr` HERE, AND THIS TEST ASSERTED THE OPPOSITE FOR ONE ROUND. A GBR buyer paying a
+     * GBR seller who holds a Vietnamese account was offered a NAPAS 247 QR above PayPal — a code
+     * no foreign banking app can execute. A reviewer found it by reading the test rather than the
+     * comment above the code, which is the right way round.
+     */
+    expect(availableRails(abroad, { ...abroad, vietqrPayout: true })).toEqual(['crossmint', 'paypal'])
     expect(availableRails(abroad, abroad)).toEqual(['crossmint', 'paypal'])
   })
 
-  it('falls back to paypal alone inside Vietnam', () => {
-    expect(availableRails(inVietnam, inVietnam)).toEqual(['paypal'])
+  it('⛔ VietQR needs a buyer who can plausibly send one', () => {
+    const payable = { ...inVietnam, vietqrPayout: true }
+    expect(railAllowed('vietqr', inVietnam, payable), 'VN buyer').toBeNull()
+    // ⚠️ UNKNOWN RESIDENCE IS ALLOWED, the opposite of the wallet rule — being wrong here shows
+    // someone an option they cannot use, not an unlawful settlement.
+    expect(railAllowed('vietqr', { ...inVietnam, residenceCountry: null }, payable), 'unknown').toBeNull()
+    expect(railAllowed('vietqr', abroad, payable), 'GBR buyer').toBe('rail_not_available_in_country')
+  })
+
+  it('⛔ vietqrPayoutReady is the ONLY producer of that boolean', () => {
+    // It is a boolean on PartyIdentity, so any caller could just pass `true`; two reviewers called
+    // it a claim rather than a fact. Shape-checked, not merely present — a seller who typed their
+    // account with dashes is not payable, and finding that out at checkout is too late.
+    expect(vietqrPayoutReady({ bankBin: '970415', bankAccountNo: '0011001932418', bankAccountName: 'NGUYEN VAN A' })).toBe(true)
+    for (const bad of [
+      { bankBin: '97041', bankAccountNo: '0011001932418', bankAccountName: 'A' },
+      { bankBin: '970415', bankAccountNo: '0011-0019', bankAccountName: 'A' },
+      { bankBin: '970415', bankAccountNo: '0011001932418', bankAccountName: '  ' },
+      { bankBin: null, bankAccountNo: null, bankAccountName: null },
+      {},
+      // ⛔ NULL IS THE DEFAULT STATE — `Seller.payout` is a nullable relation and no existing row
+      // has one, so this is the obvious call, and it used to throw rather than answer.
+      null,
+      undefined,
+    ]) expect(vietqrPayoutReady(bad), JSON.stringify(bad)).toBe(false)
+  })
+
+  it('⛔ VietQR is NOT offered when the seller has no account to be paid into', () => {
+    /**
+     * ⛔ EVERY EXISTING Seller ROW HAS NULL BANK DETAILS. Returning `null` unconditionally and
+     * leaving it to "the checkout" offered the rail to everybody and made it fulfillable by
+     * nobody — a buyer would reach a payment page that cannot render a QR. All three reviewers
+     * refused it. A rail you cannot be paid on is not an available rail.
+     */
+    expect(railAllowed('vietqr', inVietnam, inVietnam)).toBe('payout_details_missing')
+    expect(railAllowed('vietqr', inVietnam, { ...inVietnam, vietqrPayout: true })).toBeNull()
+  })
+
+  it('⛔ inside Vietnam the wallet is gone and the QR is what remains', () => {
+    /**
+     * ⛔ THE WHOLE POINT OF THE THIRD RAIL. Vietnam is the market — owner, 2026-08-31: "vietnam is
+     * the place users will pay with qr" — and it is exactly the population the DTI Law bars from
+     * paying with digital assets. Before `vietqr` existed this test read "falls back to paypal
+     * alone", which is to say the primary market had only the rail it is least likely to use.
+     */
+    const rails = availableRails(inVietnam, { ...inVietnam, vietqrPayout: true })
+    expect(rails).not.toContain('crossmint')
+    expect(rails).toContain('vietqr')
   })
 
   it('⛔ offers nothing at all when a party is unverified', () => {

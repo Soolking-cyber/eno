@@ -211,6 +211,77 @@ try {
       check ("residenceCountry" is null or ("residenceSource" is not null and "residenceSource" <> ''));
   `)
 
+  /**
+   * ⛔ WHERE A VIETNAMESE BUYER'S MONEY LANDS. Owner, 2026-08-31: *"vietnam is the place users will
+   * pay with qr"*. A VietQR code is a NAPAS 247 transfer to this account, and lib/payments/vietqr.ts
+   * refuses to render one without all three — a QR pointing at nothing is worse than no QR.
+   * ⚠️ SEPARATE FROM `bankNameSeen`, which is a reviewer's audit note about a verification document.
+   * That is evidence about a past check; these are live payment instructions.
+   * ⚠️ WIDTHS MATCH THE FORMAT: a NAPAS acquirer BIN is exactly 6 digits and Vietnamese account
+   * numbers do not exceed 19. Anything longer is a data error, not a long account.
+   */
+  await client.query(`
+    create table if not exists public."seller_payout" (
+      "sellerId"        text primary key references public."Seller"("id") on delete cascade,
+      "bankBin"         varchar(6)  not null,
+      "bankAccountNo"   varchar(19) not null,
+      "bankAccountName" text        not null,
+      "updatedAt"       timestamp(3) not null default now()
+    );
+  `)
+
+  /**
+   * ⛔ THE THREE COLUMNS THIS REPLACES ARE DROPPED — THE ONE DESTRUCTIVE STATEMENT IN THIS FILE, AND
+   * IT IS GUARDED. They were added by an earlier run of this same script, hours old, and nothing has
+   * ever written them: the payout details moved to their own table because `Seller` is the
+   * most-queried model in the app and ~16 of its queries have no explicit `select`, so an account
+   * number on it is one `{...seller}` away from a public response forever.
+   * ⚠️ THE GUARD IS NOT DECORATION. It counts non-null values first and refuses to drop if any exist,
+   * so if this ever runs somewhere the columns WERE populated it stops rather than deleting payment
+   * details. CLAUDE.md's rule about DROP exists because a generated migration emitted eighteen of
+   * them; this is one, named, and it proves its target is empty before it fires.
+   */
+  const { rows: held } = await client.query(`
+    select column_name from information_schema.columns
+    where table_schema = 'public' and table_name = 'Seller'
+      and column_name in ('bankBin','bankAccountNo','bankAccountName');
+  `)
+  if (held.length > 0) {
+    /**
+     * ⛔ THE LOCK IS TAKEN BEFORE THE COUNT, NOT AFTER. Two reviewers found the race: the guard
+     * counted non-null values and then dropped, so a write from the running application in between
+     * would be destroyed by a check that had already passed. `ALTER TABLE` takes ACCESS EXCLUSIVE
+     * anyway — taking it first simply means nothing can slip into the window. `lock_timeout` is
+     * already 5s for this transaction, so a busy table aborts rather than blocking the site.
+     */
+    await client.query('lock table public."Seller" in access exclusive mode')
+
+    /**
+     * ⛔ BUILT FROM THE COLUMNS THAT ACTUALLY EXIST. The first version named all three in the
+     * emptiness check while only asserting that AT LEAST ONE existed — so a partially-applied
+     * schema (one column added, the run interrupted) crashed with 42703 on the very query meant to
+     * make the drop safe. Both reviewers found the same state, and it is exactly the one a failed
+     * earlier run leaves behind.
+     */
+    const cols = held.map((r) => r.column_name)
+    const anyNotNull = cols.map((c) => `"${c}" is not null`).join(' or ')
+    const { rows: populated } = await client.query(`
+      select count(*)::int as n from public."Seller" where ${anyNotNull};
+    `)
+    if (populated[0].n > 0) {
+      console.error(`REFUSING to drop Seller bank columns: ${populated[0].n} rows hold values. Migrate them into seller_payout first.`)
+      process.exitCode = 1
+    } else {
+      await client.query(`
+        alter table public."Seller"
+          drop column if exists "bankBin",
+          drop column if exists "bankAccountNo",
+          drop column if exists "bankAccountName";
+      `)
+      console.log(`moved Seller bank columns -> seller_payout (${cols.join(', ')} were empty)`)
+    }
+  }
+
   const { rows } = await client.query(`
     select table_name, (select count(*) from information_schema.columns c where c.table_name = t.table_name) as cols
     from information_schema.tables t
@@ -223,6 +294,13 @@ try {
 
   // ⚠️ THE COLUMNS ARE VERIFIED TOO, not just the tables. `add column if not exists` is silent on
   // success and on no-op alike, so a run that did nothing looks exactly like a run that worked.
+  const { rows: bank } = await client.query(`
+    select column_name from information_schema.columns
+    where table_schema = 'public' and table_name = 'seller_payout';
+  `)
+  console.log(`seller_payout columns: ${bank.map((c) => c.column_name).sort().join(', ') || '(none)'}`)
+  if (bank.length !== 5) { console.error('expected 5 seller_payout columns'); process.exitCode = 1 }
+
   const { rows: cols } = await client.query(`
     select column_name from information_schema.columns
     where table_schema = 'public' and table_name = 'identity_verifications'

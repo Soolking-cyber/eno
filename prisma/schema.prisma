@@ -495,7 +495,39 @@ model Seller {
   webhooks                 WebhookEndpoint[]
   handle                   Handle? // public @shopname (see model Handle)
 
+  payout                   SellerPayout? // VietQR bank details — a SEPARATE table, see the model
+
   @@index([ownerId])
+}
+
+/// WHERE A VIETNAMESE BUYER'S MONEY ACTUALLY LANDS.
+///
+/// ⛔ ITS OWN TABLE, AND THAT IS THE WHOLE POINT. These three columns lived on `Seller` for exactly
+/// one review round. A reviewer put it plainly: Seller is the most-queried model in the app, ~16 of
+/// its queries have no explicit `select`, and Prisma returns every scalar — so a bank account number
+/// would be one `{...seller}` away from a public response forever. It was not leaking (measured:
+/// `serializeListing` and the account route both pick fields), which is precisely why it was worth
+/// moving before it did. A relation has to be explicitly `include`d; a column rides along for free.
+///
+/// ⛔ NOT `Seller.bankNameSeen`, which is a reviewer's audit note of what they read off a
+/// verification document. That is evidence about a past check; this is live payment instruction, and
+/// conflating them would let an unverified string decide where money goes.
+///
+/// ⚠️ SENSITIVE UNDER PDPL DECREE 13/2023 — never log it, never put it on a public profile. It
+/// reaches a buyer only inside the QR payload of an order they are actually paying.
+model SellerPayout {
+  sellerId String @id
+  seller   Seller @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+
+  /// The 6-digit NAPAS acquirer BIN, e.g. 970415 for VietinBank.
+  bankBin         String  @db.VarChar(6)
+  bankAccountNo   String  @db.VarChar(19)
+  /// The holder's name as the bank has it — shown for confirmation before the buyer sends.
+  bankAccountName String
+
+  updatedAt DateTime @updatedAt
+
+  @@map("seller_payout")
 }
 
 // A single business-verification CASE — immutable once submitted, versioned so a

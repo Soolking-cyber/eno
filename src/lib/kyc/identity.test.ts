@@ -258,6 +258,8 @@ describe('partiesFor / railsFor — the intersection that replaced a summary', (
   it('⚠️ and the rail universe comes from eligibility.ts, never a list here', () => {
     // If this file kept its own rail list, a rail added there would simply never appear.
     vi.stubEnv('PAYMENTS_SETTLEMENT_COUNTRIES', 'GBR,DEU')
+    // ⚠️ NO `vietqr` HERE, and that is correct: `railsFor` asks about a PERSON, and this identity
+    // carries no seller payout details. The QR rail appears once a seller can be paid on it.
     expect(railsFor(ident()).sort()).toEqual(['crossmint', 'paypal'])
   })
 })
