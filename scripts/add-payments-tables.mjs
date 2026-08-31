@@ -87,6 +87,36 @@ try {
   await client.query(`create unique index if not exists "Order_railRef_key" on public."Order" ("railRef");`)
 
   /**
+   * ⛔ THE PAYMENT REFERENCE — the entire link between a bank transfer and an order. A VietQR
+   * buyer's banking app carries it as the memo and SePay reads it back off the statement; nothing
+   * else connects the two. See lib/payments/reference.ts.
+   * ⚠️ ADDED NULLABLE THEN MADE UNIQUE, because `Order` may already exist from an earlier run of
+   * this script and a NOT NULL column cannot be added to a table with rows and no default. It is
+   * empty today (0 orders), so the application can treat it as required; the database is stated
+   * honestly as "unique when present" rather than lying about a constraint it cannot enforce
+   * retroactively.
+   */
+  await client.query(`alter table public."Order" add column if not exists "reference" text;`)
+  await client.query(`create unique index if not exists "Order_reference_key" on public."Order" ("reference");`)
+
+  /**
+   * ⛔ MADE NOT NULL ONCE IT SAFELY CAN BE, because Prisma DECLARES IT REQUIRED and a nullable column
+   * underneath is the two layers disagreeing — a reviewer's point. A writer bypassing Prisma could
+   * insert a reference-less order that no payment could ever match, and Prisma would then read a
+   * null into a field typed `string`.
+   * ⚠️ GUARDED ON EMPTINESS, like the drop above. A table with reference-less rows cannot take the
+   * constraint, and inventing references for existing orders is not something a migration should do
+   * silently — it stops and says so instead.
+   */
+  const { rows: refless } = await client.query(`select count(*)::int as n from public."Order" where "reference" is null;`)
+  if (refless[0].n === 0) {
+    await client.query(`alter table public."Order" alter column "reference" set not null;`)
+  } else {
+    console.error(`Order.reference left nullable: ${refless[0].n} rows have none. Backfill before the schema can promise it.`)
+    process.exitCode = 1
+  }
+
+  /**
    * ⛔ THE LISTING MUST BELONG TO THE SELLER BEING PAID, AND ONLY THE DATABASE CAN GUARANTEE THAT.
    * `sellerId` and `listingId` were two independent foreign keys, so nothing stopped an order that
    * DISPLAYS Seller A's listing from SETTLING to Seller B — a reviewer walked straight to it. A

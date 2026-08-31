@@ -1877,6 +1877,15 @@ model Order {
   /// The settlement write must be a CONDITIONAL update (`where status = 'awaiting_payment'`) and
   /// act only if it changed a row; the state machine refuses the replay, and the row count is what
   /// makes that refusal atomic.
+  /// ⛔ THE HUMAN-FACING PAYMENT REFERENCE, AND THE ENTIRE LINK BETWEEN A BANK TRANSFER AND THIS
+  /// ORDER. A VietQR buyer's banking app carries it as the transfer memo; SePay reads it back off
+  /// the bank statement. See lib/payments/reference.ts — nothing else connects the two: no session,
+  /// no callback, no return trip through our site.
+  /// ⚠️ NOT `railRef`, which is the RAIL's own id for a payment (a bank transaction number, a chain
+  /// tx hash). This one is ours and is chosen before any money moves; that one arrives afterwards.
+  /// ⚠️ UNIQUE, so a generator collision is a failed insert and a retry rather than two orders
+  /// quietly sharing one payment.
+  reference  String   @unique
   railRef    String?  @unique
 
   createdAt  DateTime @default(now())
