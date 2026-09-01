@@ -378,6 +378,34 @@ try {
     process.exitCode = 1
   }
 
+  /**
+   * ⛔ ROW-LEVEL SECURITY ON EVERY PAYMENTS TABLE — THE ORIGINAL OMISSION, FOUND BY A LIVE PENTEST
+   * 2026-09-01. These tables were created without RLS while the rest of the schema has it on, and
+   * self-hosted Supabase exposes PostgREST at sb.eno.vn/rest/v1 to the public anon key: RLS-off +
+   * the anon SELECT grant meant ANYONE could read `seller_payout` (bank account numbers), `Order`
+   * and `CustodyWallet` over the internet. Confirmed live — the anon key dumped a real bank row.
+   * ENABLE + FORCE (deny-all: no policies exist, so anon/authenticated get zero rows) matches how
+   * Listing/Message/Seller are already protected. The app is UNAFFECTED — it reads these only via
+   * Prisma on the direct service connection, which bypasses RLS; nothing reads them via supabase-js.
+   */
+  for (const t of ['Order', 'OrderEvent', 'CustodyWallet', 'seller_payout']) {
+    await client.query(`alter table public."${t}" enable row level security;`)
+    await client.query(`alter table public."${t}" force row level security;`)
+  }
+  const { rows: rls } = await client.query(`
+    select c.relname, c.relrowsecurity as on, c.relforcerowsecurity as forced
+    from pg_class c join pg_namespace n on n.oid = c.relnamespace
+    where n.nspname = 'public' and c.relname in ('Order','OrderEvent','CustodyWallet','seller_payout');
+  `)
+  // ⚠️ BOTH `on` AND `forced` — the script runs `force` too, so the assertion must check it, or a
+  // future edit dropping the force line (which closes the owner-bypass) still passes green.
+  const rlsOff = rls.filter((r) => r.on !== true || r.forced !== true).map((r) => r.relname)
+  console.log(`RLS enabled+forced on payments tables: ${rls.filter((r) => r.on === true && r.forced === true).map((r) => r.relname).sort().join(', ') || '(none)'}`)
+  if (rls.length !== 4 || rlsOff.length) {
+    console.error(`RLS missing on: ${rlsOff.join(', ') || '(a table is absent)'} — refusing to commit a payments schema that leaks to anon`)
+    process.exitCode = 1
+  }
+
   // ⛔ COMMIT ONLY IF EVERY ASSERTION PASSED. A verification that reports a problem and then commits
   // anyway is not a verification.
   if (process.exitCode) { console.error('rolling back — assertions failed'); await client.query('rollback') }
