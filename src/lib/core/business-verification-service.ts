@@ -22,6 +22,7 @@ import { SITE_NAME } from '@/lib/edition'
 import { sendPushToProfile } from '@/lib/push'
 import { sendMail } from '@/lib/mail'
 import { renderVerificationOutcomeEmail } from '@/lib/emails/business-verification'
+import { personBeforeBusinessEnforced, ownerPersonVerified } from '@/lib/kyc/person-gate'
 
 /**
  * TELL THE SELLER WHAT HAPPENED — bell, push and email.
@@ -235,7 +236,7 @@ export async function caseHasDocument(caseId: string, path: string): Promise<boo
 
 export type SubmitResult =
   | { ok: true }
-  | { ok: false; error: 'no_seller' | 'nothing_to_submit' | 'missing_identity_doc' | 'missing_bank_doc' | 'missing_legal_fields' | 'already_open' | 'duplicate_tax' }
+  | { ok: false; error: 'no_seller' | 'nothing_to_submit' | 'missing_identity_doc' | 'missing_bank_doc' | 'missing_legal_fields' | 'already_open' | 'duplicate_tax' | 'person_unverified' }
 
 /**
  * Freeze a draft into a pending review. Requires the seller's legal identity to be filled
@@ -249,6 +250,20 @@ export async function submitVerification(sellerId: string, consentVersion: strin
     select: { ...IDENTITY_SELECT, ownerId: true },
   })
   if (!seller) return { ok: false, error: 'no_seller' }
+  /**
+   * ⛔ STAGE 1 BEFORE STAGE 2 — checked FIRST, before the legal fields, because it is the cheapest
+   * refusal to act on and the most confusing to receive late. Being told to fill in a tax code and
+   * upload two documents, and only then that none of it counted because you had not verified
+   * yourself, is the worst ordering of the same two facts.
+   * ⚠️ THE COST OF THAT ORDER, NAMED: it also precedes `already_open`, so a seller who ALREADY has
+   * a pending case and is not person-verified now reads `person_unverified` rather than
+   * `already_open`. codex flagged the swap. It is kept this way because that state only exists when
+   * the flag is turned ON over an open case, and in that situation `person_unverified` is both true
+   * and the thing they must act on — their pending case will be refused at approval regardless.
+   */
+  if (personBeforeBusinessEnforced() && !(await ownerPersonVerified(seller.ownerId))) {
+    return { ok: false, error: 'person_unverified' }
+  }
   if (!seller.legalName || !seller.legalAddress || !seller.idNumber || !seller.taxCode) {
     return { ok: false, error: 'missing_legal_fields' }
   }
@@ -280,7 +295,7 @@ export async function submitVerification(sellerId: string, consentVersion: strin
 
 export type ReviewResult =
   | { ok: true }
-  | { ok: false; error: 'not_found' | 'not_pending' | 'channel1_unverified' | 'identity_moved' | 'seller_gone' | 'duplicate_tax' }
+  | { ok: false; error: 'not_found' | 'not_pending' | 'channel1_unverified' | 'identity_moved' | 'seller_gone' | 'duplicate_tax' | 'person_unverified' }
 
 /**
  * APPROVE a pending case. Re-checks Channel 1 (tax verdict) live and — critically — that
@@ -298,8 +313,21 @@ export async function approveVerification(caseId: string, adminEmail: string): P
   if (!row) return { ok: false, error: 'not_found' }
   if (row.status !== 'pending') return { ok: false, error: 'not_pending' }
 
-  const seller = await db.seller.findUnique({ where: { id: row.sellerId }, select: { ...TAX_SELECT, taxCode: true } })
+  // ⚠️ `ownerId` IS SELECTED FOR THE PERSON GATE BELOW. Without it the gate would need its own
+  // round trip, and a second read is a second chance for the two to disagree.
+  const seller = await db.seller.findUnique({ where: { id: row.sellerId }, select: { ...TAX_SELECT, taxCode: true, ownerId: true } })
   if (!seller) return { ok: false, error: 'seller_gone' }
+  /**
+   * ⛔ RE-CHECKED AT APPROVAL, NOT ONLY AT SUBMIT — AND THIS IS THE HALF THAT MATTERS. State drifts
+   * between the two: a person can verify, submit their business, and be REVOKED or let their
+   * document expire before a reviewer opens the case. Gating only at submit would let a stage-2
+   * approval land on a person who is no longer verified, which is precisely the hole this function
+   * already closes for the tax verdict (`channel1_unverified`) and the frozen identity hash
+   * (`identity_moved`). codex made user-visible sequencing conditional on exactly this discipline.
+   */
+  if (personBeforeBusinessEnforced() && !(await ownerPersonVerified(seller.ownerId))) {
+    return { ok: false, error: 'person_unverified' }
+  }
   if (taxVerdict(seller) !== 'verified') return { ok: false, error: 'channel1_unverified' }
 
   const liveIdentity = await sellerIdentity(row.sellerId)

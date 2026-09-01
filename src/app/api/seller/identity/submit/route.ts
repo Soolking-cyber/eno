@@ -21,6 +21,9 @@ const STATUS: Record<KycSubmitError, number> = {
   path_not_owned: 403,
   identity_hashing_unavailable: 503, // config, not the seller's fault — never blame them with a 400
   document_unreadable: 422,
+  // 400: the REQUEST contradicts itself — a CCCD claim carrying passport MRZ lines. It is a client
+  // bug or a probe, never something a seller can act on, so it is not a 422 "fix your document".
+  tier_mismatch: 400,
   already_pending: 409,
   duplicate_identity: 409,
   rejected: 422,

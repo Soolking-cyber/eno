@@ -15,7 +15,7 @@
 
 import type { ComponentType, SVGProps } from 'react'
 import { IS_SERVICES } from '@/lib/edition'
-import { SERVICES_NAV_ADMIN_QUEUE, SERVICES_NAV_CASES, SERVICES_NAV_TRIPS } from '@/lib/edition-services-copy'
+import { SERVICES_NAV_ADMIN_QUEUE, SERVICES_NAV_CASES, SERVICES_NAV_PAYOUT, SERVICES_NAV_TRIPS, SERVICES_NAV_WALLET } from '@/lib/edition-services-copy'
 // Glyph choices follow docs/icon-language.md §3 (soft-cornered object metaphors, one
 // family). Developers = Plug since 2026-08-07 (R3 critic: Braces was the rail's one
 // abstract washless glyph; Plug is a concrete noun with a washable body) — before that `</>`
@@ -45,7 +45,7 @@ import { SERVICES_NAV_ADMIN_QUEUE, SERVICES_NAV_CASES, SERVICES_NAV_TRIPS } from
 //    selected-state fill is unaffected either way: it is drawn from the glyph's own
 //    silhouette, not from a per-key region (see NavIcon below).
 import {
-  Store, SquareArrowOutUpRight, MessageSquare, Heart, Scale, Upload, Plug,
+  Store, SquareArrowOutUpRight, MessageSquare, Heart, Scale, Upload, Plug, Wallet, Banknote,
   CircleHelp, FileCheck2, Route,
   Flag, ShieldAlert, ClipboardList, Tags, Star, Stamp, Gavel, Filter,
   type IconComponent, ShieldCheck } from '@/components/ui/icons'
@@ -182,7 +182,31 @@ export const DASHBOARD_NAV: NavGroup[] = [
       { href: '/messages', ...tr('Messages', 'Tin nhắn'), icon: MessageSquare, badge: 'unread' },
       { href: '/saved', ...tr('Saved', 'Đã lưu'), icon: Heart, badge: 'saved' },
       // Label matches the page's own name ("Availability review" / "còn hàng").
+      /**
+       * ⛔ THE ROW THAT DID NOT EXIST, AND ITS ABSENCE WAS THE WHOLE PROBLEM. Owner, 2026-08-31:
+       * "there is no place to verify kyc now … in ui". Every piece of stage 1 was built —
+       * the capture component, the submit service, the admin decision logic — and nothing in the
+       * app linked to any of it. `/dashboard/account/verify` was reachable only from a publish
+       * refusal, and the business panel was buried inside Settings.
+       * ⚠️ BOTH EDITIONS, NO `servicesOnly`. Identity verification is the LICENSED marketplace's
+       * obligation before it is anything else, so unlike the payout and wallet rows below it this
+       * one is not gated — the sequencing flag is what differs between editions, not the page.
+       * ⚠️ NOT `role: 'seller'`. A person verifies themselves BEFORE they have a storefront; hiding
+       * the row until they are already selling would reproduce the ordering bug it exists to fix.
+       */
+      { href: '/dashboard/verification', ...tr('Verification', 'Xác minh'), icon: ShieldCheck },
       { href: '/dashboard/disputes', ...tr('Disputes', 'Khiếu nại'), icon: Scale },
+      /**
+       * ⛔ SERVICES EDITION ONLY, AND GATED THE SAME THREE WAYS AS THE VISA ROWS BELOW: the
+       * `IS_SERVICES` ternary decides what is in the array, `servicesOnly` decides visibility at
+       * render, and the copy comes from the aliased module so the words leave the marketplace
+       * artifact entirely. eno.vn is a licensed sàn TMĐT: it has no payments surface, and both
+       * pages behind these rows are `page.svc.tsx` and are not compiled into that build.
+       * ⚠️ THESE PAGES EXISTED FOR DAYS WITH NOTHING LINKING TO THEM. `/dashboard/payout` was
+       * reachable only by typing the URL — worth remembering when adding the next section.
+       */
+      ...(IS_SERVICES ? [{ ...SERVICES_NAV_WALLET, icon: Wallet, servicesOnly: true, role: 'seller' as const }] : []),
+      ...(IS_SERVICES ? [{ ...SERVICES_NAV_PAYOUT, icon: Banknote, servicesOnly: true, role: 'seller' as const }] : []),
       { href: '/dashboard/bulk', ...tr('Bulk upload', 'Tải hàng loạt'), icon: Upload, role: 'business' },
       { href: '/dashboard/dev', ...tr('Developers', 'Lập trình'), icon: Plug, role: 'business' },
       // Public storefront of the signed-in seller — href is computed by the renderer.

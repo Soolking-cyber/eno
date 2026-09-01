@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { VERIFICATION_CONSENT_VERSION } from '@/lib/business-verification'
 import { loadOwnVerification, ownVerificationView, submitVerification } from '@/lib/core/business-verification-service'
 import { ApiError, route } from '@/lib/api/handler'
+import { personBeforeBusinessEnforced, ownerPersonVerified } from '@/lib/kyc/person-gate'
 
 // The applicant's own verification surface.
 //   GET  → their current case status + which documents are present (no signed URLs — the
@@ -44,8 +45,24 @@ async function ownSellerId(userId: string): Promise<string | null> {
 export const GET = route({ auth: 'userId' }, async ({ userId }) => {
   const sellerId = await ownSellerId(userId)
   if (!sellerId) throw new ApiError('no_storefront', 403)
-  const [caseRow, view] = await Promise.all([loadOwnVerification(sellerId), ownVerificationView(sellerId)])
+  /**
+   * ⚠️ THE PERSON'S STATUS TRAVELS WITH THE BUSINESS CASE, so the panel can render step 1 as a
+   * locked prerequisite instead of opening straight into uploads and refusing at the end. The
+   * refusal itself lives in `submitVerification` and `approveVerification`; this is only what the
+   * applicant is SHOWN, and it must never be mistaken for the gate.
+   * ⚠️ `gate` IS SENT TOO. Without it the panel cannot tell "you must verify yourself first" from
+   * "this rule is not switched on here", and would draw a lock that does not exist — on eno.forum,
+   * where the sequencing deliberately does not apply, that lock would be a lie.
+   */
+  const gate = personBeforeBusinessEnforced()
+  const [caseRow, view, personVerified] = await Promise.all([
+    loadOwnVerification(sellerId),
+    ownVerificationView(sellerId),
+    gate ? ownerPersonVerified(userId) : Promise.resolve(true),
+  ])
   return {
+    personGate: gate,
+    personVerified,
     // The LIVE badge state (verified/expired/pending/rejected/…) — NOT the raw case status,
     // so a badge dropped by an identity edit or expiry shows "re-verify", never stale "verified".
     view,

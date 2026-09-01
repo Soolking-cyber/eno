@@ -17,6 +17,13 @@ import { ownsKycPath } from './store'
 export type KycQueueItem = {
   id: string
   profileId: string | null
+  /**
+   * ⚠️ 'A' = Vietnamese CCCD, 'B' = foreign passport. The reviewer must be told WHICH document they
+   * are looking at before they judge it: the checks that apply differ (a CCCD has no MRZ and no
+   * six-month validity rule), and a queue that showed both without saying which is which would
+   * invite a reviewer to reject a perfectly valid ID card for lacking a passport's features.
+   */
+  tier: string
   fullName: string | null
   nationality: string | null
   documentExpiresAt: string | null
@@ -60,11 +67,19 @@ const REVIEW_URL_TTL = 600
  */
 export async function listKycQueue(limit = 50): Promise<KycQueueItem[]> {
   const rows = await db.identityVerification.findMany({
-    where: { status: 'pending', tier: 'B' },
+    /**
+     * ⛔ EVERY PENDING TIER, NOT JUST B. This filtered to `tier: 'B'`, which meant a Vietnamese
+     * seller's CCCD submission would have been accepted, stored, and then never appeared in front
+     * of a reviewer — invisible work, indistinguishable from a lost submission. Owner, 2026-08-31:
+     * tier A is manual review in v1, so it belongs in the same queue an admin already works.
+     */
+    where: { status: 'pending' },
     orderBy: { submittedAt: 'asc' },
     take: Math.min(limit, 200),
     select: {
-      id: true, profileId: true, fullName: true, nationality: true,
+      // ⚠️ `tier` IS SELECTED so the reviewer can see WHICH document they are being shown. An
+      // admin deciding a CCCD by eye needs to know it is not a passport before they judge it.
+      id: true, profileId: true, tier: true, fullName: true, nationality: true,
       documentExpiresAt: true, submittedAt: true, method: true, evidence: true,
     },
   })
@@ -72,6 +87,7 @@ export async function listKycQueue(limit = 50): Promise<KycQueueItem[]> {
     const ev = (r.evidence ?? {}) as Evidence
     return {
       id: r.id,
+      tier: r.tier,
       profileId: r.profileId,
       fullName: r.fullName,
       nationality: r.nationality,
@@ -210,7 +226,10 @@ export async function reviewKycCase(input: {
   const di = ((row.evidence ?? {}) as Evidence).decisionInput
   const legacyName = row.fullName ?? ''
   const decision = decideTierB({
-    tier: 'B',
+    // ⚠️ THE ROW'S OWN TIER. Re-deciding a tier A case as if it were a passport would apply the
+    // MRZ and six-month-validity rules to a document that has neither — and this function's whole
+    // purpose is to re-run the same decision the submission ran, not a different one.
+    tier: row.tier === 'A' ? 'A' : 'B',
     surname: di?.surname ?? legacyName.split(' ').slice(-1)[0] ?? '',
     givenNames: di?.givenNames ?? legacyName.split(' ').slice(0, -1).join(' '),
     // ⚠️ FORMATTED IN ICT, NOT VIA toISOString(). documentExpiresAt is an ICT midnight, whose UTC

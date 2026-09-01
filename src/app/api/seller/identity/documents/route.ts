@@ -1,6 +1,7 @@
 import { route, ApiError } from '@/lib/api/handler'
 import { KYC_IMAGE_KINDS, KYC_MAX_INTAKE_BYTES, KycImageError, type KycImageKind } from '@/lib/kyc/image'
 import { storeKycImage } from '@/lib/kyc/store'
+import { hasLiveChallenge } from '@/lib/identity/challenge'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -30,6 +31,19 @@ const KINDS: readonly KycImageKind[] = KYC_IMAGE_KINDS
 export const POST = route(
   { auth: 'userId', rateLimit: { bucket: 'identity-documents', limit: 30, window: '1 h', strict: true } },
   async ({ req, userId }) => {
+    /**
+     * ⛔ CONSENT BEFORE COLLECTION — THE FIRST THING THIS ROUTE ASKS, BEFORE IT READS A SINGLE BYTE.
+     * A live challenge exists only because the person affirmed the declaration to get one (see the
+     * challenge route), so this single check is also the consent check. Until it was added, this
+     * endpoint accepted identity documents from anyone with a session: someone who photographed
+     * their passport and then closed the tab left those images in our private bucket with no record
+     * of permission to hold them. Both plan reviewers found it independently, and under the PDPL
+     * the consent has to precede the COLLECTION, not the submission.
+     * ⚠️ 403, NOT 401. The caller IS authenticated; what they lack is a started, un-expired
+     * verification attempt — a different problem with a different fix (go back and start again).
+     */
+    if (!(await hasLiveChallenge(userId))) throw new ApiError('forbidden', 403)
+
     const url = new URL(req.url)
     const kind = url.searchParams.get('kind') as KycImageKind | null
     if (!kind || !KINDS.includes(kind)) throw new ApiError('invalid_body', 400)

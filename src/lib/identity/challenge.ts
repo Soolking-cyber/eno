@@ -56,6 +56,20 @@ type StoredChallenge = {
   /** Epoch ms, so an expired record is legible in the store even before the TTL sweeps it. */
   exp: number
   issuedAt: number
+  /**
+   * ⛔ THE DECLARATION THE PERSON AFFIRMED TO GET THIS CHALLENGE — AND IT IS HERE BECAUSE OF THE
+   * ORDER, NOT FOR CONVENIENCE. The four `declaration*` columns live on `IdentityVerification`, a
+   * row that does not exist until SUBMIT — but `KycCapture` uploads each image the moment it is
+   * taken, well before that. Both plan reviewers refused the obvious design for exactly this: a
+   * person who photographs their passport and closes the tab would leave identity documents in our
+   * private bucket with no recorded consent for collecting them. Consent must precede the
+   * COLLECTION, not the submission.
+   * The challenge already IS the session for one capture attempt, it is issued at the moment of
+   * acceptance, and `/documents` refuses without a live one — so carrying the affirmation here
+   * makes "documents may be uploaded" and "consent was given" the same fact. `submitKycForReview`
+   * copies it onto the verification row when that row is finally created.
+   */
+  decl: { v: string; h: string; at: number; ip: string | null }
 }
 
 /** Non-reversible, and salted by profile so two sellers holding the same code hash differently. */
@@ -86,7 +100,16 @@ export type IssueResult =
  * ⚠️ Re-issuing REPLACES the outstanding code rather than adding one. Two live codes would mean a
  * photo matching EITHER is accepted, which doubles the attacker's odds for free.
  */
-export async function issueChallenge(profileId: string, now: Date = new Date()): Promise<IssueResult> {
+export async function issueChallenge(
+  profileId: string,
+  /**
+   * ⛔ REQUIRED, NOT OPTIONAL. Making the declaration an optional argument would let a caller issue
+   * a challenge — and therefore unlock document upload — without one, which is precisely the hole
+   * this parameter exists to close. There is no default.
+   */
+  declaration: { version: string; hash: string; declaredAt: Date; ip: string | null },
+  now: Date = new Date(),
+): Promise<IssueResult> {
   const cooling = await kv.get<number>(cooldownKey(profileId))
   if (cooling) {
     const remaining = Math.max(1, Math.ceil((cooling - now.getTime()) / 1000))
@@ -95,7 +118,17 @@ export async function issueChallenge(profileId: string, now: Date = new Date()):
 
   const code = generateCode()
   const expiresAt = new Date(now.getTime() + CHALLENGE_TTL_SECONDS * 1000)
-  const record: StoredChallenge = { h: hashCode(profileId, code), exp: expiresAt.getTime(), issuedAt: now.getTime() }
+  const record: StoredChallenge = {
+    h: hashCode(profileId, code),
+    exp: expiresAt.getTime(),
+    issuedAt: now.getTime(),
+    decl: {
+      v: declaration.version,
+      h: declaration.hash,
+      at: declaration.declaredAt.getTime(),
+      ip: declaration.ip,
+    },
+  }
 
   // No `nx`: re-issuing must overwrite, per the note above.
   await kv.set(key(profileId), record, { ex: CHALLENGE_TTL_SECONDS })
@@ -104,8 +137,13 @@ export async function issueChallenge(profileId: string, now: Date = new Date()):
 }
 
 export type ConsumeResult =
-  /** ⛔ THE NORMALISED PLAINTEXT COMES BACK, and the caller MUST persist it. See below. */
-  | { ok: true; code: string }
+  /**
+   * ⛔ THE NORMALISED PLAINTEXT COMES BACK, and the caller MUST persist it. See below.
+   * ⚠️ AND SO DOES THE DECLARATION, so `submitKycForReview` can stamp the verification row with the
+   * affirmation that authorised the upload rather than re-deriving one at submit time. Re-deriving
+   * would record the version current NOW, which may not be the one the person actually read.
+   */
+  | { ok: true; code: string; declaration: { version: string; hash: string; declaredAt: Date; ip: string | null } | null }
   | { ok: false; reason: 'no_challenge' | 'expired' | 'mismatch' }
 
 /**
@@ -155,7 +193,20 @@ export async function consumeChallenge(
   // ⚠️ Persisting it is safe BECAUSE IT IS ALREADY SPENT. Secrecy mattered only up to submission —
   // the record was destroyed one line above, so this value can never authorise anything again. It
   // is now evidence, not a credential.
-  return { ok: true, code: normalised }
+  return {
+    ok: true,
+    code: normalised,
+    // ⚠️ READ OFF THE BURNED RECORD, so the affirmation returned is the one that authorised THIS
+    // capture attempt. A record written before this field existed has no `decl`; that is treated as
+    // absent rather than fabricated — `submitKycForReview` simply stores nothing, which is what the
+    // schema's own comment calls for ("absent is NOT the same as refused").
+    // ⚠️ NULL, NOT A ZEROED PLACEHOLDER. A record written before this field existed has no `decl`,
+    // and inventing `{version:'', declaredAt: epoch}` would put a fabricated affirmation into a
+    // legal record. The schema says it plainly: "absent is NOT the same as refused."
+    declaration: rec.decl
+      ? { version: rec.decl.v, hash: rec.decl.h, declaredAt: new Date(rec.decl.at), ip: rec.decl.ip }
+      : null,
+  }
 }
 
 /** What the seller is told to do. Bilingual, because the copy lives server-side. */
@@ -164,4 +215,37 @@ export function challengeInstruction(code: string): { vi: string; en: string } {
     vi: `Viết mã ${code} lên một tờ giấy và cầm cùng hộ chiếu trong ảnh chụp.`,
     en: `Write the code ${code} on a piece of paper and hold it together with your passport in the photo.`,
   }
+}
+
+/**
+ * Is there a live challenge for this profile — i.e. has this person affirmed the declaration and
+ * not yet finished (or abandoned past the TTL) the capture it authorised?
+ *
+ * ⛔ THIS IS THE GATE ON `/api/seller/identity/documents`, AND IT IS WHY CONSENT NOW PRECEDES
+ * COLLECTION. Before it, that route accepted identity documents from anyone with a session and
+ * stored them in the private bucket; a person who photographed their passport and closed the tab
+ * left documents behind with no record of permission to hold them. Both plan reviewers found the
+ * same defect independently.
+ *
+ * ⚠️ IT DOES NOT CONSUME. Peeking must not burn the challenge — the code is still needed for the
+ * submit, and each capture calls `/documents` separately (document, then selfie). Burning here
+ * would make the second upload fail and the submit impossible.
+ */
+export async function hasLiveChallenge(profileId: string, now: Date = new Date()): Promise<boolean> {
+  const rec = await kv.get<StoredChallenge>(key(profileId))
+  if (!rec) return false
+  // ⚠️ THE TTL IS CHECKED HERE TOO, not left to the store. `kv.get` sweeps on read in production but
+  // the record carries its own `exp` precisely so expiry does not depend on the store's timing.
+  if (rec.exp <= now.getTime()) return false
+  /**
+   * ⛔ AND IT MUST CARRY A DECLARATION — BOTH DIFF REVIEWERS FOUND THIS HOLE INDEPENDENTLY. Checking
+   * only `exp` left a ten-minute window across a DEPLOY: a challenge issued by the previous build
+   * has no `decl`, stays live, and would have authorised document upload with no recorded consent —
+   * the exact thing this gate exists to prevent, reintroduced by the upgrade itself.
+   * ⚠️ NOTE THE ASYMMETRY WITH `consumeChallenge`, AND IT IS DELIBERATE. There, a missing `decl` is
+   * reported as `null` and stored as null, because fabricating an affirmation nobody made would put
+   * a false record into a compliance log. HERE the same absence must REFUSE: not knowing whether
+   * someone consented is a reason not to collect, and not a reason to invent that they did.
+   */
+  return Boolean(rec.decl)
 }

@@ -23,6 +23,14 @@ import { parsePassportMrz } from '@/lib/visa/mrz'
 export const kycSubmitSchema = z.object({
   /** The code the seller wrote on paper and held in the selfie. */
   challengeCode: z.string().min(1).max(32),
+  /**
+   * ⛔ REQUIRED AND EXPLICIT — NEVER DEFAULTED. `decideTierB` reads `input.tier ?? 'B'`, and both
+   * plan reviewers named that fallback as a trap: a client bug that omits the field silently files a
+   * Vietnamese CCCD as a passport and applies passport rules (MRZ, six-month validity) to a document
+   * that has none. There is no sensible default here, so there is none.
+   * 'A' = Vietnamese citizen (CCCD). 'B' = foreign resident (passport).
+   */
+  tier: z.enum(['A', 'B']),
   /** Two storage paths already uploaded to the private bucket by the documents route. */
   documentPath: z.string().min(1).max(300),
   selfiePath: z.string().min(1).max(300),
@@ -50,6 +58,10 @@ export type KycSubmitError =
   | 'path_not_owned'
   | 'identity_hashing_unavailable'
   | 'document_unreadable'
+  // ⚠️ THE CLAIMED TIER CONTRADICTS THE SUBMISSION — MRZ lines on a tier A (CCCD) claim. A CCCD has
+  // no MRZ, so this is either a mis-set tier or a passport being filed under the branch that skips
+  // the MRZ requirement. Both diff reviewers found the second one.
+  | 'tier_mismatch'
   | 'already_pending'
   | 'duplicate_identity'
   | 'rejected'
@@ -156,8 +168,33 @@ export async function submitKycForReview(
 
   // 6. The objective checks. `humanReview` is deliberately ABSENT: this call can only return
   //    `pending` or `rejected`, never `verified`.
+  /**
+   * ⛔ THE CLAIMED TIER IS CLIENT INPUT, AND BOTH DIFF REVIEWERS FOUND THE BYPASS IT OPENS: a
+   * foreign passport submitted as `tier: 'A'` is judged by the CCCD branch, which skips the
+   * `mrzValid || provider` requirement entirely. There is no honest way to CLASSIFY the document
+   * server-side here — we hold two images and no reader — so this closes what can be closed and is
+   * explicit about what it cannot.
+   *
+   * ⚠️ WHAT IT CLOSES: the self-contradicting submission. MRZ lines only exist on a passport, so a
+   * tier A claim that carries them is refused rather than quietly accepted with its MRZ ignored.
+   *
+   * ⛔ WHAT IT DOES NOT CLOSE, STATED PLAINLY: someone submitting a passport as tier A and simply
+   * omitting the MRZ. In v1 BOTH tiers are decided by a human who is shown the document AND the
+   * claimed tier (`listKycQueue` selects `tier` for exactly this), so the reviewer is the control —
+   * `decideTierB` was never the whole check for tier A, and the queue makes the mismatch visible.
+   * This is the honest limit of a manual flow; a document classifier or the blocked provider
+   * integration is what would make it a machine check. Do not read the tier A branch as an
+   * automated assurance it never claimed to be.
+   */
+  if (input.tier === 'A' && (input.mrzLine1 || input.mrzLine2)) {
+    return { ok: false, code: 'tier_mismatch' }
+  }
+
   const decision = decideTierB({
-    tier: 'B',
+    // ⚠️ THE SUBMITTED TIER, NOT A LITERAL. Passing 'B' unconditionally is what made tier A
+    // unreachable: `decideTierB` already branches on this (`const isTierB = (input.tier ?? 'B') === 'B'`),
+    // so the decision layer was ready and only the caller was hardcoded.
+    tier: input.tier,
     surname: doc.surname, givenNames: doc.givenNames,
     documentExpiry: doc.documentExpiry, mrzValid: doc.mrzValid,
     accountName, now,
@@ -166,17 +203,36 @@ export async function submitKycForReview(
 
   const row = await db.identityVerification.create({
     data: {
-      profileId, tier: 'B',
-      method: 'passport_mrz',
+      profileId,
+      tier: input.tier,
+      // ⚠️ THE METHOD NAMES WHAT WAS ACTUALLY DONE, and for tier A that is not an MRZ read — a CCCD
+      // has no machine-readable zone in the passport sense. Recording `passport_mrz` for a national
+      // ID card would put a false statement about our own procedure into the compliance record.
+      method: input.tier === 'A' ? 'cccd_manual' : 'passport_mrz',
       status: 'pending',
       subjectHash,
+      /**
+       * ⛔ THE AFFIRMATION THAT AUTHORISED THIS CAPTURE, carried here from the challenge that was
+       * burned two steps up. It is NOT rebuilt at this moment: rebuilding would stamp whichever
+       * declaration is current NOW, which may not be the wording this person actually read if a new
+       * version shipped mid-flow. `null` when the challenge predates the field — absent is not
+       * refused, which is what the schema comment on these columns says.
+       */
+      declarationVersion: challenge.declaration?.version ?? null,
+      declarationHash: challenge.declaration?.hash ?? null,
+      declaredAt: challenge.declaration?.declaredAt ?? null,
+      declarationIp: challenge.declaration?.ip ?? null,
       fullName: [doc.givenNames, doc.surname].filter(Boolean).join(' ').trim() || null,
       nationality: doc.nationality ?? null,
-      documentType: 'passport',
+      documentType: input.tier === 'A' ? 'cccd' : 'passport',
       documentExpiresAt: doc.documentExpiry ? new Date(`${doc.documentExpiry}T00:00:00+07:00`) : null,
       // ⛔ EVIDENCE, NEVER THE DOCUMENT. The images stay in the private bucket; this column holds
       // only pointers and what the checks concluded, so a database dump is not a passport dump.
       evidence: {
+        // ⚠️ RECORDED AS *CLAIMED*, because that is what it is. Nothing server-side classified the
+        // document; the applicant chose the tier and a human confirms it. Naming the provenance in
+        // the compliance record stops a later reader treating it as a machine determination.
+        tierClaimedBy: 'applicant',
         documentPath: input.documentPath,
         selfiePath: input.selfiePath,
         // ⛔ THE DECISION INPUTS ARE CARRIED, NOT REBUILT. reviewKycCase has to re-run decideTierB

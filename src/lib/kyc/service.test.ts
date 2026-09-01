@@ -51,8 +51,7 @@ const MRZ = buildMrz({ surname: 'ERIKSSON', given: 'ANNA MARIA', number: 'X12345
 // ⚠️ THE PATHS MUST BELONG TO THE PROFILE UNDER TEST. submitKycForReview now proves ownership
 // before it writes anything, so a fixture with a generic path would send every test down the
 // `path_not_owned` branch while still LOOKING like it exercised the happy one.
-const input = (over: Record<string, unknown> = {}, who = 'p1') => ({
-  challengeCode: 'ACD349',
+const input = (over: Record<string, unknown> = {}, who = 'p1') => ({ tier: 'B' as const, challengeCode: 'ACD349',
   documentPath: `${who}/identity/document-11111111-2222-4333-8444-555555555555.jpg`,
   selfiePath: `${who}/identity/selfie-11111111-2222-4333-8444-555555555555.jpg`,
   mrzLine1: MRZ.line1, mrzLine2: MRZ.line2,

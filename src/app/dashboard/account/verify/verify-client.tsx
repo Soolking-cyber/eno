@@ -9,7 +9,7 @@
 //
 // docs/compliance-2026.md §1. Declaration text + hashing: src/lib/compliance/declaration.ts.
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Fingerprint, IdCard, ShieldCheck } from "@/components/ui/icons"
 import { useAuth } from '@/context/auth-context'
@@ -18,6 +18,11 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Alert, AlertDescription } from '@/components/ui/alert'
+import { SectionHeader } from '@/components/marketplace/section-header'
+import { Input } from '@/components/ui/input'
+import { Field, FieldLabel } from '@/components/ui/field'
+import { Loader2 } from '@/components/ui/icons'
+import { KycCapture } from '@/components/marketplace/kyc-capture'
 // ⛔ `declaration-text`, NOT `declaration` — the latter imports node:crypto, and a 'use client'
 // file importing it drags the whole Node crypto polyfill into the browser (measured: 435 KB
 // raw / 130 KB gzip, 44% of this route's JS). The text module exists for exactly this import.
@@ -30,6 +35,114 @@ export function VerifyClient() {
   const router = useRouter()
   const [accepted, setAccepted] = useState(false)
   const [tier, setTier] = useState<'A' | 'B' | null>(null)
+  /**
+   * ⛔ THE CHALLENGE IS ALSO THE CONSENT RECEIPT. Issuing one requires the declaration, and
+   * `/api/seller/identity/documents` refuses without a live challenge — so nothing can be uploaded
+   * before the affirmation is recorded. Both plan reviewers refused the design that wrote the
+   * declaration at submit: `KycCapture` uploads each image the moment it is taken, so consent has
+   * to precede the collection, not the submission.
+   */
+  const [challenge, setChallenge] = useState<{ code: string; expiresAt: string } | null>(null)
+  const [starting, setStarting] = useState(false)
+  const [documentPath, setDocumentPath] = useState<string | null>(null)
+  const [selfiePath, setSelfiePath] = useState<string | null>(null)
+  const [surname, setSurname] = useState('')
+  const [givenNames, setGivenNames] = useState('')
+  const [documentNumber, setDocumentNumber] = useState('')
+  const [documentExpiry, setDocumentExpiry] = useState('')
+  const [mrzLine1, setMrzLine1] = useState('')
+  const [mrzLine2, setMrzLine2] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [submitted, setSubmitted] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  /**
+   * ⚠️ ONE CALL, AND IT CARRIES THE VERSION THE PAGE ACTUALLY RENDERED — not whatever is current
+   * server-side when it lands. If a new declaration shipped between page load and click, stamping
+   * the current one would attribute to this person a wording they never read.
+   */
+  const start = useCallback(async (chosen: 'A' | 'B') => {
+    setTier(chosen)
+    setError(null)
+    setStarting(true)
+    try {
+      const r = await fetch('/api/seller/identity/challenge', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ version: CURRENT_DECLARATION, accepted: true }),
+      })
+      if (!r.ok) {
+        setError(r.status === 429
+          ? tr('Please wait a moment before trying again.', 'Vui lòng đợi một lát rồi thử lại.')
+          : tr('We could not start verification. Please try again.', 'Không thể bắt đầu xác minh. Vui lòng thử lại.'))
+        return
+      }
+      setChallenge((await r.json()) as { code: string; expiresAt: string })
+    } catch {
+      setError(tr('We could not start verification. Please try again.', 'Không thể bắt đầu xác minh. Vui lòng thử lại.'))
+    } finally {
+      setStarting(false)
+    }
+  }, [tr])
+
+  // Returns the flow to the tier-choice screen: clears the (now-burned) challenge and both uploaded
+  // paths so a fresh attempt starts clean. Deliberately keeps `accepted` — the declaration was read.
+  const resetAttempt = useCallback(() => {
+    // ⚠️ CLEARS EVERYTHING, so the "we cleared the form" copy is true and a restarted tier-A attempt
+    // cannot carry stale tier-B MRZ text. `accepted` stays — the declaration was read, not undone.
+    setChallenge(null); setTier(null); setDocumentPath(null); setSelfiePath(null)
+    setSurname(''); setGivenNames(''); setDocumentNumber(''); setDocumentExpiry(''); setMrzLine1(''); setMrzLine2('')
+  }, [])
+
+  const submit = useCallback(async () => {
+    if (!tier || !challenge || !documentPath || !selfiePath) return
+    setSubmitting(true)
+    setError(null)
+    try {
+      const r = await fetch('/api/seller/identity/submit', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          // ⛔ THE TIER IS SENT EXPLICITLY. `decideTierB` reads `input.tier ?? 'B'`, and both plan
+          // reviewers named that fallback: omitting it files a CCCD as a passport and applies
+          // passport rules to a document that has none.
+          tier,
+          challengeCode: challenge.code,
+          documentPath,
+          selfiePath,
+          consentVersion: CURRENT_DECLARATION,
+          surname: surname.trim() || undefined,
+          givenNames: givenNames.trim() || undefined,
+          passportNumber: documentNumber.trim() || undefined,
+          nationality: tier === 'A' ? 'VNM' : undefined,
+          documentExpiry: documentExpiry || undefined,
+          // ⚠️ MRZ ONLY FOR A PASSPORT, and only because tier B's decision REQUIRES a reliable read:
+          // `decideTierB` rejects a tier B case with neither valid check digits nor a provider. A
+          // CCCD has no MRZ at all and its branch does not ask for one.
+          mrzLine1: tier === 'B' ? (mrzLine1.trim().toUpperCase() || undefined) : undefined,
+          mrzLine2: tier === 'B' ? (mrzLine2.trim().toUpperCase() || undefined) : undefined,
+        }),
+      })
+      // ⛔ ANY FAILURE HERE HAS ALREADY BURNED THE CHALLENGE (consumeChallenge burns the code on
+      // every answer), so retrying the SAME submit only hits `no_challenge` and re-uploading now
+      // 403s — the reviewer's stranding path. Reset to the start instead: the next attempt issues a
+      // fresh code and takes fresh photos. (The 60s issue cooldown is handled by `start`, which
+      // shows "please wait a moment" on a 429.)
+      if (!r.ok || ((await r.clone().json().catch(() => ({}))) as { ok?: boolean }).ok === false) {
+        resetAttempt()
+        setError(tr(
+          'That did not go through, so we cleared the form. Please choose how to verify and start again.',
+          'Chưa gửi được nên chúng tôi đã xóa biểu mẫu. Vui lòng chọn cách xác minh và bắt đầu lại.',
+        ))
+        return
+      }
+      setSubmitted(true)
+    } catch {
+      setError(tr('We could not accept that. Check the details and try again.', 'Chưa gửi được. Vui lòng kiểm tra lại thông tin.'))
+    } finally {
+      setSubmitting(false)
+    }
+  }, [tier, challenge, documentPath, selfiePath, surname, givenNames, documentNumber, documentExpiry, mrzLine1, mrzLine2, tr])
 
   // Same client gate every sibling section uses — a SERVER redirect here would race the session
   // restore and reproduce the signin↔dashboard bounce /dashboard/page.tsx warns about.
@@ -45,6 +158,10 @@ export function VerifyClient() {
     // now, matching the header → declaration card → tier buttons below it, like every sibling
     // dashboard gate.
     return (
+      <>
+      {/* ⚠️ THE TITLE BAR IS IN THE SKELETON TOO. Without it the back affordance appears only after
+          the session resolves, so a phone briefly shows a pushed screen with no way out of it. */}
+      <SectionHeader title={tr('Verify your identity', 'Xác minh danh tính')} fallbackHref="/dashboard/verification" />
       <div role="status" aria-label={tr('Loading…', 'Đang tải…')} className="mx-auto max-w-2xl space-y-6">
         <div className="space-y-2">
           {/* h1 — h-display + the h-8 seal beside it (fluid: 28 → 40px × 1.12) */}
@@ -75,6 +192,7 @@ export function VerifyClient() {
           </div>
         </div>
       </div>
+      </>
     )
   }
 
@@ -84,9 +202,20 @@ export function VerifyClient() {
   const body = lang === 'vi' ? decl.vi : decl.en
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
+    <>
+      {/**
+        * ⛔ `fallbackHref` POINTS AT THE HUB, NOT THE DEFAULT `/dashboard/listings`. This screen is
+        * reached two ways — from the Verification section, and from a publish refusal — and on a
+        * DEEP LINK there is no history to pop. Landing someone on their listings after they were
+        * just told to verify is the dead end this page's own header warns about, one step later.
+        */}
+      <SectionHeader title={tr('Verify your identity', 'Xác minh danh tính')} fallbackHref="/dashboard/verification" />
+      <div className="mx-auto max-w-2xl space-y-6">
       <header className="space-y-2">
-        <h1 className="h-display flex items-center gap-2 text-foreground">
+        {/* ⚠️ `hidden lg:flex` — SectionHeader already renders this title as the mobile bar, so an
+            always-visible h1 put "Verify your identity" on the phone TWICE (two h1s). Desktop has
+            no SectionHeader, so the h1 shows there. The description below stays on both. */}
+        <h1 className="h-display hidden items-center gap-2 text-foreground lg:flex">
           {/* Identity verification is first-party trust → the eno seal, not lucide ShieldCheck
               (icon-language §0b). Washed chief carries the brand; the LINE is currentColor and
               inherits the heading's ink (§0) — a blue outline beside a near-black heading would
@@ -149,7 +278,8 @@ export function VerifyClient() {
             type="button"
             variant={tier === 'A' ? 'cta' : 'outline'}
             disabled={!accepted}
-            onClick={() => setTier('A')}
+            onClick={() => void start('A')}
+            aria-busy={starting && tier === 'A'}
             className="h-auto flex-col items-start gap-1 rounded-2xl p-4 text-left"
           >
             {/* §2: tier-choice leads are BUTTON content, not nav chrome — the hand-typed 2.25
@@ -161,7 +291,8 @@ export function VerifyClient() {
             type="button"
             variant={tier === 'B' ? 'cta' : 'outline'}
             disabled={!accepted}
-            onClick={() => setTier('B')}
+            onClick={() => void start('B')}
+            aria-busy={starting && tier === 'B'}
             className="h-auto flex-col items-start gap-1 rounded-2xl p-4 text-left"
           >
             <span className="flex items-center gap-2 font-bold"><IdCard className="h-5 w-5" />{tr('Foreign resident', 'Người nước ngoài')}</span>
@@ -171,32 +302,145 @@ export function VerifyClient() {
                 asking someone for a passport, an inaccurate privacy claim is the worst possible
                 thing to get wrong. It now names what actually happens, and the selfie, which the
                 face-match step requires. */}
-            <span className="text-xs font-normal opacity-80">{tr('Passport + a selfie — sent to VNPT for checking', 'Hộ chiếu + ảnh chân dung — gửi tới VNPT để kiểm tra')}</span>
+            {/* ⚠️ IT NO LONGER SAYS "sent to VNPT". That integration is blocked and v1 is human
+                review by our own team, so the old sentence described a data flow that does not
+                happen. This file's own history warns about exactly this: an inaccurate privacy
+                claim on the page asking for a passport is the worst thing here to get wrong. */}
+            <span className="text-xs font-normal opacity-80">{tr('Passport + a selfie — checked by our team', 'Hộ chiếu + ảnh chân dung — đội ngũ của chúng tôi kiểm tra')}</span>
           </Button>
         </div>
 
-        {/* ⚠️ SAY IT IS NOT READY YET RATHER THAN SHIP A DEAD BUTTON. The eKYC provider integration
-            is still blocked on VNPT (token endpoint + write scope), so a "Continue" here would fail
-            after the user had committed. Naming the state is honest and costs one paragraph; a
-            button that silently does nothing costs the trust this page is asking for. */}
-        {tier && (
+        {error && <p role="alert" className="text-sm font-semibold text-destructive">{error}</p>}
+
+        {submitted ? (
           <Alert>
             <AlertDescription>
               {tr(
-                'Verification is not switched on yet — we are completing the connection to the national eKYC provider. Your declaration is recorded and you will be emailed the moment you can finish.',
-                'Tính năng xác minh chưa được bật — chúng tôi đang hoàn tất kết nối với đơn vị eKYC quốc gia. Cam đoan của bạn đã được ghi nhận và chúng tôi sẽ gửi email ngay khi bạn có thể hoàn tất.',
+                'Sent. A person reviews this by hand, usually within a working day, and we will email you the result.',
+                'Đã gửi. Một nhân viên sẽ kiểm tra thủ công, thường trong một ngày làm việc, và chúng tôi sẽ gửi email kết quả.',
               )}
             </AlertDescription>
           </Alert>
-        )}
+        ) : challenge && tier ? (
+          <div className="space-y-5 rounded-2xl border border-border bg-card p-5">
+            {/*
+              ⛔ THE CODE IS THE WHOLE ANTI-FRAUD MECHANISM, so it is stated before the camera opens
+              rather than buried under it. A stolen document photograph cannot produce a selfie of
+              its owner holding today's code on paper; that pairing is what a reviewer is judging.
+            */}
+            <div>
+              <h3 className="font-bold text-foreground">{tr('Step 1 — write this code on paper', 'Bước 1 — viết mã này ra giấy')}</h3>
+              <p className="mt-1 font-mono text-2xl font-bold tracking-widest text-foreground">{challenge.code}</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {tr(
+                  'Hold the paper next to your face in the selfie. The code is only valid for a few minutes.',
+                  'Cầm tờ giấy cạnh khuôn mặt khi chụp ảnh chân dung. Mã chỉ có hiệu lực trong vài phút.',
+                )}
+              </p>
+            </div>
+
+            <div>
+              <h3 className="font-bold text-foreground">
+                {tier === 'A'
+                  ? tr('Step 2 — photograph your CCCD', 'Bước 2 — chụp ảnh CCCD')
+                  : tr('Step 2 — photograph your passport page', 'Bước 2 — chụp trang hộ chiếu')}
+              </h3>
+              <KycCapture kind="document" onUploaded={setDocumentPath} className="mt-2" />
+            </div>
+
+            <div>
+              <h3 className="font-bold text-foreground">{tr('Step 3 — selfie holding the code', 'Bước 3 — ảnh chân dung cầm mã')}</h3>
+              <KycCapture kind="selfie" onUploaded={setSelfiePath} className="mt-2" />
+            </div>
+
+            <div className="space-y-3">
+              <h3 className="font-bold text-foreground">{tr('Step 4 — your details', 'Bước 4 — thông tin của bạn')}</h3>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field>
+                  <FieldLabel>{tr('Surname', 'Họ')}</FieldLabel>
+                  <Input value={surname} onChange={(e) => setSurname(e.target.value)} autoComplete="family-name" />
+                </Field>
+                <Field>
+                  <FieldLabel>{tr('Given names', 'Tên')}</FieldLabel>
+                  <Input value={givenNames} onChange={(e) => setGivenNames(e.target.value)} autoComplete="given-name" />
+                </Field>
+                <Field>
+                  <FieldLabel>{tier === 'A' ? tr('CCCD number', 'Số CCCD') : tr('Passport number', 'Số hộ chiếu')}</FieldLabel>
+                  <Input value={documentNumber} onChange={(e) => setDocumentNumber(e.target.value)} inputMode="text" />
+                </Field>
+                <Field>
+                  <FieldLabel>{tr('Expiry date', 'Ngày hết hạn')}</FieldLabel>
+                  <Input type="date" value={documentExpiry} onChange={(e) => setDocumentExpiry(e.target.value)} />
+                </Field>
+              </div>
+
+              {/*
+                ⛔ THE MRZ IS ASKED FOR ON A PASSPORT AND ONLY ON A PASSPORT, and it is not busywork:
+                `decideTierB` REJECTS a tier B case that was not read reliably, and with the provider
+                integration blocked the check digits in these two lines are the only reliable read
+                available. A CCCD has no MRZ, and its branch does not ask for one.
+              */}
+              {tier === 'B' && (
+                <div className="space-y-2">
+                  <p className="text-xs text-muted-foreground">
+                    {tr(
+                      'Type the two lines of letters and numbers printed across the bottom of your passport page. They contain check digits we use to confirm the page was read correctly.',
+                      'Nhập hai dòng chữ và số in ở cuối trang hộ chiếu. Chúng chứa các chữ số kiểm tra giúp chúng tôi xác nhận đã đọc đúng.',
+                    )}
+                  </p>
+                  <Input value={mrzLine1} onChange={(e) => setMrzLine1(e.target.value)} placeholder="P<VNMNGUYEN<<VAN<A<<<<<<<<<<<<<<<<<<<<<<<<<<" className="font-mono" />
+                  <Input value={mrzLine2} onChange={(e) => setMrzLine2(e.target.value)} placeholder="C12345678VNM9001011M3001011<<<<<<<<<<<<<<04" className="font-mono" />
+                </div>
+              )}
+            </div>
+
+            {/*
+              ⚠️ DISABLED UNTIL BOTH IMAGES ARE UP, because the server refuses without them and a
+              button that submits into a refusal wastes the challenge — `consumeChallenge` burns the
+              code whatever the answer, so a premature submit costs the person a restart.
+            */}
+            <Button
+              variant="cta"
+              className="w-full"
+              disabled={submitting || !documentPath || !selfiePath}
+              onClick={() => void submit()}
+            >
+              {submitting && <Loader2 className="size-4 animate-spin" aria-hidden="true" />}
+              {tr('Send for review', 'Gửi để xét duyệt')}
+            </Button>
+
+            {/* ⛔ ALWAYS AN ESCAPE HATCH. The challenge is single-use and time-limited: if it expires
+                between the document and the selfie, the selfie upload 403s and "Send for review"
+                stays disabled with no way forward (reviewer-caught). Rather than special-case every
+                stuck state, one "Start over" is always here during capture — it clears the burned
+                challenge and both photos so a fresh attempt gets a fresh code. */}
+            <button
+              type="button"
+              onClick={resetAttempt}
+              className="mx-auto block text-xs font-semibold text-muted-foreground underline underline-offset-2"
+            >
+              {tr('Start over', 'Bắt đầu lại')}
+            </button>
+          </div>
+        ) : null}
+
       </section>
 
+      {/*
+        ⛔ REWRITTEN BECAUSE THE OLD TEXT DESCRIBED A DATA FLOW THAT DOES NOT HAPPEN. It said the
+        images go to VNPT and that "eno.vn deletes its own copy as soon as the check finishes" —
+        true of the planned provider integration, false of what v1 does, which is hold both images
+        in our own private storage for a person on our team to look at. This file's own history
+        already records one correction for exactly this class of error; an inaccurate privacy claim
+        on the page asking for a passport is the worst thing on it to get wrong.
+      */}
       <p className="text-xs text-muted-foreground">
         {tr(
-          'Your images are sent to VNPT eKYC to be checked, and are processed under their retention policy as a licensed provider. eno.vn deletes its own copy as soon as the check finishes: we keep only the result, the document expiry date, and a one-way fingerprint that lets us spot duplicate accounts — never the document number itself.',
-          'Ảnh của bạn được gửi tới VNPT eKYC để kiểm tra và được xử lý theo chính sách lưu trữ của đơn vị được cấp phép này. eno.vn xoá bản sao của mình ngay khi kiểm tra xong: chúng tôi chỉ lưu kết quả, ngày hết hạn giấy tờ và một dấu vân tay một chiều để phát hiện tài khoản trùng lặp — không bao giờ lưu số giấy tờ.',
+          'Your two photographs are stored privately by eno.vn and are opened only by a reviewer on our team, through a link that expires in ten minutes. We keep the result, the document expiry date, and a one-way fingerprint that lets us spot duplicate accounts — never the document number itself.',
+          'Hai ảnh của bạn được eno.vn lưu trữ riêng tư và chỉ được mở bởi nhân viên xét duyệt của chúng tôi, qua đường dẫn hết hạn sau mười phút. Chúng tôi lưu kết quả, ngày hết hạn giấy tờ và một dấu vân tay một chiều để phát hiện tài khoản trùng lặp — không bao giờ lưu số giấy tờ.',
         )}
       </p>
-    </div>
+      </div>
+    </>
   )
 }

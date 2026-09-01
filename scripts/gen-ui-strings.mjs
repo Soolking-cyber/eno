@@ -53,7 +53,7 @@ const SERVICES_SOURCES = [
    * ⚠️ THE CLIENT COMPONENTS ARE PLAIN `.tsx` because only a ROUTE can carry `.svc.` — so their
    * paths look shared and nothing but these lines says otherwise.
    */
-  'src/app/checkout/', 'src/app/dashboard/payout/', 'src/app/api/seller/payout',
+  'src/app/checkout/', 'src/app/dashboard/payout/', 'src/app/dashboard/wallet/', 'src/app/api/wallet', 'src/app/api/seller/payout',
   /**
    * ⚠️ THE CROSS-SITE PROMO IS SERVICES-ONLY EVEN THOUGH ITS PATH LOOKS SHARED, and this line is
    * the only thing that says so. Every other entry above is recognisably a visa/trip surface;
