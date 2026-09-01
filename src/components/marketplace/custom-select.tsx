@@ -13,10 +13,48 @@ import { cn } from '@/lib/utils'
  *  where scanning stops being instant and a scroll appears on a phone. */
 export const SEARCHABLE_FROM = 6
 
+export interface SelectOption {
+  value: string
+  label: string
+  /** ⚠️ OPTIONAL SECOND LINE, and it is for DISAMBIGUATION, not decoration. Added for the payout
+   *  bank picker, where the label a seller recognises ("SCB") is not enough to tell it apart from
+   *  the one below it ("SaigonBank") — those are two different banks whose short names collide and
+   *  whose legal names ("Ngân hàng TMCP Sài Gòn" vs "…Sài Gòn Công Thương") do not. Picking the
+   *  wrong one does not error; it produces a QR that scans and pays a different institution.
+   *  ⚠️ Only reach for it when the label alone is genuinely ambiguous. A description on every row
+   *  doubles the height of the menu and makes the list harder to scan, not easier. */
+  description?: string
+}
+
+/** ⚠️ DIACRITIC- AND CASE-BLIND, BECAUSE NOBODY TYPES THE ACCENTS. Someone looking for "Ngân hàng
+ *  TMCP Á Châu" types "ngan hang a chau". NFD splits each letter from its combining mark and the
+ *  range strip removes the marks.
+ *  ⚠️ `đ` HAS NO COMBINING FORM and survives NFD untouched, so it is mapped by hand — without that
+ *  line "ngan hang dai chung" and "dong a" both miss banks that are right there.
+ *  ⚠️ THIS IS ONLY USED WHEN AN OPTION CARRIES A `description` (see the filter below). Base UI's
+ *  own filter is already accent-insensitive (`sensitivity: 'base'`); what it cannot do is see a
+ *  field it was never given. */
+const fold = (s: string) =>
+  s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd').replace(/Đ/g, 'D').toLowerCase()
+
+/** The row's text. Two lines when the option carries a description, one when it does not — so
+ *  every existing call site renders exactly as before. */
+function OptionLabel({ label, description }: { label: string; description?: string }) {
+  if (!description) return <span className="min-w-0 flex-1 truncate">{label}</span>
+  return (
+    <span className="flex min-w-0 flex-1 flex-col">
+      <span className="truncate">{label}</span>
+      {/* ⚠️ `font-normal`, because `itemClassName` sets font-semibold on the ACTIVE row and that
+          would otherwise bold the legal name too, making the selected row read as two headings. */}
+      <span className="truncate text-xs font-normal text-body">{description}</span>
+    </span>
+  )
+}
+
 interface CustomSelectProps {
   value: string
   onChange: (value: string) => void
-  options: { value: string; label: string }[]
+  options: SelectOption[]
   /** REQUIRED accessible name — WHICH facet this is ("Transmission", "Sort by", …),
    *  bilingual via tr(). Without it the trigger's only name is its current value, so a
    *  screen-reader user hears "All, combobox" with no idea what it filters. It is NOT an
@@ -146,6 +184,13 @@ function SearchableSelect({
   const { tr } = useLanguage()
   const [open, setOpen] = useState(false)
   const selectedOption = options.find((o) => o.value === value) ?? null
+  /**
+   * ⛔ ONLY OVERRIDDEN WHEN A DESCRIPTION EXISTS — `undefined` otherwise, which leaves Base UI's
+   * own collator in place. Replacing the filter unconditionally would quietly change how EVERY
+   * facet and ward picker in the app matches text, to fix one new call site. The default already
+   * handles accents; it simply cannot search a field it was never handed.
+   */
+  const searchesDescription = options.some((o) => o.description)
 
   return (
     // Same sizing wrapper, and for the same reason as the plain variant below: the Root
@@ -158,6 +203,12 @@ function SearchableSelect({
         onValueChange={(v) => { if (v && typeof v === 'object' && 'value' in v) onChange((v as { value: string }).value) }}
         open={open}
         onOpenChange={setOpen}
+        filter={
+          searchesDescription
+            ? (item: SelectOption, query: string) =>
+                fold(`${item.label} ${item.description ?? ''}`).includes(fold(query.trim()))
+            : undefined
+        }
         // Highlight the best match as you type, so Enter picks the obvious thing.
         autoHighlight
       >
@@ -209,7 +260,7 @@ function SearchableSelect({
                 {tr('No matches', 'Không có kết quả')}
               </ComboboxPrimitive.Empty>
               <ComboboxPrimitive.List className="max-h-60 overflow-y-auto overflow-x-hidden p-1.5 scroll-thin">
-                {(item: { value: string; label: string }) => {
+                {(item: SelectOption) => {
                   const isActive = item.value === value
                   return (
                     // ⚠️ A DIV, not ui/button — the one place these two menus must differ.
@@ -226,7 +277,7 @@ function SearchableSelect({
                       value={item}
                       className={itemClassName(isActive)}
                     >
-                      <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                      <OptionLabel label={item.label} description={item.description} />
                       {isActive && <Check className="h-4 w-4 shrink-0" />}
                     </ComboboxPrimitive.Item>
                   )
@@ -384,7 +435,7 @@ function PlainSelect({
                       />
                     }
                   >
-                    <span className="truncate">{opt.label}</span>
+                    <OptionLabel label={opt.label} description={opt.description} />
                     {/* Decorative only — lucide stamps aria-hidden on it. The row's selected state
                         is announced by the primitive's aria-selected, not by this ✓. */}
                     {isActive && <Check className="h-4 w-4 shrink-0" />}

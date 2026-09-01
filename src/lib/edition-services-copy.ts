@@ -161,6 +161,21 @@ export const SERVICES_NAV_TRIPS: ServicesNavRow = { href: '/dashboard/trips', en
  * what it still leads to. "Vietnam e-Visa" read as an entry point; this does not.
  */
 export const SERVICES_NAV_CASES: ServicesNavRow = { href: '/dashboard/visa', en: 'My e-Visa', vi: 'E-Visa của tôi' }
+/**
+ * Selling group — settlement. BOTH ROWS ARE SERVICES-ONLY AND FOR THE SAME LEGAL REASON as the
+ * visa rows above: eno.vn is a licensed sàn TMĐT that may not carry a payments surface, and its
+ * pages (`page.svc.tsx`) do not exist in that build at all. A rail row pointing at a route that
+ * was compiled away would be a 404 on the licensed site advertising a service it cannot offer.
+ *
+ * ⚠️ THEY LIVE HERE, NOT INLINE IN THE RAIL, BECAUSE OF THE ARTIFACT — the same measured reason
+ * this whole module exists. `IS_SERVICES` is not dead-code-eliminated across a module boundary, so
+ * an inline `IS_SERVICES ? [{en: 'Wallet'}] : []` leaves the words in the marketplace bundle as
+ * array data. Both plan reviewers flagged the rail as the leak path a `.svc.` extension does not
+ * cover; the alias is the layer that actually removes the vocabulary.
+ */
+export const SERVICES_NAV_WALLET: ServicesNavRow = { href: '/dashboard/wallet', en: 'Wallet', vi: 'Ví của tôi' }
+export const SERVICES_NAV_PAYOUT: ServicesNavRow = { href: '/dashboard/payout', en: 'Payouts', vi: 'Nhận thanh toán' }
+
 /** Admin group. EN-only, by the repo convention that admin chrome is never localized. */
 export const SERVICES_NAV_ADMIN_QUEUE: ServicesNavRow = { href: '/admin/visas', en: 'Visas' }
 

@@ -92,6 +92,43 @@ function canonicalHost(): string {
  * is an infra label here, so it is not rewritten either — it serves the ordinary app, and every
  * write from it would have died.
  */
+/**
+ * Is this a loopback request writing to itself?
+ *
+ * ⚠️ THE HOST COMES FROM THE REQUEST, NOT FROM CONFIGURATION, so there is no variable to set wrongly
+ * in production. `NODE_ENV` would have been the obvious gate and is the wrong one: `next start`
+ * reports `production` in a local preview too, so it cannot tell the two apart.
+ */
+export function isLoopbackSelfOrigin(req: { headers: Headers; url: string }, origin: string): boolean {
+  let originHost: string
+  try {
+    originHost = new URL(origin).hostname
+  } catch {
+    return false
+  }
+  if (!LOOPBACK.has(originHost)) return false
+
+  /**
+   * ⛔ THE REQUEST'S OWN HOST MUST BE LOOPBACK TOO, and this is the half that carries the security.
+   * Without it, `Origin: http://localhost` sent to production would authorise any write.
+   * ⚠️ AND THE TWO NEED NOT BE THE SAME SPELLING. An earlier version also required `selfHost ===
+   * originHost`, which mutation-testing showed was dead weight: the check below already refuses a
+   * real host, and the only thing the equality added was rejecting a browser on `127.0.0.1` talking
+   * to a server that calls itself `localhost` — the same machine, refused for no reason.
+   */
+  const host = req.headers.get('host') ?? ''
+  let selfHost: string
+  try {
+    selfHost = new URL(`http://${host}`).hostname
+  } catch {
+    return false
+  }
+  return LOOPBACK.has(selfHost)
+}
+
+/** ⚠️ EXACT hostnames. `localhost.evil.com` is not loopback, and a substring test would say it was. */
+const LOOPBACK = new Set(['localhost', '127.0.0.1', '[::1]', '::1'])
+
 function writeOrigins(): Set<string> | null {
   const raw = process.env.NEXT_PUBLIC_APP_URL
   if (!raw) return null
@@ -109,6 +146,23 @@ function crossOriginWrite(req: NextRequest): boolean {
   const origin = req.headers.get('origin')
   if (!origin) return false // non-browser caller — see the note above
   if (APP_ORIGINS.has(origin)) return false // native shell, Bearer-authed, no cookies
+  /**
+   * ⛔ A LOCAL PREVIEW MAY WRITE TO ITSELF, AND WITHOUT THIS NOTHING CAN BE TESTED LOCALLY AT ALL.
+   * `NEXT_PUBLIC_APP_URL` is a real host even in a preview, so a browser on `http://localhost:3101`
+   * sends an Origin that is never in the allow-list: every save, every message, every offer 403s.
+   * Found while previewing the payout form — the save failed for a reason that had nothing to do
+   * with the form.
+   *
+   * ⚠️ SAME-ORIGIN *AND* LOOPBACK, BOTH REQUIRED, WHICH IS WHY THIS CANNOT REACH PRODUCTION. The
+   * Origin must equal the request's OWN origin and that host must be loopback. In production a
+   * request arrives through Cloudflare and nginx with a real Host header, so `localhost` is not a
+   * value the guard can ever see — this is not a flag anyone can flip, it is a shape that does not
+   * occur there.
+   * ⛔ AND IT IS NOT A GENERAL SAME-ORIGIN RULE. Allowing same-origin everywhere would re-open the
+   * exact hole this guard exists for: a storefront host writing as its own visitor. Loopback only.
+   */
+  if (isLoopbackSelfOrigin(req, origin)) return false
+
   const allowed = writeOrigins()
   if (!allowed) return false // unconfigured build: do not invent a boundary that can lock the app
   return !allowed.has(origin)

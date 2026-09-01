@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { db } from '@/lib/db'
 import { route } from '@/lib/api/handler'
 import { vietqrPayoutReady } from '@/lib/payments/eligibility'
+import { verifiedIdentityFor } from '@/lib/kyc/identity'
 import { sendMail } from '@/lib/mail'
 import { sendPushToProfile } from '@/lib/push'
 import { logWarn } from '@/lib/log'
@@ -188,6 +189,32 @@ export const GET = route({ auth: 'userId' }, async ({ userId }) => {
   })
 
   /**
+   * ⛔ THE HOLDER NAME IS SUGGESTED FROM WHAT WE ALREADY VERIFIED, NOT TYPED FROM MEMORY. Owner,
+   * 2026-08-31: autofetch it from KYC for an individual, or the company account name for a
+   * business. It is the field a buyer compares against in their banking app before confirming, so a
+   * seller guessing at their own registered spelling is exactly the mismatch that makes a transfer
+   * look wrong at the last moment.
+   *
+   * ⚠️ A SUGGESTION, NOT A LOCK. The bank's name for an account can legitimately differ from a
+   * passport or a business registry — a shortened company form, a maiden name, a transliteration.
+   * The seller can still edit it, because the bank is the authority on what its own account is
+   * called and we are not.
+   * ⚠️ BUSINESS FIRST, because a seller with a company account is the one for whom the personal
+   * name would be actively wrong.
+   */
+  const seller = await db.seller.findUnique({
+    where: { id: sellerId },
+    select: { legalName: true, taxRegisteredName: true, name: true, owner: { select: { accountType: true } } },
+  })
+  const isBusiness = seller?.owner?.accountType === 'business'
+  const identity = isBusiness ? null : await verifiedIdentityFor(userId)
+  const suggestedName = isBusiness
+    // ⚠️ `taxRegisteredName` IS WHAT THE TAX AUTHORITY RETURNED, so it outranks a self-entered
+    // legalName when both exist — it is the one a bank account was most likely opened under.
+    ? seller?.taxRegisteredName?.trim() || seller?.legalName?.trim() || null
+    : identity?.fullName?.trim() || seller?.legalName?.trim() || null
+
+  /**
    * ⛔ THE LAST FOUR DIGITS, NEVER THE NUMBER. Enough for a seller to recognise which account they
    * saved; not enough for anyone who reaches this endpoint with a stolen session to learn where the
    * money goes. The same reasoning a card form uses, and for the same reason.
@@ -198,6 +225,9 @@ export const GET = route({ auth: 'userId' }, async ({ userId }) => {
       bankBin: payout?.bankBin ?? null,
       accountLast4: payout?.bankAccountNo ? payout.bankAccountNo.slice(-4) : null,
       bankAccountName: payout?.bankAccountName ?? null,
+      suggestedName,
+      /** So the form can explain WHERE the suggestion came from rather than just filling a box. */
+      suggestedFrom: suggestedName ? (isBusiness ? 'business' : 'identity') : null,
     },
     { headers: { 'cache-control': 'no-store' } },
   )

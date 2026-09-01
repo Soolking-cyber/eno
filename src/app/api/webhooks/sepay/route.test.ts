@@ -40,7 +40,7 @@ vi.mock('@/lib/log', () => ({
   logError: () => { h.logs.push('error') },
 }))
 
-const { POST } = await import('./route.svc')
+const { POST } = await import('./route.forum.svc')
 
 const CONFIGURED = 'sepay-shared-value-for-tests'
 const REF = 'ENO7X2K9MQ4Z'

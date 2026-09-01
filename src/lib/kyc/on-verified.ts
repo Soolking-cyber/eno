@@ -2,7 +2,7 @@ import 'server-only'
 import { readVerifiedIdentity, railsFor, isoNationality, type VerifiedIdentity } from './identity'
 import { logError, logInfo, logWarn } from '@/lib/log'
 import { db } from '@/lib/db'
-import { createWallet, crossmintConfig, configState } from '@/lib/payments/crossmint'
+import { createWallet, crossmintConfig, configState, type CrossmintConfig } from '@/lib/payments/crossmint'
 import { settlementAllowedCountries, couldBeAllowListed } from '@/lib/payments/eligibility'
 import { IS_SERVICES } from '@/lib/edition'
 
@@ -146,7 +146,26 @@ function whyClosed(identity: VerifiedIdentity): ProvisionOutcome['wallet'] {
  * how they proved it. Passing the case id would tie provisioning to one review and make the
  * backfill path different from the live one.
  */
-export async function provisionForVerifiedIdentity(profileId: string): Promise<ProvisionOutcome> {
+/**
+ * ⛔ EVERY QUESTION THAT MUST BE ANSWERED *BEFORE* A WALLET IS CREATED — edition, verification,
+ * country, provider config, and whether a row already exists. Extracted so the READ path and the
+ * WRITE path cannot answer them differently.
+ *
+ * ⚠️ THIS EXTRACTION IS THE FIX FOR A REVIEWER FINDING, NOT A TIDY-UP. The wallet page needs to
+ * tell a user WHY they have no wallet, and the only function that knew was the one that also
+ * CREATES one — so a GET would either have had a side effect or have re-implemented the ladder
+ * beside it. codex, reviewing the plan: exporting the classifier is right "provided GET obtains the
+ * same authoritative identity data and preserves the classifier's precedence rules". One function,
+ * called by both, is the only version of that which cannot drift.
+ *
+ * `blocked: null` means "eligible, verified, configured, and no wallet exists yet" — the single
+ * state in which creating one is correct.
+ */
+export type WalletGate =
+  | { blocked: ProvisionOutcome['wallet']; cfg: null }
+  | { blocked: null; cfg: CrossmintConfig }
+
+export async function walletGate(profileId: string): Promise<WalletGate> {
   // ⛔ THE UNCACHED READ. This runs milliseconds after the approval wrote `verified`, and the
   // request may already have cached the pre-approval answer — see readVerifiedIdentity.
   /**
@@ -159,10 +178,10 @@ export async function provisionForVerifiedIdentity(profileId: string): Promise<P
    * ⚠️ THE READ MODEL AND THIS PATH MUST ASK THE SAME TWO QUESTIONS, edition AND country. Asking
    * one in each place is exactly the drift the shared predicate was supposed to end.
    */
-  if (!IS_SERVICES) return { wallet: 'skipped_edition' }
+  if (!IS_SERVICES) return { blocked: 'skipped_edition', cfg: null }
 
   const identity = await readVerifiedIdentity(profileId)
-  if (!identity) return { wallet: 'skipped_unverified' }
+  if (!identity) return { blocked: 'skipped_unverified', cfg: null }
 
   /**
    * ⛔ A WALLET IS ONLY CREATED WHERE IT COULD LAWFULLY BE USED. Holding stablecoins is legal in
@@ -178,7 +197,7 @@ export async function provisionForVerifiedIdentity(profileId: string): Promise<P
   // ⛔ THE SAME PREDICATE THE READ MODEL USES, asked the same way — every nationality on record, not
   // a summary of them. See partiesFor: squeezing a dual national into one value was round five's
   // defect, and asking here differently from identityCapabilities is how the two would drift.
-  if (!railsFor(identity).includes('crossmint')) return { wallet: whyClosed(identity) }
+  if (!railsFor(identity).includes('crossmint')) return { blocked: whyClosed(identity), cfg: null }
 
   /**
    * ⛔ THE EXISTING ROW IS CHECKED FIRST, AND THAT IS WHAT MAKES THIS SAFE TO RE-RUN. A second
@@ -198,12 +217,12 @@ export async function provisionForVerifiedIdentity(profileId: string): Promise<P
   const state = configState()
   // ⚠️ `absent` AND `broken` ARE DIFFERENT ANSWERS, and mapping them the same here contradicted the
   // mapping a few lines below. `configState` exists so there is only one of them.
-  if (state === 'absent') return { wallet: 'pending_provider' }
+  if (state === 'absent') return { blocked: 'pending_provider', cfg: null }
   if (state === 'broken') {
     warn('crossmint is configured but unusable — an eligible user is blocked on a broken deploy', {
       at: 'kyc.provision.config', profileId,
     })
-    return { wallet: 'failed' }
+    return { blocked: 'failed', cfg: null }
   }
   const cfg = crossmintConfig()!
 
@@ -227,9 +246,9 @@ export async function provisionForVerifiedIdentity(profileId: string): Promise<P
           at: 'kyc.provision.chain', profileId, held: existing.chain, expected: cfg.chain,
           provider: existing.provider,
         })
-        return { wallet: 'wrong_chain' }
+        return { blocked: 'wrong_chain', cfg: null }
       }
-      return { wallet: 'existing' }
+      return { blocked: 'existing', cfg: null }
     }
   } catch (e) {
     /**
@@ -243,8 +262,19 @@ export async function provisionForVerifiedIdentity(profileId: string): Promise<P
     warn('could not check for an existing wallet', {
       at: 'kyc.provision.lookup', profileId, code: (e as { code?: string })?.code,
     })
-    return { wallet: 'failed' }
+    return { blocked: 'failed', cfg: null }
   }
+
+  return { blocked: null, cfg }
+}
+
+export async function provisionForVerifiedIdentity(profileId: string): Promise<ProvisionOutcome> {
+  const gate = await walletGate(profileId)
+  if (gate.blocked) return { wallet: gate.blocked }
+  // ⚠️ CARRIED OUT OF THE GATE, NOT RE-RESOLVED. The race branch below compares the winning row's
+  // chain against the one we settle on, and reading the config a second time would let an env
+  // change between the two reads answer that comparison against a chain we never created on.
+  const cfg = gate.cfg
 
   const created = await createWallet(profileId)
   if (!created.ok) {

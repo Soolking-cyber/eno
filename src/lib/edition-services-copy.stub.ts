@@ -43,6 +43,8 @@ export const SERVICES_DESK_TILES: ServicesTile[] = []
 export type ServicesNavRow = { href: string; en: string; vi?: string }
 export const SERVICES_NAV_TRIPS: ServicesNavRow = { href: '', en: '' }
 export const SERVICES_NAV_CASES: ServicesNavRow = { href: '', en: '' }
+export const SERVICES_NAV_WALLET: ServicesNavRow = { href: '', en: '' }
+export const SERVICES_NAV_PAYOUT: ServicesNavRow = { href: '', en: '' }
 export const SERVICES_NAV_ADMIN_QUEUE: ServicesNavRow = { href: '', en: '' }
 
 /**

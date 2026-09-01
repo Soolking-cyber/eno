@@ -13,7 +13,18 @@ function ComboboxInputGroup({ className, ...props }: ComboboxPrimitive.InputGrou
     <ComboboxPrimitive.InputGroup
       data-slot="combobox-input-group"
       className={cn(
-        "flex h-11 w-full items-center rounded-xl border border-line-strong bg-card transition-[border-color,box-shadow,background-color] duration-150 focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/30 data-disabled:cursor-not-allowed data-disabled:opacity-50",
+        // ⛔ RAISED ABOVE THE SCRIM WHILE OPEN — `data-open:relative data-open:z-50`. `ComboboxContent`
+        // paints an `overlay-scrim` backdrop at z-40 over the whole page, and the input group is
+        // ordinary page content, so the field a user is actively TYPING IN was being dimmed and
+        // blurred by its own dropdown. Owner, 2026-08-31: "input should be on dropdown not behind
+        // the blur". z-50 needs `relative` to apply at all — z-index is inert on a static element,
+        // which is the silent half of this bug.
+        // ⚠️ z-50 TIES THE POSITIONER'S OWN z-50 AND THE POPUP STILL WINS, because the portal is
+        // appended after this subtree and a tie breaks on DOM order. Raising it further (z-[60])
+        // would put the field OVER its own list.
+        // ⚠️ ONLY WHILE OPEN. A permanently-positioned z-50 input group would sit above the sticky
+        // facet bar (z-30) and the header on every page that renders one.
+        "flex h-11 w-full items-center rounded-xl border border-line-strong bg-card transition-[border-color,box-shadow,background-color] duration-150 focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/30 data-open:relative data-open:z-50 data-disabled:cursor-not-allowed data-disabled:opacity-50",
         className,
       )}
       {...props}
