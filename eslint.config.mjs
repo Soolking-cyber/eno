@@ -262,6 +262,10 @@ const eslintConfig = [...nextCoreWebVitals, ...nextTypescript, {
   // nobody can act on, in a directory that only exists after an Android build. The nested globs
   // below cover both native projects' build output and their Pods/Gradle caches.
   ignores: ["node_modules/**", ".next/**",
+    // Self-hosted Tesseract WASM assets (public/tesseract/**) — third-party minified worker + core
+    // JS for the on-device passport MRZ reader. Not our source; linting them reports require()/
+    // this-alias errors from a bundle we do not author. See public/tesseract/PROVENANCE.md.
+    "public/tesseract/**",
     // ⚠️ `.next-*` TOO, not just `.next`. next.config.ts now honours NEXT_DIST_DIR so two
     // sessions can run dev and preview side by side, and a developer following that advice
     // gets `.next-dev/` — which this list did not cover, so `npm run lint` linted 155 build

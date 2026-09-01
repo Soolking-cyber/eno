@@ -240,7 +240,6 @@ export const UI_STRINGS_SERVICES: string[] = [
   "Quote ready",
   "Quoted",
   "Quoted in the chat before anything is booked, on the total the suppliers charge. Prefer to book it yourself? The plan is still yours, free.",
-  "Reading your passport…",
   "Replace this activity?",
   "Request an update",
   "Request assistance",

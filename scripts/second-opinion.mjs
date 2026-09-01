@@ -56,6 +56,11 @@ const REVIEWER_NAMES = ['codex', 'agy', 'fable']
  */
 const UNREVIEWABLE = [
   ':(exclude)public/emoji/*.json',
+  // Self-hosted Tesseract WASM assets for the on-device passport MRZ reader — a third-party minified
+  // worker + base64-embedded WASM core + a 3.9MB binary traineddata. Multi-megabyte blobs a reviewer
+  // cannot judge and that blow every reviewer CLI's input limit; the .ts adapter that USES them is
+  // reviewed normally. Still HASHED (the receipt covers them), only excluded from what reviewers read.
+  ':(exclude)public/tesseract/*',
 ]
 
 /**

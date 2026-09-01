@@ -1022,7 +1022,11 @@ const nextConfig: NextConfig = {
       // a tag added in a web console from shipping an arbitrary new third party onto the site, so
       // every domain listed here is a permission granted permanently, in a reviewed commit. Add
       // the next vendor only when a tag genuinely needs it.
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com https://connect.facebook.net https://static.cloudflareinsights.com https://challenges.cloudflare.com" + gsiScript,
+      // 'wasm-unsafe-eval' is explicit alongside 'unsafe-eval' (which already permits WASM as a
+      // superset) so the on-device passport MRZ reader's WebAssembly core (Tesseract, self-hosted,
+      // lazy-loaded on /dashboard/account/verify) compiles even if 'unsafe-eval' is ever tightened.
+      // It grants ONLY WASM compilation, never JS eval — strictly narrower than what is already here.
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' https://www.googletagmanager.com https://connect.facebook.net https://static.cloudflareinsights.com https://challenges.cloudflare.com" + gsiScript,
       "style-src 'self' 'unsafe-inline'" + gsiStyle,
       // Supabase is PINNED to our exact project host (not *.supabase.co): connect-src is the
       // main post-XSS exfiltration brake, and a wildcard would let stolen data POST to any
@@ -1057,7 +1061,14 @@ const nextConfig: NextConfig = {
           { key: "X-Content-Type-Options", value: "nosniff" },
           { key: "X-Frame-Options", value: "SAMEORIGIN" },
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
-          { key: "Permissions-Policy", value: "camera=(), microphone=(), payment=()" },
+          // ⚠️ `camera=(self)`, NOT `camera=()`. `camera=()` blocks the camera for EVERY origin
+          // INCLUDING our own, so `getUserMedia({video})` was rejected app-wide and the KYC capture
+          // (src/components/marketplace/kyc-capture.tsx) silently fell back to the file picker on every
+          // device — the "camera doesn't work for verification" report. `(self)` allows only this
+          // origin (third-party iframes still need both this grant AND an `allow="camera"` attribute),
+          // and the browser's per-site permission prompt stays the real gate. microphone/payment stay
+          // fully closed — the KYC flow requests `audio:false` and never needs them.
+          { key: "Permissions-Policy", value: "camera=(self), microphone=(), payment=()" },
           { key: "X-DNS-Prefetch-Control", value: "on" },
           // Named endpoint group for the CSP `report-to` directive (Reporting API).
           { key: "Reporting-Endpoints", value: 'csp-endpoint="/api/csp-report"' },

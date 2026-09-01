@@ -9,7 +9,7 @@
 //
 // docs/compliance-2026.md §1. Declaration text + hashing: src/lib/compliance/declaration.ts.
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Fingerprint, IdCard, ShieldCheck } from "@/components/ui/icons"
 import { useAuth } from '@/context/auth-context'
@@ -23,6 +23,8 @@ import { Input } from '@/components/ui/input'
 import { Field, FieldLabel } from '@/components/ui/field'
 import { Loader2 } from '@/components/ui/icons'
 import { KycCapture } from '@/components/marketplace/kyc-capture'
+import { readMrz, readFailureHint } from '@/lib/identity/mrz-ocr'
+import { createMrzOcrEngine } from '@/lib/identity/mrz-ocr-tesseract'
 // ⛔ `declaration-text`, NOT `declaration` — the latter imports node:crypto, and a 'use client'
 // file importing it drags the whole Node crypto polyfill into the browser (measured: 435 KB
 // raw / 130 KB gzip, 44% of this route's JS). The text module exists for exactly this import.
@@ -56,6 +58,120 @@ export function VerifyClient() {
   const [submitted, setSubmitted] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  // ── On-device passport MRZ scan (tier B) ──────────────────────────────────────────────────────
+  // Reading the passport photo IN THE BROWSER and pre-filling the form was the owner's own design
+  // (src/lib/identity/mrz-ocr.ts header, 2026-08-03). The Tesseract engine is created lazily on the
+  // first scan and torn down on unmount; only tier B (passport, TD3 MRZ) scans — a CCCD has no TD3 MRZ.
+  const [scan, setScan] = useState<'idle' | 'reading' | 'ok' | 'failed'>('idle')
+  const [scanHint, setScanHint] = useState<{ en: string; vi: string } | null>(null)
+  const engineRef = useRef<ReturnType<typeof createMrzOcrEngine> | null>(null)
+  // ⚠️ The highest upload id we've accepted a scan for. KycCapture mints a MONOTONIC id per upload
+  // (module-global, survives remounts), so a decode that resolves AFTER a newer upload arrives with a
+  // LOWER id and is rejected — it can never overwrite the newer document's data. Latest-wins done
+  // right: the id is the upload's identity, not a counter this handler bumps for itself.
+  const latestUploadRef = useRef(0)
+  // ⚠️ Has the user TYPED in a document field since the current scan began? If so, a successful scan
+  // must NOT overwrite them — TD3 line 1 (the names) carries NO check digit, so a misread name would
+  // silently replace a correct one and the server's check-digit re-derivation could never catch it.
+  // The scan is a convenience pre-fill; once the user takes over by typing, their input wins.
+  const userEditedRef = useRef(false)
+  const markEdited = useCallback(() => { userEditedRef.current = true }, [])
+  useEffect(() => () => { void engineRef.current?.terminate() }, [])
+
+  // ⚠️ THE DOCUMENT UPLOAD IS WHERE STALE DATA IS INVALIDATED — synchronously, before any async OCR.
+  // A new upload = a new stored document, so the previous MRZ + details (scanned OR typed for the OLD
+  // image) no longer correspond to it and must be gone the instant documentPath changes. Clearing
+  // here (not after the decode) closes the window where documentPath already points at the new image
+  // while the fields still hold the old one's data — the mixed-document hole. onImage's scan (below)
+  // then refills from THIS document. Wired for tier B only; tier A (CCCD) has no MRZ scan.
+  const onDocUploaded = useCallback((path: string, uploadId: number) => {
+    // ⚠️ MARK THIS UPLOAD THE NEWEST NOW — at upload time, BEFORE its async OCR decode. This closes
+    // the window where documentPath already points at the new image but an OLDER in-flight scan can
+    // still match latestUploadRef and fill the previous document's data against the new path. The
+    // field clear (below) is the synchronous half; this ref bump is the guard the decode reads.
+    latestUploadRef.current = uploadId
+    userEditedRef.current = false // fresh document — the upcoming scan may pre-fill freely
+    setMrzLine1(''); setMrzLine2('')
+    setSurname(''); setGivenNames(''); setDocumentNumber(''); setDocumentExpiry('')
+    setScan('idle'); setScanHint(null)
+    setDocumentPath(path)
+  }, [])
+
+  const onDocImage = useCallback(async (img: ImageData | null, uploadId: number) => {
+    // ⚠️ REJECT A STALE DECODE. uploadId only increases (module-global in KycCapture), and onDocUploaded
+    // already set latestUploadRef to the newest upload's id. An id below it belongs to a superseded
+    // shot whose result would describe a different document than the one now stored — drop it.
+    if (uploadId < latestUploadRef.current) return
+    // A null decode (very old engine, corrupt/OOM file) is not a "reading" — surface it as a failure
+    // so the user is told to type the lines (the fields were already cleared by onDocUploaded).
+    if (!img) { setScan('failed'); setScanHint(null); return }
+    setScan('reading')
+    setScanHint(null)
+    // ⚠️ DO NOT reset userEditedRef here — onDocUploaded already reset it at upload time, and the user
+    // may have started typing during the decode window between then and now. Resetting here would
+    // forget that and let the scan overwrite them.
+    if (!engineRef.current) engineRef.current = createMrzOcrEngine()
+    // ⚠️ CAPTURE the engine — a reset/tier-switch can null or replace engineRef mid-scan, and the
+    // catch must be able to tell "my engine wedged" from "my attempt was abandoned" (identity check).
+    const eng = engineRef.current
+    try {
+      // ⚠️ WARM THE WORKER OUTSIDE THE READ TIMEOUT. The one-time ~6MB download+compile must not count
+      // against the 20s read budget, or a slow-network user times out mid-download and re-fetches from
+      // zero every retry (fable's finding). `ready()` is unbounded save a generous 90s hung-fetch cap;
+      // the race below then bounds only the recognition, which is fast once loaded.
+      await eng.ready()
+      // ⚠️ engineRef.current === eng in the RESULT path too, not just the catch. During the long
+      // ready() a reset/tier-switch can null or replace the engine; without this check the resumed
+      // scan would fill the OLD passport's data into the new/reset attempt (a tier-A submit carrying
+      // the previous passport's number against a CCCD photo). Bail unless we're still the live scan.
+      if (uploadId !== latestUploadRef.current || engineRef.current !== eng) return
+      // clearTimeout on settle so a resolved read leaves no orphaned 20s timer / dangling rejection.
+      let timer: ReturnType<typeof setTimeout> | undefined
+      const read = readMrz(img, eng.engine).finally(() => { if (timer) clearTimeout(timer) })
+      // ⚠️ If the TIMEOUT wins the race, `read` is still pending; the catch below terminates the
+      // worker, which later rejects that recognize. Swallow it here so it isn't an unhandledrejection
+      // in prod error telemetry (fable). The race still awaits `read` for the real result when it wins.
+      void read.catch(() => {})
+      const result = await Promise.race([
+        read,
+        new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error('ocr_timeout')), 45000) }),
+      ])
+      if (uploadId !== latestUploadRef.current || engineRef.current !== eng) return // superseded/abandoned — drop it
+      if (result.ok) {
+        // ⚠️ DEFER TO A USER WHO STARTED TYPING during the read. Overwriting their input with an
+        // imperfect scan is unsafe on the name lines especially (TD3 line 1 has no check digit). If
+        // they took over, keep their values and just clear the "reading…" status.
+        if (userEditedRef.current) { setScan('idle'); return }
+        // ⚠️ Autofill the MRZ LINES — the submit path (kyc/service.ts) re-derives the fields from
+        // these authoritatively when the check digits pass. The field pre-fill below is a READABLE
+        // PREVIEW so the user can confirm the read; it stays editable and a valid MRZ wins server-side.
+        setMrzLine1(result.lines[0])
+        setMrzLine2(result.lines[1])
+        const f = result.mrz.fields
+        if (f.surname) setSurname(f.surname)
+        if (f.givenNames) setGivenNames(f.givenNames)
+        if (f.passportNumber) setDocumentNumber(f.passportNumber)
+        if (f.passportExpiryDate) setDocumentExpiry(f.passportExpiryDate.slice(0, 10))
+        setScan('ok')
+      } else {
+        setScanHint(readFailureHint(result))
+        setScan('failed')
+      }
+    } catch {
+      // ⚠️ ABANDON QUIETLY unless BOTH hold: this is still the current upload, AND `eng` is still the
+      // active engine. The engine identity check is what stops a stale scan — one whose attempt was
+      // reset/tier-switched (engineRef nulled or replaced) — from writing a ghost "scan failed" alert
+      // into a fresh attempt (fable) or tearing down a newer scan's worker (codex). A genuinely wedged
+      // read of the CURRENT attempt still lands here (eng === engineRef.current) and rebuilds fresh.
+      if (uploadId === latestUploadRef.current && engineRef.current === eng) {
+        void eng.terminate()
+        engineRef.current = null
+        setScan('failed')
+        setScanHint(null)
+      }
+    }
+  }, [])
+
   /**
    * ⚠️ ONE CALL, AND IT CARRIES THE VERSION THE PAGE ACTUALLY RENDERED — not whatever is current
    * server-side when it lands. If a new declaration shipped between page load and click, stamping
@@ -65,6 +181,11 @@ export function VerifyClient() {
     setTier(chosen)
     setError(null)
     setStarting(true)
+    // ⚠️ DROP ANY IN-FLIGHT PASSPORT SCAN when the tier (re)starts, and free the ~6MB worker. Tearing
+    // the engine down makes an in-flight read throw (caught → no autofill); the next upload's id is
+    // higher than any we've accepted, so its scan supersedes cleanly without touching latestUploadRef.
+    setScan('idle'); setScanHint(null)
+    void engineRef.current?.terminate(); engineRef.current = null
     try {
       const r = await fetch('/api/seller/identity/challenge', {
         method: 'POST',
@@ -92,6 +213,10 @@ export function VerifyClient() {
     // cannot carry stale tier-B MRZ text. `accepted` stays — the declaration was read, not undone.
     setChallenge(null); setTier(null); setDocumentPath(null); setSelfiePath(null)
     setSurname(''); setGivenNames(''); setDocumentNumber(''); setDocumentExpiry(''); setMrzLine1(''); setMrzLine2('')
+    setScan('idle'); setScanHint(null)
+    void engineRef.current?.terminate(); engineRef.current = null // free the worker; don't leave OCR running
+    // No latestUploadRef reset needed: KycCapture's upload id is module-global and only increases, so
+    // the next attempt's scan always has a higher id than any we've accepted here.
   }, [])
 
   const submit = useCallback(async () => {
@@ -345,7 +470,16 @@ export function VerifyClient() {
                   ? tr('Step 2 — photograph your CCCD', 'Bước 2 — chụp ảnh CCCD')
                   : tr('Step 2 — photograph your passport page', 'Bước 2 — chụp trang hộ chiếu')}
               </h3>
-              <KycCapture kind="document" onUploaded={setDocumentPath} className="mt-2" />
+              <KycCapture
+                // ⚠️ key={tier}: remount on a tier switch so a CCCD shot cannot linger and re-fire
+                // the OCR effect (a stale "no MRZ found" alert), and a passport shot cannot carry
+                // into a tier-A attempt. Fresh capture state per tier.
+                key={tier}
+                kind="document"
+                onUploaded={tier === 'B' ? onDocUploaded : setDocumentPath}
+                {...(tier === 'B' ? { onImage: onDocImage } : {})}
+                className="mt-2"
+              />
             </div>
 
             <div>
@@ -358,19 +492,19 @@ export function VerifyClient() {
               <div className="grid gap-3 sm:grid-cols-2">
                 <Field>
                   <FieldLabel>{tr('Surname', 'Họ')}</FieldLabel>
-                  <Input value={surname} onChange={(e) => setSurname(e.target.value)} autoComplete="family-name" />
+                  <Input value={surname} onChange={(e) => { setSurname(e.target.value); markEdited() }} autoComplete="family-name" />
                 </Field>
                 <Field>
                   <FieldLabel>{tr('Given names', 'Tên')}</FieldLabel>
-                  <Input value={givenNames} onChange={(e) => setGivenNames(e.target.value)} autoComplete="given-name" />
+                  <Input value={givenNames} onChange={(e) => { setGivenNames(e.target.value); markEdited() }} autoComplete="given-name" />
                 </Field>
                 <Field>
                   <FieldLabel>{tier === 'A' ? tr('CCCD number', 'Số CCCD') : tr('Passport number', 'Số hộ chiếu')}</FieldLabel>
-                  <Input value={documentNumber} onChange={(e) => setDocumentNumber(e.target.value)} inputMode="text" />
+                  <Input value={documentNumber} onChange={(e) => { setDocumentNumber(e.target.value); markEdited() }} inputMode="text" />
                 </Field>
                 <Field>
                   <FieldLabel>{tr('Expiry date', 'Ngày hết hạn')}</FieldLabel>
-                  <Input type="date" value={documentExpiry} onChange={(e) => setDocumentExpiry(e.target.value)} />
+                  <Input type="date" value={documentExpiry} onChange={(e) => { setDocumentExpiry(e.target.value); markEdited() }} />
                 </Field>
               </div>
 
@@ -384,12 +518,33 @@ export function VerifyClient() {
                 <div className="space-y-2">
                   <p className="text-xs text-muted-foreground">
                     {tr(
-                      'Type the two lines of letters and numbers printed across the bottom of your passport page. They contain check digits we use to confirm the page was read correctly.',
-                      'Nhập hai dòng chữ và số in ở cuối trang hộ chiếu. Chúng chứa các chữ số kiểm tra giúp chúng tôi xác nhận đã đọc đúng.',
+                      'These are the two lines of letters and numbers across the bottom of your passport page. We read them from your photo automatically — check they are right, or type them if the scan could not.',
+                      'Đây là hai dòng chữ và số ở cuối trang hộ chiếu. Chúng tôi tự động đọc từ ảnh của bạn — hãy kiểm tra lại, hoặc tự nhập nếu quét không được.',
                     )}
                   </p>
-                  <Input value={mrzLine1} onChange={(e) => setMrzLine1(e.target.value)} placeholder="P<VNMNGUYEN<<VAN<A<<<<<<<<<<<<<<<<<<<<<<<<<<" className="font-mono" />
-                  <Input value={mrzLine2} onChange={(e) => setMrzLine2(e.target.value)} placeholder="C12345678VNM9001011M3001011<<<<<<<<<<<<<<04" className="font-mono" />
+                  {/* Scan status. The two inputs stay editable throughout: a valid MRZ read pre-fills
+                      them and the details above, but the user always confirms, and can type instead. */}
+                  {scan === 'reading' && (
+                    <p className="flex items-center gap-2 text-xs text-muted-foreground" role="status">
+                      <Loader2 className="size-3.5 animate-spin" aria-hidden /> {tr('Reading your passport…', 'Đang đọc hộ chiếu…')}
+                    </p>
+                  )}
+                  {scan === 'ok' && (
+                    <p className="text-xs font-medium text-success" role="status">
+                      {tr('Read from your passport — please check it is correct.', 'Đã đọc từ hộ chiếu — vui lòng kiểm tra lại.')}
+                    </p>
+                  )}
+                  {scan === 'failed' && (
+                    <Alert>
+                      <AlertDescription className="text-xs">
+                        {scanHint
+                          ? (lang === 'vi' ? scanHint.vi : scanHint.en)
+                          : tr('We could not read your passport this time — please type the two lines below.', 'Lần này chúng tôi không đọc được hộ chiếu — vui lòng tự nhập hai dòng bên dưới.')}
+                      </AlertDescription>
+                    </Alert>
+                  )}
+                  <Input value={mrzLine1} onChange={(e) => { setMrzLine1(e.target.value); markEdited() }} placeholder="P<VNMNGUYEN<<VAN<A<<<<<<<<<<<<<<<<<<<<<<<<<<" className="font-mono" />
+                  <Input value={mrzLine2} onChange={(e) => { setMrzLine2(e.target.value); markEdited() }} placeholder="C12345678VNM9001011M3001011<<<<<<<<<<<<<<04" className="font-mono" />
                 </div>
               )}
             </div>

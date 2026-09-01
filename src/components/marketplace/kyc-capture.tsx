@@ -30,15 +30,63 @@ import { cn } from '@/lib/utils'
 
 export type KycCaptureKind = 'document' | 'selfie'
 
+// ⚠️ MODULE-GLOBAL, monotonic across ALL captures and REMOUNTS (a per-instance ref would reset on
+// key={tier} and let an old tier's late upload look "newer" than a fresh one). Every successful
+// upload gets a strictly increasing id, so the OCR consumer can reject any decode that resolves
+// after a newer upload — the guard that keeps a stale scan from overwriting the current document.
+let uploadSeq = 0
+
 type Phase = 'idle' | 'starting' | 'live' | 'review' | 'uploading' | 'done'
+
+/**
+ * Decode a captured/selected image to ImageData for on-device OCR (the passport MRZ scan).
+ * ⚠️ EXIF ORIENTATION: phone JPEGs are frequently stored rotated with an orientation tag, and a
+ * sideways MRZ never reads — `imageOrientation:'from-image'` bakes the rotation into the pixels.
+ * The camera-capture blob has no EXIF (it is a fresh canvas frame), so this is a no-op there.
+ * Bounded to `maxDim` so a 12MP upload does not allocate a ~48MB buffer just to be cropped to a band.
+ */
+async function decodeToImageData(blob: Blob, maxDim = 2000): Promise<ImageData | null> {
+  try {
+    let bmp: ImageBitmap
+    try {
+      bmp = await createImageBitmap(blob, { imageOrientation: 'from-image' })
+    } catch {
+      bmp = await createImageBitmap(blob) // older engines lack the option; orientation may be off
+    }
+    const scale = Math.min(1, maxDim / Math.max(bmp.width, bmp.height))
+    const w = Math.max(1, Math.round(bmp.width * scale))
+    const h = Math.max(1, Math.round(bmp.height * scale))
+    const canvas = document.createElement('canvas')
+    canvas.width = w
+    canvas.height = h
+    const ctx = canvas.getContext('2d')
+    if (!ctx) { bmp.close?.(); return null }
+    ctx.drawImage(bmp, 0, 0, w, h)
+    bmp.close?.()
+    return ctx.getImageData(0, 0, w, h)
+  } catch {
+    return null
+  }
+}
 
 export function KycCapture({
   kind,
   onUploaded,
+  onImage,
   className,
 }: {
   kind: KycCaptureKind
-  onUploaded: (path: string) => void
+  /** `uploadId` is the same monotonic id passed to `onImage` — so a consumer can mark this upload the
+   *  newest AT UPLOAD TIME (before the async decode), closing the window where the path is updated
+   *  but an older in-flight scan can still land. Callers that don't need it (the selfie) ignore it. */
+  onUploaded: (path: string, uploadId: number) => void
+  /** Optional: receive the UPLOADED image as pixels for on-device OCR (passport MRZ scan). Fires once
+   *  per successful upload (camera frame or picked file, EXIF-corrected), with `null` when the image
+   *  could not be decoded so the consumer can surface "type instead". ⚠️ The second arg is a
+   *  MONOTONIC per-upload id: a later upload always has a higher id, so the consumer can REJECT a
+   *  stale decode that resolves out of order (an older, slower shot landing after a newer one) rather
+   *  than letting it overwrite the newer document's data. */
+  onImage?: (img: ImageData | null, uploadId: number) => void
   className?: string
 }) {
   const { tr } = useLanguage()
@@ -67,6 +115,7 @@ export function KycCapture({
   // Revoke the object URL when the preview is replaced or torn down — otherwise every retake leaks
   // a full-resolution bitmap for the lifetime of the page.
   useEffect(() => () => { if (shot) URL.revokeObjectURL(shot.url) }, [shot])
+
 
   const start = useCallback(async () => {
     setError(null)
@@ -139,13 +188,19 @@ export function KycCapture({
         setPhase('review')
         return
       }
-      onUploaded(data.path)
+      const uploadId = ++uploadSeq
+      onUploaded(data.path, uploadId)
       setPhase('done')
+      // ⚠️ OCR fires on the COMMITTED image, only AFTER a successful upload — so the scanned MRZ
+      // always corresponds to the document that was actually stored, never a shot that was retaken
+      // or whose upload failed. The uploadId lets the consumer reject a stale decode that resolves
+      // after a newer upload. Fires even a null decode so the consumer can surface "type instead".
+      if (onImage) onImage(await decodeToImageData(blob), uploadId)
     } catch {
       setError(tr('Upload failed. Check your connection and try again.', 'Tải lên thất bại. Kiểm tra kết nối và thử lại.'))
       setPhase('review')
     }
-  }, [kind, onUploaded, tr])
+  }, [kind, onUploaded, onImage, tr])
 
   const retake = useCallback(() => {
     if (shot) URL.revokeObjectURL(shot.url)
