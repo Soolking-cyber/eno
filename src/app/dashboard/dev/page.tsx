@@ -1,17 +1,12 @@
-import { SITE_NAME } from '@/lib/edition'
-import type { Metadata } from 'next'
-import { Suspense } from 'react'
-import { DevClient } from './dev-client'
+import { redirect } from 'next/navigation'
+import { dashboardTabTarget } from '@/lib/dashboard-redirect'
 
-export const metadata: Metadata = {
-  title: `Developers | ${SITE_NAME}`,
-  robots: { index: false, follow: false },
-}
-
-export default function Page() {
-  return (
-    <Suspense>
-      <DevClient />
-    </Suspense>
-  )
+// MOVED into the Settings section as a tab (2026-09-01). Redirect keeps the old /dev link working and
+// carries any incoming query params onto the tab.
+export default async function DevRedirect({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>
+}) {
+  redirect(dashboardTabTarget('/dashboard/settings', 'developers', await searchParams))
 }

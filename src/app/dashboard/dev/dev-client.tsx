@@ -11,7 +11,7 @@ import { DevelopersPanel } from '@/components/marketplace/developers-panel'
 /** /dashboard/dev — the partner API / developers section. Business-tier only:
  *  individuals have no dev surface, so once the dashboard payload confirms a
  *  non-business tier we bounce to /dashboard/listings. */
-export function DevClient() {
+export function DevClient({ embedded = false }: { embedded?: boolean } = {}) {
   const { user, loading } = useAuth()
   const { tr } = useLanguage()
   const { dash } = useDashboard()
@@ -33,7 +33,8 @@ export function DevClient() {
     // blocks (API keys, Webhooks), each an h-section heading over a lede and a list.
     return (
       <div className="w-full" role="status" aria-label={tr('Loading…', 'Đang tải…')}>
-        <Skeleton className="h-7 w-40 rounded-lg" />
+        {/* Title skeleton — gated like the loaded h1 so the shell owns the title when embedded. */}
+        {!embedded && <Skeleton className="h-7 w-40 rounded-lg" />}
         <div className="mt-4 w-full space-y-6">
           {Array.from({ length: 2 }).map((_, i) => (
             <div key={i}>
@@ -55,7 +56,7 @@ export function DevClient() {
 
   return (
     <>
-      <h1 className="text-xl font-bold text-foreground">{tr('Developers', 'Lập trình')}</h1>
+      {!embedded && <h1 className="text-xl font-bold text-foreground">{tr('Developers', 'Lập trình')}</h1>}
       <div className="mt-4">
         <DevelopersPanel />
       </div>

@@ -1,19 +1,12 @@
-import { SITE_NAME } from '@/lib/edition'
-import { Suspense } from 'react'
-import type { Metadata } from 'next'
-import { BulkClient } from './bulk-client'
+import { redirect } from 'next/navigation'
+import { dashboardTabTarget } from '@/lib/dashboard-redirect'
 
-export const metadata: Metadata = {
-  title: `Bulk upload | ${SITE_NAME}`,
-  robots: { index: false, follow: false },
-}
-
-/** Bulk upload now renders in <main> as a dashboard section page (owner decision
- *  2026-07-15) — it no longer redirects into the account panel. */
-export default function BulkPage() {
-  return (
-    <Suspense>
-      <BulkClient />
-    </Suspense>
-  )
+// MOVED into the Listings section as a tab (2026-09-01). Redirect keeps the old link working and
+// carries any incoming query params onto the tab.
+export default async function BulkRedirect({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>
+}) {
+  redirect(dashboardTabTarget('/dashboard/listings', 'bulk', await searchParams))
 }

@@ -151,16 +151,8 @@ export const SERVICES_FOOTER_GROUPS: ServicesFooterGroup[] = [
  */
 export type ServicesNavRow = { href: string; en: string; vi?: string }
 
-/** Community group — the saved-trips section. */
-export const SERVICES_NAV_TRIPS: ServicesNavRow = { href: '/dashboard/trips', en: 'My Trips', vi: 'Chuyến đi của tôi' }
-/**
- * Community group — the applicant's own cases.
- *
- * ⚠️ IT IS NOT AN "APPLY HERE" ROW (owner 2026-07-22: "only 1 way should exist through the chat").
- * The wizard behind it is deleted and the application is filled in the thread, so the label names
- * what it still leads to. "Vietnam e-Visa" read as an entry point; this does not.
- */
-export const SERVICES_NAV_CASES: ServicesNavRow = { href: '/dashboard/visa', en: 'My e-Visa', vi: 'E-Visa của tôi' }
+/** Community group — the combined Services section (Trips + e-Visa tabs). */
+export const SERVICES_NAV_SERVICES: ServicesNavRow = { href: '/dashboard/services', en: 'Services', vi: 'Dịch vụ' }
 /**
  * Selling group — settlement. BOTH ROWS ARE SERVICES-ONLY AND FOR THE SAME LEGAL REASON as the
  * visa rows above: eno.vn is a licensed sàn TMĐT that may not carry a payments surface, and its
@@ -173,8 +165,9 @@ export const SERVICES_NAV_CASES: ServicesNavRow = { href: '/dashboard/visa', en:
  * array data. Both plan reviewers flagged the rail as the leak path a `.svc.` extension does not
  * cover; the alias is the layer that actually removes the vocabulary.
  */
-export const SERVICES_NAV_WALLET: ServicesNavRow = { href: '/dashboard/wallet', en: 'Wallet', vi: 'Ví của tôi' }
-export const SERVICES_NAV_PAYOUT: ServicesNavRow = { href: '/dashboard/payout', en: 'Payouts', vi: 'Nhận thanh toán' }
+// ⚠️ ONE ROW NOW — Wallet + Payouts were merged into the tabbed /dashboard/payments section
+// (2026-09-01). The old SERVICES_NAV_WALLET/PAYOUT are gone; their pages redirect into the tabs.
+export const SERVICES_NAV_PAYMENTS: ServicesNavRow = { href: '/dashboard/payments', en: 'Payments', vi: 'Thanh toán' }
 
 /** Admin group. EN-only, by the repo convention that admin chrome is never localized. */
 export const SERVICES_NAV_ADMIN_QUEUE: ServicesNavRow = { href: '/admin/visas', en: 'Visas' }

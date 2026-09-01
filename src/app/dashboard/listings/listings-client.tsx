@@ -79,7 +79,7 @@ function StatsGridSkeleton() {
 
 /** /dashboard/listings — the seller's listings management, rendered in <main>.
  *  Reads the shared dashboard cache so an edit/delete here re-pulls the one source. */
-export function ListingsClient() {
+export function ListingsClient({ embedded = false }: { embedded?: boolean } = {}) {
   const { user, loading } = useAuth()
   const { tr, lang } = useLanguage()
   const router = useRouter()
@@ -100,7 +100,7 @@ export function ListingsClient() {
     // so entering the section never flashes a spinner then pops to a full layout.
     return (
       <div role="status" aria-label={tr('Loading…', 'Đang tải…')}>
-        <SectionHeader title={tr('My listings', 'Tin của tôi')} />
+        {!embedded && <SectionHeader title={tr('My listings', 'Tin của tôi')} />}
         {/* Greeting hero: `.h-greeting` is --text-display × 1.15, i.e. FLUID (32 → 46px), so a
             flat h-8 bar was 14px short on a desktop. The subtitle is text-sm (20), and the real
             stack is space-y-1, not space-y-1.5. */}
@@ -128,13 +128,18 @@ export function ListingsClient() {
       {/* Native stack-nav title bar (mobile only). Title = this section's established nav
           name (dashboard-nav's tr('My listings','Tin của tôi')); the greeting h1 below is a
           hero, not a duplicate of it, so it stays visible on every size. */}
-      <SectionHeader title={tr('My listings', 'Tin của tôi')} />
+      {!embedded && <SectionHeader title={tr('My listings', 'Tin của tôi')} />}
       {/* Gemini-style greeting hero — a light, crisp welcome that floats on the flat dashboard
-          canvas (globals .dashboard-canvas) instead of a bold boxed title. */}
+          canvas (globals .dashboard-canvas) instead of a bold boxed title.
+          ⚠️ h2 WHEN EMBEDDED: the Listings shell already renders the section's <h1> ("My listings"),
+          so the greeting drops to an <h2> under it rather than putting a second <h1> on the page.
+          Standalone (no shell) it stays the page's <h1>. */}
       <div className="space-y-1">
-        <h1 className="h-greeting text-ink-2">
-          {tr('Hi', 'Chào')}{name ? ` ${name}` : ''}
-        </h1>
+        {embedded ? (
+          <h2 className="h-greeting text-ink-2">{tr('Hi', 'Chào')}{name ? ` ${name}` : ''}</h2>
+        ) : (
+          <h1 className="h-greeting text-ink-2">{tr('Hi', 'Chào')}{name ? ` ${name}` : ''}</h1>
+        )}
         <p className="text-sm text-muted-foreground">{tr('Manage your listings', 'Quản lý tin đăng của bạn')}</p>
       </div>
       {/* Availability review lives HERE now (owner 2026-07-18: out of the rail, into the tab

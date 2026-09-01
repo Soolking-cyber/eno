@@ -25,7 +25,7 @@ import { SectionHeader } from '@/components/marketplace/section-header'
  *  to what the account panel used to drill into: profile, handle, email, account type,
  *  reminders, device prefs, danger zone). Renders as a page in <main>; the nav rail links
  *  here. Reads the shared dashboard cache. */
-export function SettingsClient() {
+export function SettingsClient({ embedded = false }: { embedded?: boolean } = {}) {
   const { user, loading } = useAuth()
   const { tr } = useLanguage()
   const router = useRouter()
@@ -40,10 +40,11 @@ export function SettingsClient() {
     // bar + grouped-card skeletons, not a centered spinner.
     return (
       <div role="status" aria-label={tr('Loading…', 'Đang tải…')}>
-        <SectionHeader title={tr('Settings', 'Cài đặt')} />
+        {!embedded && <SectionHeader title={tr('Settings', 'Cài đặt')} />}
         <div className="w-full">
-          {/* h1: text-xl font-bold, sr-only below lg (28px line box) */}
-          <Skeleton className="h-7 w-28 rounded-lg max-lg:hidden" />
+          {/* h1: text-xl font-bold, sr-only below lg (28px line box) — gated like the loaded h1, so
+              the shell (when embedded) owns the title and this doesn't stack a second one on load. */}
+          {!embedded && <Skeleton className="h-7 w-28 rounded-lg max-lg:hidden" />}
           {/* ⚠️ FLAT GROUPS, NOT CARDS. The real body is a stack of <SettingsGroup>s —
               `mt-6 border-t pt-6` + an uppercase text-xs caption + `mt-3` content, with NO box
               around anything ("No space-y: each SettingsGroup carries its own hairline"). The
@@ -79,10 +80,10 @@ export function SettingsClient() {
     // measured from the layout's full-width main.
     <>
       {/* Native stack-nav title bar (mobile only) — same established title string. */}
-      <SectionHeader title={tr('Settings', 'Cài đặt')} />
+      {!embedded && <SectionHeader title={tr('Settings', 'Cài đặt')} />}
       <div className="w-full">
         {/* h1 stays for the outline; the SectionHeader carries the visible mobile title. */}
-        <h1 className="text-xl font-bold text-foreground max-lg:sr-only">{tr('Settings', 'Cài đặt')}</h1>
+        {!embedded && <h1 className="text-xl font-bold text-foreground max-lg:sr-only">{tr('Settings', 'Cài đặt')}</h1>}
 
       {!dash ? (
         // Second stage (auth resolved, `dash` still in flight) — the SAME flat-group shape as

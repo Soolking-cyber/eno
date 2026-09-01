@@ -12,7 +12,7 @@ import { SectionHeader } from '@/components/marketplace/section-header'
 /** Bulk CSV upload — a business-tier dashboard section that renders in <main>.
  *  Auth-gated (→ /signin) and tier-gated: bulk import is business-only, so an
  *  individual seller is sent to their listings instead. */
-export function BulkClient() {
+export function BulkClient({ embedded = false }: { embedded?: boolean } = {}) {
   const { user, loading } = useAuth()
   const { tr } = useLanguage()
   const { dash } = useDashboard()
@@ -36,8 +36,8 @@ export function BulkClient() {
     // bare 256px block landed the panel 44px above where it actually appears on desktop.
     return (
       <div role="status" aria-label={tr('Loading…', 'Đang tải…')}>
-        <SectionHeader title={tr('Bulk upload', 'Tải hàng loạt')} />
-        <Skeleton className="h-7 w-40 rounded-lg max-lg:hidden" />
+        {!embedded && <SectionHeader title={tr('Bulk upload', 'Tải hàng loạt')} />}
+        {!embedded && <Skeleton className="h-7 w-40 rounded-lg max-lg:hidden" />}
         <div className="mt-4 space-y-3">
           {/* The panel: a drop zone over its instructions + the template/upload actions. */}
           <Skeleton className="h-40 w-full rounded-2xl" />
@@ -54,8 +54,8 @@ export function BulkClient() {
   return (
     <>
       {/* Native stack-nav title bar (mobile only) — the one section that was missing its back bar. */}
-      <SectionHeader title={tr('Bulk upload', 'Tải hàng loạt')} />
-      <h1 className="text-xl font-bold text-foreground max-lg:sr-only">{tr('Bulk upload', 'Tải hàng loạt')}</h1>
+      {!embedded && <SectionHeader title={tr('Bulk upload', 'Tải hàng loạt')} />}
+      {!embedded && <h1 className="text-xl font-bold text-foreground max-lg:sr-only">{tr('Bulk upload', 'Tải hàng loạt')}</h1>}
       <div className="mt-4">
         <BulkUploadPanel onDone={() => router.push('/dashboard/listings')} />
       </div>

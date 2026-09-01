@@ -15,7 +15,7 @@
 
 import type { ComponentType, SVGProps } from 'react'
 import { IS_SERVICES } from '@/lib/edition'
-import { SERVICES_NAV_ADMIN_QUEUE, SERVICES_NAV_CASES, SERVICES_NAV_PAYOUT, SERVICES_NAV_TRIPS, SERVICES_NAV_WALLET } from '@/lib/edition-services-copy'
+import { SERVICES_NAV_ADMIN_QUEUE, SERVICES_NAV_PAYMENTS, SERVICES_NAV_SERVICES } from '@/lib/edition-services-copy'
 // Glyph choices follow docs/icon-language.md §3 (soft-cornered object metaphors, one
 // family). Developers = Plug since 2026-08-07 (R3 critic: Braces was the rail's one
 // abstract washless glyph; Plug is a concrete noun with a washable body) — before that `</>`
@@ -45,8 +45,8 @@ import { SERVICES_NAV_ADMIN_QUEUE, SERVICES_NAV_CASES, SERVICES_NAV_PAYOUT, SERV
 //    selected-state fill is unaffected either way: it is drawn from the glyph's own
 //    silhouette, not from a per-key region (see NavIcon below).
 import {
-  Store, SquareArrowOutUpRight, MessageSquare, Heart, Scale, Upload, Plug, Wallet, Banknote,
-  CircleHelp, FileCheck2, Route,
+  Store, SquareArrowOutUpRight, MessageSquare, Heart, Scale, Wallet,
+  CircleHelp, Route,
   Flag, ShieldAlert, ClipboardList, Tags, Star, Stamp, Gavel, Filter,
   type IconComponent, ShieldCheck } from '@/components/ui/icons'
 import { cn } from '@/lib/utils'
@@ -205,10 +205,9 @@ export const DASHBOARD_NAV: NavGroup[] = [
        * ⚠️ THESE PAGES EXISTED FOR DAYS WITH NOTHING LINKING TO THEM. `/dashboard/payout` was
        * reachable only by typing the URL — worth remembering when adding the next section.
        */
-      ...(IS_SERVICES ? [{ ...SERVICES_NAV_WALLET, icon: Wallet, servicesOnly: true, role: 'seller' as const }] : []),
-      ...(IS_SERVICES ? [{ ...SERVICES_NAV_PAYOUT, icon: Banknote, servicesOnly: true, role: 'seller' as const }] : []),
-      { href: '/dashboard/bulk', ...tr('Bulk upload', 'Tải hàng loạt'), icon: Upload, role: 'business' },
-      { href: '/dashboard/dev', ...tr('Developers', 'Lập trình'), icon: Plug, role: 'business' },
+      // ⚠️ ONE Payments ROW — wallet + payout merged into /dashboard/payments (tabbed). Same
+      // three-layer gating as before: IS_SERVICES ternary, servicesOnly flag, aliased copy.
+      ...(IS_SERVICES ? [{ ...SERVICES_NAV_PAYMENTS, icon: Wallet, servicesOnly: true, role: 'seller' as const }] : []),
       // Public storefront of the signed-in seller — href is computed by the renderer.
       // ⚠️ NOT `external` — it renders as a <Link>, like every other row. The storefront
       // href resolves to `/{handle}` (or `/sellers/{id}`), which is an ordinary route in THIS
@@ -252,13 +251,10 @@ export const DASHBOARD_NAV: NavGroup[] = [
       // c8090df0, then accidentally reverted 2 minutes later by 0ef45423 committing a stale
       // working-tree copy of this file. So the rule stands for the future — if this row
       // changes state and no owner decision says so, that is the accident, not a decision.)
-      ...(IS_SERVICES ? [{ ...SERVICES_NAV_TRIPS, icon: Route, servicesOnly: true }] : []),
-      // KEPT, RELABELLED (owner 2026-07-22: "only 1 way should exist through the chat").
-      // The section is no longer a place to APPLY — the wizard behind this row is deleted
-      // and the application is filled in the chat thread — so the row names what it still
-      // leads to: the applicant's own cases, their status, and the way back into the
-      // thread each one lives in. "Vietnam e-Visa" read as "apply here"; this does not.
-      ...(IS_SERVICES ? [{ ...SERVICES_NAV_CASES, icon: FileCheck2, requiresVisa: true, servicesOnly: true }] : []),
+      // ⚠️ ONE Services ROW — Trips + e-Visa merged into /dashboard/services (tabbed). e-Visa is a
+      // tab now rather than its own `requiresVisa`-gated row: a forum seller lands on Services and
+      // finds both, with the e-Visa tab showing its own empty state when they hold no case.
+      ...(IS_SERVICES ? [{ ...SERVICES_NAV_SERVICES, icon: Route, servicesOnly: true }] : []),
     ],
   },
   {

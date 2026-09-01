@@ -19,7 +19,7 @@ import { TripPriceDisclaimer } from '@/components/itinerary/trip-price-disclaime
  *  HISTORY as a feed beneath the builder. Each saved item can be re-downloaded as a
  *  styled Word file. Data is eno.vn's own (Itinerary tables via /api/itineraries); a new
  *  build auto-saves and the feed refreshes in place via the builder's onSaved callback. */
-export function TripsClient({ planListingId }: { planListingId: string | null }) {
+export function TripsClient({ planListingId, embedded = false }: { planListingId: string | null; embedded?: boolean }) {
   const { user, loading } = useAuth()
   const { tr } = useLanguage()
   const router = useRouter()
@@ -121,7 +121,7 @@ export function TripsClient({ planListingId }: { planListingId: string | null })
     // an h-11 body — the exact shape the in-body skeleton below uses, so the two agree.
     return (
       <div role="status" aria-label={tr('Loading…', 'Đang tải…')}>
-        <SectionHeader title={tr('My Trips', 'Chuyến đi của tôi')} />
+        {!embedded && <SectionHeader title={tr('My Trips', 'Chuyến đi của tôi')} />}
         <section className="mt-4 border-t border-border pt-8">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="min-w-0">
@@ -152,7 +152,7 @@ export function TripsClient({ planListingId }: { planListingId: string | null })
   return (
     <>
       {/* Native stack-nav title bar (mobile only) — same established title string. */}
-      <SectionHeader title={tr('My Trips', 'Chuyến đi của tôi')} />
+      {!embedded && <SectionHeader title={tr('My Trips', 'Chuyến đi của tôi')} />}
 
       {showFeed && (
         <section aria-labelledby="saved-itineraries-title" className="mt-4 border-t border-border pt-8">

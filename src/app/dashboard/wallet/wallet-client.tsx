@@ -41,7 +41,7 @@ type View = {
   fundable?: boolean
 }
 
-export function WalletClient() {
+export function WalletClient({ embedded = false }: { embedded?: boolean } = {}) {
   const { tr } = useLanguage()
   const [view, setView] = useState<View | null>(null)
   const [blocked, setBlocked] = useState<'signed_out' | null>(null)
@@ -207,7 +207,7 @@ export function WalletClient() {
     return (
       <>
       {/* Native stack-nav title bar (mobile only) — the same string the desktop heading uses. */}
-      <SectionHeader title={tr('Your wallet', 'Ví của bạn')} />
+      {!embedded && <SectionHeader title={tr('Your wallet', 'Ví của bạn')} />}
       <div className="mx-auto max-w-lg">
         <Card>
           <CardHeader>
@@ -230,7 +230,7 @@ export function WalletClient() {
   return (
     <>
       {/* Native stack-nav title bar (mobile only) — the same string the desktop heading uses. */}
-      <SectionHeader title={tr('Your wallet', 'Ví của bạn')} />
+      {!embedded && <SectionHeader title={tr('Your wallet', 'Ví của bạn')} />}
       <div className="mx-auto max-w-lg">
       <Card>
         <CardHeader>

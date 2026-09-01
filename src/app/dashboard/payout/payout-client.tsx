@@ -53,7 +53,7 @@ type State = {
  */
 const BANK_OPTIONS = VN_BANKS.map((b) => ({ value: b.bin, label: b.short, description: b.name }))
 
-export function PayoutClient() {
+export function PayoutClient({ embedded = false }: { embedded?: boolean } = {}) {
   const { tr } = useLanguage()
   const errId = useId()
 
@@ -156,7 +156,7 @@ export function PayoutClient() {
     return (
       <>
       {/* Native stack-nav title bar (mobile only) — the same string the desktop heading uses. */}
-      <SectionHeader title={tr('Getting paid', 'Nhận thanh toán')} />
+      {!embedded && <SectionHeader title={tr('Getting paid', 'Nhận thanh toán')} />}
       <div className="mx-auto max-w-lg">
         <Card>
           <CardHeader>
@@ -192,7 +192,7 @@ export function PayoutClient() {
   return (
     <>
       {/* Native stack-nav title bar (mobile only) — the same string the desktop heading uses. */}
-      <SectionHeader title={tr('Getting paid', 'Nhận thanh toán')} />
+      {!embedded && <SectionHeader title={tr('Getting paid', 'Nhận thanh toán')} />}
       <div className="mx-auto max-w-lg">
       <Card>
         <CardHeader>

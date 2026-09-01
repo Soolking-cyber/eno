@@ -1,7 +1,7 @@
 import { SITE_NAME } from '@/lib/edition'
 import type { Metadata } from 'next'
 import { Suspense } from 'react'
-import { ListingsClient } from './listings-client'
+import { ListingsTabs } from './listings-tabs'
 
 export const metadata: Metadata = {
   title: `Listings | ${SITE_NAME}`,
@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 export default function ListingsPage() {
   return (
     <Suspense>
-      <ListingsClient />
+      <ListingsTabs />
     </Suspense>
   )
 }

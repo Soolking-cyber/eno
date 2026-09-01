@@ -385,13 +385,17 @@ function CaseRow({ item, conversationId, deskThreadId, isDetail, busy, now, lang
  * the loaded state: the stack title bar, the text-2xl h1 with its desktop-only lede, then
  * the hairline-topped cases table on lg and the stacked case cards below it.
  */
-export function VisaCasesSkeleton() {
+export function VisaCasesSkeleton({ embedded = false }: { embedded?: boolean } = {}) {
   const { tr } = useLanguage()
   return (
     <>
-      <SectionHeader title={tr('My e-Visa', 'E-Visa của tôi')} />
+      {/* embedded (inside the Services shell): the shell already drew the section header, so the
+          loading state must not stack a second one — the exact double-header the shell exists to avoid. */}
+      {!embedded && <SectionHeader title={tr('My e-Visa', 'E-Visa của tôi')} />}
       <div className="w-full" role="status" aria-label={tr('Loading…', 'Đang tải…')}>
-        <Skeleton className="h-8 w-72 max-w-full rounded-lg max-lg:hidden" />
+        {/* Title-shaped shimmer maps to the desktop <h1> — which the shell owns when embedded, so
+            skip it there too or the loading state stacks a second title under the shell header. */}
+        {!embedded && <Skeleton className="h-8 w-72 max-w-full rounded-lg max-lg:hidden" />}
         <Skeleton className="mt-1 hidden h-5 w-full max-w-2xl rounded-lg lg:block" />
         {/* Desktop: the 7-column cases table under its top rule */}
         <div className="mt-4 hidden border-t border-border lg:block">
@@ -421,12 +425,26 @@ export function VisaCasesSkeleton() {
   )
 }
 
-export function VisaCasesClient({ threads }: {
+/**
+ * ⚠️ SURVIVES REMOUNTS — the payment-return replay guard that a component ref cannot be.
+ * The return handler below strips the provider params (`paid/aid/sid`) with a `router.replace`, but
+ * on the tabbed Services shell that strip commits through a full force-dynamic RSC round trip; in
+ * that window the tab strip is live and `DashboardTabs.onChange` copies every current param onto the
+ * next tab's URL, so a payer who taps Trips → e-Visa remounts this client with a FRESH `returnHandled`
+ * ref and the provider params still present — re-running the confirmation. `returnHandled` (per-mount)
+ * cannot see the earlier attempt; this module-level set, keyed on the provider ref, makes a remount
+ * SKIP a return it already handled this session. Belt-and-suspenders with the idempotent confirm
+ * endpoint, and it upholds the handler's own invariant: a return is confirmed at most once.
+ */
+const handledPaymentReturns = new Set<string>()
+
+export function VisaCasesClient({ threads, embedded = false }: {
   /** applicationId → the conversation it lives in — the IMMUTABLE
    *  visa_applications.conversation_id first, live binding as the legacy fallback
    *  (resolved server-side in page.tsx). Missing means "no thread": the generic start
    *  re-binds the newest editable draft. */
   threads: Record<string, string>
+  embedded?: boolean
 }) {
   const { tr, lang } = useLanguage()
   const { user, loading: authLoading } = useAuth()
@@ -523,13 +541,24 @@ export function VisaCasesClient({ threads }: {
     returnHandled.current = true
     const aid = search.get('aid') || ''
     const ref = paid === 'stripe' ? search.get('sid') : search.get('token')
-    // Strip the provider's params first: a refresh must never re-post a confirmation.
-    router.replace('/dashboard/visa')
+    // Strip the provider's params first: a refresh must never re-post a confirmation. Target the
+    // e-Visa tab DIRECTLY (this client lives embedded at /dashboard/services?tab=evisa now) rather
+    // than the bare /dashboard/visa, whose redirect would round-trip the server and drop the reader
+    // on the Trips tab for a beat on the very path that just took their money.
+    router.replace('/dashboard/services?tab=evisa')
     if (cancelled) {
-      toast.message(tr('Payment cancelled — your application is unchanged.', 'Đã hủy thanh toán — hồ sơ của bạn không thay đổi.'))
+      // ⚠️ STABLE id — the dedup Set below only guards the CONFIRM path, so a remount that re-enters
+      // with `?pay=cancelled` still in the URL (the same laggy-strip window) would re-toast. An id
+      // makes the repeat REPLACE rather than stack, so at worst one cancelled toast is ever visible.
+      toast.message(tr('Payment cancelled — your application is unchanged.', 'Đã hủy thanh toán — hồ sơ của bạn không thay đổi.'), { id: 'visa-pay-cancelled' })
       return
     }
     if ((paid !== 'stripe' && paid !== 'paypal') || !aid || !ref) return
+    // ⚠️ REMOUNT-SAFE DEDUP (see handledPaymentReturns): if a tab-switch remount re-enters here with
+    // the same provider return still in the URL, skip — the confirmation already posted this session.
+    const returnKey = `${paid}:${aid}:${ref}`
+    if (handledPaymentReturns.has(returnKey)) return
+    handledPaymentReturns.add(returnKey)
     void (async () => {
       const toastId = 'visa-pay-confirm'
       toast.loading(tr('Confirming your payment…', 'Đang xác nhận thanh toán…'), { id: toastId })
@@ -546,6 +575,11 @@ export function VisaCasesClient({ threads }: {
         const conversationId = threads[aid]
         if (conversationId) router.replace(`/messages/${conversationId}`)
       } catch {
+        // ⚠️ RELEASE THE DEDUP KEY ON FAILURE. The Set means "confirmed", not "attempted": a
+        // transient confirm error must not brand this return handled forever and suppress a genuine
+        // retry (a remount that still carries the params, or a manual re-entry). Only a SUCCESS keeps
+        // the key. Removing it here is the difference between dedup and a money-path dead end.
+        handledPaymentReturns.delete(returnKey)
         toast.error(tr('Payment could not be confirmed yet. If you completed it, it will be recorded automatically in a moment.', 'Chưa thể xác nhận thanh toán. Nếu bạn đã hoàn tất, hệ thống sẽ tự động ghi nhận trong giây lát.'), { id: toastId })
         await loadApplications(true).catch(() => undefined)
       }
@@ -675,9 +709,9 @@ export function VisaCasesClient({ threads }: {
     } finally { setBusy(false) }
   }
 
-  const sectionHeader = <SectionHeader title={tr('My e-Visa', 'E-Visa của tôi')} />
+  const sectionHeader = embedded ? null : <SectionHeader title={tr('My e-Visa', 'E-Visa của tôi')} />
 
-  if (authLoading || !user || (loading && user)) return <VisaCasesSkeleton />
+  if (authLoading || !user || (loading && user)) return <VisaCasesSkeleton embedded={embedded} />
 
   if (notConfigured) {
     // Honest env-absent state: the visa rows are ENCRYPTED and this host has no
@@ -685,7 +719,7 @@ export function VisaCasesClient({ threads }: {
     return (
       <>
         {sectionHeader}
-        <h1 className="text-xl font-bold text-foreground max-lg:sr-only">{tr('My e-Visa', 'E-Visa của tôi')}</h1>
+        {!embedded && <h1 className="text-xl font-bold text-foreground max-lg:sr-only">{tr('My e-Visa', 'E-Visa của tôi')}</h1>}
         <div className="mt-6">
           <EmptyState
             icon={LockKeyhole}
@@ -712,7 +746,7 @@ export function VisaCasesClient({ threads }: {
       <>
         {sectionHeader}
         <div className="mx-auto w-full max-w-3xl py-4 sm:py-8">
-          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">{tr('My e-Visa applications', 'Hồ sơ E-Visa của tôi')}</h1>
+          {!embedded && <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">{tr('My e-Visa applications', 'Hồ sơ E-Visa của tôi')}</h1>}
           <div className="mt-6">
             <EmptyState
               icon={Stamp}
@@ -754,7 +788,7 @@ export function VisaCasesClient({ threads }: {
           horizontally while the space beside it sat empty. The shell keeps the canonical page
           width and gutter, so dropping this cap is exactly "full width" and nothing wider. */}
       <div className="w-full">
-        <h1 className="text-2xl font-bold tracking-tight text-foreground max-lg:sr-only">{tr('My e-Visa applications', 'Hồ sơ E-Visa của tôi')}</h1>
+        {!embedded && <h1 className="text-2xl font-bold tracking-tight text-foreground max-lg:sr-only">{tr('My e-Visa applications', 'Hồ sơ E-Visa của tôi')}</h1>}
 
         <p className="mt-1 hidden text-sm text-body lg:block">{tr('Every application on your account — track its status, continue a draft, or download an approved e-Visa. A draft can be deleted; a submitted or paid application is kept.', 'Mọi hồ sơ trên tài khoản của bạn — theo dõi trạng thái, tiếp tục bản nháp, hoặc tải e-Visa đã duyệt. Bản nháp có thể xóa; hồ sơ đã gửi hoặc đã thanh toán được giữ lại.')}</p>
 

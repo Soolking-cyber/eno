@@ -41,10 +41,8 @@ export const SERVICES_DESK_TILES: ServicesTile[] = []
  * straight back into the artifact this stub exists to keep it out of.
  */
 export type ServicesNavRow = { href: string; en: string; vi?: string }
-export const SERVICES_NAV_TRIPS: ServicesNavRow = { href: '', en: '' }
-export const SERVICES_NAV_CASES: ServicesNavRow = { href: '', en: '' }
-export const SERVICES_NAV_WALLET: ServicesNavRow = { href: '', en: '' }
-export const SERVICES_NAV_PAYOUT: ServicesNavRow = { href: '', en: '' }
+export const SERVICES_NAV_SERVICES: ServicesNavRow = { href: '', en: '' }
+export const SERVICES_NAV_PAYMENTS: ServicesNavRow = { href: '', en: '' }
 export const SERVICES_NAV_ADMIN_QUEUE: ServicesNavRow = { href: '', en: '' }
 
 /**
