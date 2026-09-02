@@ -215,7 +215,12 @@ export function route<A extends AuthMode = 'public', S extends z.ZodTypeAny | un
       }
 
       // 2. Rate limit, keyed by caller where there is one.
-      if (opts.rateLimit) {
+      // ⚠️ SKIPPED IN LOCAL DEV ONLY (NODE_ENV === 'development' is true solely under `next dev`).
+      // Interactive dev testing — walking a flow repeatedly — otherwise trips the same throttles real
+      // users see, and a `strict` bucket's denied-attempt penalty then extends the window on every
+      // impatient click. Deployed builds run as 'production' and vitest as 'test', so BOTH keep full
+      // rate limiting (handler rate-limit tests still fire).
+      if (opts.rateLimit && process.env.NODE_ENV !== 'development') {
         const { bucket, limit, window, strict } = opts.rateLimit
         /**
          * ⚠️ `clientIp()`, NOT A HAND-ROLLED cf-connecting-ip READ. The first draft fell back to a
@@ -227,7 +232,16 @@ export function route<A extends AuthMode = 'public', S extends z.ZodTypeAny | un
          */
         const key = userId ?? clientIp(req)
         const rl = await rateLimit(bucket, key, limit, window, strict ? { strict: true } : undefined)
-        if (!rl.success) return apiFail('rate_limited', 429)
+        if (!rl.success) {
+          // ⚠️ Carry the retry time so a client can show a COUNTDOWN instead of a vague "try later".
+          // `resetSec` is when the window slot advances (see ratelimit.ts) — the honest lower bound on
+          // when to retry. Additive: the body still has `error: 'rate_limited'`; `Retry-After` is the
+          // standard header. apiFail() can't attach headers, so this one 429 is built inline.
+          return NextResponse.json(
+            { error: 'rate_limited', retryAfterSeconds: rl.resetSec },
+            { status: 429, headers: { 'Retry-After': String(rl.resetSec) } },
+          )
+        }
       }
 
       // 3. Body. Parsed once, validated once, and a malformed body is a 400 rather than a throw.

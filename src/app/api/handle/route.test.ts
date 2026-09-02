@@ -241,7 +241,7 @@ describe('POST /api/handle — the limiter (handle-claim, 6/h, strict)', () => {
   it('over limit → 429 {"error":"rate_limited"} and nothing is claimed', async () => {
     h.rlAllow = false
     expect(await wire(await POST(post({ handle: 'alex' })))).toEqual({
-      status: 429, body: '{"error":"rate_limited"}',
+      status: 429, body: '{"error":"rate_limited","retryAfterSeconds":3600}',
     })
     expect(h.handles).toEqual([])
   })
@@ -267,14 +267,14 @@ describe('POST /api/handle — the limiter (handle-claim, 6/h, strict)', () => {
     h.rlAllow = false
     // target:'seller' with no storefront is a 400 no_shop when the handler is reached at all.
     expect(await wire(await POST(post({ handle: 'alex', target: 'seller' })))).toEqual({
-      status: 429, body: '{"error":"rate_limited"}',
+      status: 429, body: '{"error":"rate_limited","retryAfterSeconds":3600}',
     })
   })
 
   it('a limiter OUTAGE REFUSES (strict: true fails CLOSED) — an outage never un-limits a claim', async () => {
     h.rlDown = true
     expect(await wire(await POST(post({ handle: 'alex' })))).toEqual({
-      status: 429, body: '{"error":"rate_limited"}',
+      status: 429, body: '{"error":"rate_limited","retryAfterSeconds":3600}',
     })
     expect(h.handles).toEqual([])
   })

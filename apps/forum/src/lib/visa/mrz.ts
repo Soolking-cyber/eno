@@ -50,7 +50,10 @@ function mrzDate(value: string, type: 'birth' | 'expiry') {
 }
 
 function mrzName(value: string) {
-  return value.replace(/<+/g, ' ').trim().replace(/\s+/g, ' ')
+  // ⚠️ STRIP NON-LETTERS. MRZ name fields are A–Z with `<` as filler/space — nothing else. A digit or
+  // symbol in a name is always an OCR misread (e.g. the trailing filler `<<<<<<<` read as `6666666`
+  // and appended to the given names). Line 1 carries no check digit, so this is the only guard.
+  return value.replace(/<+/g, ' ').replace(/[^A-Z ]/g, '').trim().replace(/\s+/g, ' ')
 }
 
 export function parsePassportMrz(rawLine1: string, rawLine2: string): PassportMrzResult {
@@ -82,8 +85,13 @@ export function parsePassportMrz(rawLine1: string, rawLine2: string): PassportMr
     ...(line2.slice(10, 13).replace(/</g, '') ? { nationalityCode: line2.slice(10, 13).replace(/</g, '') } : {}),
   }
   if (checks.composite || [checks.passportNumber, checks.dateOfBirth, checks.expiryDate].filter(Boolean).length === 3) {
+    // ⚠️ ONLY THE FIRST `<<`-GROUP IS THE GIVEN NAMES. TD3 uses `<<` once (surname↔given separator);
+    // after the given names it is `<` filler to char 44. So `nameParts[1]` holds ALL given names (they
+    // are single-`<` separated inside it), and `nameParts[2..]` is filler/garbage — which is where OCR
+    // misreads of `<` (as K, C, 6…) land. Joining them all dragged that trailing junk into the name;
+    // taking only nameParts[1] discards it. (Line 1 has no check digit, so this is the only guard.)
     const surname = mrzName(nameParts[0] || '')
-    const givenNames = mrzName(nameParts.slice(1).join(' '))
+    const givenNames = mrzName(nameParts[1] || '')
     if (surname) fields.surname = surname
     if (givenNames) fields.givenNames = givenNames
   }

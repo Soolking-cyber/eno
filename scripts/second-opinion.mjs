@@ -61,6 +61,12 @@ const UNREVIEWABLE = [
   // cannot judge and that blow every reviewer CLI's input limit; the .ts adapter that USES them is
   // reviewed normally. Still HASHED (the receipt covers them), only excluded from what reviewers read.
   ':(exclude)public/tesseract/*',
+  // Self-hosted OpenCV.js (~9MB) + jscanify for on-device document-edge auto-capture: exclude only the
+  // multi-megabyte MINIFIED third-party bundles a reviewer can't judge. The small first-party worker
+  // (detect-worker.js) and PROVENANCE.md stay VISIBLE so its message protocol and licensing CAN be
+  // reviewed — hiding them made every reviewer flag them as "missing". All still hashed.
+  ':(exclude)public/opencv/opencv.js',
+  ':(exclude)public/opencv/jscanify.js',
 ]
 
 /**
@@ -351,7 +357,9 @@ const REVIEWERS = [
     cmd: 'claude',
     // ⚠️ `--permission-mode plan` IS THE SANDBOX and is not decorative: it keeps this reviewer
     // read-only, so it answers from the diff on stdin and cannot edit, run or commit anything.
-    args: ['-p', '--model', 'claude-fable-5', '--effort', 'max', '--permission-mode', 'plan'],
+    // ✅ FABLE 5.1 since 2026-09-02 (owner). The prior id was `claude-fable-5`; `claude-fable-5-1`
+    // is accepted by the current CLI (2.1.258 — already latest, no upgrade was needed).
+    args: ['-p', '--model', 'claude-fable-5-1', '--effort', 'max', '--permission-mode', 'plan'],
     stdin: true,
   },
 ]

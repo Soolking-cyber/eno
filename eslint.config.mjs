@@ -266,6 +266,9 @@ const eslintConfig = [...nextCoreWebVitals, ...nextTypescript, {
     // JS for the on-device passport MRZ reader. Not our source; linting them reports require()/
     // this-alias errors from a bundle we do not author. See public/tesseract/PROVENANCE.md.
     "public/tesseract/**",
+    // Self-hosted OpenCV.js + jscanify (public/opencv/**) — third-party minified CV bundle for the
+    // on-device document-edge auto-capture. Not our source. See public/opencv/PROVENANCE.md.
+    "public/opencv/**",
     // ⚠️ `.next-*` TOO, not just `.next`. next.config.ts now honours NEXT_DIST_DIR so two
     // sessions can run dev and preview side by side, and a developer following that advice
     // gets `.next-dev/` — which this list did not cover, so `npm run lint` linted 155 build

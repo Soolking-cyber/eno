@@ -44,7 +44,7 @@ than review, and a reviewer that did not answer is NOT a passed review — lives
   allow-rule. Seen 2026-07-22. Feed the file CONTENT inline in the
   prompt (its agentic file-reading mode times out on `--print-timeout`); use `--print-timeout 240s`.
 - **fable** (the panel's third seat; restored 2026-08-23 after one day on opus) —
-  `claude -p --model claude-fable-5 --effort max --permission-mode plan < prompt.txt`, prompt on
+  `claude -p --model claude-fable-5-1 --effort max --permission-mode plan < prompt.txt`, prompt on
   **stdin** so it sees the whole diff and counts toward quorum. `--permission-mode plan` is the
   sandbox: read-only, cannot edit or run anything.
   ⚠️ **Same lab as the main thread, different model.** A unanimous 3/3 is two families agreeing,

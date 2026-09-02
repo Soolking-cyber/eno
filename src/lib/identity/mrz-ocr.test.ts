@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
-import { readMrz, extractMrzLines, readFailureHint, VARIANTS, MRZ_CHARSET, type OcrEngine } from './mrz-ocr'
+import { readMrz, extractMrzLines, readFailureHint, extractMrzFields, mergeMrzPool, poolToMrzLines, VARIANTS, MRZ_CHARSET, type OcrEngine } from './mrz-ocr'
+import { parsePassportMrz } from '../identity/mrz'
 import { outcomeToStatus, isTransient, quotaStatus, shouldAttempt } from './provider'
 import { readTokenClaims, needsRefresh, effectiveExpiry, vnptConfigured } from './vnpt-auth'
 
@@ -100,9 +101,108 @@ describe('readMrz — checksum-driven variant search', () => {
   })
 })
 
+describe('multi-frame salvage (real 2026-09-02 webcam captures of a TKM passport)', () => {
+  // Four preprocessing variants of ONE webcam frame. No single one validates (each flips a different
+  // digit and drops line-1 filler), but across them every field is read with a valid check digit.
+  const CAP_COMPLETE = [
+    'P<TKMBABAKULYYEV<<SHANAZAR<<<<<<<CKKEKKCK\nA1944134<6TKM9407152M 7O083S00LB00014670<<<<40',
+    'P<TKMBABAKULYYEV<<SHANAZARK<K<<<<S<SS868888488\nA1944134<6TKM9407152M2708500LB 90014670<<<<40',
+    'B<TKMBABAKULYYEV<<SHANAZARK<K<<<<<<S6666688885\nA1944134<6TKM9407 152M2708300LB00014670<<<<4U',
+    'P<TKMBABAKULYYEV<<SHANAZARK<K<<<<S<SS868888488\nA1944134<6TKM9407152M2708500LB 90014670<<<<40',
+  ]
+  // A different frame of the SAME passport where the number digit is misread (4→6) in every variant —
+  // the check digit correctly rejects it, so the passport number is unrecoverable from this frame alone.
+  const CAP_NO_PASSPORT = [
+    'P<TKMBABAKULYYEV<<SHANAZAR<<<<<<<<<<KEKK\nA1964134<6TKM9407152M27083500LB00014670<<<<49',
+    'P<TKMBABAKULYYEV<<SHANAZARK<K<<<<<<<<<K<KKEKK\nA41964134<6TKE9407152M2 708300LB00014670<<<<40',
+    'P<TKMBABAKULYYEV<<SHANAZARK<K<<<<<<<<<KKKEKEK\nA1964134<6TKM9407152M27083500LB00014670<<<<49',
+    'P<TKMBABAKULYYEV<<SHANAZAR<K<<<<<<<<<KKKKEKEK\nA1964134<6TKE9407152M2 708300LB00014670<<<<40',
+  ]
+
+  it('recovers a valid MRZ from one capture whose every variant individually fails', async () => {
+    let i = 0
+    const r = await readMrz({ width: 10, height: 10 }, async () => CAP_COMPLETE[i++] ?? '')
+    expect(r.ok).toBe(true)
+    if (r.ok) {
+      expect(r.mrz.fields.passportNumber).toBe('A1944134')
+      expect(r.mrz.fields.dateOfBirth).toBe('1994-07-15')
+      expect(r.mrz.fields.passportExpiryDate).toBe('2027-08-30')
+    }
+  })
+
+  it('does NOT invent a passport number when every variant misread it (check digit rejects it)', () => {
+    const pool = extractMrzFields(CAP_NO_PASSPORT)
+    expect(pool.dateOfBirth).toBe('940715')
+    expect(pool.expiry).toBe('270830')
+    expect(pool.passportNumber).toBeUndefined()
+    expect(poolToMrzLines(pool)).toBeNull()
+  })
+
+  it('accumulates across captures — a later frame supplies the field an earlier one missed', () => {
+    let pool = mergeMrzPool({}, extractMrzFields(CAP_NO_PASSPORT))
+    expect(poolToMrzLines(pool)).toBeNull() // still missing the passport number
+    pool = mergeMrzPool(pool, extractMrzFields(CAP_COMPLETE)) // supplies it
+    const lines = poolToMrzLines(pool)
+    expect(lines).not.toBeNull()
+    expect(parsePassportMrz(lines![0], lines![1]).valid).toBe(true)
+  })
+
+  it('a name-line missed by the crop does NOT block a fully check-valid line 2', async () => {
+    // Band caught only line 2; line 1 came out as garbage not starting with P. Line 2 (with the passport
+    // number) reads cleanly in ≥2 variants, so consensus is met and the number is trusted.
+    const cap = [
+      'OAD S S\nA1944134<6TKM9407152M2708300LB00014670<<<<40',
+      'JL S\nA1944134<6TKM9407152M2708300LB00014670<<<<40',
+      'P 2 2 J 7\nA1944134<6TKM9407152M2708300LB00014670<<<<40',
+      'JL S S ASN\nA1944134<6TKM9407152M2708300LB00014670<<<<40',
+    ]
+    let i = 0
+    const r = await readMrz({ width: 10, height: 10 }, async () => cap[i++] ?? '')
+    expect(r.ok).toBe(true)
+    if (r.ok) {
+      expect(r.mrz.fields.passportNumber).toBe('A1944134')
+      expect(r.mrz.fields.passportExpiryDate).toBe('2027-08-30')
+      expect(r.mrz.fields.surname).toBeUndefined() // no name captured — the user types it
+    }
+  })
+
+  it('⛔ a passport number seen in only ONE variant is NOT trusted (check-digit mod-10 blind spot)', () => {
+    // The number is check-valid on a single line but appears nowhere else — a filler-as-letter misread
+    // (`<`→`K`, both ≡ 0 mod 10) reads exactly like this. Consensus (≥2 agreeing) must withhold it.
+    const oneVariant = extractMrzFields([
+      'P<TKMX<<Y\nA1944134<6TKM9407152M2708300LB00014670<<<<40',
+      'garbage only, no readable line 2 here',
+    ])
+    expect(oneVariant.dateOfBirth).toBe('940715')   // dates need no consensus (numeric, no blind spot)
+    expect(oneVariant.expiry).toBe('270830')
+    expect(oneVariant.passportNumber).toBeUndefined() // withheld — one variant is not enough
+  })
+
+  it('⛔ a synthesized MRZ is NAME-LESS even when a name line was read (the server prefers MRZ over typed)', () => {
+    // Safety invariant: poolToMrzLines must never carry an OCR name into line 1 — a garbage read would
+    // overwrite the user's confirmed, typed name in the stored record (all reviewers, 2026-09-02).
+    const pool = { passportNumber: 'A1944134<', dateOfBirth: '940715', expiry: '270830', sex: 'M', nationality: 'TKM', nameLine: 'P<TKMWRONGNAME<<GARBAGE<<<<<<<<<<<<<<<<<<<<<<' }
+    const lines = poolToMrzLines(pool)
+    expect(lines).not.toBeNull()
+    const m = parsePassportMrz(lines![0], lines![1])
+    expect(m.valid).toBe(true)
+    expect(m.fields.surname).toBeUndefined()      // no name from the synthesis — user types it
+    expect(m.fields.givenNames).toBeUndefined()
+    expect(m.fields.passportNumber).toBe('A1944134') // the check-valid number IS carried
+  })
+
+  it('⛔ never fuses two DIFFERENT identities — a conflicting passport/DOB resets the pool', () => {
+    const a = { passportNumber: 'A1944134', dateOfBirth: '940715', expiry: '270830', nameLine: 'P<TKMX<<Y' }
+    const b = { passportNumber: 'Z9999999', dateOfBirth: '800101' } // a different person
+    const merged = mergeMrzPool(a, b)
+    expect(merged.passportNumber).toBe('Z9999999') // pool discarded, rebuilt from the new document
+    expect(merged.expiry).toBeUndefined()          // the old document's expiry did NOT carry over
+  })
+})
+
 describe('failure guidance', () => {
   it('names the physical cause rather than saying "try again"', () => {
-    const hint = readFailureHint({ ok: false, reason: 'checksums_failed', attempts: 4 })
+    const hint = readFailureHint({ reason: 'checksums_failed' })
     expect(hint.en).toMatch(/glare/i)
     expect(hint.vi).toMatch(/loá/i)
   })

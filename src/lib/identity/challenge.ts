@@ -110,10 +110,18 @@ export async function issueChallenge(
   declaration: { version: string; hash: string; declaredAt: Date; ip: string | null },
   now: Date = new Date(),
 ): Promise<IssueResult> {
-  const cooling = await kv.get<number>(cooldownKey(profileId))
-  if (cooling) {
-    const remaining = Math.max(1, Math.ceil((cooling - now.getTime()) / 1000))
-    return { ok: false, reason: 'cooldown', retryAfterSeconds: remaining }
+  // ⚠️ DEV-ONLY COOLDOWN BYPASS. The 60s issuance cooldown is an anti-abuse control; in `next dev` it
+  // just walls off repeated walk-throughs of the verify wizard. Gated STRICTLY on
+  // NODE_ENV === 'development' — the ONLY env where that is true is a developer's local `next dev`.
+  // A deployed build (`next start`, both editions) runs as 'production' and vitest runs as 'test', so
+  // BOTH keep the cooldown (the 'test' case is why this is `!== 'development'`, not `=== 'production'`
+  // — the cooldown test must still see it fire). The hourly route limiter (20/h) is unaffected.
+  if (process.env.NODE_ENV !== 'development') {
+    const cooling = await kv.get<number>(cooldownKey(profileId))
+    if (cooling) {
+      const remaining = Math.max(1, Math.ceil((cooling - now.getTime()) / 1000))
+      return { ok: false, reason: 'cooldown', retryAfterSeconds: remaining }
+    }
   }
 
   const code = generateCode()
