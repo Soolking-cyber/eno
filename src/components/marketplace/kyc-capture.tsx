@@ -544,7 +544,11 @@ export function KycCapture({
 
   return (
     <div className={cn('space-y-3', className)}>
-      <div className="relative overflow-hidden rounded-xl border bg-muted aspect-[4/3]">
+      {/* ⚠️ TALLER ON MOBILE. A 4:3 box on a portrait phone is a small strip with the tall screen empty
+          ("too small" — owner, on-device). A 3:4 portrait container fills far more of the phone; the
+          landscape document frame still centres inside it (object-cover on the video, the guide rect
+          drives the crop). Desktop keeps 4:3. */}
+      <div className="relative overflow-hidden rounded-xl border bg-muted aspect-[3/4] max-h-[62svh] sm:aspect-[4/3] sm:max-h-none">
         {phase === 'review' && shot ? (
           // A plain <img>, deliberately: the src is a blob: URL for a frame that exists only in
           // this tab, so next/image has nothing to optimise and would add a round trip to the
@@ -574,16 +578,10 @@ export function KycCapture({
               // for a passport (0.92/1.42 ÷ 0.75) and ~73% for an ID — both fit, so no clamp is needed.
               className={cn('relative w-[80%] rounded-lg border-2 transition-colors', aligned ? 'border-success' : 'border-white/70')}
               style={{ aspectRatio: String(docAspect), boxShadow: aligned ? '0 0 0 9999px rgba(0,0,0,0.35), 0 0 0 3px rgba(34,197,94,0.6)' : '0 0 0 9999px rgba(0,0,0,0.45)' }}
-            >
-              {/* Caption INSIDE the frame — a `-top-6` label above it is shaved by the container's
-                  overflow-hidden at phone widths where the top margin is < its height. A dark pill
-                  keeps it legible over a light document. */}
-              <span className="absolute inset-x-3 top-2 rounded-lg bg-black/55 px-2 py-1 text-center text-xs font-medium text-white">
-                {effGuide === 'passport'
-                  ? tr('Line up the whole photo page — all four edges inside the frame', 'Đặt toàn bộ trang có ảnh — cả bốn cạnh nằm trong khung')
-                  : tr('Line up the whole card — all four edges inside the frame', 'Đặt toàn bộ thẻ — cả bốn cạnh nằm trong khung')}
-              </span>
-            </div>
+            />
+            {/* ⚠️ NO caption INSIDE the frame — the step body above already says "line it up inside the
+                frame", and a second bar over the camera was clutter (owner, on-device). The frame border
+                + the single bottom cue carry the in-view guidance. */}
           </div>
         )}
 
@@ -619,13 +617,14 @@ export function KycCapture({
               {aligned
                 ? tr('Hold still…', 'Giữ yên…')
                 : detectorLoading
-                  ? tr('Preparing scanner… you can also tap the button', 'Đang chuẩn bị máy quét… bạn cũng có thể chạm nút')
+                  ? tr('Preparing… or tap Take photo', 'Đang chuẩn bị… hoặc chạm Chụp ảnh')
                   : kind === 'selfie'
-                    ? tr('Fit your face and the code in view — or tap the button', 'Đưa khuôn mặt và mã vào khung — hoặc chạm nút')
+                    ? tr('Face + code in view — or tap Take photo', 'Đưa mặt + mã vào khung — hoặc chạm Chụp ảnh')
+                    // ⚠️ NOT "fill the frame" — that invites overfilling, pushing the bottom MRZ code lines
+                    // outside the crop so the read finds no MRZ and autofill silently fails (fable, 2026-09-02).
                     : effGuide === 'id'
-                      // A CCCD (tier A) is not a passport — the old copy said "passport" for every document (codex/fable, 2026-09-02).
-                      ? tr('Fill the frame with your ID card — or tap the button', 'Đưa thẻ căn cước lấp đầy khung — hoặc chạm nút')
-                      : tr('Fill the frame with your passport — or tap the button', 'Đưa hộ chiếu lấp đầy khung — hoặc chạm nút')}
+                      ? tr('Whole card inside the frame — or tap Take photo', 'Cả thẻ nằm trong khung — hoặc chạm Chụp ảnh')
+                      : tr('Whole page inside the frame — or tap Take photo', 'Cả trang nằm trong khung — hoặc chạm Chụp ảnh')}
             </span>
           </div>
         )}

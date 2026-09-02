@@ -106,6 +106,17 @@ export function VerifyClient() {
   // first scan and torn down on unmount; only tier B (passport, TD3 MRZ) scans — a CCCD has no TD3 MRZ.
   const [scan, setScan] = useState<'idle' | 'reading' | 'ok' | 'failed'>('idle')
   const [scanHint, setScanHint] = useState<{ en: string; vi: string } | null>(null)
+  // 🔬 On-screen MRZ diagnostic, enabled with ?mrzdebug=1 — the only way to see the OCR internals on a
+  // phone (no dev console). Surfaces whether the WASM engine initialised and what each variant read.
+  // ⚠️ Read the flag in an EFFECT, not during render: `window.location` during render makes the server
+  // (false) and first client render (true) disagree → a hydration mismatch (a trap this repo has hit).
+  const [mrzDebug, setMrzDebug] = useState(false)
+  useEffect(() => { setMrzDebug(new URLSearchParams(window.location.search).has('mrzdebug')) }, [])
+  const [dbg, setDbg] = useState<string[]>([])
+  // Accumulate into a REF and flush ONCE at the end of a read — a setState per OCR variant would re-render
+  // VerifyClient mid-WASM and could trip the timeout (agy). The panel updates when the read completes.
+  const dbgRef = useRef<string[]>([])
+  const pushDbg = useCallback((s: string) => { dbgRef.current = [...dbgRef.current, s].slice(-40) }, [])
   const engineRef = useRef<ReturnType<typeof createMrzOcrEngine> | null>(null)
   // ⚠️ The highest upload id whose scan we've accepted. onImage fires the OCR on the captured still
   // AFTER upload (async); a decode with an id below this belongs to a superseded shot and is dropped,
@@ -176,22 +187,34 @@ export function VerifyClient() {
     setScan('reading'); setScanHint(null)
     if (!engineRef.current) engineRef.current = createMrzOcrEngine()
     const eng = engineRef.current
+    // ⚠️ Debug is a passive observer — every push is wrapped so a throw in the trace can NEVER propagate
+    // into readMrz's catch and manufacture the "engine failed" it was added to investigate (fable).
+    if (mrzDebug) { dbgRef.current = []; pushDbg(`still ${img.width}×${img.height} — warming engine…`) }
     try {
       await eng.ready() // one-time ~6MB warm-up, outside the read timeout
+      if (mrzDebug) pushDbg('engine READY')
       if (uploadId !== latestUploadRef.current || engineRef.current !== eng || docAttemptRef.current !== attemptRef.current) return
       let timer: ReturnType<typeof setTimeout> | undefined
+      const engFn = mrzDebug
+        ? async (image: Parameters<typeof eng.engine>[0], opts: Parameters<typeof eng.engine>[1]) => {
+            const t = await eng.engine(image, opts)
+            try { pushDbg(`v(up${opts.upscale} inv${opts.invert}) ${JSON.stringify(t).slice(0, 120)}`) } catch { /* never affect the read */ }
+            return t
+          }
+        : eng.engine
       // ⚠️ SINGLE-CAPTURE SCOPE. The four preprocessing variants of THIS still are fused internally by
       // readMrz — that is what recovers a valid MRZ from an imperfect webcam frame. Cross-CAPTURE pooling
       // was removed: the wizard advances to the selfie the moment a document uploads, and the only way
       // back clears the attempt, so a "second capture" the pool could complete is unreachable through the
       // UI (all three reviewers, 2026-09-02) — and persisting fields across captures risked fusing two
       // documents. Each capture is therefore self-contained; an incomplete read falls back to typing.
-      const read = readMrz(img, eng.engine).finally(() => { if (timer) clearTimeout(timer) })
+      const read = readMrz(img, engFn).finally(() => { if (timer) clearTimeout(timer) })
       void read.catch(() => {}) // a timeout-loser rejection must not become an unhandledrejection
       const result = await Promise.race([
         read,
         new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error('ocr_timeout')), 45000) }),
       ])
+      if (mrzDebug) pushDbg(`result ${result.ok ? 'OK ' + JSON.stringify(result.mrz.fields) : result.reason + ' pool=' + JSON.stringify(result.pool)}`)
       if (uploadId !== latestUploadRef.current || engineRef.current !== eng || docAttemptRef.current !== attemptRef.current) return
       // ⚠️ FILL EMPTY FIELDS ONLY — never discard a good read just because the user started typing during
       // the ~6MB warm-up, and never clobber what they typed. (The old early-return on userEdited stranded
@@ -225,14 +248,17 @@ export function VerifyClient() {
       } else {
         setScan('failed'); setScanHint(missingFieldsHint(result.missing, result.pool))
       }
-    } catch {
+    } catch (err) {
+      if (mrzDebug) pushDbg('EXCEPTION ' + (err instanceof Error ? err.message : String(err)))
       // A wedged read of the CURRENT upload: rebuild the engine so a retake scans fresh. Epoch-guarded so
       // an abandoned document's late timeout can't stamp 'failed' onto a fresh attempt (codex, 2026-09-02).
       if (uploadId === latestUploadRef.current && engineRef.current === eng && docAttemptRef.current === attemptRef.current) {
         void eng.terminate(); engineRef.current = null; setScan('failed')
       }
+    } finally {
+      if (mrzDebug) setDbg([...dbgRef.current]) // one render, after the read — see pushDbg note
     }
-  }, [])
+  }, [mrzDebug, pushDbg])
 
   /**
    * ⚠️ ONE CALL, AND IT CARRIES THE VERSION THE PAGE ACTUALLY RENDERED — not whatever is current
@@ -778,6 +804,14 @@ export function VerifyClient() {
         )}
       </p>
       </div>
+      {mrzDebug && (
+        // pointer-events-none so it never blocks the buttons underneath (agy/fable); read-only trace.
+        // flex-col justify-end keeps the NEWEST lines (the result) pinned to the bottom, visible even if
+        // the trace overflows; the ref is reset each read so it stays short (fable).
+        <div className="pointer-events-none fixed inset-x-0 bottom-0 z-50 flex max-h-[32vh] flex-col justify-end overflow-hidden whitespace-pre-wrap break-all bg-black/90 p-2 font-mono text-3xs leading-tight text-success">
+          {dbg.length ? dbg.join('\n') : 'mrzdebug ON — capture your passport; the OCR trace will appear here'}
+        </div>
+      )}
     </>
   )
 }

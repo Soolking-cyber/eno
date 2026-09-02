@@ -1044,7 +1044,11 @@ const nextConfig: NextConfig = {
       // silently killed every picked photo IN-APP on iOS (Android rides the same-origin
       // /_capacitor_file_/ path, hence 'self' sufficed there). Browsers can't reach the
       // scheme, so the web surface is unchanged.
-      `connect-src 'self' capacitor: ${SUPABASE_ORIGIN} ${SUPABASE_WS} https://www.google-analytics.com https://region1.google-analytics.com https://www.googletagmanager.com https://cloudflareinsights.com https://static.cloudflareinsights.com https://connect.facebook.net` + gsiConnect,
+      // `data:` — the on-device MRZ OCR (tesseract) and OpenCV ship their WASM as an embedded base64
+      // data: URL that the loader fetch()es into an ArrayBuffer. Without this, connect-src blocks that
+      // fetch; Chrome has a fallback path but iOS Safari does not, so the engine silently fails to init
+      // and passport autofill never runs on iPhone. data: is inline (no network egress), so this is safe.
+      `connect-src 'self' data: capacitor: ${SUPABASE_ORIGIN} ${SUPABASE_WS} https://www.google-analytics.com https://region1.google-analytics.com https://www.googletagmanager.com https://cloudflareinsights.com https://static.cloudflareinsights.com https://connect.facebook.net` + gsiConnect,
       "frame-src 'self' https://td.doubleclick.net https://challenges.cloudflare.com" + gsiFrame,
       "worker-src 'self' blob:",
       "manifest-src 'self'",
