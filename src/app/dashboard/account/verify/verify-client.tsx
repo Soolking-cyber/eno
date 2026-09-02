@@ -110,8 +110,11 @@ export function VerifyClient() {
   // phone (no dev console). Surfaces whether the WASM engine initialised and what each variant read.
   // ⚠️ Read the flag in an EFFECT, not during render: `window.location` during render makes the server
   // (false) and first client render (true) disagree → a hydration mismatch (a trap this repo has hit).
+  // ⏳ TEMP (revert after the iOS trace is captured): forced ON. The `?mrzdebug` query is stripped by the
+  // route before the effect can read it, so on-device diagnosis via the URL is impossible; the trace is
+  // shown to every tier-B capture instead, but ONLY once a capture has produced data (see the panel).
   const [mrzDebug, setMrzDebug] = useState(false)
-  useEffect(() => { setMrzDebug(new URLSearchParams(window.location.search).has('mrzdebug')) }, [])
+  useEffect(() => { setMrzDebug(true) }, [])
   const [dbg, setDbg] = useState<string[]>([])
   // Accumulate into a REF and flush ONCE at the end of a read — a setState per OCR variant would re-render
   // VerifyClient mid-WASM and could trip the timeout (agy). The panel updates when the read completes.
@@ -804,12 +807,13 @@ export function VerifyClient() {
         )}
       </p>
       </div>
-      {mrzDebug && (
-        // pointer-events-none so it never blocks the buttons underneath (agy/fable); read-only trace.
-        // flex-col justify-end keeps the NEWEST lines (the result) pinned to the bottom, visible even if
-        // the trace overflows; the ref is reset each read so it stays short (fable).
+      {/* Shows ONLY after a capture produced trace data, so a real seller sees nothing until they
+          capture — then a brief technical trace (their own data). TEMP; revert with mrzDebug. */}
+      {mrzDebug && tier === 'B' && dbg.length > 0 && (
+        // pointer-events-none so it never blocks the buttons underneath; flex-col justify-end pins the
+        // newest lines (the result) to the bottom, visible even if the trace overflows.
         <div className="pointer-events-none fixed inset-x-0 bottom-0 z-50 flex max-h-[32vh] flex-col justify-end overflow-hidden whitespace-pre-wrap break-all bg-black/90 p-2 font-mono text-3xs leading-tight text-success">
-          {dbg.length ? dbg.join('\n') : 'mrzdebug ON — capture your passport; the OCR trace will appear here'}
+          {dbg.join('\n')}
         </div>
       )}
     </>
