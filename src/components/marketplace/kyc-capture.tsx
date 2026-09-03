@@ -332,12 +332,19 @@ export function KycCapture({
       return
     }
     setQualityHint(null)
-    // Grab the still for the post-capture MRZ read (onImage, tier B). CROP it to the detected document
-    // box so the MRZ band fills far more of the pixels — the biggest lever on read success.
-    lastStillRef.current = kind === 'document' ? grabDocStill(video, lastBoxRef.current) : null
-    // ⚠️ If we captured WITHOUT a box (the hold-still fallback), the still is the full frame and the MRZ
-    // is tiny. Locate the document IN the captured high-res still and re-crop tight to it — this is what
-    // lets the OCR read on a webcam. Async, but it lands before onImage runs (which is post-upload).
+    // Grab the still for the post-capture MRZ read (onImage, tier B). ⛔ CROP TO THE FRAME GUIDE the user
+    // aligned the passport to — the SAME region (sx,sy,sw,sh) as the uploaded crop — NOT `lastBoxRef`.
+    // lastBoxRef is OpenCV's detected box, which never populates on iOS (its WASM does not init there),
+    // so grabDocStill got a null box and returned the WHOLE camera frame; the MRZ band then landed on the
+    // desk/floor BELOW the passport and read as garbage → no_mrz_found (measured, iPhone 2026-09-03).
+    // The guide crop puts the passport — and its MRZ in the bottom band — into the still.
+    // Prefer OpenCV's TIGHT detected box when it exists (desktop — tightest MRZ pixels); fall back to
+    // the guide crop when it doesn't (iOS, where OpenCV never runs) instead of the old null → full frame.
+    const frameBox = (vw > 0 && vh > 0) ? { x: sx / vw, y: sy / vh, w: sw / vw, h: sh / vh } : null
+    lastStillRef.current = kind === 'document' ? grabDocStill(video, lastBoxRef.current ?? frameBox) : null
+    // ⚠️ Where OpenCV IS available (desktop), refine the crop to the detected document within the guide
+    // region. On iOS the detector is absent, so the guide crop above is the final still. Async; lands
+    // before onImage runs (post-upload).
     const still0 = lastStillRef.current
     if (still0 && kind === 'document' && !lastBoxRef.current && detectorRef.current) {
       const probe = downscaleImageData(still0, 640)
