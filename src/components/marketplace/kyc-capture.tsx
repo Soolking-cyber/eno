@@ -548,7 +548,7 @@ export function KycCapture({
           ("too small" — owner, on-device). A 3:4 portrait container fills far more of the phone; the
           landscape document frame still centres inside it (object-cover on the video, the guide rect
           drives the crop). Desktop keeps 4:3. */}
-      <div className="relative overflow-hidden rounded-xl border bg-muted aspect-[3/4] max-h-[62svh] sm:aspect-[4/3] sm:max-h-none">
+      <div className="relative overflow-hidden rounded-xl border bg-black aspect-[3/4] max-h-[62svh] sm:aspect-[4/3] sm:max-h-none">
         {phase === 'review' && shot ? (
           // A plain <img>, deliberately: the src is a blob: URL for a frame that exists only in
           // this tab, so next/image has nothing to optimise and would add a round trip to the
@@ -576,8 +576,12 @@ export function KycCapture({
               // aspect (and the crop, which follows this rect, would inherit the distortion). The
               // container is a fixed 4:3 box: 92% width makes the frame ~86% of the container's HEIGHT
               // for a passport (0.92/1.42 ÷ 0.75) and ~73% for an ID — both fit, so no clamp is needed.
-              className={cn('relative w-[80%] rounded-lg border-2 transition-colors', aligned ? 'border-success' : 'border-white/70')}
-              style={{ aspectRatio: String(docAspect), boxShadow: aligned ? '0 0 0 9999px rgba(0,0,0,0.35), 0 0 0 3px rgba(34,197,94,0.6)' : '0 0 0 9999px rgba(0,0,0,0.45)' }}
+              // ⚠️ NO dimmed surround. The old `0 0 0 9999px` box-shadow darkened everything OUTSIDE the
+              // frame, which read as a bright "white backplate" cropping the view inside the camera
+              // (owner, on-device). Just an outlined frame now — a green ring when aligned — over the full
+              // live video, so the whole viewport stays visible.
+              className={cn('relative w-[80%] rounded-lg border-2 transition-colors', aligned ? 'border-success' : 'border-white/80')}
+              style={{ aspectRatio: String(docAspect), boxShadow: aligned ? '0 0 0 3px rgba(34,197,94,0.55)' : '0 0 0 1px rgba(0,0,0,0.35)' }}
             />
             {/* ⚠️ NO caption INSIDE the frame — the step body above already says "line it up inside the
                 frame", and a second bar over the camera was clutter (owner, on-device). The frame border
