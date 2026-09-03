@@ -17,7 +17,13 @@ COPY package.json package-lock.json* ./
 # (Install scripts must run: ffmpeg-static downloads its platform binary there.)
 COPY prisma ./prisma
 COPY prisma.config.ts ./
-RUN npm ci
+# ⚠️ RESILIENT npm ci. The build box has recurring transient npm-registry network stalls that hang or
+# abort `npm ci` and lose a whole deploy (three times, 2026-09-02/03). Raise per-fetch retries/timeouts
+# AND retry the whole command up to 3× so a transient failure recovers inside the build. `npm ci` wipes
+# node_modules and reinstalls, so re-running it is idempotent (postinstall prisma generate / ffmpeg
+# download included).
+RUN npm config set fetch-retries 5 fetch-retry-mintimeout 20000 fetch-retry-maxtimeout 120000 fetch-timeout 600000 \
+ && (npm ci || (echo 'npm ci retry 1' && sleep 10 && npm ci) || (echo 'npm ci retry 2' && sleep 30 && npm ci))
 
 # ---------- builder: next build → .next/standalone ----------
 FROM node:24-slim AS builder
