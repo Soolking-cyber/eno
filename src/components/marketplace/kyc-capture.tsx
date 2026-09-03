@@ -561,16 +561,16 @@ export function KycCapture({
 
   return (
     <div className={cn('space-y-3', className)}>
-      {/* ⚠️ TALLER ON MOBILE. A 4:3 box on a portrait phone is a small strip with the tall screen empty
-          ("too small" — owner, on-device). A 3:4 portrait container fills far more of the phone; the
-          landscape document frame still centres inside it (object-cover on the video, the guide rect
-          drives the crop). Desktop keeps 4:3. */}
+      {/* ⚠️ TALLER ON MOBILE (3:4), 4:3 on desktop — the owner rejected the short 4:3 box on a phone as
+          "too small", and object-cover means the video ALWAYS fills this box whatever the stream ratio
+          (it never letterboxes, so the container's black is never visible behind the video). Capped at
+          62svh so the shutter stays on-screen. */}
       <div className="relative overflow-hidden rounded-xl border bg-black aspect-[3/4] max-h-[62svh] sm:aspect-[4/3] sm:max-h-none">
         {phase === 'review' && shot ? (
           // A plain <img>, deliberately: the src is a blob: URL for a frame that exists only in
           // this tab, so next/image has nothing to optimise and would add a round trip to the
           // optimizer for bytes it cannot fetch. object-contain so a cropped document is shown whole.
-          <img src={shot.url} alt={effAlt} className="size-full bg-black object-contain" />
+          <img src={shot.url} alt={effAlt} className="absolute inset-0 size-full bg-black object-contain" />
         ) : (
           <video
             ref={videoRef}
@@ -578,7 +578,12 @@ export function KycCapture({
             muted
             // ⚠️ MIRRORED FOR THE SELFIE ONLY. An unmirrored front camera makes people misjudge
             // which way to move; mirroring the DOCUMENT view would make its text unreadable.
-            className={cn('size-full object-cover', kind === 'selfie' && 'scale-x-[-1]', phase !== 'live' && 'invisible')}
+            // ⚠️ `absolute inset-0` — NOT just size-full. A <video> carries an INTRINSIC size, and in this
+            // flex/aspect container that intrinsic ratio can win, leaving the video pillarboxed with the
+            // container's dark background beside it — which reads as a "black plate cropping into the
+            // guide frame" (owner, on-device). Absolute-filling the container guarantees the video covers
+            // it edge-to-edge, so the guide always sits over live video.
+            className={cn('absolute inset-0 size-full object-cover', kind === 'selfie' && 'scale-x-[-1]', phase !== 'live' && 'invisible')}
           />
         )}
 
@@ -597,7 +602,11 @@ export function KycCapture({
               // frame, which read as a bright "white backplate" cropping the view inside the camera
               // (owner, on-device). Just an outlined frame now — a green ring when aligned — over the full
               // live video, so the whole viewport stays visible.
-              className={cn('relative w-[80%] rounded-lg border-2 transition-colors', aligned ? 'border-success' : 'border-white/80')}
+              // 92% width (was 80%) puts MORE passport pixels in the crop — the biggest lever on MRZ
+              // readability — while leaving a margin to align against. ⚠️ NO `max-h` here: with a definite
+              // width + aspectRatio it would NOT shrink the width, so the frame (and the crop that follows
+              // its rect) would distort. A 1.42 landscape frame at 92% width fits the portrait box anyway.
+              className={cn('relative w-[86%] rounded-lg border-2 transition-colors', aligned ? 'border-success' : 'border-white/80')}
               style={{ aspectRatio: String(docAspect), boxShadow: aligned ? '0 0 0 3px rgba(34,197,94,0.55)' : '0 0 0 1px rgba(0,0,0,0.35)' }}
             />
             {/* ⚠️ NO caption INSIDE the frame — the step body above already says "line it up inside the

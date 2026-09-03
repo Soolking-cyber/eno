@@ -38,7 +38,7 @@ than review, and a reviewer that did not answer is NOT a passed review — lives
   **Owner-set invocation (2026-07-21) — use exactly this:**
   `echo "<review prompt>" | codex exec -m gpt-5.6-sol -c model_reasoning_effort=high --sandbox read-only`
   (or heredoc into stdin). Verify the banner echoes `model: gpt-5.6-sol` / `reasoning effort: high`.
-- **antigravity** — `agy -p "<prompt>" --model "Gemini 3.1 Pro (High)"`. ⚠️ If it returns
+- **antigravity** — `agy -p "<prompt>" --model "Gemini 3.8 Flash (High)"`. ⚠️ If it returns
   *"a tool required the command permission that headless mode cannot prompt for"*, it produced NOTHING —
   that is not a review. Re-run with `--dangerously-skip-permissions` (it is read-only anyway) or add an
   allow-rule. Seen 2026-07-22. Feed the file CONTENT inline in the

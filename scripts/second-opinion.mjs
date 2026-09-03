@@ -255,7 +255,7 @@ const REVIEWERS = [
     // 400s keeps it under the 420s harness bound ON PURPOSE: agy gets to report its own failure
     // before we SIGKILL the process group, which is the difference between a diagnosable error and
     // silence. Whenever TIMEOUT_MS changes, this must stay below it.
-    args: ['-p', agyTruncated ? prompt.slice(0, AGY_LIMIT) + '\n\n[DIFF TRUNCATED at 180KB for argv limits — judge only what is shown]' : prompt, '--model', 'Gemini 3.7 Flash (High)', '--dangerously-skip-permissions', '--print-timeout', '400s'],
+    args: ['-p', agyTruncated ? prompt.slice(0, AGY_LIMIT) + '\n\n[DIFF TRUNCATED at 180KB for argv limits — judge only what is shown]' : prompt, '--model', 'Gemini 3.8 Flash (High)', '--dangerously-skip-permissions', '--print-timeout', '400s'],
   },
   /**
    * ⛔ THE THIRD SEAT'S HISTORY, KEPT BECAUSE IT IS THE ARGUMENT FOR THE CURRENT PANEL.
