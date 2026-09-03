@@ -197,10 +197,13 @@ export function KycCapture({
             // `ideal`, not `exact`: a laptop has neither, and `exact` throws OverconstrainedError
             // rather than falling back to the only camera present.
             facingMode: kind === 'selfie' ? { ideal: 'user' } : { ideal: 'environment' },
-            // Ask for enough pixels to clear the review floor (720x960 for a selfie). A phone will
-            // exceed this comfortably; asking is what stops a browser handing back 640x480.
-            width: { ideal: 1920 },
-            height: { ideal: 1440 },
+            // ⚠️ ASK HIGH FOR THE DOCUMENT camera — the MRZ is a tiny band and the guide crop keeps only a
+            // fraction of the frame, so more source pixels directly buys OCR readability (the selfie just
+            // needs to clear the 720×960 floor). ⛔ KEEP 4:3 — camera sensors are natively 4:3, and asking
+            // 16:9 (e.g. 2560×1440) makes WebRTC pick a lower 16:9 mode or crop vertical coverage. 2560×1920
+            // is 4:3 at ~5MP. `ideal`, so a weaker camera still falls back.
+            width: { ideal: kind === 'selfie' ? 1920 : 2560 },
+            height: { ideal: kind === 'selfie' ? 1440 : 1920 },
           },
           audio: false,
         })
@@ -308,6 +311,14 @@ export function KycCapture({
     // already the guide. If the crop would breach the floor, keep the FULL frame — a looser image
     // that passes beats a clean one that is refused. (Doesn't help a camera already below the floor;
     // that fails either way.) Selfies never reach here (docAspect null → no crop).
+    // ⛔ CAPTURE THE TIGHT GUIDE CROP FOR OCR *BEFORE* THE FLOOR GUARD. The floor guard below may widen
+    // the UPLOAD crop to the full frame to satisfy the server's dimension floor — but the OCR still must
+    // keep the TIGHT guide crop, or the MRZ shrinks into a full-frame image and reads as garbage. Measured
+    // on iPhone (2026-09-03): the floor guard fired, the OCR still was ~full-frame (1440×1752), and the
+    // MRZ came back no_mrz_found. So the OCR crop and the upload crop are now decoupled.
+    const ocrCropBox = (vw > 0 && vh > 0 && sw > 0 && sh > 0 && (sw < vw || sh < vh))
+      ? { x: sx / vw, y: sy / vh, w: sw / vw, h: sh / vh }
+      : null
     if (docAspect && (Math.min(sw, sh) < 640 || Math.max(sw, sh) < 960)) { sx = 0; sy = 0; sw = vw; sh = vh }
     const canvas = document.createElement('canvas')
     canvas.width = sw
@@ -338,10 +349,9 @@ export function KycCapture({
     // so grabDocStill got a null box and returned the WHOLE camera frame; the MRZ band then landed on the
     // desk/floor BELOW the passport and read as garbage → no_mrz_found (measured, iPhone 2026-09-03).
     // The guide crop puts the passport — and its MRZ in the bottom band — into the still.
-    // Prefer OpenCV's TIGHT detected box when it exists (desktop — tightest MRZ pixels); fall back to
-    // the guide crop when it doesn't (iOS, where OpenCV never runs) instead of the old null → full frame.
-    const frameBox = (vw > 0 && vh > 0) ? { x: sx / vw, y: sy / vh, w: sw / vw, h: sh / vh } : null
-    lastStillRef.current = kind === 'document' ? grabDocStill(video, lastBoxRef.current ?? frameBox) : null
+    // Prefer OpenCV's TIGHT detected box when it exists (desktop — tightest MRZ pixels); else the tight
+    // pre-floor guide crop (iOS, where OpenCV never runs); else (guide already ~full frame) the full frame.
+    lastStillRef.current = kind === 'document' ? grabDocStill(video, lastBoxRef.current ?? ocrCropBox) : null
     // ⚠️ Where OpenCV IS available (desktop), refine the crop to the detected document within the guide
     // region. On iOS the detector is absent, so the guide crop above is the final still. Async; lands
     // before onImage runs (post-upload).
