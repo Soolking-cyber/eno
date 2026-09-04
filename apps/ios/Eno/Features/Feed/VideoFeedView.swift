@@ -163,7 +163,7 @@ struct VideoFeedItem: View {
     var body: some View {
         ZStack {
             Color.black
-            AsyncImage(url: card.images.first.flatMap { ImageURL.optimized($0, width: 720) }) { phase in
+            EnoRemoteImage(url: card.images.first.flatMap { ImageURL.optimized($0, width: 720) }) { phase in
                 if case .success(let img) = phase { img.resizable().scaledToFill() } else { Color.black }
             }
             if windowed, let player {

@@ -200,6 +200,40 @@ struct ListingDetail: Codable, Identifiable {
     let mileageKm: Int?
     let engineL: Double?
     let attributes: [String: String]?
+    // ⛔ THE AFFILIATE BRANCH — ONE NULLABLE COLUMN IS THE WHOLE FEATURE FLAG, in the web PDP's own
+    // words (src/app/listings/[id]/page.tsx:232). `serializeListing` has always sent these four
+    // (src/lib/serialize.ts:44-49); iOS just never decoded them, so a PARTNER listing rendered as an
+    // ordinary one: an offer slider on a price that is not negotiable, "Chat now" to a seller who does
+    // not chat, and the "ENO protects you · disputes in 72h" panel the web DELIBERATELY suppresses for
+    // affiliates (`protections={affiliateUrl ? undefined : <ProtectionsRow inline />}`, page.tsx:786).
+    // That last one is a promise eno cannot keep on someone else's booking — a consumer-facing lie, not
+    // a cosmetic gap.
+    let affiliateUrl: String?
+    let isPartnerBooking: Bool?
+    let affiliateDiscountCode: String?
+    let affiliateDiscountPercent: Int?
+
+    /// ⛔ TWO SEPARATE QUESTIONS, AND CONFLATING THEM FAILS OPEN EITHER WAY ROUND.
+    ///   · IS this a partner listing?  — decided by the MARKER, never by the URL.
+    ///   · Can we SEND the buyer there? — decided by the URL being usable.
+    /// A previous pass defined `isAffiliate` as "the URL parses", which inverted the safety: a
+    /// partner listing with a malformed `affiliateUrl` stopped counting as a partner listing and got
+    /// the full marketplace treatment — offers, chat, and the "eno protects you · disputes in 72h"
+    /// panel on a booking eno does not hold and cannot arbitrate. That promise is the thing that must
+    /// never leak, so the marker alone suppresses it; a broken link only costs the outbound button.
+    var isAffiliate: Bool {
+        (affiliateUrl?.isEmpty == false) || isPartnerBooking == true
+    }
+
+    /// Somewhere to actually send the buyer, or nil. ⚠️ ABSOLUTE `https` ONLY — `URL(string:)`
+    /// happily accepts `tel:`, a custom scheme, or a bare relative path, none of which is a partner
+    /// website and one of which would place a dialler behind a "Book on partner site" button.
+    var affiliateLink: URL? {
+        guard let raw = affiliateUrl, !raw.isEmpty,
+              let url = URL(string: raw), url.scheme?.lowercased() == "https", url.host != nil
+        else { return nil }
+        return url
+    }
 
     struct DetailSeller: Codable {
         let id: String

@@ -67,7 +67,7 @@ public struct EnoAvatar: View {
 
     public var body: some View {
         let diameter = size.diameter
-        let avatar = AsyncImage(
+        let avatar = EnoRemoteImage(
             url: url,
             // Canon §4: photos crossfade in (~160ms) rather than popping. An opacity change is
             // the Reduce Motion-safe kind of motion, so this needs no gate.

@@ -75,7 +75,7 @@ struct BusinessProfileView: View {
                 .listRowSeparator(.hidden)
                 Section(L10n.tr("Logo", "Logo")) {
                     HStack(spacing: EnoSpacing.s3) {
-                        AsyncImage(url: logoUrl.flatMap { ImageURL.optimized($0, width: 120) }) { phase in
+                        EnoRemoteImage(url: logoUrl.flatMap { ImageURL.optimized($0, width: 120) }) { phase in
                             if case .success(let img) = phase { img.resizable().scaledToFill() } else { EnoColor.tint }
                         }
                         .frame(width: 48, height: 48).clipShape(RoundedRectangle(cornerRadius: EnoRadius.chip))

@@ -14,6 +14,11 @@ final class FeedModel {
     var isLoading = false
     var isRefreshing = false
     var failed = false
+    /// ⛔ HAS A LOAD FINISHED AT ALL? Without this the grid could not tell "still fetching" from
+    /// "fetched, and there is genuinely nothing" — so an empty feed shimmered six skeletons FOREVER
+    /// and read as a hung app. That is not a hypothetical: the edition hide-list makes an empty
+    /// marketplace the CORRECT result on eno.forum, so the most legitimate state looked the most broken.
+    var loaded = false
     var category: String? {
         didSet { if oldValue != category { scheduleReload() } }
     }
@@ -107,6 +112,7 @@ final class FeedModel {
             let page = try await fetchPage(offset: 0)
             guard gen == reloadGen else { return }
             items = page.listings
+            loaded = true
             totalCount = page.total
             offset = page.listings.count
             exhausted = page.listings.count < pageSize
@@ -127,6 +133,7 @@ final class FeedModel {
         } catch {
             guard gen == reloadGen else { return }
             failed = items.isEmpty
+            loaded = true
         }
     }
 

@@ -148,7 +148,7 @@ struct AvailabilityReviewView: View {
             model.toggleSold(l.id)
         }) {
             HStack(spacing: EnoSpacing.s3) {
-                AsyncImage(url: l.images.first.flatMap { ImageURL.optimized($0, width: 128) }) { phase in
+                EnoRemoteImage(url: l.images.first.flatMap { ImageURL.optimized($0, width: 128) }) { phase in
                     if case .success(let img) = phase { img.resizable().scaledToFill() } else { EnoColor.tint }
                 }
                 .frame(width: 56, height: 56)

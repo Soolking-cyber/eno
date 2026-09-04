@@ -78,7 +78,7 @@ private struct ZoomableRemoteImage: UIViewRepresentable {
     func makeCoordinator() -> Coordinator { Coordinator() }
 
     private var content: some View {
-        AsyncImage(url: url) { phase in
+        EnoRemoteImage(url: url) { phase in
             switch phase {
             case .success(let image): image.resizable().scaledToFit()
             case .failure: Image(systemName: "photo").foregroundStyle(.gray)

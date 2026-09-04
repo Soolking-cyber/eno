@@ -95,7 +95,7 @@ final class PostModel {
 
     var uploadedUrls: [String] { photos.compactMap(\.url) }
     var canSubmit: Bool {
-        uploadedUrls.count >= 3 && category != nil &&
+        uploadedUrls.count >= minPhotos && category != nil &&
         title.trimmingCharacters(in: .whitespaces).count >= 3 &&
         // Web parity: the description is required, ≥20 chars — thin listings
         // never leave the web wizard either.
@@ -113,7 +113,7 @@ final class PostModel {
     enum FormField: Hashable { case photos, category, details, specifics, price, contact }
     var missingFields: [FormField] {
         var m: [FormField] = []
-        if uploadedUrls.count < 3 { m.append(.photos) }
+        if uploadedUrls.count < minPhotos { m.append(.photos) }
         if category == nil { m.append(.category) }
         if title.trimmingCharacters(in: .whitespaces).count < 3 ||
            descriptionText.trimmingCharacters(in: .whitespacesAndNewlines).count < 20 { m.append(.details) }
@@ -491,6 +491,16 @@ final class PostModel {
         let detail: String?
     }
 
+    /// Minimum DISTINCT photos to publish in this category — the Swift mirror of `minPhotosFor`
+    /// (src/lib/publish-guard.ts:21).
+    ///
+    /// ⛔ NEVER RE-HARDCODE 3, WHICH IS EXACTLY WHAT THIS APP DID in three places. The 3-angle rule
+    /// exists so a buyer can inspect a physical item before paying; a visa service, a language lesson
+    /// or a cleaner has no object with three sides, so the only way to satisfy it is padding — the same
+    /// shot three times, or unrelated stock photos, both strictly worse than one honest picture. The web
+    /// carved `services` out for that reason (owner, 2026-07-21) and iOS kept refusing those sellers.
+    var minPhotos: Int { category?.slug == "services" ? 1 : 3 }
+
     func submit() async {
         guard canSubmit, let category else { return }
         submitting = true
@@ -543,7 +553,7 @@ final class PostModel {
                 reset()
             } else {
                 let code = (try? JSONDecoder().decode(APIErrorBody.self, from: data))?.error
-                errorMessage = Self.explain(code: code, status: status)
+                errorMessage = Self.explain(code: code, status: status, minPhotos: minPhotos)
             }
         } catch {
             errorMessage = L10n.tr("Could not post. Check your connection and try again.",
@@ -585,7 +595,10 @@ final class PostModel {
         videoError = nil
     }
 
-    private static func explain(code: String?, status: Int) -> String {
+    /// ⚠️ `minPhotos` is PASSED IN rather than read off the instance: this is a static mapper by
+    /// design (it is pure, and the tests drive it without a model), so the category-dependent number
+    /// has to travel with the call.
+    private static func explain(code: String?, status: Int, minPhotos: Int) -> String {
         switch code {
         case "contact_in_text":
             return L10n.tr("Remove phone numbers, emails, links or addresses from the title and description — buyers contact you in-app.",
@@ -594,8 +607,40 @@ final class PostModel {
             return L10n.tr("The listing mentions an item that can't be sold on eno.",
                            "Tin đăng nhắc đến mặt hàng không được phép bán trên eno.")
         case "photos_min", "photo_required":
-            return L10n.tr("Add at least 3 photos taken from different angles.",
-                           "Cần ít nhất 3 ảnh chụp từ các góc khác nhau.")
+            // ⚠️ The number follows the category — see `minPhotos`. Saying "3" to a services seller who
+            // needs 1 sends them looking for photos that were never required.
+            return minPhotos == 1
+                ? L10n.tr("Add at least one clear photo.", "Cần ít nhất một ảnh rõ nét.")
+                : L10n.tr("Add at least 3 photos taken from different angles.",
+                          "Cần ít nhất 3 ảnh chụp từ các góc khác nhau.")
+        // ⛔ THE IDENTITY GATE'S FOUR STATES, WHICH ALL RENDERED AS "Try again". They are legal blocks
+        // (NĐ 248/2026), not quality ones, and publish-guard.ts throws a DISTINCT code for each
+        // precisely because "we couldn't read your photo" and "your account is suspended" must never
+        // reach the same person with the same words.
+        case "identity_unverified":
+            return L10n.tr("Verify your identity before posting — it takes a few minutes.",
+                           "Hãy xác minh danh tính trước khi đăng tin — chỉ mất vài phút.")
+        case "identity_pending":
+            return L10n.tr("Your identity check is still being reviewed. We'll email you the result, usually within a working day.",
+                           "Hồ sơ xác minh của bạn đang được xét duyệt. Chúng tôi sẽ gửi email kết quả, thường trong một ngày làm việc.")
+        case "identity_expired":
+            return L10n.tr("Your verified document has expired — verify again with a current one to keep posting.",
+                           "Giấy tờ đã xác minh của bạn đã hết hạn — hãy xác minh lại bằng giấy tờ còn hiệu lực để tiếp tục đăng tin.")
+        case "identity_suspended":
+            return L10n.tr("This account cannot post right now. Please contact support.",
+                           "Tài khoản này hiện không thể đăng tin. Vui lòng liên hệ hỗ trợ.")
+        case "location_required":
+            return L10n.tr("Choose where the item is — buyers filter by area.",
+                           "Hãy chọn khu vực của món đồ — người mua lọc theo khu vực.")
+        case "contact_in_name":
+            // ⚠️ FIXED IN SETTINGS, NOT IN THE LISTING — the web separates this from contact_in_text
+            // for exactly that reason, after a seller whose display name was their email got told to
+            // clean a listing that was already clean.
+            return L10n.tr("Your account display name contains contact details — change it in Settings, then post.",
+                           "Tên hiển thị của tài khoản có chứa thông tin liên hệ — hãy đổi trong Cài đặt rồi đăng lại.")
+        case "account_restricted":
+            return L10n.tr("Your account is restricted from posting while its trust score recovers.",
+                           "Tài khoản của bạn đang bị hạn chế đăng tin trong khi điểm tin cậy hồi phục.")
         case "duplicate_listing":
             return L10n.tr("This looks like a duplicate of one of your active listings.",
                            "Tin này trùng với một tin đang đăng của bạn.")

@@ -88,7 +88,7 @@ struct ExplorerMapView: View {
             // for this elevation is the map card.
             EnoCard(padding: EnoSpacing.s3, elevation: .floating) {
                 HStack(spacing: EnoSpacing.s3) {
-                    AsyncImage(url: l.images.first.flatMap { ImageURL.optimized($0, width: 140) }) { phase in
+                    EnoRemoteImage(url: l.images.first.flatMap { ImageURL.optimized($0, width: 140) }) { phase in
                         if case .success(let img) = phase { img.resizable().scaledToFill() } else { EnoColor.tint }
                     }
                     .frame(width: 64, height: 64).clipShape(RoundedRectangle(cornerRadius: EnoRadius.chip))

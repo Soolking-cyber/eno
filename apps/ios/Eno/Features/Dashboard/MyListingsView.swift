@@ -214,7 +214,7 @@ struct MyListingsView: View {
 
     private func row(_ l: MyListing) -> some View {
         HStack(spacing: EnoSpacing.s3) {
-            AsyncImage(url: l.images.first.flatMap { ImageURL.optimized($0, width: 96) }) { phase in
+            EnoRemoteImage(url: l.images.first.flatMap { ImageURL.optimized($0, width: 96) }) { phase in
                 if case .success(let img) = phase { img.resizable().scaledToFill() } else { EnoColor.tint }
             }
             .frame(width: 80, height: 80)

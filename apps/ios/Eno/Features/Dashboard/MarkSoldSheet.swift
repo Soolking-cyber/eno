@@ -110,7 +110,7 @@ struct MarkSoldSheet: View {
 
     private var listingHeader: some View {
         HStack(spacing: EnoSpacing.s3) {
-            AsyncImage(url: listing.images.first.flatMap { ImageURL.optimized($0, width: 128) }) { phase in
+            EnoRemoteImage(url: listing.images.first.flatMap { ImageURL.optimized($0, width: 128) }) { phase in
                 if case .success(let img) = phase { img.resizable().scaledToFill() } else { EnoColor.tint }
             }
             .frame(width: 48, height: 48)

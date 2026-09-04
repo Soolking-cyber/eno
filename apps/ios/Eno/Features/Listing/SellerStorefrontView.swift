@@ -74,7 +74,7 @@ struct SellerStorefrontView: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 14) {
                 // TODO(EnoUI): EnoAvatar — image → initials fallback at the canon 24/32/40/56 sizes.
-                AsyncImage(url: s.avatarUrl.flatMap { ImageURL.optimized($0, width: 160) }) { phase in
+                EnoRemoteImage(url: s.avatarUrl.flatMap { ImageURL.optimized($0, width: 160) }) { phase in
                     if case .success(let img) = phase { img.resizable().scaledToFill() }
                     else {
                         Text(String(s.name.prefix(1)).uppercased())

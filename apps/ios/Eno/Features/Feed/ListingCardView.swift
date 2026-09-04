@@ -50,7 +50,7 @@ struct ListingCardView: View {
         Tokens.tint
             .aspectRatio(10 / 11, contentMode: .fit)
             .overlay {
-                AsyncImage(url: listing.images.first.flatMap { ImageURL.optimized($0) }) { phase in
+                EnoRemoteImage(url: listing.images.first.flatMap { ImageURL.optimized($0) }) { phase in
                     switch phase {
                     case .success(let image):
                         image.resizable().scaledToFill()

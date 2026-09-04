@@ -13,7 +13,7 @@ struct CompactListingRowView: View {
         HStack(spacing: EnoSpacing.s2) {
             NavigationLink(value: listing) {
                 HStack(spacing: EnoSpacing.s3) {
-                    AsyncImage(url: listing.images.first.flatMap { ImageURL.optimized($0, width: 128) }) { phase in
+                    EnoRemoteImage(url: listing.images.first.flatMap { ImageURL.optimized($0, width: 128) }) { phase in
                         if case .success(let img) = phase { img.resizable().scaledToFill() } else { Tokens.tint }
                     }
                     .frame(width: 64, height: 56)

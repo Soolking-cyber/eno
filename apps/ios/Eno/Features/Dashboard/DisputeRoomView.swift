@@ -93,7 +93,7 @@ struct DisputeRoomView: View {
             Text(reasonLabel(d.reason)).enoText(.headline, color: EnoColor.fg, weight: .bold)
             if let l = d.listing {
                 HStack(spacing: 10) {
-                    AsyncImage(url: l.image.flatMap { ImageURL.optimized($0, width: 100) }) { p in
+                    EnoRemoteImage(url: l.image.flatMap { ImageURL.optimized($0, width: 100) }) { p in
                         if case .success(let img) = p { img.resizable().scaledToFill() } else { EnoColor.tint }
                     }
                     .frame(width: 40, height: 40).clipShape(RoundedRectangle(cornerRadius: EnoRadius.chip))
@@ -138,7 +138,7 @@ struct DisputeRoomView: View {
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 6) {
                             ForEach(item.images, id: \.self) { url in
-                                AsyncImage(url: URL(string: url)) { p in
+                                EnoRemoteImage(url: URL(string: url)) { p in
                                     if case .success(let img) = p { img.resizable().scaledToFill() } else { EnoColor.tint }
                                 }
                                 .frame(width: 72, height: 72).clipShape(RoundedRectangle(cornerRadius: EnoRadius.chip))
@@ -183,7 +183,7 @@ struct DisputeRoomView: View {
         switch item.role {
         case "reporter": return d.role == "reporter" ? L10n.tr("You", "Bạn") : L10n.tr("The reporter", "Người báo cáo")
         case "respondent": return d.role == "respondent" ? L10n.tr("You", "Bạn") : (d.counterparty ?? L10n.tr("The seller", "Người bán"))
-        default: return L10n.tr("eno.vn moderation", "Kiểm duyệt eno.vn")
+        default: return L10n.tr("\(Edition.siteName) moderation", "Kiểm duyệt \(Edition.siteName)")
         }
     }
 

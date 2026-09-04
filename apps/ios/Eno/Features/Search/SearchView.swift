@@ -9,6 +9,12 @@ import EnoUI
 struct SearchView: View {
     @State private var query = ""
     @State private var submitted = false
+    /// ⛔ THE TERM WE JUST SET OURSELVES. Assigning `query` inside submit() fires `.onChange(of: query)`,
+    /// which calls onType(), which sets `submitted = false` — so every recent / trending / popular /
+    /// brand chip tap ran a search and then instantly bounced back to the typeahead. One-tap search was
+    /// the entire point of that empty state, and none of it worked. This lets onType() tell a keystroke
+    /// from our own assignment.
+    @State private var programmaticQuery: String?
     @State private var results = FeedModel()
     @State private var suggest: SuggestResponse?
     @State private var trending: [String] = []
@@ -50,6 +56,8 @@ struct SearchView: View {
 
     // ── flows ──
     private func onType() {
+        // Our own assignment, not the user typing — leave `submitted` alone.
+        if let p = programmaticQuery, p == query { programmaticQuery = nil; return }
         submitted = false
         suggestTask?.cancel()
         let q = query.trimmingCharacters(in: .whitespaces)
@@ -67,7 +75,14 @@ struct SearchView: View {
     private func submit(_ term: String) {
         let q = term.trimmingCharacters(in: .whitespaces)
         guard q.count >= 2 else { return }
-        query = q
+        // ⛔ ONLY FLAG A CHANGE THAT WILL ACTUALLY HAPPEN. `onChange` is what consumes this flag, and
+        // assigning `query` a value it already holds fires nothing — so the flag survived, and the
+        // NEXT time the seller typed their way back to that exact term it was mistaken for a
+        // programmatic assignment: no suggestions, and the view stuck showing results.
+        if query != q {
+            programmaticQuery = q
+            query = q
+        }
         RecentStore.recordSearch(q)
         recents = RecentStore.searches()
         submitted = true
@@ -209,7 +224,7 @@ struct SearchView: View {
     // A listing suggestion row: thumbnail + title, then price (accent) · location (muted).
     private func suggestListingRow(_ l: SuggestResponse.SuggestListing) -> some View {
         HStack(spacing: 12) {
-            AsyncImage(url: l.image.flatMap { ImageURL.optimized($0, width: 96) }) { phase in
+            EnoRemoteImage(url: l.image.flatMap { ImageURL.optimized($0, width: 96) }) { phase in
                 if case .success(let img) = phase { img.resizable().scaledToFill() } else { EnoColor.tint }
             }
             .frame(width: 40, height: 40)

@@ -46,12 +46,21 @@ struct MessagesView: View {
 final class InboxModel {
     var convos: [InboxConvo] = []
     var loaded = false
+    var failed = false
 
+    /// ⛔ `loaded` FLIPS ON EVERY OUTCOME, INCLUDING FAILURE, and the old `try?`-only version is why a
+    /// single undecodable row blanked the tab: on a throw nothing was assigned, `loaded` stayed false,
+    /// and the view rendered neither rows nor its empty state — an infinite blank with no error. A
+    /// swallowed error must still MOVE THE STATE, or "failed" and "still loading" become the same screen.
     func load() async {
-        if let r: InboxResponse = try? await APIClient.shared.get("api/conversations") {
+        do {
+            let r: InboxResponse = try await APIClient.shared.get("api/conversations")
             convos = r.conversations
-            loaded = true
+            failed = false
+        } catch {
+            failed = true
         }
+        loaded = true
     }
 
     func delete(_ convo: InboxConvo) async {
@@ -104,7 +113,19 @@ struct InboxView: View {
                 }
             }
 
-            if model.loaded && model.convos.isEmpty {
+            // ⚠️ FAILURE AND EMPTY ARE DIFFERENT SCREENS. On a weak VN mobile connection the common
+            // case is a failed fetch, and telling that person "no messages yet" is a lie they cannot
+            // act on — they need to know it broke and be able to retry.
+            if model.loaded && model.failed {
+                VStack(spacing: EnoSpacing.s3) {
+                    Text(L10n.tr("We couldn't load your messages.", "Không tải được tin nhắn."))
+                        .enoText(.callout, color: EnoColor.sub)
+                    Button(L10n.tr("Try again", "Thử lại")) { Task { await model.load() } }
+                        .enoText(.callout, color: EnoColor.brand, weight: .semibold)
+                }
+                .frame(maxWidth: .infinity)
+                .listRowBackground(Color.clear)
+            } else if model.loaded && model.convos.isEmpty {
                 Text(L10n.tr("No messages yet. Tap \"Message\" on a listing to start a chat.",
                              "Chưa có tin nhắn. Nhấn \"Nhắn tin\" trên một tin đăng để bắt đầu."))
                     .enoText(.callout, color: EnoColor.sub)
@@ -132,7 +153,7 @@ struct InboxView: View {
     private func row(_ c: InboxConvo) -> some View {
         HStack(spacing: EnoSpacing.s3) {
             if let urlStr = c.counterpart.avatarUrl, let url = ImageURL.optimized(urlStr, width: 88) {
-                AsyncImage(url: url) { phase in
+                EnoRemoteImage(url: url) { phase in
                     if case .success(let img) = phase { img.resizable().scaledToFill() }
                     else { convoInitial(c) }
                 }
@@ -154,14 +175,33 @@ struct InboxView: View {
                             .background(EnoColor.brand, in: Capsule())
                     }
                 }
-                Text(c.listingTitle)
+                // ⛔ THE ROW LEAKS TOO, NOT JUST THE BUBBLE. Both editions share ONE database, so a
+                // visa or itinerary thread reaches eno.vn — and while the message bubble was gated,
+                // the inbox still printed the visa listing's TITLE and its preview line, which is the
+                // licensed marketplace naming a service it may not offer. Same rule, same place it
+                // is declared, applied at every surface that renders remote thread content.
+                Text(c.listingTitle ?? L10n.tr("eno support", "Hỗ trợ eno"))
                     .enoText(.caption, color: EnoColor.sub)
                     .lineLimit(1)
-                preview(c)
-                    .lineLimit(1)
+                    .redacted(reason: servicesHidden(c) ? .placeholder : [])
+                if servicesHidden(c) {
+                    Text(L10n.tr("Attachment", "Tệp đính kèm"))
+                        .enoText(.caption, color: EnoColor.sub)
+                        .lineLimit(1)
+                } else {
+                    preview(c)
+                        .lineLimit(1)
+                }
             }
         }
         .padding(.vertical, 2)
+    }
+
+    /// Is this a thread about a service this edition is not licensed to describe? Reads the SAME set
+    /// the message bubble uses, so the two surfaces cannot drift apart.
+    private func servicesHidden(_ c: InboxConvo) -> Bool {
+        guard let kind = c.kind else { return false }
+        return ChatMsg.servicesOnlyKinds.contains(kind) && !Edition.showsVisaAndItinerary
     }
 
     // Offer-aware preview (conversation-list.tsx rules).

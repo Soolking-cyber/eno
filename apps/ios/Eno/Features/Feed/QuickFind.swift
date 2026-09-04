@@ -267,7 +267,10 @@ struct BrandLogoView: View {
 
     var body: some View {
         let hex = active ? "0a66c2" : "525252"
-        AsyncImage(url: URL(string: "https://eno.vn/api/brands/\(slug)/logo?w=96&c=\(hex)")) { phase in
+        // ⚠️ `Edition.baseURL`, NEVER A LITERAL HOST. Hardcoded here, the services build fetched
+        // every brand logo from eno.vn — cross-edition traffic the split exists to prevent, and the
+        // kind of leak nothing fails on because the image still loads.
+        EnoRemoteImage(url: URL(string: "\(Edition.baseURL.absoluteString)/api/brands/\(slug)/logo?w=96&c=\(hex)")) { phase in
             switch phase {
             case .success(let img): img.resizable().scaledToFit()
             default:

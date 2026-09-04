@@ -76,10 +76,30 @@ struct ListingDetailView: View {
                         .lineSpacing(2)
                     specBadges
                     metaRow
-                    protectionsRow
-                    safetyStrip
+                    // ⛔ NOT ON A PARTNER LISTING. "ENO protects you · disputes in 72h" is a promise
+                    // about a deal that happens on eno; an affiliate booking completes on the partner's
+                    // own site, where none of it applies. The web suppresses it explicitly
+                    // (`protections={affiliateUrl ? undefined : <ProtectionsRow inline />}`,
+                    // src/app/listings/[id]/page.tsx:786) and iOS showed it to everyone.
+                    // ⛔ ONLY ONCE WE KNOW. `detail?.isAffiliate != true` is TRUE while the fetch is
+                    // in flight, so every partner listing flashed "eno protects you · disputes in
+                    // 72h" — a promise eno cannot keep on someone else's booking — until the response
+                    // landed. A guarantee must never be shown on the strength of not knowing yet.
+                    if let d = detail, !d.isAffiliate { protectionsRow }
+                    // ⛔ AND NEITHER IS THE SAFETY STRIP. "Meet in a public place… never send a deposit
+                    // through a link" sits directly above "Book on partner site", which IS a link you
+                    // pay through — advice that contradicts the button under it teaches people to
+                    // ignore the advice. Both panels describe an eno-side deal; a partner booking is
+                    // not one.
+                    if detail?.isAffiliate != true { safetyStrip }
                     if let d = detail {
                         statsRow(d)
+                        Divider().overlay(Tokens.ring)
+                        // ⛔ THE CTA SITS ABOVE THE DESCRIPTION, NOT UNDER THE REVIEWS. The web measured
+                        // this against the 390×844 fold and put contact at order-6; iOS had it dead last,
+                        // after description + details table + reviews, several screens down. The single
+                        // action the whole page exists for was the hardest thing on it to reach.
+                        offerCard
                         Divider().overlay(Tokens.ring)
                         // Description (web page.tsx order-8: h-section 18px heading + body).
                         Text(L10n.tr("Description", "Mô tả")).font(EnoTextRole.headline.font.weight(.bold)).foregroundStyle(Tokens.fg)
@@ -101,7 +121,6 @@ struct ListingDetailView: View {
                     } else {
                         ProgressView().frame(maxWidth: .infinity).padding(.vertical, 24)
                     }
-                    offerCard
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 16)
@@ -216,7 +235,7 @@ struct ListingDetailView: View {
                 VideoPage(url: videoURL)
             }
             ForEach(Array(images.enumerated()), id: \.offset) { idx, raw in
-                AsyncImage(url: ImageURL.optimized(raw, width: 1080)) { phase in
+                EnoRemoteImage(url: ImageURL.optimized(raw, width: 1080)) { phase in
                     switch phase {
                     case .success(let image): image.resizable().scaledToFill()
                     default: Tokens.tint
@@ -335,8 +354,8 @@ struct ListingDetailView: View {
                 return L10n.tr("View the place in person and verify ownership before any deposit.",
                                "Xem tận nơi và xác minh chủ sở hữu trước khi đặt cọc.")
             default:
-                return L10n.tr("Meet in a public place and inspect the item before paying. eno.vn never asks for a deposit via a link.",
-                               "Gặp ở nơi công cộng và kiểm tra món hàng trước khi trả tiền. eno.vn không bao giờ yêu cầu đặt cọc qua link.")
+                return L10n.tr("Meet in a public place and inspect the item before paying. \(Edition.siteName) never asks for a deposit via a link.",
+                               "Gặp ở nơi công cộng và kiểm tra món hàng trước khi trả tiền. \(Edition.siteName) không bao giờ yêu cầu đặt cọc qua link.")
             }
         }()
         return HStack(alignment: .top, spacing: 10) {
@@ -383,7 +402,7 @@ struct ListingDetailView: View {
             (L10n.tr("Admin-reviewed reports", "Báo cáo có quản trị viên xét"),
              L10n.tr("Confirmed reports lower a seller's trust; false ones are penalized.", "Báo cáo đúng làm giảm uy tín; báo cáo sai bị phạt."), "person.badge.shield.checkmark"),
             (L10n.tr("Never pay via a link", "Không trả tiền qua link"),
-             L10n.tr("eno.vn never asks for a deposit through a link — meet in person.", "eno.vn không bao giờ yêu cầu đặt cọc qua link — hãy gặp trực tiếp."), "hand.raised"),
+             L10n.tr("\(Edition.siteName) never asks for a deposit through a link — meet in person.", "\(Edition.siteName) không bao giờ yêu cầu đặt cọc qua link — hãy gặp trực tiếp."), "hand.raised"),
         ]
     }
 
@@ -716,7 +735,49 @@ struct ListingDetailView: View {
         // an offer on a fixed-price listing 409s AND docks the buyer's trust. So the
         // composer only appears once the network confirms negotiable (dual-reviewer
         // finding, 2026-07-20).
-        if detail?.negotiable == true && price > 0 {
+        // ⛔ A PARTNER LISTING IS NOT NEGOTIABLE AND HAS NOBODY TO CHAT TO. The deal completes on the
+        // partner's site, so the only honest control is a link out. Offering a discount slider on a
+        // price eno does not set, or "Chat now" to a storefront that never answers, is a dead end
+        // dressed as a transaction (web: page.tsx:732 renders the booking CTA instead).
+        if let d = detail, let url = d.affiliateLink {
+            VStack(alignment: .leading, spacing: 8) {
+                if let code = d.affiliateDiscountCode, !code.isEmpty {
+                    HStack(spacing: 6) {
+                        Text(L10n.tr("Discount code", "Mã giảm giá")).enoText(.caption, color: EnoColor.sub)
+                        Text(code).enoText(.callout, color: EnoColor.brand, weight: .bold)
+                        if let pct = d.affiliateDiscountPercent, pct > 0 {
+                            Text("-\(pct)%").enoText(.caption, color: EnoColor.success, weight: .semibold)
+                        }
+                    }
+                }
+                Link(destination: url) {
+                    Text(L10n.tr("Book on partner site", "Đặt trên trang đối tác"))
+                        .font(EnoTextRole.headline.font)
+                        .foregroundStyle(EnoColor.onBrand)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 48)
+                        .background(EnoColor.brand, in: RoundedRectangle(cornerRadius: EnoRadius.control))
+                }
+                Text(L10n.tr("You'll finish this booking on the partner's website.",
+                             "Bạn sẽ hoàn tất đặt chỗ trên website của đối tác."))
+                    .enoText(.caption, color: EnoColor.sub)
+            }
+            .padding(12)
+            .background(Tokens.tint, in: RoundedRectangle(cornerRadius: Tokens.radiusCard))
+        } else if let d = detail, d.isAffiliate {
+            // ⛔ A PARTNER LISTING WITH NO USABLE LINK STILL GETS NO MARKETPLACE CONTROLS. `isAffiliate`
+            // is decided by the partner MARKER and `affiliateLink` by whether the URL is an absolute
+            // https address — so this branch is a partner booking we cannot send anyone to. Falling
+            // through to the offer slider and "Chat" would put eno's negotiation and dispute promises
+            // on someone else's transaction, which is the one thing the marker exists to prevent.
+            // Say what is true and offer nothing eno cannot honour.
+            Text(L10n.tr("This is a partner booking. The link is unavailable right now — please try again later.",
+                         "Đây là đặt chỗ qua đối tác. Liên kết hiện không khả dụng — vui lòng thử lại sau."))
+                .enoText(.caption, color: EnoColor.sub)
+                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Tokens.tint, in: RoundedRectangle(cornerRadius: Tokens.radiusCard))
+        } else if detail?.negotiable == true && price > 0 {
             let offerPrice = Int((Double(price) * (1 - discount / 100)).rounded())
             VStack(alignment: .leading, spacing: 8) {
                 Text(L10n.tr("Your offer", "Giá đề nghị"))

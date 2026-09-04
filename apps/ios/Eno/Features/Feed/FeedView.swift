@@ -265,12 +265,30 @@ struct FeedView: View {
                     .buttonStyle(.plain)
                     .task { await feed.loadMoreIfNeeded(current: item) }
                 }
-                if feed.items.isEmpty {
+                // ⛔ SKELETONS ONLY BEFORE THE FIRST LOAD LANDS. Gating on `items.isEmpty` alone
+                // shimmered forever on a feed that had legitimately returned nothing.
+                if feed.items.isEmpty && !feed.loaded {
                     ForEach(0..<6, id: \.self) { _ in SkeletonCard() }
                 }
             }
             .padding(.horizontal, 12)
             .padding(.bottom, 16)
+
+            // A loaded, genuinely empty feed says so — it is the CORRECT answer on the services
+            // edition, where the licensing hide-list removes everything from browse.
+            if feed.loaded && feed.items.isEmpty {
+                VStack(spacing: 8) {
+                    Text(L10n.tr("Nothing here yet", "Chưa có tin nào"))
+                        .enoText(.headline)
+                    Text(L10n.tr("Try another category, or check back soon.",
+                                 "Hãy thử danh mục khác, hoặc quay lại sau."))
+                        .enoText(.callout, color: EnoColor.sub)
+                        .multilineTextAlignment(.center)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 48)
+                .padding(.horizontal, 24)
+            }
         }
     }
 

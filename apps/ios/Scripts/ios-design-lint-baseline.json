@@ -1,6 +1,6 @@
 {
   "generatedFrom": "apps/ios/Eno",
-  "count": 79,
+  "count": 80,
   "keys": [
     "numeric-radius|Eno/Features/Dashboard/DisputesView.swift|.frame(width: 44, height: 44).clipShape(RoundedRectangle(cornerRadius: 8))",
     "plain-button-style|Eno/App/RootView.swift|.buttonStyle(.plain)",
@@ -30,6 +30,7 @@
     "raw-button|Eno/Features/Feed/SortBar.swift|Button(action: action) {",
     "raw-button|Eno/Features/Feed/VideoFeedView.swift|Button(action: onOpen) {",
     "raw-button|Eno/Features/Feed/ViewMode.swift|Button { mode = m } label: {",
+    "raw-button|Eno/Features/Identity/DocumentCaptureView.swift|Button {",
     "raw-button|Eno/Features/Listing/ListingDetailView.swift|Button {",
     "raw-button|Eno/Features/Listing/ListingDetailView.swift|Button { sellerSheet = true } label: {",
     "raw-button|Eno/Features/Listing/ListingDetailView.swift|Button { showProtections = true } label: {",

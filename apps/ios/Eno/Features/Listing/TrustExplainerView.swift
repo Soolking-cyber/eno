@@ -11,7 +11,7 @@ struct TrustExplainerView: View {
     private var bands: [Band] {
         [
             Band(score: 175, name: L10n.tr("Elite", "Hàng đầu"), range: L10n.tr("160 and up", "160 trở lên"),
-                 note: L10n.tr("The top tier — a long, high-volume, spotless track record. The most trusted businesses on eno.vn.",
+                 note: L10n.tr("The top tier — a long, high-volume, spotless track record. The most trusted businesses on \(Edition.siteName).",
                                "Hạng cao nhất — lịch sử giao dịch lâu dài, khối lượng lớn, không tì vết.")),
             Band(score: 130, name: L10n.tr("Exceptional", "Xuất sắc"), range: "110–159",
                  note: L10n.tr("≥10 completed deals in the last year, reviews from 5 different buyers, a fast-reply record, and 6 clean months.",
@@ -31,7 +31,7 @@ struct TrustExplainerView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                Text(L10n.tr("Every account has one Trust Score — a single number, shown in color — instead of stars and badges. It's recomputed every day from what an account actually does on eno.vn, and recent behavior counts more than the past.",
+                Text(L10n.tr("Every account has one Trust Score — a single number, shown in color — instead of stars and badges. It's recomputed every day from what an account actually does on \(Edition.siteName), and recent behavior counts more than the past.",
                              "Mỗi tài khoản có một Điểm tin cậy — một con số duy nhất, hiển thị bằng màu — thay cho sao và huy hiệu. Điểm được tính lại mỗi ngày dựa trên hành vi thực tế, và hành vi gần đây có trọng số cao hơn."))
                     .enoText(.subheadline, color: EnoColor.sub)
 

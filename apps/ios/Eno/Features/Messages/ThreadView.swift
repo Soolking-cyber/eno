@@ -130,6 +130,7 @@ final class ThreadModel {
 }
 
 struct ThreadView: View {
+    @Environment(\.scenePhase) private var scenePhase
     let convoId: String
     @State private var model: ThreadModel
     @State private var draft = ""
@@ -155,9 +156,21 @@ struct ThreadView: View {
         .background(EnoColor.canvas)
         .navigationTitle(model.thread?.counterpart.name ?? "")
         .navigationBarTitleDisplayMode(.inline)
-        .task {
+        // ⛔ `id: scenePhase` IS THE ENTIRE FIX, AND WITHOUT IT THE GATE BELOW WAS INERT.
+        // `@Environment` is resolved when `body` runs and the closure captures THAT COPY, so
+        // `scenePhase` inside a long-lived loop reads `.active` forever no matter what the app does.
+        // The guard read like a fix, shipped like a fix, and polled the network every 12 seconds in
+        // the user's pocket exactly as before. Keying the task on the phase makes SwiftUI cancel and
+        // restart it on every transition, which both stops the poll on background and refreshes the
+        // thread on return — so the guard is no longer needed at all.
+        .task(id: scenePhase) {
+            guard scenePhase == .active else { return }
             await model.load()
-            // Visibility-gated backstop poll (the web's sanctioned fallback).
+            // ⛔ GATED ON scenePhase, AND IT SAYS SO BECAUSE IT DID NOT USED TO. This comment read
+            // "visibility-gated backstop poll" while nothing gated it: `.task` is cancelled when the
+            // VIEW disappears, not when the APP is backgrounded, so an open thread kept hitting the
+            // network every 12 seconds with the phone in a pocket — battery and mobile data spent on
+            // a screen nobody is looking at, on a market where data is metered.
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(12))
                 guard !Task.isCancelled else { break }
@@ -218,18 +231,37 @@ struct ThreadView: View {
         }
     }
 
+    // ⛔ A SUPPORT THREAD HAS NO LISTING, so the whole bar goes rather than rendering an empty shell
+    // with a 0 ₫ price. `@ViewBuilder` + EmptyView is the only shape that lets this disappear cleanly.
+    /// ⚠️ DERIVED FROM THE MESSAGES, because `ChatThread` carries no `kind` of its own — only
+    /// `InboxConvo` does. A services thread is one whose content is a services card, which is exactly
+    /// what the set names. Reads the SAME set the bubble and the inbox row use, so no surface drifts.
+    private func servicesHiddenThread(_ t: ChatThread) -> Bool {
+        guard !Edition.showsVisaAndItinerary else { return false }
+        return t.messages.contains { m in
+            guard let k = m.kind else { return false }
+            return ChatMsg.servicesOnlyKinds.contains(k)
+        }
+    }
+
+    @ViewBuilder
     private func listingBar(_ t: ChatThread) -> some View {
+        // ⛔ SAME LICENSING GATE AS THE BUBBLE AND THE INBOX ROW. Both editions share one database, so
+        // a visa thread reaches eno.vn — and this bar prints the listing's TITLE and PRICE, which is
+        // the licensed marketplace advertising a service it may not offer. Gating only the message
+        // body left the service named in the header above it.
+        if let listing = t.listing, !servicesHiddenThread(t) {
         HStack(spacing: 10) {
-            if let img = t.listing.image, let url = ImageURL.optimized(img, width: 96) {
-                AsyncImage(url: url) { phase in
+            if let img = listing.image, let url = ImageURL.optimized(img, width: 96) {
+                EnoRemoteImage(url: url) { phase in
                     if case .success(let i) = phase { i.resizable().scaledToFill() } else { EnoColor.tint }
                 }
                 .frame(width: 36, height: 36)
                 .clipShape(RoundedRectangle(cornerRadius: EnoRadius.chip))
             }
             VStack(alignment: .leading, spacing: 1) {
-                Text(t.listing.title).enoText(.caption, color: EnoColor.fg, weight: .semibold).lineLimit(1)
-                Text(Format.vnd(t.listing.price)).enoText(.caption, color: EnoColor.brand, weight: .bold)
+                Text(listing.title).enoText(.caption, color: EnoColor.fg, weight: .semibold).lineLimit(1)
+                Text(Format.vnd(listing.price)).enoText(.caption, color: EnoColor.brand, weight: .bold)
             }
             Spacer()
         }
@@ -237,6 +269,7 @@ struct ThreadView: View {
         .padding(.vertical, EnoSpacing.s2)
         .background(EnoColor.card)
         .overlay(alignment: .bottom) { Rectangle().fill(EnoColor.ring).frame(height: 1) }
+        }
     }
 
     // First-contact safety note (chat-safety-note.tsx rule: ≤3 msgs, none mine).
@@ -272,9 +305,21 @@ struct ThreadView: View {
 
     private func bubble(_ m: ChatMsg) -> some View {
         VStack(alignment: m.mine ? .trailing : .leading, spacing: 3) {
-            Text(m.body)
+            // ⛔ NEVER AN EMPTY BUBBLE. A recalled message has its body redacted server-side and a
+            // structured card (visa/trip) has none by design — both used to paint as a blank speech
+            // bubble with a timestamp, which reads as a failure rather than as what actually happened.
+            Text(m.isRecalled
+                 ? L10n.tr("Message removed", "Tin nhắn đã được thu hồi")
+                 : (m.cardFallback ?? m.body))
                 .font(EnoTextRole.subheadline.font)
-                .foregroundStyle(m.mine ? EnoColor.onBrand : EnoColor.fg)
+                .italic(m.isRecalled || m.cardFallback != nil)
+                // ⚠️ THE MUTED INK STILL HAS TO SIT ON THE RIGHT BACKGROUND. A recalled or card
+                // bubble of MY OWN is painted on `EnoColor.brand`, and `EnoColor.sub` — a grey chosen
+                // for the light card — is close to illegible there. Muting means "less prominent than
+                // its neighbours", which on a brand bubble is a faded ON-brand, not a card grey.
+                .foregroundStyle(m.isRecalled || m.cardFallback != nil
+                                 ? (m.mine ? EnoColor.onBrand.opacity(0.75) : EnoColor.sub)
+                                 : (m.mine ? EnoColor.onBrand : EnoColor.fg))
                 .padding(.horizontal, 14)
                 .padding(.vertical, EnoSpacing.s2)
                 .background(m.failed == true ? EnoColor.danger.opacity(0.15) : (m.mine ? EnoColor.brand : EnoColor.card), in: RoundedRectangle(cornerRadius: EnoRadius.card))
@@ -310,8 +355,8 @@ struct ThreadView: View {
             if let amt = m.offerAmount {
                 Text(L10n.tr("Offered \(Format.vnd(amt))", "Đã trả giá \(Format.vnd(amt))"))
                     .enoText(.callout, color: EnoColor.fg, weight: .bold)
-                if t.listing.price > 0 {
-                    Text("\(Int((Double(amt) / Double(t.listing.price) * 100).rounded()))% \(L10n.tr("of asking", "của giá rao")) · \(Format.vnd(t.listing.price))")
+                if let price = t.listing?.price, price > 0 {
+                    Text("\(Int((Double(amt) / Double(price) * 100).rounded()))% \(L10n.tr("of asking", "của giá rao")) · \(Format.vnd(price))")
                         .enoText(.caption, color: EnoColor.sub)
                 }
             }
@@ -341,7 +386,8 @@ struct ThreadView: View {
                         Task { await model.act(on: m, action: "decline") }
                     }
                     // Landmine invariant: Counter only on negotiable listings.
-                    if t.listing.negotiable {
+                    // No listing ⇒ no asking price ⇒ nothing to counter.
+                    if t.listing?.negotiable == true {
                         EnoButton(L10n.tr("Counter", "Trả giá"), variant: .text, size: .compact, fullWidth: false) {
                             counterPrompt = true
                         }

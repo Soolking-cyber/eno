@@ -56,8 +56,10 @@ private struct WebView: UIViewRepresentable {
                 decisionHandler(.cancel); return
             }
             if scheme == "https" || scheme == "http" {
-                let host = url.host?.lowercased()
-                if host == "eno.vn" || host == "www.eno.vn" {
+                // ⚠️ A NIL HOST FAILS CLOSED — it goes to the system browser, never stays in the
+                // WebView. Binding inside the `if` is what guarantees that: an optional compared
+                // loosely would let an unexpected URL shape be treated as our own origin.
+                if let host = url.host?.lowercased(), Edition.ownHosts.contains(host) {
                     decisionHandler(.allow)
                 } else {
                     UIApplication.shared.open(url)     // external site → system browser
@@ -86,7 +88,7 @@ private struct WebView: UIViewRepresentable {
             // securityOrigin, not request.url — the URL can be nil/about:blank.
             guard message.frameInfo.isMainFrame,
                   message.frameInfo.securityOrigin.protocol == "https",
-                  message.frameInfo.securityOrigin.host == "eno.vn" else { return }
+                  Edition.ownHosts.contains(message.frameInfo.securityOrigin.host) else { return }
             let body = message.body
             Task { @MainActor in
                 if let dict = body as? [String: Any],

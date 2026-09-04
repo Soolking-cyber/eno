@@ -43,6 +43,9 @@ struct PostView: View {
     @State private var success: Success?
     // Set on a Post tap while the form is incomplete → turns on the red highlights.
     @State private var attemptedSubmit = false
+    /// The publish-time sign-in gate — see the note in submitSection.
+    @State private var signInSheet = false
+    private var auth: AuthModel { AuthModel.shared }
 
     var body: some View {
         NavigationStack {
@@ -59,6 +62,15 @@ struct PostView: View {
             }
             .scrollContentBackground(.hidden)
             .background(Tokens.canvas)
+            // ⚠️ PUBLISH STRAIGHT AFTER SIGNING IN. Making the seller find and tap Post a second time
+            // after a modal they did not ask for is where drafts get abandoned; the whole point of
+            // gating at the end is that the work is already done.
+            .sheet(isPresented: $signInSheet) { WebSheet(path: "/signin") }
+            .onChange(of: auth.isSignedIn) {
+                guard auth.isSignedIn, signInSheet else { return }
+                signInSheet = false
+                if model.canSubmit { Task { await model.submit() } }
+            }
             .scrollDismissesKeyboard(.interactively) // drag down to dismiss
             .hideKeyboardOnTapAnywhere()              // tap outside a field to dismiss
             .navigationTitle(L10n.tr("Post a listing", "Đăng tin"))
@@ -458,7 +470,27 @@ struct PostView: View {
         Section {
             Button {
                 if model.canSubmit {
-                    Task { await model.submit() }
+                    // ⛔ SIGN IN BEFORE PUBLISH — THIS IS A LEGAL GATE, NOT A CONVENIENCE.
+                    // The server supports guest posting by phone (the Chợ Tốt pattern,
+                    // src/app/api/listings/route.ts:259), and that path resolves a GUEST storefront
+                    // with no `ownerId` and therefore no Profile. `assertIdentityVerified` opens with
+                    // `if (status == null) return` (src/lib/publish-guard.ts:228) — an absent status
+                    // means "this caller has no profile loaded", not "unverified" — so a guest post
+                    // sails straight past the NĐ 248/2026 identity gate. The WEB closes that door by
+                    // calling openSignIn() once the draft is valid (post-wizard.tsx:635-643); iOS
+                    // never did, so this app was the one CLIENT that walked sellers past it.
+                    // ⚠️ AND A CLIENT GATE DOES NOT CLOSE A SERVER HOLE — say so rather than implying
+                    // otherwise. A direct POST, or an older build of this app, still reaches the guest
+                    // path and still skips `assertIdentityVerified`. Closing that properly means
+                    // rejecting profile-less publishes in `src/lib/publish-guard.ts`, which is a
+                    // server change affecting both editions and is NOT in this commit.
+                    // ⚠️ DRAFT-FIRST, exactly like the web: the seller fills everything in, and only
+                    // the final tap asks them to sign in — nothing they typed is lost.
+                    if auth.isSignedIn {
+                        Task { await model.submit() }
+                    } else {
+                        signInSheet = true
+                    }
                 } else {
                     // Web scrollToMissing parity: reveal the gaps (red highlights)
                     // and jump to the first incomplete section.

@@ -1,4 +1,5 @@
 import SwiftUI
+import EnoUI
 
 // Native disputes list (#61) — my dispute cases in both roles (filed by me /
 // about me), from GET /api/disputes. Tapping a case opens its case room on the
@@ -48,7 +49,7 @@ struct DisputesView: View {
 
     private func row(_ c: Case) -> some View {
         HStack(spacing: 12) {
-            AsyncImage(url: c.listing?.image.flatMap { ImageURL.optimized($0, width: 120) }) { phase in
+            EnoRemoteImage(url: c.listing?.image.flatMap { ImageURL.optimized($0, width: 120) }) { phase in
                 if case .success(let img) = phase { img.resizable().scaledToFill() } else { Tokens.tint }
             }
             .frame(width: 44, height: 44).clipShape(RoundedRectangle(cornerRadius: 8))
