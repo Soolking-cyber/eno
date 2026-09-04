@@ -221,16 +221,24 @@ export function KycCapture({
           },
           audio: false,
         })
-        // ⚠️ A stream that arrives AFTER we gave up has nothing to attach it to, and an unattached
-        // MediaStream keeps the camera lit with the OS privacy indicator on — which reads as spyware.
-        // Stop it. `adopted` is set by the winning branch below, so this only fires on the timeout path.
-        let adopted = false
+        // ⛔ THE LATE-STREAM CLEANUP IS ATTACHED INSIDE THE TIMEOUT, AND IT HAS TO BE. The first
+        // version of this registered it on `request` up front, guarded by an `adopted` flag the race
+        // branch set. Promise handlers run in REGISTRATION ORDER, so on the normal path the cleanup
+        // ran FIRST — while `adopted` was still false — and stopped every track of the stream we were
+        // about to use. `play()` on a stream with ended tracks never resolves, so `setPhase('live')`
+        // never ran: a black viewport under a spinner that spins forever. It shipped, and it broke the
+        // camera for everyone (owner, on-device 2026-09-04). Attaching the handler only once the
+        // timeout has actually fired makes the bad ordering unrepresentable — there is no flag to race.
         let timer: ReturnType<typeof setTimeout> | undefined
-        void request.then((late) => { if (!adopted) late.getTracks().forEach((t) => t.stop()) }).catch(() => undefined)
         const stream = await Promise.race([
-          request.then((s) => { adopted = true; return s }),
+          request,
           new Promise<MediaStream>((_, reject) => {
-            timer = setTimeout(() => reject(Object.assign(new Error('camera_request_timeout'), { name: 'TimeoutError' })), CAMERA_REQUEST_TIMEOUT_MS)
+            timer = setTimeout(() => {
+              // We have given up. Anything that arrives now has nothing to attach it to, and an
+              // unattached MediaStream keeps the camera lit with the OS privacy indicator on.
+              void request.then((late) => late.getTracks().forEach((t) => t.stop())).catch(() => undefined)
+              reject(Object.assign(new Error('camera_request_timeout'), { name: 'TimeoutError' }))
+            }, CAMERA_REQUEST_TIMEOUT_MS)
           }),
         ]).finally(() => { if (timer) clearTimeout(timer) })
         // ⛔ THE COMPONENT MAY ALREADY BE GONE. getUserMedia resolves long after the permission
