@@ -144,7 +144,12 @@ export function KycCapture({
   const lastStillRef = useRef<ImageData | null>(null)    // full-res still of the captured document, for post-capture OCR
   const lastBoxRef = useRef<DocBox | null>(null)         // last detected document box (for cropping the OCR still to it)
   const detectorRef = useRef<DocDetector | null>(null)   // persisted so capture() can locate the document in the captured still
-  const [shot, setShot] = useState<{ blob: Blob; url: string } | null>(null)
+  // ⚠️ THE CAPTURED FRAME'S OWN DIMENSIONS TRAVEL WITH IT. The review <img> is `object-contain` —
+  // deliberately, so a document is shown WHOLE and never cropped — but a 16:9 still inside a fixed
+  // 3:4 (mobile) or 4:3 (desktop) box then letterboxes, and `bg-black` paints those gaps: the "black
+  // bars inside the frame" the owner has now reported twice. Contain is right; the FIXED box is what
+  // is wrong, so the box takes the photo's shape during review and there are no gaps to paint.
+  const [shot, setShot] = useState<{ blob: Blob; url: string; w: number; h: number } | null>(null)
   const [error, setError] = useState<string | null>(null)
   // getUserMedia REJECTED (denied, no camera, in-app webview). There is no picker to fall back to any
   // more — see the LIVE-ONLY note in the header — so this state's only job is to explain and offer a retry.
@@ -352,8 +357,23 @@ export function KycCapture({
     // keep the TIGHT guide crop, or the MRZ shrinks into a full-frame image and reads as garbage. Measured
     // on iPhone (2026-09-03): the floor guard fired, the OCR still was ~full-frame (1440×1752), and the
     // MRZ came back no_mrz_found. So the OCR crop and the upload crop are now decoupled.
-    const ocrCropBox = (vw > 0 && vh > 0 && sw > 0 && sh > 0 && (sw < vw || sh < vh))
-      ? { x: sx / vw, y: sy / vh, w: sw / vw, h: sh / vh }
+    // ⛔ THE OCR CROP IS NOT THE ON-SCREEN GUIDE, AND MEASURING IS WHAT SETTLED IT. The guide rect
+    // mapped back through `object-cover` yields far less of the frame than it looks like it does: the
+    // mobile box is 3:4 PORTRAIT while every camera is landscape, so cover discards ~58% of the frame
+    // WIDTH — the exact axis the MRZ runs along — and the guide is 86% of what survives. Measured in
+    // the local harness (dashboard/dev/kyc-preview): a 1920×1080 stream produced an 888×598 still,
+    // about 20px per MRZ character. The same pipeline reads the same document perfectly at 28px per
+    // character and fails below roughly 24 — so the read was starved of pixels, not of preprocessing.
+    //
+    // The seller lines the passport up inside the VISIBLE guide, which sits wholly inside a
+    // full-width band of the same aspect. Taking that band instead keeps the document in frame while
+    // roughly doubling every glyph. ⚠️ The UPLOAD crop is untouched — that stays what the seller
+    // framed, so the stored image is still the document alone.
+    const ocrAspect = docAspect ?? 1.42
+    const ocrH = Math.min(vh, Math.round(vw / ocrAspect))
+    const ocrBand = { x: 0, y: Math.max(0, Math.round((vh - ocrH) / 2)), w: vw, h: ocrH }
+    const ocrCropBox = (vw > 0 && vh > 0)
+      ? { x: ocrBand.x / vw, y: ocrBand.y / vh, w: ocrBand.w / vw, h: ocrBand.h / vh }
       : null
     if (docAspect && (Math.min(sw, sh) < 640 || Math.max(sw, sh) < 960)) { sx = 0; sy = 0; sw = vw; sh = vh }
     const canvas = document.createElement('canvas')
@@ -415,7 +435,7 @@ export function KycCapture({
       // while it encoded. Do NOT create an object URL or set state here — both would be orphaned.
       if (!mountedRef.current || gen !== startGenRef.current) return
       stopStream()
-      setShot({ blob, url: URL.createObjectURL(blob) })
+      setShot({ blob, url: URL.createObjectURL(blob), w: sw, h: sh })
       setPhase('review')
     // 0.92 rather than 1.0: the server re-encodes anyway, and a lossless frame from a 12 MP sensor
     // is a 20 MB upload on a Vietnamese mobile connection.
@@ -620,7 +640,15 @@ export function KycCapture({
           "too small", and object-cover means the video ALWAYS fills this box whatever the stream ratio
           (it never letterboxes, so the container's black is never visible behind the video). Capped at
           62svh so the shutter stays on-screen. */}
-      <div className="relative overflow-hidden rounded-xl border bg-black aspect-[3/4] max-h-[62svh] sm:aspect-[4/3] sm:max-h-none">
+      <div
+        className={cn(
+          'relative overflow-hidden rounded-xl border bg-black',
+          // The LIVE box is a fixed portrait/landscape frame to compose against; the REVIEW box is
+          // whatever was actually captured, so `object-contain` has nothing left to letterbox.
+          phase === 'review' && shot ? 'max-h-[62svh] sm:max-h-none' : 'aspect-[3/4] max-h-[62svh] sm:aspect-[4/3] sm:max-h-none',
+        )}
+        style={phase === 'review' && shot ? { aspectRatio: `${shot.w} / ${shot.h}` } : undefined}
+      >
         {phase === 'review' && shot ? (
           // A plain <img>, deliberately: the src is a blob: URL for a frame that exists only in
           // this tab, so next/image has nothing to optimise and would add a round trip to the
