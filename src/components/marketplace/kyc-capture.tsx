@@ -16,18 +16,29 @@ import { createDocDetector, grabDetectFrame, grabDocStill, downscaleImageData, c
 // whatever the OS returns, so the first time anyone learns the passport number is unreadable is
 // when a reviewer squints at it days later and rejects the case.
 //
-// ⛔ IT IS NOT A SECURITY CONTROL, AND NOTHING HERE PRETENDS OTHERWISE. A determined seller can
-// feed a virtual camera, or call the upload endpoint directly. `capture="environment"` on the
-// fallback input is a PICKER HINT — src/components/marketplace/visa-cards.tsx:1640 says so in as
-// many words. What actually ties a photograph to a moment is the server-issued challenge code the
-// seller writes on paper; see src/lib/identity/challenge.ts. This component's job is to make the
-// honest path easy and produce a reviewable image, nothing more.
+// ⛔ IT IS NOT A SECURITY CONTROL, AND NOTHING HERE PRETENDS OTHERWISE. A determined seller can feed a
+// virtual camera, or call the upload endpoint directly. ⚠️ What USED to tie a photograph to a moment was
+// the server-issued challenge code the seller wrote on paper and held in the selfie; that was removed on
+// 2026-09-04 (owner), so nothing in the captured image is bound to today any more. The challenge itself
+// still exists as the CONSENT RECEIPT that authorises the upload endpoint (src/lib/identity/challenge.ts)
+// — it is simply never shown. This component's job is to make the honest path easy and produce a
+// reviewable image; the reviewer comparing this face against the passport photograph is the control.
 //
-// ⚠️ THE FALLBACK IS NOT OPTIONAL. getUserMedia fails for reasons that have nothing to do with
-// fraud: a denied permission the browser then remembers, an iOS in-app webview (Zalo, Facebook,
-// Instagram — a large share of Vietnamese mobile traffic) that never grants camera at all, a
-// desktop with no camera, or an OS-level privacy toggle. Without the file input those sellers
-// simply cannot verify, and they would be exactly the cohort least able to work out why.
+// ⛔ LIVE CAMERA ONLY — THERE IS NO FILE PICKER, AND THIS COMMENT USED TO ARGUE THE OPPOSITE.
+// It said "THE FALLBACK IS NOT OPTIONAL", and the reasoning was sound: getUserMedia fails for reasons
+// that have nothing to do with fraud — a denied permission the browser remembers, an iOS in-app webview
+// (Zalo, Facebook, Instagram: a large share of Vietnamese mobile traffic) that never grants camera at
+// all, a desktop with no camera, an OS privacy toggle. Those sellers could still finish via the picker.
+//
+// The owner removed it deliberately (2026-09-04, "only passport live image no upload"), and the COST IS
+// REAL AND KNOWN: every one of those sellers is now blocked until they reopen the page in Safari or
+// Chrome, and they are the cohort least able to work out why. That is why `cameraBlocked` explains the
+// in-app-browser cause in as many words rather than just saying the camera failed.
+//
+// ⚠️ IF THIS IS EVER REVERSED, the picker needs `accept="image/*"` FIRST (an iOS WKWebView narrows to
+// the listed types and drops "Take Photo" without it) and NO `capture` on the document input — that
+// attribute opens the camera directly and hides the photo library, on the one path reached because the
+// camera does not work.
 
 export type KycCaptureKind = 'document' | 'selfie'
 /** What the live-view guide frame should shape itself to. Document guides crop the capture to the
@@ -45,6 +56,9 @@ const DOC_ASPECT: Record<'passport' | 'id', number> = { passport: 1.42, id: 1.58
 // after a newer upload — the guard that keeps a stale scan from overwriting the current document.
 let uploadSeq = 0
 
+/** How long to wait for getUserMedia to settle before treating it as blocked — see the note in start(). */
+const CAMERA_REQUEST_TIMEOUT_MS = 12_000
+
 type Phase = 'idle' | 'starting' | 'live' | 'review' | 'uploading' | 'done'
 
 /**
@@ -53,8 +67,11 @@ type Phase = 'idle' | 'starting' | 'live' | 'review' | 'uploading' | 'done'
  * sideways MRZ never reads — `imageOrientation:'from-image'` bakes the rotation into the pixels.
  * The camera-capture blob has no EXIF (it is a fresh canvas frame), so this is a no-op there.
  * Bounded to `maxDim` so a 12MP upload does not allocate a ~48MB buffer just to be cropped to a band.
+ * ⚠️ 2400, NOT 2000. This is the PICKED-FILE path (in-app webview, blocked camera, desktop upload), where
+ * the passport is a fraction of a full photo rather than a guide-cropped page — every source pixel is MRZ
+ * legibility. The engine's own MAX_PREPROCESSED_PIXELS cap still bounds what reaches WASM.
  */
-async function decodeToImageData(blob: Blob, maxDim = 2000): Promise<ImageData | null> {
+async function decodeToImageData(blob: Blob, maxDim = 2400): Promise<ImageData | null> {
   try {
     let bmp: ImageBitmap
     try {
@@ -81,7 +98,6 @@ async function decodeToImageData(blob: Blob, maxDim = 2000): Promise<ImageData |
 export function KycCapture({
   kind,
   guide,
-  code,
   alt,
   onUploaded,
   onImage,
@@ -91,9 +107,6 @@ export function KycCapture({
   /** Live-view alignment guide. Document guides ('passport'|'id') draw an aspect-correct frame and
    *  crop the capture to it (clean document-only image); 'selfie' draws a face oval. Defaults by kind. */
   guide?: KycGuide
-  /** For the selfie: the anti-fraud code to display beside the face, so the user can write it on paper
-   *  and hold it in frame. Shown large in the live view. */
-  code?: string
   /** Accessible alt text for the captured/uploaded preview image. The CALLER supplies it because only
    *  the caller knows the document type (a CCCD vs a passport) — this component is tier-agnostic and
    *  must not hard-code "passport". Falls back to a generic name. */
@@ -120,7 +133,6 @@ export function KycCapture({
   const startGenRef = useRef(0)
   /** Whether this component is still on screen — see the getUserMedia guard below. */
   const mountedRef = useRef(true)
-  const fileRef = useRef<HTMLInputElement | null>(null)
   // Aborts the in-flight upload on unmount, so a photo taken in an ABANDONED attempt (the user pressed
   // Back / Start over while it was uploading) never resolves to fire onUploaded against a NEW attempt.
   const uploadAbortRef = useRef<AbortController | null>(null)
@@ -134,13 +146,9 @@ export function KycCapture({
   const detectorRef = useRef<DocDetector | null>(null)   // persisted so capture() can locate the document in the captured still
   const [shot, setShot] = useState<{ blob: Blob; url: string } | null>(null)
   const [error, setError] = useState<string | null>(null)
-  // ⚠️ TWO DISTINCT REASONS the file fallback is showing, and they must not be conflated:
-  //  · cameraBlocked — getUserMedia actually REJECTED (denied, no camera, in-app webview). Only this
-  //    state may show the "in-app browsers block the camera" alert; it would be a lie otherwise.
-  //  · uploadChosen — the user VOLUNTARILY chose "Upload instead" though the camera works (a desktop
-  //    user uploading a phone photo). Same picker, but a neutral prompt, never the blocked-camera alert.
+  // getUserMedia REJECTED (denied, no camera, in-app webview). There is no picker to fall back to any
+  // more — see the LIVE-ONLY note in the header — so this state's only job is to explain and offer a retry.
   const [cameraBlocked, setCameraBlocked] = useState(false)
-  const [uploadChosen, setUploadChosen] = useState(false)
 
   // ⛔ STOP THE TRACKS ON EVERY EXIT PATH. A MediaStream left running keeps the camera indicator
   // lit after the user has moved on, which reads as spyware and is the single most common complaint
@@ -169,7 +177,6 @@ export function KycCapture({
   const start = useCallback(async () => {
     setError(null)
     setQualityHint(null)
-    setUploadChosen(false) // (re)opening the camera ends any voluntary-upload intent
     // ⚠️ FEATURE-DETECT FIRST. iOS in-app webviews (Zalo, Facebook — a huge share of VN mobile) don't
     // expose getUserMedia at all, or throw synchronously. Don't spin on 'starting'; go straight to the
     // file-picker fallback so those users are never stuck. `<input type=file capture>` opens the native
@@ -191,7 +198,14 @@ export function KycCapture({
     // genuine block still falls straight to the file fallback.
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({
+        // ⛔ getUserMedia CAN HANG FOREVER, AND THERE IS NO LONGER A PICKER TO ESCAPE TO. Some in-app
+        // webviews leave the permission request PENDING — never granting, never rejecting — so the
+        // catch that sets `cameraBlocked` never runs and the seller sits on a spinner whose only button
+        // starts an identical request that hangs the same way (codex + agy). While the file input
+        // existed that was merely annoying; live-only makes it a dead end. A promise that never settles
+        // cannot be cancelled, so the stream is stopped if it ever does arrive — the timeout converts
+        // "spins forever" into the explanation that actually helps: open this in Safari or Chrome.
+        const request = navigator.mediaDevices.getUserMedia({
           video: {
             // The document is photographed with the REAR camera and the selfie with the front one.
             // `ideal`, not `exact`: a laptop has neither, and `exact` throws OverconstrainedError
@@ -207,6 +221,18 @@ export function KycCapture({
           },
           audio: false,
         })
+        // ⚠️ A stream that arrives AFTER we gave up has nothing to attach it to, and an unattached
+        // MediaStream keeps the camera lit with the OS privacy indicator on — which reads as spyware.
+        // Stop it. `adopted` is set by the winning branch below, so this only fires on the timeout path.
+        let adopted = false
+        let timer: ReturnType<typeof setTimeout> | undefined
+        void request.then((late) => { if (!adopted) late.getTracks().forEach((t) => t.stop()) }).catch(() => undefined)
+        const stream = await Promise.race([
+          request.then((s) => { adopted = true; return s }),
+          new Promise<MediaStream>((_, reject) => {
+            timer = setTimeout(() => reject(Object.assign(new Error('camera_request_timeout'), { name: 'TimeoutError' })), CAMERA_REQUEST_TIMEOUT_MS)
+          }),
+        ]).finally(() => { if (timer) clearTimeout(timer) })
         // ⛔ THE COMPONENT MAY ALREADY BE GONE. getUserMedia resolves long after the permission
         // prompt appears, so an unmount mid-prompt runs stopStream() BEFORE streamRef is set —
         // the stream then arrives with nothing left to clean it up, and the camera stays on with
@@ -222,8 +248,8 @@ export function KycCapture({
           // iOS Safari refuses to play an inline video without an explicit play() after srcObject.
           await videoRef.current.play().catch(() => undefined)
         }
-        // ⛔ RE-CHECK AFTER THE await. "Upload instead" (or an unmount) can fire DURING play(): it
-        // bumps the generation. Stop OUR OWN stream and return — NOT the shared stopStream(), which
+        // ⛔ RE-CHECK AFTER THE await. "Camera not working? Try again" (or an unmount) can fire DURING
+        // play(): it bumps the generation. Stop OUR OWN stream and return — NOT the shared stopStream(), which
         // stops whatever is in streamRef: a newer start() may have already replaced it, and calling
         // stopStream() here would kill that newer, live stream (codex). Only clear streamRef if it is
         // still ours. Then the newer generation, or the chosen fallback, is left intact.
@@ -238,7 +264,9 @@ export function KycCapture({
         // A superseded attempt failing must not clobber the UI the newer attempt owns.
         if (gen !== startGenRef.current) return
         const name = (err as { name?: string } | null)?.name
-        if (attempt === 0 && (name === 'NotReadableError' || name === 'AbortError')) {
+        // A hung request is not transient — retrying reproduces the identical hang — so it goes
+        // straight to the blocked state and its explanation.
+        if (attempt === 0 && name !== 'TimeoutError' && (name === 'NotReadableError' || name === 'AbortError')) {
           await new Promise((r) => setTimeout(r, 350))
           if (!mountedRef.current || gen !== startGenRef.current) return
           continue // retry once — the other camera has had a beat to release
@@ -268,7 +296,7 @@ export function KycCapture({
     const vw = video.videoWidth, vh = video.videoHeight
     if (!vw || !vh) { capturedRef.current = false; return }
     // ⚠️ Snapshot the start generation NOW. JPEG encoding (canvas.toBlob) is async, and during it the
-    // live view is still up, so the user can press "Upload instead" (bumps the generation) or Back /
+    // live view is still up, so the user can restart the camera (bumps the generation) or press Back /
     // Start over (unmounts). Without a guard in the callback, the stale encode would overwrite the
     // chosen fallback with a review of the abandoned shot AND leak an object URL nothing revokes (the
     // state set is a no-op on the unmounted component, so the URL is never stored to be cleaned).
@@ -360,13 +388,22 @@ export function KycCapture({
       const probe = downscaleImageData(still0, 640)
       if (probe) {
         void detectorRef.current.detect(probe)
-          .then((r) => { if (r?.box) { const cropped = cropImageData(still0, r.box); if (cropped) lastStillRef.current = cropped } })
+          .then((r) => {
+            // ⛔ ONLY IF THE STILL WE STARTED FROM IS STILL THE CURRENT ONE. This detect() resolves
+            // hundreds of ms later, and by then Retake may have set lastStillRef to null. Writing unconditionally RESURRECTED the old
+            // document's pixels, so upload() would OCR the PREVIOUS passport while storing the newly
+            // picked image: data from one document, image of another. That is the mixed-document
+            // defect an earlier review round closed on the retake path, reopened through this async
+            // refine. The identity check is the whole guard.
+            if (lastStillRef.current !== still0) return
+            if (r?.box) { const cropped = cropImageData(still0, r.box); if (cropped) lastStillRef.current = cropped }
+          })
           .catch(() => { /* keep the full still */ })
       }
     }
     canvas.toBlob((blob) => {
       if (!blob) return
-      // ⛔ Drop a stale encode: the component unmounted, or "Upload instead" superseded this capture
+      // ⛔ Drop a stale encode: the component unmounted, or a camera restart superseded this capture
       // while it encoded. Do NOT create an object URL or set state here — both would be orphaned.
       if (!mountedRef.current || gen !== startGenRef.current) return
       stopStream()
@@ -457,12 +494,13 @@ export function KycCapture({
     const W = 32, H = 24
     const c = document.createElement('canvas'); c.width = W; c.height = H
     const cx = c.getContext('2d', { willReadFrequently: true })
-    // ⛔ ARMING DELAY — the selfie is a PROOF-OF-CODE shot: the user must first read the challenge code,
-    // write it on paper and hold it up. Auto-capturing on mere stillness ~0.9s after the camera opens
-    // shot people while they were still reading the prompt, with NO code in frame — defeating the whole
-    // anti-fraud purpose (agy + fable, 2026-09-02). So auto-capture cannot fire for the first few seconds;
-    // anyone ready sooner uses the always-present "Take photo" button.
-    const SELFIE_ARM_MS = 5000
+    // ⛔ ARMING DELAY. It was 5s because the selfie used to be a PROOF-OF-CODE shot — the seller had to
+    // read a code, write it on paper and hold it up, and auto-capturing on mere stillness photographed
+    // people mid-way through that with nothing in frame (agy + fable, 2026-09-02). The code is gone
+    // (owner, 2026-09-04), so the only thing left to wait for is someone getting their face in the oval;
+    // five seconds of that is dead time. A short beat still prevents a shot fired the instant the
+    // camera opens, and "Take photo" is always there for anyone quicker.
+    const SELFIE_ARM_MS = 1500
     const armedAt = Date.now()
     const tick = () => {
       if (!alive || capturedRef.current) return
@@ -489,6 +527,12 @@ export function KycCapture({
 
 
   const upload = useCallback(async (blob: Blob) => {
+    // ⚠️ BIND THE STILL NOW, BEFORE THE NETWORK ROUND TRIP. `lastStillRef` is a long-lived mutable and
+    // this function awaits a fetch; reading it AFTERWARDS means whatever the ref happens to hold when
+    // the response lands is what gets OCR'd, which is the wrong document if anything changed in
+    // between (agy). It is already final by the time the seller taps "Use this photo" — the OpenCV
+    // refine that may improve it resolves within a few hundred ms of the shutter.
+    const still = lastStillRef.current
     setPhase('uploading')
     setError(null)
     const ctrl = new AbortController()
@@ -520,7 +564,13 @@ export function KycCapture({
       // after a newer upload. We hand it the FULL-RES still captured at shutter time (lastStillRef,
       // far more MRZ pixels than the compressed crop blob); if that is missing, fall back to decoding
       // the uploaded blob. Fires even a null decode so the consumer can surface "type instead".
-      if (onImage) onImage(lastStillRef.current ?? (await decodeToImageData(blob)), uploadId)
+      // ⛔ DROP IT BEFORE THE HAND-OFF, NOT AFTER. This still belongs to an upload that is now
+      // COMMITTED; anything captured or picked next brings its own, and leaving it set is one more
+      // window in which a later code path reaches a previous document's pixels (fable) — the class of
+      // bug this component has already paid for twice. Clearing BEFORE the call means no throw inside
+      // the consumer can skip it (codex); `still` is already bound, so the hand-off is unaffected.
+      lastStillRef.current = null
+      if (onImage) onImage(still ?? (await decodeToImageData(blob)), uploadId)
     } catch {
       // An abort is an intentional cancel on unmount, not a failure to report — and the component is
       // gone, so there is nothing to show it on.
@@ -535,17 +585,14 @@ export function KycCapture({
     setShot(null)
     setError(null)
     // ⛔ DROP THE PREVIOUS STILL. lastStillRef holds the full-res still of the LAST live capture; if it
-    // survives a retake (or an "Upload instead" that picks a file, which sets no still) then onImage
-    // would OCR the OLD document while the NEW blob is uploaded — data from one document, image of
-    // another (fable, 2026-09-02). Cleared here and on the file path so onImage falls back to the blob.
+    // survived a retake then onImage would OCR the OLD document while the NEW blob is uploaded — data
+    // from one document, image of another (fable, 2026-09-02).
     lastStillRef.current = null
     setPhase('idle')
-    // ⚠️ Reopen the live camera ONLY on the normal path. If the camera is blocked, or the user
-    // deliberately chose "Upload instead" (a frozen/wrong-lens live view), start() would drop them
-    // back onto that same unusable camera — and clear uploadChosen doing it. Landing on idle instead
-    // re-shows the file picker so they can pick another photo (codex).
-    if (!cameraBlocked && !uploadChosen) void start()
-  }, [cameraBlocked, uploadChosen, shot, start])
+    // Reopen the live camera unless it is blocked — start() would otherwise drop the seller back onto
+    // the same unusable camera. Landing on idle instead shows the explanation and the retry.
+    if (!cameraBlocked) void start()
+  }, [cameraBlocked, shot, start])
 
   // ⚠️ SELFIE COPY IS DOCUMENT-AGNOSTIC. This component does not know the tier, and the selfie's
   // anti-fraud proof is the PAPER CODE held beside the face — NOT the document, which was captured in
@@ -615,27 +662,22 @@ export function KycCapture({
           </div>
         )}
 
-        {/* ── SELFIE GUIDE ── a face oval, and a COMPACT code reminder at the top. Overlay is NOT
-            mirrored (it's a guide). ⚠️ The code sits in a small top chip, NOT a wide panel over the
-            right half: the user holds their PAPER on that side, and an opaque panel there hid the very
-            handwriting they need to see is legible and in frame (codex). Kept as a reminder only —
-            the full-size code is shown above the camera in the step body. */}
+        {/* ── SELFIE GUIDE ── a face oval. Overlay is NOT mirrored (it's a guide).
+            ⚠️ NO CODE CHIP ANY MORE (owner, 2026-09-04): the selfie is a plain face photo, so there is
+            nothing for the seller to hold and nothing to overlay. The challenge is still issued — it is
+            the consent receipt that authorises the upload endpoint — it is simply no longer shown. */}
         {phase === 'live' && effGuide === 'selfie' && (
           <div className="pointer-events-none absolute inset-0">
             <div
-              className={cn('absolute left-1/2 top-[46%] h-[64%] w-[46%] -translate-x-1/2 -translate-y-1/2 rounded-[50%] border-2 transition-colors', aligned ? 'border-success' : 'border-white/85')}
+              // ⚠️ THE OVAL HAS TO BE HEAD-SHAPED, and the percentages alone do not make it so — they are
+              // read against a container whose ratio DIFFERS per breakpoint (3:4 on mobile, 4:3 on
+              // desktop), so one pair of numbers cannot serve both. At 64%×46% on a 3:4 phone the oval
+              // came out ~0.54 wide-to-tall: a narrow slot, not a face (owner, on-device). A head is
+              // ~0.75. On the 3:4 mobile box EQUAL percentages give exactly that; on the 4:3 desktop box
+              // the same ratio needs 39%×70%.
+              className={cn('absolute left-1/2 top-[46%] h-[52%] w-[52%] sm:h-[70%] sm:w-[39%] -translate-x-1/2 -translate-y-1/2 rounded-[50%] border-2 transition-colors', aligned ? 'border-success' : 'border-white/85')}
               style={{ boxShadow: '0 0 0 9999px rgba(0,0,0,0.35)' }}
             />
-            {code && (
-              <div className="absolute inset-x-0 top-3 flex justify-center">
-                <div className="flex items-center gap-2 rounded-lg bg-black/55 px-3 py-1.5">
-                  <span className="text-2xs font-medium uppercase tracking-wide text-white/70">
-                    {tr('Your code', 'Mã của bạn')}
-                  </span>
-                  <span className="whitespace-nowrap font-mono text-base font-bold tracking-[0.15em] text-white">{code}</span>
-                </div>
-              </div>
-            )}
           </div>
         )}
 
@@ -649,7 +691,7 @@ export function KycCapture({
                 : detectorLoading
                   ? tr('Preparing… or tap Take photo', 'Đang chuẩn bị… hoặc chạm Chụp ảnh')
                   : kind === 'selfie'
-                    ? tr('Face + code in view — or tap Take photo', 'Đưa mặt + mã vào khung — hoặc chạm Chụp ảnh')
+                    ? tr('Face inside the oval — or tap Take photo', 'Đưa khuôn mặt vào khung oval — hoặc chạm Chụp ảnh')
                     // ⚠️ NOT "fill the frame" — that invites overfilling, pushing the bottom MRZ code lines
                     // outside the crop so the read finds no MRZ and autofill silently fails (fable, 2026-09-02).
                     : effGuide === 'id'
@@ -681,19 +723,18 @@ export function KycCapture({
         {phase === 'live' && (
           <Button variant="cta" size="sm" onClick={capture}><Camera className="size-4" aria-hidden /> {tr('Take photo', 'Chụp ảnh')}</Button>
         )}
-        {/* ⚠️ ESCAPE HATCH for a camera that never becomes usable — black/frozen frame or wrong lens
-            once live, OR a permission request that hangs without ever resolving (some in-app webviews
-            leave it pending, so the catch that sets cameraBlocked never runs and phase stays
-            'starting' — a spinner with no way out). Shown in BOTH states. Bumping the start generation
-            supersedes any pending getUserMedia so a late grant can't reopen over the fallback. A
-            low-prominence link, never a rival to the primary shutter. */}
+        {/* ⚠️ A CAMERA THAT NEVER BECOMES USABLE — a black or frozen frame, the wrong lens, or a
+            permission request some in-app webviews leave pending forever, so the catch that sets
+            cameraBlocked never runs and phase stays 'starting': a spinner with no way out. There is no
+            picker to escape to any more, so the escape is a RESTART. Bumping the generation supersedes
+            any pending getUserMedia so a late grant cannot reopen over it. */}
         {(phase === 'live' || phase === 'starting') && (
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => { startGenRef.current += 1; stopStream(); setUploadChosen(true); setPhase('idle') }}
+            onClick={() => { startGenRef.current += 1; stopStream(); lastStillRef.current = null; setPhase('idle'); void start() }}
           >
-            {tr("Camera not working? Upload instead", 'Máy ảnh không hoạt động? Tải ảnh lên')}
+            {tr('Camera not working? Try again', 'Máy ảnh không hoạt động? Thử lại')}
           </Button>
         )}
         {phase === 'review' && shot && (
@@ -711,73 +752,26 @@ export function KycCapture({
           <p className="text-sm text-muted-foreground">{tr('Photo saved.', 'Đã lưu ảnh.')}</p>
         )}
 
-        {/* ⚠️ FALLBACK when the camera could not open (live-first; upload only if the camera fails) OR
-            the user chose to upload anyway. In-app browsers (Zalo, Facebook, Instagram) never grant
-            the camera, so those users get the picker plus a nudge to reopen in a real browser; nobody
-            is hard-blocked. "Try the camera again" clears BOTH reasons and reopens the live view. */}
-        {/* phase === 'idle' ONLY: in 'review' the "Use this photo" / "Retake" pair owns the row, so a
-            second "Take a photo with your camera app" CTA there would be two competing primaries. */}
-        {(cameraBlocked || uploadChosen) && phase === 'idle' && (
-          <>
-            <Button variant="cta" size="sm" onClick={() => fileRef.current?.click()}>
-              {/* A voluntary uploader may be on a desktop with no camera app, so don't tell them to
-                  "take a photo"; a genuinely blocked camera is mobile (in-app browser) where the
-                  camera-app hint is right. Both open the same picker. */}
-              {uploadChosen && !cameraBlocked
-                ? tr('Choose a photo to upload', 'Chọn ảnh để tải lên')
-                : tr('Take a photo with your camera app', 'Chụp bằng ứng dụng máy ảnh')}
-            </Button>
-            <Button variant="ghost" size="sm" onClick={() => { setCameraBlocked(false); setUploadChosen(false); void start() }}>
-              {tr('Try the camera again', 'Thử lại máy ảnh')}
-            </Button>
-          </>
+        {/* ⛔ LIVE ONLY — see the header. A camera that cannot open gets an explanation and a retry,
+            never a picker. */}
+        {cameraBlocked && phase === 'idle' && (
+          <Button variant="cta" size="sm" onClick={() => { setCameraBlocked(false); void start() }}>
+            {tr('Try the camera again', 'Thử lại máy ảnh')}
+          </Button>
         )}
       </div>
-
-      {/* NEUTRAL prompt for a voluntary upload — NOT the blocked-camera alert, which would misdiagnose
-          a working camera. Only a genuine getUserMedia reject (cameraBlocked) shows that alert below. */}
-      {uploadChosen && !cameraBlocked && phase === 'idle' && (
-        <p className="text-sm text-muted-foreground">
-          {kind === 'selfie'
-            ? tr('Upload a clear selfie of your face with your written code beside it.', 'Tải lên ảnh chân dung rõ nét với mã đã viết cầm bên cạnh.')
-            : tr('Upload a clear, well-lit photo that fills the frame.', 'Tải lên ảnh rõ nét, đủ sáng và lấp đầy khung hình.')}
-        </p>
-      )}
 
       {cameraBlocked && phase === 'idle' && (
         <Alert>
           <AlertDescription>
             {tr(
-              "We couldn't open the camera — you may have declined access, or an in-app browser like Zalo or Facebook may be blocking it. Open this page in Safari or Chrome for the guided camera, or take the photo with your camera app.",
-              'Không mở được máy ảnh — có thể bạn đã từ chối quyền, hoặc một trình duyệt trong ứng dụng như Zalo hay Facebook đang chặn. Hãy mở trang này trong Safari hoặc Chrome để dùng máy ảnh có hướng dẫn, hoặc chụp bằng ứng dụng máy ảnh.',
+              "We couldn't open the camera — you may have declined access, or an in-app browser like Zalo or Facebook may be blocking it. Verification needs a photo taken right now, so please open this page in Safari or Chrome and try again.",
+              'Không mở được máy ảnh — có thể bạn đã từ chối quyền, hoặc một trình duyệt trong ứng dụng như Zalo hay Facebook đang chặn. Việc xác minh cần ảnh chụp trực tiếp, vui lòng mở trang này trong Safari hoặc Chrome rồi thử lại.',
             )}
           </AlertDescription>
         </Alert>
       )}
 
-      <input
-        ref={fileRef}
-        type="file"
-        // ⚠️ `image/*` FIRST. On iOS a WKWebView narrows the picker to the listed types, and without
-        // it the "Take Photo" option disappears entirely — the same trap the visa card hit.
-        accept="image/*,image/jpeg,image/png,image/heic,image/heif,.heic,.heif"
-        capture={kind === 'selfie' ? 'user' : 'environment'}
-        className="sr-only"
-        onChange={(e) => {
-          const file = e.target.files?.[0]
-          e.target.value = '' // reset first, so re-picking the same file still fires
-          if (!file) return
-          if (shot) URL.revokeObjectURL(shot.url)
-          lastStillRef.current = null // a picked file has no live still — OCR must decode THIS blob, not a prior capture
-          setShot({ blob: file, url: URL.createObjectURL(file) })
-
-          // ⚠️ THE CAMERA MUST STOP HERE TOO. This path is reachable while a stream is live (the
-          // seller opened the camera, then chose a file instead), and without it the hardware stays
-          // on with the privacy indicator lit while they review an upload that never used it.
-          stopStream()
-          setPhase('review')
-        }}
-      />
     </div>
   )
 }

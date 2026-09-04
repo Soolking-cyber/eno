@@ -24,7 +24,7 @@ import { Input } from '@/components/ui/input'
 import { Field, FieldLabel } from '@/components/ui/field'
 import { Loader2 } from '@/components/ui/icons'
 import { KycCapture } from '@/components/marketplace/kyc-capture'
-import { readMrz, type MrzFieldPool } from '@/lib/identity/mrz-ocr'
+import { readMrz, readFailureHint, namesFromNameLine, type MrzFieldPool } from '@/lib/identity/mrz-ocr'
 // ⚠️ Via the identity boundary, NEVER '@/lib/visa/mrz' directly — KYC code routes MRZ parsing through
 // `@/lib/identity/mrz` (which re-exports it) so the visa namespace never appears in a marketplace call
 // site (agy, 2026-09-02). See the header of src/lib/identity/mrz.ts.
@@ -35,6 +35,18 @@ import { createMrzOcrEngine } from '@/lib/identity/mrz-ocr-tesseract'
 // raw / 130 KB gzip, 44% of this route's JS). The text module exists for exactly this import.
 import { DECLARATIONS, CURRENT_DECLARATION } from '@/lib/compliance/declaration-text'
 import { LEGAL_BASIS } from '@/lib/compliance/legal-basis'
+// ⛔ EDITION-AWARE BRANDING, NOT A LITERAL. This file compiles into BOTH editions, and edition.ts
+// exists because 58 hardcoded "| eno.vn" titles once put the LICENSED company's name on every
+// eno.forum page. Copy that tells a seller to email ${COMPANY.email}, or names the account they already
+// verified, is the same leak in a sentence (agy).
+import { SITE_NAME } from '@/lib/edition'
+// ⛔ `COMPANY.email`, NEVER A LITERAL AND NEVER `${COMPANY.email}`. site-legal.ts already owns the
+// per-edition support mailbox, and its header records why: eno.forum once handed readers the
+// marketplace's address, and these two fields now carry BINDING published commitments with deadlines
+// attached (the PDPL contact, the complaint SLA). Composing an address from the brand name would fork
+// that decision into a second place and could point a forum seller at an unprovisioned mailbox
+// (agy + fable). One constant, one inbox.
+import { COMPANY } from '@/lib/site-legal'
 
 /**
  * Turn the still-missing MRZ fields into an actionable hint after a PARTIAL read: this capture read some
@@ -63,9 +75,67 @@ function missingFieldsHint(
   }
 }
 
+/**
+ * What each submit refusal actually MEANS to the seller, and whether starting again can help.
+ *
+ * ⚠️ THE ROUTE'S OWN HEADER ASKS FOR THIS IN AS MANY WORDS — "EVERY CODE NEEDS BILINGUAL COPY AT THE
+ * CALL SITE ... a bare code renders as a dead end" — and until now the call site had one sentence for
+ * all ten. `terminal: true` means a fresh attempt CANNOT change the answer, so the flow says so
+ * instead of inviting a retake that burns one of the seller's five daily submissions.
+ * ⛔ Codes deliberately absent (challenge_missing / challenge_mismatch / path_not_owned /
+ * tier_mismatch) describe a client bug or a probe, not anything a seller can act on; they keep the
+ * generic "start again", which for those is the correct advice.
+ */
+const SUBMIT_OUTCOMES: Record<string, { en: string; vi: string; enA?: string; viA?: string; terminal?: boolean; resumable?: boolean }> = {
+  already_pending: {
+    terminal: true,
+    en: 'You already have a verification with us and a reviewer is looking at it. There is nothing more to send — we will email you the result, usually within a working day.',
+    vi: 'Bạn đã có một hồ sơ xác minh và nhân viên của chúng tôi đang xem xét. Bạn không cần gửi thêm — chúng tôi sẽ gửi email kết quả, thường trong một ngày làm việc.',
+  },
+  duplicate_identity: {
+    terminal: true,
+    resumable: true, // they may need to try the OTHER document, or a different tier
+    en: `This document is already verified on another ${SITE_NAME} account. If that account is yours, sign in with it instead. If it is not, please email ${COMPANY.email} — do not send the document again.`,
+    vi: `Giấy tờ này đã được xác minh trên một tài khoản ${SITE_NAME} khác. Nếu đó là tài khoản của bạn, hãy đăng nhập bằng tài khoản đó. Nếu không, vui lòng gửi email tới ${COMPANY.email} — đừng gửi lại giấy tờ.`,
+  },
+  rejected: {
+    terminal: true,
+    resumable: true, // a renewed passport is a genuinely different attempt
+    en: `We cannot accept this document. A passport must still be valid for at least six months, and the name on it has to correspond to your account name. Check both — sending the same document again will get the same answer. If you believe this is wrong, email ${COMPANY.email}.`,
+    vi: `Chúng tôi không thể chấp nhận giấy tờ này. Hộ chiếu phải còn hiệu lực ít nhất sáu tháng và tên trên hộ chiếu phải tương ứng với tên tài khoản của bạn. Hãy kiểm tra cả hai — gửi lại cùng giấy tờ sẽ nhận kết quả như cũ. Nếu bạn cho rằng đây là nhầm lẫn, hãy gửi email tới ${COMPANY.email}.`,
+    // ⚠️ TIER A GETS ITS OWN WORDS. A CCCD has no six-month rule and no machine-readable lines, so the
+    // passport copy above would hand a Vietnamese seller instructions they cannot act on (fable).
+    enA: `We cannot accept this document. The name on it has to correspond to your account name, and the card must be current. Check both — sending the same document again will get the same answer. If you believe this is wrong, email ${COMPANY.email}.`,
+    viA: `Chúng tôi không thể chấp nhận giấy tờ này. Tên trên giấy tờ phải tương ứng với tên tài khoản của bạn và thẻ phải còn hiệu lực. Hãy kiểm tra cả hai — gửi lại cùng giấy tờ sẽ nhận kết quả như cũ. Nếu bạn cho rằng đây là nhầm lẫn, hãy gửi email tới ${COMPANY.email}.`,
+  },
+  rate_limited: {
+    terminal: true,
+    en: 'You have reached the limit of five verification attempts a day. Please try again tomorrow — your photographs were not the problem.',
+    vi: 'Bạn đã đạt giới hạn năm lần gửi xác minh mỗi ngày. Vui lòng thử lại vào ngày mai — ảnh của bạn không phải là vấn đề.',
+  },
+  document_unreadable: {
+    en: 'We could not read the details from what was sent, so we cleared the form. Start again and photograph the data page so the two lines of code across the bottom are sharp and completely inside the frame.',
+    vi: 'Chúng tôi không đọc được thông tin từ ảnh đã gửi nên đã xóa biểu mẫu. Hãy bắt đầu lại và chụp trang thông tin sao cho hai dòng mã ở dưới cùng rõ nét và nằm trọn trong khung.',
+    enA: 'We could not read the details from what was sent, so we cleared the form. Start again and photograph the side of the card with your photo on it, sharp and completely inside the frame.',
+    viA: 'Chúng tôi không đọc được thông tin từ ảnh đã gửi nên đã xóa biểu mẫu. Hãy bắt đầu lại và chụp mặt thẻ có ảnh của bạn, rõ nét và nằm trọn trong khung.',
+  },
+  challenge_expired: {
+    en: 'Your code expired before this was sent, so we cleared the form. Please start again — a fresh code takes a moment.',
+    vi: 'Mã của bạn đã hết hạn trước khi gửi nên chúng tôi đã xóa biểu mẫu. Vui lòng bắt đầu lại — lấy mã mới rất nhanh.',
+  },
+  identity_hashing_unavailable: {
+    // ⚠️ It says the photographs are gone, and it says the retry is not free. "Try again in a few
+    // minutes" on its own reads as one tap, when it is in fact both photographs again and one of the
+    // five submissions a day (fable).
+    en: 'Verification is temporarily unavailable on our side — there is nothing wrong with your documents, but the form has been cleared. Please try again in a few minutes; you have five verification attempts a day.',
+    vi: 'Hệ thống xác minh tạm thời không khả dụng từ phía chúng tôi — giấy tờ của bạn không có vấn đề gì, nhưng biểu mẫu đã bị xóa. Vui lòng thử lại sau vài phút; bạn có năm lần gửi xác minh mỗi ngày.',
+  },
+}
+
 export function VerifyClient() {
   const { tr, lang } = useLanguage()
   const { user, loading } = useAuth()
+  const userId = user?.id // ⚠️ the effect below keys on the ID, never the object — see its note
   const router = useRouter()
   const [accepted, setAccepted] = useState(false)
   const [tier, setTier] = useState<'A' | 'B' | null>(null)
@@ -89,6 +159,52 @@ export function VerifyClient() {
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  /**
+   * ⛔ AN OUTCOME THAT RETRYING CANNOT FIX. The submit route answers with a specific code for each
+   * refusal, and until now EVERY one of them rendered the same sentence: "that did not go through, so
+   * we cleared the form — please choose how to verify and start again." For four of those codes that
+   * sentence is false and actively harmful:
+   *   · already_pending      — a case of theirs IS in review; there is nothing to send.
+   *   · duplicate_identity   — the passport is verified on another account; a retake changes nothing.
+   *   · rejected             — the document itself fails the decree's six-month rule (or the name does
+   *                            not correspond); the same document will be refused every time.
+   *   · rate_limited         — five submissions a day, strict. Starting again just burns the rest.
+   * A seller told to "start again" photographs their passport and selfie again, burns another of five
+   * daily attempts, and lands in the identical dead end — with no idea why. This state renders the
+   * real reason INSTEAD of the tier picker, with an explicit way back for the cases that can change.
+   */
+  const [terminal, setTerminal] = useState<{ en: string; vi: string; resumable?: boolean } | null>(null)
+  /**
+   * ⛔ WHETHER THIS PERSON ALREADY HAS A CASE — asked ON ARRIVAL, not discovered at submit.
+   * `submitKycForReview` refuses a second pending case with `already_pending`, and it refuses it at
+   * the very END: after the seller has read the declaration, photographed their passport, written the
+   * photographed a selfie, and pressed Send. Everything they did was
+   * always going to be thrown away, and one of their five daily submissions goes with it. The same
+   * applies to someone already `verified` who wandered back here. One GET at the top of the page
+   * turns both into a sentence read before any work starts.
+   * ⚠️ FAILS OPEN. A status call that errors, or a shape we do not recognise, leaves this null and the
+   * flow behaves exactly as before — nobody is ever blocked from verifying by a failed status read.
+   */
+  const [existingCase, setExistingCase] = useState<'pending' | 'verified' | null>(null)
+  /**
+   * ⚠️ HAS THE SELLER ALREADY COMMITTED TO AN ATTEMPT? The status GET above races the page: on a slow
+   * connection its reply lands AFTER the seller has read the declaration and picked a tier. Two things
+   * follow, and they pull in opposite directions.
+   *  · The panel must NOT replace the flow at that point — it would hide a refusal they need to read
+   *    (codex). Hence this flag gates the replacement.
+   *  · But the answer still matters: `pending` means the submission at the end of all that work is
+   *    guaranteed to be refused. So it is shown INLINE instead, as a warning they can act on before
+   *    photographing anything, rather than swallowed.
+   */
+  const [started, setStarted] = useState(false)
+  /**
+   * ⛔ THE STATUS GET NEEDS A GENERATION, NOT JUST A CLEARED FLAG. Nulling `existingCase` does not
+   * cancel an in-flight request: its callback still fires and REPOPULATES the state it was supposed to
+   * invalidate, and since `resetAttempt` also clears `started`, that late reply can put a stale
+   * "you already have a verification" panel over the retry flow a seller is in the middle of (codex).
+   * Every start and every reset bumps this; a reply whose generation has moved is dropped.
+   */
+  const statusGenRef = useRef(0)
   // ⚠️ RATE-LIMIT COUNTDOWN. When issuing a challenge is throttled (429) the server sends
   // `retryAfterSeconds`; `retryAt` is when a retry is allowed and `retrySecs` is the live seconds
   // left, so the user sees exactly how long to wait instead of a vague "try later" — and the tier
@@ -106,15 +222,32 @@ export function VerifyClient() {
   // first scan and torn down on unmount; only tier B (passport, TD3 MRZ) scans — a CCCD has no TD3 MRZ.
   const [scan, setScan] = useState<'idle' | 'reading' | 'ok' | 'failed'>('idle')
   const [scanHint, setScanHint] = useState<{ en: string; vi: string } | null>(null)
-  // 🔬 On-screen MRZ diagnostic, enabled with ?mrzdebug=1 — the only way to see the OCR internals on a
-  // phone (no dev console). Surfaces whether the WASM engine initialised and what each variant read.
+  // 🔬 On-screen MRZ diagnostic — the only way to see the OCR internals on a phone (no dev console).
+  // Surfaces whether the WASM engine initialised and what each variant read.
   // ⚠️ Read the flag in an EFFECT, not during render: `window.location` during render makes the server
   // (false) and first client render (true) disagree → a hydration mismatch (a trap this repo has hit).
-  // ⏳ TEMP (revert after the iOS trace is captured): forced ON. The `?mrzdebug` query is stripped by the
-  // route before the effect can read it, so on-device diagnosis via the URL is impossible; the trace is
-  // shown to every tier-B capture instead, but ONLY once a capture has produced data (see the panel).
+  // ⛔ IT WAS BRIEFLY FORCED ON FOR EVERY TIER-B USER (the 2026-09-03 iOS diagnosis) and that shipped a
+  // black terminal overlay of raw OCR text across a real seller's screen. Never do that again — gate it.
+  // ⚠️ `#mrzdebug=1` IS ACCEPTED TOO because the query alone did not survive the way this page is reached
+  // on a phone (owner, on-device 2026-09-03: "?mrzdebug=1 no this in domain"). The likely culprit is the
+  // unauthenticated bounce through `/signin?next=/dashboard/account/verify`, which carries no query of
+  // its own — ⚠️ NOT VERIFIED, and the hash may not survive that navigation either. The hash is offered
+  // as a SECOND way in, not as a proven one; if neither arrives, paste the flag once already signed in.
   const [mrzDebug, setMrzDebug] = useState(false)
-  useEffect(() => { setMrzDebug(true) }, [])
+  useEffect(() => {
+    try {
+      const { search, hash } = window.location
+      // ⚠️ PARSE the hash, never substring-match it: `#mrzdebug` inside an unrelated fragment (a deep
+      // link, an anchor id) would otherwise switch raw OCR output on for a real seller (codex).
+      // ⛔ EXACTLY '1'. An earlier draft accepted any value but `0` so that a bare `#mrzdebug` worked —
+      // which also meant `?mrzdebug=false` switched it on. This panel renders passport-derived text, and
+      // a link someone else crafts and sends is a real way to reach it on a signed-in phone, from where
+      // it leaks by screenshot or screen-share (codex). The convenience is not worth that; type `=1`.
+      const on = (v: string | null) => v === '1'
+      const hashParams = new URLSearchParams(hash.replace(/^#/, ''))
+      setMrzDebug(on(new URLSearchParams(search).get('mrzdebug')) || on(hashParams.get('mrzdebug')))
+    } catch { /* no window (never in an effect) — stay off */ }
+  }, [])
   const [dbg, setDbg] = useState<string[]>([])
   // Accumulate into a REF and flush ONCE at the end of a read — a setState per OCR variant would re-render
   // VerifyClient mid-WASM and could trip the timeout (agy). The panel updates when the read completes.
@@ -137,6 +270,38 @@ export function VerifyClient() {
   const userEditedRef = useRef(false)
   const markEdited = useCallback(() => { userEditedRef.current = true }, [])
   useEffect(() => () => { void engineRef.current?.terminate() }, [])
+
+  /** Ask where this person stands. Bumps the generation, so any earlier reply in flight is dropped. */
+  const readStatus = useCallback(() => {
+    const gen = ++statusGenRef.current
+    void fetch('/api/seller/identity/status')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { status?: string } | null) => {
+        if (!d || gen !== statusGenRef.current) return
+        if (d.status === 'pending' || d.status === 'verified') setExistingCase(d.status)
+      })
+      .catch(() => { /* fail open — see the note on existingCase */ })
+  }, [])
+
+  useEffect(() => {
+    // ⛔ CLEAR FIRST, AND CLEAR EVERY PIECE. This effect re-runs when the account changes: a stale
+    // value would show one person another's private verification status until the new read lands — or
+    // indefinitely, if that read fails. Failing open means falling back to NO claim, not to the last
+    // one. `terminal` and `started` describe the previous account's attempt just as much as
+    // `existingCase` does, so a second account on the same mounted client would otherwise inherit the
+    // first one's refusal, or have its own pre-flight suppressed (codex).
+    // ⚠️ KEYED ON THE USER'S ID, NOT THE OBJECT. `useAuth` hands back a NEW object on a Supabase token
+    // refresh or a tab refocus, and keying on identity would then wipe `terminal` mid-read — a seller
+    // studying a rejection locks their phone, comes back, and finds the refusal gone and the tier
+    // picker inviting exactly the retry that copy exists to prevent (fable).
+    setExistingCase(null); setTerminal(null); setStarted(false)
+    // ⛔ INVALIDATE BEFORE THE EARLY RETURN. On sign-out `userId` goes undefined and this used to
+    // return without bumping, so a status request belonging to the PREVIOUS account could still resolve
+    // and call setExistingCase — showing one person's verification state after they signed out (codex).
+    statusGenRef.current += 1
+    if (!userId) return
+    readStatus()
+  }, [userId, readStatus])
 
   // Tick the rate-limit countdown down to zero, then clear it (which re-enables the tier buttons).
   useEffect(() => {
@@ -201,7 +366,16 @@ export function VerifyClient() {
       const engFn = mrzDebug
         ? async (image: Parameters<typeof eng.engine>[0], opts: Parameters<typeof eng.engine>[1]) => {
             const t = await eng.engine(image, opts)
-            try { pushDbg(`v(up${opts.upscale} inv${opts.invert}) ${JSON.stringify(t).slice(0, 120)}`) } catch { /* never affect the read */ }
+            // ⛔ SHAPE, NEVER CONTENT. This used to print the raw OCR text, which is the passport's
+            // machine-readable zone in plain characters. The flag is user-controlled, so a link
+            // someone else crafts and sends reaches it on a signed-in phone, from where it leaks by
+            // screenshot or screen-share (codex). What diagnosis actually needs is whether the engine
+            // ran and whether the band contained anything MRZ-shaped — not the seller's document.
+            try {
+              const lines = t.split(/\r?\n/).filter((l) => l.trim().length > 0)
+              const mrzish = lines.filter((l) => l.replace(/\s/g, '').length >= 40).length
+              pushDbg(`v(up${opts.upscale} inv${opts.invert} top${opts.crop.top.toFixed(2)}) ${lines.length} lines, ${mrzish} mrz-shaped`)
+            } catch { /* never affect the read */ }
             return t
           }
         : eng.engine
@@ -211,13 +385,41 @@ export function VerifyClient() {
       // back clears the attempt, so a "second capture" the pool could complete is unreachable through the
       // UI (all three reviewers, 2026-09-02) — and persisting fields across captures risked fusing two
       // documents. Each capture is therefore self-contained; an incomplete read falls back to typing.
-      const read = readMrz(img, engFn).finally(() => { if (timer) clearTimeout(timer) })
+      // ⚠️ TWO DEADLINES, DELIBERATELY COORDINATED — codex caught the trap of moving only one. readMrz
+      // owns a budget of ACTUAL OCR TIME (summed inside engine calls, clamped per call so a suspended
+      // tab cannot spend it) and checks it before starting each call, so it degrades to "return
+      // whatever was salvaged" instead of being killed mid-read. The race below is a HANG GUARD for a
+      // single WASM call that never returns at all — the one failure the budget cannot see — which is
+      // why it sits far above the budget rather than just above it.
+      // ⚠️ The wait is HIDDEN: the wizard advances to the selfie step the moment the document uploads,
+      // so this normally finishes while the seller is taking their selfie. It is not
+      // free, though — the selfie camera is live alongside it, so the budget stays tight rather than
+      // generous (agy: a long WASM sweep beside a live stream is how a phone thermally throttles).
+      // ⚠️ 40s of ACTUAL OCR TIME (readMrz sums time inside engine calls; a backgrounded tab does not
+      // spend it) under a 75s WALL-CLOCK hang guard. The guard is deliberately far above the budget:
+      // it is not the thing that shapes the read — the budget is — it only catches a single WASM call
+      // that never returns at all, which is the one failure the budget cannot see.
+      const OCR_BUDGET_MS = 40_000
+      // ⚠️ 150s, AND IT IS NOT A WORK LIMIT. The BUDGET bounds the work (40s of actual OCR); this only
+      // catches a single WASM call that never returns. Set close to the budget it was killing reads the
+      // budget had already finished with: two genuinely slow calls (the per-call clamp permits that)
+      // ran past a 75s guard, and the guard REJECTS — throwing away a pool that had every field in it
+      // (fable). ⛔ Its one residual cost, stated plainly: a tab SUSPENDED longer than this (a phone
+      // locked mid-flow) resumes to a killed read and a
+      // "type the two lines" message. That degrades gracefully; the reverse trade did not.
+      const OCR_HARD_TIMEOUT_MS = 150_000
+      const read = readMrz(img, engFn, {}, { budgetMs: OCR_BUDGET_MS }).finally(() => { if (timer) clearTimeout(timer) })
       void read.catch(() => {}) // a timeout-loser rejection must not become an unhandledrejection
       const result = await Promise.race([
         read,
-        new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error('ocr_timeout')), 45000) }),
+        new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error('ocr_timeout')), OCR_HARD_TIMEOUT_MS) }),
       ])
-      if (mrzDebug) pushDbg(`result ${result.ok ? 'OK ' + JSON.stringify(result.mrz.fields) : result.reason + ' pool=' + JSON.stringify(result.pool)}`)
+      // ⛔ WHICH FIELDS, NOT WHAT THEY SAY — same reason as the per-variant line above.
+      if (mrzDebug) {
+        pushDbg(result.ok
+          ? `result OK via ${result.variantIndex === -1 ? 'fusion' : `variant ${result.variantIndex}`} in ${result.attempts} calls; fields: ${Object.keys(result.mrz.fields).join(',') || 'none'}`
+          : `result ${result.reason} in ${result.attempts} calls; recovered: ${Object.keys(result.pool).join(',') || 'none'}; missing: ${result.missing.join(',') || 'none'}`)
+      }
       if (uploadId !== latestUploadRef.current || engineRef.current !== eng || docAttemptRef.current !== attemptRef.current) return
       // ⚠️ FILL EMPTY FIELDS ONLY — never discard a good read just because the user started typing during
       // the ~6MB warm-up, and never clobber what they typed. (The old early-return on userEdited stranded
@@ -233,8 +435,15 @@ export function VerifyClient() {
         const nameLess = (l1: string) => (l1.slice(0, 5) + '<'.repeat(44)).slice(0, 44)
         setMrzLine1((v) => v.trim() ? v : nameLess(result.lines[0]))
         setMrzLine2((v) => v.trim() ? v : result.lines[1])
-        if (f.surname) setSurname((v) => v.trim() ? v : f.surname!)
-        if (f.givenNames) setGivenNames((v) => v.trim() ? v : f.givenNames!)
+        // ⛔ FALL BACK TO THE POOLED LINE 1. A FUSED read carries no name by design, but the pool very
+        // often holds a perfectly good one — measured on the owner's phone: line 1 read correctly at 36
+        // characters, too short for `extractMrzLines`, so the whole capture fused and both name fields
+        // came up empty while the name sat unread in `pool.nameLine`. See namesFromNameLine.
+        const pooled = f.surname || f.givenNames ? {} : namesFromNameLine(result.pool.nameLine)
+        const surnameRead = f.surname ?? pooled.surname
+        const givenRead = f.givenNames ?? pooled.givenNames
+        if (surnameRead) setSurname((v) => v.trim() ? v : surnameRead)
+        if (givenRead) setGivenNames((v) => v.trim() ? v : givenRead)
         if (f.passportNumber) setDocumentNumber((v) => v.trim() ? v : f.passportNumber!)
         if (f.passportExpiryDate) setDocumentExpiry((v) => v ? v : f.passportExpiryDate!.slice(0, 10))
         setScan('ok')
@@ -242,14 +451,21 @@ export function VerifyClient() {
         // which is now required to submit. Without this the user saw "Read ✓" yet Send stayed disabled
         // with nothing explaining why (codex/fable, 2026-09-02). Tell them to type it; a read that DID
         // carry a name clears the hint.
-        setScanHint(!f.surname && !f.givenNames
+        setScanHint(!surnameRead && !givenRead
           ? { en: 'We read your passport number and dates — please type your name as printed on the passport to finish.',
               vi: 'Chúng tôi đã đọc số hộ chiếu và ngày tháng — vui lòng nhập họ tên như in trên hộ chiếu để hoàn tất.' }
           : null)
       } else if (userEditedRef.current) {
         setScan('idle') // the user is typing it themselves; don't nag with a scan error
       } else {
-        setScan('failed'); setScanHint(missingFieldsHint(result.missing, result.pool))
+        // ⚠️ NAME THE PHYSICAL CAUSE. `missingFieldsHint` only speaks when SOME field was recovered;
+        // when nothing was, `readFailureHint` is the copy that tells the seller what to physically do
+        // differently — "this is almost always glare, tilt the passport away from the light" for a
+        // found-but-unreadable band, "make sure the whole bottom edge is inside the frame" for a band
+        // we never found. It was written and unit-tested for exactly this moment and was never
+        // rendered, so every failed read fell through to a generic "type the two lines".
+        setScan('failed')
+        setScanHint(missingFieldsHint(result.missing, result.pool) ?? readFailureHint(result))
       }
     } catch (err) {
       if (mrzDebug) pushDbg('EXCEPTION ' + (err instanceof Error ? err.message : String(err)))
@@ -271,7 +487,16 @@ export function VerifyClient() {
   const start = useCallback(async (chosen: 'A' | 'B') => {
     attemptRef.current += 1 // a (re)started attempt — any in-flight decode from the prior one is now abandoned
     setTier(chosen)
+    setStarted(true)
+    // ⛔ NO GENERATION BUMP HERE, AND THE OMISSION IS THE POINT — codex and agy both caught the bump
+    // that used to be on this line cancelling the fix two rounds earlier. Picking a tier does NOT make
+    // an in-flight status read irrelevant: `pending` still means the submission at the end of all this
+    // work is guaranteed to be refused, which is exactly what the inline warning says. Dropping the
+    // reply here made `existingCase === 'pending' && started` UNREACHABLE, so the warning could never
+    // render and the seller photographed everything into the refusal anyway. The bump belongs only in
+    // resetAttempt, where the read really has been superseded.
     setError(null)
+    setTerminal(null)
     setStarting(true)
     // ⚠️ DROP ANY IN-FLIGHT PASSPORT SCAN when the tier (re)starts, and free the ~6MB worker. Tearing
     // the engine down makes an in-flight read throw (caught → no autofill); the next upload's id is
@@ -309,17 +534,28 @@ export function VerifyClient() {
 
   // Returns the flow to the tier-choice screen: clears the (now-burned) challenge and both uploaded
   // paths so a fresh attempt starts clean. Deliberately keeps `accepted` — the declaration was read.
-  const resetAttempt = useCallback(() => {
+  const resetAttempt = useCallback((opts: { refreshStatus?: boolean } = {}) => {
     attemptRef.current += 1 // abandon this attempt: a decode still in flight is now for a stale epoch
     // ⚠️ CLEARS EVERYTHING, so the "we cleared the form" copy is true and a restarted tier-A attempt
     // cannot carry stale tier-B MRZ text. `accepted` stays — the declaration was read, not undone.
     setChallenge(null); setTier(null); setDocumentPath(null); setSelfiePath(null)
     setSurname(''); setGivenNames(''); setDocumentNumber(''); setDocumentExpiry(''); setMrzLine1(''); setMrzLine2('')
     setScan('idle'); setScanHint(null)
+    setStarted(false) // back at the tier choice: the pre-flight panel is meaningful again
+    // ⛔ RE-ASK ONLY WHEN THE SELLER DELIBERATELY WENT BACK — never on a submit failure, and that
+    // distinction is a bug this line already caused once. Re-asking unconditionally was the fix for
+    // "Start over before the status reply lands leaves existingCase null forever" (codex + agy). But
+    // resetAttempt ALSO runs on every submit refusal, and there the reply lands a moment later, flips
+    // `showExistingPanel` back on, and UNMOUNTS the refusal the seller needs to read — resurrecting the
+    // masking bug two rounds of review had already closed, and hijacking "Try a different document"
+    // into the pre-flight panel as well (agy). The failure path clears `existingCase` and shows the
+    // reason; only the Start-over button asks again.
+    if (opts.refreshStatus) readStatus()
+    else statusGenRef.current += 1 // still invalidate: whatever is in flight predates this reset
     void engineRef.current?.terminate(); engineRef.current = null // free the worker; don't leave OCR running
     // No latestUploadRef reset needed: KycCapture's upload id is module-global and only increases, so
     // the next attempt's scan always has a higher id than any we've accepted here.
-  }, [])
+  }, [readStatus])
 
   // Step back through the wizard. ⚠️ Going back CLEARS the capture for the step you land on and every
   // step after it, so revisiting a step is always a clean re-capture and the flow can never submit a
@@ -373,12 +609,37 @@ export function VerifyClient() {
       // 403s — the reviewer's stranding path. Reset to the start instead: the next attempt issues a
       // fresh code and takes fresh photos. (The 60s issue cooldown is handled by `start`, which
       // shows "please wait a moment" on a 429.)
-      if (!r.ok || ((await r.clone().json().catch(() => ({}))) as { ok?: boolean }).ok === false) {
+      const body = (await r.clone().json().catch(() => ({}))) as { ok?: boolean; error?: string }
+      if (!r.ok || body.ok === false) {
+        // ⚠️ THE FORM IS CLEARED WHATEVER THE CODE, and that is mechanical, not editorial:
+        // `consumeChallenge` BURNS the code on every answer, so re-sending only ever hits
+        // `challenge_missing` and re-uploading 403s. What differs is what the seller is TOLD.
         resetAttempt()
-        setError(tr(
-          'That did not go through, so we cleared the form. Please choose how to verify and start again.',
-          'Chưa gửi được nên chúng tôi đã xóa biểu mẫu. Vui lòng chọn cách xác minh và bắt đầu lại.',
-        ))
+        // ⛔ AND THE PREFLIGHT IS NOW STALE. `existingCase` was read when the page loaded; a reply that
+        // landed while the seller worked would, the moment resetAttempt() clears the challenge, render
+        // its "you already have a verification, nothing to send again" panel OVER the refusal they
+        // actually need to read (fable). They have just submitted — whatever that read said, it is old.
+        setExistingCase(null)
+        // ⛔ THE BODY, NOT THE STATUS. A 429 from an edge or WAF never reached the route — the challenge
+        // was never consumed and no submission was counted — so declaring "you have used today's five
+        // attempts" would be a fabrication about a limit that did not fire (fable). Only the route's own
+        // `rate_limited` body means the daily cap; anything else falls to the generic message.
+        const code = body.error
+        // ⚠️ NOT a bare index: `SUBMIT_OUTCOMES['constructor']` returns a FUNCTION off the prototype
+        // whose `.en` is undefined, so a cleared form would show no message at all (fable).
+        // ⛔ AND NOT `Object.hasOwn`, WHICH IS ES2022 AND THROWS ON iOS SAFARI BELOW 15.4 — browsers
+        // that support modules, so no nomodule polyfill bundle rescues them (codex + fable). It would
+        // throw HERE, after resetAttempt() has burned the challenge and cleared the form, replacing
+        // the explanation this whole table exists to give with nothing at all.
+        const raw = code && Object.prototype.hasOwnProperty.call(SUBMIT_OUTCOMES, code) ? SUBMIT_OUTCOMES[code] : undefined
+        const outcome = raw && tier === 'A' && raw.enA && raw.viA ? { ...raw, en: raw.enA, vi: raw.viA } : raw
+        if (outcome?.terminal) { setTerminal(outcome); setError(null); return }
+        setError(outcome
+          ? (lang === 'vi' ? outcome.vi : outcome.en)
+          : tr(
+              'That did not go through, so we cleared the form. Please choose how to verify and start again.',
+              'Chưa gửi được nên chúng tôi đã xóa biểu mẫu. Vui lòng chọn cách xác minh và bắt đầu lại.',
+            ))
         return
       }
       setSubmitted(true)
@@ -387,7 +648,7 @@ export function VerifyClient() {
     } finally {
       setSubmitting(false)
     }
-  }, [tier, challenge, documentPath, selfiePath, surname, givenNames, documentNumber, documentExpiry, mrzLine1, mrzLine2, tr])
+  }, [tier, challenge, documentPath, selfiePath, surname, givenNames, documentNumber, documentExpiry, mrzLine1, mrzLine2, tr, lang, resetAttempt])
 
   // Same client gate every sibling section uses — a SERVER redirect here would race the session
   // restore and reproduce the signin↔dashboard bounce /dashboard/page.tsx warns about.
@@ -454,7 +715,7 @@ export function VerifyClient() {
       icon: <Camera className="size-4" />,
       label: tier === 'A' ? tr('CCCD photo', 'Ảnh CCCD') : tr('Passport photo', 'Ảnh hộ chiếu'),
     },
-    { key: 'selfie', icon: <User className="size-4" />, label: tr('Selfie with code', 'Ảnh chân dung cùng mã') },
+    { key: 'selfie', icon: <User className="size-4" />, label: tr('Selfie', 'Ảnh chân dung') },
     { key: 'details', icon: <Pencil className="size-4" />, label: tr('Check details', 'Kiểm tra thông tin') },
   ]
 
@@ -467,7 +728,10 @@ export function VerifyClient() {
   // user who hand-types garbage can't pass the client gate, hit the server's mrz_invalid refusal, and
   // burn the single-use challenge (fable, 2026-09-02) — plus the name, which the MRZ line 1 no longer
   // carries (so a nameless read cannot submit; the human-confirmed typed name is authoritative).
-  const mrzValid = tier === 'B' && !!mrzLine1.trim() && !!mrzLine2.trim() && parsePassportMrz(mrzLine1, mrzLine2).valid
+  // ⚠️ PARSED ONCE, because the per-field diagnosis below needs the SAME `checks` object the gate
+  // decides on — two calls would let the gate and the explanation disagree after an edit.
+  const mrzParsed = tier === 'B' && (mrzLine1.trim() || mrzLine2.trim()) ? parsePassportMrz(mrzLine1, mrzLine2) : null
+  const mrzValid = tier === 'B' && !!mrzLine1.trim() && !!mrzLine2.trim() && !!mrzParsed?.valid
   // ⚠️ AT LEAST ONE name part, NOT both. Many holders have a single legal name (a mononym) whose passport
   // carries no given name — requiring both permanently locked them out of submit (agy, 2026-09-02). This
   // still blocks a fully nameless read (both empty), which is the case that mattered.
@@ -475,6 +739,86 @@ export function VerifyClient() {
   const detailsIncomplete = tier === 'A'
     ? (!surname.trim() || !givenNames.trim() || !documentNumber.trim() || !documentExpiry)
     : (!mrzValid || nameMissing)
+
+  /**
+   * ⚠️ SAY WHICH LINE, OR WHICH CHECK DIGIT, IS WRONG. Hand-typing 88 characters of OCR-B off a
+   * passport on a phone WILL go wrong, and until now the only feedback was a Send button that stayed
+   * disabled — blind trial and error over 88 characters. Every one of these is derivable: a TD3 line
+   * is exactly 44 characters, and each field on line 2 carries its own mod-10 check digit, so the
+   * parser already knows precisely which seven-character group does not add up.
+   * ⛔ ALL FIVE CHECKS, not the three obvious ones (codex): `optionalData` and the trailing
+   * `composite` are check digits the parser validates too, and a mismatch in either is exactly the
+   * kind of typo — one character in the long filler run — a seller cannot find unaided.
+   * Built in JS: design-lint forbids a bare string literal in JSX.
+   */
+  // ⚠️ THE SAME NORMALISATION `parsePassportMrz` APPLIES INTERNALLY (`cleanLine` in lib/visa/mrz.ts:
+  // uppercase, strip whitespace, strip anything outside the MRZ alphabet) — VERIFIED, not assumed. Two
+  // reviewers have now filed "the diagnosis normalises but the gate parses raw, so a pasted lowercase
+  // line reads 44/44 with every check failing"; it does not, because the parser cleans first and the
+  // two are character-for-character identical. Keep them that way, or that finding becomes true.
+  const clean = (v: string) => v.toUpperCase().replace(/\s/g, '').replace(/[^A-Z0-9<]/g, '')
+  const mrzProblem: string | null = (() => {
+    if (tier !== 'B' || !mrzParsed || mrzParsed.valid) return null
+    const l1 = clean(mrzLine1), l2 = clean(mrzLine2)
+    const wrongLength = [l1.length !== 44 ? 1 : 0, l2.length !== 44 ? 2 : 0].filter(Boolean)
+    if (wrongLength.length > 0) {
+      const parts = wrongLength.map((n) => `${tr('line', 'dòng')} ${n}: ${n === 1 ? l1.length : l2.length}/44`)
+      return `${tr('Each line is exactly 44 characters', 'Mỗi dòng có đúng 44 ký tự')} — ${parts.join(', ')}.`
+    }
+    if (!l1.startsWith('P')) return tr('Line 1 of a passport starts with P.', 'Dòng 1 của hộ chiếu bắt đầu bằng chữ P.')
+    const names: Array<[keyof typeof mrzParsed.checks, string, string]> = [
+      ['passportNumber', 'the passport number', 'số hộ chiếu'],
+      ['dateOfBirth', 'the date of birth', 'ngày sinh'],
+      ['expiryDate', 'the expiry date', 'ngày hết hạn'],
+      ['optionalData', 'the characters after the expiry date', 'các ký tự sau ngày hết hạn'],
+      ['composite', 'the very last character of line 2', 'ký tự cuối cùng của dòng 2'],
+    ]
+    const bad = names.filter(([k]) => !mrzParsed.checks[k]).map(([, en, vi]) => tr(en, vi))
+    // ⛔ NEVER null WITH AN INVALID MRZ. Every path above should have named something, but if the
+    // parser ever refuses a line for a reason none of them covers, silence here is a dead Send button
+    // with no explanation — the exact failure this whole block exists to end (fable).
+    if (bad.length === 0) {
+      return tr(
+        "These two lines don't match what is printed on your passport yet — please check them character by character.",
+        'Hai dòng này chưa khớp với thông tin in trên hộ chiếu — vui lòng kiểm tra từng ký tự.',
+      )
+    }
+    const joined = bad.length <= 1 ? bad[0] : `${bad.slice(0, -1).join(', ')}${tr(' and ', ' và ')}${bad[bad.length - 1]}`
+    return `${tr("This doesn't add up yet — check", 'Chưa khớp — hãy kiểm tra')} ${joined}.`
+  })()
+
+  // Which required field is still empty — the sentence form of `detailsIncomplete`, so the disabled
+  // Send button is never a mystery. Built in JS: design-lint forbids a bare string literal in JSX.
+  const sendBlockedReason: string | null = (() => {
+    if (!tier || !detailsIncomplete) return null
+    const bits: string[] = []
+    if (tier === 'A') {
+      // ⚠️ NAMED SEPARATELY. Tier A requires BOTH parts, so "your name" leaves a seller who filled one
+      // of the two staring at a disabled button with a sentence that looks already satisfied (codex).
+      if (!surname.trim()) bits.push(tr('your surname', 'họ của bạn'))
+      if (!givenNames.trim()) bits.push(tr('your given names', 'tên của bạn'))
+      if (!documentNumber.trim()) bits.push(tr('your CCCD number', 'số CCCD của bạn'))
+      if (!documentExpiry) bits.push(tr('the expiry date', 'ngày hết hạn'))
+    } else {
+      if (nameMissing) bits.push(tr('your name as printed on the passport', 'họ tên như in trên hộ chiếu'))
+      if (!mrzValid) bits.push(tr('the two machine-readable lines below', 'hai dòng mã máy đọc bên dưới'))
+    }
+    if (bits.length === 0) return null
+    const joined = bits.length <= 1
+      ? bits[0]
+      : `${bits.slice(0, -1).join(', ')}${tr(' and ', ' và ')}${bits[bits.length - 1]}`
+    return `${tr('To send this we still need', 'Để gửi được, chúng tôi vẫn cần')} ${joined}.`
+  })()
+
+  /**
+   * ⛔ ONE BOOLEAN DECIDES BOTH, AND THAT IS THE WHOLE POINT. All three reviewers independently found
+   * the same dead end in the previous shape: the declaration and tier picker hid on `existingCase`
+   * while the panel that replaces them hid on `started`, so a status reply landing AFTER the seller
+   * picked a tier — then a 429 on the challenge, or "Start over" — left both sides hidden and nothing
+   * at all rendered below the header. Two conditions that must be exact complements cannot be written
+   * twice; they are written once here and negated at the other site.
+   */
+  const showExistingPanel = !!existingCase && !challenge && !submitted && !terminal && !started
 
   // The rate-limit countdown line (static tr() parts + the live number interpolated in JS).
   const retryMsg = retrySecs > 0
@@ -524,7 +868,7 @@ export function VerifyClient() {
           and a toll. */}
       {/* INTRO ONLY — the declaration + tier choice show until a tier is picked; then the flow
           becomes a one-step-at-a-time wizard (owner, 2026-09-02) and this is out of the way. */}
-      {(!challenge || !tier) && !submitted && (
+      {(!challenge || !tier) && !submitted && !terminal && !showExistingPanel && (
       <section className="rounded-2xl border border-border bg-card p-5 space-y-4">
         <h2 className="h-section text-foreground">{tr('Your declaration', 'Cam đoan của bạn')}</h2>
         {/* whitespace-pre-line: the text is authored as numbered lines and must render that way. */}
@@ -552,7 +896,7 @@ export function VerifyClient() {
           it — so it announces nothing while looking like an accessibility affordance. The real
           signal is on the buttons, which carry a genuine `disabled`. */}
       <section className="space-y-3">
-        {(!challenge || !tier) && !submitted && (<>
+        {(!challenge || !tier) && !submitted && !terminal && !showExistingPanel && (<>
         <h2 className="h-section text-foreground">{tr('Choose how to verify', 'Chọn cách xác minh')}</h2>
 
         {/* ⚠️ DISABLED, NOT HIDDEN. Hiding the options until the box is ticked leaves the page
@@ -596,6 +940,20 @@ export function VerifyClient() {
         </div>
         </>)}
 
+        {/* ⛔ THE LATE ANSWER, SHOWN RATHER THAN SWALLOWED — see the note on `started`. It sits ABOVE
+            the wizard and never replaces it: the seller keeps every control they had, and simply learns
+            before the photographs that this submission cannot be accepted (codex). */}
+        {existingCase === 'pending' && started && !submitted && !terminal && (
+          <Alert>
+            <AlertDescription>
+              {tr(
+                'Heads up: you already have a verification in review, so sending another one will be refused. We will email you the result of the first.',
+                'Lưu ý: bạn đã có một hồ sơ xác minh đang được xét duyệt, nên gửi thêm hồ sơ sẽ bị từ chối. Chúng tôi sẽ gửi email kết quả của hồ sơ đầu tiên.',
+              )}
+            </AlertDescription>
+          </Alert>
+        )}
+
         {error && <p role="alert" className="text-sm font-semibold text-destructive">{error}</p>}
 
         {/* Live rate-limit countdown — exact seconds left, not a vague "try later" (owner). Ticks via
@@ -605,7 +963,71 @@ export function VerifyClient() {
           <p role="status" aria-live="polite" className="text-sm font-semibold text-destructive">{retryMsg}</p>
         )}
 
-        {submitted ? (
+        {showExistingPanel ? (
+          // ⚠️ READ BEFORE ANY WORK STARTS — see the note on `existingCase`. The two states DIFFER, and
+          // an earlier version of this comment claimed both were dismissible when only one is (fable):
+          //  · `verified` IS dismissible — that seller may be here precisely because they renewed the
+          //    passport the record was built on, and the route will accept the new document.
+          //  · `pending` is NOT, because the route refuses a second pending case outright; a "do it
+          //    anyway" button would walk them through both photographs to a certain refusal.
+          // ⚠️ Which is correct only while /status reports `pending` exactly when the submit route
+          // answers `already_pending`. Both read the same table today — deriveVerification returns
+          // pending iff a pending row exists — so they agree by construction. If that route ever grows
+          // a state the submit path does not treat as blocking, this stops being a warning and becomes
+          // a lock, and it will be silent: "fails open" covers errors, not wrong well-formed answers.
+          <div className="space-y-3">
+            <Alert>
+              <AlertDescription>
+                {existingCase === 'pending'
+                  ? tr(
+                      'You already have a verification with us and a reviewer is looking at it. There is nothing to send again — we will email you the result, usually within a working day.',
+                      'Bạn đã có một hồ sơ xác minh và nhân viên của chúng tôi đang xem xét. Bạn không cần gửi lại — chúng tôi sẽ gửi email kết quả, thường trong một ngày làm việc.',
+                    )
+                  : tr(
+                      'Your identity is already verified. You only need to do this again if your document has been renewed or replaced.',
+                      'Danh tính của bạn đã được xác minh. Bạn chỉ cần làm lại nếu giấy tờ đã được gia hạn hoặc thay mới.',
+                    )}
+              </AlertDescription>
+            </Alert>
+            {/* ⛔ NO "DO IT ANYWAY" UNDER `pending`. The route refuses a second pending case outright,
+                so that button would walk the seller through both photographs to a refusal that was
+                certain before they started — and cost them one of five daily submissions doing it
+                (codex). `verified` is different: there IS no pending row, so a renewed document is a
+                submission the route will genuinely accept. */}
+            {existingCase === 'verified' ? (
+              <Button type="button" variant="outline" size="sm" onClick={() => setExistingCase(null)}>
+                {tr('Verify a renewed document', 'Xác minh giấy tờ đã gia hạn')}
+              </Button>
+            ) : (
+              <Button type="button" variant="outline" size="sm" onClick={() => router.push('/dashboard/verification')}>
+                {tr('Back to verification', 'Quay lại phần xác minh')}
+              </Button>
+            )}
+          </div>
+        ) : terminal ? (
+          // ⛔ INSTEAD OF THE TIER PICKER, not beside it. The whole point is that the next thing on
+          // screen must not be an invitation to do the thing that just failed for a reason a retake
+          // cannot change. "Try a different way" is still offered, because a rejected document can be
+          // replaced (a renewed passport) and a duplicate can be resolved — just not right now.
+          <div className="space-y-3">
+            <Alert>
+              <AlertDescription>{lang === 'vi' ? terminal.vi : terminal.en}</AlertDescription>
+            </Alert>
+            {/* ⚠️ THE ACTION FOLLOWS THE OUTCOME. Offering "back to verification options" under
+                `already_pending` or `rate_limited` invites exactly the restart the sentence above it
+                just called pointless (codex) — so those two send the seller OUT, to the hub, and only
+                the outcomes a different document or a later day can change offer a way back in. */}
+            {terminal.resumable ? (
+              <Button type="button" variant="outline" size="sm" onClick={() => setTerminal(null)}>
+                {tr('Try a different document', 'Thử giấy tờ khác')}
+              </Button>
+            ) : (
+              <Button type="button" variant="outline" size="sm" onClick={() => router.push('/dashboard/verification')}>
+                {tr('Back to verification', 'Quay lại phần xác minh')}
+              </Button>
+            )}
+          </div>
+        ) : submitted ? (
           <Alert>
             <AlertDescription>
               {tr(
@@ -661,16 +1083,6 @@ export function VerifyClient() {
                     ? tr('The side with your photo. Line it up inside the frame.', 'Mặt có ảnh của bạn. Căn thẻ vào trong khung.')
                     : tr('The page with your photo and the two lines of code at the bottom. Line it up inside the frame.', 'Trang có ảnh của bạn và hai dòng mã ở dưới cùng. Căn trang vào trong khung.')}
                 </p>
-                {/* ⚠️ SURFACE THE CODE FROM STEP 1. The challenge is time-limited (~10 min from when the
-                    tier was chosen), and the selfie step needs it WRITTEN on paper. Showing it only at
-                    step 2 let a slow user burn the window on the document and reach the selfie with an
-                    expired code (codex). Here they can write it down while doing the document photo. */}
-                <div className="mt-3 rounded-xl border border-border bg-tint px-3 py-2">
-                  <p className="text-xs font-medium text-muted-foreground">
-                    {tr('Write this code on paper now — you will hold it in the selfie:', 'Viết mã này ra giấy ngay — bạn sẽ cầm nó trong ảnh chân dung:')}
-                  </p>
-                  <p className="mt-0.5 font-mono text-xl font-bold tracking-[0.3em] text-foreground">{challenge.code}</p>
-                </div>
                 <KycCapture
                   // ⚠️ key={tier}: remount on a tier switch so a CCCD shot cannot linger and re-fire
                   // the OCR effect, and a passport shot cannot carry into a tier-A attempt.
@@ -688,15 +1100,18 @@ export function VerifyClient() {
             {/* ── STEP 2: selfie — the code shown large AND overlaid beside the face in the camera ── */}
             {wizardStep === 'selfie' && (
               <div>
-                <h3 className="font-bold text-foreground">{tr('Take a selfie with your code', 'Chụp ảnh chân dung cùng mã')}</h3>
-                {/* ⛔ THE CODE IS THE WHOLE ANTI-FRAUD MECHANISM: a stolen document photo cannot produce
-                    a LIVE selfie of its owner holding TODAY's code. Shown here to write down, and
-                    overlaid in the live view so the framing is obvious. */}
+                <h3 className="font-bold text-foreground">{tr('Take a selfie', 'Chụp ảnh chân dung')}</h3>
+                {/* ⛔ THE PAPER CODE IS GONE (owner, 2026-09-04) and with it the step's whole former
+                    argument: a stolen document photo could not produce a LIVE selfie of its owner
+                    holding TODAY's code, and now nothing ties the selfie to a moment. What remains is
+                    what a reviewer can still do by eye — compare this face against the passport
+                    photograph. ⚠️ The challenge itself is STILL ISSUED: it is the consent receipt, and
+                    `/api/seller/identity/documents` refuses an upload without a live one. It is simply
+                    no longer shown to anyone. */}
                 <p className="mt-1 text-sm text-body">
-                  {tr('Write this code on paper and hold it beside your face. It is valid for only a few minutes.', 'Viết mã này ra giấy và cầm cạnh khuôn mặt. Mã chỉ có hiệu lực trong vài phút.')}
+                  {tr('Look straight at the camera with your face inside the oval, in good light.', 'Nhìn thẳng vào máy ảnh, đưa khuôn mặt vào khung oval, nơi đủ sáng.')}
                 </p>
-                <p className="mt-2 font-mono text-3xl font-bold tracking-[0.3em] text-foreground">{challenge.code}</p>
-                <KycCapture kind="selfie" guide="selfie" code={challenge.code} alt={tr('Your selfie with the code', 'Ảnh chân dung của bạn cùng mã')} onUploaded={onSelfieUploaded} className="mt-3" />
+                <KycCapture kind="selfie" guide="selfie" alt={tr('Your selfie', 'Ảnh chân dung của bạn')} onUploaded={onSelfieUploaded} className="mt-3" />
               </div>
             )}
 
@@ -768,9 +1183,25 @@ export function VerifyClient() {
                   )}
                   <Input value={mrzLine1} onChange={(e) => { setMrzLine1(e.target.value); markEdited() }} placeholder="P<VNMNGUYEN<<VAN<A<<<<<<<<<<<<<<<<<<<<<<<<<<" className="font-mono" />
                   <Input value={mrzLine2} onChange={(e) => { setMrzLine2(e.target.value); markEdited() }} placeholder="C12345678VNM9001011M3001011<<<<<<<<<<<<<<04" className="font-mono" />
+                  {/* Live diagnosis of a typed/edited MRZ — see mrzProblem. role=status, not alert:
+                      it changes on every keystroke and must not interrupt a screen reader mid-word. */}
+                  {mrzProblem && (
+                    <p role="status" aria-live="polite" className="text-xs font-medium text-destructive">{mrzProblem}</p>
+                  )}
+                  {mrzValid && (
+                    <p role="status" className="text-xs font-medium text-success">{tr('Both lines check out.', 'Hai dòng đã khớp.')}</p>
+                  )}
                 </div>
               )}
             </div>
+            )}
+
+            {/* ⛔ NAME WHAT IS STILL MISSING. `detailsIncomplete` disables Send, and a disabled button
+                explains nothing — a seller whose scan came back name-less (a fused MRZ is deliberately
+                name-less) saw "Read ✓" and a dead Send with no connection between them (codex). This is
+                the same predicate the button uses, rendered as a sentence. */}
+            {wizardStep === 'details' && sendBlockedReason && (
+              <p role="status" aria-live="polite" className="text-xs font-medium text-muted-foreground">{sendBlockedReason}</p>
             )}
 
             {/* ⛔ ALWAYS AN ESCAPE HATCH. The challenge is single-use and time-limited: if it expires
@@ -781,7 +1212,7 @@ export function VerifyClient() {
                 below the step body and above the (mobile) action bar / (desktop) inline submit. */}
             <button
               type="button"
-              onClick={resetAttempt}
+              onClick={() => resetAttempt({ refreshStatus: true })}
               disabled={submitting}
               className="mx-auto mt-5 block text-xs font-semibold text-muted-foreground underline underline-offset-2 disabled:opacity-50"
             >
@@ -807,8 +1238,8 @@ export function VerifyClient() {
         )}
       </p>
       </div>
-      {/* Shows ONLY after a capture produced trace data, so a real seller sees nothing until they
-          capture — then a brief technical trace (their own data). TEMP; revert with mrzDebug. */}
+      {/* Diagnostic only — gated on ?mrzdebug=1 / #mrzdebug, and shown only once a capture has produced
+          trace data. A real seller never sees this. */}
       {mrzDebug && tier === 'B' && dbg.length > 0 && (
         // pointer-events-none so it never blocks the buttons underneath; flex-col justify-end pins the
         // newest lines (the result) to the bottom, visible even if the trace overflows.

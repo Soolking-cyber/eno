@@ -1,4 +1,5 @@
 import { parsePassportMrz, type PassportMrzResult } from './mrz'
+import { findMrzBand } from './mrz-band'
 
 // ── Local (on-device) passport MRZ reading ──────────────────────────────────────────────────────
 //
@@ -52,6 +53,25 @@ export const TD3_LINE_LENGTH = 44
  * typefaces. The band is generous (bottom 30%) so a sloppily-framed photo still contains it.
  */
 export const MRZ_BAND = { top: 0.70, left: 0.0, width: 1.0, height: 0.30 } as const
+
+/**
+ * ⛔ MRZ_BAND ALONE IS ONLY CORRECT FOR A STILL ALREADY CROPPED TO THE DATA PAGE — which is what the
+ * live camera produces (capture() crops to the on-screen guide frame) and what NOTHING ELSE does.
+ * Every seller who reaches the file picker instead — an iOS/Android in-app webview (Zalo, Facebook,
+ * Instagram: a large share of Vietnamese mobile traffic) where getUserMedia never grants, a
+ * remembered permission denial, a desktop with no camera, or the always-present "Camera not working?
+ * Upload instead" button — hands us a WHOLE PHOTO with the passport somewhere inside it. A fixed
+ * bottom-30% band then reads the desk, `no_mrz_found` every time, and the only way forward is typing
+ * 88 characters of OCR-B on a phone. These two widen the search for exactly that case.
+ */
+/** The bottom half-and-a-bit: a passport photographed on a table has its MRZ in here. Cheap, and the
+ *  single highest-yield fallback (agy: prefer it over the heuristic locator). */
+const WIDE_BAND = { top: 0.45, left: 0.0, width: 1.0, height: 0.55 } as const
+/** Last resort — the whole image. One variant only; it is the slowest crop by a wide margin. */
+const FULL_BAND = { top: 0.0, left: 0.0, width: 1.0, height: 1.0 } as const
+
+/** The most any single OCR call can charge against the budget — see the clamp in readMrz. */
+const MAX_PLAUSIBLE_CALL_MS = 20_000
 
 /**
  * Preprocessing variants, in the order they are tried.
@@ -233,6 +253,34 @@ export function mergeMrzPool(pool: MrzFieldPool, next: MrzFieldPool): MrzFieldPo
   return out
 }
 
+/**
+ * Read the holder's name out of a pooled TD3 line 1.
+ *
+ * ⛔ WHY THIS EXISTS, measured on the owner's own phone (2026-09-04). The OCR read line 1 perfectly —
+ * `P<TKMBABAKULYYEV<<SHANAZARK<<<<<<<<<` — and the form's Surname and Given names came up EMPTY. Two
+ * correct decisions combined into a wrong outcome: `extractMrzLines` requires 42–46 characters and
+ * that line is 36 (the engine stops reading at the last glyph and never emits the trailing filler), so
+ * no direct pair was found; the read then fell to fusion, and a fused MRZ is deliberately NAME-LESS so
+ * OCR garbage can never overwrite a confirmed name. The name was sitting in `pool.nameLine` the whole
+ * time with nothing to read it out.
+ *
+ * ⚠️ THIS DOES NOT PUT THE NAME BACK INTO THE MRZ, and that distinction is the whole safety argument.
+ * The synthesized line 1 stays name-less, so the server still derives identity only from check-digit-
+ * validated fields. This name is a PRE-FILL for the two typed inputs the seller confirms — the same
+ * status as `f.surname` from a direct read, and equally overwritable by them.
+ */
+export function namesFromNameLine(nameLine: string | undefined): { surname?: string; givenNames?: string } {
+  if (!nameLine || !nameLine.startsWith('P') || nameLine.length < 6) return {}
+  // TD3 uses `<<` ONCE, between surname and given names; everything after is single-`<` filler. So the
+  // first group is the surname and the second holds all given names — later groups are filler and the
+  // OCR misreads that land in it (this capture's trailing `K` for a `<` is exactly that).
+  const parts = nameLine.slice(5).split('<<')
+  const tidy = (v: string) => v.replace(/</g, ' ').replace(/\s+/g, ' ').trim()
+  const surname = tidy(parts[0] ?? '')
+  const givenNames = tidy(parts[1] ?? '')
+  return { ...(surname ? { surname } : {}), ...(givenNames ? { givenNames } : {}) }
+}
+
 /** Assemble a canonical, fully check-valid TD3 MRZ from a complete pool, or null if a field is missing.
  *  Optional data is FILLER (we don't collect the personal-number field — it is not identity data) and
  *  the composite is freshly computed, so parsePassportMrz validates every check digit. */
@@ -269,7 +317,36 @@ export function poolToMrzLines(pool: MrzFieldPool): [string, string] | null {
  * ⚠️ It also means a PASS is strong evidence the read was CORRECT — and no evidence at all that the
  * document is GENUINE. See the trust-boundary note at the top of this file.
  */
-export async function readMrz(image: ImageLike, engine: OcrEngine, priorPool: MrzFieldPool = {}): Promise<MrzReadResult> {
+export type MrzReadOptions = {
+  /**
+   * ⚠️ CUMULATIVE OCR TIME, NOT WALL CLOCK — and the difference is not pedantry. iOS Safari SUSPENDS
+   * a backgrounded tab and Android may freeze it, so a wall-clock budget spends itself while nothing
+   * is running and aborts the sweep the moment the seller comes back to the page (fable). Summing
+   * the time actually spent inside `engine()` calls measures the thing the budget is protecting
+   * against — a phone grinding through WASM beside a live camera — and nothing else.
+   *
+   * ⚠️ It is ONE OF TWO COORDINATED DEADLINES. The caller also races this promise against a hard
+   * timeout, and codex caught the trap of moving only one of them. This budget is the one that
+   * SHAPES the read (it stops starting new work and returns what was salvaged); the caller's race is
+   * a hang guard for a single call that never returns at all.
+   */
+  budgetMs?: number
+  /** Injectable clock, so the budget is testable without real time passing. */
+  now?: () => number
+}
+
+/** One crop rectangle × the VARIANTS (by index) to sweep over it. */
+type Pass = { crop: OcrOptions['crop']; variants: number[] }
+
+export async function readMrz(
+  image: ImageLike,
+  engine: OcrEngine,
+  priorPool: MrzFieldPool = {},
+  options: MrzReadOptions = {},
+): Promise<MrzReadResult> {
+  const budgetMs = options.budgetMs ?? 40_000
+  const now = options.now ?? (() => Date.now())
+  let spentMs = 0 // time inside engine() only — see MrzReadOptions.budgetMs
   let attempts = 0
   let best: PassportMrzResult | undefined
   let sawAnyLines = false
@@ -278,45 +355,144 @@ export async function readMrz(image: ImageLike, engine: OcrEngine, priorPool: Mr
   // finds no pair), yet the union of variants usually contains a check-valid reading of every field.
   const rawTexts: string[] = []
 
-  for (let i = 0; i < VARIANTS.length; i++) {
-    attempts++
-    let raw: string
-    try {
-      raw = await engine(image, { charset: MRZ_CHARSET, crop: { ...MRZ_BAND }, ...VARIANTS[i] })
-    } catch {
-      // ⚠️ A THROWING VARIANT MUST NOT ABORT THE SWEEP. One preprocessing setting failing (a wasm
-      // hiccup, an out-of-memory upscale on a low-end phone) is not a reason to give up on the
-      // three that might have worked.
-      continue
-    }
-    rawTexts.push(raw)
-    const lines = extractMrzLines(raw)
-    if (!lines) continue
-    sawAnyLines = true
-    const mrz = parsePassportMrz(lines[0], lines[1])
-    // Even a fully-valid single variant merges into the pool (harmless) so the caller's pool stays current.
-    if (mrz.valid) return { ok: true, mrz, lines, variantIndex: i, attempts, pool: mergeMrzPool(priorPool, extractMrzFields(rawTexts)) }
-    // Keep the most complete near-miss so the UI can say WHICH field failed rather than "try again".
-    if (!best || countPassed(mrz) > countPassed(best)) best = mrz
-  }
+  // ⚠️ PASS ORDER IS LOAD-BEARING, AND IT IS NOT "MOST CLEVER FIRST".
+  //  · The TIGHT BAND pass is exactly what shipped before this file grew passes at all: MRZ_BAND, all
+  //    four variants. It is right for a still already cropped to the data page — which is what the
+  //    live camera produces and what the overwhelming majority of reads are.
+  //  · The WIDE band is the cheap, dumb bottom-half crop. agy: prefer it over the heuristic, because
+  //    a passport lying on a table has its MRZ in the bottom half far more reliably than any row
+  //    profile can prove where the MRZ is.
+  //  · The LOCATED band earns its place on the images no fixed band can frame — a small or off-centre
+  //    passport in a big photo. Two variants only: a wrong guess must not starve the passes after it.
+  //  · The FULL image is last and gets one variant, because it is by far the slowest crop.
+  //
+  // ⛔ AND THE ORDER IS DECIDED BY THE IMAGE, NOT HARD-CODED. Running the tight band first on a
+  // picked FILE burns four calls on a band that cannot contain the MRZ, and on a slow phone that is
+  // most of the budget before anything useful is tried (fable). The locator answers exactly the
+  // question that settles it: a band low in the frame and nearly full width means this image already
+  // IS a cropped data page, so the tight band goes first as before; a band that is small, high, or
+  // narrow means the passport is somewhere inside a bigger photo, so we start where it actually is.
+  const located = findMrzBand(image)
+  // ⚠️ ONE SIGNAL, AND IT IS THE ONE THAT ACTUALLY ANSWERS THE QUESTION: "would the tight band CONTAIN
+  // the band the locator found?" Derived from MRZ_BAND rather than hard-coded, so the two cannot drift;
+  // the small slack absorbs the locator's own padding, which pushes its `top` above the ink it found.
+  //
+  // ⛔ AN EARLIER DRAFT ALSO CONSULTED THE IMAGE'S ASPECT RATIO — a guide crop is 1.42 by construction
+  // (DOC_ASPECT.passport in kyc-capture), a phone photo is not — as a second guarantee for the camera
+  // path. It was removed for two reasons, and both are worth keeping written down. A window wide enough
+  // to cover 1.42 also covers 4:3 (1.333), which is what MOST PICKED FILES ARE, so it sent exactly the
+  // cohort this work exists for straight back to the band that cannot read them. And where it disagreed
+  // with the locator it was simply WRONG: a 1.42 still whose located band starts high is a LOOSE guide
+  // crop — precisely the case where the tight band clips line 1 and the located pass must lead.
+  //
+  // ⚠️ NO LOCATED BAND → TODAY'S ORDER, UNCHANGED. A locator that found nothing has told us nothing,
+  // and an image with no findable band probably has no readable MRZ at all; the wide and full passes
+  // still run behind the tight one, so that case is not abandoned, just not reordered on a guess.
+  // ⚠️ AND A WIDTH TERM, WHICH IS NOT THE ONE FABLE REFUTED. Its objection was that width says nothing
+  // about VERTICAL CONTAINMENT, and that is right — this is a different question. A small passport low
+  // in a big photo can have its band inside the tight crop and STILL need the located one, because the
+  // horizontal crop is what buys MRZ pixels: OCR the full width and the glyphs downscale to nothing
+  // (codex, fable). So the tight band leads only when the located band is both inside it AND already
+  // nearly full-width — i.e. when leading with the located crop would buy nothing.
+  const looksPreCropped = !located || (located.top >= MRZ_BAND.top - 0.02 && located.width >= 0.75)
+  // ⚠️ DERIVED, never a literal list — a fifth VARIANTS entry would otherwise silently drop out of
+  // the one pass that is meant to sweep all of them (fable).
+  const tight: Pass = { crop: { ...MRZ_BAND }, variants: VARIANTS.map((_, i) => i) }
+  const wide: Pass = { crop: { ...WIDE_BAND }, variants: [0, 1] }
+  const full: Pass = { crop: { ...FULL_BAND }, variants: [0] }
+  const passes: Pass[] = looksPreCropped
+    ? [tight, wide, ...(located ? [{ crop: located, variants: [0, 1] }] : []), full]
+    // ⚠️ TIGHT SECOND, NOT THIRD. If the locator was right, its two calls read the MRZ and nothing
+    // else runs. If it was WRONG about a camera still, the band that would have worked is two calls
+    // behind instead of four — which halves the cost of the one misjudgement that matters (codex).
+    : [{ crop: located!, variants: [0, 1] }, tight, wide, full] // !located ⇒ looksPreCropped, above
 
-  // MULTI-FRAME FUSION: merge this capture's check-valid fields into the caller's accumulated pool, then
-  // try to assemble a complete, valid MRZ. This is what rescues a frame missing one field — an earlier
-  // (or later) frame supplied it. A single capture with all fields present validates on its own here.
-  const pool = mergeMrzPool(priorPool, extractMrzFields(rawTexts))
-  const assembled = poolToMrzLines(pool)
-  if (assembled) {
+  /** Fuse everything read so far and return it if it assembles into a check-valid MRZ. */
+  const fuse = (): MrzReadResult | null => {
+    const pool = mergeMrzPool(priorPool, extractMrzFields(rawTexts))
+    const assembled = poolToMrzLines(pool)
+    if (!assembled) return null
     const mrz = parsePassportMrz(assembled[0], assembled[1])
-    if (mrz.valid) return { ok: true, mrz, lines: assembled, variantIndex: -1, attempts, pool } // -1 = salvaged/fused
+    return mrz.valid ? { ok: true, mrz, lines: assembled, variantIndex: -1, attempts, pool } : null // -1 = salvaged/fused
   }
-  // Which identity fields are still missing — the UI turns this into "hold steady and capture again;
-  // we still need the passport-number line", which makes a retake productive instead of a blind retry.
-  const missing = (['passportNumber', 'dateOfBirth', 'expiry'] as const).filter((k) => !pool[k])
-  if (pool.passportNumber || pool.dateOfBirth || pool.expiry) sawAnyLines = true // we recovered SOME field
 
-  return sawAnyLines
-    ? { ok: false, reason: 'checksums_failed', attempts, best, pool, missing }
-    : { ok: false, reason: 'no_mrz_found', attempts, pool, missing }
+  /** Everything salvaged — fused into a valid MRZ if it assembles, otherwise the failure. */
+  const finish = (): MrzReadResult => {
+    // ⛔ FUSE HERE TOO. `finish()` is reached on BUDGET EXHAUSTION as well as at the end of the sweep,
+    // and budget exhaustion lands MID-PASS — after the boundary fuse that would have caught it. Without
+    // this the read throws away a complete, check-valid pool and tells the seller to type 88 characters
+    // (agy). It is the same call the pass boundary makes; it just can no longer be skipped.
+    const early = fuse()
+    if (early) return early
+    // MULTI-FRAME FUSION: merge this capture's check-valid fields into the caller's accumulated pool.
+    // This is what rescues a frame missing one field — an earlier (or later) frame supplied it.
+    const pool = mergeMrzPool(priorPool, extractMrzFields(rawTexts))
+    // Which identity fields are still missing — the UI turns this into "hold steady and capture again;
+    // we still need the passport-number line", which makes a retake productive instead of a blind retry.
+    const missing = (['passportNumber', 'dateOfBirth', 'expiry'] as const).filter((k) => !pool[k])
+    const recovered = sawAnyLines || !!(pool.passportNumber || pool.dateOfBirth || pool.expiry)
+    return recovered
+      ? { ok: false, reason: 'checksums_failed', attempts, best, pool, missing }
+      : { ok: false, reason: 'no_mrz_found', attempts, pool, missing }
+  }
+
+  // ⛔ THE TIGHT BAND IS EXEMPT FROM THE BUDGET ENTIRELY — not merely guaranteed its first variant.
+  // That pass IS the pre-existing behaviour: four variants of the bottom-30% crop, which is what reads
+  // today's camera captures and what ran unconditionally before this file learned about passes. The
+  // budget exists to bound the passes ADDED around it, so letting it cut the original sweep short gets
+  // the priority exactly backwards — a slow phone whose capture only variant 2 can read would newly
+  // FAIL where it used to succeed (codex). Reserving just variant 0 left that regression open.
+  for (const pass of passes) {
+    const isTight = pass === tight
+    for (const vi of pass.variants) {
+      // Out of budget → stop STARTING work and fall through to whatever was salvaged.
+      if (spentMs >= budgetMs && !isTight) return finish()
+      attempts++
+      let raw: string
+      const callStartedAt = now()
+      // ⚠️ CLAMPED PER CALL, AND THE CLAMP IS A DELIBERATE TRADE. Even measuring one call's duration
+      // can catch a SUSPENSION — the tab is backgrounded mid-WASM and resumes minutes later — and an
+      // unclamped reading would then spend the entire budget on a call that took two seconds of CPU
+      // (codex). The cost is the mirror case: a genuine call SLOWER than the clamp is undercharged, so
+      // a very slow phone can exceed the nominal budget in real seconds. That is the right way round —
+      // the caller's hang guard still bounds it, and undercharging a slow device buys it more reads,
+      // while overcharging a suspended one would cut a read that was going fine.
+      const charge = () => { spentMs += Math.min(now() - callStartedAt, MAX_PLAUSIBLE_CALL_MS) }
+      try {
+        raw = await engine(image, { charset: MRZ_CHARSET, crop: pass.crop, ...VARIANTS[vi] })
+        charge()
+      } catch {
+        charge() // a variant that OOMs still cost the phone the time it took
+        // ⚠️ A THROWING VARIANT MUST NOT ABORT THE SWEEP. One preprocessing setting failing (a wasm
+        // hiccup, an out-of-memory upscale on a low-end phone) is not a reason to give up on the
+        // three that might have worked.
+        continue
+      }
+      rawTexts.push(raw)
+      const lines = extractMrzLines(raw)
+      if (!lines) continue
+      sawAnyLines = true
+      const mrz = parsePassportMrz(lines[0], lines[1])
+      // Even a fully-valid single variant merges into the pool (harmless) so the caller's pool stays current.
+      if (mrz.valid) return { ok: true, mrz, lines, variantIndex: vi, attempts, pool: mergeMrzPool(priorPool, extractMrzFields(rawTexts)) }
+      // Keep the most complete near-miss so the UI can say WHICH field failed rather than "try again".
+      if (!best || countPassed(mrz) > countPassed(best)) best = mrz
+    }
+    // ⛔ FUSE BETWEEN PASSES, NEVER MID-PASS — and this ordering is a defect codex and agy BOTH
+    // caught in the plan. A fused MRZ is deliberately NAME-LESS (see poolToMrzLines), so checking it
+    // after every OCR call would hand back a name-less result as soon as two variants agreed on the
+    // number, pre-empting the third variant that would have read line 1 cleanly and given the seller
+    // their name pre-filled. Fusing only at a pass boundary keeps the direct, name-carrying read
+    // strictly preferred — pass A still fuses at exactly the point the old code did.
+    // ⚠️ IT DOES STOP THE SWEEP, AND THAT IS THE INTENDED TRADE. fable: a later pass might have read
+    // line 1 in full and supplied the name this fused result lacks. It might — for another two to five
+    // OCR calls, which is eight to forty seconds on a phone, to spare the seller typing a name they
+    // are asked to confirm anyway (and which the UI explicitly asks for on a name-less read). A
+    // complete, check-valid identity NOW beats a possible name later.
+    const fused = fuse()
+    if (fused) return fused
+  }
+  return finish()
 }
 
 function countPassed(m: PassportMrzResult): number {

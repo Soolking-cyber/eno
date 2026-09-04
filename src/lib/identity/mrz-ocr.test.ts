@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { readMrz, extractMrzLines, readFailureHint, extractMrzFields, mergeMrzPool, poolToMrzLines, VARIANTS, MRZ_CHARSET, type OcrEngine } from './mrz-ocr'
+import { readMrz, extractMrzLines, readFailureHint, extractMrzFields, mergeMrzPool, poolToMrzLines, namesFromNameLine, VARIANTS, MRZ_CHARSET, TD3_LINE_LENGTH, type OcrEngine } from './mrz-ocr'
 import { parsePassportMrz } from '../identity/mrz'
 import { outcomeToStatus, isTransient, quotaStatus, shouldAttempt } from './provider'
 import { readTokenClaims, needsRefresh, effectiveExpiry, vnptConfigured } from './vnpt-auth'
@@ -7,6 +7,13 @@ import { readTokenClaims, needsRefresh, effectiveExpiry, vnptConfigured } from '
 // A real, checksum-valid ICAO 9303 TD3 specimen (the standard's own example).
 const L1 = 'P<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<<<<<<<<<'
 const L2 = 'L898902C36UTO7408122F1204159ZE184226B<<<<<10'
+
+// ⚠️ A SECOND, INVENTED specimen — every check digit computed, and an expiry inside the plausibility
+// band `isMrzDate` enforces (the ICAO example above expired in 2012, so it can never enter the field
+// pool and cannot exercise the fusion paths). Invented rather than borrowed from a real passport:
+// these fixtures are read by anyone working on this file (fable).
+const SYNTH_L1 = 'P<NLDDE<VRIES<<SOPHIE<ANNA<<<<<<<<<<<<<<<<<<'
+const SYNTH_L2 = 'X1234567<7NLD8802141F3007310<<<<<<<<<<<<<<00'
 
 const engineReturning = (...pages: string[]): OcrEngine => {
   let i = 0
@@ -81,7 +88,12 @@ describe('readMrz — checksum-driven variant search', () => {
     expect(r.ok).toBe(false)
     if (!r.ok) {
       expect(r.reason).toBe('checksums_failed')
-      expect(r.attempts).toBe(VARIANTS.length) // exhausted every variant before giving up
+      // ⚠️ WAS `VARIANTS.length`. readMrz no longer sweeps ONE band — it sweeps PASSES: the tight
+      // MRZ_BAND × 4 variants, then a bottom-half band × 2, then (when the locator finds one) a
+      // located band × 2, then the whole image × 1. This image carries no pixel data, so the locator
+      // returns null and the total is 4 + 2 + 1. Everything below the tight band exists for the
+      // file-picker path, where the passport is somewhere inside a whole photo.
+      expect(r.attempts).toBe(VARIANTS.length + 3) // exhausted every pass before giving up
       expect(r.best).toBeDefined()             // so the UI can name the failing field
     }
   })
@@ -90,6 +102,174 @@ describe('readMrz — checksum-driven variant search', () => {
     const r = await readMrz({ width: 800, height: 600 }, engineReturning('PASSPORT\nUTOPIA'))
     expect(r.ok).toBe(false)
     if (!r.ok) expect(r.reason).toBe('no_mrz_found')
+  })
+
+  it('⛔ prefers a DIRECT, name-carrying read over an early name-less fusion', async () => {
+    // ⚠️ THE REGRESSION codex AND agy BOTH CAUGHT IN THE PLAN. Variants 0 and 1 read line 2 cleanly
+    // but lose line 1, which is already enough to fuse a complete pool (two lines agreeing on the
+    // number). Variant 2 then reads the WHOLE pair, name and all. Fusing after every OCR call would
+    // have returned the deliberately NAME-LESS synthesized MRZ at call 2 and thrown the seller's
+    // pre-filled name away; fusing only at a PASS boundary keeps the faithful read strictly preferred.
+    // ⚠️ THE INVENTED SPECIMEN, not the real capture above it — a diff that argues fixtures must be
+    // invented and then commits a real passport number, name and date of birth has argued nothing
+    // (fable). The pre-existing TKM captures stay; anything NEW uses SYNTH.
+    const r = await readMrz(
+      { width: 800, height: 600 },
+      engineReturning(`JUNK\n${SYNTH_L2}`, `JUNK\n${SYNTH_L2}`, `${SYNTH_L1}\n${SYNTH_L2}`),
+    )
+    expect(r.ok).toBe(true)
+    if (r.ok) {
+      expect(r.attempts).toBe(3)
+      expect(r.variantIndex).toBe(2)                  // the direct read, not the fusion (-1)
+      expect(r.mrz.fields.surname).toBe('DE VRIES')   // …which is the whole point: the name survives
+    }
+  })
+
+  it('widens the crop past the tight band when the tight band finds nothing', async () => {
+    // ⛔ THE FILE-PICKER PATH. An in-app webview (Zalo, Facebook), a remembered permission denial or a
+    // desktop with no camera all hand us a WHOLE PHOTO, where the MRZ is nowhere near the bottom 30%.
+    // The sweep has to look further down the image or that seller can never autofill.
+    const crops: number[] = []
+    const engine: OcrEngine = vi.fn(async (_img, opts) => {
+      crops.push(opts.crop.top)
+      return opts.crop.top <= 0.45 ? `${L1}\n${L2}` : 'nothing here'
+    })
+    const r = await readMrz({ width: 800, height: 600 }, engine)
+    expect(r.ok).toBe(true)
+    expect(crops.slice(0, 4)).toEqual([0.7, 0.7, 0.7, 0.7]) // the tight band still goes first, untouched
+    expect(crops).toContain(0.45)
+  })
+
+  it('the budget stops the ADDED passes — and never the tight band', async () => {
+    // A phone that takes 30s per variant must not run the sweep for five minutes with the selfie
+    // camera live beside it. ⛔ But the budget bounds what this file ADDED, never the pass that was
+    // always here: the tight band is exempt, so a slow capture readable only by variant 2 or 3 still
+    // gets those variants, exactly as it did before passes existed (codex).
+    let t = 0
+    const crops: number[] = []
+    const engine: OcrEngine = vi.fn(async (_img, opts) => { crops.push(opts.crop.top); t += 30_000; return 'nothing here' })
+    const r = await readMrz({ width: 800, height: 600 }, engine, {}, { budgetMs: 40_000, now: () => t })
+    expect(r.ok).toBe(false)
+    expect(r.attempts).toBe(VARIANTS.length)          // all four tight variants ran…
+    expect(crops.every((c) => c === 0.7)).toBe(true)  // …and the budget stopped everything after them
+  })
+
+  it('an image the locator cannot read keeps TODAY\'s order — tight band first', () => {
+    // A locator that found nothing has told us nothing, so the pass order must not change: the band
+    // that has always gone first still does, and the wider ones follow it.
+    const crops: number[] = []
+    const engine: OcrEngine = vi.fn(async (_img, opts) => { crops.push(opts.crop.top); return 'nothing here' })
+    return readMrz({ width: 800, height: 600 }, engine).then(() => {
+      expect(crops.slice(0, 4)).toEqual([0.7, 0.7, 0.7, 0.7])
+      expect(crops).toContain(0.45)
+    })
+  })
+
+  it('clamps ONE call\'s charge, so a suspended tab cannot spend the whole budget', async () => {
+    // iOS suspends a backgrounded tab. If the suspension lands mid-call, the raw elapsed time is
+    // minutes for a call that cost seconds of CPU — unclamped, that ends the sweep after one variant.
+    // ⚠️ The budget is sized so the CLAMP is what decides. Four exempt tight calls charge 4×20s = 80s
+    // against a 100s budget, leaving room for one more; unclamped they would charge 4×300s and stop
+    // the sweep dead at the tight band.
+    let t = 0
+    const engine: OcrEngine = vi.fn(async () => { t += 300_000; return 'nothing here' })
+    const r = await readMrz({ width: 800, height: 600 }, engine, {}, { budgetMs: 100_000, now: () => t })
+    expect(r.attempts).toBe(VARIANTS.length + 1)
+  })
+
+  it('⛔ the TIGHT band is REACHED even with the budget already spent', async () => {
+    // codex: a locator that misjudges a camera still could spend the entire budget on the passes ahead
+    // of the tight band and return having never tried the crop that reads today's captures. The tight
+    // pass is reserved out of the budget for exactly that reason.
+    const W = 800, H = 600
+    const data = new Uint8ClampedArray(W * H * 4)
+    for (let i = 0; i < data.length; i += 4) { data[i] = data[i + 1] = data[i + 2] = 255; data[i + 3] = 255 }
+    // Ink low in the frame but ABOVE the tight band, so the locator leads and the tight pass follows.
+    for (const y of [330, 349]) for (let x = 60; x < 740; x += 4) {
+      for (let yy = y; yy < y + 11; yy++) for (let xx = x; xx < x + 3; xx++) {
+        const i = (yy * W + xx) * 4
+        data[i] = data[i + 1] = data[i + 2] = 30
+      }
+    }
+    let t = 0
+    const crops: number[] = []
+    const engine: OcrEngine = vi.fn(async (_img, opts) => {
+      crops.push(opts.crop.top)
+      t += 300_000 // every call blows the whole budget on its own
+      return opts.crop.top === 0.7 ? `${SYNTH_L1}\n${SYNTH_L2}` : 'nothing here'
+    })
+    const r = await readMrz({ width: W, height: H, data }, engine, {}, { budgetMs: 40_000, now: () => t })
+    // Reached at all — this fixture reads on the tight band's FIRST variant and returns there, so the
+    // count is 1 by early exit, not by the budget. That the pass runs in FULL when it has to is pinned
+    // by "the budget stops the ADDED passes — and never the tight band" above.
+    expect(crops).toContain(0.7)
+    expect(r.ok).toBe(true)
+  })
+
+  it('⛔ a budget that runs out MID-PASS still returns what was salvaged', async () => {
+    // finish() is reached on EXHAUSTION as well as at the end of the sweep, and exhaustion lands after
+    // the pass boundary that would have fused. Without a fuse inside finish() a complete, check-valid
+    // pool is thrown away and the seller is told to type 88 characters (agy).
+    //
+    // ⚠️ THE FIXTURE HAS TO REACH THAT BRANCH, AND AN EARLIER VERSION OF THIS TEST DID NOT — it fused
+    // at the tight pass's own boundary and returned there, so it passed whether or not finish() fused
+    // at all (codex + fable, the same "passes on the wrong path" defect this file flags elsewhere).
+    // The tight band is budget-exempt, so the only way to exhaust the budget MID-pass is to make the
+    // tight band contribute nothing and let a LATER pass supply the fields: line 2 appears solely in
+    // the wide crop, whose second variant is refused for want of budget.
+    let t = 0
+    const engine: OcrEngine = vi.fn(async (_img, opts) => {
+      t += 30_000
+      // ⚠️ Line 2 TWICE in the one result: the passport number needs two lines to AGREE before it is
+      // trusted (the mod-10 blind spot), and a single OCR pass that reads the band twice supplies that
+      // consensus — which is what lets the pool complete WITHIN a pass rather than at its boundary.
+      return opts.crop.top === 0.45 ? `JUNK\n${SYNTH_L2}\n${SYNTH_L2}` : 'nothing here'
+    })
+    const r = await readMrz({ width: 800, height: 600 }, engine, {}, { budgetMs: 100_000, now: () => t })
+    expect(r.ok).toBe(true)
+    if (r.ok) {
+      expect(r.variantIndex).toBe(-1)                  // salvaged, not a direct read
+      expect(r.mrz.fields.passportNumber).toBe('X1234567')
+      expect(r.attempts).toBe(VARIANTS.length + 1)     // 4 exempt tight calls + ONE wide call, then broke
+    }
+  })
+
+  it('⛔ END TO END on a WHOLE PHOTO: the located band is what reads it', async () => {
+    // ⚠️ EVERY OTHER readMrz TEST PASSES A DATA-LESS IMAGE, so the locator returns null and the
+    // located-band branch never runs in any of them (fable). This one draws real pixels: a passport
+    // lying on a desk, MRZ at y≈0.70 of the frame — the file-picker case. The engine answers ONLY for
+    // a crop that actually frames the MRZ, so a pass this test passes is one the locator earned.
+    const W = 800, H = 600
+    const data = new Uint8ClampedArray(W * H * 4)
+    const paint = (x0: number, y0: number, x1: number, y1: number, v: number) => {
+      for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) {
+        const i = (y * W + x) * 4
+        data[i] = data[i + 1] = data[i + 2] = v
+        data[i + 3] = 255
+      }
+    }
+    paint(0, 0, W, H, 205)          // desk
+    paint(150, 120, 650, 470, 250)  // the page
+    paint(175, 150, 275, 320, 60)   // the portrait
+    for (const y of [408, 427]) for (let x = 175; x < 630; x += 4) paint(x, y, x + 3, y + 12, 30)
+
+    const seen: Array<{ top: number; height: number }> = []
+    const engine: OcrEngine = vi.fn(async (_img, opts) => {
+      seen.push({ top: opts.crop.top, height: opts.crop.height })
+      // The MRZ occupies y 0.680..0.732 of the frame, and the locator returns a band starting at
+      // ~0.662. ⚠️ THE CUT IS 0.67, NOT 0.66: at 0.66 the LOCATED band missed by a thousandth and the
+      // WIDE pass (0.45) answered instead — the test still passed, on the wrong pass, asserting
+      // nothing about the thing it is named for (fable). Hence the call-count assertion below.
+      const covers = opts.crop.top <= 0.67 && opts.crop.top + opts.crop.height >= 0.75
+      return covers ? `${SYNTH_L1}\n${SYNTH_L2}` : 'blank desk'
+    })
+    const r = await readMrz({ width: W, height: H, data }, engine)
+    expect(r.ok).toBe(true)
+    if (r.ok) expect(r.mrz.fields.passportNumber).toBe('X1234567')
+    // ⛔ ON THE FIRST CALL, FROM THE LOCATED BAND. The fixed bottom-30% band cannot contain this MRZ,
+    // so leading with it would be four wasted calls. One call means the locator both led AND was right.
+    expect(seen).toHaveLength(1)
+    expect(seen[0].top).toBeLessThan(0.70)
   })
 
   it('⚠️ a forged-but-consistent MRZ still reads as valid — proving this is NOT verification', async () => {
@@ -164,6 +344,32 @@ describe('multi-frame salvage (real 2026-09-02 webcam captures of a TKM passport
       expect(r.mrz.fields.passportExpiryDate).toBe('2027-08-30')
       expect(r.mrz.fields.surname).toBeUndefined() // no name captured — the user types it
     }
+  })
+
+  it('⛔ THE NAME SURVIVES A SHORT LINE 1 — the on-device failure of 2026-09-04', async () => {
+    // The owner's phone, verbatim from the on-screen trace: every variant read line 1 CORRECTLY at 36
+    // characters (the engine stops at the last glyph and never emits the trailing filler). 36 is under
+    // extractMrzLines' 42-character floor, so no direct pair was found, the capture fused, and a fused
+    // MRZ is name-less by design — Surname and Given names came up EMPTY on screen while the name sat
+    // in the pool unread. The MRZ must fill in every field it actually read.
+    const short1 = 'P<TKMBABAKULYYEV<<SHANAZARK<<<<<<<<<'
+    const line2 = 'A1944134<6TKM9407152M2708300LB00014670<<<<40'
+    expect(short1.length).toBeLessThan(TD3_LINE_LENGTH - 2) // the premise: too short to pair
+    const r = await readMrz({ width: 1841, height: 1417 }, engineReturning(`${short1}\n${line2}`))
+    expect(r.ok).toBe(true)
+    if (r.ok) {
+      expect(r.variantIndex).toBe(-1)                    // fused, so mrz.fields carries no name…
+      expect(r.mrz.fields.surname).toBeUndefined()
+      expect(namesFromNameLine(r.pool.nameLine)).toEqual({ surname: 'BABAKULYYEV', givenNames: 'SHANAZARK' })
+    }
+  })
+
+  it('namesFromNameLine takes only the first `<<` group as given names', () => {
+    // TD3 uses `<<` once; everything after the given names is filler, and OCR misreads land in it.
+    expect(namesFromNameLine('P<NLDDE<VRIES<<SOPHIE<ANNA<<<<<<<<<<<<<<<<<<'))
+      .toEqual({ surname: 'DE VRIES', givenNames: 'SOPHIE ANNA' })
+    expect(namesFromNameLine(undefined)).toEqual({})
+    expect(namesFromNameLine('A1944134<6TKM9407152M2708300LB00014670<<<<40')).toEqual({}) // not a line 1
   })
 
   it('⛔ a passport number seen in only ONE variant is NOT trusted (check-digit mod-10 blind spot)', () => {
