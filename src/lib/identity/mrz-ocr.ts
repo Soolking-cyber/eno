@@ -271,6 +271,11 @@ export function mergeMrzPool(pool: MrzFieldPool, next: MrzFieldPool): MrzFieldPo
   for (const k of ['passportNumber', 'dateOfBirth', 'expiry', 'sex', 'nationality'] as const) {
     if (!out[k] && next[k]) out[k] = next[k]
   }
+  // ⚠️ LONGEST WINS, AND AN ATTEMPT TO IMPROVE ON IT WAS REVERTED. Per-position voting across reads
+  // was tried and is UNSAFE here: the characteristic OCR failure on this line is a DELETION (`P<TKM`
+  // read as `ZTM`), which shifts every later character, so voting a shifted read against a good one
+  // corrupts both — and a tie-break toward the filler deletes real trailing letters. Longest-wins
+  // picked the good read in both measured cases. Line 1 has no check digit; there is no oracle here.
   if (next.nameLine && (!out.nameLine || next.nameLine.replace(/<+$/, '').length > out.nameLine.replace(/<+$/, '').length)) {
     out.nameLine = next.nameLine
   }
@@ -308,11 +313,64 @@ export function namesFromNameLine(nameLine: string | undefined): { surname?: str
   // TD3 uses `<<` ONCE, between surname and given names; everything after is single-`<` filler. So the
   // first group is the surname and the second holds all given names — later groups are filler and the
   // OCR misreads that land in it (this capture's trailing `K` for a `<` is exactly that).
+  // ⚠️ THE OFFSET IS FIXED AT 5, AND ANCHORING IT ON THE NATIONALITY WAS TRIED AND REVERTED.
+  // Measured on the owner's passport: `P<TKM` came back as `ZTM`, so `slice(5)` cut two letters off
+  // the surname and returned `BAKULYYEV`. The obvious repair — re-anchor on the issuing state from
+  // line 2 — rests on a FALSE PREMISE: TD3 positions 11-13 carry NO check digit and are not covered
+  // by the composite either (which spans 1-10, 14-20, 22-43), so that field is exactly as unreliable
+  // as the one it would be validating. In the measured read it was itself `<<<`. Worse, nationality
+  // legitimately differs from issuing state — GBN under GBR, XXA stateless, XXB refugee, UNO — so
+  // requiring them to match would have dropped the surname for real holders on a perfectly clean read.
+  // A misaligned prefix is therefore not detectable here. The seller confirms this field, and the
+  // real fix is cross-reading the PRINTED name on the data page, which is a separate piece of work.
   const parts = nameLine.slice(5).split('<<')
   const tidy = (v: string) => v.replace(/</g, ' ').replace(/\s+/g, ' ').trim()
-  const surname = tidy(parts[0] ?? '')
-  const givenNames = tidy(parts[1] ?? '')
+  // ⛔ A DIGIT IN A NAME FIELD MEANS THE READ IS BAD — SO PRE-FILL NOTHING, rather than tidying it up.
+  // MRZ name fields are letters and `<` only, so a digit is proof the OCR went wrong somewhere in
+  // this field. Measured, the trailing filler came back as `SS<SCCCES6088S98` and the seller was
+  // offered `SHANAZARSS SCCCES6088S98`.
+  // ⚠️ THE OBVIOUS REPAIR — DROP THE TOKENS WITH DIGITS — WAS TRIED AND IS WORSE. `S0PHIE<ANNA` is
+  // the commonest OCR swap (O→0), and dropping that token pre-fills the given names as plain `ANNA`:
+  // a plausible name, missing the seller's first name, which they may well confirm without noticing.
+  // `S0PHIE ANNA` is obviously wrong and gets corrected; `ANNA` is quietly wrong and does not.
+  // Between a visibly wrong pre-fill and a plausibly wrong one, the visibly wrong one is safer — and
+  // an EMPTY field, which is what this returns, is safer still. Same rule for both name fields.
+  const clean = (v: string) => (/\d/.test(v) ? '' : tidy(v))
+  // ⛔ THE SURNAME ALSO NEEDS THE PREFIX TO BE THE RIGHT LENGTH, and only its SHAPE can prove that.
+  // TD3 positions 1-2 are the document code and 3-5 the issuing state, always — so a passport's
+  // line 1 is `P` + (`<` or a type letter) + three letters, and the surname always begins at 5.
+  // Measured on the owner's passport, `P<TKM` came back as `ZTM`: five characters compressed to
+  // three, so `slice(5)` cut two letters off and produced `BAKULYYEV` for `BABAKULYYEV`. A truncated
+  // surname still LOOKS like a surname, so nothing downstream can catch it and the seller may well
+  // confirm it. ⚠️ This DOES cost the surname pre-fill when the document code itself is misread (the
+  // `B<TKM` case) — but that costs one field the seller retypes, where the old `startsWith('P')` gate
+  // discarded the entire parse including the number and both dates. Cheap insurance, narrow blast
+  // radius. The GIVEN names are anchored on the `<<` and survive a broken prefix, so they still fill.
+  // ⚠️ A CHEAP CHECK THAT CATCHES THE MEASURED FAILURE — AND IT IS NOT A PROOF OF WIDTH. A `<` at
+  // index 1 pins position 2 only; `P<TM…` (a character lost INSIDE the state code) or `P<<TKM…` (one
+  // gained) still slip through and still shift the name. What it does catch is the misread that
+  // actually happened — `P<TKM` compressed to `ZTM`, which has a letter at index 1 and no leading
+  // `P` — while keeping the OTHER misread of the same passport working: `B<TKM…`, where only the
+  // document code was wrong, keeps its `<` and so keeps filling the surname (the fix from earlier
+  // today, which must not regress). The second clause admits the rarer two-letter document codes
+  // (`PD`/`PO`/`PS`), which cost their holders one retyped field if the `P` itself is misread.
+  // ⛔ THE `PD`/`PO`/`PS` CLAUSE WAS REMOVED, AND ON PURPOSE. `/^P[A-Z][A-Z]{3}/` also matches
+  // `PTKMBABAKULYYEV…` — a line that simply LOST its `<` — which slices to `ABAKULYYEV`: exactly the
+  // plausible truncated surname this guard exists to refuse. It bought a rare convenience at the
+  // price of the failure mode it was written to stop. Diplomatic and service passports now retype one
+  // field; nobody gets a silently shortened name.
+  const prefixLooksRight = hasWellFormedPrefix(nameLine)
+  const surname = prefixLooksRight ? clean(parts[0] ?? '') : ''
+  const givenNames = clean(parts[1] ?? '')
   return { ...(surname ? { surname } : {}), ...(givenNames ? { givenNames } : {}) }
+}
+
+/** Is line 1's five-character prefix (`P<` + issuing state) the right WIDTH? See the note in
+ *  `namesFromNameLine`: a `<` at index 1 is the only cheap evidence, and it is what separates a
+ *  misread document code (`B<TKM…`, offset still right) from a compressed prefix (`ZTM…`, offset
+ *  wrong). Exported so the caller building a name-less line 1 applies the same test. */
+export function hasWellFormedPrefix(nameLine: string): boolean {
+  return nameLine[1] === '<'
 }
 
 /** Assemble a canonical, fully check-valid TD3 MRZ from a complete pool, or null if a field is missing.

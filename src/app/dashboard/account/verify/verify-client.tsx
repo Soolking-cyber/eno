@@ -24,7 +24,7 @@ import { Input } from '@/components/ui/input'
 import { Field, FieldLabel } from '@/components/ui/field'
 import { Loader2 } from '@/components/ui/icons'
 import { KycCapture } from '@/components/marketplace/kyc-capture'
-import { readMrz, readFailureHint, namesFromNameLine, type MrzFieldPool } from '@/lib/identity/mrz-ocr'
+import { readMrz, readFailureHint, namesFromNameLine, hasWellFormedPrefix, type MrzFieldPool } from '@/lib/identity/mrz-ocr'
 // ⚠️ Via the identity boundary, NEVER '@/lib/visa/mrz' directly — KYC code routes MRZ parsing through
 // `@/lib/identity/mrz` (which re-exports it) so the visa namespace never appears in a marketplace call
 // site (agy, 2026-09-02). See the header of src/lib/identity/mrz.ts.
@@ -155,6 +155,21 @@ export function VerifyClient() {
   const [documentNumber, setDocumentNumber] = useState('')
   const [documentExpiry, setDocumentExpiry] = useState('')
   const [mrzLine1, setMrzLine1] = useState('')
+  /// ⛔ TWO SEPARATE FACTS, AND ONE FLAG FOR BOTH WAS THE BUG. `mrzDerived` = the values in the two
+  /// boxes came from a READ (so they are synthesized and will not match the passport character for
+  /// character); `mrzRevealed` = the seller asked to see them anyway. Collapsing keyed on a single
+  /// flag made the explanatory copy flip to "these are derived" on the first keystroke of the MANUAL
+  /// path — the opposite of what that seller needs to be told.
+  /// ⚠️ NEITHER is `mrzValid`: that flips the instant the last character is typed, which would
+  /// unmount the inputs under the seller's fingers (the same bug, caught on iOS today).
+  const [mrzDerived, setMrzDerived] = useState(false)
+  const [mrzRevealed, setMrzRevealed] = useState(false)
+  /// ⛔ "TYPED IN THESE TWO BOXES", WHICH IS NOT WHAT `userEditedRef` MEANS. That ref is set by every
+  /// field on the form — it gates whether a later read may prefill the NAME inputs — so keying the
+  /// collapse on it meant a seller who typed their surname while the read was still running got the
+  /// derived lines shown under "type exactly as printed": the original bug, reachable through
+  /// ordinary behaviour. Only the MRZ inputs set this one.
+  const mrzTypedRef = useRef(false)
   const [mrzLine2, setMrzLine2] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
@@ -327,7 +342,7 @@ export function VerifyClient() {
     latestUploadRef.current = uploadId
     docAttemptRef.current = attemptRef.current
     userEditedRef.current = false
-    setMrzLine1(''); setMrzLine2('')
+    setMrzLine1(''); setMrzLine2(''); setMrzDerived(false); setMrzRevealed(false); mrzTypedRef.current = false
     setSurname(''); setGivenNames(''); setDocumentNumber(''); setDocumentExpiry('')
     setScan(tier === 'B' ? 'reading' : 'idle'); setScanHint(null)
     setDocumentPath(path)
@@ -432,7 +447,24 @@ export function VerifyClient() {
         // MRZ-derived fields over the typed ones — so a user correcting a misread name would be overruled
         // at submit (fable, 2026-09-02). Keep `P<` + issuing state, drop the name: the name is authored
         // ONLY by the (required) typed surname/given fields, which are prefilled from f.* as a convenience.
-        const nameLess = (l1: string) => (l1.slice(0, 5) + '<'.repeat(44)).slice(0, 44)
+        // ⛔ AND DO NOT CARRY A MANGLED PREFIX THROUGH EITHER. `slice(0, 5)` keeps whatever the OCR
+        // made of `P<CCC`; on the measured read that is `ZTMBA`, which submits document code `ZT` and
+        // issuing state `MBA` — neither has a check digit to catch it. When the prefix fails the same
+        // width test the name extraction uses, emit a bare `P<` and let the issuing state be blank
+        // rather than wrong: the server derives identity from line 2, which is check-validated.
+        const nameLess = (l1: string) =>
+          ((hasWellFormedPrefix(l1) ? l1.slice(0, 5) : 'P<') + '<'.repeat(44)).slice(0, 44)
+        // ⛔ DECIDED OUTSIDE THE STATE UPDATER. Setting state from inside another setter's updater is
+        // impure — StrictMode double-invokes it. ⚠️ AND NOT FROM `userEditedRef`: that means "touched
+        // ANY field on this form" (it gates name prefill), so a seller typing their surname during the
+        // read counted as having typed the MRZ boxes. `mrzTypedRef` tracks only these two inputs.
+        // ⛔ FROM THE REF, NOT FROM `mrzLine1`/`mrzLine2`. Those are the CLOSURE's values, captured
+        // when this handler was created — which is exactly why the two fills below use functional
+        // updaters. Reading them here made a RETAKE (which the copy invites) see the previous read's
+        // non-empty lines and conclude the seller had typed them, while the updaters saw the cleared
+        // state and filled both boxes: derived lines, expanded, under "type exactly as printed" —
+        // the original report, on the second attempt. The ref is cleared at both reset sites.
+        setMrzDerived(!mrzTypedRef.current)
         setMrzLine1((v) => v.trim() ? v : nameLess(result.lines[0]))
         setMrzLine2((v) => v.trim() ? v : result.lines[1])
         // ⛔ FALL BACK TO THE POOLED LINE 1. A FUSED read carries no name by design, but the pool very
@@ -539,7 +571,7 @@ export function VerifyClient() {
     // ⚠️ CLEARS EVERYTHING, so the "we cleared the form" copy is true and a restarted tier-A attempt
     // cannot carry stale tier-B MRZ text. `accepted` stays — the declaration was read, not undone.
     setChallenge(null); setTier(null); setDocumentPath(null); setSelfiePath(null)
-    setSurname(''); setGivenNames(''); setDocumentNumber(''); setDocumentExpiry(''); setMrzLine1(''); setMrzLine2('')
+    setSurname(''); setGivenNames(''); setDocumentNumber(''); setDocumentExpiry(''); setMrzLine1(''); setMrzLine2(''); setMrzDerived(false); setMrzRevealed(false); mrzTypedRef.current = false
     setScan('idle'); setScanHint(null)
     setStarted(false) // back at the tier choice: the pre-flight panel is meaningful again
     // ⛔ RE-ASK ONLY WHEN THE SELLER DELIBERATELY WENT BACK — never on a submit failure, and that
@@ -601,6 +633,18 @@ export function VerifyClient() {
           // `decideTierB` rejects a tier B case with neither valid check digits nor a provider. A
           // CCCD has no MRZ at all and its branch does not ask for one.
           mrzLine1: tier === 'B' ? (mrzLine1.trim().toUpperCase() || undefined) : undefined,
+          // ⛔ THE RAW READ, UNCHANGED — AND A CLIENT THAT RE-MINTS CHECK DIGITS IS A BYPASS.
+          // A previous pass wrote the confirmed number and expiry back into line 2 and recomputed the
+          // checksums, to close the mod-10 hole below. That turns the expiry box into self-service:
+          // a seller whose passport expired in 2024 edits the date to 2030, the client mints a valid
+          // composite, and the server — which prefers MRZ-derived fields — sees an unexpired document.
+          // It also destroys the read-vs-typed discrepancy a human reviewer needs. Whatever the OCR
+          // actually read is what gets submitted; the typed fields travel alongside it.
+          // ⚠️ THE MOD-10 HOLE IS THEREFORE STILL OPEN, and it is a SERVER problem: `G`/`6`, `S`/`8`
+          // and `L`/`1` have ICAO values differing by exactly ten, so those misreads leave every
+          // check digit valid and the MRZ number silently wins over the seller's correction.
+          // Closing it means reconciling the two SERVER-side — prefer the typed number when it
+          // differs from the MRZ only by such a substitution — which is not a client change.
           mrzLine2: tier === 'B' ? (mrzLine2.trim().toUpperCase() || undefined) : undefined,
         }),
       })
@@ -757,6 +801,35 @@ export function VerifyClient() {
   // line reads 44/44 with every check failing"; it does not, because the parser cleans first and the
   // two are character-for-character identical. Keep them that way, or that finding becomes true.
   const clean = (v: string) => v.toUpperCase().replace(/\s/g, '').replace(/[^A-Z0-9<]/g, '')
+  // ⛔ THE CONFIRMED FIELDS AND THE MRZ MUST AGREE, OR THE SELLER'S CORRECTION IS THROWN AWAY.
+  // The MRZ checksum is mod-10 and the ICAO values of `G`/`6`, `S`/`8`, `L`/`1` differ by exactly ten,
+  // so those misreads leave every check digit valid: the read reports success with a WRONG passport
+  // number. The seller is told to check the details above, fixes the number — and the server prefers
+  // MRZ-derived fields, so the misread is what gets recorded against their identity.
+  // ⚠️ THE CLIENT MUST NOT "FIX" THIS BY REWRITING LINE 2. That was tried and is a bypass: re-minting
+  // check digits over a typed expiry lets anyone with an expired passport edit the date into a valid
+  // MRZ. The safe move is to refuse to submit a disagreement and show the seller where it is.
+  const mrzDisagreement: { en: string; vi: string } | null = (() => {
+    if (tier !== 'B' || !mrzValid || !mrzParsed) return null
+    const typedNumber = documentNumber.trim().toUpperCase()
+    const readNumber = mrzParsed.fields.passportNumber
+    if (typedNumber && readNumber && typedNumber !== readNumber) {
+      return {
+        en: `The code lines say your passport number is ${readNumber}, but the field above says ${typedNumber}. Correct whichever is wrong — the code lines are what we verify against.`,
+        vi: `Hai dòng mã ghi số hộ chiếu là ${readNumber}, nhưng ô ở trên ghi ${typedNumber}. Hãy sửa phần nào sai — chúng tôi đối chiếu theo hai dòng mã.`,
+      }
+    }
+    const typedExpiry = documentExpiry.trim()
+    const readExpiry = mrzParsed.fields.passportExpiryDate?.slice(0, 10)
+    if (typedExpiry && readExpiry && typedExpiry !== readExpiry) {
+      return {
+        en: `The code lines say your passport expires on ${readExpiry}, but the field above says ${typedExpiry}. Correct whichever is wrong — the code lines are what we verify against.`,
+        vi: `Hai dòng mã ghi ngày hết hạn là ${readExpiry}, nhưng ô ở trên ghi ${typedExpiry}. Hãy sửa phần nào sai — chúng tôi đối chiếu theo hai dòng mã.`,
+      }
+    }
+    return null
+  })()
+
   const mrzProblem: string | null = (() => {
     if (tier !== 'B' || !mrzParsed || mrzParsed.valid) return null
     const l1 = clean(mrzLine1), l2 = clean(mrzLine2)
@@ -1066,7 +1139,9 @@ export function VerifyClient() {
                   primaryAction: {
                     label: tr('Send for review', 'Gửi để xét duyệt'),
                     onClick: () => void submit(),
-                    disabled: submitting || !documentPath || !selfiePath || detailsIncomplete,
+                    // ⛔ A DISAGREEMENT BLOCKS SEND. Letting it through means the seller's correction
+                    // is silently discarded in favour of a check-valid misread — see mrzDisagreement.
+                    disabled: submitting || !documentPath || !selfiePath || detailsIncomplete || !!mrzDisagreement,
                     icon: submitting ? <Loader2 className="size-4 animate-spin" aria-hidden /> : undefined,
                   },
                 }
@@ -1144,16 +1219,23 @@ export function VerifyClient() {
                 integration blocked the check digits in these two lines are the only reliable read
                 available. A CCCD has no MRZ, and its branch does not ask for one.
               */}
+              {/*
+                ⛔ THE RAW LINES ARE FOR TYPING, NOT FOR CHECKING — and showing them after a good scan
+                asked the seller to do something impossible. What goes in these boxes is DERIVED, not
+                transcribed: line 1 is deliberately name-less on every path (see nameLess above, so a
+                misread name cannot overrule the typed one), and a FUSED line 2 carries filler in the
+                optional-data field and a freshly computed composite. Neither matches what is printed
+                on the passport. The copy nonetheless said "these are the two lines across the bottom
+                of your passport page — check they are right", so the owner compared them to his own
+                passport, found they did not match, and reported it as a bug. He was reading the
+                screen correctly; the screen was wrong.
+                So they appear only when the scan did NOT deliver and the seller has to type them.
+              */}
+              {/* SCAN STATUS — always visible for tier B. ⚠️ It must live OUTSIDE the typing block
+                  below: hiding the raw lines after a good read would otherwise have taken the
+                  "Read from your passport" confirmation and the name-still-needed hint with it. */}
               {tier === 'B' && (
                 <div className="space-y-2">
-                  <p className="text-xs text-muted-foreground">
-                    {tr(
-                      'These are the two lines of letters and numbers across the bottom of your passport page. We read them from your photo automatically — check they are right, or type them if the scan could not.',
-                      'Đây là hai dòng chữ và số ở cuối trang hộ chiếu. Chúng tôi tự động đọc từ ảnh của bạn — hãy kiểm tra lại, hoặc tự nhập nếu quét không được.',
-                    )}
-                  </p>
-                  {/* Scan status. The two inputs stay editable throughout: a valid MRZ read pre-fills
-                      them and the details above, but the user always confirms, and can type instead. */}
                   {scan === 'reading' && (
                     <p className="flex items-center gap-2 text-xs text-muted-foreground" role="status">
                       <Loader2 className="size-3.5 animate-spin" aria-hidden /> {tr('Reading your passport…', 'Đang đọc hộ chiếu…')}
@@ -1162,7 +1244,7 @@ export function VerifyClient() {
                   {scan === 'ok' && (
                     <>
                       <p className="text-xs font-medium text-success" role="status">
-                        {tr('Read from your passport — please check it is correct.', 'Đã đọc từ hộ chiếu — vui lòng kiểm tra lại.')}
+                        {tr('Read from your passport — please check the details above.', 'Đã đọc từ hộ chiếu — vui lòng kiểm tra thông tin ở trên.')}
                       </p>
                       {/* A name-less read still needs the name typed — surface that here, not just on failure. */}
                       {scanHint && (
@@ -1181,8 +1263,87 @@ export function VerifyClient() {
                       </AlertDescription>
                     </Alert>
                   )}
-                  <Input value={mrzLine1} onChange={(e) => { setMrzLine1(e.target.value); markEdited() }} placeholder="P<VNMNGUYEN<<VAN<A<<<<<<<<<<<<<<<<<<<<<<<<<<" className="font-mono" />
-                  <Input value={mrzLine2} onChange={(e) => { setMrzLine2(e.target.value); markEdited() }} placeholder="C12345678VNM9001011M3001011<<<<<<<<<<<<<<04" className="font-mono" />
+                </div>
+              )}
+
+              {/* ⛔ COLLAPSED AFTER A GOOD READ, NEVER REMOVED — and the difference matters. Hiding
+                  these outright made a whole class of misread UNCORRECTABLE: the MRZ check digits are
+                  mod-10, so any swap whose character values differ by a multiple of ten (G↔6, S↔8,
+                  L↔1) leaves every checksum valid. A passport number misread that way passes, the
+                  seller is told to "check the details above", they fix the visible field — and the
+                  hidden line 2 still carries the misread and is what gets submitted.
+                  ⚠️ NOT WHILE A READ IS IN FLIGHT either: inviting someone to type beside
+                  "Reading your passport…" is what strands a half-typed line. */}
+              {mrzDisagreement && (
+                <Alert variant="destructive">
+                  <AlertDescription className="text-xs">
+                    {lang === 'vi' ? mrzDisagreement.vi : mrzDisagreement.en}
+                  </AlertDescription>
+                </Alert>
+              )}
+              {tier === 'B' && mrzDerived && scan === 'ok' && !mrzDisagreement
+                && !mrzTypedRef.current && (mrzLine1.trim() || mrzLine2.trim()) && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  aria-expanded={mrzRevealed}
+                  aria-controls="mrz-lines"
+                  className="h-auto self-start p-0 text-xs font-medium text-muted-foreground underline underline-offset-2"
+                  // ⚠️ A TOGGLE, NOT A ONE-WAY REVEAL — and it stays mounted. Unmounting the control
+                  // on click drops keyboard focus to <body>. It also no longer calls `markEdited()`:
+                  // opening a panel changes no data, and that ref gates whether later reads may
+                  // prefill the NAME fields, which has nothing to do with looking at the code lines.
+                  onClick={() => setMrzRevealed((v) => !v)}
+                >
+                  {mrzRevealed
+                    ? tr('Hide the code lines', 'Ẩn hai dòng mã')
+                    : tr('Show the code lines', 'Hiện hai dòng mã')}
+                </Button>
+              )}
+              {/* ⛔ COLLAPSED ONLY ON A SUCCESSFUL READ THE SELLER HAS NOT OPENED. Every other state
+                  renders the inputs, INCLUDING while a read is in flight: gating them off during
+                  `reading` stranded anyone whose OCR engine never resolved — "Reading your passport…"
+                  forever, no inputs, and no way back to the manual path this block exists to be. */}
+              {/* ⛔ COLLAPSES ONLY ON A CLEAN, UNTOUCHED, AGREEING READ — every other state renders the
+                  inputs. Each clause is a bug that happened: `mrzRevealed` for the seller who opened
+                  it; `mrzTypedRef` because the first Backspace in line 2 made the line invalid, which
+                  made the disagreement vanish, which unmounted the inputs under the cursor;
+                  `mrzDisagreement` so a mod-10 misread cannot be corrected out of sight; and
+                  `scan === 'ok'` so a hung engine never hides the manual fallback. Expressed as one
+                  condition rather than an effect — the effect version was a conditional hook. */}
+              {tier === 'B' && !(
+                mrzDerived && scan === 'ok' && !mrzRevealed && !mrzDisagreement
+                && !mrzTypedRef.current && !mrzProblem
+              ) && (
+                <div id="mrz-lines" className="space-y-2">
+                  {/* ⛔ THE COPY MUST MATCH WHAT IS ACTUALLY IN THE BOXES. "Exactly as printed" is
+                      right when the seller is typing from the passport, and WRONG when a scan filled
+                      these: line 1 is name-less by design and a fused line 2 carries filler and a
+                      recomputed composite, so neither matches the page. Telling someone to compare
+                      them to their passport is what produced the original bug report. */}
+                  {/* ⛔ KEYED ON WHERE THE VALUES CAME FROM, NOT ON WHETHER THE BOXES HAVE TEXT. The
+                      earlier version checked the box contents, so on the MANUAL path the instruction
+                      flipped from "type exactly as printed" to "these are derived" on the seller's
+                      FIRST KEYSTROKE — the opposite of what they need. And the derived copy no longer
+                      claims the typed number "takes priority": the server prefers MRZ-derived fields,
+                      so saying otherwise would be a false promise about the one value that matters. */}
+                  <p className="text-xs text-muted-foreground">
+                    {mrzDerived
+                      ? tr(
+                          'These are rebuilt from what we read, so they will not match your passport character for character. They are also what we check your details against — so if the number or dates above are wrong, correct them HERE, or retake the photo.',
+                          'Hai dòng này được dựng lại từ kết quả đọc nên sẽ không trùng khớp từng ký tự với hộ chiếu. Đây cũng là phần chúng tôi dùng để đối chiếu — nếu số hộ chiếu hoặc ngày tháng ở trên bị sai, hãy sửa Ở ĐÂY, hoặc chụp lại ảnh.',
+                        )
+                      : tr(
+                          'Type the two lines of letters and numbers across the bottom of your passport page, exactly as printed.',
+                          'Hãy nhập hai dòng chữ và số ở cuối trang hộ chiếu, đúng như in trên hộ chiếu.',
+                        )}
+                  </p>
+                  <Input value={mrzLine1} onChange={(e) => { setMrzLine1(e.target.value); mrzTypedRef.current = !!(e.target.value.trim() || mrzLine2.trim()); markEdited() }} placeholder="P<VNMNGUYEN<<VAN<A<<<<<<<<<<<<<<<<<<<<<<<<<<" className="font-mono" />
+                  <Input value={mrzLine2} // ⚠️ CLEARED WHEN BOTH BOXES ARE EMPTY AGAIN. A single keystroke followed by Backspace otherwise
+                    // left the ref true with nothing in the boxes, so the next read filled them with derived
+                    // lines under "type exactly as printed" — the original report, one undo away.
+                    onChange={(e) => { setMrzLine2(e.target.value); mrzTypedRef.current = !!(e.target.value.trim() || mrzLine1.trim()); markEdited() }} placeholder="C12345678VNM9001011M3001011<<<<<<<<<<<<<<04" className="font-mono" />
                   {/* Live diagnosis of a typed/edited MRZ — see mrzProblem. role=status, not alert:
                       it changes on every keystroke and must not interrupt a screen reader mid-word. */}
                   {mrzProblem && (

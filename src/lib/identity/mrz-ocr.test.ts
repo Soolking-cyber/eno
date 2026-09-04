@@ -531,3 +531,69 @@ describe('mononym holders', () => {
     expect(namesFromNameLine('X1234567<7NLD8802141F3007310<<<<<<<<<<<<<<00')).toEqual({})
   })
 })
+
+describe('misread filler in the given names', () => {
+  // ⛔ MEASURED ON THE OWNER'S OWN PASSPORT, 2026-09-04, through the real pipeline. The trailing
+  // filler came back as `SS<SCCCES6088S98`, and splitting on `<<` and keeping all of group 1 swept
+  // every bit of it into the given names: `SHANAZAR` was pre-filled as
+  // `SHANAZARSS SCCCES6088S98`.
+  const mangled = 'ZTMBABAKULYYEV<<SHANAZARSS<SCCCES6088S98<<<<'
+
+  it('pre-fills no surname when the prefix is the wrong length', () => {
+    // `P<TKM` → `ZTM` shifts the offset, so `slice(5)` returns `BAKULYYEV` for `BABAKULYYEV`. A
+    // truncated surname is indistinguishable from a real one — refuse rather than hand one over.
+    expect(namesFromNameLine(mangled).surname).toBeUndefined()
+  })
+
+  it('still fills the surname when only the DOCUMENT CODE was misread', () => {
+    // ⛔ THE OTHER MISREAD OF THE SAME PASSPORT, and the two must not be conflated. `P` read as `B`
+    // leaves the prefix five characters wide, so the offset is still right and the name is still
+    // good — this is the case fixed earlier today and it must keep working. The `<` at index 1 is
+    // what says "five characters", independent of what the first one was read as.
+    expect(namesFromNameLine('B<TKMBABAKULYYEV<<SHANAZARK<<<<<<<<<<<<<<<<<').surname)
+      .toBe('BABAKULYYEV')
+  })
+
+  it('refuses a prefix that simply lost its filler', () => {
+    // ⛔ `P<TKM` → `PTKM` is one dropped character and slices to `ABAKULYYEV`. Admitting two-letter
+    // document codes (`PD`/`PO`/`PS`) would also admit this, so that convenience was dropped: those
+    // holders retype one field rather than anyone receiving a silently shortened surname.
+    expect(namesFromNameLine('PTKMBABAKULYYEV<<SHANAZAR<<<<<<<<<<<<<<<<<<<').surname)
+      .toBeUndefined()
+  })
+
+  it('pre-fills nothing when the field carries a digit', () => {
+    // An empty box the seller fills beats any value derived from a read this bad.
+    expect(namesFromNameLine(mangled).givenNames).toBeUndefined()
+  })
+
+  // ⛔ AND DROPPING JUST THE BAD TOKEN IS WORSE, which is why the rule refuses the whole field.
+  // `S0PHIE<ANNA` is the commonest OCR swap; dropping that token pre-fills `ANNA` — a plausible name
+  // missing the seller's first name, which they may confirm without noticing. Nothing is safer.
+  it('does not silently drop a misread first name', () => {
+    expect(namesFromNameLine('P<NLDDE<VRIES<<S0PHIE<ANNA<<<<<<<<<<<<<<<<<<').givenNames)
+      .toBeUndefined()
+  })
+
+  // ⚠️ AND "STOP AT THE FIRST `<`" IS THE WRONG FIX, which is why the rule is about digits. TD3
+  // separates MULTIPLE given names with a SINGLE `<`, so that would silently drop every middle name.
+  it('keeps multiple given names', () => {
+    expect(namesFromNameLine('P<NLDDE<VRIES<<SOPHIE<ANNA<<<<<<<<<<<<<<<<<<'))
+      .toEqual({ surname: 'DE VRIES', givenNames: 'SOPHIE ANNA' })
+  })
+
+  // ⛔ WHAT THIS DOES NOT FIX, recorded so nobody mistakes it for solved: purely ALPHABETIC misread
+  // filler is indistinguishable from a name. `SS` here, and the `K` the owner reported
+  // (`SHANAZAR` read as `SHANAZARK`), both survive — a name may legitimately end in either. Line 1
+  // carries no check digit, so there is no oracle; the seller confirms this field, and the real fix
+  // is cross-reading the printed name on the data page.
+  it('cannot remove alphabetic filler, and does not pretend to', () => {
+    expect(namesFromNameLine('P<TKMBABAKULYYEV<<SHANAZARK<<<<<<<<<<<<<<<<<').givenNames)
+      .toBe('SHANAZARK')
+  })
+
+  it('leaves a clean read completely alone', () => {
+    expect(namesFromNameLine('P<NLDDE<VRIES<<SOPHIE<ANNA<<<<<<<<<<<<<<<<<<'))
+      .toEqual({ surname: 'DE VRIES', givenNames: 'SOPHIE ANNA' })
+  })
+})
