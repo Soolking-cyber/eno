@@ -86,7 +86,7 @@ export default function KycPreviewPage() {
         }}
       />
 
-      <pre className="whitespace-pre-wrap break-all rounded-lg bg-black/90 p-3 font-mono text-xs text-green-400">
+      <pre className="whitespace-pre-wrap break-all rounded-lg bg-black/90 p-3 font-mono text-xs text-success">
         {log.join('\n') || 'waiting…'}
       </pre>
       {result?.ok && (
