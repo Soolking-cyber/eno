@@ -180,6 +180,13 @@ final class IdentityModel {
             .jpegData(compressionQuality: 0.92)
     }
 
+    /// Refusals the seller can fix in the form they are already looking at, WITHOUT losing their
+    /// photographs. ⚠️ Only codes the server rejects BEFORE consuming the challenge belong here — a
+    /// spent challenge cannot be continued, whatever the copy says.
+    private static func resumable(_ code: String?) -> Bool {
+        code == "document_number_invalid"
+    }
+
     /// Codes that mean the consent challenge no longer exists, so nothing downstream of it can
     /// succeed and the flow has to restart from the tier choice.
     private static func challengeIsGone(_ code: String?) -> Bool {
@@ -230,6 +237,28 @@ final class IdentityModel {
             && givenNames.trimmingCharacters(in: .whitespaces).isEmpty
     }
 
+    /// The typed CCCD number reduced to its 12 digits, or nil when it is not one.
+    /// ⚠️ SAME RULE AS THE SERVER (`cccdDigits` in src/lib/kyc/service.ts) and the web form: strip the
+    /// spaces, dots and dashes people write it with, then require exactly 12 digits. Three copies of
+    /// one rule is two too many — but a client that does not check it spends the seller's daily
+    /// attempt to be told, so each of them has to.
+    var cccdDigits: String? {
+        // ⚠️ ASCII ONLY, BECAUSE THE SERVER'S RULE IS ASCII ONLY. `Character.isNumber` is true for
+        // full-width digits (１２３), Arabic-Indic ones and even ½ — so a number pasted from a PDF or
+        // typed on a full-width IME would pass here, fail the server's `/^\d{12}$/`, and spend one of
+        // the seller's five daily attempts: precisely the burn this check exists to prevent.
+        // ⚠️ ALL whitespace, matching the server's `\s` — not just U+0020. A number pasted with a
+        // non-breaking space or an ideographic space would otherwise be refused here while the server
+        // would have accepted it, which is a stricter client telling the seller their card is wrong.
+        let digits = documentNumber.filter { !$0.isWhitespace && $0 != "." && $0 != "-" }
+        // ⛔ `("0"..."9").contains($0)` IS NOT AN ASCII TEST, which is what the previous version used.
+        // A `Character` is a GRAPHEME, and that range comparison is lexicographic — so a keycap `5️⃣`
+        // or a digit with a combining accent sorts inside the range and passes. Twelve of those would
+        // enable Send, the server's ASCII-only `/^\d{12}$/` would 422, and one of the seller's five
+        // daily attempts would burn: exactly the failure this check exists to prevent.
+        return digits.count == 12 && digits.allSatisfy { $0.isASCII && $0.isNumber } ? digits : nil
+    }
+
     var canSubmit: Bool {
         guard documentPath != nil, selfiePath != nil, challengeCode != nil, !busy else { return false }
         // ⛔ REFUSE AN EXPIRED DOCUMENT HERE, NOT AT THE SERVER. The details screen already says "this
@@ -239,7 +268,13 @@ final class IdentityModel {
         // the worst version of this. (Tier B reads the date off the MRZ; tier A types it.)
         guard expiryProblem == nil else { return false }
         switch tier {
-        case .a: return !nameMissing && !documentNumber.isEmpty && !documentExpiry.isEmpty
+        // ⛔ NO EXPIRY REQUIRED, AND THE NUMBER MUST BE 12 DIGITS — both mirror the web form, and
+        // both were bugs here too. A CCCD issued to someone over 60 reads "Không thời hạn" (no expiry
+        // at all), so demanding one locked that entire cohort out while the server accepted them
+        // happily. And the server refuses a number that is not 12 digits AFTER the five-a-day limiter
+        // has already counted the request — so a dropped digit costs one of the seller's five daily
+        // attempts unless the client catches it first. That is what this does.
+        case .a: return !nameMissing && cccdDigits != nil
         case .b: return !nameMissing && mrzValid
         case nil: return false
         }
@@ -256,6 +291,10 @@ final class IdentityModel {
     /// carries the expiry with its own check digit, so read it from there when the field is empty.
     /// The passport number, from the typed field or from line 2 — see the note in `submit`.
     var effectivePassportNumber: String? {
+        // ⚠️ SEND THE NORMALISED DIGITS FOR A CCCD. The server strips separators itself, so the raw
+        // string also works — but the value that goes on the wire is the one hashed into the
+        // identity, and sending exactly what was validated removes any question of the two differing.
+        if tier == .a { return cccdDigits }
         if !documentNumber.isEmpty { return documentNumber }
         guard tier == .b, !mrzLine1.isEmpty, !mrzLine2.isEmpty else { return nil }
         return Mrz.parse(mrzLine1, mrzLine2).fields.passportNumber
@@ -294,8 +333,14 @@ final class IdentityModel {
         var bits: [String] = []
         if nameMissing { bits.append(L10n.tr("your name", "họ tên của bạn")) }
         if tier == .b, !mrzValid { bits.append(L10n.tr("the two machine-readable lines", "hai dòng mã máy đọc")) }
-        if tier == .a, documentNumber.isEmpty { bits.append(L10n.tr("your document number", "số giấy tờ")) }
-        if tier == .a, documentExpiry.isEmpty { bits.append(L10n.tr("the expiry date", "ngày hết hạn")) }
+        if tier == .a, documentNumber.isEmpty {
+            bits.append(L10n.tr("your document number", "số giấy tờ"))
+        } else if tier == .a, cccdDigits == nil {
+            bits.append(L10n.tr("a 12-digit CCCD number", "số CCCD gồm 12 chữ số"))
+        }
+        // ⛔ NO EXPIRY LINE FOR A CCCD. `canSubmit` stopped requiring one (a card issued over 60 reads
+        // "Không thời hạn"), and leaving this behind told that seller "we still need the expiry date"
+        // beside an ENABLED Send — inviting them to invent a date their card does not carry.
         guard !bits.isEmpty else { return nil }
         return L10n.tr("To send this we still need ", "Để gửi được, chúng tôi vẫn cần ") + bits.joined(separator: ", ")
     }
@@ -339,8 +384,18 @@ final class IdentityModel {
             // every answer — so retrying the same submit only hits `no_challenge` and re-uploading
             // 403s. Reset to the start; the next attempt issues a fresh code.
             let outcome = Self.outcome(for: e.code)
-            reset()
-            if outcome.terminal { terminal = outcome.message } else { error = outcome.message }
+            // ⛔ DO NOT WIPE THE FORM FOR A REFUSAL THE SELLER CAN SIMPLY CORRECT. `reset()` clears the
+            // tier, BOTH uploaded photographs and every typed field — the right answer when the
+            // challenge is spent, and a punishing one for a mistyped CCCD number: the server refuses
+            // that BEFORE consuming the challenge, so nothing is actually spent, yet resetting made
+            // them photograph their card and their face again over one wrong digit. The web marks the
+            // same code resumable. Reset only when the attempt genuinely cannot be continued.
+            if Self.resumable(e.code) {
+                error = outcome.message
+            } else {
+                reset()
+                if outcome.terminal { terminal = outcome.message } else { error = outcome.message }
+            }
         } catch {
             // ⛔ A DROPPED CONNECTION IS THE AMBIGUOUS CASE, AND IT MUST RESET TOO. The server may
             // have accepted the submission and only the reply was lost — the challenge is spent
@@ -387,6 +442,12 @@ final class IdentityModel {
         case "rate_limited":
             return (L10n.tr("You have reached the limit of five verification attempts a day. Please try again tomorrow.",
                             "Bạn đã đạt giới hạn năm lần gửi xác minh mỗi ngày. Vui lòng thử lại vào ngày mai."), true)
+        case "document_number_invalid":
+            // ⚠️ NAMES THE FIELD, NOT THE CAMERA. The server gained its own code for this precisely so
+            // it would stop arriving as `document_unreadable`, whose copy tells the seller to
+            // photograph the card again — useless advice about a number they TYPED.
+            return (L10n.tr("That CCCD number does not look right — it should be the 12 digits printed on your card. Please check it and send again.",
+                            "Số CCCD chưa đúng — cần đủ 12 chữ số như in trên thẻ. Vui lòng kiểm tra và gửi lại."), false)
         case "document_unreadable":
             return (L10n.tr("We could not read the details, so we cleared the form. Start again and photograph the page so the two lines at the bottom are sharp and fully in frame.",
                             "Không đọc được thông tin nên chúng tôi đã xóa biểu mẫu. Hãy bắt đầu lại và chụp sao cho hai dòng mã ở dưới rõ nét và nằm trọn trong khung."), false)

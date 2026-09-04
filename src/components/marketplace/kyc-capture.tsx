@@ -179,6 +179,18 @@ export function KycCapture({
   useEffect(() => () => { if (shot) URL.revokeObjectURL(shot.url) }, [shot])
 
 
+  /** Drop the captured frame and release its blob URL.
+   *  ⚠️ THE FUNCTIONAL UPDATER IS DELIBERATE, and so is the side effect inside it. Reading `shot`
+   *  directly would put it in this callback's deps and then in `start()`'s, re-creating the camera
+   *  starter every time a photo is taken. `URL.revokeObjectURL` is idempotent, so the one cost of an
+   *  impure updater — StrictMode invoking it twice — is a no-op here. */
+  const clearShot = useCallback(() => {
+    setShot((prev) => {
+      if (prev) URL.revokeObjectURL(prev.url)
+      return null
+    })
+  }, [])
+
   const start = useCallback(async () => {
     setError(null)
     setQualityHint(null)
@@ -188,6 +200,11 @@ export function KycCapture({
     // camera there and works. The mandatory fallback is the single biggest audience risk (research).
     if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia) {
       setCameraBlocked(true)
+      // ⛔ DROP ANY PREVIOUS FRAME ON THE WAY TO IDLE. `retake()` clears `shot`; these two
+      // camera-failure routes did not, so the last document's photo (and its blob URL) stayed alive
+      // behind the file-picker fallback. The render allow-list stops it being DISPLAYED, but a leaked
+      // object URL and a stale frame one predicate away from visible is the same bug waiting.
+      clearShot()
       setPhase('idle')
       return
     }
@@ -287,6 +304,7 @@ export function KycCapture({
         // Denied, unavailable, in-app webview, or a retry that still failed. The distinction does not
         // change what the seller should do next, so do not make them read about it.
         setCameraBlocked(true)
+        clearShot()   // see the note on the other camera-failure route
         setPhase('idle')
         return
       }
@@ -634,6 +652,31 @@ export function KycCapture({
     ? tr('Your document photo', 'Ảnh giấy tờ của bạn')
     : tr('Your selfie', 'Ảnh chân dung của bạn'))
 
+  // ⛔ THE CAPTURED FRAME OWNS THE BOX FOR EVERY PHASE AFTER THE SHUTTER — review, uploading AND done.
+  // This was `phase === 'review' && shot` at THREE separate sites (the container's classes, its inline
+  // aspectRatio, and the img-vs-video branch), and `upload()` sets 'uploading' BEFORE the fetch while
+  // `shot` is still set — so all three flipped to the LIVE branch at the same instant: the <img>
+  // unmounted, the box snapped back to the live 3:4 portrait aspect, and a fresh <video> mounted
+  // `invisible` with NO srcObject (stopStream already ran at capture). `bg-black` was then the only
+  // thing painting. MEASURED at 390×844: a 324×228 landscape passport preview replaced by a 324×432
+  // SOLID BLACK slab — 1.9× taller than the photo it replaced — for the entire upload, and it persists
+  // through 'done' for any consumer that does not immediately advance the step. That is the "black
+  // bars on the passport capture screen".
+  //
+  // ⚠️ IT WAS NOT LETTERBOXING, which is the obvious-looking explanation and was measured and REFUTED:
+  // this container has NO `w-*`, so its width is automatic and `max-h-[62svh]` transfers back through
+  // `aspect-ratio` and shrinks the WIDTH — box ratio always equals shot ratio, bars 0.0px, in both
+  // Chromium and WebKit. The trap documented for the guide frame below is real but needs a DEFINITE
+  // width, which this box does not have. So do NOT "fix" this by removing that max-h.
+  //
+  // ONE predicate for all three sites: the bug was that they could disagree with what is mounted.
+  // ⚠️ AN ALLOW-LIST, NOT A DENY-LIST, and that distinction is the fix for a second bug. Written as
+  // `phase !== 'live' && phase !== 'starting'` it also rendered the photo during 'idle' — and `start()`
+  // drops to 'idle' when the camera is blocked or denied (two routes, neither of which clears `shot`),
+  // so a seller whose camera failed would be shown the PREVIOUS document's photo above the
+  // file-picker fallback, with no video mounted. Only these three phases actually hold a shot.
+  const showingShot = !!shot && (phase === 'review' || phase === 'uploading' || phase === 'done')
+
   return (
     <div className={cn('space-y-3', className)}>
       {/* ⚠️ TALLER ON MOBILE (3:4), 4:3 on desktop — the owner rejected the short 4:3 box on a phone as
@@ -642,18 +685,18 @@ export function KycCapture({
           62svh so the shutter stays on-screen. */}
       <div
         className={cn(
-          'relative overflow-hidden rounded-xl border bg-black',
+          'relative overflow-hidden rounded-xl border',
           // The LIVE box is a fixed portrait/landscape frame to compose against; the REVIEW box is
           // whatever was actually captured, so `object-contain` has nothing left to letterbox.
-          phase === 'review' && shot ? 'max-h-[62svh] sm:max-h-none' : 'aspect-[3/4] max-h-[62svh] sm:aspect-[4/3] sm:max-h-none',
+          showingShot ? 'max-h-[62svh] sm:max-h-none' : 'aspect-[3/4] max-h-[62svh] bg-black sm:aspect-[4/3] sm:max-h-none',
         )}
-        style={phase === 'review' && shot ? { aspectRatio: `${shot.w} / ${shot.h}` } : undefined}
+        style={showingShot && shot ? { aspectRatio: `${shot.w} / ${shot.h}` } : undefined}
       >
-        {phase === 'review' && shot ? (
+        {showingShot && shot ? (
           // A plain <img>, deliberately: the src is a blob: URL for a frame that exists only in
           // this tab, so next/image has nothing to optimise and would add a round trip to the
           // optimizer for bytes it cannot fetch. object-contain so a cropped document is shown whole.
-          <img src={shot.url} alt={effAlt} className="absolute inset-0 size-full bg-black object-contain" />
+          <img src={shot.url} alt={effAlt} className="absolute inset-0 size-full object-contain" />
         ) : (
           <video
             ref={videoRef}

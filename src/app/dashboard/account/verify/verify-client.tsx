@@ -86,6 +86,12 @@ function missingFieldsHint(
  * tier_mismatch) describe a client bug or a probe, not anything a seller can act on; they keep the
  * generic "start again", which for those is the correct advice.
  */
+/** Refusals the server returns BEFORE consuming the challenge, so the attempt is still alive and
+ *  `resetAttempt()` must NOT run — it would clear a valid challenge and both uploaded photographs
+ *  over something the seller can fix in the field in front of them. ⚠️ Only codes checked ahead of
+ *  `consumeChallenge` belong here; everything else really has spent the code. */
+const KEEPS_THE_ATTEMPT = new Set(['document_number_invalid'])
+
 const SUBMIT_OUTCOMES: Record<string, { en: string; vi: string; enA?: string; viA?: string; terminal?: boolean; resumable?: boolean }> = {
   already_pending: {
     terminal: true,
@@ -112,6 +118,14 @@ const SUBMIT_OUTCOMES: Record<string, { en: string; vi: string; enA?: string; vi
     terminal: true,
     en: 'You have reached the limit of five verification attempts a day. Please try again tomorrow — your photographs were not the problem.',
     vi: 'Bạn đã đạt giới hạn năm lần gửi xác minh mỗi ngày. Vui lòng thử lại vào ngày mai — ảnh của bạn không phải là vấn đề.',
+  },
+  document_number_invalid: {
+    // ⚠️ NAMES THE FIELD, NOT THE CAMERA. This used to arrive as `document_unreadable`, whose copy
+    // says "photograph the card again" — for a number the seller TYPED. The web form now blocks this
+    // before submit, so reaching here means another client; say something actionable anyway.
+    en: 'That CCCD number does not look right — it should be the 12 digits printed on your card. Please check it and send again.',
+    vi: 'Số CCCD chưa đúng — cần đủ 12 chữ số như in trên thẻ. Vui lòng kiểm tra và gửi lại.',
+    resumable: true,
   },
   document_unreadable: {
     en: 'We could not read the details from what was sent, so we cleared the form. Start again and photograph the data page so the two lines of code across the bottom are sharp and completely inside the frame.',
@@ -655,10 +669,15 @@ export function VerifyClient() {
       // shows "please wait a moment" on a 429.)
       const body = (await r.clone().json().catch(() => ({}))) as { ok?: boolean; error?: string }
       if (!r.ok || body.ok === false) {
-        // ⚠️ THE FORM IS CLEARED WHATEVER THE CODE, and that is mechanical, not editorial:
+        // ⚠️ THE FORM IS CLEARED FOR ALMOST EVERY CODE, and that is mechanical, not editorial:
         // `consumeChallenge` BURNS the code on every answer, so re-sending only ever hits
         // `challenge_missing` and re-uploading 403s. What differs is what the seller is TOLD.
-        resetAttempt()
+        // ⛔ THE EXCEPTION IS A REFUSAL THAT COST NOTHING. A malformed CCCD number is checked BEFORE
+        // the challenge is consumed, so the attempt is still alive — clearing it would throw away a
+        // valid challenge and both photographs over a digit the seller can fix in the field in front
+        // of them. This form blocks that number ahead of the network call, so the branch is a
+        // backstop; it exists because the client check is not the guarantee, the server's ordering is.
+        if (!body.error || !KEEPS_THE_ATTEMPT.has(body.error)) resetAttempt()
         // ⛔ AND THE PREFLIGHT IS NOW STALE. `existingCase` was read when the page loaded; a reply that
         // landed while the seller worked would, the moment resetAttempt() clears the challenge, render
         // its "you already have a verification, nothing to send again" panel OVER the refusal they
@@ -780,8 +799,18 @@ export function VerifyClient() {
   // carries no given name — requiring both permanently locked them out of submit (agy, 2026-09-02). This
   // still blocks a fully nameless read (both empty), which is the case that mattered.
   const nameMissing = !surname.trim() && !givenNames.trim()
+  // ⛔ THE CCCD NUMBER IS CHECKED HERE, BEFORE ANY ATTEMPT IS SPENT. The server refuses a number that
+  // is not 12 digits — but it refuses it AFTER consuming the single-use consent challenge and one of
+  // the seller's five daily submissions, with copy that says "photograph the card again" for a field
+  // they TYPED. One dropped digit would cost an attempt, five typos would lock them out for the day.
+  // A format this simple belongs in front of the button, not behind the network call.
+  const cccdDigits = documentNumber.replace(/[\s.-]/g, '')
+  const cccdNumberBad = tier === 'A' && cccdDigits.length > 0 && !/^\d{12}$/.test(cccdDigits)
+  // ⚠️ NO EXPIRY REQUIRED FOR A CCCD. A card issued to someone over 60 reads "Không thời hạn" — no
+  // expiry at all — and the server stores null for it. Requiring one here locked that entire cohort
+  // out of verification while the server was perfectly willing to accept them.
   const detailsIncomplete = tier === 'A'
-    ? (!surname.trim() || !givenNames.trim() || !documentNumber.trim() || !documentExpiry)
+    ? (!surname.trim() || !givenNames.trim() || !cccdDigits || cccdNumberBad)
     : (!mrzValid || nameMissing)
 
   /**
@@ -870,8 +899,8 @@ export function VerifyClient() {
       // of the two staring at a disabled button with a sentence that looks already satisfied (codex).
       if (!surname.trim()) bits.push(tr('your surname', 'họ của bạn'))
       if (!givenNames.trim()) bits.push(tr('your given names', 'tên của bạn'))
-      if (!documentNumber.trim()) bits.push(tr('your CCCD number', 'số CCCD của bạn'))
-      if (!documentExpiry) bits.push(tr('the expiry date', 'ngày hết hạn'))
+      if (!cccdDigits) bits.push(tr('your CCCD number', 'số CCCD của bạn'))
+      else if (cccdNumberBad) bits.push(tr('a 12-digit CCCD number', 'số CCCD gồm 12 chữ số'))
     } else {
       if (nameMissing) bits.push(tr('your name as printed on the passport', 'họ tên như in trên hộ chiếu'))
       if (!mrzValid) bits.push(tr('the two machine-readable lines below', 'hai dòng mã máy đọc bên dưới'))

@@ -236,3 +236,133 @@ describe('submitKycForReview', () => {
     expect(h.s.consumed).toBe(1)
   })
 })
+
+describe('tier A (CCCD) — a Vietnamese national ID has no MRZ', () => {
+  // ⛔ EVERY TIER-A SUBMISSION WAS REFUSED, ALWAYS. `readDocument` returned null without two MRZ
+  // lines, and the client correctly sends none for a CCCD — so a Vietnamese seller met
+  // `document_unreadable` ("photograph the card again") no matter how good their photo was, and
+  // retried into the same certain refusal, spending a single-use challenge each time. Measured on
+  // 2026-09-04: `identity_verifications` held ZERO rows in production.
+  const tierA = (over: Record<string, unknown> = {}) => ({
+    tier: 'A' as const,
+    challengeCode: 'ACD349',
+    documentPath: `p1/identity/document-${UUID}.jpg`,
+    selfiePath: `p1/identity/selfie-${UUID}.jpg`,
+    surname: 'NGUYEN', givenNames: 'VAN A',
+    passportNumber: '079123456789',
+    documentExpiry: '2035-01-01',
+    consentVersion: 'v1',
+    ...over,
+  })
+
+  it('writes a pending row', async () => {
+    const r = await submitKycForReview('p1', 'Nguyen Van A', tierA(), NOW)
+    expect(r.ok).toBe(true)
+    expect(h.s.created).toHaveLength(1)
+    expect(h.s.created[0]!.tier).toBe('A')
+  })
+
+  it('records the method as a manual CCCD read, never as an MRZ one', async () => {
+    // ⚠️ A false statement about our OWN procedure in a compliance record is the thing to avoid.
+    await submitKycForReview('p1', 'Nguyen Van A', tierA(), NOW)
+    expect(h.s.created[0]!.method).toBe('cccd_manual')
+  })
+
+  it('still needs a number and a name — a blank form is not a submission', async () => {
+    // ⚠️ TWO DIFFERENT CODES, and the difference is the point: a missing NUMBER is a number problem
+    // (fix the field), a missing NAME with a good number is a document problem (the read gave us
+    // nothing). Collapsing both into "photograph the card again" is what made this form unusable.
+    const a = await submitKycForReview('p1', 'Nguyen Van A', tierA({ passportNumber: undefined }), NOW)
+    expect(a).toMatchObject({ ok: false, code: 'document_number_invalid' })
+    const b = await submitKycForReview('p1', 'Nguyen Van A', tierA({ surname: undefined, givenNames: undefined }), NOW)
+    expect(b).toMatchObject({ ok: false, code: 'document_unreadable' })
+    expect(h.s.created).toHaveLength(0)
+  })
+
+  it('records the nationality as VNM whatever the client claims', async () => {
+    // A CCCD is issued only to Vietnamese citizens; 'USA' on a cccd_manual row is a false statement.
+    await submitKycForReview('p1', 'Nguyen Van A', tierA({ nationality: 'USA' }), NOW)
+    expect(h.s.created[0]!.nationality).toBe('VNM')
+  })
+
+  it('accepts a CCCD with no expiry — holders over 60 have none', async () => {
+    // ⛔ "Không thời hạn". A CCCD issued to someone over 60 carries no expiry date at all; requiring
+    // one would refuse that entire cohort. The row stores null and the reviewer decides.
+    const r = await submitKycForReview('p1', 'Nguyen Van A', tierA({ documentExpiry: undefined }), NOW)
+    expect(r.ok).toBe(true)
+    expect(h.s.created[0]!.documentExpiresAt).toBeNull()
+  })
+
+  it('refuses a number that is not 12 digits, with its OWN code', async () => {
+    // ⚠️ Without a checksum, FORMAT is the only machine check available — and accepting any non-empty
+    // string files a mistyped phone number as a national ID for a human to catch days later.
+    // ⛔ NOT `document_unreadable`: that code's copy says "photograph the card again", which is
+    // useless advice about a number the seller TYPED.
+    for (const bad of ['0912345678', 'ABC123456789', '12345', '079123456789012', '123456789']) {
+      const r = await submitKycForReview('p1', 'Nguyen Van A', tierA({ passportNumber: bad }), NOW)
+      expect(r, bad).toMatchObject({ ok: false, code: 'document_number_invalid' })
+    }
+    expect(h.s.created).toHaveLength(0)
+  })
+
+  it('does NOT spend the challenge on a mistyped number', async () => {
+    // ⛔ THE WHOLE POINT OF CHECKING THE SHAPE FIRST. Every other refusal deliberately sits behind
+    // challenge consumption so a probe costs the attacker a code — but a dropped digit is not a
+    // probe. This reads only the caller's own input, so it leaks nothing.
+    // ⚠️ THE DAILY ATTEMPT IS STILL SPENT: the five-a-day limiter is a route wrapper that counts the
+    // request before this function is reached. Only a client-side check prevents that, which is why
+    // both clients also validate the shape.
+    await submitKycForReview('p1', 'Nguyen Van A', tierA({ passportNumber: '12345' }), NOW)
+    expect(h.s.consumed).toBe(0)
+  })
+
+  it('still spends it on a well-formed submission', async () => {
+    await submitKycForReview('p1', 'Nguyen Van A', tierA(), NOW)
+    expect(h.s.consumed).toBe(1)
+  })
+
+  it('normalises the spacing before storing, so one card is one identity', async () => {
+    // ⛔ ASSERT THE STORED VALUE, NOT JUST `ok`. `subjectHash` is what detects "same human, second
+    // account", and it is computed from the number this function returns — so if `079123456789` and
+    // `079-123-456-789` reached it differently, one card would verify several seller accounts on a
+    // site that publishes trust scores.
+    // ⚠️ ASSERT THE HASH, NOT THE NAME. A first version of this test compared `fullName`, which is
+    // identical for all three inputs whatever the number does — it would have passed with the bug
+    // fully present. The subjectHash is the value that actually decides "same human".
+    const hashes = new Set<string>()
+    for (const good of ['079123456789', '079 123 456 789', '079-123-456-789']) {
+      h.s.created = []
+      const r = await submitKycForReview('p1', 'Nguyen Van A', tierA({ passportNumber: good }), NOW)
+      expect(r.ok, good).toBe(true)
+      hashes.add(h.s.created[0]!.subjectHash as string)
+    }
+    expect(hashes.size, 'one card must produce exactly one identity').toBe(1)
+  })
+
+  it('a DIFFERENT card produces a different identity', async () => {
+    // The control for the test above: if the hash were constant, that test would pass vacuously too.
+    const one = await submitKycForReview('p1', 'Nguyen Van A', tierA(), NOW)
+    expect(one.ok).toBe(true)
+    const first = h.s.created[0]!.subjectHash
+    h.s.created = []
+    await submitKycForReview('p1', 'Nguyen Van A', tierA({ passportNumber: '079999999999' }), NOW)
+    expect(h.s.created[0]!.subjectHash).not.toBe(first)
+  })
+
+  it('still refuses a tier A claim that carries MRZ lines', async () => {
+    // ⛔ THE SELF-CONTRADICTING SUBMISSION stays closed: MRZ lines exist only on a passport, so a
+    // CCCD claim carrying them is a mismatch, not a document. (The remaining hole — a passport filed
+    // as tier A with the MRZ simply omitted — is closed by the human reviewer, who is shown both the
+    // document and the claimed tier. The service's own comment says so.)
+    const r = await submitKycForReview('p1', 'Nguyen Van A', tierA({ mrzLine1: MRZ.line1, mrzLine2: MRZ.line2 }), NOW)
+    expect(r).toMatchObject({ ok: false, code: 'tier_mismatch' })
+    expect(h.s.created).toHaveLength(0)
+  })
+
+  it('leaves tier B requiring its MRZ', async () => {
+    // The rule that made tier A impossible is correct FOR PASSPORTS and must not be relaxed.
+    const r = await submitKycForReview('p1', 'Anna Maria Eriksson', input({ mrzLine1: undefined, mrzLine2: undefined }), NOW)
+    expect(r).toMatchObject({ ok: false, code: 'document_unreadable' })
+    expect(h.s.created).toHaveLength(0)
+  })
+})

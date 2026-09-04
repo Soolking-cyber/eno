@@ -306,3 +306,112 @@ struct MrzYearReadingTests {
         #expect(parsed?.hasPrefix("2026") == false)
     }
 }
+
+@Suite("Tier A CCCD number")
+@MainActor
+struct CccdNumberTests {
+    private func model(_ n: String) -> IdentityModel {
+        let m = IdentityModel(); m.tier = .a; m.documentNumber = n
+        m.surname = "NGUYEN"; m.givenNames = "VAN A"
+        return m
+    }
+
+    // ⛔ THE SERVER REFUSES A NON-12-DIGIT NUMBER *AFTER* THE FIVE-A-DAY LIMITER HAS COUNTED THE
+    // REQUEST, so a dropped digit costs one of the seller's five daily attempts unless the client
+    // catches it first. Same rule as the web form and `cccdDigits` in src/lib/kyc/service.ts.
+    @Test func acceptsTwelveDigitsHoweverItIsSpaced() {
+        #expect(model("079123456789").cccdDigits == "079123456789")
+        #expect(model("079 123 456 789").cccdDigits == "079123456789")
+        #expect(model("079-123-456-789").cccdDigits == "079123456789")
+    }
+
+    @Test func refusesAnythingElse() {
+        // A phone number, the legacy 9-digit CMND, letters, and one digit too many.
+        for bad in ["0912345678", "123456789", "ABC123456789", "079123456789012", ""] {
+            #expect(model(bad).cccdDigits == nil, "should refuse \(bad)")
+        }
+    }
+
+    // ⛔ A CCCD ISSUED TO SOMEONE OVER 60 READS "Không thời hạn" — no expiry at all. Requiring one
+    // locked that entire cohort out of verification while the server accepted them happily.
+    @Test func doesNotRequireAnExpiry() {
+        let m = model("079123456789")
+        #expect(m.documentExpiry.isEmpty)
+        #expect(m.canSubmit == false)   // still needs the photographs
+        m.documentPath = "p/doc.jpg"; m.selfiePath = "p/selfie.jpg"; m.challengeCode = "ABC123"
+        #expect(m.canSubmit)            // …but NOT an expiry date
+    }
+}
+
+@Suite("Tier A blocked reason")
+@MainActor
+struct CccdBlockedReasonTests {
+    /// ⚠️ BOTH PHOTOGRAPHS MUST BE SET. `blockedReason` returns nil until they are — so a fixture
+    /// without them yields nil for the WRONG reason and asserts nothing. The first version of these
+    /// tests did exactly that and passed vacuously.
+    private func ready(_ number: String) -> IdentityModel {
+        let m = IdentityModel()
+        m.tier = .a; m.surname = "NGUYEN"; m.givenNames = "VAN A"
+        m.documentNumber = number
+        m.documentPath = "p/doc.jpg"; m.selfiePath = "p/selfie.jpg"; m.challengeCode = "ABC123"
+        return m
+    }
+
+    // ⛔ THE REASON MUST AGREE WITH THE BUTTON. `canSubmit` stopped requiring an expiry for a CCCD
+    // (over-60 cards read "Không thời hạn"), and a stale line in the reason builder then told that
+    // seller "we still need the expiry date" beside an ENABLED Send — inviting them to invent a date
+    // their card does not carry.
+    @Test func neverAsksForAnExpiryOnACccd() {
+        let m = ready("079123456789")
+        #expect(m.documentExpiry.isEmpty)
+        #expect(m.canSubmit)                 // the button is enabled…
+        #expect(m.blockedReason == nil)      // …so there is nothing left to ask for
+    }
+
+    @Test func namesTheDigitCountWhenTheNumberIsWrong() {
+        let m = ready("12345")
+        #expect(!m.canSubmit)
+        #expect(m.blockedReason?.contains("12") == true)
+    }
+
+    // ⚠️ `Character.isNumber` accepts full-width and Arabic-Indic digits; the server's rule is
+    // ASCII-only, so accepting them here would pass the client and burn a daily attempt on the 422.
+    @Test func refusesNonAsciiDigits() {
+        #expect(ready("０７９１２３４５６７８９").cccdDigits == nil)   // full-width, twelve of them
+        // ⛔ THE GRAPHEME CASE, which a `("0"..."9").contains` range test lets through: a keycap and a
+        // digit carrying a combining accent are each ONE Character that sorts inside the range.
+        #expect(ready(String(repeating: "5️⃣", count: 12)).cccdDigits == nil)
+        #expect(ready(String(repeating: "5\u{0301}", count: 12)).cccdDigits == nil)
+        #expect(ready("٠٧٩١٢٣٤٥٦٧٨٩").cccdDigits == nil)          // Arabic-Indic
+        // ⚠️ A non-breaking space is whitespace to the server's `\s`; the client must agree or it
+        // refuses a pasted number the server would have taken.
+        #expect(ready("079\u{00A0}123\u{00A0}456\u{00A0}789").cccdDigits == "079123456789")
+        #expect(ready("079123456789").cccdDigits == "079123456789")
+    }
+}
+
+@Suite("Tier A payload")
+@MainActor
+struct CccdPayloadTests {
+    // ⛔ TIER A HAS NEVER SUCCEEDED END TO END — production holds zero identity rows — so this
+    // mapping has never once been exercised against the real server. The server validates
+    // `passportNumber`; if the client omitted it for tier A, every correct CCCD would come back
+    // `document_number_invalid` and burn one of five daily attempts per try.
+    @Test func sendsTheNormalisedNumberAsPassportNumber() {
+        let m = IdentityModel()
+        m.tier = .a
+        m.documentNumber = "079 123 456 789"
+        #expect(m.effectivePassportNumber == "079123456789")
+    }
+
+    @Test func sendsNothingWhenTheNumberIsNotACccd() {
+        let m = IdentityModel(); m.tier = .a; m.documentNumber = "12345"
+        #expect(m.effectivePassportNumber == nil)
+    }
+
+    @Test func leavesTierBAlone() {
+        // Tier B still reads the typed field, then falls back to the MRZ — unchanged.
+        let m = IdentityModel(); m.tier = .b; m.documentNumber = "X1234567"
+        #expect(m.effectivePassportNumber == "X1234567")
+    }
+}

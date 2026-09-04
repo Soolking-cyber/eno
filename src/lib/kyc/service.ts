@@ -55,6 +55,9 @@ export type KycSubmitResult =
 
 export type KycSubmitError =
   | 'challenge_missing' | 'challenge_expired' | 'challenge_mismatch'
+  /** The typed ID number is not the right shape. ⚠️ DISTINCT FROM `document_unreadable`, which tells
+   *  the seller to photograph the card again — useless advice about a field they TYPED. */
+  | 'document_number_invalid'
   | 'path_not_owned'
   | 'identity_hashing_unavailable'
   | 'document_unreadable'
@@ -80,7 +83,61 @@ export type KycSubmitError =
  * seller's claim about their own document, which is exactly what verification is supposed to test.
  * The hand-entered fields survive only as a cross-check the reviewer can compare against.
  */
+/** A Vietnamese CCCD is 12 digits (docs/compliance-2026.md:432). Nothing here has ever handled the
+ *  9-digit CMND it replaced. Spaces, dots and dashes are how people write it, not part of it. */
+export function cccdDigits(raw: string | undefined | null): string | null {
+  const digits = (raw ?? '').replace(/[\s.-]/g, '')
+  return /^\d{12}$/.test(digits) ? digits : null
+}
+
 function readDocument(input: KycSubmitInput) {
+  // ⛔ TIER A HAS NO MRZ, AND REQUIRING ONE MADE EVERY CCCD SUBMISSION IMPOSSIBLE. This function is
+  // the ONLY gate in front of the ONLY writer of `identity_verifications`, and it returned `null` for
+  // anything without two MRZ lines — so a Vietnamese seller's submission was refused with
+  // `document_unreadable` ("we could not read the details — photograph the card again") 100% of the
+  // time, however good their photograph was. They then retake and retry into the same certain
+  // refusal, spending a single-use consent challenge and one of five daily attempts on each loop.
+  // MEASURED 2026-09-04: `identity_verifications` holds ZERO rows in production — no identity
+  // submission has ever succeeded — and the tier A branch below `decideTierB` was written, tested and
+  // unreachable, sitting underneath a guard that had already killed the request.
+  //
+  // ⚠️ THE PARAGRAPH ABOVE IS ABOUT PASSPORTS AND IS STILL RIGHT. `verify-decision.ts` refuses a
+  // TIER B record with neither a valid MRZ nor a provider, so a hand-typed passport could only ever
+  // produce `rejected` — that is why tier B still requires the MRZ. `readReliably` there is gated on
+  // `isTierB`, so the same rule never applied to a national ID card and this is not a hole reopened.
+  //
+  // ⛔ A PASSPORT FILED AS TIER A WITH THE MRZ OMITTED IS STILL NOT CLOSED HERE, and the block at the
+  // tier check below says so in as many words: in v1 both tiers are decided by a HUMAN who is shown
+  // the document and the claimed tier. That is the control, unchanged by this branch.
+  if (input.tier === 'A') {
+    // ⚠️ THE NUMBER MUST LOOK LIKE AN ID NUMBER. Without a checksum to lean on (a CCCD has none we
+    // can verify), FORMAT is the only machine check available — and accepting any non-empty string
+    // files a mistyped phone number as a national ID for a reviewer to catch by eye days later.
+    // ⛔ TWELVE DIGITS ONLY. An earlier version of this line also accepted the 9-digit CMND "because
+    // holders still carry them" — invented, and contradicted by this repo's own compliance note that
+    // "Vietnam's CCCD is 12 digits" (docs/compliance-2026.md:432). Nothing in this codebase has ever
+    // handled a CMND. Accepting one would file a certain reviewer rejection as `pending` and spend
+    // the seller's daily attempt on it.
+    const digits = cccdDigits(input.passportNumber)
+    return {
+      surname: input.surname ?? '',
+      givenNames: input.givenNames ?? '',
+      // ⚠️ UNDEFINED IS A LEGITIMATE ANSWER HERE. A CCCD issued to someone over 60 reads
+      // "Không thời hạn" — no expiry at all — and the row stores `documentExpiresAt: null` for it.
+      // Requiring a date would refuse that entire cohort.
+      documentExpiry: input.documentExpiry,
+      // ⛔ ALWAYS 'VNM', NEVER THE CLIENT'S CLAIM. A CCCD is issued only to Vietnamese citizens, so
+      // storing 'USA' on a `cccd_manual` row would be exactly the false statement in a compliance
+      // record that the `method` field above is careful to avoid.
+      nationality: 'VNM',
+      documentNumber: digits ?? undefined,
+      // ⚠️ FALSE, AND HONESTLY SO. Nothing machine-checked this card; the reviewer is the check, and
+      // the compliance record must not claim otherwise. `decideTierB` returns `pending` for tier A
+      // with `mrzValid: false` (measured), which is exactly the state a human then resolves.
+      mrzValid: false,
+    }
+  }
+
   if (input.mrzLine1 && input.mrzLine2) {
     const mrz = parsePassportMrz(input.mrzLine1, input.mrzLine2)
     if (mrz.valid) {
@@ -106,6 +163,23 @@ export async function submitKycForReview(
   input: KycSubmitInput,
   now: Date = new Date(),
 ): Promise<KycSubmitResult> {
+  // 0. ⛔ THE ONE CHECK THAT MUST COME BEFORE THE CHALLENGE IS SPENT. Everything below deliberately
+  //    sits behind consumption so that probing it costs the attacker a code — but a seller who drops
+  //    a digit from their own CCCD number is not probing anything, and making them pay a single-use
+  //    challenge for a typo is how a form becomes unusable. This reads only the caller's OWN input,
+  //    so it leaks nothing and gives an attacker no oracle about anyone else.
+  //    ⚠️ IT SAVES THE CHALLENGE, NOT THE DAILY ATTEMPT — be precise, because the difference is the
+  //    seller's afternoon. The five-a-day limiter is a ROUTE wrapper
+  //    (`rateLimit: { bucket: 'identity-submit', limit: 5, window: '1 d' }`) and has already counted
+  //    the request before this function runs, so a malformed number still costs one of the five. The
+  //    only place that can be prevented is in front of the network call, which is why BOTH clients
+  //    check the shape too — this is the backstop for a client that does not.
+  //    ⚠️ SERVER-SIDE ON PURPOSE even though the web form now blocks it too — the native client
+  //    submits to this same route, and a guard that lives only in one client is not a guard.
+  if (input.tier === 'A' && !cccdDigits(input.passportNumber)) {
+    return { ok: false, code: 'document_number_invalid' }
+  }
+
   // 1. The challenge, FIRST and always consumed. Doing this before any other check means a probe
   //    of the other branches still costs the attacker their code.
   const challenge = await consumeChallenge(profileId, input.challengeCode, now)
