@@ -181,12 +181,32 @@ export function extractMrzFields(rawTexts: string[]): MrzFieldPool {
   const lines = rawTexts.flatMap((t) => t.split(/\r?\n/)).map(clean).filter((l) => l.length >= 20)
   const f: MrzFieldPool = {}
 
-  // Name line + issuing state (nationality) from line 1 — reliably read as `P<XXX…`.
-  const nameLine = lines.map((l) => (l.startsWith('P') ? (l + '<'.repeat(44)).slice(0, 44) : null)).find(Boolean)
-  if (nameLine) {
-    f.nameLine = nameLine
-    const nat = nameLine.slice(2, 5)
-    if (/^[A-Z]{3}$/.test(nat)) f.nationality = nat
+  // ── LINE 1 (the names) ──────────────────────────────────────────────────────────────────────
+  // ⛔ NOT `startsWith('P')` ALONE, WHICH THREW THE NAME AWAY ON ONE MISREAD CHARACTER. Measured on
+  // the owner's phone: variants read `P<TKMBABAKULYYEV<<SHANAZARK…` and `B<TKMBABAKULYYEV<<SHANAZARK…`
+  // — the SAME line, with the document-code `P` misread as `B` once. The old test accepted only the
+  // first, so a capture whose best line-1 read happened to flip that single glyph produced NO name
+  // line at all, the fused MRZ is name-less by design, and Surname/Given names came up empty on a scan
+  // the user was told had succeeded.
+  //
+  // The reliable signature of TD3 line 1 is not its first character — it is the `<<` that separates
+  // surname from given names, which line 2 never contains (line 2's filler is a single run at the
+  // end). So: prefer a line that starts with `P`, but fall back to any line carrying a `<<` with real
+  // letters around it and no long digit run (which would make it a line 2).
+  const looksLikeNameLine = (l: string) =>
+    l.includes('<<') && /[A-Z]{2,}<<[A-Z]/.test(l) && !/\d{6,}/.test(l)
+  const nameLine = (
+    lines.find((l) => l.startsWith('P') && looksLikeNameLine(l))
+    ?? lines.find((l) => l.startsWith('P'))
+    ?? lines.find(looksLikeNameLine)
+  )
+  const paddedNameLine = nameLine ? (nameLine + '<'.repeat(44)).slice(0, 44) : undefined
+  if (paddedNameLine) {
+    f.nameLine = paddedNameLine
+    // ⚠️ The issuing state is only trustworthy when the line really is `P<XXX…`; a salvaged line whose
+    // first character was misread would put the wrong 3 characters here.
+    const nat = paddedNameLine.slice(2, 5)
+    if (paddedNameLine.startsWith('P') && /^[A-Z]{3}$/.test(nat)) f.nationality = nat
   }
 
   // DOB + expiry, anchored on the sex character. ⚠️ An `M`/`F` is only the REAL sex position when the
@@ -270,7 +290,15 @@ export function mergeMrzPool(pool: MrzFieldPool, next: MrzFieldPool): MrzFieldPo
  * status as `f.surname` from a direct read, and equally overwritable by them.
  */
 export function namesFromNameLine(nameLine: string | undefined): { surname?: string; givenNames?: string } {
-  if (!nameLine || !nameLine.startsWith('P') || nameLine.length < 6) return {}
+  // ⛔ NOT GATED ON `startsWith('P')` — the same one-character misread that used to discard the whole
+  // name line would otherwise discard it again here. TD3 line 1 is `P<CCC` + SURNAME + `<<` + GIVEN,
+  // and the first five characters are the document code and issuing state whatever the OCR made of
+  // them, so the name always begins at index 5. What actually proves this is a name line is the `<<`.
+  // ⚠️ `<<` ALONE IS NOT ENOUGH — LINE 2 CONTAINS IT TOO, in its trailing filler run, and an existing
+  // test caught exactly that when this guard was first relaxed. Line 2 is distinguished by its long
+  // digit runs (the two YYMMDD dates and their check digits); line 1 has none.
+  if (!nameLine || nameLine.length < 8) return {}
+  if (!/[A-Z]{2,}<<[A-Z]/.test(nameLine) || /\d{6,}/.test(nameLine)) return {}
   // TD3 uses `<<` ONCE, between surname and given names; everything after is single-`<` filler. So the
   // first group is the surname and the second holds all given names — later groups are filler and the
   // OCR misreads that land in it (this capture's trailing `K` for a `<` is exactly that).

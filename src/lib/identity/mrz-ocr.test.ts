@@ -364,6 +364,29 @@ describe('multi-frame salvage (real 2026-09-02 webcam captures of a TKM passport
     }
   })
 
+  it('⛔ ONE MISREAD CHARACTER MUST NOT COST THE NAME — the 2026-09-04 on-device failure', async () => {
+    // Verbatim from the owner's phone: the SAME line 1, read once with the document code as `P` and
+    // once as `B`. The old code accepted a name line only when it started with `P`, so a capture whose
+    // best line-1 read flipped that single glyph produced no name line, the fused MRZ is name-less by
+    // design, and Surname/Given names came up EMPTY on a scan the user was told had succeeded —
+    // number and expiry filled, name blank. What identifies TD3 line 1 is the `<<`, not its first byte.
+    const line2 = 'A1944134<6TKM9407152M2708300LB00014670<<<<40'
+    const misread = [
+      `B<TKMBABAKULYYEV<<SHANAZARK<<<<<<<<<\n${line2}`,
+      `B<TKMBABAKULYYEV<<SHANAZARK<K<<<<<<S6666688885\n${line2}`,
+    ]
+    const pool = extractMrzFields(misread)
+    expect(pool.nameLine).toBeDefined()
+    expect(namesFromNameLine(pool.nameLine)).toEqual({ surname: 'BABAKULYYEV', givenNames: 'SHANAZARK' })
+    // ⚠️ …but the issuing state is NOT trusted off a line whose first character was misread.
+    expect(pool.nationality).toBeUndefined()
+
+    // End to end: the read still fuses, and the name is now recoverable from the pool.
+    const r = await readMrz({ width: 1200, height: 850 }, engineReturning(...misread))
+    expect(r.ok).toBe(true)
+    if (r.ok) expect(namesFromNameLine(r.pool.nameLine).surname).toBe('BABAKULYYEV')
+  })
+
   it('namesFromNameLine takes only the first `<<` group as given names', () => {
     // TD3 uses `<<` once; everything after the given names is filler, and OCR misreads land in it.
     expect(namesFromNameLine('P<NLDDE<VRIES<<SOPHIE<ANNA<<<<<<<<<<<<<<<<<<'))
