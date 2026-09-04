@@ -137,6 +137,37 @@ final class FeedModel {
         }
     }
 
+    /// Adopt a saved filter set. ⚠️ ASSIGNED THROUGH THE `didSet` PROPERTIES ON PURPOSE — each one
+    /// schedules a reload, and the debounce in `scheduleReload` collapses the burst into one fetch.
+    /// Bypassing them with a private backing store would leave the model showing the old results.
+    func apply(_ p: SavedSearchParams) {
+        category = p.category
+        subcategory = p.subcategory
+        brand = p.brand
+        model = p.model
+        query = p.q
+        condition = p.condition
+        priceMin = p.priceMin
+        priceMax = p.priceMax
+    }
+
+    /// The current filter set, in the shape the saved-search route normalises.
+    /// ⚠️ SORT IS DELIBERATELY ABSENT. `normalizeParams` does not keep it, so a saved search is a set
+    /// of FILTERS, not an ordering — including it here would suggest the app saved something the
+    /// server discards.
+    var savedSearchParams: SavedSearchParams {
+        SavedSearchParams(
+            category: category,
+            subcategory: subcategory,
+            brand: brand,
+            model: model,
+            q: query,
+            condition: condition,
+            priceMin: priceMin,
+            priceMax: priceMax,
+        )
+    }
+
     func loadMoreIfNeeded(current item: ListingCard) async {
         guard !isLoading, !exhausted,
               let idx = items.firstIndex(of: item), idx >= items.count - 6 else { return }

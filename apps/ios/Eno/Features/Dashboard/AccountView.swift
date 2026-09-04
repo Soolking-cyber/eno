@@ -174,6 +174,19 @@ struct AccountView: View {
                         Text(L10n.tr("My listings", "Tin đăng của tôi")).foregroundStyle(EnoColor.fg)
                     }
                 }
+                // ⚠️ SAVED SEARCHES ARE A BUYER FEATURE, and this account screen was all seller
+                // surfaces — listings, verification, disputes. A buyer who never posts anything had
+                // no reason to open it and no way to reach their alerts.
+                NavigationLink {
+                    SavedSearchesView()
+                } label: {
+                    HStack(spacing: 12) {
+                        Image(systemName: "bell.badge")
+                            .enoIcon(.sm, color: EnoColor.brand)
+                            .frame(width: 26)
+                        Text(L10n.tr("Saved searches", "Tìm kiếm đã lưu")).foregroundStyle(EnoColor.fg)
+                    }
+                }
                 // ⛔ IDENTITY VERIFICATION HAD NO NATIVE ENTRY POINT AT ALL — the legal gate a
                 // Vietnamese seller must pass before publishing (NĐ 248/2026) existed only on the
                 // web. The web surfaces it twice (a top-level Verification row in DASHBOARD_NAV,

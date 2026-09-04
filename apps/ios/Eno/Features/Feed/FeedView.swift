@@ -6,6 +6,9 @@ import EnoUI
 // Outstanding-businesses rail → per-category rails → latest-listings grid.
 // Native extras the web can't give: system pull-to-refresh + edge-swipe back.
 struct FeedView: View {
+    @State private var savedSearches = SavedSearchStore()
+    @State private var savedLabel: String?
+    @State private var saving = false
     @State private var feed = FeedModel()
     @State private var home = HomeModel()
     @State private var aiSheet = false
@@ -247,9 +250,65 @@ struct FeedView: View {
     // (the web's 'Latest listings' h2 is sr-only). The sort bar is kept as a small
     // native affordance since the grid IS the ranked feed here.
     private var latestHeading: some View {
-        SortBar(model: feed)
-            .padding(.top, 20)
-            .padding(.bottom, 8)
+        VStack(spacing: 0) {
+            SortBar(model: feed)
+            saveSearchBar
+        }
+        .padding(.top, 20)
+        .padding(.bottom, 8)
+        // ⛔ OUTSIDE THE `if !params.isEmpty`, and that is the whole point. Attached to the bar
+        // itself, clearing the filters UNMOUNTS the observer with `savedLabel` still set — so the
+        // next search re-mounts a fresh one that never fires, and the buyer sees "Saved Vehicles"
+        // with a checkmark and no Save button while looking at phones.
+        .onChange(of: feed.savedSearchParams) {
+            savedLabel = nil
+            savedSearches.error = nil
+        }
+    }
+
+    /// "Save this search" — offered only once the buyer has narrowed something down.
+    ///
+    /// ⛔ NEVER ON AN EMPTY FILTER SET. Saving one would mail the buyer every new listing on the
+    /// marketplace, which is the fastest possible way to have them turn alerts off for good — so the
+    /// control does not exist until there is a search worth saving. (`SavedSearchParams.isEmpty`.)
+    /// ⚠️ AND THE LABEL COMES BACK FROM THE SERVER, which derives it from the filters. Showing the
+    /// server's label in the confirmation means the toast names the same thing the list will.
+    @ViewBuilder
+    private var saveSearchBar: some View {
+        let params = feed.savedSearchParams
+        if !params.isEmpty {
+            HStack {
+                Spacer()
+                // ⛔ A REFUSAL MUST BE VISIBLE HERE. The 20-search cap is the one a real buyer hits,
+                // and the store sets `error` for it — but a failed save that says nothing looks
+                // exactly like a successful one that did not update, so the buyer taps again.
+                if let e = savedSearches.error {
+                    Text(e).enoText(.caption, color: EnoColor.danger)
+                        .multilineTextAlignment(.trailing).lineLimit(2)
+                } else if let saved = savedLabel {
+                    Label(L10n.tr("Saved \(saved)", "Đã lưu \(saved)"), systemImage: "checkmark")
+                        .enoText(.caption, color: EnoColor.success)
+                        .lineLimit(1)
+                } else {
+                    EnoButton(L10n.tr("Save search", "Lưu tìm kiếm"),
+                              icon: "bell.badge", variant: .text, size: .compact,
+                              loading: saving, fullWidth: false) {
+                        Task {
+                            saving = true
+                            let label = await savedSearches.save(params)
+                            saving = false
+                            // ⛔ THE FILTERS MAY HAVE MOVED WHILE THE POST WAS IN FLIGHT. `onChange`
+                            // clears the confirmation the moment they do — and then this completion
+                            // would write the OLD label back, leaving "Saved Vehicles ✓" over a
+                            // phones search with no Save button. Only confirm what is still on screen.
+                            guard params == feed.savedSearchParams else { return }
+                            savedLabel = label
+                        }
+                    }
+                }
+            }
+            .padding(.horizontal, 12)
+        }
     }
 
     @ViewBuilder

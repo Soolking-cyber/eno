@@ -34,3 +34,31 @@ public struct EnoToggle: View {
         .accessibilityHint(description ?? "")
     }
 }
+
+/// A switch with NO label of its own, for the trailing slot of a row that already has one.
+///
+/// ⛔ EXISTS SO THE CALL SITE DOES NOT HAVE TO HAND-ROLL A BARE `Toggle`. `EnoToggle` renders the
+/// whole row — label, description, switch — which is right for a settings list and wrong inside an
+/// `EnoListRowLabel` that already draws the title: two labels, or a raw `Toggle` and a design-lint
+/// violation. This is the same wrapper (native switch, brand tint) minus the label.
+///
+/// ⚠️ `accessibilityLabel` IS REQUIRED, not optional, and that is deliberate. A switch with no
+/// visible label of its own is invisible to VoiceOver — it would read as just "off, switch" beside a
+/// row title it has no relationship to — so the one thing this type cannot do is let a caller forget
+/// to name it.
+public struct EnoBareToggle: View {
+    private let isOn: Binding<Bool>
+    private let label: String
+
+    /// - Parameter label: what this switch controls, for VoiceOver. Never rendered.
+    public init(isOn: Binding<Bool>, label: String) {
+        self.isOn = isOn; self.label = label
+    }
+
+    public var body: some View {
+        Toggle("", isOn: isOn)
+            .labelsHidden()
+            .tint(EnoColor.brand)
+            .accessibilityLabel(label)
+    }
+}
